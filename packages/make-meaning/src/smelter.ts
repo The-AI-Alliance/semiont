@@ -41,7 +41,7 @@ import { burstBuffer, errField } from '@semiont/core';
 import type { Logger, Annotation, ResourceId, AnnotationId, ResourceDescriptor, IContentTransport, EventMap } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes, textExtractionOf } from '@semiont/core';
-import { calculateChecksum, EXTRACTORS } from '@semiont/content';
+import { anchoredTextStoreOverTransport, calculateChecksum, EXTRACTORS, type AnchoredTextStore } from '@semiont/content';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { ChunkingConfig } from '@semiont/core';
@@ -65,6 +65,9 @@ export interface ReconcileSummary {
   resourcesEmbedded: number;
   /** Tag-only drift healed by payload restamps — never embedding calls (S13). */
   resourcesRestamped: number;
+  /** Lost anchored-text artifacts re-derived by re-extraction — never
+   *  embedding calls (PERSIST-ANCHORS P0, the third drift class). */
+  resourcesReanchored: number;
   resourceVectorsDeleted: number;
   annotationsEmbedded: number;
   annotationVectorsDeleted: number;
@@ -100,7 +103,7 @@ export interface SmelterTiming {
  * lanes and batch paths serve both kinds of input.
  */
 export interface SmelterWorkItem {
-  type: 'smelt:embed' | 'smelt:restamp' | 'smelt:purge' | 'smelt:embed-annotation' | 'smelt:purge-annotation';
+  type: 'smelt:embed' | 'smelt:restamp' | 'smelt:reanchor' | 'smelt:purge' | 'smelt:embed-annotation' | 'smelt:purge-annotation';
   resourceId: string;
   payload: Record<string, unknown>;
 }
@@ -115,7 +118,7 @@ function sameStringSet(a: string[], b: string[]): boolean {
 export type SmelterInput = SmelterEvent | SmelterWorkItem;
 
 const WORK_ITEM_TYPES: ReadonlySet<string> = new Set<SmelterWorkItem['type']>([
-  'smelt:embed', 'smelt:restamp', 'smelt:purge', 'smelt:embed-annotation', 'smelt:purge-annotation',
+  'smelt:embed', 'smelt:restamp', 'smelt:reanchor', 'smelt:purge', 'smelt:embed-annotation', 'smelt:purge-annotation',
 ]);
 
 function isWorkItem(input: SmelterInput): input is SmelterWorkItem {
@@ -147,14 +150,25 @@ export class Smelter {
 
   private eventSubject = new Subject<SmelterInput>();
   private sourceSubscription: Subscription | null = null;
+  private commandSubscription: Subscription | null = null;
   private pipelineSubscription: Subscription | null = null;
   private _eventsProcessed = 0;
   private _reconcileState: ReconcileState = { phase: 'pending' };
   private workDone = 0;
+  private workFailed = 0;
   private workWaiter: { target: number; resolve: () => void } | null = null;
+  /**
+   * Serializes every planner drain (reconcile, anchored-text rebuilds):
+   * there is one waiter slot, and the weave:rebuild rule — rebuilds never
+   * interleave — applies to every unit here being a potential multi-second
+   * OCR pass.
+   */
+  private drainChain: Promise<void> = Promise.resolve();
 
   constructor(
     private events$: Observable<SmelterEvent>,
+    /** `smelt:rebuild-anchors` commands — a separate stream, never the event mailbox (see SmelterActorStateUnit). */
+    private rebuildAnchors$: Observable<EventMap['smelt:rebuild-anchors']>,
     private vectorStore: VectorStore,
     private embeddingProvider: EmbeddingProvider,
     private content: IContentTransport,
@@ -162,7 +176,15 @@ export class Smelter {
     private chunkingConfig: ChunkingConfig,
     private timing: SmelterTiming,
     private logger: Logger,
-  ) {}
+  ) {
+    // The extraction seam's view of the one real store, reached through the
+    // same transport this worker already holds (PERSIST-ANCHORS P2c) —
+    // best-effort by the store's contract; the re-anchor path bypasses it
+    // for its strict publish.
+    this.anchoredStore = anchoredTextStoreOverTransport(content, logger.child({ component: 'anchored-text-cache' }));
+  }
+
+  private readonly anchoredStore: AnchoredTextStore;
 
   get eventsProcessed(): number {
     return this._eventsProcessed;
@@ -193,7 +215,7 @@ export class Smelter {
             return from(
               withActorSpan('smelter', inputOrBatch.type, async () => {
                 const ok = await this.safeProcessEvent(inputOrBatch);
-                if (isWorkItem(inputOrBatch)) this.noteWorkDone(1);
+                if (isWorkItem(inputOrBatch)) this.noteWorkDone(1, ok ? 0 : 1);
                 else if (ok) this._eventsProcessed++;
               }),
             );
@@ -209,20 +231,31 @@ export class Smelter {
       this.eventSubject.next(event);
     });
 
+    // Commands serialize through concatMap (rebuilds never interleave);
+    // rebuildAnchors() never rejects, so the stream survives every outcome.
+    this.commandSubscription = this.rebuildAnchors$.pipe(
+      concatMap((command) => from(this.rebuildAnchors(command))),
+    ).subscribe({
+      error: (err) => this.logger.error('Smelter command pipeline error', { error: errField(err) }),
+    });
+
     this.logger.info('Smelter pipeline initialized');
   }
 
   stop(): void {
     this.sourceSubscription?.unsubscribe();
     this.sourceSubscription = null;
+    this.commandSubscription?.unsubscribe();
+    this.commandSubscription = null;
     this.pipelineSubscription?.unsubscribe();
     this.pipelineSubscription = null;
     this.eventSubject.complete();
     this.logger.info('Smelter stopped');
   }
 
-  private noteWorkDone(count: number): void {
+  private noteWorkDone(count: number, failed: number): void {
     this.workDone += count;
+    this.workFailed += failed;
     if (this.workWaiter && this.workDone >= this.workWaiter.target) {
       this.workWaiter.resolve();
       this.workWaiter = null;
@@ -237,12 +270,20 @@ export class Smelter {
     let wireProcessed = 0;
     for (const run of partitionByType(events)) {
       const workRun = isWorkItem(run[0]);
+      // Per-run success accounting. Exact on the sequential paths (single
+      // items and the applyBatchByType default case — which is where
+      // `smelt:reanchor` runs, so the rebuild command's partial-failure
+      // reply is exact); the embed batch paths count a run that returned
+      // as fully succeeded, with per-item skips logged where they happen.
+      let succeeded = 0;
       try {
         if (run.length === 1) {
           const ok = await this.safeProcessEvent(run[0]);
+          if (ok) succeeded = 1;
           if (ok && !workRun) wireProcessed++;
         } else {
           const processed = await this.applyBatchByType(run);
+          succeeded = processed;
           if (!workRun) wireProcessed += processed;
         }
       } catch (error) {
@@ -252,7 +293,7 @@ export class Smelter {
           error: errField(error),
         });
       } finally {
-        if (workRun) this.noteWorkDone(run.length);
+        if (workRun) this.noteWorkDone(run.length, run.length - succeeded);
       }
     }
     return wireProcessed;
@@ -327,6 +368,9 @@ export class Smelter {
       case 'smelt:restamp':
         await this.restampResource(event);
         break;
+      case 'smelt:reanchor':
+        await this.reanchorResource(event);
+        break;
       case 'smelt:purge':
         await this.handleResourcePurge(event);
         break;
@@ -353,6 +397,65 @@ export class Smelter {
     const entityTypes = await this.resolveEntityTypes(rid);
     await this.vectorStore.updateResourceEntityTypes(makeResourceId(rid), entityTypes);
     this.logger.info('Restamped resource entity types', { resourceId: rid, entityTypes });
+  }
+
+  /**
+   * Re-derive a lost anchored-text artifact from the resource's current
+   * bytes (PERSIST-ANCHORS P0, the third drift class). Extraction is the
+   * cost here — the vectors are already correct, so this NEVER calls the
+   * embedding provider, the vector store, or the settled signal: the index
+   * decision was already made and announced at its checksum; only the map
+   * is missing. Name the work for what it does (the S13 discipline).
+   *
+   * The publish is STRICT, unlike the embed path's best-effort side
+   * publish: here the artifact IS the job, so a store failure must throw —
+   * the pipeline logs and counts it, and the rebuild command's partial-
+   * failure accounting depends on that throw.
+   */
+  private async reanchorResource(event: SmelterInput): Promise<void> {
+    const rid = event.resourceId;
+    if (!rid) return;
+    const { data, contentType } = await this.content.getBinary(makeResourceId(rid));
+    const bytes = Buffer.from(data);
+    const extractor = EXTRACTORS[textExtractionOf(contentType)];
+    if (!extractor?.yieldsGeometry) {
+      // Planned from a catalog claim the bytes no longer match — nothing to
+      // derive is a decision, not a failure.
+      this.logger.info('Re-anchor found no geometry-capable extractor', { resourceId: rid, contentType });
+      return;
+    }
+    // The artifact's key is the checksum of the bytes just read (P1b) — never
+    // the catalog's claim, so a byte change racing this re-derivation files
+    // the map under the bytes it actually describes. The cache is passed so
+    // a racing rebuild's duplicate becomes a hit instead of a second OCR
+    // pass; on the ordinary miss the seam writes best-effort and the STRICT
+    // publish below is what the rebuild's failure accounting rides on.
+    const checksum = calculateChecksum(bytes);
+    const extracted = await extractor.extract(bytes, contentType, {
+      key: checksum,
+      store: this.anchoredStore,
+    });
+    if ('declined' in extracted || !extracted.items?.length) {
+      this.logger.info('Re-anchor extraction yielded no geometry', {
+        resourceId: rid,
+        contentType,
+        ...('declined' in extracted ? { declined: extracted.declined } : {}),
+      });
+      return;
+    }
+    // The whole outcome, provenance included — the stored record IS the
+    // extraction outcome (PERSIST-ANCHORS D1); narrowing to { text, items }
+    // here would strip method/pdfClass/ocrConfidence on every rebuild.
+    //
+    // STRICT, deliberately, and kept through P2c (the P2b flag's resolution):
+    // the seam above already wrote this outcome best-effort and silently —
+    // the store's rule — but here the artifact IS the job, and the rebuild
+    // command's partial-failure accounting needs a throw to count. The
+    // double-write is idempotent (same bytes, same STAMP, atomic rename ⇒
+    // byte-identical), so strictness costs one redundant write and buys an
+    // honest `smelt:rebuild-anchors-failed`.
+    await this.content.putAnchoredText(checksum, { ...extracted, items: extracted.items });
+    this.logger.info('Re-anchored resource', { resourceId: rid, checksum, items: extracted.items.length });
   }
 
   private async handleResourcePurge(event: SmelterInput): Promise<void> {
@@ -385,7 +488,16 @@ export class Smelter {
         this.logger.debug('Skipping resource with no extractor for its media type', { resourceId, contentType });
         return { kind: 'skipped', checksum, reason: 'no-extractor' };
       }
-      const extracted = await extractor.extract(bytes, contentType);
+      // The cache seam (PERSIST-ANCHORS P2c, decision C): extraction consults
+      // the artifact store for this exact byte content and, on a miss, the
+      // seam itself stores whatever it concluded — success with provenance,
+      // or the decline. The write moved INTO extract() with D1, which is why
+      // there is no publish call in this method anymore: exactly one place
+      // writes exactly one artifact, and this is not it.
+      const extracted = await extractor.extract(bytes, contentType, {
+        key: checksum,
+        store: this.anchoredStore,
+      });
       if ('declined' in extracted) {
         this.logger.debug('Extractor declined', { resourceId, contentType, reason: extracted.declined });
         return { kind: 'skipped', checksum, reason: extracted.declined };
@@ -401,28 +513,6 @@ export class Smelter {
           contentType,
           ...extracted.ocrConfidence,
         });
-      }
-      // Publish the coordinate map. This is the only process that reads the
-      // bytes at ingest, so it is the only one positioned to derive one
-      // cheaply — five detection jobs and the browser all arrive later and
-      // would each have to redo the decode and the engine. Only extractions
-      // that carry geometry produce one: text anchors by character offset, and
-      // an empty map on every text resource would be a record that says
-      // nothing. Failures are swallowed deliberately — the map is an
-      // optimization, the embedding is the job, and a storage problem must not
-      // turn a successful index into a skip that hides the resource from search.
-      if (extracted.items?.length) {
-        try {
-          await this.content.putAnchoredText(
-            makeResourceId(resourceId),
-            { text: extracted.text, items: extracted.items },
-          );
-        } catch (error) {
-          this.logger.debug('Could not publish anchored text', {
-            resourceId,
-            reason: error instanceof Error ? error.message : String(error),
-          });
-        }
       }
       if (extracted.unreadPages?.length) {
         // Partial coverage: this resource embeds, but semantic search cannot
@@ -721,32 +811,24 @@ export class Smelter {
     }
     this._reconcileState = { phase: 'running' };
     try {
-      const [indexedResources, indexedAnnotations] = await Promise.all([
+      const [indexedResources, indexedAnnotations, anchoredKeys] = await Promise.all([
         this.vectorStore.listResourceStamps(),
         this.vectorStore.listAnnotationIds(),
+        // The artifact store's would-hit keys — one bulk read, never a probe
+        // per resource (PERSIST-ANCHORS P0). Keys are resource ids today;
+        // P1 rekeys the store by content checksum and this lookup moves
+        // with it.
+        this.content.listAnchoredTextKeys().then((keys) => new Set(keys)),
       ]);
       const resources = await this.listAllResources();
       this.logger.info('Reconcile started', {
         indexedResources: indexedResources.size,
         indexedAnnotations: indexedAnnotations.size,
+        anchoredArtifacts: anchoredKeys.size,
         liveResources: resources.length,
       });
 
-      // Embeddable live resources, each with the catalog's claims: the primary
-      // representation's checksum (the bytes the smelter would read) and the
-      // current entity-type set (the discriminator the stamps must carry).
-      // Embeddable ⇔ an extractor exists for the media type's strategy —
-      // the same registry the live fetch resolves (twin gates stay twins).
-      const embeddable = new Map<string, { checksum: string | undefined; entityTypes: string[] }>();
-      for (const resource of resources) {
-        const mediaType = getPrimaryMediaType(resource);
-        if (resource['@id'] && mediaType && EXTRACTORS[textExtractionOf(mediaType)] !== null) {
-          embeddable.set(resource['@id'], {
-            checksum: getPrimaryRepresentation(resource)?.checksum,
-            entityTypes: getResourceEntityTypes(resource),
-          });
-        }
-      }
+      const embeddable = this.classifyEmbeddable(resources);
 
       const work: SmelterWorkItem[] = [];
 
@@ -767,6 +849,22 @@ export class Smelter {
           // checksum diff is blind to them — payload-only restamp (S13),
           // never an embedding call.
           work.push({ type: 'smelt:restamp', resourceId: rid, payload: {} });
+        }
+        // Third drift class (PERSIST-ANCHORS P0), deliberately NOT in the
+        // else-if chain: tag drift and a lost artifact can co-occur, and
+        // each work item heals its own half. Indexed at the current checksum
+        // means embed/re-embed will not run (those paths re-publish the
+        // artifact as a side effect); a geometry-capable extractor means an
+        // artifact SHOULD exist; an absent key means it was lost — the store
+        // is container-transient today, and a publish can fail silently.
+        // A catalog without a checksum cannot claim "current", so it never
+        // plans re-anchoring — the stamp diff owns that resource's fate.
+        // The store is checksum-keyed (P1b), so presence is asked by the
+        // catalog's checksum — the identity of the bytes — not the rid.
+        if (indexed && catalog.checksum !== undefined
+            && indexed.contentChecksum === catalog.checksum
+            && catalog.yieldsGeometry && !anchoredKeys.has(catalog.checksum)) {
+          work.push({ type: 'smelt:reanchor', resourceId: rid, payload: {} });
         }
       }
 
@@ -804,6 +902,7 @@ export class Smelter {
       const summary: ReconcileSummary = {
         resourcesEmbedded: work.filter((w) => w.type === 'smelt:embed').length,
         resourcesRestamped: work.filter((w) => w.type === 'smelt:restamp').length,
+        resourcesReanchored: work.filter((w) => w.type === 'smelt:reanchor').length,
         resourceVectorsDeleted: work.filter((w) => w.type === 'smelt:purge').length,
         annotationsEmbedded: work.filter((w) => w.type === 'smelt:embed-annotation').length,
         annotationVectorsDeleted: work.filter((w) => w.type === 'smelt:purge-annotation').length,
@@ -828,16 +927,114 @@ export class Smelter {
    * completion. The pipeline ticks `noteWorkDone` for every consumed work
    * item (success or failure — failures are logged like any live event), so
    * each wave's waiter resolves exactly when its items have been processed.
+   *
+   * Serialized through `drainChain`: there is ONE waiter slot, and the
+   * planners that drain (reconcile, `smelt:rebuild-anchors`) must not
+   * interleave — a rebuild command arriving mid-reconcile waits its turn.
+   *
+   * @returns how many of THESE items failed — the rebuild command's
+   * partial-failure accounting (failure detail is in the logs).
    */
-  private async drain(work: SmelterWorkItem[]): Promise<void> {
-    for (let i = 0; i < work.length; i += Smelter.RECONCILE_WAVE) {
-      const wave = work.slice(i, i + Smelter.RECONCILE_WAVE);
-      const done = new Promise<void>((resolve) => {
-        this.workWaiter = { target: this.workDone + wave.length, resolve };
-      });
-      for (const item of wave) this.eventSubject.next(item);
-      await done;
+  private async drain(work: SmelterWorkItem[]): Promise<number> {
+    let failures = 0;
+    const run = this.drainChain.then(async () => {
+      const failedBefore = this.workFailed;
+      for (let i = 0; i < work.length; i += Smelter.RECONCILE_WAVE) {
+        const wave = work.slice(i, i + Smelter.RECONCILE_WAVE);
+        const done = new Promise<void>((resolve) => {
+          this.workWaiter = { target: this.workDone + wave.length, resolve };
+        });
+        for (const item of wave) this.eventSubject.next(item);
+        await done;
+      }
+      failures = this.workFailed - failedBefore;
+    });
+    // Keep the chain alive whatever happens to this drain — a rejected tail
+    // would wedge every later planner.
+    this.drainChain = run.then(() => undefined, () => undefined);
+    await run;
+    return failures;
+  }
+
+  /**
+   * `smelt:rebuild-anchors` — the operator's explicit re-derivation of
+   * anchored-text artifacts (PERSIST-ANCHORS P0), shaped after
+   * `weave:rebuild`: optionally scoped, strictly serialized (concatMap on
+   * the command stream + the drain chain), correlated ok/failed replies,
+   * and partial completion FAILS — a rebuild that quietly skipped resources
+   * would present exactly like a document with no text, which is the #845
+   * failure mode wearing different clothes.
+   *
+   * Never destructive: nothing is deleted first, stale entries are simply
+   * overwritten (the W5-frames lesson — a rebuild that clears before it
+   * re-derives turns a partial failure into a loss). Re-anchoring makes
+   * zero embedding calls; work items ride the normal per-resource lanes,
+   * so a rebuild can never interleave with live processing of the same
+   * resource (S1/S2).
+   */
+  private async rebuildAnchors(command: EventMap['smelt:rebuild-anchors']): Promise<void> {
+    const { correlationId, resourceId } = command;
+    try {
+      let work: SmelterWorkItem[];
+      if (resourceId) {
+        work = [{ type: 'smelt:reanchor', resourceId, payload: {} }];
+      } else {
+        const resources = await this.listAllResources();
+        work = [...this.classifyEmbeddable(resources)]
+          .filter(([, catalog]) => catalog.yieldsGeometry)
+          .map(([rid]) => ({ type: 'smelt:reanchor' as const, resourceId: rid, payload: {} }));
+      }
+      this.logger.info('Anchored-text rebuild started', { scoped: resourceId ?? null, resources: work.length });
+      const failed = await this.drain(work);
+      if (failed > 0) {
+        await this.bus.emit('smelt:rebuild-anchors-failed', {
+          ...(correlationId ? { correlationId } : {}),
+          message: `${failed} of ${work.length} resources failed to re-anchor — see smelter logs`,
+        });
+        return;
+      }
+      await this.bus.emit('smelt:rebuild-anchors-ok', correlationId ? { correlationId } : {});
+      this.logger.info('Anchored-text rebuild complete', { scoped: resourceId ?? null, resources: work.length });
+    } catch (error) {
+      this.logger.error('Anchored-text rebuild failed', { error: errField(error) });
+      try {
+        await this.bus.emit('smelt:rebuild-anchors-failed', {
+          ...(correlationId ? { correlationId } : {}),
+          message: error instanceof Error ? error.message : String(error),
+        });
+      } catch (emitError) {
+        this.logger.warn('Failed to emit smelt:rebuild-anchors-failed', { error: errField(emitError) });
+      }
     }
+  }
+
+  /**
+   * Embeddable live resources, each with the catalog's claims: the primary
+   * representation's checksum (the bytes the smelter would read), the
+   * current entity-type set (the discriminator the stamps must carry), and
+   * whether the media type's extractor derives geometry (whether an
+   * anchored-text artifact should exist). Embeddable ⇔ an extractor exists
+   * for the media type's strategy — the same registry the live fetch
+   * resolves, and `yieldsGeometry` is declared on the extractor itself, so
+   * every gate here and the live fetch's behavior are twins by construction.
+   * Shared by `reconcile()` and the `smelt:rebuild-anchors` planner.
+   */
+  private classifyEmbeddable(
+    resources: ResourceDescriptor[],
+  ): Map<string, { checksum: string | undefined; entityTypes: string[]; yieldsGeometry: boolean }> {
+    const embeddable = new Map<string, { checksum: string | undefined; entityTypes: string[]; yieldsGeometry: boolean }>();
+    for (const resource of resources) {
+      const mediaType = getPrimaryMediaType(resource);
+      const extractor = mediaType ? EXTRACTORS[textExtractionOf(mediaType)] : null;
+      if (resource['@id'] && extractor) {
+        embeddable.set(resource['@id'], {
+          checksum: getPrimaryRepresentation(resource)?.checksum,
+          entityTypes: getResourceEntityTypes(resource),
+          yieldsGeometry: extractor.yieldsGeometry,
+        });
+      }
+    }
+    return embeddable;
   }
 
   /** Page through `browse:resources-requested` until the catalog is exhausted. */

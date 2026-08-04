@@ -33,7 +33,6 @@ import type { ResourceDescriptor } from './graph';
 import type { StoredEvent } from './event-base';
 import type { EventOfType } from './persisted-events';
 import type { AnchorRect } from './bus-ui-types';
-import type { AnchoredText } from './pdf-anchoring';
 
 // Branded overrides for OpenAPI command payloads that carry identifier
 // fields. Narrows `string` → branded at the TypeScript layer.
@@ -275,7 +274,7 @@ export type EventMap = {
   // through `IContentTransport`, never over this channel. `null` in the reply
   // means no map has been derived, which is the common case and not an error.
   'browse:anchored-text-requested': components['schemas']['BrowseAnchoredTextRequest'];
-  'browse:anchored-text-result': { correlationId: string; response: AnchoredText | null };
+  'browse:anchored-text-result': { correlationId: string; response: components['schemas']['ExtractionOutcome'] | null };
   'browse:anchored-text-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   'browse:resources-requested': components['schemas']['BrowseResourcesRequest'];
@@ -436,6 +435,15 @@ export type EventMap = {
   'weave:rebuild': components['schemas']['WeaveRebuildCommand'];
   'weave:rebuild-ok': { correlationId?: string };
   'weave:rebuild-failed': { correlationId?: string; message: string };
+
+  // Command — rebuild anchored-text artifacts by re-running extraction
+  // (every geometry-capable resource when resourceId is absent, one when
+  // present). Served by the Smelter, serialized, never destructive, and
+  // with ZERO embedding calls — only the derived map is re-made
+  // (PERSIST-ANCHORS P0). Correlated request/reply via BUS_OPERATIONS.
+  'smelt:rebuild-anchors': components['schemas']['SmeltRebuildAnchorsCommand'];
+  'smelt:rebuild-anchors-ok': { correlationId?: string };
+  'smelt:rebuild-anchors-failed': { correlationId?: string; message: string };
 
   // ========================================================================
   // SETTINGS (frontend-only)
@@ -733,6 +741,9 @@ export const CHANNEL_SCHEMAS = {
   'weave:rebuild':                    'WeaveRebuildCommand',
   'weave:rebuild-ok':                 null, // { correlationId }
   'weave:rebuild-failed':             null, // { correlationId; message }
+  'smelt:rebuild-anchors':            'SmeltRebuildAnchorsCommand',
+  'smelt:rebuild-anchors-ok':         null, // { correlationId }
+  'smelt:rebuild-anchors-failed':     null, // { correlationId; message }
 
   // ── SSE infrastructure ──────────────────────────────────────────
   'stream-connected':                 null, // Record<string, never>

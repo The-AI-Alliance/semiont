@@ -143,6 +143,13 @@ function makeConfig(session: SemiontSession): WorkerProcessConfig {
       provider: 'ollama',
       model: 'test',
     } as never,
+    // Always-miss store: orchestration tests exercise the uncached path;
+    // the cache behavior itself is pinned in prepare-detection.test.ts.
+    anchoredTextStore: {
+      read: vi.fn(async () => null),
+      write: vi.fn(async () => {}),
+      list: vi.fn(async () => []),
+    },
     logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(function(this: any){ return this; }) } as never,
   };
 }

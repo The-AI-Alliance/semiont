@@ -19,7 +19,8 @@ import (
 
 const cleanUsage = `Usage: semiont clean [options]
 
-Remove the persistent local-stack state (PostgreSQL, Qdrant, Neo4j data)
+Remove the persistent local-stack state (PostgreSQL, Qdrant, Neo4j data,
+and the backend's own derived stores)
 for one local semiont root. The stack must be stopped first — state is
 never removed while a recorded stack may be mounting it.
 
@@ -29,7 +30,8 @@ user accounts those tokens name lived in the PostgreSQL data just removed.
 A --store clean keeps the secret.
 
 Options:
-  --store <role>   Remove one store only: database, vectors, or graph
+  --store <role>   Remove one store only: database, vectors, graph, or
+                   anchored-text
   --root <value>   Another root: a path, a registered basename, or a state
                    key as listed by status --verbose (how orphaned state,
                    whose KB directory no longer exists, is named)
@@ -70,7 +72,7 @@ func Clean(args []string) int {
 	}
 	if store != "" {
 		if _, ok := stateStores[store]; !ok {
-			u.fail("Unknown store %q (stores with persistent state: database, graph, vectors)", store)
+			u.fail("Unknown store %q (stores with persistent state: anchored-text, database, graph, vectors)", store)
 			return 1
 		}
 	}

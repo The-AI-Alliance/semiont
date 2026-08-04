@@ -94,8 +94,8 @@
     "@headlessui/react": "^2.2.10",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^16.1.0",
-    "@types/react": "^19.2.16",
-    "@types/react-dom": "^19",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "@vitest/coverage-v8": "^4.1.8",
     "autoprefixer": "^10.5.4",
     "axe-core": "^4.12.1",
@@ -122,9 +122,9 @@
     "directory": "packages/react-ui"
   },
   "dependencies": {
-    "@semiont/core": "0.5.25",
-    "@semiont/http-transport": "0.5.25",
-    "@semiont/sdk": "0.5.25",
+    "@semiont/core": "*",
+    "@semiont/http-transport": "*",
+    "@semiont/sdk": "*",
     "pdfjs-dist": "^6.1.200",
     "react-error-boundary": "^6.1.2",
     "react-markdown": "^10.1.0",

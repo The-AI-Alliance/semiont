@@ -410,3 +410,36 @@ describe('worker-runtime — stall watchdog (WORKER-LIVENESS.md P3)', () => {
     watchdog.dispose();
   });
 });
+
+describe('worker-runtime — anchored-text store threading (PERSIST-ANCHORS P2d)', () => {
+  beforeEach(() => {
+    vi.mocked(startWorkerProcess).mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('threads an AnchoredTextStore into the worker process config', async () => {
+    installFetchStub();
+
+    const worker = await startAgentWorker({
+      group: makeGroup(),
+      backendBaseUrl: DIAL_URL,
+      workerSecret: 'test-secret',
+      logger: noopLogger,
+    });
+
+    const config = vi.mocked(startWorkerProcess).mock.calls[0]![0] as {
+      anchoredTextStore?: { read: unknown; write: unknown; list: unknown };
+    };
+    // The session's content transport is private to the client; the runtime
+    // holds it at construction and hands the adapter down — the store rides
+    // the config, one per agent process.
+    expect(config.anchoredTextStore).toBeDefined();
+    expect(typeof config.anchoredTextStore!.read).toBe('function');
+    expect(typeof config.anchoredTextStore!.write).toBe('function');
+
+    await worker.dispose();
+  });
+});

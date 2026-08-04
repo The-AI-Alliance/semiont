@@ -1,0 +1,52 @@
+{
+  "description": "The full outcome of text extraction for one representation — the record the anchored-text store holds and the wire serves (PERSIST-ANCHORS decision D1). Either a success (the anchored text plus its provenance: how it was extracted, what class of PDF it came from, how confident OCR was, which pages could not be read) or a named decline. A decline is a first-class, cacheable outcome: 'we ran and there was nothing' costs a full recognition pass to discover. ocrConfidence is extraction quality for operators, deliberately not anchor confidence.",
+  "oneOf": [
+    {
+      "allOf": [
+        { "$ref": "./AnchoredText.json" },
+        {
+          "type": "object",
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": ["text-passthrough", "pdf-text-layer", "table", "form", "ocr"],
+              "description": "How the text was extracted."
+            },
+            "pdfClass": {
+              "type": "string",
+              "enum": ["A", "B", "C", "D", "E", "F", "G"],
+              "description": "PDF classification, when the source was a PDF."
+            },
+            "ocrConfidence": {
+              "type": "object",
+              "description": "How well the engine read the pixels, when any of this text came from OCR.",
+              "properties": {
+                "mean": { "type": "number", "description": "Mean per-word confidence, 0-100." },
+                "lowConfidenceWords": { "type": "integer", "description": "Words the engine was unsure of." },
+                "totalWords": { "type": "integer" }
+              },
+              "required": ["mean", "lowConfidenceWords", "totalWords"]
+            },
+            "unreadPages": {
+              "type": "array",
+              "items": { "type": "integer" },
+              "description": "1-indexed pages this extraction could not read — present only for partially covered documents (class C)."
+            }
+          },
+          "required": ["method"]
+        }
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "declined": {
+          "type": "string",
+          "enum": ["no-text-layer", "encrypted", "corrupt", "too-large"],
+          "description": "Why extraction yielded nothing, by class."
+        }
+      },
+      "required": ["declined"]
+    }
+  ]
+}

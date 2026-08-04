@@ -1,7 +1,7 @@
 import { Observable, map } from 'rxjs';
 import { CacheObservable } from '../awaitable';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId, searchQuery, decodeWithCharset } from '@semiont/core';
-import type { AnchoredText } from '@semiont/core';
+import type { ExtractionOutcome } from '@semiont/core';
 import type {
   Annotation,
   EventBus,
@@ -402,7 +402,7 @@ export class BrowseNamespace implements IBrowseNamespace {
    * never produces a map. Callers degrade — a PDF annotation drawn over an
    * unmapped page carries geometry with no quoted text.
    */
-  async resourceAnchoredText(resourceId: ResourceId): Promise<AnchoredText | null> {
+  async resourceAnchoredText(resourceId: ResourceId): Promise<ExtractionOutcome | null> {
     return this.content.getAnchoredText(resourceId);
   }
 

@@ -4,10 +4,13 @@
  *
  * Detection now reads through the SAME extractor registry the Smelter embeds
  * from, so these tests drive the real registry wherever they can: a text
- * resource decodes for real, and only the PDF slot is stubbed (jobs carries no
- * PDF fixtures). The wiring being proven is that the anchoring model follows
- * the GEOMETRY, not the media type — positioned runs anchor by viewrect,
- * their absence anchors by character offset in that same text.
+ * resource decodes for real, and only the PDF slot is stubbed — this suite
+ * is the dispatch layer. The cache seam inside the REAL pdf extractor is
+ * covered by the sibling `prepare-detection.cache.test.ts` (PERSIST-ANCHORS
+ * P2d), which is why every call here passes an always-miss store. The
+ * wiring being proven is that the anchoring model follows the GEOMETRY, not
+ * the media type — positioned runs anchor by viewrect, their absence
+ * anchors by character offset in that same text.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { resourceId } from '@semiont/core';
@@ -26,8 +29,15 @@ vi.mock('@semiont/event-sourcing', () => ({
   generateAnnotationId: vi.fn(() => 'ann-prep-test'),
 }));
 
-import { EXTRACTORS } from '@semiont/content';
+import { EXTRACTORS, type AnchoredTextStore } from '@semiont/content';
 import { prepareDetection } from '../workers/detection/prepare-detection';
+
+/** Always-miss, write-blind: the dispatch layer runs uncached. */
+const MISS_STORE: AnchoredTextStore = {
+  read: async () => null,
+  write: async () => {},
+  list: async () => [],
+};
 
 type Agent = components['schemas']['Agent'];
 
@@ -73,7 +83,7 @@ describe('prepareDetection', () => {
   it('text: decodes for real and anchors by character offsets in that SAME text', async () => {
     const { session, resourceRepresentation } = fakeSession();
 
-    const source = await prepareDetection('text/markdown', session, RID, USER_DID, GENERATOR);
+    const source = await prepareDetection('text/markdown', session, RID, USER_DID, GENERATOR, MISS_STORE);
     if ('declined' in source) throw new Error(`unexpected decline: ${source.declined}`);
 
     expect(resourceRepresentation).toHaveBeenCalledOnce();
@@ -94,7 +104,7 @@ describe('prepareDetection', () => {
     const { session } = fakeSession();
     pdfExtract.mockResolvedValue({ text: PDF_TEXT, items: PDF_ITEMS, method: 'pdf-text-layer', pdfClass: 'A' });
 
-    const source = await prepareDetection('application/pdf', session, RID, USER_DID, GENERATOR);
+    const source = await prepareDetection('application/pdf', session, RID, USER_DID, GENERATOR, MISS_STORE);
     if ('declined' in source) throw new Error(`unexpected decline: ${source.declined}`);
     expect(source.text).toBe(PDF_TEXT);
 
@@ -111,7 +121,7 @@ describe('prepareDetection', () => {
     const { session } = fakeSession();
     pdfExtract.mockResolvedValue({ text: PDF_TEXT, items: PDF_ITEMS, method: 'ocr', pdfClass: 'B' });
 
-    const source = await prepareDetection('application/pdf', session, RID, USER_DID, GENERATOR);
+    const source = await prepareDetection('application/pdf', session, RID, USER_DID, GENERATOR, MISS_STORE);
     if ('declined' in source) throw new Error('unexpected decline');
     const ann = source.buildAnnotation('highlighting', { exact: 'gamma', start: 11, end: 16 }) as Record<string, unknown>;
     expect(selectors(ann).find((s) => s.type === 'FragmentSelector')?.value).toMatch(/^page=1&viewrect=/);
@@ -121,14 +131,14 @@ describe('prepareDetection', () => {
     const { session } = fakeSession();
     pdfExtract.mockResolvedValue({ declined: 'encrypted' });
 
-    expect(await prepareDetection('application/pdf', session, RID, USER_DID, GENERATOR))
+    expect(await prepareDetection('application/pdf', session, RID, USER_DID, GENERATOR, MISS_STORE))
       .toEqual({ declined: 'encrypted' });
   });
 
   it("declines 'no-extractor' for a media type that can never yield text", async () => {
     const { session, resourceRepresentation } = fakeSession();
 
-    expect(await prepareDetection('application/zip', session, RID, USER_DID, GENERATOR))
+    expect(await prepareDetection('application/zip', session, RID, USER_DID, GENERATOR, MISS_STORE))
       .toEqual({ declined: 'no-extractor' });
     // Nothing is fetched — the media type alone settles it.
     expect(resourceRepresentation).not.toHaveBeenCalled();
@@ -137,7 +147,7 @@ describe('prepareDetection', () => {
   it("declines 'empty' when extraction yields nothing to detect over", async () => {
     const { session } = fakeSession('   \n  ');
 
-    expect(await prepareDetection('text/markdown', session, RID, USER_DID, GENERATOR))
+    expect(await prepareDetection('text/markdown', session, RID, USER_DID, GENERATOR, MISS_STORE))
       .toEqual({ declined: 'empty' });
   });
 });

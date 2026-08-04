@@ -32,7 +32,7 @@ import { type HttpTransport } from '@semiont/http-transport';
 import { getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, type EventMap } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
-import { deriveStorageUri } from '@semiont/content';
+import { deriveStorageUri, type AnchoredTextStore } from '@semiont/content';
 import { prepareDetection, type DetectionDecline } from './workers/detection/prepare-detection';
 import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
 import {
@@ -81,6 +81,14 @@ export interface WorkerProcessConfig {
    * session is authenticated as.
    */
   generator: Agent;
+  /**
+   * The anchored-text cache the extraction seam reads and writes
+   * (PERSIST-ANCHORS P2d) — the adapter over this worker's content
+   * transport, constructed once per agent process by worker-runtime.
+   * The session's own content transport is private to the client, so
+   * the store rides the config from where the transport is in hand.
+   */
+  anchoredTextStore: AnchoredTextStore;
   logger: Logger;
 }
 
@@ -233,7 +241,7 @@ async function handleJobInner(
   if (jobType !== 'generation') {
     const descriptor = await session.client.browse.resource(resourceId).fresh();
     const mediaType = getPrimaryMediaType(descriptor);
-    const source = await prepareDetection(mediaType ?? '', session, resourceId, userId, generator);
+    const source = await prepareDetection(mediaType ?? '', session, resourceId, userId, generator, config.anchoredTextStore);
 
     if ('declined' in source) {
       if (source.declined === 'no-extractor') {

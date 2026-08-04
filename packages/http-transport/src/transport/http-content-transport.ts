@@ -40,7 +40,7 @@
  * complaint, wire a manual retry loop here that reads `token$` afresh.
  */
 
-import type { AccessToken, AnchoredText, ResourceId, PutBinaryOptions, components } from '@semiont/core';
+import type { AccessToken, ExtractionOutcome, ResourceId, PutBinaryOptions, components } from '@semiont/core';
 import { busLog } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan } from '@semiont/observability';
 import type { HttpTransport } from './http-transport';
@@ -183,21 +183,21 @@ export class HttpContentTransport implements IContentTransport {
    * owns, rather than to a volume shared between service images.
    */
   async putAnchoredText(
-    resourceId: ResourceId,
-    anchored: AnchoredText,
+    checksum: string,
+    outcome: ExtractionOutcome,
     options?: { auth?: AccessToken },
   ): Promise<void> {
-    busLog('PUT', 'anchored-text', { resourceId });
+    busLog('PUT', 'anchored-text', { checksum });
     await withSpan(
       'content.put_anchored_text',
       () =>
         this.transport.rawHttp
-          .put(`${this.transport.baseUrl}/resources/${resourceId}/anchored-text`, {
+          .put(`${this.transport.baseUrl}/anchored-text/${checksum}`, {
             headers: this.requestHeaders(options?.auth),
-            json: anchored,
+            json: outcome,
           })
           .json<unknown>(),
-      { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
+      { kind: SpanKind.CLIENT, attrs: { 'content.checksum': checksum } },
     );
   }
 
@@ -215,7 +215,7 @@ export class HttpContentTransport implements IContentTransport {
   async getAnchoredText(
     resourceId: ResourceId,
     options?: { auth?: AccessToken },
-  ): Promise<AnchoredText | null> {
+  ): Promise<ExtractionOutcome | null> {
     busLog('GET', 'anchored-text', { resourceId });
     return withSpan(
       'content.get_anchored_text',
@@ -227,9 +227,56 @@ export class HttpContentTransport implements IContentTransport {
           });
         if (response.status === 204 || response.status === 404) return null;
         if (!response.ok) throw new Error(`anchored-text read failed: ${response.status}`);
-        return response.json<AnchoredText>();
+        return response.json<ExtractionOutcome>();
       },
       { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
+    );
+  }
+
+  /**
+   * The cache-consult read (PERSIST-ANCHORS P2c) — checksum-addressed and
+   * barrier-free; 204 is the ordinary miss. This is how an out-of-process
+   * extraction seam hits the cache at all.
+   */
+  async getAnchoredTextByChecksum(
+    checksum: string,
+    options?: { auth?: AccessToken },
+  ): Promise<ExtractionOutcome | null> {
+    busLog('GET', 'anchored-text-by-checksum', { checksum });
+    return withSpan(
+      'content.get_anchored_text_by_checksum',
+      async () => {
+        const response = await this.transport.rawHttp
+          .get(`${this.transport.baseUrl}/anchored-text/${checksum}`, {
+            headers: this.requestHeaders(options?.auth),
+            throwHttpErrors: false,
+          });
+        if (response.status === 204) return null;
+        if (!response.ok) throw new Error(`anchored-text checksum read failed: ${response.status}`);
+        return response.json<ExtractionOutcome>();
+      },
+      { kind: SpanKind.CLIENT, attrs: { 'content.checksum': checksum } },
+    );
+  }
+
+  /**
+   * The store's would-hit keys — the reconcile planner's bulk existence read
+   * (PERSIST-ANCHORS P0). One request per reconcile; keys only, never the
+   * maps themselves, which is the point of the dedicated route.
+   */
+  async listAnchoredTextKeys(options?: { auth?: AccessToken }): Promise<string[]> {
+    busLog('GET', 'anchored-text-keys', {});
+    return withSpan(
+      'content.list_anchored_text_keys',
+      async () => {
+        const { keys } = await this.transport.rawHttp
+          .get(`${this.transport.baseUrl}/anchored-text/keys`, {
+            headers: this.requestHeaders(options?.auth),
+          })
+          .json<{ keys: string[] }>();
+        return keys;
+      },
+      { kind: SpanKind.CLIENT },
     );
   }
 

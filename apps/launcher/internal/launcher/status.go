@@ -710,7 +710,7 @@ func printLauncherPaths(u *ui) {
 // storeSizes: one root's per-store disk breakdown, fixed display order,
 // present stores only — absent is absent, not 0 B.
 func storeSizes(dir string) (parts []string, total int64, any bool) {
-	for _, role := range []string{"database", "vectors", "graph"} {
+	for _, role := range []string{"database", "vectors", "graph", "anchored-text"} {
 		spec := stateStores[role]
 		sz, ok := dirSize(filepath.Join(dir, spec.dir))
 		if !ok {

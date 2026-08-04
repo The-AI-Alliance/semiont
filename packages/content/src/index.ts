@@ -37,6 +37,9 @@ export {
   type CachedAnchoredText,
   type CachedLine,
 } from './anchored-text-store';
+// The out-of-process half of the same cache: the store contract over
+// IContentTransport, for the workers that consult it across the wire (P2c).
+export { anchoredTextStoreOverTransport } from './anchored-text-store-adapter';
 
 // PDF text-layer extraction. The anchoring vocabulary these produce
 // (AnchoredText, PdfTextItem) and the locate/textUnder pair that reads it are

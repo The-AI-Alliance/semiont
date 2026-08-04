@@ -1,7 +1,7 @@
 {
   "get": {
     "summary": "Get a resource's anchored text",
-    "description": "The coordinate map derived from a resource's bytes: its recovered text plus the positioned runs that index it. Assembled via the bus gateway.\n\nWhole-resource, not paginated \u2014 a producer iterates page by page, but every consumer wants one map: a browser quoting the text under a hand-drawn rectangle, a headless client analysing a document.\n\nThis endpoint never runs recognition. The Smelter is the sole producer and publishes at ingest; a read that finds nothing waits for that resource's content generation to settle and then answers 204. A 204 is the common case and not an error \u2014 a native text layer is read in the browser, and a media type with no extractor never produces a map at all. Callers degrade: for a PDF annotation that means geometry with no quoted text.",
+    "description": "The coordinate map derived from a resource's bytes: its recovered text plus the positioned runs that index it. Assembled via the bus gateway.\n\nWhole-resource, not paginated — a producer iterates page by page, but every consumer wants one map: a browser quoting the text under a hand-drawn rectangle, a headless client analysing a document.\n\nThis endpoint never runs recognition. The Smelter is the sole producer and publishes at ingest; a read that finds nothing waits for that resource's content generation to settle and then answers 204. A 204 is the common case and not an error — a native text layer is read in the browser, and a media type with no extractor never produces a map at all. Callers degrade: for a PDF annotation that means geometry with no quoted text.",
     "tags": [
       "Resources"
     ],
@@ -22,17 +22,17 @@
     ],
     "responses": {
       "200": {
-        "description": "The coordinate map.",
+        "description": "The stored extraction outcome: the coordinate map with its provenance (method, PDF class, OCR confidence, unread pages), or a named decline.",
         "content": {
           "application/json": {
             "schema": {
-              "$ref": "../components/schemas/AnchoredText.json"
+              "$ref": "../components/schemas/ExtractionOutcome.json"
             }
           }
         }
       },
       "204": {
-        "description": "No map has been derived for this resource. The ordinary answer for a native text layer or a media type with no extractor \u2014 not an error, and distinct from 404, which means the resource itself is absent. Carried as an empty body rather than a JSON `null` body so that a generated client's typed 200 field stays absent: unmarshalling `null` into a struct is a no-op in several languages, which would make \"no map\" indistinguishable from an empty one."
+        "description": "No map has been derived for this resource. The ordinary answer for a native text layer or a media type with no extractor — not an error, and distinct from 404, which means the resource itself is absent. Carried as an empty body rather than a JSON `null` body so that a generated client's typed 200 field stays absent: unmarshalling `null` into a struct is a no-op in several languages, which would make \"no map\" indistinguishable from an empty one."
       },
       "404": {
         "description": "Resource not found",
@@ -46,63 +46,6 @@
       },
       "504": {
         "description": "Request timed out (bus gateway)",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "../components/schemas/ErrorResponse.json"
-            }
-          }
-        }
-      }
-    }
-  },
-  "put": {
-    "summary": "Publish a resource's anchored text",
-    "description": "Store the coordinate map derived from a resource's bytes. The Smelter is the sole producer: it is the only process that reads those bytes at ingest, so it is the only one positioned to derive a map cheaply, and it runs separately from the backend.\n\nAgents only. A map is derived data every consumer trusts to place annotation geometry, so a browser session must not be able to write one.",
-    "tags": [
-      "Resources"
-    ],
-    "security": [
-      {
-        "bearerAuth": []
-      }
-    ],
-    "parameters": [
-      {
-        "name": "id",
-        "in": "path",
-        "required": true,
-        "schema": {
-          "type": "string"
-        }
-      }
-    ],
-    "requestBody": {
-      "required": true,
-      "content": {
-        "application/json": {
-          "schema": {
-            "$ref": "../components/schemas/AnchoredText.json"
-          }
-        }
-      }
-    },
-    "responses": {
-      "204": {
-        "description": "Stored"
-      },
-      "400": {
-        "description": "Body is not a valid AnchoredText",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "../components/schemas/ErrorResponse.json"
-            }
-          }
-        }
-      },
-      "403": {
-        "description": "Caller is not an agent",
         "content": {
           "application/json": {
             "schema": {

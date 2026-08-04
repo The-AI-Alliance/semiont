@@ -15,6 +15,9 @@ describe('@semiont/react-ui — embeddable consumer surface', () => {
     expect(typeof reactUi.ResourceViewer).toBe('function');
     expect(typeof reactUi.useResourceLoader).toBe('function');
     expect(typeof reactUi.useMediaToken).toBe('function');
+    // The token is only half of it — a host also needs the URL rule that turns
+    // it into something `<img>` / `<a download>` can actually load.
+    expect(typeof reactUi.mediaUrl).toBe('function');
     expect(typeof reactUi.useSessionEventSubscriptions).toBe('function');
     expect(typeof reactUi.setPdfWorkerSrc).toBe('function');
     expect(typeof reactUi.defaultBrowseRenderers).toBe('object');

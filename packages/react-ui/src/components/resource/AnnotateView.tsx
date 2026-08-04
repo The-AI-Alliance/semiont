@@ -5,6 +5,7 @@ import { capabilitiesOf, resourceId as toResourceId } from '@semiont/core';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { buildTextSelectors, fallbackTextPosition } from '../../lib/text-selection-handler';
 import { defaultAnnotateRenderers, type AnnotateMediaRenderers } from './annotate-renderers';
+import { DownloadFileLink } from './DownloadFileLink';
 import type { EditorView } from '@codemirror/view';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
@@ -222,13 +223,7 @@ export function AnnotateView({
           <p className="semiont-annotate-view__empty-message">
             Annotation not supported for {mimeType}
           </p>
-          <a
-            href={`/api/resources/${resourceUri}`}
-            download
-            className="semiont-button semiont-button--primary"
-          >
-            Download File
-          </a>
+          <DownloadFileLink resourceUri={resourceUri} session={session} />
         </div>
       </div>
     );

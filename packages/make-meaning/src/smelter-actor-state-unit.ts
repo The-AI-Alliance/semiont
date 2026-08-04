@@ -16,7 +16,7 @@
 import { Observable, merge } from 'rxjs';
 import { map } from 'rxjs/operators';
 import type { WorkerBus } from '@semiont/sdk';
-import type { StateUnit } from '@semiont/core';
+import type { EventMap, StateUnit } from '@semiont/core';
 
 export interface SmelterEvent {
   type: string;
@@ -40,8 +40,16 @@ const SMELTER_CHANNELS = [
   'mark:entity-tag-removed',
 ] as const;
 
+// Commands ride their own stream, never the event mailbox (the
+// weave:rebuild idiom): a command handler plans work items and AWAITS
+// their drain, so folding it into the per-resource lanes it drains into
+// would deadlock a scoped rebuild against its own work.
+const SMELTER_COMMAND_CHANNELS = ['smelt:rebuild-anchors'] as const;
+
 export interface SmelterActorStateUnit extends StateUnit {
   events$: Observable<SmelterEvent>;
+  /** `smelt:rebuild-anchors` commands (PERSIST-ANCHORS P0) — see the command-channel note above. */
+  rebuildAnchors$: Observable<EventMap['smelt:rebuild-anchors']>;
   start(): void;
 }
 
@@ -61,12 +69,15 @@ export function createSmelterActorStateUnit(options: SmelterActorStateUnitOption
     ),
   );
 
+  const rebuildAnchors$ = bus.on$<EventMap['smelt:rebuild-anchors']>('smelt:rebuild-anchors');
+
   return {
     events$,
+    rebuildAnchors$,
     start: () => {
       if (started) return;
       started = true;
-      bus.addChannels?.([...SMELTER_CHANNELS]);
+      bus.addChannels?.([...SMELTER_CHANNELS, ...SMELTER_COMMAND_CHANNELS]);
     },
     dispose: () => {
       // The bus is owned by the caller; the state unit only releases its own

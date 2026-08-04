@@ -24,6 +24,7 @@ function inMemoryAnchoredText(): KnowledgeBase['anchoredText'] {
   return {
     read: async (key) => maps.get(key) ?? null,
     write: async (key, anchored) => { maps.set(key, anchored); },
+    list: async () => [...maps.keys()],
   };
 }
 
