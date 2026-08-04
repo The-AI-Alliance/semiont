@@ -30,10 +30,10 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
-    "@hono/node-server": "^2.0.5",
+    "@hono/node-server": "^2.0.12",
     "@hono/swagger-ui": "^0.6.1",
-    "@prisma/adapter-pg": "^7.8.0",
-    "@prisma/client": "^7.8.0",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
     "@semiont/core": "*",
     "@semiont/make-meaning": "*",
     "@semiont/observability": "*",
@@ -57,7 +57,7 @@
     "@vitest/ui": "^4.1.10",
     "fast-check": "^4.9.0",
     "msw": "^2.15.0",
-    "prisma": "^7.8.0",
+    "prisma": "^7.9.1",
     "tsup": "^8.5.1",
     "tsx": "^4.23.1",
     "typescript": "^6.0.2",
