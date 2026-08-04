@@ -22,6 +22,7 @@ interface MediaTypeCapabilities {
   extractText: 'decode' | 'pdf-text-layer' | 'none';
   authorable: boolean;
   uploadable: boolean;
+  generatable: boolean;
 }
 ```
 
@@ -41,7 +42,8 @@ table.
 
 Three axes, and they are genuinely independent. A type can be rendered but not
 anchored, embedded but not rendered, or anchored spatially while yielding no text
-at all.
+at all. Three booleans sit alongside them — `uploadable`, `authorable`,
+`generatable` — saying how a resource of that type may come into existence.
 
 ## What each axis changes
 
@@ -93,6 +95,58 @@ type is textual — and everything else is `none`.
 `extractText: 'none'` is not a gap to fill. An image is annotatable
 (`anchoring: 'spatial'`) and carries no text; that combination is coherent and
 final.
+
+### `generatable` — what a model may be asked to produce
+
+The three booleans say how a resource may come into existence: `uploadable`
+(a user supplies bytes), `authorable` (a user types it in the browser), and
+`generatable` (`yield.fromResource` / `yield.fromAnnotation` may target it).
+They are independent — `application/pdf` is generatable but not authorable,
+because a model can write one and a person cannot type one.
+
+`generatable` lives in the registry for the same reason as everything else
+here: the gate was previously a local constant inside `processGenerationJob`,
+a second media-type table of exactly the kind this registry exists to prevent.
+
+## Authored PDFs: geometry chosen, not recovered
+
+`application/pdf` is the one type Semiont both **reads** and **writes**, and the
+two directions differ in a way worth stating, because the axes above describe
+the reading direction only.
+
+When a PDF is generated, the model writes [Typst](https://typst.app/) source
+and a pinned compiler in the worker image renders it. The result is an ordinary
+born-digital PDF: `extractText: 'pdf-text-layer'` reads it exactly as it reads a
+PDF someone uploaded, and every rung of the running example below applies
+unchanged. There is no second path and no authored sidecar — the PDF's own text
+layer carries the geometry.
+
+What differs is epistemic rather than mechanical: **for an authored PDF the
+system chose the coordinates rather than recovering them.** Nothing was scanned,
+so there is no OCR, no confidence score, and no unread page. In the vocabulary
+`PDF-MODEL` proposes, that is `textSource: 'text-layer'` with no treatments —
+the A–G `pdfClass` taxonomy has no honest letter for a document we wrote
+ourselves.
+
+Two consequences for citations, both load-bearing:
+
+- **Citations carry page geometry, never text offsets.** A generated PDF's
+  claims are re-anchored through the same extractor the Smelter uses, and land
+  as `FragmentSelector` rects plus the quoted text. A `TextPositionSelector`
+  would index the generated *string* and render nothing — a silent wrong, which
+  is why the selector type is pinned by test.
+- **Unfindable claims drop loudly.** If a claim cannot be located in the text
+  layer — or the layer is missing entirely — the citation is dropped with a
+  warning rather than minted at a guessed position. Anchoring never guesses.
+
+Two properties of the renderer make this work, and both are enforced rather than
+assumed. The compile is **deterministic** — the creation timestamp is pinned on
+every invocation, because unpinned compiles of identical source produce
+different bytes, which would change the content checksum and make the Smelter
+re-embed a document that never changed. And **hyphenation stays on**: Typst
+drops soft hyphens from the text layer, so a hyphenated word appears as two
+runs with no hyphen character, and the citation search absorbs the break instead
+of the renderer degrading the typography.
 
 ## The running example: a PDF, end to end
 
