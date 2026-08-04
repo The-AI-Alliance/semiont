@@ -627,13 +627,14 @@ export async function processGenerationJob(
   // until the citation branch (P4) provides it, `cite` fails fast and loudly
   // rather than minting selectors that would render nothing.
   if (outputMediaType === 'application/pdf') {
-    if (params.cite === true) {
-      throw new Error(
-        'cite with application/pdf requires the citation branch (PDF-GENERATION P4): PDF citations anchor by page geometry, which is not built yet.',
-      );
-    }
-
     onProgress(5, 'Generating resource...', 'generating');
+
+    // Under `cite`, [[<id>]] tokens are stripped from the SOURCE before every
+    // compile — they must never render into the artifact. The citations carry
+    // the claim text; the worker re-anchors it by page geometry after
+    // extraction (P4). Offsets in these citations index the Typst source and
+    // are NOT used for PDF anchoring.
+    const validIds = params.cite === true ? collectContextResourceIds(params.context) : null;
 
     let generated = await generateResourceFromTopic(
       title, entityTypes, inferenceClient, logger,
@@ -641,7 +642,14 @@ export async function processGenerationJob(
       params.maxTokens, params.sourceLanguage, outputMediaType,
       params.task, params.structure, params.cite,
     );
-    let compiled = compileTypst(generated.content);
+    let source = generated.content;
+    let citations: GenerationCitation[] = [];
+    if (validIds) {
+      const resolved = resolveCitationTokens(generated.content, validIds, logger);
+      source = resolved.content;
+      citations = resolved.citations;
+    }
+    let compiled = compileTypst(source);
     let repairs = 0;
     while ('error' in compiled && repairs < MAX_COMPILE_REPAIRS) {
       repairs++;
@@ -654,9 +662,16 @@ export async function processGenerationJob(
         params.prompt, params.language, params.context, params.temperature,
         params.maxTokens, params.sourceLanguage, outputMediaType,
         params.task, params.structure, params.cite,
-        { source: generated.content, error: compiled.error },
+        { source, error: compiled.error },
       );
-      compiled = compileTypst(generated.content);
+      if (validIds) {
+        const resolved = resolveCitationTokens(generated.content, validIds, logger);
+        source = resolved.content;
+        citations = resolved.citations;
+      } else {
+        source = generated.content;
+      }
+      compiled = compileTypst(source);
     }
     if ('error' in compiled) {
       throw new Error(
@@ -671,7 +686,7 @@ export async function processGenerationJob(
       content: compiled.pdf,
       title: generated.title ?? title,
       format: outputMediaType,
-      citations: [],
+      citations,
       result: {
         resourceId: '' as ResourceId,
         resourceName: generated.title ?? title,

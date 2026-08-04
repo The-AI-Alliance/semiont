@@ -31,6 +31,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { extractPdfTextLayer } from '@semiont/content';
 import type { SemiontSession } from '@semiont/sdk';
 import type { ActiveJob, JobClaimAdapter } from '../job-claim-adapter';
 import { handleJob, type WorkerProcessConfig } from '../worker-process';
@@ -67,6 +68,9 @@ vi.mock('@semiont/content', async (importOriginal) => {
   return {
     ...actual,
     EXTRACTORS: { ...actual.EXTRACTORS, 'pdf-text-layer': { extract: vi.fn() } },
+    // PDF citation geometry (P4): the worker re-anchors claims through the
+    // extracted text layer; tests supply it.
+    extractPdfTextLayer: vi.fn(),
   };
 });
 
@@ -426,6 +430,46 @@ describe('handleJob orchestration', () => {
         },
       });
       expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:create', 'job:complete']);
+    });
+
+    it('anchors PDF citations by page geometry — FragmentSelector, never TextPositionSelector (PDF-GENERATION P4)', async () => {
+      // The citation offsets index the Typst SOURCE; on a PDF they render
+      // nothing — the silent wrong this test exists to prevent. The worker
+      // re-anchors each claim through the extracted text layer instead.
+      vi.mocked(processGenerationJob).mockResolvedValue({
+        content: new TextEncoder().encode('%PDF-FAKE'),
+        title: 'Answer',
+        format: 'application/pdf',
+        citations: [{ resourceId: 'ctx-9', start: 0, end: 31, exact: 'Paris is the capital of France.' }],
+        result: {} as never,
+      });
+      vi.mocked(extractPdfTextLayer).mockResolvedValue({
+        text: 'Paris is the capital of France. It is large.',
+        items: [{ start: 0, end: 44, page: 1, x: 71, y: 746, width: 450, height: 11 }],
+        pages: [],
+      } as never);
+      const h = makeFakeSessionAndAdapter();
+
+      await handleJob(
+        h.adapter,
+        makeConfig(h.session),
+        makeJob('generation', { referenceId: 'ref-1', cite: true, outputMediaType: 'application/pdf' }),
+      );
+
+      const markCreates = h.busEmits.filter(e => e.channel === 'mark:create');
+      expect(markCreates).toHaveLength(1);
+      const payload = markCreates[0]!.payload as {
+        resourceId: string;
+        annotation: { motivation: string; target: { source: string; selector: Array<{ type: string }> }; body: unknown };
+      };
+      expect(payload.resourceId).toBe('new-res-42');
+      expect(payload.annotation.motivation).toBe('linking');
+      expect(payload.annotation.target.source).toBe('new-res-42');
+      const selectorTypes = payload.annotation.target.selector.map((s) => s.type);
+      expect(selectorTypes).toContain('FragmentSelector');
+      expect(selectorTypes).toContain('TextQuoteSelector');
+      expect(selectorTypes).not.toContain('TextPositionSelector');
+      expect(payload.annotation.body).toMatchObject({ type: 'SpecificResource', source: 'ctx-9', purpose: 'linking' });
     });
   });
 

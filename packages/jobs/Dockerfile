@@ -34,6 +34,9 @@ COPY --from=installer /usr/local/bin /usr/local/bin
 # non-Latin tiers are a deliberate later pass. Every invocation must pin
 # --creation-timestamp — unpinned compiles change bytes on identical input,
 # which churns content checksums and re-embeds forever (S11/S12).
+# Attribution lives in NOTICE (Apache-2.0 + the embedded font licenses, which
+# no scanner can see inside a bare binary) — bump the version there in the
+# same diff as this tag.
 COPY --from=ghcr.io/typst/typst:0.15.1 /bin/typst /usr/local/bin/typst
 
 # Strip npm/npx after the COPY above re-introduces them from the installer tree.

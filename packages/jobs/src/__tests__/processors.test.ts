@@ -578,17 +578,39 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
     expect(generateResourceFromTopic).toHaveBeenCalledTimes(1 + MAX_COMPILE_REPAIRS);
   });
 
-  it('cite with application/pdf fails loudly until the citation branch (P4) lands', async () => {
-    await expect(
-      processGenerationJob(
-        makeInferenceClient(),
-        { title: 'T', outputMediaType: 'application/pdf', cite: true },
-        vi.fn(),
-        LOGGER,
-      ),
-    ).rejects.toThrow(/citation branch/);
-    // fail-fast: before the LLM call
-    expect(generateResourceFromTopic).not.toHaveBeenCalled();
+  it('cite with application/pdf strips tokens BEFORE compile and carries citations (P4)', async () => {
+    // Tokens must never render into the PDF; the claim `exact` strings travel
+    // to the worker, which anchors them by page geometry after extraction.
+    const CITE_PDF_CONTEXT = {
+      focus: {
+        kind: 'resource',
+        resource: { '@context': 'https://www.w3.org/ns/anno.jsonld', '@id': 'src-1', name: 'Src', representations: [] },
+      },
+      graph: { nodes: [{ id: 'src-1', type: 'resource', label: 'Src' }, { id: 'ctx-9', type: 'resource', label: 'Ctx' }], edges: [] },
+      metadata: {},
+    } as GatheredContext;
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({
+      content: '= Answer\nParis is the capital of France. [[ctx-9]]',
+      title: 'T',
+    });
+    const pdf = new TextEncoder().encode('%PDF-FAKE');
+    vi.mocked(compileTypst).mockReturnValue({ pdf });
+
+    const r = await processGenerationJob(
+      makeInferenceClient(),
+      { title: 'T', outputMediaType: 'application/pdf', cite: true, context: CITE_PDF_CONTEXT },
+      vi.fn(),
+      LOGGER,
+    );
+
+    // stripped source reached the compiler — no token in the artifact
+    expect(compileTypst).toHaveBeenCalledWith('= Answer\nParis is the capital of France.');
+    expect(r.content).toBe(pdf);
+    expect(r.citations).toHaveLength(1);
+    expect(r.citations[0]).toMatchObject({
+      resourceId: 'ctx-9',
+      exact: 'Paris is the capital of France.',
+    });
   });
 });
 
