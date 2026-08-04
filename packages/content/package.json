@@ -35,7 +35,7 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.8",
     "pdf-lib": "^1.17.1",
-    "rollup": "^4.61.0",
+    "rollup": "^4.62.3",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.0.1",
     "typescript": "^6.0.2",
