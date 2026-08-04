@@ -17,6 +17,7 @@ import {
   textExtractionOf,
   AUTHORABLE_MEDIA_TYPES,
   EMBEDDABLE_MEDIA_TYPES,
+  GENERATABLE_MEDIA_TYPES,
   type SupportedMediaType,
 } from '../media-types';
 
@@ -59,32 +60,45 @@ describe('media-types registry', () => {
     it('pins the seven curated rows', () => {
       expect(MEDIA_TYPES['text/markdown']).toEqual({
         extension: '.md', label: 'Markdown', render: 'text', anchoring: 'text-selector',
-        extractText: 'decode', authorable: true, uploadable: true,
+        extractText: 'decode', authorable: true, uploadable: true, generatable: true,
       });
       expect(MEDIA_TYPES['text/plain']).toEqual({
         extension: '.txt', label: 'Plain Text', render: 'text', anchoring: 'text-selector',
-        extractText: 'decode', authorable: true, uploadable: true,
+        extractText: 'decode', authorable: true, uploadable: true, generatable: true,
       });
       expect(MEDIA_TYPES['text/html']).toEqual({
         extension: '.html', label: 'HTML', render: 'text', anchoring: 'text-selector',
-        extractText: 'decode', authorable: true, uploadable: true,
+        extractText: 'decode', authorable: true, uploadable: true, generatable: false,
       });
       expect(MEDIA_TYPES['application/json']).toEqual({
         extension: '.json', label: 'JSON', render: 'text', anchoring: 'text-selector',
-        extractText: 'decode', authorable: false, uploadable: true,
+        extractText: 'decode', authorable: false, uploadable: true, generatable: false,
       });
       expect(MEDIA_TYPES['image/png']).toEqual({
         extension: '.png', label: 'PNG image', render: 'image', anchoring: 'spatial',
-        extractText: 'none', authorable: false, uploadable: true,
+        extractText: 'none', authorable: false, uploadable: true, generatable: false,
       });
       expect(MEDIA_TYPES['image/jpeg']).toEqual({
         extension: '.jpg', label: 'JPEG image', render: 'image', anchoring: 'spatial',
-        extractText: 'none', authorable: false, uploadable: true,
+        extractText: 'none', authorable: false, uploadable: true, generatable: false,
       });
       expect(MEDIA_TYPES['application/pdf']).toEqual({
         extension: '.pdf', label: 'PDF', render: 'pdf', anchoring: 'spatial',
-        extractText: 'pdf-text-layer', authorable: false, uploadable: true,
+        extractText: 'pdf-text-layer', authorable: false, uploadable: true, generatable: true,
       });
+    });
+  });
+
+  describe('generatable capability (PDF-GENERATION P1)', () => {
+    // The generation worker's gate reads the registry, not a local table —
+    // closing the second-media-type-table violation the MEDIA-TYPES grep
+    // gate exists to prevent.
+    it('derives GENERATABLE_MEDIA_TYPES from the registry', () => {
+      expect(GENERATABLE_MEDIA_TYPES).toEqual(['text/markdown', 'text/plain', 'application/pdf']);
+    });
+
+    it('application/pdf is generatable — the Typst renderer exists (P3)', () => {
+      expect(MEDIA_TYPES['application/pdf'].generatable).toBe(true);
     });
   });
 

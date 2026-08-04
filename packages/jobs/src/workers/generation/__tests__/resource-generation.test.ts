@@ -856,6 +856,46 @@ describe('generateResourceFromTopic', () => {
       expect(promptArg()).toMatch(/markdown/i);
     });
 
+    it('application/pdf instructs Typst markup, not markdown (PDF-GENERATION P3)', async () => {
+      client.setResponses(['= X\nbody']);
+
+      await generateResourceFromTopic(
+        'Topic', [], client, LOGGER, undefined, undefined, undefined, undefined, undefined, undefined,
+        'application/pdf',
+      );
+
+      const prompt = promptArg();
+      expect(prompt).toContain('Typst');
+      expect(prompt).toContain('= Heading');
+      expect(prompt).not.toContain('Write the response as markdown');
+    });
+
+    it('strips a ```typst code fence from the response (PDF-GENERATION P3)', async () => {
+      client.setResponses(['```typst\n= T\nbody\n```']);
+
+      const result = await generateResourceFromTopic(
+        'Topic', [], client, LOGGER, undefined, undefined, undefined, undefined, undefined, undefined,
+        'application/pdf',
+      );
+
+      expect(result.content).toBe('= T\nbody');
+    });
+
+    it('a compile-repair context reaches the prompt with the failed source and error (PDF-GENERATION P3)', async () => {
+      client.setResponses(['= Fixed\nbody']);
+
+      await generateResourceFromTopic(
+        'Topic', [], client, LOGGER, undefined, undefined, undefined, undefined, undefined, undefined,
+        'application/pdf', undefined, undefined, undefined,
+        { source: '#let broken = [unclosed', error: 'error: unclosed delimiter' },
+      );
+
+      const prompt = promptArg();
+      expect(prompt).toContain('failed to compile');
+      expect(prompt).toContain('error: unclosed delimiter');
+      expect(prompt).toContain('#let broken = [unclosed');
+    });
+
     it('text/plain drops the markdown scaffolding and asks for plain prose', async () => {
       client.setResponses(['X\n\nbody']);
 

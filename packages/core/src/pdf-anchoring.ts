@@ -158,10 +158,26 @@ export function locate(
     // for each page, group items into lines and compute one rectangle per line
     for (const [page, pageItems] of pages) {
         const lines = groupItemsByLine(pageItems, SAME_LINE_THRESHOLD_PT);
-        // Compute one bounding rectangle per line and add it to rects
+        // Compute one bounding rectangle per line and add it to rects.
+        // Boundary items that extend past [start, end) are clipped by character
+        // fraction (PDF-GENERATION P4): renderers like Typst emit ONE item per
+        // line, so without clipping a mid-line phrase would bound the whole
+        // line. Proportional interpolation is the measured fallback — exact
+        // glyph metrics need the operator-list route (open question 2) and can
+        // replace this arithmetic without changing the shape.
         for (const lineItems of lines) {
-            const x = Math.min(...lineItems.map(i => i.x));
-            const right = Math.max(...lineItems.map(i => i.x + i.width));
+            const edges = lineItems.map(i => {
+                const chars = i.end - i.start;
+                const left = i.start < start && chars > 0
+                    ? i.x + i.width * ((start - i.start) / chars)
+                    : i.x;
+                const right = i.end > end && chars > 0
+                    ? i.x + i.width * ((end - i.start) / chars)
+                    : i.x + i.width;
+                return { left, right };
+            });
+            const x = Math.min(...edges.map(e => e.left));
+            const right = Math.max(...edges.map(e => e.right));
             const y = Math.min(...lineItems.map(i => i.y));
             const top = Math.max(...lineItems.map(i => i.y + i.height));
             rects.push({page, x, y, width: right - x, height: top - y});

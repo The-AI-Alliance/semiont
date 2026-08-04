@@ -1,0 +1,6 @@
+# Compiled PDF fixtures are generated from the .typ sources at test time
+# (vitest globalSetup, mirroring @semiont/content's generate-fixtures.ts;
+# needs the Typst binary — see README.md for the compile invocation and the
+# mandatory --creation-timestamp pin). Don't commit the binaries — edit the
+# .typ sources instead.
+*.pdf

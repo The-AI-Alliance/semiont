@@ -192,6 +192,7 @@ export type { PdfCoordinate } from './pdf-coordinates';
 
 // PDF text <-> geometry anchoring (locate/textUnder are inverses)
 export { locate, textUnder, anchorRuns, isTextRun } from './pdf-anchoring';
+export { findClaimSpan } from './pdf-citation-search';
 export type { AnchoredText, ExtractionOutcome, PdfTextItem, PdfTextRun } from './pdf-anchoring';
 
 // ResourceDescriptor accessors
@@ -310,6 +311,7 @@ export {
   textExtractionOf,
   AUTHORABLE_MEDIA_TYPES,
   EMBEDDABLE_MEDIA_TYPES,
+  GENERATABLE_MEDIA_TYPES,
 } from './media-types';
 export type {
   SupportedMediaType,

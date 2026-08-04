@@ -29,10 +29,10 @@ import {
 } from './types';
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
-import { getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, type EventMap } from '@semiont/core';
+import { getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, findClaimSpan, type EventMap } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
-import { deriveStorageUri, type AnchoredTextStore } from '@semiont/content';
+import { deriveStorageUri, extractPdfTextLayer, type AnchoredTextStore } from '@semiont/content';
 import { prepareDetection, type DetectionDecline } from './workers/detection/prepare-detection';
 import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
 import {
@@ -42,6 +42,7 @@ import {
   processReferenceJob,
   processTagJob,
   processGenerationJob,
+  buildPdfAnnotation,
   type OnProgress,
   type BuildAnnotation,
 } from './processors';
@@ -390,27 +391,69 @@ async function handleJobInner(
       await emitEvent(session, 'mark:create', { annotation: provenanceRef, resourceId });
     }
 
-    // Inline citations (INLINE-CITATIONS P1): the processor resolved the model's
-    // [[<id>]] transport tokens into claim-span citations against the final
-    // (token-stripped) content. Mint each as a linking annotation ON THE DERIVED
-    // resource — the target anchors the claim span, the body points at the cited
+    // Inline citations: mint each as a linking annotation ON THE DERIVED
+    // resource — the target anchors the claim, the body points at the cited
     // source — so citations are first-class references like any other.
-    for (const citation of genResult.citations) {
-      const { annotation: citationRef } = assembleAnnotation(
-        {
-          motivation: 'linking',
-          target: {
-            source: String(newResourceId),
-            selector: [
-              { type: 'TextPositionSelector', start: citation.start, end: citation.end },
-              { type: 'TextQuoteSelector', exact: citation.exact },
-            ],
+    //
+    // Anchoring branches on the artifact's anchoring model. Text formats
+    // anchor by character offset into the DECODED text — consumers apply
+    // selectors to the decoded string, not raw bytes (INLINE-CITATIONS P1).
+    // A PDF anchors by PAGE GEOMETRY (PDF-GENERATION P4): the citation's
+    // offsets index the Typst SOURCE and would render nothing, so each claim
+    // is re-found in the artifact's own text layer (two-stage search — strict,
+    // then break-aware for hyphenation) and located to rects. A claim the
+    // search cannot find is dropped LOUDLY, never minted wrong.
+    if (genResult.format === 'application/pdf' && genResult.citations.length > 0) {
+      const layer = await extractPdfTextLayer(genResult.content);
+      if (!layer) {
+        config.logger.warn('PDF citations dropped — the generated artifact yielded no text layer', {
+          jobId, resourceId: newResourceId, citations: genResult.citations.length,
+        });
+      } else {
+        for (const citation of genResult.citations) {
+          const span = findClaimSpan(layer, citation.exact);
+          if (!span) {
+            config.logger.warn('PDF citation dropped — claim not found in the rendered text layer', {
+              jobId, resourceId: newResourceId, citedResourceId: citation.resourceId,
+              exactPreview: citation.exact.slice(0, 80),
+            });
+            continue;
+          }
+          // The quote must be the RENDERED substring, not the source claim:
+          // hyphenation drops characters, so the source string can fail
+          // buildPdfAnnotation's containment invariant even though the span
+          // was found — and W3C-wise the quote should be the text actually
+          // under the rects, which is what re-anchoring will see.
+          const citationRef = buildPdfAnnotation(
+            layer,
+            makeResourceId(String(newResourceId)),
+            userId,
+            generator,
+            'linking',
+            { exact: layer.text.slice(span.start, span.end), start: span.start, end: span.end },
+            { type: 'SpecificResource', source: citation.resourceId, purpose: 'linking' },
+          );
+          await emitEvent(session, 'mark:create', { annotation: citationRef, resourceId: newResourceId });
+        }
+      }
+    } else {
+      for (const citation of genResult.citations) {
+        const { annotation: citationRef } = assembleAnnotation(
+          {
+            motivation: 'linking',
+            target: {
+              source: String(newResourceId),
+              selector: [
+                { type: 'TextPositionSelector', start: citation.start, end: citation.end },
+                { type: 'TextQuoteSelector', exact: citation.exact },
+              ],
+            },
+            body: { type: 'SpecificResource', source: citation.resourceId, purpose: 'linking' },
           },
-          body: { type: 'SpecificResource', source: citation.resourceId, purpose: 'linking' },
-        },
-        generator,
-      );
-      await emitEvent(session, 'mark:create', { annotation: citationRef, resourceId: newResourceId });
+          generator,
+        );
+        await emitEvent(session, 'mark:create', { annotation: citationRef, resourceId: newResourceId });
+      }
     }
 
     await emitEvent(session, 'job:complete', {

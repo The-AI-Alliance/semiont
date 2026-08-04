@@ -55,7 +55,8 @@ export async function generateResourceFromTopic(
   outputMediaType: SupportedMediaType = 'text/markdown',
   task: string = 'resource',
   structure?: string,
-  cite: boolean = false
+  cite: boolean = false,
+  repair?: { source: string; error: string }
 ): Promise<{ title: string; content: string }> {
   logger.debug('Generating resource from topic', {
     topicPreview: topic.substring(0, 100),
@@ -234,13 +235,19 @@ ${after ? `${after}...` : ''}
   // determine shape). Never derived from the token budget: maxTokens is length
   // only. The forced `# Title` heading exists only under canonical 'sections'.
   const isPlainText = outputMediaType === 'text/plain';
+  // PDF output means the model authors Typst source (Q1, direct Typst); the
+  // worker compiles it. The prompt therefore teaches Typst syntax, and the
+  // markdown scaffolding never applies.
+  const isPdf = outputMediaType === 'application/pdf';
   let structureRequirement = '';
   let titleRequirement = '';
   if (structure === 'sections') {
-    structureRequirement = isPlainText
-      ? '\n- Organize the content into titled sections with well-structured paragraphs'
-      : '\n- Organize the content into titled sections (## Section) with well-structured paragraphs';
-    if (!isPlainText) {
+    structureRequirement = isPdf
+      ? '\n- Organize the content into titled sections (= Heading) with well-structured paragraphs'
+      : isPlainText
+        ? '\n- Organize the content into titled sections with well-structured paragraphs'
+        : '\n- Organize the content into titled sections (## Section) with well-structured paragraphs';
+    if (!isPlainText && !isPdf) {
       titleRequirement = '\n- Start with a clear heading (# Title)';
     }
   } else if (structure === 'prose') {
@@ -260,16 +267,31 @@ ${after ? `${after}...` : ''}
     ? '\n- Ground every claim in the provided context. Immediately after each claim, cite its source by emitting [[<id>]], where <id> is an id shown in square brackets in the context above (for a passage labeled [abc], emit [[abc]]). Cite only ids that appear in the context.'
     : '';
 
-  const formatRequirements = isPlainText
-    ? `- Write the response as plain text — no formatting markup (no #, *, backticks, headings, or links)
+  const formatRequirements = isPdf
+    ? `- Write the response as Typst markup (the Typst typesetting language — not markdown, not LaTeX)
+- Headings are written as = Heading (deeper levels == Subheading); everything else is plain prose paragraphs
+- Do not emit markdown syntax or code fences`
+    : isPlainText
+      ? `- Write the response as plain text — no formatting markup (no #, *, backticks, headings, or links)
 - Begin with the title on its own first line`
-    : `- Use markdown formatting
+      : `- Use markdown formatting
 - Write the response as markdown`;
+
+  // Compile-repair context (PDF-GENERATION P3): the previous Typst source
+  // failed to compile; the legible compiler diagnostics go back to the model
+  // as an authoritative instruction to fix and re-emit the full document.
+  const repairSection = repair
+    ? `\n\nYour previous attempt failed to compile. Fix the error and return the complete corrected document — full source, not a diff.
+Compile error:
+${repair.error}
+Previous source:
+${repair.source}`
+    : '';
 
   // The caller's prompt is an authoritative leading Instruction (YIELD-STRUCTURE D3),
   // not background "additional context" — task = what to produce, prompt = how.
   const prompt = `${leadLine}
-${userPrompt ? `Instruction: ${userPrompt}` : ''}
+${userPrompt ? `Instruction: ${userPrompt}` : ''}${repairSection}
 ${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', ')}.` : ''}${annotationSection}${contextSection}${resourceSection}${graphSection}${semanticContextSection}${sourceLanguageInstruction}${languageInstruction}
 
 Requirements:
@@ -281,7 +303,7 @@ ${formatRequirements}`;
   const parseResponse = (response: string): { title: string; content: string } => {
     // Clean up any markdown code fences if present
     let content = response.trim();
-    if (content.startsWith('```markdown') || content.startsWith('```md')) {
+    if (content.startsWith('```markdown') || content.startsWith('```md') || content.startsWith('```typst')) {
       content = content.slice(content.indexOf('\n') + 1);
       const endIndex = content.lastIndexOf('```');
       if (endIndex !== -1) {

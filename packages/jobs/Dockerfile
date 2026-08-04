@@ -26,6 +26,19 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --from=installer /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=installer /usr/local/bin /usr/local/bin
 
+# Typst renderer for PDF generation (PDF-GENERATION P2, approved 2026-08-04).
+# Pinned to the version the P0 spike measured — the recorded citation geometry
+# is a property of this version's layout. Alpine/musl build, same libc as this
+# base. The binary embeds its default Latin fonts (Libertinus, SIL OFL), which
+# covers the day-one locales (en/es/de/fr) with no separate font files; the
+# non-Latin tiers are a deliberate later pass. Every invocation must pin
+# --creation-timestamp — unpinned compiles change bytes on identical input,
+# which churns content checksums and re-embeds forever (S11/S12).
+# Attribution lives in NOTICE (Apache-2.0 + the embedded font licenses, which
+# no scanner can see inside a bare binary) — bump the version there in the
+# same diff as this tag.
+COPY --from=ghcr.io/typst/typst:0.15.1 /bin/typst /usr/local/bin/typst
+
 # Strip npm/npx after the COPY above re-introduces them from the installer tree.
 RUN rm -rf /usr/local/lib/node_modules/npm \
            /usr/local/bin/npm \

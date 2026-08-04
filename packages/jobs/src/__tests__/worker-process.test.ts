@@ -31,6 +31,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { extractPdfTextLayer } from '@semiont/content';
 import type { SemiontSession } from '@semiont/sdk';
 import type { ActiveJob, JobClaimAdapter } from '../job-claim-adapter';
 import { handleJob, type WorkerProcessConfig } from '../worker-process';
@@ -67,6 +68,9 @@ vi.mock('@semiont/content', async (importOriginal) => {
   return {
     ...actual,
     EXTRACTORS: { ...actual.EXTRACTORS, 'pdf-text-layer': { extract: vi.fn() } },
+    // PDF citation geometry (P4): the worker re-anchors claims through the
+    // extracted text layer; tests supply it.
+    extractPdfTextLayer: vi.fn(),
   };
 });
 
@@ -266,7 +270,7 @@ describe('handleJob orchestration', () => {
   describe('generation', () => {
     it('uploads content via session.client.yield.resource, then emits job:complete with resourceId + resourceName', async () => {
       vi.mocked(processGenerationJob).mockResolvedValue({
-        content: '# Generated\n\nBody.',
+        content: new TextEncoder().encode('# Generated\n\nBody.'),
         title: 'New Resource',
         format: 'text/markdown',
         citations: [],
@@ -302,7 +306,7 @@ describe('handleJob orchestration', () => {
 
     it('propagates upload errors so the caller can translate to job:fail', async () => {
       vi.mocked(processGenerationJob).mockResolvedValue({
-        content: 'body',
+        content: new TextEncoder().encode('body'),
         title: 'T',
         format: 'text/markdown',
         citations: [],
@@ -322,7 +326,7 @@ describe('handleJob orchestration', () => {
       // step `browse.resources({ entityType: 'Character' })` would never
       // surface synthesized resources.
       vi.mocked(processGenerationJob).mockResolvedValue({
-        content: 'body',
+        content: new TextEncoder().encode('body'),
         title: 'T',
         format: 'text/markdown',
         citations: [],
@@ -349,7 +353,7 @@ describe('handleJob orchestration', () => {
       // resource — distinct from "field absent", and confusing for
       // downstream queries.
       vi.mocked(processGenerationJob).mockResolvedValue({
-        content: 'body',
+        content: new TextEncoder().encode('body'),
         title: 'T',
         format: 'text/markdown',
         citations: [],
@@ -369,7 +373,7 @@ describe('handleJob orchestration', () => {
       // mints a navigable reference: target = the whole source resource (resource-level,
       // no selector), body = SpecificResource → the derived resource.
       vi.mocked(processGenerationJob).mockResolvedValue({
-        content: 'body', title: 'Derived Doc', format: 'text/markdown', citations: [], result: {} as never,
+        content: new TextEncoder().encode('body'), title: 'Derived Doc', format: 'text/markdown', citations: [], result: {} as never,
       });
       const h = makeFakeSessionAndAdapter();
 
@@ -399,7 +403,7 @@ describe('handleJob orchestration', () => {
       // target = the derived resource + position/quote selectors for the claim,
       // body = SpecificResource → the cited source.
       vi.mocked(processGenerationJob).mockResolvedValue({
-        content: 'Paris is the capital of France. It is large.',
+        content: new TextEncoder().encode('Paris is the capital of France. It is large.'),
         title: 'Answer',
         format: 'text/markdown',
         citations: [{ resourceId: 'ctx-9', start: 0, end: 31, exact: 'Paris is the capital of France.' }],
@@ -426,6 +430,81 @@ describe('handleJob orchestration', () => {
         },
       });
       expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:create', 'job:complete']);
+    });
+
+    it('anchors PDF citations by page geometry — FragmentSelector, never TextPositionSelector (PDF-GENERATION P4)', async () => {
+      // The citation offsets index the Typst SOURCE; on a PDF they render
+      // nothing — the silent wrong this test exists to prevent. The worker
+      // re-anchors each claim through the extracted text layer instead.
+      vi.mocked(processGenerationJob).mockResolvedValue({
+        content: new TextEncoder().encode('%PDF-FAKE'),
+        title: 'Answer',
+        format: 'application/pdf',
+        citations: [{ resourceId: 'ctx-9', start: 0, end: 31, exact: 'Paris is the capital of France.' }],
+        result: {} as never,
+      });
+      vi.mocked(extractPdfTextLayer).mockResolvedValue({
+        text: 'Paris is the capital of France. It is large.',
+        items: [{ start: 0, end: 44, page: 1, x: 71, y: 746, width: 450, height: 11 }],
+        pages: [],
+      } as never);
+      const h = makeFakeSessionAndAdapter();
+
+      await handleJob(
+        h.adapter,
+        makeConfig(h.session),
+        makeJob('generation', { referenceId: 'ref-1', cite: true, outputMediaType: 'application/pdf' }),
+      );
+
+      const markCreates = h.busEmits.filter(e => e.channel === 'mark:create');
+      expect(markCreates).toHaveLength(1);
+      const payload = markCreates[0]!.payload as {
+        resourceId: string;
+        annotation: { motivation: string; target: { source: string; selector: Array<{ type: string }> }; body: unknown };
+      };
+      expect(payload.resourceId).toBe('new-res-42');
+      expect(payload.annotation.motivation).toBe('linking');
+      expect(payload.annotation.target.source).toBe('new-res-42');
+      const selectorTypes = payload.annotation.target.selector.map((s) => s.type);
+      expect(selectorTypes).toContain('FragmentSelector');
+      expect(selectorTypes).toContain('TextQuoteSelector');
+      expect(selectorTypes).not.toContain('TextPositionSelector');
+      expect(payload.annotation.body).toMatchObject({ type: 'SpecificResource', source: 'ctx-9', purpose: 'linking' });
+    });
+
+    it('a hyphenated claim mints with the RENDERED text as its quote — the source string would trip the containment invariant', async () => {
+      // The claim text comes from the Typst SOURCE; the rendered layer drops
+      // the soft hyphen ("extraor" + "dinarily"). The quote selector must
+      // carry what is actually under the rects — the rendered substring — or
+      // buildPdfAnnotation's invariant throws and fails the whole job even
+      // though findClaimSpan found the span.
+      vi.mocked(processGenerationJob).mockResolvedValue({
+        content: new TextEncoder().encode('%PDF-FAKE'),
+        title: 'Answer',
+        format: 'application/pdf',
+        citations: [{ resourceId: 'ctx-9', start: 0, end: 27, exact: 'extraordinarily complicated' }],
+        result: {} as never,
+      });
+      vi.mocked(extractPdfTextLayer).mockResolvedValue({
+        text: 'It is extraor \ndinarily complicated today.',
+        items: [{ start: 0, end: 42, page: 1, x: 71, y: 764, width: 452, height: 11 }],
+        pages: [],
+      } as never);
+      const h = makeFakeSessionAndAdapter();
+
+      await handleJob(
+        h.adapter,
+        makeConfig(h.session),
+        makeJob('generation', { referenceId: 'ref-1', cite: true, outputMediaType: 'application/pdf' }),
+      );
+
+      const markCreates = h.busEmits.filter(e => e.channel === 'mark:create');
+      expect(markCreates).toHaveLength(1);
+      const selector = (markCreates[0]!.payload as {
+        annotation: { target: { selector: Array<{ type: string; exact?: string }> } };
+      }).annotation.target.selector;
+      const quote = selector.find(s => s.type === 'TextQuoteSelector');
+      expect(quote?.exact).toBe('extraor \ndinarily complicated');
     });
   });
 
@@ -637,7 +716,7 @@ describe('handleJob orchestration', () => {
 
     it('does not gate generation jobs (they read the annotation, not the source bytes)', async () => {
       vi.mocked(processGenerationJob).mockResolvedValue({
-        content: 'body',
+        content: new TextEncoder().encode('body'),
         title: 'T',
         format: 'text/markdown',
         citations: [],
