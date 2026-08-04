@@ -396,7 +396,8 @@ async function handleJobInner(
     // source — so citations are first-class references like any other.
     //
     // Anchoring branches on the artifact's anchoring model. Text formats
-    // anchor by character offset into the stored bytes (INLINE-CITATIONS P1).
+    // anchor by character offset into the DECODED text — consumers apply
+    // selectors to the decoded string, not raw bytes (INLINE-CITATIONS P1).
     // A PDF anchors by PAGE GEOMETRY (PDF-GENERATION P4): the citation's
     // offsets index the Typst SOURCE and would render nothing, so each claim
     // is re-found in the artifact's own text layer (two-stage search — strict,
@@ -418,13 +419,18 @@ async function handleJobInner(
             });
             continue;
           }
+          // The quote must be the RENDERED substring, not the source claim:
+          // hyphenation drops characters, so the source string can fail
+          // buildPdfAnnotation's containment invariant even though the span
+          // was found — and W3C-wise the quote should be the text actually
+          // under the rects, which is what re-anchoring will see.
           const citationRef = buildPdfAnnotation(
             layer,
             makeResourceId(String(newResourceId)),
             userId,
             generator,
             'linking',
-            { exact: citation.exact, start: span.start, end: span.end },
+            { exact: layer.text.slice(span.start, span.end), start: span.start, end: span.end },
             { type: 'SpecificResource', source: citation.resourceId, purpose: 'linking' },
           );
           await emitEvent(session, 'mark:create', { annotation: citationRef, resourceId: newResourceId });

@@ -60,8 +60,10 @@ The consequential one. It decides what an annotation can *point at*, and that
 choice is permanent for every annotation ever created against the type.
 
 - **`text-selector`** — characters are the anchor. An annotation carries a
-  `TextPositionSelector` and a `TextQuoteSelector`. Offsets index the resource's
-  own bytes, so nothing has to be derived before annotating.
+  `TextPositionSelector` and a `TextQuoteSelector`. Offsets are character
+  positions in the resource's decoded text — consumers apply selectors to the
+  decoded string, not raw bytes — so nothing has to be derived before
+  annotating.
 - **`spatial`** — position is the anchor. Characters are drawn at coordinates
   rather than held at offsets, and the extracted text is a derived artifact that
   re-extraction could shift. So a PDF annotation carries a `FragmentSelector`

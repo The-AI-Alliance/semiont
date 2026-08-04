@@ -471,6 +471,41 @@ describe('handleJob orchestration', () => {
       expect(selectorTypes).not.toContain('TextPositionSelector');
       expect(payload.annotation.body).toMatchObject({ type: 'SpecificResource', source: 'ctx-9', purpose: 'linking' });
     });
+
+    it('a hyphenated claim mints with the RENDERED text as its quote — the source string would trip the containment invariant', async () => {
+      // The claim text comes from the Typst SOURCE; the rendered layer drops
+      // the soft hyphen ("extraor" + "dinarily"). The quote selector must
+      // carry what is actually under the rects — the rendered substring — or
+      // buildPdfAnnotation's invariant throws and fails the whole job even
+      // though findClaimSpan found the span.
+      vi.mocked(processGenerationJob).mockResolvedValue({
+        content: new TextEncoder().encode('%PDF-FAKE'),
+        title: 'Answer',
+        format: 'application/pdf',
+        citations: [{ resourceId: 'ctx-9', start: 0, end: 27, exact: 'extraordinarily complicated' }],
+        result: {} as never,
+      });
+      vi.mocked(extractPdfTextLayer).mockResolvedValue({
+        text: 'It is extraor \ndinarily complicated today.',
+        items: [{ start: 0, end: 42, page: 1, x: 71, y: 764, width: 452, height: 11 }],
+        pages: [],
+      } as never);
+      const h = makeFakeSessionAndAdapter();
+
+      await handleJob(
+        h.adapter,
+        makeConfig(h.session),
+        makeJob('generation', { referenceId: 'ref-1', cite: true, outputMediaType: 'application/pdf' }),
+      );
+
+      const markCreates = h.busEmits.filter(e => e.channel === 'mark:create');
+      expect(markCreates).toHaveLength(1);
+      const selector = (markCreates[0]!.payload as {
+        annotation: { target: { selector: Array<{ type: string; exact?: string }> } };
+      }).annotation.target.selector;
+      const quote = selector.find(s => s.type === 'TextQuoteSelector');
+      expect(quote?.exact).toBe('extraor \ndinarily complicated');
+    });
   });
 
   describe('wire contract', () => {
