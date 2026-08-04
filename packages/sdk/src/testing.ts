@@ -57,9 +57,22 @@ export {
  * test that forgets to seed content fails loudly instead of returning
  * fabricated bytes.
  */
-function inMemoryContent(): IContentTransport {
+export function inMemoryContent(): IContentTransport {
   const store = new Map<string, { data: ArrayBuffer; contentType: string }>();
   const anchoredText = new Map<string, ExtractionOutcome>();
+  // The read-side stand-in for the backend's view index: the producer writes
+  // under the checksum of the bytes it read, and this map lets a reader
+  // holding only the resource id find that entry — same SHA-256 the real
+  // producer computes (@semiont/content calculateChecksum; not imported here
+  // because that package carries the extractor tree).
+  const ridToChecksum = new Map<string, string>();
+  // WebCrypto, not node:crypto — this subpath stays free of node: builtins so
+  // the double runs anywhere the sdk does (browser, node, jsdom); same digest
+  // as the real producer's calculateChecksum.
+  const sha256Hex = async (data: ArrayBuffer): Promise<string> =>
+    [...new Uint8Array(await crypto.subtle.digest('SHA-256', data))]
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
   let seq = 0;
   const toBuffer = (file: File | Buffer): Promise<ArrayBuffer> =>
     file instanceof Uint8Array
@@ -74,10 +87,12 @@ function inMemoryContent(): IContentTransport {
       _options?: PutBinaryOptions,
     ): Promise<{ resourceId: ResourceId }> {
       const rId = makeResourceId(`test-content-${++seq}`);
+      const data = await toBuffer(request.file);
       store.set(rId as string, {
-        data: await toBuffer(request.file),
+        data,
         contentType: String(request.format),
       });
+      ridToChecksum.set(rId as string, await sha256Hex(data));
       return { resourceId: rId };
     },
     async getBinary(rId: ResourceId): Promise<{ data: ArrayBuffer; contentType: string }> {
@@ -99,14 +114,20 @@ function inMemoryContent(): IContentTransport {
         contentType,
       };
     },
-    // Writes are checksum-addressed (PERSIST-ANCHORS P1b); reads stay
-    // rid-addressed, resolved server-side through the view index — which this
-    // double has no view to model, so seed reads by rid and expect writes to
-    // land under the checksum the producer supplies.
+    // Writes are checksum-addressed (PERSIST-ANCHORS P1b); reads are
+    // rid-addressed and resolved through `ridToChecksum` — the double's
+    // stand-in for the backend's view index, fed by `putBinary`. A
+    // producer-path write is therefore readable back through the reader path,
+    // and a rid-keyed seed still reads back directly (the fallback).
     async putAnchoredText(checksum: string, anchored: ExtractionOutcome): Promise<void> {
       anchoredText.set(checksum, anchored);
     },
     async getAnchoredText(rId: ResourceId): Promise<ExtractionOutcome | null> {
+      const checksum = ridToChecksum.get(String(rId));
+      if (checksum) {
+        const resolved = anchoredText.get(checksum);
+        if (resolved) return resolved;
+      }
       return anchoredText.get(String(rId)) ?? null;
     },
     // The cache-consult read (P2c): same map, checksum-keyed — coherent with

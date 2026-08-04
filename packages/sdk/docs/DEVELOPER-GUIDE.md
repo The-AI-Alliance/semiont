@@ -562,6 +562,12 @@ For state-unit factories — which take a `SemiontSession` — `createTestSessio
 returns a real session over the same transport (`{ session, client, transport,
 storage, token$ }`).
 
+The content side is `inMemoryContent()` — the same in-memory `IContentTransport`
+that backs `createTestClient` (reads throw unless seeded), exported for tests
+that drive content directly: `putBinary` records each resource's SHA-256, so a
+producer-path `putAnchoredText(checksum, …)` reads back through
+`getAnchoredText(resourceId)` the same way the backend's view index resolves it.
+
 **Asserting what you sent.** `transport.requestLog` is the arrival-ordered record
 of every request the wire saw — including the payload, so you never need a
 hand-rolled per-channel listener to check an envelope:

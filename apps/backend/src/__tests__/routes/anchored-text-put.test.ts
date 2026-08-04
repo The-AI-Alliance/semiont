@@ -110,6 +110,55 @@ describe('PUT /anchored-text/:checksum', () => {
     expect(write).not.toHaveBeenCalled();
   });
 
+  it('rejects a pdfClass outside the schema enum, accepts one inside it', async () => {
+    // `pdfClass` is an enum (A–G) on the ExtractionOutcome schema. Accepting
+    // arbitrary values here stores outcomes the OpenAPI contract forbids, and
+    // downstream consumers that switch on A–G would meet a class they cannot
+    // handle — the same bad-write-vs-bad-recognizer ambiguity as the geometry
+    // checks above.
+    const { app, write } = appAs('did:semiont:agent:smelter');
+
+    expect((await put(app, { ...MAP, pdfClass: 'Z' })).status).toBe(400);
+    expect((await put(app, { ...MAP, pdfClass: 7 })).status).toBe(400);
+    expect(write).not.toHaveBeenCalled();
+
+    const classified: ExtractionOutcome = { ...MAP, pdfClass: 'B' };
+    expect((await put(app, classified)).status).toBe(204);
+    expect(write).toHaveBeenCalledWith(CHECKSUM, classified);
+  });
+
+  it('rejects fractional values in the fields the schema types as integer', async () => {
+    // `unreadPages[]`, `ocrConfidence.lowConfidenceWords` and `.totalWords` are
+    // `integer` in the schema; `mean` is `number`. Counting words to 3.7 or
+    // naming page 1.5 is a broken recognizer, and storing it hands the reader
+    // the same bad-write-vs-bad-recognizer ambiguity the geometry checks exist
+    // to prevent. (The `items` geometry is deliberately NOT tightened: the
+    // schema types every PdfTextItem field — `page` included — as `number`, so
+    // rejecting fractions there would make this guard stricter than the
+    // contract it enforces.)
+    const { app, write } = appAs('did:semiont:agent:smelter');
+
+    expect((await put(app, { ...MAP, unreadPages: [1.5] })).status).toBe(400);
+    expect((await put(app, {
+      ...MAP,
+      ocrConfidence: { mean: 91.2, lowConfidenceWords: 3.7, totalWords: 100 },
+    })).status).toBe(400);
+    expect((await put(app, {
+      ...MAP,
+      ocrConfidence: { mean: 91.2, lowConfidenceWords: 3, totalWords: 100.5 },
+    })).status).toBe(400);
+    expect(write).not.toHaveBeenCalled();
+
+    // Integers pass, and a fractional `mean` still passes — it is a number.
+    const measured: ExtractionOutcome = {
+      ...MAP,
+      unreadPages: [2, 7],
+      ocrConfidence: { mean: 91.2, lowConfidenceWords: 3, totalWords: 100 },
+    };
+    expect((await put(app, measured)).status).toBe(204);
+    expect(write).toHaveBeenCalledWith(CHECKSUM, measured);
+  });
+
   it('stores a named decline — a cacheable outcome, not an error', async () => {
     const { app, write } = appAs('did:semiont:agent:smelter');
 

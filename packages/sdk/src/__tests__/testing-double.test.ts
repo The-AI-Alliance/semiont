@@ -12,8 +12,9 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { BusRequestError } from '@semiont/core';
-import { createTestClient, createTestSession } from '../testing';
+import { BusRequestError, resourceId } from '@semiont/core';
+import { createHash } from 'node:crypto';
+import { createTestClient, createTestSession, inMemoryContent } from '../testing';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -80,6 +81,43 @@ describe('createTestClient', () => {
 
     sub.unsubscribe();
     client.dispose();
+  });
+});
+
+describe('inMemoryContent — anchored-text key model (PERSIST-ANCHORS)', () => {
+  const OUTCOME = {
+    text: 'alpha beta',
+    items: [{ start: 0, end: 5, page: 1, x: 72, y: 700, width: 28, height: 12 }],
+    method: 'ocr' as const,
+  };
+
+  it('a producer write under the content checksum is readable back by resource id', async () => {
+    // The real chain: the producer hashes the bytes it read and writes under
+    // that checksum; a reader holding only the resource id is resolved
+    // server-side through the view index. The double must model that
+    // resolution or consumer tests cannot exercise anchored-text behavior
+    // at all — a write through the producer path would never be readable
+    // through browse.resourceAnchoredText's path.
+    const content = inMemoryContent();
+    const bytes = Buffer.from('scanned page bytes');
+
+    const { resourceId: rId } = await content.putBinary({
+      name: 'page.pdf',
+      file: bytes,
+      format: 'application/pdf',
+      storageUri: 'file://scans/page.pdf',
+    });
+    const checksum = createHash('sha256').update(bytes).digest('hex');
+    await content.putAnchoredText(checksum, OUTCOME);
+
+    expect(await content.getAnchoredText(rId)).toEqual(OUTCOME);
+    expect(await content.getAnchoredTextByChecksum(checksum)).toEqual(OUTCOME);
+  });
+
+  it('rid-keyed seeds still read back — the documented shortcut stays', async () => {
+    const content = inMemoryContent();
+    await content.putAnchoredText('res-seeded', OUTCOME);
+    expect(await content.getAnchoredText(resourceId('res-seeded'))).toEqual(OUTCOME);
   });
 });
 

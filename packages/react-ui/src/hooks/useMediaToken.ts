@@ -18,6 +18,12 @@ export function useMediaToken(client: SemiontClient | null, id: ResourceId): Use
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // The previous run's token never survives into this one: it belongs to
+    // the previous (client, id) pair. Tokens are per-resource, so on an id
+    // change the old one is WRONG, not merely stale; and on a client that
+    // can no longer mint, a leftover token would keep media URLs alive for
+    // 5 minutes and then break them all at once with nothing explaining why.
+    setToken(undefined);
     // `auth` is only constructed when the client was given an IBackendOperations
     // — a host on a bare transport has none, and cannot mint tokens at all.
     const auth = client?.auth;

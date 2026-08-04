@@ -85,6 +85,15 @@ function describedByLink(id: string): string {
 
 const EXTRACTION_METHODS = new Set(['text-passthrough', 'pdf-text-layer', 'table', 'form', 'ocr']);
 const DECLINE_REASONS = new Set(['no-text-layer', 'encrypted', 'corrupt', 'too-large']);
+const PDF_CLASSES = new Set(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
+
+/**
+ * `integer` in the schema, not merely `number` — page indices and word counts.
+ * Deliberately NOT used for `PdfTextItem` geometry: the spec types every field
+ * there (`page` included) as `number`, so requiring integers would make this
+ * guard stricter than the contract it enforces.
+ */
+const isInteger = (value: unknown): value is number => Number.isInteger(value);
 
 /**
  * Narrow a request body to `ExtractionOutcome` (PERSIST-ANCHORS D1): the
@@ -100,11 +109,12 @@ function isExtractionOutcome(value: unknown): value is ExtractionOutcome {
   if (isString(value.declined)) return DECLINE_REASONS.has(value.declined);
   if (!isString(value.text) || !isArray(value.items)) return false;
   if (!isString(value.method) || !EXTRACTION_METHODS.has(value.method)) return false;
+  if (value.pdfClass !== undefined && !(isString(value.pdfClass) && PDF_CLASSES.has(value.pdfClass))) return false;
   if (value.ocrConfidence !== undefined) {
     const c = value.ocrConfidence;
-    if (!isObject(c) || !isNumber(c.mean) || !isNumber(c.lowConfidenceWords) || !isNumber(c.totalWords)) return false;
+    if (!isObject(c) || !isNumber(c.mean) || !isInteger(c.lowConfidenceWords) || !isInteger(c.totalWords)) return false;
   }
-  if (value.unreadPages !== undefined && !(isArray(value.unreadPages) && value.unreadPages.every(isNumber))) return false;
+  if (value.unreadPages !== undefined && !(isArray(value.unreadPages) && value.unreadPages.every(isInteger))) return false;
   return value.items.every((item) =>
     isObject(item)
     && isNumber(item.start) && isNumber(item.end) && isNumber(item.page)
