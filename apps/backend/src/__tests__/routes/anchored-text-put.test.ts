@@ -127,6 +127,48 @@ describe('PUT /anchored-text/:checksum', () => {
     expect(write).toHaveBeenCalledWith(CHECKSUM, classified);
   });
 
+  it('rejects a checksum that is not lowercase hex SHA-256, rather than 204-ing a write that never happened', async () => {
+    // The store refuses a key it cannot shard and RETURNS — "a store that
+    // cannot write is still a store" is right for a cache library, but through
+    // a PUT it is a lie: 204 tells the Smelter the map is published while the
+    // artifact is permanently absent, and the reconcile diff can never see the
+    // hole because nothing was ever recorded. The route owes a 400.
+    //
+    // Lowercase specifically: `calculateChecksum` is sha256().digest('hex'), and
+    // the store shards on the key's first characters — accepting `AB…` and `ab…`
+    // would file one content identity under two different paths.
+    const { app, write } = appAs('did:semiont:agent:smelter');
+
+    const bad = [
+      'not-a-checksum',
+      'a'.repeat(63),           // one short
+      'a'.repeat(65),           // one long
+      'A'.repeat(64),           // uppercase — a second path for the same content
+      `${'a'.repeat(62)}zz`,    // right length, not hex
+      // An empty segment is not in this list: `/anchored-text/` does not match
+      // `/anchored-text/:checksum`, so routing 404s it before the handler runs.
+    ];
+    for (const checksum of bad) {
+      const res = await app.request(`/anchored-text/${checksum}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(MAP),
+      });
+      expect(res.status, `PUT with checksum "${checksum}"`).toBe(400);
+    }
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it('rejects a bad checksum on the cache-consult read too, instead of answering "no map"', async () => {
+    // A 204 here means "this content has no extraction", which a malformed key
+    // has not established. Answering it hides the caller's bug as a cache miss.
+    const { app, read } = appAs('did:semiont:agent:smelter');
+
+    const res = await app.request('/anchored-text/not-a-checksum', { method: 'GET' });
+    expect(res.status).toBe(400);
+    expect(read).not.toHaveBeenCalled();
+  });
+
   it('rejects fractional values in the fields the schema types as integer', async () => {
     // `unreadPages[]`, `ocrConfidence.lowConfidenceWords` and `.totalWords` are
     // `integer` in the schema; `mean` is `number`. Counting words to 3.7 or

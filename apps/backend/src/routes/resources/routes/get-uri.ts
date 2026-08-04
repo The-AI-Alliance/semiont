@@ -96,6 +96,24 @@ const PDF_CLASSES = new Set(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
 const isInteger = (value: unknown): value is number => Number.isInteger(value);
 
 /**
+ * The anchored-text key is the content checksum of the bytes the map derives
+ * from: `calculateChecksum` is `sha256().digest('hex')`, so 64 lowercase hex
+ * characters and nothing else.
+ *
+ * Checked at the route because the store cannot report it. `AnchoredTextStore`
+ * refuses a key it cannot shard by logging and returning — "a store that cannot
+ * write is still a store", which is the right rule for a cache library whose
+ * every failure is a miss. Through a PUT it becomes a lie: 204 tells the
+ * producer the map is published while the artifact is permanently absent, and
+ * the reconcile diff can never see the hole because nothing was recorded.
+ *
+ * Lowercase is load-bearing, not pedantry: the store shards on the key's
+ * leading characters, so accepting `AB…` as well as `ab…` would file one
+ * content identity under two paths.
+ */
+const CONTENT_CHECKSUM = /^[0-9a-f]{64}$/;
+
+/**
  * Narrow a request body to `ExtractionOutcome` (PERSIST-ANCHORS D1): the
  * anchored text with its provenance, or a named decline.
  *
@@ -148,6 +166,9 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     }
 
     const { checksum } = c.req.param();
+    if (!CONTENT_CHECKSUM.test(checksum)) {
+      throw new HTTPException(400, { message: 'Path segment must be a content checksum: 64 lowercase hex characters' });
+    }
     const body: unknown = await c.req.json().catch(() => null);
     if (!isExtractionOutcome(body)) {
       throw new HTTPException(400, { message: 'Body must be an ExtractionOutcome: { text, items[], method, … } or { declined }' });
@@ -193,6 +214,9 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     }
 
     const { checksum } = c.req.param();
+    if (!CONTENT_CHECKSUM.test(checksum)) {
+      throw new HTTPException(400, { message: 'Path segment must be a content checksum: 64 lowercase hex characters' });
+    }
     const { knowledgeSystem: { kb } } = c.get('makeMeaning');
     const outcome = await kb.anchoredText.read(checksum);
     if (outcome === null) {
