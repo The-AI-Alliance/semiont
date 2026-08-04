@@ -138,10 +138,10 @@ var stateStores = map[string]stateStoreSpec{
 		projection: true,
 	},
 	// The backend's own derived state: the anchored-text store, one coordinate
-	// map per representation, ~2.9s/page of OCR to rebuild
-	// (.plans/PERSIST-ANCHORS.md). Unmounted it lives in the container and dies
-	// on every stop, and nothing re-derives it — reconcile plans from Qdrant,
-	// which persists, so it sees matching checksums and does nothing.
+	// map per representation, ~2.9s/page of OCR to rebuild. Unmounted it lives
+	// in the container and dies on every stop, and nothing re-derives it —
+	// reconcile plans from Qdrant, which persists, so it sees matching
+	// checksums and does nothing.
 	//
 	// Filed exactly like the projections it sits beside: `stateDir/projections`
 	// and `stateDir/anchored-text` are both derived, both under the KB's own

@@ -639,10 +639,10 @@ func TestStatePersistsAcrossStarts(t *testing.T) {
 }
 
 // The backend keeps derived state of its own — the anchored-text store, a
-// coordinate map per representation that costs ~2.9s/page of OCR to rebuild
-// (.plans/PERSIST-ANCHORS.md). Unmounted it lives in the container and dies
-// with it on every `stop`, and nothing re-derives it: reconcile plans work
-// from Qdrant, which persists, so it sees matching checksums and does nothing.
+// coordinate map per representation that costs ~2.9s/page of OCR to rebuild.
+// Unmounted it lives in the container and dies with it on every `stop`, and
+// nothing re-derives it: reconcile plans work from Qdrant, which persists, so
+// it sees matching checksums and does nothing.
 //
 // Filed exactly like the projections beside it: `stateDir/anchored-text`,
 // scoped by the KB's `[project] name`, the same scope SemiontProject gives
