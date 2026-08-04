@@ -15,7 +15,7 @@
     "show-report": "playwright show-report"
   },
   "devDependencies": {
-    "@playwright/test": "1.61.1",
+    "@playwright/test": "1.62.0",
     "@semiont/core": "file:../../packages/core",
     "@semiont/sdk": "file:../../packages/sdk",
     "@types/node": "^26.0.0",
