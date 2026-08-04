@@ -204,7 +204,7 @@ const VALID_KEY = /^[A-Za-z0-9_-]+$/;
  * is the KB's committed system of record; everything here is derived,
  * reclaimable, and never a source of truth.
  *
- * `dir` is the caller's, out of `Project.dataHome`: this package has no idea
+ * `dir` is the caller's, out of `Project.anchoredTextDir`: this package has no idea
  * which project it is serving. Every failure path is a miss rather than an
  * error, matching the rule extraction already follows for unreadable pages —
  * the cache may make things faster, never make them fail.

@@ -22,7 +22,6 @@
 import type { EventStore } from '@semiont/event-sourcing';
 import { FilesystemViewStorage, type ViewStorage } from '@semiont/event-sourcing';
 import { WorkingTreeStore, createAnchoredTextStore, type AnchoredTextStore } from '@semiont/content';
-import path from 'path';
 import type { GraphDatabase } from '@semiont/graph';
 import type { VectorStore } from '@semiont/vectors';
 import type { SemiontProject } from '@semiont/core/node';
@@ -67,7 +66,7 @@ export async function createKnowledgeBase(
   // one storage authority and no shared volume between service images
   // (ANCHORED-TEXT-CACHE Lane 5).
   const anchoredText = createAnchoredTextStore(
-    path.join(project.dataHome, 'anchored-text'),
+    project.anchoredTextDir,
     logger.child({ component: 'anchored-text-store' }),
   );
   // Fold of `weave:applied` signals. The Weaver itself is NOT constructed

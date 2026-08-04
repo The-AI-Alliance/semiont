@@ -437,7 +437,15 @@ func flowBackend(x executor, fc flowCtx, addr, stage, secret string, otel []stri
 	if !ok {
 		return 1
 	}
-	bArgs := backendArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, jwt, fc.version, port, fc.userEnv, otel)
+	// The backend's own persistent state (LAUNCHER-STATE.md's model, extended
+	// to a config consumer): same image-stamp check and same projection-clear
+	// as the dependency roles get, so the anchored-text store survives a stop.
+	img := image("backend", fc.version)
+	extra, ok := x.stateMounts("anchored-text", img, fc.root)
+	if !ok {
+		return 1
+	}
+	bArgs := backendArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, jwt, fc.version, port, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
 		x.say(sayFail, "Backend failed to start.")

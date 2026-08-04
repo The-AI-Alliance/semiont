@@ -107,6 +107,8 @@ type stateStoreSpec struct {
 }
 
 // stateMount: one -v within a store. sub "" mounts the store dir itself.
+// target may contain {kb} — the KB's [project] name, which scopes the
+// backend's own XDG state dirs (see stateMountArgs).
 type stateMount struct{ sub, target string }
 
 // stateStores: the roles whose containers persist state, with the mount
@@ -135,6 +137,25 @@ var stateStores = map[string]stateStoreSpec{
 		mode:       0o777,
 		projection: true,
 	},
+	// The backend's own derived state: the anchored-text store, one coordinate
+	// map per representation, ~2.9s/page of OCR to rebuild
+	// (.plans/PERSIST-ANCHORS.md). Unmounted it lives in the container and dies
+	// on every stop, and nothing re-derives it — reconcile plans from Qdrant,
+	// which persists, so it sees matching checksums and does nothing.
+	//
+	// Filed exactly like the projections it sits beside: `stateDir/projections`
+	// and `stateDir/anchored-text` are both derived, both under the KB's own
+	// `{name}` scope. `{kb}` below is that name, substituted per root — the
+	// path must carry the KB identifier, so a shorter mount one level up (which
+	// would need no identity) is not an option.
+	//
+	// projection: reproducible from the resource's bytes, so an image change
+	// clears rather than refuses — and `clean --store anchored-text` is safe.
+	"anchored-text": {
+		dir:        "anchored-text",
+		mounts:     []stateMount{{"", "/home/semiont/.local/state/semiont/{kb}/anchored-text"}},
+		projection: true,
+	},
 }
 
 // storeDir: the store's directory under a root's state dir.
@@ -158,9 +179,25 @@ func stateMountArgs(role, root string) []string {
 	if sd == "" {
 		return nil
 	}
+	// {kb} scopes a container-side path by the KB's [project] name — the same
+	// scope SemiontProject gives projections, jobs and anchored text. Without
+	// a name the target would be wrong rather than absent, so the store is
+	// skipped: an ephemeral store is recoverable, a mount landing in the wrong
+	// directory is silent corruption.
+	kb := loadKBIdentity(root).projectName()
 	var args []string
 	for _, m := range spec.mounts {
-		args = append(args, "-v", filepath.Join(sd, m.sub)+":"+m.target)
+		target := m.target
+		if strings.Contains(target, "{kb}") {
+			// A colon would split the -v spec into the wrong host:container
+			// pair — a mount landing somewhere unintended, which is worse than
+			// no mount. Spaces are safe: argv carries them, no shell parses it.
+			if kb == "" || strings.ContainsAny(kb, ":") {
+				return nil
+			}
+			target = strings.ReplaceAll(target, "{kb}", kb)
+		}
+		args = append(args, "-v", filepath.Join(sd, m.sub)+":"+target)
 	}
 	for _, e := range spec.env {
 		args = append(args, "-e", e)
