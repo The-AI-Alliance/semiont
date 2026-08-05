@@ -41,15 +41,15 @@ const MAP: ExtractionOutcome = {
 };
 
 /** An app whose principal is, or is not, a Software peer. */
-function appAs(agentDid: string | undefined, write = vi.fn(), read = vi.fn()) {
+function appAs(agentDid: string | undefined, write = vi.fn(), read = vi.fn(), list = vi.fn()) {
   const app = new Hono<{ Variables: Variables }>();
   app.use('*', async (c, next) => {
     if (agentDid) c.set('agentDid', agentDid);
-    c.set('makeMeaning', { knowledgeSystem: { kb: { anchoredText: { write, read } } } } as never);
+    c.set('makeMeaning', { knowledgeSystem: { kb: { anchoredText: { write, read, list } } } } as never);
     await next();
   });
   registerGetResourceUri(app as unknown as ResourcesRouterType);
-  return { app, write, read };
+  return { app, write, read, list };
 }
 
 // The producer addresses the artifact by the checksum of the bytes it read.
@@ -256,12 +256,16 @@ describe('GET /anchored-text/:checksum — the cache-consult read (PERSIST-ANCHO
   it('does not shadow the keys listing — /anchored-text/keys still answers as itself', async () => {
     // Static-over-dynamic route precedence, pinned: a checksum route that
     // captured 'keys' would silently break the reconcile planner's bulk read.
+    // The 200 is the discriminator — the checksum handler would have 400'd
+    // 'keys' as a non-hex segment before ever touching the store.
     const read = vi.fn().mockResolvedValue(MAP);
-    const { app } = appAs('did:semiont:agent:smelter', vi.fn(), read);
+    const list = vi.fn().mockResolvedValue([CHECKSUM]);
+    const { app } = appAs('did:semiont:agent:smelter', vi.fn(), read, list);
 
     const res = await app.request('/anchored-text/keys', { method: 'GET' });
 
-    expect(res.status).toBe(500);   // the keys route reaches kb.anchoredText.list, absent from this stub
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ keys: [CHECKSUM] });
     expect(read).not.toHaveBeenCalled();   // the checksum handler never saw 'keys'
   });
 });
