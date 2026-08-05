@@ -17,11 +17,18 @@ import { execFileSync } from 'child_process';
  *   stateDir        — $XDG_STATE_HOME/semiont/{name}/
  *   projectionsDir  — stateDir/projections/
  *   jobsDir         — stateDir/jobs/
- *   anchoredTextDir — stateDir/anchored-text/
+ *   anchoredTextDir — $SEMIONT_ANCHORED_TEXT_DIR  (required; no default)
+ *   backendLogsDir      — stateDir/backend/
+ *   backendAppLogFile   — backendLogsDir/app.log
+ *   backendErrorLogFile — backendLogsDir/error.log
+ *   runtimeDir      — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
+ *   backendPidFile  — runtimeDir/backend.pid
  *
  * Everything ephemeral that is DERIVED sits under stateDir together —
- * projections (from the event log), jobs, and the anchored-text store (from a
- * representation's bytes). That is the XDG distinction, not a filing habit:
+ * projections (from the event log) and jobs. The anchored-text store is
+ * derived too, but its location is declared by the deployment rather than
+ * composed here (see anchoredTextDir). That is the XDG distinction, not a
+ * filing habit:
  * $XDG_STATE_HOME is for data that persists between restarts but "is not
  * important or portable enough" for $XDG_DATA_HOME, and losing any of these
  * costs recomputation rather than information.
@@ -32,11 +39,6 @@ import { execFileSync } from 'child_process';
  * had exactly one consumer — the anchored-text store, which belonged in state
  * all along — so it went with the move rather than being left for a
  * hypothetical future user of the DATA tier.
- *   backendLogsDir      — stateDir/backend/
- *   backendAppLogFile   — backendLogsDir/app.log
- *   backendErrorLogFile — backendLogsDir/error.log
- *   runtimeDir      — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
- *   backendPidFile  — runtimeDir/backend.pid
  *
  * Note: the frontend has no entry here, deliberately. It serves static assets
  * from its own container image and keeps no per-project state on the host, so
@@ -90,7 +92,26 @@ export class SemiontProject {
     this.stateDir = path.join(xdgState, 'semiont', this.name);
     this.projectionsDir = path.join(this.stateDir, 'projections');
     this.jobsDir = path.join(this.stateDir, 'jobs');
-    this.anchoredTextDir = path.join(this.stateDir, 'anchored-text');
+    // Declared by the deployment, never composed here and never defaulted —
+    // the backend image sets SEMIONT_ANCHORED_TEXT_DIR=/anchored-text and
+    // `semiont start` bind-mounts the KB's per-root store onto it, exactly as
+    // SEMIONT_ROOT=/kb works.
+    //
+    // A default would be worse than an error: a deployment that forgot the
+    // variable would write a full OCR pass per representation into a directory
+    // nobody mounted, lose it on the next `stop`, and re-derive it forever —
+    // silent, expensive, and indistinguishable from working.
+    const anchoredTextDir = process.env.SEMIONT_ANCHORED_TEXT_DIR;
+    if (!anchoredTextDir) {
+      throw new Error(
+        'SEMIONT_ANCHORED_TEXT_DIR is not set. It names the directory holding this ' +
+        "knowledge base's anchored-text store, and has no default: the backend image " +
+        'declares it (SEMIONT_ANCHORED_TEXT_DIR=/anchored-text) and `semiont start` ' +
+        'mounts the per-root store onto it. Running the backend outside a container ' +
+        'means setting it yourself.',
+      );
+    }
+    this.anchoredTextDir = anchoredTextDir;
     this.backendLogsDir = path.join(this.stateDir, 'backend');
     this.backendAppLogFile = path.join(this.backendLogsDir, 'app.log');
     this.backendErrorLogFile = path.join(this.backendLogsDir, 'error.log');
@@ -119,7 +140,7 @@ export class SemiontProject {
 
   /**
    * Delete all ephemeral state for this project (stateDir + runtimeDir).
-   * Does not touch eventsDir or dataDir.
+   * Does not touch eventsDir — the event log is the system of record.
    */
   async destroy(): Promise<void> {
     await Promise.all([
