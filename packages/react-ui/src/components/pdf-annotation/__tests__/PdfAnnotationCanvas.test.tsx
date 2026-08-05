@@ -980,6 +980,41 @@ describe('PdfAnnotationCanvas', () => {
       expect(tabbable[0]).toHaveAttribute('data-page', '1');
     });
 
+    test('the strip runs along the same axis as the scrolling, beside the column', async () => {
+      // Pages scroll vertically, so a horizontal strip reads across a
+      // direction the document does not move in. The strip's axis follows the
+      // scroll axis — which is also what makes horizontal scrolling (a later
+      // phase) a change of one value rather than a second layout.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
+      });
+      io.fire([1]);
+
+      const column = document.querySelector('.semiont-pdf-annotation-canvas__column')!;
+      const strip = document.querySelector('.semiont-pdf-annotation-canvas__strip')!;
+
+      // One axis, declared in one place, read by both.
+      expect(column).toHaveAttribute('data-axis', 'vertical');
+      expect(strip).toHaveAttribute('data-axis', 'vertical');
+      // Tells assistive tech which arrow keys apply to the strip.
+      expect(strip).toHaveAttribute('aria-orientation', 'vertical');
+      // Adjacent: siblings in the viewport, strip after the column so it
+      // lands beside that column's scrollbar.
+      expect(strip.previousElementSibling).toBe(column);
+      expect(strip.parentElement).toHaveClass('semiont-pdf-annotation-canvas__viewport');
+    });
+
     test('keeps the paged layout when no layout is requested', async () => {
       render(
         <PdfAnnotationCanvas resourceUri="res-1"

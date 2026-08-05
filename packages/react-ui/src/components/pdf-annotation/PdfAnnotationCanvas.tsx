@@ -47,6 +47,19 @@ const PRELOAD_MARGIN = '100% 0px';
 const STRIP_PAGE_WIDTH = 14;
 
 /**
+ * The axis pages advance along.
+ *
+ * ONE source for two consumers: the column scrolls along it, and the page
+ * strip runs parallel to it. A strip that ran across the scroll direction
+ * would read as a control for a movement the document does not make.
+ *
+ * Constant today because scrolling is vertical. The horizontal-scrolling
+ * setting turns this into a value read from preferences — both consumers
+ * follow automatically, which is the point of routing them through one name.
+ */
+const SCROLL_AXIS: 'vertical' | 'horizontal' = 'vertical';
+
+/**
  * Scroll an element into view where the environment supports it.
  *
  * Same posture as this file's guarded observers: jsdom implements no layout
@@ -837,7 +850,8 @@ export function PdfAnnotationCanvas({
       {isLoading && <div className="semiont-pdf-annotation-canvas__loading">{t('loading')}</div>}
 
       {pdfDoc && pageLayout === 'scroll' ? (
-        <div className="semiont-pdf-annotation-canvas__column" ref={columnRef}>
+        <div className="semiont-pdf-annotation-canvas__viewport" data-axis={SCROLL_AXIS}>
+        <div className="semiont-pdf-annotation-canvas__column" data-axis={SCROLL_AXIS} ref={columnRef}>
           {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => (
             <div
               key={page}
@@ -856,41 +870,34 @@ export function PdfAnnotationCanvas({
             </div>
           ))}
         </div>
+        {numPages > 0 && pageShape && (
+          <div
+            className="semiont-pdf-annotation-canvas__strip"
+            data-axis={SCROLL_AXIS}
+            aria-orientation={SCROLL_AXIS}
+            ref={stripRef}
+          >
+            {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                type="button"
+                data-page={page}
+                className="semiont-pdf-annotation-canvas__strip-page"
+                style={{ height: `${Math.round(STRIP_PAGE_WIDTH * pageShape.aspect)}px` }}
+                aria-label={t('pageOf', { page, total: numPages })}
+                tabIndex={page === currentPage ? 0 : -1}
+                {...(page === currentPage ? { 'aria-current': 'page' as const } : {})}
+                ref={page === currentPage ? currentTickRef : undefined}
+                onClick={() => scrollToPage(page)}
+              />
+            ))}
+          </div>
+        )}
+        </div>
       ) : (
         pdfDoc && !isLoading && (
           <PdfPageView doc={pdfDoc} pageNumber={pageNumber} {...pageProps} />
         )
-      )}
-
-      {/*
-        The page strip: one proportional rectangle per page, current
-        highlighted, click to jump. Rectangles, not thumbnails — it needs no
-        rasterization at all, only the page count and the aspect ratio the
-        slot reservation already measures, so it stays cheap on a 400-page
-        scan. It answers "where am I in this document", which neither the
-        pager nor the scrollbar does.
-      */}
-      {pageLayout === 'scroll' && numPages > 0 && pageShape && (
-        <div className="semiont-pdf-annotation-canvas__strip" ref={stripRef}>
-          {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => (
-            <button
-              key={page}
-              type="button"
-              data-page={page}
-              className="semiont-pdf-annotation-canvas__strip-page"
-              // The page it represents, at the page's own proportions.
-              style={{ height: `${Math.round(STRIP_PAGE_WIDTH * pageShape.aspect)}px` }}
-              aria-label={t('pageOf', { page, total: numPages })}
-              // Roving tabindex: the strip is ONE tab stop. A 400-page
-              // document must not put 400 stops in the tab order; arrows
-              // move between pages, and they already do.
-              tabIndex={page === currentPage ? 0 : -1}
-              {...(page === currentPage ? { 'aria-current': 'page' as const } : {})}
-              ref={page === currentPage ? currentTickRef : undefined}
-              onClick={() => scrollToPage(page)}
-            />
-          ))}
-        </div>
       )}
 
       {/* Page navigation controls */}

@@ -36,13 +36,41 @@
  * it the column grows to its content and the page scrolls instead, which
  * still works but defeats the windowing.
  */
+/*
+ * Viewport = the pages plus their strip, side by side. The strip sits AFTER
+ * the column so it lands against that column's scrollbar: two readings of the
+ * same position, adjacent.
+ */
+.semiont-pdf-annotation-canvas__viewport {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.semiont-pdf-annotation-canvas__viewport[data-axis="horizontal"] {
+  flex-direction: column;
+}
+
 .semiont-pdf-annotation-canvas__column {
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  flex: 1 1 auto;
   gap: 1rem;
+  align-items: center;
+}
+
+/*
+ * Both blocks below key off ONE attribute, so the strip can never end up
+ * running across the direction the document scrolls.
+ */
+.semiont-pdf-annotation-canvas__column[data-axis="vertical"] {
+  flex-direction: column;
   max-height: 80vh;
   overflow-y: auto;
+}
+
+.semiont-pdf-annotation-canvas__column[data-axis="horizontal"] {
+  flex-direction: row;
+  overflow-x: auto;
 }
 
 .semiont-pdf-annotation-canvas__slot {
@@ -57,10 +85,23 @@
  */
 .semiont-pdf-annotation-canvas__strip {
   display: flex;
-  align-items: flex-end;
+  flex: 0 0 auto;
   gap: 2px;
-  overflow-x: auto;
   padding: 0.5rem;
+}
+
+.semiont-pdf-annotation-canvas__strip[data-axis="vertical"] {
+  flex-direction: column;
+  align-items: center;
+  max-height: 80vh;
+  overflow-y: auto;
+  border-left: 1px solid var(--semiont-border-secondary);
+}
+
+.semiont-pdf-annotation-canvas__strip[data-axis="horizontal"] {
+  flex-direction: row;
+  align-items: flex-end;
+  overflow-x: auto;
   border-top: 1px solid var(--semiont-border-secondary);
 }
 
