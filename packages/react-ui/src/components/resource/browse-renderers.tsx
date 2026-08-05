@@ -68,6 +68,7 @@ export function PdfBrowseRenderer({ content, resourceUri, annotations, session }
         drawingMode={null}
         selectedMotivation={null}
         session={session}
+        pageLayout="scroll"
       />
     </Suspense>
   );

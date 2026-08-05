@@ -23,6 +23,24 @@ import './PdfAnnotationCanvas.css';
 export type DrawingMode = 'rectangle' | 'circle' | 'polygon' | null;
 
 /**
+ * How the document's pages are laid out.
+ *
+ * `paged` is one page with Previous/Next. `scroll` is a virtualized column:
+ * every page gets a slot so the scrollbar tells the truth about the
+ * document's length, but only the pages near the viewport are mounted.
+ *
+ * Declared explicitly rather than inferred from `drawingMode`, which does NOT
+ * distinguish the modes — AnnotateView passes `drawingMode={null}` whenever no
+ * motivation is selected, so keying layout on it would flip a reader between
+ * scrolling and paged views as they picked up and put down a tool.
+ * See .plans/PDF-CONTINUOUS-SCROLL.md D3.
+ */
+export type PageLayout = 'paged' | 'scroll';
+
+/** How far outside the viewport a page starts loading, and stays loaded. */
+const PRELOAD_MARGIN = '100% 0px';
+
+/**
  * Get color for annotation based on motivation
  */
 function getMotivationColor(motivation: SelectionMotivation | null): { stroke: string; fill: string } {
@@ -44,133 +62,66 @@ function getMotivationColor(motivation: SelectionMotivation | null): { stroke: s
   }
 }
 
-interface PdfAnnotationCanvasProps {
-  pdfUrl: string;
-  /** The '@id' of the annotated resource — stamped as `source` on mark:requested (multi-viewer routing). */
+interface PdfPageViewProps {
+  doc: PDFDocumentProxy;
+  pageNumber: number;
+  /** Raster scale. Display-only: the overlay's geometry never reads it. */
+  scale: number;
   resourceUri: string;
-  existingAnnotations?: Annotation[];
+  existingAnnotations: Annotation[];
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
   session?: SemiontSession | null | undefined;
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
-  hoverDelayMs?: number;
+  hoverDelayMs: number;
+  /** The document-wide server map, fetched once per resource by the parent. */
+  fetchResourceAnchored: () => Promise<AnchoredText | null>;
 }
 
 /**
- * PDF annotation canvas with page navigation and rectangle drawing
+ * One rendered page: its raster, its text map, its annotation overlay, and
+ * the drag that draws on it.
  *
- * @emits browse:click - Annotation clicked on PDF. Payload: { annotationId: string, motivation: Motivation }
- * @emits mark:requested - New annotation drawn on PDF. Payload: { selector: [FragmentSelector, TextQuoteSelector?], motivation: SelectionMotivation } — the quote is the text under the rectangle, omitted when the page has no text layer
- * @emits beckon:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
+ * Everything a page needs lives HERE rather than in the parent, which is what
+ * makes a scrolling column possible: mounting a page loads it, and unmounting
+ * releases it. The raster is a data-URL string, so the last reference going
+ * away IS the memory release — no eviction bookkeeping, no object-URL revoke.
+ * The drag lives here too because it needs this page's display dimensions and
+ * this page's text; a drag can no more span pages than a rectangle can.
  */
-export function PdfAnnotationCanvas({
-  pdfUrl,
+function PdfPageView({
+  doc,
+  pageNumber,
+  scale,
   resourceUri,
-  existingAnnotations = [],
+  existingAnnotations,
   drawingMode,
   selectedMotivation,
   session,
   hoveredAnnotationId,
   selectedAnnotationId,
-  hoverDelayMs = 150
-}: PdfAnnotationCanvasProps) {
-  // PDF state
-  const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
-  const [numPages, setNumPages] = useState<number>(0);
-  const [pageNumber, setPageNumber] = useState(1);
+  hoverDelayMs,
+  fetchResourceAnchored,
+}: PdfPageViewProps) {
   const [pageImageUrl, setPageImageUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [pageDimensions, setPageDimensions] = useState<{ width: number; height: number } | null>(null);
   /**
-   * The current page's text and per-run geometry, read once when the page
-   * loads so a drag can be quoted without a round trip. Null while the page
-   * is loading; `items` is empty on a scanned page, which has no text layer
-   * for the browser to read.
+   * This page's text and per-run geometry, read once when the page loads so a
+   * drag can be quoted without a round trip. Null while loading; `items` is
+   * empty on a scanned page, which has no text layer for the browser to read.
    */
   const [pageAnchored, setPageAnchored] = useState<AnchoredText | null>(null);
   const [displayDimensions, setDisplayDimensions] = useState<{ width: number; height: number } | null>(null);
-  const [scale] = useState(1.5); // Fixed scale for better quality
+  const [error, setError] = useState<string | null>(null);
 
-  // Drawing state
   const [isDrawing, setIsDrawing] = useState(false);
   const [selection, setSelection] = useState<CanvasRectangle | null>(null);
 
-  const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
 
-  // Load PDF document on mount
   useEffect(() => {
     let cancelled = false;
-
-    async function loadPdf() {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        const doc = await loadPdfDocument(pdfUrl);
-
-        if (cancelled) return;
-
-        setPdfDoc(doc);
-        setNumPages(doc.numPages);
-        setIsLoading(false);
-      } catch (err) {
-        if (cancelled) return;
-
-        console.error('Error loading PDF:', err);
-        setError('Failed to load PDF');
-        setIsLoading(false);
-      }
-    }
-
-    loadPdf();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [pdfUrl]);
-
-  /**
-   * The server-derived map, fetched once per document rather than once per
-   * page-load effect (PERSIST-ANCHORS P4). The map is WHOLE-RESOURCE — one
-   * artifact covering every page — so re-reading it from the per-page effect
-   * meant a full refetch and re-decode on every page turn; on a 400-page scan
-   * that is one decode per interaction instead of one per document.
-   *
-   * The cache holds the in-flight promise so concurrent page loads share one
-   * fetch. Answers cache — including "no map" and a stored decline, which are
-   * definitive — but a transport failure clears the entry, so the next page
-   * load retries instead of pinning the whole document to geometry-only.
-   */
-  const resourceAnchoredRef = useRef<{ uri: string; outcome: Promise<AnchoredText | null> } | null>(null);
-  const fetchResourceAnchored = useCallback((): Promise<AnchoredText | null> => {
-    if (!session) return Promise.resolve(null); // no session yet — don't cache its absence
-    const cached = resourceAnchoredRef.current;
-    if (cached && cached.uri === resourceUri) return cached.outcome;
-
-    const uri = resourceUri;
-    const outcome = session.client.browse.resourceAnchoredText(toResourceId(uri)).then(
-      (served) => (served && !('declined' in served) ? served : null),
-      () => {
-        if (resourceAnchoredRef.current?.uri === uri) resourceAnchoredRef.current = null;
-        return null;
-      },
-    );
-    resourceAnchoredRef.current = { uri, outcome };
-    return outcome;
-  }, [session, resourceUri]);
-
-  // Load current page when page number changes
-  useEffect(() => {
-    if (!pdfDoc) return;
-
-    let cancelled = false;
-    const doc = pdfDoc;
-
-    // Never quote the previous page's text under this page's rectangles.
-    setPageAnchored(null);
 
     /**
      * The map a rectangle on this page quotes from, or null when there is
@@ -194,7 +145,7 @@ export function PdfAnnotationCanvas({
         // No runs means a scanned page: the characters exist only as pixels
         // and pdf.js has nothing to give. The server derived a map at ingest,
         // so ask for it rather than leaving the annotation anonymous.
-        // Whole-resource — served once per document via the cache above —
+        // Whole-resource — served once per document by the parent's cache —
         // and `textUnder` filters by page: the same shape the native branch
         // produces, so nothing downstream branches.
         //
@@ -204,8 +155,7 @@ export function PdfAnnotationCanvas({
         // this existed. The served record is the full extraction outcome
         // (PERSIST-ANCHORS D1); a stored decline means extraction ran and
         // found nothing to anchor — for this canvas the same degradation as
-        // no map at all. A success outcome IS the anchoring shape, plus
-        // provenance this canvas does not read.
+        // no map at all.
         return await fetchResourceAnchored();
       } catch {
         return null;
@@ -215,15 +165,11 @@ export function PdfAnnotationCanvas({
     async function loadPage() {
       try {
         const page = await doc.getPage(pageNumber);
-
         if (cancelled) return;
 
         // Get page dimensions (at scale 1.0)
         const viewport = page.getViewport({ scale: 1.0 });
-        setPageDimensions({
-          width: viewport.width,
-          height: viewport.height
-        });
+        setPageDimensions({ width: viewport.width, height: viewport.height });
 
         // Anchoring and rendering are independent, and only one of them the
         // reader is waiting on. Sequencing them put a network round-trip in
@@ -254,7 +200,7 @@ export function PdfAnnotationCanvas({
     return () => {
       cancelled = true;
     };
-  }, [pdfDoc, pageNumber, scale, fetchResourceAnchored]);
+  }, [doc, pageNumber, scale, fetchResourceAnchored]);
 
   // Update display dimensions on resize
   useEffect(() => {
@@ -438,8 +384,8 @@ export function PdfAnnotationCanvas({
     // It will be cleared when drawingMode changes or user starts new selection
   }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations, session, resourceUri, pageAnchored]);
 
-  // Every FragmentSelector rect on the current page — one per line for a
-  // multi-line (multi-selector) annotation, exactly one for a manual annotation.
+  // Every FragmentSelector rect on this page — one per line for a multi-line
+  // (multi-selector) annotation, exactly one for a manual annotation.
   const pageRects = rectsForPage(existingAnnotations, pageNumber);
 
   // Hover handlers with currentHover guard and dwell delay
@@ -456,140 +402,369 @@ export function PdfAnnotationCanvas({
   }
 
   return (
+    <div
+      className="semiont-pdf-annotation-canvas__container"
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={() => {
+        if (isDrawing) {
+          setIsDrawing(false);
+          setSelection(null);
+        }
+      }}
+      data-drawing-mode={drawingMode || 'none'}
+    >
+      {/* PDF page rendered as image */}
+      {pageImageUrl && (
+        <img
+          ref={imageRef}
+          src={pageImageUrl}
+          alt={`PDF page ${pageNumber}`}
+          className="semiont-pdf-annotation-canvas__image"
+          draggable={false}
+          style={{ pointerEvents: 'none' }}
+          onLoad={() => {
+            // Use double RAF to ensure layout is complete even in onLoad
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                if (imageRef.current) {
+                  setDisplayDimensions({
+                    width: imageRef.current.clientWidth,
+                    height: imageRef.current.clientHeight
+                  });
+                }
+              });
+            });
+          }}
+        />
+      )}
+
+      {/* SVG overlay for annotations */}
+      {displayDimensions && pageDimensions && (
+        <div className="semiont-pdf-annotation-canvas__overlay-container">
+          <div className="semiont-pdf-annotation-canvas__overlay">
+            <svg
+              className="semiont-pdf-annotation-canvas__svg"
+              width={displayDimensions.width}
+              height={displayDimensions.height}
+            >
+              {/* Render existing annotations for this page */}
+              {pageRects.map(r => {
+                const rect = pdfToCanvasCoordinates(r.coord, pageDimensions.height, 1.0);
+
+                // Scale to display coordinates
+                const scaleX = displayDimensions.width / pageDimensions.width;
+                const scaleY = displayDimensions.height / pageDimensions.height;
+
+                const isHovered = r.annId === hoveredAnnotationId;
+                const isSelected = r.annId === selectedAnnotationId;
+
+                // Colour by the annotation's own motivation (not the toolbar's).
+                const annMotivation = r.annotation.motivation as SelectionMotivation | null;
+                const { stroke: annStroke, fill: annFill } = getMotivationColor(annMotivation);
+
+                return (
+                  <rect
+                    key={`${r.annId}:${r.selectorIndex}`}
+                    x={rect.x * scaleX}
+                    y={rect.y * scaleY}
+                    width={rect.width * scaleX}
+                    height={rect.height * scaleY}
+                    stroke={annStroke}
+                    strokeWidth={isSelected ? 4 : isHovered ? 3 : 2}
+                    fill={annFill}
+                    style={{
+                      pointerEvents: 'auto',
+                      cursor: 'pointer',
+                      opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
+                    }}
+                    onClick={(e) => session?.client.browse.click(r.annId, r.annotation.motivation, e.currentTarget.getBoundingClientRect())}
+                    onMouseEnter={() => handleMouseEnter(r.annId)}
+                    onMouseLeave={handleMouseLeave}
+                  />
+                );
+              })}
+
+              {/* Render current selection while drawing or awaiting save */}
+              {selection && (() => {
+                const rectX = Math.min(selection.startX, selection.endX);
+                const rectY = Math.min(selection.startY, selection.endY);
+                const rectWidth = Math.abs(selection.endX - selection.startX);
+                const rectHeight = Math.abs(selection.endY - selection.startY);
+
+                // PDF only supports rectangle shapes (FragmentSelector with viewrect)
+                // Circle/polygon are disabled in the UI for PDF media types
+                return (
+                  <rect
+                    x={rectX}
+                    y={rectY}
+                    width={rectWidth}
+                    height={rectHeight}
+                    stroke={stroke}
+                    strokeWidth={2}
+                    strokeDasharray="5,5"
+                    fill={fill}
+                    pointerEvents="none"
+                  />
+                );
+              })()}
+            </svg>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface PdfAnnotationCanvasProps {
+  pdfUrl: string;
+  /** The '@id' of the annotated resource — stamped as `source` on mark:requested (multi-viewer routing). */
+  resourceUri: string;
+  existingAnnotations?: Annotation[];
+  drawingMode: DrawingMode;
+  selectedMotivation?: SelectionMotivation | null;
+  session?: SemiontSession | null | undefined;
+  hoveredAnnotationId?: string | null;
+  selectedAnnotationId?: string | null;
+  hoverDelayMs?: number;
+  /** `paged` (default) or the virtualized `scroll` column. See `PageLayout`. */
+  pageLayout?: PageLayout;
+}
+
+/**
+ * PDF annotation canvas with page navigation and rectangle drawing
+ *
+ * @emits browse:click - Annotation clicked on PDF. Payload: { annotationId: string, motivation: Motivation }
+ * @emits mark:requested - New annotation drawn on PDF. Payload: { selector: [FragmentSelector, TextQuoteSelector?], motivation: SelectionMotivation } — the quote is the text under the rectangle, omitted when the page has no text layer
+ * @emits beckon:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
+ */
+export function PdfAnnotationCanvas({
+  pdfUrl,
+  resourceUri,
+  existingAnnotations = [],
+  drawingMode,
+  selectedMotivation,
+  session,
+  hoveredAnnotationId,
+  selectedAnnotationId,
+  hoverDelayMs = 150,
+  pageLayout = 'paged'
+}: PdfAnnotationCanvasProps) {
+  // PDF state
+  const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
+  const [numPages, setNumPages] = useState<number>(0);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  /**
+   * Page 1's rendered height, used to size the slots of pages that have not
+   * been mounted yet. Uniform documents (the overwhelming case, and every
+   * scan) get exactness for one `getPage`; a mixed-size document gets scroll
+   * drift in its unmeasured tail, which self-corrects as pages mount.
+   * See .plans/PDF-CONTINUOUS-SCROLL.md D4.
+   */
+  const [estimatedPageHeight, setEstimatedPageHeight] = useState<number | null>(null);
+  const [scale] = useState(1.5); // Fixed scale for better quality
+
+  /** Pages currently intersecting the viewport (plus the preload margin). */
+  const [visiblePages, setVisiblePages] = useState<Set<number>>(new Set());
+  const slotRefs = useRef(new Map<number, HTMLElement>());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  // Load PDF document on mount
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPdf() {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const doc = await loadPdfDocument(pdfUrl);
+
+        if (cancelled) return;
+
+        setPdfDoc(doc);
+        setNumPages(doc.numPages);
+        setIsLoading(false);
+
+        // One extra getPage, for slot sizing (D4). Failure is not fatal:
+        // unsized slots still scroll, just less faithfully.
+        try {
+          const first = await doc.getPage(1);
+          if (cancelled) return;
+          setEstimatedPageHeight(first.getViewport({ scale }).height);
+        } catch {
+          /* leave unsized */
+        }
+      } catch (err) {
+        if (cancelled) return;
+
+        console.error('Error loading PDF:', err);
+        setError('Failed to load PDF');
+        setIsLoading(false);
+      }
+    }
+
+    loadPdf();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdfUrl, scale]);
+
+  /**
+   * The server-derived map, fetched once per document rather than once per
+   * page (PERSIST-ANCHORS P4). The map is WHOLE-RESOURCE — one artifact
+   * covering every page — so re-reading it per page meant a full refetch and
+   * re-decode on every page turn; on a 400-page scan that is one decode per
+   * interaction instead of one per document. Living on the parent is also
+   * what lets a scrolling column mount many pages against a single fetch.
+   *
+   * The cache holds the in-flight promise so concurrent page loads share one
+   * fetch. Answers cache — including "no map" and a stored decline, which are
+   * definitive — but a transport failure clears the entry, so the next page
+   * load retries instead of pinning the whole document to geometry-only.
+   */
+  const resourceAnchoredRef = useRef<{ uri: string; outcome: Promise<AnchoredText | null> } | null>(null);
+  const fetchResourceAnchored = useCallback((): Promise<AnchoredText | null> => {
+    if (!session) return Promise.resolve(null); // no session yet — don't cache its absence
+    const cached = resourceAnchoredRef.current;
+    if (cached && cached.uri === resourceUri) return cached.outcome;
+
+    const uri = resourceUri;
+    const outcome = session.client.browse.resourceAnchoredText(toResourceId(uri)).then(
+      (served) => (served && !('declined' in served) ? served : null),
+      () => {
+        if (resourceAnchoredRef.current?.uri === uri) resourceAnchoredRef.current = null;
+        return null;
+      },
+    );
+    resourceAnchoredRef.current = { uri, outcome };
+    return outcome;
+  }, [session, resourceUri]);
+
+  // The mount window. Slots report their own visibility; a page is mounted
+  // while its slot intersects (widened by PRELOAD_MARGIN so the next page is
+  // ready before it is reached), and unmounting is what frees its raster.
+  useEffect(() => {
+    if (pageLayout !== 'scroll' || numPages === 0) return;
+
+    let observer: IntersectionObserver | null = null;
+    try {
+      observer = new IntersectionObserver(
+        (entries) => {
+          setVisiblePages((prev) => {
+            const next = new Set(prev);
+            for (const entry of entries) {
+              const page = Number((entry.target as HTMLElement).dataset.page);
+              if (!page) continue;
+              if (entry.isIntersecting) next.add(page);
+              else next.delete(page);
+            }
+            return next;
+          });
+        },
+        { rootMargin: PRELOAD_MARGIN },
+      );
+    } catch {
+      // No IntersectionObserver: mount every page rather than none. Correct,
+      // simply not virtualized — the same posture as the ResizeObserver
+      // fallback in PdfPageView.
+      setVisiblePages(new Set(Array.from({ length: numPages }, (_, i) => i + 1)));
+      return;
+    }
+
+    observerRef.current = observer;
+    for (const el of slotRefs.current.values()) observer.observe(el);
+
+    return () => {
+      observer.disconnect();
+      observerRef.current = null;
+    };
+  }, [pageLayout, numPages]);
+
+  const registerSlot = useCallback((page: number) => (el: HTMLDivElement | null) => {
+    const previous = slotRefs.current.get(page);
+    if (previous) observerRef.current?.unobserve(previous);
+    if (el) {
+      slotRefs.current.set(page, el);
+      observerRef.current?.observe(el);
+    } else {
+      slotRefs.current.delete(page);
+    }
+  }, []);
+
+  const scrollToPage = useCallback((page: number) => {
+    slotRefs.current.get(page)?.scrollIntoView({ block: 'start' });
+  }, []);
+
+  // In the column the reader decides which page they are on by scrolling, so
+  // the indicator reports rather than controls: the topmost visible page.
+  const currentPage = pageLayout === 'scroll'
+    ? (visiblePages.size > 0 ? Math.min(...visiblePages) : 1)
+    : pageNumber;
+
+  const pageProps = {
+    scale,
+    resourceUri,
+    existingAnnotations,
+    drawingMode,
+    selectedMotivation,
+    session,
+    hoveredAnnotationId,
+    selectedAnnotationId,
+    hoverDelayMs,
+    fetchResourceAnchored,
+  };
+
+  if (error) {
+    return <div className="semiont-pdf-annotation-canvas__error">{error}</div>;
+  }
+
+  return (
     <div className="semiont-pdf-annotation-canvas">
       {isLoading && <div className="semiont-pdf-annotation-canvas__loading">Loading PDF...</div>}
 
-      <div
-        ref={containerRef}
-        className="semiont-pdf-annotation-canvas__container"
-        style={{ display: isLoading ? 'none' : undefined }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={() => {
-          if (isDrawing) {
-            setIsDrawing(false);
-            setSelection(null);
-          }
-        }}
-        data-drawing-mode={drawingMode || 'none'}
-      >
-        {/* PDF page rendered as image */}
-        {pageImageUrl && (
-          <img
-            ref={imageRef}
-            src={pageImageUrl}
-            alt={`PDF page ${pageNumber}`}
-            className="semiont-pdf-annotation-canvas__image"
-            draggable={false}
-            style={{ pointerEvents: 'none' }}
-            onLoad={() => {
-              // Use double RAF to ensure layout is complete even in onLoad
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  if (imageRef.current) {
-                    setDisplayDimensions({
-                      width: imageRef.current.clientWidth,
-                      height: imageRef.current.clientHeight
-                    });
-                  }
-                });
-              });
-            }}
-          />
-        )}
-
-        {/* SVG overlay for annotations */}
-        {displayDimensions && pageDimensions && (
-          <div className="semiont-pdf-annotation-canvas__overlay-container">
-            <div className="semiont-pdf-annotation-canvas__overlay">
-              <svg
-                className="semiont-pdf-annotation-canvas__svg"
-                width={displayDimensions.width}
-                height={displayDimensions.height}
-              >
-                {/* Render existing annotations for this page */}
-                {pageRects.map(r => {
-                  const rect = pdfToCanvasCoordinates(r.coord, pageDimensions.height, 1.0);
-
-                  // Scale to display coordinates
-                  const scaleX = displayDimensions.width / pageDimensions.width;
-                  const scaleY = displayDimensions.height / pageDimensions.height;
-
-                  const isHovered = r.annId === hoveredAnnotationId;
-                  const isSelected = r.annId === selectedAnnotationId;
-
-                  // Colour by the annotation's own motivation (not the toolbar's).
-                  const annMotivation = r.annotation.motivation as SelectionMotivation | null;
-                  const { stroke: annStroke, fill: annFill } = getMotivationColor(annMotivation);
-
-                  return (
-                    <rect
-                      key={`${r.annId}:${r.selectorIndex}`}
-                      x={rect.x * scaleX}
-                      y={rect.y * scaleY}
-                      width={rect.width * scaleX}
-                      height={rect.height * scaleY}
-                      stroke={annStroke}
-                      strokeWidth={isSelected ? 4 : isHovered ? 3 : 2}
-                      fill={annFill}
-                      style={{
-                        pointerEvents: 'auto',
-                        cursor: 'pointer',
-                        opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
-                      }}
-                      onClick={(e) => session?.client.browse.click(r.annId, r.annotation.motivation, e.currentTarget.getBoundingClientRect())}
-                      onMouseEnter={() => handleMouseEnter(r.annId)}
-                      onMouseLeave={handleMouseLeave}
-                    />
-                  );
-                })}
-
-                {/* Render current selection while drawing or awaiting save */}
-                {selection && (() => {
-                  const rectX = Math.min(selection.startX, selection.endX);
-                  const rectY = Math.min(selection.startY, selection.endY);
-                  const rectWidth = Math.abs(selection.endX - selection.startX);
-                  const rectHeight = Math.abs(selection.endY - selection.startY);
-
-                  // PDF only supports rectangle shapes (FragmentSelector with viewrect)
-                  // Circle/polygon are disabled in the UI for PDF media types
-                  return (
-                    <rect
-                      x={rectX}
-                      y={rectY}
-                      width={rectWidth}
-                      height={rectHeight}
-                      stroke={stroke}
-                      strokeWidth={2}
-                      strokeDasharray="5,5"
-                      fill={fill}
-                      pointerEvents="none"
-                    />
-                  );
-                })()}
-              </svg>
+      {pdfDoc && pageLayout === 'scroll' ? (
+        <div className="semiont-pdf-annotation-canvas__column">
+          {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => (
+            <div
+              key={page}
+              ref={registerSlot(page)}
+              data-page={page}
+              className="semiont-pdf-annotation-canvas__slot"
+              style={visiblePages.has(page) || !estimatedPageHeight ? undefined : { height: estimatedPageHeight }}
+            >
+              {visiblePages.has(page) && (
+                <PdfPageView doc={pdfDoc} pageNumber={page} {...pageProps} />
+              )}
             </div>
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      ) : (
+        pdfDoc && !isLoading && (
+          <PdfPageView doc={pdfDoc} pageNumber={pageNumber} {...pageProps} />
+        )
+      )}
 
       {/* Page navigation controls */}
       {numPages > 0 && (
         <div className="semiont-pdf-annotation-canvas__controls">
           <button
-            disabled={pageNumber <= 1}
-            onClick={() => setPageNumber(pageNumber - 1)}
+            disabled={currentPage <= 1}
+            onClick={() => (pageLayout === 'scroll' ? scrollToPage(currentPage - 1) : setPageNumber(pageNumber - 1))}
             className="semiont-pdf-annotation-canvas__button"
           >
             Previous
           </button>
           <span className="semiont-pdf-annotation-canvas__page-info">
-            Page {pageNumber} of {numPages}
+            Page {currentPage} of {numPages}
           </span>
           <button
-            disabled={pageNumber >= numPages}
-            onClick={() => setPageNumber(pageNumber + 1)}
+            disabled={currentPage >= numPages}
+            onClick={() => (pageLayout === 'scroll' ? scrollToPage(currentPage + 1) : setPageNumber(pageNumber + 1))}
             className="semiont-pdf-annotation-canvas__button"
           >
             Next

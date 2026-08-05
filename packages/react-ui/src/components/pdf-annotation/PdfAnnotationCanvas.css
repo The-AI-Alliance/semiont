@@ -28,6 +28,29 @@
 }
 /* stylelint-enable semiont/accessibility */
 
+/*
+ * The scrolling column (PDF-CONTINUOUS-SCROLL S1). Every page owns a slot so
+ * the scrollbar reflects the whole document; only pages near the viewport are
+ * mounted, and an unmounted slot holds its space with an estimated height set
+ * inline. `max-height` is what makes this a scroll container at all — without
+ * it the column grows to its content and the page scrolls instead, which
+ * still works but defeats the windowing.
+ */
+.semiont-pdf-annotation-canvas__column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.semiont-pdf-annotation-canvas__slot {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
 .semiont-pdf-annotation-canvas__container {
   position: relative;
   display: inline-block;

@@ -8,7 +8,7 @@
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PdfAnnotationCanvas } from '../PdfAnnotationCanvas';
 import { resourceId, annotationId, parseFragmentSelector } from '@semiont/core';
@@ -65,6 +65,41 @@ vi.mock('../../../lib/browser-pdfjs', () => ({
     height: 792
   })
 }));
+
+
+/**
+ * jsdom has no IntersectionObserver. This stub records what the component
+ * observes and hands the test the callback, so a "scroll" is an explicit
+ * fire() rather than a simulated layout — jsdom has no layout either.
+ */
+function stubIntersectionObserver() {
+  const observed = new Map<Element, IntersectionObserverCallback>();
+  class FakeIO {
+    constructor(private cb: IntersectionObserverCallback) {}
+    observe(el: Element) { observed.set(el, this.cb); }
+    unobserve(el: Element) { observed.delete(el); }
+    disconnect() { observed.clear(); }
+    takeRecords() { return []; }
+  }
+  vi.stubGlobal('IntersectionObserver', FakeIO);
+  return {
+    /** Fire intersection changes for the slots whose data-page is listed. */
+    fire(visible: number[]) {
+      const byCb = new Map<IntersectionObserverCallback, IntersectionObserverEntry[]>();
+      for (const [el, cb] of observed) {
+        const page = Number((el as HTMLElement).dataset.page);
+        const entry = {
+          target: el,
+          isIntersecting: visible.includes(page),
+        } as unknown as IntersectionObserverEntry;
+        byCb.set(cb, [...(byCb.get(cb) ?? []), entry]);
+      }
+      act(() => {
+        for (const [cb, entries] of byCb) cb(entries, {} as IntersectionObserver);
+      });
+    },
+  };
+}
 
 describe('PdfAnnotationCanvas', () => {
   const mockResourceId = resourceId('123');
@@ -589,5 +624,117 @@ describe('PdfAnnotationCanvas', () => {
       // In jsdom this is not available, so we verify the component did not error.
       expect(container).toBeInTheDocument();
     }
+  });
+
+  // PDF-CONTINUOUS-SCROLL S1. Browse mode scrolls: every page has a slot so
+  // the scrollbar is honest about the document's length, but only a window of
+  // pages is MOUNTED — unmounting is what releases a page's raster, so the
+  // window IS the memory budget (D2).
+  describe('scroll layout (browse mode)', () => {
+    const scannedDoc = () =>
+      vi.mocked(loadPdfDocument).mockResolvedValueOnce({
+        numPages: 5,
+        getPage: vi.fn().mockResolvedValue(mockPage([])),
+      } as unknown as Awaited<ReturnType<typeof loadPdfDocument>>);
+
+    const mountedPages = () =>
+      [...document.querySelectorAll('.semiont-pdf-annotation-canvas__image')]
+        .map((img) => Number((img as HTMLImageElement).alt.replace(/\D+/g, '')))
+        .sort((a, b) => a - b);
+
+    test('gives every page a slot but mounts only the visible window', async () => {
+      const io = stubIntersectionObserver();
+      scannedDoc();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+      // Nothing rasterized before anything is visible.
+      expect(mountedPages()).toEqual([]);
+
+      io.fire([1, 2]);
+      await waitFor(() => expect(mountedPages()).toEqual([1, 2]));
+      expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+    });
+
+    test('releases a page that scrolls out of the window', async () => {
+      const io = stubIntersectionObserver();
+      scannedDoc();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+
+      io.fire([1, 2]);
+      await waitFor(() => expect(mountedPages()).toEqual([1, 2]));
+
+      io.fire([4, 5]);
+      await waitFor(() => expect(mountedPages()).toEqual([4, 5]));
+    });
+
+    test('still fetches the whole-resource map once, across many mounted pages (P4)', async () => {
+      // P4's invariant has to survive the move from one shared page-load
+      // effect into N independent page views.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+
+      const resourceAnchoredText = vi.fn().mockResolvedValue({
+        text: 'Hello world again',
+        items: [{ start: 0, end: 5, page: 1, x: 72, y: 700, width: 30, height: 12 }],
+      });
+      const session = {
+        client: { beckon: { hover: vi.fn() }, browse: { resourceAnchoredText } },
+      } as unknown as import('@semiont/sdk').SemiontSession;
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+          session={session}
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+
+      io.fire([1, 2, 3]);
+      await waitFor(() => expect(mountedPages()).toEqual([1, 2, 3]));
+      io.fire([3, 4, 5]);
+      await waitFor(() => expect(mountedPages()).toEqual([3, 4, 5]));
+
+      expect(resourceAnchoredText).toHaveBeenCalledTimes(1);
+    });
+
+    test('keeps the paged layout by default — annotate mode is untouched until S2', async () => {
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode="rectangle"
+          selectedMotivation="highlighting"
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText(/page 1 of 3/i)).toBeInTheDocument();
+      });
+      expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(0);
+      expect(screen.getByRole('button', { name: /next/i })).toBeInTheDocument();
+    });
   });
 });
