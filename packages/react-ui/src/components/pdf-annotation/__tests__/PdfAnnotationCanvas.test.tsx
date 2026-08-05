@@ -828,6 +828,95 @@ describe('PdfAnnotationCanvas', () => {
         .toHaveAttribute('data-drawing-mode', 'rectangle');
     });
 
+    // S4. A strip of proportional rectangles — one per page, current
+    // highlighted, click to jump. Deliberately NOT thumbnails: it needs no
+    // rasterization, only the page count and the aspect ratio S1b already
+    // measures, so it costs nothing next to the document itself. It answers
+    // "where am I in this document", which neither the pager nor the
+    // scrollbar does.
+    test('renders one strip rectangle per page, marking the current one', async () => {
+      const io = stubIntersectionObserver();
+      scannedDoc();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+
+      const ticks = () => document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page');
+      await waitFor(() => expect(ticks()).toHaveLength(5));
+
+      io.fire([3, 4]);
+      await waitFor(() => {
+        expect(document.querySelector('[aria-current="page"]')).toHaveAttribute('data-page', '3');
+      });
+    });
+
+    test('clicking a strip rectangle jumps to that page', async () => {
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
+      });
+      io.fire([1]);
+
+      const tick4 = document.querySelector('.semiont-pdf-annotation-canvas__strip-page[data-page="4"]')!;
+      fireEvent.click(tick4);
+
+      expect(scrollIntoView).toHaveBeenCalled();
+    });
+
+    // S1a. Arrow keys step pages. The guards are the substance: a viewer that
+    // steals arrow keys from a text field is worse than one with no shortcut.
+    test('Left/Right step pages, and never steal keys from a text field', async () => {
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+      io.fire([1]);
+      await waitFor(() => expect(mountedPages()).toEqual([1]));
+
+      scrollIntoView.mockClear();
+      fireEvent.keyDown(window, { key: 'ArrowRight' });
+      expect(scrollIntoView).toHaveBeenCalled();
+
+      // Typing in an input must not page the document underneath it.
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      input.focus();
+      scrollIntoView.mockClear();
+      fireEvent.keyDown(input, { key: 'ArrowRight' });
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      input.remove();
+    });
+
     test('keeps the paged layout when no layout is requested', async () => {
       render(
         <PdfAnnotationCanvas resourceUri="res-1"

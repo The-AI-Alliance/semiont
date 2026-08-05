@@ -42,6 +42,22 @@ export type PageLayout = 'paged' | 'scroll';
 /** How far outside the viewport a page starts loading, and stays loaded. */
 const PRELOAD_MARGIN = '100% 0px';
 
+/** Width of one page rectangle in the strip, in CSS px. Height follows the
+ *  document's own aspect ratio, so the strip looks like the document. */
+const STRIP_PAGE_WIDTH = 14;
+
+/**
+ * Scroll an element into view where the environment supports it.
+ *
+ * Same posture as this file's guarded observers: jsdom implements no layout
+ * and therefore no `scrollIntoView`, and a viewer that throws in a test
+ * harness (or an exotic embedding host) is worse than one that simply does
+ * not scroll.
+ */
+function scrollElementIntoView(el: Element | null | undefined, options: ScrollIntoViewOptions): void {
+  if (typeof el?.scrollIntoView === 'function') el.scrollIntoView(options);
+}
+
 /**
  * Get color for annotation based on motivation
  */
@@ -738,8 +754,11 @@ export function PdfAnnotationCanvas({
     }
   }, []);
 
+  /** Keeps the current page's rectangle in view as the reader scrolls. */
+  const currentTickRef = useRef<HTMLButtonElement>(null);
+
   const scrollToPage = useCallback((page: number) => {
-    slotRefs.current.get(page)?.scrollIntoView({ block: 'start' });
+    scrollElementIntoView(slotRefs.current.get(page), { block: 'start' });
   }, []);
 
   // In the column the reader decides which page they are on by scrolling, so
@@ -747,6 +766,40 @@ export function PdfAnnotationCanvas({
   const currentPage = pageLayout === 'scroll'
     ? (visiblePages.size > 0 ? Math.min(...visiblePages) : 1)
     : pageNumber;
+
+  /**
+   * Left/Right step pages (S1a).
+   *
+   * Bound to the window rather than a focusable wrapper so it works without
+   * the reader hunting for the viewer's focus — but that reach is exactly why
+   * the guards matter more than the feature: a viewer that eats arrow keys
+   * while someone is editing an annotation body, or mid-drag, is worse than
+   * one with no shortcut at all.
+   */
+  useEffect(() => {
+    if (numPages === 0) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return; // browser/OS navigation
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return;
+
+      const next = e.key === 'ArrowRight' ? currentPage + 1 : currentPage - 1;
+      if (next < 1 || next > numPages) return;
+      e.preventDefault();
+      if (pageLayout === 'scroll') scrollToPage(next);
+      else setPageNumber(next);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [numPages, currentPage, pageLayout, scrollToPage]);
+
+  useEffect(() => {
+    // `nearest` so following the reader never yanks the strip around; it
+    // scrolls only when the current rectangle would otherwise leave view.
+    scrollElementIntoView(currentTickRef.current, { block: 'nearest', inline: 'nearest' });
+  }, [currentPage]);
 
   const pageProps = {
     scale,
@@ -793,6 +846,33 @@ export function PdfAnnotationCanvas({
         pdfDoc && !isLoading && (
           <PdfPageView doc={pdfDoc} pageNumber={pageNumber} {...pageProps} />
         )
+      )}
+
+      {/*
+        The page strip: one proportional rectangle per page, current
+        highlighted, click to jump. Rectangles, not thumbnails — it needs no
+        rasterization at all, only the page count and the aspect ratio the
+        slot reservation already measures, so it stays cheap on a 400-page
+        scan. It answers "where am I in this document", which neither the
+        pager nor the scrollbar does.
+      */}
+      {pageLayout === 'scroll' && numPages > 0 && pageShape && (
+        <div className="semiont-pdf-annotation-canvas__strip">
+          {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => (
+            <button
+              key={page}
+              type="button"
+              data-page={page}
+              className="semiont-pdf-annotation-canvas__strip-page"
+              // The page it represents, at the page's own proportions.
+              style={{ height: `${Math.round(STRIP_PAGE_WIDTH * pageShape.aspect)}px` }}
+              aria-label={t('pageOf', { page, total: numPages })}
+              {...(page === currentPage ? { 'aria-current': 'page' as const } : {})}
+              ref={page === currentPage ? currentTickRef : undefined}
+              onClick={() => scrollToPage(page)}
+            />
+          ))}
+        </div>
       )}
 
       {/* Page navigation controls */}

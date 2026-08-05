@@ -51,6 +51,44 @@
   width: 100%;
 }
 
+/*
+ * The page strip: the document's shape in miniature. Rectangles only — no
+ * rasterization — so a 400-page scan costs 400 empty divs, not 400 renders.
+ */
+.semiont-pdf-annotation-canvas__strip {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 0.5rem;
+  border-top: 1px solid var(--semiont-border-secondary);
+}
+
+.semiont-pdf-annotation-canvas__strip-page {
+  flex: 0 0 auto;
+  width: 14px;
+  padding: 0;
+  border: 1px solid var(--semiont-border-primary);
+  border-radius: 1px;
+  background: var(--semiont-bg-secondary);
+  cursor: pointer;
+}
+
+.semiont-pdf-annotation-canvas__strip-page:hover {
+  background: var(--semiont-bg-hover);
+}
+
+/* The reader's position, legible at a glance across a long strip. */
+.semiont-pdf-annotation-canvas__strip-page[aria-current="page"] {
+  border-color: var(--semiont-color-primary-600);
+  background: var(--semiont-color-primary-500);
+}
+
+.semiont-pdf-annotation-canvas__strip-page:focus-visible {
+  outline: 2px solid var(--semiont-focus-ring);
+  outline-offset: 1px;
+}
+
 .semiont-pdf-annotation-canvas__container {
   position: relative;
   display: inline-block;
