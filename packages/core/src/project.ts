@@ -73,7 +73,10 @@ export class SemiontProject {
 
   /**
    * @param projectRoot  the KB clone this project describes
-   * @param opts.name    override the name read from .semiont/config
+   * @param opts.name    seed value: written to `.semiont/config` when that
+   *   file does not yet exist. It does NOT override an existing config — the
+   *   name always comes from the file, so a KB's committed identity wins over
+   *   anything a caller passes.
    * @param opts.anchoredTextDir  where this deployment keeps the anchored-text
    *   store. Passed IN, never read from the environment here: the entry point
    *   owns that read, exactly as it owns SEMIONT_ROOT. Required, and with no
