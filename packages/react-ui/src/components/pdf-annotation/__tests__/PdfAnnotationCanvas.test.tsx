@@ -917,6 +917,69 @@ describe('PdfAnnotationCanvas', () => {
       input.remove();
     });
 
+    test('focus follows the current page when the strip owns focus', async () => {
+      // Reported: click a page in the strip, then arrow away — the focus ring
+      // stays behind on the clicked rectangle while the current-page marker
+      // moves, so two rectangles claim to be "here". (The ring only appears
+      // after the arrow press because that is when the browser switches to
+      // keyboard modality and the clicked button starts matching
+      // :focus-visible.) Focus must travel with the current page — but ONLY
+      // when the strip already had it, so scrolling with the mouse never
+      // snatches focus away from whatever the reader was doing.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
+      });
+      io.fire([1]);
+      await waitFor(() => expect(mountedPages()).toEqual([1]));
+
+      const tick = (page: number) =>
+        document.querySelector(`.semiont-pdf-annotation-canvas__strip-page[data-page="${page}"]`) as HTMLButtonElement;
+
+      tick(2).focus();
+      fireEvent.click(tick(2));
+      io.fire([3]);
+
+      await waitFor(() => expect(tick(3)).toHaveAttribute('aria-current', 'page'));
+      expect(document.activeElement).toBe(tick(3));
+    });
+
+    test('the strip is one tab stop, not one per page', async () => {
+      // A 400-page document must not put 400 stops in the tab order. The
+      // ARIA pattern: the current item is tabbable, the rest are reachable
+      // with arrows (which already page the document).
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
+      });
+      io.fire([1]);
+
+      const tabbable = [...document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')]
+        .filter((el) => (el as HTMLElement).tabIndex === 0);
+      expect(tabbable).toHaveLength(1);
+      expect(tabbable[0]).toHaveAttribute('data-page', '1');
+    });
+
     test('keeps the paged layout when no layout is requested', async () => {
       render(
         <PdfAnnotationCanvas resourceUri="res-1"

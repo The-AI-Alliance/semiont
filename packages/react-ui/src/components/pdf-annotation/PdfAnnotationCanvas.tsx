@@ -795,10 +795,24 @@ export function PdfAnnotationCanvas({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [numPages, currentPage, pageLayout, scrollToPage]);
 
+  const stripRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     // `nearest` so following the reader never yanks the strip around; it
     // scrolls only when the current rectangle would otherwise leave view.
     scrollElementIntoView(currentTickRef.current, { block: 'nearest', inline: 'nearest' });
+
+    // Move focus with the current page, but ONLY when the strip already owns
+    // focus. Otherwise a clicked rectangle keeps focus while the current-page
+    // marker moves on, and the focus ring — which appears as soon as the
+    // reader touches an arrow key and the browser switches to keyboard
+    // modality — sits on a page that is no longer current: two rectangles
+    // claiming to be "here". Guarding on ownership means scrolling with the
+    // mouse never snatches focus from whatever the reader was doing.
+    const active = typeof document !== 'undefined' ? document.activeElement : null;
+    if (active && stripRef.current?.contains(active) && active !== currentTickRef.current) {
+      currentTickRef.current?.focus();
+    }
   }, [currentPage]);
 
   const pageProps = {
@@ -857,7 +871,7 @@ export function PdfAnnotationCanvas({
         pager nor the scrollbar does.
       */}
       {pageLayout === 'scroll' && numPages > 0 && pageShape && (
-        <div className="semiont-pdf-annotation-canvas__strip">
+        <div className="semiont-pdf-annotation-canvas__strip" ref={stripRef}>
           {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => (
             <button
               key={page}
@@ -867,6 +881,10 @@ export function PdfAnnotationCanvas({
               // The page it represents, at the page's own proportions.
               style={{ height: `${Math.round(STRIP_PAGE_WIDTH * pageShape.aspect)}px` }}
               aria-label={t('pageOf', { page, total: numPages })}
+              // Roving tabindex: the strip is ONE tab stop. A 400-page
+              // document must not put 400 stops in the tab order; arrows
+              // move between pages, and they already do.
+              tabIndex={page === currentPage ? 0 : -1}
               {...(page === currentPage ? { 'aria-current': 'page' as const } : {})}
               ref={page === currentPage ? currentTickRef : undefined}
               onClick={() => scrollToPage(page)}
