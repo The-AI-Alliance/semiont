@@ -211,11 +211,11 @@
 }
 
 .semiont-search-modal__result-icon--entity {
-  color: var(--semiont-color-success-500);
+  color: var(--semiont-color-green-500);
 }
 
 [data-theme="dark"] .semiont-search-modal__result-icon--entity {
-  color: var(--semiont-color-success-400);
+  color: var(--semiont-color-green-400);
 }
 
 /* Result content */
@@ -244,13 +244,13 @@
   font-size: 0.75rem;
   font-weight: 500;
   border-radius: 9999px;
-  background-color: var(--semiont-color-success-100);
-  color: var(--semiont-color-success-700);
+  background-color: var(--semiont-color-green-100);
+  color: var(--semiont-color-green-700);
 }
 
 [data-theme="dark"] .semiont-search-modal__result-badge {
   background-color: rgba(34, 197, 94, 0.3);
-  color: var(--semiont-color-success-300);
+  color: var(--semiont-color-green-300);
 }
 
 .semiont-search-modal__result-description {

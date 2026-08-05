@@ -20,11 +20,11 @@
 
 /* stylelint-disable semiont/accessibility -- Error indicator added by semantic-indicators.css */
 .semiont-pdf-annotation-canvas__error {
-  color: var(--error-color);
+  color: var(--semiont-color-error);
 }
 
 [data-theme="dark"] .semiont-pdf-annotation-canvas__error {
-  color: var(--error-color);
+  color: var(--semiont-color-error);
 }
 /* stylelint-enable semiont/accessibility */
 
@@ -106,12 +106,12 @@
   justify-content: center;
   gap: 1rem;
   padding: 1rem;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--semiont-border-primary);
 }
 
 .semiont-pdf-annotation-canvas__button {
   padding: 0.5rem 1rem;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--semiont-border-primary);
   border-radius: 4px;
   background: transparent;
   cursor: pointer;
@@ -124,11 +124,11 @@
 }
 
 .semiont-pdf-annotation-canvas__button:hover:not(:disabled) {
-  background-color: var(--hover-color, rgba(0, 0, 0, 0.05));
+  background-color: var(--semiont-bg-hover, rgba(0, 0, 0, 0.05));
 }
 
 .semiont-pdf-annotation-canvas__button:focus-visible {
-  outline: 2px solid var(--focus-color, #0066cc);
+  outline: 2px solid var(--semiont-focus-ring, #0066cc);
   outline-offset: 2px;
 }
 

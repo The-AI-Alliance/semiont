@@ -161,7 +161,7 @@
 
 .semiont-toolbar-icon-large {
   font-size: 1.875rem; /* 30px - was 2xl/1.5rem */
-  font-weight: var(--semiont-font-weight-bold);
+  font-weight: var(--semiont-font-bold);
 }
 
 /* Dark mode for Toolbar - Fixed to respect data-theme attribute */
@@ -206,7 +206,7 @@
   color: var(--semiont-color-primary-700);
   border: 1px solid var(--semiont-color-primary-200);
   border-radius: var(--semiont-radius-base);
-  font-size: var(--semiont-font-size-xs);
+  font-size: var(--semiont-text-xs);
 }
 
 /* Editing affordances (RESOURCE-TAGS-INLINE-EDITING) */
@@ -217,7 +217,7 @@
   border: none;
   background: none;
   color: inherit;
-  font-size: var(--semiont-font-size-xs);
+  font-size: var(--semiont-text-xs);
   cursor: pointer;
   opacity: 0.7;
 }
@@ -279,8 +279,8 @@
 }
 
 .semiont-error-boundary-title {
-  font-size: var(--semiont-font-size-2xl);
-  font-weight: var(--semiont-font-weight-bold);
+  font-size: var(--semiont-text-2xl);
+  font-weight: var(--semiont-font-bold);
   color: var(--semiont-color-neutral-900);
   margin-bottom: var(--semiont-spacing-xs);
 }
@@ -290,30 +290,30 @@
 }
 
 .semiont-error-boundary-details {
-  background-color: var(--semiont-color-danger-50);
-  border: 1px solid var(--semiont-color-danger-200);
+  background-color: var(--semiont-color-red-50);
+  border: 1px solid var(--semiont-color-red-200);
   border-radius: var(--semiont-radius-md);
   padding: var(--semiont-spacing-md);
 }
 
 .semiont-error-boundary-details-title {
-  font-size: var(--semiont-font-size-sm);
-  font-weight: var(--semiont-font-weight-semibold);
-  color: var(--semiont-color-danger-800);
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-semibold);
+  color: var(--semiont-color-red-800);
   margin-bottom: calc(var(--semiont-spacing-xs) / 2);
 }
 
 .semiont-error-boundary-details-message {
-  font-size: var(--semiont-font-size-xs);
-  color: var(--semiont-color-danger-700);
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-color-red-700);
   font-family: monospace;
   word-break: break-all;
 }
 
 .semiont-error-boundary-stack {
   margin-top: var(--semiont-spacing-xs);
-  font-size: var(--semiont-font-size-xs);
-  color: var(--semiont-color-danger-600);
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-color-red-600);
   overflow-x: auto;
 }
 
@@ -326,8 +326,8 @@
 /* AsyncErrorBoundary Component */
 .semiont-async-error-boundary {
   padding: var(--semiont-spacing-md);
-  background-color: var(--semiont-color-warning-50);
-  border: 1px solid var(--semiont-color-warning-200);
+  background-color: var(--semiont-color-amber-50);
+  border: 1px solid var(--semiont-color-amber-200);
   border-radius: var(--semiont-radius-md);
 }
 
@@ -343,7 +343,7 @@
 .semiont-icon-warning {
   height: 1.25rem;
   width: 1.25rem;
-  color: var(--semiont-color-warning-400);
+  color: var(--semiont-color-amber-400);
 }
 
 .semiont-async-error-details {
@@ -352,21 +352,21 @@
 }
 
 .semiont-async-error-title {
-  font-size: var(--semiont-font-size-sm);
-  font-weight: var(--semiont-font-weight-medium);
-  color: var(--semiont-color-warning-800);
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  color: var(--semiont-color-amber-800);
 }
 
 .semiont-async-error-message {
   margin-top: calc(var(--semiont-spacing-xs) / 2);
-  font-size: var(--semiont-font-size-sm);
-  color: var(--semiont-color-warning-700);
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-color-amber-700);
 }
 
 .semiont-async-error-retry {
   margin-top: var(--semiont-spacing-xs);
-  font-size: var(--semiont-font-size-sm);
-  color: var(--semiont-color-warning-600);
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-color-amber-600);
   text-decoration: underline;
   background: none;
   border: none;
@@ -375,7 +375,7 @@
 }
 
 .semiont-async-error-retry:hover {
-  color: var(--semiont-color-warning-500);
+  color: var(--semiont-color-amber-500);
 }
 
 /* Dark mode for ErrorBoundary */
@@ -393,43 +393,43 @@
 
 [data-theme="dark"] .semiont-error-boundary-details {
   background-color: rgba(239, 68, 68, 0.2);
-  border-color: var(--semiont-color-danger-800);
+  border-color: var(--semiont-color-red-800);
 }
 
 [data-theme="dark"] .semiont-error-boundary-details-title {
-  color: var(--semiont-color-danger-300);
+  color: var(--semiont-color-red-300);
 }
 
 [data-theme="dark"] .semiont-error-boundary-details-message {
-  color: var(--semiont-color-danger-400);
+  color: var(--semiont-color-red-400);
 }
 
 [data-theme="dark"] .semiont-error-boundary-stack {
-  color: var(--semiont-color-danger-500);
+  color: var(--semiont-color-red-500);
 }
 
 [data-theme="dark"] .semiont-async-error-boundary {
   background-color: rgba(245, 158, 11, 0.2);
-  border-color: var(--semiont-color-warning-800);
+  border-color: var(--semiont-color-amber-800);
 }
 
 [data-theme="dark"] .semiont-icon-warning {
-  color: var(--semiont-color-warning-400);
+  color: var(--semiont-color-amber-400);
 }
 
 [data-theme="dark"] .semiont-async-error-title {
-  color: var(--semiont-color-warning-300);
+  color: var(--semiont-color-amber-300);
 }
 
 [data-theme="dark"] .semiont-async-error-message {
-  color: var(--semiont-color-warning-400);
+  color: var(--semiont-color-amber-400);
 }
 
 [data-theme="dark"] .semiont-async-error-retry {
-  color: var(--semiont-color-warning-400);
+  color: var(--semiont-color-amber-400);
 }
 
 [data-theme="dark"] .semiont-async-error-retry:hover {
-  color: var(--semiont-color-warning-300);
+  color: var(--semiont-color-amber-300);
 }
 

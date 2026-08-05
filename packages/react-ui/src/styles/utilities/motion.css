@@ -165,19 +165,19 @@
 }
 
 .semiont-animate-slide-in-up {
-  animation: slideInUp var(--semiont-duration-moderate, 300ms) ease-out;
+  animation: slideInUp var(--semiont-duration-base, 300ms) ease-out;
 }
 
 .semiont-animate-slide-in-down {
-  animation: slideInDown var(--semiont-duration-moderate, 300ms) ease-out;
+  animation: slideInDown var(--semiont-duration-base, 300ms) ease-out;
 }
 
 .semiont-animate-slide-in-left {
-  animation: slideInLeft var(--semiont-duration-moderate, 300ms) ease-out;
+  animation: slideInLeft var(--semiont-duration-base, 300ms) ease-out;
 }
 
 .semiont-animate-slide-in-right {
-  animation: slideInRight var(--semiont-duration-moderate, 300ms) ease-out;
+  animation: slideInRight var(--semiont-duration-base, 300ms) ease-out;
 }
 
 .semiont-animate-scale-in {

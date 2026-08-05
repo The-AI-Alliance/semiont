@@ -40,6 +40,16 @@ jobs:
           ./scripts/compliance/audit-raw-bus.sh
           echo "::endgroup::"
 
+      - name: Run CSS Gates
+        run: |
+          echo "::group::CSS Gates (stylelint + every var() resolves + no utility frameworks)"
+          fail=0
+          npm run lint:css || fail=1
+          npm run lint:css-variables || fail=1
+          npm run lint:no-utility-classes || fail=1
+          echo "::endgroup::"
+          exit $fail
+
       - name: Run StateUnit Compliance Audit
         run: |
           echo "::group::StateUnit Compliance Audit (A1-static no-class / X3-static no-module-state / X5 fire-and-forget)"
