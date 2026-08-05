@@ -884,6 +884,46 @@ describe('PdfAnnotationCanvas', () => {
 
     // S1a. Arrow keys step pages. The guards are the substance: a viewer that
     // steals arrow keys from a text field is worse than one with no shortcut.
+    test('Up/Down step pages too — they match the axis pages advance along', async () => {
+      // Pages move vertically and the rail is vertical, so Up/Down is the
+      // key a reader reaches for first. Left/Right keep working: they have no
+      // native meaning in a vertical layout, so accepting both costs nothing.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+      io.fire([2]);
+      await waitFor(() => expect(mountedPages()).toEqual([2]));
+
+      scrollIntoView.mockClear();
+      fireEvent.keyDown(window, { key: 'ArrowDown' });
+      expect(scrollIntoView).toHaveBeenCalled();
+
+      scrollIntoView.mockClear();
+      fireEvent.keyDown(window, { key: 'ArrowUp' });
+      expect(scrollIntoView).toHaveBeenCalled();
+
+      // The same guard as the horizontal pair: never steal from a text field.
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      input.focus();
+      scrollIntoView.mockClear();
+      fireEvent.keyDown(input, { key: 'ArrowDown' });
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      input.remove();
+    });
+
     test('Left/Right step pages, and never steal keys from a text field', async () => {
       const io = stubIntersectionObserver();
       scannedDoc();
@@ -1009,10 +1049,73 @@ describe('PdfAnnotationCanvas', () => {
       expect(strip).toHaveAttribute('data-axis', 'vertical');
       // Tells assistive tech which arrow keys apply to the strip.
       expect(strip).toHaveAttribute('aria-orientation', 'vertical');
-      // Adjacent: siblings in the viewport, strip after the column so it
-      // lands beside that column's scrollbar.
-      expect(strip.previousElementSibling).toBe(column);
+      // The strip leads: it hugs the left edge of the content, the
+      // conventional place for a page rail (Preview, Acrobat), and the
+      // reader's eye finds it before the page rather than after it.
+      expect(strip.nextElementSibling).toBe(column);
       expect(strip.parentElement).toHaveClass('semiont-pdf-annotation-canvas__viewport');
+    });
+
+    test('each strip rectangle shows its page number', async () => {
+      // At 70 pages the rectangles are indistinguishable from one another —
+      // the strip shows position but not WHICH page, which is most of what a
+      // reader wants from it on a long document.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
+      });
+      io.fire([1]);
+
+      const tick = (page: number) =>
+        document.querySelector(`.semiont-pdf-annotation-canvas__strip-page[data-page="${page}"]`)!;
+      expect(tick(1)).toHaveTextContent('1');
+      expect(tick(5)).toHaveTextContent('5');
+
+      // The accessible name keeps the context the bare digit loses, and
+      // still contains the visible text (WCAG 2.5.3 Label in Name).
+      expect(tick(5)).toHaveAttribute('aria-label', expect.stringContaining('5'));
+    });
+
+
+    test('the column does not add a second scrollbar inside the scrolling pane', async () => {
+      // The strip and a nested column scrollbar were two controls for one
+      // movement. The pane the viewer sits in already scrolls (flex: 1;
+      // min-height: 0), so the column must not declare a viewport-relative
+      // height of its own — that is what produced scroll-within-scroll.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+      io.fire([1]);
+
+      // jsdom applies no stylesheet, so assert the CONTRACT the CSS keys off:
+      // the column declares the axis but claims no scroll role of its own.
+      const column = document.querySelector('.semiont-pdf-annotation-canvas__column')!;
+      expect(column).toHaveAttribute('data-axis', 'vertical');
+      expect(column).not.toHaveAttribute('data-scroller');
+      // The strip is the one that scrolls independently, and silently.
+      expect(document.querySelector('.semiont-pdf-annotation-canvas__strip'))
+        .toHaveAttribute('data-scroller', 'true');
     });
 
     test('keeps the paged layout when no layout is requested', async () => {

@@ -62,15 +62,18 @@
  * Both blocks below key off ONE attribute, so the strip can never end up
  * running across the direction the document scrolls.
  */
+/*
+ * The column does NOT scroll. The pane the viewer sits in already does
+ * (`flex: 1; min-height: 0`), and giving the column a viewport-relative
+ * height of its own produced a scroller inside a scroller — two bars along
+ * one axis, the inner one redundant with the page rail beside it.
+ */
 .semiont-pdf-annotation-canvas__column[data-axis="vertical"] {
   flex-direction: column;
-  max-height: 80vh;
-  overflow-y: auto;
 }
 
 .semiont-pdf-annotation-canvas__column[data-axis="horizontal"] {
   flex-direction: row;
-  overflow-x: auto;
 }
 
 .semiont-pdf-annotation-canvas__slot {
@@ -83,35 +86,60 @@
  * The page strip: the document's shape in miniature. Rectangles only — no
  * rasterization — so a 400-page scan costs 400 empty divs, not 400 renders.
  */
+/*
+ * The strip scrolls — a 70-page document cannot fit its numbered rectangles in
+ * one screen — but it must not show a scrollbar. Two scrollbars side by side
+ * read as two controls for one thing, and the strip's own moves the strip
+ * rather than the document, so it looks broken. Position is carried by the
+ * highlighted page, and the strip follows the reader on its own.
+ */
 .semiont-pdf-annotation-canvas__strip {
   display: flex;
   flex: 0 0 auto;
   gap: 2px;
   padding: 0.5rem;
+  scrollbar-width: none;
 }
 
+/*
+ * The rail hugs the leading edge of the content and stays put while the
+ * document scrolls past it — `sticky` rather than a fixed-height box, so it
+ * follows the reader without claiming a second scroll region in the layout.
+ */
 .semiont-pdf-annotation-canvas__strip[data-axis="vertical"] {
+  position: sticky;
+  top: 0;
   flex-direction: column;
+  align-self: flex-start;
   align-items: center;
-  max-height: 80vh;
+  max-height: 100vh;
   overflow-y: auto;
-  border-left: 1px solid var(--semiont-border-secondary);
+  border-right: 1px solid var(--semiont-border-secondary);
 }
 
 .semiont-pdf-annotation-canvas__strip[data-axis="horizontal"] {
+  position: sticky;
+  top: 0;
   flex-direction: row;
   align-items: flex-end;
+  max-width: 100%;
   overflow-x: auto;
-  border-top: 1px solid var(--semiont-border-secondary);
+  border-bottom: 1px solid var(--semiont-border-secondary);
 }
 
 .semiont-pdf-annotation-canvas__strip-page {
+  display: flex;
   flex: 0 0 auto;
-  width: 14px;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
   padding: 0;
   border: 1px solid var(--semiont-border-primary);
   border-radius: 1px;
   background: var(--semiont-bg-secondary);
+  color: var(--semiont-text-tertiary);
+  font-size: var(--semiont-text-2xs);
+  line-height: 1;
   cursor: pointer;
 }
 
@@ -123,6 +151,8 @@
 .semiont-pdf-annotation-canvas__strip-page[aria-current="page"] {
   border-color: var(--semiont-color-primary-600);
   background: var(--semiont-color-primary-500);
+  color: var(--semiont-color-neutral-0);
+  font-weight: var(--semiont-font-semibold);
 }
 
 .semiont-pdf-annotation-canvas__strip-page:focus-visible {

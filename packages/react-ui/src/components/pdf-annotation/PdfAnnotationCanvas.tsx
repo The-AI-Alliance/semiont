@@ -43,8 +43,10 @@ export type PageLayout = 'paged' | 'scroll';
 const PRELOAD_MARGIN = '100% 0px';
 
 /** Width of one page rectangle in the strip, in CSS px. Height follows the
- *  document's own aspect ratio, so the strip looks like the document. */
-const STRIP_PAGE_WIDTH = 14;
+ *  document's own aspect ratio, so the strip looks like the document — wide
+ *  enough to carry a three-digit page number, which is what makes the strip
+ *  useful rather than merely positional on a long document. */
+const STRIP_PAGE_WIDTH = 30;
 
 /**
  * The axis pages advance along.
@@ -791,14 +793,20 @@ export function PdfAnnotationCanvas({
    */
   useEffect(() => {
     if (numPages === 0) return;
+    const BACK = ['ArrowLeft', 'ArrowUp'];
+    const FORWARD = ['ArrowRight', 'ArrowDown'];
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      // All four arrows step pages. Up/Down is what a reader reaches for
+      // first, because pages advance downward and the rail is vertical;
+      // Left/Right keep working because they have no native meaning in a
+      // vertical layout, so accepting both costs nothing.
+      if (!BACK.includes(e.key) && !FORWARD.includes(e.key)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return; // browser/OS navigation
       const el = e.target as HTMLElement | null;
       const tag = el?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return;
 
-      const next = e.key === 'ArrowRight' ? currentPage + 1 : currentPage - 1;
+      const next = FORWARD.includes(e.key) ? currentPage + 1 : currentPage - 1;
       if (next < 1 || next > numPages) return;
       e.preventDefault();
       if (pageLayout === 'scroll') scrollToPage(next);
@@ -851,6 +859,32 @@ export function PdfAnnotationCanvas({
 
       {pdfDoc && pageLayout === 'scroll' ? (
         <div className="semiont-pdf-annotation-canvas__viewport" data-axis={SCROLL_AXIS}>
+        {numPages > 0 && pageShape && (
+          <div
+            className="semiont-pdf-annotation-canvas__strip"
+            data-axis={SCROLL_AXIS}
+            data-scroller="true"
+            aria-orientation={SCROLL_AXIS}
+            ref={stripRef}
+          >
+            {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                type="button"
+                data-page={page}
+                className="semiont-pdf-annotation-canvas__strip-page"
+                style={{ height: `${Math.round(STRIP_PAGE_WIDTH * pageShape.aspect)}px` }}
+                aria-label={t('pageOf', { page, total: numPages })}
+                tabIndex={page === currentPage ? 0 : -1}
+                {...(page === currentPage ? { 'aria-current': 'page' as const } : {})}
+                ref={page === currentPage ? currentTickRef : undefined}
+                onClick={() => scrollToPage(page)}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="semiont-pdf-annotation-canvas__column" data-axis={SCROLL_AXIS} ref={columnRef}>
           {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => (
             <div
@@ -870,29 +904,6 @@ export function PdfAnnotationCanvas({
             </div>
           ))}
         </div>
-        {numPages > 0 && pageShape && (
-          <div
-            className="semiont-pdf-annotation-canvas__strip"
-            data-axis={SCROLL_AXIS}
-            aria-orientation={SCROLL_AXIS}
-            ref={stripRef}
-          >
-            {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                type="button"
-                data-page={page}
-                className="semiont-pdf-annotation-canvas__strip-page"
-                style={{ height: `${Math.round(STRIP_PAGE_WIDTH * pageShape.aspect)}px` }}
-                aria-label={t('pageOf', { page, total: numPages })}
-                tabIndex={page === currentPage ? 0 : -1}
-                {...(page === currentPage ? { 'aria-current': 'page' as const } : {})}
-                ref={page === currentPage ? currentTickRef : undefined}
-                onClick={() => scrollToPage(page)}
-              />
-            ))}
-          </div>
-        )}
         </div>
       ) : (
         pdfDoc && !isLoading && (
