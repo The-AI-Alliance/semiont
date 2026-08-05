@@ -13,6 +13,9 @@ against a local KB, reachable by IP. Full rebuild/start flow in
 ```sh
 container ls | grep -E 'semiont-(frontend|backend)'    # grab both IPs
 
+# The image tag MUST match the installed library — see "Version pinning" below.
+PW=$(node -p "require('./node_modules/@playwright/test/package.json').version")
+
 container run --rm \
   -v "$(git rev-parse --show-toplevel):/workspace" \
   -w /workspace/tests/e2e \
@@ -21,7 +24,7 @@ container run --rm \
   -e E2E_FRONTEND_URL=http://<frontend-ip>:3000 \
   -e E2E_BACKEND_URL=http://<backend-ip>:4000 \
   -e CI=1 \
-  mcr.microsoft.com/playwright:v1.61.0-noble \
+  "mcr.microsoft.com/playwright:v$PW-noble" \
   npm test
 ```
 
@@ -34,6 +37,30 @@ container run --rm \
 > If every test fails in the `signIn` fixture with *"Request failed due
 > to a network error"*, the Playwright container can't reach the
 > host-published backend — see [Container networking](#container-networking-reaching-the-host).
+
+## Version pinning: the image must match the installed library
+
+Playwright refuses to run when the browser image and the `@playwright/test`
+library disagree, so the tag is not decorative. Derive it rather than typing
+it — `$PW` above reads the version off disk, which is the one source that
+cannot be stale relative to what is about to run.
+
+This README previously hard-coded the tag and drifted **twice**: Dependabot
+bumps `package.json` and `package-lock.json` together, but nothing installs
+them here, so three versions diverge silently — declared, installed, and
+documented. On 2026-08-05 they were 1.62.0, 1.61.1 and 1.61.0 respectively.
+
+**Nothing else catches this.** `tests/e2e` is not a root workspace and no CI
+workflow runs it, so the suite's dependencies are only ever installed by a
+person deciding to. After a Dependabot bump, sync before running:
+
+```sh
+npm ci        # installs the lockfile EXACTLY; never rewrites it
+```
+
+Use `npm ci`, not `npm install`: `ci` cannot alter `package-lock.json`, so
+syncing your `node_modules` can never quietly re-resolve the suite's
+dependencies for everyone else. The lockfile is tracked and is the authority.
 
 ## Container networking: reaching the host
 
@@ -68,7 +95,7 @@ container run --rm \
   -e E2E_FRONTEND_URL=http://192.168.64.1:3000 \
   -e E2E_BACKEND_URL=http://192.168.64.1:4000 \
   -e CI=1 \
-  mcr.microsoft.com/playwright:v1.61.0-noble \
+  "mcr.microsoft.com/playwright:v$PW-noble" \
   npm test
 ```
 
