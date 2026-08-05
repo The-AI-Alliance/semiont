@@ -884,10 +884,11 @@ describe('PdfAnnotationCanvas', () => {
 
     // S1a. Arrow keys step pages. The guards are the substance: a viewer that
     // steals arrow keys from a text field is worse than one with no shortcut.
-    test('Up/Down step pages too — they match the axis pages advance along', async () => {
-      // Pages move vertically and the rail is vertical, so Up/Down is the
-      // key a reader reaches for first. Left/Right keep working: they have no
-      // native meaning in a vertical layout, so accepting both costs nothing.
+    test('PageUp/PageDown step pages; Up/Down are left to scroll', async () => {
+      // The convention every mainstream viewer follows (Preview, Chrome's PDF
+      // viewer, Acrobat): PageUp/PageDown jump a page, Up/Down scroll finely.
+      // Taking Up/Down would leave no keyboard way to reach the bottom of a
+      // page taller than the viewport.
       const io = stubIntersectionObserver();
       scannedDoc();
       const scrollIntoView = vi.fn();
@@ -907,19 +908,25 @@ describe('PdfAnnotationCanvas', () => {
       await waitFor(() => expect(mountedPages()).toEqual([2]));
 
       scrollIntoView.mockClear();
-      fireEvent.keyDown(window, { key: 'ArrowDown' });
+      fireEvent.keyDown(window, { key: 'PageDown' });
       expect(scrollIntoView).toHaveBeenCalled();
 
       scrollIntoView.mockClear();
-      fireEvent.keyDown(window, { key: 'ArrowUp' });
+      fireEvent.keyDown(window, { key: 'PageUp' });
       expect(scrollIntoView).toHaveBeenCalled();
+
+      // Up/Down belong to the scroller, not to us.
+      scrollIntoView.mockClear();
+      fireEvent.keyDown(window, { key: 'ArrowDown' });
+      fireEvent.keyDown(window, { key: 'ArrowUp' });
+      expect(scrollIntoView).not.toHaveBeenCalled();
 
       // The same guard as the horizontal pair: never steal from a text field.
       const input = document.createElement('input');
       document.body.appendChild(input);
       input.focus();
       scrollIntoView.mockClear();
-      fireEvent.keyDown(input, { key: 'ArrowDown' });
+      fireEvent.keyDown(input, { key: 'PageDown' });
       expect(scrollIntoView).not.toHaveBeenCalled();
       input.remove();
     });

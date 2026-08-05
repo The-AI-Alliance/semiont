@@ -793,13 +793,16 @@ export function PdfAnnotationCanvas({
    */
   useEffect(() => {
     if (numPages === 0) return;
-    const BACK = ['ArrowLeft', 'ArrowUp'];
-    const FORWARD = ['ArrowRight', 'ArrowDown'];
+    const BACK = ['ArrowLeft', 'PageUp'];
+    const FORWARD = ['ArrowRight', 'PageDown'];
     const onKeyDown = (e: KeyboardEvent) => {
-      // All four arrows step pages. Up/Down is what a reader reaches for
-      // first, because pages advance downward and the rail is vertical;
-      // Left/Right keep working because they have no native meaning in a
-      // vertical layout, so accepting both costs nothing.
+      // PageUp/PageDown jump a page; Left/Right do too, because they have no
+      // native meaning in a vertical layout so taking them costs nothing.
+      //
+      // Up/Down are deliberately NOT here. They are the scroller's fine
+      // movement, and a page can be taller than the viewport — taking them
+      // would leave no keyboard way to reach the bottom of one. This is the
+      // split Preview, Chrome's PDF viewer and Acrobat all use.
       if (!BACK.includes(e.key) && !FORWARD.includes(e.key)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return; // browser/OS navigation
       const el = e.target as HTMLElement | null;
