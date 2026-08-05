@@ -18,7 +18,9 @@ ARG SEMIONT_VERSION=latest
 # tar 7.5.15 (CVE-2026-59873 CRITICAL, CVE-2026-59874 HIGH), brace-expansion 5.0.6
 # (CVE-2026-13149 HIGH), and undici 6.26.0 (CVE-2026-12151 HIGH). Pin npm to 12.0.1,
 # which bundles tar 7.5.19, brace-expansion 5.0.7, and undici 6.27.0 — all fixed at
-# the time of the pin. (brace-expansion 5.0.7 later drew its own CVE — patched below.)
+# the time of the pin. (brace-expansion 5.0.7 later drew its own CVEs — patched
+# below. npm 12.0.2 has since shipped, but it bundles the same three versions, so
+# moving the pin would not change what the Trivy gate sees.)
 RUN npm config set registry $NPM_REGISTRY && \
     npm install -g npm@12.0.1 && \
     npm install @semiont/backend@${SEMIONT_VERSION} neo4j-driver @qdrant/js-client-rest \
@@ -47,17 +49,22 @@ RUN cd /home/semiont/.local/share/semiont/node_modules/@semiont/backend && \
 
 # SELF-RETIRING PATCH — when this step FAILS the build, DELETE this whole block.
 #
-# npm 12.0.1 is the newest npm published, and it bundles brace-expansion 5.0.7,
-# which carries CVE-2026-14257 (HIGH: DoS via unbounded expansion length). No npm
-# release ships the fix (5.0.8) yet, so there is no version to bump to — we replace
-# npm's bundled copy in place, exactly as the (now-retired) undici patch once did.
+# npm 12.0.2 is the newest npm published, and it still bundles brace-expansion
+# 5.0.7, which carries two HIGH advisories:
+#   - GHSA-mh99-v99m-4gvg (CVE-2026-14257): DoS via unbounded expansion length
+#     — fixed in 5.0.8.
+#   - GHSA-rgw5-rvv9-x895: DoS via unbounded intermediate arrays — fixed in 5.0.9.
+# No npm release ships either fix yet, so there is no version to bump to — we
+# replace npm's bundled copy in place, exactly as the (now-retired) undici patch
+# once did. WANT tracks the newest fixed release, not merely the first one that
+# cleared the original CVE (5.0.8 is itself vulnerable to GHSA-rgw5-rvv9-x895).
 #
 # The guard is what makes this safe to leave here: it FAILS the build the moment
-# npm bundles >= 5.0.8, so the patch can never silently downgrade npm's own newer
+# npm bundles >= WANT, so the patch can never silently downgrade npm's own newer
 # copy and re-introduce a vulnerability. It announces its own obsolescence instead
 # of rotting unnoticed.
 RUN set -eu; \
-    WANT=5.0.8; \
+    WANT=5.0.9; \
     for p in $(find /usr/local/lib/node_modules/npm -type d -path '*/node_modules/brace-expansion'); do \
       HAVE=$(node -pe "require('$p/package.json').version"); \
       if node -e 'const c=(a,b)=>{a=a.split(".").map(Number);b=b.split(".").map(Number);for(let i=0;i<3;i++){const d=(a[i]||0)-(b[i]||0);if(d)return d}return 0};process.exit(c(process.argv[1],process.argv[2])>=0?0:1)' "$HAVE" "$WANT"; then \
@@ -105,25 +112,24 @@ COPY --from=installer --chown=semiont:nodejs /home/semiont/.local/share/semiont 
 # with its bundled brace-expansion patched there, so keeping npm is clean for the
 # Trivy gate.
 #
-# We still drop three things pulled transitively but never loaded at runtime:
+# We still drop two things pulled transitively but never loaded at runtime:
 #   - the TypeScript compiler: `typescript` + its native `@typescript/*` Go
 #     binaries (via the qdrant client's dep chain); the native `tsc` carries a
 #     Go-stdlib CVE (CVE-2026-39822).
-#   - `elkjs`: pulled by @prisma/studio-core (via prisma@7.9.0) for Prisma
-#     Studio's graph layout. It is EPL-2.0 — not on the license allowlist — and
-#     is lazy-loaded only by the Studio GUI, which the backend never runs (it
+#   - `elkjs`: pulled by @prisma/studio-core (via prisma) for Prisma Studio's
+#     graph layout. It is EPL-2.0 — not on the license allowlist — and is
+#     lazy-loaded only by the Studio GUI, which the backend never runs (it
 #     shells out to `npx prisma migrate deploy`). studio-core itself stays:
 #     it is Apache-2.0 and prisma's CLI top-level-requires it (removing it breaks
 #     the CLI, and `migrate deploy` still runs at start), while removing only
 #     elkjs leaves the CLI working.
-#   - `find-my-way`: the HTTP router @prisma/dev pins at exactly 9.6.0 (so no
-#     semver bump can reach the fixed 9.7.0), carrying CVE-2026-47219 (HIGH:
-#     HTTP/2 DDoS). It serves Prisma's dev server, which the backend never runs.
-#     @prisma/dev itself stays — prisma's CLI top-level-requires
-#     `@prisma/dev/internal/state`; removing only find-my-way leaves the CLI working.
+#
+# `find-my-way` used to be dropped here too: @prisma/dev pinned it at exactly
+# 9.6.0, which carried CVE-2026-47219 (HIGH: HTTP/2 DDoS). prisma 7.9.1 now
+# resolves @prisma/dev 0.24.17, which depends on the fixed find-my-way 9.7.0,
+# so there is nothing left to drop.
 RUN find /usr/local/lib/node_modules /home/semiont/.local/share/semiont \
-      -type d \( -name typescript -o -name '@typescript' -o -name elkjs \
-                 -o -name find-my-way \) \
+      -type d \( -name typescript -o -name '@typescript' -o -name elkjs \) \
       -prune -exec rm -rf {} +
 
 COPY LICENSE apps/backend/NOTICE /home/semiont/
