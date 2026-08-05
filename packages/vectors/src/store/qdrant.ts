@@ -288,19 +288,19 @@ export class QdrantVectorStore implements VectorStore {
     // over-fetch beyond `limit` is unnecessary because the max-sim merge only
     // needs a target in some chunk's top-K to surface.
     const searches = queryVectors.map((vector) => ({
-      vector,
+      query: vector,
       limit: opts.limit,
       score_threshold: opts.scoreThreshold,
       filter: filter ?? undefined,
       with_payload: true,
     }));
-    const batches = await this.qdrant.searchBatch('resources', { searches });
+    const batches = await this.qdrant.queryBatch('resources', { searches });
 
     // Max-sim merge: dedup by resourceId, keep the best (query-chunk × target-chunk)
     // score and the best-matching target chunk's payload.
     const bestByResource = new Map<string, { id: string; score: number; payload: Record<string, unknown> }>();
     for (const batch of batches) {
-      for (const r of batch) {
+      for (const r of batch.points) {
         const payload = r.payload ?? {};
         const tid = String(payload.resourceId);
         const prev = bestByResource.get(tid);
@@ -327,15 +327,18 @@ export class QdrantVectorStore implements VectorStore {
   private async search(collection: string, embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]> {
     const filter = this.buildFilter(opts.filter);
 
-    const results = await this.qdrant.search(collection, {
-      vector: embedding,
+    // `query`, not `search`: the REST client dropped `search`/`searchBatch` in
+    // 1.19.0 in favour of the universal query endpoint. Same request but the
+    // vector moves to `query`, and the response is wrapped in `{ points }`.
+    const { points } = await this.qdrant.query(collection, {
+      query: embedding,
       limit: opts.limit,
       score_threshold: opts.scoreThreshold,
       filter: filter ?? undefined,
       with_payload: true,
     });
 
-    return results.map((r) => {
+    return points.map((r) => {
       const payload = r.payload ?? {};
       return {
         id: String(r.id),
