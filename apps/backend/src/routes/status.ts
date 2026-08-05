@@ -13,12 +13,12 @@ import { authMiddleware } from '../middleware/auth';
 import type { User } from '@prisma/client';
 import type { components, EnvironmentConfig } from '@semiont/core';
 import { kbDid } from '@semiont/core';
-import { SemiontProject } from '@semiont/core/node';
+import type { startMakeMeaning } from '@semiont/make-meaning';
 
 type StatusResponse = components['schemas']['StatusResponse'];
 
 // Create status router with plain Hono
-export const statusRouter = new Hono<{ Variables: { user: User; config: EnvironmentConfig } }>();
+export const statusRouter = new Hono<{ Variables: { user: User; config: EnvironmentConfig; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>();
 
 // Apply auth middleware
 statusRouter.use('/api/status', authMiddleware);
@@ -31,12 +31,13 @@ statusRouter.use('/api/status', authMiddleware);
  */
 statusRouter.get('/api/status', async (c) => {
   const user = c.get('user');
-  const config = c.get('config');
-  const metadata = config._metadata as Record<string, unknown> | undefined;
-  const projectName = metadata?.projectName as string | undefined;
-  const projectRoot = metadata?.projectRoot as string | undefined;
-  const project = projectRoot ? new SemiontProject(projectRoot) : undefined;
-  const gitBranch = project?.gitBranch();
+  // The one project this backend serves, built at startup with everything the
+  // entry point supplied. Previously improvised here from `config._metadata`
+  // via two casts — which produced a project missing whatever the real one was
+  // given, and re-did the work per request.
+  const project = c.get('makeMeaning').project;
+  const projectName = project.name;
+  const gitBranch = project.gitBranch();
   // The KB's own identity, so a client can tell WHICH knowledge base it just
   // connected to rather than inferring it from the address it dialed
   // (.plans/KB-IDENTITY-VS-ADDRESS.md). Read from the committed
@@ -50,7 +51,7 @@ statusRouter.get('/api/status', async (c) => {
   // a plausible wrong identity is worse than a loud failure. This is what
   // "required" costs and why it is worth paying: no caller ever has to wonder
   // whether the did they were handed was real.
-  const siteDomain = project?.siteDomain();
+  const siteDomain = project.siteDomain();
   if (!siteDomain) {
     throw new Error(
       'KB identity unavailable: no [site] domain in the committed .semiont/config. ' +

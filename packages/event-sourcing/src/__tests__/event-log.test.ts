@@ -20,7 +20,7 @@ describe('EventLog', () => {
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-test-eventlog-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir);
+    project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
 
     log = new EventLog({
       project,

@@ -83,7 +83,7 @@ describe('Scripting Example: Query Graph Database', () => {
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-graph-test-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir);
+    project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
 
     config = {
       gather: { settleTimeoutMs: 15_000 },

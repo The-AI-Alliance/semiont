@@ -47,7 +47,7 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-vm-int-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir);
+    project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
     viewStorage = new FilesystemViewStorage(project);
     manager = new ViewManager(viewStorage, { basePath: project.stateDir });
   });

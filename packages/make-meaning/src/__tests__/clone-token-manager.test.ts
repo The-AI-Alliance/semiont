@@ -44,7 +44,7 @@ describe('CloneTokenManager format selection', () => {
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-ctm-test-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    const project = new SemiontProject(testDir);
+    const project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
 
     const config: MakeMeaningConfig = {
       gather: { settleTimeoutMs: 15_000 },

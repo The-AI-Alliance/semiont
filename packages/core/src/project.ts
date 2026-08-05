@@ -17,7 +17,7 @@ import { execFileSync } from 'child_process';
  *   stateDir        — $XDG_STATE_HOME/semiont/{name}/
  *   projectionsDir  — stateDir/projections/
  *   jobsDir         — stateDir/jobs/
- *   anchoredTextDir — $SEMIONT_ANCHORED_TEXT_DIR  (required; no default)
+ *   anchoredTextDir — supplied by the caller; required, no default
  *   backendLogsDir      — stateDir/backend/
  *   backendAppLogFile   — backendLogsDir/app.log
  *   backendErrorLogFile — backendLogsDir/error.log
@@ -71,7 +71,20 @@ export class SemiontProject {
   readonly runtimeDir: string;
   readonly backendPidFile: string;
 
-  constructor(projectRoot: string, name?: string) {
+  /**
+   * @param projectRoot  the KB clone this project describes
+   * @param opts.name    override the name read from .semiont/config
+   * @param opts.anchoredTextDir  where this deployment keeps the anchored-text
+   *   store. Passed IN, never read from the environment here: the entry point
+   *   owns that read, exactly as it owns SEMIONT_ROOT. Required, and with no
+   *   default — a default would let a deployment that forgot it write a full
+   *   OCR pass per representation into a directory nobody mounted, lose it on
+   *   the next `stop`, and re-derive it forever: silent, expensive, and
+   *   indistinguishable from working.
+   */
+  constructor(projectRoot: string, opts: { anchoredTextDir: string; name?: string }) {
+    const name = opts.name;
+    this.anchoredTextDir = opts.anchoredTextDir;
     this.root = projectRoot;
     if (name !== undefined) {
       const configPath = path.join(projectRoot, '.semiont', 'config');
@@ -92,26 +105,6 @@ export class SemiontProject {
     this.stateDir = path.join(xdgState, 'semiont', this.name);
     this.projectionsDir = path.join(this.stateDir, 'projections');
     this.jobsDir = path.join(this.stateDir, 'jobs');
-    // Declared by the deployment, never composed here and never defaulted —
-    // the backend image sets SEMIONT_ANCHORED_TEXT_DIR=/anchored-text and
-    // `semiont start` bind-mounts the KB's per-root store onto it, exactly as
-    // SEMIONT_ROOT=/kb works.
-    //
-    // A default would be worse than an error: a deployment that forgot the
-    // variable would write a full OCR pass per representation into a directory
-    // nobody mounted, lose it on the next `stop`, and re-derive it forever —
-    // silent, expensive, and indistinguishable from working.
-    const anchoredTextDir = process.env.SEMIONT_ANCHORED_TEXT_DIR;
-    if (!anchoredTextDir) {
-      throw new Error(
-        'SEMIONT_ANCHORED_TEXT_DIR is not set. It names the directory holding this ' +
-        "knowledge base's anchored-text store, and has no default: the backend image " +
-        'declares it (SEMIONT_ANCHORED_TEXT_DIR=/anchored-text) and `semiont start` ' +
-        'mounts the per-root store onto it. Running the backend outside a container ' +
-        'means setting it yourself.',
-      );
-    }
-    this.anchoredTextDir = anchoredTextDir;
     this.backendLogsDir = path.join(this.stateDir, 'backend');
     this.backendAppLogFile = path.join(this.backendLogsDir, 'app.log');
     this.backendErrorLogFile = path.join(this.backendLogsDir, 'error.log');

@@ -14,7 +14,6 @@ import { Hono } from 'hono';
 import { Readable, Writable } from 'node:stream';
 import type { User } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth';
-import { SemiontProject } from '@semiont/core/node';
 import { userId as makeUserId } from '@semiont/core';
 import type { EnvironmentConfig, EventBus } from '@semiont/core';
 import type { startMakeMeaning } from '@semiont/make-meaning';
@@ -182,7 +181,7 @@ exchangeRouter.post('/api/moderate/exchange/export', async (c) => {
   const sourceUrl = config.services?.backend?.publicURL ?? 'http://localhost:4000';
   const includeArchived = c.req.query('includeArchived') === 'true';
 
-  const entityTypes = await readEntityTypesProjection(new SemiontProject(config._metadata!.projectRoot!));
+  const entityTypes = await readEntityTypesProjection(mm.project);
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const filename = `semiont-export-${timestamp}.tar.gz`;

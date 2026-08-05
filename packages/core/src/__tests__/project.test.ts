@@ -39,7 +39,7 @@ describe('SemiontProject', () => {
       execFileSync('git', ['-C', dir, 'add', '.'], { stdio: 'ignore' });
       execFileSync('git', ['-C', dir, 'commit', '-m', 'init', '--allow-empty'], { stdio: 'ignore' });
 
-      const project = new SemiontProject(dir);
+      const project = new SemiontProject(dir, { anchoredTextDir: `${dir}/anchored-text` });
       const branch = project.gitBranch();
       expect(branch).toBeTruthy();
       expect(typeof branch).toBe('string');
@@ -55,7 +55,7 @@ describe('SemiontProject', () => {
       execFileSync('git', ['-C', dir, 'commit', '--allow-empty', '-m', 'init'], { stdio: 'ignore' });
       execFileSync('git', ['-C', dir, 'checkout', '-b', 'feature-xyz'], { stdio: 'ignore' });
 
-      const project = new SemiontProject(dir);
+      const project = new SemiontProject(dir, { anchoredTextDir: `${dir}/anchored-text` });
       expect(project.gitBranch()).toBe('feature-xyz');
     });
 
@@ -63,7 +63,7 @@ describe('SemiontProject', () => {
       const dir = await makeTempDir();
       dirs.push(dir);
 
-      const project = new SemiontProject(dir);
+      const project = new SemiontProject(dir, { anchoredTextDir: `${dir}/anchored-text` });
       expect(project.gitBranch()).toBeNull();
     });
   });
@@ -75,7 +75,7 @@ describe('SemiontProject', () => {
       await fs.mkdir(join(dir, '.semiont'), { recursive: true });
       await fs.writeFile(join(dir, '.semiont', 'config'), '[project]\nname = "my-kb"\n');
 
-      const project = new SemiontProject(dir);
+      const project = new SemiontProject(dir, { anchoredTextDir: `${dir}/anchored-text` });
       expect(project.name).toBe('my-kb');
     });
 
@@ -83,7 +83,7 @@ describe('SemiontProject', () => {
       const dir = await makeTempDir();
       dirs.push(dir);
 
-      const project = new SemiontProject(dir);
+      const project = new SemiontProject(dir, { anchoredTextDir: `${dir}/anchored-text` });
       expect(project.name).toBe(dir.split('/').pop());
     });
   });
@@ -95,7 +95,7 @@ describe('SemiontProject', () => {
       await fs.mkdir(join(dir, '.semiont'), { recursive: true });
       await fs.writeFile(join(dir, '.semiont', 'config'), '[project]\nname = "test"\n\n[git]\nsync = true\n');
 
-      const project = new SemiontProject(dir);
+      const project = new SemiontProject(dir, { anchoredTextDir: `${dir}/anchored-text` });
       expect(project.gitSync).toBe(true);
     });
 
@@ -105,7 +105,7 @@ describe('SemiontProject', () => {
       await fs.mkdir(join(dir, '.semiont'), { recursive: true });
       await fs.writeFile(join(dir, '.semiont', 'config'), '[project]\nname = "test"\n');
 
-      const project = new SemiontProject(dir);
+      const project = new SemiontProject(dir, { anchoredTextDir: `${dir}/anchored-text` });
       expect(project.gitSync).toBe(false);
     });
   });
@@ -132,7 +132,7 @@ describe('SemiontProject', () => {
         '[project]\nname = "caselaw"\n\n[site]\ndomain = "the-ai-alliance.github.io:semiont-caselaw-kb"\nsiteName = "Caselaw Knowledge Base"\n',
       );
 
-      expect(new SemiontProject(dir).siteDomain()).toBe('the-ai-alliance.github.io:semiont-caselaw-kb');
+      expect(new SemiontProject(dir, { anchoredTextDir: `${dir}/anchored-text` }).siteDomain()).toBe('the-ai-alliance.github.io:semiont-caselaw-kb');
     });
 
     it('returns undefined when [site] declares no domain — never a default', async () => {
@@ -144,7 +144,7 @@ describe('SemiontProject', () => {
         '[project]\nname = "test"\n\n[site]\nsiteName = "Nameless"\n',
       );
 
-      expect(new SemiontProject(dir).siteDomain()).toBeUndefined();
+      expect(new SemiontProject(dir, { anchoredTextDir: `${dir}/anchored-text` }).siteDomain()).toBeUndefined();
     });
 
     it('returns undefined when there is no [site] section, and when there is no config at all', async () => {
@@ -152,11 +152,11 @@ describe('SemiontProject', () => {
       dirs.push(withConfig);
       await fs.mkdir(join(withConfig, '.semiont'), { recursive: true });
       await fs.writeFile(join(withConfig, '.semiont', 'config'), '[project]\nname = "test"\n');
-      expect(new SemiontProject(withConfig).siteDomain()).toBeUndefined();
+      expect(new SemiontProject(withConfig, { anchoredTextDir: `${withConfig}/anchored-text` }).siteDomain()).toBeUndefined();
 
       const bare = await makeTempDir();
       dirs.push(bare);
-      expect(new SemiontProject(bare).siteDomain()).toBeUndefined();
+      expect(new SemiontProject(bare, { anchoredTextDir: `${bare}/anchored-text` }).siteDomain()).toBeUndefined();
     });
 
     it('is section-aware: a `domain` key in another section is not the site domain', async () => {
@@ -168,7 +168,7 @@ describe('SemiontProject', () => {
         '[project]\nname = "test"\ndomain = "not-the-site-domain"\n\n[git]\nsync = true\n',
       );
 
-      expect(new SemiontProject(dir).siteDomain()).toBeUndefined();
+      expect(new SemiontProject(dir, { anchoredTextDir: `${dir}/anchored-text` }).siteDomain()).toBeUndefined();
     });
   });
 });

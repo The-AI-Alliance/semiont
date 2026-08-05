@@ -46,7 +46,7 @@ describe('GET /resources/:id byte fidelity (S12 transport-fidelity lemma)', () =
   beforeAll(async () => {
     initializeLogger('error');
     testEnv = await setupTestEnvironment();
-    project = new SemiontProject(testEnv.config._metadata!.projectRoot!);
+    project = new SemiontProject(testEnv.config._metadata!.projectRoot!, { anchoredTextDir: `${testEnv.config._metadata!.projectRoot!}/anchored-text` });
     views = new FilesystemViewStorage(project);
     content = new WorkingTreeStore(project, mockLogger);
 

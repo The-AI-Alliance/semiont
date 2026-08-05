@@ -22,7 +22,7 @@ describe('Event Store', () => {
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir);
+    project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
 
     const viewStorage = new FilesystemViewStorage(project);
 

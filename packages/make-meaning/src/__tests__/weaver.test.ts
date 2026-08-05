@@ -106,7 +106,7 @@ describe('Weaver', () => {
     testDir = join(tmpdir(), `semiont-consumer-test-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    project = new SemiontProject(testDir);
+    project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
     const viewStorage = new FilesystemViewStorage(project);
     coreEventBus = new EventBus();
 
