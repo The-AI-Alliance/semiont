@@ -175,7 +175,14 @@ test.describe('pdf render + spatial highlight', () => {
 
     // The payoff: the panel entry quotes the page text, instead of being the
     // anonymous rectangle this fix replaced.
-    await page.getByRole('button', { name: /^annotations$/i }).click();
+    //
+    // The panel is ALREADY open in annotate mode, so it is asserted rather
+    // than opened — clicking the toolbar button here toggles it CLOSED, and
+    // the count below then reads an unmounted panel and stays 0 forever. The
+    // annotation itself is fine in that failure (`mark:create-ok` above has
+    // already passed, and the stored quote is correct); only the surface it
+    // is read from is gone. Spec 23 carries the same note.
+    await expect(page.locator('.semiont-unified-panel')).toBeVisible({ timeout: 10_000 });
     await expect
       .poll(
         async () => page.locator('[data-type="highlight"]').filter({ hasText: /smoke test pdf/i }).count(),
