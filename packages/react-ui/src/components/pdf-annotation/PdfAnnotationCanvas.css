@@ -37,9 +37,9 @@
  * still works but defeats the windowing.
  */
 /*
- * Viewport = the pages plus their strip, side by side. The strip sits AFTER
- * the column so it lands against that column's scrollbar: two readings of the
- * same position, adjacent.
+ * Viewport = the pages plus their strip, side by side. The strip LEADS — it
+ * hugs the content's leading edge, where a page rail conventionally lives
+ * (Preview, Acrobat), so the reader's eye finds it before the page.
  */
 .semiont-pdf-annotation-canvas__viewport {
   display: flex;

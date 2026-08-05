@@ -7,7 +7,7 @@
  * - Annotation display
  */
 
-import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PdfAnnotationCanvas } from '../PdfAnnotationCanvas';
@@ -75,30 +75,58 @@ vi.mock('../../../lib/browser-pdfjs', () => ({
  * fire() rather than a simulated layout — jsdom has no layout either.
  */
 function stubIntersectionObserver() {
-  const observed = new Map<Element, IntersectionObserverCallback>();
+  // (element, callback) PAIRS, not a map keyed by element: the component runs
+  // two observers over the same slots — one widened for preloading, one bare
+  // for "what is on screen" — and a map would keep only the last registered.
+  const observed: Array<{ el: Element; cb: IntersectionObserverCallback }> = [];
+  const margins = new Map<IntersectionObserverCallback, string>();
   class FakeIO {
-    constructor(private cb: IntersectionObserverCallback) {}
-    observe(el: Element) { observed.set(el, this.cb); }
-    unobserve(el: Element) { observed.delete(el); }
-    disconnect() { observed.clear(); }
+    constructor(private cb: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+      margins.set(cb, options?.rootMargin ?? '0px');
+    }
+    observe(el: Element) { observed.push({ el, cb: this.cb }); }
+    unobserve(el: Element) {
+      for (let i = observed.length - 1; i >= 0; i--) {
+        if (observed[i]!.el === el && observed[i]!.cb === this.cb) observed.splice(i, 1);
+      }
+    }
+    disconnect() {
+      for (let i = observed.length - 1; i >= 0; i--) {
+        if (observed[i]!.cb === this.cb) observed.splice(i, 1);
+      }
+    }
     takeRecords() { return []; }
   }
   vi.stubGlobal('IntersectionObserver', FakeIO);
+
+  /** Fire only the observer that has no preload margin — the one that decides
+   *  which page the reader is actually looking at. */
+  function fireFor(visible: number[], match: (rootMargin: string) => boolean) {
+    const byCb = new Map<IntersectionObserverCallback, IntersectionObserverEntry[]>();
+    for (const { el, cb } of observed) {
+      if (!match(margins.get(cb) ?? '0px')) continue;
+      const page = Number((el as HTMLElement).dataset.page);
+      byCb.set(cb, [...(byCb.get(cb) ?? []), {
+        target: el, isIntersecting: visible.includes(page),
+      } as unknown as IntersectionObserverEntry]);
+    }
+    act(() => { for (const [cb, entries] of byCb) cb(entries, {} as IntersectionObserver); });
+  }
+
+  /** Only the bare observer — what the reader can actually see. */
+  function fireOnscreen(visible: number[]) {
+    fireFor(visible, (m) => m === '0px');
+  }
+
   return {
-    /** Fire intersection changes for the slots whose data-page is listed. */
+    fireOnscreen,
+    /**
+     * Fire both observers: these pages are mounted AND on screen — the
+     * ordinary case. A test that needs the two to differ (a page preloaded
+     * but not yet visible) calls `fireOnscreen` afterwards to narrow it.
+     */
     fire(visible: number[]) {
-      const byCb = new Map<IntersectionObserverCallback, IntersectionObserverEntry[]>();
-      for (const [el, cb] of observed) {
-        const page = Number((el as HTMLElement).dataset.page);
-        const entry = {
-          target: el,
-          isIntersecting: visible.includes(page),
-        } as unknown as IntersectionObserverEntry;
-        byCb.set(cb, [...(byCb.get(cb) ?? []), entry]);
-      }
-      act(() => {
-        for (const [cb, entries] of byCb) cb(entries, {} as IntersectionObserver);
-      });
+      fireFor(visible, () => true);
     },
   };
 }
@@ -106,6 +134,11 @@ function stubIntersectionObserver() {
 describe('PdfAnnotationCanvas', () => {
   const mockResourceId = resourceId('123');
   const mockPdfUrl = 'https://example.com/resources/123.pdf';
+
+  afterEach(() => {
+    // Stubs must not leak into other files sharing this Vitest environment.
+    vi.unstubAllGlobals();
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1123,6 +1156,143 @@ describe('PdfAnnotationCanvas', () => {
       // The strip is the one that scrolls independently, and silently.
       expect(document.querySelector('.semiont-pdf-annotation-canvas__strip'))
         .toHaveAttribute('data-scroller', 'true');
+    });
+
+    test('the indicator reports a page the reader can SEE, not a preloaded one', async () => {
+      // The mount window deliberately reaches a viewport beyond the view
+      // (PRELOAD_MARGIN) so pages arrive early. Deriving the current page
+      // from that same set makes the indicator name a page that is still
+      // off-screen — it must come from actual visibility.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl}
+          drawingMode={null} pageLayout="scroll" />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+
+      // Pages 1-3 are within the preload window; only 3 is actually on screen.
+      io.fire([1, 2, 3]);
+      io.fireOnscreen([3]);
+
+      await waitFor(() => {
+        expect(document.querySelector('[aria-current="page"]')).toHaveAttribute('data-page', '3');
+      });
+    });
+
+    test('paged navigation does not carry one page\'s state onto the next', async () => {
+      // In the paged layout a single PdfPageView is reused as `pageNumber`
+      // changes, so its state survives the switch: the previous page's raster
+      // shows briefly under the new page's overlay, a drag could quote the
+      // previous page's text, and a load failure sticks forever because
+      // nothing clears it. Each page is a different thing and must mount as one.
+      // Reject by PAGE, not by call order: the parent also calls getPage(1)
+      // to measure the document's shape, so a `...Once` rejection would be
+      // consumed there and never reach the page view.
+      const failingDoc = {
+        numPages: 3,
+        getPage: vi.fn((n: number) => (n === 1
+          ? Promise.reject(new Error('page 1 is broken'))
+          : Promise.resolve(mockPage(MOCK_TEXT_ITEMS)))),
+      };
+      vi.mocked(loadPdfDocument).mockResolvedValueOnce(
+        failingDoc as unknown as Awaited<ReturnType<typeof loadPdfDocument>>,
+      );
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl} drawingMode={null} />
+      );
+
+      await waitFor(() => {
+        expect(document.querySelector('.semiont-pdf-annotation-canvas__error')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /next/i }));
+
+      // Page 2 loads fine; the failure belonged to page 1 and must not persist.
+      await waitFor(() => {
+        expect(document.querySelector('.semiont-pdf-annotation-canvas__error')).not.toBeInTheDocument();
+      });
+    });
+
+    test('without IntersectionObserver every page mounts — degraded, not broken', async () => {
+      // The virtualization is an optimization, not a correctness requirement.
+      // An environment without the observer must show the whole document
+      // rather than nothing.
+      scannedDoc();
+      vi.stubGlobal('IntersectionObserver', undefined);
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl}
+          drawingMode={null} pageLayout="scroll" />
+      );
+
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__image')).toHaveLength(5);
+      });
+    });
+
+    test('a failed map fetch is not cached — the next page retries', async () => {
+      // Answers cache, including "no map". A transport failure must not, or
+      // one bad moment pins the whole document to geometry-only.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      Element.prototype.scrollIntoView = vi.fn();
+
+      const resourceAnchoredText = vi.fn()
+        .mockRejectedValueOnce(new Error('transport down'))
+        .mockResolvedValue({ text: 'later', items: [] });
+      const session = {
+        client: { beckon: { hover: vi.fn() }, browse: { resourceAnchoredText } },
+      } as unknown as import('@semiont/sdk').SemiontSession;
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl}
+          drawingMode={null} pageLayout="scroll" session={session} />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+
+      io.fire([1]);
+      await waitFor(() => expect(resourceAnchoredText).toHaveBeenCalledTimes(1));
+
+      io.fire([2]);
+      await waitFor(() => expect(resourceAnchoredText).toHaveBeenCalledTimes(2));
+    });
+
+    test('the pager still works in the column, and modifiers are left alone', async () => {
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl}
+          drawingMode={null} pageLayout="scroll" />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+      io.fire([3]);
+      await waitFor(() => {
+        expect(document.querySelector('[aria-current="page"]')).toHaveAttribute('data-page', '3');
+      });
+
+      scrollIntoView.mockClear();
+      fireEvent.click(screen.getByRole('button', { name: /previous/i }));
+      expect(scrollIntoView).toHaveBeenCalled();
+
+      // Cmd/Ctrl/Alt + arrow belongs to the browser and the OS.
+      scrollIntoView.mockClear();
+      fireEvent.keyDown(window, { key: 'ArrowRight', metaKey: true });
+      fireEvent.keyDown(window, { key: 'PageDown', ctrlKey: true });
+      expect(scrollIntoView).not.toHaveBeenCalled();
     });
 
     test('keeps the paged layout when no layout is requested', async () => {

@@ -610,8 +610,13 @@ export function PdfAnnotationCanvas({
 
   /** Pages currently intersecting the viewport (plus the preload margin). */
   const [visiblePages, setVisiblePages] = useState<Set<number>>(new Set());
+  /** Pages genuinely in view — observed with NO preload margin, so it answers
+   *  "what is the reader looking at" rather than "what should be loaded".
+   *  Drives the indicator and the rail; never the mount window. */
+  const [onscreenPages, setOnscreenPages] = useState<Set<number>>(new Set());
   const slotRefs = useRef(new Map<number, HTMLElement>());
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const onscreenRef = useRef<IntersectionObserver | null>(null);
 
   // Load PDF document on mount
   useEffect(() => {
@@ -752,18 +757,50 @@ export function PdfAnnotationCanvas({
     observerRef.current = observer;
     for (const el of slotRefs.current.values()) observer.observe(el);
 
+    // A SECOND observer, with no preload margin, answers a different question:
+    // which pages the reader can actually see. Two observers rather than one
+    // set doing both jobs, because widening the mount window must never move
+    // the page indicator.
+    let onscreen: IntersectionObserver | null = null;
+    try {
+      onscreen = new IntersectionObserver((entries) => {
+        setOnscreenPages((prev) => {
+          const next = new Set(prev);
+          for (const entry of entries) {
+            const page = Number((entry.target as HTMLElement).dataset.page);
+            if (!page) continue;
+            if (entry.isIntersecting) next.add(page);
+            else next.delete(page);
+          }
+          return next;
+        });
+      });
+      onscreenRef.current = onscreen;
+      for (const el of slotRefs.current.values()) onscreen.observe(el);
+    } catch {
+      // Without an observer there is no notion of "on screen"; fall back to
+      // page 1 so the indicator names something rather than nothing.
+      setOnscreenPages(new Set([1]));
+    }
+
     return () => {
       observer.disconnect();
       observerRef.current = null;
+      onscreen?.disconnect();
+      onscreenRef.current = null;
     };
   }, [pageLayout, numPages]);
 
   const registerSlot = useCallback((page: number) => (el: HTMLDivElement | null) => {
     const previous = slotRefs.current.get(page);
-    if (previous) observerRef.current?.unobserve(previous);
+    if (previous) {
+      observerRef.current?.unobserve(previous);
+      onscreenRef.current?.unobserve(previous);
+    }
     if (el) {
       slotRefs.current.set(page, el);
       observerRef.current?.observe(el);
+      onscreenRef.current?.observe(el);
     } else {
       slotRefs.current.delete(page);
     }
@@ -777,9 +814,12 @@ export function PdfAnnotationCanvas({
   }, []);
 
   // In the column the reader decides which page they are on by scrolling, so
-  // the indicator reports rather than controls: the topmost visible page.
+  // the indicator reports rather than controls: the topmost page actually ON
+  // SCREEN. NOT `visiblePages` — that set is deliberately widened by
+  // PRELOAD_MARGIN to mount pages before they are reached, so reading it here
+  // would name a page still a viewport away.
   const currentPage = pageLayout === 'scroll'
-    ? (visiblePages.size > 0 ? Math.min(...visiblePages) : 1)
+    ? (onscreenPages.size > 0 ? Math.min(...onscreenPages) : 1)
     : pageNumber;
 
   /**
@@ -910,7 +950,12 @@ export function PdfAnnotationCanvas({
         </div>
       ) : (
         pdfDoc && !isLoading && (
-          <PdfPageView doc={pdfDoc} pageNumber={pageNumber} {...pageProps} />
+          // `key` is load-bearing: without it React reuses this instance
+          // across page changes, so the previous page's raster, text map and
+          // load error survive into the next page — a stale overlay, a quote
+          // taken from the wrong page, and an error that never clears. Each
+          // page is a different thing; mounting it as one resets all of it.
+          <PdfPageView key={pageNumber} doc={pdfDoc} pageNumber={pageNumber} {...pageProps} />
         )
       )}
 
