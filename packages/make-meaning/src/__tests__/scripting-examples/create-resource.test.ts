@@ -58,7 +58,7 @@ describe('Scripting Example: Create Resource', () => {
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-scripting-test-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir);
+    project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
 
     config = {
       gather: { settleTimeoutMs: 15_000 },

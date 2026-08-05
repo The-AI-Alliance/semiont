@@ -31,7 +31,7 @@ async function createProject(opts?: { gitSync?: boolean }): Promise<TestProject>
   if (opts?.gitSync) {
     execFileSync('git', ['init'], { cwd: root });
   }
-  const project = new SemiontProject(root);
+  const project = new SemiontProject(root, { anchoredTextDir: `${root}/anchored-text` });
   return {
     project,
     root,

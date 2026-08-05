@@ -64,6 +64,11 @@ export function makeMeaningMock(overrides: Partial<MakeMeaningService> = {}): Ma
   return {
     knowledgeSystem: stubKnowledgeSystem(),
     jobQueue:        { createJob: vi.fn(), getJob: vi.fn() } as unknown as JobQueue,
+    // The one project the service carries. Handlers read it (status for the
+    // KB's identity and branch, exchange for its projections dir) instead of
+    // rebuilding one per request from `config._metadata`, so the stub has to
+    // supply it. Overridable for tests that assert on what it holds.
+    project:         {} as MakeMeaningService['project'],
     stop:            vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };

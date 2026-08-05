@@ -644,9 +644,9 @@ func TestStatePersistsAcrossStarts(t *testing.T) {
 // nothing re-derives it: reconcile plans work from Qdrant, which persists, so
 // it sees matching checksums and does nothing.
 //
-// Filed exactly like the projections beside it: `stateDir/anchored-text`,
-// scoped by the KB's `[project] name`, the same scope SemiontProject gives
-// every derived directory. The mount target therefore carries that name.
+// The container path is a constant of the backend image, declared as
+// SEMIONT_ANCHORED_TEXT_DIR the way SEMIONT_ROOT=/kb is — so this mount looks
+// like every other one: KB identity on the host side only.
 func TestBackendDataPersistsAcrossStarts(t *testing.T) {
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
@@ -660,7 +660,7 @@ func TestBackendDataPersistsAcrossStarts(t *testing.T) {
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("second start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mount := dir + "/anchored-text:/home/semiont/.local/state/semiont/Test Knowledge Base/anchored-text"
+	mount := dir + "/anchored-text:/anchored-text"
 	if got := strings.Count(string(s.mustLog(t)), mount); got != 2 {
 		t.Errorf("backend state mount should appear in both boots (want 2, got %d)", got)
 	}

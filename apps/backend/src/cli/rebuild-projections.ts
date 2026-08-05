@@ -36,8 +36,20 @@ async function rebuildProjections(rId?: string, environment?: string) {
   // Create EventBus
   const eventBus = new EventBus();
 
+  // Same deployment fact the server entry point reads, for the same reason:
+  // SemiontProject receives it, never reaches for it. This CLI rebuilds
+  // projections only and never touches the anchored-text store, but the
+  // project it constructs is the real one and is required to be complete.
+  const anchoredTextDir = process.env.SEMIONT_ANCHORED_TEXT_DIR;
+  if (!anchoredTextDir) {
+    throw new Error(
+      'SEMIONT_ANCHORED_TEXT_DIR environment variable is not set (the backend image ' +
+      'declares it as /anchored-text; set it when running this outside a container).',
+    );
+  }
+
   // Start make-meaning to get eventStore
-  const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger);
+  const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot, { anchoredTextDir }), makeMeaningConfigFrom(config), eventBus, logger);
   const { knowledgeSystem: { kb: { eventStore } } } = makeMeaning;
   const query = new EventQuery(eventStore.log.storage);
 

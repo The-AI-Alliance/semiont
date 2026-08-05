@@ -21,7 +21,7 @@ describe('EventStorage', () => {
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-test-storage-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir);
+    project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
 
     storage = new EventStorage(project, {
       enableSharding: true,

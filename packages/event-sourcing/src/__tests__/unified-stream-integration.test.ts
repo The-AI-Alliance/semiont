@@ -43,7 +43,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     await fsPromises.mkdir(testDir, { recursive: true });
 
     const { createEventStore } = await import('@semiont/event-sourcing');
-    const project = new SemiontProject(testDir);
+    const project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
     eventBus = new EventBus();
     eventStore = createEventStore(project, eventBus, mockLogger);
   });

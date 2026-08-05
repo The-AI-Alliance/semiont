@@ -33,6 +33,17 @@ export type { MakeMeaningConfig } from './config';
 export interface MakeMeaningService {
   knowledgeSystem: KnowledgeSystem;
   jobQueue:        JobQueue;
+  /**
+   * The one SemiontProject this backend is serving — the same instance the
+   * KnowledgeSystem, the job queue and the bus handlers were built from.
+   *
+   * Exposed so request handlers reach for it instead of improvising their own
+   * from `config._metadata`. Two of them used to do exactly that, casting an
+   * underscore-prefixed field twice per request to rebuild a project that
+   * already existed a few frames up — and a project rebuilt that way is
+   * missing everything the entry point supplied it with.
+   */
+  project:         SemiontProject;
   stop:            () => Promise<void>;
 }
 
@@ -263,6 +274,7 @@ export async function startMakeMeaning(
   return {
     knowledgeSystem,
     jobQueue,
+    project,
     stop: async () => {
       logger.info('Stopping Make-Meaning service');
       jobStatusSubscription.unsubscribe();

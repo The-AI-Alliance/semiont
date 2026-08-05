@@ -73,7 +73,7 @@ interface Harness {
 async function bootHarness(): Promise<Harness> {
   const testDir = join(tmpdir(), `semiont-local-${uuidv4()}`);
   await fs.mkdir(testDir, { recursive: true });
-  const project = new SemiontProject(testDir);
+  const project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
   const eventBus = new EventBus();
   let service: MakeMeaningService | null = null;
   let client: SemiontClient | null = null;

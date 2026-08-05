@@ -26,7 +26,7 @@ describe('ViewMaterializer', () => {
     testDir = join(tmpdir(), `semiont-test-projector-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    project = new SemiontProject(testDir);
+    project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
     viewStorage = new FilesystemViewStorage(project);
     projector = new ViewMaterializer(viewStorage, {
       basePath: testDir,

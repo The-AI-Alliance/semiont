@@ -35,7 +35,7 @@ describe('SSE Event Flow - End-to-End', () => {
 
     // SEMIONT_ROOT is set by the global test setup
     const { createEventStore } = await import('@semiont/event-sourcing');
-    const project = new SemiontProject(testDir);
+    const project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
     eventStore = createEventStore(project, coreEventBus, mockLogger);
 
   });

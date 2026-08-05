@@ -48,7 +48,7 @@ describe('resource routes pipe contract (SIMPLER-JSON-LD.md Phase 1)', () => {
   beforeAll(async () => {
     initializeLogger('error');
     testEnv = await setupTestEnvironment();
-    const project = new SemiontProject(testEnv.config._metadata!.projectRoot!);
+    const project = new SemiontProject(testEnv.config._metadata!.projectRoot!, { anchoredTextDir: `${testEnv.config._metadata!.projectRoot!}/anchored-text` });
     views = new FilesystemViewStorage(project);
     content = new WorkingTreeStore(project, mockLogger);
     eventBus = new EventBus();

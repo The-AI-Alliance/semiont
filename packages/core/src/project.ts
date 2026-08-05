@@ -17,11 +17,18 @@ import { execFileSync } from 'child_process';
  *   stateDir        — $XDG_STATE_HOME/semiont/{name}/
  *   projectionsDir  — stateDir/projections/
  *   jobsDir         — stateDir/jobs/
- *   anchoredTextDir — stateDir/anchored-text/
+ *   anchoredTextDir — supplied by the caller; required, no default
+ *   backendLogsDir      — stateDir/backend/
+ *   backendAppLogFile   — backendLogsDir/app.log
+ *   backendErrorLogFile — backendLogsDir/error.log
+ *   runtimeDir      — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
+ *   backendPidFile  — runtimeDir/backend.pid
  *
  * Everything ephemeral that is DERIVED sits under stateDir together —
- * projections (from the event log), jobs, and the anchored-text store (from a
- * representation's bytes). That is the XDG distinction, not a filing habit:
+ * projections (from the event log) and jobs. The anchored-text store is
+ * derived too, but its location is declared by the deployment rather than
+ * composed here (see anchoredTextDir). That is the XDG distinction, not a
+ * filing habit:
  * $XDG_STATE_HOME is for data that persists between restarts but "is not
  * important or portable enough" for $XDG_DATA_HOME, and losing any of these
  * costs recomputation rather than information.
@@ -32,11 +39,6 @@ import { execFileSync } from 'child_process';
  * had exactly one consumer — the anchored-text store, which belonged in state
  * all along — so it went with the move rather than being left for a
  * hypothetical future user of the DATA tier.
- *   backendLogsDir      — stateDir/backend/
- *   backendAppLogFile   — backendLogsDir/app.log
- *   backendErrorLogFile — backendLogsDir/error.log
- *   runtimeDir      — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
- *   backendPidFile  — runtimeDir/backend.pid
  *
  * Note: the frontend has no entry here, deliberately. It serves static assets
  * from its own container image and keeps no per-project state on the host, so
@@ -69,7 +71,23 @@ export class SemiontProject {
   readonly runtimeDir: string;
   readonly backendPidFile: string;
 
-  constructor(projectRoot: string, name?: string) {
+  /**
+   * @param projectRoot  the KB clone this project describes
+   * @param opts.name    seed value: written to `.semiont/config` when that
+   *   file does not yet exist. It does NOT override an existing config — the
+   *   name always comes from the file, so a KB's committed identity wins over
+   *   anything a caller passes.
+   * @param opts.anchoredTextDir  where this deployment keeps the anchored-text
+   *   store. Passed IN, never read from the environment here: the entry point
+   *   owns that read, exactly as it owns SEMIONT_ROOT. Required, and with no
+   *   default — a default would let a deployment that forgot it write a full
+   *   OCR pass per representation into a directory nobody mounted, lose it on
+   *   the next `stop`, and re-derive it forever: silent, expensive, and
+   *   indistinguishable from working.
+   */
+  constructor(projectRoot: string, opts: { anchoredTextDir: string; name?: string }) {
+    const name = opts.name;
+    this.anchoredTextDir = opts.anchoredTextDir;
     this.root = projectRoot;
     if (name !== undefined) {
       const configPath = path.join(projectRoot, '.semiont', 'config');
@@ -90,7 +108,6 @@ export class SemiontProject {
     this.stateDir = path.join(xdgState, 'semiont', this.name);
     this.projectionsDir = path.join(this.stateDir, 'projections');
     this.jobsDir = path.join(this.stateDir, 'jobs');
-    this.anchoredTextDir = path.join(this.stateDir, 'anchored-text');
     this.backendLogsDir = path.join(this.stateDir, 'backend');
     this.backendAppLogFile = path.join(this.backendLogsDir, 'app.log');
     this.backendErrorLogFile = path.join(this.backendLogsDir, 'error.log');
@@ -119,7 +136,7 @@ export class SemiontProject {
 
   /**
    * Delete all ephemeral state for this project (stateDir + runtimeDir).
-   * Does not touch eventsDir or dataDir.
+   * Does not touch eventsDir — the event log is the system of record.
    */
   async destroy(): Promise<void> {
     await Promise.all([

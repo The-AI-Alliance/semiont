@@ -5,10 +5,9 @@ package launcher
 // `domain` is the permanent did:web identity everything the KB mints is
 // stamped with (a committed literal naming the repo, never a machine
 // address; see the DID/site.domain history before treating it as one).
-// The launcher consumes identity for DISPLAY, the roots registry, and — since
-// PERSIST-ANCHORS P3 — for scoping the backend's state mounts, which is the
-// one load-bearing use (see projectName). Best-effort otherwise: a KB without
-// this file, or with a partial one, must never break a command.
+// The launcher consumes identity for DISPLAY and the roots registry only —
+// best-effort throughout: a KB without this file (or with a partial one)
+// must never break a command.
 
 import (
 	"os"
@@ -65,16 +64,4 @@ func parseKBIdentity(b []byte) *kbIdentity {
 		SiteName: raw.Site.SiteName,
 		Domain:   raw.Site.Domain,
 	}
-}
-
-// projectName is the KB's [project] name, "" when unknown. It scopes the
-// backend's XDG state directories (`$XDG_STATE_HOME/semiont/{name}/…`), so
-// unlike the rest of this file it IS load-bearing: a state mount built without
-// it lands in the wrong directory. Callers must treat "" as "do not mount"
-// rather than substituting a default.
-func (k *kbIdentity) projectName() string {
-	if k == nil {
-		return ""
-	}
-	return k.Name
 }

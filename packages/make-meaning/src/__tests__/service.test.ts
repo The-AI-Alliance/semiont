@@ -38,7 +38,7 @@ describe('Make-Meaning Service', () => {
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-test-service-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir);
+    project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
 
     eventBus = new EventBus();
 
@@ -210,7 +210,7 @@ describe('Make-Meaning Service', () => {
     it('should allow multiple service instances with different directories', async () => {
       const testDir2 = join(tmpdir(), `semiont-test-service-2-${uuidv4()}`);
       await fs.mkdir(testDir2, { recursive: true });
-      const project2 = new SemiontProject(testDir2);
+      const project2 = new SemiontProject(testDir2, { anchoredTextDir: `${testDir2}/anchored-text` });
 
       const eventBus2 = new EventBus();
 
@@ -251,7 +251,7 @@ describe('startup dependency connects', () => {
   it('announces and bounds each connect, and initializes vector search', async () => {
     const testDir = join(tmpdir(), `semiont-test-connects-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    const project = new SemiontProject(testDir);
+    const project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
     const eventBus = new EventBus();
     const config: MakeMeaningConfig = {
       gather: { settleTimeoutMs: 15_000 },

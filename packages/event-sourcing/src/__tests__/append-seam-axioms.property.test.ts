@@ -246,7 +246,7 @@ describe('Append-seam axioms (V1, V2)', () => {
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-append-seam-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir);
+    project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
   });
 
   afterAll(async () => {

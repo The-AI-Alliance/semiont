@@ -34,7 +34,7 @@ export async function createTestProject(nameHint: string = 'test'): Promise<Test
   const originalXdgState = process.env.XDG_STATE_HOME;
   process.env.XDG_STATE_HOME = join(root, 'state');
 
-  const project = new SemiontProject(root);
+  const project = new SemiontProject(root, { anchoredTextDir: `${root}/anchored-text` });
 
   const teardown = async () => {
     if (originalXdgState === undefined) {

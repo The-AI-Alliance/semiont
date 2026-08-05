@@ -34,7 +34,7 @@ describe('ViewMaterializer', () => {
     testDir = join(tmpdir(), `semiont-test-materializer-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    project = new SemiontProject(testDir);
+    project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
     viewStorage = new FilesystemViewStorage(project);
     materializer = new ViewMaterializer(viewStorage, {
       basePath: testDir,

@@ -23,7 +23,7 @@ describe('EventQuery', () => {
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-test-query-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir);
+    project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
 
     storage = new EventStorage(project, {
       enableSharding: false, // Faster for tests

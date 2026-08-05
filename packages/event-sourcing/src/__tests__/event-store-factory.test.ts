@@ -27,7 +27,7 @@ describe('createEventStore', () => {
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-test-factory-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir, `test-factory-${uuidv4()}`);
+    project = new SemiontProject(testDir, { name: `test-factory-${uuidv4()}`, anchoredTextDir: `${testDir}/anchored-text` });
   });
 
   afterEach(async () => {

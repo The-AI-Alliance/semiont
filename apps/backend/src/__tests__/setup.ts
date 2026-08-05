@@ -81,6 +81,10 @@ vi.mock('../utils/config', () => ({
 // Set minimal required environment variables
 process.env.NODE_ENV = 'test';
 process.env.SEMIONT_ROOT = testDir;
+// Beside SEMIONT_ROOT because it is the same kind of thing: a deployment fact
+// index.ts reads and refuses to boot without. SemiontProject never reads it —
+// the entry point passes it in — so only the entry point's tests need it set.
+process.env.SEMIONT_ANCHORED_TEXT_DIR = `${testDir}/anchored-text`;
 process.env.JWT_SECRET = 'test-secret-key-for-testing-32char';
 
 // The KB's own committed config. Written SYNCHRONOUSLY here, not in

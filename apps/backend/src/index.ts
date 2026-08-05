@@ -38,6 +38,21 @@ if (!projectRoot) {
   throw new Error('SEMIONT_ROOT environment variable is not set');
 }
 
+// Where this deployment keeps the anchored-text store. Read HERE, beside
+// SEMIONT_ROOT, because both are deployment facts the entry point owns —
+// SemiontProject receives values, it does not reach into the environment for
+// them. The backend image declares this as /anchored-text and `semiont start`
+// bind-mounts the KB's per-root store onto it.
+const anchoredTextDir = process.env.SEMIONT_ANCHORED_TEXT_DIR;
+if (!anchoredTextDir) {
+  throw new Error(
+    'SEMIONT_ANCHORED_TEXT_DIR environment variable is not set. It names the directory ' +
+    "holding this knowledge base's anchored-text store and has no default: the backend " +
+    'image declares it (SEMIONT_ANCHORED_TEXT_DIR=/anchored-text) and `semiont start` ' +
+    'mounts the per-root store onto it. Running outside a container means setting it.',
+  );
+}
+
 const config = loadEnvironmentConfig(projectRoot);
 
 if (!config.services?.backend) {
@@ -69,7 +84,7 @@ requireJwtSecret();
 // lets the environment section override the project's, so it can report an
 // identity the KB never declared.
 {
-  const committedDomain = new SemiontProject(projectRoot).siteDomain();
+  const committedDomain = new SemiontProject(projectRoot, { anchoredTextDir }).siteDomain();
 
   // Decision 8 — a knowledge base declares its identity or does not run.
   // `semiont start` already refuses this; a backend launched another way
@@ -141,7 +156,7 @@ const eventBus = new EventBus();
 // previously those were registered here in the backend. Moved into
 // make-meaning so LocalTransport and any future transport get the same
 // translation layer for free.
-const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), makeMeaningConfigFrom(config), eventBus, logger);
+const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot, { anchoredTextDir }), makeMeaningConfigFrom(config), eventBus, logger);
 
 // Import route definitions
 import { rootRouter } from './routes/root';

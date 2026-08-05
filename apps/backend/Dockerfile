@@ -148,6 +148,12 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 # by the CLI before it was retired — they are fixed inside the container, so bake
 # them here.
 ENV SEMIONT_ROOT=/kb
+# Where the launcher mounts this KB's anchored-text store. Declared here for
+# the same reason SEMIONT_ROOT is: the container-side path is a constant of the
+# image, and the host side is the launcher's business. There is no fallback —
+# index.ts reads this and refuses to boot without it, so running the backend
+# outside a container means supplying it.
+ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
 ENV SEMIONT_ENV=local
 ENV BACKEND_DIR=/home/semiont/.local/share/semiont/node_modules/@semiont/backend
 

@@ -151,7 +151,7 @@ describe('JobQueue', () => {
   beforeEach(async () => {
     // Create a temporary directory for tests
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'job-queue-test-'));
-    project = new SemiontProject(tempDir);
+    project = new SemiontProject(tempDir, { anchoredTextDir: `${tempDir}/anchored-text` });
     jobQueue = new JobQueue(project, mockLogger, new EventBus());
     await jobQueue.initialize();
   });
