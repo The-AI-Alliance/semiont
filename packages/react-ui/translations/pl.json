@@ -4,6 +4,16 @@
     "paramsTitle": "Parametry żądania:",
     "processing": "Bieżący: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "Nie udało się załadować PDF",
+    "loading": "Ładowanie PDF...",
+    "next": "Następna",
+    "pageLoadFailed": "Nie udało się załadować strony",
+    "pageOf": "Strona {{page}} z {{total}}",
+    "pagination": "Nawigacja stron",
+    "previous": "Poprzednia",
+    "viewerLoading": "Ładowanie przeglądarki PDF..."
+  },
   "Toolbar": {
     "annotations": "Adnotacje",
     "history": "Historia",

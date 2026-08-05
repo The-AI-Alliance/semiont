@@ -4,6 +4,16 @@
     "paramsTitle": "Begäranparametrar:",
     "processing": "Aktuell: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "Det gick inte att läsa in PDF:en",
+    "loading": "Läser in PDF...",
+    "next": "Nästa",
+    "pageLoadFailed": "Det gick inte att läsa in sidan",
+    "pageOf": "Sida {{page}} av {{total}}",
+    "pagination": "Sidnavigering",
+    "previous": "Föregående",
+    "viewerLoading": "Läser in PDF-visare..."
+  },
   "Toolbar": {
     "annotations": "Annoteringar",
     "history": "Historik",

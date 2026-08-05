@@ -4,6 +4,16 @@
     "paramsTitle": "Tham số yêu cầu:",
     "processing": "Hiện tại: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "Không tải được PDF",
+    "loading": "Đang tải PDF...",
+    "next": "Tiếp",
+    "pageLoadFailed": "Không tải được trang",
+    "pageOf": "Trang {{page}} / {{total}}",
+    "pagination": "Điều hướng trang",
+    "previous": "Trước",
+    "viewerLoading": "Đang tải trình xem PDF..."
+  },
   "Toolbar": {
     "annotations": "Chú thích",
     "history": "Lịch sử",

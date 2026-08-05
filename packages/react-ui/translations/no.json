@@ -4,6 +4,16 @@
     "paramsTitle": "Forespørselsparametere:",
     "processing": "Nåværende: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "Kunne ikke laste PDF",
+    "loading": "Laster PDF...",
+    "next": "Neste",
+    "pageLoadFailed": "Kunne ikke laste siden",
+    "pageOf": "Side {{page}} av {{total}}",
+    "pagination": "Sidenavigasjon",
+    "previous": "Forrige",
+    "viewerLoading": "Laster PDF-viser..."
+  },
   "Toolbar": {
     "annotations": "Annoteringer",
     "history": "Historikk",

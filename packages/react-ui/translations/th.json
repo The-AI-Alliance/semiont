@@ -4,6 +4,16 @@
     "paramsTitle": "พารามิเตอร์คำขอ:",
     "processing": "ปัจจุบัน: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "โหลด PDF ไม่สำเร็จ",
+    "loading": "กำลังโหลด PDF...",
+    "next": "ถัดไป",
+    "pageLoadFailed": "โหลดหน้าไม่สำเร็จ",
+    "pageOf": "หน้า {{page}} จาก {{total}}",
+    "pagination": "การนำทางหน้า",
+    "previous": "ก่อนหน้า",
+    "viewerLoading": "กำลังโหลดโปรแกรมดู PDF..."
+  },
   "Toolbar": {
     "annotations": "คำอธิบายประกอบ",
     "history": "ประวัติ",

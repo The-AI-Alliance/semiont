@@ -4,6 +4,16 @@
     "paramsTitle": "Pyynnön parametrit:",
     "processing": "Nykyinen: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "PDF-tiedoston lataus epäonnistui",
+    "loading": "Ladataan PDF-tiedostoa...",
+    "next": "Seuraava",
+    "pageLoadFailed": "Sivun lataus epäonnistui",
+    "pageOf": "Sivu {{page}} / {{total}}",
+    "pagination": "Sivunavigointi",
+    "previous": "Edellinen",
+    "viewerLoading": "Ladataan PDF-katselinta..."
+  },
   "Toolbar": {
     "annotations": "Merkinnät",
     "history": "Historia",

@@ -4,6 +4,16 @@
     "paramsTitle": "अनुरोध पैरामीटर:",
     "processing": "वर्तमान: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "PDF लोड नहीं हो सका",
+    "loading": "PDF लोड हो रहा है...",
+    "next": "अगला",
+    "pageLoadFailed": "पृष्ठ लोड नहीं हो सका",
+    "pageOf": "पृष्ठ {{page}} / {{total}}",
+    "pagination": "पृष्ठ नेविगेशन",
+    "previous": "पिछला",
+    "viewerLoading": "PDF व्यूअर लोड हो रहा है..."
+  },
   "Toolbar": {
     "annotations": "एनोटेशन",
     "history": "इतिहास",

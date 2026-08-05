@@ -4,6 +4,16 @@
     "paramsTitle": "Aanvraagparameters:",
     "processing": "Huidig: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "Kan de PDF niet laden",
+    "loading": "PDF laden...",
+    "next": "Volgende",
+    "pageLoadFailed": "Kan de pagina niet laden",
+    "pageOf": "Pagina {{page}} van {{total}}",
+    "pagination": "Paginanavigatie",
+    "previous": "Vorige",
+    "viewerLoading": "PDF-viewer laden..."
+  },
   "Toolbar": {
     "annotations": "Annotaties",
     "history": "Geschiedenis",

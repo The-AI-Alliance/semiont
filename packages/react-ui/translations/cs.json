@@ -4,6 +4,16 @@
     "paramsTitle": "Parametry požadavku:",
     "processing": "Aktuální: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "Nepodařilo se načíst PDF",
+    "loading": "Načítání PDF...",
+    "next": "Další",
+    "pageLoadFailed": "Nepodařilo se načíst stránku",
+    "pageOf": "Strana {{page}} z {{total}}",
+    "pagination": "Stránkování",
+    "previous": "Předchozí",
+    "viewerLoading": "Načítání prohlížeče PDF..."
+  },
   "Toolbar": {
     "annotations": "Anotace",
     "history": "Historie",

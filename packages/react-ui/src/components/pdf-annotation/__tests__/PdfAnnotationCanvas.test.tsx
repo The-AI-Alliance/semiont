@@ -11,6 +11,8 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PdfAnnotationCanvas } from '../PdfAnnotationCanvas';
+import { TranslationProvider } from '../../../contexts/TranslationContext';
+import { defaultMocks } from '../../../test-utils';
 import { resourceId, annotationId, parseFragmentSelector } from '@semiont/core';
 import { pdfToCanvasCoordinates } from '../../../lib/pdf-coordinates';
 import { loadPdfDocument, renderPdfPageToDataUrl } from '../../../lib/browser-pdfjs';
@@ -735,6 +737,44 @@ describe('PdfAnnotationCanvas', () => {
       });
       expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(0);
       expect(screen.getByRole('button', { name: /next/i })).toBeInTheDocument();
+    });
+  });
+
+  // PDF-CONTINUOUS-SCROLL S3. The viewer chrome was the last hardcoded-English
+  // surface in this component: Previous/Next, the page indicator, and both
+  // failure lines. The mock translation manager echoes "<namespace>.<key>",
+  // so asserting the echo proves the string came from translations rather
+  // than from a literal that happens to read the same in English.
+  describe('viewer chrome', () => {
+    const renderTranslated = (ui: React.ReactElement) =>
+      render(<TranslationProvider translationManager={defaultMocks.translationManager}>{ui}</TranslationProvider>);
+
+    test('takes its controls and page indicator from translations', async () => {
+      renderTranslated(
+        <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl} drawingMode={null} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'PdfViewer.previous' })).toBeInTheDocument();
+      });
+      expect(screen.getByRole('button', { name: 'PdfViewer.next' })).toBeInTheDocument();
+      expect(screen.getByText(/PdfViewer\.pageOf/)).toBeInTheDocument();
+      expect(screen.queryByText('Previous')).not.toBeInTheDocument();
+      expect(screen.queryByText(/^Page 1 of 3$/)).not.toBeInTheDocument();
+    });
+
+    test('announces page changes — a silent indicator is invisible to a screen reader', async () => {
+      renderTranslated(
+        <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl} drawingMode={null} />
+      );
+
+      await waitFor(() => {
+        expect(document.querySelector('.semiont-pdf-annotation-canvas__page-info')).toBeInTheDocument();
+      });
+      const indicator = document.querySelector('.semiont-pdf-annotation-canvas__page-info')!;
+      expect(indicator).toHaveAttribute('aria-live', 'polite');
+      // The pager is a navigation landmark, not loose buttons in the page.
+      expect(screen.getByRole('navigation')).toBeInTheDocument();
     });
   });
 });

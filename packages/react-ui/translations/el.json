@@ -4,6 +4,16 @@
     "paramsTitle": "Παράμετροι αιτήματος:",
     "processing": "Τρέχον: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "Αποτυχία φόρτωσης PDF",
+    "loading": "Φόρτωση PDF...",
+    "next": "Επόμενη",
+    "pageLoadFailed": "Αποτυχία φόρτωσης σελίδας",
+    "pageOf": "Σελίδα {{page}} από {{total}}",
+    "pagination": "Πλοήγηση σελίδων",
+    "previous": "Προηγούμενη",
+    "viewerLoading": "Φόρτωση προβολής PDF..."
+  },
   "Toolbar": {
     "annotations": "Σχολιασμοί",
     "history": "Ιστορικό",

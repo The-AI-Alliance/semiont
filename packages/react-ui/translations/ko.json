@@ -4,6 +4,16 @@
     "paramsTitle": "요청 매개변수:",
     "processing": "현재: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "PDF를 로드하지 못했습니다",
+    "loading": "PDF 로드 중...",
+    "next": "다음",
+    "pageLoadFailed": "페이지를 로드하지 못했습니다",
+    "pageOf": "{{total}}페이지 중 {{page}}페이지",
+    "pagination": "페이지 탐색",
+    "previous": "이전",
+    "viewerLoading": "PDF 뷰어 로드 중..."
+  },
   "Toolbar": {
     "annotations": "주석",
     "history": "기록",

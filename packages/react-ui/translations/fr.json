@@ -4,6 +4,16 @@
     "paramsTitle": "Paramètres de la requête :",
     "processing": "En cours : {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "Échec du chargement du PDF",
+    "loading": "Chargement du PDF...",
+    "next": "Suivant",
+    "pageLoadFailed": "Échec du chargement de la page",
+    "pageOf": "Page {{page}} sur {{total}}",
+    "pagination": "Navigation des pages",
+    "previous": "Précédent",
+    "viewerLoading": "Chargement de la visionneuse PDF..."
+  },
   "Toolbar": {
     "annotations": "Annotations",
     "history": "Historique",

@@ -4,6 +4,16 @@
     "paramsTitle": "请求参数：",
     "processing": "当前：{{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "PDF 加载失败",
+    "loading": "正在加载 PDF...",
+    "next": "下一页",
+    "pageLoadFailed": "页面加载失败",
+    "pageOf": "第 {{page}} 页，共 {{total}} 页",
+    "pagination": "页面导航",
+    "previous": "上一页",
+    "viewerLoading": "正在加载 PDF 查看器..."
+  },
   "Toolbar": {
     "annotations": "注释",
     "history": "历史",

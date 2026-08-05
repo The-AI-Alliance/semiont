@@ -6,6 +6,7 @@ import { resourceId as toResourceId } from '@semiont/core';
 import { toViewportAnchorRect } from '../../lib/anchor-rect';
 import { createFragmentSelector, anchorRuns, isTextRun, textUnder } from '@semiont/core';
 import { rectsForPage } from './rects-for-page';
+import { useTranslations } from '../../contexts/TranslationContext';
 import { createHoverHandlers, type SemiontSession } from '@semiont/sdk';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import {
@@ -113,7 +114,10 @@ function PdfPageView({
    */
   const [pageAnchored, setPageAnchored] = useState<AnchoredText | null>(null);
   const [displayDimensions, setDisplayDimensions] = useState<{ width: number; height: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  /** Translation KEY, not text: `t` is a new closure each render, so keeping
+   *  it out of the load effect's deps is what stops a reload loop. */
+  const [errorKey, setErrorKey] = useState<string | null>(null);
+  const t = useTranslations('PdfViewer');
 
   const [isDrawing, setIsDrawing] = useState(false);
   const [selection, setSelection] = useState<CanvasRectangle | null>(null);
@@ -191,7 +195,7 @@ function PdfPageView({
         if (cancelled) return;
 
         console.error('Error loading page:', err);
-        setError('Failed to load page');
+        setErrorKey('pageLoadFailed');
       }
     }
 
@@ -397,8 +401,8 @@ function PdfPageView({
   // Calculate motivation color
   const { stroke, fill } = getMotivationColor(selectedMotivation ?? null);
 
-  if (error) {
-    return <div className="semiont-pdf-annotation-canvas__error">{error}</div>;
+  if (errorKey) {
+    return <div className="semiont-pdf-annotation-canvas__error">{t(errorKey)}</div>;
   }
 
   return (
@@ -556,7 +560,8 @@ export function PdfAnnotationCanvas({
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
+  const t = useTranslations('PdfViewer');
   /**
    * Page 1's rendered height, used to size the slots of pages that have not
    * been mounted yet. Uniform documents (the overwhelming case, and every
@@ -579,7 +584,7 @@ export function PdfAnnotationCanvas({
     async function loadPdf() {
       try {
         setIsLoading(true);
-        setError(null);
+        setErrorKey(null);
 
         const doc = await loadPdfDocument(pdfUrl);
 
@@ -602,7 +607,7 @@ export function PdfAnnotationCanvas({
         if (cancelled) return;
 
         console.error('Error loading PDF:', err);
-        setError('Failed to load PDF');
+        setErrorKey('loadFailed');
         setIsLoading(false);
       }
     }
@@ -719,13 +724,13 @@ export function PdfAnnotationCanvas({
     fetchResourceAnchored,
   };
 
-  if (error) {
-    return <div className="semiont-pdf-annotation-canvas__error">{error}</div>;
+  if (errorKey) {
+    return <div className="semiont-pdf-annotation-canvas__error">{t(errorKey)}</div>;
   }
 
   return (
     <div className="semiont-pdf-annotation-canvas">
-      {isLoading && <div className="semiont-pdf-annotation-canvas__loading">Loading PDF...</div>}
+      {isLoading && <div className="semiont-pdf-annotation-canvas__loading">{t('loading')}</div>}
 
       {pdfDoc && pageLayout === 'scroll' ? (
         <div className="semiont-pdf-annotation-canvas__column">
@@ -751,25 +756,31 @@ export function PdfAnnotationCanvas({
 
       {/* Page navigation controls */}
       {numPages > 0 && (
-        <div className="semiont-pdf-annotation-canvas__controls">
+        <nav className="semiont-pdf-annotation-canvas__controls" aria-label={t('pagination')}>
           <button
             disabled={currentPage <= 1}
             onClick={() => (pageLayout === 'scroll' ? scrollToPage(currentPage - 1) : setPageNumber(pageNumber - 1))}
             className="semiont-pdf-annotation-canvas__button"
           >
-            Previous
+            {t('previous')}
           </button>
-          <span className="semiont-pdf-annotation-canvas__page-info">
-            Page {currentPage} of {numPages}
+          {/*
+            aria-live: the page number is the only feedback a page change gives,
+            and in the scrolling column it changes without any control being
+            activated at all — so a screen-reader user who scrolls would
+            otherwise get silence.
+          */}
+          <span className="semiont-pdf-annotation-canvas__page-info" aria-live="polite">
+            {t('pageOf', { page: currentPage, total: numPages })}
           </span>
           <button
             disabled={currentPage >= numPages}
             onClick={() => (pageLayout === 'scroll' ? scrollToPage(currentPage + 1) : setPageNumber(pageNumber + 1))}
             className="semiont-pdf-annotation-canvas__button"
           >
-            Next
+            {t('next')}
           </button>
-        </div>
+        </nav>
       )}
     </div>
   );
