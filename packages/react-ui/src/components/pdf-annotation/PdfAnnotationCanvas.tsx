@@ -6,6 +6,7 @@ import { resourceId as toResourceId } from '@semiont/core';
 import { toViewportAnchorRect } from '../../lib/anchor-rect';
 import { createFragmentSelector, anchorRuns, isTextRun, textUnder } from '@semiont/core';
 import { rectsForPage } from './rects-for-page';
+import { estimateSlotHeight } from './estimate-slot-height';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { createHoverHandlers, type SemiontSession } from '@semiont/sdk';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
@@ -563,13 +564,17 @@ export function PdfAnnotationCanvas({
   const [errorKey, setErrorKey] = useState<string | null>(null);
   const t = useTranslations('PdfViewer');
   /**
-   * Page 1's rendered height, used to size the slots of pages that have not
-   * been mounted yet. Uniform documents (the overwhelming case, and every
-   * scan) get exactness for one `getPage`; a mixed-size document gets scroll
-   * drift in its unmeasured tail, which self-corrects as pages mount.
-   * See .plans/PDF-CONTINUOUS-SCROLL.md D4.
+   * Page 1's shape, for reserving space in slots that have not mounted yet:
+   * its aspect ratio and its raster width. NOT its raster height — the image
+   * renders under `max-width: 100%; height: auto`, so its displayed height
+   * depends on the column's width, and reserving raster pixels made the
+   * column's height lurch on every mount (S1b).
+   * See .plans/PDF-CONTINUOUS-SCROLL.md D4 + S1b.
    */
-  const [estimatedPageHeight, setEstimatedPageHeight] = useState<number | null>(null);
+  const [pageShape, setPageShape] = useState<{ aspect: number; rasterWidth: number } | null>(null);
+  /** Measured inner width of the column — the other half of the reservation. */
+  const [columnWidth, setColumnWidth] = useState<number | null>(null);
+  const columnRef = useRef<HTMLDivElement>(null);
   const [scale] = useState(1.5); // Fixed scale for better quality
 
   /** Pages currently intersecting the viewport (plus the preload margin). */
@@ -599,9 +604,13 @@ export function PdfAnnotationCanvas({
         try {
           const first = await doc.getPage(1);
           if (cancelled) return;
-          setEstimatedPageHeight(first.getViewport({ scale }).height);
+          const natural = first.getViewport({ scale: 1.0 });
+          setPageShape({
+            aspect: natural.height / natural.width,
+            rasterWidth: first.getViewport({ scale }).width,
+          });
         } catch {
-          /* leave unsized */
+          /* leave unsized — an unsized slot is stable; a mis-sized one moves */
         }
       } catch (err) {
         if (cancelled) return;
@@ -649,6 +658,34 @@ export function PdfAnnotationCanvas({
     resourceAnchoredRef.current = { uri, outcome };
     return outcome;
   }, [session, resourceUri]);
+
+  // The column's width decides every page's displayed height, so the
+  // reservation cannot be computed without it.
+  useEffect(() => {
+    if (pageLayout !== 'scroll') return;
+    const measure = () => {
+      if (columnRef.current) setColumnWidth(columnRef.current.clientWidth);
+    };
+    measure();
+    let observer: ResizeObserver | null = null;
+    try {
+      observer = new ResizeObserver(measure);
+      if (columnRef.current) observer.observe(columnRef.current);
+    } catch {
+      window.addEventListener('resize', measure);
+    }
+    return () => {
+      if (observer) observer.disconnect();
+      else window.removeEventListener('resize', measure);
+    };
+  }, [pageLayout]);
+
+  const slotHeight = estimateSlotHeight(columnWidth, pageShape?.rasterWidth ?? null, pageShape?.aspect ?? null)
+    // Before the column has been measured there is still a sane reservation:
+    // the raster's own height. Wrong in a narrow column, but every slot is
+    // wrong by the SAME amount, so the column is at least internally
+    // consistent until the first measurement lands.
+    ?? (pageShape ? Math.round(pageShape.rasterWidth * pageShape.aspect) : null);
 
   // The mount window. Slots report their own visibility; a page is mounted
   // while its slot intersects (widened by PRELOAD_MARGIN so the next page is
@@ -733,14 +770,18 @@ export function PdfAnnotationCanvas({
       {isLoading && <div className="semiont-pdf-annotation-canvas__loading">{t('loading')}</div>}
 
       {pdfDoc && pageLayout === 'scroll' ? (
-        <div className="semiont-pdf-annotation-canvas__column">
+        <div className="semiont-pdf-annotation-canvas__column" ref={columnRef}>
           {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => (
             <div
               key={page}
               ref={registerSlot(page)}
               data-page={page}
               className="semiont-pdf-annotation-canvas__slot"
-              style={visiblePages.has(page) || !estimatedPageHeight ? undefined : { height: estimatedPageHeight }}
+              // min-height, and applied whether or not the page is mounted:
+              // releasing it on mount is what made the scrollbar jump. `min`
+              // rather than a fixed height so a page that renders slightly
+              // taller expands instead of clipping.
+              style={slotHeight ? { minHeight: slotHeight } : undefined}
             >
               {visiblePages.has(page) && (
                 <PdfPageView doc={pdfDoc} pageNumber={page} {...pageProps} />

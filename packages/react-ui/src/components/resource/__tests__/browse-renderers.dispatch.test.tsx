@@ -109,5 +109,38 @@ describe('browse-renderers — annotation + session forwarding (dispatch contrac
     expect(props.existingAnnotations).toEqual([shapeAnnotation()]); // pinned — worked before
     expect(props.drawingMode).toBeNull();
     expect(props.session).toBe(session);                            // NEW — was a session-less no-op
+    // PDF-CONTINUOUS-SCROLL S1: browse asks for the scrolling column.
+    expect(props.pageLayout).toBe('scroll');
+  });
+
+  // S2. Annotate is the mode people actually work in
+  // (.plans/PDF-CONTINUOUS-SCROLL.md D3, second correction), so it gets the
+  // column too — leaving it on Previous/Next made the feature invisible to
+  // its primary audience.
+  it('the annotate registry asks for the column as well, with the live tool', async () => {
+    const session = fakeSession();
+    const { AnnotateView } = await import('../AnnotateView');
+    const { container } = render(
+      <AnnotateView
+        content="blob:pdf-url"
+        mimeType="application/pdf"
+        resourceUri="res-1"
+        annotations={emptyAnnotations}
+        uiState={{
+          selectedMotivation: 'highlighting',
+          selectedClick: 'detail',
+          selectedShape: 'rectangle',
+          hoveredAnnotationId: null,
+          scrollToAnnotationId: null,
+        }}
+        annotateMode
+        session={session}
+      />,
+    );
+
+    await within(container).findByText('pdf-canvas-mock');
+    const props = captured.pdf.at(-1)!;
+    expect(props.pageLayout).toBe('scroll');
+    expect(props.drawingMode).toBe('rectangle'); // the tool still reaches the pages
   });
 });

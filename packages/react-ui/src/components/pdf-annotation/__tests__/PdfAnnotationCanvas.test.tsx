@@ -723,7 +723,112 @@ describe('PdfAnnotationCanvas', () => {
       expect(resourceAnchoredText).toHaveBeenCalledTimes(1);
     });
 
-    test('keeps the paged layout by default — annotate mode is untouched until S2', async () => {
+    test('a slot keeps its reserved height when its page mounts', async () => {
+      // S1b. Releasing the reservation on mount is what made the column's
+      // total height change on every scroll — the scrollbar jumped and
+      // resized under the cursor. The reservation must survive mounting so
+      // the column's geometry never depends on which pages are mounted.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+
+      const slotOf = (page: number) =>
+        document.querySelector(`.semiont-pdf-annotation-canvas__slot[data-page="${page}"]`) as HTMLElement;
+
+      // Read whichever property expresses the reservation, so the pin is
+      // about the CONTRACT (space is reserved, and mounting does not release
+      // it) rather than about which CSS property implements it.
+      const reserved = (el: HTMLElement) => el.style.minHeight || el.style.height;
+
+      io.fire([1]);
+      await waitFor(() => expect(mountedPages()).toEqual([1]));
+
+      // Page 5 is unmounted and must hold space open.
+      expect(reserved(slotOf(5))).not.toBe('');
+      // Page 1 is mounted and must hold exactly the same space, or the
+      // column's height changes as pages come and go.
+      expect(reserved(slotOf(1))).toBe(reserved(slotOf(5)));
+    });
+
+    test('a rectangle drawn on a scrolled page carries THAT page number', async () => {
+      // S2. The drag lives in the page view, so page identity comes from the
+      // component that owns the pixels rather than from a shared `pageNumber`
+      // — the invariant that makes a column safe to draw on at all.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+
+      const request = vi.fn();
+      const session = {
+        client: { mark: { request }, beckon: { hover: vi.fn() } },
+      } as unknown as import('@semiont/sdk').SemiontSession;
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode="rectangle"
+          selectedMotivation="highlighting"
+          session={session}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+
+      io.fire([2, 3]);
+      await waitFor(() => expect(mountedPages()).toEqual([2, 3]));
+
+      // Draw on page 3's container, not page 2's.
+      const slot3 = document.querySelector('.semiont-pdf-annotation-canvas__slot[data-page="3"]')!;
+      const img = slot3.querySelector('.semiont-pdf-annotation-canvas__image') as HTMLImageElement;
+      Object.defineProperty(img, 'clientWidth', { value: 612, configurable: true });
+      Object.defineProperty(img, 'clientHeight', { value: 792, configurable: true });
+      fireEvent.load(img);
+
+      const container = slot3.querySelector('.semiont-pdf-annotation-canvas__container')!;
+      fireEvent.mouseDown(container, { clientX: 40, clientY: 40 });
+      fireEvent.mouseMove(container, { clientX: 200, clientY: 160 });
+      fireEvent.mouseUp(container, { clientX: 200, clientY: 160 });
+
+      await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+      expect(request.mock.calls[0][1][0].value).toContain('page=3');
+    });
+
+    test('annotate mode scrolls too — the primary mode is not left on the pager', async () => {
+      // The registries are the seam: both now ask for the column.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode="rectangle"
+          selectedMotivation="highlighting"
+          pageLayout="scroll"
+        />
+      );
+
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+      io.fire([1]);
+      await waitFor(() => expect(mountedPages()).toEqual([1]));
+      // Drawing still works in the column: the container is the page's own.
+      expect(document.querySelector('.semiont-pdf-annotation-canvas__container'))
+        .toHaveAttribute('data-drawing-mode', 'rectangle');
+    });
+
+    test('keeps the paged layout when no layout is requested', async () => {
       render(
         <PdfAnnotationCanvas resourceUri="res-1"
           pdfUrl={mockPdfUrl}

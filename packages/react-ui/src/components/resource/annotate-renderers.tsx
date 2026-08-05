@@ -145,6 +145,7 @@ export function PdfAnnotateRenderer({
         session={session}
         hoveredAnnotationId={hoveredAnnotationId || null}
         hoverDelayMs={hoverDelayMs}
+        pageLayout="scroll"
       />
     </Suspense>
   );
