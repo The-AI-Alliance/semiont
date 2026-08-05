@@ -315,6 +315,12 @@ jobs:
           # (selected by `[defaults] environment = "ci"` in ~/.semiontconfig)
           cd ../..
           export SEMIONT_ROOT=$(pwd)
+          # Beside SEMIONT_ROOT because it is the same kind of thing: a
+          # deployment fact the backend refuses to boot without. The image
+          # declares it as /anchored-text and `semiont start` mounts the KB's
+          # store onto it; this smoke test runs the backend directly, so it
+          # supplies its own throwaway directory.
+          export SEMIONT_ANCHORED_TEXT_DIR=$(pwd)/.ci-anchored-text
           export NODE_ENV=test
           export DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb
           export JWT_SECRET=test-secret-key-for-testing-32char
