@@ -4,6 +4,16 @@
     "paramsTitle": "معاملات الطلب:",
     "processing": "الحالي: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "فشل تحميل ملف PDF",
+    "loading": "جارٍ تحميل PDF...",
+    "next": "التالي",
+    "pageLoadFailed": "فشل تحميل الصفحة",
+    "pageOf": "صفحة {{page}} من {{total}}",
+    "pagination": "ترقيم الصفحات",
+    "previous": "السابق",
+    "viewerLoading": "جارٍ تحميل عارض PDF..."
+  },
   "Toolbar": {
     "annotations": "التعليقات التوضيحية",
     "history": "السجل",

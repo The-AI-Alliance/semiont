@@ -4,6 +4,16 @@
     "paramsTitle": "Parametrii cererii:",
     "processing": "Curent: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "Încărcarea PDF-ului a eșuat",
+    "loading": "Se încarcă PDF-ul...",
+    "next": "Următoarea",
+    "pageLoadFailed": "Încărcarea paginii a eșuat",
+    "pageOf": "Pagina {{page}} din {{total}}",
+    "pagination": "Navigare pagini",
+    "previous": "Anterioară",
+    "viewerLoading": "Se încarcă vizualizatorul PDF..."
+  },
   "Toolbar": {
     "annotations": "Adnotări",
     "history": "Istoric",

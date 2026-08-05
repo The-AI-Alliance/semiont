@@ -4,6 +4,16 @@
     "paramsTitle": "פרמטרים של הבקשה:",
     "processing": "נוכחי: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "טעינת ה-PDF נכשלה",
+    "loading": "טוען PDF...",
+    "next": "הבא",
+    "pageLoadFailed": "טעינת העמוד נכשלה",
+    "pageOf": "עמוד {{page}} מתוך {{total}}",
+    "pagination": "ניווט בין עמודים",
+    "previous": "הקודם",
+    "viewerLoading": "טוען מציג PDF..."
+  },
   "Toolbar": {
     "annotations": "הערות",
     "history": "היסטוריה",

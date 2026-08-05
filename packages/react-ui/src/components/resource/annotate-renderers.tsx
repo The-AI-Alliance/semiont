@@ -7,10 +7,18 @@ import { SvgDrawingCanvas } from '../image-annotation/SvgDrawingCanvas';
 import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
 import { segmentTextWithAnnotations } from '../../lib/text-segmentation';
 import type { SelectionMotivation, ShapeType } from '../annotation/AnnotateToolbar';
+import { useTranslations } from '../../contexts/TranslationContext';
 
 // Lazy-load the PDF component to avoid SSR issues with browser PDF.js loading.
 // Kept lazy here deliberately: hoisting it to a static import would make it
 // eager again and reintroduce the SSR problem this indirection exists for.
+/** The lazy chunk's fallback needs its own component: a hook cannot run
+ *  inside a `fallback` prop expression. */
+function PdfViewerLoading() {
+  const t = useTranslations('PdfViewer');
+  return <>{t('viewerLoading')}</>;
+}
+
 const PdfAnnotationCanvas = lazy(() =>
   import('../pdf-annotation/PdfAnnotationCanvas.client').then((mod) => ({ default: mod.PdfAnnotationCanvas })),
 );
@@ -127,7 +135,7 @@ export function PdfAnnotateRenderer({
 }: AnnotateMediaRendererProps) {
   if (!content) return null;
   return (
-    <Suspense fallback={<div className="semiont-annotate-view__loading">Loading PDF viewer...</div>}>
+    <Suspense fallback={<div className="semiont-annotate-view__loading"><PdfViewerLoading /></div>}>
       <PdfAnnotationCanvas
         pdfUrl={content}
         resourceUri={resourceUri}
@@ -137,6 +145,7 @@ export function PdfAnnotateRenderer({
         session={session}
         hoveredAnnotationId={hoveredAnnotationId || null}
         hoverDelayMs={hoverDelayMs}
+        pageLayout="scroll"
       />
     </Suspense>
   );

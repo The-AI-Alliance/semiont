@@ -4,6 +4,16 @@
     "paramsTitle": "İstek parametreleri:",
     "processing": "Mevcut: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "PDF yüklenemedi",
+    "loading": "PDF yükleniyor...",
+    "next": "Sonraki",
+    "pageLoadFailed": "Sayfa yüklenemedi",
+    "pageOf": "Sayfa {{page}} / {{total}}",
+    "pagination": "Sayfa gezinmesi",
+    "previous": "Önceki",
+    "viewerLoading": "PDF görüntüleyici yükleniyor..."
+  },
   "Toolbar": {
     "annotations": "Açıklamalar",
     "history": "Geçmiş",

@@ -4,6 +4,16 @@
     "paramsTitle": "Parameter permintaan:",
     "processing": "Saat ini: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "Gagal memuat PDF",
+    "loading": "Memuat PDF...",
+    "next": "Berikutnya",
+    "pageLoadFailed": "Gagal memuat halaman",
+    "pageOf": "Halaman {{page}} dari {{total}}",
+    "pagination": "Navigasi halaman",
+    "previous": "Sebelumnya",
+    "viewerLoading": "Memuat penampil PDF..."
+  },
   "Toolbar": {
     "annotations": "Anotasi",
     "history": "Riwayat",

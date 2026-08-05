@@ -4,6 +4,16 @@
     "paramsTitle": "リクエストパラメータ:",
     "processing": "現在: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "PDF を読み込めませんでした",
+    "loading": "PDF を読み込んでいます...",
+    "next": "次へ",
+    "pageLoadFailed": "ページを読み込めませんでした",
+    "pageOf": "{{total}} ページ中 {{page}} ページ",
+    "pagination": "ページナビゲーション",
+    "previous": "前へ",
+    "viewerLoading": "PDF ビューアを読み込んでいます..."
+  },
   "Toolbar": {
     "annotations": "アノテーション",
     "history": "履歴",

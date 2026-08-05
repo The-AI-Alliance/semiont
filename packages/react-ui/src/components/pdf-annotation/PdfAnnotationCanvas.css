@@ -20,13 +20,145 @@
 
 /* stylelint-disable semiont/accessibility -- Error indicator added by semantic-indicators.css */
 .semiont-pdf-annotation-canvas__error {
-  color: var(--error-color);
+  color: var(--semiont-color-error);
 }
 
 [data-theme="dark"] .semiont-pdf-annotation-canvas__error {
-  color: var(--error-color);
+  color: var(--semiont-color-error);
 }
 /* stylelint-enable semiont/accessibility */
+
+/*
+ * The scrolling column (PDF-CONTINUOUS-SCROLL S1). Every page owns a slot so
+ * the scrollbar reflects the whole document; only pages near the viewport are
+ * mounted, and an unmounted slot holds its space with an estimated height set
+ * inline. `max-height` is what makes this a scroll container at all — without
+ * it the column grows to its content and the page scrolls instead, which
+ * still works but defeats the windowing.
+ */
+/*
+ * Viewport = the pages plus their strip, side by side. The strip LEADS — it
+ * hugs the content's leading edge, where a page rail conventionally lives
+ * (Preview, Acrobat), so the reader's eye finds it before the page.
+ */
+.semiont-pdf-annotation-canvas__viewport {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.semiont-pdf-annotation-canvas__viewport[data-axis="horizontal"] {
+  flex-direction: column;
+}
+
+.semiont-pdf-annotation-canvas__column {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 1rem;
+  align-items: center;
+}
+
+/*
+ * Both blocks below key off ONE attribute, so the strip can never end up
+ * running across the direction the document scrolls.
+ */
+/*
+ * The column does NOT scroll. The pane the viewer sits in already does
+ * (`flex: 1; min-height: 0`), and giving the column a viewport-relative
+ * height of its own produced a scroller inside a scroller — two bars along
+ * one axis, the inner one redundant with the page rail beside it.
+ */
+.semiont-pdf-annotation-canvas__column[data-axis="vertical"] {
+  flex-direction: column;
+}
+
+.semiont-pdf-annotation-canvas__column[data-axis="horizontal"] {
+  flex-direction: row;
+}
+
+.semiont-pdf-annotation-canvas__slot {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/*
+ * The page strip: the document's shape in miniature. Rectangles only — no
+ * rasterization — so a 400-page scan costs 400 empty divs, not 400 renders.
+ */
+/*
+ * The strip scrolls — a 70-page document cannot fit its numbered rectangles in
+ * one screen — but it must not show a scrollbar. Two scrollbars side by side
+ * read as two controls for one thing, and the strip's own moves the strip
+ * rather than the document, so it looks broken. Position is carried by the
+ * highlighted page, and the strip follows the reader on its own.
+ */
+.semiont-pdf-annotation-canvas__strip {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 0.5rem;
+  scrollbar-width: none;
+}
+
+/*
+ * The rail hugs the leading edge of the content and stays put while the
+ * document scrolls past it — `sticky` rather than a fixed-height box, so it
+ * follows the reader without claiming a second scroll region in the layout.
+ */
+.semiont-pdf-annotation-canvas__strip[data-axis="vertical"] {
+  position: sticky;
+  top: 0;
+  flex-direction: column;
+  align-self: flex-start;
+  align-items: center;
+  max-height: 100vh;
+  overflow-y: auto;
+  border-right: 1px solid var(--semiont-border-secondary);
+}
+
+.semiont-pdf-annotation-canvas__strip[data-axis="horizontal"] {
+  position: sticky;
+  top: 0;
+  flex-direction: row;
+  align-items: flex-end;
+  max-width: 100%;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--semiont-border-secondary);
+}
+
+.semiont-pdf-annotation-canvas__strip-page {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  padding: 0;
+  border: 1px solid var(--semiont-border-primary);
+  border-radius: 1px;
+  background: var(--semiont-bg-secondary);
+  color: var(--semiont-text-tertiary);
+  font-size: var(--semiont-text-2xs);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.semiont-pdf-annotation-canvas__strip-page:hover {
+  background: var(--semiont-bg-hover);
+}
+
+/* The reader's position, legible at a glance across a long strip. */
+.semiont-pdf-annotation-canvas__strip-page[aria-current="page"] {
+  border-color: var(--semiont-color-primary-600);
+  background: var(--semiont-color-primary-500);
+  color: var(--semiont-color-neutral-0);
+  font-weight: var(--semiont-font-semibold);
+}
+
+.semiont-pdf-annotation-canvas__strip-page:focus-visible {
+  outline: 2px solid var(--semiont-focus-ring);
+  outline-offset: 1px;
+}
 
 .semiont-pdf-annotation-canvas__container {
   position: relative;
@@ -83,12 +215,12 @@
   justify-content: center;
   gap: 1rem;
   padding: 1rem;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--semiont-border-primary);
 }
 
 .semiont-pdf-annotation-canvas__button {
   padding: 0.5rem 1rem;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--semiont-border-primary);
   border-radius: 4px;
   background: transparent;
   cursor: pointer;
@@ -101,11 +233,11 @@
 }
 
 .semiont-pdf-annotation-canvas__button:hover:not(:disabled) {
-  background-color: var(--hover-color, rgba(0, 0, 0, 0.05));
+  background-color: var(--semiont-bg-hover, rgba(0, 0, 0, 0.05));
 }
 
 .semiont-pdf-annotation-canvas__button:focus-visible {
-  outline: 2px solid var(--focus-color, #0066cc);
+  outline: 2px solid var(--semiont-focus-ring, #0066cc);
   outline-offset: 2px;
 }
 

@@ -4,6 +4,16 @@
     "paramsTitle": "অনুরোধের প্যারামিটার:",
     "processing": "বর্তমান: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "PDF লোড করা যায়নি",
+    "loading": "PDF লোড হচ্ছে...",
+    "next": "পরবর্তী",
+    "pageLoadFailed": "পৃষ্ঠা লোড করা যায়নি",
+    "pageOf": "পৃষ্ঠা {{page}} / {{total}}",
+    "pagination": "পৃষ্ঠা নেভিগেশন",
+    "previous": "পূর্ববর্তী",
+    "viewerLoading": "PDF ভিউয়ার লোড হচ্ছে..."
+  },
   "Toolbar": {
     "annotations": "টীকাসমূহ",
     "history": "ইতিহাস",

@@ -412,8 +412,8 @@
 }
 
 .semiont-static-warning-box {
-  background: var(--semiont-color-warning-50);
-  border-left: 4px solid var(--semiont-color-warning-500);
+  background: var(--semiont-color-amber-50);
+  border-left: 4px solid var(--semiont-color-amber-500);
   border-radius: 0.375rem;
   padding: 1rem 1.25rem;
   margin: 1.5rem 0;
@@ -427,7 +427,7 @@
 
 [data-theme="dark"] .semiont-static-warning-box {
   background: rgba(251, 146, 60, 0.1);
-  border-left-color: var(--semiont-color-warning-400);
+  border-left-color: var(--semiont-color-amber-400);
 }
 
 /* ========================================
@@ -447,27 +447,27 @@
 
 .semiont-static-badge-planned {
   background: rgba(251, 146, 60, 0.1);
-  color: var(--semiont-color-warning-700);
-  border: 1px solid var(--semiont-color-warning-200);
+  color: var(--semiont-color-amber-700);
+  border: 1px solid var(--semiont-color-amber-200);
 }
 
 .semiont-static-badge-active {
   background: rgba(34, 197, 94, 0.1);
-  color: var(--semiont-color-success-700);
-  border: 1px solid var(--semiont-color-success-200);
+  color: var(--semiont-color-green-700);
+  border: 1px solid var(--semiont-color-green-200);
 }
 
 /* Dark mode */
 [data-theme="dark"] .semiont-static-badge-planned {
   background: rgba(251, 146, 60, 0.15);
-  color: var(--semiont-color-warning-400);
-  border-color: var(--semiont-color-warning-600);
+  color: var(--semiont-color-amber-400);
+  border-color: var(--semiont-color-amber-600);
 }
 
 [data-theme="dark"] .semiont-static-badge-active {
   background: rgba(34, 197, 94, 0.15);
-  color: var(--semiont-color-success-400);
-  border-color: var(--semiont-color-success-600);
+  color: var(--semiont-color-green-400);
+  border-color: var(--semiont-color-green-600);
 }
 
 /* ========================================

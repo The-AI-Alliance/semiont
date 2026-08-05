@@ -4,6 +4,16 @@
     "paramsTitle": "Request Parameters:",
     "processing": "Current: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "Failed to load PDF",
+    "loading": "Loading PDF...",
+    "next": "Next",
+    "pageLoadFailed": "Failed to load page",
+    "pageOf": "Page {{page}} of {{total}}",
+    "pagination": "Page navigation",
+    "previous": "Previous",
+    "viewerLoading": "Loading PDF viewer..."
+  },
   "Toolbar": {
     "annotations": "Annotations",
     "history": "History",

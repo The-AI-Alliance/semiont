@@ -7,10 +7,12 @@
  * - Annotation display
  */
 
-import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PdfAnnotationCanvas } from '../PdfAnnotationCanvas';
+import { TranslationProvider } from '../../../contexts/TranslationContext';
+import { defaultMocks } from '../../../test-utils';
 import { resourceId, annotationId, parseFragmentSelector } from '@semiont/core';
 import { pdfToCanvasCoordinates } from '../../../lib/pdf-coordinates';
 import { loadPdfDocument, renderPdfPageToDataUrl } from '../../../lib/browser-pdfjs';
@@ -66,9 +68,77 @@ vi.mock('../../../lib/browser-pdfjs', () => ({
   })
 }));
 
+
+/**
+ * jsdom has no IntersectionObserver. This stub records what the component
+ * observes and hands the test the callback, so a "scroll" is an explicit
+ * fire() rather than a simulated layout — jsdom has no layout either.
+ */
+function stubIntersectionObserver() {
+  // (element, callback) PAIRS, not a map keyed by element: the component runs
+  // two observers over the same slots — one widened for preloading, one bare
+  // for "what is on screen" — and a map would keep only the last registered.
+  const observed: Array<{ el: Element; cb: IntersectionObserverCallback }> = [];
+  const margins = new Map<IntersectionObserverCallback, string>();
+  class FakeIO {
+    constructor(private cb: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+      margins.set(cb, options?.rootMargin ?? '0px');
+    }
+    observe(el: Element) { observed.push({ el, cb: this.cb }); }
+    unobserve(el: Element) {
+      for (let i = observed.length - 1; i >= 0; i--) {
+        if (observed[i]!.el === el && observed[i]!.cb === this.cb) observed.splice(i, 1);
+      }
+    }
+    disconnect() {
+      for (let i = observed.length - 1; i >= 0; i--) {
+        if (observed[i]!.cb === this.cb) observed.splice(i, 1);
+      }
+    }
+    takeRecords() { return []; }
+  }
+  vi.stubGlobal('IntersectionObserver', FakeIO);
+
+  /** Fire only the observer that has no preload margin — the one that decides
+   *  which page the reader is actually looking at. */
+  function fireFor(visible: number[], match: (rootMargin: string) => boolean) {
+    const byCb = new Map<IntersectionObserverCallback, IntersectionObserverEntry[]>();
+    for (const { el, cb } of observed) {
+      if (!match(margins.get(cb) ?? '0px')) continue;
+      const page = Number((el as HTMLElement).dataset.page);
+      byCb.set(cb, [...(byCb.get(cb) ?? []), {
+        target: el, isIntersecting: visible.includes(page),
+      } as unknown as IntersectionObserverEntry]);
+    }
+    act(() => { for (const [cb, entries] of byCb) cb(entries, {} as IntersectionObserver); });
+  }
+
+  /** Only the bare observer — what the reader can actually see. */
+  function fireOnscreen(visible: number[]) {
+    fireFor(visible, (m) => m === '0px');
+  }
+
+  return {
+    fireOnscreen,
+    /**
+     * Fire both observers: these pages are mounted AND on screen — the
+     * ordinary case. A test that needs the two to differ (a page preloaded
+     * but not yet visible) calls `fireOnscreen` afterwards to narrow it.
+     */
+    fire(visible: number[]) {
+      fireFor(visible, () => true);
+    },
+  };
+}
+
 describe('PdfAnnotationCanvas', () => {
   const mockResourceId = resourceId('123');
   const mockPdfUrl = 'https://example.com/resources/123.pdf';
+
+  afterEach(() => {
+    // Stubs must not leak into other files sharing this Vitest environment.
+    vi.unstubAllGlobals();
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -589,5 +659,694 @@ describe('PdfAnnotationCanvas', () => {
       // In jsdom this is not available, so we verify the component did not error.
       expect(container).toBeInTheDocument();
     }
+  });
+
+  // PDF-CONTINUOUS-SCROLL S1. Browse mode scrolls: every page has a slot so
+  // the scrollbar is honest about the document's length, but only a window of
+  // pages is MOUNTED — unmounting is what releases a page's raster, so the
+  // window IS the memory budget (D2).
+  describe('scroll layout (browse mode)', () => {
+    const scannedDoc = () =>
+      vi.mocked(loadPdfDocument).mockResolvedValueOnce({
+        numPages: 5,
+        getPage: vi.fn().mockResolvedValue(mockPage([])),
+      } as unknown as Awaited<ReturnType<typeof loadPdfDocument>>);
+
+    const mountedPages = () =>
+      [...document.querySelectorAll('.semiont-pdf-annotation-canvas__image')]
+        .map((img) => Number((img as HTMLImageElement).alt.replace(/\D+/g, '')))
+        .sort((a, b) => a - b);
+
+    test('gives every page a slot but mounts only the visible window', async () => {
+      const io = stubIntersectionObserver();
+      scannedDoc();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+      // Nothing rasterized before anything is visible.
+      expect(mountedPages()).toEqual([]);
+
+      io.fire([1, 2]);
+      await waitFor(() => expect(mountedPages()).toEqual([1, 2]));
+      expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+    });
+
+    test('releases a page that scrolls out of the window', async () => {
+      const io = stubIntersectionObserver();
+      scannedDoc();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+
+      io.fire([1, 2]);
+      await waitFor(() => expect(mountedPages()).toEqual([1, 2]));
+
+      io.fire([4, 5]);
+      await waitFor(() => expect(mountedPages()).toEqual([4, 5]));
+    });
+
+    test('still fetches the whole-resource map once, across many mounted pages (P4)', async () => {
+      // P4's invariant has to survive the move from one shared page-load
+      // effect into N independent page views.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+
+      const resourceAnchoredText = vi.fn().mockResolvedValue({
+        text: 'Hello world again',
+        items: [{ start: 0, end: 5, page: 1, x: 72, y: 700, width: 30, height: 12 }],
+      });
+      const session = {
+        client: { beckon: { hover: vi.fn() }, browse: { resourceAnchoredText } },
+      } as unknown as import('@semiont/sdk').SemiontSession;
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+          session={session}
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+
+      io.fire([1, 2, 3]);
+      await waitFor(() => expect(mountedPages()).toEqual([1, 2, 3]));
+      io.fire([3, 4, 5]);
+      await waitFor(() => expect(mountedPages()).toEqual([3, 4, 5]));
+
+      expect(resourceAnchoredText).toHaveBeenCalledTimes(1);
+    });
+
+    test('a slot keeps its reserved height when its page mounts', async () => {
+      // S1b. Releasing the reservation on mount is what made the column's
+      // total height change on every scroll — the scrollbar jumped and
+      // resized under the cursor. The reservation must survive mounting so
+      // the column's geometry never depends on which pages are mounted.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+
+      const slotOf = (page: number) =>
+        document.querySelector(`.semiont-pdf-annotation-canvas__slot[data-page="${page}"]`) as HTMLElement;
+
+      // Read whichever property expresses the reservation, so the pin is
+      // about the CONTRACT (space is reserved, and mounting does not release
+      // it) rather than about which CSS property implements it.
+      const reserved = (el: HTMLElement) => el.style.minHeight || el.style.height;
+
+      io.fire([1]);
+      await waitFor(() => expect(mountedPages()).toEqual([1]));
+
+      // Page 5 is unmounted and must hold space open.
+      expect(reserved(slotOf(5))).not.toBe('');
+      // Page 1 is mounted and must hold exactly the same space, or the
+      // column's height changes as pages come and go.
+      expect(reserved(slotOf(1))).toBe(reserved(slotOf(5)));
+    });
+
+    test('a rectangle drawn on a scrolled page carries THAT page number', async () => {
+      // S2. The drag lives in the page view, so page identity comes from the
+      // component that owns the pixels rather than from a shared `pageNumber`
+      // — the invariant that makes a column safe to draw on at all.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+
+      const request = vi.fn();
+      const session = {
+        client: { mark: { request }, beckon: { hover: vi.fn() } },
+      } as unknown as import('@semiont/sdk').SemiontSession;
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode="rectangle"
+          selectedMotivation="highlighting"
+          session={session}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+
+      io.fire([2, 3]);
+      await waitFor(() => expect(mountedPages()).toEqual([2, 3]));
+
+      // Draw on page 3's container, not page 2's.
+      const slot3 = document.querySelector('.semiont-pdf-annotation-canvas__slot[data-page="3"]')!;
+      const img = slot3.querySelector('.semiont-pdf-annotation-canvas__image') as HTMLImageElement;
+      Object.defineProperty(img, 'clientWidth', { value: 612, configurable: true });
+      Object.defineProperty(img, 'clientHeight', { value: 792, configurable: true });
+      fireEvent.load(img);
+
+      const container = slot3.querySelector('.semiont-pdf-annotation-canvas__container')!;
+      fireEvent.mouseDown(container, { clientX: 40, clientY: 40 });
+      fireEvent.mouseMove(container, { clientX: 200, clientY: 160 });
+      fireEvent.mouseUp(container, { clientX: 200, clientY: 160 });
+
+      await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+      expect(request.mock.calls[0][1][0].value).toContain('page=3');
+    });
+
+    test('annotate mode scrolls too — the primary mode is not left on the pager', async () => {
+      // The registries are the seam: both now ask for the column.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode="rectangle"
+          selectedMotivation="highlighting"
+          pageLayout="scroll"
+        />
+      );
+
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+      io.fire([1]);
+      await waitFor(() => expect(mountedPages()).toEqual([1]));
+      // Drawing still works in the column: the container is the page's own.
+      expect(document.querySelector('.semiont-pdf-annotation-canvas__container'))
+        .toHaveAttribute('data-drawing-mode', 'rectangle');
+    });
+
+    // S4. A strip of proportional rectangles — one per page, current
+    // highlighted, click to jump. Deliberately NOT thumbnails: it needs no
+    // rasterization, only the page count and the aspect ratio S1b already
+    // measures, so it costs nothing next to the document itself. It answers
+    // "where am I in this document", which neither the pager nor the
+    // scrollbar does.
+    test('renders one strip rectangle per page, marking the current one', async () => {
+      const io = stubIntersectionObserver();
+      scannedDoc();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+
+      const ticks = () => document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page');
+      await waitFor(() => expect(ticks()).toHaveLength(5));
+
+      io.fire([3, 4]);
+      await waitFor(() => {
+        expect(document.querySelector('[aria-current="page"]')).toHaveAttribute('data-page', '3');
+      });
+    });
+
+    test('clicking a strip rectangle jumps to that page', async () => {
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
+      });
+      io.fire([1]);
+
+      const tick4 = document.querySelector('.semiont-pdf-annotation-canvas__strip-page[data-page="4"]')!;
+      fireEvent.click(tick4);
+
+      expect(scrollIntoView).toHaveBeenCalled();
+    });
+
+    // S1a. Arrow keys step pages. The guards are the substance: a viewer that
+    // steals arrow keys from a text field is worse than one with no shortcut.
+    test('PageUp/PageDown step pages; Up/Down are left to scroll', async () => {
+      // The convention every mainstream viewer follows (Preview, Chrome's PDF
+      // viewer, Acrobat): PageUp/PageDown jump a page, Up/Down scroll finely.
+      // Taking Up/Down would leave no keyboard way to reach the bottom of a
+      // page taller than the viewport.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+      io.fire([2]);
+      await waitFor(() => expect(mountedPages()).toEqual([2]));
+
+      scrollIntoView.mockClear();
+      fireEvent.keyDown(window, { key: 'PageDown' });
+      expect(scrollIntoView).toHaveBeenCalled();
+
+      scrollIntoView.mockClear();
+      fireEvent.keyDown(window, { key: 'PageUp' });
+      expect(scrollIntoView).toHaveBeenCalled();
+
+      // Up/Down belong to the scroller, not to us.
+      scrollIntoView.mockClear();
+      fireEvent.keyDown(window, { key: 'ArrowDown' });
+      fireEvent.keyDown(window, { key: 'ArrowUp' });
+      expect(scrollIntoView).not.toHaveBeenCalled();
+
+      // The same guard as the horizontal pair: never steal from a text field.
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      input.focus();
+      scrollIntoView.mockClear();
+      fireEvent.keyDown(input, { key: 'PageDown' });
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      input.remove();
+    });
+
+    test('Left/Right step pages, and never steal keys from a text field', async () => {
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+      io.fire([1]);
+      await waitFor(() => expect(mountedPages()).toEqual([1]));
+
+      scrollIntoView.mockClear();
+      fireEvent.keyDown(window, { key: 'ArrowRight' });
+      expect(scrollIntoView).toHaveBeenCalled();
+
+      // Typing in an input must not page the document underneath it.
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      input.focus();
+      scrollIntoView.mockClear();
+      fireEvent.keyDown(input, { key: 'ArrowRight' });
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      input.remove();
+    });
+
+    test('focus follows the current page when the strip owns focus', async () => {
+      // Reported: click a page in the strip, then arrow away — the focus ring
+      // stays behind on the clicked rectangle while the current-page marker
+      // moves, so two rectangles claim to be "here". (The ring only appears
+      // after the arrow press because that is when the browser switches to
+      // keyboard modality and the clicked button starts matching
+      // :focus-visible.) Focus must travel with the current page — but ONLY
+      // when the strip already had it, so scrolling with the mouse never
+      // snatches focus away from whatever the reader was doing.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
+      });
+      io.fire([1]);
+      await waitFor(() => expect(mountedPages()).toEqual([1]));
+
+      const tick = (page: number) =>
+        document.querySelector(`.semiont-pdf-annotation-canvas__strip-page[data-page="${page}"]`) as HTMLButtonElement;
+
+      tick(2).focus();
+      fireEvent.click(tick(2));
+      io.fire([3]);
+
+      await waitFor(() => expect(tick(3)).toHaveAttribute('aria-current', 'page'));
+      expect(document.activeElement).toBe(tick(3));
+    });
+
+    test('the strip is one tab stop, not one per page', async () => {
+      // A 400-page document must not put 400 stops in the tab order. The
+      // ARIA pattern: the current item is tabbable, the rest are reachable
+      // with arrows (which already page the document).
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
+      });
+      io.fire([1]);
+
+      const tabbable = [...document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')]
+        .filter((el) => (el as HTMLElement).tabIndex === 0);
+      expect(tabbable).toHaveLength(1);
+      expect(tabbable[0]).toHaveAttribute('data-page', '1');
+    });
+
+    test('the strip runs along the same axis as the scrolling, beside the column', async () => {
+      // Pages scroll vertically, so a horizontal strip reads across a
+      // direction the document does not move in. The strip's axis follows the
+      // scroll axis — which is also what makes horizontal scrolling (a later
+      // phase) a change of one value rather than a second layout.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
+      });
+      io.fire([1]);
+
+      const column = document.querySelector('.semiont-pdf-annotation-canvas__column')!;
+      const strip = document.querySelector('.semiont-pdf-annotation-canvas__strip')!;
+
+      // One axis, declared in one place, read by both.
+      expect(column).toHaveAttribute('data-axis', 'vertical');
+      expect(strip).toHaveAttribute('data-axis', 'vertical');
+      // Tells assistive tech which arrow keys apply to the strip.
+      expect(strip).toHaveAttribute('aria-orientation', 'vertical');
+      // The strip leads: it hugs the left edge of the content, the
+      // conventional place for a page rail (Preview, Acrobat), and the
+      // reader's eye finds it before the page rather than after it.
+      expect(strip.nextElementSibling).toBe(column);
+      expect(strip.parentElement).toHaveClass('semiont-pdf-annotation-canvas__viewport');
+    });
+
+    test('each strip rectangle shows its page number', async () => {
+      // At 70 pages the rectangles are indistinguishable from one another —
+      // the strip shows position but not WHICH page, which is most of what a
+      // reader wants from it on a long document.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
+      });
+      io.fire([1]);
+
+      const tick = (page: number) =>
+        document.querySelector(`.semiont-pdf-annotation-canvas__strip-page[data-page="${page}"]`)!;
+      expect(tick(1)).toHaveTextContent('1');
+      expect(tick(5)).toHaveTextContent('5');
+
+      // The accessible name keeps the context the bare digit loses, and
+      // still contains the visible text (WCAG 2.5.3 Label in Name).
+      expect(tick(5)).toHaveAttribute('aria-label', expect.stringContaining('5'));
+    });
+
+
+    test('the column does not add a second scrollbar inside the scrolling pane', async () => {
+      // The strip and a nested column scrollbar were two controls for one
+      // movement. The pane the viewer sits in already scrolls (flex: 1;
+      // min-height: 0), so the column must not declare a viewport-relative
+      // height of its own — that is what produced scroll-within-scroll.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+      io.fire([1]);
+
+      // jsdom applies no stylesheet, so assert the CONTRACT the CSS keys off:
+      // the column declares the axis but claims no scroll role of its own.
+      const column = document.querySelector('.semiont-pdf-annotation-canvas__column')!;
+      expect(column).toHaveAttribute('data-axis', 'vertical');
+      expect(column).not.toHaveAttribute('data-scroller');
+      // The strip is the one that scrolls independently, and silently.
+      expect(document.querySelector('.semiont-pdf-annotation-canvas__strip'))
+        .toHaveAttribute('data-scroller', 'true');
+    });
+
+    test('the indicator reports a page the reader can SEE, not a preloaded one', async () => {
+      // The mount window deliberately reaches a viewport beyond the view
+      // (PRELOAD_MARGIN) so pages arrive early. Deriving the current page
+      // from that same set makes the indicator name a page that is still
+      // off-screen — it must come from actual visibility.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl}
+          drawingMode={null} pageLayout="scroll" />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+
+      // Pages 1-3 are within the preload window; only 3 is actually on screen.
+      io.fire([1, 2, 3]);
+      io.fireOnscreen([3]);
+
+      await waitFor(() => {
+        expect(document.querySelector('[aria-current="page"]')).toHaveAttribute('data-page', '3');
+      });
+    });
+
+    test('paged navigation does not carry one page\'s state onto the next', async () => {
+      // In the paged layout a single PdfPageView is reused as `pageNumber`
+      // changes, so its state survives the switch: the previous page's raster
+      // shows briefly under the new page's overlay, a drag could quote the
+      // previous page's text, and a load failure sticks forever because
+      // nothing clears it. Each page is a different thing and must mount as one.
+      // Reject by PAGE, not by call order: the parent also calls getPage(1)
+      // to measure the document's shape, so a `...Once` rejection would be
+      // consumed there and never reach the page view.
+      const failingDoc = {
+        numPages: 3,
+        getPage: vi.fn((n: number) => (n === 1
+          ? Promise.reject(new Error('page 1 is broken'))
+          : Promise.resolve(mockPage(MOCK_TEXT_ITEMS)))),
+      };
+      vi.mocked(loadPdfDocument).mockResolvedValueOnce(
+        failingDoc as unknown as Awaited<ReturnType<typeof loadPdfDocument>>,
+      );
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl} drawingMode={null} />
+      );
+
+      await waitFor(() => {
+        expect(document.querySelector('.semiont-pdf-annotation-canvas__error')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /next/i }));
+
+      // Page 2 loads fine; the failure belonged to page 1 and must not persist.
+      await waitFor(() => {
+        expect(document.querySelector('.semiont-pdf-annotation-canvas__error')).not.toBeInTheDocument();
+      });
+    });
+
+    test('without IntersectionObserver every page mounts — degraded, not broken', async () => {
+      // The virtualization is an optimization, not a correctness requirement.
+      // An environment without the observer must show the whole document
+      // rather than nothing.
+      scannedDoc();
+      vi.stubGlobal('IntersectionObserver', undefined);
+      Element.prototype.scrollIntoView = vi.fn();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl}
+          drawingMode={null} pageLayout="scroll" />
+      );
+
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__image')).toHaveLength(5);
+      });
+    });
+
+    test('a failed map fetch is not cached — the next page retries', async () => {
+      // Answers cache, including "no map". A transport failure must not, or
+      // one bad moment pins the whole document to geometry-only.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      Element.prototype.scrollIntoView = vi.fn();
+
+      const resourceAnchoredText = vi.fn()
+        .mockRejectedValueOnce(new Error('transport down'))
+        .mockResolvedValue({ text: 'later', items: [] });
+      const session = {
+        client: { beckon: { hover: vi.fn() }, browse: { resourceAnchoredText } },
+      } as unknown as import('@semiont/sdk').SemiontSession;
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl}
+          drawingMode={null} pageLayout="scroll" session={session} />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+
+      io.fire([1]);
+      await waitFor(() => expect(resourceAnchoredText).toHaveBeenCalledTimes(1));
+
+      io.fire([2]);
+      await waitFor(() => expect(resourceAnchoredText).toHaveBeenCalledTimes(2));
+    });
+
+    test('the pager still works in the column, and modifiers are left alone', async () => {
+      const io = stubIntersectionObserver();
+      scannedDoc();
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl}
+          drawingMode={null} pageLayout="scroll" />
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+      });
+      io.fire([3]);
+      await waitFor(() => {
+        expect(document.querySelector('[aria-current="page"]')).toHaveAttribute('data-page', '3');
+      });
+
+      scrollIntoView.mockClear();
+      fireEvent.click(screen.getByRole('button', { name: /previous/i }));
+      expect(scrollIntoView).toHaveBeenCalled();
+
+      // Cmd/Ctrl/Alt + arrow belongs to the browser and the OS.
+      scrollIntoView.mockClear();
+      fireEvent.keyDown(window, { key: 'ArrowRight', metaKey: true });
+      fireEvent.keyDown(window, { key: 'PageDown', ctrlKey: true });
+      expect(scrollIntoView).not.toHaveBeenCalled();
+    });
+
+    test('keeps the paged layout when no layout is requested', async () => {
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode="rectangle"
+          selectedMotivation="highlighting"
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText(/page 1 of 3/i)).toBeInTheDocument();
+      });
+      expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(0);
+      expect(screen.getByRole('button', { name: /next/i })).toBeInTheDocument();
+    });
+  });
+
+  // PDF-CONTINUOUS-SCROLL S3. The viewer chrome was the last hardcoded-English
+  // surface in this component: Previous/Next, the page indicator, and both
+  // failure lines. The mock translation manager echoes "<namespace>.<key>",
+  // so asserting the echo proves the string came from translations rather
+  // than from a literal that happens to read the same in English.
+  describe('viewer chrome', () => {
+    const renderTranslated = (ui: React.ReactElement) =>
+      render(<TranslationProvider translationManager={defaultMocks.translationManager}>{ui}</TranslationProvider>);
+
+    test('takes its controls and page indicator from translations', async () => {
+      renderTranslated(
+        <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl} drawingMode={null} />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'PdfViewer.previous' })).toBeInTheDocument();
+      });
+      expect(screen.getByRole('button', { name: 'PdfViewer.next' })).toBeInTheDocument();
+      expect(screen.getByText(/PdfViewer\.pageOf/)).toBeInTheDocument();
+      expect(screen.queryByText('Previous')).not.toBeInTheDocument();
+      expect(screen.queryByText(/^Page 1 of 3$/)).not.toBeInTheDocument();
+    });
+
+    test('announces page changes — a silent indicator is invisible to a screen reader', async () => {
+      renderTranslated(
+        <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl} drawingMode={null} />
+      );
+
+      await waitFor(() => {
+        expect(document.querySelector('.semiont-pdf-annotation-canvas__page-info')).toBeInTheDocument();
+      });
+      const indicator = document.querySelector('.semiont-pdf-annotation-canvas__page-info')!;
+      expect(indicator).toHaveAttribute('aria-live', 'polite');
+      // The pager is a navigation landmark, not loose buttons in the page.
+      expect(screen.getByRole('navigation')).toBeInTheDocument();
+    });
   });
 });

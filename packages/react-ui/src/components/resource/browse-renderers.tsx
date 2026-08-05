@@ -6,8 +6,16 @@ import remarkGfm from 'remark-gfm';
 import type { Annotation } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { SvgDrawingCanvas } from '../image-annotation/SvgDrawingCanvas';
+import { useTranslations } from '../../contexts/TranslationContext';
 
 // Lazy-load the PDF component to avoid SSR issues with browser PDF.js loading.
+/** The lazy chunk's fallback needs its own component: a hook cannot run
+ *  inside a `fallback` prop expression. */
+function PdfViewerLoading() {
+  const t = useTranslations('PdfViewer');
+  return <>{t('viewerLoading')}</>;
+}
+
 const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
 
 /**
@@ -60,7 +68,7 @@ export function ImageBrowseRenderer({ content, resourceUri, annotations, session
 
 export function PdfBrowseRenderer({ content, resourceUri, annotations, session }: MediaRendererProps) {
   return (
-    <Suspense fallback={<div className="semiont-browse-view__loading">Loading PDF viewer...</div>}>
+    <Suspense fallback={<div className="semiont-browse-view__loading"><PdfViewerLoading /></div>}>
       <PdfAnnotationCanvas
         pdfUrl={content}
         resourceUri={resourceUri}
@@ -68,6 +76,7 @@ export function PdfBrowseRenderer({ content, resourceUri, annotations, session }
         drawingMode={null}
         selectedMotivation={null}
         session={session}
+        pageLayout="scroll"
       />
     </Suspense>
   );

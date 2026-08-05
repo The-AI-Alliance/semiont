@@ -177,6 +177,14 @@
   --semiont-bg-tertiary: var(--semiont-color-neutral-100);
   --semiont-bg-inverse: var(--semiont-color-neutral-900);
 
+  /* Borders — the panel/card border every pattern file reaches for. */
+  --semiont-border-primary: var(--semiont-color-neutral-200);
+  --semiont-border-secondary: var(--semiont-color-neutral-100);
+
+  /* Interaction */
+  --semiont-bg-hover: var(--semiont-color-neutral-100);
+  --semiont-focus-ring: var(--semiont-color-blue-500);
+
   /* Text Colors */
   --semiont-text-primary: var(--semiont-color-neutral-900);
   --semiont-text-secondary: var(--semiont-color-neutral-600);
@@ -186,6 +194,8 @@
 
   /* Spacing */
   --semiont-spacing-0: 0;
+  --semiont-panel-gap-xs: 0.25rem;
+  --semiont-text-2xs: 0.625rem;
   --semiont-spacing-xs: 0.25rem;
   --semiont-spacing-sm: 0.5rem;
   --semiont-spacing-md: 1rem;
@@ -322,6 +332,11 @@
     --semiont-text-tertiary: var(--semiont-color-neutral-400);
     --semiont-text-disabled: var(--semiont-color-neutral-600);
     --semiont-text-inverse: var(--semiont-color-neutral-900);
+
+    --semiont-border-primary: var(--semiont-color-neutral-700);
+    --semiont-border-secondary: var(--semiont-color-neutral-800);
+    --semiont-bg-hover: var(--semiont-color-neutral-800);
+    --semiont-focus-ring: var(--semiont-color-blue-400);
   }
 }
 
@@ -337,6 +352,14 @@
   --semiont-text-tertiary: var(--semiont-color-neutral-500);
   --semiont-text-disabled: var(--semiont-color-neutral-400);
   --semiont-text-inverse: var(--semiont-color-neutral-0);
+
+  /* Borders — the panel/card border every pattern file reaches for. */
+  --semiont-border-primary: var(--semiont-color-neutral-200);
+  --semiont-border-secondary: var(--semiont-color-neutral-100);
+
+  /* Interaction */
+  --semiont-bg-hover: var(--semiont-color-neutral-100);
+  --semiont-focus-ring: var(--semiont-color-blue-500);
 }
 
 /* Allow manual dark mode override */
@@ -351,4 +374,9 @@
   --semiont-text-tertiary: var(--semiont-color-neutral-400);
   --semiont-text-disabled: var(--semiont-color-neutral-600);
   --semiont-text-inverse: var(--semiont-color-neutral-900);
+
+  --semiont-border-primary: var(--semiont-color-neutral-700);
+  --semiont-border-secondary: var(--semiont-color-neutral-800);
+  --semiont-bg-hover: var(--semiont-color-neutral-800);
+  --semiont-focus-ring: var(--semiont-color-blue-400);
 }

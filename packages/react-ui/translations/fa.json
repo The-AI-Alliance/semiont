@@ -4,6 +4,16 @@
     "paramsTitle": "پارامترهای درخواست:",
     "processing": "فعلی: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "بارگذاری PDF ناموفق بود",
+    "loading": "در حال بارگذاری PDF...",
+    "next": "بعدی",
+    "pageLoadFailed": "بارگذاری صفحه ناموفق بود",
+    "pageOf": "صفحه {{page}} از {{total}}",
+    "pagination": "ناوبری صفحه",
+    "previous": "قبلی",
+    "viewerLoading": "در حال بارگذاری نمایشگر PDF..."
+  },
   "Toolbar": {
     "annotations": "حاشیه‌نویسی‌ها",
     "history": "تاریخچه",

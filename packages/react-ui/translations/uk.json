@@ -4,6 +4,16 @@
     "paramsTitle": "Параметри запиту:",
     "processing": "Поточний: {{label}}"
   },
+  "PdfViewer": {
+    "loadFailed": "Не вдалося завантажити PDF",
+    "loading": "Завантаження PDF...",
+    "next": "Наступна",
+    "pageLoadFailed": "Не вдалося завантажити сторінку",
+    "pageOf": "Сторінка {{page}} з {{total}}",
+    "pagination": "Навігація сторінками",
+    "previous": "Попередня",
+    "viewerLoading": "Завантаження переглядача PDF..."
+  },
   "Toolbar": {
     "annotations": "Анотації",
     "history": "Історія",

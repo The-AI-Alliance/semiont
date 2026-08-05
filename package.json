@@ -21,6 +21,7 @@
     "lint:css": "stylelint '**/*.css' --ignore-path .gitignore",
     "lint:css:fix": "stylelint '**/*.css' --ignore-path .gitignore --fix",
     "lint:no-utility-classes": "node scripts/lint/check-no-utility-classes-in-react-ui.js",
+    "lint:css-variables": "node scripts/lint/check-css-variables-defined.js",
     "build:css": "node scripts/dev/build-css-with-sourcemaps.js",
     "build:css:watch": "node scripts/dev/build-css-with-sourcemaps.js --watch",
     "build:css:prod": "node scripts/dev/build-css-with-sourcemaps.js --production",

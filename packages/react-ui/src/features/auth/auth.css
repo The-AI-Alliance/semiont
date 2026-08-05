@@ -345,27 +345,27 @@
 }
 
 .semiont-form__url-status--checking {
-  color: var(--semiont-text-muted, #888888);
+  color: var(--semiont-text-tertiary, #888888);
   animation: spin 1s linear infinite;
   display: inline-block;
 }
 
 [data-theme="dark"] .semiont-form__url-status--checking {
-  color: var(--semiont-text-muted, #888888);
+  color: var(--semiont-text-tertiary, #888888);
 }
 
 .semiont-form__url-status--ok {
-  color: var(--semiont-success, #22c55e);
+  color: var(--semiont-color-success, #22c55e);
 }
 
 [data-theme="dark"] .semiont-form__url-status--ok {
-  color: var(--semiont-success, #22c55e);
+  color: var(--semiont-color-success, #22c55e);
 }
 
 .semiont-form__url-status--error {
-  color: var(--semiont-error, #ef4444);
+  color: var(--semiont-color-error, #ef4444);
 }
 
 [data-theme="dark"] .semiont-form__url-status--error {
-  color: var(--semiont-error, #ef4444);
+  color: var(--semiont-color-error, #ef4444);
 }
