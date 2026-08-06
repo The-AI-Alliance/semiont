@@ -2,7 +2,7 @@
 // Used for development and testing without requiring a real graph database
 
 import { GraphDatabase } from '../interface';
-import { assertMutableResourceUpdate } from '../interface';
+import { assertMutableResourceUpdate, compareByRecencyThenId } from '../interface';
 import type { Logger } from '@semiont/core';
 import type {
   AnnotationCategory,
@@ -121,7 +121,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const total = docs.length;
     const offset = filter.offset || 0;
     const limit = filter.limit || 20;
-    docs = docs.slice(offset, offset + limit);
+    docs = docs.sort(compareByRecencyThenId).slice(offset, offset + limit);
 
     return { resources: docs, total };
   }
@@ -134,6 +134,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
         doc.name.toLowerCase().includes(searchLower) ||
         (doc.storageUri?.toLowerCase().includes(searchLower) ?? false)
       )
+      .sort(compareByRecencyThenId)
       .slice(0, limit);
 
     return results;

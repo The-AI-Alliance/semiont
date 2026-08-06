@@ -485,7 +485,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       const limit = filter.limit || 20;
       
       const results = await traversal
-        .order().by('created', order.desc)
+        .order().by('created', order.desc).by('id', order.asc)
         .range(offset, offset + limit)
         .elementMap()
         .toList();
@@ -510,7 +510,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
             process.statics.has('storageUri', TextP.containing(query))
           )
         )
-        .order().by('created', order.desc)
+        .order().by('created', order.desc).by('id', order.asc)
         .limit(limit)
         .elementMap()
         .toList();

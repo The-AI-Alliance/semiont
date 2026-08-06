@@ -331,7 +331,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const result = await session.run(
         `MATCH (d:Resource) ${whereClause}
          RETURN d
-         ORDER BY d.updatedAt DESC
+         ORDER BY d.created DESC, d.id
          SKIP $skip LIMIT $limit`,
         params
       );
@@ -352,7 +352,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
          WHERE toLower(d.name) CONTAINS toLower($query)
             OR toLower(coalesce(d.storageUri, "")) CONTAINS toLower($query)
          RETURN d
-         ORDER BY d.updatedAt DESC
+         ORDER BY d.created DESC, d.id
          LIMIT $limit`,
         { query, limit: this.neo4j.int(limit) }
       );

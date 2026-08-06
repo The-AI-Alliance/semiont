@@ -2,7 +2,7 @@
 // This replaces the mock in-memory implementation
 
 import { GraphDatabase } from '../interface';
-import { assertMutableResourceUpdate } from '../interface';
+import { assertMutableResourceUpdate, compareByRecencyThenId } from '../interface';
 import type { Logger } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { getBodySource, getPrimaryRepresentation, getResourceId, getExactText } from '@semiont/core';
@@ -349,7 +349,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     const limit = filter.limit || 50;
 
     return {
-      resources: resources.slice(offset, offset + limit),
+      resources: resources.sort(compareByRecencyThenId).slice(offset, offset + limit),
       total
     };
   }

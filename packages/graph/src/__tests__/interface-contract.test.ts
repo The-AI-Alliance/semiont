@@ -218,6 +218,48 @@ describe('GraphDatabase Interface Contract', () => {
     });
   });
 
+  describe('Result Ordering', () => {
+    // Browse pages through these results, so the order must be total and stable:
+    // same query, same sequence, every call. Ordering on a property no backend
+    // writes leaves SKIP/LIMIT free to repeat or drop rows between pages.
+    const dated = (name: string, dateCreated: string, id: string) =>
+      createTestResource({ '@id': resourceId(id), name, dateCreated });
+
+    it('listResources() returns newest first by dateCreated', async () => {
+      await db.createResource(dated('Oldest', '2020-01-01T00:00:00.000Z', 'order-old'));
+      await db.createResource(dated('Newest', '2026-01-01T00:00:00.000Z', 'order-new'));
+      await db.createResource(dated('Middle', '2023-01-01T00:00:00.000Z', 'order-mid'));
+
+      const { resources } = await db.listResources({});
+
+      expect(resources.map(r => r.name)).toEqual(['Newest', 'Middle', 'Oldest']);
+    });
+
+    it('searchResources() returns newest first by dateCreated', async () => {
+      await db.createResource(dated('Report Oldest', '2020-01-01T00:00:00.000Z', 'search-old'));
+      await db.createResource(dated('Report Newest', '2026-01-01T00:00:00.000Z', 'search-new'));
+      await db.createResource(dated('Report Middle', '2023-01-01T00:00:00.000Z', 'search-mid'));
+
+      const results = await db.searchResources('Report');
+
+      expect(results.map(r => r.name)).toEqual(['Report Newest', 'Report Middle', 'Report Oldest']);
+    });
+
+    it('breaks dateCreated ties by id so paging cannot repeat or drop rows', async () => {
+      const sameInstant = '2026-01-01T00:00:00.000Z';
+      // Inserted out of id order — insertion order must not leak into results.
+      for (const id of ['tie-c', 'tie-a', 'tie-d', 'tie-b']) {
+        await db.createResource(dated(`Tied ${id}`, sameInstant, id));
+      }
+
+      const page1 = await db.listResources({ limit: 2, offset: 0 });
+      const page2 = await db.listResources({ limit: 2, offset: 2 });
+      const paged = [...page1.resources, ...page2.resources].map(r => String(r['@id']));
+
+      expect(paged).toEqual(['tie-a', 'tie-b', 'tie-c', 'tie-d']);
+    });
+  });
+
   describe('Annotation Operations', () => {
     it('createAnnotation() should create with highlighting motivation', async () => {
       const resource = createTestResource();
