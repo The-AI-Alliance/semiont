@@ -21,11 +21,19 @@ import { AnthropicInferenceClient } from '../implementations/anthropic.js';
 /** Minimal element schema for tests — the shape callers declare. */
 const TEST_ELEMENT = { type: 'object', properties: { exact: { type: 'string' } }, required: ['exact'], additionalProperties: false };
 
+/** Models API answer for a strict-capable model — the capability gate's happy path. */
+const CAPABLE_MODEL = {
+  max_input_tokens: 200_000,
+  max_tokens: 64_000,
+  capabilities: { structured_outputs: { supported: true } },
+};
+
 describe('AnthropicInferenceClient - structured generation is tool-use, not prefill', () => {
   beforeEach(() => {
     createMock.mockReset();
     retrieveMock.mockReset();
     streamMock.mockReset();
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
   });
 
   it('forces a schema-typed tool call (no assistant prefill) for generateStructured', async () => {
@@ -156,6 +164,7 @@ describe('AnthropicInferenceClient - large output budgets stream internally', ()
     createMock.mockReset();
     retrieveMock.mockReset();
     streamMock.mockReset();
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
   });
 
   it('streams above the SDK non-streaming ceiling (structured mode end-to-end)', async () => {

@@ -49,11 +49,22 @@ const PERSON_ELEMENT: Record<string, unknown> = {
   additionalProperties: false,
 };
 
+/** A Models API answer for a strict-capable model (the live-config shape). */
+const CAPABLE_MODEL = {
+  max_input_tokens: 200_000,
+  max_tokens: 64_000,
+  capabilities: { structured_outputs: { supported: true } },
+};
+
 describe('AnthropicInferenceClient.generateStructured — unreadable is a throw, never []', () => {
   beforeEach(() => {
     createMock.mockReset();
     retrieveMock.mockReset();
     streamMock.mockReset();
+    // The capability gate (Phase 3) consults the Models API before any
+    // structured request; default to a capable model so these tests stay
+    // about the read path.
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
   });
 
   it('throws when the SDK delivers items as a string (the observed 67K-char shape, shrunk)', async () => {
@@ -104,5 +115,54 @@ describe('AnthropicInferenceClient.generateStructured — unreadable is a throw,
 
     expect(response.items).toEqual([]);
     expect(response.stopReason).toBe('tool_use');
+  });
+});
+
+describe('AnthropicInferenceClient.generateStructured — strict tool use + capability gate (Phase 3)', () => {
+  beforeEach(() => {
+    createMock.mockReset();
+    retrieveMock.mockReset();
+    streamMock.mockReset();
+  });
+
+  it('refuses, before any request is issued, when the model does not support structured outputs', async () => {
+    // D4: no silent degradation. Unconstrained tool use IS the behaviour that
+    // turned 202 entities into a green empty job — a model that cannot honour
+    // strictness gets a loud, config-actionable error, not a quiet fallback.
+    retrieveMock.mockResolvedValue({
+      max_input_tokens: 200_000,
+      max_tokens: 64_000,
+      capabilities: { structured_outputs: { supported: false } },
+    });
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-legacy');
+    await expect(
+      client.generateStructured('p', 1000, 0.3, PERSON_ELEMENT),
+    ).rejects.toThrow(/structured outputs.*inference\.model|inference\.model.*structured outputs/is);
+
+    // The refusal happens at the gate — the model is never asked.
+    expect(createMock).not.toHaveBeenCalled();
+    expect(streamMock).not.toHaveBeenCalled();
+  });
+
+  it('sends strict tool use: the strict flag, a closed wrapper, and the caller element schema', async () => {
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
+    createMock.mockResolvedValue({
+      content: [{ type: 'tool_use', id: 't', name: 'emit_json_array', input: { items: [] } }],
+      stop_reason: 'tool_use',
+      usage: {},
+    });
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+    await client.generateStructured('p', 1000, 0.3, PERSON_ELEMENT);
+
+    const req = createMock.mock.calls[0][0];
+    // strict: true makes the API validate tool input against the schema —
+    // the guarantee that was available the whole time and never requested.
+    expect(req.tools[0].strict).toBe(true);
+    // Closed wrapper: nothing but `items` may appear.
+    expect(req.tools[0].input_schema.additionalProperties).toBe(false);
+    // The caller's element schema replaces the old unconstrained `items: {}`.
+    expect(req.tools[0].input_schema.properties.items.items).toEqual(PERSON_ELEMENT);
   });
 });

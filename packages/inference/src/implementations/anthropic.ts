@@ -1,7 +1,7 @@
 // Anthropic Claude implementation of InferenceClient interface
 
 import Anthropic from '@anthropic-ai/sdk';
-import type { Logger } from '@semiont/core';
+import { isObject, type Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
 import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredResponse } from '../interface.js';
 
@@ -15,35 +15,52 @@ const NONSTREAMING_MAX_OUTPUT_TOKENS = Math.floor(128_000 / 6);
 
 // Forced-tool channel for structured generation. Anthropic has no
 // grammar-constrained sampling like Ollama's `format`; the equivalent hard
-// guarantee is a *tool call*. We offer exactly one tool and force it via
-// `tool_choice`, so the model must answer by filling the tool's input — which
-// the API serializes as properly-escaped JSON.
+// guarantee is STRICT tool use — `strict: true` makes the API validate the
+// tool input against the schema, so the serialized JSON is both well-escaped
+// AND shape-conformant. We offer exactly one tool and force it via
+// `tool_choice`.
 //
-// A tool's input must be an *object*, so the array is carried under `items`.
-// (Phase 3 of STRUCTURED-INFERENCE makes this strict and threads the caller's
-// element schema in place of `items: {}`; Phase 5 asks whether the tool
-// should exist at all once `output_config.format` is established.)
-const JSON_ARRAY_TOOL: Anthropic.Tool = {
-  name: 'emit_json_array',
-  description:
-    'Return your entire answer by calling this tool. Put the JSON array of results under the "items" property, and emit no prose.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      // Element shape is unconstrained here — the prompt carries the per-element
-      // schema; the tool only enforces that the top-level result is an array.
-      items: { type: 'array', items: {} },
+// A tool's input must be an *object*, so the array is carried under `items`,
+// with the caller's element schema constraining each element and a closed
+// wrapper (`additionalProperties: false` — required by strict mode, and
+// measured enforced on both live-config models, 2026-08-06).
+// (STRUCTURED-INFERENCE Phase 5 asks whether the tool should exist at all
+// once `output_config.format`'s root constraints are established.)
+function jsonArrayTool(elementSchema: Record<string, unknown>): Anthropic.Tool {
+  return {
+    name: 'emit_json_array',
+    description:
+      'Return your entire answer by calling this tool. Put the JSON array of results under the "items" property, and emit no prose.',
+    strict: true,
+    input_schema: {
+      type: 'object',
+      properties: {
+        items: { type: 'array', items: elementSchema },
+      },
+      required: ['items'],
+      additionalProperties: false,
     },
-    required: ['items'],
-  },
-};
+  };
+}
+
+/**
+ * Everything one Models API call teaches us about the configured model. The
+ * capability stays PRIVATE to this client: its only consumer is the gate in
+ * `generateStructured`, so it does not cross the `InferenceClient` interface
+ * (no speculative surface — widen `InferenceLimits` only when an external
+ * consumer exists).
+ */
+interface ModelDiscovery {
+  limits: InferenceLimits;
+  structuredOutputsSupported: boolean;
+}
 
 export class AnthropicInferenceClient implements InferenceClient {
   readonly type = 'anthropic' as const;
   readonly modelId: string;
   private client: Anthropic;
   private logger?: Logger;
-  private limitsPromise?: Promise<InferenceLimits>;
+  private discoveryPromise?: Promise<ModelDiscovery>;
 
   constructor(apiKey: string, model: string, baseURL?: string, logger?: Logger) {
     this.client = new Anthropic({
@@ -55,20 +72,27 @@ export class AnthropicInferenceClient implements InferenceClient {
   }
 
   limits(): Promise<InferenceLimits> {
-    if (!this.limitsPromise) {
-      this.limitsPromise = this.discoverLimits().catch((err: unknown) => {
+    return this.discover().then(d => d.limits);
+  }
+
+  private discover(): Promise<ModelDiscovery> {
+    if (!this.discoveryPromise) {
+      this.discoveryPromise = this.discoverModel().catch((err: unknown) => {
         // Never cache a failed discovery — a transient outage would otherwise
         // pin every future call to the same rejection.
-        this.limitsPromise = undefined;
+        this.discoveryPromise = undefined;
         throw err;
       });
     }
-    return this.limitsPromise;
+    return this.discoveryPromise;
   }
 
-  private async discoverLimits(): Promise<InferenceLimits> {
-    // The Models API publishes the actual ceilings per model — no
-    // hand-maintained table to go stale when a new model ships.
+  private async discoverModel(): Promise<ModelDiscovery> {
+    // The Models API publishes the actual ceilings AND capabilities per
+    // model — no hand-maintained table to go stale when a new model ships,
+    // and the API's own metadata outranks documentation prose when the two
+    // disagree (measured: the docs' supported-model list was stale while
+    // `capabilities.structured_outputs.supported` was correct).
     const info = await this.client.models.retrieve(this.modelId).catch((err: unknown) => {
       throw new Error(
         `Failed to discover model limits for '${this.modelId}' from the Models API`,
@@ -78,7 +102,19 @@ export class AnthropicInferenceClient implements InferenceClient {
     if (info.max_input_tokens == null || info.max_tokens == null) {
       throw new Error(`Models API reports no context/output ceilings for '${this.modelId}'`);
     }
-    return { contextTokens: info.max_input_tokens, maxOutputTokens: info.max_tokens };
+    // `capabilities` is not declared on the SDK's ModelInfo type — narrow
+    // through the core guards rather than casting. Absent metadata reads as
+    // unsupported: the gate then refuses loudly (D4), never guesses.
+    const raw: unknown = info;
+    const structuredOutputsSupported =
+      isObject(raw) &&
+      isObject(raw['capabilities']) &&
+      isObject(raw['capabilities']['structured_outputs']) &&
+      raw['capabilities']['structured_outputs']['supported'] === true;
+    return {
+      limits: { contextTokens: info.max_input_tokens, maxOutputTokens: info.max_tokens },
+      structuredOutputsSupported,
+    };
   }
 
   private requestMessage(params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message> {
@@ -147,12 +183,26 @@ export class AnthropicInferenceClient implements InferenceClient {
     prompt: string,
     maxTokens: number,
     temperature: number,
-    _elementSchema: ElementSchema,
+    elementSchema: ElementSchema,
   ): Promise<StructuredResponse<T>> {
-    // Phase 2 of STRUCTURED-INFERENCE: the schema parameter is accepted but
-    // not yet threaded into the tool (`items: {}` stands until Phase 3 makes
-    // the tool strict and element-typed). The load-bearing change here is the
-    // return path: unreadable input THROWS instead of coercing to [].
+    // Capability gate (D3/D4): model choice is deployment config, so the
+    // client asks the provider whether the configured model can honour
+    // strictness — and REFUSES when it cannot. Silent fallback to
+    // unconstrained tool use is exactly the behaviour that turned 202 real
+    // entities into a green empty job. The discovery is the same cached
+    // Models API call `limits()` uses; no extra round trip.
+    const discovery = await this.discover();
+    if (!discovery.structuredOutputsSupported) {
+      throw new Error(
+        `Model '${this.modelId}' does not report support for strict structured outputs ` +
+        `(Models API capabilities.structured_outputs) — refusing rather than degrading to ` +
+        `unconstrained tool use, which silently discards unreadable results. Re-point the ` +
+        `inference.model key that pins this worker/actor in .semiont/semiontconfig/*.toml ` +
+        `(e.g. environments.<env>.workers.<job-type>.inference.model) at a model that ` +
+        `reports supported: true.`,
+      );
+    }
+
     this.logger?.debug('Generating structured output with inference client', {
       model: this.modelId,
       promptLength: prompt.length,
@@ -160,15 +210,16 @@ export class AnthropicInferenceClient implements InferenceClient {
       temperature,
     });
 
+    const tool = jsonArrayTool(elementSchema);
     const params: Anthropic.MessageCreateParamsNonStreaming = {
       model: this.modelId,
       max_tokens: maxTokens,
       temperature,
       messages: [{ role: 'user', content: prompt }],
       // Force the structured-output tool. No prefill assistant turn: the
-      // constraint lives in the tool call, not in free text.
-      tools: [JSON_ARRAY_TOOL],
-      tool_choice: { type: 'tool' as const, name: JSON_ARRAY_TOOL.name },
+      // constraint lives in the (strict) tool call, not in free text.
+      tools: [tool],
+      tool_choice: { type: 'tool' as const, name: tool.name },
     };
 
     const start = performance.now();

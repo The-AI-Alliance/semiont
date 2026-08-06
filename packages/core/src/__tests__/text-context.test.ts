@@ -292,3 +292,34 @@ describe('reconcileSelector — charset handling', () => {
     expect(content.substring(r!.start, r!.end)).toBe('Person');
   });
 });
+
+describe('reconcileSelector — empty hint ≡ absent hint (the STRUCTURED-INFERENCE / LLM-OFFSET-HINTS bridge pin)', () => {
+  // Structured generation can deliver `prefix: ""` where the old free-text
+  // path omitted the key (measured 2026-08-06: with hint properties in
+  // `required`, models emit empty strings — and even as optionals a model
+  // may volunteer them). The multi-occurrence logic treats a falsy hint as
+  // "no hint" at both decision points (`if (llmPrefix || llmSuffix)` and
+  // `!llmPrefix || …`); this pin keeps that equivalence load-bearing for
+  // both plans. If LLM-OFFSET-HINTS step 1 rewrites the disambiguation, it
+  // inherits this contract: '' must never be treated as a real, failing hint.
+  it('multi-occurrence: empty-string hints fall back to first-of-many, exactly like absent hints', () => {
+    const content = 'X foo Y foo Z foo W';
+
+    const absent = reconcileSelector(content, { exact: 'foo' });
+    const empties = reconcileSelector(content, { exact: 'foo', prefix: '', suffix: '' });
+
+    expect(absent).not.toBeNull();
+    expect(empties).toEqual(absent);
+    expect(empties!.anchorMethod).toBe('first-of-many');
+  });
+
+  it('unique occurrence: empty-string hints change nothing', () => {
+    const content = 'Alice went to Paris.';
+
+    const absent = reconcileSelector(content, { exact: 'Paris' });
+    const empties = reconcileSelector(content, { exact: 'Paris', prefix: '', suffix: '' });
+
+    expect(empties).toEqual(absent);
+    expect(empties!.anchorMethod).toBe('unique-match');
+  });
+});
