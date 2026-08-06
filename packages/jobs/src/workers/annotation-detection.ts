@@ -10,13 +10,17 @@
  * fetches it and hands it in.
  */
 
-import type { InferenceClient, InferenceResponse } from '@semiont/inference';
+import type { ElementSchema, InferenceClient } from '@semiont/inference';
 import { chunkText, estimateTokens } from '@semiont/core';
-import { boundedGenerateWithMetadata } from './inference-call';
+import { boundedGenerateStructured } from './inference-call';
 import { deriveDetectionBudget } from './detection/detection-chunking';
 import { MotivationPrompts } from './detection/motivation-prompts';
 import {
   MotivationParsers,
+  COMMENT_ELEMENT_SCHEMA,
+  HIGHLIGHT_ELEMENT_SCHEMA,
+  ASSESSMENT_ELEMENT_SCHEMA,
+  TAG_ELEMENT_SCHEMA,
   type CommentMatch,
   type HighlightMatch,
   type AssessmentMatch,
@@ -32,7 +36,7 @@ import type { TagSchema } from '@semiont/core';
  * with the entity-extractor path. With derived budgets this fires only on
  * pathological annotation density.
  */
-function assertNotTruncated(response: InferenceResponse, motivation: string, chunk: number, totalChunks: number, outputBudget: number): void {
+function assertNotTruncated(response: { stopReason: string }, motivation: string, chunk: number, totalChunks: number, outputBudget: number): void {
   if (response.stopReason === 'max_tokens') {
     throw new Error(`${motivation} detection response truncated (max_tokens) on chunk ${chunk}/${totalChunks} despite the derived output budget of ${outputBudget} tokens — failing the job rather than under-reporting annotations.`);
   }
@@ -58,7 +62,8 @@ async function detectInChunks<T>(
   buildPrompt: (chunk: string) => string,
   temperature: number,
   motivation: string,
-  parse: (responseText: string) => T[],
+  elementSchema: ElementSchema,
+  parse: (items: unknown[]) => T[],
   onChunk?: (completedChunks: number, totalChunks: number) => void,
 ): Promise<T[]> {
   const limits = await client.limits();
@@ -68,11 +73,13 @@ async function detectInChunks<T>(
 
   const collected: T[] = [];
   for (let i = 0; i < chunks.length; i++) {
-    const response = await boundedGenerateWithMetadata(
-      client, buildPrompt(chunks[i]!), outputBudget, temperature, { format: 'json' },
+    // Structured surface: parsed elements or a throw — an unreadable model
+    // response fails the job rather than reading as an empty detection.
+    const response = await boundedGenerateStructured<unknown>(
+      client, buildPrompt(chunks[i]!), outputBudget, temperature, elementSchema,
     );
     assertNotTruncated(response, motivation, i + 1, chunks.length, outputBudget);
-    collected.push(...parse(response.text));
+    collected.push(...parse(response.items));
     if (i < chunks.length - 1) {
       onChunk?.(i + 1, chunks.length);
     }
@@ -103,8 +110,8 @@ export class AnnotationDetection {
     return detectInChunks(
       client, content,
       (chunk) => MotivationPrompts.buildCommentPrompt(chunk, instructions, tone, density, language, sourceLanguage),
-      0.4, 'comment',
-      (text) => MotivationParsers.parseComments(text, content),
+      0.4, 'comment', COMMENT_ELEMENT_SCHEMA,
+      (items) => MotivationParsers.parseComments(items, content),
       onChunk,
     );
   }
@@ -127,8 +134,8 @@ export class AnnotationDetection {
     return detectInChunks(
       client, content,
       (chunk) => MotivationPrompts.buildHighlightPrompt(chunk, instructions, density, sourceLanguage),
-      0.3, 'highlight',
-      (text) => MotivationParsers.parseHighlights(text, content),
+      0.3, 'highlight', HIGHLIGHT_ELEMENT_SCHEMA,
+      (items) => MotivationParsers.parseHighlights(items, content),
       onChunk,
     );
   }
@@ -153,8 +160,8 @@ export class AnnotationDetection {
     return detectInChunks(
       client, content,
       (chunk) => MotivationPrompts.buildAssessmentPrompt(chunk, instructions, tone, density, language, sourceLanguage),
-      0.3, 'assessment',
-      (text) => MotivationParsers.parseAssessments(text, content),
+      0.3, 'assessment', ASSESSMENT_ELEMENT_SCHEMA,
+      (items) => MotivationParsers.parseAssessments(items, content),
       onChunk,
     );
   }
@@ -197,8 +204,8 @@ export class AnnotationDetection {
         categoryInfo.examples,
         sourceLanguage
       ),
-      0.2, 'tag',
-      (text) => MotivationParsers.parseTags(text),
+      0.2, 'tag', TAG_ELEMENT_SCHEMA,
+      (items) => MotivationParsers.parseTags(items),
       onChunk,
     );
     return MotivationParsers.validateTagOffsets(parsedTags, content, category);

@@ -1079,7 +1079,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
     const content = 'preamble important text and more.';
     vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(async (text) => {
       const { MotivationParsers } = await import('../workers/detection/motivation-parsers');
-      const fake = JSON.stringify([{ exact: 'important' }]);
+      const fake = [{ exact: 'important' }];
       return MotivationParsers.parseHighlights(fake, text);
     });
 
@@ -1106,13 +1106,13 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
     const content = `Kenison, C.J.\n${exact} by this appeal.`;
     vi.mocked(AnnotationDetection.detectTags).mockImplementation(async (text) => {
       const { MotivationParsers } = await import('../workers/detection/motivation-parsers');
-      const fake = JSON.stringify([
+      const fake = [
         {
           exact,
           prefix: 'Kenison, C.J.\nTh', // overlapping with start of exact
           suffix: ' by this appeal.',
         },
-      ]);
+      ];
       const parsed = MotivationParsers.parseTags(fake);
       return MotivationParsers.validateTagOffsets(parsed, text, 'Issue');
     });
@@ -1170,9 +1170,9 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
     const content = 'X foo Y foo Z foo W'; // foo at 2, 8, 14
     vi.mocked(AnnotationDetection.detectComments).mockImplementation(async (text) => {
       const { MotivationParsers } = await import('../workers/detection/motivation-parsers');
-      const fake = JSON.stringify([
+      const fake = [
         { exact: 'foo', prefix: 'IRRELEVANT_PREFIX', suffix: 'IRRELEVANT_SUFFIX', comment: 'one of them' },
-      ]);
+      ];
       return MotivationParsers.parseComments(fake, text);
     });
 
@@ -1195,9 +1195,9 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
     const content = 'X foo Y foo Z foo W';
     vi.mocked(AnnotationDetection.detectComments).mockImplementation(async (text) => {
       const { MotivationParsers } = await import('../workers/detection/motivation-parsers');
-      const fake = JSON.stringify([
+      const fake = [
         { exact: 'foo', prefix: 'Y ', suffix: ' Z', comment: 'middle one' },
-      ]);
+      ];
       return MotivationParsers.parseComments(fake, text);
     });
 

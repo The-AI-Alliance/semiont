@@ -5,7 +5,7 @@
 `@semiont/inference` provides provider-agnostic text generation. The package exports exactly:
 
 - `createInferenceClient` — factory selecting an implementation from config
-- `InferenceClient`, `InferenceLimits`, `InferenceOptions`, `InferenceResponse` — the interface types
+- `InferenceClient`, `InferenceLimits`, `InferenceResponse`, `StructuredResponse`, `ElementSchema` — the interface types
 - `InferenceClientConfig`, `InferenceClientType` — factory config types
 - `AnthropicInferenceClient`, `OllamaInferenceClient` — provider implementations
 - `MockInferenceClient` — scripted test double
@@ -55,16 +55,21 @@ interface InferenceClient {
   generateText(
     prompt: string,
     maxTokens: number,
-    temperature: number,
-    options?: InferenceOptions
+    temperature: number
   ): Promise<string>;
 
   generateTextWithMetadata(
     prompt: string,
     maxTokens: number,
-    temperature: number,
-    options?: InferenceOptions
+    temperature: number
   ): Promise<InferenceResponse>;
+
+  generateStructured<T>(
+    prompt: string,
+    maxTokens: number,
+    temperature: number,
+    elementSchema: ElementSchema
+  ): Promise<StructuredResponse<T>>;
 }
 
 interface InferenceResponse {
@@ -91,22 +96,27 @@ interface InferenceLimits {
 
 Discovery is lazy (first call) and cached for the client's lifetime; a failed discovery is **not** cached, so the next call retries. `limits()` **throws** when the ceilings cannot be determined (unknown model, discovery endpoint unreachable) — fail-loud, never a guessed floor.
 
-### InferenceOptions
+### StructuredResponse / generateStructured
 
 ```typescript
-interface InferenceOptions {
-  format?: 'json';
+type ElementSchema = Record<string, unknown>;  // raw JSON Schema for ONE array element
+
+interface StructuredResponse<T> {
+  items: T[];
+  stopReason: 'end_turn' | 'max_tokens' | 'stop_sequence' | string;
 }
 ```
 
-`format: 'json'` constrains output to a **parseable top-level JSON array**, regardless of provider:
+`generateStructured` returns **parsed elements** — the JSON guarantee lives in the return type, not in a comment. There is no representable value meaning "here is some text I could not read": an implementation that cannot deliver the array **throws** (`Structured response could not be read: …`). Empty (`{ items: [] }`) is a legitimate, distinct outcome and is never conflated with a read failure — the conflation is precisely what silently discarded 202 real entities as a green empty job (STRUCTURED-INFERENCE).
 
-- **Ollama** uses grammar-constrained sampling: the request's `format` field carries a minimal array schema (`{ type: 'array', items: {} }`). The bare `"json"` string would allow any JSON value, including a wrapping object, which would break callers that `.map` over the result.
-- **Anthropic** uses forced structured **tool-use**. The client offers a single tool and forces it via `tool_choice: { type: 'tool', name }`, so the model must answer by filling the tool's input — which the API serializes as **properly-escaped** JSON. This eliminates both free-text failure modes at the source: trailing prose after the `]`, and an unescaped `"` inside a string. Because a tool's input must be an object, the array is carried under an `items` property and unwrapped (`JSON.stringify(input.items)`) so callers still receive a top-level array in `text`.
+Provider mechanisms:
 
-Element shape is **not** constrained — the prompt carries the per-element schema; only the outer array is enforced.
+- **Ollama** uses grammar-constrained sampling: the request's `format` field carries `{ type: 'array', items: <elementSchema> }`, so generation itself is constrained. The response text is parsed here; a non-array parse throws.
+- **Anthropic** uses forced structured **tool-use**. The client offers a single tool and forces it via `tool_choice: { type: 'tool', name }`, so the model must answer by filling the tool's input — which the API serializes as **properly-escaped** JSON. Because a tool's input must be an object, the array is carried under an `items` property. When the SDK cannot parse the accumulated tool input (one invalid escape in a large payload), it delivers `items` as a *string* — that is a throw, never a coerced `[]`.
 
-Current callers all expect arrays (entity extraction, motivation detection). If an object-emitting caller appears, this option grows a `root: 'array' | 'object'` field; the constraint is never silently dropped.
+`T` is a **caller assertion, not a runtime guarantee** — nothing verifies the element schema and `T` agree, and the type parameter is erased. Declare the schema and `T` adjacently at the call site, and keep per-element structural guards on the consuming side.
+
+Truncation still surfaces via `stopReason: 'max_tokens'` — a truncated structured response can carry a valid partial array, so consumers gate on the stop reason before consuming `items`.
 
 ## AnthropicInferenceClient
 

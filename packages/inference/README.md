@@ -12,7 +12,7 @@ This package provides the **core AI primitives** for the Semiont platform:
 - The `InferenceClient` interface (provider abstraction)
 - Client implementations for Anthropic and Ollama, plus a scripted mock for tests
 - A `createInferenceClient()` factory that selects the implementation from config
-- Cross-provider JSON output mode (`format: 'json'`)
+- Cross-provider structured generation (`generateStructured` — parsed elements or a throw, never a silent `[]`)
 - Usage metrics via `@semiont/observability`
 
 For **application-specific AI logic** (semantic processing, prompt engineering, response parsing), see [@semiont/make-meaning](../make-meaning/).
@@ -106,20 +106,26 @@ interface InferenceResponse {
 }
 ```
 
-### JSON output mode
+### Structured generation
 
-Pass `{ format: 'json' }` as `options` to constrain output to a **parseable top-level JSON array**, regardless of provider:
+`generateStructured(prompt, maxTokens, temperature, elementSchema)` returns **parsed array elements**, not text — the JSON guarantee lives in the return type (`StructuredResponse<T> = { items: T[]; stopReason }`), not in a comment:
 
 ```typescript
-const json = await client.generateText(prompt, 1000, 0, { format: 'json' });
-const items = JSON.parse(json); // guaranteed to be an array
+const { items } = await client.generateStructured<Entity>(prompt, 1000, 0, {
+  type: 'object',
+  properties: { exact: { type: 'string' } },
+  required: ['exact'],
+  additionalProperties: false,
+});
 ```
 
 Each implementation honors the contract with its provider's mechanism:
-- **Ollama**: grammar-constrained sampling — the request's `format` field carries a minimal array schema.
-- **Anthropic**: forced structured tool-use — a single tool is offered and forced via `tool_choice`, so the model answers by filling the tool's input, which the API serializes as escaped JSON. The array is carried under an `items` property (tool inputs must be objects) and unwrapped to a top-level array on return.
+- **Ollama**: grammar-constrained sampling — the request's `format` field carries the caller's element schema wrapped in an array schema.
+- **Anthropic**: forced structured tool-use — a single tool is offered and forced via `tool_choice`, so the model answers by filling the tool's input, which the API serializes as escaped JSON. The array is carried under an `items` property (tool inputs must be objects).
 
-Current callers all expect arrays (entity extraction, motivation detection). If an object-emitting caller appears, the option grows a `root: 'array' | 'object'` field — see the notes in [src/interface.ts](src/interface.ts).
+A response that cannot be read as an array — the SDK delivering unparsed tool input as a string, a missing array, an unhonoured grammar — **throws** (`Structured response could not be read: …`). It is never coerced to `[]`: an empty extraction is a legitimate, distinct outcome, and conflating the two silently discards real data (STRUCTURED-INFERENCE).
+
+Current callers all expect arrays (entity extraction, motivation detection). If an object-emitting caller appears, `generateStructured` grows a sibling, not an option — see the notes in [src/interface.ts](src/interface.ts).
 
 ### Provider limits
 

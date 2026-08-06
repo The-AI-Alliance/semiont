@@ -634,6 +634,7 @@ describe('Matcher', () => {
         generateText: vi.fn().mockResolvedValue('1. 0.9\n2. 0.2'),
         generateTextWithMetadata: vi.fn(),
         limits: vi.fn().mockResolvedValue({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 }),
+        generateStructured: vi.fn().mockResolvedValue({ items: [], stopReason: 'end_turn' }),
       };
       matcher = new Matcher(kb, eventBus, mockLogger, mockInference);
       await matcher.initialize();
@@ -681,6 +682,7 @@ describe('Matcher', () => {
         generateText: vi.fn().mockRejectedValue(new Error('LLM unavailable')),
         generateTextWithMetadata: vi.fn(),
         limits: vi.fn().mockResolvedValue({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 }),
+        generateStructured: vi.fn().mockResolvedValue({ items: [], stopReason: 'end_turn' }),
       };
       matcher = new Matcher(kb, eventBus, mockLogger, mockInference);
       await matcher.initialize();
@@ -741,7 +743,7 @@ describe('Matcher', () => {
     });
 
     describe('inference response parsing edge cases', () => {
-      let mockInference: { type: string; modelId: string; generateText: ReturnType<typeof vi.fn>; generateTextWithMetadata: ReturnType<typeof vi.fn>; limits: ReturnType<typeof vi.fn> };
+      let mockInference: { type: string; modelId: string; generateText: ReturnType<typeof vi.fn>; generateTextWithMetadata: ReturnType<typeof vi.fn>; limits: ReturnType<typeof vi.fn>; generateStructured: ReturnType<typeof vi.fn> };
 
       beforeEach(async () => {
         await matcher.stop();
@@ -764,6 +766,7 @@ describe('Matcher', () => {
           generateText: vi.fn(),
           generateTextWithMetadata: vi.fn(),
           limits: vi.fn().mockResolvedValue({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 }),
+          generateStructured: vi.fn().mockResolvedValue({ items: [], stopReason: 'end_turn' }),
         };
         matcher = new Matcher(kb, eventBus, mockLogger, mockInference as InferenceClient);
         await matcher.initialize();

@@ -18,14 +18,17 @@ vi.mock('@anthropic-ai/sdk', () => ({
 
 import { AnthropicInferenceClient } from '../implementations/anthropic.js';
 
-describe('AnthropicInferenceClient - JSON mode is tool-use, not prefill', () => {
+/** Minimal element schema for tests — the shape callers declare. */
+const TEST_ELEMENT = { type: 'object', properties: { exact: { type: 'string' } }, required: ['exact'], additionalProperties: false };
+
+describe('AnthropicInferenceClient - structured generation is tool-use, not prefill', () => {
   beforeEach(() => {
     createMock.mockReset();
     retrieveMock.mockReset();
     streamMock.mockReset();
   });
 
-  it('forces a schema-typed tool call (no assistant prefill) for { format: "json" }', async () => {
+  it('forces a schema-typed tool call (no assistant prefill) for generateStructured', async () => {
     createMock.mockResolvedValue({
       content: [{ type: 'tool_use', id: 'toolu_1', name: 'emit', input: { items: [{ exact: 'Paris' }] } }],
       stop_reason: 'tool_use',
@@ -33,7 +36,7 @@ describe('AnthropicInferenceClient - JSON mode is tool-use, not prefill', () => 
     });
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
-    const text = await client.generateText('Extract locations', 1000, 0, { format: 'json' });
+    const res = await client.generateStructured('Extract locations', 1000, 0, TEST_ELEMENT);
 
     const req = createMock.mock.calls[0][0];
 
@@ -51,11 +54,8 @@ describe('AnthropicInferenceClient - JSON mode is tool-use, not prefill', () => 
     // No prefill: the request must not carry an assistant turn.
     expect(req.messages.some((m: { role: string }) => m.role === 'assistant')).toBe(false);
 
-    // The returned text is a parseable top-level JSON ARRAY (the array is
-    // re-serialized out of the tool_use input wrapper).
-    const parsed = JSON.parse(text);
-    expect(Array.isArray(parsed)).toBe(true);
-    expect(parsed).toEqual([{ exact: 'Paris' }]);
+    // The result is the parsed array itself — no string round-trip.
+    expect(res.items).toEqual([{ exact: 'Paris' }]);
   });
 
   it('round-trips an entity whose `exact` span contains a quote', async () => {
@@ -68,10 +68,9 @@ describe('AnthropicInferenceClient - JSON mode is tool-use, not prefill', () => 
     });
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
-    const text = await client.generateText('p', 1000, 0, { format: 'json' });
+    const res = await client.generateStructured<{ exact: string }>('p', 1000, 0, TEST_ELEMENT);
 
-    const parsed = JSON.parse(text);
-    expect(parsed[0].exact).toBe('the "best" café');
+    expect(res.items[0].exact).toBe('the "best" café');
   });
 
   it('preserves the real stop_reason and yields an empty array for an empty extraction', async () => {
@@ -82,10 +81,10 @@ describe('AnthropicInferenceClient - JSON mode is tool-use, not prefill', () => 
     });
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
-    const res = await client.generateTextWithMetadata('p', 1000, 0, { format: 'json' });
+    const res = await client.generateStructured('p', 1000, 0, TEST_ELEMENT);
 
     expect(res.stopReason).toBe('tool_use');
-    expect(JSON.parse(res.text)).toEqual([]);
+    expect(res.items).toEqual([]);
   });
 });
 
@@ -159,7 +158,7 @@ describe('AnthropicInferenceClient - large output budgets stream internally', ()
     streamMock.mockReset();
   });
 
-  it('streams above the SDK non-streaming ceiling (json mode end-to-end)', async () => {
+  it('streams above the SDK non-streaming ceiling (structured mode end-to-end)', async () => {
     // The SDK refuses non-streaming create() above ~21,333 output tokens
     // (its projected duration exceeds the 10-minute timeout). A derived
     // 64K budget must therefore stream internally — same interface, same
@@ -173,7 +172,7 @@ describe('AnthropicInferenceClient - large output budgets stream internally', ()
     });
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
-    const res = await client.generateTextWithMetadata('p', 64_000, 0, { format: 'json' });
+    const res = await client.generateStructured('p', 64_000, 0, TEST_ELEMENT);
 
     expect(streamMock).toHaveBeenCalledTimes(1);
     expect(createMock).not.toHaveBeenCalled();
@@ -183,8 +182,8 @@ describe('AnthropicInferenceClient - large output budgets stream internally', ()
     expect(req.max_tokens).toBe(64_000);
     expect(req.tool_choice).toMatchObject({ type: 'tool' });
 
-    // And the response is processed identically (unwrapped top-level array).
-    expect(JSON.parse(res.text)).toEqual([{ exact: 'A' }]);
+    // And the response is processed identically (parsed items).
+    expect(res.items).toEqual([{ exact: 'A' }]);
   });
 
   it('keeps plain create() below the ceiling', async () => {

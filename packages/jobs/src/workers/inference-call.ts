@@ -11,7 +11,7 @@
  * backend's retry budget — a timeout is transient-shaped, so retrying
  * is correct) and frees the claim loop.
  *
- * This is a timeout, not a cancellation: `InferenceOptions` has no
+ * This is a timeout, not a cancellation: the `InferenceClient` surface has no
  * AbortSignal support, so on timeout the underlying HTTP request is
  * abandoned, not aborted — it settles (or dies at the socket level)
  * in the background, with its eventual rejection swallowed. Adding
@@ -19,7 +19,7 @@
  * abort; the timeout stays either way as the last line.
  */
 
-import type { InferenceClient, InferenceOptions, InferenceResponse } from '@semiont/inference';
+import type { ElementSchema, InferenceClient, InferenceResponse, StructuredResponse } from '@semiont/inference';
 
 /**
  * Generous single-call bound. Slow local models on large prompts run
@@ -58,10 +58,9 @@ export function boundedGenerate(
   prompt: string,
   maxTokens: number,
   temperature: number,
-  options?: InferenceOptions,
 ): Promise<string> {
   return withTimeout(
-    client.generateText(prompt, maxTokens, temperature, options),
+    client.generateText(prompt, maxTokens, temperature),
     `${client.type}:${client.modelId}`,
   );
 }
@@ -71,10 +70,22 @@ export function boundedGenerateWithMetadata(
   prompt: string,
   maxTokens: number,
   temperature: number,
-  options?: InferenceOptions,
 ): Promise<InferenceResponse> {
   return withTimeout(
-    client.generateTextWithMetadata(prompt, maxTokens, temperature, options),
+    client.generateTextWithMetadata(prompt, maxTokens, temperature),
+    `${client.type}:${client.modelId}`,
+  );
+}
+
+export function boundedGenerateStructured<T>(
+  client: InferenceClient,
+  prompt: string,
+  maxTokens: number,
+  temperature: number,
+  elementSchema: ElementSchema,
+): Promise<StructuredResponse<T>> {
+  return withTimeout(
+    client.generateStructured<T>(prompt, maxTokens, temperature, elementSchema),
     `${client.type}:${client.modelId}`,
   );
 }

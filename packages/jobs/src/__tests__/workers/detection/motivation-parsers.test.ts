@@ -1,15 +1,15 @@
 /**
  * Motivation Parsers Tests
  *
- * Tests the MotivationParsers class which parses and validates AI responses
- * for different annotation motivations.
- *
- * Phase 2b (de-silence): the parsers no longer tolerate malformed output or
- * swallow parse failures into an empty array. Post-Phase-1 both providers emit
- * syntactically-valid, fence-free JSON arrays, so a parse failure is a real
- * failure and must throw (→ job:failed) rather than silently return zero
- * annotations. A legitimately-empty `[]` still parses to a success with no
- * matches. The former tolerant `extractObjectsFromArray` walker is gone.
+ * Tests the MotivationParsers class, which validates and reconciles
+ * ALREADY-PARSED elements from the structured inference surface
+ * (STRUCTURED-INFERENCE Phase 2). "Could not read the model" throws inside
+ * `generateStructured` and never reaches this layer — the former
+ * unparseable-string / non-array throw tests moved upstream with the
+ * behavior (see `anthropic-structured.test.ts` and `ollama.test.ts`).
+ * What this layer owns: per-element structural validation (D5 — the last
+ * line on the Ollama path and the schema/type drift guard) and
+ * reconciliation against the full document.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -24,24 +24,18 @@ describe('MotivationParsers', () => {
   const testContent = 'Alice went to Paris. Bob stayed home.';
 
   describe('parseComments', () => {
-    it('should parse valid comment array', () => {
-      const response = JSON.stringify([
-        {
-          exact: 'Alice',
-          start: 0,
-          end: 5,
-          comment: 'This is a test comment'
-        }
-      ]);
-
-      const result = MotivationParsers.parseComments(response, testContent);
+    it('should parse valid comment elements', () => {
+      const result = MotivationParsers.parseComments(
+        [{ exact: 'Alice', start: 0, end: 5, comment: 'This is a test comment' }],
+        testContent,
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
         exact: 'Alice',
         start: 0,
         end: 5,
-        comment: 'This is a test comment'
+        comment: 'This is a test comment',
       });
     });
 
@@ -49,191 +43,121 @@ describe('MotivationParsers', () => {
       // testContent = 'Alice went to Paris. Bob stayed home.'
       // The second item's exact has no plausible anchor — too dissimilar
       // for fuzzy match — so reconcileSelector returns null.
-      const response = JSON.stringify([
-        {
-          exact: 'Alice',
-          comment: 'Valid comment'
-        },
-        {
-          exact: 'XYZNOTPRESENTANYWHEREZYX',
-          comment: 'This will be filtered'
-        }
-      ]);
-
-      const result = MotivationParsers.parseComments(response, testContent);
+      const result = MotivationParsers.parseComments(
+        [
+          { exact: 'Alice', comment: 'Valid comment' },
+          { exact: 'XYZNOTPRESENTANYWHEREZYX', comment: 'This will be filtered' },
+        ],
+        testContent,
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0]!.exact).toBe('Alice');
     });
 
     it('should filter out comments with empty comment text', () => {
-      const response = JSON.stringify([
-        {
-          exact: 'Alice',
-          start: 0,
-          end: 5,
-          comment: ''
-        }
-      ]);
-
-      const result = MotivationParsers.parseComments(response, testContent);
+      const result = MotivationParsers.parseComments(
+        [{ exact: 'Alice', start: 0, end: 5, comment: '' }],
+        testContent,
+      );
 
       expect(result).toHaveLength(0);
     });
 
-    it('parses a legitimately-empty array as a success with no matches', () => {
-      expect(MotivationParsers.parseComments('[]', testContent)).toEqual([]);
+    it('drops structurally-invalid elements (D5 — the schema/type drift guard)', () => {
+      const result = MotivationParsers.parseComments(
+        [
+          null,
+          'not an object',
+          { exact: 42, comment: 'exact is not a string' },
+          { exact: 'Alice', comment: 'the only valid element' },
+        ],
+        testContent,
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0]!.comment).toBe('the only valid element');
     });
 
-    it('throws on unparseable response instead of silently returning []', () => {
-      expect(() => MotivationParsers.parseComments('not valid json', testContent)).toThrow();
-    });
-
-    it('throws on a non-array response instead of silently returning []', () => {
-      const response = JSON.stringify({ exact: 'Alice', start: 0, end: 5 });
-      expect(() => MotivationParsers.parseComments(response, testContent)).toThrow(/array/i);
+    it('passes an empty element list through as a success with no matches', () => {
+      expect(MotivationParsers.parseComments([], testContent)).toEqual([]);
     });
   });
 
   describe('parseHighlights', () => {
-    it('should parse valid highlight array', () => {
-      const response = JSON.stringify([
-        {
-          exact: 'Bob',
-          start: 21,
-          end: 24
-        }
-      ]);
-
-      const result = MotivationParsers.parseHighlights(response, testContent);
+    it('should parse valid highlight elements', () => {
+      const result = MotivationParsers.parseHighlights(
+        [{ exact: 'Bob', start: 21, end: 24 }],
+        testContent,
+      );
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
-        exact: 'Bob',
-        start: 21,
-        end: 24
-      });
+      expect(result[0]).toMatchObject({ exact: 'Bob', start: 21, end: 24 });
     });
 
     it('should filter out invalid highlights', () => {
-      const response = JSON.stringify([
-        { exact: 'Alice' },
-        { exact: 'XYZNOTPRESENTANYWHEREZYX' },
-      ]);
-
-      const result = MotivationParsers.parseHighlights(response, testContent);
+      const result = MotivationParsers.parseHighlights(
+        [{ exact: 'Alice' }, { exact: 'XYZNOTPRESENTANYWHEREZYX' }],
+        testContent,
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0]!.exact).toBe('Alice');
     });
 
-    it('parses a legitimately-empty array as a success with no matches', () => {
-      expect(MotivationParsers.parseHighlights('[]', testContent)).toEqual([]);
-    });
-
-    it('throws on unparseable response instead of silently returning []', () => {
-      expect(() => MotivationParsers.parseHighlights('{invalid', testContent)).toThrow();
+    it('passes an empty element list through as a success with no matches', () => {
+      expect(MotivationParsers.parseHighlights([], testContent)).toEqual([]);
     });
   });
 
   describe('parseAssessments', () => {
-    it('should parse valid assessment array', () => {
-      const response = JSON.stringify([
-        {
-          exact: 'Alice',
-          start: 0,
-          end: 5,
-          assessment: 'This is an assessment'
-        }
-      ]);
-
-      const result = MotivationParsers.parseAssessments(response, testContent);
+    it('should parse valid assessment elements', () => {
+      const result = MotivationParsers.parseAssessments(
+        [{ exact: 'Alice', start: 0, end: 5, assessment: 'This is an assessment' }],
+        testContent,
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
         exact: 'Alice',
         start: 0,
         end: 5,
-        assessment: 'This is an assessment'
+        assessment: 'This is an assessment',
       });
     });
 
     it('drops assessments whose exact does not appear in the source', () => {
-      const response = JSON.stringify([
-        { exact: 'Bob', assessment: 'Valid' },
-        { exact: 'XYZNOTPRESENTANYWHEREZYX', assessment: 'Will be filtered' },
-      ]);
-
-      const result = MotivationParsers.parseAssessments(response, testContent);
+      const result = MotivationParsers.parseAssessments(
+        [
+          { exact: 'Bob', assessment: 'Valid' },
+          { exact: 'XYZNOTPRESENTANYWHEREZYX', assessment: 'Will be filtered' },
+        ],
+        testContent,
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0]!.exact).toBe('Bob');
     });
-
-    it('throws on unparseable response instead of silently returning []', () => {
-      expect(() => MotivationParsers.parseAssessments('not json', testContent)).toThrow();
-    });
-
-    it('throws on stray tokens between array elements instead of partially recovering', () => {
-      // Pre-Phase-2 the tolerant walker recovered the two well-formed objects
-      // around a hallucinated `wide: 0,` line. Post-Phase-1 such output cannot
-      // come from a constrained provider, so it is a real parse failure that
-      // must fail the job loudly rather than silently surface partial results.
-      const response = `[
-  { "exact": "Alice", "start": 0, "end": 5, "assessment": "First assessment" },
-  wide: 0,
-  { "exact": "Bob", "start": 21, "end": 24, "assessment": "Second assessment" }
-]`;
-
-      expect(() => MotivationParsers.parseAssessments(response, testContent)).toThrow();
-    });
   });
 
   describe('parseTags', () => {
-    it('should parse valid tag array without validation', () => {
-      const response = JSON.stringify([
-        {
-          exact: 'Alice went to Paris',
-          start: 0,
-          end: 19
-        }
-      ]);
-
-      const result = MotivationParsers.parseTags(response);
+    it('should parse valid tag elements without validation', () => {
+      const result = MotivationParsers.parseTags(
+        [{ exact: 'Alice went to Paris', start: 0, end: 19 }],
+      );
 
       expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
-        exact: 'Alice went to Paris',
-        start: 0,
-        end: 19
-      });
+      expect(result[0]).toMatchObject({ exact: 'Alice went to Paris', start: 0, end: 19 });
     });
 
     it('should filter out tags with empty exact text', () => {
-      const response = JSON.stringify([
-        {
-          exact: '',
-          start: 0,
-          end: 0
-        }
-      ]);
-
-      const result = MotivationParsers.parseTags(response);
+      const result = MotivationParsers.parseTags([{ exact: '', start: 0, end: 0 }]);
 
       expect(result).toHaveLength(0);
     });
 
-    it('parses a legitimately-empty array as a success with no matches', () => {
-      expect(MotivationParsers.parseTags('[]')).toEqual([]);
-    });
-
-    it('throws on unparseable response instead of silently returning []', () => {
-      expect(() => MotivationParsers.parseTags('invalid json')).toThrow();
-    });
-
-    it('throws on a non-array response instead of silently returning []', () => {
-      const response = JSON.stringify({ exact: 'test', start: 0, end: 4 });
-      expect(() => MotivationParsers.parseTags(response)).toThrow(/array/i);
+    it('passes an empty element list through as a success with no matches', () => {
+      expect(MotivationParsers.parseTags([])).toEqual([]);
     });
   });
 

@@ -10,36 +10,24 @@
  */
 
 import { reconcileSelector, isObject, isString, type AnchorMethod } from '@semiont/core';
+import type { ElementSchema } from '@semiont/inference';
 
-/**
- * Strict parse of an LLM JSON-array response.
- *
- * Post-Phase-1 both providers emit syntactically-valid, fence-free JSON
- * arrays — Anthropic via forced structured tool-use, Ollama via
- * grammar-constrained sampling — so there is nothing to tolerate. A parse
- * failure, or a non-array, is a real failure and is surfaced as a throw so
- * the job fails loudly (`job:failed`) instead of silently returning zero
- * annotations. A legitimately-empty `[]` parses to an empty array (a success
- * with no matches).
- *
- * Replaces the former tolerant `extractObjectsFromArray` walker, deleted
- * along with the silent-drop policy it served.
- */
-function parseJsonArray(response: string, motivation: string): unknown[] {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(response.trim());
-  } catch (error) {
-    console.error(`[MotivationParsers] Failed to parse AI ${motivation} response:`, error);
-    console.error('Raw response:', response);
-    throw error instanceof Error ? error : new Error(String(error));
-  }
-  if (!Array.isArray(parsed)) {
-    console.error(`[MotivationParsers] Expected a JSON array for ${motivation} detection, got ${typeof parsed}:`, response);
-    throw new Error(`Expected a JSON array for ${motivation} detection, got ${typeof parsed}`);
-  }
-  return parsed;
-}
+// Parsers receive ALREADY-PARSED elements (`unknown[]`) from the structured
+// inference surface — `generateStructured` returns `T[]` or throws, so
+// "could not read the model" never reaches this layer and there is no string
+// to parse here (the former strict `parseJsonArray` moved into that contract,
+// as the earlier tolerant walker moved into it before). What remains here is
+// per-element structural validation (STRUCTURED-INFERENCE D5 — the last line
+// on the Ollama path and the schema/type drift guard) plus reconciliation
+// against the full document.
+//
+// Each element schema is declared ADJACENT to the Match interface it mirrors:
+// the schema constrains the wire, the interface is what the code consumes,
+// and nothing verifies they agree — adjacency is the drift guard.
+// `prefix`/`suffix` stay OUT of `required` deliberately: requiring them turns
+// "sometimes absent" into "always present, sometimes empty" (measured
+// 2026-08-06), an anchoring-path change Phase 3 examines before anyone
+// relies on it.
 
 /**
  * Represents a detected comment with validated position
@@ -53,6 +41,19 @@ export interface CommentMatch {
   comment: string;
 }
 
+/** Wire schema for one comment element — keep in lockstep with `CommentMatch`. */
+export const COMMENT_ELEMENT_SCHEMA: ElementSchema = {
+  type: 'object',
+  properties: {
+    exact: { type: 'string' },
+    prefix: { type: 'string' },
+    suffix: { type: 'string' },
+    comment: { type: 'string' },
+  },
+  required: ['exact', 'comment'],
+  additionalProperties: false,
+};
+
 /**
  * Represents a detected highlight with validated position
  */
@@ -63,6 +64,18 @@ export interface HighlightMatch {
   prefix?: string;
   suffix?: string;
 }
+
+/** Wire schema for one highlight element — keep in lockstep with `HighlightMatch`. */
+export const HIGHLIGHT_ELEMENT_SCHEMA: ElementSchema = {
+  type: 'object',
+  properties: {
+    exact: { type: 'string' },
+    prefix: { type: 'string' },
+    suffix: { type: 'string' },
+  },
+  required: ['exact'],
+  additionalProperties: false,
+};
 
 /**
  * Represents a detected assessment with validated position
@@ -76,6 +89,19 @@ export interface AssessmentMatch {
   assessment: string;
 }
 
+/** Wire schema for one assessment element — keep in lockstep with `AssessmentMatch`. */
+export const ASSESSMENT_ELEMENT_SCHEMA: ElementSchema = {
+  type: 'object',
+  properties: {
+    exact: { type: 'string' },
+    prefix: { type: 'string' },
+    suffix: { type: 'string' },
+    assessment: { type: 'string' },
+  },
+  required: ['exact', 'assessment'],
+  additionalProperties: false,
+};
+
 /**
  * Represents a detected tag with validated position
  */
@@ -88,17 +114,30 @@ export interface TagMatch {
   category: string;
 }
 
+/**
+ * Wire schema for one tag element — keep in lockstep with `RawTagInput`
+ * (the category is stamped by the caller, not emitted by the model).
+ */
+export const TAG_ELEMENT_SCHEMA: ElementSchema = {
+  type: 'object',
+  properties: {
+    exact: { type: 'string' },
+    prefix: { type: 'string' },
+    suffix: { type: 'string' },
+  },
+  required: ['exact'],
+  additionalProperties: false,
+};
+
 export class MotivationParsers {
   /**
-   * Parse and validate AI response for comment detection
+   * Validate and reconcile structured comment elements.
    *
-   * @param response - Raw AI response text (a JSON array)
+   * @param parsed - Already-parsed elements from the structured surface
    * @param content - Original content to validate offsets against
    * @returns Array of validated comment matches
-   * @throws if the response is not a parseable JSON array
    */
-  static parseComments(response: string, content: string): CommentMatch[] {
-    const parsed = parseJsonArray(response, 'comment');
+  static parseComments(parsed: unknown[], content: string): CommentMatch[] {
 
     const valid = parsed.filter((c): c is { exact: string; prefix?: string; suffix?: string; comment: string } =>
       isObject(c) &&
@@ -135,15 +174,13 @@ export class MotivationParsers {
   }
 
   /**
-   * Parse and validate AI response for highlight detection
+   * Validate and reconcile structured highlight elements.
    *
-   * @param response - Raw AI response text (a JSON array)
+   * @param parsed - Already-parsed elements from the structured surface
    * @param content - Original content to validate offsets against
    * @returns Array of validated highlight matches
-   * @throws if the response is not a parseable JSON array
    */
-  static parseHighlights(response: string, content: string): HighlightMatch[] {
-    const parsed = parseJsonArray(response, 'highlight');
+  static parseHighlights(parsed: unknown[], content: string): HighlightMatch[] {
 
     const highlights = parsed.filter((h): h is { exact: string; prefix?: string; suffix?: string } =>
       isObject(h) && isString(h.exact)
@@ -174,15 +211,13 @@ export class MotivationParsers {
   }
 
   /**
-   * Parse and validate AI response for assessment detection
+   * Validate and reconcile structured assessment elements.
    *
-   * @param response - Raw AI response text (a JSON array)
+   * @param parsed - Already-parsed elements from the structured surface
    * @param content - Original content to validate offsets against
    * @returns Array of validated assessment matches
-   * @throws if the response is not a parseable JSON array
    */
-  static parseAssessments(response: string, content: string): AssessmentMatch[] {
-    const parsed = parseJsonArray(response, 'assessment');
+  static parseAssessments(parsed: unknown[], content: string): AssessmentMatch[] {
 
     const assessments = parsed.filter((a): a is { exact: string; prefix?: string; suffix?: string; assessment: string } =>
       isObject(a) && isString(a.exact) && isString(a.assessment)
@@ -214,14 +249,13 @@ export class MotivationParsers {
   }
 
   /**
-   * Parse the LLM's tag response into raw, pre-reconciliation tag inputs.
+   * Validate structured tag elements into raw, pre-reconciliation tag inputs.
    * Reconciliation happens in `validateTagOffsets`, which adds `start`/`end`
    * by anchoring `exact` against the source content.
    *
-   * @throws if the response is not a parseable JSON array
+   * @param parsed - Already-parsed elements from the structured surface
    */
-  static parseTags(response: string): RawTagInput[] {
-    const parsed = parseJsonArray(response, 'tag');
+  static parseTags(parsed: unknown[]): RawTagInput[] {
 
     const valid = parsed.filter((t): t is RawTagInput =>
       isObject(t) && isString(t.exact) && t.exact.trim().length > 0

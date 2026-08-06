@@ -13,6 +13,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { InferenceClient } from '@semiont/inference';
 import {
   boundedGenerate,
+  boundedGenerateStructured,
   boundedGenerateWithMetadata,
   INFERENCE_TIMEOUT_MS,
 } from '../../workers/inference-call';
@@ -26,6 +27,7 @@ function clientWith(overrides: Partial<InferenceClient>): InferenceClient {
     modelId: 'test-model',
     generateText: vi.fn(async () => 'text'),
     generateTextWithMetadata: vi.fn(async () => ({ text: '[]', stopReason: 'end_turn' })),
+    generateStructured: vi.fn(async () => ({ items: [], stopReason: 'end_turn' })),
     // Resolves immediately (no timer involvement) so detection call sites get
     // past budget derivation to the model call under test.
     limits: vi.fn(async () => ({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 })),
@@ -40,14 +42,19 @@ describe('bounded inference calls', () => {
 
   it('passes results and arguments through when the model answers in time', async () => {
     const client = clientWith({});
+    const ELEMENT = { type: 'object' };
 
     await expect(boundedGenerate(client, 'p', 100, 0.1)).resolves.toBe('text');
     await expect(
-      boundedGenerateWithMetadata(client, 'p', 100, 0.1, { format: 'json' }),
+      boundedGenerateWithMetadata(client, 'p', 100, 0.1),
     ).resolves.toEqual({ text: '[]', stopReason: 'end_turn' });
+    await expect(
+      boundedGenerateStructured(client, 'p', 100, 0.1, ELEMENT),
+    ).resolves.toEqual({ items: [], stopReason: 'end_turn' });
 
-    expect(client.generateText).toHaveBeenCalledWith('p', 100, 0.1, undefined);
-    expect(client.generateTextWithMetadata).toHaveBeenCalledWith('p', 100, 0.1, { format: 'json' });
+    expect(client.generateText).toHaveBeenCalledWith('p', 100, 0.1);
+    expect(client.generateTextWithMetadata).toHaveBeenCalledWith('p', 100, 0.1);
+    expect(client.generateStructured).toHaveBeenCalledWith('p', 100, 0.1, ELEMENT);
   });
 
   it('rejects with a timeout error when the model call never resolves', async () => {
@@ -82,7 +89,7 @@ describe('bounded inference calls', () => {
 
   it('detection call sites route through the bound (never-resolving model → timeout, not a wedged worker)', async () => {
     vi.useFakeTimers();
-    const client = clientWith({ generateTextWithMetadata: vi.fn(never) });
+    const client = clientWith({ generateStructured: vi.fn(never) });
 
     const pending = AnnotationDetection.detectHighlights('some content', client);
     const assertion = expect(pending).rejects.toThrow(/timed out/);

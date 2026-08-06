@@ -1,6 +1,6 @@
-import type { InferenceClient } from '@semiont/inference';
-import { chunkText, estimateTokens, getLocaleEnglishName, isArray, isObject, isString, type Logger } from '@semiont/core';
-import { boundedGenerateWithMetadata } from '../inference-call';
+import type { ElementSchema, InferenceClient } from '@semiont/inference';
+import { chunkText, estimateTokens, getLocaleEnglishName, isObject, isString, type Logger } from '@semiont/core';
+import { boundedGenerateStructured } from '../inference-call';
 import { deriveDetectionBudget } from './detection-chunking';
 
 /**
@@ -17,6 +17,33 @@ export interface ExtractedEntity {
   prefix?: string;
   suffix?: string;
 }
+
+/**
+ * JSON Schema for one extracted entity — the provider-enforced shape.
+ *
+ * Declared adjacent to `ExtractedEntity` deliberately: the schema is what
+ * constrains the wire and the interface is what the code consumes, and
+ * nothing verifies they agree — adjacency is the drift guard. The
+ * per-element `isObject`/`isString` checks below stay as the structural
+ * backstop (STRUCTURED-INFERENCE D5).
+ *
+ * `prefix`/`suffix` are deliberately NOT in `required`: with all four
+ * required, models return `"prefix": ""` instead of omitting the key
+ * (measured 2026-08-06), turning "sometimes absent" into "always present,
+ * sometimes empty" — an anchoring-path change Phase 3 re-examines before
+ * anyone relies on it.
+ */
+const ENTITY_ELEMENT_SCHEMA: ElementSchema = {
+  type: 'object',
+  properties: {
+    exact: { type: 'string' },
+    entityType: { type: 'string' },
+    prefix: { type: 'string' },
+    suffix: { type: 'string' },
+  },
+  required: ['exact', 'entityType'],
+  additionalProperties: false,
+};
 
 /**
  * Extract entity references from text using AI.
@@ -133,62 +160,34 @@ Example output:
 
   const collected: ExtractedEntity[] = [];
   for (let i = 0; i < chunks.length; i++) {
-    const response = await boundedGenerateWithMetadata(
+    // The structured surface returns parsed elements or THROWS — an
+    // unreadable model response is a job failure, never a silent []. The
+    // old JSON.parse + isArray blocks are unreachable by construction now:
+    // the type says T[].
+    const response = await boundedGenerateStructured<unknown>(
       client,
       buildPrompt(chunks[i]!),
       outputBudget,
       0.3, // Lower temperature for more consistent extraction
-      // Force grammar-constrained JSON output. Without this, Ollama models
-      // periodically emit malformed JSON (truncated brackets, mid-token
-      // breaks at higher token counts) which silently parse-fails into
-      // [] downstream. The prompt's schema (which keys, what types) still
-      // governs *what* the JSON contains; `format: 'json'` governs that
-      // it's syntactically valid.
-      { format: 'json' },
+      ENTITY_ELEMENT_SCHEMA,
     );
     logger.debug('Got entity extraction response', {
       chunk: i + 1,
       chunks: chunks.length,
-      responseLength: response.text.length,
+      items: response.items.length,
     });
 
-    // Truncation is data loss, not "no entities" — check it BEFORE parsing.
-    // Post-tool-use a truncated response is a syntactically-valid but
-    // incomplete array (structured output serializes whatever was generated),
-    // so JSON.parse would succeed and the loss would be invisible. Fail
-    // loudly; with derived budgets this fires only on pathological density.
+    // Truncation is data loss, not "no entities" — check it BEFORE consuming.
+    // A truncated structured response can still carry a valid partial array,
+    // so the items themselves cannot signal the loss. Fail loudly; with
+    // derived budgets this fires only on pathological density.
     if (response.stopReason === 'max_tokens') {
       const errorMsg = `Entity extraction response truncated (max_tokens) on chunk ${i + 1}/${chunks.length} despite the derived output budget of ${outputBudget} tokens — failing the job rather than dropping annotations.`;
-      logger.error(errorMsg, { responseLength: response.text.length });
+      logger.error(errorMsg, { items: response.items.length });
       throw new Error(errorMsg);
     }
 
-    // A parse failure used to be swallowed as `[]` — silent data loss
-    // indistinguishable from a legitimately-empty extraction. Surface it as a
-    // thrown error so the job fails (job:failed) and `withSpan` marks the span.
-    let entities: unknown;
-    try {
-      entities = JSON.parse(response.text.trim());
-    } catch (error) {
-      logger.error('Failed to parse entity extraction response', {
-        error: error instanceof Error ? error.message : String(error),
-        response: response.text.slice(0, 500),
-      });
-      throw new Error('Failed to parse entity extraction response', {
-        cause: error instanceof Error ? error : new Error(String(error)),
-      });
-    }
-
-    if (!isArray(entities)) {
-      logger.error('Failed to parse entity extraction response: expected a JSON array', {
-        response: response.text.slice(0, 500),
-      });
-      throw new Error('Failed to parse entity extraction response: expected a JSON array');
-    }
-
-    logger.debug('Parsed entities from AI response', { chunk: i + 1, count: entities.length });
-
-    for (const e of entities) {
+    for (const e of response.items) {
       // No dedupe here: overlap duplicates from adjacent chunks pass through
       // to the processor's span-keyed dedupeAnnotations — the single dedupe
       // point.

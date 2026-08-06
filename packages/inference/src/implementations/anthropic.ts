@@ -3,7 +3,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
-import { InferenceClient, InferenceLimits, InferenceOptions, InferenceResponse } from '../interface.js';
+import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredResponse } from '../interface.js';
 
 // The SDK refuses non-streaming create() calls whose projected duration
 // exceeds its 10-minute timeout: it throws when
@@ -13,17 +13,16 @@ import { InferenceClient, InferenceLimits, InferenceOptions, InferenceResponse }
 // same response handling, same interface.
 const NONSTREAMING_MAX_OUTPUT_TOKENS = Math.floor(128_000 / 6);
 
-// Forced-tool channel for JSON mode. Anthropic has no grammar-constrained
-// sampling like Ollama's `format`; the equivalent hard guarantee is a *tool
-// call*. We offer exactly one tool and force it via `tool_choice`, so the model
-// must answer by filling the tool's input — which the API serializes as
-// properly-escaped JSON. That kills both free-text failure modes at the source:
-// trailing prose after the `]` (variant 1) and an unescaped `"` inside a string
-// (variant 2), neither of which a prefill could prevent.
+// Forced-tool channel for structured generation. Anthropic has no
+// grammar-constrained sampling like Ollama's `format`; the equivalent hard
+// guarantee is a *tool call*. We offer exactly one tool and force it via
+// `tool_choice`, so the model must answer by filling the tool's input — which
+// the API serializes as properly-escaped JSON.
 //
-// A tool's input must be an *object*, so the array is carried under `items`
-// and unwrapped on return (see generateTextWithMetadata) — the caller still
-// receives a top-level JSON array in `text`, exactly as on Ollama.
+// A tool's input must be an *object*, so the array is carried under `items`.
+// (Phase 3 of STRUCTURED-INFERENCE makes this strict and threads the caller's
+// element schema in place of `items: {}`; Phase 5 asks whether the tool
+// should exist at all once `output_config.format` is established.)
 const JSON_ARRAY_TOOL: Anthropic.Tool = {
   name: 'emit_json_array',
   description:
@@ -89,20 +88,17 @@ export class AnthropicInferenceClient implements InferenceClient {
     return this.client.messages.create(params);
   }
 
-  async generateText(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<string> {
-    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature, options);
+  async generateText(prompt: string, maxTokens: number, temperature: number): Promise<string> {
+    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature);
     return response.text;
   }
 
-  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<InferenceResponse> {
-    const jsonMode = options?.format === 'json';
-
+  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number): Promise<InferenceResponse> {
     this.logger?.debug('Generating text with inference client', {
       model: this.modelId,
       promptLength: prompt.length,
       maxTokens,
       temperature,
-      format: options?.format,
     });
 
     const params: Anthropic.MessageCreateParamsNonStreaming = {
@@ -110,79 +106,21 @@ export class AnthropicInferenceClient implements InferenceClient {
       max_tokens: maxTokens,
       temperature,
       messages: [{ role: 'user', content: prompt }],
-      // JSON mode → force the structured-output tool. No prefill assistant
-      // turn: the constraint now lives in the tool call, not in free text.
-      ...(jsonMode
-        ? { tools: [JSON_ARRAY_TOOL], tool_choice: { type: 'tool' as const, name: JSON_ARRAY_TOOL.name } }
-        : {}),
     };
 
     const start = performance.now();
-    let response: Anthropic.Message;
-    try {
-      response = await this.requestMessage(params);
-    } catch (err) {
-      recordInferenceUsage({
-        provider: this.type,
+    const response = await this.recordedRequest(params, start);
+
+    const textContent = response.content.find(c => c.type === 'text');
+    if (!textContent || textContent.type !== 'text') {
+      this.recordError(start, response);
+      this.logger?.error('No text content in inference response', {
         model: this.modelId,
-        durationMs: performance.now() - start,
-        outcome: 'error',
+        contentTypes: response.content.map(c => c.type)
       });
-      throw err;
+      throw new Error('No text content in inference response');
     }
-
-    this.logger?.debug('Inference response received', {
-      model: this.modelId,
-      contentBlocks: response.content.length,
-      stopReason: response.stop_reason
-    });
-
-    let text: string;
-    if (jsonMode) {
-      // The answer arrives as a tool_use block, not text. Unwrap the `items`
-      // array and re-serialize it so `text` is a complete, parseable top-level
-      // JSON array — the cross-provider contract every consumer reads.
-      const toolUse = response.content.find(c => c.type === 'tool_use');
-      if (!toolUse || toolUse.type !== 'tool_use') {
-        recordInferenceUsage({
-          provider: this.type,
-          model: this.modelId,
-          durationMs: performance.now() - start,
-          outcome: 'error',
-          inputTokens: response.usage?.input_tokens,
-          outputTokens: response.usage?.output_tokens,
-        });
-        this.logger?.error('No tool_use content in inference response', {
-          model: this.modelId,
-          contentTypes: response.content.map(c => c.type)
-        });
-        throw new Error('No tool_use content in inference response');
-      }
-      // `input` is typed `unknown` by the SDK. A truncated (`max_tokens`)
-      // response may carry partial or absent `items` — fall back to the partial
-      // array, or `[]` if absent; the consumer flags truncation via stopReason.
-      const input = toolUse.input as { items?: unknown };
-      const items = Array.isArray(input.items) ? input.items : [];
-      text = JSON.stringify(items);
-    } else {
-      const textContent = response.content.find(c => c.type === 'text');
-      if (!textContent || textContent.type !== 'text') {
-        recordInferenceUsage({
-          provider: this.type,
-          model: this.modelId,
-          durationMs: performance.now() - start,
-          outcome: 'error',
-          inputTokens: response.usage?.input_tokens,
-          outputTokens: response.usage?.output_tokens,
-        });
-        this.logger?.error('No text content in inference response', {
-          model: this.modelId,
-          contentTypes: response.content.map(c => c.type)
-        });
-        throw new Error('No text content in inference response');
-      }
-      text = textContent.text;
-    }
+    const text = textContent.text;
 
     recordInferenceUsage({
       provider: this.type,
@@ -203,5 +141,115 @@ export class AnthropicInferenceClient implements InferenceClient {
       text,
       stopReason: response.stop_reason || 'unknown'
     };
+  }
+
+  async generateStructured<T>(
+    prompt: string,
+    maxTokens: number,
+    temperature: number,
+    _elementSchema: ElementSchema,
+  ): Promise<StructuredResponse<T>> {
+    // Phase 2 of STRUCTURED-INFERENCE: the schema parameter is accepted but
+    // not yet threaded into the tool (`items: {}` stands until Phase 3 makes
+    // the tool strict and element-typed). The load-bearing change here is the
+    // return path: unreadable input THROWS instead of coercing to [].
+    this.logger?.debug('Generating structured output with inference client', {
+      model: this.modelId,
+      promptLength: prompt.length,
+      maxTokens,
+      temperature,
+    });
+
+    const params: Anthropic.MessageCreateParamsNonStreaming = {
+      model: this.modelId,
+      max_tokens: maxTokens,
+      temperature,
+      messages: [{ role: 'user', content: prompt }],
+      // Force the structured-output tool. No prefill assistant turn: the
+      // constraint lives in the tool call, not in free text.
+      tools: [JSON_ARRAY_TOOL],
+      tool_choice: { type: 'tool' as const, name: JSON_ARRAY_TOOL.name },
+    };
+
+    const start = performance.now();
+    const response = await this.recordedRequest(params, start);
+
+    const toolUse = response.content.find(c => c.type === 'tool_use');
+    if (!toolUse || toolUse.type !== 'tool_use') {
+      this.recordError(start, response);
+      this.logger?.error('No tool_use content in inference response', {
+        model: this.modelId,
+        contentTypes: response.content.map(c => c.type)
+      });
+      throw new Error('No tool_use content in inference response');
+    }
+
+    // `input` is typed `unknown` by the SDK. When the SDK cannot parse the
+    // accumulated tool-input JSON (live case: one invalid escape in a 67 K
+    // payload), it delivers `items` as a STRING — and a truncated response
+    // may omit it entirely. Both are "we could not read the model," which
+    // must never be conflated with "the model found nothing": the old
+    // `Array.isArray(items) ? items : []` fallback silently discarded 202
+    // real entities as a green empty result. Unreadable is a THROW.
+    const input = toolUse.input as { items?: unknown };
+    if (!Array.isArray(input.items)) {
+      this.recordError(start, response);
+      const shape = typeof input.items;
+      this.logger?.error('Structured response could not be read', {
+        model: this.modelId,
+        itemsType: shape,
+        stopReason: response.stop_reason,
+        ...(typeof input.items === 'string' ? { itemsLength: input.items.length } : {}),
+      });
+      throw new Error(
+        `Structured response could not be read: items is ${shape === 'undefined' ? 'absent' : `a ${shape}, not an array`} (stop_reason: ${response.stop_reason})`,
+      );
+    }
+
+    recordInferenceUsage({
+      provider: this.type,
+      model: this.modelId,
+      durationMs: performance.now() - start,
+      outcome: 'success',
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+    });
+
+    this.logger?.info('Structured generation completed', {
+      model: this.modelId,
+      items: input.items.length,
+      stopReason: response.stop_reason
+    });
+
+    return {
+      items: input.items as T[],
+      stopReason: response.stop_reason || 'unknown',
+    };
+  }
+
+  /** Issue the request, recording an error metric if the transport throws. */
+  private async recordedRequest(params: Anthropic.MessageCreateParamsNonStreaming, start: number): Promise<Anthropic.Message> {
+    try {
+      return await this.requestMessage(params);
+    } catch (err) {
+      recordInferenceUsage({
+        provider: this.type,
+        model: this.modelId,
+        durationMs: performance.now() - start,
+        outcome: 'error',
+      });
+      throw err;
+    }
+  }
+
+  private recordError(start: number, response: Anthropic.Message): void {
+    recordInferenceUsage({
+      provider: this.type,
+      model: this.modelId,
+      durationMs: performance.now() - start,
+      outcome: 'error',
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+    });
   }
 }

@@ -1,6 +1,6 @@
 // Mock implementation of InferenceClient for testing
 
-import { InferenceClient, InferenceLimits, InferenceOptions, InferenceResponse } from '../interface.js';
+import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredResponse } from '../interface.js';
 
 // Generous defaults so existing consumers never trip chunking or window
 // guards unless a test injects tighter limits deliberately.
@@ -16,7 +16,7 @@ export class MockInferenceClient implements InferenceClient {
   private responseIndex: number = 0;
   private stopReasons: string[] = [];
   private injectedLimits: InferenceLimits;
-  public calls: Array<{ prompt: string; maxTokens: number; temperature: number; options?: InferenceOptions }> = [];
+  public calls: Array<{ prompt: string; maxTokens: number; temperature: number; elementSchema?: ElementSchema }> = [];
 
   constructor(responses: string[] = ['Mock response'], stopReasons?: string[], limits?: InferenceLimits) {
     this.responses = responses;
@@ -28,14 +28,50 @@ export class MockInferenceClient implements InferenceClient {
     return this.injectedLimits;
   }
 
-  async generateText(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<string> {
-    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature, options);
+  async generateText(prompt: string, maxTokens: number, temperature: number): Promise<string> {
+    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature);
     return response.text;
   }
 
-  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<InferenceResponse> {
-    this.calls.push({ prompt, maxTokens, temperature, ...(options ? { options } : {}) });
+  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number): Promise<InferenceResponse> {
+    this.calls.push({ prompt, maxTokens, temperature });
+    return this.nextResponse();
+  }
 
+  /**
+   * Structured surface: pops the same responses queue and PARSES the entry,
+   * mirroring the real contract — a queued string that is not a JSON array
+   * throws "could not be read", so tests inject the malformed shape simply by
+   * queuing it (`setResponses(['not json'])`). The element schema is recorded
+   * on `calls` so tests can assert what the caller declared.
+   */
+  async generateStructured<T>(
+    prompt: string,
+    maxTokens: number,
+    temperature: number,
+    elementSchema: ElementSchema,
+  ): Promise<StructuredResponse<T>> {
+    this.calls.push({ prompt, maxTokens, temperature, elementSchema });
+    const { text, stopReason } = this.nextResponse();
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch (err) {
+      throw new Error(
+        `Structured response could not be read: response is not valid JSON (stop_reason: ${stopReason})`,
+        { cause: err },
+      );
+    }
+    if (!Array.isArray(parsed)) {
+      throw new Error(
+        `Structured response could not be read: parsed to ${typeof parsed}, not an array (stop_reason: ${stopReason})`,
+      );
+    }
+    return { items: parsed as T[], stopReason };
+  }
+
+  private nextResponse(): InferenceResponse {
     const text = this.responses[this.responseIndex];
     const stopReason = this.stopReasons[this.responseIndex] || 'end_turn';
 
