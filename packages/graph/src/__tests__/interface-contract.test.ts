@@ -277,6 +277,66 @@ describe('GraphDatabase Interface Contract', () => {
       expect(results.map(r => r.name)).toEqual(['Report Newest', 'Report Middle', 'Report Oldest']);
     });
 
+    it('ranks exact name matches over prefix, over substring, over path-only', async () => {
+      // Dates run counter to the expected order, so recency cannot produce a
+      // passing result by accident — only the rank ladder can.
+      await db.createResource(createTestResource({
+        '@id': resourceId('rank-substring'), name: 'Notes about Marathon',
+        dateCreated: '2026-04-01T00:00:00.000Z',
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('rank-path'), name: 'Greek victory',
+        storageUri: 'file://places/Marathon.md', dateCreated: '2026-03-01T00:00:00.000Z',
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('rank-exact'), name: 'Marathon',
+        dateCreated: '2020-01-01T00:00:00.000Z',
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('rank-prefix'), name: 'Marathon Chronicle',
+        dateCreated: '2021-01-01T00:00:00.000Z',
+      }));
+
+      const results = await db.searchResources('Marathon');
+
+      expect(results.map(r => r.name)).toEqual([
+        'Marathon',
+        'Marathon Chronicle',
+        'Notes about Marathon',
+        'Greek victory',
+      ]);
+    });
+
+    it('falls back to recency within a rank tier', async () => {
+      await db.createResource(createTestResource({
+        '@id': resourceId('tier-older'), name: 'Marathon Notes',
+        dateCreated: '2020-01-01T00:00:00.000Z',
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('tier-newer'), name: 'Marathon Report',
+        dateCreated: '2026-01-01T00:00:00.000Z',
+      }));
+
+      const results = await db.searchResources('Marathon');
+
+      expect(results.map(r => r.name)).toEqual(['Marathon Report', 'Marathon Notes']);
+    });
+
+    it('applies the same ranking to listResources when search is set', async () => {
+      await db.createResource(createTestResource({
+        '@id': resourceId('list-substring'), name: 'About Marathon',
+        dateCreated: '2026-04-01T00:00:00.000Z',
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('list-exact'), name: 'Marathon',
+        dateCreated: '2020-01-01T00:00:00.000Z',
+      }));
+
+      const { resources } = await db.listResources({ search: 'Marathon' });
+
+      expect(resources.map(r => r.name)).toEqual(['Marathon', 'About Marathon']);
+    });
+
     it('breaks dateCreated ties by id so paging cannot repeat or drop rows', async () => {
       const sameInstant = '2026-01-01T00:00:00.000Z';
       // Inserted out of id order — insertion order must not leak into results.

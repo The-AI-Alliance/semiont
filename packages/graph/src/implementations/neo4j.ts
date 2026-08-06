@@ -337,10 +337,26 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       params.skip = this.neo4j.int(filter.offset || 0);
       params.limit = this.neo4j.int(filter.limit || 20);
 
+      // Rank only means something against a query; an unsearched listing orders
+      // on recency alone. Ranking must happen here rather than over the returned
+      // page, or it would sort one page instead of the match set.
+      const rankClause = filter.search
+        ? `WITH d, CASE
+             WHEN toLower(d.name) = toLower($search) THEN 0
+             WHEN toLower(d.name) STARTS WITH toLower($search) THEN 1
+             WHEN toLower(d.name) CONTAINS toLower($search) THEN 2
+             ELSE 3
+           END AS rank
+         `
+        : '';
+      const orderClause = filter.search
+        ? 'ORDER BY rank, d.created DESC, d.id'
+        : 'ORDER BY d.created DESC, d.id';
+
       const result = await session.run(
         `MATCH (d:Resource) ${whereClause}
-         RETURN d
-         ORDER BY d.created DESC, d.id
+         ${rankClause}RETURN d
+         ${orderClause}
          SKIP $skip LIMIT $limit`,
         params
       );
@@ -354,22 +370,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   }
 
   async searchResources(query: string, limit: number = 20): Promise<ResourceDescriptor[]> {
-    const session = this.getSession();
-    try {
-      const result = await session.run(
-        `MATCH (d:Resource)
-         WHERE toLower(d.name) CONTAINS toLower($query)
-            OR toLower(coalesce(d.storageUri, "")) CONTAINS toLower($query)
-         RETURN d
-         ORDER BY d.created DESC, d.id
-         LIMIT $limit`,
-        { query, limit: this.neo4j.int(limit) }
-      );
-
-      return result.records.map(record => this.parseResourceNode(record.get('d')));
-    } finally {
-      await session.close();
-    }
+    return (await this.listResources({ search: query, limit })).resources;
   }
 
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {

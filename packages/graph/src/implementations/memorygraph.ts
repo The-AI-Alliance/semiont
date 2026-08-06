@@ -2,7 +2,8 @@
 // Used for development and testing without requiring a real graph database
 
 import { GraphDatabase } from '../interface';
-import { assertMutableResourceUpdate, compareByRecencyThenId } from '../interface';
+import { assertMutableResourceUpdate } from '../interface';
+import { queryResources } from '../resource-query';
 import type { Logger } from '@semiont/core';
 import type {
   AnnotationCategory,
@@ -102,46 +103,11 @@ export class MemoryGraphDatabase implements GraphDatabase {
   }
   
   async listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }> {
-    let docs = Array.from(this.resources.values());
-
-    if (filter.entityTypes && filter.entityTypes.length > 0) {
-      docs = docs.filter(doc =>
-        doc.entityTypes && doc.entityTypes.some((type: string) => filter.entityTypes!.includes(type))
-      );
-    }
-
-    if (filter.search) {
-      const searchLower = filter.search.toLowerCase();
-      docs = docs.filter(doc =>
-        doc.name.toLowerCase().includes(searchLower) ||
-        (doc.storageUri?.toLowerCase().includes(searchLower) ?? false)
-      );
-    }
-
-    if (filter.archived !== undefined) {
-      docs = docs.filter(doc => (doc.archived ?? false) === filter.archived);
-    }
-
-    const total = docs.length;
-    const offset = filter.offset || 0;
-    const limit = filter.limit || 20;
-    docs = docs.sort(compareByRecencyThenId).slice(offset, offset + limit);
-
-    return { resources: docs, total };
+    return queryResources(Array.from(this.resources.values()), filter);
   }
 
   async searchResources(query: string, limit: number = 20): Promise<ResourceDescriptor[]> {
-    // Simple text search in memory across name and storageUri
-    const searchLower = query.toLowerCase();
-    const results = Array.from(this.resources.values())
-      .filter(doc =>
-        doc.name.toLowerCase().includes(searchLower) ||
-        (doc.storageUri?.toLowerCase().includes(searchLower) ?? false)
-      )
-      .sort(compareByRecencyThenId)
-      .slice(0, limit);
-
-    return results;
+    return (await this.listResources({ search: query, limit })).resources;
   }
   
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
