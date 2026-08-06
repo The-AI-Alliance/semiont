@@ -344,6 +344,10 @@ export class JanusGraphDatabase implements GraphDatabase {
       );
     }
 
+    if (filter.archived !== undefined) {
+      resources = resources.filter((doc: ResourceDescriptor) => (doc.archived ?? false) === filter.archived);
+    }
+
     const total = resources.length;
     const offset = filter.offset || 0;
     const limit = filter.limit || 50;

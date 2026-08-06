@@ -172,6 +172,38 @@ describe('GraphDatabase Interface Contract', () => {
       expect(result.resources).toHaveLength(2);
     });
 
+    it('listResources() should filter by archived', async () => {
+      await db.createResource(createTestResource({ name: 'Live', archived: false }));
+      await db.createResource(createTestResource({ name: 'Archived', archived: true }));
+
+      const live = await db.listResources({ archived: false });
+      const archived = await db.listResources({ archived: true });
+
+      expect(live.resources.map(r => r.name)).toEqual(['Live']);
+      expect(archived.resources.map(r => r.name)).toEqual(['Archived']);
+    });
+
+    it('listResources() composes filters and totals every match, not just the page', async () => {
+      // More matches than fit in one page — `total` must describe the whole
+      // match set, since browse pages on it.
+      for (let i = 0; i < 25; i++) {
+        await db.createResource(createTestResource({
+          name: `Report ${i}`, entityTypes: ['Report'], archived: false,
+        }));
+      }
+      // One decoy per filter, each failing exactly one condition.
+      await db.createResource(createTestResource({ name: 'Report old', entityTypes: ['Report'], archived: true }));
+      await db.createResource(createTestResource({ name: 'Report memo', entityTypes: ['Memo'], archived: false }));
+      await db.createResource(createTestResource({ name: 'Unrelated', entityTypes: ['Report'], archived: false }));
+
+      const page = await db.listResources({
+        search: 'Report', entityTypes: ['Report'], archived: false, limit: 10, offset: 0,
+      });
+
+      expect(page.total).toBe(25);
+      expect(page.resources).toHaveLength(10);
+    });
+
     it('listResources() should paginate results', async () => {
       for (let i = 0; i < 5; i++) {
         await db.createResource(createTestResource({ name: `Resource ${i}` }));

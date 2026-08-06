@@ -118,6 +118,10 @@ export class MemoryGraphDatabase implements GraphDatabase {
       );
     }
 
+    if (filter.archived !== undefined) {
+      docs = docs.filter(doc => (doc.archived ?? false) === filter.archived);
+    }
+
     const total = docs.length;
     const offset = filter.offset || 0;
     const limit = filter.limit || 20;

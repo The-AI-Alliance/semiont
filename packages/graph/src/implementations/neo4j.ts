@@ -301,7 +301,16 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     try {
       let whereClause = '';
       const params: any = {};
-      const conditions: string[] = [];
+      // Stub nodes are id-only placeholders that `MERGE` creates when a
+      // REFERENCES edge points at a resource whose `resource.created` event
+      // hasn't landed yet. They carry no name, so they are not listable — and
+      // `parseResourceNode` throws on the missing field rather than inventing one.
+      const conditions: string[] = ['coalesce(d.stub, false) = false'];
+
+      if (filter.archived !== undefined) {
+        conditions.push('d.archived = $archived');
+        params.archived = filter.archived;
+      }
 
       if (filter.entityTypes && filter.entityTypes.length > 0) {
         conditions.push('ANY(type IN $entityTypes WHERE type IN d.entityTypes)');

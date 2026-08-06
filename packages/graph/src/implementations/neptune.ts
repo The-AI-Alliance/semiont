@@ -475,6 +475,10 @@ export class NeptuneGraphDatabase implements GraphDatabase {
           )
         );
       }
+
+      if (filter.archived !== undefined) {
+        traversal = traversal.has('archived', filter.archived);
+      }
       
       // Count total before pagination
       const totalResult = await traversal.clone().count().next();

@@ -40,7 +40,7 @@ describe('ResourceContext', () => {
     };
 
     mockGraph = {
-      searchResources: vi.fn().mockResolvedValue([]),
+      listResources: vi.fn().mockResolvedValue({ resources: [], total: 0 }),
     };
 
     mockKb = {
@@ -103,6 +103,18 @@ describe('ResourceContext', () => {
   });
 
   describe('listResources', () => {
+    const asView = (resource: ResourceDescriptor) => ({
+      resource,
+      annotations: {
+        highlights: [],
+        assessments: [],
+        comments: [],
+        tags: [],
+        links: [],
+        entityReferences: [],
+      },
+    });
+
     const mockResource1: ResourceDescriptor = {
       '@context': 'https://schema.org/',
       '@id': resourceId('res-1'),
@@ -134,192 +146,93 @@ describe('ResourceContext', () => {
     };
 
     test('should list all resources when no filters provided', async () => {
-      mockViewStorage.getAll.mockResolvedValue([
-        {
-          resource: mockResource1,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-        {
-          resource: mockResource2,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-      ]);
+      mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(mockResource2)]);
 
       const result = await ResourceContext.listResources(undefined, mockKb);
 
-      expect(result).toHaveLength(2);
-      expect(result).toContainEqual(mockResource1);
-      expect(result).toContainEqual(mockResource2);
+      expect(result.total).toBe(2);
+      expect(result.resources).toContainEqual(mockResource1);
+      expect(result.resources).toContainEqual(mockResource2);
     });
 
     test('should filter by archived status (false)', async () => {
-      mockViewStorage.getAll.mockResolvedValue([
-        {
-          resource: mockResource1,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-        {
-          resource: mockResource3,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-      ]);
+      mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(mockResource3)]);
 
       const result = await ResourceContext.listResources({ archived: false }, mockKb);
 
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual(mockResource1);
-      expect(result.every(r => !r.archived)).toBe(true);
+      expect(result.resources).toEqual([mockResource1]);
+      expect(result.total).toBe(1);
     });
 
     test('should filter by archived status (true)', async () => {
-      mockViewStorage.getAll.mockResolvedValue([
-        {
-          resource: mockResource1,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-        {
-          resource: mockResource3,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-      ]);
+      mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(mockResource3)]);
 
       const result = await ResourceContext.listResources({ archived: true }, mockKb);
 
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual(mockResource3);
-      expect(result.every(r => r.archived)).toBe(true);
+      expect(result.resources).toEqual([mockResource3]);
+      expect(result.total).toBe(1);
     });
 
-    test('should delegate to graph.searchResources when search is set', async () => {
-      const specialDoc = { ...mockResource2, name: 'Special Document' };
-      mockGraph.searchResources.mockResolvedValue([specialDoc]);
-
-      const result = await ResourceContext.listResources({ search: 'special' }, mockKb);
-
-      expect(mockGraph.searchResources).toHaveBeenCalledWith('special');
-      expect(mockViewStorage.getAll).not.toHaveBeenCalled();
-      expect(result).toHaveLength(1);
-      expect(result[0]?.name).toBe('Special Document');
-    });
-
-    test('should narrow graph search results by archived filter', async () => {
-      const searchableArchived: ResourceDescriptor = {
-        '@context': 'https://schema.org/',
-        '@id': resourceId('res-4'),
-        name: 'Archived Special',
-        archived: true,
-        entityTypes: ['Document'],
-        dateCreated: '2024-01-04T00:00:00Z',
-        representations: [],
-      };
-
-      mockGraph.searchResources.mockResolvedValue([
-        { ...mockResource1, name: 'Special Live' },
-        searchableArchived,
+    test('view path filters by entityType and paginates, totalling every match', async () => {
+      mockViewStorage.getAll.mockResolvedValue([
+        asView(mockResource1), asView(mockResource2), asView(mockResource3),
       ]);
 
       const result = await ResourceContext.listResources(
-        { archived: true, search: 'special' },
-        mockKb
+        { entityType: 'Document', limit: 1, offset: 0 },
+        mockKb,
       );
 
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual(searchableArchived);
+      // Two Documents match; the page holds one. `total` describes the match
+      // set, because that is what the caller pages on.
+      expect(result.total).toBe(2);
+      expect(result.resources).toEqual([mockResource3]);
     });
 
-    test('should return empty array when graph search has no matches', async () => {
-      mockGraph.searchResources.mockResolvedValue([]);
+    test('search path pushes every filter into the graph query', async () => {
+      const specialDoc = { ...mockResource2, name: 'Special Document' };
+      mockGraph.listResources.mockResolvedValue({ resources: [specialDoc], total: 42 });
+
+      const result = await ResourceContext.listResources(
+        { search: 'special', archived: false, entityType: 'Document', offset: 20, limit: 10 },
+        mockKb,
+      );
+
+      // Every filter travels into the engine. Narrowing any of them in JS after
+      // the fact would apply it to one page instead of the whole match set.
+      expect(mockGraph.listResources).toHaveBeenCalledWith({
+        search: 'special',
+        archived: false,
+        entityTypes: ['Document'],
+        offset: 20,
+        limit: 10,
+      });
+      expect(mockViewStorage.getAll).not.toHaveBeenCalled();
+      expect(result.total).toBe(42);
+      expect(result.resources).toEqual([specialDoc]);
+    });
+
+    test('search path returns nothing when the graph has no matches', async () => {
+      mockGraph.listResources.mockResolvedValue({ resources: [], total: 0 });
 
       const result = await ResourceContext.listResources({ search: 'nonexistent' }, mockKb);
 
-      expect(result).toEqual([]);
+      expect(result.resources).toEqual([]);
+      expect(result.total).toBe(0);
     });
 
     test('should sort by creation date (newest first)', async () => {
       mockViewStorage.getAll.mockResolvedValue([
-        {
-          resource: mockResource1,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-        {
-          resource: mockResource2,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-        {
-          resource: mockResource3,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
+        asView(mockResource1), asView(mockResource2), asView(mockResource3),
       ]);
 
       const result = await ResourceContext.listResources(undefined, mockKb);
 
-      // Should be sorted newest first
-      expect(result[0]?.dateCreated).toBe('2024-01-03T00:00:00Z');
-      expect(result[1]?.dateCreated).toBe('2024-01-02T00:00:00Z');
-      expect(result[2]?.dateCreated).toBe('2024-01-01T00:00:00Z');
+      expect(result.resources.map(r => r.dateCreated)).toEqual([
+        '2024-01-03T00:00:00Z',
+        '2024-01-02T00:00:00Z',
+        '2024-01-01T00:00:00Z',
+      ]);
     });
 
     test('should handle resources without dateCreated', async () => {
@@ -332,36 +245,13 @@ describe('ResourceContext', () => {
         representations: [],
       };
 
-      mockViewStorage.getAll.mockResolvedValue([
-        {
-          resource: mockResource1,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-        {
-          resource: resourceNoDate,
-          annotations: {
-            highlights: [],
-            assessments: [],
-            comments: [],
-            tags: [],
-            links: [],
-            entityReferences: [],
-          },
-        },
-      ]);
+      mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(resourceNoDate)]);
 
       const result = await ResourceContext.listResources(undefined, mockKb);
 
-      expect(result).toHaveLength(2);
+      expect(result.total).toBe(2);
       // Resource with date should come first
-      expect(result[0]).toEqual(mockResource1);
+      expect(result.resources[0]).toEqual(mockResource1);
     });
   });
 
