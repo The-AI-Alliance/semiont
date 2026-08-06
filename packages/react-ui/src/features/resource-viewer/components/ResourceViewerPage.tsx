@@ -396,7 +396,7 @@ export function ResourceViewerPage({
   // assist timed-out) live in useOutcomeToasts — they need only the resource id
   // and the toast surface. The registration below keeps the handlers that need
   // page-local dependencies (SDK actions, sparkles, settings, navigation).
-  useOutcomeToasts(resource.id as string);
+  useOutcomeToasts(rUri);
 
   // Single useEventSubscriptions call per file (enforced by
   // scripts/compliance/audit-hooks-ordering.ts); hooks like useOutcomeToasts
