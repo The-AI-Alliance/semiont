@@ -188,16 +188,18 @@ describe('GraphDatabase Interface Contract', () => {
       // match set, since browse pages on it.
       for (let i = 0; i < 25; i++) {
         await db.createResource(createTestResource({
-          name: `Report ${i}`, entityTypes: ['Report'], archived: false,
+          name: `Quarterly Report ${i}`, entityTypes: ['Report'], archived: false,
         }));
       }
-      // One decoy per filter, each failing exactly one condition.
-      await db.createResource(createTestResource({ name: 'Report old', entityTypes: ['Report'], archived: true }));
-      await db.createResource(createTestResource({ name: 'Report memo', entityTypes: ['Memo'], archived: false }));
+      // One decoy per filter, each failing exactly one condition. The search
+      // term is one only names carry: since search also matches entity types,
+      // "tagged Report but not matching 'Report'" is not a constructible decoy.
+      await db.createResource(createTestResource({ name: 'Quarterly old', entityTypes: ['Report'], archived: true }));
+      await db.createResource(createTestResource({ name: 'Quarterly memo', entityTypes: ['Memo'], archived: false }));
       await db.createResource(createTestResource({ name: 'Unrelated', entityTypes: ['Report'], archived: false }));
 
       const page = await db.listResources({
-        search: 'Report', entityTypes: ['Report'], archived: false, limit: 10, offset: 0,
+        search: 'Quarterly', entityTypes: ['Report'], archived: false, limit: 10, offset: 0,
       });
 
       expect(page.total).toBe(25);
@@ -377,6 +379,50 @@ describe('GraphDatabase Interface Contract', () => {
       const { resources: results } = await db.listResources({ search: 'Aeschylus Marathon' });
 
       expect(results.map(r => r.name)).toEqual(['Aeschylus on Marathon', 'Marathon notes']);
+    });
+
+    it('finds resources by entity type name', async () => {
+      // Typing a type name into the search box is a natural thing to do, and
+      // `entityTypes` is otherwise reachable only as a separate filter.
+      await db.createResource(createTestResource({
+        '@id': resourceId('et-tagged'), name: 'Herodotus', entityTypes: ['Historian'],
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('et-other'), name: 'Marathon', entityTypes: ['Place'],
+      }));
+
+      const { resources } = await db.listResources({ search: 'Historian' });
+
+      expect(resources.map(r => r.name)).toEqual(['Herodotus']);
+    });
+
+    it('ranks an entity-type match below a name match', async () => {
+      await db.createResource(createTestResource({
+        '@id': resourceId('et-rank-tag'), name: 'Unrelated title', entityTypes: ['Historian'],
+        dateCreated: '2026-01-01T00:00:00.000Z',
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('et-rank-name'), name: 'Historian notes', entityTypes: ['Place'],
+        dateCreated: '2020-01-01T00:00:00.000Z',
+      }));
+
+      const { resources } = await db.listResources({ search: 'Historian' });
+
+      expect(resources.map(r => r.name)).toEqual(['Historian notes', 'Unrelated title']);
+    });
+
+    it('composes entity-type matching with multi-term queries', async () => {
+      await db.createResource(createTestResource({
+        '@id': resourceId('et-token'), name: 'Marathon', entityTypes: ['Place'],
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('et-token-miss'), name: 'Marathon', entityTypes: ['Person'],
+      }));
+
+      const { resources } = await db.listResources({ search: 'Place Marathon' });
+
+      expect(resources).toHaveLength(1);
+      expect(resources[0]?.entityTypes).toEqual(['Place']);
     });
 
     it('treats a whitespace-only query as no query at all', async () => {

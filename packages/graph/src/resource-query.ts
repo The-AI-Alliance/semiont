@@ -22,11 +22,12 @@ export function searchTerms(query: string): string[] {
 
 /**
  * How directly a resource answers the query: 0 exact name, 1 name prefix,
- * 2 every term present in the name, 3 the path had to supply a term.
+ * 2 every term present in the name, 3 something other than the name — the path
+ * or an entity type — had to supply a term.
  *
- * Path-assisted hits rank last deliberately. Someone searching "Marathon" wants
- * the document *called* Marathon before every file that merely lives under a
- * folder of that name.
+ * Those assisted hits rank last deliberately. Someone searching "Marathon"
+ * wants the document *called* Marathon before every file that merely lives
+ * under a folder of that name or is tagged with it.
  */
 export function searchRank(resource: ResourceDescriptor, query: string): number {
   const whole = query.trim().toLowerCase();
@@ -38,13 +39,16 @@ export function searchRank(resource: ResourceDescriptor, query: string): number 
 }
 
 /**
- * Every term must appear, though each may come from the name or the path — so
- * "Aeschylus Marathon" finds a resource named for one and filed under the other.
+ * Every term must appear, though each may come from the name, the path or an
+ * entity type — so "Aeschylus Marathon" finds a resource named for one and
+ * filed under the other, and "Historian" finds what is tagged as one.
  */
 function matchesSearch(resource: ResourceDescriptor, terms: string[]): boolean {
   const name = (resource.name ?? '').toLowerCase();
   const uri = resource.storageUri?.toLowerCase() ?? '';
-  return terms.every((term) => name.includes(term) || uri.includes(term));
+  const types = getResourceEntityTypes(resource).map((t) => t.toLowerCase());
+  return terms.every((term) =>
+    name.includes(term) || uri.includes(term) || types.some((t) => t.includes(term)));
 }
 
 /**

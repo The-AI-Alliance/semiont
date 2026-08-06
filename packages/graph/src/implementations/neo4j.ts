@@ -323,7 +323,9 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const terms = filter.search ? searchTerms(filter.search) : [];
       if (terms.length > 0) {
         conditions.push(
-          'ALL(t IN $terms WHERE toLower(d.name) CONTAINS t OR toLower(coalesce(d.storageUri, "")) CONTAINS t)'
+          `ALL(t IN $terms WHERE toLower(d.name) CONTAINS t
+                             OR toLower(coalesce(d.storageUri, "")) CONTAINS t
+                             OR ANY(e IN coalesce(d.entityTypes, []) WHERE toLower(e) CONTAINS t))`
         );
         params.terms = terms;
         params.search = filter.search!.trim().toLowerCase();
