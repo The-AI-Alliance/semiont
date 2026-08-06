@@ -16,6 +16,7 @@
  */
 
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { STANDARD_FONT_DATA_URL } from './pdfjs-assets';
 import { isObject, isNumber, isString, isArray } from '@semiont/core';
 import { encodePng } from './png-encode';
 
@@ -248,7 +249,7 @@ export async function extractPageImages(
     pageNumbers?: number[],
 ): Promise<Map<number, PageImage[]>> {
     const wanted = pageNumbers ? new Set(pageNumbers) : null;
-    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes) });
+    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes), standardFontDataUrl: STANDARD_FONT_DATA_URL });
     const byPage = new Map<number, PageImage[]>();
 
     try {
