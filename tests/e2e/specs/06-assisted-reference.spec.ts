@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/auth';
 
+import { openResourceByName } from '../fixtures/discover';
 /**
  * Smoke test: the AI-assisted "Annotate References" flow dispatches a
  * reference-annotation job **and the resulting reference annotations are
@@ -49,13 +50,7 @@ test.describe('assisted reference detection', () => {
     // assumption would silently not hold. `.first()` still narrows the
     // duplicate seeds the non-idempotent seeder accumulates. Same fix as
     // spec 08; specs 14/20 pin their PDFs the same way.
-    await page.goto('/en/know/discover');
-    const firstCard = page
-      .getByRole('button', { name: /^open resource:\s*photosynthesis overview/i })
-      .first();
-    await expect(firstCard).toBeVisible({ timeout: 15_000 });
-    await firstCard.click();
-    await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
+    await openResourceByName(page, 'Photosynthesis Overview');
 
     // Baseline reference count — the KB accumulates across runs, so assert
     // growth, not an absolute. (Same property test 05 relies on.)

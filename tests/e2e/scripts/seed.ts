@@ -9,10 +9,13 @@
  * 02-09 fail at the very first "open resource:" assertion.
  *
  * Seeds two `text/plain` resources (for the text-annotation specs) plus
- * two `application/pdf` resources: a 3-word render smoke fixture (for
- * `14-pdf-render.spec.ts`, the PDFJS-6-UNIFY browser smoke) and a
+ * four `application/pdf` resources: a 3-word render smoke fixture (for
+ * `14-pdf-render.spec.ts`, the PDFJS-6-UNIFY browser smoke), a
  * text-layer fixture with a Concept-dense paragraph (for
- * `20-pdf-assisted-detection.spec.ts`, AI detection on a PDF). Both PDFs are
+ * `20-pdf-assisted-detection.spec.ts`, AI detection on a PDF), an
+ * unreadable scan (for `22-pdf-scanned-decline.spec.ts` and
+ * `23-pdf-anchored-text.spec.ts`), and a hybrid whose two pages are one
+ * typed and one scanned (for `24-pdf-hybrid-class-c.spec.ts`). Every PDF is
  * seeded **first** on purpose: Discover lists resources newest-first
  * (`make-meaning/src/resource-context.ts` `sortByDateDesc`), so the two
  * oldest resources sort last and never become the `.first()` card the text
@@ -194,6 +197,59 @@ const SCANNED_PDF_FIXTURE_BASE64 =
   'CnN0cmVhbQp4nGNgYPj/n4mBnYEBRDCCCCZGBgEIl5mRcQYDUFAUSDDvYmAAAGPrA6oK' +
   'ZW5kc3RyZWFtCmVuZG9iagoKc3RhcnR4cmVmCjk1NAolJUVPRg==';
 
+// Hybrid fixture (class C) — page 1 carries a real text layer, page 2 is an
+// image-only raster with no text operators. The extractor reads page 1 through
+// the text layer and routes page 2 to OCR, so one document exercises both
+// halves of hybrid routing end to end. Unit tests pin the assembly against a
+// mocked recognizer (`content/src/__tests__/pdf-ocr.test.ts`); this fixture is
+// what carries class C through the live stack instead.
+//
+// The raster is dark bars, NOT rendered glyphs, on purpose: a synthetic bitmap
+// is not a typeface and the recognizer misreads it (measured: 'SCANNED' ->
+// 'SCHMNE' at confidence 0), so any assertion on recovered text would pin
+// engine noise. Page 2 therefore lands on the gap-reporting branch and comes
+// back in `unreadPages` — the honest outcome, and the one a real scan with an
+// unreadable page takes too.
+//
+// Generated with pdf-lib + a minimal zlib PNG encoder; 1694 bytes. Regenerate
+// by drawing the five lines below on a 612x792 page and embedding a 240x140
+// RGB PNG of three dark bars over a second page of the same size.
+const HYBRID_PDF_FIXTURE_BASE64 =
+  'JVBERi0xLjcKJYGBgYEKCjYgMCBvYmoKPDwKL0ZpbHRlciAvRmxhdGVEZWNvZGUKL0xl' +
+  'bmd0aCAzMzIKPj4Kc3RyZWFtCnicjVLBSsVADLzvV/QsiGk2O9kF8fBqiwcvQn9AREXR' +
+  'wxPx+53dfdDn4clj2xKyyWRm0n3YrUGGer5ew9Xd88fP8/fb0+OlS8mWxXMZRh3Wl6A2' +
+  'rPdhbKXj4MpHhvUzXFv2AnVFgamkiFss2CExFjPDzbC+h/UizGt4CPtT84qbImtCPjlP' +
+  '+rzz8FREsqSScQoPueMlQ0bxqOKCEV6ZI2L0rinVG4x8eYPZE3NzrXHjXSZtwcTqWqk6' +
+  'q1hkndX+WkOMdMBwxgs/4pEdjDB5YZ5453pER8EWP6kJXRM4t2Jz0kL8Saeqgbyt8c7k' +
+  'VBo/MiITa/wy42mrYEZbz067L2Nl6rEq5leaOzOoB6h6eOyQOVOP07EUI/7ZkR3tqO9l' +
+  '8boF6+oqgoP+lur5xrz/jYddkpNKHGPm8c2HTVOL0fapRxjedvhXyy+S8LCRCmVuZHN0' +
+  'cmVhbQplbmRvYmoKCjcgMCBvYmoKPDwKL1R5cGUgL1hPYmplY3QKL1N1YnR5cGUgL0lt' +
+  'YWdlCi9CaXRzUGVyQ29tcG9uZW50IDgKL1dpZHRoIDI0MAovSGVpZ2h0IDE0MAovQ29s' +
+  'b3JTcGFjZSAvRGV2aWNlUkdCCi9GaWx0ZXIgL0ZsYXRlRGVjb2RlCi9MZW5ndGggMjIy' +
+  'Cj4+CnN0cmVhbQp4nO3cQQ0AIBDAMCv4NwlPFJAjS6th7+0NAAAAAAAAAAAAAAAAAHAt' +
+  'eEDPlOiZEj1TomdK9EyJninRMyV6pkTPlOiZEj1TomdK9EzJVM8AAAAAAAAAAAAAAAAA' +
+  'AAAAAAC/mf5C0aRnSvRMiZ4p0TMleqZEz5TomRI9U6JnSvRMiZ4p0TMleqZkqmcAAAAA' +
+  'AAAAAAAAAAAAAAAAAIDfTH+haNIzJXqmRM+U6JkSPVOiZ0r0TImeKdEzJXqmRM+U6JkS' +
+  'PVMy1TMAAAAAAAAAAAAAAAAAAAAAAMALB8KyiJ8KZW5kc3RyZWFtCmVuZG9iagoKOSAw' +
+  'IG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29kZQovTGVuZ3RoIDUzCj4+CnN0cmVhbQp4' +
+  'nCvkMlQwAEIImZyLzjUzNAIzzS2NcKjQ98xNTE/VtTAxNTC0MDA0MFdwyecK5AIA+hMR' +
+  'vgplbmRzdHJlYW0KZW5kb2JqCgoxMCAwIG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29k' +
+  'ZQovVHlwZSAvT2JqU3RtCi9OIDYKL0ZpcnN0IDMyCi9MZW5ndGggNDM0Cj4+CnN0cmVh' +
+  'bQp4nNVT32vcMAx+91+hx+2hWHH8sxwH17tkG6OstIWNjT2kiTlSWnskvtH995OT6x1t' +
+  'NwZjLyMotqTvkyVbKgBBgEIowUqQoEoLCrRAsOCKAhYLxq9/fPPAL5qtHxl/33cjfCEM' +
+  'wiVh8v8r4+u4CwkEWy7ZkbFuUnMXt2ymQpHBj4iLIXa71g+wqKu6RjSIqCWJRhQbWtck' +
+  'jkSQTj5haU9i5F7IZkrEckW+ehZtZk72T1i151e0ElZnzGbGSjvrh3PzWdUcQ/wpH7dk' +
+  '/Dx2myZ5eLU5FSg0WtQopJbu82u6jsE3Kf6/xU359zH8tsIn71zHkBi/2t2kSc3GgvGz' +
+  'ZvTZA/ytv/vuU982jFehjV0ftsA/9mEVxv7R8DRibpjcNoMn/tw3/NKPcTe01EgZN0XO' +
+  'm0PwE4POUuXGOurjiXL0OSOFtkJp+9KXX8Ciclb/iqdQaifQvPQZZYQqS33gUQn804eb' +
+  'W99OqWW1ekhvrlK+xdmQbee+65uz+EBThPTpQoBxIk/RKoSY8nRNExUSVZ81vZ+yv7yi' +
+  'Z2nxd/dEPbFSYWGxoMrMIft/kq47pvsTMd4S+AplbmRzdHJlYW0KZW5kb2JqCgoxMSAw' +
+  'IG9iago8PAovU2l6ZSAxMgovUm9vdCAyIDAgUgovSW5mbyAzIDAgUgovRmlsdGVyIC9G' +
+  'bGF0ZURlY29kZQovVHlwZSAvWFJlZgovTGVuZ3RoIDUyCi9XIFsgMSAyIDIgXQovSW5k' +
+  'ZXggWyAwIDEyIF0KPj4Kc3RyZWFtCnicY2Bg+P+fiYGLgQFEMIIIJhDBDCJYGBkEGBgY' +
+  'GZdCZFkZmXWBXOZVQIL1MAMDAJjCBLYKZW5kc3RyZWFtCmVuZG9iagoKc3RhcnR4cmVm' +
+  'CjE0NzUKJSVFT0Y=';
+
 // last in Discover (see the module doc); the text specs' `.first()` card
 // stays a text resource.
 const SEED_RESOURCES: readonly SeedSpec[] = [
@@ -217,6 +273,13 @@ const SEED_RESOURCES: readonly SeedSpec[] = [
     format: 'application/pdf',
     language: 'en',
     bytes: Buffer.from(SCANNED_PDF_FIXTURE_BASE64, 'base64'),
+  },
+  {
+    name: 'Hybrid Smoke PDF',
+    storageUri: 'file://e2e/seed-hybrid.pdf',
+    format: 'application/pdf',
+    language: 'en',
+    bytes: Buffer.from(HYBRID_PDF_FIXTURE_BASE64, 'base64'),
   },
   {
     name: 'Quantum Computing Primer',
@@ -292,12 +355,44 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
   let created = 0;
   let existed = 0;
   try {
+    // Which seeds are already here. Asked ONCE, up front, rather than relying on
+    // the create failing.
+    //
+    // This used to lean on the backend rejecting a duplicate `storageUri` and
+    // catching that below. Nothing enforces `storageUri` uniqueness — not the
+    // backend, not make-meaning — so the create always succeeded, the catch never
+    // fired, and every run logged "N created, 0 already present" no matter how
+    // many times it had run before. Any KB grew by the full seed set per run; a
+    // blank template degraded exactly as fast as a used one, just from a lower
+    // starting point. Measured 2026-08-06 at eleven copies of each seed.
+    //
+    // That is not merely untidy. Discover's landing list is capped
+    // (`RECENT_LIMIT = 10`, newest-first), so accumulated seeds push each other
+    // out of it, and specs that open a resource by name start failing at the card
+    // — a failure that reads as a regression in whatever they were testing.
+    //
+    // `.fresh()` because `browse.resources()` is a CacheObservable and this is a
+    // one-shot read (CACHE-CONTRACT D2). The limit is generous on purpose: a
+    // short page would report a present seed as missing and re-create it, which
+    // is the bug this replaces.
+    const present = new Set<string>();
+    for (const r of await client.browse.resources({ limit: 500, archived: false }).fresh()) {
+      if (r.storageUri) present.add(r.storageUri);
+    }
+
     for (const spec of SEED_RESOURCES) {
+      if (present.has(spec.storageUri)) {
+        log(`[seed] · already   ${spec.storageUri}`);
+        existed++;
+        continue;
+      }
       // `client.yield.resource(...)` returns an UploadObservable that
       // resolves to `{ resourceId }` on success. Errors come through
       // as observable errors — typically APIError with the backend's
-      // status + code. We treat duplicate-storageUri rejections as a
-      // no-op so re-runs are safe.
+      // status + code. The duplicate branch below is a BACKSTOP for a
+      // race (two seeders at once); the pre-check above is what actually
+      // makes re-runs idempotent. It is deliberately kept rather than
+      // deleted: if uniqueness is ever enforced, this is where it lands.
       try {
         // Awaiting the UploadObservable yields the awaitable shape
         // (`{ resourceId }`) directly — same as every other production

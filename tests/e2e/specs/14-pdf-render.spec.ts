@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/auth';
 import type { Page } from '@playwright/test';
 
+import { openResourceByName } from '../fixtures/discover';
 /**
  * Smoke test: the PDFJS-6-UNIFY browser acceptance gate.
  *
@@ -30,20 +31,12 @@ import type { Page } from '@playwright/test';
  * `.first()` card the other specs open).
  */
 
-const PDF_CARD = /^open resource:\s*spatial smoke pdf/i;
 const IMG = '.semiont-pdf-annotation-canvas__image';
 const SVG = '.semiont-pdf-annotation-canvas__svg';
 const CONTAINER = '.semiont-pdf-annotation-canvas__container';
 
 async function openPdfInAnnotateMode(page: Page) {
-  await page.goto('/en/know/discover');
-  // `.first()` — the seed isn't idempotent (duplicate "Spatial Smoke PDF"
-  // resources accumulate across runs), so the name matches multiple cards;
-  // any of them is an identical fresh PDF fixture.
-  const card = page.getByRole('button', { name: PDF_CARD }).first();
-  await expect(card).toBeVisible({ timeout: 15_000 });
-  await card.click();
-  await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
+  await openResourceByName(page, 'Spatial Smoke PDF');
 
   // Annotate mode mounts PdfAnnotationCanvas.
   await page.getByRole('button', { name: /^mode$/i }).click();

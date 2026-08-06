@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/auth';
 import type { Page, Locator } from '@playwright/test';
 
+import { openResourceByName } from '../fixtures/discover';
 /**
  * Smoke test: AI-assisted (AI-directed) detection on a **text-layer PDF**
  * (#736 Phase 2 + #737 Phase 3).
@@ -30,19 +31,11 @@ import type { Page, Locator } from '@playwright/test';
  * <rect> *growth* (the KB accumulates across runs), never an absolute count.
  */
 
-const PDF_CARD = /^open resource:\s*cellular respiration pdf/i;
 const IMG = '.semiont-pdf-annotation-canvas__image';
 const SVG = '.semiont-pdf-annotation-canvas__svg';
 
 async function openPdfInAnnotateMode(page: Page) {
-  await page.goto('/en/know/discover');
-  // `.first()` — the seed accumulates duplicate PDF cards across runs (14's
-  // note); any is an identical fresh fixture. The name filter keeps us off the
-  // "Spatial Smoke PDF".
-  const card = page.getByRole('button', { name: PDF_CARD }).first();
-  await expect(card).toBeVisible({ timeout: 15_000 });
-  await card.click();
-  await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
+  await openResourceByName(page, 'Cellular Respiration PDF');
 
   // Annotate mode mounts PdfAnnotationCanvas; the SVG overlay mounts once the
   // page <img> + dimensions are measured (see 14-pdf-render).
