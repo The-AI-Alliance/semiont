@@ -4,6 +4,7 @@
 import type { Driver, Session } from 'neo4j-driver';
 import { GraphDatabase } from '../interface';
 import { assertMutableResourceUpdate } from '../interface';
+import { searchTerms } from '../resource-query';
 import type { Logger } from '@semiont/core';
 import { annotationId as makeAnnotationId } from '@semiont/core';
 import type {
@@ -317,9 +318,15 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         params.entityTypes = filter.entityTypes;
       }
 
-      if (filter.search) {
-        conditions.push('(toLower(d.name) CONTAINS toLower($search) OR toLower(coalesce(d.storageUri, "")) CONTAINS toLower($search))');
-        params.search = filter.search;
+      // Every term must appear, each satisfiable by the name or the path. A
+      // whitespace-only query yields no terms and so is not a search at all.
+      const terms = filter.search ? searchTerms(filter.search) : [];
+      if (terms.length > 0) {
+        conditions.push(
+          'ALL(t IN $terms WHERE toLower(d.name) CONTAINS t OR toLower(coalesce(d.storageUri, "")) CONTAINS t)'
+        );
+        params.terms = terms;
+        params.search = filter.search!.trim().toLowerCase();
       }
 
       if (conditions.length > 0) {
@@ -340,16 +347,16 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       // Rank only means something against a query; an unsearched listing orders
       // on recency alone. Ranking must happen here rather than over the returned
       // page, or it would sort one page instead of the match set.
-      const rankClause = filter.search
+      const rankClause = terms.length > 0
         ? `WITH d, CASE
-             WHEN toLower(d.name) = toLower($search) THEN 0
-             WHEN toLower(d.name) STARTS WITH toLower($search) THEN 1
-             WHEN toLower(d.name) CONTAINS toLower($search) THEN 2
+             WHEN toLower(d.name) = $search THEN 0
+             WHEN toLower(d.name) STARTS WITH $search THEN 1
+             WHEN ALL(t IN $terms WHERE toLower(d.name) CONTAINS t) THEN 2
              ELSE 3
            END AS rank
          `
         : '';
-      const orderClause = filter.search
+      const orderClause = terms.length > 0
         ? 'ORDER BY rank, d.created DESC, d.id'
         : 'ORDER BY d.created DESC, d.id';
 

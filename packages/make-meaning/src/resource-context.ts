@@ -54,18 +54,20 @@ export class ResourceContext {
    * where the graph is only eventually consistent.
    */
   static async listResources(filters: ListResourcesFilters | undefined, kb: KnowledgeBase): Promise<ListResourcesResult> {
-    const offset = filters?.offset ?? 0;
-    const limit = filters?.limit ?? 50;
+    const { search: rawSearch, archived, entityType, offset = 0, limit = 50 } = filters ?? {};
+    // Blank input is not a search: it must not divert the listing onto the
+    // eventually-consistent graph path, and it has nothing to match on.
+    const search = rawSearch?.trim() || undefined;
 
-    if (filters?.search) {
+    if (search) {
       // Set-shaped graph read — eventually consistent BY DESIGN
       // (graph-read-after-write-coverage.md, mechanism (d)): no key to
       // await, human-timescale browse; a just-created resource appears in
       // search after the Weaver's ~tens-of-ms apply.
       return kb.graph.listResources({
-        search: filters.search,
-        archived: filters.archived,
-        entityTypes: filters.entityType ? [filters.entityType] : undefined,
+        search,
+        archived,
+        entityTypes: entityType ? [entityType] : undefined,
         offset,
         limit,
       });
@@ -74,8 +76,8 @@ export class ResourceContext {
     const allViews = await kb.views.getAll();
     const matches = allViews
       .map((view) => view.resource)
-      .filter((doc) => filters?.archived === undefined || doc.archived === filters.archived)
-      .filter((doc) => !filters?.entityType || getResourceEntityTypes(doc).includes(filters.entityType))
+      .filter((doc) => archived === undefined || doc.archived === archived)
+      .filter((doc) => !entityType || getResourceEntityTypes(doc).includes(entityType))
       .sort(compareByRecencyThenId);
 
     return { resources: matches.slice(offset, offset + limit), total: matches.length };

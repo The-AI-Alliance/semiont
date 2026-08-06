@@ -337,6 +337,58 @@ describe('GraphDatabase Interface Contract', () => {
       expect(resources.map(r => r.name)).toEqual(['Marathon', 'About Marathon']);
     });
 
+    it('requires every query term to match, across name and path together', async () => {
+      await db.createResource(createTestResource({
+        '@id': resourceId('tok-split'), name: 'Greek victory',
+        storageUri: 'file://authors/Aeschylus/places/Marathon.md',
+      }));
+      // Has one term but not the other — AND, not OR.
+      await db.createResource(createTestResource({
+        '@id': resourceId('tok-partial'), name: 'Aeschylus alone',
+        storageUri: 'file://authors/Aeschylus/index.md',
+      }));
+
+      const results = await db.searchResources('Aeschylus Marathon');
+
+      expect(results.map(r => r.name)).toEqual(['Greek victory']);
+    });
+
+    it('matches query terms in any order', async () => {
+      await db.createResource(createTestResource({
+        '@id': resourceId('tok-order'), name: 'Battle of Marathon',
+      }));
+
+      const results = await db.searchResources('marathon battle');
+
+      expect(results.map(r => r.name)).toEqual(['Battle of Marathon']);
+    });
+
+    it('ranks a name-only match above one the path had to complete', async () => {
+      await db.createResource(createTestResource({
+        '@id': resourceId('tok-path'), name: 'Marathon notes',
+        storageUri: 'file://authors/Aeschylus/notes.md',
+        dateCreated: '2026-01-01T00:00:00.000Z',
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('tok-name'), name: 'Aeschylus on Marathon',
+        dateCreated: '2020-01-01T00:00:00.000Z',
+      }));
+
+      const results = await db.searchResources('Aeschylus Marathon');
+
+      expect(results.map(r => r.name)).toEqual(['Aeschylus on Marathon', 'Marathon notes']);
+    });
+
+    it('treats a whitespace-only query as no query at all', async () => {
+      // " " is truthy, and a bare CONTAINS would match every name with a space.
+      await db.createResource(createTestResource({ '@id': resourceId('ws-spaced'), name: 'Has a space' }));
+      await db.createResource(createTestResource({ '@id': resourceId('ws-plain'), name: 'Nospace' }));
+
+      const results = await db.searchResources('   ');
+
+      expect(results).toHaveLength(2);
+    });
+
     it('breaks dateCreated ties by id so paging cannot repeat or drop rows', async () => {
       const sameInstant = '2026-01-01T00:00:00.000Z';
       // Inserted out of id order — insertion order must not leak into results.

@@ -12,26 +12,39 @@ import type { ResourceDescriptor, ResourceFilter } from '@semiont/core';
 import { compareByRecencyThenId } from './interface';
 
 /**
+ * Split a query into the terms every match must satisfy. Blank input yields no
+ * terms, which callers read as "no query" — a bare substring match on `" "`
+ * would otherwise match every name containing a space.
+ */
+export function searchTerms(query: string): string[] {
+  return query.toLowerCase().split(/\s+/).filter(Boolean);
+}
+
+/**
  * How directly a resource answers the query: 0 exact name, 1 name prefix,
- * 2 name substring, 3 matched on `storageUri` alone.
+ * 2 every term present in the name, 3 the path had to supply a term.
  *
- * Path-only hits rank last deliberately. Someone searching "Marathon" wants the
- * document *called* Marathon before every file that merely lives under a folder
- * of that name.
+ * Path-assisted hits rank last deliberately. Someone searching "Marathon" wants
+ * the document *called* Marathon before every file that merely lives under a
+ * folder of that name.
  */
 export function searchRank(resource: ResourceDescriptor, query: string): number {
-  const needle = query.toLowerCase();
+  const whole = query.trim().toLowerCase();
   const name = (resource.name ?? '').toLowerCase();
-  if (name === needle) return 0;
-  if (name.startsWith(needle)) return 1;
-  if (name.includes(needle)) return 2;
+  if (name === whole) return 0;
+  if (name.startsWith(whole)) return 1;
+  if (searchTerms(query).every((term) => name.includes(term))) return 2;
   return 3;
 }
 
-function matchesSearch(resource: ResourceDescriptor, query: string): boolean {
-  const needle = query.toLowerCase();
-  return (resource.name ?? '').toLowerCase().includes(needle)
-    || (resource.storageUri?.toLowerCase().includes(needle) ?? false);
+/**
+ * Every term must appear, though each may come from the name or the path — so
+ * "Aeschylus Marathon" finds a resource named for one and filed under the other.
+ */
+function matchesSearch(resource: ResourceDescriptor, terms: string[]): boolean {
+  const name = (resource.name ?? '').toLowerCase();
+  const uri = resource.storageUri?.toLowerCase() ?? '';
+  return terms.every((term) => name.includes(term) || uri.includes(term));
 }
 
 /**
@@ -49,15 +62,17 @@ export function queryResources(
       filter.entityTypes!.some((type) => getResourceEntityTypes(doc).includes(type)));
   }
 
-  if (filter.search) {
-    matches = matches.filter((doc) => matchesSearch(doc, filter.search!));
+  // A query of only whitespace has no terms, and so filters nothing.
+  const terms = filter.search ? searchTerms(filter.search) : [];
+  if (terms.length > 0) {
+    matches = matches.filter((doc) => matchesSearch(doc, terms));
   }
 
   if (filter.archived !== undefined) {
     matches = matches.filter((doc) => (doc.archived ?? false) === filter.archived);
   }
 
-  const { search } = filter;
+  const search = terms.length > 0 ? filter.search! : undefined;
   const ordered = [...matches].sort(
     search
       ? (a, b) => (searchRank(a, search) - searchRank(b, search)) || compareByRecencyThenId(a, b)

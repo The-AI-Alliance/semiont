@@ -212,6 +212,18 @@ describe('ResourceContext', () => {
       expect(result.resources).toEqual([specialDoc]);
     });
 
+    test('a whitespace-only query is not a search', async () => {
+      mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(mockResource2)]);
+
+      const result = await ResourceContext.listResources({ search: '   ' }, mockKb);
+
+      // Blank input must not divert the listing onto the eventually-consistent
+      // graph path, and must not match every name containing a space.
+      expect(mockGraph.listResources).not.toHaveBeenCalled();
+      expect(mockViewStorage.getAll).toHaveBeenCalled();
+      expect(result.total).toBe(2);
+    });
+
     test('search path returns nothing when the graph has no matches', async () => {
       mockGraph.listResources.mockResolvedValue({ resources: [], total: 0 });
 
