@@ -5,8 +5,9 @@
  * Does NOT touch the graph - graph queries go through GraphContext
  */
 
-import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/core';
+import { getPrimaryRepresentation, decodeRepresentation, getResourceEntityTypes } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';
+import { compareByRecencyThenId } from '@semiont/graph';
 import type { KnowledgeBase } from './knowledge-base';
 
 import type { ResourceDescriptor } from '@semiont/core';
@@ -14,6 +15,15 @@ import type { ResourceDescriptor } from '@semiont/core';
 export interface ListResourcesFilters {
   search?: string;
   archived?: boolean;
+  entityType?: string;
+  offset?: number;
+  limit?: number;
+}
+
+export interface ListResourcesResult {
+  resources: ResourceDescriptor[];
+  /** Size of the whole match set, not of the returned page. */
+  total: number;
 }
 
 export class ResourceContext {
@@ -30,48 +40,47 @@ export class ResourceContext {
   }
 
   /**
-   * List resources, optionally filtered.
+   * List resources, optionally filtered, as one page plus the size of the whole
+   * match set. Every filter is applied before pagination on both paths — a
+   * filter applied afterwards narrows the page rather than the match set, which
+   * is how a search scoped to an entity type can come back empty while hundreds
+   * of resources match.
    *
-   * When `search` is set, delegates to `kb.graph.searchResources`, which runs
-   * the name match in the graph engine instead of scanning every view in JS.
-   * The graph result is then narrowed by `archived` if requested.
+   * When `search` is set, the entire query — filtering, ordering and
+   * pagination — runs inside the graph engine.
    *
-   * When `search` is unset, falls back to scanning all materialized views.
-   * (TODO: also push the listing path through the graph for large KBs.)
+   * When `search` is unset, the materialized views answer instead. They are the
+   * barrier-stamped projection, so an unsearched listing is read-your-writes
+   * where the graph is only eventually consistent.
    */
-  static async listResources(filters: ListResourcesFilters | undefined, kb: KnowledgeBase): Promise<ResourceDescriptor[]> {
-    if (filters?.search) {
+  static async listResources(filters: ListResourcesFilters | undefined, kb: KnowledgeBase): Promise<ListResourcesResult> {
+    const { search: rawSearch, archived, entityType, offset = 0, limit = 50 } = filters ?? {};
+    // Blank input is not a search: it must not divert the listing onto the
+    // eventually-consistent graph path, and it has nothing to match on.
+    const search = rawSearch?.trim() || undefined;
+
+    if (search) {
       // Set-shaped graph read — eventually consistent BY DESIGN
       // (graph-read-after-write-coverage.md, mechanism (d)): no key to
       // await, human-timescale browse; a just-created resource appears in
       // search after the Weaver's ~tens-of-ms apply.
-      const matches = await kb.graph.searchResources(filters.search);
-      const filtered = filters.archived !== undefined
-        ? matches.filter((doc) => doc.archived === filters.archived)
-        : matches;
-      return ResourceContext.sortByDateDesc(filtered);
+      return kb.graph.listResources({
+        search,
+        archived,
+        entityTypes: entityType ? [entityType] : undefined,
+        offset,
+        limit,
+      });
     }
 
     const allViews = await kb.views.getAll();
-    const resources: ResourceDescriptor[] = [];
+    const matches = allViews
+      .map((view) => view.resource)
+      .filter((doc) => archived === undefined || doc.archived === archived)
+      .filter((doc) => !entityType || getResourceEntityTypes(doc).includes(entityType))
+      .sort(compareByRecencyThenId);
 
-    for (const view of allViews) {
-      const doc = view.resource;
-      if (filters?.archived !== undefined && doc.archived !== filters.archived) {
-        continue;
-      }
-      resources.push(doc);
-    }
-
-    return ResourceContext.sortByDateDesc(resources);
-  }
-
-  private static sortByDateDesc(resources: ResourceDescriptor[]): ResourceDescriptor[] {
-    return [...resources].sort((a, b) => {
-      const aTime = a.dateCreated ? new Date(a.dateCreated).getTime() : 0;
-      const bTime = b.dateCreated ? new Date(b.dateCreated).getTime() : 0;
-      return bTime - aTime;
-    });
+    return { resources: matches.slice(offset, offset + limit), total: matches.length };
   }
 
   /**

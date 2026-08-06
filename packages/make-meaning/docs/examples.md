@@ -63,9 +63,12 @@ if (resource) {
 ```typescript
 import { ResourceContext } from '@semiont/make-meaning';
 
-const resources = await ResourceContext.listResources({
-  createdAfter: '2024-01-01',
-  mimeType: 'text/markdown',
+// `total` is the size of the whole match set, not of the returned page.
+const { resources, total } = await ResourceContext.listResources({
+  search: 'lovelace',
+  entityType: 'Person',
+  archived: false,
+  offset: 0,
   limit: 10,
 }, kb);
 
@@ -208,7 +211,10 @@ const backlinks = await GraphContext.getBacklinks(resourceId, kb);
 console.log(`Found ${backlinks.length} backlinks`);
 
 // Search resources
-const results = await GraphContext.searchResources('neural networks', kb, 10);
+const { resources: results } = await kb.graph.listResources({
+  search: 'neural networks',
+  limit: 10,
+});
 
 // Find paths between resources
 const paths = await GraphContext.findPath(fromId, toId, kb, 3);

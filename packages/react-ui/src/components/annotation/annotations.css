@@ -45,7 +45,7 @@
  * or a position-fallback. The hover tooltip (added by
  * `getAnnotationDecorationMeta`) names the strategy. */
 .annotation-low-confidence {
-  text-decoration: underline dotted var(--semiont-color-amber-500, #d97706);
+  text-decoration: underline dotted var(--semiont-color-amber-500);
   text-decoration-thickness: 2px;
   text-underline-offset: 2px;
 }

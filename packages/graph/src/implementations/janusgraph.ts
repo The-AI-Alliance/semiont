@@ -3,6 +3,7 @@
 
 import { GraphDatabase } from '../interface';
 import { assertMutableResourceUpdate } from '../interface';
+import { queryResources } from '../resource-query';
 import type { Logger } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { getBodySource, getPrimaryRepresentation, getResourceId, getExactText } from '@semiont/core';
@@ -328,36 +329,9 @@ export class JanusGraphDatabase implements GraphDatabase {
     // anonymous-traversal API; for a backend that's not the production
     // target today, JS post-filtering is simpler and adequate at our scale.
     const docs = await this.g!.V().hasLabel('Resource').toList();
-    let resources = docs.map((v: any) => this.vertexToResource(v));
-
-    if (filter.search) {
-      const needle = filter.search.toLowerCase();
-      resources = resources.filter((doc: ResourceDescriptor) =>
-        (doc.name?.toLowerCase().includes(needle) ?? false) ||
-        (doc.storageUri?.toLowerCase().includes(needle) ?? false)
-      );
-    }
-
-    if (filter.entityTypes && filter.entityTypes.length > 0) {
-      resources = resources.filter((doc: ResourceDescriptor) =>
-        filter.entityTypes!.some((type: string) => doc.entityTypes?.includes(type))
-      );
-    }
-
-    const total = resources.length;
-    const offset = filter.offset || 0;
-    const limit = filter.limit || 50;
-
-    return {
-      resources: resources.slice(offset, offset + limit),
-      total
-    };
+    return queryResources(docs.map((v: any) => this.vertexToResource(v)), filter);
   }
-  
-  async searchResources(query: string, limit?: number): Promise<ResourceDescriptor[]> {
-    const result = await this.listResources({ search: query, limit: limit || 10 });
-    return result.resources;
-  }
+
   
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     // The caller's id is the system of record's — never mint a fresh one

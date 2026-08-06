@@ -3,6 +3,7 @@
 
 import { GraphDatabase } from '../interface';
 import { assertMutableResourceUpdate } from '../interface';
+import { queryResources } from '../resource-query';
 import { getEntityTypes } from '@semiont/ontology';
 import type { Logger } from '@semiont/core';
 import { annotationId as makeAnnotationId } from '@semiont/core';
@@ -28,7 +29,6 @@ let DescribeDBClustersCommand: any;
 let gremlin: any;
 let process: any;
 let TextP: any;
-let order: any;
 let cardinality: any;
 let __: any;
 
@@ -43,7 +43,6 @@ async function loadDependencies() {
     gremlin = await import('gremlin');
     process = gremlin.process;
     TextP = process.TextP;
-    order = process.order;
     cardinality = process.cardinality;
     __ = process.statics;
   }
@@ -450,77 +449,34 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
+  /**
+   * Filtering, ranking and pagination happen in JS rather than in Gremlin.
+   *
+   * The ranking ladder (exact name over prefix over substring over path- or
+   * tag-assisted) has no natural Gremlin expression, and a rank applied after
+   * `range()` would order one page instead of the match set. JanusGraph
+   * post-filters for the same reason. Both share `queryResources` with the
+   * memory backend so search cannot mean three different things across three
+   * backends.
+   *
+   * The cost is explicit and accepted: this materializes every `Resource`
+   * vertex per call, so it is O(N) in the size of the KB rather than in the
+   * size of the result. Neo4j is the production path and pushes the whole
+   * query — filter, rank, page — into Cypher; Neptune and JanusGraph are not
+   * deployment targets today. If either becomes one at scale, the fix is a
+   * Gremlin rank expression (`choose` over `toLower`, engine-version
+   * permitting), not a return to per-backend search semantics.
+   */
   async listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }> {
     try {
-      let traversal = this.g.V().hasLabel('Resource');
-      
-      // Apply filters
-      if (filter.entityTypes && filter.entityTypes.length > 0) {
-        // Filter by entity types (stored as JSON string)
-        traversal = traversal.filter(
-          process.statics.or(
-            ...filter.entityTypes.map((type: string) =>
-              process.statics.has('entityTypes', TextP.containing(`"${type}"`))
-            )
-          )
-        );
-      }
-      
-      if (filter.search) {
-        // Search across name and storageUri (case-insensitive substring)
-        traversal = traversal.filter(
-          process.statics.or(
-            process.statics.has('name', TextP.containing(filter.search)),
-            process.statics.has('storageUri', TextP.containing(filter.search))
-          )
-        );
-      }
-      
-      // Count total before pagination
-      const totalResult = await traversal.clone().count().next();
-      const total = totalResult.value || 0;
-      
-      // Apply pagination
-      const offset = filter.offset || 0;
-      const limit = filter.limit || 20;
-      
-      const results = await traversal
-        .order().by('created', order.desc)
-        .range(offset, offset + limit)
-        .elementMap()
-        .toList();
-      
-      const resources = results.map(vertexToResource);
-      
-      return { resources, total };
+      const results = await this.g.V().hasLabel('Resource').elementMap().toList();
+      return queryResources(results.map(vertexToResource), filter);
     } catch (error) {
       this.logger?.error('Failed to list resources from Neptune', { error });
       throw error;
     }
   }
-  
-  async searchResources(query: string, limit: number = 20): Promise<ResourceDescriptor[]> {
-    try {
-      // Search across name and storageUri (case-insensitive substring)
-      const results = await this.g.V()
-        .hasLabel('Resource')
-        .filter(
-          process.statics.or(
-            process.statics.has('name', TextP.containing(query)),
-            process.statics.has('storageUri', TextP.containing(query))
-          )
-        )
-        .order().by('created', order.desc)
-        .limit(limit)
-        .elementMap()
-        .toList();
 
-      return results.map(vertexToResource);
-    } catch (error) {
-      this.logger?.error('Failed to search resources in Neptune', { error });
-      throw error;
-    }
-  }
   
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     // The caller's id is the system of record's — never mint a fresh one

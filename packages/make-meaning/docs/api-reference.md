@@ -302,16 +302,6 @@ static async getBacklinks(
 ): Promise<Annotation[]>
 ```
 
-#### searchResources()
-
-```typescript
-static async searchResources(
-  query: string,
-  kb: KnowledgeBase,
-  limit?: number,
-): Promise<ResourceDescriptor[]>
-```
-
 #### findPath()
 
 ```typescript

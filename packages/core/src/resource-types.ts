@@ -11,6 +11,7 @@ export interface UpdateResourceInput {
 export interface ResourceFilter {
   entityTypes?: string[];
   search?: string;
+  archived?: boolean;
   limit?: number;
   offset?: number;
 }

@@ -172,6 +172,40 @@ describe('GraphDatabase Interface Contract', () => {
       expect(result.resources).toHaveLength(2);
     });
 
+    it('listResources() should filter by archived', async () => {
+      await db.createResource(createTestResource({ name: 'Live', archived: false }));
+      await db.createResource(createTestResource({ name: 'Archived', archived: true }));
+
+      const live = await db.listResources({ archived: false });
+      const archived = await db.listResources({ archived: true });
+
+      expect(live.resources.map(r => r.name)).toEqual(['Live']);
+      expect(archived.resources.map(r => r.name)).toEqual(['Archived']);
+    });
+
+    it('listResources() composes filters and totals every match, not just the page', async () => {
+      // More matches than fit in one page — `total` must describe the whole
+      // match set, since browse pages on it.
+      for (let i = 0; i < 25; i++) {
+        await db.createResource(createTestResource({
+          name: `Quarterly Report ${i}`, entityTypes: ['Report'], archived: false,
+        }));
+      }
+      // One decoy per filter, each failing exactly one condition. The search
+      // term is one only names carry: since search also matches entity types,
+      // "tagged Report but not matching 'Report'" is not a constructible decoy.
+      await db.createResource(createTestResource({ name: 'Quarterly old', entityTypes: ['Report'], archived: true }));
+      await db.createResource(createTestResource({ name: 'Quarterly memo', entityTypes: ['Memo'], archived: false }));
+      await db.createResource(createTestResource({ name: 'Unrelated', entityTypes: ['Report'], archived: false }));
+
+      const page = await db.listResources({
+        search: 'Quarterly', entityTypes: ['Report'], archived: false, limit: 10, offset: 0,
+      });
+
+      expect(page.total).toBe(25);
+      expect(page.resources).toHaveLength(10);
+    });
+
     it('listResources() should paginate results', async () => {
       for (let i = 0; i < 5; i++) {
         await db.createResource(createTestResource({ name: `Resource ${i}` }));
@@ -196,25 +230,223 @@ describe('GraphDatabase Interface Contract', () => {
       expect(result.total).toBe(3);
     });
 
-    it('searchResources() should find by text query', async () => {
+    it('search should find by text query', async () => {
       const resource = createTestResource({ name: 'Unique Searchable Name' });
       await db.createResource(resource);
       await db.createResource(createTestResource({ name: 'Other Document' }));
 
-      const results = await db.searchResources('Searchable');
+      const { resources: results } = await db.listResources({ search: 'Searchable' });
 
       expect(results).toHaveLength(1);
       expect(results[0]?.['@id']).toBe(resource['@id']);
     });
 
-    it('searchResources() should respect limit', async () => {
+    it('search should respect limit', async () => {
       for (let i = 0; i < 5; i++) {
         await db.createResource(createTestResource({ name: 'Test Document' }));
       }
 
-      const results = await db.searchResources('Test', 2);
+      const { resources: results } = await db.listResources({ search: 'Test', limit: 2 });
 
       expect(results).toHaveLength(2);
+    });
+  });
+
+  describe('Result Ordering', () => {
+    // Browse pages through these results, so the order must be total and stable:
+    // same query, same sequence, every call. Ordering on a property no backend
+    // writes leaves SKIP/LIMIT free to repeat or drop rows between pages.
+    const dated = (name: string, dateCreated: string, id: string) =>
+      createTestResource({ '@id': resourceId(id), name, dateCreated });
+
+    it('listResources() returns newest first by dateCreated', async () => {
+      await db.createResource(dated('Oldest', '2020-01-01T00:00:00.000Z', 'order-old'));
+      await db.createResource(dated('Newest', '2026-01-01T00:00:00.000Z', 'order-new'));
+      await db.createResource(dated('Middle', '2023-01-01T00:00:00.000Z', 'order-mid'));
+
+      const { resources } = await db.listResources({});
+
+      expect(resources.map(r => r.name)).toEqual(['Newest', 'Middle', 'Oldest']);
+    });
+
+    it('search returns newest first by dateCreated', async () => {
+      await db.createResource(dated('Report Oldest', '2020-01-01T00:00:00.000Z', 'search-old'));
+      await db.createResource(dated('Report Newest', '2026-01-01T00:00:00.000Z', 'search-new'));
+      await db.createResource(dated('Report Middle', '2023-01-01T00:00:00.000Z', 'search-mid'));
+
+      const { resources: results } = await db.listResources({ search: 'Report' });
+
+      expect(results.map(r => r.name)).toEqual(['Report Newest', 'Report Middle', 'Report Oldest']);
+    });
+
+    it('ranks exact name matches over prefix, over substring, over path-only', async () => {
+      // Dates run counter to the expected order, so recency cannot produce a
+      // passing result by accident — only the rank ladder can.
+      await db.createResource(createTestResource({
+        '@id': resourceId('rank-substring'), name: 'Notes about Marathon',
+        dateCreated: '2026-04-01T00:00:00.000Z',
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('rank-path'), name: 'Greek victory',
+        storageUri: 'file://places/Marathon.md', dateCreated: '2026-03-01T00:00:00.000Z',
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('rank-exact'), name: 'Marathon',
+        dateCreated: '2020-01-01T00:00:00.000Z',
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('rank-prefix'), name: 'Marathon Chronicle',
+        dateCreated: '2021-01-01T00:00:00.000Z',
+      }));
+
+      const { resources: results } = await db.listResources({ search: 'Marathon' });
+
+      expect(results.map(r => r.name)).toEqual([
+        'Marathon',
+        'Marathon Chronicle',
+        'Notes about Marathon',
+        'Greek victory',
+      ]);
+    });
+
+    it('falls back to recency within a rank tier', async () => {
+      await db.createResource(createTestResource({
+        '@id': resourceId('tier-older'), name: 'Marathon Notes',
+        dateCreated: '2020-01-01T00:00:00.000Z',
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('tier-newer'), name: 'Marathon Report',
+        dateCreated: '2026-01-01T00:00:00.000Z',
+      }));
+
+      const { resources: results } = await db.listResources({ search: 'Marathon' });
+
+      expect(results.map(r => r.name)).toEqual(['Marathon Report', 'Marathon Notes']);
+    });
+
+    it('applies the same ranking to listResources when search is set', async () => {
+      await db.createResource(createTestResource({
+        '@id': resourceId('list-substring'), name: 'About Marathon',
+        dateCreated: '2026-04-01T00:00:00.000Z',
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('list-exact'), name: 'Marathon',
+        dateCreated: '2020-01-01T00:00:00.000Z',
+      }));
+
+      const { resources } = await db.listResources({ search: 'Marathon' });
+
+      expect(resources.map(r => r.name)).toEqual(['Marathon', 'About Marathon']);
+    });
+
+    it('requires every query term to match, across name and path together', async () => {
+      await db.createResource(createTestResource({
+        '@id': resourceId('tok-split'), name: 'Greek victory',
+        storageUri: 'file://authors/Aeschylus/places/Marathon.md',
+      }));
+      // Has one term but not the other — AND, not OR.
+      await db.createResource(createTestResource({
+        '@id': resourceId('tok-partial'), name: 'Aeschylus alone',
+        storageUri: 'file://authors/Aeschylus/index.md',
+      }));
+
+      const { resources: results } = await db.listResources({ search: 'Aeschylus Marathon' });
+
+      expect(results.map(r => r.name)).toEqual(['Greek victory']);
+    });
+
+    it('matches query terms in any order', async () => {
+      await db.createResource(createTestResource({
+        '@id': resourceId('tok-order'), name: 'Battle of Marathon',
+      }));
+
+      const { resources: results } = await db.listResources({ search: 'marathon battle' });
+
+      expect(results.map(r => r.name)).toEqual(['Battle of Marathon']);
+    });
+
+    it('ranks a name-only match above one the path had to complete', async () => {
+      await db.createResource(createTestResource({
+        '@id': resourceId('tok-path'), name: 'Marathon notes',
+        storageUri: 'file://authors/Aeschylus/notes.md',
+        dateCreated: '2026-01-01T00:00:00.000Z',
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('tok-name'), name: 'Aeschylus on Marathon',
+        dateCreated: '2020-01-01T00:00:00.000Z',
+      }));
+
+      const { resources: results } = await db.listResources({ search: 'Aeschylus Marathon' });
+
+      expect(results.map(r => r.name)).toEqual(['Aeschylus on Marathon', 'Marathon notes']);
+    });
+
+    it('finds resources by entity type name', async () => {
+      // Typing a type name into the search box is a natural thing to do, and
+      // `entityTypes` is otherwise reachable only as a separate filter.
+      await db.createResource(createTestResource({
+        '@id': resourceId('et-tagged'), name: 'Herodotus', entityTypes: ['Historian'],
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('et-other'), name: 'Marathon', entityTypes: ['Place'],
+      }));
+
+      const { resources } = await db.listResources({ search: 'Historian' });
+
+      expect(resources.map(r => r.name)).toEqual(['Herodotus']);
+    });
+
+    it('ranks an entity-type match below a name match', async () => {
+      await db.createResource(createTestResource({
+        '@id': resourceId('et-rank-tag'), name: 'Unrelated title', entityTypes: ['Historian'],
+        dateCreated: '2026-01-01T00:00:00.000Z',
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('et-rank-name'), name: 'Historian notes', entityTypes: ['Place'],
+        dateCreated: '2020-01-01T00:00:00.000Z',
+      }));
+
+      const { resources } = await db.listResources({ search: 'Historian' });
+
+      expect(resources.map(r => r.name)).toEqual(['Historian notes', 'Unrelated title']);
+    });
+
+    it('composes entity-type matching with multi-term queries', async () => {
+      await db.createResource(createTestResource({
+        '@id': resourceId('et-token'), name: 'Marathon', entityTypes: ['Place'],
+      }));
+      await db.createResource(createTestResource({
+        '@id': resourceId('et-token-miss'), name: 'Marathon', entityTypes: ['Person'],
+      }));
+
+      const { resources } = await db.listResources({ search: 'Place Marathon' });
+
+      expect(resources).toHaveLength(1);
+      expect(resources[0]?.entityTypes).toEqual(['Place']);
+    });
+
+    it('treats a whitespace-only query as no query at all', async () => {
+      // " " is truthy, and a bare CONTAINS would match every name with a space.
+      await db.createResource(createTestResource({ '@id': resourceId('ws-spaced'), name: 'Has a space' }));
+      await db.createResource(createTestResource({ '@id': resourceId('ws-plain'), name: 'Nospace' }));
+
+      const { resources: results } = await db.listResources({ search: '   ' });
+
+      expect(results).toHaveLength(2);
+    });
+
+    it('breaks dateCreated ties by id so paging cannot repeat or drop rows', async () => {
+      const sameInstant = '2026-01-01T00:00:00.000Z';
+      // Inserted out of id order — insertion order must not leak into results.
+      for (const id of ['tie-c', 'tie-a', 'tie-d', 'tie-b']) {
+        await db.createResource(dated(`Tied ${id}`, sameInstant, id));
+      }
+
+      const page1 = await db.listResources({ limit: 2, offset: 0 });
+      const page2 = await db.listResources({ limit: 2, offset: 2 });
+      const paged = [...page1.resources, ...page2.resources].map(r => String(r['@id']));
+
+      expect(paged).toEqual(['tie-a', 'tie-b', 'tie-c', 'tie-d']);
     });
   });
 

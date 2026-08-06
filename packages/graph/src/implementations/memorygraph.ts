@@ -3,6 +3,7 @@
 
 import { GraphDatabase } from '../interface';
 import { assertMutableResourceUpdate } from '../interface';
+import { queryResources } from '../resource-query';
 import type { Logger } from '@semiont/core';
 import type {
   AnnotationCategory,
@@ -102,42 +103,9 @@ export class MemoryGraphDatabase implements GraphDatabase {
   }
   
   async listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }> {
-    let docs = Array.from(this.resources.values());
-
-    if (filter.entityTypes && filter.entityTypes.length > 0) {
-      docs = docs.filter(doc =>
-        doc.entityTypes && doc.entityTypes.some((type: string) => filter.entityTypes!.includes(type))
-      );
-    }
-
-    if (filter.search) {
-      const searchLower = filter.search.toLowerCase();
-      docs = docs.filter(doc =>
-        doc.name.toLowerCase().includes(searchLower) ||
-        (doc.storageUri?.toLowerCase().includes(searchLower) ?? false)
-      );
-    }
-
-    const total = docs.length;
-    const offset = filter.offset || 0;
-    const limit = filter.limit || 20;
-    docs = docs.slice(offset, offset + limit);
-
-    return { resources: docs, total };
+    return queryResources(Array.from(this.resources.values()), filter);
   }
 
-  async searchResources(query: string, limit: number = 20): Promise<ResourceDescriptor[]> {
-    // Simple text search in memory across name and storageUri
-    const searchLower = query.toLowerCase();
-    const results = Array.from(this.resources.values())
-      .filter(doc =>
-        doc.name.toLowerCase().includes(searchLower) ||
-        (doc.storageUri?.toLowerCase().includes(searchLower) ?? false)
-      )
-      .slice(0, limit);
-
-    return results;
-  }
   
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     // The caller's id is the system of record's — never mint a fresh one

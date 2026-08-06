@@ -124,7 +124,7 @@
 .semiont-transition {
   transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: var(--semiont-duration-base, 150ms);
+  transition-duration: var(--semiont-duration-base);
 }
 
 .semiont-transition-none {
@@ -134,58 +134,58 @@
 .semiont-transition-all {
   transition-property: all;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: var(--semiont-duration-base, 150ms);
+  transition-duration: var(--semiont-duration-base);
 }
 
 .semiont-transition-colors {
   transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: var(--semiont-duration-base, 150ms);
+  transition-duration: var(--semiont-duration-base);
 }
 
 .semiont-transition-opacity {
   transition-property: opacity;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: var(--semiont-duration-base, 150ms);
+  transition-duration: var(--semiont-duration-base);
 }
 
 .semiont-transition-transform {
   transition-property: transform;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: var(--semiont-duration-base, 150ms);
+  transition-duration: var(--semiont-duration-base);
 }
 
 /* Animation classes */
 .semiont-animate-fade-in {
-  animation: fadeIn var(--semiont-duration-base, 150ms) ease-in-out;
+  animation: fadeIn var(--semiont-duration-base) ease-in-out;
 }
 
 .semiont-animate-fade-out {
-  animation: fadeOut var(--semiont-duration-base, 150ms) ease-in-out;
+  animation: fadeOut var(--semiont-duration-base) ease-in-out;
 }
 
 .semiont-animate-slide-in-up {
-  animation: slideInUp var(--semiont-duration-base, 300ms) ease-out;
+  animation: slideInUp var(--semiont-duration-base) ease-out;
 }
 
 .semiont-animate-slide-in-down {
-  animation: slideInDown var(--semiont-duration-base, 300ms) ease-out;
+  animation: slideInDown var(--semiont-duration-base) ease-out;
 }
 
 .semiont-animate-slide-in-left {
-  animation: slideInLeft var(--semiont-duration-base, 300ms) ease-out;
+  animation: slideInLeft var(--semiont-duration-base) ease-out;
 }
 
 .semiont-animate-slide-in-right {
-  animation: slideInRight var(--semiont-duration-base, 300ms) ease-out;
+  animation: slideInRight var(--semiont-duration-base) ease-out;
 }
 
 .semiont-animate-scale-in {
-  animation: scaleIn var(--semiont-duration-base, 150ms) ease-out;
+  animation: scaleIn var(--semiont-duration-base) ease-out;
 }
 
 .semiont-animate-scale-out {
-  animation: scaleOut var(--semiont-duration-base, 150ms) ease-in;
+  animation: scaleOut var(--semiont-duration-base) ease-in;
 }
 
 .semiont-animate-spin {
@@ -299,13 +299,13 @@
   .semiont-motion-safe-transition-all {
     transition-property: all;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: var(--semiont-duration-base, 150ms);
+    transition-duration: var(--semiont-duration-base);
   }
 
   .semiont-motion-safe-transition-transform {
     transition-property: transform;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: var(--semiont-duration-base, 150ms);
+    transition-duration: var(--semiont-duration-base);
   }
 }
 

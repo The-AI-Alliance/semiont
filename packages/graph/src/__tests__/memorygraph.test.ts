@@ -164,66 +164,66 @@ describe('MemoryGraphDatabase Implementation', () => {
       expect(result.resources).toEqual([]);
     });
 
-    it('searchResources() should be case-insensitive', async () => {
+    it('search should be case-insensitive', async () => {
       const resource = createTestResource({ name: 'Important Document' });
       await db.createResource(resource);
 
-      const results = await db.searchResources('IMPORTANT');
+      const { resources: results } = await db.listResources({ search: 'IMPORTANT' });
 
       expect(results).toHaveLength(1);
       expect(results[0]?.['@id']).toBe(resource['@id']);
     });
 
-    it('searchResources() should match substring', async () => {
+    it('search should match substring', async () => {
       await db.createResource(createTestResource({ name: 'Understanding TypeScript' }));
 
-      const results = await db.searchResources('script');
+      const { resources: results } = await db.listResources({ search: 'script' });
 
       expect(results).toHaveLength(1);
     });
 
-    it('searchResources() should return empty for no matches', async () => {
+    it('search should return empty for no matches', async () => {
       await db.createResource(createTestResource({ name: 'Test Document' }));
 
-      const results = await db.searchResources('xyz123');
+      const { resources: results } = await db.listResources({ search: 'xyz123' });
 
       expect(results).toEqual([]);
     });
 
-    it('searchResources() should match against storageUri', async () => {
+    it('search should match against storageUri', async () => {
       const resource = createTestResource({
         name: 'Greek Victory',
         storageUri: 'file://authors/Herodotus/places/Marathon.md',
       });
       await db.createResource(resource);
 
-      const results = await db.searchResources('marathon');
+      const { resources: results } = await db.listResources({ search: 'marathon' });
 
       expect(results).toHaveLength(1);
       expect(results[0]?.['@id']).toBe(resource['@id']);
     });
 
-    it('searchResources() against storageUri is case-insensitive', async () => {
+    it('search against storageUri is case-insensitive', async () => {
       const resource = createTestResource({
         name: 'Plays',
         storageUri: 'file://authors/Aeschylus/plays.md',
       });
       await db.createResource(resource);
 
-      const results = await db.searchResources('AESCHYLUS');
+      const { resources: results } = await db.listResources({ search: 'AESCHYLUS' });
 
       expect(results).toHaveLength(1);
       expect(results[0]?.['@id']).toBe(resource['@id']);
     });
 
-    it('searchResources() returns a single result when query matches both name and storageUri', async () => {
+    it('search returns a single result when query matches both name and storageUri', async () => {
       const resource = createTestResource({
         name: 'Marathon',
         storageUri: 'file://places/Marathon.md',
       });
       await db.createResource(resource);
 
-      const results = await db.searchResources('marathon');
+      const { resources: results } = await db.listResources({ search: 'marathon' });
 
       expect(results).toHaveLength(1);
     });

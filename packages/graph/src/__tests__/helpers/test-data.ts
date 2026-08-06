@@ -25,7 +25,7 @@ export function createTestResource(overrides: Partial<ResourceDescriptor> = {}):
         content: { value: 'test content' },
       },
     ],
-    created: new Date().toISOString(),
+    dateCreated: new Date().toISOString(),
     ...overrides,
   } as ResourceDescriptor;
 }

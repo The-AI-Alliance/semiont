@@ -30,6 +30,24 @@ export function assertMutableResourceUpdate(input: UpdateResourceInput): void {
   }
 }
 
+/**
+ * Newest first, ties broken by id — the ordering every `listResources` result
+ * must carry.
+ *
+ * The tiebreak is not cosmetic: browse pages these results with offset/limit,
+ * and a partial order lets two pages repeat or drop rows. Ids compare by code
+ * point rather than locale so the JS backends agree with the engines, whose
+ * `ORDER BY` is codepoint-ordered.
+ */
+export function compareByRecencyThenId(a: ResourceDescriptor, b: ResourceDescriptor): number {
+  const aTime = a.dateCreated ? Date.parse(a.dateCreated) : 0;
+  const bTime = b.dateCreated ? Date.parse(b.dateCreated) : 0;
+  if (aTime !== bTime) return bTime - aTime;
+  const aId = String(a['@id']);
+  const bId = String(b['@id']);
+  return aId < bId ? -1 : aId > bId ? 1 : 0;
+}
+
 export interface GraphDatabase {
   // Connection management
   connect(): Promise<void>;
@@ -43,7 +61,6 @@ export interface GraphDatabase {
   updateResource(id: ResourceId, input: UpdateResourceInput): Promise<ResourceDescriptor>;
   deleteResource(id: ResourceId): Promise<void>;
   listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }>;
-  searchResources(query: string, limit?: number): Promise<ResourceDescriptor[]>;
 
   // Annotation operations
   createAnnotation(input: CreateAnnotationInternal): Promise<Annotation>;

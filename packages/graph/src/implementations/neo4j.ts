@@ -4,6 +4,7 @@
 import type { Driver, Session } from 'neo4j-driver';
 import { GraphDatabase } from '../interface';
 import { assertMutableResourceUpdate } from '../interface';
+import { searchTerms } from '../resource-query';
 import type { Logger } from '@semiont/core';
 import { annotationId as makeAnnotationId } from '@semiont/core';
 import type {
@@ -301,16 +302,33 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     try {
       let whereClause = '';
       const params: any = {};
-      const conditions: string[] = [];
+      // Stub nodes are id-only placeholders that `MERGE` creates when a
+      // REFERENCES edge points at a resource whose `resource.created` event
+      // hasn't landed yet. They carry no name, so they are not listable — and
+      // `parseResourceNode` throws on the missing field rather than inventing one.
+      const conditions: string[] = ['coalesce(d.stub, false) = false'];
+
+      if (filter.archived !== undefined) {
+        conditions.push('d.archived = $archived');
+        params.archived = filter.archived;
+      }
 
       if (filter.entityTypes && filter.entityTypes.length > 0) {
         conditions.push('ANY(type IN $entityTypes WHERE type IN d.entityTypes)');
         params.entityTypes = filter.entityTypes;
       }
 
-      if (filter.search) {
-        conditions.push('(toLower(d.name) CONTAINS toLower($search) OR toLower(coalesce(d.storageUri, "")) CONTAINS toLower($search))');
-        params.search = filter.search;
+      // Every term must appear, each satisfiable by the name or the path. A
+      // whitespace-only query yields no terms and so is not a search at all.
+      const terms = filter.search ? searchTerms(filter.search) : [];
+      if (terms.length > 0) {
+        conditions.push(
+          `ALL(t IN $terms WHERE toLower(d.name) CONTAINS t
+                             OR toLower(coalesce(d.storageUri, "")) CONTAINS t
+                             OR ANY(e IN coalesce(d.entityTypes, []) WHERE toLower(e) CONTAINS t))`
+        );
+        params.terms = terms;
+        params.search = filter.search!.trim().toLowerCase();
       }
 
       if (conditions.length > 0) {
@@ -328,10 +346,26 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       params.skip = this.neo4j.int(filter.offset || 0);
       params.limit = this.neo4j.int(filter.limit || 20);
 
+      // Rank only means something against a query; an unsearched listing orders
+      // on recency alone. Ranking must happen here rather than over the returned
+      // page, or it would sort one page instead of the match set.
+      const rankClause = terms.length > 0
+        ? `WITH d, CASE
+             WHEN toLower(d.name) = $search THEN 0
+             WHEN toLower(d.name) STARTS WITH $search THEN 1
+             WHEN ALL(t IN $terms WHERE toLower(d.name) CONTAINS t) THEN 2
+             ELSE 3
+           END AS rank
+         `
+        : '';
+      const orderClause = terms.length > 0
+        ? 'ORDER BY rank, d.created DESC, d.id'
+        : 'ORDER BY d.created DESC, d.id';
+
       const result = await session.run(
         `MATCH (d:Resource) ${whereClause}
-         RETURN d
-         ORDER BY d.updatedAt DESC
+         ${rankClause}RETURN d
+         ${orderClause}
          SKIP $skip LIMIT $limit`,
         params
       );
@@ -344,24 +378,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async searchResources(query: string, limit: number = 20): Promise<ResourceDescriptor[]> {
-    const session = this.getSession();
-    try {
-      const result = await session.run(
-        `MATCH (d:Resource)
-         WHERE toLower(d.name) CONTAINS toLower($query)
-            OR toLower(coalesce(d.storageUri, "")) CONTAINS toLower($query)
-         RETURN d
-         ORDER BY d.updatedAt DESC
-         LIMIT $limit`,
-        { query, limit: this.neo4j.int(limit) }
-      );
-
-      return result.records.map(record => this.parseResourceNode(record.get('d')));
-    } finally {
-      await session.close();
-    }
-  }
 
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     const session = this.getSession();

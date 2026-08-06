@@ -77,7 +77,7 @@ export type { CreateAnnotationResult, UpdateAnnotationBodyResult } from './annot
 
 // Context assembly exports
 export { ResourceContext } from './resource-context';
-export type { ListResourcesFilters } from './resource-context';
+export type { ListResourcesFilters, ListResourcesResult } from './resource-context';
 export { AnnotationContext } from './annotation-context';
 export type { BuildContextOptions } from './annotation-context';
 export { GraphContext } from './graph-context';

@@ -19,7 +19,6 @@ export interface GraphDatabase {
   updateResource(id: ResourceId, input: UpdateResourceInput): Promise<ResourceDescriptor>;
   deleteResource(id: ResourceId): Promise<void>;
   listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }>;
-  searchResources(query: string, limit?: number): Promise<ResourceDescriptor[]>;
 
   // Annotation operations
   createAnnotation(input: CreateAnnotationInternal): Promise<Annotation>;

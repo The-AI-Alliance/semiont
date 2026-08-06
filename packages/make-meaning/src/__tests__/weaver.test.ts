@@ -66,7 +66,6 @@ function createMockGraphDb(): GraphDatabase {
     updateResource: vi.fn().mockResolvedValue({}),
     deleteResource: vi.fn().mockResolvedValue(undefined),
     listResources: vi.fn().mockResolvedValue({ resources: [], total: 0 }),
-    searchResources: vi.fn().mockResolvedValue([]),
     createAnnotation: vi.fn().mockResolvedValue({}),
     getAnnotation: vi.fn().mockResolvedValue(null),
     updateAnnotation: vi.fn().mockResolvedValue({}),
