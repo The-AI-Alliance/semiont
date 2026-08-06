@@ -452,11 +452,20 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   /**
    * Filtering, ranking and pagination happen in JS rather than in Gremlin.
    *
-   * The ranking ladder (exact name over prefix over substring over path-only)
-   * has no natural Gremlin expression, and a rank applied after `range()` would
-   * order one page instead of the match set. JanusGraph post-filters for the
-   * same reason. Both share `queryResources` with the memory backend so search
-   * cannot mean three different things across three backends.
+   * The ranking ladder (exact name over prefix over substring over path- or
+   * tag-assisted) has no natural Gremlin expression, and a rank applied after
+   * `range()` would order one page instead of the match set. JanusGraph
+   * post-filters for the same reason. Both share `queryResources` with the
+   * memory backend so search cannot mean three different things across three
+   * backends.
+   *
+   * The cost is explicit and accepted: this materializes every `Resource`
+   * vertex per call, so it is O(N) in the size of the KB rather than in the
+   * size of the result. Neo4j is the production path and pushes the whole
+   * query — filter, rank, page — into Cypher; Neptune and JanusGraph are not
+   * deployment targets today. If either becomes one at scale, the fix is a
+   * Gremlin rank expression (`choose` over `toLower`, engine-version
+   * permitting), not a return to per-backend search semantics.
    */
   async listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }> {
     try {

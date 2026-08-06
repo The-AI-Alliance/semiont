@@ -59,7 +59,7 @@ console.log(`Best match: ${top?.name} (score ${top?.score}, reason: ${top?.match
 
 The Matcher retrieves candidates in parallel from three sources, then deduplicates by resource ID:
 
-1. **Name match** — `graph.searchResources(searchTerm)` — text search against resource names
+1. **Name match** — `graph.listResources({ search: searchTerm, limit: 20 })` — every term matched against the resource name, its `storageUri` and its entity types
 2. **Entity type filter** — `graph.listResources({ entityTypes })` — resources sharing entity types with the annotation
 3. **Graph neighborhood** — resources connected to the source resource, derived from the shared `context.graph` (`deriveViews(context.graph, mainResourceId).connections`, from `@semiont/core`)
 

@@ -166,7 +166,7 @@ await graph.getResource(id);
 await graph.updateResource(id, updates);
 await graph.deleteResource(id);
 await graph.listResources({ entityTypes: ['Person'] });
-await graph.searchResources('query');
+await graph.listResources({ search: 'query' });
 
 // Annotation operations
 await graph.createAnnotation(input);

@@ -11,7 +11,7 @@ All implementations conform to the `GraphDatabase` interface defined in [src/int
 Method groups at a glance:
 
 - **Connection management** — `connect()`, `disconnect()`, `isConnected()`
-- **Resource operations** — `createResource()`, `getResource()`, `updateResource()`, `deleteResource()`, `listResources()`, `searchResources()`
+- **Resource operations** — `createResource()`, `getResource()`, `updateResource()`, `deleteResource()`, `listResources()`
 - **Annotation operations** — `createAnnotation()`, `getAnnotation()`, `updateAnnotation()`, `deleteAnnotation()`, `listAnnotations()`
 - **Highlights and references** — `getHighlights()`, `resolveReference()`, `getReferences()`, `getEntityReferences()`
 - **Relationship queries** — `getResourceAnnotations()`, `getResourceReferencedBy()`
@@ -155,8 +155,13 @@ const { resources, total } = await graph.listResources({
   offset: 0
 });
 
-// Full-text-ish name/content search
-const matches = await graph.searchResources('Ada Lovelace', 10);
+// Search. Every term must match the name, the storageUri or an entity type;
+// results rank exact name matches first, then prefix, then any-term-in-name,
+// then matches the path or a tag had to complete.
+const { resources: matches } = await graph.listResources({
+  search: 'Ada Lovelace',
+  limit: 10
+});
 ```
 
 ### Graph Traversal

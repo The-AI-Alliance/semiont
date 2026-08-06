@@ -172,7 +172,7 @@ const resource = await ResourceContext.getResourceMetadata(resourceId, kb);
 const annotations = await AnnotationContext.getAllAnnotations(resourceId, kb);
 
 // Search resources via graph
-const results = await GraphContext.searchResources('query text', kb, 10);
+const { resources: results } = await kb.graph.listResources({ search: 'query text', limit: 10 });
 
 // Get graph stats
 const stats = await kb.graph.getStats();
