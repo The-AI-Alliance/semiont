@@ -376,9 +376,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async searchResources(query: string, limit: number = 20): Promise<ResourceDescriptor[]> {
-    return (await this.listResources({ search: query, limit })).resources;
-  }
 
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     const session = this.getSession();

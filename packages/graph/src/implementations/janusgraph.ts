@@ -332,10 +332,6 @@ export class JanusGraphDatabase implements GraphDatabase {
     return queryResources(docs.map((v: any) => this.vertexToResource(v)), filter);
   }
 
-  async searchResources(query: string, limit?: number): Promise<ResourceDescriptor[]> {
-    const result = await this.listResources({ search: query, limit: limit ?? 20 });
-    return result.resources;
-  }
   
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     // The caller's id is the system of record's — never mint a fresh one

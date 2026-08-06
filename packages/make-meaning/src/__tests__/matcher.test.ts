@@ -120,11 +120,23 @@ const noopInference = {
   generateTextWithMetadata: vi.fn().mockResolvedValue({ text: '', usage: {} }),
 } as unknown as InferenceClient;
 
+type MockResourceFilter = { search?: string; entityTypes?: string[]; limit?: number };
+
+type SearchMatches = (filter: MockResourceFilter) => Promise<unknown[]>;
+type EntityTypeMatches = (filter: MockResourceFilter) => Promise<{ resources: unknown[]; total: number }>;
+type SearchMatchesMock = ReturnType<typeof vi.fn<SearchMatches>>;
+type EntityTypeMatchesMock = ReturnType<typeof vi.fn<EntityTypeMatches>>;
+
+// The Matcher draws name matches and entity-type matches from the same
+// `listResources` method, told apart by the filter it passes. These two knobs
+// stand for those two retrieval sources; the mock below routes between them.
 interface MockGraphOverrides {
-  searchResources?: ReturnType<typeof vi.fn>;
+  /** Name-match source — `listResources({ search })`. Resolves an array. */
+  searchMatches?: SearchMatches;
+  /** Entity-type source — `listResources({ entityTypes })`. Resolves `{ resources, total }`. */
+  entityTypeMatches?: EntityTypeMatches;
   getResourceReferencedBy?: ReturnType<typeof vi.fn>;
   getResource?: ReturnType<typeof vi.fn>;
-  listResources?: ReturnType<typeof vi.fn>;
   viewsGet?: ReturnType<typeof vi.fn>;
 }
 
@@ -137,10 +149,20 @@ function createMockKb(overrides: MockGraphOverrides = {}): KnowledgeBase {
     projectionsDir: '',
       weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
     graph: {
-      searchResources: overrides.searchResources ?? vi.fn().mockResolvedValue([]),
       getResourceReferencedBy: overrides.getResourceReferencedBy ?? vi.fn().mockResolvedValue([]),
       getResource: overrides.getResource ?? vi.fn().mockResolvedValue(null),
-      listResources: overrides.listResources ?? vi.fn().mockResolvedValue({ resources: [], total: 0 }),
+      listResources: vi.fn(async (filter: MockResourceFilter) => {
+        if (filter?.search) {
+          const resources = overrides.searchMatches ? await overrides.searchMatches(filter) : [];
+          return { resources, total: resources.length };
+        }
+        if (filter?.entityTypes?.length) {
+          return overrides.entityTypeMatches
+            ? await overrides.entityTypeMatches(filter)
+            : { resources: [], total: 0 };
+        }
+        return { resources: [], total: 0 };
+      }),
       createResource: vi.fn(),
       deleteResource: vi.fn(),
       getBacklinks: vi.fn(),
@@ -155,14 +177,14 @@ function createMockKb(overrides: MockGraphOverrides = {}): KnowledgeBase {
 describe('Matcher', () => {
   let eventBus: EventBus;
   let matcher: Matcher;
-  let mockSearchFn: ReturnType<typeof vi.fn>;
+  let mockSearchFn: SearchMatchesMock;
   let kb: KnowledgeBase;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     eventBus = new EventBus();
-    mockSearchFn = vi.fn();
-    kb = createMockKb({ searchResources: mockSearchFn });
+    mockSearchFn = vi.fn<SearchMatches>();
+    kb = createMockKb({ searchMatches: mockSearchFn });
     matcher = new Matcher(kb, eventBus, mockLogger, noopInference);
     await matcher.initialize();
   });
@@ -203,7 +225,7 @@ describe('Matcher', () => {
         expect(r).toHaveProperty('score');
       }
 
-      expect(mockSearchFn).toHaveBeenCalledWith('test query');
+      expect(mockSearchFn).toHaveBeenCalledWith({ search: 'test query', limit: 20 });
     });
 
     it('should emit match:search-failed on error', async () => {
@@ -241,8 +263,8 @@ describe('Matcher', () => {
   });
 
   describe('context-driven search', () => {
-    let mockSearchFn2: ReturnType<typeof vi.fn>;
-    let mockListResources: ReturnType<typeof vi.fn>;
+    let mockSearchFn2: SearchMatchesMock;
+    let mockListResources: EntityTypeMatchesMock;
     let mockGetResource: ReturnType<typeof vi.fn>;
     let mockViewGet: ReturnType<typeof vi.fn>;
 
@@ -256,13 +278,13 @@ describe('Matcher', () => {
 
       vi.clearAllMocks();
       eventBus = new EventBus();
-      mockSearchFn2 = vi.fn().mockResolvedValue([]);
-      mockListResources = vi.fn().mockResolvedValue({ resources: [], total: 0 });
+      mockSearchFn2 = vi.fn<SearchMatches>().mockResolvedValue([]);
+      mockListResources = vi.fn<EntityTypeMatches>().mockResolvedValue({ resources: [], total: 0 });
       mockGetResource = vi.fn().mockResolvedValue(null);
       mockViewGet = vi.fn().mockResolvedValue(null);
       kb = createMockKb({
-        searchResources: mockSearchFn2,
-        listResources: mockListResources,
+        searchMatches: mockSearchFn2,
+        entityTypeMatches: mockListResources,
         getResource: mockGetResource,
         viewsGet: mockViewGet,
       });
@@ -597,12 +619,12 @@ describe('Matcher', () => {
 
       vi.clearAllMocks();
       eventBus = new EventBus();
-      mockSearchFn2 = vi.fn().mockResolvedValue([RES_A, RES_B]);
-      mockListResources = vi.fn().mockResolvedValue({ resources: [], total: 0 });
+      mockSearchFn2 = vi.fn<SearchMatches>().mockResolvedValue([RES_A, RES_B]);
+      mockListResources = vi.fn<EntityTypeMatches>().mockResolvedValue({ resources: [], total: 0 });
       mockGetResource = vi.fn().mockResolvedValue(null);
       kb = createMockKb({
-        searchResources: mockSearchFn2,
-        listResources: mockListResources,
+        searchMatches: mockSearchFn2,
+        entityTypeMatches: mockListResources,
         getResource: mockGetResource,
       });
 
@@ -644,12 +666,12 @@ describe('Matcher', () => {
 
       vi.clearAllMocks();
       eventBus = new EventBus();
-      mockSearchFn2 = vi.fn().mockResolvedValue([RES_A]);
-      mockListResources = vi.fn().mockResolvedValue({ resources: [], total: 0 });
+      mockSearchFn2 = vi.fn<SearchMatches>().mockResolvedValue([RES_A]);
+      mockListResources = vi.fn<EntityTypeMatches>().mockResolvedValue({ resources: [], total: 0 });
       mockGetResource = vi.fn().mockResolvedValue(null);
       kb = createMockKb({
-        searchResources: mockSearchFn2,
-        listResources: mockListResources,
+        searchMatches: mockSearchFn2,
+        entityTypeMatches: mockListResources,
         getResource: mockGetResource,
       });
 
@@ -727,12 +749,12 @@ describe('Matcher', () => {
 
         vi.clearAllMocks();
         eventBus = new EventBus();
-        mockSearchFn2 = vi.fn().mockResolvedValue([RES_A, RES_B, RES_C]);
-        mockListResources = vi.fn().mockResolvedValue({ resources: [], total: 0 });
+        mockSearchFn2 = vi.fn<SearchMatches>().mockResolvedValue([RES_A, RES_B, RES_C]);
+        mockListResources = vi.fn<EntityTypeMatches>().mockResolvedValue({ resources: [], total: 0 });
         mockGetResource = vi.fn().mockResolvedValue(null);
         kb = createMockKb({
-          searchResources: mockSearchFn2,
-          listResources: mockListResources,
+          searchMatches: mockSearchFn2,
+          entityTypeMatches: mockListResources,
           getResource: mockGetResource,
         });
 

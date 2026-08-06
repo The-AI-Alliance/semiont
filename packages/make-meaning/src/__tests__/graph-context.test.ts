@@ -17,8 +17,7 @@ const mockGraphDb = {
   getResourceReferencedBy: vi.fn(),
   getResourceAnnotations: vi.fn(),
   findPath: vi.fn(),
-  getResourceConnections: vi.fn(),
-  searchResources: vi.fn()
+  getResourceConnections: vi.fn()
 };
 
 const mockViews = { get: vi.fn() };
@@ -116,30 +115,6 @@ describe('GraphContext', () => {
     expect(mockGraphDb.getResourceConnections).toHaveBeenCalledWith(resourceId('test'));
   });
 
-  it('should search resources by query', async () => {
-    mockGraphDb.searchResources.mockResolvedValue([
-      {
-        id: 'http://localhost:4000/resources/match1',
-        name: 'Matching Resource 1',
-        format: 'text/plain',
-        createdAt: '2024-01-01T00:00:00Z'
-      },
-      {
-        id: 'http://localhost:4000/resources/match2',
-        name: 'Matching Resource 2',
-        format: 'text/plain',
-        createdAt: '2024-01-02T00:00:00Z'
-      }
-    ]);
-
-    const result = await GraphContext.searchResources('test query', mockKb, 10);
-
-    expect(result).toHaveLength(2);
-    expect(result[0].name).toBe('Matching Resource 1');
-    expect(result[1].name).toBe('Matching Resource 2');
-    expect(mockGraphDb.searchResources).toHaveBeenCalledWith('test query', 10);
-  });
-
   it('should handle empty backlinks', async () => {
     mockGraphDb.getResourceReferencedBy.mockResolvedValue([]);
 
@@ -160,14 +135,6 @@ describe('GraphContext', () => {
     expect(result).toEqual([]);
   });
 
-  it('should handle search with no results', async () => {
-    mockGraphDb.searchResources.mockResolvedValue([]);
-
-    const result = await GraphContext.searchResources('nonexistent query', mockKb);
-
-    expect(result).toEqual([]);
-  });
-
   it('should call findPath without maxDepth when not provided', async () => {
     mockGraphDb.findPath.mockResolvedValue([]);
 
@@ -182,14 +149,6 @@ describe('GraphContext', () => {
       resourceId('to'),
       undefined
     );
-  });
-
-  it('should call searchResources without limit when not provided', async () => {
-    mockGraphDb.searchResources.mockResolvedValue([]);
-
-    await GraphContext.searchResources('query', mockKb);
-
-    expect(mockGraphDb.searchResources).toHaveBeenCalledWith('query', undefined);
   });
 
   describe('buildKnowledgeGraph (CONTEXT-UNIFICATION P2)', () => {

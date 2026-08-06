@@ -19,7 +19,6 @@ import type { KnowledgeBase } from './knowledge-base';
 import { WeaveProgressTimeout } from './weave-progress';
 
 import type { Annotation } from '@semiont/core';
-import type { ResourceDescriptor } from '@semiont/core';
 
 // The unified knowledge-graph shape is the core/spec type (CONTEXT-UNIFICATION):
 // resources AND annotations are nodes; edges are typed and directional. The
@@ -80,14 +79,6 @@ export class GraphContext {
    */
   static async getResourceConnections(resourceId: ResourceId, kb: KnowledgeBase): Promise<GraphConnection[]> {
     return kb.graph.getResourceConnections(resourceId);
-  }
-
-  /**
-   * Search resources by name (cross-resource query)
-   * Requires full-text search - must use graph database
-   */
-  static async searchResources(query: string, kb: KnowledgeBase, limit?: number): Promise<ResourceDescriptor[]> {
-    return kb.graph.searchResources(query, limit);
   }
 
   /**

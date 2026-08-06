@@ -337,7 +337,8 @@ describe('Scripting Example: Query Graph Database', () => {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Search for resources using GraphDatabase interface
-    const searchResults = await makeMeaning.knowledgeSystem.kb.graph.searchResources('Custom', 10);
+    const { resources: searchResults } =
+      await makeMeaning.knowledgeSystem.kb.graph.listResources({ search: 'Custom', limit: 10 });
 
     console.log('Search results:');
     searchResults.forEach(resource => {

@@ -106,9 +106,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
     return queryResources(Array.from(this.resources.values()), filter);
   }
 
-  async searchResources(query: string, limit: number = 20): Promise<ResourceDescriptor[]> {
-    return (await this.listResources({ search: query, limit })).resources;
-  }
   
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     // The caller's id is the system of record's — never mint a fresh one

@@ -108,7 +108,7 @@ export class Matcher {
    * Context-driven search: multi-source retrieval + composite scoring
    *
    * Retrieval sources:
-   * 1. Name match — graph.searchResources(searchTerm)
+   * 1. Name match — graph.listResources({ search: searchTerm })
    * 2. Entity type match — graph.listResources({ entityTypes })
    * 3. Graph neighborhood — connections from GatheredContext
    *
@@ -138,7 +138,7 @@ export class Matcher {
     // this search", and multi-source retrieval absorbs a just-created
     // resource missing from one source for the Weaver's ~tens-of-ms lag.
     const [nameMatches, entityTypeMatches, semanticMatches] = await Promise.all([
-      this.kb.graph.searchResources(searchTerm),
+      this.kb.graph.listResources({ search: searchTerm, limit: 20 }).then(r => r.resources),
       annotationEntityTypes.length > 0
         ? this.kb.graph.listResources({ entityTypes: annotationEntityTypes, limit: 50 })
             .then(r => r.resources)

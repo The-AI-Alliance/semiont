@@ -228,23 +228,23 @@ describe('GraphDatabase Interface Contract', () => {
       expect(result.total).toBe(3);
     });
 
-    it('searchResources() should find by text query', async () => {
+    it('search should find by text query', async () => {
       const resource = createTestResource({ name: 'Unique Searchable Name' });
       await db.createResource(resource);
       await db.createResource(createTestResource({ name: 'Other Document' }));
 
-      const results = await db.searchResources('Searchable');
+      const { resources: results } = await db.listResources({ search: 'Searchable' });
 
       expect(results).toHaveLength(1);
       expect(results[0]?.['@id']).toBe(resource['@id']);
     });
 
-    it('searchResources() should respect limit', async () => {
+    it('search should respect limit', async () => {
       for (let i = 0; i < 5; i++) {
         await db.createResource(createTestResource({ name: 'Test Document' }));
       }
 
-      const results = await db.searchResources('Test', 2);
+      const { resources: results } = await db.listResources({ search: 'Test', limit: 2 });
 
       expect(results).toHaveLength(2);
     });
@@ -267,12 +267,12 @@ describe('GraphDatabase Interface Contract', () => {
       expect(resources.map(r => r.name)).toEqual(['Newest', 'Middle', 'Oldest']);
     });
 
-    it('searchResources() returns newest first by dateCreated', async () => {
+    it('search returns newest first by dateCreated', async () => {
       await db.createResource(dated('Report Oldest', '2020-01-01T00:00:00.000Z', 'search-old'));
       await db.createResource(dated('Report Newest', '2026-01-01T00:00:00.000Z', 'search-new'));
       await db.createResource(dated('Report Middle', '2023-01-01T00:00:00.000Z', 'search-mid'));
 
-      const results = await db.searchResources('Report');
+      const { resources: results } = await db.listResources({ search: 'Report' });
 
       expect(results.map(r => r.name)).toEqual(['Report Newest', 'Report Middle', 'Report Oldest']);
     });
@@ -297,7 +297,7 @@ describe('GraphDatabase Interface Contract', () => {
         dateCreated: '2021-01-01T00:00:00.000Z',
       }));
 
-      const results = await db.searchResources('Marathon');
+      const { resources: results } = await db.listResources({ search: 'Marathon' });
 
       expect(results.map(r => r.name)).toEqual([
         'Marathon',
@@ -317,7 +317,7 @@ describe('GraphDatabase Interface Contract', () => {
         dateCreated: '2026-01-01T00:00:00.000Z',
       }));
 
-      const results = await db.searchResources('Marathon');
+      const { resources: results } = await db.listResources({ search: 'Marathon' });
 
       expect(results.map(r => r.name)).toEqual(['Marathon Report', 'Marathon Notes']);
     });
@@ -348,7 +348,7 @@ describe('GraphDatabase Interface Contract', () => {
         storageUri: 'file://authors/Aeschylus/index.md',
       }));
 
-      const results = await db.searchResources('Aeschylus Marathon');
+      const { resources: results } = await db.listResources({ search: 'Aeschylus Marathon' });
 
       expect(results.map(r => r.name)).toEqual(['Greek victory']);
     });
@@ -358,7 +358,7 @@ describe('GraphDatabase Interface Contract', () => {
         '@id': resourceId('tok-order'), name: 'Battle of Marathon',
       }));
 
-      const results = await db.searchResources('marathon battle');
+      const { resources: results } = await db.listResources({ search: 'marathon battle' });
 
       expect(results.map(r => r.name)).toEqual(['Battle of Marathon']);
     });
@@ -374,7 +374,7 @@ describe('GraphDatabase Interface Contract', () => {
         dateCreated: '2020-01-01T00:00:00.000Z',
       }));
 
-      const results = await db.searchResources('Aeschylus Marathon');
+      const { resources: results } = await db.listResources({ search: 'Aeschylus Marathon' });
 
       expect(results.map(r => r.name)).toEqual(['Aeschylus on Marathon', 'Marathon notes']);
     });
@@ -384,7 +384,7 @@ describe('GraphDatabase Interface Contract', () => {
       await db.createResource(createTestResource({ '@id': resourceId('ws-spaced'), name: 'Has a space' }));
       await db.createResource(createTestResource({ '@id': resourceId('ws-plain'), name: 'Nospace' }));
 
-      const results = await db.searchResources('   ');
+      const { resources: results } = await db.listResources({ search: '   ' });
 
       expect(results).toHaveLength(2);
     });

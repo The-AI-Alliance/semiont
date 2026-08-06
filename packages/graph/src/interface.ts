@@ -31,8 +31,8 @@ export function assertMutableResourceUpdate(input: UpdateResourceInput): void {
 }
 
 /**
- * Newest first, ties broken by id — the ordering every `listResources` and
- * `searchResources` result must carry.
+ * Newest first, ties broken by id — the ordering every `listResources` result
+ * must carry.
  *
  * The tiebreak is not cosmetic: browse pages these results with offset/limit,
  * and a partial order lets two pages repeat or drop rows. Ids compare by code
@@ -61,7 +61,6 @@ export interface GraphDatabase {
   updateResource(id: ResourceId, input: UpdateResourceInput): Promise<ResourceDescriptor>;
   deleteResource(id: ResourceId): Promise<void>;
   listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }>;
-  searchResources(query: string, limit?: number): Promise<ResourceDescriptor[]>;
 
   // Annotation operations
   createAnnotation(input: CreateAnnotationInternal): Promise<Annotation>;
