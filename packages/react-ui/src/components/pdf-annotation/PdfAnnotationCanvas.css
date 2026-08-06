@@ -98,7 +98,12 @@
   flex: 0 0 auto;
   gap: 2px;
   padding: 0.5rem;
-  scrollbar-width: none;
+  scrollbar-width: none; /* standard; Firefox + recent Chromium */
+}
+
+/* WebKit/Safari, which has no `scrollbar-width` support to rely on. */
+.semiont-pdf-annotation-canvas__strip::-webkit-scrollbar {
+  display: none;
 }
 
 /*
@@ -233,11 +238,11 @@
 }
 
 .semiont-pdf-annotation-canvas__button:hover:not(:disabled) {
-  background-color: var(--semiont-bg-hover, rgba(0, 0, 0, 0.05));
+  background-color: var(--semiont-bg-hover);
 }
 
 .semiont-pdf-annotation-canvas__button:focus-visible {
-  outline: 2px solid var(--semiont-focus-ring, #0066cc);
+  outline: 2px solid var(--semiont-focus-ring);
   outline-offset: 2px;
 }
 

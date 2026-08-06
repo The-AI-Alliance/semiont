@@ -118,7 +118,7 @@
    highlight while a drag hovers. */
 .semiont-form__upload-dropzone[data-drag-over="true"] {
   border-color: var(--semiont-color-primary-500);
-  background: var(--semiont-color-primary-50, rgba(59, 130, 246, 0.06));
+  background: var(--semiont-color-primary-50);
 }
 
 /* Dark mode needs its own tint: primary-50 is a near-white wash that would

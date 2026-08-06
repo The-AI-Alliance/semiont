@@ -14,8 +14,8 @@
   /* Light theme colors */
   --semiont-motivation-reference-primary: var(--semiont-color-cyan-600);
   --semiont-motivation-reference-secondary: var(--semiont-color-blue-600);
-  --semiont-motivation-reference-bg: linear-gradient(to right, var(--semiont-color-cyan-200, #a5f3fc), var(--semiont-color-blue-200));
-  --semiont-motivation-reference-bg-hover: linear-gradient(to right, var(--semiont-color-cyan-300, #67e8f9), var(--semiont-color-blue-300));
+  --semiont-motivation-reference-bg: linear-gradient(to right, var(--semiont-color-cyan-200), var(--semiont-color-blue-200));
+  --semiont-motivation-reference-bg-hover: linear-gradient(to right, var(--semiont-color-cyan-300), var(--semiont-color-blue-300));
   --semiont-motivation-reference-border: rgba(6, 182, 212, 0.3);
   --semiont-motivation-reference-border-hover: rgba(6, 182, 212, 0.5);
   --semiont-motivation-reference-text: var(--semiont-color-gray-900);

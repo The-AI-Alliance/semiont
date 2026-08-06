@@ -324,7 +324,7 @@
 }
 
 [data-theme="dark"] .semiont-browse-view__content tr:nth-child(even) td {
-  background: var(--semiont-color-gray-800, var(--semiont-color-gray-800));
+  background: var(--semiont-color-gray-800);
 }
 
 /* GFM task list checkboxes */

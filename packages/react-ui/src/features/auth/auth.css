@@ -316,12 +316,12 @@
 }
 
 .semiont-form__input-row:focus-visible {
-  outline: 2px solid var(--semiont-focus-ring, #3b82f6);
+  outline: 2px solid var(--semiont-focus-ring);
   outline-offset: 2px;
 }
 
 [data-theme="dark"] .semiont-form__input-row:focus-visible {
-  outline-color: var(--semiont-focus-ring, #60a5fa);
+  outline-color: var(--semiont-focus-ring);
 }
 
 .semiont-form__input-row .semiont-input {
@@ -329,12 +329,12 @@
 }
 
 .semiont-form__input-row .semiont-input:focus-visible {
-  outline: 2px solid var(--semiont-focus-ring, #3b82f6);
+  outline: 2px solid var(--semiont-focus-ring);
   outline-offset: 2px;
 }
 
 [data-theme="dark"] .semiont-form__input-row .semiont-input:focus-visible {
-  outline-color: var(--semiont-focus-ring, #60a5fa);
+  outline-color: var(--semiont-focus-ring);
 }
 
 .semiont-form__url-status {
@@ -345,27 +345,27 @@
 }
 
 .semiont-form__url-status--checking {
-  color: var(--semiont-text-tertiary, #888888);
+  color: var(--semiont-text-tertiary);
   animation: spin 1s linear infinite;
   display: inline-block;
 }
 
 [data-theme="dark"] .semiont-form__url-status--checking {
-  color: var(--semiont-text-tertiary, #888888);
+  color: var(--semiont-text-tertiary);
 }
 
 .semiont-form__url-status--ok {
-  color: var(--semiont-color-success, #22c55e);
+  color: var(--semiont-color-success);
 }
 
 [data-theme="dark"] .semiont-form__url-status--ok {
-  color: var(--semiont-color-success, #22c55e);
+  color: var(--semiont-color-success);
 }
 
 .semiont-form__url-status--error {
-  color: var(--semiont-color-error, #ef4444);
+  color: var(--semiont-color-error);
 }
 
 [data-theme="dark"] .semiont-form__url-status--error {
-  color: var(--semiont-color-error, #ef4444);
+  color: var(--semiont-color-error);
 }
