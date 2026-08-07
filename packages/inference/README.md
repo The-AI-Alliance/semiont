@@ -121,7 +121,7 @@ const { items } = await client.generateStructured<Entity>(prompt, 1000, 0, {
 
 Each implementation honors the contract with its provider's mechanism:
 - **Ollama**: grammar-constrained sampling — the request's `format` field carries the caller's element schema wrapped in an array schema.
-- **Anthropic**: forced structured tool-use — a single tool is offered and forced via `tool_choice`, so the model answers by filling the tool's input, which the API serializes as escaped JSON. The array is carried under an `items` property (tool inputs must be objects).
+- **Anthropic**: response-level structured output — `output_config.format` carries the caller's element schema under an **array root** (accepted on both live-config models; `.plans/spikes/output-config-array-root.md`), so the response text IS the schema-conforming JSON. No tools, no wrapper, no unwrap.
 
 A response that cannot be read as an array — the SDK delivering unparsed tool input as a string, a missing array, an unhonoured grammar — **throws** (`Structured response could not be read: …`). It is never coerced to `[]`: an empty extraction is a legitimate, distinct outcome, and conflating the two silently discards real data (STRUCTURED-INFERENCE).
 

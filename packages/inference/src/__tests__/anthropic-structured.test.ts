@@ -1,22 +1,22 @@
 /**
- * STRUCTURED-INFERENCE Phase 1 — pin the lie (declared RED).
+ * STRUCTURED-INFERENCE — pin the read-failure contract (Phases 1–3, 5).
  *
- * The Anthropic client's JSON mode collapses "we could not read the model"
- * into "the model found nothing": when the SDK cannot parse the accumulated
- * tool input (live case: one unescaped OCR backslash among 1,156 escapes in a
- * 67,553-char `items` payload), `input.items` arrives as a STRING, and
- * `Array.isArray(items) ? items : []` returns `"[]"` with a green stopReason.
- * 202 real entities were discarded and reported as success.
+ * The original defect: the JSON-mode unwrap collapsed "we could not read the
+ * model" into "the model found nothing" (`Array.isArray(items) ? items : []`)
+ * — 202 real entities discarded as a green empty job when one unescaped OCR
+ * backslash broke the SDK's tool-input parse.
  *
- * These tests specify the replacement surface, `generateStructured`:
- * unreadable input THROWS (distinct from empty), and a genuinely empty
- * extraction survives as `{ items: [] }` — never conflated.
+ * `generateStructured` makes unreadable a THROW, distinct from empty, and
+ * Phase 5 removed the tool-input accumulation step entirely: structured
+ * output now rides `output_config.format` with an ARRAY root (spike
+ * 2026-08-06), so the response text IS the JSON and the read path is
+ * parse-and-verify. These tests pin the contract across that mechanism:
+ * unreadable → throw ("could not be read"); empty → `{ items: [] }`;
+ * incapable model → config-actionable refusal before any request.
  *
- * Written as Phase 1's declared RED (all three failed with
- * `generateStructured is not a function` against pre-Phase-2 HEAD, with the
- * pinned "could not be read" semantics unmatchable by that TypeError);
- * Phase 2 made them green and deleted the interim structural bridge these
- * tests carried.
+ * (History: written as Phase 1's declared RED against the tool-use
+ * mechanism; fixtures moved from tool_use blocks to text blocks when Phase 5
+ * deleted the tool. The assertions never changed.)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -36,7 +36,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
 
 import { AnthropicInferenceClient } from '../implementations/anthropic.js';
 
-/** One array element's JSON Schema — the caller-supplied shape (Phase 2/3). */
+/** One array element's JSON Schema — the caller-supplied shape. */
 const PERSON_ELEMENT: Record<string, unknown> = {
   type: 'object',
   properties: {
@@ -56,69 +56,63 @@ const CAPABLE_MODEL = {
   capabilities: { structured_outputs: { supported: true } },
 };
 
+/** A structured response is a TEXT block whose text is the JSON. */
+const textResponse = (text: string, stopReason = 'end_turn') => ({
+  content: [{ type: 'text', text }],
+  stop_reason: stopReason,
+  usage: { input_tokens: 10, output_tokens: 5 },
+});
+
 describe('AnthropicInferenceClient.generateStructured — unreadable is a throw, never []', () => {
   beforeEach(() => {
     createMock.mockReset();
     retrieveMock.mockReset();
     streamMock.mockReset();
-    // The capability gate (Phase 3) consults the Models API before any
-    // structured request; default to a capable model so these tests stay
-    // about the read path.
+    // The capability gate consults the Models API before any structured
+    // request; default to a capable model so these tests stay about the
+    // read path.
     retrieveMock.mockResolvedValue(CAPABLE_MODEL);
   });
 
-  it('throws when the SDK delivers items as a string (the observed 67K-char shape, shrunk)', async () => {
-    // What the SDK hands over when tool-input JSON fails to parse: the raw
-    // accumulated text as a string — here the live payload's head, with the
-    // OCR backslash that broke escaping.
-    createMock.mockResolvedValue({
-      content: [{
-        type: 'tool_use', id: 't', name: 'emit_json_array',
-        input: { items: '[{"exact":"\\Villiam Crookes","entityType":"Person"},{"exact":"' },
-      }],
-      stop_reason: 'tool_use',
-      usage: { input_tokens: 12656, output_tokens: 20948 },
-    });
+  it('throws when the response text is not valid JSON (the invalid-escape shape, shrunk)', async () => {
+    // The live payload's head: an OCR backslash the serializer failed to
+    // escape, truncated mid-stream. Under the old unwrap this class of
+    // unreadable payload became "[]" + job:complete.
+    createMock.mockResolvedValue(
+      textResponse('[{"exact":"\\Villiam Crookes","entityType":"Person"},{"exact":"'),
+    );
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
-    const call = async () => client.generateStructured('p', 1000, 0.3, PERSON_ELEMENT);
 
-    // Today this shape produces "[]" + job:complete. It must be a loud read
-    // failure, distinguishable from an empty extraction.
-    await expect(call()).rejects.toThrow(/could not be read/i);
+    await expect(
+      client.generateStructured('p', 1000, 0.3, PERSON_ELEMENT),
+    ).rejects.toThrow(/could not be read/i);
   });
 
-  it('throws when input is present but items is absent', async () => {
-    createMock.mockResolvedValue({
-      content: [{ type: 'tool_use', id: 't', name: 'emit_json_array', input: {} }],
-      stop_reason: 'tool_use',
-      usage: {},
-    });
+  it('throws when the response parses but is not an array', async () => {
+    createMock.mockResolvedValue(textResponse('{"entities": []}'));
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
-    const call = async () => client.generateStructured('p', 1000, 0.3, PERSON_ELEMENT);
 
-    await expect(call()).rejects.toThrow(/could not be read/i);
+    await expect(
+      client.generateStructured('p', 1000, 0.3, PERSON_ELEMENT),
+    ).rejects.toThrow(/could not be read/i);
   });
 
   it('returns { items: [] } for a well-formed empty array — empty survives as a distinct outcome', async () => {
     // The test that keeps the fix honest: "the model found nothing" is a
     // legitimate success and must NOT become a throw.
-    createMock.mockResolvedValue({
-      content: [{ type: 'tool_use', id: 't', name: 'emit_json_array', input: { items: [] } }],
-      stop_reason: 'tool_use',
-      usage: {},
-    });
+    createMock.mockResolvedValue(textResponse('[]'));
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
     const response = await client.generateStructured('p', 1000, 0.3, PERSON_ELEMENT);
 
     expect(response.items).toEqual([]);
-    expect(response.stopReason).toBe('tool_use');
+    expect(response.stopReason).toBe('end_turn');
   });
 });
 
-describe('AnthropicInferenceClient.generateStructured — strict tool use + capability gate (Phase 3)', () => {
+describe('AnthropicInferenceClient.generateStructured — output_config + capability gate', () => {
   beforeEach(() => {
     createMock.mockReset();
     retrieveMock.mockReset();
@@ -126,9 +120,10 @@ describe('AnthropicInferenceClient.generateStructured — strict tool use + capa
   });
 
   it('refuses, before any request is issued, when the model does not support structured outputs', async () => {
-    // D4: no silent degradation. Unconstrained tool use IS the behaviour that
-    // turned 202 entities into a green empty job — a model that cannot honour
-    // strictness gets a loud, config-actionable error, not a quiet fallback.
+    // D4: no silent degradation. Unconstrained generation IS the behaviour
+    // that turned 202 entities into a green empty job — a model that cannot
+    // honour the schema gets a loud, config-actionable error, not a quiet
+    // fallback.
     retrieveMock.mockResolvedValue({
       max_input_tokens: 200_000,
       max_tokens: 64_000,
@@ -145,24 +140,22 @@ describe('AnthropicInferenceClient.generateStructured — strict tool use + capa
     expect(streamMock).not.toHaveBeenCalled();
   });
 
-  it('sends strict tool use: the strict flag, a closed wrapper, and the caller element schema', async () => {
+  it('sends response-level structured output: an array-root schema, no tools, no prefill', async () => {
     retrieveMock.mockResolvedValue(CAPABLE_MODEL);
-    createMock.mockResolvedValue({
-      content: [{ type: 'tool_use', id: 't', name: 'emit_json_array', input: { items: [] } }],
-      stop_reason: 'tool_use',
-      usage: {},
-    });
+    createMock.mockResolvedValue(textResponse('[]'));
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
     await client.generateStructured('p', 1000, 0.3, PERSON_ELEMENT);
 
     const req = createMock.mock.calls[0][0];
-    // strict: true makes the API validate tool input against the schema —
-    // the guarantee that was available the whole time and never requested.
-    expect(req.tools[0].strict).toBe(true);
-    // Closed wrapper: nothing but `items` may appear.
-    expect(req.tools[0].input_schema.additionalProperties).toBe(false);
-    // The caller's element schema replaces the old unconstrained `items: {}`.
-    expect(req.tools[0].input_schema.properties.items.items).toEqual(PERSON_ELEMENT);
+    // The constraint is response-level: no tool scaffolding at all.
+    expect(req.tools).toBeUndefined();
+    expect(req.tool_choice).toBeUndefined();
+    // The schema is the caller's element schema under an ARRAY root — the
+    // spike-established shape that made the items wrapper deletable.
+    expect(req.output_config.format.type).toBe('json_schema');
+    expect(req.output_config.format.schema).toEqual({ type: 'array', items: PERSON_ELEMENT });
+    // No prefill: the request must not carry an assistant turn.
+    expect(req.messages.some((m: { role: string }) => m.role === 'assistant')).toBe(false);
   });
 });

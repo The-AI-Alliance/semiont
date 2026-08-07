@@ -28,7 +28,7 @@ const CAPABLE_MODEL = {
   capabilities: { structured_outputs: { supported: true } },
 };
 
-describe('AnthropicInferenceClient - structured generation is tool-use, not prefill', () => {
+describe('AnthropicInferenceClient - structured generation is output_config, not tools or prefill', () => {
   beforeEach(() => {
     createMock.mockReset();
     retrieveMock.mockReset();
@@ -36,10 +36,10 @@ describe('AnthropicInferenceClient - structured generation is tool-use, not pref
     retrieveMock.mockResolvedValue(CAPABLE_MODEL);
   });
 
-  it('forces a schema-typed tool call (no assistant prefill) for generateStructured', async () => {
+  it('requests response-level structured output (no tools, no assistant prefill)', async () => {
     createMock.mockResolvedValue({
-      content: [{ type: 'tool_use', id: 'toolu_1', name: 'emit', input: { items: [{ exact: 'Paris' }] } }],
-      stop_reason: 'tool_use',
+      content: [{ type: 'text', text: '[{"exact":"Paris"}]' }],
+      stop_reason: 'end_turn',
       usage: { input_tokens: 10, output_tokens: 5 },
     });
 
@@ -48,16 +48,13 @@ describe('AnthropicInferenceClient - structured generation is tool-use, not pref
 
     const req = createMock.mock.calls[0][0];
 
-    // A single tool is offered and the model is forced to call exactly it.
-    expect(Array.isArray(req.tools)).toBe(true);
-    expect(req.tools).toHaveLength(1);
-    expect(req.tool_choice).toMatchObject({ type: 'tool' });
-    expect(req.tool_choice.name).toBe(req.tools[0].name);
-
-    // The tool input is a schema-typed object wrapping an array (tool inputs
-    // must be objects); the array lives under `items`.
-    expect(req.tools[0].input_schema.type).toBe('object');
-    expect(req.tools[0].input_schema.properties.items.type).toBe('array');
+    // The constraint is response-level — no tool scaffolding (Phase 5
+    // deleted the emit_json_array workaround), and the schema root is the
+    // ARRAY itself: no items wrapper, no unwrap.
+    expect(req.tools).toBeUndefined();
+    expect(req.tool_choice).toBeUndefined();
+    expect(req.output_config.format.type).toBe('json_schema');
+    expect(req.output_config.format.schema).toEqual({ type: 'array', items: TEST_ELEMENT });
 
     // No prefill: the request must not carry an assistant turn.
     expect(req.messages.some((m: { role: string }) => m.role === 'assistant')).toBe(false);
@@ -67,11 +64,12 @@ describe('AnthropicInferenceClient - structured generation is tool-use, not pref
   });
 
   it('round-trips an entity whose `exact` span contains a quote', async () => {
-    // The variant-2 failure: an unescaped `"` inside a verbatim span. Tool-use
-    // makes the API serialize properly-escaped JSON, so it round-trips cleanly.
+    // The variant-2 failure: an unescaped `"` inside a verbatim span.
+    // Schema-enforced output serializes properly-escaped JSON, so it
+    // round-trips cleanly.
     createMock.mockResolvedValue({
-      content: [{ type: 'tool_use', id: 't', name: 'emit', input: { items: [{ exact: 'the "best" café', prefix: 'a' }] } }],
-      stop_reason: 'tool_use',
+      content: [{ type: 'text', text: JSON.stringify([{ exact: 'the "best" café', prefix: 'a' }]) }],
+      stop_reason: 'end_turn',
       usage: {},
     });
 
@@ -83,15 +81,15 @@ describe('AnthropicInferenceClient - structured generation is tool-use, not pref
 
   it('preserves the real stop_reason and yields an empty array for an empty extraction', async () => {
     createMock.mockResolvedValue({
-      content: [{ type: 'tool_use', id: 't', name: 'emit', input: { items: [] } }],
-      stop_reason: 'tool_use',
+      content: [{ type: 'text', text: '[]' }],
+      stop_reason: 'end_turn',
       usage: {},
     });
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
     const res = await client.generateStructured('p', 1000, 0, TEST_ELEMENT);
 
-    expect(res.stopReason).toBe('tool_use');
+    expect(res.stopReason).toBe('end_turn');
     expect(res.items).toEqual([]);
   });
 });
@@ -174,8 +172,8 @@ describe('AnthropicInferenceClient - large output budgets stream internally', ()
     // response handling.
     streamMock.mockReturnValue({
       finalMessage: async () => ({
-        content: [{ type: 'tool_use', id: 't', name: 'emit', input: { items: [{ exact: 'A' }] } }],
-        stop_reason: 'tool_use',
+        content: [{ type: 'text', text: '[{"exact":"A"}]' }],
+        stop_reason: 'end_turn',
         usage: { input_tokens: 1, output_tokens: 1 },
       }),
     });
@@ -186,10 +184,11 @@ describe('AnthropicInferenceClient - large output budgets stream internally', ()
     expect(streamMock).toHaveBeenCalledTimes(1);
     expect(createMock).not.toHaveBeenCalled();
 
-    // Forced tool-use rides the streamed request unchanged.
+    // output_config rides the streamed request unchanged (the SDK's stream
+    // examples carry it natively).
     const req = streamMock.mock.calls[0][0];
     expect(req.max_tokens).toBe(64_000);
-    expect(req.tool_choice).toMatchObject({ type: 'tool' });
+    expect(req.output_config.format.schema).toEqual({ type: 'array', items: TEST_ELEMENT });
 
     // And the response is processed identically (parsed items).
     expect(res.items).toEqual([{ exact: 'A' }]);

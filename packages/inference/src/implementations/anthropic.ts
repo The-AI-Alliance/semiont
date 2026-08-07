@@ -13,35 +13,16 @@ import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, Str
 // same response handling, same interface.
 const NONSTREAMING_MAX_OUTPUT_TOKENS = Math.floor(128_000 / 6);
 
-// Forced-tool channel for structured generation. Anthropic has no
-// grammar-constrained sampling like Ollama's `format`; the equivalent hard
-// guarantee is STRICT tool use — `strict: true` makes the API validate the
-// tool input against the schema, so the serialized JSON is both well-escaped
-// AND shape-conformant. We offer exactly one tool and force it via
-// `tool_choice`.
-//
-// A tool's input must be an *object*, so the array is carried under `items`,
-// with the caller's element schema constraining each element and a closed
-// wrapper (`additionalProperties: false` — required by strict mode, and
-// measured enforced on both live-config models, 2026-08-06).
-// (STRUCTURED-INFERENCE Phase 5 asks whether the tool should exist at all
-// once `output_config.format`'s root constraints are established.)
-function jsonArrayTool(elementSchema: Record<string, unknown>): Anthropic.Tool {
-  return {
-    name: 'emit_json_array',
-    description:
-      'Return your entire answer by calling this tool. Put the JSON array of results under the "items" property, and emit no prose.',
-    strict: true,
-    input_schema: {
-      type: 'object',
-      properties: {
-        items: { type: 'array', items: elementSchema },
-      },
-      required: ['items'],
-      additionalProperties: false,
-    },
-  };
-}
+// Structured generation rides `output_config.format` — response-level
+// structured output: the response TEXT is the schema-conforming JSON, with a
+// top-level ARRAY root (accepted on both live-config models — spike
+// 2026-08-06, `.plans/spikes/output-config-array-root.md`). This replaced
+// the pre-structured-outputs scaffolding: a forced `emit_json_array` tool
+// whose object-only input required an `items` wrapper and an unwrap — and
+// the unwrap was the exact line that silently coerced an unreadable payload
+// to `[]` (STRUCTURED-INFERENCE §Problem). There is no tool-input
+// accumulation step left for the SDK to hand over unparsed; the read path is
+// now the same parse-and-verify shape as Ollama's.
 
 /**
  * Everything one Models API call teaches us about the configured model. The
@@ -210,50 +191,63 @@ export class AnthropicInferenceClient implements InferenceClient {
       temperature,
     });
 
-    const tool = jsonArrayTool(elementSchema);
     const params: Anthropic.MessageCreateParamsNonStreaming = {
       model: this.modelId,
       max_tokens: maxTokens,
       temperature,
       messages: [{ role: 'user', content: prompt }],
-      // Force the structured-output tool. No prefill assistant turn: the
-      // constraint lives in the (strict) tool call, not in free text.
-      tools: [tool],
-      tool_choice: { type: 'tool' as const, name: tool.name },
+      // Response-level structured output with an ARRAY root: the response
+      // text IS the schema-conforming JSON. No tools, no prefill.
+      output_config: {
+        format: {
+          type: 'json_schema',
+          schema: { type: 'array', items: elementSchema },
+        },
+      },
     };
 
     const start = performance.now();
     const response = await this.recordedRequest(params, start);
 
-    const toolUse = response.content.find(c => c.type === 'tool_use');
-    if (!toolUse || toolUse.type !== 'tool_use') {
+    const textContent = response.content.find(c => c.type === 'text');
+    if (!textContent || textContent.type !== 'text') {
       this.recordError(start, response);
-      this.logger?.error('No tool_use content in inference response', {
+      this.logger?.error('No text content in structured inference response', {
         model: this.modelId,
         contentTypes: response.content.map(c => c.type)
       });
-      throw new Error('No tool_use content in inference response');
+      throw new Error('No text content in structured inference response');
     }
 
-    // `input` is typed `unknown` by the SDK. When the SDK cannot parse the
-    // accumulated tool-input JSON (live case: one invalid escape in a 67 K
-    // payload), it delivers `items` as a STRING — and a truncated response
-    // may omit it entirely. Both are "we could not read the model," which
-    // must never be conflated with "the model found nothing": the old
-    // `Array.isArray(items) ? items : []` fallback silently discarded 202
-    // real entities as a green empty result. Unreadable is a THROW.
-    const input = toolUse.input as { items?: unknown };
-    if (!Array.isArray(input.items)) {
+    // Anything that does not read as an array is a THROW, never a coerced
+    // `[]` — "we could not read the model" must never be conflated with
+    // "the model found nothing": that conflation is what silently discarded
+    // 202 real entities as a green empty result. A truncated (`max_tokens`)
+    // response surfaces here too, as unparseable JSON naming its stop_reason.
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(textContent.text);
+    } catch (err) {
       this.recordError(start, response);
-      const shape = typeof input.items;
       this.logger?.error('Structured response could not be read', {
         model: this.modelId,
-        itemsType: shape,
+        textLength: textContent.text.length,
         stopReason: response.stop_reason,
-        ...(typeof input.items === 'string' ? { itemsLength: input.items.length } : {}),
       });
       throw new Error(
-        `Structured response could not be read: items is ${shape === 'undefined' ? 'absent' : `a ${shape}, not an array`} (stop_reason: ${response.stop_reason})`,
+        `Structured response could not be read: response is not valid JSON (stop_reason: ${response.stop_reason})`,
+        { cause: err },
+      );
+    }
+    if (!Array.isArray(parsed)) {
+      this.recordError(start, response);
+      this.logger?.error('Structured response could not be read', {
+        model: this.modelId,
+        parsedType: typeof parsed,
+        stopReason: response.stop_reason,
+      });
+      throw new Error(
+        `Structured response could not be read: parsed to ${typeof parsed}, not an array (stop_reason: ${response.stop_reason})`,
       );
     }
 
@@ -268,12 +262,12 @@ export class AnthropicInferenceClient implements InferenceClient {
 
     this.logger?.info('Structured generation completed', {
       model: this.modelId,
-      items: input.items.length,
+      items: parsed.length,
       stopReason: response.stop_reason
     });
 
     return {
-      items: input.items as T[],
+      items: parsed as T[],
       stopReason: response.stop_reason || 'unknown',
     };
   }
