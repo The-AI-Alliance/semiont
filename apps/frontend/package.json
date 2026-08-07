@@ -1,6 +1,6 @@
 {
   "name": "semiont-frontend",
-  "version": "0.5.26",
+  "version": "0.5.27",
   "engines": {
     "node": ">=24.0.0"
   },
