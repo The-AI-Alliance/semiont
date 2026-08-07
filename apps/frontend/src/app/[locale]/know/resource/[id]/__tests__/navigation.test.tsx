@@ -23,7 +23,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 
-let mockedParamsId: string = 'A';
+let mockedParamsId: string | undefined = 'A';
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>(
@@ -50,6 +50,9 @@ vi.mock('@/lib/routing', () => ({
 }));
 vi.mock('@/components/toolbar/ToolbarPanels', () => ({
   ToolbarPanels: () => null,
+}));
+vi.mock('../../../not-found', () => ({
+  default: () => <div data-testid="not-found" />,
 }));
 
 /** Resource ids the loader factory was invoked with, in order. */
@@ -113,6 +116,7 @@ describe('KnowledgeResourcePage navigation', () => {
     vmFactoryCalls.length = 0;
     vmFactoryClients.length = 0;
     routerReplaceCalls.length = 0;
+    mockedParamsId = 'A';
     // Reset to a single live session on KB "kb-a" between tests.
     harness.session$.next(harness.makeSession('c1'));
   });
@@ -188,6 +192,23 @@ describe('KnowledgeResourcePage navigation', () => {
 
     expect(screen.getByTestId('loading')).toBeTruthy();
     expect(vmFactoryClients).toEqual(['c1']);
+  });
+
+  it('renders not-found — and builds no state unit — when the :id param is absent', () => {
+    // `App.tsx` declares `resource/:id`, so React Router cannot match this
+    // route without the param, and the page read it as `params?.id as string`
+    // on the strength of that. But the cast made the assumption unchecked:
+    // `resourceId()` takes a `string` and calls `.includes('/')` on it
+    // immediately, so if the route pattern were ever renamed the page would
+    // throw a TypeError and white-screen rather than degrade. This pins the
+    // branch that lets the compiler prove the id is a string.
+    mockedParamsId = undefined;
+
+    render(<KnowledgeResourcePage />);
+
+    expect(screen.getByTestId('not-found')).toBeTruthy();
+    expect(vmFactoryCalls).toEqual([]);
+    expect(screen.queryByTestId('resource-rid')).toBeNull();
   });
 
   it('leaves the KB-switch redirect to the switch INITIATOR, not to itself', () => {
