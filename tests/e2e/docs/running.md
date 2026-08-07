@@ -28,42 +28,61 @@ seeded something else.
 
 ## Running from a container (recommended on macOS)
 
-The dev stack runs in Apple containers on the `192.168.64.0/24`
-bridge. A containerized Playwright image can reach both the frontend
-and backend containers directly by IP — no host port-forwarding needed.
+The dev stack runs in Apple containers on the `192.168.64.0/24` bridge, with
+its ports published on the host. **Target the host bridge gateway,
+`192.168.64.1`** — it routes to every published port (`:3000` frontend,
+`:4000` backend, `:9090` worker health) and is stable across restarts.
 
-**Always re-grab both IPs before each run** (they change on every
-restart — see [containers.md](containers.md#ip-refresh)):
+**Do not use the containers' own IPs.** An earlier version of this page said
+to `container ls | grep` them and re-grab before every run. Two things break
+(both measured 2026-08-07):
 
-```sh
-container ls | grep -E 'semiont-(frontend|backend)'
-```
+- A stale address fails in `globalSetup` with `connect EHOSTUNREACH`, before
+  any spec runs — and container IPs change on *every* stack restart.
+- `19-worker-vitals` derives the worker health endpoint as
+  `<backend-host>:9090`, which is only true when the published ports share a
+  host. Aim it at the backend container and you get `ECONNREFUSED`.
+
+`--network host` is not an option either — a Docker flag; Apple's `container`
+rejects it with `Error: network host not found`.
 
 **Run all tests:**
 
 ```sh
+PW=$(node -p "require('./node_modules/@playwright/test/package.json').version")
+
 container run --rm \
   -v "$(git rev-parse --show-toplevel):/workspace" \
   -w /workspace/tests/e2e \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
-  -e E2E_FRONTEND_URL=http://<frontend-ip>:3000 \
-  -e E2E_BACKEND_URL=http://<backend-ip>:4000 \
+  -e E2E_FRONTEND_URL=http://192.168.64.1:3000 \
+  -e E2E_BACKEND_URL=http://192.168.64.1:4000 \
   -e CI=1 \
-  mcr.microsoft.com/playwright:v1.61.0-noble \
-  npx playwright test
+  "mcr.microsoft.com/playwright:v$PW-noble" \
+  npm test
 ```
+
+> **`npm test`, not `npx playwright test`.** The `pretest` hook runs
+> `tsc --noEmit` first. `tests/e2e` is not a root workspace, so that is the
+> ONLY thing typechecking these specs — skip it and an SDK signature change
+> surfaces as a runtime `TypeError` minutes into a browser run instead of a
+> file:line in seconds. `npm test` also excludes `@slow`; see below.
+>
+> **Derive the image tag, never hardcode it.** It must match the installed
+> library exactly. This page previously pinned `v1.61.0-noble` while the
+> lockfile carried 1.62.0.
 
 **Run one spec:** append the spec path as the last argument:
 
 ```sh
-… npx playwright test specs/02-open-resource.spec.ts
+… npm test -- specs/02-open-resource.spec.ts
 ```
 
 **Run one test within a spec:** add `-g '<title substring>'`:
 
 ```sh
-… npx playwright test -g 'opens the first resource'
+… npm test -- -g 'opens the first resource'
 ```
 
 **Repeat to catch flakes:** add `--repeat-each 5`. A deterministic
@@ -72,7 +91,7 @@ fraction of the time. Use this any time a test "works on my machine"
 but fails elsewhere, or before claiming a flake is fixed.
 
 ```sh
-… npx playwright test specs/02-open-resource.spec.ts --repeat-each 5
+… npm test -- specs/02-open-resource.spec.ts --repeat-each 5
 ```
 
 **Install deps into `tests/e2e/node_modules`** (one-time, inside the
@@ -82,7 +101,7 @@ container so its glibc matches what Playwright was built against):
 container run --rm \
   -v "$(git rev-parse --show-toplevel):/workspace" \
   -w /workspace/tests/e2e \
-  mcr.microsoft.com/playwright:v1.61.0-noble \
+  "mcr.microsoft.com/playwright:v$PW-noble" \
   npm install
 ```
 
@@ -111,7 +130,8 @@ npm run test:debug
 npm run test:ui
 ```
 
-When running from the host against the containerized stack, you can
-use `http://localhost:3000` / `http://localhost:4000` if the container
-runtime exposes those ports to the host. Otherwise, use the bridge IPs
-like the container-run invocation above.
+From the **host** (not a container), `http://localhost:3000` /
+`http://localhost:4000` work directly — the stack publishes those ports, and
+the defaults in the table above already point there, so no env override is
+needed. `192.168.64.1` is only required from *inside* a container, where
+`localhost` resolves to the container itself.

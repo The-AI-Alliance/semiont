@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/auth';
+import { openResourceByName } from '../fixtures/discover';
 
 /**
  * Smoke test: manual highlight annotation round-trips through the full
@@ -14,12 +15,17 @@ import { test, expect } from '../fixtures/auth';
  */
 test.describe('manual highlight', () => {
   test('selecting text in annotate+highlight mode produces a persisted highlight', async ({ signedInPage: page, bus }) => {
-    // Open the first resource via Discover.
-    await page.goto('/en/know/discover');
-    const firstCard = page.getByRole('button', { name: /^open resource:/i }).first();
-    await expect(firstCard).toBeVisible({ timeout: 15_000 });
-    await firstCard.click();
-    await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
+    // A NAMED text seed, not "the first card". This test needs CodeMirror,
+    // and CodeMirror only mounts for text-bearing resources — a PDF renders
+    // the page-rail viewer instead and `.cm-content` never appears. Discover
+    // is newest-first, so "first card" silently means "whatever was added to
+    // this KB most recently", which is a coin flip on media type.
+    //
+    // Measured 2026-08-06: a 28-page PDF uploaded to the KB became the newest
+    // resource and specs 04, 05 and 09 all failed at `.cm-content` with
+    // `element(s) not found` — reading as a product regression in manual
+    // annotation, which was fine the whole time.
+    await openResourceByName(page, 'Quantum Computing Primer');
 
     // Baseline: how many highlights are already present? (Fixtures may
     // leave some from prior runs.)

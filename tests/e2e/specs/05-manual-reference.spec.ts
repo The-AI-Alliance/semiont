@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/auth';
+import { openResourceByName } from '../fixtures/discover';
 
 /**
  * Smoke test: creating a reference-annotation by hand, tagged with an
@@ -25,11 +26,13 @@ import { test, expect } from '../fixtures/auth';
  */
 test.describe('manual reference', () => {
   test('selecting text in annotate+reference mode with an entity type creates a persisted reference', async ({ signedInPage: page, bus }) => {
-    await page.goto('/en/know/discover');
-    const firstCard = page.getByRole('button', { name: /^open resource:/i }).first();
-    await expect(firstCard).toBeVisible({ timeout: 15_000 });
-    await firstCard.click();
-    await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
+    // A NAMED text seed — see 04 for why "first card" is not safe here.
+    // CodeMirror mounts only for text-bearing resources, and Discover's
+    // newest-first order makes the first card's media type incidental.
+    // Deliberately the same seed as 04: these two shared a resource under the
+    // old first-card lookup, and spec 09 hunts for the unresolved references
+    // this test leaves behind.
+    await openResourceByName(page, 'Quantum Computing Primer');
 
     // Baseline reference count for growth assertion.
     const referenceEntries = page.locator('[data-type="reference"]');

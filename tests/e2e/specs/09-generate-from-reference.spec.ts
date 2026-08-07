@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/auth';
+import { openResourceByName } from '../fixtures/discover';
 
 /**
  * Smoke test: the generate-from-unresolved-reference flow runs end-to-end
@@ -56,30 +57,42 @@ test.describe('generate from unresolved reference', () => {
 
     // ── Find a resource that still has at least one unresolved reference ──
     //
-    // The test's own success bound the unresolved reference it
-    // generated against, so successive runs (or a previous run that
-    // already consumed the first card's ❓ pool) need to find a
-    // *different* card with remaining unresolved references. A
-    // generated resource also tends to land first on Discover (newest
-    // first), so the prior `firstCard` heuristic was data-coupled.
-    // Iterate through up to 8 cards and pick the first one whose
-    // References panel surfaces a ❓.
-
-    await page.goto('/en/know/discover');
-    const cards = page.getByRole('button', { name: /^open resource:/i });
-    await expect(cards.first()).toBeVisible({ timeout: 15_000 });
-    const cardCount = Math.min(8, await cards.count());
-    expect(cardCount, 'Discover must list at least one resource').toBeGreaterThan(0);
+    // This test CONSUMES an unresolved reference (it generates against one), so
+    // it needs a pool, and a rerun may find the first candidate already spent.
+    // Hence a list rather than a single target.
+    //
+    // The candidates are NAMED, and named on purpose. Two earlier revisions
+    // hunted Discover's card list instead, and both were coupled to KB
+    // composition rather than to anything this test is about:
+    //
+    //   - `firstCard` — broke as soon as a generated resource landed newest.
+    //   - "first 8 cards" — broke on 2026-08-07 with 59 resources in the KB:
+    //     the eight newest were an uploaded PDF and suite-generated resources,
+    //     so the seeds carrying ❓ had aged out of the newest-first window and
+    //     the hunt reported `checked 8 cards` with nothing found.
+    //
+    // These two seeds are where the unresolved references actually come from:
+    // spec 05 leaves a manual one on 'Quantum Computing Primer', spec 06 leaves
+    // assisted ones on 'Photosynthesis Overview'. Both run before this file
+    // under the suite's single worker. Searching by name reaches them however
+    // large the KB grows.
+    const CANDIDATES = ['Quantum Computing Primer', 'Photosynthesis Overview'];
 
     let unresolvedFound = false;
-    for (let i = 0; i < cardCount; i++) {
-      await cards.nth(i).click();
-      await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
+    for (const name of CANDIDATES) {
+      await openResourceByName(page, name);
 
       // Enter annotate mode.
       await page.getByRole('button', { name: /^mode$/i }).click();
       await page.getByRole('menuitem', { name: /^annotate$/i }).click();
-      await expect(page.locator('.cm-content').first()).toBeVisible({ timeout: 15_000 });
+
+      // Both candidates are text seeds, so CodeMirror is expected — but probe
+      // rather than assert, so a seed changing media type degrades to "try the
+      // next candidate" instead of failing in a way that reads as a product bug.
+      const mounted = await page.locator('.cm-content').first()
+        .waitFor({ state: 'visible', timeout: 8_000 })
+        .then(() => true, () => false);
+      if (!mounted) continue;
 
       // Switch right sidebar to Annotations → References.
       // The shell state unit persists the active panel across navigations, so
@@ -111,13 +124,17 @@ test.describe('generate from unresolved reference', () => {
         await candidate.click();
         break;
       } catch {
-        // No ❓ in this card's references panel. Back to Discover and try the next.
-        await page.goto('/en/know/discover');
-        await expect(cards.first()).toBeVisible({ timeout: 10_000 });
+        // No ❓ left on this seed — try the next candidate. `openResourceByName`
+        // navigates to Discover itself, so there is nothing to reset here.
       }
     }
 
-    expect(unresolvedFound, `seeded KB must have ≥1 resource with an unresolved reference (checked ${cardCount} cards)`).toBe(true);
+    expect(
+      unresolvedFound,
+      `no unresolved reference found on any of: ${CANDIDATES.join(', ')}. ` +
+      'These seeds get their ❓ from specs 05 (manual) and 06 (assisted), which run ' +
+      'earlier in the suite — if those failed or were filtered out, this will fail too.',
+    ).toBe(true);
 
     // ── Wizard opens at the gather step; click Generate ────────────────
     //

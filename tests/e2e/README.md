@@ -6,13 +6,10 @@ React lifecycle, bus round-trips) that unit and component tests can't.
 
 ## Quick start
 
-Prereqs: the dev stack is up — frontend + backend containers running
-against a local KB, reachable by IP. Full rebuild/start flow in
-[docs/containers.md](docs/containers.md).
+Prereqs: the dev stack is up, with its ports published on the host. Full
+rebuild/start flow in [docs/containers.md](docs/containers.md).
 
 ```sh
-container ls | grep -E 'semiont-(frontend|backend)'    # grab both IPs
-
 # The image tag MUST match the installed library — see "Version pinning" below.
 PW=$(node -p "require('./node_modules/@playwright/test/package.json').version")
 
@@ -21,12 +18,33 @@ container run --rm \
   -w /workspace/tests/e2e \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
-  -e E2E_FRONTEND_URL=http://<frontend-ip>:3000 \
-  -e E2E_BACKEND_URL=http://<backend-ip>:4000 \
+  -e E2E_FRONTEND_URL=http://192.168.64.1:3000 \
+  -e E2E_BACKEND_URL=http://192.168.64.1:4000 \
   -e CI=1 \
   "mcr.microsoft.com/playwright:v$PW-noble" \
   npm test
 ```
+
+> **Use `192.168.64.1` — the host bridge gateway — not a container's own IP.**
+> It is stable across restarts and routes to every published port. See
+> [Container networking](#container-networking-reaching-the-host) for why.
+>
+> An earlier version of this quickstart said to run
+> `container ls | grep semiont-` and paste the frontend/backend container IPs
+> here. That is wrong twice over, and both failures cost a full run each
+> (measured 2026-08-07):
+>
+> - **Container IPs change on every stack restart.** Reusing an address read
+>   even minutes earlier fails in `globalSetup` with
+>   `connect EHOSTUNREACH <ip>:4000`, before a single spec executes.
+> - **It splits services across hosts.** `19-worker-vitals` derives the
+>   worker's health endpoint as `<backend-host>:9090`, because the published
+>   ports are co-located on the host. Point the suite at the *backend
+>   container's* IP and that becomes the backend's own `:9090`, which nothing
+>   is listening on — `ECONNREFUSED`.
+>
+> `--network host` does not help: it is a Docker flag, and Apple's `container`
+> rejects it with `Error: network host not found`.
 
 > Use `npm test`, not `npx playwright test`: the `pretest` hook typechecks
 > the specs first (`tsc --noEmit`) and aborts before launching a browser.
@@ -189,9 +207,9 @@ ANTHROPIC_API_KEY="$(op read op://OSS/Anthropic/credential)" \
   SEMIONT_VERSION=local semiont start --config anthropic
 echo password | semiont useradd --email admin@example.com --admin
 
-# 3. Grab IPs and run the e2e suite (see Quick start above). The stack
-#    includes the frontend container on :3000.
-container ls | grep -E 'semiont-(frontend|backend)'
+# 3. Run the e2e suite (see Quick start above). The stack publishes
+#    :3000 / :4000 / :9090 on the host — reach them from the Playwright
+#    container via the gateway 192.168.64.1, never a container's own IP.
 ```
 
 The launcher brings up a Jaeger sidecar **by default** and wires

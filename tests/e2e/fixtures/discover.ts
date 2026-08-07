@@ -24,8 +24,19 @@ import { expect, type Page } from '@playwright/test';
  * many resources the suite happened to create beforehand. It is also what the
  * search box is for, which makes it the more honest gesture to be testing.
  *
- * Generic `.first()` card lookups (specs 02, 03, …) do NOT need this — they take
- * whichever resource is nearest and are indifferent to the window.
+ * **A `.first()` card lookup is only safe when the spec is genuinely indifferent
+ * to WHICH resource it gets — including its media type.** An earlier revision of
+ * this note said generic `.first()` lookups "do NOT need this"; that was wrong,
+ * and it cost a debugging cycle on 2026-08-06. Specs 04, 05 and 09 took the
+ * first card and then waited for `.cm-content`, which mounts only for
+ * text-bearing resources. A 28-page PDF uploaded to the KB became the newest
+ * resource, Discover put it first, and all three failed with `element(s) not
+ * found` — indistinguishable from a real regression in manual annotation.
+ *
+ * So the rule is about the assertion, not the window: if a spec asserts anything
+ * that only holds for a particular KIND of resource (CodeMirror for text, the
+ * page rail for PDFs), it must name the resource it wants. Specs 02 and 03 are
+ * still fine on `.first()` because they only assert that *something* opens.
  */
 export async function openResourceByName(page: Page, name: string): Promise<void> {
   await page.goto('/en/know/discover');

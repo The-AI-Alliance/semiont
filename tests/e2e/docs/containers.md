@@ -63,8 +63,13 @@ Symptom: every request in your first test times out because the
 browser is dialing a dead address.
 
 ```sh
-container ls | grep -E 'semiont-(frontend|backend)'    # do this EVERY time
+container ls | grep -E 'semiont-(frontend|backend)'    # inspection only
 ```
+
+> Useful for *seeing* what is running. Do **not** feed these IPs to the e2e
+> suite — they change on every restart, and pointing the suite at the backend
+> container also breaks `19-worker-vitals`, which expects the worker's `:9090`
+> on the same host as the backend. Use `192.168.64.1` for both URLs.
 
 ## Building the `:local` images
 
@@ -104,15 +109,19 @@ echo password | semiont useradd --email admin@example.com --admin
 The `ollama-gemma` config avoids the API-key requirement if you only
 need to exercise non-inference paths.
 
-`semiont start` stops and recreates the running containers, so their
-IPs change — re-grab them before re-running e2e (see
-[IP refresh](#ip-refresh)).
+`semiont start` stops and recreates the running containers, so their IPs
+change. **That is exactly why e2e should not use them** — target the host
+bridge gateway `192.168.64.1`, which routes to the published ports and is
+stable across restarts. See
+[running.md](running.md#running-from-a-container-recommended-on-macos).
 
 ## Playwright image tag must match `@playwright/test`
 
-The container invocation pins a specific tag:
-`mcr.microsoft.com/playwright:v1.61.0-noble`. If `npm install`
-upgrades `@playwright/test`, pull the matching image:
+The container invocation must use a tag matching the installed
+`@playwright/test`. Derive it (`PW=$(node -p "require('./node_modules/@playwright/test/package.json').version")`)
+rather than hardcoding — this page previously named `v1.61.0-noble` while the
+lockfile carried 1.62.0. If `npm install` upgrades the library, pull the
+matching image:
 
 ```sh
 container image pull mcr.microsoft.com/playwright:v<version>-noble
