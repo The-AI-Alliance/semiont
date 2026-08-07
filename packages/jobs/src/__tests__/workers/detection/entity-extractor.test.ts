@@ -325,6 +325,47 @@ describe('extractEntities', () => {
       ).rejects.toThrow(/could not be read/i);
     });
 
+    it('reports liveness DURING a single long call — the seam that keeps a one-chunk job visible', async () => {
+      // DETECTION-HEARTBEAT: this pins the THREADING, not the timer. The
+      // wrapper's own heartbeat tests would still pass if `extractEntities`
+      // stopped forwarding one — and a single-chunk run (every realistic
+      // document) has no chunk boundary, so dropping this argument silently
+      // returns detection to emitting nothing for minutes: the exact reported
+      // bug, invisible to every other test in this suite.
+      vi.useFakeTimers();
+      try {
+        let finish: (v: { items: unknown[]; stopReason: string }) => void = () => {};
+        const client = {
+          type: 'mock' as const,
+          modelId: 'mock-model',
+          limits: async () => ({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 }),
+          generateText: async () => '[]',
+          generateTextWithMetadata: async () => ({ text: '[]', stopReason: 'end_turn' }),
+          generateStructured: () => new Promise((res) => { finish = res as typeof finish; }),
+        } as unknown as InferenceClient;
+
+        const activity: Array<[number, number]> = [];
+        // Small content → exactly one chunk → zero boundary events.
+        const pending = extractEntities(
+          'Alice went to Paris.', ['Person'], client, false, LOGGER, undefined,
+          (completed, total) => activity.push([completed, total]),
+        );
+
+        // Let limits()/derivation settle, then sit inside the model call.
+        await vi.advanceTimersByTimeAsync(45_000);
+
+        // Liveness arrived without any chunk boundary being crossed…
+        expect(activity.length).toBeGreaterThanOrEqual(2);
+        // …and it does NOT invent progress: the count stays put (D3).
+        expect(activity.every(([completed, total]) => completed === 0 && total === 1)).toBe(true);
+
+        finish({ items: [], stopReason: 'end_turn' });
+        await pending;
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('makes exactly one call and no boundary reports when content fits the derived budget', async () => {
       const client = new MockInferenceClient([entity('Alice')]); // generous default limits
       const onChunk = vi.fn();

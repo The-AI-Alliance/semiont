@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { AnnotationDetection } from '../../workers/annotation-detection';
-import { MockInferenceClient } from '@semiont/inference';
+import { MockInferenceClient, type InferenceClient } from '@semiont/inference';
 import type { TagSchema } from '@semiont/core';
 
 // Test schema — supplied directly to detectTags (the dispatcher resolves
@@ -524,6 +524,42 @@ describe('AnnotationDetection', () => {
       const assessments = await AnnotationDetection.detectAssessments(bigContent, assessClient);
       expect(assessClient.calls.length).toBeGreaterThan(1);
       expect(assessments.some(a => a.exact === 'GAMMASPAN')).toBe(true);
+    });
+
+    it('reports liveness DURING a single long call — the seam that keeps a one-chunk job visible', async () => {
+      // DETECTION-HEARTBEAT: pins the THREADING through `detectInChunks`, not
+      // the timer (the wrapper owns that). One chunk means no boundary event,
+      // so if this argument is ever dropped the four motivations go silent for
+      // the whole run and no other test in this file notices.
+      vi.useFakeTimers();
+      try {
+        let finish: (v: { items: unknown[]; stopReason: string }) => void = () => {};
+        const client = {
+          type: 'mock' as const,
+          modelId: 'mock-model',
+          limits: async () => ({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 }),
+          generateText: async () => '[]',
+          generateTextWithMetadata: async () => ({ text: '[]', stopReason: 'end_turn' }),
+          generateStructured: () => new Promise((res) => { finish = res as typeof finish; }),
+        } as unknown as InferenceClient;
+
+        const activity: Array<[number, number]> = [];
+        const pending = AnnotationDetection.detectHighlights(
+          testContent, client, undefined, undefined, undefined,
+          (completed, total) => activity.push([completed, total]),
+        );
+
+        await vi.advanceTimersByTimeAsync(45_000);
+
+        expect(activity.length).toBeGreaterThanOrEqual(2);
+        // Liveness, not invented progress: the position never advances (D3).
+        expect(activity.every(([completed, total]) => completed === 0 && total === 1)).toBe(true);
+
+        finish({ items: [], stopReason: 'end_turn' });
+        await pending;
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('detectTags chunks within the per-category call', async () => {
