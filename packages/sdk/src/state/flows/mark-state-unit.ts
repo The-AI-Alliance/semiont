@@ -1,10 +1,17 @@
-import { BehaviorSubject, TimeoutError, type Observable, type Subscription } from 'rxjs';
-import { timeout } from 'rxjs/operators';
+import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import type { ResourceId, Motivation, Selector, EventMap, components } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
 
 type JobProgress = components['schemas']['JobProgress'];
+
+/**
+ * How long the client waits for ANY emission before telling the user the job
+ * has gone quiet. Not a deadline on the job — see the silence detector in
+ * `createMarkStateUnit`. Sized above the worker's ~15 s in-flight heartbeat
+ * (DETECTION-HEARTBEAT), so reaching it means real silence, not a long call.
+ */
+const ASSIST_SILENCE_MS = 180_000;
 
 export interface PendingAnnotation {
   selector: Selector | Selector[];
@@ -109,10 +116,43 @@ export function createMarkStateUnit(
     assistingMotivation$.next(event.motivation);
     progress$.next(null);
 
-    const assistSub = client.mark.assist(resourceId, event.motivation, event.options).pipe(
-      timeout({ each: 180_000 }),
-    ).subscribe({
+    // Silence detector, NOT a timeout (DETECTION-HEARTBEAT D6). The job
+    // outlives the client's attention: a run the UI gave up on still
+    // persisted 221 annotations (2026-08-07). So going quiet must degrade
+    // the display — never tear the subscription down, which would leave the
+    // real completion with nothing to resolve, and never claim the assist
+    // ended while the worker is still working.
+    //
+    // Post-heartbeat (workers emit every ~15 s while a call is in flight),
+    // reaching this window means the worker really has gone quiet — so the
+    // signal is kept, and only its meaning is corrected.
+    let staleTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearStale = () => {
+      if (staleTimer) { clearTimeout(staleTimer); staleTimer = null; }
+    };
+    const armStale = () => {
+      clearStale();
+      staleTimer = setTimeout(() => {
+        staleTimer = null;
+        const last = progress$.getValue();
+        progress$.next({
+          ...(last ?? {}),
+          stage: last?.stage ?? 'analyzing',
+          message: 'Still working — no update from the annotation job for a few minutes',
+        } as JobProgress);
+        // The one notification the user gets. `assistingMotivation$` stays
+        // set: the job is still running as far as anyone here knows.
+        client.bus.get('mark:assist-timeout').next({
+          resourceId: resourceId as string,
+          motivation: event.motivation,
+        });
+      }, ASSIST_SILENCE_MS);
+    };
+    armStale();
+
+    const assistSub = client.mark.assist(resourceId, event.motivation, event.options).subscribe({
       next: (e) => {
+        armStale();
         // Surface only the live progress events to the UI; the final
         // `complete` event carries `result` for callers awaiting the
         // Observable, but the panel just dismisses on `complete`. Terminal
@@ -122,6 +162,9 @@ export function createMarkStateUnit(
         if (e.kind === 'progress') progress$.next(e.data);
       },
       complete: () => {
+        // Resolves the UI whenever it arrives — including long after the
+        // silence marker, which is the whole point of not tearing down.
+        clearStale();
         assistingMotivation$.next(null);
         clearProgressTimer();
         progressDismissTimer = setTimeout(() => {
@@ -129,20 +172,13 @@ export function createMarkStateUnit(
           progressDismissTimer = null;
         }, 5000);
       },
-      error: (err: unknown) => {
+      error: () => {
+        // A real failure: `job:fail` already toasts it through the outcome
+        // channel, so clear the assist state and stay quiet here.
+        clearStale();
         clearProgressTimer();
         assistingMotivation$.next(null);
         progress$.next(null);
-        // A client-side timeout means the assist went silent — no progress,
-        // no completion, and no job:fail (the channel that toasts real
-        // failures). Emit the one signal that lets the outcome layer tell
-        // the user; genuine failures errored via job:fail and skip this.
-        if (err instanceof TimeoutError) {
-          client.bus.get('mark:assist-timeout').next({
-            resourceId: resourceId as string,
-            motivation: event.motivation,
-          });
-        }
       },
     });
     subs.push(assistSub);

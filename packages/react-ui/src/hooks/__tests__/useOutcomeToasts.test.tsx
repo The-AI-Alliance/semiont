@@ -144,19 +144,24 @@ describe('useOutcomeToasts', () => {
     expect(showError).toHaveBeenCalledTimes(1);
   });
 
-  it('an assist timeout surfaces as error (a client-side timeout has no job:fail)', () => {
+  it('assist silence surfaces as INFO, not error — the job is still running', () => {
+    // DETECTION-HEARTBEAT Phase B: the client stopping hearing is not the
+    // assist failing. A run the UI gave up on still persisted 221
+    // annotations, so an error toast was telling the user something untrue.
     const { eventBus } = setup();
     act(() => {
       eventBus.get('mark:assist-timeout').next({ resourceId: RID, motivation: 'highlighting' });
     });
-    expect(showError).toHaveBeenCalledWith(expect.stringMatching(/timed out/i));
+    expect(showInfo).toHaveBeenCalledWith(expect.stringMatching(/still working|no update/i));
+    expect(showError).not.toHaveBeenCalled();
   });
 
-  it('assist timeouts for a different resource are ignored (resourceId filter)', () => {
+  it('assist silence for a different resource is ignored (resourceId filter)', () => {
     const { eventBus } = setup();
     act(() => {
       eventBus.get('mark:assist-timeout').next({ resourceId: 'other-res', motivation: 'highlighting' });
     });
+    expect(showInfo).not.toHaveBeenCalled();
     expect(showError).not.toHaveBeenCalled();
   });
 });

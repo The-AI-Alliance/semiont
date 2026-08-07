@@ -294,18 +294,56 @@ describe('createMarkStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('times out a silent assist Observable after 180s', () => {
+  it('HOLDS a silent assist after 180s — the job is still running, so the client must not forget it', () => {
+    // DETECTION-HEARTBEAT Phase B. Silence is not failure: the worker keeps
+    // processing after the client stops hearing (proven live 2026-08-07 — a
+    // job that "timed out" in the UI persisted 221 annotations). Dropping
+    // assistingMotivation$ told the user the assist was over while it was
+    // still running, and left nothing to resolve when it finished.
     vi.useFakeTimers();
     const assistFn = vi.fn(() => new Observable(() => {}));
     tc = withMark({ assist: assistFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const motiv: unknown[] = [];
+    const prog: unknown[] = [];
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
+    stateUnit.progress$.subscribe(v => prog.push(v));
 
     tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
     expect(motiv[motiv.length - 1]).toBe('highlighting');
 
     vi.advanceTimersByTime(180_000);
+
+    // Still assisting — and the UI is told WHY it has gone quiet rather than
+    // being handed a blank.
+    expect(motiv[motiv.length - 1]).toBe('highlighting');
+    const last = prog[prog.length - 1] as { message?: string } | null;
+    expect(last).not.toBeNull();
+    expect(String(last?.message)).toMatch(/no (update|signal)/i);
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
+  it('a completion arriving AFTER the silence window still resolves the UI', () => {
+    // The stream must survive the silence marker: if the subscription is torn
+    // down at 180 s, the job's real completion has nothing left to resolve
+    // and the spinner is stuck forever.
+    vi.useFakeTimers();
+    let emit!: { complete: () => void };
+    tc = withMark({ assist: vi.fn(() => new Observable((sub) => { emit = sub; })) });
+    const stateUnit = createMarkStateUnit(tc.client, RID);
+    const motiv: unknown[] = [];
+    stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
+
+    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    vi.advanceTimersByTime(180_000);
+    expect(motiv[motiv.length - 1]).toBe('highlighting'); // held
+
+    // The worker finishes six minutes in, as it does on a real large document.
+    vi.advanceTimersByTime(200_000);
+    emit.complete();
+
     expect(motiv[motiv.length - 1]).toBeNull();
 
     stateUnit.dispose();
@@ -345,12 +383,16 @@ describe('createMarkStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('resets timeout on each progress emission (does not fire prematurely)', () => {
+  it('resets the silence window on each progress emission (does not fire prematurely)', () => {
+    // This is what the worker heartbeat feeds: a beat every ~15 s keeps the
+    // window from ever being reached on a healthy long-running job.
     vi.useFakeTimers();
     const progressSubject = new Subject();
     const assistFn = vi.fn(() => progressSubject.asObservable());
     tc = withMark({ assist: assistFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
+    const timeouts: unknown[] = [];
+    tc.bus.get('mark:assist-timeout').subscribe(e => timeouts.push(e));
     const motiv: unknown[] = [];
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
 
@@ -360,11 +402,15 @@ describe('createMarkStateUnit', () => {
     vi.advanceTimersByTime(170_000);
     progressSubject.next({ kind: 'progress', data: { stage: 'analyzing', percentage: 50, message: 'm' } });
 
+    // The emission reset the window — nothing has gone quiet.
     vi.advanceTimersByTime(170_000);
-    expect(motiv[motiv.length - 1]).toBe('highlighting');
+    expect(timeouts).toEqual([]);
 
+    // Past the window with no further emissions: the user is told it went
+    // quiet, but the assist is still held (the job is still running).
     vi.advanceTimersByTime(10_000);
-    expect(motiv[motiv.length - 1]).toBeNull();
+    expect(timeouts).toHaveLength(1);
+    expect(motiv[motiv.length - 1]).toBe('highlighting');
 
     stateUnit.dispose();
     vi.useRealTimers();

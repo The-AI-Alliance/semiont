@@ -61,10 +61,14 @@ const ENTITY_ELEMENT_SCHEMA: ElementSchema = {
  *   anchor decisions, drops). Required so dropped/filtered entities never
  *   disappear silently.
  * @param sourceLanguage - BCP-47 tag for the source content's language
- * @param onChunk - Invoked at each chunk boundary with (completedChunks,
- *   totalChunks). Progress doubles as the worker's liveness heartbeat, so the
- *   caller MUST forward this to its progress channel — silence must never
- *   span more than one inference call (stall watchdog layering).
+ * @param onActivity - Invoked with (completedChunks, totalChunks) whenever
+ *   the extraction is demonstrably alive: at each chunk boundary (the count
+ *   advances) AND periodically while a single inference call is in flight
+ *   (the count repeats — liveness, not progress). The caller MUST forward
+ *   this to its progress channel: progress is the worker's liveness
+ *   heartbeat for the stall watchdog, and the client's timeout is an
+ *   INTER-EMISSION one, so a silent single-chunk run kills a healthy job
+ *   (DETECTION-HEARTBEAT).
  * @returns Array of extracted entities with their character offsets
  */
 export async function extractEntities(
@@ -74,7 +78,7 @@ export async function extractEntities(
   includeDescriptiveReferences: boolean,
   logger: Logger,
   sourceLanguage?: string,
-  onChunk?: (completedChunks: number, totalChunks: number) => void,
+  onActivity?: (completedChunks: number, totalChunks: number) => void,
 ): Promise<ExtractedEntity[]> {
 
   // Format entity types for the prompt
@@ -170,6 +174,9 @@ Example output:
       outputBudget,
       0.3, // Lower temperature for more consistent extraction
       ENTITY_ELEMENT_SCHEMA,
+      // Still alive, same position: a long single call would otherwise emit
+      // nothing at all between start and finish.
+      () => onActivity?.(i, chunks.length),
     );
     logger.debug('Got entity extraction response', {
       chunk: i + 1,
@@ -203,10 +210,9 @@ Example output:
       }
     }
 
-    // Chunk boundary: keep the liveness heartbeat alive — silence must never
-    // span more than one inference call (stall-watchdog layering).
+    // Chunk boundary: the count advances (real progress).
     if (i < chunks.length - 1) {
-      onChunk?.(i + 1, chunks.length);
+      onActivity?.(i + 1, chunks.length);
     }
   }
 

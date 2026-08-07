@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import type { InferenceClient } from '@semiont/inference';
+import type { InferenceClient, StructuredResponse } from '@semiont/inference';
 import {
   boundedGenerate,
   boundedGenerateStructured,
@@ -85,6 +85,73 @@ describe('bounded inference calls', () => {
     });
 
     await expect(boundedGenerate(client, 'p', 100, 0.1)).rejects.toThrow('model exploded');
+  });
+
+  // DETECTION-HEARTBEAT Phase A: liveness must come from ELAPSED TIME, not
+  // from chunk geometry. A single-chunk document (the normal case — the
+  // derived input budget is ~935 K tokens) crosses no chunk boundary, so the
+  // boundary heartbeat emits nothing for the entire run; the client's
+  // inter-emission timeout (180 s) then kills a healthy job. The in-flight
+  // call is the only window that knows the truth.
+  describe('in-flight heartbeat', () => {
+    it('fires repeatedly DURING one long inference call', async () => {
+      vi.useFakeTimers();
+      const client = clientWith({ generateStructured: vi.fn(never) });
+      const beats: number[] = [];
+
+      const pending = boundedGenerateStructured(
+        client, 'p', 100, 0.1, { type: 'object' },
+        () => beats.push(Date.now()),
+      );
+      // Swallow the eventual timeout rejection — this test is about the
+      // beats emitted before it, not the bound itself.
+      pending.catch(() => {});
+
+      // Two minutes of a still-running call: well inside the 10-minute
+      // bound, and well past the client's 180 s silence window.
+      await vi.advanceTimersByTimeAsync(120_000);
+
+      expect(beats.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('fires no heartbeat for a call that answers within the interval', async () => {
+      const client = clientWith({});
+      const beats: number[] = [];
+
+      await boundedGenerateStructured(
+        client, 'p', 100, 0.1, { type: 'object' },
+        () => beats.push(Date.now()),
+      );
+
+      // No spurious emissions for the common fast call.
+      expect(beats).toHaveLength(0);
+    });
+
+    it('stops beating once the call settles', async () => {
+      vi.useFakeTimers();
+      let settle: (v: StructuredResponse<never>) => void = () => {};
+      const client = clientWith({
+        generateStructured: vi.fn(() => new Promise<StructuredResponse<never>>((res) => { settle = res; })),
+      });
+      const beats: number[] = [];
+
+      const pending = boundedGenerateStructured(
+        client, 'p', 100, 0.1, { type: 'object' },
+        () => beats.push(Date.now()),
+      );
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      const duringCall = beats.length;
+      expect(duringCall).toBeGreaterThan(0);
+
+      settle({ items: [], stopReason: 'end_turn' });
+      await pending;
+
+      // The interval must be cleared with the timeout, in the same finally —
+      // a leaked timer would beat forever on a completed job.
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(beats.length).toBe(duringCall);
+    });
   });
 
   it('detection call sites route through the bound (never-resolving model → timeout, not a wedged worker)', async () => {
