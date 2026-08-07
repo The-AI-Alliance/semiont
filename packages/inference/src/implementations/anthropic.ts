@@ -1,9 +1,9 @@
 // Anthropic Claude implementation of InferenceClient interface
 
 import Anthropic from '@anthropic-ai/sdk';
-import type { Logger } from '@semiont/core';
+import { isObject, type Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
-import { InferenceClient, InferenceLimits, InferenceOptions, InferenceResponse } from '../interface.js';
+import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredResponse } from '../interface.js';
 
 // The SDK refuses non-streaming create() calls whose projected duration
 // exceeds its 10-minute timeout: it throws when
@@ -13,38 +13,35 @@ import { InferenceClient, InferenceLimits, InferenceOptions, InferenceResponse }
 // same response handling, same interface.
 const NONSTREAMING_MAX_OUTPUT_TOKENS = Math.floor(128_000 / 6);
 
-// Forced-tool channel for JSON mode. Anthropic has no grammar-constrained
-// sampling like Ollama's `format`; the equivalent hard guarantee is a *tool
-// call*. We offer exactly one tool and force it via `tool_choice`, so the model
-// must answer by filling the tool's input — which the API serializes as
-// properly-escaped JSON. That kills both free-text failure modes at the source:
-// trailing prose after the `]` (variant 1) and an unescaped `"` inside a string
-// (variant 2), neither of which a prefill could prevent.
-//
-// A tool's input must be an *object*, so the array is carried under `items`
-// and unwrapped on return (see generateTextWithMetadata) — the caller still
-// receives a top-level JSON array in `text`, exactly as on Ollama.
-const JSON_ARRAY_TOOL: Anthropic.Tool = {
-  name: 'emit_json_array',
-  description:
-    'Return your entire answer by calling this tool. Put the JSON array of results under the "items" property, and emit no prose.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      // Element shape is unconstrained here — the prompt carries the per-element
-      // schema; the tool only enforces that the top-level result is an array.
-      items: { type: 'array', items: {} },
-    },
-    required: ['items'],
-  },
-};
+// Structured generation rides `output_config.format` — response-level
+// structured output: the response TEXT is the schema-conforming JSON, with a
+// top-level ARRAY root (accepted on both live-config models — spike
+// 2026-08-06, `.plans/spikes/output-config-array-root.md`). This replaced
+// the pre-structured-outputs scaffolding: a forced `emit_json_array` tool
+// whose object-only input required an `items` wrapper and an unwrap — and
+// the unwrap was the exact line that silently coerced an unreadable payload
+// to `[]` (STRUCTURED-INFERENCE §Problem). There is no tool-input
+// accumulation step left for the SDK to hand over unparsed; the read path is
+// now the same parse-and-verify shape as Ollama's.
+
+/**
+ * Everything one Models API call teaches us about the configured model. The
+ * capability stays PRIVATE to this client: its only consumer is the gate in
+ * `generateStructured`, so it does not cross the `InferenceClient` interface
+ * (no speculative surface — widen `InferenceLimits` only when an external
+ * consumer exists).
+ */
+interface ModelDiscovery {
+  limits: InferenceLimits;
+  structuredOutputsSupported: boolean;
+}
 
 export class AnthropicInferenceClient implements InferenceClient {
   readonly type = 'anthropic' as const;
   readonly modelId: string;
   private client: Anthropic;
   private logger?: Logger;
-  private limitsPromise?: Promise<InferenceLimits>;
+  private discoveryPromise?: Promise<ModelDiscovery>;
 
   constructor(apiKey: string, model: string, baseURL?: string, logger?: Logger) {
     this.client = new Anthropic({
@@ -56,20 +53,27 @@ export class AnthropicInferenceClient implements InferenceClient {
   }
 
   limits(): Promise<InferenceLimits> {
-    if (!this.limitsPromise) {
-      this.limitsPromise = this.discoverLimits().catch((err: unknown) => {
+    return this.discover().then(d => d.limits);
+  }
+
+  private discover(): Promise<ModelDiscovery> {
+    if (!this.discoveryPromise) {
+      this.discoveryPromise = this.discoverModel().catch((err: unknown) => {
         // Never cache a failed discovery — a transient outage would otherwise
         // pin every future call to the same rejection.
-        this.limitsPromise = undefined;
+        this.discoveryPromise = undefined;
         throw err;
       });
     }
-    return this.limitsPromise;
+    return this.discoveryPromise;
   }
 
-  private async discoverLimits(): Promise<InferenceLimits> {
-    // The Models API publishes the actual ceilings per model — no
-    // hand-maintained table to go stale when a new model ships.
+  private async discoverModel(): Promise<ModelDiscovery> {
+    // The Models API publishes the actual ceilings AND capabilities per
+    // model — no hand-maintained table to go stale when a new model ships,
+    // and the API's own metadata outranks documentation prose when the two
+    // disagree (measured: the docs' supported-model list was stale while
+    // `capabilities.structured_outputs.supported` was correct).
     const info = await this.client.models.retrieve(this.modelId).catch((err: unknown) => {
       throw new Error(
         `Failed to discover model limits for '${this.modelId}' from the Models API`,
@@ -79,7 +83,19 @@ export class AnthropicInferenceClient implements InferenceClient {
     if (info.max_input_tokens == null || info.max_tokens == null) {
       throw new Error(`Models API reports no context/output ceilings for '${this.modelId}'`);
     }
-    return { contextTokens: info.max_input_tokens, maxOutputTokens: info.max_tokens };
+    // `capabilities` is not declared on the SDK's ModelInfo type — narrow
+    // through the core guards rather than casting. Absent metadata reads as
+    // unsupported: the gate then refuses loudly (D4), never guesses.
+    const raw: unknown = info;
+    const structuredOutputsSupported =
+      isObject(raw) &&
+      isObject(raw['capabilities']) &&
+      isObject(raw['capabilities']['structured_outputs']) &&
+      raw['capabilities']['structured_outputs']['supported'] === true;
+    return {
+      limits: { contextTokens: info.max_input_tokens, maxOutputTokens: info.max_tokens },
+      structuredOutputsSupported,
+    };
   }
 
   private requestMessage(params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message> {
@@ -89,20 +105,17 @@ export class AnthropicInferenceClient implements InferenceClient {
     return this.client.messages.create(params);
   }
 
-  async generateText(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<string> {
-    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature, options);
+  async generateText(prompt: string, maxTokens: number, temperature: number): Promise<string> {
+    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature);
     return response.text;
   }
 
-  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<InferenceResponse> {
-    const jsonMode = options?.format === 'json';
-
+  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number): Promise<InferenceResponse> {
     this.logger?.debug('Generating text with inference client', {
       model: this.modelId,
       promptLength: prompt.length,
       maxTokens,
       temperature,
-      format: options?.format,
     });
 
     const params: Anthropic.MessageCreateParamsNonStreaming = {
@@ -110,79 +123,21 @@ export class AnthropicInferenceClient implements InferenceClient {
       max_tokens: maxTokens,
       temperature,
       messages: [{ role: 'user', content: prompt }],
-      // JSON mode → force the structured-output tool. No prefill assistant
-      // turn: the constraint now lives in the tool call, not in free text.
-      ...(jsonMode
-        ? { tools: [JSON_ARRAY_TOOL], tool_choice: { type: 'tool' as const, name: JSON_ARRAY_TOOL.name } }
-        : {}),
     };
 
     const start = performance.now();
-    let response: Anthropic.Message;
-    try {
-      response = await this.requestMessage(params);
-    } catch (err) {
-      recordInferenceUsage({
-        provider: this.type,
+    const response = await this.recordedRequest(params, start);
+
+    const textContent = response.content.find(c => c.type === 'text');
+    if (!textContent || textContent.type !== 'text') {
+      this.recordError(start, response);
+      this.logger?.error('No text content in inference response', {
         model: this.modelId,
-        durationMs: performance.now() - start,
-        outcome: 'error',
+        contentTypes: response.content.map(c => c.type)
       });
-      throw err;
+      throw new Error('No text content in inference response');
     }
-
-    this.logger?.debug('Inference response received', {
-      model: this.modelId,
-      contentBlocks: response.content.length,
-      stopReason: response.stop_reason
-    });
-
-    let text: string;
-    if (jsonMode) {
-      // The answer arrives as a tool_use block, not text. Unwrap the `items`
-      // array and re-serialize it so `text` is a complete, parseable top-level
-      // JSON array — the cross-provider contract every consumer reads.
-      const toolUse = response.content.find(c => c.type === 'tool_use');
-      if (!toolUse || toolUse.type !== 'tool_use') {
-        recordInferenceUsage({
-          provider: this.type,
-          model: this.modelId,
-          durationMs: performance.now() - start,
-          outcome: 'error',
-          inputTokens: response.usage?.input_tokens,
-          outputTokens: response.usage?.output_tokens,
-        });
-        this.logger?.error('No tool_use content in inference response', {
-          model: this.modelId,
-          contentTypes: response.content.map(c => c.type)
-        });
-        throw new Error('No tool_use content in inference response');
-      }
-      // `input` is typed `unknown` by the SDK. A truncated (`max_tokens`)
-      // response may carry partial or absent `items` — fall back to the partial
-      // array, or `[]` if absent; the consumer flags truncation via stopReason.
-      const input = toolUse.input as { items?: unknown };
-      const items = Array.isArray(input.items) ? input.items : [];
-      text = JSON.stringify(items);
-    } else {
-      const textContent = response.content.find(c => c.type === 'text');
-      if (!textContent || textContent.type !== 'text') {
-        recordInferenceUsage({
-          provider: this.type,
-          model: this.modelId,
-          durationMs: performance.now() - start,
-          outcome: 'error',
-          inputTokens: response.usage?.input_tokens,
-          outputTokens: response.usage?.output_tokens,
-        });
-        this.logger?.error('No text content in inference response', {
-          model: this.modelId,
-          contentTypes: response.content.map(c => c.type)
-        });
-        throw new Error('No text content in inference response');
-      }
-      text = textContent.text;
-    }
+    const text = textContent.text;
 
     recordInferenceUsage({
       provider: this.type,
@@ -203,5 +158,143 @@ export class AnthropicInferenceClient implements InferenceClient {
       text,
       stopReason: response.stop_reason || 'unknown'
     };
+  }
+
+  async generateStructured<T>(
+    prompt: string,
+    maxTokens: number,
+    temperature: number,
+    elementSchema: ElementSchema,
+  ): Promise<StructuredResponse<T>> {
+    // Capability gate (D3/D4): model choice is deployment config, so the
+    // client asks the provider whether the configured model can honour
+    // strictness — and REFUSES when it cannot. Silent fallback to
+    // unconstrained tool use is exactly the behaviour that turned 202 real
+    // entities into a green empty job. The discovery is the same cached
+    // Models API call `limits()` uses; no extra round trip.
+    const discovery = await this.discover();
+    if (!discovery.structuredOutputsSupported) {
+      throw new Error(
+        `Model '${this.modelId}' does not report support for strict structured outputs ` +
+        `(Models API capabilities.structured_outputs) — refusing rather than degrading to ` +
+        `unconstrained tool use, which silently discards unreadable results. Re-point the ` +
+        `inference.model key that pins this worker/actor in .semiont/semiontconfig/*.toml ` +
+        `(e.g. environments.<env>.workers.<job-type>.inference.model) at a model that ` +
+        `reports supported: true.`,
+      );
+    }
+
+    this.logger?.debug('Generating structured output with inference client', {
+      model: this.modelId,
+      promptLength: prompt.length,
+      maxTokens,
+      temperature,
+    });
+
+    const params: Anthropic.MessageCreateParamsNonStreaming = {
+      model: this.modelId,
+      max_tokens: maxTokens,
+      temperature,
+      messages: [{ role: 'user', content: prompt }],
+      // Response-level structured output with an ARRAY root: the response
+      // text IS the schema-conforming JSON. No tools, no prefill.
+      output_config: {
+        format: {
+          type: 'json_schema',
+          schema: { type: 'array', items: elementSchema },
+        },
+      },
+    };
+
+    const start = performance.now();
+    const response = await this.recordedRequest(params, start);
+
+    const textContent = response.content.find(c => c.type === 'text');
+    if (!textContent || textContent.type !== 'text') {
+      this.recordError(start, response);
+      this.logger?.error('No text content in structured inference response', {
+        model: this.modelId,
+        contentTypes: response.content.map(c => c.type)
+      });
+      throw new Error('No text content in structured inference response');
+    }
+
+    // Anything that does not read as an array is a THROW, never a coerced
+    // `[]` — "we could not read the model" must never be conflated with
+    // "the model found nothing": that conflation is what silently discarded
+    // 202 real entities as a green empty result. A truncated (`max_tokens`)
+    // response surfaces here too, as unparseable JSON naming its stop_reason.
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(textContent.text);
+    } catch (err) {
+      this.recordError(start, response);
+      this.logger?.error('Structured response could not be read', {
+        model: this.modelId,
+        textLength: textContent.text.length,
+        stopReason: response.stop_reason,
+      });
+      throw new Error(
+        `Structured response could not be read: response is not valid JSON (stop_reason: ${response.stop_reason})`,
+        { cause: err },
+      );
+    }
+    if (!Array.isArray(parsed)) {
+      this.recordError(start, response);
+      this.logger?.error('Structured response could not be read', {
+        model: this.modelId,
+        parsedType: typeof parsed,
+        stopReason: response.stop_reason,
+      });
+      throw new Error(
+        `Structured response could not be read: parsed to ${typeof parsed}, not an array (stop_reason: ${response.stop_reason})`,
+      );
+    }
+
+    recordInferenceUsage({
+      provider: this.type,
+      model: this.modelId,
+      durationMs: performance.now() - start,
+      outcome: 'success',
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+    });
+
+    this.logger?.info('Structured generation completed', {
+      model: this.modelId,
+      items: parsed.length,
+      stopReason: response.stop_reason
+    });
+
+    return {
+      items: parsed as T[],
+      stopReason: response.stop_reason || 'unknown',
+    };
+  }
+
+  /** Issue the request, recording an error metric if the transport throws. */
+  private async recordedRequest(params: Anthropic.MessageCreateParamsNonStreaming, start: number): Promise<Anthropic.Message> {
+    try {
+      return await this.requestMessage(params);
+    } catch (err) {
+      recordInferenceUsage({
+        provider: this.type,
+        model: this.modelId,
+        durationMs: performance.now() - start,
+        outcome: 'error',
+      });
+      throw err;
+    }
+  }
+
+  private recordError(start: number, response: Anthropic.Message): void {
+    recordInferenceUsage({
+      provider: this.type,
+      model: this.modelId,
+      durationMs: performance.now() - start,
+      outcome: 'error',
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+    });
   }
 }

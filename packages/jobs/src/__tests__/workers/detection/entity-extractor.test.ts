@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { MockInferenceClient } from '@semiont/inference';
+import { MockInferenceClient, type InferenceClient } from '@semiont/inference';
 import { extractEntities } from '../../../workers/detection/entity-extractor';
 
 // Create mock client directly
@@ -176,14 +176,17 @@ describe('extractEntities', () => {
     expect(result[1].exact).toBe('The Nobel laureate');
   });
 
-  it('throws on unparseable response instead of silently returning []', async () => {
-    // Phase 2a: parse failure is silent data loss in disguise — it must
+  it('throws on unreadable response instead of silently returning []', async () => {
+    // An unreadable model response is silent data loss in disguise — it must
     // surface as a thrown error (→ job:failed) rather than an empty success.
+    // The throw now originates in the structured surface itself
+    // (STRUCTURED-INFERENCE Phase 2): the mock parses its queued response
+    // and refuses non-arrays exactly as the real providers do.
     mockInferenceClient.setResponses(['This is not JSON']);
 
     await expect(
       extractEntities('Alice went to Paris.', ['Person'], mockInferenceClient, false, LOGGER),
-    ).rejects.toThrow(/parse/i);
+    ).rejects.toThrow(/could not be read/i);
   });
 
   describe('source language', () => {
@@ -291,6 +294,35 @@ describe('extractEntities', () => {
         expect(completed).toBe(idx + 1);
         expect(total).toBe(totalChunks);
       });
+    });
+
+    it('fails the job when the structured read throws mid-chunk — never a short-array completion', async () => {
+      // STRUCTURED-INFERENCE Phase 1 (declared RED): extraction must consume
+      // the structured surface, whose mid-chunk throw aborts the job and
+      // surfaces as job:fail. Against HEAD the legacy text surface is
+      // consulted instead — the throw is never reached and this resolves
+      // with entities, which is exactly the silent-completion hazard.
+      let structuredCalls = 0;
+      const client = {
+        type: 'mock' as const,
+        modelId: 'mock-model',
+        limits: async () => SMALL_SHARED_LIMITS, // forces multiple chunks
+        generateText: async () => '[]',
+        // Legacy surface answers cleanly for every chunk — a rewrite that
+        // still consults it completes and betrays itself here.
+        generateTextWithMetadata: async () => ({ text: entity('AAA'), stopReason: 'end_turn' }),
+        generateStructured: async () => {
+          structuredCalls += 1;
+          if (structuredCalls === 1) {
+            return { items: [{ exact: 'AAA', entityType: 'Person' }], stopReason: 'end_turn' };
+          }
+          throw new Error('Structured response could not be read: items is not an array');
+        },
+      } as unknown as InferenceClient;
+
+      await expect(
+        extractEntities(bigText, ['Person'], client, false, LOGGER),
+      ).rejects.toThrow(/could not be read/i);
     });
 
     it('makes exactly one call and no boundary reports when content fits the derived budget', async () => {

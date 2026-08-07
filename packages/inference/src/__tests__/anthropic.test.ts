@@ -18,74 +18,79 @@ vi.mock('@anthropic-ai/sdk', () => ({
 
 import { AnthropicInferenceClient } from '../implementations/anthropic.js';
 
-describe('AnthropicInferenceClient - JSON mode is tool-use, not prefill', () => {
+/** Minimal element schema for tests — the shape callers declare. */
+const TEST_ELEMENT = { type: 'object', properties: { exact: { type: 'string' } }, required: ['exact'], additionalProperties: false };
+
+/** Models API answer for a strict-capable model — the capability gate's happy path. */
+const CAPABLE_MODEL = {
+  max_input_tokens: 200_000,
+  max_tokens: 64_000,
+  capabilities: { structured_outputs: { supported: true } },
+};
+
+describe('AnthropicInferenceClient - structured generation is output_config, not tools or prefill', () => {
   beforeEach(() => {
     createMock.mockReset();
     retrieveMock.mockReset();
     streamMock.mockReset();
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
   });
 
-  it('forces a schema-typed tool call (no assistant prefill) for { format: "json" }', async () => {
+  it('requests response-level structured output (no tools, no assistant prefill)', async () => {
     createMock.mockResolvedValue({
-      content: [{ type: 'tool_use', id: 'toolu_1', name: 'emit', input: { items: [{ exact: 'Paris' }] } }],
-      stop_reason: 'tool_use',
+      content: [{ type: 'text', text: '[{"exact":"Paris"}]' }],
+      stop_reason: 'end_turn',
       usage: { input_tokens: 10, output_tokens: 5 },
     });
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
-    const text = await client.generateText('Extract locations', 1000, 0, { format: 'json' });
+    const res = await client.generateStructured('Extract locations', 1000, 0, TEST_ELEMENT);
 
     const req = createMock.mock.calls[0][0];
 
-    // A single tool is offered and the model is forced to call exactly it.
-    expect(Array.isArray(req.tools)).toBe(true);
-    expect(req.tools).toHaveLength(1);
-    expect(req.tool_choice).toMatchObject({ type: 'tool' });
-    expect(req.tool_choice.name).toBe(req.tools[0].name);
-
-    // The tool input is a schema-typed object wrapping an array (tool inputs
-    // must be objects); the array lives under `items`.
-    expect(req.tools[0].input_schema.type).toBe('object');
-    expect(req.tools[0].input_schema.properties.items.type).toBe('array');
+    // The constraint is response-level — no tool scaffolding (Phase 5
+    // deleted the emit_json_array workaround), and the schema root is the
+    // ARRAY itself: no items wrapper, no unwrap.
+    expect(req.tools).toBeUndefined();
+    expect(req.tool_choice).toBeUndefined();
+    expect(req.output_config.format.type).toBe('json_schema');
+    expect(req.output_config.format.schema).toEqual({ type: 'array', items: TEST_ELEMENT });
 
     // No prefill: the request must not carry an assistant turn.
     expect(req.messages.some((m: { role: string }) => m.role === 'assistant')).toBe(false);
 
-    // The returned text is a parseable top-level JSON ARRAY (the array is
-    // re-serialized out of the tool_use input wrapper).
-    const parsed = JSON.parse(text);
-    expect(Array.isArray(parsed)).toBe(true);
-    expect(parsed).toEqual([{ exact: 'Paris' }]);
+    // The result is the parsed array itself — no string round-trip.
+    expect(res.items).toEqual([{ exact: 'Paris' }]);
   });
 
   it('round-trips an entity whose `exact` span contains a quote', async () => {
-    // The variant-2 failure: an unescaped `"` inside a verbatim span. Tool-use
-    // makes the API serialize properly-escaped JSON, so it round-trips cleanly.
+    // The variant-2 failure: an unescaped `"` inside a verbatim span.
+    // Schema-enforced output serializes properly-escaped JSON, so it
+    // round-trips cleanly.
     createMock.mockResolvedValue({
-      content: [{ type: 'tool_use', id: 't', name: 'emit', input: { items: [{ exact: 'the "best" café', prefix: 'a' }] } }],
-      stop_reason: 'tool_use',
+      content: [{ type: 'text', text: JSON.stringify([{ exact: 'the "best" café', prefix: 'a' }]) }],
+      stop_reason: 'end_turn',
       usage: {},
     });
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
-    const text = await client.generateText('p', 1000, 0, { format: 'json' });
+    const res = await client.generateStructured<{ exact: string }>('p', 1000, 0, TEST_ELEMENT);
 
-    const parsed = JSON.parse(text);
-    expect(parsed[0].exact).toBe('the "best" café');
+    expect(res.items[0].exact).toBe('the "best" café');
   });
 
   it('preserves the real stop_reason and yields an empty array for an empty extraction', async () => {
     createMock.mockResolvedValue({
-      content: [{ type: 'tool_use', id: 't', name: 'emit', input: { items: [] } }],
-      stop_reason: 'tool_use',
+      content: [{ type: 'text', text: '[]' }],
+      stop_reason: 'end_turn',
       usage: {},
     });
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
-    const res = await client.generateTextWithMetadata('p', 1000, 0, { format: 'json' });
+    const res = await client.generateStructured('p', 1000, 0, TEST_ELEMENT);
 
-    expect(res.stopReason).toBe('tool_use');
-    expect(JSON.parse(res.text)).toEqual([]);
+    expect(res.stopReason).toBe('end_turn');
+    expect(res.items).toEqual([]);
   });
 });
 
@@ -157,34 +162,36 @@ describe('AnthropicInferenceClient - large output budgets stream internally', ()
     createMock.mockReset();
     retrieveMock.mockReset();
     streamMock.mockReset();
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
   });
 
-  it('streams above the SDK non-streaming ceiling (json mode end-to-end)', async () => {
+  it('streams above the SDK non-streaming ceiling (structured mode end-to-end)', async () => {
     // The SDK refuses non-streaming create() above ~21,333 output tokens
     // (its projected duration exceeds the 10-minute timeout). A derived
     // 64K budget must therefore stream internally — same interface, same
     // response handling.
     streamMock.mockReturnValue({
       finalMessage: async () => ({
-        content: [{ type: 'tool_use', id: 't', name: 'emit', input: { items: [{ exact: 'A' }] } }],
-        stop_reason: 'tool_use',
+        content: [{ type: 'text', text: '[{"exact":"A"}]' }],
+        stop_reason: 'end_turn',
         usage: { input_tokens: 1, output_tokens: 1 },
       }),
     });
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
-    const res = await client.generateTextWithMetadata('p', 64_000, 0, { format: 'json' });
+    const res = await client.generateStructured('p', 64_000, 0, TEST_ELEMENT);
 
     expect(streamMock).toHaveBeenCalledTimes(1);
     expect(createMock).not.toHaveBeenCalled();
 
-    // Forced tool-use rides the streamed request unchanged.
+    // output_config rides the streamed request unchanged (the SDK's stream
+    // examples carry it natively).
     const req = streamMock.mock.calls[0][0];
     expect(req.max_tokens).toBe(64_000);
-    expect(req.tool_choice).toMatchObject({ type: 'tool' });
+    expect(req.output_config.format.schema).toEqual({ type: 'array', items: TEST_ELEMENT });
 
-    // And the response is processed identically (unwrapped top-level array).
-    expect(JSON.parse(res.text)).toEqual([{ exact: 'A' }]);
+    // And the response is processed identically (parsed items).
+    expect(res.items).toEqual([{ exact: 'A' }]);
   });
 
   it('keeps plain create() below the ceiling', async () => {

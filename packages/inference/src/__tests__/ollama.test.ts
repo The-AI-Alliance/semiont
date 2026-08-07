@@ -134,14 +134,41 @@ describe('OllamaInferenceClient - managed num_ctx', () => {
   });
 });
 
-describe('OllamaInferenceClient - grammar-constrained JSON path unchanged', () => {
-  it('sends the array-schema format for { format: "json" }', async () => {
+describe('OllamaInferenceClient - grammar-constrained structured path', () => {
+  it('sends the caller element schema wrapped in an array-schema format', async () => {
+    const fetchMock = stubRoutedFetch({
+      generate: { body: { response: '[{"exact":"Paris"}]', done: true, done_reason: 'stop' } },
+    });
+    const ELEMENT = { type: 'object', properties: { exact: { type: 'string' } }, required: ['exact'], additionalProperties: false };
+
+    const client = new OllamaInferenceClient('llama3', 'http://localhost:11434');
+    const res = await client.generateStructured('p', 100, 0, ELEMENT);
+
+    const body = requestBody(callsTo(fetchMock, '/api/generate')[0]);
+    // Grammar-constrained sampling, now element-typed: the schema constrains
+    // generation itself — strictly stronger than the old bare `items: {}`.
+    expect(body.format).toEqual({ type: 'array', items: ELEMENT });
+    expect(res.items).toEqual([{ exact: 'Paris' }]);
+  });
+
+  it('throws "could not be read" when the response is not a JSON array', async () => {
+    stubRoutedFetch({
+      generate: { body: { response: '{"entities": []}', done: true, done_reason: 'stop' } },
+    });
+
+    const client = new OllamaInferenceClient('llama3', 'http://localhost:11434');
+    await expect(
+      client.generateStructured('p', 100, 0, { type: 'object' }),
+    ).rejects.toThrow(/could not be read/i);
+  });
+
+  it('plain text requests carry no format constraint', async () => {
     const fetchMock = stubRoutedFetch();
 
     const client = new OllamaInferenceClient('llama3', 'http://localhost:11434');
-    await client.generateText('p', 100, 0, { format: 'json' });
+    await client.generateText('p', 100, 0);
 
     const body = requestBody(callsTo(fetchMock, '/api/generate')[0]);
-    expect(body.format).toEqual({ type: 'array', items: {} });
+    expect(body.format).toBeUndefined();
   });
 });

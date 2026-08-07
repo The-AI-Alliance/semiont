@@ -9,6 +9,7 @@
  */
 
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { STANDARD_FONT_DATA_URL } from './pdfjs-assets';
 import { isObject, isString, isNumber, isArray, anchorRuns, isTextRun, type PdfTextItem } from '@semiont/core';
 import type { PdfTextLayer, PdfPageInfo, PdfFormField } from './pdf-text-layer';
 
@@ -67,7 +68,7 @@ export async function extractPdfTextLayer(
     const data = new Uint8Array(bytes);
     // pdf.js v5 removed the isEvalSupported option; this path only calls
     // getTextContent (no rendering / no PDF functions).
-    const loadingTask = pdfjs.getDocument({ data });
+    const loadingTask = pdfjs.getDocument({ data, standardFontDataUrl: STANDARD_FONT_DATA_URL });
 
     try {
         // Inside the try so the finally's destroy() also runs when the

@@ -4,7 +4,7 @@
 import { estimateTokens, isNumber, isObject } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
-import { InferenceClient, InferenceLimits, InferenceOptions, InferenceResponse } from '../interface.js';
+import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredResponse } from '../interface.js';
 
 // Slack added to the chars/4 prompt estimate when sizing `num_ctx`:
 // proportional to the estimate (the heuristic's error grows with prompt size)
@@ -74,18 +74,69 @@ export class OllamaInferenceClient implements InferenceClient {
     return { contextTokens, maxOutputTokens: contextTokens };
   }
 
-  async generateText(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<string> {
-    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature, options);
+  async generateText(prompt: string, maxTokens: number, temperature: number): Promise<string> {
+    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature);
     return response.text;
   }
 
-  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<InferenceResponse> {
+  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number): Promise<InferenceResponse> {
+    return this.generate(prompt, maxTokens, temperature, undefined);
+  }
+
+  async generateStructured<T>(
+    prompt: string,
+    maxTokens: number,
+    temperature: number,
+    elementSchema: ElementSchema,
+  ): Promise<StructuredResponse<T>> {
+    // Grammar-constrained sampling: the schema goes to Ollama's `format`
+    // parameter, which constrains generation itself — same mechanism as the
+    // old bare array schema, now element-typed. The response text is then
+    // parsed here, and anything that does not read as an array is a THROW,
+    // never a coerced [] — "could not read the model" must stay distinct
+    // from "the model found nothing."
+    const response = await this.generate(prompt, maxTokens, temperature, elementSchema);
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(response.text);
+    } catch (err) {
+      this.logger?.error('Structured response could not be read', {
+        model: this.modelId,
+        textLength: response.text.length,
+        stopReason: response.stopReason,
+      });
+      throw new Error(
+        `Structured response could not be read: response is not valid JSON (stop_reason: ${response.stopReason})`,
+        { cause: err },
+      );
+    }
+    if (!Array.isArray(parsed)) {
+      this.logger?.error('Structured response could not be read', {
+        model: this.modelId,
+        parsedType: typeof parsed,
+        stopReason: response.stopReason,
+      });
+      throw new Error(
+        `Structured response could not be read: parsed to ${typeof parsed}, not an array (stop_reason: ${response.stopReason})`,
+      );
+    }
+
+    return { items: parsed as T[], stopReason: response.stopReason };
+  }
+
+  private async generate(
+    prompt: string,
+    maxTokens: number,
+    temperature: number,
+    elementSchema: ElementSchema | undefined,
+  ): Promise<InferenceResponse> {
     this.logger?.debug('Generating text with Ollama', {
       model: this.modelId,
       promptLength: prompt.length,
       maxTokens,
       temperature,
-      format: options?.format,
+      structured: elementSchema !== undefined,
     });
 
     // Managed context window: size num_ctx to cover this request, capped at
@@ -111,14 +162,11 @@ export class OllamaInferenceClient implements InferenceClient {
 
     // Ollama's `format` parameter accepts either the literal string
     // `"json"` (any valid JSON, including objects, numbers, etc.) or a
-    // JSON schema (constrains the top-level shape). The contract on the
-    // inference side is "parseable JSON array," so we pass a minimal
-    // array schema rather than the bare `"json"` string — without it,
-    // the model can satisfy "valid JSON" by emitting `{"entities": [...]}`
-    // and break every consumer that expects to call `.map` on the
-    // top-level value. The schema's `items: {}` keeps element shape
-    // unconstrained — the prompt still carries the per-element schema;
-    // we only enforce the outer array.
+    // JSON schema (constrains the top-level shape). The structured contract
+    // is "an array of elements matching the caller's schema," so we pass an
+    // array schema wrapping it — the bare `"json"` string would let the
+    // model satisfy "valid JSON" with `{"entities": [...]}` and break every
+    // consumer that maps over the top-level value.
     const body: Record<string, unknown> = {
       model: this.modelId,
       prompt,
@@ -130,8 +178,8 @@ export class OllamaInferenceClient implements InferenceClient {
         temperature,
       },
     };
-    if (options?.format === 'json') {
-      body['format'] = { type: 'array', items: {} };
+    if (elementSchema !== undefined) {
+      body['format'] = { type: 'array', items: elementSchema };
     }
 
     let res: Response;

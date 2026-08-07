@@ -123,6 +123,15 @@ vi.mock('../../../contexts/ResourceAnnotationsContext', () => ({
   ResourceAnnotationsProvider: ({ children }: any) => children,
 }));
 
+// Capture what ResourceViewerPage passes to useOutcomeToasts. The real hook is a
+// pure event subscription, so standing it in costs the other specs nothing.
+const outcomeToastsCalls = vi.hoisted(() => [] as unknown[]);
+vi.mock('../../../hooks/useOutcomeToasts', () => ({
+  useOutcomeToasts: (resourceId: unknown) => {
+    outcomeToastsCalls.push(resourceId);
+  },
+}));
+
 // Mock useEventSubscription at the direct path used by ResourceViewerPage
 // (the barrel export mock doesn't intercept direct context imports)
 const mockUseEventSubscriptions = vi.fn();
@@ -179,6 +188,23 @@ const renderWithProviders = (ui: React.ReactElement) => {
     </ThemeProvider>
   );
 };
+
+describe('ResourceViewerPage — outcome toasts reach the user', () => {
+  // The decline/success toast was dropped for EVERY resource:
+  // `useOutcomeToasts(resource.id as string)` read a property
+  // `ResourceDescriptor` does not declare (it carries `@id`). The descriptor's
+  // open index signature made the access legal and the `as string` silenced its
+  // `unknown` type, so the hook's `event.resourceId !== resourceId` guard
+  // compared a real id against `undefined` and returned early every time.
+  it('subscribes with the resource id, not a property the descriptor lacks', () => {
+    outcomeToastsCalls.length = 0;
+    renderWithProviders(<ResourceViewerPage {...createMockProps()} />);
+
+    expect(outcomeToastsCalls).not.toHaveLength(0);
+    // Must be the resource's identity — `undefined` here silences every toast.
+    expect(outcomeToastsCalls[0]).toBe('test-123');
+  });
+});
 
 describe('ResourceViewerPage', () => {
   beforeEach(() => {

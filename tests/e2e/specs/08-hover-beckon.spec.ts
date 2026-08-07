@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/auth';
 
+import { openResourceByName } from '../fixtures/discover';
 /**
  * Smoke test: hovering an annotation fires `beckon:hover` on the bus
  * and BeckonStateUnit reacts by firing `beckon:sparkle`.
@@ -38,13 +39,7 @@ test.describe('hover → beckon', () => {
     // seeder accumulates — same pattern specs 14/20 use to pin their PDF.
     // Either the resource already has an annotation in BrowseView (a prior
     // spec left one) or we create one ourselves below.
-    await page.goto('/en/know/discover');
-    const textCard = page
-      .getByRole('button', { name: /^open resource:\s*quantum computing primer/i })
-      .first();
-    await expect(textCard).toBeVisible({ timeout: 15_000 });
-    await textCard.click();
-    await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
+    await openResourceByName(page, 'Quantum Computing Primer');
 
     // Annotations render as `[data-annotation-id]` inside BrowseView's
     // container. The `.semiont-browse-view`-scoped locator is load-

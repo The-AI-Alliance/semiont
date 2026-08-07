@@ -335,10 +335,10 @@ describe('AnnotationDetection', () => {
 
   describe('error handling', () => {
     it('should propagate AI inference errors', async () => {
-      // detectComments now reads metadata (stopReason) via
-      // generateTextWithMetadata, so the failure is injected there.
+      // detectComments consumes the structured surface, so the failure is
+      // injected there.
       const errorClient = new MockInferenceClient(['']);
-      errorClient.generateTextWithMetadata = vi.fn().mockRejectedValue(new Error('AI service unavailable'));
+      errorClient.generateStructured = vi.fn().mockRejectedValue(new Error('AI service unavailable'));
 
       await expect(
         AnnotationDetection.detectComments(

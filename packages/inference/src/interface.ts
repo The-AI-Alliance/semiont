@@ -6,27 +6,37 @@ export interface InferenceResponse {
 }
 
 /**
- * Per-call options. Drift here when output discipline matters more than
- * raw model behavior — e.g. forcing valid JSON for entity extraction
- * where a parse failure in the consumer is silent and useless.
+ * Raw JSON Schema for ONE array element of a structured generation — a plain
+ * object, not a TS type and not a validator instance. Both providers consume
+ * JSON Schema directly (Anthropic nests it under the forced tool's
+ * `input_schema`; Ollama sends it as `format: { type: 'array', items: … }`),
+ * so anything richer would abstract one shape with two consumers.
+ *
+ * Constrain it to what both providers enforce: objects,
+ * `string`/`number`/`boolean`/`null`, `enum`, `const`, `required`, and
+ * `additionalProperties: false`. Numeric and string constraints (`minimum`,
+ * `maxLength`) are NOT enforced by Anthropic strict mode — declaring them
+ * buys nothing and misleads the reader.
  */
-export interface InferenceOptions {
-  /**
-   * Constrain output to a parseable JSON array. Every implementation
-   * MUST satisfy this contract using whatever mechanism its provider
-   * supports — Ollama uses grammar-constrained sampling
-   * (`format: "json"`); Anthropic uses forced structured tool-use (a
-   * single tool, forced via `tool_choice`, whose array result the API
-   * serializes as escaped JSON) and unwraps the array on return.
-   * Callers can rely on the returned `text` being a top-level JSON
-   * array regardless of provider.
-   *
-   * Current callers all expect arrays (entity extraction, motivation
-   * detection). If an object-emitting caller appears, this option
-   * grows a `root: 'array' | 'object'` field; do not silently drop
-   * the constraint.
-   */
-  format?: 'json';
+export type ElementSchema = Record<string, unknown>;
+
+/**
+ * A structured generation's result: the elements the model produced, plus the
+ * provider's stop reason (consumers gate on 'max_tokens' — truncation is data
+ * loss, not "fewer items").
+ *
+ * `items` is `T[]`, never a string: there is no representable value meaning
+ * "here is some text I could not read." An implementation that cannot deliver
+ * the array THROWS — failure is distinct from empty by construction.
+ *
+ * `T` is a caller assertion, not a runtime guarantee: nothing verifies the
+ * element schema and `T` agree, and the type parameter is erased. Declare the
+ * schema and `T` adjacently at the call site so drift is visible in one
+ * place, and keep per-element structural guards on the consuming side.
+ */
+export interface StructuredResponse<T> {
+  items: T[];
+  stopReason: 'end_turn' | 'max_tokens' | 'stop_sequence' | string;
 }
 
 /**
@@ -66,10 +76,30 @@ export interface InferenceClient {
   /**
    * Generate text from a prompt (simple interface)
    */
-  generateText(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<string>;
+  generateText(prompt: string, maxTokens: number, temperature: number): Promise<string>;
 
   /**
    * Generate text with detailed response information
    */
-  generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number, options?: InferenceOptions): Promise<InferenceResponse>;
+  generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number): Promise<InferenceResponse>;
+
+  /**
+   * Generate a JSON array whose elements satisfy `elementSchema`, as parsed
+   * values — the structured counterpart of `generateTextWithMetadata`, and
+   * the ONLY generation surface detection may use.
+   *
+   * The return type carries the guarantee the old `format: 'json'` option
+   * left in a comment: callers receive `T[]` or an exception. When the
+   * provider's answer cannot be read as an array (the SDK hands tool input
+   * over as an unparsed string, the response is missing the array, the
+   * grammar was not honoured), implementations THROW a
+   * "Structured response could not be read" error — they never coerce to
+   * `[]`, because empty is a legitimate, distinct outcome.
+   */
+  generateStructured<T>(
+    prompt: string,
+    maxTokens: number,
+    temperature: number,
+    elementSchema: ElementSchema,
+  ): Promise<StructuredResponse<T>>;
 }

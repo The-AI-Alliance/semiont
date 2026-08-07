@@ -2,6 +2,7 @@ import { test, expect } from '../fixtures/auth';
 import type { Page } from '@playwright/test';
 import { BACKEND_URL } from '../playwright.config';
 
+import { openResourceByName } from '../fixtures/discover';
 /**
  * A rectangle drawn on a SCANNED page quotes the text the server recovered.
  *
@@ -27,7 +28,6 @@ import { BACKEND_URL } from '../playwright.config';
  * tesseract reads a fixture nobody intended it to read.
  */
 
-const SCANNED_CARD = /^open resource:\s*scanned smoke pdf/i;
 const IMG = '.semiont-pdf-annotation-canvas__image';
 const SVG = '.semiont-pdf-annotation-canvas__svg';
 const CONTAINER = '.semiont-pdf-annotation-canvas__container';
@@ -63,11 +63,7 @@ async function bearerToken(page: Page): Promise<string> {
 const toCanvas = (y: number, height: number) => 792 - y - height;
 
 async function openScannedPdfInAnnotateMode(page: Page) {
-  await page.goto('/en/know/discover');
-  const card = page.getByRole('button', { name: SCANNED_CARD }).first();
-  await expect(card).toBeVisible({ timeout: 15_000 });
-  await card.click();
-  await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
+  await openResourceByName(page, 'Scanned Smoke PDF');
 
   await page.getByRole('button', { name: /^mode$/i }).click();
   await page.getByRole('menuitem', { name: /^annotate$/i }).click();

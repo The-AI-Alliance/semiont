@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/auth';
 import type { Page } from '@playwright/test';
 
+import { openResourceByName } from '../fixtures/discover';
 /**
  * A scanned PDF whose text cannot be recognized declines cleanly (#739/#746).
  *
@@ -47,18 +48,11 @@ import type { Page } from '@playwright/test';
  * deterministically with the engine stubbed.
  */
 
-const SCANNED_CARD = /^open resource:\s*scanned smoke pdf/i;
 const IMG = '.semiont-pdf-annotation-canvas__image';
 const SVG = '.semiont-pdf-annotation-canvas__svg';
 
 async function openScannedPdfInAnnotateMode(page: Page) {
-  await page.goto('/en/know/discover');
-  // `.first()` — the seed accumulates duplicate cards across runs (14's note);
-  // any is an identical fresh fixture.
-  const card = page.getByRole('button', { name: SCANNED_CARD }).first();
-  await expect(card).toBeVisible({ timeout: 15_000 });
-  await card.click();
-  await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
+  await openResourceByName(page, 'Scanned Smoke PDF');
 
   await page.getByRole('button', { name: /^mode$/i }).click();
   await page.getByRole('menuitem', { name: /^annotate$/i }).click();
