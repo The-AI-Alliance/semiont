@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Observable, Subject } from 'rxjs';
 import { resourceId as makeResourceId } from '@semiont/core';
-import { createMarkStateUnit } from '../mark-state-unit';
+import { createMarkStateUnit, ASSIST_SILENCE_MS } from '../mark-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
@@ -312,7 +312,7 @@ describe('createMarkStateUnit', () => {
     tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
     expect(motiv[motiv.length - 1]).toBe('highlighting');
 
-    vi.advanceTimersByTime(180_000);
+    vi.advanceTimersByTime(ASSIST_SILENCE_MS);
 
     // Still assisting — and the UI is told WHY it has gone quiet rather than
     // being handed a blank.
@@ -337,11 +337,11 @@ describe('createMarkStateUnit', () => {
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
 
     tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
-    vi.advanceTimersByTime(180_000);
+    vi.advanceTimersByTime(ASSIST_SILENCE_MS);
     expect(motiv[motiv.length - 1]).toBe('highlighting'); // held
 
     // The worker finishes six minutes in, as it does on a real large document.
-    vi.advanceTimersByTime(200_000);
+    vi.advanceTimersByTime(ASSIST_SILENCE_MS + 20_000);
     emit.complete();
 
     expect(motiv[motiv.length - 1]).toBeNull();
@@ -360,7 +360,7 @@ describe('createMarkStateUnit', () => {
     tc.bus.get('mark:assist-timeout').subscribe(e => timeouts.push(e));
 
     tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
-    vi.advanceTimersByTime(180_000);
+    vi.advanceTimersByTime(ASSIST_SILENCE_MS);
 
     expect(timeouts).toEqual([{ resourceId: 'res-1', motivation: 'highlighting' }]);
 
@@ -399,11 +399,11 @@ describe('createMarkStateUnit', () => {
     tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
     expect(motiv[motiv.length - 1]).toBe('highlighting');
 
-    vi.advanceTimersByTime(170_000);
+    vi.advanceTimersByTime(ASSIST_SILENCE_MS - 10_000);
     progressSubject.next({ kind: 'progress', data: { stage: 'analyzing', percentage: 50, message: 'm' } });
 
     // The emission reset the window — nothing has gone quiet.
-    vi.advanceTimersByTime(170_000);
+    vi.advanceTimersByTime(ASSIST_SILENCE_MS - 10_000);
     expect(timeouts).toEqual([]);
 
     // Past the window with no further emissions: the user is told it went

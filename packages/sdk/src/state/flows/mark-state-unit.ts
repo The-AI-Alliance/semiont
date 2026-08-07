@@ -11,7 +11,7 @@ type JobProgress = components['schemas']['JobProgress'];
  * `createMarkStateUnit`. Sized above the worker's ~15 s in-flight heartbeat
  * (DETECTION-HEARTBEAT), so reaching it means real silence, not a long call.
  */
-const ASSIST_SILENCE_MS = 180_000;
+export const ASSIST_SILENCE_MS = 180_000;
 
 export interface PendingAnnotation {
   selector: Selector | Selector[];
