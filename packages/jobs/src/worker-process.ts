@@ -242,7 +242,14 @@ async function handleJobInner(
   if (jobType !== 'generation') {
     const descriptor = await session.client.browse.resource(resourceId).fresh();
     const mediaType = getPrimaryMediaType(descriptor);
-    const source = await prepareDetection(mediaType ?? '', session, resourceId, userId, generator, config.anchoredTextStore);
+    // Its own span: extraction (fetch + decode, or a multi-second OCR pass on
+    // a scanned PDF) is otherwise indistinguishable from inference in a
+    // trace, which is exactly what made a 411 s opaque job hard to diagnose.
+    const source = await withSpan(
+      'detection:prepare',
+      () => prepareDetection(mediaType ?? '', session, resourceId, userId, generator, config.anchoredTextStore),
+      { attrs: { 'resource.id': resourceId as unknown as string, 'media.type': mediaType ?? 'unknown' } },
+    );
 
     if ('declined' in source) {
       if (source.declined === 'no-extractor') {

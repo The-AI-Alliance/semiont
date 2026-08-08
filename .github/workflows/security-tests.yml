@@ -1,18 +1,15 @@
 name: Security Tests
 
+# Do NOT add a `paths:` filter here. All three jobs below are REQUIRED status
+# checks: a path-filtered workflow never runs on an unrelated PR, so its checks
+# are never reported, and GitHub treats a required check that never reports as
+# permanently *pending* — the PR is unmergeable with no failing check to point
+# at. That silently blocked every packages/-only PR (#1165).
 on:
   push:
     branches: [ main, develop ]
-    paths:
-      - 'apps/frontend/**'
-      - 'apps/backend/**'
-      - '.github/workflows/security-tests.yml'
   pull_request:
     branches: [ main, develop ]
-    paths:
-      - 'apps/frontend/**'
-      - 'apps/backend/**'
-      - '.github/workflows/security-tests.yml'
   workflow_dispatch: # Allow manual triggering
 
 jobs:

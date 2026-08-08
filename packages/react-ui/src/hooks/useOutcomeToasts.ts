@@ -9,9 +9,12 @@ import { declinedMessage } from '../lib/job-outcome';
  *
  *   mark:create-error / mark:delete-error / bind:body-error          → error
  *   job:fail                                                         → error
- *   mark:assist-timeout                                              → error
- *     (a client-side timeout: the assist went silent, so no job:fail
- *     ever fires — this is the only notification the user gets)
+ *   mark:assist-timeout                                              → info
+ *     (the assist went SILENT, not wrong: no job:fail ever fires and the
+ *     worker keeps going, so this is an advisory — the only notification
+ *     the user gets that the client has stopped hearing. An error toast
+ *     here said the assist had failed while its annotations were still
+ *     on their way.)
  *   job:complete                                                     → success,
  *     except a clean decline (e.g. a scanned/image-only PDF with no text
  *     layer, #736/#738) → info: a decline is a valid no-op, neither a
@@ -54,7 +57,11 @@ export function useOutcomeToasts(resourceId: string): void {
     },
     'mark:assist-timeout': (event) => {
       if (event.resourceId !== resourceId) return;
-      showError('Annotation assist timed out');
+      // NOT a failure: the job is still running and its annotations will
+      // still land (proven live — a run the UI gave up on persisted 221).
+      // The client has merely stopped hearing from it, so this is an
+      // advisory, not an error (DETECTION-HEARTBEAT Phase B).
+      showInfo('Still working — no update from the annotation job for a few minutes');
     },
     'job:complete': (event) => {
       if (event.resourceId !== resourceId) return;

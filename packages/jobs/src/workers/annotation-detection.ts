@@ -52,9 +52,12 @@ function assertNotTruncated(response: { stopReason: string }, motivation: string
  * Overlap duplicates pass through — the processor's span-keyed
  * `dedupeAnnotations` is the single dedupe point.
  *
- * `onChunk` fires at every chunk boundary: progress doubles as the worker's
- * liveness heartbeat (stall watchdog + backend janitor), so silence must
- * never span more than one inference call.
+ * `onActivity` fires whenever the detection is demonstrably alive: at each
+ * chunk boundary (the count advances) AND periodically while one inference
+ * call is in flight (the count repeats — liveness, not progress). Progress is
+ * the worker's liveness heartbeat AND the client's inter-emission timeout
+ * signal, so a silent single-chunk run kills a healthy job
+ * (DETECTION-HEARTBEAT).
  */
 async function detectInChunks<T>(
   client: InferenceClient,
@@ -64,7 +67,7 @@ async function detectInChunks<T>(
   motivation: string,
   elementSchema: ElementSchema,
   parse: (items: unknown[]) => T[],
-  onChunk?: (completedChunks: number, totalChunks: number) => void,
+  onActivity?: (completedChunks: number, totalChunks: number) => void,
 ): Promise<T[]> {
   const limits = await client.limits();
   const scaffoldTokens = estimateTokens(buildPrompt(''));
@@ -77,11 +80,13 @@ async function detectInChunks<T>(
     // response fails the job rather than reading as an empty detection.
     const response = await boundedGenerateStructured<unknown>(
       client, buildPrompt(chunks[i]!), outputBudget, temperature, elementSchema,
+      // Still alive, same position (a long single call is otherwise silent).
+      () => onActivity?.(i, chunks.length),
     );
     assertNotTruncated(response, motivation, i + 1, chunks.length, outputBudget);
     collected.push(...parse(response.items));
     if (i < chunks.length - 1) {
-      onChunk?.(i + 1, chunks.length);
+      onActivity?.(i + 1, chunks.length);
     }
   }
   return collected;
@@ -105,14 +110,14 @@ export class AnnotationDetection {
     density?: number,
     language?: string,
     sourceLanguage?: string,
-    onChunk?: (completedChunks: number, totalChunks: number) => void,
+    onActivity?: (completedChunks: number, totalChunks: number) => void,
   ): Promise<CommentMatch[]> {
     return detectInChunks(
       client, content,
       (chunk) => MotivationPrompts.buildCommentPrompt(chunk, instructions, tone, density, language, sourceLanguage),
       0.4, 'comment', COMMENT_ELEMENT_SCHEMA,
       (items) => MotivationParsers.parseComments(items, content),
-      onChunk,
+      onActivity,
     );
   }
 
@@ -129,14 +134,14 @@ export class AnnotationDetection {
     instructions?: string,
     density?: number,
     sourceLanguage?: string,
-    onChunk?: (completedChunks: number, totalChunks: number) => void,
+    onActivity?: (completedChunks: number, totalChunks: number) => void,
   ): Promise<HighlightMatch[]> {
     return detectInChunks(
       client, content,
       (chunk) => MotivationPrompts.buildHighlightPrompt(chunk, instructions, density, sourceLanguage),
       0.3, 'highlight', HIGHLIGHT_ELEMENT_SCHEMA,
       (items) => MotivationParsers.parseHighlights(items, content),
-      onChunk,
+      onActivity,
     );
   }
 
@@ -155,14 +160,14 @@ export class AnnotationDetection {
     density?: number,
     language?: string,
     sourceLanguage?: string,
-    onChunk?: (completedChunks: number, totalChunks: number) => void,
+    onActivity?: (completedChunks: number, totalChunks: number) => void,
   ): Promise<AssessmentMatch[]> {
     return detectInChunks(
       client, content,
       (chunk) => MotivationPrompts.buildAssessmentPrompt(chunk, instructions, tone, density, language, sourceLanguage),
       0.3, 'assessment', ASSESSMENT_ELEMENT_SCHEMA,
       (items) => MotivationParsers.parseAssessments(items, content),
-      onChunk,
+      onActivity,
     );
   }
 
@@ -184,7 +189,7 @@ export class AnnotationDetection {
     schema: TagSchema,
     category: string,
     sourceLanguage?: string,
-    onChunk?: (completedChunks: number, totalChunks: number) => void,
+    onActivity?: (completedChunks: number, totalChunks: number) => void,
   ): Promise<TagMatch[]> {
     const categoryInfo = schema.tags.find((t) => t.name === category);
     if (!categoryInfo) {
@@ -206,7 +211,7 @@ export class AnnotationDetection {
       ),
       0.2, 'tag', TAG_ELEMENT_SCHEMA,
       (items) => MotivationParsers.parseTags(items),
-      onChunk,
+      onActivity,
     );
     return MotivationParsers.validateTagOffsets(parsedTags, content, category);
   }

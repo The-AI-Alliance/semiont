@@ -318,7 +318,7 @@ export async function processHighlightJob(
 
   const highlights = await AnnotationDetection.detectHighlights(
     content, inferenceClient, params.instructions, params.density, params.sourceLanguage,
-    // Chunk-boundary heartbeat (liveness): interpolate within the 30–60 band.
+    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
     (completed, total) => onProgress(30 + Math.round((completed / total) * 30), 'Analyzing text...', 'analyzing'),
   );
 
@@ -351,7 +351,7 @@ export async function processCommentJob(
   const comments = await AnnotationDetection.detectComments(
     content, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
-    // Chunk-boundary heartbeat (liveness): interpolate within the 30–60 band.
+    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
     (completed, total) => onProgress(30 + Math.round((completed / total) * 30), 'Analyzing text...', 'analyzing'),
   );
 
@@ -391,7 +391,7 @@ export async function processAssessmentJob(
   const assessments = await AnnotationDetection.detectAssessments(
     content, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
-    // Chunk-boundary heartbeat (liveness): interpolate within the 30–60 band.
+    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
     (completed, total) => onProgress(30 + Math.round((completed / total) * 30), 'Analyzing text...', 'analyzing'),
   );
 
@@ -455,10 +455,13 @@ export async function processReferenceJob(
     const extractedEntities = await extractEntities(
       content, [entityTypeName], inferenceClient, params.includeDescriptiveReferences ?? false, logger,
       params.sourceLanguage,
-      // Chunk-boundary heartbeat: progress is the worker's liveness signal
-      // (stall watchdog + backend janitor), so multi-chunk extraction must
-      // emit between inference calls. Percentage interpolates within this
-      // entity type's band of the 20–80 range.
+      // Liveness: fires at chunk boundaries AND every ~15 s while a single
+      // inference call is in flight (DETECTION-HEARTBEAT). Progress feeds the
+      // stall watchdog, the janitor, AND the client's inter-emission timeout,
+      // so a long single-chunk call must not be silent. Percentage
+      // interpolates within this entity type's band of the 20–80 range; a
+      // heartbeat repeats the current position rather than inventing an
+      // advance.
       (completed, total) => {
         const interpolated = 20 + Math.round(((i + completed / total) / entityTypeNames.length) * 60);
         onProgress(interpolated, `Detecting ${entityTypeName} entities...`, 'analyzing', {
@@ -541,8 +544,8 @@ export async function processTagJob(
     const category = params.categories[c]!;
     const categoryTags = await AnnotationDetection.detectTags(
       content, inferenceClient, params.schema, category, params.sourceLanguage,
-      // Chunk-boundary heartbeat (liveness): interpolate within this
-      // category's slice of the 30–60 band.
+      // Liveness (chunk boundaries + in-flight heartbeat): this category's
+      // slice of the 30–60 band.
       (completed, total) => onProgress(
         30 + Math.round(((c + completed / total) / params.categories.length) * 30),
         'Analyzing text for tags...', 'analyzing',
