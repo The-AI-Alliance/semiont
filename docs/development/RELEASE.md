@@ -206,6 +206,25 @@ npm rewrites it consistently. `--include=optional` is required so the
 per-platform native pins (`@rolldown/binding-*`, `lightningcss-*`) stay in the
 lock.
 
+**Retiring a security `override`:** a top-level version that looks clean is NOT
+evidence the override is dead. npm hoists one copy to the root, but a dependency
+that pins an *exact* version keeps its own nested copy, and the override may be
+the only thing lifting that copy. Before removing an entry from `overrides`,
+check every copy, not just the hoisted one:
+
+```bash
+jq -r '.packages | to_entries[]
+  | select(.key | test("node_modules/<pkg>$"))
+  | "\(.value.version)  \(.key)"' package-lock.json
+```
+
+If any nested copy sits below the advisory's patched version, the override is
+still load-bearing. This is not hypothetical: `js-yaml` was retired as "no longer
+load-bearing" while `@redocly/openapi-core` (via `openapi-typescript`) still
+pinned `js-yaml` at exactly `4.2.0`, which re-opened a HIGH alert. Also target
+the **newest** fixed release, not the first one that cleared the original
+advisory — patched versions routinely draw later CVEs of their own.
+
 ## Version Management Scripts
 
 ```bash
