@@ -30,6 +30,7 @@
  * file covers the iterate-and-emit orchestration layer.
  */
 
+import { GEN_REQUIRED } from './fixtures/generation-fixtures';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { extractPdfTextLayer } from '@semiont/content';
 import type { SemiontSession } from '@semiont/sdk';
@@ -164,7 +165,9 @@ function makeJob(type: ActiveJob['type'], paramsOverride: Record<string, unknown
     type,
     resourceId: RID,
     userId: UID,
-    params: { resourceId: RID, ...paramsOverride },
+    // Generation params must satisfy the wire's required trio (the worker
+    // guard enforces it); overrides still win.
+    params: { resourceId: RID, ...(type === 'generation' ? GEN_REQUIRED : {}), ...paramsOverride },
   } as ActiveJob;
 }
 

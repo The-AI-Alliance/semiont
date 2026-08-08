@@ -71,3 +71,24 @@ export function isNullish(value: unknown): value is null | undefined {
 export function isDefined<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined;
 }
+
+/**
+ * Boundary guard for `job:create` generation params (YIELD-FROM-CONTEXT P1).
+ *
+ * Checks the REQUIRED trio the schema declares (`title`, `storageUri`,
+ * `context`) plus basic shape — deliberately NOT a full schema validation
+ * (that depth belongs to the spec and its generated types); this is the
+ * runtime half of the contract for values whose type history was severed:
+ * wire JSON, storage, casts. For well-typed callers it is dead code, and
+ * that is the correct price for a trust-boundary check.
+ */
+export function isGenerationJobParams(
+  value: unknown,
+): value is import('./payload-types').GenerationJobParams {
+  if (!isObject(value)) return false;
+  return (
+    typeof value.title === 'string'
+    && typeof value.storageUri === 'string'
+    && isObject(value.context)
+  );
+}

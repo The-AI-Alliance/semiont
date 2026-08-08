@@ -16,7 +16,7 @@ import { compileTypst, MAX_COMPILE_REPAIRS } from './workers/generation/typst-co
 import { withinByteBudget, MAX_PDF_BYTES } from '@semiont/content';
 import { resolveCitationTokens, collectContextResourceIds, type GenerationCitation } from './workers/generation/citation-resolver';
 import { generateAnnotationId } from '@semiont/event-sourcing';
-import { didToAgent, GENERATABLE_MEDIA_TYPES, type Annotation, type Logger, type ResourceId, type SupportedMediaType, type components } from '@semiont/core';
+import { didToAgent, GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type ResourceId, type SupportedMediaType, type components } from '@semiont/core';
 import { reconcileSelector, createFragmentSelector, locate, type ReconciledSelector, type AnchoredText } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type {
@@ -25,7 +25,6 @@ import type {
   AssessmentDetectionParams,
   DetectionParams,
   TagDetectionParams,
-  GenerationParams,
   HighlightDetectionResult,
   CommentDetectionResult,
   AssessmentDetectionResult,
@@ -606,7 +605,7 @@ export function assertWithinOutputBudget(byteLength: number): void {
 
 export async function processGenerationJob(
   inferenceClient: InferenceClient,
-  params: GenerationParams,
+  params: GenerationJobParams,
   onProgress: OnProgress,
   logger: Logger,
 ): Promise<{ content: Uint8Array; title: string; format: SupportedMediaType; citations: GenerationCitation[]; result: GenerationResult }> {

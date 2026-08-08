@@ -19,6 +19,13 @@ export type Selector =
   | components['schemas']['FragmentSelector'];
 
 export type GatheredContext = components['schemas']['GatheredContext'];
+/**
+ * The `job:create` params shape for `jobType: 'generation'` — one type shared
+ * by the write side (sdk `yield.fromContext` → `runGeneration`) and the read
+ * side (the generation worker's `isGenerationJobParams` narrowing), so the two
+ * ends of the wire cannot drift a field apart silently.
+ */
+export type GenerationJobParams = components['schemas']['GenerationJobParams'];
 export type SelectionData = components['schemas']['SelectionData'];
 export type JobType = components['schemas']['JobType'];
 

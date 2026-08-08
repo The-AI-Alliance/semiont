@@ -33,7 +33,6 @@ export type {
   CancelledJob,
   JobQueryFilters,
   DetectionParams,
-  GenerationParams,
   HighlightDetectionParams,
   AssessmentDetectionParams,
   CommentDetectionParams,

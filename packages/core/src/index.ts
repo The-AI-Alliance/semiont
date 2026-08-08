@@ -106,6 +106,7 @@ export { RESOURCE_BROADCAST_TYPES, CHANNEL_SCHEMAS } from './bus-protocol';
 export type {
   Selector,
   GatheredContext,
+  GenerationJobParams,
   SelectionData,
   JobType,
   CollaboratorEntry,

@@ -1,0 +1,64 @@
+{
+  "type": "object",
+  "description": "Params bag for `job:create` with `jobType: 'generation'` — the ONE shape both ends of the wire share: the sdk composes it (yield.fromContext) and the generation worker narrows to it. Carried inside JobCreateCommand.params (which stays open because params vary by jobType); this schema is the generation shape's contract, including its requiredness.",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Title of the generated resource."
+    },
+    "storageUri": {
+      "type": "string",
+      "description": "Storage URI for the generated resource's content."
+    },
+    "context": {
+      "$ref": "./GatheredContext.json",
+      "description": "The gathered context that grounds the generation. Its `focus` names the anchor (the sdk derives the job's resourceId — and referenceId, for annotation focus — from it); under `cite`, the ids its embedding carries are the only valid citation targets."
+    },
+    "referenceId": {
+      "type": "string",
+      "description": "The unresolved reference an annotation-focus generation was triggered from. Absent for resource-focus generation. When present, the worker auto-binds the new resource to it; when absent, provenance is a minted source→derived reference annotation."
+    },
+    "prompt": {
+      "type": "string",
+      "description": "Refining instruction, composed with `task` (task = what, prompt = how)."
+    },
+    "entityTypes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Entity-type tags to stamp on the synthesized resource. Used both as a prompt bias for the generation worker and as the `entityTypes` set on the resulting resource."
+    },
+    "language": {
+      "type": "string",
+      "description": "Annotation/resource body locale — language the generated resource is written in (typically the user's UI locale). BCP-47."
+    },
+    "sourceLanguage": {
+      "type": "string",
+      "description": "Source-resource locale — language of the resource being referenced, used in the prompt so the LLM understands embedded source-context snippets when source ≠ target language. BCP-47."
+    },
+    "temperature": {
+      "type": "number",
+      "description": "Sampling temperature forwarded to the model."
+    },
+    "maxTokens": {
+      "type": "number",
+      "description": "Output token budget forwarded to the model. Length never determines structure."
+    },
+    "outputMediaType": {
+      "$ref": "./SupportedMediaType.json",
+      "description": "Requested media type of the generated resource's content. Default `text/markdown` at the worker, which validates it against its supported output set and FAILS the job for anything it can't write — not a silent fallback."
+    },
+    "task": {
+      "type": "string",
+      "description": "What the model is asked to produce — the prompt's framing verb. Canonical values ('resource', 'answer', 'summary') map to the worker's tested framings; any other string is used VERBATIM as the framing instruction (loud degrade: the worker warns, never silently falls back). Unset ⇒ 'resource' (article framing)."
+    },
+    "structure": {
+      "type": "string",
+      "description": "How the output is internally segmented — shape for text-bearing media, subordinate to `outputMediaType` (never its peer). Canonical values: 'prose' (flowing paragraphs), 'sections' (titled sections + title), 'chat' (speaker-labeled turns); any other string becomes a freeform \"organize as: …\" directive (loud degrade). Unset ⇒ NO structure directive at all — the task framing and the model determine shape."
+    },
+    "cite": {
+      "type": "boolean",
+      "description": "Ask the model to cite: emit [[<id>]] transport tokens after each claim, using the ids the context embedding provides. The worker validates each id against the embedded context (unknown ids are dropped loudly), strips the tokens from the stored content, and mints W3C linking annotations on the derived resource."
+    }
+  },
+  "required": ["title", "storageUri", "context"]
+}
