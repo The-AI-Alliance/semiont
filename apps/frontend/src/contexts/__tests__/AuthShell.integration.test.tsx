@@ -24,7 +24,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { SemiontProvider, WebBrowserStorage } from '@semiont/react-ui';
 import { SemiontBrowser, AuthNamespace, createHttpSessionFactory } from '@semiont/sdk';
 import { APIError } from '@semiont/http-transport';

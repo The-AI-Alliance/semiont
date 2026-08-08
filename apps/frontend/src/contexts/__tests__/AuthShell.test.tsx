@@ -16,7 +16,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');

@@ -25,7 +25,7 @@ export default defineConfig({
           const m = id.match(/node_modules\/(?:\.pnpm\/)?([^/]+)/);
           if (!m) return;
           const pkg = m[1];
-          if (pkg === 'react' || pkg === 'react-dom' || pkg === 'react-router-dom') return 'vendor';
+          if (pkg === 'react' || pkg === 'react-dom' || pkg === 'react-router') return 'vendor';
           if (pkg === 'i18next' || pkg === 'react-i18next') return 'i18n';
         },
       },

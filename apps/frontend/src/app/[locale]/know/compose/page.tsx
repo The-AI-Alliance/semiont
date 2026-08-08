@@ -4,7 +4,7 @@ import { useEffect, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocale } from '@/i18n/routing';
 import { useRouter } from '@/i18n/routing';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import {
   useSemiont,
   useToast,

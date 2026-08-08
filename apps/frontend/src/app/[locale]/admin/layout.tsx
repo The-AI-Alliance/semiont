@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { AdminNavigation } from '@/components/admin/AdminNavigation';
 import {

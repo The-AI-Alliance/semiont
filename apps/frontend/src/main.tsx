@@ -2,7 +2,7 @@ import '@fontsource/inter';
 import '@fontsource/orbitron';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter } from 'react-router';
 import App from './App';
 import './i18n/config'; // initialise i18next
 import './app/globals.css';
