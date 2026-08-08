@@ -109,10 +109,10 @@ AI content generation — creates new resources from source material and prompts
 
 ```typescript
 interface GenerationParams {
-  referenceId?: AnnotationId;       // Annotation-focus only (yield.fromAnnotation) — the
+  referenceId?: AnnotationId;       // Annotation-focus only (derived from the context's focus) — the
                                     // unresolved reference; the worker auto-binds the new
                                     // resource to it. Absent for resource-focus generation
-                                    // (yield.fromResource): provenance is a minted
+                                    // (resource-focus contexts): provenance is a minted
                                     // source→derived reference instead
   prompt?: string;                  // Freeform refinement — rendered as an authoritative
                                     // "Instruction:" line under the task framing

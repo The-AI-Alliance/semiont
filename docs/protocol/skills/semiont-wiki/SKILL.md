@@ -16,7 +16,7 @@ The pipeline has five steps:
 2. **Gather** — fetch LLM context for each unresolved reference (`semiont.gather.annotation`)
 3. **Match** — search the KB using the gathered context (`semiont.match.search`)
 4. **Bind** — link the annotation to the best match (`semiont.bind.body`)
-5. **Yield** — if no confident match exists, generate a new resource and bind to it (`semiont.yield.fromAnnotation`)
+5. **Yield** — if no confident match exists, generate a new resource and bind to it (`semiont.yield.fromContext` with the gathered annotation-focus context)
 
 Steps 3-5 run per annotation in a loop. The threshold between "bind to existing" and "generate new" is configurable.
 
@@ -80,7 +80,7 @@ console.log(`Found ${unresolved.length} unresolved references`);
 
 ## Steps 3-5 — Gather, match, bind or generate
 
-For each unresolved reference: gather context, match against the KB, and either bind to the best match (if confident) or generate a new resource and bind to that. Brand the annotation id once at the top of the loop and reuse `annId` everywhere — `gather.annotation`, `match.search`, `bind.body`, and `yield.fromAnnotation` all take a branded `AnnotationId`.
+For each unresolved reference: gather context, match against the KB, and either bind to the best match (if confident) or generate a new resource and bind to that. Brand the annotation id once at the top of the loop and reuse `annId` everywhere — `gather.annotation`, `match.search`, and `bind.body` take a branded `AnnotationId`; `yield.fromContext` needs no ids at all — it derives them from the gathered context's focus.
 
 ```typescript
 const MATCH_THRESHOLD = Number(process.env.MATCH_THRESHOLD ?? 30);
@@ -109,13 +109,12 @@ for (const ann of unresolved) {
     console.log(`Bound "${selectedText}" -> ${top.name} (score ${top.score})`);
   } else {
     // Step 5b — Generate a new resource and bind
-    const yieldProgress = await semiont.yield.fromAnnotation(rId, annId, {
+    const yieldProgress = await semiont.yield.fromContext(context, {
       title: selectedText,
       storageUri: `file://generated/${selectedText.toLowerCase().replace(/\s+/g, '-')}.md`,
-      context,
     });
     const newResourceId = yieldProgress.result?.resourceId;
-    if (!newResourceId) throw new Error('yield.fromAnnotation did not return a resourceId');
+    if (!newResourceId) throw new Error('yield.fromContext did not return a resourceId');
 
     await semiont.bind.body(rId, annId, [{
       op: 'add',
@@ -185,13 +184,12 @@ async function runWikiPipeline(resourceIdStr: string): Promise<void> {
       }]);
       console.log(`Bound "${selectedText}" -> ${top.name} (score ${top.score})`);
     } else {
-      const yieldProgress = await semiont.yield.fromAnnotation(rId, annId, {
+      const yieldProgress = await semiont.yield.fromContext(context, {
         title: selectedText,
         storageUri: `file://generated/${selectedText.toLowerCase().replace(/\s+/g, '-')}.md`,
-        context,
       });
       const newResourceId = yieldProgress.result?.resourceId;
-      if (!newResourceId) throw new Error('yield.fromAnnotation did not return a resourceId');
+      if (!newResourceId) throw new Error('yield.fromContext did not return a resourceId');
 
       await semiont.bind.body(rId, annId, [{
         op: 'add',
@@ -226,6 +224,6 @@ runWikiPipeline(target).catch((e) => {
 - **Check results** with `semiont.browse.annotations(rId)` — filter for `motivation === 'linking'` and check which now have a `SpecificResource` body item.
 - **To run on multiple resources**, loop over results from `semiont.browse.resources()` and call `runWikiPipeline` per resource.
 - **If detection produces no annotations**, the document may not contain the requested entity types, or the format may not be supported (`text/plain` and `text/markdown` only; PDFs and images not yet supported).
-- **Timeout handling is built into the namespace methods.** `mark.assist` times out after 180 s without progress; `gather.annotation` completes on the `gather:complete` bus event; `yield.fromAnnotation` handles 300 s-per-progress timeout and polling fallback. No manual timeout code is needed.
+- **Timeout handling is built into the namespace methods.** `mark.assist` times out after 180 s without progress; `gather.annotation` completes on the `gather:complete` bus event; `yield.fromContext` handles 300 s-per-progress timeout and polling fallback. No manual timeout code is needed.
 - **Progress observability** — if a caller wants to watch progress during a long step, call `.subscribe(...)` on the returned `StreamObservable` instead of awaiting it. Each emission is a progress snapshot; the Observable completes on success and errors on failure. Awaiting yields the final emission only.
 - **Errors** — every SDK throw extends `SemiontError` (re-exported from `@semiont/sdk`). Catch on it broadly, or narrow to `APIError` (HTTP, with `status`) or `BusRequestError` (bus-mediated, with codes like `bus.timeout` and `bus.rejected`). See [Error Handling in Usage.md](../../../../packages/sdk/docs/Usage.md#error-handling) for the full table.

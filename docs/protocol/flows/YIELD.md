@@ -26,7 +26,7 @@ The Yield flow creates new resources from reference annotations (motivation: `li
 
 ## Using the SDK
 
-Generation is a long-running job. `client.yield.fromAnnotation()`
+Generation is a long-running job. `client.yield.fromContext()`
 returns an Observable that emits `progress` events during LLM
 generation and finally a `complete` event on completion (or errors on
 failure). Under the hood it emits `job:create` via the bus gateway
@@ -48,11 +48,10 @@ const context = (gather as { response: GatheredContext }).response;
 // `entityTypes` are stamped on the synthesized resource (so
 // `browse.resources({ entityType: 'Deity' })` can find it) and also
 // fed into the LLM prompt as a topical bias.
-client.yield.fromAnnotation(resourceId, annotationId, {
+client.yield.fromContext(context, {
   title: 'Ouranos',
   language: 'en',
   storageUri: 'file://...',
-  context,
   entityTypes: ['Person', 'Deity'],
 }).subscribe({
   next: (event) => console.log('progress:', event),
@@ -135,7 +134,9 @@ client.yield.fromAnnotation(resourceId, annotationId, {
 ```
 User clicks "Generate" on reference annotation ❓
     ↓
-Frontend → client.yield.fromAnnotation(...) emits job:create via /bus/emit
+Frontend → client.yield.fromContext(...) emits job:create via /bus/emit
+           (the job's resourceId — and referenceId, for annotation-focus
+           contexts — are DERIVED from the context's focus)
     ↓
 Backend job:create handler builds a PendingJob, persists to queue, returns job:created
     ↓
@@ -172,7 +173,8 @@ Generation has no dedicated REST endpoint — it runs as a bus job. The SDK's `y
 `resourceId`:
 ```typescript
 {
-  referenceId: string;        // fromAnnotation only — the annotation being resolved
+  referenceId: string;        // annotation-focus only — the annotation being resolved
+                              // (derived from context.focus.annotation.id)
   title: string;              // Title of the synthesized resource; also the LLM topic
   storageUri: string;         // Where the generated content is written (file://…)
   context: GatheredContext;   // Correlated context from the Gather flow (grounds the prompt)
@@ -274,7 +276,7 @@ below is omitted when its underlying data is absent):
 Instruction: {prompt}                                               // when a freeform prompt was supplied — authoritative, directly under the framing
 Focus on these entity types: {comma-separated entity types}.        // when entityTypes is non-empty
 
-Annotation context:                                                 // annotation-focus (fromAnnotation)
+Annotation context:                                                 // annotation-focus (from gather.annotation)
 - Annotation motivation: {motivation}
 - Source resource: {source resource name} [{resourceId}]
 - Comment|Assessment: {body text}                                   // commenting/assessing annotations only
@@ -284,7 +286,7 @@ Source document context:                                            // annotatio
 ...{before} **[{selected text}]** {after}...
 ---
 
-Resource context:                                                   // resource-focus (fromResource)
+Resource context:                                                   // resource-focus (from gather.resource)
 - Resource: {resource name} [{resourceId}]
 - Summary: {summary}
 - Suggested references: {…}
@@ -406,7 +408,7 @@ const { resourceId: newResourceId } = await session.client.yield.resource({
   format: genResult.format,          // requested output media type; defaults to text/markdown
   storageUri,
   sourceResourceId,
-  sourceAnnotationId: referenceId,   // annotation-focus only — omitted for fromResource
+  sourceAnnotationId: referenceId,   // annotation-focus only — omitted for resource focus
   generationPrompt, language, entityTypes, generator,
 });
 ```
@@ -427,7 +429,7 @@ this.eventBus.get('mark:update-body').next({
   }],
 });
 ```
-Resource-focus generation (`fromResource`, no triggering reference) has nothing to
+Resource-focus generation (a resource-focus context, no triggering reference) has nothing to
 auto-bind; instead the worker emits `mark:create` to mint a navigable
 source→derived provenance reference annotation.
 
@@ -445,7 +447,7 @@ Both events flow through EventBus → Stower → Event Store → Materialized Vi
 ### Generation UI
 
 **Components**:
-- [ReferenceWizardModal.tsx](../../../packages/react-ui/src/components/modals/ReferenceWizardModal.tsx) — wizard for resolving an unresolved reference annotation (drives `yield.fromAnnotation`)
+- [ReferenceWizardModal.tsx](../../../packages/react-ui/src/components/modals/ReferenceWizardModal.tsx) — wizard for resolving an unresolved reference annotation (drives `yield.fromContext` with the wizard's annotation-focus context)
 - [ConfigureGenerationStep.tsx](../../../packages/react-ui/src/components/modals/ConfigureGenerationStep.tsx) — generation config form, shared with the resource-derived flow
 
 Resolving an unresolved reference (❓) opens `ReferenceWizardModal`. It first
@@ -470,7 +472,7 @@ directly onto `GenerationOptions`:
 There is no tone or length control — steering is the freeform **Additional
 instructions** prompt plus the entity-type tags carried on the annotation. The
 resource-derived variant ([ResourceGenerateModal.tsx](../../../packages/react-ui/src/components/modals/ResourceGenerateModal.tsx), driving
-`yield.fromResource`) reuses the same `ConfigureGenerationStep`.
+resource-focus `yield.fromContext`) reuses the same `ConfigureGenerationStep`.
 
 **Progress Display**:
 - Modal shows real-time progress during generation
@@ -486,7 +488,7 @@ resource-derived variant ([ResourceGenerateModal.tsx](../../../packages/react-ui
 
 **File**: [packages/sdk/src/namespaces/yield.ts](../../../packages/sdk/src/namespaces/yield.ts)
 
-`yield.fromAnnotation()` returns an Observable of `YieldGenerationEvent`s,
+`yield.fromContext()` returns an Observable of `YieldGenerationEvent`s,
 backed by the bus gateway. The namespace emits `job:create` (jobType:
 `generation`) via `/bus/emit`; the generation worker picks it up,
 generates the resource, and publishes the unified
@@ -497,10 +499,9 @@ works. The namespace filters those by the `jobId` returned from
 surfaces as the Observable's error).
 
 ```typescript
-const subscription = client.yield.fromAnnotation(resourceId, referenceId, {
+const subscription = client.yield.fromContext(context, {
   title: 'Ouranos',
   storageUri: 'file://...',
-  context,
   language: 'en',
 }).subscribe({
   next: (event) => {
@@ -532,7 +533,7 @@ subscription.unsubscribe();  // cleanup
 Job lifecycle events (`job:report-progress`, `job:complete`,
 `job:fail`) and domain events (`mark:body-updated`) all flow through
 the same `/bus/subscribe` SSE connection. The frontend's
-`YieldStateUnit` observes the `yield.fromAnnotation()` stream — which
+`YieldStateUnit` observes the `yield.fromContext()` stream — which
 filters lifecycle events by the generation's `jobId` — for the modal
 UI, while `BrowseNamespace` handles the domain event for cache
 invalidation.
