@@ -15,7 +15,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 
 // AuthShell mocked as a marker
 vi.mock('@/contexts/AuthShell', () => ({
@@ -28,7 +28,7 @@ vi.mock('@/contexts/AuthShell', () => ({
 // their real implementations (which have their own provider needs)
 vi.mock('@/app/[locale]/layout', () => ({
   default: () => {
-    const { Outlet } = require('react-router-dom');
+    const { Outlet } = require('react-router');
     return <div data-testid="locale-layout"><Outlet /></div>;
   },
 }));
@@ -46,7 +46,7 @@ vi.mock('@/app/[locale]/auth/error/page', () => ({ default: () => <div data-test
 vi.mock('@/app/[locale]/auth/welcome/page', () => ({ default: () => <div data-testid="welcome-page">Welcome</div> }));
 vi.mock('@/app/[locale]/know/layout', () => ({
   default: () => {
-    const { Outlet } = require('react-router-dom');
+    const { Outlet } = require('react-router');
     return <div data-testid="know-layout"><Outlet /></div>;
   },
 }));
@@ -56,7 +56,7 @@ vi.mock('@/app/[locale]/know/compose/page', () => ({ default: () => null }));
 vi.mock('@/app/[locale]/know/resource/[id]/page', () => ({ default: () => null }));
 vi.mock('@/app/[locale]/admin/layout', () => ({
   default: () => {
-    const { Outlet } = require('react-router-dom');
+    const { Outlet } = require('react-router');
     return <div data-testid="admin-layout"><Outlet /></div>;
   },
 }));
@@ -67,7 +67,7 @@ vi.mock('@/app/[locale]/admin/exchange/client', () => ({ default: () => null }))
 vi.mock('@/app/[locale]/admin/devops/page', () => ({ default: () => null }));
 vi.mock('@/app/[locale]/moderate/layout', () => ({
   default: () => {
-    const { Outlet } = require('react-router-dom');
+    const { Outlet } = require('react-router');
     return <div data-testid="moderate-layout"><Outlet /></div>;
   },
 }));

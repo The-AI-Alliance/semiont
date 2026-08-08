@@ -5,7 +5,7 @@
  * when the underlying router changes.
  *
  * Key behaviours:
- * - Link: locale-prefixed anchor rendered via react-router-dom
+ * - Link: locale-prefixed anchor rendered via react-router
  * - useRouter: locale-aware push/replace/back
  * - usePathname: returns path WITHOUT locale prefix
  * - redirect: programmatic navigation without locale prefix
@@ -18,7 +18,7 @@ import {
   useLocation,
   useParams,
   Navigate,
-} from 'react-router-dom';
+} from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { SUPPORTED_LOCALES, DEFAULT_LOCALE, isSupportedLocale } from './config';
 

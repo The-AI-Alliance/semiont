@@ -30,7 +30,7 @@ interface Router {
  * router.push('/know/discover', { reason: 'resource-closed' });
  *
  * // React Router
- * import { useNavigate } from 'react-router-dom';
+ * import { useNavigate } from 'react-router';
  * const navigate = useNavigate();
  * const router = useObservableRouter({ push: navigate });
  * router.push('/know/discover', { reason: 'resource-closed' });

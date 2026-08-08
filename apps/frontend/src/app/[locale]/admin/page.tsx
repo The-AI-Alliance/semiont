@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router';
 import { useLocale } from '@/i18n/routing';
 
 export default function AdminPage() {

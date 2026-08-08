@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Routes, Route, Navigate, Outlet, useParams, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet, useParams, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_LOCALE, isSupportedLocale } from './i18n/config';
 

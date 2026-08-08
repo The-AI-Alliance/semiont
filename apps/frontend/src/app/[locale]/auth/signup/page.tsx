@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from '@/i18n/routing';
 import { PageLayout, SignUpForm } from '@semiont/react-ui';

@@ -36,8 +36,8 @@ vi.mock('react-i18next', () => ({
 /** Counts mounts of whatever the layout renders into its Outlet. */
 const outletMounts: number[] = [];
 
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual<typeof import('react-router')>('react-router');
   const { useEffect } = await vi.importActual<typeof import('react')>('react');
   return {
     ...actual,
