@@ -47,10 +47,17 @@ async function processHighlightJob(
 ```typescript
 async function processGenerationJob(
   inferenceClient: InferenceClient,
-  params: GenerationParams,
+  params: GenerationJobParams,        // options + the gathered context; the context's
+                                      // focus is what anchors the job
   onProgress: OnProgress,
   logger: Logger,
-): Promise<{ content: string; title: string; format: string; result: GenerationResult }>
+): Promise<{
+  content: Uint8Array;                // bytes — the output media type decides the encoding
+  title: string;
+  format: SupportedMediaType;
+  citations: GenerationCitation[];    // only under `cite`
+  result: GenerationResult;
+}>
 ```
 
 The `generator` is a W3C `Agent` with `@type: "SoftwareAgent"` that identifies which inference provider and model produced the annotation. It is built once at worker-process startup and carried on the [`WorkerProcessConfig`](../../jobs/src/worker-process.ts) — processors never receive or read `InferenceConfig` directly.

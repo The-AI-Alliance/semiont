@@ -75,10 +75,18 @@ Generation is the odd one out — it produces *content*, not annotations:
 ```typescript
 processGenerationJob(
   inferenceClient: InferenceClient,
-  params: GenerationParams,
+  params: GenerationJobParams,
   onProgress: OnProgress,
   logger: Logger,
-): Promise<{ content: string; title: string; format: string; result: GenerationResult }>
+): Promise<{
+  content: Uint8Array;              // bytes, not a string — the output media type decides
+  title: string;
+  format: SupportedMediaType;       // validated against the registry's `generatable` types;
+                                    // an unsupported request FAILS the job, never falls back
+  citations: GenerationCitation[];  // populated only under `cite`; minted as W3C linking
+                                    // annotations on the derived resource after upload
+  result: GenerationResult;
+}>
 ```
 
 ## Where Content Comes From

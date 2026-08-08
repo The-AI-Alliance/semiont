@@ -30,8 +30,8 @@ npm install @semiont/jobs
 ## Quick Start
 
 ```typescript
-import { FsJobQueue, type PendingJob, type GenerationParams } from '@semiont/jobs';
-import { EventBus, userId, resourceId, annotationId, jobId } from '@semiont/core';
+import { FsJobQueue, type PendingJob, type DetectionParams } from '@semiont/jobs';
+import { EventBus, userId, resourceId, jobId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 
 // Initialize — jobs are stored under project.jobsDir
@@ -41,32 +41,33 @@ const jobQueue = new FsJobQueue(project, logger, eventBus);
 await jobQueue.initialize();
 
 // Create a job
-const job: PendingJob<GenerationParams> = {
+const job: PendingJob<DetectionParams> = {
   status: 'pending',
   metadata: {
     id: jobId('job-abc123'),
-    type: 'generation',
+    type: 'reference-annotation',
     userId: userId('user@example.com'),
     userName: 'Jane Doe',
     userEmail: 'jane@example.com',
     userDomain: 'example.com',
     created: new Date().toISOString(),
     retryCount: 0,
-    maxRetries: 3,
+    maxRetries: 1,
   },
   params: {
-    referenceId: annotationId('ref-123'),
-    sourceResourceId: resourceId('doc-456'),
-    sourceResourceName: 'Source Document',
-    annotation: { /* full W3C Annotation */ },
-    title: 'Generated Article',
-    prompt: 'Write about AI',
-    language: 'en-US',
+    resourceId: resourceId('doc-456'),
+    entityTypes: ['Person', 'Organization'],
   },
 };
 
 await jobQueue.createJob(job);
 ```
+
+Generation jobs are enqueued the same way, but their params are a
+[`GenerationJobParams`](./docs/JobTypes.md#generation-generation) bag whose
+`context` carries the anchor — writing one straight to the queue bypasses the
+dispatcher that normally derives and stamps `resourceId` from
+`context.focus`, so prefer `client.yield.fromContext(...)`.
 
 ## Job Types
 

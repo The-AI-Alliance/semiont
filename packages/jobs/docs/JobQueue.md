@@ -50,30 +50,25 @@ await queue.initialize();
 Creates a new job and persists it to the queue.
 
 ```typescript
-import type { PendingJob, GenerationParams } from '@semiont/jobs';
-import { jobId, userId, resourceId, annotationId } from '@semiont/core';
+import type { PendingJob, DetectionParams } from '@semiont/jobs';
+import { jobId, userId, resourceId } from '@semiont/core';
 
-const job: PendingJob<GenerationParams> = {
+const job: PendingJob<DetectionParams> = {
   status: 'pending',
   metadata: {
     id: jobId('job-abc123'),
-    type: 'generation',
+    type: 'reference-annotation',
     userId: userId('user@example.com'),
     userName: 'Jane Doe',
     userEmail: 'jane@example.com',
     userDomain: 'example.com',
     created: new Date().toISOString(),
     retryCount: 0,
-    maxRetries: 3,
+    maxRetries: 1,
   },
   params: {
-    referenceId: annotationId('ref-456'),
-    sourceResourceId: resourceId('doc-789'),
-    sourceResourceName: 'Source Document',
-    annotation: { /* W3C Annotation */ },
-    title: 'Generated Article',
-    prompt: 'Write about AI',
-    language: 'en-US',
+    resourceId: resourceId('doc-789'),
+    entityTypes: ['Person', 'Organization'],
   },
 };
 
@@ -129,7 +124,7 @@ if (!job) return;
 
 // Simple update (same status) — immutable pattern
 if (job.status === 'running') {
-  const updatedJob: RunningJob<GenerationParams, YieldProgress> = {
+  const updatedJob: RunningJob<GenerationJobParams, YieldProgress> = {
     ...job,
     progress: { stage: 'generating', percentage: 50, message: 'Generating...' },
   };
@@ -138,7 +133,7 @@ if (job.status === 'running') {
 
 // Status transition (atomic move)
 if (job.status === 'running') {
-  const completeJob: CompleteJob<GenerationParams, GenerationResult> = {
+  const completeJob: CompleteJob<GenerationJobParams, GenerationResult> = {
     status: 'complete',
     metadata: job.metadata,
     params: job.params,
