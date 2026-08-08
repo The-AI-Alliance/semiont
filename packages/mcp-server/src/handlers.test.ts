@@ -384,10 +384,9 @@ describe('yieldFromAnnotation', () => {
     });
 
     expect(gather.annotation).toHaveBeenCalledWith('res-iliad', 'anno-reference', { contextWindow: 2000 });
-    expect(yieldNamespace.fromAnnotation).toHaveBeenCalledWith('res-iliad', 'anno-reference', {
+    expect(yieldNamespace.fromContext).toHaveBeenCalledWith(CONTEXT, {
       title: 'Generated',
       storageUri: 'file://docs/achilles.md',
-      context: CONTEXT,
       prompt: 'Write about him',
       language: undefined,
       // Defaulted from the gathered context's metadata.
@@ -408,7 +407,7 @@ describe('yieldFromAnnotation', () => {
       sourceLanguage: 'en',
     });
 
-    expect(yieldNamespace.fromAnnotation).toHaveBeenCalledWith('res-iliad', 'anno-reference', expect.objectContaining({
+    expect(yieldNamespace.fromContext).toHaveBeenCalledWith(CONTEXT, expect.objectContaining({
       title: 'Achilles',
       language: 'fr',
       sourceLanguage: 'en',
@@ -421,7 +420,7 @@ describe('yieldFromAnnotation', () => {
       { kind: 'progress', data: { stage: 'generating', percentage: 50, message: 'writing' } },
       GENERATION_COMPLETE,
     ];
-    yieldNamespace.fromAnnotation.mockReturnValue(of(...events));
+    yieldNamespace.fromContext.mockReturnValue(of(...events));
 
     expect(text(await yieldFromAnnotation(client, {
       resourceId: 'res-iliad',
@@ -432,7 +431,7 @@ describe('yieldFromAnnotation', () => {
 
   it('returns an error result when generation fails', async () => {
     const { client, yield: yieldNamespace } = createStub();
-    yieldNamespace.fromAnnotation.mockReturnValue(throwError(() => new Error('model timed out')));
+    yieldNamespace.fromContext.mockReturnValue(throwError(() => new Error('model timed out')));
 
     const result = await yieldFromAnnotation(client, {
       resourceId: 'res-iliad',

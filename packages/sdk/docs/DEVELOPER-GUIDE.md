@@ -233,8 +233,10 @@ annotations* `mark.assist('tagging')` writes, which `excludeEntityTypes` does no
 
 ## 8. Generate a derived resource
 
-`yield.fromResource` / `yield.fromAnnotation` synthesize a **new resource** from a source,
-grounded in a `GatheredContext`. `outputMediaType` sets the result's format (default
+`yield.fromContext(context, options)` synthesizes a **new resource** grounded in a
+`GatheredContext` — the context IS the argument: its `focus.kind` decides the shape
+(resource focus mints source→derived provenance; annotation focus auto-binds the new
+resource to the reference), and the job's ids are derived from the focus. `outputMediaType` sets the result's format (default
 `text/markdown`); under it, `task` carries the framing (`'resource' | 'answer' | 'summary'`,
 or any custom string — used verbatim, with a worker-side warn) and `structure` the shape
 (`'prose' | 'sections' | 'chat'`, or any custom string; **unset ⇒ no structure directive** —
@@ -250,10 +252,9 @@ W3C linking annotations on the generated resource (claim span → cited source) 
 arrive as ordinary navigable references, not links in the text.
 
 ```typescript
-const done = await session.client.yield.fromResource(resourceId, {
+const done = await session.client.yield.fromContext(context, {
   title: 'Summary',
   storageUri: 'file://generated/summary.md',
-  context,                                   // from gather.resource — required, grounds the output
   task: 'summary',                           // the framing; 'answer' + structure: 'prose' is the Q&A recipe
   prompt: 'Ground every claim in the provided context.',
   entityTypes: ['Concept'],
@@ -266,8 +267,8 @@ const newId =
     : undefined;
 ```
 
-(`yield.fromAnnotation(resourceId, annotationId, options)` is the annotation-anchored twin —
-same options.)
+(An annotation-anchored generation is the same call with an annotation-focus context
+from `gather.annotation` — no extra ids to pass; the focus carries them.)
 
 ## 9. Create annotations and links directly
 
@@ -353,7 +354,7 @@ silence trips it — and on a trip, cancel the phantom job's status polling and 
 actionable error:
 
 ```typescript
-const gen = session.client.yield.fromResource(rId, options);
+const gen = session.client.yield.fromContext(context, options);
 let armStall!: () => void;
 const stalled = new Promise<never>((_, reject) => {
   let t: ReturnType<typeof setTimeout>;

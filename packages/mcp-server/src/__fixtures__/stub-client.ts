@@ -133,7 +133,7 @@ export function createStub() {
     resource: vi.fn<(data: CreateResourceInput) => Promise<{ resourceId: ResourceId }>>(
       async () => ({ resourceId: resourceId('res-new') }),
     ),
-    fromAnnotation: vi.fn<(r: ResourceId, a: AnnotationId, options: GenerationOptions) => Observable<YieldGenerationEvent>>(
+    fromContext: vi.fn<(context: GatheredContext, options: GenerationOptions) => Observable<YieldGenerationEvent>>(
       () => of(GENERATION_COMPLETE),
     ),
   };

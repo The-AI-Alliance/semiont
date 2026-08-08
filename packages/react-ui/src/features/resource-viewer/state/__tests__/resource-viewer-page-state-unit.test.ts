@@ -56,7 +56,7 @@ function clientWithNamespaces(overrides: {
     },
     gather: { annotation: vi.fn(() => new Observable(() => {})) },
     match: { search: vi.fn(() => new Observable(() => {})) },
-    yield: { fromAnnotation: vi.fn(() => new Observable(() => {})) },
+    yield: { fromContext: vi.fn(() => new Observable(() => {})) },
     bind: { body: vi.fn().mockResolvedValue(undefined) },
   });
 }
@@ -357,7 +357,7 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
       mark: { annotation: vi.fn(), delete: vi.fn(), assist: vi.fn(() => new Observable(() => {})) },
       gather: { annotation: vi.fn(() => new Observable(() => {})) },
       match: { search: vi.fn(() => new Observable(() => {})) },
-      yield: { fromAnnotation: vi.fn(() => new Observable(() => {})) },
+      yield: { fromContext: vi.fn(() => new Observable(() => {})) },
       bind: { body: vi.fn().mockResolvedValue(undefined) },
     });
     const unit = createResourceViewerPageStateUnit(tc.session, RID, 'en', mockBrowse());

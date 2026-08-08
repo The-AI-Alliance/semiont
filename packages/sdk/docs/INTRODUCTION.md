@@ -180,12 +180,12 @@ const context = await client.gather.resource(questionId, {
 });
 
 // 3. Generate the answer as a new document — a job, streaming progress.
-//    `cite: true` grounds each claim as it's written: the worker mints
-//    linking annotations from claim spans to their cited sources.
-const generation = client.yield.fromResource(questionId, {
+//    The gathered context IS the argument: the job's ids derive from its
+//    focus, and `cite: true` grounds each claim as it's written — the
+//    worker mints linking annotations from claim spans to their sources.
+const generation = client.yield.fromContext(context, {
   title: question,
   storageUri: 'file://generated/answer.md',
-  context,
   task: 'answer',
   structure: 'prose',
   cite: true,

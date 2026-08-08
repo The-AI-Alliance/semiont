@@ -241,7 +241,7 @@ export function ResourceViewerPage({
 
   const handleWizardGenerateSubmit = useCallback((referenceId: string, config: GenerationConfig) => {
     clearNewAnnotationId(annotationId(referenceId));
-    stateUnit?.yield.generate(referenceId, {
+    stateUnit?.yield.generate(config.context, {
       title: config.title,
       storageUri: config.storagePath,
       prompt: config.prompt,
@@ -252,16 +252,15 @@ export function ResourceViewerPage({
       sourceLanguage: getLanguage(resource),
       temperature: config.temperature,
       maxTokens: config.maxTokens,
-      context: config.context,
     });
   }, [stateUnit, clearNewAnnotationId, resource]);
 
   // Resource-generate flow (GENERATE-FROM-BUTTON): drive the SAME yield progress$
   // the annotation path uses so the full AnnotateReferencesProgressWidget shows —
-  // NOT a toast. `generateFromResource` is Phase 6 (the @semiont/sdk session);
-  // this is declared RED until that method lands. Do not re-impl it here.
+  // NOT a toast. Both paths are one `generate(context, options)` now: the
+  // context's focus.kind (resource here, annotation above) decides the shape.
   const handleResourceGenerateSubmit = useCallback((_resourceId: string, config: GenerationConfig) => {
-    stateUnit?.yield.generateFromResource({
+    stateUnit?.yield.generate(config.context, {
       title: config.title,
       storageUri: config.storagePath,
       ...(config.prompt ? { prompt: config.prompt } : {}),
@@ -269,7 +268,6 @@ export function ResourceViewerPage({
       sourceLanguage: getLanguage(resource),
       temperature: config.temperature,
       maxTokens: config.maxTokens,
-      context: config.context,
     });
   }, [stateUnit, resource]);
 

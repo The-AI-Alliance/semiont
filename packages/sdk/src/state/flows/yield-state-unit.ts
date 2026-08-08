@@ -1,7 +1,6 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import { timeout } from 'rxjs/operators';
-import type { ResourceId, GatheredContext, components } from '@semiont/core';
-import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
+import type { GatheredContext, components } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
 import type { StreamObservable } from '../../awaitable';
@@ -19,21 +18,21 @@ export interface GenerateDocumentOptions {
   sourceLanguage?: string;
   temperature?: number;
   maxTokens?: number;
-  context: GatheredContext;
 }
 
 export interface YieldStateUnit extends StateUnit {
   isGenerating$: Observable<boolean>;
   progress$: Observable<JobProgress | null>;
-  /** Generate a resource derived from an annotation (reference) on this resource. */
-  generate(referenceId: string, options: GenerateDocumentOptions): void;
-  /** Generate a resource derived from this whole resource (no annotation anchor). */
-  generateFromResource(options: GenerateDocumentOptions): void;
+  /**
+   * Grounded generation — the context's `focus.kind` decides the shape
+   * (annotation focus auto-binds; resource focus mints provenance). Ids are
+   * derived from the focus; see `client.yield.fromContext`.
+   */
+  generate(context: GatheredContext, options: GenerateDocumentOptions): void;
 }
 
 export function createYieldStateUnit(
   client: SemiontClient,
-  resourceId: ResourceId,
   locale: string,
 ): YieldStateUnit {
   const subs: Subscription[] = [];
@@ -42,11 +41,10 @@ export function createYieldStateUnit(
   let clearTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Generation progress/complete/fail is driven entirely by the StreamObservable
-  // returned from `client.yield.from{Annotation,Resource}` — it is filtered to
-  // this job's jobId internally, so no direct bus subscription is needed here.
+  // returned from `client.yield.fromContext` — it is filtered to this job's
+  // jobId internally, so no direct bus subscription is needed here.
   //
-  // `drive` is the shared subscribe + progress-wiring for both generation entry
-  // points (they differ only in which `yield.*` they call). It `.subscribe()`s
+  // `drive` is the subscribe + progress-wiring for generation. It `.subscribe()`s
   // the cold stream ONCE — the state unit owns that single subscription (pushed
   // to `subs`, torn down on dispose). Callers observe `progress$`/`isGenerating$`;
   // they never get the stream back (a second subscription would re-fire the job —
@@ -77,17 +75,9 @@ export function createYieldStateUnit(
     subs.push(genSub);
   };
 
-  const generate = (referenceId: string, options: GenerateDocumentOptions): void => {
-    drive(client.yield.fromAnnotation(
-      makeResourceId(resourceId as string),
-      makeAnnotationId(referenceId),
-      { ...options, language: options.language || locale },
-    ));
-  };
-
-  const generateFromResource = (options: GenerateDocumentOptions): void => {
-    drive(client.yield.fromResource(
-      makeResourceId(resourceId as string),
+  const generate = (context: GatheredContext, options: GenerateDocumentOptions): void => {
+    drive(client.yield.fromContext(
+      context,
       { ...options, language: options.language || locale },
     ));
   };
@@ -96,7 +86,6 @@ export function createYieldStateUnit(
     isGenerating$: isGenerating$.asObservable(),
     progress$: progress$.asObservable(),
     generate,
-    generateFromResource,
     dispose() {
       subs.forEach(s => s.unsubscribe());
       if (clearTimer) clearTimeout(clearTimer);

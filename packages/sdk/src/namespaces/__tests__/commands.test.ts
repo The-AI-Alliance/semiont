@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { resourceContextFor, annotationContextFor } from '../../__tests__/fixtures/gathered-context';
 import { BehaviorSubject } from 'rxjs';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
 import { MarkNamespace } from '../mark';
@@ -11,6 +12,10 @@ import type { ConnectionState, ITransport, IContentTransport, GatheredContext } 
 
 const RID = resourceId('res-1');
 const AID = annotationId('ann-1');
+// fromContext derives ids FROM the focus — these fixtures carry RID/AID so
+// the derivation pins below compare against known values.
+const CTX_RES = resourceContextFor('res-1');
+const CTX_ANN = annotationContextFor('res-1', 'ann-1');
 
 /**
  * Mock transport whose `emit(channel, payload)` looks up a handler and
@@ -580,19 +585,27 @@ describe('YieldNamespace', () => {
     expect(capturedSignal?.aborted).toBe(true);
   });
 
-  it('fromAnnotation() emits job:create on bus', () => {
-    yld.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as any }).subscribe(() => {});
+  it('fromContext(annotation focus) derives resourceId AND referenceId from the focus', () => {
+    yld.fromContext(CTX_ANN, { title: 'T', storageUri: 'file://x' }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         jobType: 'generation',
-        resourceId: RID,
+        resourceId: RID,                       // focus.sourceResource['@id']
+        params: expect.objectContaining({ referenceId: AID }),  // focus.annotation.id
       }));
       resolve();
     }, 20));
   });
 
-  it('fromResource() emits job:create (generation) with no referenceId', () => {
-    yld.fromResource(RID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext }).subscribe(() => {});
+  it('fromContext throws loudly on a context with no usable focus — never guesses', () => {
+    // The one place a cast remains, deliberately: it models a context whose
+    // type history was severed (wire JSON, storage, a hand-built object).
+    expect(() => yld.fromContext({} as GatheredContext, { title: 'T', storageUri: 'file://x' }))
+      .toThrow(/gather\.resource|gather\.annotation/);
+  });
+
+  it('fromContext(resource focus) derives resourceId from the focus; no referenceId in params', () => {
+    yld.fromContext(CTX_RES, { title: 'T', storageUri: 'file://x' }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         jobType: 'generation',
@@ -603,8 +616,8 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromResource({ outputMediaType }) carries outputMediaType into job:create params', () => {
-    yld.fromResource(RID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext, outputMediaType: 'text/plain' }).subscribe(() => {});
+  it('fromContext({ outputMediaType }) [resource focus] carries outputMediaType into job:create params', () => {
+    yld.fromContext(CTX_RES, { title: 'T', storageUri: 'file://x', outputMediaType: 'text/plain' }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ outputMediaType: 'text/plain' }),
@@ -613,8 +626,8 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromAnnotation({ outputMediaType }) carries outputMediaType into job:create params', () => {
-    yld.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext, outputMediaType: 'text/plain' }).subscribe(() => {});
+  it('fromContext({ outputMediaType }) [annotation focus] carries outputMediaType into job:create params', () => {
+    yld.fromContext(CTX_ANN, { title: 'T', storageUri: 'file://x', outputMediaType: 'text/plain' }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ outputMediaType: 'text/plain' }),
@@ -623,10 +636,10 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromResource({ task, structure }) carries both into job:create params (YIELD-STRUCTURE P2)', () => {
+  it('fromContext({ task, structure }) [resource focus] carries both into job:create params (YIELD-STRUCTURE P2)', () => {
     // The Q&A recipe the plan exists for: task frames the ask, structure
     // forces the shape. The worker's template branches on both (P1).
-    yld.fromResource(RID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext, task: 'answer', structure: 'prose' }).subscribe(() => {});
+    yld.fromContext(CTX_RES, { title: 'T', storageUri: 'file://x', task: 'answer', structure: 'prose' }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ task: 'answer', structure: 'prose' }),
@@ -635,10 +648,10 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromAnnotation({ task, structure }) carries both — including an open-union custom string (D1)', () => {
+  it('fromContext({ task, structure }) [annotation focus] carries both — including an open-union custom string (D1)', () => {
     // structure 'chat' is the third canonical; task exercises the
     // (string & {}) escape hatch — the SDK must pass it through verbatim.
-    yld.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext, task: 'translate to French', structure: 'chat' }).subscribe(() => {});
+    yld.fromContext(CTX_ANN, { title: 'T', storageUri: 'file://x', task: 'translate to French', structure: 'chat' }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ task: 'translate to French', structure: 'chat' }),
@@ -651,7 +664,7 @@ describe('YieldNamespace', () => {
     // D2: unset structure ⇒ the worker emits NO structure directive. That
     // only holds if the SDK leaves the fields untouched (undefined keys
     // vanish at JSON serialization on the wire).
-    yld.fromResource(RID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext }).subscribe(() => {});
+    yld.fromContext(CTX_RES, { title: 'T', storageUri: 'file://x' }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       const call = emitSpy.mock.calls.find((c: unknown[]) => c[0] === 'job:create');
       const params = (call![1] as { params: Record<string, unknown> }).params;
@@ -661,8 +674,8 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromResource({ cite: true }) carries cite into job:create params (INLINE-CITATIONS P2)', () => {
-    yld.fromResource(RID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext, cite: true }).subscribe(() => {});
+  it('fromContext({ cite: true }) [resource focus] carries cite into job:create params (INLINE-CITATIONS P2)', () => {
+    yld.fromContext(CTX_RES, { title: 'T', storageUri: 'file://x', cite: true }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ cite: true }),
@@ -671,8 +684,8 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromAnnotation({ cite: true }) carries cite into job:create params', () => {
-    yld.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext, cite: true }).subscribe(() => {});
+  it('fromContext({ cite: true }) [annotation focus] carries cite into job:create params', () => {
+    yld.fromContext(CTX_ANN, { title: 'T', storageUri: 'file://x', cite: true }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ cite: true }),
@@ -685,7 +698,7 @@ describe('YieldNamespace', () => {
     // The worker parses/strips [[..]] tokens ONLY when cite is set: double-
     // bracketed text is legitimate content otherwise. An SDK-invented
     // default would corrupt non-citing generations.
-    yld.fromResource(RID, { title: 'T', storageUri: 'file://x', context: {} as GatheredContext }).subscribe(() => {});
+    yld.fromContext(CTX_RES, { title: 'T', storageUri: 'file://x' }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       const call = emitSpy.mock.calls.find((c: unknown[]) => c[0] === 'job:create');
       const params = (call![1] as { params: Record<string, unknown> }).params;
@@ -694,15 +707,14 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromAnnotation({ entityTypes }) carries entityTypes through into job:create params', () => {
+  it('fromContext({ entityTypes }) carries entityTypes through into job:create params', () => {
     // Regression — see .plans/ENTITY-TYPES-GAP.md. Before the fix the
     // SDK silently dropped entityTypes between the GenerationOptions
     // boundary and the bus payload, leaving synthesized resources
     // un-stamped at schema-layer queries.
-    yld.fromAnnotation(RID, AID, {
+    yld.fromContext(CTX_ANN, {
       title: 'T',
       storageUri: 'file://x',
-      context: {} as any,
       entityTypes: ['Character', 'Hero'],
     }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
@@ -716,10 +728,10 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromAnnotation() emits progress and completes on job:complete', async () => {
+  it('fromContext() emits progress and completes on job:complete', async () => {
     const progress: any[] = [];
     const completed = new Promise<void>((resolve) => {
-      yld.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as any }).subscribe({
+      yld.fromContext(CTX_ANN, { title: 'T', storageUri: 'file://x' }).subscribe({
         next: (p) => progress.push(p),
         complete: () => resolve(),
       });
@@ -744,7 +756,7 @@ describe('YieldNamespace', () => {
     expect(result).toEqual({ token: 'tok', expiresAt: '2026-01-01' });
   });
 
-  it('fromAnnotation() falls back to job polling when SSE is silent', async () => {
+  it('fromContext() falls back to job polling when SSE is silent', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();
     const mock = createMockTransport({
@@ -755,7 +767,7 @@ describe('YieldNamespace', () => {
 
     const progress: unknown[] = [];
     let completed = false;
-    y.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as any }).subscribe({
+    y.fromContext(annotationContextFor('res-1', 'ann-1'), { title: 'T', storageUri: 'file://x' }).subscribe({
       next: (p) => progress.push(p),
       complete: () => { completed = true; },
     });
@@ -770,7 +782,7 @@ describe('YieldNamespace', () => {
     vi.useRealTimers();
   });
 
-  it('fromAnnotation() SSE completion wins over polling', async () => {
+  it('fromContext() SSE completion wins over polling', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();
     const mock = createMockTransport({
@@ -779,7 +791,7 @@ describe('YieldNamespace', () => {
     const y = new YieldNamespace(mock.transport, bus, makeMockContent());
 
     let completed = false;
-    y.fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as any }).subscribe({
+    y.fromContext(annotationContextFor('res-1', 'ann-1'), { title: 'T', storageUri: 'file://x' }).subscribe({
       next: () => {},
       complete: () => { completed = true; },
     });
@@ -932,14 +944,14 @@ describe('late-rejection guards', () => {
     bus.destroy();
   });
 
-  it('yield.fromAnnotation does NOT propagate a late busRequest rejection after the consumer unsubscribes', async () => {
+  it('yield.fromContext does NOT propagate a late busRequest rejection after the consumer unsubscribes', async () => {
     const { promise, reject } = makeDeferred<void>();
     const { transport, bus } = makeDeferredEmitTransport(promise);
     const yld = new YieldNamespace(transport, new EventBus(), makeMockContent());
 
     const errors: Error[] = [];
     const sub = yld
-      .fromAnnotation(RID, AID, { title: 'T', storageUri: 'file://x', context: {} as never })
+      .fromContext(annotationContextFor('res-1', 'ann-1'), { title: 'T', storageUri: 'file://x' })
       .subscribe({
         next: () => {},
         error: (e: Error) => errors.push(e),

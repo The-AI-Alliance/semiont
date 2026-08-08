@@ -11,7 +11,7 @@ import { test, expect } from '../fixtures/auth';
  *     → Gather → real `gather:resource-requested`→`-complete` round-trip
  *     → `review` step renders the resource `GatheredContext` (kind-aware GatherContextStep)
  *     → Next → `configure-generation`
- *     → Generate → `yield.fromResource` runs the `generation` job → new derived resource.
+ *     → Generate → `yield.fromContext` (resource focus) runs the `generation` job → new derived resource.
  *
  * Covers the seams unit tests can't reach under the #900 native-binding skew:
  * the real bus request/reply gather, the cold-`StreamObservable.run()` job
@@ -102,7 +102,7 @@ test.describe('generate from resource', () => {
 
     bus.clear();
 
-    // ── Generate → yield.fromResource runs the `generation` job → derived resource ──
+    // ── Generate → yield.fromContext runs the `generation` job → derived resource ──
     // Same job lifecycle as spec 09 (shared runGeneration driver): job:create
     // (jobType generation) → job:created → job:complete (carrying the new
     // result.resourceId; the worker also mints the source→derived provenance ref).

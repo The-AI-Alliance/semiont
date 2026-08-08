@@ -34,7 +34,7 @@ import type { CacheState } from './cache';
 /**
  * Bounded Observable stream — emits zero-or-more progress values, then a
  * final value on completion. Used by job-lifecycle methods like
- * `mark.assist`, `gather.annotation`, `match.search`, `yield.fromAnnotation`.
+ * `mark.assist`, `gather.annotation`, `match.search`, `yield.fromContext`.
  *
  * Awaiting resolves to the **last** emitted value (via `lastValueFrom`).
  * Subscribing yields every emission, ending in `complete`. **Do not do both on
