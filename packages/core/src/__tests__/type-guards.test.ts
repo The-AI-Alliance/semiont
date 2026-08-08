@@ -10,6 +10,7 @@ import {
   isUndefined,
   isNullish,
   isDefined,
+  isGenerationJobParams,
 } from '../type-guards';
 
 describe('@semiont/core - type-guards', () => {
@@ -197,3 +198,30 @@ describe('@semiont/core - type-guards', () => {
     });
   });
 });
+
+describe('isGenerationJobParams', () => {
+  // The behavioral contract lives with its consumer (@semiont/jobs guards the
+  // worker boundary with this); these cases cover the guard's own source —
+  // one per branch of the required-trio check.
+  const VALID = {
+    title: 'Answer',
+    storageUri: 'file://generated/answer.md',
+    context: { focus: { kind: 'resource' } },
+  };
+
+  it('accepts the required trio', () => {
+    expect(isGenerationJobParams(VALID)).toBe(true);
+  });
+
+  it('rejects non-objects', () => {
+    expect(isGenerationJobParams(null)).toBe(false);
+    expect(isGenerationJobParams('generation')).toBe(false);
+  });
+
+  it('rejects each missing/mistyped member of the trio', () => {
+    expect(isGenerationJobParams({ ...VALID, title: 7 })).toBe(false);
+    expect(isGenerationJobParams({ ...VALID, storageUri: undefined })).toBe(false);
+    expect(isGenerationJobParams({ ...VALID, context: 42 })).toBe(false);
+  });
+});
+

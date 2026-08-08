@@ -307,6 +307,19 @@ describe('handleJob orchestration', () => {
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
 
+    it('fails a generation job loudly when params do not satisfy the wire contract', async () => {
+      // The guard is the trust boundary for params that crossed the wire as
+      // untyped JSON — a trio-less bag must throw HERE, named, not surface as
+      // a mid-generation TypeError. (Override wins over the factory's
+      // GEN_REQUIRED injection.)
+      const h = makeFakeSessionAndAdapter();
+
+      await expect(
+        handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { title: undefined }))
+      ).rejects.toThrow(/params do not satisfy GenerationJobParams/);
+      expect(processGenerationJob).not.toHaveBeenCalled();
+    });
+
     it('propagates upload errors so the caller can translate to job:fail', async () => {
       vi.mocked(processGenerationJob).mockResolvedValue({
         content: new TextEncoder().encode('body'),
