@@ -18,7 +18,6 @@ import { Link, routes } from '@/lib/routing';
 // Feature components
 import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import NotFound from '../../../not-found';
 import type { SemiontResource } from '@semiont/react-ui';
 
 /**
@@ -42,19 +41,9 @@ import type { SemiontResource } from '@semiont/react-ui';
  * keyed on.
  */
 export default function KnowledgeResourcePage() {
-  const params = useParams<{ id: string }>();
+  const params = useParams();
+  const rId = resourceId(params?.id as string);
   const session = useObservable(useSemiont().activeSession$) ?? null;
-
-  // `App.tsx` declares this route as `resource/:id`, so React Router cannot
-  // match it without the param. That was previously expressed as
-  // `params?.id as string` — an assertion, which reads as harmless because it
-  // is usually true. It is not harmless: `resourceId()` takes a `string` and
-  // calls `.includes('/')` on it immediately, so the one time the assumption
-  // broke the page would throw a TypeError and white-screen. Branching lets
-  // the compiler prove `id` is a string and turns a route-pattern rename into
-  // a visible not-found instead of a crash.
-  const id = params.id;
-  if (!id) return <NotFound />;
 
   // Leaving a resource route on a KB switch is the SWITCH INITIATOR's job
   // (`KnowledgeBasePanel`), not this page's. A latch here cannot work:
@@ -66,7 +55,6 @@ export default function KnowledgeResourcePage() {
   // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
   if (!session) return <ResourceLoadingState />;
 
-  const rId = resourceId(id);
   return <KnowledgeResourcePageInner key={`${session.id}:${rId}`} session={session} rId={rId} />;
 }
 
