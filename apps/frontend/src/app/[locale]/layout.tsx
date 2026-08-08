@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router';
 import { Providers } from '../providers';
 import { CookieBanner } from '@/components/CookieBanner';
 import { SkipLinks } from '@semiont/react-ui';

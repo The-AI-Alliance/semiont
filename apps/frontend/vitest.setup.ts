@@ -75,9 +75,9 @@ global.fetch = async (input, init) => {
   return originalFetch(input, init);
 };
 
-// react-router-dom mock
-vi.mock('react-router-dom', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react-router-dom')>();
+// react-router mock
+vi.mock('react-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router')>();
   const React = await import('react');
 
   const MockLink = ({ children, to, href, ...props }: any) =>

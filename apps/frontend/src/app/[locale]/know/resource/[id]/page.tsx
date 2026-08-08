@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import { useLocale } from '@/i18n/routing';
 import { useSemiont, useObservable, useSessionStateUnit, createResourceLoaderStateUnit } from '@semiont/react-ui';
 import { resourceId } from '@semiont/core';
@@ -18,6 +18,7 @@ import { Link, routes } from '@/lib/routing';
 // Feature components
 import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
+import NotFound from '../../../not-found';
 import type { SemiontResource } from '@semiont/react-ui';
 
 /**
@@ -41,9 +42,19 @@ import type { SemiontResource } from '@semiont/react-ui';
  * keyed on.
  */
 export default function KnowledgeResourcePage() {
-  const params = useParams();
-  const rId = resourceId(params?.id as string);
+  const params = useParams<{ id: string }>();
   const session = useObservable(useSemiont().activeSession$) ?? null;
+
+  // `App.tsx` declares this route as `resource/:id`, so React Router cannot
+  // match it without the param. That used to be written `params?.id as string`
+  // — an assertion, which reads as harmless precisely because it is usually
+  // true. It is not harmless: `resourceId()` takes a `string` and calls
+  // `.includes('/')` on it immediately, so the one time the assumption broke
+  // (a route-pattern rename) the page would throw a TypeError and white-screen
+  // rather than degrade. Branching lets the compiler prove `id` is a string,
+  // and turns that rename into a visible not-found.
+  const id = params.id;
+  if (!id) return <NotFound />;
 
   // Leaving a resource route on a KB switch is the SWITCH INITIATOR's job
   // (`KnowledgeBasePanel`), not this page's. A latch here cannot work:
@@ -55,6 +66,7 @@ export default function KnowledgeResourcePage() {
   // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
   if (!session) return <ResourceLoadingState />;
 
+  const rId = resourceId(id);
   return <KnowledgeResourcePageInner key={`${session.id}:${rId}`} session={session} rId={rId} />;
 }
 
