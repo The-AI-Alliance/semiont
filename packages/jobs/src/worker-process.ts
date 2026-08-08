@@ -29,6 +29,27 @@ import {
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
 import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, findClaimSpan, type EventMap } from '@semiont/core';
+
+/**
+ * The ONE derivation for a job's associated reference/annotation id
+ * (GENERATION-WIRE-CONTEXT D3). Generation params no longer carry
+ * `referenceId` on the wire — the context's focus is authoritative — so for
+ * generation jobs the id comes from `focus.annotation.id` (annotation focus)
+ * or is undefined (resource focus). Non-generation jobTypes (detection
+ * echoes) keep their own `params.referenceId` passthrough.
+ */
+export function referenceIdOf(job: { type: string; params: Record<string, unknown> }): string | undefined {
+  if (job.type === 'generation') {
+    const context = job.params.context as { focus?: { kind?: unknown; annotation?: { id?: unknown } } } | undefined;
+    const focus = context?.focus;
+    if (focus?.kind === 'annotation' && typeof focus.annotation?.id === 'string') {
+      return focus.annotation.id;
+    }
+    return undefined;
+  }
+  const ref = job.params.referenceId;
+  return typeof ref === 'string' ? ref : undefined;
+}
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
 import { deriveStorageUri, extractPdfTextLayer, type AnchoredTextStore } from '@semiont/content';
@@ -127,7 +148,7 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
     handleJob(adapter, config, job).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       logger.error('Job failed', { jobId: job.jobId, error: message, stack: error instanceof Error ? error.stack : undefined });
-      const failAnnotationId = (job.params as { referenceId?: string }).referenceId;
+      const failAnnotationId = referenceIdOf(job);
       if (isJobType(job.type)) {
         emitEvent(session, 'job:fail', {
           resourceId: job.resourceId,
@@ -201,7 +222,7 @@ async function handleJobInner(
   // payload so the UI can attach visual feedback to that annotation.
   // Resource-scoped jobs (bulk reference/tag/highlight/comment/
   // assessment detection scanning a whole resource) leave it unset.
-  const annotationId = (job.params as { referenceId?: string }).referenceId;
+  const annotationId = referenceIdOf(job);
   // No `userId`: the job lifecycle commands declare only `_userId`, injected by
   // the gateway from the authenticated session. Spreading an extra field would
   // put out-of-contract data on a global channel — and would not be caught by
@@ -369,11 +390,13 @@ async function handleJobInner(
     // The backend writes content to disk and emits `yield:create`
     // internally; we only learn the new resourceId from the response.
     const genParams = job.params as {
-      referenceId?: string;
       prompt?: string;
       language?: string;
       entityTypes?: string[];
     };
+    // Annotation-focus generation auto-binds to the triggering reference; the
+    // id is derived from the context's focus (the wire no longer carries it).
+    const genReferenceId = referenceIdOf(job);
     const storageUri = deriveStorageUri(genResult.title, genResult.format);
 
     const { resourceId: newResourceId } = await session.client.yield.resource({
@@ -382,7 +405,7 @@ async function handleJobInner(
       format: genResult.format,
       storageUri,
       sourceResourceId: resourceId as unknown as string,
-      ...(genParams.referenceId ? { sourceAnnotationId: genParams.referenceId } : {}),
+      ...(genReferenceId ? { sourceAnnotationId: genReferenceId } : {}),
       ...(genParams.prompt ? { generationPrompt: genParams.prompt } : {}),
       ...(genParams.language ? { language: genParams.language } : {}),
       ...(genParams.entityTypes && genParams.entityTypes.length > 0 ? { entityTypes: genParams.entityTypes } : {}),
@@ -394,7 +417,7 @@ async function handleJobInner(
     // derivation is a first-class edge, targeting the whole source resource
     // (resource-level, no selector). Annotation-focus generation instead auto-binds
     // the triggering reference via `sourceAnnotationId` on the upload above.
-    if (!genParams.referenceId) {
+    if (!genReferenceId) {
       const { annotation: provenanceRef } = assembleAnnotation(
         {
           motivation: 'linking',

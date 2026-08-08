@@ -30,7 +30,8 @@
  * file covers the iterate-and-emit orchestration layer.
  */
 
-import { GEN_REQUIRED } from './fixtures/generation-fixtures';
+import { GEN_REQUIRED, minimalContext } from './fixtures/generation-fixtures';
+import { referenceIdOf } from '../worker-process';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { extractPdfTextLayer } from '@semiont/content';
 import type { SemiontSession } from '@semiont/sdk';
@@ -281,7 +282,11 @@ describe('handleJob orchestration', () => {
       });
       const h = makeFakeSessionAndAdapter();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { referenceId: 'ref-1', prompt: 'Write about X', language: 'en' }));
+      await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', {
+        context: minimalContext('annotation'),   // the focus IS the reference now
+        prompt: 'Write about X',
+        language: 'en',
+      }));
 
       // Verify the upload went through session.client.yield.resource
       // (not a raw fetch to /resources) with the expected fields.
@@ -290,7 +295,7 @@ describe('handleJob orchestration', () => {
       expect(uploaded.name).toBe('New Resource');
       expect(uploaded.format).toBe('text/markdown');
       expect(uploaded.sourceResourceId).toBe(RID);
-      expect(uploaded.sourceAnnotationId).toBe('ref-1');
+      expect(uploaded.sourceAnnotationId).toBe('ann-1');   // derived from focus.annotation.id
       expect(uploaded.generationPrompt).toBe('Write about X');
       expect(uploaded.language).toBe('en');
       expect(uploaded.generator).toBeTruthy();
@@ -332,7 +337,7 @@ describe('handleJob orchestration', () => {
       vi.mocked(h.session.client.yield.resource).mockRejectedValueOnce(new Error('Upload failed: 500'));
 
       await expect(
-        handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { referenceId: 'ref-1' }))
+        handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { context: minimalContext('annotation') }))
       ).rejects.toThrow(/Upload failed: 500/);
     });
 
@@ -354,7 +359,6 @@ describe('handleJob orchestration', () => {
         h.adapter,
         makeConfig(h.session),
         makeJob('generation', {
-          referenceId: 'ref-1',
           entityTypes: ['Character', 'Hero'],
         }),
       );
@@ -377,7 +381,7 @@ describe('handleJob orchestration', () => {
       });
       const h = makeFakeSessionAndAdapter();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { referenceId: 'ref-1' }));
+      await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { context: minimalContext('annotation') }));
 
       expect(h.yieldResourceCalls).toHaveLength(1);
       expect(h.yieldResourceCalls[0]!.entityTypes).toBeUndefined();
@@ -427,7 +431,7 @@ describe('handleJob orchestration', () => {
       });
       const h = makeFakeSessionAndAdapter();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { referenceId: 'ref-1', cite: true }));
+      await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { context: minimalContext('annotation'), cite: true }));
 
       const markCreates = h.busEmits.filter(e => e.channel === 'mark:create');
       expect(markCreates, 'one mark:create per resolved citation').toHaveLength(1);
@@ -469,7 +473,7 @@ describe('handleJob orchestration', () => {
       await handleJob(
         h.adapter,
         makeConfig(h.session),
-        makeJob('generation', { referenceId: 'ref-1', cite: true, outputMediaType: 'application/pdf' }),
+        makeJob('generation', { context: minimalContext('annotation'), cite: true, outputMediaType: 'application/pdf' }),
       );
 
       const markCreates = h.busEmits.filter(e => e.channel === 'mark:create');
@@ -511,7 +515,7 @@ describe('handleJob orchestration', () => {
       await handleJob(
         h.adapter,
         makeConfig(h.session),
-        makeJob('generation', { referenceId: 'ref-1', cite: true, outputMediaType: 'application/pdf' }),
+        makeJob('generation', { context: minimalContext('annotation'), cite: true, outputMediaType: 'application/pdf' }),
       );
 
       const markCreates = h.busEmits.filter(e => e.channel === 'mark:create');
@@ -740,7 +744,7 @@ describe('handleJob orchestration', () => {
       });
       const h = makeFakeSessionAndAdapter();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { referenceId: 'ref-1' }));
+      await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { context: minimalContext('annotation') }));
 
       expect(h.session.client.browse.resource).not.toHaveBeenCalled();
       expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(true);
@@ -923,3 +927,19 @@ describe('startWorkerProcess', () => {
     vi.resetModules();
   });
 });
+
+// ─── GENERATION-WIRE-CONTEXT P1: one derivation for the reference id ───
+describe('referenceIdOf', () => {
+  it('derives from the focus for generation jobs (annotation focus → annotation.id)', () => {
+    expect(referenceIdOf(makeJob('generation', { context: minimalContext('annotation') }))).toBe('ann-1');
+  });
+
+  it('is undefined for resource-focus generation', () => {
+    expect(referenceIdOf(makeJob('generation', {}))).toBeUndefined();
+  });
+
+  it('passes through params.referenceId for NON-generation jobTypes (detection echoes)', () => {
+    expect(referenceIdOf(makeJob('reference-annotation', { referenceId: 'det-ref' }))).toBe('det-ref');
+  });
+});
+

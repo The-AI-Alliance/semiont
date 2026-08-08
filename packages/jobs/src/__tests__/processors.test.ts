@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GEN_REQUIRED } from './fixtures/generation-fixtures';
-import { resourceId, annotationId, entityType } from '@semiont/core';
+import { resourceId, entityType } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { components, TagSchema, GatheredContext, Logger } from '@semiont/core';
 
@@ -368,7 +368,6 @@ describe('processGenerationJob', () => {
     const result = await processGenerationJob(
       makeInferenceClient(),
       { ...GEN_REQUIRED,
-        referenceId: annotationId('ann-1'),
         title: 'Initial',
         entityTypes: [],
       },
@@ -398,7 +397,6 @@ describe('processGenerationJob', () => {
     const result = await processGenerationJob(
       makeInferenceClient(),
       { ...GEN_REQUIRED,
-        referenceId: annotationId('ann-1'),
         title: 'Fallback Title',
         entityTypes: [],
       },
@@ -965,8 +963,7 @@ describe('locale threading', () => {
         client,
         {
           ...GEN_REQUIRED,
-          referenceId: annotationId('ann-1'),
-          title: 'Topic',
+            title: 'Topic',
           entityTypes: [],
           language: 'de',
           sourceLanguage: 'fr',

@@ -1,4 +1,4 @@
-import { generateUuid, jobId, userId, resourceId, entityType } from '@semiont/core';
+import { generateUuid, jobId, userId, resourceId, entityType, isGenerationJobParams } from '@semiont/core';
 import type { EventBus, Logger } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import type { JobQueue } from '@semiont/jobs';
@@ -36,6 +36,51 @@ export function registerJobCommandHandlers(
 
       const user = parseDidUser(_userId);
 
+      // GENERATION-WIRE-CONTEXT D1/D2: for generation, the context is the wire
+      // truth — the job's resourceId is DERIVED from params.context.focus, and
+      // caller-supplied ids are REJECTED (never ignored: a raw emitter must not
+      // believe its ids mattered). Every OTHER jobType still requires the
+      // envelope resourceId — the schema can't express the conditionality, so
+      // both directions are enforced here.
+      let effectiveResourceId: string;
+      if (jobType === 'generation') {
+        if (resId !== undefined) {
+          throw new Error(
+            'generation job:create must omit resourceId — the context\'s focus is authoritative',
+          );
+        }
+        const bag = params as Record<string, unknown> | undefined;
+        if (bag && bag.referenceId !== undefined) {
+          throw new Error(
+            'generation job:create must omit params.referenceId — the context\'s focus is authoritative',
+          );
+        }
+        if (!isGenerationJobParams(params)) {
+          throw new Error(
+            'generation params do not satisfy GenerationJobParams (title, storageUri, and context are required)',
+          );
+        }
+        const focus = (params.context as { focus?: Record<string, unknown> }).focus;
+        const rid =
+          focus?.kind === 'resource'
+            ? (focus.resource as { '@id'?: unknown } | undefined)?.['@id']
+            : focus?.kind === 'annotation'
+              ? (focus.sourceResource as { '@id'?: unknown } | undefined)?.['@id']
+              : undefined;
+        if (typeof rid !== 'string' || rid.length === 0) {
+          throw new Error(
+            'generation context has no usable focus — pass a GatheredContext produced by '
+            + 'gather.resource(...) or gather.annotation(...)',
+          );
+        }
+        effectiveResourceId = rid;
+      } else {
+        if (typeof resId !== 'string' || resId.length === 0) {
+          throw new Error(`${jobType} job:create requires resourceId`);
+        }
+        effectiveResourceId = resId;
+      }
+
       const job = {
         status: 'pending' as const,
         metadata: {
@@ -54,7 +99,7 @@ export function registerJobCommandHandlers(
           maxRetries: jobType === 'generation' ? 0 : 1,
         },
         params: {
-          resourceId: resourceId(resId as string),
+          resourceId: resourceId(effectiveResourceId),
           ...(params as Record<string, unknown>),
         } as Record<string, unknown>,
       };

@@ -585,14 +585,19 @@ describe('YieldNamespace', () => {
     expect(capturedSignal?.aborted).toBe(true);
   });
 
-  it('fromContext(annotation focus) derives resourceId AND referenceId from the focus', () => {
+  it('fromContext(annotation focus) sends NO ids — the context is the wire truth', () => {
     yld.fromContext(CTX_ANN, { title: 'T', storageUri: 'file://x' }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
-      expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
-        jobType: 'generation',
-        resourceId: RID,                       // focus.sourceResource['@id']
-        params: expect.objectContaining({ referenceId: AID }),  // focus.annotation.id
-      }));
+      const call = emitSpy.mock.calls.find((c: unknown[]) => c[0] === 'job:create');
+      const payload = call![1] as Record<string, unknown>;
+      expect(payload.jobType).toBe('generation');
+      // The server derives both ids from params.context.focus (GENERATION-
+      // WIRE-CONTEXT D1); a caller-supplied id is REJECTED there, so the sdk
+      // must not send either.
+      expect('resourceId' in payload).toBe(false);
+      const params = payload.params as Record<string, unknown>;
+      expect('referenceId' in params).toBe(false);
+      expect(params.context).toBe(CTX_ANN);
       resolve();
     }, 20));
   });
@@ -604,14 +609,16 @@ describe('YieldNamespace', () => {
       .toThrow(/gather\.resource|gather\.annotation/);
   });
 
-  it('fromContext(resource focus) derives resourceId from the focus; no referenceId in params', () => {
+  it('fromContext(resource focus) sends NO ids; the context rides in params', () => {
     yld.fromContext(CTX_RES, { title: 'T', storageUri: 'file://x' }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
-      expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
-        jobType: 'generation',
-        resourceId: RID,
-        params: expect.not.objectContaining({ referenceId: expect.anything() }),
-      }));
+      const call = emitSpy.mock.calls.find((c: unknown[]) => c[0] === 'job:create');
+      const payload = call![1] as Record<string, unknown>;
+      expect(payload.jobType).toBe('generation');
+      expect('resourceId' in payload).toBe(false);
+      const params = payload.params as Record<string, unknown>;
+      expect('referenceId' in params).toBe(false);
+      expect(params.context).toBe(CTX_RES);
       resolve();
     }, 20));
   });
