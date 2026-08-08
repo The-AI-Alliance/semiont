@@ -2,12 +2,14 @@
  * Unit tests for JobQueue class
  */
 
+import { minimalContext } from './fixtures/generation-fixtures';
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { FsJobQueue as JobQueue } from '../fs-job-queue';
-import type { JobStatus, PendingJob, RunningJob, CompleteJob, FailedJob, DetectionParams, DetectionProgress, DetectionResult, GenerationParams } from '../types';
+import type { JobStatus, PendingJob, RunningJob, CompleteJob, FailedJob, DetectionParams, DetectionProgress, DetectionResult } from '../types';
+import type { GenerationJobParams } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { entityType, jobId, userId, resourceId, annotationId, EventBus } from '@semiont/core';
 
@@ -122,7 +124,7 @@ function createFailedDetectionJob(id: string): FailedJob<DetectionParams> {
   };
 }
 
-function createPendingGenerationJob(id: string): PendingJob<GenerationParams> {
+function createPendingGenerationJob(id: string): PendingJob<GenerationJobParams> {
   return {
     status: 'pending',
     metadata: {
@@ -139,6 +141,9 @@ function createPendingGenerationJob(id: string): PendingJob<GenerationParams> {
     params: {
       referenceId: annotationId('ann-1'),
       prompt: 'Generate a summary',
+      title: 'Summary',
+      storageUri: 'file://generated/summary.md',
+      context: minimalContext('annotation'),
     },
   };
 }

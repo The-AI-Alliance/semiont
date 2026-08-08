@@ -14,7 +14,7 @@
  *   subscribe yields `T | undefined`, await yields `T` after first load)
  * - Browse one-shot reads → `Promise<T>` (fetch once, no cache)
  * - Commands (mark, bind, yield.resource) → `Promise<T>` (atomic ops)
- * - Long-running ops (gather, match, yield.fromAnnotation, mark.assist)
+ * - Long-running ops (gather, match, yield.fromContext, mark.assist)
  *   → `StreamObservable<T>` (progress + result; subscribe yields every
  *   emit, await yields the last one)
  * - Ephemeral signals (beckon) → `void`
@@ -96,11 +96,10 @@ export interface CreateResourceInput {
   isDraft?: boolean;
 }
 
-/** Options for yield.fromAnnotation() and yield.fromResource(). */
+/** Options for yield.fromContext() — the grounding context is positional, not a field. */
 export interface GenerationOptions {
   title: string;
   storageUri: string;
-  context: GatheredContext;
   prompt?: string;
   /** Entity-type tags to stamp on the synthesized resource. Used both as a prompt bias for the generation worker and as the `entityTypes` set on the resulting resource (so `browse.resources({ entityType: ... })` queries can find it). */
   entityTypes?: string[];
@@ -191,7 +190,7 @@ export type GatherAnnotationProgress = GatherProgress | GatherAnnotationComplete
 export type MatchSearchProgress = MatchSearchResult;
 
 /**
- * Progress payload emitted by mark.assist() and yield.fromAnnotation()
+ * Progress payload emitted by mark.assist() and yield.fromContext()
  * Observables. Each progress emission carries a JobProgress snapshot
  * (unified job lifecycle).
  */
@@ -209,7 +208,7 @@ export type MarkAssistEvent =
   | { kind: 'complete'; data: components['schemas']['JobCompleteCommand'] };
 
 /**
- * Discriminated event yielded by the `yield.fromAnnotation()` Observable.
+ * Discriminated event yielded by the `yield.fromContext()` Observable.
  * Same shape and semantics as `MarkAssistEvent`.
  */
 export type YieldGenerationEvent =
@@ -432,7 +431,7 @@ export interface MatchNamespace {
  * Yield — resource creation
  *
  * resource() is synchronous file upload (Promise).
- * fromAnnotation() is long-running LLM generation (Observable).
+ * fromContext() is long-running LLM generation (Observable).
  *
  * Backend actor: Stower + generation worker
  * Event prefix: yield:*
@@ -444,18 +443,14 @@ export interface YieldNamespace {
   // Phase 18 — `await client.yield.resource(...)` keeps working as-is).
   resource(data: CreateResourceInput): UploadObservable;
 
-  // Generation from annotation (long-running, LLM-based — yields progress, then a final complete event)
-  fromAnnotation(
-    resourceId: ResourceId,
-    annotationId: AnnotationId,
-    options: GenerationOptions,
-  ): StreamObservable<YieldGenerationEvent>;
-
-  // Generation derived from a whole resource (no annotation anchor). Same lifecycle
-  // and options as fromAnnotation; ground it with a resource-focus `context` from
-  // gather.resource. The worker mints a source→derived reference annotation.
-  fromResource(
-    resourceId: ResourceId,
+  // Grounded generation (long-running, LLM-based — yields progress, then a
+  // final complete event). The context IS the argument: its `focus.kind`
+  // decides the shape — annotation focus auto-binds the new resource to the
+  // reference; resource focus mints a source→derived provenance annotation.
+  // The job's ids are DERIVED from the focus (single source of truth); a
+  // context without a usable focus throws synchronously.
+  fromContext(
+    context: GatheredContext,
     options: GenerationOptions,
   ): StreamObservable<YieldGenerationEvent>;
 

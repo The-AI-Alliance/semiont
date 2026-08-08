@@ -2,9 +2,10 @@ import { merge } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import type {
   ResourceId,
-  AnnotationId,
   EventBus,
   components,
+  GatheredContext,
+  GenerationJobParams,
 } from '@semiont/core';
 import { resourceId as toResourceId } from '@semiont/core';
 
@@ -92,73 +93,64 @@ export class YieldNamespace implements IYieldNamespace {
     });
   }
 
-  fromAnnotation(
-    resourceId: ResourceId,
-    annotationId: AnnotationId,
-    options: GenerationOptions,
-  ): StreamObservable<YieldGenerationEvent> {
-    return this.runGeneration(resourceId, {
-      referenceId: annotationId,
-      title: options.title,
-      prompt: options.prompt,
-      entityTypes: options.entityTypes,
-      language: options.language,
-      sourceLanguage: options.sourceLanguage,
-      temperature: options.temperature,
-      maxTokens: options.maxTokens,
-      storageUri: options.storageUri,
-      outputMediaType: options.outputMediaType,
-      task: options.task,
-      structure: options.structure,
-      cite: options.cite,
-      context: options.context as unknown as Record<string, unknown>,
-    });
-  }
-
   /**
-   * Generate a new resource *derived from* a whole source resource — translate,
-   * summarize, transform, extract, synthesize, rewrite; the role is carried by
-   * `options.prompt` (+ `language`, `outputMediaType`). No annotation anchor — pass a
-   * resource-focus `GatheredContext` (from `gather.resource`) as `options.context` to
-   * ground it. Long-running/LLM-based; on completion the worker mints a navigable
-   * source→derived reference annotation (provenance).
+   * Grounded generation — translate, summarize, answer, synthesize; the role is
+   * carried by `options.task`/`options.prompt` (+ `language`, `outputMediaType`).
+   * The context IS the argument: `focus.kind` decides the shape, and the job's
+   * ids are DERIVED from the focus (single source of truth — a mismatched
+   * rid/aid pair is unrepresentable):
+   *
+   * - `resource` focus (from `gather.resource`) — the job scopes to
+   *   `focus.resource`; on completion the worker mints a navigable
+   *   source→derived reference annotation (provenance).
+   * - `annotation` focus (from `gather.annotation`) — the job scopes to
+   *   `focus.sourceResource` and carries `focus.annotation.id` as
+   *   `referenceId`; the worker auto-binds the new resource to it.
+   *
+   * A context without a usable focus throws synchronously — the runtime half
+   * of the schema's `required: focus` for values whose type history was
+   * severed (wire JSON, storage, casts). Never guesses, never defaults.
    *
    * ⚠️ Cold `StreamObservable`: do NOT both `.subscribe(...)` and `await` the same
    * instance — that fires the job twice. Use `.run(onNext)` for progress + result.
-   * See `.plans/MULTICAST-JOB-TRIGGERS.md`.
    */
-  fromResource(
-    resourceId: ResourceId,
+  fromContext(
+    context: GatheredContext,
     options: GenerationOptions,
   ): StreamObservable<YieldGenerationEvent> {
-    return this.runGeneration(resourceId, {
-      title: options.title,
-      prompt: options.prompt,
-      entityTypes: options.entityTypes,
-      language: options.language,
-      sourceLanguage: options.sourceLanguage,
-      temperature: options.temperature,
-      maxTokens: options.maxTokens,
-      storageUri: options.storageUri,
-      outputMediaType: options.outputMediaType,
-      task: options.task,
-      structure: options.structure,
-      cite: options.cite,
-      context: options.context as unknown as Record<string, unknown>,
-    });
+    const focus = context?.focus;
+    if (focus?.kind === 'resource' && typeof focus.resource?.['@id'] === 'string') {
+      return this.runGeneration(toResourceId(focus.resource['@id']), { ...options, context });
+    }
+    if (
+      focus?.kind === 'annotation'
+      && typeof focus.sourceResource?.['@id'] === 'string'
+      && typeof focus.annotation?.id === 'string'
+    ) {
+      return this.runGeneration(toResourceId(focus.sourceResource['@id']), {
+        ...options,
+        context,
+        referenceId: focus.annotation.id,
+      });
+    }
+    throw new Error(
+      'yield.fromContext: context has no usable focus — pass a GatheredContext '
+      + 'produced by gather.resource(...) or gather.annotation(...).',
+    );
   }
 
   /**
-   * Shared job-lifecycle driver for `fromAnnotation`/`fromResource`. Emits
-   * `job:create` (jobType `generation`) with the supplied `params`, then streams the
-   * unified `job:report-progress`/`job:complete`/`job:fail` lifecycle (with a polled
-   * `job:status` fallback) as `YieldGenerationEvent`s, resolving on the terminal
-   * `complete`. The two public methods differ only in `params` (fromAnnotation sets
-   * `referenceId`; fromResource doesn't).
+   * Shared job-lifecycle driver for `fromContext`. Emits `job:create`
+   * (jobType `generation`) with the supplied `params` — typed as the WIRE's
+   * `GenerationJobParams`, so the write side and the worker's guard share one
+   * contract — then streams the unified
+   * `job:report-progress`/`job:complete`/`job:fail` lifecycle (with a polled
+   * `job:status` fallback) as `YieldGenerationEvent`s, resolving on the
+   * terminal `complete`.
    */
   private runGeneration(
     resourceId: ResourceId,
-    params: Record<string, unknown>,
+    params: GenerationJobParams,
   ): StreamObservable<YieldGenerationEvent> {
     return new StreamObservable<YieldGenerationEvent>((subscriber) => {
       let done = false;

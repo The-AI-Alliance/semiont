@@ -35,7 +35,7 @@ with a shared corpus. Learn them once and the surface stays small.
 |---|---|---|
 | **browse** | Navigate, read, observe — including who's here to collaborate | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
 | **bind** | Resolve ambiguous references to specific resources | `bind.body`, `bind.initiate` |
-| **yield** | Introduce new resources — uploaded or generated from gathered context | `yield.resource`, `yield.fromResource`, `yield.fromAnnotation` |
+| **yield** | Introduce new resources — uploaded or generated from gathered context | `yield.resource`, `yield.fromContext` |
 | **mark** | Add structured metadata to resources | `mark.annotation`, `mark.assist`, `mark.updateEntityTypes`, `mark.archive` |
 | **frame** | Define and evolve the schema vocabulary (entity types, tag schemas) | `frame.addEntityTypes`, `frame.addTagSchema` |
 | **gather** | Assemble grounding context around a resource or an annotation | `gather.resource`, `gather.annotation` |

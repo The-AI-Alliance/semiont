@@ -30,6 +30,7 @@
  * file covers the iterate-and-emit orchestration layer.
  */
 
+import { GEN_REQUIRED } from './fixtures/generation-fixtures';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { extractPdfTextLayer } from '@semiont/content';
 import type { SemiontSession } from '@semiont/sdk';
@@ -164,7 +165,9 @@ function makeJob(type: ActiveJob['type'], paramsOverride: Record<string, unknown
     type,
     resourceId: RID,
     userId: UID,
-    params: { resourceId: RID, ...paramsOverride },
+    // Generation params must satisfy the wire's required trio (the worker
+    // guard enforces it); overrides still win.
+    params: { resourceId: RID, ...(type === 'generation' ? GEN_REQUIRED : {}), ...paramsOverride },
   } as ActiveJob;
 }
 
@@ -302,6 +305,19 @@ describe('handleJob orchestration', () => {
       expect(h.busEmits.map(e => e.channel)).not.toContain('yield:create');
       expect(h.busEmits.map(e => e.channel)).not.toContain('mark:create');
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
+    });
+
+    it('fails a generation job loudly when params do not satisfy the wire contract', async () => {
+      // The guard is the trust boundary for params that crossed the wire as
+      // untyped JSON — a trio-less bag must throw HERE, named, not surface as
+      // a mid-generation TypeError. (Override wins over the factory's
+      // GEN_REQUIRED injection.)
+      const h = makeFakeSessionAndAdapter();
+
+      await expect(
+        handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { title: undefined }))
+      ).rejects.toThrow(/params do not satisfy GenerationJobParams/);
+      expect(processGenerationJob).not.toHaveBeenCalled();
     });
 
     it('propagates upload errors so the caller can translate to job:fail', async () => {

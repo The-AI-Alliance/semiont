@@ -22,14 +22,13 @@ import {
   type AssessmentDetectionParams,
   type CommentDetectionParams,
   type DetectionParams,
-  type GenerationParams,
   type HighlightDetectionParams,
   type JobType,
   type TagDetectionParams,
 } from './types';
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
-import { getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, findClaimSpan, type EventMap } from '@semiont/core';
+import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, findClaimSpan, type EventMap } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
 import { deriveStorageUri, extractPdfTextLayer, type AnchoredTextStore } from '@semiont/content';
@@ -351,8 +350,17 @@ async function handleJobInner(
     adapter.completeJob();
 
   } else if (jobType === 'generation') {
+    // Trust-boundary narrowing: params crossed the wire as untyped JSON. The
+    // guard checks the schema's required trio; a malformed bag fails the job
+    // loudly here instead of surfacing as a mid-generation TypeError.
+    if (!isGenerationJobParams(job.params)) {
+      throw new Error(
+        `generation job ${job.jobId}: params do not satisfy GenerationJobParams `
+        + `(title, storageUri, and context are required)`,
+      );
+    }
     const genResult = await processGenerationJob(
-      inferenceClient, job.params as GenerationParams, onProgress, config.logger,
+      inferenceClient, job.params, onProgress, config.logger,
     );
 
     // Content never travels on the bus. Upload via the http-transport's

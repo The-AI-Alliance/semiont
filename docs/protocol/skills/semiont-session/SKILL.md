@@ -134,7 +134,7 @@ async function handleNewLinkingAnnotation(resourceIdStr: string, annotationIdStr
   //   await session.client.gather.annotation(...)
   //   await session.client.match.search(...)
   //   await session.client.bind.body(...)
-  //   await session.client.yield.fromAnnotation(...)
+  //   await session.client.yield.fromContext(...)
 }
 
 const unsubAdded = session.subscribe('mark:added', (event) => {

@@ -162,7 +162,7 @@ Browse methods read from materialized views. Live queries return `CacheObservabl
 
 ### Streams vs live queries
 
-Streaming methods (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromAnnotation`) return `StreamObservable<T>` — thenable, so `await` resolves the final value. Live-query methods (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.referencedBy`, `browse.events`, `browse.entityTypes`, `browse.tagSchemas`, `browse.agents`) return `CacheObservable<T>` — NOT thenable; subscribe for the live view or call `.fresh()` for a fresh value. `.pipe(...)` composes with RxJS operators on either (and loses the stream thenable). See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design rationale and method-by-method assignment.
+Streaming methods (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromContext`) return `StreamObservable<T>` — thenable, so `await` resolves the final value. Live-query methods (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.referencedBy`, `browse.events`, `browse.entityTypes`, `browse.tagSchemas`, `browse.agents`) return `CacheObservable<T>` — NOT thenable; subscribe for the live view or call `.fresh()` for a fresh value. `.pipe(...)` composes with RxJS operators on either (and loses the stream thenable). See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design rationale and method-by-method assignment.
 
 ### Live Queries (subscribe)
 
@@ -237,22 +237,24 @@ const { resourceId } = await semiont.yield.resource({
 // `entityTypes` are stamped on the synthesized resource (so
 // `browse.resources({ entityType: 'Character' })` finds it) and also
 // fed into the LLM prompt as a topical bias.
-semiont.yield.fromAnnotation(resourceId, annotationId, {
+semiont.yield.fromContext(gatheredContext, {
   title: 'Generated Summary',
   storageUri: 'file://generated/summary.md',
-  context: gatheredContext,
   entityTypes: ['Character', 'Hero'],
 }).subscribe({
   next: (event) => console.log(event.kind, event),
   complete: () => console.log('Resource generated'),
 });
 
-// AI generation from a whole resource — the resource-anchored twin of fromAnnotation
-// (no annotationId). Ground it with a resource-focus GatheredContext from
-// gather.resource. `outputMediaType` (on both methods) sets the generated resource's
-// media type — default `text/markdown`; the worker validates it.
+// ONE generation entry point: the context's focus decides the shape.
+// An annotation-focus context (from gather.annotation) auto-binds the new
+// resource to the reference; a resource-focus context (from gather.resource)
+// mints a source→derived provenance annotation. The job's ids derive from
+// the focus — there are no id parameters to mismatch. `outputMediaType`
+// sets the generated resource's media type — default `text/markdown`; the
+// worker validates it.
 //
-// Output shape is caller-controlled (both methods):
+// Output shape is caller-controlled:
 //   task      — framing: 'resource' | 'answer' | 'summary', or ANY string (used
 //               verbatim as the framing; the worker warns — loud, never silent).
 //   structure — shape: 'prose' | 'sections' | 'chat', or any string (becomes a
@@ -271,10 +273,9 @@ semiont.yield.fromAnnotation(resourceId, annotationId, {
 // with a warn (hallucination guard). Composes with task/structure; the
 // post-hoc mark.assist('linking') pass still works alongside it.
 // The Q&A recipe: ask the question via `title`, then
-semiont.yield.fromResource(resourceId, {
+semiont.yield.fromContext(resourceContext, {
   title: 'What does the appendix say about retry budgets?',
   storageUri: 'file://generated/answer.md',
-  context: resourceContext,
   task: 'answer',
   structure: 'prose',
   cite: true,

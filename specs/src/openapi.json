@@ -399,6 +399,9 @@
       "GatheredContext": {
         "$ref": "components/schemas/GatheredContext.json"
       },
+      "GenerationJobParams": {
+        "$ref": "components/schemas/GenerationJobParams.json"
+      },
       "GetAnnotationHistoryResponse": {
         "$ref": "components/schemas/GetAnnotationHistoryResponse.json"
       },

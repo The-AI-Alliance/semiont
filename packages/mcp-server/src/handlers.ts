@@ -63,9 +63,8 @@ export interface McpClient {
   };
   yield: {
     resource(data: CreateResourceInput): PromiseLike<{ resourceId: ResourceId }>;
-    fromAnnotation(
-      resourceId: ResourceId,
-      annotationId: AnnotationId,
+    fromContext(
+      context: GatheredContext,
       options: GenerationOptions,
     ): Observable<YieldGenerationEvent>;
   };
@@ -239,8 +238,9 @@ export async function yieldFromAnnotation(semiont: McpClient, args: any): Promis
   // Step 1: gather context
   const ctx = gatheredContext(await semiont.gather.annotation(rId, aId, { contextWindow: 2000 }));
 
-  // Step 2: generate. yield.fromAnnotation streams progress, then ends with
-  // a `complete` event carrying the JobCompleteCommand (with `result`).
+  // Step 2: generate. yield.fromContext streams progress, then ends with
+  // a `complete` event carrying the JobCompleteCommand (with `result`). The
+  // job's ids are derived from the gathered context's annotation focus.
   const progressMessages: string[] = [];
   try {
     // Default sourceLanguage from the gathered context's metadata, which the
@@ -249,10 +249,9 @@ export async function yieldFromAnnotation(semiont: McpClient, args: any): Promis
     const ctxSourceLanguage = ctx.metadata?.language;
 
     await lastValueFrom(
-      semiont.yield.fromAnnotation(rId, aId, {
+      semiont.yield.fromContext(ctx, {
         title: args?.title ?? 'Generated',
         storageUri: args?.storageUri,
-        context: ctx,
         prompt: args?.prompt,
         language: args?.language,
         sourceLanguage: args?.sourceLanguage ?? ctxSourceLanguage,

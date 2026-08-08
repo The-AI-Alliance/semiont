@@ -11,7 +11,7 @@
  * - State machine is explicit and type-safe
  */
 
-import type { JobId, EntityType, ResourceId, UserId, AnnotationId, GatheredContext, TagSchema, SupportedMediaType } from '@semiont/core';
+import type { JobId, EntityType, ResourceId, UserId, GenerationJobParams, TagSchema } from '@semiont/core';
 
 export type JobType = 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
 export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
@@ -76,63 +76,6 @@ export interface DetectionParams {
   sourceLanguage?: string;
 }
 
-/**
- * Generation job parameters
- */
-export interface GenerationParams {
-  /**
-   * The unresolved reference an annotation-focus generation was triggered from.
-   * Absent for resource-focus generation (`yield.fromResource`). When present, the
-   * worker auto-binds the new resource to it; when absent, provenance is a minted
-   * source→derived reference annotation (Fork 2b).
-   */
-  referenceId?: AnnotationId;
-  prompt?: string;
-  title?: string;
-  entityTypes?: EntityType[];
-  /** Annotation body locale — language the *generated resource* is written in. */
-  language?: string;
-  /**
-   * Source-resource locale — language of the resource being referenced.
-   * Used in the prompt so the LLM understands the embedded source-context
-   * snippet correctly when source ≠ target language.
-   */
-  sourceLanguage?: string;
-  context?: GatheredContext;
-  temperature?: number;
-  maxTokens?: number;
-  storageUri?: string;
-  /**
-   * Requested media type of the generated resource's content. Default `text/markdown`.
-   * The generation worker produces `text/markdown` and `text/plain`; any other value
-   * fails the job (no silent fallback) — Semiont is multi-modal at the core, but
-   * generation coverage is text-only for now and the gap is surfaced, not hidden.
-   */
-  outputMediaType?: SupportedMediaType;
-  /**
-   * What the model is asked to DO — the prompt's framing verb. Canonical values map
-   * to tested framings; any other string is used verbatim as the framing instruction
-   * (loud degrade: the worker warns, never silently falls back to 'resource').
-   * Default 'resource'. See .plans/YIELD-STRUCTURE.md.
-   */
-  task?: 'resource' | 'answer' | 'summary' | (string & {});
-  /**
-   * How the output is internally segmented — text-bearing shape, subordinate to
-   * `outputMediaType` (never its peer). Canonical values map to tested guidance; any
-   * other string becomes a freeform "Organize the output as: …" instruction (loud
-   * degrade). UNSET means NO structure directive is emitted — the task framing and
-   * the model determine shape. See .plans/YIELD-STRUCTURE.md D2/D5.
-   */
-  structure?: 'prose' | 'sections' | 'chat' | (string & {});
-  /**
-   * Ask the model to cite: emit `[[<id>]]` transport tokens after each claim, using
-   * the ids the context embedding provides (CONTEXT-IDENTIFIERS). The worker
-   * validates each id against the embedded context (unknown ids are dropped
-   * loudly), strips the tokens from the stored content, and mints W3C linking
-   * annotations on the derived resource. See .plans/INLINE-CITATIONS.md.
-   */
-  cite?: boolean;
-}
 
 /**
  * Highlight detection job parameters
@@ -379,7 +322,7 @@ export type Job<P, PG, R> =
 // ============================================================================
 
 export type DetectionJob = Job<DetectionParams, DetectionProgress, DetectionResult>;
-export type GenerationJob = Job<GenerationParams, YieldProgress, GenerationResult>;
+export type GenerationJob = Job<GenerationJobParams, YieldProgress, GenerationResult>;
 export type HighlightDetectionJob = Job<HighlightDetectionParams, HighlightDetectionProgress, HighlightDetectionResult>;
 export type AssessmentDetectionJob = Job<AssessmentDetectionParams, AssessmentDetectionProgress, AssessmentDetectionResult>;
 export type CommentDetectionJob = Job<CommentDetectionParams, CommentDetectionProgress, CommentDetectionResult>;

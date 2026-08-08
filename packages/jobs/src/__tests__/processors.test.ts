@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { GEN_REQUIRED } from './fixtures/generation-fixtures';
 import { resourceId, annotationId, entityType } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { components, TagSchema, GatheredContext, Logger } from '@semiont/core';
@@ -366,7 +367,7 @@ describe('processGenerationJob', () => {
     const progress = vi.fn();
     const result = await processGenerationJob(
       makeInferenceClient(),
-      {
+      { ...GEN_REQUIRED,
         referenceId: annotationId('ann-1'),
         title: 'Initial',
         entityTypes: [],
@@ -396,7 +397,7 @@ describe('processGenerationJob', () => {
 
     const result = await processGenerationJob(
       makeInferenceClient(),
-      {
+      { ...GEN_REQUIRED,
         referenceId: annotationId('ann-1'),
         title: 'Fallback Title',
         entityTypes: [],
@@ -450,7 +451,7 @@ describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () =
 
     const r = await processGenerationJob(
       makeInferenceClient(),
-      { title: 'T', cite: true, context: CITE_CONTEXT },
+      { ...GEN_REQUIRED, title: 'T', cite: true, context: CITE_CONTEXT },
       vi.fn(),
       LOGGER,
     );
@@ -475,7 +476,7 @@ describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () =
 
     const r = await processGenerationJob(
       makeInferenceClient(),
-      { title: 'T', cite: true, context: CITE_CONTEXT },
+      { ...GEN_REQUIRED, title: 'T', cite: true, context: CITE_CONTEXT },
       vi.fn(),
       logger,
     );
@@ -493,7 +494,7 @@ describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () =
 
     const r = await processGenerationJob(
       makeInferenceClient(),
-      { title: 'T', context: CITE_CONTEXT },
+      { ...GEN_REQUIRED, title: 'T', context: CITE_CONTEXT },
       vi.fn(),
       LOGGER,
     );
@@ -510,7 +511,7 @@ describe('processGenerationJob — byte return (PDF-GENERATION P1)', () => {
   it('returns the artifact content as Uint8Array', async () => {
     vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: 'Generated body', title: 'T' });
 
-    const r = await processGenerationJob(makeInferenceClient(), { title: 'T' }, vi.fn(), LOGGER);
+    const r = await processGenerationJob(makeInferenceClient(), { ...GEN_REQUIRED, title: 'T' }, vi.fn(), LOGGER);
 
     expect(r.content).toBeInstanceOf(Uint8Array);
     expect(new TextDecoder().decode(r.content)).toBe('Generated body');
@@ -530,7 +531,7 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
 
     const r = await processGenerationJob(
       makeInferenceClient(),
-      { title: 'T', outputMediaType: 'application/pdf' },
+      { ...GEN_REQUIRED, title: 'T', outputMediaType: 'application/pdf' },
       vi.fn(),
       LOGGER,
     );
@@ -551,7 +552,7 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
 
     const r = await processGenerationJob(
       makeInferenceClient(),
-      { title: 'T', outputMediaType: 'application/pdf' },
+      { ...GEN_REQUIRED, title: 'T', outputMediaType: 'application/pdf' },
       vi.fn(),
       LOGGER,
     );
@@ -571,7 +572,7 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
     vi.mocked(compileTypst).mockReturnValue({ error: 'error: unclosed delimiter' });
 
     await expect(
-      processGenerationJob(makeInferenceClient(), { title: 'T', outputMediaType: 'application/pdf' }, vi.fn(), LOGGER),
+      processGenerationJob(makeInferenceClient(), { ...GEN_REQUIRED, title: 'T', outputMediaType: 'application/pdf' }, vi.fn(), LOGGER),
     ).rejects.toThrow(/unclosed delimiter/);
 
     // 1 initial + MAX_COMPILE_REPAIRS attempts, then fail — no unbounded loop.
@@ -598,7 +599,7 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
 
     const r = await processGenerationJob(
       makeInferenceClient(),
-      { title: 'T', outputMediaType: 'application/pdf', cite: true, context: CITE_PDF_CONTEXT },
+      { ...GEN_REQUIRED, title: 'T', outputMediaType: 'application/pdf', cite: true, context: CITE_PDF_CONTEXT },
       vi.fn(),
       LOGGER,
     );
@@ -633,19 +634,19 @@ describe('processGenerationJob — outputMediaType', () => {
   });
 
   it('defaults the generated resource format to text/markdown', async () => {
-    const r = await processGenerationJob(makeInferenceClient(), { title: 'T' }, vi.fn(), LOGGER);
+    const r = await processGenerationJob(makeInferenceClient(), { ...GEN_REQUIRED, title: 'T' }, vi.fn(), LOGGER);
     expect(r.format).toBe('text/markdown');
   });
 
   it('honors a requested text/plain outputMediaType', async () => {
-    const r = await processGenerationJob(makeInferenceClient(), { title: 'T', outputMediaType: 'text/plain' }, vi.fn(), LOGGER);
+    const r = await processGenerationJob(makeInferenceClient(), { ...GEN_REQUIRED, title: 'T', outputMediaType: 'text/plain' }, vi.fn(), LOGGER);
     expect(r.format).toBe('text/plain');
   });
 
   it('throws for an unsupported outputMediaType — before the LLM call, no silent fallback', async () => {
     vi.mocked(generateResourceFromTopic).mockClear();
     await expect(
-      processGenerationJob(makeInferenceClient(), { title: 'T', outputMediaType: 'image/png' }, vi.fn(), LOGGER),
+      processGenerationJob(makeInferenceClient(), { ...GEN_REQUIRED, title: 'T', outputMediaType: 'image/png' }, vi.fn(), LOGGER),
     ).rejects.toThrow(/unsupported outputMediaType/i);
     expect(generateResourceFromTopic).not.toHaveBeenCalled();
   });
@@ -963,6 +964,7 @@ describe('locale threading', () => {
       await processGenerationJob(
         client,
         {
+          ...GEN_REQUIRED,
           referenceId: annotationId('ann-1'),
           title: 'Topic',
           entityTypes: [],
@@ -975,8 +977,11 @@ describe('locale threading', () => {
 
       // Positional signature: topic, entityTypes, client, logger, prompt, locale,
       // context, temperature, maxTokens, sourceLanguage, outputMediaType, task, structure, cite.
+      // Context is no longer optional on the wire (GenerationJobParams
+      // required trio) — the fixture context threads through where the
+      // all-optional era pinned `undefined`.
       expect(generateResourceFromTopic).toHaveBeenCalledWith(
-        'Topic', [], client, LOGGER, undefined, 'de', undefined,
+        'Topic', [], client, LOGGER, undefined, 'de', GEN_REQUIRED.context,
         undefined, undefined, 'fr', 'text/markdown', undefined, undefined, undefined,
       );
     });

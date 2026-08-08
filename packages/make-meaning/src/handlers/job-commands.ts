@@ -68,7 +68,7 @@ export function registerJobCommandHandlers(
       // vocabulary. Applies to every jobType that surfaces
       // `entityTypes` in `params`:
       //  - `reference-annotation` (mark.assist linking)
-      //  - `generation` (yield.fromAnnotation)
+      //  - `generation` (yield.fromContext)
       // The validator returns `{ ok: true }` for the no-tags-supplied
       // case, so the projection read only happens when there's
       // something to validate.

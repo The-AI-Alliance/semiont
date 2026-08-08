@@ -156,7 +156,7 @@ export * from './state';
 
 // RxJS bridges — re-exported so consumers can unwrap our Observables to
 // Promises without a separate `import { firstValueFrom } from 'rxjs'`.
-// `mark.assist`, `gather.annotation`, `match.search`, `yield.fromAnnotation`
+// `mark.assist`, `gather.annotation`, `match.search`, `yield.fromContext`
 // all return Observables that consumers typically `lastValueFrom` to await
 // the final value, or `firstValueFrom` to grab the first non-undefined emit.
 export { firstValueFrom, lastValueFrom } from 'rxjs';

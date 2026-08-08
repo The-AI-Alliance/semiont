@@ -19,7 +19,7 @@ The result: a script that just wants to read a resource never imports anything f
 Everything reactive in the SDK is an RxJS Observable:
 
 - **Live queries** (`browse.resource`, `browse.resources`, `browse.annotations`, etc.) — values that re-emit when bus events fire (including events from other participants).
-- **Bounded streams** (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromAnnotation`, `yield.resource`) — progress events plus a final result.
+- **Bounded streams** (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromContext`, `yield.resource`) — progress events plus a final result.
 - **Collaboration signals on the bus** — `mark.changeShape`, `beckon.hover`, `bind.initiate`, `browse.click`, etc. emit; participants observe via `client.bus.get(channel)` or `session.subscribe(channel, handler)`. Fire-and-forget at the call site, fan-out across participants on the bus.
 - **Lifecycle state** (`client.transport.state$`, `client.transport.errors$`, `session.token$`, `session.user$`, `session.errors$`) — synchronous-snapshot `BehaviorSubject`s and the transport's error stream.
 - **Bus subscriptions** (`session.subscribe(channel, handler)`, `client.bus.get(channel)`) — raw fan-out of typed events; the channel-by-name escape hatch when no namespace method covers the case.
@@ -156,7 +156,7 @@ const done = await semiont.mark.assist(rId, 'linking', {}).run((event) => {
 - `mark.assist`
 - `gather.annotation`
 - `match.search`
-- `yield.fromAnnotation`
+- `yield.fromContext`
 - `admin.restore`, `admin.importKnowledgeBase` — SSE-driven progress streams for backup-restore and knowledge-base import.
 
 **`UploadObservable`** (special-case bounded stream for binary upload; `then` resolves to `{ resourceId }`):

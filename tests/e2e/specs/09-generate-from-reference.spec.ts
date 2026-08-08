@@ -17,7 +17,7 @@ import { openResourceByName } from '../fixtures/discover';
  *     → wizard transitions to `configure-generation`
  *     → user submits
  *     → ResourceViewerPage `handleWizardGenerateSubmit`
- *     → `client.yield.fromAnnotation(resourceId, annotationId, options)`
+ *     → `client.yield.fromContext(context, options)` (ids derived from the focus)
  *     → bus `job:create` (with jobType="generation")
  *     → bus `job:created` (jobId)
  *     → worker claims job, calls inference, uploads result via

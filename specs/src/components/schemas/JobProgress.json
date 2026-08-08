@@ -7,7 +7,7 @@
     "message": { "type": "string", "description": "Human-readable progress message" },
     "annotationId": {
       "type": "string",
-      "description": "Annotation this job is attached to, when applicable. Echoed inside JobProgress (in addition to the outer command envelope) so consumers that only see the inner progress object (e.g. client.yield.fromAnnotation's Observable) can still route visual feedback to a specific annotation."
+      "description": "Annotation this job is attached to, when applicable. Echoed inside JobProgress (in addition to the outer command envelope) so consumers that only see the inner progress object (e.g. client.yield.fromContext's Observable) can still route visual feedback to a specific annotation."
     },
     "totalEntityTypes": { "type": "integer", "description": "Total entity types to process (reference-annotation)" },
     "processedEntityTypes": { "type": "integer", "description": "Entity types processed so far (reference-annotation)" },

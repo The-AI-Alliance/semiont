@@ -279,7 +279,7 @@ semiont.browse.resourceContent(id);  // Promise<string> (one-shot)
 // mark / yield / frame / bind / gather / match — writes and long-running operations
 semiont.mark.annotation(input);      // Promise<{ annotationId }>
 semiont.mark.delete(rId, aId);       // Promise<void>
-semiont.yield.fromAnnotation(...);   // StreamObservable<YieldGenerationEvent>
+semiont.yield.fromContext(...);      // StreamObservable<YieldGenerationEvent>
 semiont.frame.addEntityType(type);   // Promise<void>
 ```
 

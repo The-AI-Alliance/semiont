@@ -76,7 +76,7 @@ export function createResourceViewerPageStateUnit(
   const mark = createMarkStateUnit(client, resourceId);
   const gather = createGatherStateUnit(client, resourceId);
   const matchStateUnit = createMatchStateUnit(client, resourceId);
-  const yieldStateUnit = createYieldStateUnit(client, resourceId, locale);
+  const yieldStateUnit = createYieldStateUnit(client, locale);
 
   disposer.add(beckon);
   // `browse` (ShellStateUnit) is a *passed-in* dependency — owned by `useShellStateUnit`,

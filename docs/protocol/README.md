@@ -17,7 +17,7 @@ Every operation belongs to one of eight composable flows — *browse, bind, yiel
 - **[Browse](flows/BROWSE.md)** — navigate resources, panels, and views.
 - **[Bind](flows/BIND.md)** — resolve an ambiguous reference to a specific target: the act of making a mention of "Paris" point at the right Paris.
 
-**Yield and Mark are where delegation enters.** Each has a hand form and a delegated form that produce the same events — `yield.resource` uploads a document while `yield.fromResource` generates one; `mark.annotation` records a highlight you made while `mark.assist` runs AI detection across a resource. Same verb, same result shape, different author. This is where a collaborator — human or agent — takes work off your hands.
+**Yield and Mark are where delegation enters.** Each has a hand form and a delegated form that produce the same events — `yield.resource` uploads a document while `yield.fromContext` generates one from gathered context; `mark.annotation` records a highlight you made while `mark.assist` runs AI detection across a resource. Same verb, same result shape, different author. This is where a collaborator — human or agent — takes work off your hands.
 
 - **[Yield](flows/YIELD.md)** — introduce resources: upload documents, load pages, or generate new content from existing material.
 - **[Mark](flows/MARK.md)** — annotate: highlights, assessments, comments, tags, and entity references, by hand or by detection.

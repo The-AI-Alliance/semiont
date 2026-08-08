@@ -99,7 +99,7 @@ export function validateEntityTypes(
  * Format the standard error message for an entity-type validation
  * failure. Kept here so the dispatcher and any future caller agree on
  * the wire format — same `Entity type not registered: <comma-list>`
- * shape that `mark.assist` and `yield.fromAnnotation` callers handle.
+ * shape that `mark.assist` and `yield.fromContext` callers handle.
  */
 export function entityTypesNotRegisteredMessage(unknown: readonly string[]): string {
   return `Entity type not registered: ${unknown.join(', ')}`;
