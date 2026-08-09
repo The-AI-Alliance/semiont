@@ -108,12 +108,36 @@ adapter.activeJob$.subscribe((job) => {
 adapter.start();
 ```
 
-Inside `handleJob`, emit lifecycle events on the same transport, do the work, then complete or fail:
+First, one derivation for the anchoring annotation. Your own job types define
+their own params, so define this for the types you claim — and note that
+Semiont's built-in `generation` jobs deliberately carry no `referenceId`: the
+gathered context's `focus` is authoritative, and the `job:create` dispatcher
+rejects a params bag that tries to say otherwise.
+
+```typescript
+function anchorOf(job: ActiveJob): string | undefined {
+  if (job.type === 'generation') {
+    const focus = (job.params.context as { focus?: {
+      kind?: string;
+      annotation?: { id?: string };
+    } } | undefined)?.focus;
+    return focus?.kind === 'annotation' ? focus.annotation?.id : undefined;
+  }
+  // Your own job types: read whatever field you defined.
+  return typeof job.params.referenceId === 'string' ? job.params.referenceId : undefined;
+}
+```
+
+Then, inside `handleJob`, emit lifecycle events on the same transport, do the work, then complete or fail:
 
 ```typescript
 async function handleJob(job: ActiveJob): Promise<void> {
   const { jobId, type, resourceId, userId } = job;
-  const annotationId = (job.params as { referenceId?: string }).referenceId;
+  // Annotation-scoped jobs carry the anchoring annotation through every
+  // lifecycle payload. WHERE that id lives is per-jobType, so derive it once
+  // rather than reaching into params at each emit. Semiont's own `generation`
+  // jobs carry NO referenceId — their anchor is the gathered context's focus.
+  const annotationId = anchorOf(job);
   const lifecycleBase = {
     resourceId, userId, jobId, jobType: type,
     ...(annotationId ? { annotationId } : {}),

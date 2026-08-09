@@ -199,12 +199,12 @@ function handleJob(job: AnyJob) {
 ```typescript
 function isRunningGenerationJob(
   job: AnyJob
-): job is RunningJob<GenerationParams, YieldProgress> {
+): job is RunningJob<GenerationJobParams, YieldProgress> {
   return job.status === 'running' && job.metadata.type === 'generation';
 }
 
 if (isRunningGenerationJob(job)) {
-  console.log(job.params.title);      // GenerationParams
+  console.log(job.params.title);      // GenerationJobParams
   console.log(job.progress.stage);    // YieldProgress
 }
 ```

@@ -2176,7 +2176,7 @@ type GatheredContext_Focus struct {
 	union json.RawMessage
 }
 
-// GenerationJobParams Params bag for `job:create` with `jobType: 'generation'` — the ONE shape both ends of the wire share: the sdk composes it (yield.fromContext) and the generation worker narrows to it. Carried inside JobCreateCommand.params (which stays open because params vary by jobType); this schema is the generation shape's contract, including its requiredness.
+// GenerationJobParams Params bag for `job:create` with `jobType: 'generation'` — exactly the shape yield.fromContext(context, options) takes: options + the gathered context. The job's ids are DERIVED from context.focus at the dispatcher (resource focus → focus.resource; annotation focus → focus.sourceResource, with the worker auto-binding to focus.annotation); a caller-supplied referenceId is rejected. Carried inside JobCreateCommand.params; this schema is the generation shape's contract, including its requiredness.
 type GenerationJobParams struct {
 	// Cite Ask the model to cite: emit [[<id>]] transport tokens after each claim, using the ids the context embedding provides. The worker validates each id against the embedded context (unknown ids are dropped loudly), strips the tokens from the stored content, and mints W3C linking annotations on the derived resource.
 	Cite *bool `json:"cite,omitempty"`
@@ -2198,9 +2198,6 @@ type GenerationJobParams struct {
 
 	// Prompt Refining instruction, composed with `task` (task = what, prompt = how).
 	Prompt *string `json:"prompt,omitempty"`
-
-	// ReferenceId The unresolved reference an annotation-focus generation was triggered from. Absent for resource-focus generation. When present, the worker auto-binds the new resource to it; when absent, provenance is a minted source→derived reference annotation.
-	ReferenceId *string `json:"referenceId,omitempty"`
 
 	// SourceLanguage Source-resource locale — language of the resource being referenced, used in the prompt so the LLM understands embedded source-context snippets when source ≠ target language. BCP-47.
 	SourceLanguage *string `json:"sourceLanguage,omitempty"`
@@ -2399,9 +2396,11 @@ type JobCreateCommand struct {
 	CorrelationId    string  `json:"correlationId"`
 
 	// JobType Type of background job
-	JobType    JobType                `json:"jobType"`
-	Params     map[string]interface{} `json:"params"`
-	ResourceId string                 `json:"resourceId"`
+	JobType JobType                `json:"jobType"`
+	Params  map[string]interface{} `json:"params"`
+
+	// ResourceId Resource the job operates on. REQUIRED for every jobType EXCEPT 'generation', where it must be ABSENT: the dispatcher derives it from params.context.focus (the context is authoritative) and REJECTS a supplied value via job:create-failed. Both directions are enforced at the dispatcher — this schema cannot express the per-jobType conditionality.
+	ResourceId *string `json:"resourceId,omitempty"`
 }
 
 // JobCreatedResult Result of a job:create command

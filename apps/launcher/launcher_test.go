@@ -6288,15 +6288,25 @@ func TestYieldDelegateFollowsJobToCompletion(t *testing.T) {
 	b := lastEmit(t, s)
 	// The job carries the gathered context and the generation params.
 	mustContain(t, "job:create emit", b,
-		`"channel":"job:create"`, `"jobType":"generation"`, `"resourceId":"res-src"`,
+		`"channel":"job:create"`, `"jobType":"generation"`,
 		`"storageUri":"file://generated/out.md"`, `"title":"Derived"`, `"task":"summary"`, `"context"`)
+	// For jobType generation the dispatcher derives resourceId from
+	// params.context.focus and REJECTS a caller-supplied one; referenceId left
+	// the params schema entirely. Sending either is now an error, so assert
+	// their ABSENCE — a payload that still carries them would be refused by a
+	// real backend while this fake accepted it.
+	for _, gone := range []string{`"resourceId"`, `"referenceId"`} {
+		if strings.Contains(b, gone) {
+			t.Errorf("job:create still carries %s; the context's focus is authoritative now:\n%s", gone, b)
+		}
+	}
 }
 
 func TestYieldDelegateReportsJobFailure(t *testing.T) {
 	s := busScenario(t,
 		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
 		"FAKERT_JOB_FAIL=model refused")
-	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md")
+	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived")
 	if code == 0 {
 		t.Fatalf("a failed job must fail the command\nstdout:\n%s", stdout)
 	}
@@ -6316,7 +6326,7 @@ func TestYieldDelegateReportsADecline(t *testing.T) {
 	s := busScenario(t,
 		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
 		`FAKERT_JOB_RESULT={"declined":true,"reason":"encrypted","message":"the PDF is password-protected"}`)
-	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md")
+	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived")
 	if code == 0 {
 		t.Fatalf("a declined job produced nothing; exit 0 tells a script to carry on\nstdout:\n%s", stdout)
 	}
@@ -6337,7 +6347,7 @@ func TestYieldDelegateDeclineFailsUnderJSON(t *testing.T) {
 	s := busScenario(t,
 		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
 		`FAKERT_JOB_RESULT={"declined":true,"reason":"no-text-layer","message":"scanned pages, no recognizable text"}`)
-	stdout, _, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--json")
+	stdout, _, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived", "--json")
 	if code == 0 {
 		t.Fatalf("--json must not turn a decline into a success\nstdout:\n%s", stdout)
 	}
@@ -6349,11 +6359,23 @@ func TestYieldDelegateDeclineFailsUnderJSON(t *testing.T) {
 // passes the decline test above and nothing else notices.
 func TestYieldDelegateJSONSucceedsOnAGeneration(t *testing.T) {
 	s := busScenario(t, `FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`)
-	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--json")
+	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived", "--json")
 	if code != 0 {
 		t.Fatalf("a completed generation under --json must exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "raw payload", stdout, `"resourceId":"res-new"`)
+}
+
+// title joined storageUri as required when GenerationJobParams gained it
+// (generation-wire-context P1). Refused HERE rather than letting the backend
+// reject the job: the caller has already paid for a gather by then.
+func TestYieldDelegateNeedsTitle(t *testing.T) {
+	s := busScenario(t)
+	_, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md")
+	if code == 0 {
+		t.Fatal("--delegate without --title must refuse")
+	}
+	mustContain(t, "refusal", stderr, "--title")
 }
 
 func TestYieldDelegateNeedsStorageUri(t *testing.T) {

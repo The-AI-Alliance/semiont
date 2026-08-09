@@ -104,8 +104,8 @@ export class YieldNamespace implements IYieldNamespace {
    *   `focus.resource`; on completion the worker mints a navigable
    *   source→derived reference annotation (provenance).
    * - `annotation` focus (from `gather.annotation`) — the job scopes to
-   *   `focus.sourceResource` and carries `focus.annotation.id` as
-   *   `referenceId`; the worker auto-binds the new resource to it.
+   *   `focus.sourceResource`, and the worker auto-binds the new resource to
+   *   `focus.annotation` (derived server-side; nothing rides the wire twice).
    *
    * A context without a usable focus throws synchronously — the runtime half
    * of the schema's `required: focus` for values whose type history was
@@ -118,25 +118,26 @@ export class YieldNamespace implements IYieldNamespace {
     context: GatheredContext,
     options: GenerationOptions,
   ): StreamObservable<YieldGenerationEvent> {
+    // The wire carries NO ids for generation (GENERATION-WIRE-CONTEXT D1) —
+    // the dispatcher derives them from the context's focus and rejects a
+    // caller-supplied value. The rid derived here is CLIENT-side only, for the
+    // poll-fallback's synthesized complete event (D4: JobStatusResponse has no
+    // resourceId). The guard stays: fail fast locally with the same message
+    // the dispatcher would send.
     const focus = context?.focus;
-    if (focus?.kind === 'resource' && typeof focus.resource?.['@id'] === 'string') {
-      return this.runGeneration(toResourceId(focus.resource['@id']), { ...options, context });
+    const displayRid =
+      focus?.kind === 'resource' && typeof focus.resource?.['@id'] === 'string'
+        ? focus.resource['@id']
+        : focus?.kind === 'annotation' && typeof focus.sourceResource?.['@id'] === 'string'
+          ? focus.sourceResource['@id']
+          : undefined;
+    if (displayRid === undefined) {
+      throw new Error(
+        'yield.fromContext: context has no usable focus — pass a GatheredContext '
+        + 'produced by gather.resource(...) or gather.annotation(...).',
+      );
     }
-    if (
-      focus?.kind === 'annotation'
-      && typeof focus.sourceResource?.['@id'] === 'string'
-      && typeof focus.annotation?.id === 'string'
-    ) {
-      return this.runGeneration(toResourceId(focus.sourceResource['@id']), {
-        ...options,
-        context,
-        referenceId: focus.annotation.id,
-      });
-    }
-    throw new Error(
-      'yield.fromContext: context has no usable focus — pass a GatheredContext '
-      + 'produced by gather.resource(...) or gather.annotation(...).',
-    );
+    return this.runGeneration(toResourceId(displayRid), { ...options, context });
   }
 
   /**
@@ -148,6 +149,8 @@ export class YieldNamespace implements IYieldNamespace {
    * `job:status` fallback) as `YieldGenerationEvent`s, resolving on the
    * terminal `complete`.
    */
+  /** `resourceId` is CLIENT-side display only (the poll-synthesized complete
+   *  event, D4) — it is deliberately NOT sent on the wire. */
   private runGeneration(
     resourceId: ResourceId,
     params: GenerationJobParams,
@@ -245,7 +248,6 @@ export class YieldNamespace implements IYieldNamespace {
         'job:create',
         {
           jobType: 'generation',
-          resourceId,
           params,
         },
       ).then(({ jobId }) => {

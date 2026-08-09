@@ -135,8 +135,9 @@ client.yield.fromContext(context, {
 User clicks "Generate" on reference annotation ❓
     ↓
 Frontend → client.yield.fromContext(...) emits job:create via /bus/emit
-           (the job's resourceId — and referenceId, for annotation-focus
-           contexts — are DERIVED from the context's focus)
+           (no ids on the wire — the dispatcher DERIVES the job's resourceId,
+           and the reference to auto-bind, from params.context.focus, and
+           REJECTS a caller-supplied id via job:create-failed)
     ↓
 Backend job:create handler builds a PendingJob, persists to queue, returns job:created
     ↓
@@ -167,14 +168,45 @@ Generation has no dedicated REST endpoint — it runs as a bus job. The SDK's `y
 
 **Dispatch**: [packages/sdk/src/namespaces/yield.ts](../../../packages/sdk/src/namespaces/yield.ts) → `job:create`, handled by [job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts)
 
-**Generation params** — the SDK's `yield` namespace maps `GenerationOptions`
-([packages/sdk/src/namespaces/types.ts](../../../packages/sdk/src/namespaces/types.ts)) into the `job:create` event's
-`params`, alongside the top-level `jobType: 'generation'` and the source
-`resourceId`:
+**The envelope carries no ids.** For `jobType: 'generation'` the context *is*
+the wire contract — it already names its anchor, so the ids are not sent
+beside it:
+
 ```typescript
 {
-  referenceId: string;        // annotation-focus only — the annotation being resolved
-                              // (derived from context.focus.annotation.id)
+  correlationId: string;
+  jobType: 'generation';
+  params: GenerationJobParams;   // options + context — no resourceId, no referenceId
+}
+```
+
+The dispatcher ([job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts)) derives what it needs from
+`params.context.focus` and **rejects**, via `job:create-failed`, anything that
+would let a caller disagree with it:
+
+| focus | job scopes to | reference resolution |
+|---|---|---|
+| `resource` | `focus.resource['@id']` | none — the worker mints a source→derived provenance reference |
+| `annotation` | `focus.sourceResource['@id']` | the worker auto-binds to `focus.annotation.id` |
+
+Rejected at creation: a top-level `resourceId` or a `params.referenceId`
+(*"the context's focus is authoritative"*); params missing the required trio
+`title` / `storageUri` / `context`; and a context with no usable focus — whose
+message names `gather.resource(...)` / `gather.annotation(...)` as the
+sanctioned producers. Rejection rather than silent ignoring is deliberate: a
+raw emitter must not believe its ids mattered.
+
+This is **generation-only**. Every other jobType still carries a
+caller-supplied envelope `resourceId`, and still requires it — that check now
+runs at the dispatcher too, because the schema cannot express a per-jobType
+conditional.
+
+**Generation params** (`GenerationJobParams`) — the SDK's `yield` namespace
+spreads `GenerationOptions`
+([packages/sdk/src/namespaces/types.ts](../../../packages/sdk/src/namespaces/types.ts)) into the params bag alongside the
+gathered context:
+```typescript
+{
   title: string;              // Title of the synthesized resource; also the LLM topic
   storageUri: string;         // Where the generated content is written (file://…)
   context: GatheredContext;   // Correlated context from the Gather flow (grounds the prompt)
@@ -217,7 +249,8 @@ their own canonical sets if/when their generators exist. Length knobs
 imply structure.
 
 **Dispatch responsibilities** (SDK `yield` namespace + [job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts)):
-1. Validate params and authentication
+1. Authenticate, then validate params — including the focus derivation and the
+   rejections above
 2. Create a generation job and submit it to the queue (`job:create` → `job:created`)
 3. Surface progress to the client over SSE via the unified job channels
 
@@ -402,13 +435,18 @@ persists. A second event — the reference auto-bind — is then emitted by the
 In [packages/jobs/src/worker-process.ts](../../../packages/jobs/src/worker-process.ts) the worker calls (content over HTTP,
 not the bus; `sourceAnnotationId` is what later drives the auto-bind):
 ```typescript
+// One derivation, shared by every jobType: for generation, referenceIdOf()
+// reads focus.annotation.id (annotation focus) or returns undefined (resource
+// focus); other jobTypes pass their own params.referenceId through.
+const genReferenceId = referenceIdOf(job);
+
 const { resourceId: newResourceId } = await session.client.yield.resource({
   name: genResult.title,
   file: Buffer.from(genResult.content),
   format: genResult.format,          // requested output media type; defaults to text/markdown
   storageUri,
   sourceResourceId,
-  sourceAnnotationId: referenceId,   // annotation-focus only — omitted for resource focus
+  ...(genReferenceId ? { sourceAnnotationId: genReferenceId } : {}),
   generationPrompt, language, entityTypes, generator,
 });
 ```

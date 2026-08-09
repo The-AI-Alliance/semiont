@@ -154,6 +154,10 @@ func Yield(args []string) int {
 			u.fail("--delegate needs --storage-uri (the generated resource must be given a home).")
 			return 1
 		}
+		if dopts.title == "" {
+			u.fail("--delegate needs --title: GenerationJobParams requires it, so the backend rejects a job without one.")
+			return 1
+		}
 		t, ok := verbSession(u, "yield", repo, wantLocal)
 		if !ok {
 			return 1
@@ -343,7 +347,7 @@ or anchored to one annotation.
 
 Options:
   --storage-uri <uri>  Where the generated resource is written (required)
-  --title <text>       Title for the generated resource
+  --title <text>       Title for the generated resource (required)
   --prompt <text>      Instruction guiding the generation
   --language <tag>     BCP-47 language for the generated content
   --task <t>           Framing: resource | answer | summary (or free text)
@@ -401,23 +405,28 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 	}
 	defer sub.Close()
 
-	params := map[string]any{"storageUri": opts.storageURI, "context": gathered}
+	// GenerationJobParams requires title, storageUri and context; the rest are
+	// optional and omitted when empty.
+	params := map[string]any{"title": opts.title, "storageUri": opts.storageURI, "context": gathered}
 	for k, v := range map[string]string{
-		"title": opts.title, "prompt": opts.prompt, "language": opts.language,
+		"prompt": opts.prompt, "language": opts.language,
 		"task": opts.task, "structure": opts.structure,
 	} {
 		if v != "" {
 			params[k] = v
 		}
 	}
-	if len(positional) == 2 {
-		params["referenceId"] = positional[1]
-	}
 
+	// The CONTEXT carries the ids now. For jobType generation the dispatcher
+	// derives resourceId from params.context.focus and rejects a caller-supplied
+	// one; referenceId left the params schema entirely and the worker derives it
+	// the same way. So the envelope's ResourceId stays nil here — sending what we
+	// know would be rejected, and the focus is authoritative anyway. The gather
+	// above is what puts the right focus in the context: annotation-focused with
+	// two positionals, resource-focused with one.
 	created, err := cli.Request(ctx, "job:create", semiont.JobCreateCommand{
-		JobType:    semiont.JobType("generation"),
-		ResourceId: resourceID,
-		Params:     params,
+		JobType: semiont.JobType("generation"),
+		Params:  params,
 	}, nil)
 	if err != nil {
 		return busFail(u, "yield --delegate", err)

@@ -91,7 +91,7 @@ const job: PendingJob<DetectionParams> = {
     userDomain: 'example.com',
     created: new Date().toISOString(),
     retryCount: 0,
-    maxRetries: 3,
+    maxRetries: 1,   // detection re-scans the same content — one self-heal retry
   },
   params: {
     resourceId: resourceId('doc-456'),
@@ -105,25 +105,25 @@ const job: PendingJob<DetectionParams> = {
 
 AI content generation — creates new resources from source material and prompts.
 
-**Parameters:**
+**Parameters:** `GenerationJobParams`, generated from the OpenAPI spec into
+`@semiont/core` — one type shared by the SDK's `yield.fromContext(context,
+options)` surface and this worker, so the params bag is exactly *options + the
+gathered context*.
 
 ```typescript
-interface GenerationParams {
-  referenceId?: AnnotationId;       // Annotation-focus only (derived from the context's focus) — the
-                                    // unresolved reference; the worker auto-binds the new
-                                    // resource to it. Absent for resource-focus generation
-                                    // (resource-focus contexts): provenance is a minted
-                                    // source→derived reference instead
+interface GenerationJobParams {
+  title: string;                    // Required — title of the generated resource;
+                                    // also the LLM topic
+  storageUri: string;               // Required
+  context: GatheredContext;         // Required — grounds the prompt, and NAMES THE
+                                    // ANCHOR (see "Ids come from the focus" below)
   prompt?: string;                  // Freeform refinement — rendered as an authoritative
                                     // "Instruction:" line under the task framing
-  title?: string;
   entityTypes?: EntityType[];
   language?: string;                // Generated-content locale, e.g., 'en-US'
   sourceLanguage?: string;          // Source resource locale (BCP-47)
-  context?: GatheredContext;
   temperature?: number;
   maxTokens?: number;               // Length only — never implies structure
-  storageUri?: string;
   outputMediaType?: SupportedMediaType; // Default text/markdown; only text/markdown |
                                     // text/plain are produced — anything else fails the job
   task?: 'resource' | 'answer' | 'summary' | (string & {});
@@ -139,6 +139,22 @@ interface GenerationParams {
                                     // embedded context ids). Off ⇒ resolver never runs
 }
 ```
+
+**Ids come from the focus.** Generation params carry no `referenceId`, and the
+`job:create` envelope carries no `resourceId` — the context already names its
+anchor, so sending the ids beside it would encode the same fact twice and let
+the two disagree. The dispatcher derives the job's `resourceId` from
+`context.focus` (resource focus → `focus.resource`; annotation focus →
+`focus.sourceResource`) and rejects a caller-supplied id outright. In the
+worker, `referenceIdOf(job)` is the one derivation:
+
+| `context.focus.kind` | `referenceIdOf(job)` | what the worker does |
+|---|---|---|
+| `annotation` | `focus.annotation.id` | uploads with `sourceAnnotationId` — the Stower auto-binds the triggering reference |
+| `resource` | `undefined` | mints a source→derived provenance reference instead |
+
+The same helper serves every other jobType by passing their own
+`params.referenceId` through — detection echoes still carry one.
 
 **Progress:**
 
@@ -164,9 +180,10 @@ interface GenerationResult {
 **Example:**
 
 ```typescript
-import type { PendingJob, GenerationParams } from '@semiont/jobs';
+import type { PendingJob } from '@semiont/jobs';
+import type { GenerationJobParams } from '@semiont/core';
 
-const job: PendingJob<GenerationParams> = {
+const job: PendingJob<GenerationJobParams> = {
   status: 'pending',
   metadata: {
     id: jobId('job-789'),
@@ -177,14 +194,26 @@ const job: PendingJob<GenerationParams> = {
     userDomain: 'example.com',
     created: new Date().toISOString(),
     retryCount: 0,
-    maxRetries: 3,
+    // Generation is non-idempotent — a retry re-rolls the LLM and produces
+    // different content, not a replay — so the dispatcher sets 0 here.
+    // Detection jobs re-scan the same content and keep one self-heal retry.
+    maxRetries: 0,
   },
   params: {
-    referenceId: annotationId('ref-123'),
-    sourceResourceId: resourceId('doc-456'),
-    sourceResourceName: 'Source Document',
-    annotation: { /* W3C Annotation */ },
     title: 'Article about Quantum Computing',
+    storageUri: 'file://generated/quantum-computing.md',
+    // The context carries the anchor. This one is annotation-focus, so the
+    // worker auto-binds the new resource to focus.annotation — no referenceId
+    // field, and no resourceId on the envelope that created this job.
+    context: {
+      focus: {
+        kind: 'annotation',
+        annotation: { /* W3C Annotation — its `id` is the auto-bind target */ },
+        sourceResource: { '@id': 'doc-456' /* … */ },
+      },
+      graph: { /* … */ },
+      metadata: { /* … */ },
+    },
     prompt: 'Write a comprehensive overview',
     language: 'en-US',
   },
@@ -399,7 +428,7 @@ const job: PendingJob<TagDetectionParams> = {
 
 ```typescript
 type DetectionJob = Job<DetectionParams, DetectionProgress, DetectionResult>;
-type GenerationJob = Job<GenerationParams, YieldProgress, GenerationResult>;
+type GenerationJob = Job<GenerationJobParams, YieldProgress, GenerationResult>;
 type HighlightDetectionJob = Job<HighlightDetectionParams, HighlightDetectionProgress, HighlightDetectionResult>;
 type AssessmentDetectionJob = Job<AssessmentDetectionParams, AssessmentDetectionProgress, AssessmentDetectionResult>;
 type CommentDetectionJob = Job<CommentDetectionParams, CommentDetectionProgress, CommentDetectionResult>;
@@ -430,12 +459,12 @@ function processJob(job: AnyJob) {
 ```typescript
 function isRunningGenerationJob(
   job: AnyJob
-): job is RunningJob<GenerationParams, YieldProgress> {
+): job is RunningJob<GenerationJobParams, YieldProgress> {
   return job.status === 'running' && job.metadata.type === 'generation';
 }
 
 if (isRunningGenerationJob(job)) {
-  console.log(job.params.title);     // GenerationParams
+  console.log(job.params.title);     // GenerationJobParams
   console.log(job.progress.stage);   // YieldProgress
 }
 ```

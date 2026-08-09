@@ -226,8 +226,7 @@ describe('registerJobCommandHandlers — tag-annotation dispatcher', () => {
     eventBus.get('job:create').next({
       correlationId: 'cid-4',
       jobType: 'generation',
-      resourceId: 'rid-test',
-      params: { title: 'Test' },
+      params: { ...GEN_PARAMS, context: genContext('resource') },
       _userId: TEST_USER_DID,
     } as never);
 
@@ -243,8 +242,8 @@ describe('registerJobCommandHandlers — tag-annotation dispatcher', () => {
     const gen$ = (eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>)
       .pipe(filter((e) => e.correlationId === 'cid-retry-gen'), take(1));
     eventBus.get('job:create').next({
-      correlationId: 'cid-retry-gen', jobType: 'generation', resourceId: 'rid-test',
-      params: { title: 'T' }, _userId: TEST_USER_DID,
+      correlationId: 'cid-retry-gen', jobType: 'generation',
+      params: { ...GEN_PARAMS, context: genContext('resource') }, _userId: TEST_USER_DID,
     } as never);
     await firstValueFrom(race(gen$, timer(2_000)));
     const genJob = jobQueue.createJob.mock.calls.at(-1)![0] as { metadata: { maxRetries: number } };
@@ -359,8 +358,7 @@ describe('registerJobCommandHandlers — entity-type validation', () => {
     eventBus.get('job:create').next({
       correlationId: 'cid-gen-ok',
       jobType: 'generation',
-      resourceId: 'rid-test',
-      params: { title: 'X', entityTypes: ['Character', 'Hero'] },
+      params: { ...GEN_PARAMS, context: genContext('resource'), entityTypes: ['Character', 'Hero'] },
       _userId: TEST_USER_DID,
     } as never);
 
@@ -381,8 +379,7 @@ describe('registerJobCommandHandlers — entity-type validation', () => {
     eventBus.get('job:create').next({
       correlationId: 'cid-gen-bad',
       jobType: 'generation',
-      resourceId: 'rid-test',
-      params: { title: 'X', entityTypes: ['Character', 'UnknownThing'] },
+      params: { ...GEN_PARAMS, context: genContext('resource'), entityTypes: ['Character', 'UnknownThing'] },
       _userId: TEST_USER_DID,
     } as never);
 
@@ -636,3 +633,151 @@ describe('registerJobCommandHandlers — lifecycle integration (real FsJobQueue)
     expect(announced.map((e) => e.jobId)).toContain(jobId('job-int-fail'));
   });
 });
+
+// ─── GENERATION-WIRE-CONTEXT P1: context is the wire truth for generation ───
+//
+// The dispatcher DERIVES the job's resourceId from params.context.focus and
+// REJECTS (job:create-failed) caller-supplied ids or an unusable focus. The
+// envelope's resourceId stays required for every OTHER jobType — the check
+// moved from the schema's `required` array to here; it did not weaken.
+
+function genContext(kind: 'resource' | 'annotation'): Record<string, unknown> {
+  const sourceResource = {
+    '@context': 'https://semiont.dev/context/v1',
+    '@id': 'res-src',
+    name: 'Source',
+    representations: [],
+  };
+  return {
+    focus: kind === 'resource'
+      ? { kind, resource: sourceResource }
+      : {
+          kind,
+          annotation: {
+            '@context': 'http://www.w3.org/ns/anno.jsonld',
+            type: 'Annotation',
+            id: 'ann-src',
+            motivation: 'linking',
+            target: { source: 'res-src' },
+          },
+          sourceResource,
+        },
+    graph: { nodes: [], edges: [] },
+    metadata: {},
+  };
+}
+
+const GEN_PARAMS = {
+  title: 'Answer',
+  storageUri: 'file://generated/answer.md',
+};
+
+describe('registerJobCommandHandlers — generation dispatcher (context-derived ids)', () => {
+  let project: SemiontProject;
+  let teardown: () => Promise<void>;
+  let eventBus: EventBus;
+  let jobQueue: MockJobQueue;
+
+  beforeEach(async () => {
+    ({ project, teardown } = await createTestProject('job-commands-generation'));
+    eventBus = new EventBus();
+    jobQueue = makeJobQueue();
+    registerJobCommandHandlers(eventBus, jobQueue as never, project, silentLogger);
+  });
+
+  afterEach(async () => {
+    eventBus.destroy();
+    await teardown();
+  });
+
+  function sendCreate(cid: string, command: Record<string, unknown>) {
+    const created$ = (
+      eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>
+    ).pipe(filter((e) => e.correlationId === cid), take(1));
+    const failed$ = (
+      eventBus.get('job:create-failed') as never as import('rxjs').Observable<JobCreateFailedEvent>
+    ).pipe(filter((e) => e.correlationId === cid), take(1));
+    const outcome = firstValueFrom(race(created$, failed$));
+    eventBus.get('job:create').next({
+      correlationId: cid,
+      jobType: 'generation',
+      _userId: TEST_USER_DID,
+      ...command,
+    } as never);
+    return outcome;
+  }
+
+  it('derives the job resourceId from a resource-focus context', async () => {
+    const outcome = await sendCreate('g-1', {
+      params: { ...GEN_PARAMS, context: genContext('resource') },
+    });
+    expect(outcome).toHaveProperty('response.jobId');
+    const job = jobQueue.createJob.mock.calls[0]![0];
+    expect(job.params.resourceId).toBe('res-src');
+  });
+
+  it('derives from an annotation-focus context: resourceId = the SOURCE resource', async () => {
+    const outcome = await sendCreate('g-2', {
+      params: { ...GEN_PARAMS, context: genContext('annotation') },
+    });
+    expect(outcome).toHaveProperty('response.jobId');
+    const job = jobQueue.createJob.mock.calls[0]![0];
+    expect(job.params.resourceId).toBe('res-src');
+  });
+
+  it('rejects a generation create that carries a top-level resourceId', async () => {
+    const outcome = await sendCreate('g-3', {
+      resourceId: 'res-imposter',
+      params: { ...GEN_PARAMS, context: genContext('resource') },
+    });
+    expect(outcome).toHaveProperty('message');
+    expect((outcome as JobCreateFailedEvent).message).toMatch(/focus is authoritative|omit resourceId/i);
+    expect(jobQueue.createJob).not.toHaveBeenCalled();
+  });
+
+  it('rejects a generation create that carries params.referenceId', async () => {
+    const outcome = await sendCreate('g-4', {
+      params: { ...GEN_PARAMS, referenceId: 'ann-imposter', context: genContext('annotation') },
+    });
+    expect(outcome).toHaveProperty('message');
+    expect((outcome as JobCreateFailedEvent).message).toMatch(/focus is authoritative|omit .*referenceId/i);
+    expect(jobQueue.createJob).not.toHaveBeenCalled();
+  });
+
+  it('rejects a context with no usable focus, naming the sanctioned producers', async () => {
+    const outcome = await sendCreate('g-5', {
+      params: { ...GEN_PARAMS, context: { graph: {}, metadata: {} } },
+    });
+    expect(outcome).toHaveProperty('message');
+    expect((outcome as JobCreateFailedEvent).message).toMatch(/gather\.resource|gather\.annotation/);
+    expect(jobQueue.createJob).not.toHaveBeenCalled();
+  });
+
+  it('rejects a trio-less params bag — wire requiredness is enforced at creation now', async () => {
+    const outcome = await sendCreate('g-6', {
+      params: { context: genContext('resource') },   // no title, no storageUri
+    });
+    expect(outcome).toHaveProperty('message');
+    expect((outcome as JobCreateFailedEvent).message).toMatch(/GenerationJobParams|title/);
+    expect(jobQueue.createJob).not.toHaveBeenCalled();
+  });
+
+  it('still REQUIRES the envelope resourceId for non-generation jobTypes', async () => {
+    const created$ = (
+      eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>
+    ).pipe(filter((e) => e.correlationId === 'g-7'), take(1));
+    const failed$ = (
+      eventBus.get('job:create-failed') as never as import('rxjs').Observable<JobCreateFailedEvent>
+    ).pipe(filter((e) => e.correlationId === 'g-7'), take(1));
+    const outcome = firstValueFrom(race(created$, failed$));
+    eventBus.get('job:create').next({
+      correlationId: 'g-7',
+      jobType: 'highlight-annotation',
+      _userId: TEST_USER_DID,
+      params: {},
+    } as never);
+    expect(await outcome).toHaveProperty('message');
+    expect(jobQueue.createJob).not.toHaveBeenCalled();
+  });
+});
+

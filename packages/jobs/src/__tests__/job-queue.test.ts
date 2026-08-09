@@ -11,7 +11,7 @@ import { FsJobQueue as JobQueue } from '../fs-job-queue';
 import type { JobStatus, PendingJob, RunningJob, CompleteJob, FailedJob, DetectionParams, DetectionProgress, DetectionResult } from '../types';
 import type { GenerationJobParams } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
-import { entityType, jobId, userId, resourceId, annotationId, EventBus } from '@semiont/core';
+import { entityType, jobId, userId, resourceId, EventBus } from '@semiont/core';
 
 const mockLogger = {
   debug: vi.fn(),
@@ -139,7 +139,6 @@ function createPendingGenerationJob(id: string): PendingJob<GenerationJobParams>
       maxRetries: 3,
     },
     params: {
-      referenceId: annotationId('ann-1'),
       prompt: 'Generate a summary',
       title: 'Summary',
       storageUri: 'file://generated/summary.md',
