@@ -6366,6 +6366,18 @@ func TestYieldDelegateJSONSucceedsOnAGeneration(t *testing.T) {
 	mustContain(t, "raw payload", stdout, `"resourceId":"res-new"`)
 }
 
+// title joined storageUri as required when GenerationJobParams gained it
+// (generation-wire-context P1). Refused HERE rather than letting the backend
+// reject the job: the caller has already paid for a gather by then.
+func TestYieldDelegateNeedsTitle(t *testing.T) {
+	s := busScenario(t)
+	_, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md")
+	if code == 0 {
+		t.Fatal("--delegate without --title must refuse")
+	}
+	mustContain(t, "refusal", stderr, "--title")
+}
+
 func TestYieldDelegateNeedsStorageUri(t *testing.T) {
 	s := busScenario(t)
 	_, stderr, code := s.run(t, "yield", "--delegate", "res-src")
