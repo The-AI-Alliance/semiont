@@ -963,7 +963,7 @@ describe('locale threading', () => {
         client,
         {
           ...GEN_REQUIRED,
-            title: 'Topic',
+          title: 'Topic',
           entityTypes: [],
           language: 'de',
           sourceLanguage: 'fr',

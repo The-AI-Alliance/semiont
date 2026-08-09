@@ -30,6 +30,23 @@ import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
 import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, findClaimSpan, type EventMap } from '@semiont/core';
 
+import type { InferenceClient } from '@semiont/inference';
+import type { Logger, components } from '@semiont/core';
+import { deriveStorageUri, extractPdfTextLayer, type AnchoredTextStore } from '@semiont/content';
+import { prepareDetection, type DetectionDecline } from './workers/detection/prepare-detection';
+import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
+import {
+  processHighlightJob,
+  processCommentJob,
+  processAssessmentJob,
+  processReferenceJob,
+  processTagJob,
+  processGenerationJob,
+  buildPdfAnnotation,
+  type OnProgress,
+  type BuildAnnotation,
+} from './processors';
+
 /**
  * The ONE derivation for a job's associated reference/annotation id
  * (GENERATION-WIRE-CONTEXT D3). Generation params no longer carry
@@ -50,22 +67,6 @@ export function referenceIdOf(job: { type: string; params: Record<string, unknow
   const ref = job.params.referenceId;
   return typeof ref === 'string' ? ref : undefined;
 }
-import type { InferenceClient } from '@semiont/inference';
-import type { Logger, components } from '@semiont/core';
-import { deriveStorageUri, extractPdfTextLayer, type AnchoredTextStore } from '@semiont/content';
-import { prepareDetection, type DetectionDecline } from './workers/detection/prepare-detection';
-import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
-import {
-  processHighlightJob,
-  processCommentJob,
-  processAssessmentJob,
-  processReferenceJob,
-  processTagJob,
-  processGenerationJob,
-  buildPdfAnnotation,
-  type OnProgress,
-  type BuildAnnotation,
-} from './processors';
 
 type Agent = components['schemas']['Agent'];
 
