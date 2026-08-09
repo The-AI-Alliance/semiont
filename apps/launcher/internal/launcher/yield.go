@@ -150,12 +150,12 @@ func Yield(args []string) int {
 			fmt.Print(delegateUsage)
 			return 1
 		}
-		if dopts.title == "" {
-			u.fail("--delegate needs --title (GenerationJobParams requires one; the backend rejects a job without it).")
-			return 1
-		}
 		if dopts.storageURI == "" {
 			u.fail("--delegate needs --storage-uri (the generated resource must be given a home).")
+			return 1
+		}
+		if dopts.title == "" {
+			u.fail("--delegate needs --title: GenerationJobParams requires it, so the backend rejects a job without one.")
 			return 1
 		}
 		t, ok := verbSession(u, "yield", repo, wantLocal)
