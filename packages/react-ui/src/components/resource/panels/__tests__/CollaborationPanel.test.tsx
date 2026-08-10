@@ -23,11 +23,17 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       reconnecting: 'Reconnecting...',
       sharing: 'Sharing',
       collaborationComingSoon: 'Multi-user collaboration coming soon',
+      collaborators: 'Collaborators',
+      ceilings: '{{contextTokens}} in / {{maxOutputTokens}} out',
+      sharedWindow: '{{contextTokens}} window',
     };
     let result = translations[key] || key;
     // Replace {count} with actual count value if provided
     if (params?.count !== undefined) {
       result = result.replace('{count}', String(params.count));
+    }
+    for (const [k, v] of Object.entries(params ?? {})) {
+      result = result.replace(`{{${k}}}`, String(v));
     }
     return result;
   }),
@@ -50,6 +56,89 @@ describe('CollaborationPanel Component', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.useRealTimers();
+  });
+
+  // INFERENCE-LIMITS-EXPOSURE P3a. The panel was props-only; it now optionally
+  // renders the collaborator roster with each software agent's discovered
+  // ceilings. Absence is meaningful and must degrade quietly (D3) — the field
+  // is absent whenever discovery could not answer *right now*.
+  describe('Collaborators roster', () => {
+    const softwareEntry = (over: Record<string, unknown> = {}) => ({
+      agent: {
+        '@type': 'Software' as const,
+        '@id': 'did:web:localhost:agents:anthropic:claude-sonnet-5',
+        name: 'Claude Sonnet 5',
+        provider: 'anthropic',
+        model: 'claude-sonnet-5',
+      },
+      servesJobTypes: ['generation'],
+      limits: { contextTokens: 200_000, maxOutputTokens: 64_000 },
+      ...over,
+    });
+
+    it('renders one row per software agent with provider, model and ceilings', () => {
+      render(<CollaborationPanel {...defaultProps} collaborators={[softwareEntry() as any]} />);
+
+      expect(screen.getByText('Collaborators')).toBeInTheDocument();
+      const row = screen.getByTestId('semiont-collaborator-row');
+      expect(row.textContent).toContain('anthropic');
+      expect(row.textContent).toContain('claude-sonnet-5');
+      expect(row.textContent).toContain('generation');
+      // Distinct in/out ceilings render as a pair.
+      expect(row.textContent).toContain('200K in / 64K out');
+    });
+
+    it('renders a single window figure when the provider shares one (Ollama shape)', () => {
+      // `maxOutputTokens === contextTokens` is the shared-window sentinel the
+      // schema documents; rendering "128K in / 128K out" would be noise.
+      const shared = softwareEntry({
+        agent: {
+          '@type': 'Software' as const,
+          name: 'Gemma',
+          provider: 'ollama',
+          model: 'gemma2:27b',
+        },
+        limits: { contextTokens: 128_000, maxOutputTokens: 128_000 },
+      });
+      render(<CollaborationPanel {...defaultProps} collaborators={[shared as any]} />);
+
+      const row = screen.getByTestId('semiont-collaborator-row');
+      expect(row.textContent).toContain('128K window');
+      expect(row.textContent).not.toContain('in /');
+    });
+
+    it('renders the row without ceilings when limits are absent (D3)', () => {
+      const noLimits = softwareEntry();
+      delete (noLimits as Record<string, unknown>).limits;
+      render(<CollaborationPanel {...defaultProps} collaborators={[noLimits as any]} />);
+
+      const row = screen.getByTestId('semiont-collaborator-row');
+      expect(row.textContent).toContain('claude-sonnet-5');
+      expect(row.textContent).not.toContain('in /');
+      expect(row.textContent).not.toContain('window');
+    });
+
+    it('renders exactly as today when the prop is absent (hosts that never wire it)', () => {
+      render(<CollaborationPanel {...defaultProps} />);
+
+      expect(screen.queryByText('Collaborators')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('semiont-collaborator-row')).not.toBeInTheDocument();
+      // The pre-existing sections are untouched.
+      expect(screen.getByText('Connection Status')).toBeInTheDocument();
+    });
+
+    it('lists only software agents — Persons are not inference collaborators', () => {
+      const person = { agent: { '@type': 'Person' as const, name: 'Ada' } };
+      render(
+        <CollaborationPanel
+          {...defaultProps}
+          collaborators={[softwareEntry() as any, person as any]}
+        />,
+      );
+
+      expect(screen.getAllByTestId('semiont-collaborator-row')).toHaveLength(1);
+      expect(screen.queryByText('Ada')).not.toBeInTheDocument();
+    });
   });
 
   describe('Rendering', () => {

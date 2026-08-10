@@ -63,7 +63,10 @@
     "realtimeActive": "Gerçek zamanlı güncellemeler aktif",
     "reconnecting": "Sunucuya yeniden bağlanılıyor...",
     "sharing": "Paylaşım",
-    "collaborationComingSoon": "İşbirliği özellikleri yakında"
+    "collaborationComingSoon": "İşbirliği özellikleri yakında",
+    "collaborators": "İş Birlikçiler",
+    "ceilings": "{{contextTokens}} giriş / {{maxOutputTokens}} çıkış",
+    "sharedWindow": "{{contextTokens}} pencere"
   },
   "AnnotationHistory": {
     "history": "Geçmiş",
@@ -387,7 +390,8 @@
     "progressCancel": "Oluşturmayı iptal et",
     "progressInProgress": "Oluşturuluyor…",
     "progressComplete": "Oluşturma tamamlandı!",
-    "progressFailed": "Oluşturma başarısız oldu"
+    "progressFailed": "Oluşturma başarısız oldu",
+    "maxLengthCeiling": "{{model}} tarafından {{maxOutputTokens}} belirteçle sınırlı."
   },
   "ReferenceWizard": {
     "gatherTitle": "Toplanan Bağlam",
@@ -424,6 +428,7 @@
     "semanticScoring": "Anlamsal Puanlama",
     "semanticScoringHelp": "Sonuçları anlamsal alaka düzeyine göre puanlamak için yapay zeka kullanın",
     "searching": "Aranıyor...",
-    "search": "Ara"
+    "search": "Ara",
+    "maxLengthCeiling": "{{model}} tarafından {{maxOutputTokens}} belirteçle sınırlı."
   }
 }

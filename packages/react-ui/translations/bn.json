@@ -63,7 +63,10 @@
     "realtimeActive": "রিয়েল-টাইম আপডেট সক্রিয় আছে",
     "reconnecting": "সার্ভারে পুনরায় সংযোগ হচ্ছে...",
     "sharing": "শেয়ারিং",
-    "collaborationComingSoon": "সহযোগিতা বৈশিষ্ট্য শীঘ্রই আসছে"
+    "collaborationComingSoon": "সহযোগিতা বৈশিষ্ট্য শীঘ্রই আসছে",
+    "collaborators": "সহযোগীরা",
+    "ceilings": "{{contextTokens}} ইনপুট / {{maxOutputTokens}} আউটপুট",
+    "sharedWindow": "{{contextTokens}} উইন্ডো"
   },
   "AnnotationHistory": {
     "history": "ইতিহাস",
@@ -387,7 +390,8 @@
     "progressCancel": "তৈরি বাতিল করুন",
     "progressInProgress": "তৈরি হচ্ছে…",
     "progressComplete": "তৈরি সম্পূর্ণ!",
-    "progressFailed": "তৈরি ব্যর্থ"
+    "progressFailed": "তৈরি ব্যর্থ",
+    "maxLengthCeiling": "{{model}} দ্বারা {{maxOutputTokens}} টোকেনে সীমিত।"
   },
   "ReferenceWizard": {
     "gatherTitle": "সংগৃহীত প্রসঙ্গ",
@@ -424,6 +428,7 @@
     "semanticScoring": "অর্থগত স্কোরিং",
     "semanticScoringHelp": "অর্থগত প্রাসঙ্গিকতা অনুযায়ী ফলাফল স্কোর করতে AI ব্যবহার করুন",
     "searching": "অনুসন্ধান করা হচ্ছে...",
-    "search": "অনুসন্ধান"
+    "search": "অনুসন্ধান",
+    "maxLengthCeiling": "{{model}} দ্বারা {{maxOutputTokens}} টোকেনে সীমিত।"
   }
 }

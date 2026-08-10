@@ -1,3 +1,4 @@
+import type { CollaboratorEntry } from '@semiont/core';
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -41,10 +42,17 @@ export interface ResourceGenerateModalTranslations {
   creativityCreative: string;
   maxLength: string;
   maxLengthHelp: string;
+  maxLengthCeiling: string;
   generate: string;
 }
 
 export interface ResourceGenerateModalProps {
+  /**
+   * Roster entry serving `generation`, forwarded to ConfigureGenerationStep so
+   * the max-length control is bounded by the model's real output ceiling.
+   * Optional: absent means today's default bounds (INFERENCE-LIMITS-EXPOSURE D3).
+   */
+  generationAgent?: CollaboratorEntry;
   isOpen: boolean;
   onClose: () => void;
   resourceId: string;
@@ -82,6 +90,7 @@ export function ResourceGenerateModal({
   entityTypeOptions = [],
   onGenerateSubmit,
   translations: t,
+  generationAgent,
 }: ResourceGenerateModalProps) {
   const [step, setStep] = useState<Step>('configure-gather');
   const { context, loading, error, gather, reset } = useResourceGather();
@@ -230,6 +239,7 @@ export function ResourceGenerateModal({
 
                 {step === 'configure-generation' && context && (
                   <ConfigureGenerationStep
+                    {...(generationAgent ? { generationAgent } : {})}
                     defaultTitle={defaultTitle}
                     locale={locale}
                     context={context}
@@ -248,6 +258,7 @@ export function ResourceGenerateModal({
                       creativityCreative: t.creativityCreative,
                       maxLength: t.maxLength,
                       maxLengthHelp: t.maxLengthHelp,
+                      maxLengthCeiling: t.maxLengthCeiling,
                       cancel: t.cancel,
                       back: t.back,
                       generate: t.generate,
