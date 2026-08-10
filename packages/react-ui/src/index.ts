@@ -44,6 +44,7 @@ export * from './hooks/useResourceContent';
 export * from './hooks/useResourceGather';
 export * from './hooks/useResourceLoader';
 export * from './hooks/useMediaToken';
+export * from './hooks/useCollaborators';
 export * from './hooks/useSessionEventSubscriptions';
 export * from './hooks/useToolbarPrefs';
 export * from './hooks/usePendingCreation';

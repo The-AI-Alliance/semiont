@@ -49,6 +49,7 @@ function browserOver(kb: Record<string, unknown>) {
     eventBus,
     { root: '/tmp' } as never,
     { services: {}, gather: { settleTimeoutMs: 15_000 } } as MakeMeaningConfig,
+    { enrich: async (entries) => entries },
     mockLogger,
   );
   return { eventBus, browser };

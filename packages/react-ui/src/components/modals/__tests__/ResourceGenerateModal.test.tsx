@@ -83,6 +83,7 @@ const T = {
   creativityCreative: 'Creative',
   maxLength: 'Max Length',
   maxLengthHelp: 'Max help',
+  maxLengthCeiling: 'Limited to {{maxOutputTokens}} tokens by {{model}}.',
   generate: 'Generate',
 };
 

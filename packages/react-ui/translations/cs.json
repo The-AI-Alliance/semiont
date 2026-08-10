@@ -63,7 +63,10 @@
     "realtimeActive": "Aktualizace v reálném čase jsou aktivní",
     "reconnecting": "Opětovné připojování k serveru...",
     "sharing": "Sdílení",
-    "collaborationComingSoon": "Funkce spolupráce budou brzy k dispozici"
+    "collaborationComingSoon": "Funkce spolupráce budou brzy k dispozici",
+    "collaborators": "Spolupracovníci",
+    "ceilings": "{{contextTokens}} vstup / {{maxOutputTokens}} výstup",
+    "sharedWindow": "Okno {{contextTokens}}"
   },
   "AnnotationHistory": {
     "history": "Historie",
@@ -387,7 +390,8 @@
     "progressCancel": "Zrušit generování",
     "progressInProgress": "Generování…",
     "progressComplete": "Generování dokončeno!",
-    "progressFailed": "Generování selhalo"
+    "progressFailed": "Generování selhalo",
+    "maxLengthCeiling": "Omezeno na {{maxOutputTokens}} tokenů modelem {{model}}."
   },
   "ReferenceWizard": {
     "gatherTitle": "Shromážděný kontext",
@@ -424,6 +428,7 @@
     "semanticScoring": "Sémantické hodnocení",
     "semanticScoringHelp": "Použít AI k hodnocení výsledků podle sémantické relevance",
     "searching": "Vyhledávání...",
-    "search": "Hledat"
+    "search": "Hledat",
+    "maxLengthCeiling": "Omezeno na {{maxOutputTokens}} tokenů modelem {{model}}."
   }
 }

@@ -63,7 +63,10 @@
     "realtimeActive": "Оновлення в реальному часі активні",
     "reconnecting": "Повторне з'єднання з сервером...",
     "sharing": "Спільний доступ",
-    "collaborationComingSoon": "Функції співпраці незабаром"
+    "collaborationComingSoon": "Функції співпраці незабаром",
+    "collaborators": "Співавтори",
+    "ceilings": "{{contextTokens}} вхід / {{maxOutputTokens}} вихід",
+    "sharedWindow": "Вікно {{contextTokens}}"
   },
   "AnnotationHistory": {
     "history": "Історія",
@@ -387,7 +390,8 @@
     "progressCancel": "Скасувати генерацію",
     "progressInProgress": "Генерування…",
     "progressComplete": "Генерацію завершено!",
-    "progressFailed": "Генерація не вдалася"
+    "progressFailed": "Генерація не вдалася",
+    "maxLengthCeiling": "Обмежено до {{maxOutputTokens}} токенів моделлю {{model}}."
   },
   "ReferenceWizard": {
     "gatherTitle": "Зібраний контекст",
@@ -424,6 +428,7 @@
     "semanticScoring": "Семантична оцінка",
     "semanticScoringHelp": "Використовувати ШІ для оцінки результатів за семантичною релевантністю",
     "searching": "Пошук...",
-    "search": "Пошук"
+    "search": "Пошук",
+    "maxLengthCeiling": "Обмежено до {{maxOutputTokens}} токенів моделлю {{model}}."
   }
 }

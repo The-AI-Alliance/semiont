@@ -63,7 +63,10 @@
     "realtimeActive": "Actualizările în timp real sunt active",
     "reconnecting": "Se reconectează la server...",
     "sharing": "Partajare",
-    "collaborationComingSoon": "Funcțiile de colaborare vor fi disponibile în curând"
+    "collaborationComingSoon": "Funcțiile de colaborare vor fi disponibile în curând",
+    "collaborators": "Colaboratori",
+    "ceilings": "{{contextTokens}} intrare / {{maxOutputTokens}} ieșire",
+    "sharedWindow": "Fereastră de {{contextTokens}}"
   },
   "AnnotationHistory": {
     "history": "Istoric",
@@ -387,7 +390,8 @@
     "progressCancel": "Anulează generarea",
     "progressInProgress": "Se generează…",
     "progressComplete": "Generare completă!",
-    "progressFailed": "Generarea a eșuat"
+    "progressFailed": "Generarea a eșuat",
+    "maxLengthCeiling": "Limitat la {{maxOutputTokens}} tokenuri de {{model}}."
   },
   "ReferenceWizard": {
     "gatherTitle": "Context Colectat",
@@ -424,6 +428,7 @@
     "semanticScoring": "Evaluare Semantică",
     "semanticScoringHelp": "Folosiți AI pentru a evalua rezultatele după relevanța semantică",
     "searching": "Se caută...",
-    "search": "Caută"
+    "search": "Caută",
+    "maxLengthCeiling": "Limitat la {{maxOutputTokens}} tokenuri de {{model}}."
   }
 }
