@@ -1,7 +1,7 @@
-import type { CollaboratorEntry } from '@semiont/core';
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import type { CollaboratorEntry } from '@semiont/core';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { useResourceGather } from '../../hooks/useResourceGather';
 import { ConfigureGatherStep, type ResourceGatherConfig } from './ConfigureGatherStep';
