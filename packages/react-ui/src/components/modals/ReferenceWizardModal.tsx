@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import type { GatheredContext } from '@semiont/core';
+import type { GatheredContext, CollaboratorEntry } from '@semiont/core';
 import { uuidV4 } from '@semiont/core';
 import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';
@@ -22,6 +22,12 @@ type WizardStep =
   | { step: 'configure-generation' };
 
 export interface ReferenceWizardModalProps {
+  /**
+   * Roster entry serving `generation`, forwarded to ConfigureGenerationStep so
+   * the max-length control is bounded by the model's real output ceiling.
+   * Optional: absent means today's default bounds (INFERENCE-LIMITS-EXPOSURE D3).
+   */
+  generationAgent?: CollaboratorEntry;
   isOpen: boolean;
   onClose: () => void;
   /** The annotation being resolved */
@@ -76,6 +82,7 @@ export interface ReferenceWizardModalProps {
     creativityCreative: string;
     maxLength: string;
     maxLengthHelp: string;
+    maxLengthCeiling: string;
     maxResults: string;
     semanticScoring: string;
     semanticScoringHelp: string;
@@ -97,6 +104,7 @@ export function ReferenceWizardModal({
   onLinkResource,
   onComposeNavigate,
   translations: t,
+  generationAgent,
 }: ReferenceWizardModalProps) {
   const session = useObservable(useSemiont().activeSession$);
   const [wizardStep, setWizardStep] = useState<WizardStep>({ step: 'gather' });
@@ -245,6 +253,7 @@ export function ReferenceWizardModal({
 
                 {wizardStep.step === 'configure-generation' && context && (
                   <ConfigureGenerationStep
+                    {...(generationAgent ? { generationAgent } : {})}
                     defaultTitle={defaultTitle}
                     locale={locale}
                     context={context}
@@ -263,6 +272,7 @@ export function ReferenceWizardModal({
                       creativityCreative: t.creativityCreative,
                       maxLength: t.maxLength,
                       maxLengthHelp: t.maxLengthHelp,
+                      maxLengthCeiling: t.maxLengthCeiling,
                       cancel: t.cancel,
                       back: t.back,
                       generate: t.generate,

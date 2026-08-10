@@ -63,7 +63,10 @@
     "realtimeActive": "リアルタイム更新が有効です",
     "reconnecting": "サーバーに再接続中...",
     "sharing": "共有",
-    "collaborationComingSoon": "コラボレーション機能は近日公開"
+    "collaborationComingSoon": "コラボレーション機能は近日公開",
+    "collaborators": "コラボレーター",
+    "ceilings": "入力 {{contextTokens}} / 出力 {{maxOutputTokens}}",
+    "sharedWindow": "{{contextTokens}} ウィンドウ"
   },
   "AnnotationHistory": {
     "history": "履歴",
@@ -387,7 +390,8 @@
     "progressCancel": "生成をキャンセル",
     "progressInProgress": "生成中…",
     "progressComplete": "生成完了！",
-    "progressFailed": "生成に失敗しました"
+    "progressFailed": "生成に失敗しました",
+    "maxLengthCeiling": "{{model}} により {{maxOutputTokens}} トークンに制限されています。"
   },
   "ReferenceWizard": {
     "gatherTitle": "収集済みコンテキスト",
@@ -424,6 +428,7 @@
     "semanticScoring": "意味的スコアリング",
     "semanticScoringHelp": "AIを使用して意味的関連性で結果をスコアリング",
     "searching": "検索中...",
-    "search": "検索"
+    "search": "検索",
+    "maxLengthCeiling": "{{model}} により {{maxOutputTokens}} トークンに制限されています。"
   }
 }

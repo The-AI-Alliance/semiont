@@ -63,7 +63,10 @@
     "realtimeActive": "Aktualizacje w czasie rzeczywistym są aktywne",
     "reconnecting": "Ponowne łączenie z serwerem...",
     "sharing": "Udostępnianie",
-    "collaborationComingSoon": "Funkcje współpracy już wkrótce"
+    "collaborationComingSoon": "Funkcje współpracy już wkrótce",
+    "collaborators": "Współpracownicy",
+    "ceilings": "{{contextTokens}} wejście / {{maxOutputTokens}} wyjście",
+    "sharedWindow": "Okno {{contextTokens}}"
   },
   "AnnotationHistory": {
     "history": "Historia",
@@ -387,7 +390,8 @@
     "progressCancel": "Anuluj generowanie",
     "progressInProgress": "Generowanie…",
     "progressComplete": "Generowanie zakończone!",
-    "progressFailed": "Generowanie nie powiodło się"
+    "progressFailed": "Generowanie nie powiodło się",
+    "maxLengthCeiling": "Ograniczone do {{maxOutputTokens}} tokenów przez {{model}}."
   },
   "ReferenceWizard": {
     "gatherTitle": "Zebrany kontekst",
@@ -424,6 +428,7 @@
     "semanticScoring": "Ocena semantyczna",
     "semanticScoringHelp": "Użyj AI do oceny wyników według semantycznego dopasowania",
     "searching": "Wyszukiwanie...",
-    "search": "Szukaj"
+    "search": "Szukaj",
+    "maxLengthCeiling": "Ograniczone do {{maxOutputTokens}} tokenów przez {{model}}."
   }
 }

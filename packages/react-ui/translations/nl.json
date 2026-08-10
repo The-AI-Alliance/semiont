@@ -63,7 +63,10 @@
     "realtimeActive": "Realtime-updates zijn actief",
     "reconnecting": "Opnieuw verbinden met server...",
     "sharing": "Delen",
-    "collaborationComingSoon": "Samenwerkingsfuncties komen binnenkort"
+    "collaborationComingSoon": "Samenwerkingsfuncties komen binnenkort",
+    "collaborators": "Medewerkers",
+    "ceilings": "{{contextTokens}} in / {{maxOutputTokens}} uit",
+    "sharedWindow": "{{contextTokens}} venster"
   },
   "AnnotationHistory": {
     "history": "Geschiedenis",
@@ -387,7 +390,8 @@
     "progressCancel": "Generatie annuleren",
     "progressInProgress": "Genereren…",
     "progressComplete": "Generatie voltooid!",
-    "progressFailed": "Generatie mislukt"
+    "progressFailed": "Generatie mislukt",
+    "maxLengthCeiling": "Beperkt tot {{maxOutputTokens}} tokens door {{model}}."
   },
   "ReferenceWizard": {
     "gatherTitle": "Verzamelde context",
@@ -424,6 +428,7 @@
     "semanticScoring": "Semantische beoordeling",
     "semanticScoringHelp": "Gebruik AI om resultaten te beoordelen op semantische relevantie",
     "searching": "Zoeken...",
-    "search": "Zoeken"
+    "search": "Zoeken",
+    "maxLengthCeiling": "Beperkt tot {{maxOutputTokens}} tokens door {{model}}."
   }
 }

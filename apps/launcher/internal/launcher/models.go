@@ -108,7 +108,7 @@ func humanSize(n int64) string {
 // printModels renders one role's configured models beneath its row. Remote
 // providers (Anthropic, Voyage) have nothing to install, so they get the name
 // and an honest "remote" rather than a fabricated install state.
-func printModels(u *ui, models, ollamaServed []string, driver string, facts modelFacts, remote map[string]remoteModelMeta) {
+func printModels(u *ui, models, ollamaServed []string, driver string, facts modelFacts, remote map[string]remoteModelMeta, ceilings modelCeilings) {
 	// Which models have an install state at all is PER MODEL, not per row: a
 	// config can point its workers at Anthropic while its embedding runs on
 	// Ollama, and the inference row then lists Claude models under a driver
@@ -127,6 +127,20 @@ func printModels(u *ui, models, ollamaServed []string, driver string, facts mode
 		}
 		return served[m]
 	}
+	// The platform's ceiling for THIS model, or "" where the roster has none
+	// and where the record cannot confidently say who serves it (see
+	// ceilingProvider — a wrong ceiling is worse than a missing one).
+	ceiling := func(m string) string {
+		provider, ok := ceilingProvider(m, driver, ollamaServed)
+		if !ok {
+			return ""
+		}
+		l, found := ceilings[ceilingKey(provider, m)]
+		if !found {
+			return ""
+		}
+		return ceilingCell(l)
+	}
 	// The name column fits the longest model in THIS list — fixed 24 made
 	// every longer name (claude-sonnet-4-5-20250929) push its own line's
 	// status over by its own overflow, so nothing lined up.
@@ -137,6 +151,11 @@ func printModels(u *ui, models, ollamaServed []string, driver string, facts mode
 		}
 	}
 	for _, m := range models {
+		c := ceiling(m)
+		tail := ""
+		if c != "" {
+			tail = "  " + u.dim(c)
+		}
 		if !isOllama(m) {
 			// With recorded /v1/models metadata: identity, release, context
 			// window, and whether this key can see the model at all — the
@@ -147,10 +166,10 @@ func printModels(u *ui, models, ollamaServed []string, driver string, facts mode
 					fmt.Printf("      %-*s %s\n", w, m, u.wrap(ansiRed, "NOT AVAILABLE")+u.dim(" — not listed for this API key (withdrawn, or a typo'd id?)"))
 					continue
 				}
-				fmt.Printf("      %-*s %s  %s\n", w, m, u.dim(remoteMetaLine(meta)), u.dim("remote"))
+				fmt.Printf("      %-*s %s  %s%s\n", w, m, u.dim(remoteMetaLine(meta, c != "")), u.dim("remote"), tail)
 				continue
 			}
-			fmt.Printf("      %-*s %-43s %s\n", w, m, "", u.dim("remote"))
+			fmt.Printf("      %-*s %-43s %s%s\n", w, m, "", u.dim("remote"), tail)
 			continue
 		}
 		key := normalizeModel(m)
@@ -158,14 +177,14 @@ func printModels(u *ui, models, ollamaServed []string, driver string, facts mode
 		case !facts.found:
 			fmt.Printf("      %-*s %s\n", w, m, u.dim("unknown — Ollama unreachable"))
 		case facts.loaded[key]:
-			fmt.Printf("      %-*s %s  %s\n", w, m, u.dim(modelMeta(facts.installed[key])), u.wrap(ansiGreen, "loaded"))
+			fmt.Printf("      %-*s %s  %s%s\n", w, m, u.dim(modelMeta(facts.installed[key])), u.wrap(ansiGreen, "loaded"), tail)
 		default:
 			im, ok := facts.installed[key]
 			if !ok {
 				fmt.Printf("      %-*s %s\n", w, m, u.wrap(ansiRed, "MISSING")+u.dim(" — ollama pull "+m))
 				continue
 			}
-			fmt.Printf("      %-*s %s  %s\n", w, m, u.dim(modelMeta(im)), u.dim("installed"))
+			fmt.Printf("      %-*s %s  %s%s\n", w, m, u.dim(modelMeta(im)), u.dim("installed"), tail)
 		}
 	}
 }
@@ -365,9 +384,15 @@ func anthropicBase(endpoint string) string {
 
 // remoteMetaLine renders one remote model's metadata cell, shaped like the
 // Ollama meta cell (fixed widths so the block aligns).
-func remoteMetaLine(m remoteModelMeta) string {
+//
+// hasCeiling drops the context figure: /v1/models is one API key's view of a
+// window the PLATFORM also publishes, and a row carrying both would show the
+// same ceiling twice from two sources. When the platform has spoken, its
+// number is the one on the row; this probe keeps rendering only what it
+// alone knows — identity, release, and whether the key can see the model.
+func remoteMetaLine(m remoteModelMeta, hasCeiling bool) string {
 	ctx := ""
-	if m.MaxInput > 0 {
+	if m.MaxInput > 0 && !hasCeiling {
 		ctx = fmt.Sprintf("%dK ctx", m.MaxInput/1000)
 	}
 	return fmt.Sprintf("%-22s %8s  %-9s", m.DisplayName, m.Released, ctx)

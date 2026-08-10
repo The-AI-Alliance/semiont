@@ -435,6 +435,9 @@
       "HealthResponse": {
         "$ref": "components/schemas/HealthResponse.json"
       },
+      "InferenceLimits": {
+        "$ref": "components/schemas/InferenceLimits.json"
+      },
       "JobAssessmentAnnotationResult": {
         "$ref": "components/schemas/JobAssessmentAnnotationResult.json"
       },

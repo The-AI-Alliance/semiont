@@ -63,7 +63,10 @@
     "realtimeActive": "실시간 업데이트가 활성화되어 있습니다",
     "reconnecting": "서버에 다시 연결 중...",
     "sharing": "공유",
-    "collaborationComingSoon": "협업 기능이 곧 출시됩니다"
+    "collaborationComingSoon": "협업 기능이 곧 출시됩니다",
+    "collaborators": "협업자",
+    "ceilings": "입력 {{contextTokens}} / 출력 {{maxOutputTokens}}",
+    "sharedWindow": "{{contextTokens}} 윈도우"
   },
   "AnnotationHistory": {
     "history": "기록",
@@ -387,7 +390,8 @@
     "progressCancel": "생성 취소",
     "progressInProgress": "생성 중…",
     "progressComplete": "생성 완료!",
-    "progressFailed": "생성 실패"
+    "progressFailed": "생성 실패",
+    "maxLengthCeiling": "{{model}}에 의해 {{maxOutputTokens}} 토큰으로 제한됩니다."
   },
   "ReferenceWizard": {
     "gatherTitle": "수집된 컨텍스트",
@@ -424,6 +428,7 @@
     "semanticScoring": "의미 기반 점수",
     "semanticScoringHelp": "AI를 사용하여 의미적 관련성에 따라 결과 점수 부여",
     "searching": "검색 중...",
-    "search": "검색"
+    "search": "검색",
+    "maxLengthCeiling": "{{model}}에 의해 {{maxOutputTokens}} 토큰으로 제한됩니다."
   }
 }

@@ -63,7 +63,10 @@
     "realtimeActive": "עדכונים בזמן אמת פעילים",
     "reconnecting": "מתחבר מחדש לשרת...",
     "sharing": "שיתוף",
-    "collaborationComingSoon": "תכונות שיתוף פעולה בקרוב"
+    "collaborationComingSoon": "תכונות שיתוף פעולה בקרוב",
+    "collaborators": "משתפי פעולה",
+    "ceilings": "{{contextTokens}} קלט / {{maxOutputTokens}} פלט",
+    "sharedWindow": "חלון {{contextTokens}}"
   },
   "AnnotationHistory": {
     "history": "היסטוריה",
@@ -387,7 +390,8 @@
     "progressCancel": "ביטול היצירה",
     "progressInProgress": "יוצר…",
     "progressComplete": "היצירה הושלמה!",
-    "progressFailed": "היצירה נכשלה"
+    "progressFailed": "היצירה נכשלה",
+    "maxLengthCeiling": "מוגבל ל-{{maxOutputTokens}} טוקנים על ידי {{model}}."
   },
   "ReferenceWizard": {
     "gatherTitle": "הקשר שנאסף",
@@ -424,6 +428,7 @@
     "semanticScoring": "דירוג סמנטי",
     "semanticScoringHelp": "שימוש ב-AI לדירוג תוצאות לפי רלוונטיות סמנטית",
     "searching": "מחפש...",
-    "search": "חיפוש"
+    "search": "חיפוש",
+    "maxLengthCeiling": "מוגבל ל-{{maxOutputTokens}} טוקנים על ידי {{model}}."
   }
 }

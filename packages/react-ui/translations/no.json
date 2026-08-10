@@ -63,7 +63,10 @@
     "realtimeActive": "Sanntidsoppdateringer er aktive",
     "reconnecting": "Kobler til serveren på nytt...",
     "sharing": "Deling",
-    "collaborationComingSoon": "Samarbeidsfunksjoner kommer snart"
+    "collaborationComingSoon": "Samarbeidsfunksjoner kommer snart",
+    "collaborators": "Samarbeidspartnere",
+    "ceilings": "{{contextTokens}} inn / {{maxOutputTokens}} ut",
+    "sharedWindow": "{{contextTokens}} vindu"
   },
   "AnnotationHistory": {
     "history": "Historikk",
@@ -387,7 +390,8 @@
     "progressCancel": "Avbryt generering",
     "progressInProgress": "Genererer…",
     "progressComplete": "Generering fullført!",
-    "progressFailed": "Generering mislyktes"
+    "progressFailed": "Generering mislyktes",
+    "maxLengthCeiling": "Begrenset til {{maxOutputTokens}} tokens av {{model}}."
   },
   "ReferenceWizard": {
     "gatherTitle": "Samlet kontekst",
@@ -424,6 +428,7 @@
     "semanticScoring": "Semantisk skåring",
     "semanticScoringHelp": "Bruk AI til å score resultater etter semantisk relevans",
     "searching": "Søker...",
-    "search": "Søk"
+    "search": "Søk",
+    "maxLengthCeiling": "Begrenset til {{maxOutputTokens}} tokens av {{model}}."
   }
 }

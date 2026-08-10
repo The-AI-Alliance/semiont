@@ -63,7 +63,10 @@
     "realtimeActive": "रीयल-टाइम अपडेट सक्रिय हैं",
     "reconnecting": "सर्वर से पुनः कनेक्ट हो रहा है...",
     "sharing": "साझाकरण",
-    "collaborationComingSoon": "सहयोग सुविधाएं जल्द आ रही हैं"
+    "collaborationComingSoon": "सहयोग सुविधाएं जल्द आ रही हैं",
+    "collaborators": "सहयोगी",
+    "ceilings": "{{contextTokens}} इनपुट / {{maxOutputTokens}} आउटपुट",
+    "sharedWindow": "{{contextTokens}} विंडो"
   },
   "AnnotationHistory": {
     "history": "इतिहास",
@@ -387,7 +390,8 @@
     "progressCancel": "जनरेशन रद्द करें",
     "progressInProgress": "जनित हो रहा है…",
     "progressComplete": "जनरेशन पूर्ण!",
-    "progressFailed": "जनरेशन विफल"
+    "progressFailed": "जनरेशन विफल",
+    "maxLengthCeiling": "{{model}} द्वारा {{maxOutputTokens}} टोकन तक सीमित।"
   },
   "ReferenceWizard": {
     "gatherTitle": "एकत्रित संदर्भ",
@@ -424,6 +428,7 @@
     "semanticScoring": "अर्थगत स्कोरिंग",
     "semanticScoringHelp": "अर्थगत प्रासंगिकता के अनुसार परिणामों को स्कोर करने के लिए AI का उपयोग करें",
     "searching": "खोज रहे हैं...",
-    "search": "खोजें"
+    "search": "खोजें",
+    "maxLengthCeiling": "{{model}} द्वारा {{maxOutputTokens}} टोकन तक सीमित।"
   }
 }

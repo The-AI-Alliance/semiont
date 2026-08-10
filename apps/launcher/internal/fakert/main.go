@@ -1120,6 +1120,7 @@ var busScripted = map[string]bool{
 	"browse:resource-requested":     true,
 	"browse:annotations-requested":  true,
 	"browse:entity-types-requested": true,
+	"browse:agents-requested":       true,
 	"frame:add-entity-type":         true,
 	"gather:resource-requested":     true,
 	"gather:requested":              true,
