@@ -63,7 +63,10 @@
     "realtimeActive": "Atualizações em tempo real estão ativas",
     "reconnecting": "Reconectando ao servidor...",
     "sharing": "Compartilhamento",
-    "collaborationComingSoon": "Recursos de colaboração em breve"
+    "collaborationComingSoon": "Recursos de colaboração em breve",
+    "collaborators": "Colaboradores",
+    "ceilings": "{{contextTokens}} entrada / {{maxOutputTokens}} saída",
+    "sharedWindow": "Janela de {{contextTokens}}"
   },
   "AnnotationHistory": {
     "history": "Histórico",
@@ -387,7 +390,8 @@
     "progressCancel": "Cancelar geração",
     "progressInProgress": "Gerando…",
     "progressComplete": "Geração concluída!",
-    "progressFailed": "A geração falhou"
+    "progressFailed": "A geração falhou",
+    "maxLengthCeiling": "Limitado a {{maxOutputTokens}} tokens por {{model}}."
   },
   "ReferenceWizard": {
     "gatherTitle": "Contexto Coletado",
@@ -424,6 +428,7 @@
     "semanticScoring": "Pontuação Semântica",
     "semanticScoringHelp": "Usar IA para pontuar resultados por relevância semântica",
     "searching": "Pesquisando...",
-    "search": "Pesquisar"
+    "search": "Pesquisar",
+    "maxLengthCeiling": "Limitado a {{maxOutputTokens}} tokens por {{model}}."
   }
 }

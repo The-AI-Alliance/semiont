@@ -99,9 +99,13 @@ function fakeBusResumeGap(scope: string | undefined, reason: string): EventMap['
 
 /**
  * The Browser's P2 reply, verbatim shape (.plans/COLLABORATOR-DIRECTORY.md):
- * `{ agents: CollaboratorEntry[] }` where an entry is `{ agent, servesJobTypes? }`.
- * One worker agent WITH capabilities, one actors-only agent WITHOUT — the sdk
- * must pass both through unreshaped (no flattening to Agent[]).
+ * `{ agents: CollaboratorEntry[] }` where an entry is
+ * `{ agent, servesJobTypes?, limits? }` — `limits` joined the entry with
+ * INFERENCE-LIMITS-EXPOSURE P2, and the deep-equal passthrough pin below
+ * is what proves discovered ceilings survive the cache round-trip
+ * unreshaped. One worker agent WITH capabilities and ceilings, one
+ * actors-only agent WITHOUT either — both pass through as-is (no
+ * flattening to Agent[]).
  */
 const MOCK_COLLABORATORS = [
   {
@@ -113,6 +117,7 @@ const MOCK_COLLABORATORS = [
       model: 'claude-haiku-4-5',
     },
     servesJobTypes: ['reference-annotation', 'generation'],
+    limits: { contextTokens: 200_000, maxOutputTokens: 64_000 },
   },
   {
     agent: {

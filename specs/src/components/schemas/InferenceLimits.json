@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "A provider's actual ceilings for a model, discovered from the provider itself (Anthropic Models API; Ollama /api/show) — never hand-maintained constants. Semantics differ by provider shape: Anthropic reports maximum input tokens in contextTokens with a separate output ceiling in maxOutputTokens; Ollama reports the shared input+output window and mirrors it into both fields (there is no separate output ceiling), so maxOutputTokens === contextTokens signals a shared window.",
+  "properties": {
+    "contextTokens": {
+      "type": "number",
+      "description": "The context window in tokens. Anthropic: maximum input tokens (output has its own ceiling). Ollama: the shared input+output window."
+    },
+    "maxOutputTokens": {
+      "type": "number",
+      "description": "Maximum output tokens per generation. Equal to contextTokens when the provider has a single shared window."
+    }
+  },
+  "required": ["contextTokens", "maxOutputTokens"]
+}

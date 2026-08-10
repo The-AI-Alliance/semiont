@@ -63,7 +63,10 @@
     "realtimeActive": "Reaaliaikaiset päivitykset ovat aktiivisia",
     "reconnecting": "Yhdistetään palvelimeen uudelleen...",
     "sharing": "Jakaminen",
-    "collaborationComingSoon": "Yhteistyöominaisuudet tulossa pian"
+    "collaborationComingSoon": "Yhteistyöominaisuudet tulossa pian",
+    "collaborators": "Yhteistyökumppanit",
+    "ceilings": "{{contextTokens}} sisään / {{maxOutputTokens}} ulos",
+    "sharedWindow": "{{contextTokens}} ikkuna"
   },
   "AnnotationHistory": {
     "history": "Historia",
@@ -387,7 +390,8 @@
     "progressCancel": "Peruuta generointi",
     "progressInProgress": "Generoidaan…",
     "progressComplete": "Generointi valmis!",
-    "progressFailed": "Generointi epäonnistui"
+    "progressFailed": "Generointi epäonnistui",
+    "maxLengthCeiling": "Rajoitettu {{maxOutputTokens}} tokeniin mallilla {{model}}."
   },
   "ReferenceWizard": {
     "gatherTitle": "Kerätty konteksti",
@@ -424,6 +428,7 @@
     "semanticScoring": "Semanttinen pisteytys",
     "semanticScoringHelp": "Käytä tekoälyä tulosten pisteyttämiseen semanttisen relevanssin mukaan",
     "searching": "Haetaan...",
-    "search": "Hae"
+    "search": "Hae",
+    "maxLengthCeiling": "Rajoitettu {{maxOutputTokens}} tokeniin mallilla {{model}}."
   }
 }

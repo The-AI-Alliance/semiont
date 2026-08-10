@@ -1,8 +1,25 @@
 'use client';
 
-import type { ConnectionState } from '@semiont/core';
+import type { CollaboratorEntry, ConnectionState } from '@semiont/core';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import './CollaborationPanel.css';
+
+/**
+ * Token counts read as ceilings, not quantities — "200K" carries the meaning a
+ * bare 200000 makes the reader compute. Kept lossless above the K/M break so a
+ * 128000 window never displays as a rounded-away 130K.
+ */
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) {
+    const m = n / 1_000_000;
+    return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
+  }
+  if (n >= 1_000) {
+    const k = n / 1_000;
+    return `${Number.isInteger(k) ? k : k.toFixed(1)}K`;
+  }
+  return String(n);
+}
 
 interface Props {
   /**
@@ -26,15 +43,33 @@ interface Props {
   eventCount: number;
   lastEventTimestamp?: string;
   knowledgeBaseName?: string;
+  /**
+   * The KB's collaborator roster (`client.browse.agents()`, typically via
+   * `useCollaborators`). Optional so hosts that never wire it — including
+   * external consumers of this package — render exactly as before.
+   *
+   * Each entry's `limits` is absent whenever discovery could not answer *right
+   * now* (INFERENCE-LIMITS-EXPOSURE D3), so a missing ceiling is normal and
+   * shows as no ceiling rather than as an error.
+   */
+  collaborators?: CollaboratorEntry[];
 }
 
 export function CollaborationPanel({
   state,
   eventCount,
   lastEventTimestamp,
-  knowledgeBaseName
+  knowledgeBaseName,
+  collaborators
 }: Props) {
   const t = useTranslations('CollaborationPanel');
+
+  // Only Software agents have a provider/model and can carry inference
+  // ceilings; Persons and Organizations are collaborators in a different
+  // sense and have nothing to show in this section.
+  const softwareAgents = (collaborators ?? []).filter(
+    (entry) => entry.agent['@type'] === 'Software',
+  );
 
   // Healthy = live, or briefly flapping. Only genuinely sustained
   // disconnects surface as "Disconnected" in the UI.
@@ -121,6 +156,62 @@ export function CollaborationPanel({
           </div>
         </div>
       </div>
+
+      {/* Collaborators roster — software agents and their discovered ceilings */}
+      {softwareAgents.length > 0 && (
+        <div className="semiont-collaboration-panel__section semiont-collaboration-panel__section--bordered">
+          <h3 className="semiont-collaboration-panel__heading">
+            {t('collaborators')}
+          </h3>
+          {softwareAgents.map((entry, i) => {
+            // `agent` is narrowed to the Software member by the filter above,
+            // but the generated union is structural, so read through a local.
+            const agent = entry.agent as Extract<CollaboratorEntry['agent'], { '@type': 'Software' }>;
+            const limits = entry.limits;
+            // `maxOutputTokens === contextTokens` is the schema's documented
+            // sentinel for a provider with ONE shared window (Ollama). Showing
+            // "128K in / 128K out" there would invent a distinction the
+            // provider does not make.
+            const ceiling = !limits
+              ? null
+              : limits.maxOutputTokens === limits.contextTokens
+                ? t('sharedWindow', { contextTokens: formatTokens(limits.contextTokens) })
+                : t('ceilings', {
+                    contextTokens: formatTokens(limits.contextTokens),
+                    maxOutputTokens: formatTokens(limits.maxOutputTokens),
+                  });
+
+            return (
+              <div
+                key={agent['@id'] ?? `${agent.provider}:${agent.model}:${i}`}
+                className="semiont-collaboration-panel__collaborator"
+                data-testid="semiont-collaborator-row"
+              >
+                <div className="semiont-collaboration-panel__collaborator-id">
+                  {agent.provider && (
+                    <span className="semiont-collaboration-panel__collaborator-provider">
+                      {agent.provider}
+                    </span>
+                  )}
+                  <span className="semiont-collaboration-panel__collaborator-model">
+                    {agent.model ?? agent.name}
+                  </span>
+                </div>
+                {entry.servesJobTypes && entry.servesJobTypes.length > 0 && (
+                  <div className="semiont-collaboration-panel__collaborator-jobs">
+                    {entry.servesJobTypes.join(', ')}
+                  </div>
+                )}
+                {ceiling && (
+                  <div className="semiont-collaboration-panel__collaborator-limits">
+                    {ceiling}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Sharing Section - Placeholder for future */}
       <div className="semiont-collaboration-panel__section semiont-collaboration-panel__section--bordered">

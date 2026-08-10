@@ -63,7 +63,10 @@
     "realtimeActive": "การอัปเดตแบบเรียลไทม์กำลังทำงาน",
     "reconnecting": "กำลังเชื่อมต่อเซิร์ฟเวอร์ใหม่...",
     "sharing": "การแชร์",
-    "collaborationComingSoon": "ฟีเจอร์การทำงานร่วมกันจะมาเร็ว ๆ นี้"
+    "collaborationComingSoon": "ฟีเจอร์การทำงานร่วมกันจะมาเร็ว ๆ นี้",
+    "collaborators": "ผู้ร่วมงาน",
+    "ceilings": "เข้า {{contextTokens}} / ออก {{maxOutputTokens}}",
+    "sharedWindow": "หน้าต่าง {{contextTokens}}"
   },
   "AnnotationHistory": {
     "history": "ประวัติ",
@@ -387,7 +390,8 @@
     "progressCancel": "ยกเลิกการสร้าง",
     "progressInProgress": "กำลังสร้าง…",
     "progressComplete": "การสร้างเสร็จสมบูรณ์!",
-    "progressFailed": "การสร้างล้มเหลว"
+    "progressFailed": "การสร้างล้มเหลว",
+    "maxLengthCeiling": "จำกัดที่ {{maxOutputTokens}} โทเค็นโดย {{model}}"
   },
   "ReferenceWizard": {
     "gatherTitle": "บริบทที่รวบรวมแล้ว",
@@ -424,6 +428,7 @@
     "semanticScoring": "การให้คะแนนเชิงความหมาย",
     "semanticScoringHelp": "ใช้ AI เพื่อให้คะแนนผลลัพธ์ตามความเกี่ยวข้องเชิงความหมาย",
     "searching": "กำลังค้นหา...",
-    "search": "ค้นหา"
+    "search": "ค้นหา",
+    "maxLengthCeiling": "จำกัดที่ {{maxOutputTokens}} โทเค็นโดย {{model}}"
   }
 }

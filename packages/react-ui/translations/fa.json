@@ -63,7 +63,10 @@
     "realtimeActive": "به‌روزرسانی‌های بلادرنگ فعال هستند",
     "reconnecting": "در حال اتصال مجدد به سرور...",
     "sharing": "اشتراک‌گذاری",
-    "collaborationComingSoon": "ویژگی‌های همکاری به‌زودی ارائه خواهند شد"
+    "collaborationComingSoon": "ویژگی‌های همکاری به‌زودی ارائه خواهند شد",
+    "collaborators": "همکاران",
+    "ceilings": "{{contextTokens}} ورودی / {{maxOutputTokens}} خروجی",
+    "sharedWindow": "پنجره {{contextTokens}}"
   },
   "AnnotationHistory": {
     "history": "تاریخچه",
@@ -387,7 +390,8 @@
     "progressCancel": "لغو تولید",
     "progressInProgress": "در حال تولید…",
     "progressComplete": "تولید کامل شد!",
-    "progressFailed": "تولید ناموفق بود"
+    "progressFailed": "تولید ناموفق بود",
+    "maxLengthCeiling": "محدود به {{maxOutputTokens}} توکن توسط {{model}}."
   },
   "ReferenceWizard": {
     "gatherTitle": "زمینه جمع‌آوری‌شده",
@@ -424,6 +428,7 @@
     "semanticScoring": "امتیازدهی معنایی",
     "semanticScoringHelp": "استفاده از هوش مصنوعی برای امتیازدهی نتایج بر اساس ارتباط معنایی",
     "searching": "در حال جستجو...",
-    "search": "جستجو"
+    "search": "جستجو",
+    "maxLengthCeiling": "محدود به {{maxOutputTokens}} توکن توسط {{model}}."
   }
 }

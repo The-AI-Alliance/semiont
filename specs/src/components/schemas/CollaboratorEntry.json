@@ -7,6 +7,10 @@
       "type": "array",
       "items": { "$ref": "./JobType.json" },
       "description": "Job types this agent is declared to serve (from the KB's workers.* config sections). Absent for Persons and for agents declared only under actor roles."
+    },
+    "limits": {
+      "$ref": "./InferenceLimits.json",
+      "description": "Discovered context/output ceilings for this agent's model; absent when discovery is currently unavailable."
     }
   },
   "required": ["agent"]

@@ -7,9 +7,11 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { firstValueFrom, race, timer, map, take } from 'rxjs';
-import { EventBus, resourceId, agentToDid, type Logger } from '@semiont/core';
+import { EventBus, resourceId, agentToDid, type Logger, type components } from '@semiont/core';
 import { Browser } from '../browser';
 import type { MakeMeaningConfig } from '../config';
+
+type CollaboratorEntry = components['schemas']['CollaboratorEntry'];
 
 // ── fs mock ───────────────────────────────────────────────────────────────────
 
@@ -68,6 +70,10 @@ const mockKb = { graph: {}, views: {} } as any;
 
 const emptyConfig: MakeMeaningConfig = { services: {}, gather: { settleTimeoutMs: 15_000 } };
 
+// Enrichment-neutral discovery for tests whose subject is not limits — the
+// pool's own semantics are pinned in limits-discovery.test.ts.
+const passthroughDiscovery = { enrich: async (entries: CollaboratorEntry[]) => entries };
+
 // ── tests ─────────────────────────────────────────────────────────────────────
 
 describe('Browser actor', () => {
@@ -84,6 +90,7 @@ describe('Browser actor', () => {
       eventBus,
       { root: PROJECT_ROOT } as any,
       emptyConfig,
+      passthroughDiscovery,
       mockLogger,
     );
     await browser.initialize();
@@ -211,6 +218,7 @@ describe('Browser actor', () => {
       eventBus,
       { root: PROJECT_ROOT } as any,
       emptyConfig,
+      passthroughDiscovery,
       mockLogger,
     );
     await browser.initialize();
@@ -327,7 +335,7 @@ describe('Browser actor', () => {
         graph: { getResourceReferencedBy: mockReferencedBy, getResource: mockGetResource },
         views: { get: mockViewGet },
       } as any;
-      browser = new Browser(makeViews([]) as any, kb, eventBus, { root: PROJECT_ROOT } as any, emptyConfig, mockLogger);
+      browser = new Browser(makeViews([]) as any, kb, eventBus, { root: PROJECT_ROOT } as any, emptyConfig, passthroughDiscovery, mockLogger);
       await browser.initialize();
     });
 
@@ -487,9 +495,10 @@ describe('Browser actor', () => {
     async function withBrowser(
       config: MakeMeaningConfig,
       fn: (bus: EventBus) => Promise<void>,
+      discovery?: { enrich(entries: CollaboratorEntry[]): Promise<CollaboratorEntry[]> },
     ) {
       const bus = new EventBus();
-      const b = new Browser(makeViews([]) as any, mockKb, bus, { root: PROJECT_ROOT } as any, config, mockLogger);
+      const b = new Browser(makeViews([]) as any, mockKb, bus, { root: PROJECT_ROOT } as any, config, discovery ?? passthroughDiscovery, mockLogger);
       await b.initialize();
       try {
         await fn(bus);
@@ -581,6 +590,34 @@ describe('Browser actor', () => {
           expect(entry.agent['@id']).toBe(did('ollama', 'llama3'));
           expect(entry).not.toHaveProperty('servesJobTypes');
         },
+      );
+    });
+
+    it('serves entries through the limits discovery — discovered ceilings ride the reply (INFERENCE-LIMITS-EXPOSURE P2)', async () => {
+      // The Browser hands the derived roster to its LimitsDiscovery and
+      // replies with whatever it attaches — the enrichment seam observed
+      // through the real handler. The fake stands in for the discovery pool;
+      // the pool's own semantics (budget, recovery, guarded construction)
+      // are pinned in limits-discovery.test.ts.
+      const LIMITS = { contextTokens: 200_000, maxOutputTokens: 64_000 };
+      const attachingDiscovery = {
+        enrich: async (entries: CollaboratorEntry[]) =>
+          entries.map((e) => ({ ...e, limits: LIMITS })),
+      };
+      await withBrowser(
+        {
+          services: {},
+          gather: { settleTimeoutMs: 15_000 },
+          site: { domain: SITE_DOMAIN },
+          workers: { default: { type: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'k' } },
+        },
+        async (bus) => {
+          const r = await requestAgents(bus);
+          if (r.kind !== 'result') throw new Error(`expected result, got failed: ${r.e.message}`);
+          expect(r.e.response.agents).toHaveLength(1);
+          expect(r.e.response.agents[0].limits).toEqual(LIMITS);
+        },
+        attachingDiscovery,
       );
     });
 

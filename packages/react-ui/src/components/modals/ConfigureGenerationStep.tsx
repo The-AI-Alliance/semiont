@@ -1,8 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
-import type { GatheredContext } from '@semiont/core';
+import React, { useEffect, useState } from 'react';
+import type { CollaboratorEntry, GatheredContext } from '@semiont/core';
 import { LOCALES } from '@semiont/core';
+
+/**
+ * Bounds for the max-length control when no ceiling is known. These are the
+ * values this control has always shipped — the fallback is today's behaviour,
+ * not an unbounded field (INFERENCE-LIMITS-EXPOSURE D6, as corrected in review).
+ */
+const MIN_MAX_TOKENS = 100;
+const DEFAULT_MAX_TOKENS_CEILING = 4000;
 export interface GenerationConfig {
   title: string;
   storagePath: string;
@@ -32,10 +40,24 @@ export interface ConfigureGenerationStepProps {
     creativityCreative: string;
     maxLength: string;
     maxLengthHelp: string;
+    /**
+     * Shown INSTEAD of `maxLengthHelp` when the ceiling is known, so the bound
+     * is legible rather than mysterious. Interpolates `{{maxOutputTokens}}`
+     * and `{{model}}`.
+     */
+    maxLengthCeiling: string;
     cancel: string;
     back: string;
     generate: string;
   };
+  /**
+   * The roster entry serving `generation` (from `useCollaborators`). When its
+   * `limits` are known the max-length control is hard-bounded by the model's
+   * output ceiling; absent — or present without `limits`, which is normal when
+   * discovery could not answer right now — the control keeps its default
+   * bounds and generation still submits (D3).
+   */
+  generationAgent?: CollaboratorEntry;
 }
 
 export function ConfigureGenerationStep({
@@ -46,13 +68,41 @@ export function ConfigureGenerationStep({
   onCancel,
   onGenerate,
   translations: t,
+  generationAgent,
 }: ConfigureGenerationStepProps) {
   const [title, setTitle] = useState(defaultTitle);
   const [storagePath, setStoragePath] = useState('');
   const [prompt, setPrompt] = useState('');
   const [language, setLanguage] = useState(locale);
   const [temperature, setTemperature] = useState(0.7);
-  const [maxTokens, setMaxTokens] = useState(500);
+  // Held as TEXT, not a number, so the field can be cleared while retyping.
+  // The old `parseInt(e.target.value)` turned an empty field into NaN, which
+  // React warns about and which travelled into the job config.
+  const [maxTokensText, setMaxTokensText] = useState('500');
+
+  const ceiling = generationAgent?.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS_CEILING;
+
+  /**
+   * The value that will actually be submitted: always finite, always inside
+   * the bounds, whatever the field currently shows.
+   */
+  const clamp = (n: number): number =>
+    Math.min(Math.max(Number.isFinite(n) ? n : MIN_MAX_TOKENS, MIN_MAX_TOKENS), ceiling);
+
+  const submittedMaxTokens = clamp(parseInt(maxTokensText, 10));
+
+  // Re-clamp whenever the ceiling changes — which INCLUDES its first arrival.
+  // `browse.agents()` is asynchronous, so `generationAgent` is undefined on the
+  // first render and lands later; clamping only in the `useState` initializer
+  // would satisfy a mount-time test and do nothing in the running app.
+  useEffect(() => {
+    setMaxTokensText((current) => {
+      const n = parseInt(current, 10);
+      // An empty/mid-edit field is left alone; submission clamps it anyway.
+      if (!Number.isFinite(n)) return current;
+      return n > ceiling ? String(ceiling) : current;
+    });
+  }, [ceiling]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,7 +113,7 @@ export function ConfigureGenerationStep({
       ...(trimmedPrompt ? { prompt: trimmedPrompt } : {}),
       language,
       temperature,
-      maxTokens,
+      maxTokens: submittedMaxTokens,
       context,
     });
   };
@@ -167,13 +217,34 @@ export function ConfigureGenerationStep({
           <input
             id="wizard-maxTokens"
             type="number"
-            min="100"
-            max="4000"
+            min={MIN_MAX_TOKENS}
+            max={ceiling}
             step="100"
-            value={maxTokens}
-            onChange={(e) => setMaxTokens(parseInt(e.target.value))}
+            value={maxTokensText}
+            onChange={(e) => {
+              const raw = e.target.value;
+              // Empty is a legitimate transient state while retyping.
+              if (raw === '') { setMaxTokensText(''); return; }
+              const n = parseInt(raw, 10);
+              if (!Number.isFinite(n)) return;
+              // `max` alone does not stop a larger value being typed — it only
+              // marks the field invalid. D6 says it cannot be entered, so the
+              // clamp lives here.
+              setMaxTokensText(String(Math.min(n, ceiling)));
+            }}
             className="semiont-input"
           />
+          <p className="semiont-form__help">
+            {generationAgent?.limits
+              ? t.maxLengthCeiling
+                  .replace('{{maxOutputTokens}}', String(ceiling))
+                  .replace(
+                    '{{model}}',
+                    (generationAgent.agent as { model?: string; name?: string }).model
+                      ?? generationAgent.agent.name,
+                  )
+              : t.maxLengthHelp}
+          </p>
         </div>
       </div>
 
