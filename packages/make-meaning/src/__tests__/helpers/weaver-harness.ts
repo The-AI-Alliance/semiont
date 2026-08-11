@@ -300,7 +300,7 @@ export function serveHistory(eventBus: EventBus, history: StoredEvent[]): () => 
       });
       eventBus.get('browse:resources-result').next({
         correlationId: (req as { correlationId: string }).correlationId,
-        response: { resources: page, total: rids.length },
+        response: { resources: page, total: rids.length, matchKind: 'lexical' },
       } as unknown as EventMap['browse:resources-result']);
     }),
     eventBus.get('browse:events-requested').subscribe((req) => {

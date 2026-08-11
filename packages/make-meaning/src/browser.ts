@@ -189,6 +189,7 @@ export class Browser {
           total,
           offset,
           limit,
+          matchKind: 'lexical',
         },
       });
     } catch (error) {

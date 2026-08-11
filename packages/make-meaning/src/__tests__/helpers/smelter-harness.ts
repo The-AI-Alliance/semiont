@@ -203,6 +203,7 @@ export function createFakeKsBus(
             total: resources.length,
             offset,
             limit,
+            matchKind: 'lexical' as const,
           },
         }));
       } else if (name === 'browse:resource-requested') {

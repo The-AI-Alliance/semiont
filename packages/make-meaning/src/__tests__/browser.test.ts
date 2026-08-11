@@ -101,6 +101,25 @@ describe('Browser actor', () => {
     eventBus.destroy();
   });
 
+  // ── resources search reply ─────────────────────────────────────────────────
+
+  it('labels the resources reply with matchKind (SEMANTIC-FALLBACK P1b)', async () => {
+    // The wire discriminator is REQUIRED so the compiler finds every emitter:
+    // an optional field defaulting to lexical would be a compatibility shim
+    // (a missing value silently reads as lexical). The lexical path labels
+    // itself here; P2's fallback labels its answers 'semantic'.
+    mockKb.graph.listResources = vi.fn().mockResolvedValue({ resources: [], total: 0 });
+
+    const result$ = eventBus.get('browse:resources-result');
+    const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
+
+    eventBus.get('browse:resources-requested').next({ correlationId: 'cid-mk', search: 'ouranos' });
+
+    const event = await resultPromise;
+    expect(event.correlationId).toBe('cid-mk');
+    expect(event.response.matchKind).toBe('lexical');
+  });
+
   // ── path traversal guard ───────────────────────────────────────────────────
 
   describe('path traversal guard', () => {
