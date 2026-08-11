@@ -63,7 +63,10 @@
     "realtimeActive": "实时更新已激活",
     "reconnecting": "正在重新连接服务器...",
     "sharing": "共享",
-    "collaborationComingSoon": "协作功能即将推出"
+    "collaborationComingSoon": "协作功能即将推出",
+    "collaborators": "协作者",
+    "ceilings": "输入 {{contextTokens}} / 输出 {{maxOutputTokens}}",
+    "sharedWindow": "{{contextTokens}} 窗口"
   },
   "AnnotationHistory": {
     "history": "历史",
@@ -387,7 +390,8 @@
     "progressCancel": "取消生成",
     "progressInProgress": "正在生成…",
     "progressComplete": "生成完成！",
-    "progressFailed": "生成失败"
+    "progressFailed": "生成失败",
+    "maxLengthCeiling": "受 {{model}} 限制为 {{maxOutputTokens}} 个词元。"
   },
   "ReferenceWizard": {
     "gatherTitle": "已收集的上下文",
@@ -424,6 +428,7 @@
     "semanticScoring": "语义评分",
     "semanticScoringHelp": "使用 AI 按语义相关性对结果进行评分",
     "searching": "搜索中...",
-    "search": "搜索"
+    "search": "搜索",
+    "maxLengthCeiling": "受 {{model}} 限制为 {{maxOutputTokens}} 个词元。"
   }
 }

@@ -40,6 +40,7 @@ import { ResourceContext } from './resource-context';
 import { assembleResourceGraph } from './resource-graph';
 import type { MakeMeaningConfig } from './config';
 import { deriveAgentRoster } from './agent-roster';
+import type { LimitsDiscovery } from './limits-discovery';
 
 type DirectoryEntry = components['schemas']['DirectoryEntry'];
 type FileEntry      = components['schemas']['FileEntry'];
@@ -55,6 +56,8 @@ export class Browser {
     private eventBus: EventBus,
     private project: SemiontProject,
     private config: MakeMeaningConfig,
+    /** Discovered per-(provider, model) ceilings for the roster (INFERENCE-LIMITS-EXPOSURE P2). */
+    private limitsDiscovery: LimitsDiscovery,
     logger: Logger,
   ) {
     this.logger = logger;
@@ -436,7 +439,11 @@ export class Browser {
     try {
       // Derived per request from the config sections that route work — the
       // declared roster, cheap enough that no caching layer is warranted.
-      const agents = deriveAgentRoster(this.config);
+      // Enrichment attaches discovered ceilings where the pool answers
+      // within its budget; every failure shape degrades to an entry
+      // without `limits` (D3) — the reply itself never fails or blocks
+      // on a provider.
+      const agents = await this.limitsDiscovery.enrich(deriveAgentRoster(this.config));
       this.eventBus.get('browse:agents-result').next({
         correlationId: event.correlationId,
         response: { agents },

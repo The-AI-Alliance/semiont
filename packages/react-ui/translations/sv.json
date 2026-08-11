@@ -63,7 +63,10 @@
     "realtimeActive": "Realtidsuppdateringar är aktiva",
     "reconnecting": "Återansluter till servern...",
     "sharing": "Delning",
-    "collaborationComingSoon": "Samarbetsfunktioner kommer snart"
+    "collaborationComingSoon": "Samarbetsfunktioner kommer snart",
+    "collaborators": "Medarbetare",
+    "ceilings": "{{contextTokens}} in / {{maxOutputTokens}} ut",
+    "sharedWindow": "{{contextTokens}} fönster"
   },
   "AnnotationHistory": {
     "history": "Historik",
@@ -387,7 +390,8 @@
     "progressCancel": "Avbryt generering",
     "progressInProgress": "Genererar…",
     "progressComplete": "Generering klar!",
-    "progressFailed": "Generering misslyckades"
+    "progressFailed": "Generering misslyckades",
+    "maxLengthCeiling": "Begränsat till {{maxOutputTokens}} tokens av {{model}}."
   },
   "ReferenceWizard": {
     "gatherTitle": "Samlad kontext",
@@ -424,6 +428,7 @@
     "semanticScoring": "Semantisk poängsättning",
     "semanticScoringHelp": "Använd AI för att poängsätta resultat efter semantisk relevans",
     "searching": "Söker...",
-    "search": "Sök"
+    "search": "Sök",
+    "maxLengthCeiling": "Begränsat till {{maxOutputTokens}} tokens av {{model}}."
   }
 }

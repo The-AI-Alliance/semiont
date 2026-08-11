@@ -360,6 +360,11 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 	// it, and a stack with no ollama-served models never asks at all.
 	var facts modelFacts
 	factsFetched := false
+	// Same laziness for the platform's ceilings: one bus request, made only
+	// once a row actually has models to decorate, and never at all for a
+	// stack with none.
+	var ceilings modelCeilings
+	ceilingsFetched := false
 	for _, svc := range statusServices {
 		if service != "" && svc.name != service {
 			continue
@@ -484,7 +489,11 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 					}
 				}
 			}
-			printModels(u, rec.Models, rec.OllamaServed, rec.Driver, facts, remote)
+			if !ceilingsFetched {
+				ceilings = fetchModelCeilings(st)
+				ceilingsFetched = true
+			}
+			printModels(u, rec.Models, rec.OllamaServed, rec.Driver, facts, remote, ceilings)
 		}
 	}
 	return healthy, 0

@@ -63,7 +63,10 @@
     "realtimeActive": "التحديثات في الوقت الفعلي نشطة",
     "reconnecting": "جارٍ إعادة الاتصال بالخادم...",
     "sharing": "المشاركة",
-    "collaborationComingSoon": "ميزات التعاون قادمة قريبًا"
+    "collaborationComingSoon": "ميزات التعاون قادمة قريبًا",
+    "collaborators": "المتعاونون",
+    "ceilings": "{{contextTokens}} إدخال / {{maxOutputTokens}} إخراج",
+    "sharedWindow": "نافذة {{contextTokens}}"
   },
   "AnnotationHistory": {
     "history": "السجل",
@@ -387,7 +390,8 @@
     "progressCancel": "إلغاء التوليد",
     "progressInProgress": "جارٍ التوليد…",
     "progressComplete": "اكتمل التوليد!",
-    "progressFailed": "فشل التوليد"
+    "progressFailed": "فشل التوليد",
+    "maxLengthCeiling": "محدود بـ {{maxOutputTokens}} رمزًا بواسطة {{model}}."
   },
   "ReferenceWizard": {
     "gatherTitle": "السياق المُجمَّع",
@@ -424,6 +428,7 @@
     "semanticScoring": "التقييم الدلالي",
     "semanticScoringHelp": "استخدام الذكاء الاصطناعي لتقييم النتائج حسب الصلة الدلالية",
     "searching": "جاري البحث...",
-    "search": "بحث"
+    "search": "بحث",
+    "maxLengthCeiling": "محدود بـ {{maxOutputTokens}} رمزًا بواسطة {{model}}."
   }
 }

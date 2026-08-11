@@ -336,6 +336,25 @@ semiont stop
   key per role section overrides the catalog's default image — a KB can pin
   or upgrade an infra image without a launcher release. `--dry-run` renders
   the derived plan.
+- **Model rows carry the platform's discovered ceilings.** The context window
+  and output ceiling beside each model come from the KB — one correlated
+  `browse:agents-requested` exchange over the bus (the same request every
+  other Semiont client makes), read off the collaborator roster the Browser
+  enriches with what the inference clients discovered from each provider. The
+  launcher asks no provider directly for a ceiling. A shared input+output
+  window renders as one figure (`128K window`); distinct ceilings render as
+  `200K in / 64K out`, worded as the CollaborationPanel words them so one
+  model reads the same in the terminal and in the browser. Where the platform
+  publishes a ceiling for a remote model it REPLACES the context figure
+  `/v1/models` reported — one number, from one source; that probe keeps
+  rendering only what it alone knows. No stack, no session, an unreachable or
+  wedged backend (the request is bounded well under the bus client's 30 s
+  default), or an entry whose discovery failed: the row renders exactly as it
+  did before, no ceiling and no error. And a ceiling appears only where the
+  record can say which provider serves THAT model — a row whose driver says
+  `ollama` listing a model Ollama does not serve gets nothing, the same
+  per-model-not-per-row rule that keeps a Claude from being checked against
+  Ollama. A wrong ceiling would be worse than a missing one.
 - KB-root discovery matches the npm CLI (`SEMIONT_ROOT`, analogous to
   `GIT_DIR`): the override is strict (invalid values error, never fall back),
   else the root is found by walking up from cwd for `.semiont/`. git is not
