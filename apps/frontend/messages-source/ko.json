@@ -253,7 +253,8 @@
     "composeFirstResource": "첫 번째 리소스 작성",
     "loadingKnowledgeBase": "지식 베이스 로딩 중...",
     "recentFailed": "리소스를 불러올 수 없습니다.",
-    "retry": "다시 시도"
+    "retry": "다시 시도",
+    "semanticFallbackNotice": "제목 일치 없음 — 관련 문서를 표시합니다."
   },
   "Compose": {
     "title": "새 리소스",

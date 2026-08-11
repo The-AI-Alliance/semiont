@@ -23,6 +23,8 @@ function mockClient(overrides: {
   resources$?: BehaviorSubject<unknown[] | undefined>;
   entityTypes$?: BehaviorSubject<string[] | undefined>;
   resourcesFn?: (filters: BrowseFilters) => BehaviorSubject<unknown[] | undefined>;
+  /** What the stubbed list envelope reports as its match kind. */
+  matchKind?: 'lexical' | 'semantic';
 } = {}): { client: SemiontClient; resourceCalls: BrowseFilters[] } {
   const resourceCalls: BrowseFilters[] = [];
   const defaultResources$ =
@@ -39,7 +41,7 @@ function mockClient(overrides: {
         return asStates(resourcesFn(filters).asObservable().pipe(
           // Arrays get the list envelope `resources()` now emits; explicit
           // status objects (B15 fixtures) and `undefined` pass through.
-          map((v) => (Array.isArray(v) ? { resources: v, total: v.length, offset: 0, limit: 20, matchKind: 'lexical' } : v)),
+          map((v) => (Array.isArray(v) ? { resources: v, total: v.length, offset: 0, limit: 20, matchKind: overrides.matchKind ?? 'lexical' } : v)),
         ));
       },
       entityTypes: () => asStates(entityTypes$.asObservable()),
@@ -48,6 +50,50 @@ function mockClient(overrides: {
 
   return { client, resourceCalls };
 }
+
+describe('createDiscoverStateUnit — search match kind (SEMANTIC-FALLBACK P3b)', () => {
+  // S10 is tier-agnostic: the label and the resources it describes must arrive
+  // as ONE value. Exposing `matchKind$` as a second observable beside
+  // `state$.results` would satisfy the component and still let a render pair
+  // this query's label with the previous query's list.
+  it('emits matchKind in the SAME value as the results it labels', async () => {
+    vi.useFakeTimers();
+    try {
+      const results$ = new BehaviorSubject<unknown[] | undefined>([{ '@id': 'sem-1' }]);
+      const { client } = mockClient({ resourcesFn: () => results$, matchKind: 'semantic' });
+      const stateUnit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
+
+      // Subscribe BEFORE setQuery: `queryInput$` is a plain Subject, so a value
+      // pushed with nothing listening is gone.
+      const collected: Array<{ results: unknown[]; matchKind?: string }> = [];
+      const sub = stateUnit.search.state$.subscribe((st) => collected.push(st));
+
+      stateUnit.search.setQuery('kitten');
+      await vi.advanceTimersByTimeAsync(300);
+
+      const last = collected.at(-1)!;
+      expect(last.results).toEqual([{ '@id': 'sem-1' }]);
+      expect(last.matchKind).toBe('semantic');
+
+      sub.unsubscribe();
+      stateUnit.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('carries no matchKind on the empty-query view', async () => {
+    // Clearing the box returns to `recent`, which no label describes.
+    const { client } = mockClient();
+    const stateUnit = createDiscoverStateUnit(sessionOf(client), mockBrowse());
+
+    const first = await firstValueFrom(stateUnit.search.state$);
+    expect(first.results).toEqual([]);
+    expect(first.matchKind).toBeUndefined();
+
+    stateUnit.dispose();
+  });
+});
 
 describe('createDiscoverStateUnit', () => {
   it('exposes recent resources from browse namespace', async () => {
@@ -205,7 +251,7 @@ describe('createDiscoverStateUnit', () => {
       stateUnit.search.setQuery('lincoln');
       await vi.advanceTimersByTimeAsync(300);
 
-      expect(collected.at(-1)).toEqual({ results: [{ '@id': 'hit' }], isSearching: false });
+      expect(collected.at(-1)).toEqual({ results: [{ '@id': 'hit' }], isSearching: false, matchKind: 'lexical' });
 
       sub.unsubscribe();
       stateUnit.dispose();

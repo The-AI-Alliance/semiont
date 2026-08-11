@@ -7,10 +7,16 @@ import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
  * Live gate — SEMANTIC-FALLBACK.md: when a lexical search returns nothing, the
  * server embeds the query once and answers from the vector index instead.
  *
- * Pure **SDK round-trip** (no browser), per the spec-15/18 pattern. There is no
- * browser leg available even in principle: `matchKind` has no consumer in
- * `apps/frontend` or `packages/react-ui`, so a semantic answer is currently
- * indistinguishable from a lexical one in the UI. Nothing is rendered to assert.
+ * Pure **SDK round-trip** (no browser), per the spec-15/18 pattern.
+ *
+ * That used to be forced: `matchKind` had no consumer, so a semantic answer was
+ * indistinguishable from a lexical one and there was nothing rendered to
+ * assert. **No longer true as of P3b** — `ResourceDiscoveryPage` renders a
+ * notice for a semantic result set, pinned by its own component test. What this
+ * spec adds is the other half: that the label arriving over the real wire says
+ * `semantic` for a semantic answer and `lexical` for a lexical one. A browser
+ * leg would re-test the render this spec cannot make more trustworthy; the wire
+ * value is what only a live stack can prove.
  *
  * ── What this pins that the unit tests cannot ──────────────────────────────
  *
@@ -196,5 +202,29 @@ test.describe.serial('semantic fallback answers what lexical search cannot', () 
       content?.includes('thylakoid') || content?.includes('Photosynthesis'),
       `content should be drawn from the matched region; got: ${content?.slice(0, 120)}`,
     ).toBe(true);
+  });
+
+  /**
+   * T4 — the label, end to end (SEMANTIC-FALLBACK S11 / P3b). The UI's notice is
+   * only as honest as the value it renders, and every layer between the vector
+   * store and the SDK could mislabel it. Asserted in BOTH directions: a
+   * one-sided check passes against a producer hardcoding `'semantic'`.
+   */
+  test('the answer is labelled by how it was produced', async () => {
+    await expect
+      .poll(async () => (await semanticSearch(client)).length, { timeout: INDEXING_TIMEOUT })
+      .toBeGreaterThan(0);
+
+    const semantic = await client.browse.resources({ search: BODY_QUERY }).fresh();
+    expect(
+      semantic.matchKind,
+      'a body-only phrase can only have been answered by the fallback, and must say so',
+    ).toBe('semantic');
+
+    const lexical = await client.browse.resources({ search: RESOURCE_NAME }).fresh();
+    expect(
+      lexical.matchKind,
+      'a name hit never reaches the fallback — labelling it semantic would make the notice a lie',
+    ).toBe('lexical');
   });
 });

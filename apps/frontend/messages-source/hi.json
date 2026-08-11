@@ -253,7 +253,8 @@
     "composeFirstResource": "पहला संसाधन रचें",
     "loadingKnowledgeBase": "ज्ञान आधार लोड हो रहा है...",
     "recentFailed": "संसाधन लोड नहीं हो सके।",
-    "retry": "पुनः प्रयास करें"
+    "retry": "पुनः प्रयास करें",
+    "semanticFallbackNotice": "कोई शीर्षक मेल नहीं — संबंधित दस्तावेज़ दिखाए जा रहे हैं।"
   },
   "Compose": {
     "title": "नया संसाधन",

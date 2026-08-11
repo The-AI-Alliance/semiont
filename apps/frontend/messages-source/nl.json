@@ -253,7 +253,8 @@
     "composeFirstResource": "Eerste bron samenstellen",
     "loadingKnowledgeBase": "Kennisbank laden...",
     "recentFailed": "Kan de bronnen niet laden.",
-    "retry": "Opnieuw proberen"
+    "retry": "Opnieuw proberen",
+    "semanticFallbackNotice": "Geen titeltreffers — gerelateerde documenten worden getoond."
   },
   "Compose": {
     "title": "Nieuwe bron",

@@ -253,7 +253,8 @@
     "composeFirstResource": "Compune prima resursă",
     "loadingKnowledgeBase": "Se încarcă baza de cunoștințe...",
     "recentFailed": "Nu s-au putut încărca resursele.",
-    "retry": "Încearcă din nou"
+    "retry": "Încearcă din nou",
+    "semanticFallbackNotice": "Niciun titlu care să corespundă — afișez documente înrudite."
   },
   "Compose": {
     "title": "Resursă nouă",

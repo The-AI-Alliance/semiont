@@ -253,7 +253,8 @@
     "composeFirstResource": "প্রথম সম্পদ রচনা করুন",
     "loadingKnowledgeBase": "জ্ঞানভাণ্ডার লোড হচ্ছে...",
     "recentFailed": "রিসোর্স লোড করা যায়নি।",
-    "retry": "আবার চেষ্টা করুন"
+    "retry": "আবার চেষ্টা করুন",
+    "semanticFallbackNotice": "কোনো শিরোনাম মেলেনি — সম্পর্কিত নথি দেখানো হচ্ছে।"
   },
   "Compose": {
     "title": "নতুন সম্পদ",

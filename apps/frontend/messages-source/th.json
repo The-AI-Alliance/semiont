@@ -253,7 +253,8 @@
     "composeFirstResource": "เขียนทรัพยากรแรก",
     "loadingKnowledgeBase": "กำลังโหลดฐานความรู้...",
     "recentFailed": "ไม่สามารถโหลดทรัพยากรได้",
-    "retry": "ลองอีกครั้ง"
+    "retry": "ลองอีกครั้ง",
+    "semanticFallbackNotice": "ไม่พบชื่อเรื่องที่ตรงกัน — แสดงเอกสารที่เกี่ยวข้อง"
   },
   "Compose": {
     "title": "ทรัพยากรใหม่",

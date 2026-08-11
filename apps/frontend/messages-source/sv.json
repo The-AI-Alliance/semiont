@@ -253,7 +253,8 @@
     "composeFirstResource": "Skapa första resursen",
     "loadingKnowledgeBase": "Laddar kunskapsbas...",
     "recentFailed": "Det gick inte att läsa in resurser.",
-    "retry": "Försök igen"
+    "retry": "Försök igen",
+    "semanticFallbackNotice": "Inga titelträffar – visar relaterade dokument."
   },
   "Compose": {
     "title": "Ny resurs",

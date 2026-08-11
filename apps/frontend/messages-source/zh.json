@@ -253,7 +253,8 @@
     "composeFirstResource": "创建第一个资源",
     "loadingKnowledgeBase": "正在加载知识库...",
     "recentFailed": "无法加载资源。",
-    "retry": "重试"
+    "retry": "重试",
+    "semanticFallbackNotice": "没有标题匹配 — 显示相关文档。"
   },
   "Compose": {
     "title": "新资源",

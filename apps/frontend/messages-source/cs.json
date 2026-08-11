@@ -253,7 +253,8 @@
     "composeFirstResource": "Vytvořit první zdroj",
     "loadingKnowledgeBase": "Načítání znalostní báze...",
     "recentFailed": "Zdroje se nepodařilo načíst.",
-    "retry": "Zkusit znovu"
+    "retry": "Zkusit znovu",
+    "semanticFallbackNotice": "Žádná shoda v názvech — zobrazujeme související dokumenty."
   },
   "Compose": {
     "title": "Nový zdroj",

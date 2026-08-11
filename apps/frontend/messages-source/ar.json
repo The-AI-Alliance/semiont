@@ -253,7 +253,8 @@
     "composeFirstResource": "إنشاء أول مورد",
     "loadingKnowledgeBase": "جارٍ تحميل قاعدة المعرفة...",
     "recentFailed": "تعذّر تحميل الموارد.",
-    "retry": "إعادة المحاولة"
+    "retry": "إعادة المحاولة",
+    "semanticFallbackNotice": "لا تطابق العناوين — نعرض مستندات ذات صلة."
   },
   "Compose": {
     "title": "مورد جديد",

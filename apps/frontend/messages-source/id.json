@@ -253,7 +253,8 @@
     "composeFirstResource": "Buat Sumber Daya Pertama",
     "loadingKnowledgeBase": "Memuat basis pengetahuan...",
     "recentFailed": "Tidak dapat memuat sumber daya.",
-    "retry": "Coba lagi"
+    "retry": "Coba lagi",
+    "semanticFallbackNotice": "Tidak ada judul yang cocok — menampilkan dokumen terkait."
   },
   "Compose": {
     "title": "Sumber Daya Baru",

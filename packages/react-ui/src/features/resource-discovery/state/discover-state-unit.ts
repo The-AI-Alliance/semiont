@@ -14,7 +14,18 @@ const DEBOUNCE_MS = 250;
 
 export interface DiscoverSearchPipeline {
   query$: Observable<string>;
-  state$: Observable<{ results: ResourceDescriptor[]; isSearching: boolean }>;
+  /**
+   * The page AND the label that describes it, as one value. `matchKind` is
+   * carried here rather than beside it because SEMANTIC-FALLBACK S10 is
+   * tier-agnostic: two separately-observable pieces of state let a render pair
+   * this query's label with the previous query's list. Undefined only before
+   * the first answer (and while a query is empty), never as a third kind.
+   */
+  state$: Observable<{
+    results: ResourceDescriptor[];
+    isSearching: boolean;
+    matchKind?: 'lexical' | 'semantic';
+  }>;
   setQuery(value: string): void;
 }
 
@@ -78,11 +89,13 @@ export function createDiscoverStateUnit(
     distinctUntilChanged(),
   );
 
-  const state$: Observable<{ results: ResourceDescriptor[]; isSearching: boolean }> =
+  const state$: DiscoverSearchPipeline['state$'] =
     combineLatest([debouncedQuery$, selectedEntityType$]).pipe(
       switchMap(([q, et]) => {
         const trimmed = q.trim();
         if (!trimmed) {
+          // No query, no answer to label: `recent` is what renders, and no
+          // matchKind describes it.
           return of({ results: [] as ResourceDescriptor[], isSearching: false });
         }
         return client.browse
@@ -92,10 +105,14 @@ export function createDiscoverStateUnit(
             ...(et ? { entityType: et } : {}),
           })
           .pipe(
-            map((st) => ({
-              results: readyValue(st)?.resources ?? [],
-              isSearching: st.status === 'pending',
-            })),
+            map((st) => {
+              const ready = readyValue(st);
+              return {
+                results: ready?.resources ?? [],
+                isSearching: st.status === 'pending',
+                ...(ready ? { matchKind: ready.matchKind } : {}),
+              };
+            }),
             startWith({ results: [] as ResourceDescriptor[], isSearching: true }),
           );
       }),

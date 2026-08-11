@@ -253,7 +253,8 @@
     "composeFirstResource": "Opprett første ressurs",
     "loadingKnowledgeBase": "Laster kunnskapsbasen...",
     "recentFailed": "Kunne ikke laste ressurser.",
-    "retry": "Prøv igjen"
+    "retry": "Prøv igjen",
+    "semanticFallbackNotice": "Ingen titteltreff – viser relaterte dokumenter."
   },
   "Compose": {
     "title": "Ny ressurs",
