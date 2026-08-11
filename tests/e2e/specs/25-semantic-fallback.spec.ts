@@ -156,7 +156,7 @@ test.describe.serial('semantic fallback answers what lexical search cannot', () 
 
     const { resources: hits } = await client.browse.resources({ search: RESOURCE_NAME }).fresh();
     expect(
-      hits.some((r) => r.id === rid),
+      hits.some((r) => r['@id'] === rid),
       'the seeded resource is findable by name — lexical search is intact and the fallback did not displace it',
     ).toBe(true);
   });
