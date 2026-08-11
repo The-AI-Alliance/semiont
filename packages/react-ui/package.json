@@ -102,7 +102,7 @@
     "cssnano": "^8.0.2",
     "fast-check": "^4.9.0",
     "jest-axe": "^11.0.0",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.0",
     "postcss-import": "^16.1.1",
     "rollup": "^4.62.3",
     "rollup-plugin-dts": "^6.4.1",
