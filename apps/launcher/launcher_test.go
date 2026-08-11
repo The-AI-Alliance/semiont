@@ -4780,6 +4780,180 @@ func TestRemoteModelMetadataAndAvailability(t *testing.T) {
 	}
 }
 
+// --- platform-sourced inference ceilings (INFERENCE-LIMITS-EXPOSURE P4) ---
+
+// The ceilings status prints come from the PLATFORM — one correlated
+// browse:agents-requested exchange over the bus, the same request every other
+// client makes — never from a direct provider probe. mustNotContain is spelled
+// out here because "no ceiling" is the whole assertion in three of these tests.
+func mustNotContain(t *testing.T, label, haystack string, needles ...string) {
+	t.Helper()
+	for _, n := range needles {
+		if strings.Contains(haystack, n) {
+			t.Errorf("%s must not contain %q; full text:\n%s", label, n, haystack)
+		}
+	}
+}
+
+// agentsReply scripts the fake bus's browse:agents-result payload.
+func agentsReply(entries ...string) string {
+	return `FAKERT_BUS_REPLY_browse_agents_requested={"agents":[` + strings.Join(entries, ",") + `]}`
+}
+
+func softwareAgent(provider, model, limits string) string {
+	e := fmt.Sprintf(`{"agent":{"@type":"Software","name":"%s","provider":"%s","model":"%s"}`, model, provider, model)
+	if limits != "" {
+		e += `,"limits":` + limits
+	}
+	return e + "}"
+}
+
+func TestStatusShowsPlatformCeilings(t *testing.T) {
+	s := busScenario(t,
+		"FAKERT_OLLAMA_TAGS=gemma4:26b,nomic-embed-text:latest",
+		agentsReply(
+			softwareAgent("ollama", "gemma4:26b", `{"contextTokens":128000,"maxOutputTokens":128000}`),
+			softwareAgent("ollama", "nomic-embed-text", `{"contextTokens":8000,"maxOutputTokens":8000}`),
+		))
+	stdout, stderr, code := s.run(t, "status")
+	if code != 0 {
+		t.Fatalf("status: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	// Both rows carry the ceiling the platform discovered for THAT model.
+	for _, line := range strings.Split(stdout, "\n") {
+		switch {
+		case strings.Contains(line, "gemma4:26b"):
+			mustContain(t, "inference model row", line, "128K window")
+		case strings.Contains(line, "nomic-embed-text"):
+			mustContain(t, "embedding model row", line, "8K window")
+		}
+	}
+	mustContain(t, "ceilings", stdout, "128K window", "8K window")
+
+	// Sourced over the bus, on the generated operation — not by probing a
+	// provider. (D5: platform data flows through the platform surface.)
+	found := false
+	for _, e := range emits(t, s) {
+		if strings.Contains(e, `"channel":"browse:agents-requested"`) {
+			found = true
+			mustContain(t, "agents request", e, `"correlationId"`)
+		}
+	}
+	if !found {
+		t.Errorf("status never asked the platform for the roster:\n%s", strings.Join(emits(t, s), "\n"))
+	}
+}
+
+func TestStatusCeilingsNeedASession(t *testing.T) {
+	// Same started stack, only the credential removed: no session means no
+	// roster, and a row without a ceiling is exactly today's row — no error,
+	// no placeholder. (Ignorance is not a finding.)
+	s := busScenario(t,
+		"FAKERT_OLLAMA_TAGS=gemma4:26b,nomic-embed-text:latest",
+		agentsReply(softwareAgent("ollama", "gemma4:26b", `{"contextTokens":128000,"maxOutputTokens":128000}`)))
+	if _, stderr, code := s.run(t, "logout"); code != 0 {
+		t.Fatalf("logout: exit %d\nstderr:\n%s", code, stderr)
+	}
+	stdout, stderr, code := s.run(t, "status")
+	if code != 0 {
+		t.Fatalf("status: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "model row still renders", stdout, "gemma4:26b", "installed")
+	mustNotContain(t, "status without a session", stdout, "window", " in / ")
+}
+
+func TestStatusCeilingsSurviveARejectedRoster(t *testing.T) {
+	// The platform answering on the failure channel is the same non-answer as
+	// silence: rows render as today, and status still exits on health alone.
+	s := busScenario(t,
+		"FAKERT_OLLAMA_TAGS=gemma4:26b,nomic-embed-text:latest",
+		"FAKERT_BUS_FAIL=directory unavailable")
+	stdout, stderr, code := s.run(t, "status")
+	if code != 0 {
+		t.Fatalf("a rejected roster must not fail status: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "model row still renders", stdout, "gemma4:26b", "installed")
+	mustNotContain(t, "status with a rejected roster", stdout, "window", " in / ", "directory unavailable")
+}
+
+func TestStatusCeilingsAbsentWhenTheEntryHasNone(t *testing.T) {
+	// D3's absence semantics reach all the way to the terminal: an entry
+	// whose discovery failed carries no limits, and its row is unchanged.
+	s := busScenario(t,
+		"FAKERT_OLLAMA_TAGS=gemma4:26b,nomic-embed-text:latest",
+		agentsReply(
+			softwareAgent("ollama", "gemma4:26b", ""),
+			softwareAgent("ollama", "nomic-embed-text", `{"contextTokens":8000,"maxOutputTokens":8000}`),
+		))
+	stdout, _, code := s.run(t, "status")
+	if code != 0 {
+		t.Fatalf("status: exit %d\nstdout:\n%s", code, stdout)
+	}
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.Contains(line, "gemma4:26b") {
+			mustNotContain(t, "row for an entry without limits", line, "window", " in / ")
+		}
+	}
+	// …while the sibling that DID discover still shows its ceiling.
+	mustContain(t, "sibling row", stdout, "8K window")
+}
+
+// mixedStackScenario: a started, logged-in stack whose inference is Anthropic
+// (against a local fake /v1/models, so nothing leaves the machine). This is
+// the shape where a ceiling keyed off the row's driver rather than the model's
+// own provider would be wrong.
+func mixedStackScenario(t *testing.T, env ...string) *scenario {
+	t.Helper()
+	anthPort := serveAnthropicModels(t, "claude-sonnet-4-5-20250929")
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "mixed",
+		stdGraph+stdVectors+stdDatabase+
+			fmt.Sprintf("[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:%d\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n", anthPort)+
+			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n")
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
+	s.extraEnv = append(s.extraEnv, env...)
+	if _, stderr, code := s.run(t, "start", "--config", "mixed"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	s.stdin = "hunter2secret\n"
+	if _, stderr, code := s.run(t, "login", "--email", "admin@example.com"); code != 0 {
+		t.Fatalf("login: exit %d\nstderr:\n%s", code, stderr)
+	}
+	s.stdin = ""
+	return s
+}
+
+func TestStatusNeverShowsACrossProviderCeiling(t *testing.T) {
+	// The roster claims OLLAMA serves a Claude. The row's model is Anthropic's,
+	// so the keys do not meet and no ceiling is printed. A ceiling matched on
+	// the model NAME alone would have printed one here — a wrong number, which
+	// is worse than a missing one.
+	s := mixedStackScenario(t,
+		agentsReply(softwareAgent("ollama", "claude-sonnet-4-5-20250929", `{"contextTokens":200000,"maxOutputTokens":64000}`)))
+	stdout, _, code := s.run(t, "status")
+	if code != 0 {
+		t.Fatalf("status: exit %d\nstdout:\n%s", code, stdout)
+	}
+	mustContain(t, "model row still renders", stdout, "claude-sonnet-4-5-20250929", "remote")
+	mustNotContain(t, "cross-provider roster", stdout, "window", " in / ")
+}
+
+func TestStatusPlatformCeilingReplacesTheProbedWindow(t *testing.T) {
+	// The launcher's own /v1/models probe renders "200K ctx" today. Once the
+	// platform publishes the ceiling, THAT is the one on the row — one context
+	// figure, from the platform (D5), never two from two sources. The probe
+	// keeps rendering what only it knows (identity, release, key visibility).
+	s := mixedStackScenario(t,
+		agentsReply(softwareAgent("anthropic", "claude-sonnet-4-5-20250929", `{"contextTokens":200000,"maxOutputTokens":64000}`)))
+	stdout, _, code := s.run(t, "status")
+	if code != 0 {
+		t.Fatalf("status: exit %d\nstdout:\n%s", code, stdout)
+	}
+	mustContain(t, "ceiling", stdout, "200K in / 64K out",
+		"Claude claude-sonnet-4-5-20250929", "2025-09", "remote")
+	mustNotContain(t, "probed context window", stdout, "200K ctx")
+}
+
 func TestBareStopFollowsCwd(t *testing.T) {
 	// Standing in the clone whose stack is running, a bare stop means THAT
 	// stack — demanding --runtime container restated what the prompt already

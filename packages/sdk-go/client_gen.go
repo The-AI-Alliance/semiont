@@ -1642,6 +1642,9 @@ type CollaboratorEntry struct {
 	// Agent Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software. Each branch carries fields appropriate to its kind. Software peers are first-class participants, not a sub-class of Person.
 	Agent Agent `json:"agent"`
 
+	// Limits A provider's actual ceilings for a model, discovered from the provider itself (Anthropic Models API; Ollama /api/show) — never hand-maintained constants. Semantics differ by provider shape: Anthropic reports maximum input tokens in contextTokens with a separate output ceiling in maxOutputTokens; Ollama reports the shared input+output window and mirrors it into both fields (there is no separate output ceiling), so maxOutputTokens === contextTokens signals a shared window.
+	Limits *InferenceLimits `json:"limits,omitempty"`
+
 	// ServesJobTypes Job types this agent is declared to serve (from the KB's workers.* config sections). Absent for Persons and for agents declared only under actor roles.
 	ServesJobTypes *[]JobType `json:"servesJobTypes,omitempty"`
 }
@@ -2319,6 +2322,15 @@ type HealthResponse struct {
 
 // HealthResponseDatabase defines model for HealthResponse.Database.
 type HealthResponseDatabase string
+
+// InferenceLimits A provider's actual ceilings for a model, discovered from the provider itself (Anthropic Models API; Ollama /api/show) — never hand-maintained constants. Semantics differ by provider shape: Anthropic reports maximum input tokens in contextTokens with a separate output ceiling in maxOutputTokens; Ollama reports the shared input+output window and mirrors it into both fields (there is no separate output ceiling), so maxOutputTokens === contextTokens signals a shared window.
+type InferenceLimits struct {
+	// ContextTokens The context window in tokens. Anthropic: maximum input tokens (output has its own ceiling). Ollama: the shared input+output window.
+	ContextTokens float32 `json:"contextTokens"`
+
+	// MaxOutputTokens Maximum output tokens per generation. Equal to contextTokens when the provider has a single shared window.
+	MaxOutputTokens float32 `json:"maxOutputTokens"`
+}
 
 // JobAssessmentAnnotationResult Result of a completed assessment-annotation job.
 type JobAssessmentAnnotationResult struct {

@@ -24,6 +24,7 @@ import type { BrowseMediaRenderers, AnnotateMediaRenderers } from '@semiont/reac
 import { useObservable } from '@semiont/react-ui';
 import { useResourceContent } from '../../../hooks/useResourceContent';
 import { useMediaToken } from '../../../hooks/useMediaToken';
+import { useCollaborators } from '../../../hooks/useCollaborators';
 import { mediaUrl } from '../../../lib/media-url';
 import { useToast } from '../../../components/Toast';
 import { useOutcomeToasts } from '../../../hooks/useOutcomeToasts';
@@ -146,6 +147,18 @@ export function ResourceViewerPage({
   const session = useObservable(browser.activeSession$);
   const semiont = session?.client;
   const navigateExternal = useObservableExternalNavigation();
+
+  // The KB's collaborator roster, for the Collaboration panel's software-agent
+  // rows. Subscribed unconditionally at the top level (hooks ordering) even
+  // though only one panel reads it; the underlying cache is a KB-wide
+  // singleton, so this costs one shared subscription, not one per panel open.
+  const { collaborators } = useCollaborators(semiont ?? null);
+
+  // At most one entry serves `generation` — the KB's workers.* config yields one
+  // inference config per job type — so `find` is exact, not a first-wins guess.
+  const generationAgent = collaborators.find((entry) =>
+    entry.servesJobTypes?.includes('generation'),
+  );
 
   // ResourceViewer is bring-your-own-session: feed it the active session plus
   // host-owned navigation (reference follow) and panel control (app-scoped bus).
@@ -635,6 +648,7 @@ export function ResourceViewerPage({
                 state={streamStatus}
                 eventCount={0}
                 knowledgeBaseName={knowledgeBaseName}
+                collaborators={collaborators}
               />
             )}
 
@@ -655,6 +669,7 @@ export function ResourceViewerPage({
 
       {/* Reference Resolution Wizard */}
       <ReferenceWizardModal
+        {...(generationAgent ? { generationAgent } : {})}
         isOpen={wizardOpen}
         onClose={handleWizardClose}
         annotationId={wizardAnnotationId}
@@ -701,6 +716,7 @@ export function ResourceViewerPage({
           creativityCreative: tw('creativityCreative'),
           maxLength: tw('maxLength'),
           maxLengthHelp: tw('maxLengthHelp'),
+          maxLengthCeiling: tw('maxLengthCeiling'),
           maxResults: tw('maxResults'),
           semanticScoring: tw('semanticScoring'),
           semanticScoringHelp: tw('semanticScoringHelp'),
@@ -709,6 +725,7 @@ export function ResourceViewerPage({
 
       {/* Resource-generate flow (GENERATE-FROM-BUTTON) */}
       <ResourceGenerateModal
+        {...(generationAgent ? { generationAgent } : {})}
         isOpen={generateOpen}
         onClose={() => setGenerateOpen(false)}
         resourceId={rUri}
@@ -746,6 +763,7 @@ export function ResourceViewerPage({
           creativityCreative: tg('creativityCreative'),
           maxLength: tg('maxLength'),
           maxLengthHelp: tg('maxLengthHelp'),
+          maxLengthCeiling: tg('maxLengthCeiling'),
           generate: tg('generate'),
         }}
       />

@@ -21,6 +21,7 @@ import { Gatherer } from './gatherer';
 import { Matcher } from './matcher';
 import { Stower } from './stower';
 import { Browser } from './browser';
+import { createLimitsDiscovery } from './limits-discovery';
 import { eventAnnotationId, readAnnotationFromView } from './event-enrichment';
 import { CloneTokenManager } from './clone-token-manager';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
@@ -218,7 +219,11 @@ async function createKnowledgeSystemFromConfig(
   );
   await matcher.initialize();
 
-  const browser = new Browser(kb.views, kb, eventBus, project, config, logger.child({ component: 'browser' }));
+  // The Browser's limits-discovery pool: one guarded client per distinct
+  // roster (provider, model); its instances' internal caching is the only
+  // storage (INFERENCE-LIMITS-EXPOSURE D1).
+  const limitsDiscovery = createLimitsDiscovery(config, logger.child({ component: 'limits-discovery' }));
+  const browser = new Browser(kb.views, kb, eventBus, project, config, limitsDiscovery, logger.child({ component: 'browser' }));
   await browser.initialize();
 
   const cloneTokenManager = new CloneTokenManager(kb, eventBus, logger.child({ component: 'clone-token-manager' }));

@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
 // Ollama reports an untagged model as ":latest". A config naming it without
@@ -33,6 +35,62 @@ func TestUnreachableOllamaIsUnknownNotMissing(t *testing.T) {
 	}
 	if len(f.installed) != 0 || len(f.loaded) != 0 {
 		t.Errorf("dead Ollama yielded facts: %+v", f)
+	}
+}
+
+// Which provider serves a model is a PER-MODEL fact, and a ceiling keyed off
+// the wrong one is worse than no ceiling: it would print Claude's window on a
+// Gemma row. The row's driver is NOT that fact — a config can point workers at
+// Anthropic while embedding runs on Ollama, and the inference row then lists
+// Claude models under a driver of "ollama" (the same confusion that shipped
+// "ollama pull claude-…", observed 2026-07-20). So the derivation refuses
+// wherever the record cannot settle the question.
+func TestCeilingProviderDerivation(t *testing.T) {
+	for _, c := range []struct {
+		name         string
+		model        string
+		driver       string
+		ollamaServed []string
+		want         string
+		wantOK       bool
+	}{
+		{"ollama-served model", "gemma4:26b", "ollama", []string{"gemma4:26b"}, "ollama", true},
+		{"remote model on a remote row", "claude-sonnet-4-5", "anthropic", []string{}, "anthropic", true},
+		{"ollama-served model on a remote row", "nomic-embed-text", "anthropic", []string{"nomic-embed-text"}, "ollama", true},
+		// The bug shape: Ollama does not serve it, yet the row claims Ollama.
+		// Nothing in the record names who does — so nothing is claimed.
+		{"remote model on an ollama row", "claude-sonnet-4-5", "ollama", []string{"gemma4:26b"}, "", false},
+		// A record written before ollamaServed existed: the driver is the only
+		// signal, and trusting it alone is precisely what shipped the bug.
+		{"record predating ollamaServed", "gemma4:26b", "ollama", nil, "", false},
+		{"no driver recorded", "gemma4:26b", "", []string{}, "", false},
+	} {
+		got, ok := ceilingProvider(c.model, c.driver, c.ollamaServed)
+		if got != c.want || ok != c.wantOK {
+			t.Errorf("%s: ceilingProvider(%q, %q, %v) = (%q, %v), want (%q, %v)",
+				c.name, c.model, c.driver, c.ollamaServed, got, ok, c.want, c.wantOK)
+		}
+	}
+}
+
+// The ceiling cell reads as a ceiling, does not round one away, and words
+// itself exactly as the CollaborationPanel does — the same model must read the
+// same in the terminal and in the browser.
+func TestCeilingCell(t *testing.T) {
+	for _, c := range []struct {
+		ctx, out float32
+		want     string
+	}{
+		{200000, 64000, "200K in / 64K out"},
+		{128000, 128000, "128K window"}, // shared window: one figure, per the schema's sentinel
+		{8192, 8192, "8.2K window"},
+		{1000000, 128000, "1M in / 128K out"},
+		{512, 512, "512 window"},
+	} {
+		got := ceilingCell(semiont.InferenceLimits{ContextTokens: c.ctx, MaxOutputTokens: c.out})
+		if got != c.want {
+			t.Errorf("ceilingCell(%v, %v) = %q, want %q", c.ctx, c.out, got, c.want)
+		}
 	}
 }
 

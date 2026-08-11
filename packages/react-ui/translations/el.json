@@ -63,7 +63,10 @@
     "realtimeActive": "Οι ενημερώσεις σε πραγματικό χρόνο είναι ενεργές",
     "reconnecting": "Επανασύνδεση στον διακομιστή...",
     "sharing": "Κοινοποίηση",
-    "collaborationComingSoon": "Λειτουργίες συνεργασίας σύντομα διαθέσιμες"
+    "collaborationComingSoon": "Λειτουργίες συνεργασίας σύντομα διαθέσιμες",
+    "collaborators": "Συνεργάτες",
+    "ceilings": "{{contextTokens}} είσοδος / {{maxOutputTokens}} έξοδος",
+    "sharedWindow": "Παράθυρο {{contextTokens}}"
   },
   "AnnotationHistory": {
     "history": "Ιστορικό",
@@ -387,7 +390,8 @@
     "progressCancel": "Ακύρωση παραγωγής",
     "progressInProgress": "Παραγωγή…",
     "progressComplete": "Η παραγωγή ολοκληρώθηκε!",
-    "progressFailed": "Η παραγωγή απέτυχε"
+    "progressFailed": "Η παραγωγή απέτυχε",
+    "maxLengthCeiling": "Περιορισμένο σε {{maxOutputTokens}} tokens από το {{model}}."
   },
   "ReferenceWizard": {
     "gatherTitle": "Συλλεγμένο Πλαίσιο",
@@ -424,6 +428,7 @@
     "semanticScoring": "Σημασιολογική Βαθμολόγηση",
     "semanticScoringHelp": "Χρήση AI για βαθμολόγηση αποτελεσμάτων κατά σημασιολογική συνάφεια",
     "searching": "Αναζήτηση...",
-    "search": "Αναζήτηση"
+    "search": "Αναζήτηση",
+    "maxLengthCeiling": "Περιορισμένο σε {{maxOutputTokens}} tokens από το {{model}}."
   }
 }

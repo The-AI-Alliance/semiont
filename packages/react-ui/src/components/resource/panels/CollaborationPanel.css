@@ -220,3 +220,51 @@
 [data-theme="dark"] .semiont-collaboration-panel__user-status {
   color: var(--semiont-text-tertiary);
 }
+/* Collaborators roster — one row per software agent (INFERENCE-LIMITS-EXPOSURE P3a) */
+.semiont-collaboration-panel__collaborator {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.375rem 0;
+  font-size: var(--semiont-text-sm);
+  line-height: 1.4;
+}
+
+.semiont-collaboration-panel__collaborator + .semiont-collaboration-panel__collaborator {
+  border-top: 1px solid var(--semiont-border-secondary);
+}
+
+[data-theme="dark"] .semiont-collaboration-panel__collaborator + .semiont-collaboration-panel__collaborator {
+  border-top-color: var(--semiont-color-gray-700);
+}
+
+.semiont-collaboration-panel__collaborator-id {
+  display: flex;
+  gap: 0.375rem;
+  align-items: baseline;
+  color: var(--semiont-text-primary);
+}
+
+/* The provider is context for the model, not a peer of it. */
+.semiont-collaboration-panel__collaborator-provider {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.semiont-collaboration-panel__collaborator-model {
+  font-weight: var(--semiont-font-medium);
+  word-break: break-all;
+}
+
+.semiont-collaboration-panel__collaborator-jobs,
+.semiont-collaboration-panel__collaborator-limits {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-secondary);
+}
+
+/* Ceilings are figures — align them with the numeral treatment used elsewhere. */
+.semiont-collaboration-panel__collaborator-limits {
+  font-variant-numeric: tabular-nums;
+}

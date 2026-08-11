@@ -63,7 +63,10 @@
     "realtimeActive": "Kemas kini masa nyata sedang aktif",
     "reconnecting": "Menyambung semula ke pelayan...",
     "sharing": "Perkongsian",
-    "collaborationComingSoon": "Ciri kolaborasi akan datang tidak lama lagi"
+    "collaborationComingSoon": "Ciri kolaborasi akan datang tidak lama lagi",
+    "collaborators": "Kolaborator",
+    "ceilings": "{{contextTokens}} masuk / {{maxOutputTokens}} keluar",
+    "sharedWindow": "Tetingkap {{contextTokens}}"
   },
   "AnnotationHistory": {
     "history": "Sejarah",
@@ -387,7 +390,8 @@
     "progressCancel": "Batalkan penjanaan",
     "progressInProgress": "Menjana…",
     "progressComplete": "Penjanaan selesai!",
-    "progressFailed": "Penjanaan gagal"
+    "progressFailed": "Penjanaan gagal",
+    "maxLengthCeiling": "Dihadkan kepada {{maxOutputTokens}} token oleh {{model}}."
   },
   "ReferenceWizard": {
     "gatherTitle": "Konteks Dikumpul",
@@ -424,6 +428,7 @@
     "semanticScoring": "Pemarkahan Semantik",
     "semanticScoringHelp": "Gunakan AI untuk menilai hasil mengikut kerelevanan semantik",
     "searching": "Mencari...",
-    "search": "Cari"
+    "search": "Cari",
+    "maxLengthCeiling": "Dihadkan kepada {{maxOutputTokens}} token oleh {{model}}."
   }
 }
