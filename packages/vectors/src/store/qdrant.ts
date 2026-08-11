@@ -9,6 +9,7 @@ import { createHash } from 'crypto';
 import type { QdrantClient, Schemas } from '@qdrant/js-client-rest';
 import type { ResourceId, AnnotationId } from '@semiont/core';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload, VectorSearchResult, SearchOptions, ResourceStamp } from './interface';
+import { mergeByResource } from './merge';
 
 /**
  * Generate a deterministic UUID v5-style ID from an arbitrary string.
@@ -17,6 +18,23 @@ import type { VectorStore, EmbeddingChunk, AnnotationPayload, VectorSearchResult
 function toQdrantId(input: string): string {
   const hex = createHash('md5').update(input).digest('hex');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
+/**
+ * Map a scored point to the store-agnostic result shape. Shared by every read
+ * path so the payload→result contract (including `machineRead`) has one home.
+ */
+function toSearchResult(point: Schemas['ScoredPoint']): VectorSearchResult {
+  const payload = point.payload ?? {};
+  return {
+    id: String(point.id),
+    score: point.score,
+    resourceId: payload.resourceId as ResourceId,
+    annotationId: payload.annotationId as AnnotationId | undefined,
+    text: payload.text as string,
+    entityTypes: payload.entityTypes as string[] | undefined,
+    ...(payload.machineRead ? { machineRead: true } : {}),
+  };
 }
 
 export interface QdrantConfig {
@@ -42,6 +60,13 @@ function toStamp(payload: Record<string, unknown> | null | undefined): ResourceS
 }
 
 export class QdrantVectorStore implements VectorStore {
+  /**
+   * Per-batch point over-fetch for `searchByResource`. The batch limit caps
+   * points while the caller wants resources, so multi-chunk targets would
+   * otherwise crowd the top-K. See the call site.
+   */
+  private static readonly SEARCH_BY_RESOURCE_OVER_FETCH = 4;
+
   private client: QdrantClient | null = null;
   private config: QdrantConfig;
 
@@ -284,44 +309,29 @@ export class QdrantVectorStore implements VectorStore {
     // Self-exclude the source; carry the caller's filter (e.g. excludeEntityTypes).
     const filter = this.buildFilter({ ...opts.filter, excludeResourceId: resourceId });
 
-    // One batched search per query chunk (single round-trip), top-`limit` each;
-    // over-fetch beyond `limit` is unnecessary because the max-sim merge only
-    // needs a target in some chunk's top-K to surface.
+    // One batched query per source chunk (single round-trip). Each batch's
+    // `limit` caps POINTS, but the merge below yields RESOURCES — so a target
+    // with many chunks can fill several point-slots and crowd out resources
+    // that belong in the top-`limit` after folding. Over-fetch per batch to
+    // leave the merge material to work with; the memory store scores every
+    // candidate exhaustively, and without this the two backends disagree on
+    // recall. Headroom, not a guarantee: a resource whose chunks are all
+    // outranked by OVER_FETCH×limit points in every batch is still missed.
+    // Qdrant's group-by would make it exact, but only via the `search`-family
+    // endpoints 1.19.0 removed (see qdrant-query-api.test.ts).
     const searches = queryVectors.map((vector) => ({
       query: vector,
-      limit: opts.limit,
+      limit: opts.limit * QdrantVectorStore.SEARCH_BY_RESOURCE_OVER_FETCH,
       score_threshold: opts.scoreThreshold,
       filter: filter ?? undefined,
       with_payload: true,
     }));
     const batches = await this.qdrant.queryBatch('resources', { searches });
 
-    // Max-sim merge: dedup by resourceId, keep the best (query-chunk × target-chunk)
-    // score and the best-matching target chunk's payload.
-    const bestByResource = new Map<string, { id: string; score: number; payload: Record<string, unknown> }>();
-    for (const batch of batches) {
-      for (const r of batch.points) {
-        const payload = r.payload ?? {};
-        const tid = String(payload.resourceId);
-        const prev = bestByResource.get(tid);
-        if (!prev || r.score > prev.score) {
-          bestByResource.set(tid, { id: String(r.id), score: r.score, payload });
-        }
-      }
-    }
-
-    return [...bestByResource.values()]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, opts.limit)
-      .map((m) => ({
-        id: m.id,
-        score: m.score,
-        resourceId: m.payload.resourceId as ResourceId,
-        annotationId: m.payload.annotationId as AnnotationId | undefined,
-        text: m.payload.text as string,
-        entityTypes: m.payload.entityTypes as string[] | undefined,
-        ...(m.payload.machineRead ? { machineRead: true } : {}),
-      }));
+    // Normalise to VectorSearchResult, then fold chunk hits to one entry per
+    // resource (max-sim) via the shared merge; slice to the caller's limit.
+    const hits = batches.flatMap((batch) => batch.points.map((r) => toSearchResult(r)));
+    return mergeByResource(hits).slice(0, opts.limit);
   }
 
   private async search(collection: string, embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]> {
@@ -338,18 +348,7 @@ export class QdrantVectorStore implements VectorStore {
       with_payload: true,
     });
 
-    return points.map((r) => {
-      const payload = r.payload ?? {};
-      return {
-        id: String(r.id),
-        score: r.score,
-        resourceId: payload.resourceId as ResourceId,
-        annotationId: payload.annotationId as AnnotationId | undefined,
-        text: payload.text as string,
-        entityTypes: payload.entityTypes as string[] | undefined,
-        ...(payload.machineRead ? { machineRead: true } : {}),
-      };
-    });
+    return points.map((r) => toSearchResult(r));
   }
 
   private buildFilter(filter?: SearchOptions['filter']): Schemas['Filter'] | null {

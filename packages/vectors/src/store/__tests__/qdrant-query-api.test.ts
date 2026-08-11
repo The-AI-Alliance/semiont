@@ -122,4 +122,28 @@ describe('QdrantVectorStore uses the query API', () => {
     expect(results.map((r) => r.resourceId)).toEqual(expect.arrayContaining(['res-0', 'res-1']));
     expect(results[0]!.score).toBeGreaterThanOrEqual(results[results.length - 1]!.score);
   });
+
+  it('over-fetches points per batch, because the merge yields resources', async () => {
+    // Each batch's `limit` caps POINTS; the caller's limit counts RESOURCES.
+    // At limit-for-limit a target with many chunks fills the slots and crowds
+    // out resources that belong in the merged top-N — and the memory store,
+    // which scores every candidate, would then out-recall this one. Asking for
+    // strictly more than the caller's limit is what keeps the two agreeing.
+    const store = await connected();
+
+    await store.searchByResource('res-src' as never, { limit: 10 });
+
+    for (const search of lastBatch!) {
+      expect(search.limit as number).toBeGreaterThan(10);
+    }
+  });
+
+  it('still returns only the caller\'s limit after merging', async () => {
+    // Over-fetching must not leak into the result length.
+    const store = await connected();
+
+    const results = await store.searchByResource('res-src' as never, { limit: 1 });
+
+    expect(results).toHaveLength(1);
+  });
 });
