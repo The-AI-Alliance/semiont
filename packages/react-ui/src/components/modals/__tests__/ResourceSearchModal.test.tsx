@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { asStates } from '../../../__tests__/test-client';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, map } from 'rxjs';
 import { renderWithProviders } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import { ResourceSearchModal } from '../ResourceSearchModal';
@@ -20,7 +20,11 @@ vi.mock('@headlessui/react', () => ({
 // We mock useSemiont to return a stable browser whose activeSession$ emits a
 // session-shaped object that carries the mock client.
 const browseResourcesSubject = new BehaviorSubject<any[] | undefined>(undefined);
-const browseResourcesMock = vi.fn(() => asStates(browseResourcesSubject.asObservable()));
+const browseResourcesMock = vi.fn(() => asStates(browseResourcesSubject.asObservable().pipe(
+  // Arrays get the list envelope `resources()` now emits; `undefined`
+  // passes through as the pending state.
+  map((v) => (Array.isArray(v) ? { resources: v, total: v.length, offset: 0, limit: 20, matchKind: 'lexical' } : v)),
+)));
 const stableMockClient = { browse: { resources: browseResourcesMock } };
 const stableMockSession = { client: stableMockClient };
 const stableActiveSession$ = new BehaviorSubject<any>(stableMockSession);

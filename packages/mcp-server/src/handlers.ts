@@ -25,6 +25,7 @@ import type {
   GenerationOptions,
   MarkAssistEvent,
   MarkAssistOptions,
+  ResourceList,
   YieldGenerationEvent,
 } from '@semiont/sdk';
 
@@ -44,7 +45,7 @@ export type McpResult = { content: Array<{ type: 'text'; text: string }>; isErro
 export interface McpClient {
   browse: {
     resource(resourceId: ResourceId): { fresh(): Promise<ResourceDescriptor> };
-    resources(filters: { limit?: number; archived?: boolean; search?: string }): { fresh(): Promise<ResourceDescriptor[]> };
+    resources(filters: { limit?: number; archived?: boolean; search?: string }): { fresh(): Promise<ResourceList> };
     annotations(resourceId: ResourceId): { fresh(): Promise<Annotation[]> };
   };
   mark: {
@@ -94,7 +95,7 @@ export async function browseResources(semiont: McpClient, args: any): Promise<Mc
   if (args?.limit !== undefined) filters.limit = args.limit;
   if (args?.search !== undefined) filters.search = args.search;
   filters.archived = args?.archived ?? false;
-  const resources = await semiont.browse.resources(filters).fresh();
+  const { resources } = await semiont.browse.resources(filters).fresh();
   return {
     content: [{
       type: 'text',

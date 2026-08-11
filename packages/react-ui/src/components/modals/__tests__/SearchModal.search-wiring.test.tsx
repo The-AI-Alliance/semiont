@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { asStates } from '../../../__tests__/test-client';
 import { screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, map } from 'rxjs';
 import { renderWithProviders } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import { SearchModal } from '../SearchModal';
@@ -34,7 +34,11 @@ vi.mock('@headlessui/react', () => ({
 
 // Mock the http-transport Observable surface
 const browseResourcesSubject = new BehaviorSubject<any[] | undefined>(undefined);
-const browseResourcesMock = vi.fn(() => asStates(browseResourcesSubject.asObservable()));
+const browseResourcesMock = vi.fn(() => asStates(browseResourcesSubject.asObservable().pipe(
+  // Arrays get the list envelope `resources()` now emits; `undefined`
+  // passes through as the pending state.
+  map((v) => (Array.isArray(v) ? { resources: v, total: v.length, offset: 0, limit: 20, matchKind: 'lexical' } : v)),
+)));
 
 // Stable client reference — useSemiont is called on every render, so a
 // fresh object literal would invalidate useMemo deps and restart the RxJS

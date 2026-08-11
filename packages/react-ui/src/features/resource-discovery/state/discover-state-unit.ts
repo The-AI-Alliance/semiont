@@ -1,5 +1,5 @@
 import { BehaviorSubject, Subject, combineLatest, of, type Observable } from 'rxjs';
-import { readyValue } from '@semiont/sdk';
+import { readyValue, type CacheState } from '@semiont/sdk';
 import { debounceTime, distinctUntilChanged, map, startWith, switchMap, shareReplay } from 'rxjs/operators';
 import type { ResourceDescriptor } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
@@ -58,7 +58,11 @@ export function createDiscoverStateUnit(
           limit: RECENT_LIMIT,
           archived: false,
           ...(et ? { entityType: et } : {}),
-        }),
+        }).pipe(
+          // This unit renders only the page; project it out of the list
+          // envelope (`matchKind` rendering is SEMANTIC-FALLBACK P3b's).
+          map((st): CacheState<ResourceDescriptor[]> => (st.status === 'ready' ? { status: 'ready', value: st.value.resources } : st)),
+        ),
       ),
     ),
     [],
@@ -89,7 +93,7 @@ export function createDiscoverStateUnit(
           })
           .pipe(
             map((st) => ({
-              results: readyValue(st) ?? [],
+              results: readyValue(st)?.resources ?? [],
               isSearching: st.status === 'pending',
             })),
             startWith({ results: [] as ResourceDescriptor[], isSearching: true }),

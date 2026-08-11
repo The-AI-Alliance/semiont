@@ -75,7 +75,7 @@ describe('browseResources', () => {
 
   it('says so when a resource carries no entity types', async () => {
     const { client, browse } = createStub();
-    browse.resources.mockReturnValue({ fresh: async () => [{ ...RESOURCE, entityTypes: undefined }] });
+    browse.resources.mockReturnValue({ fresh: async () => ({ resources: [{ ...RESOURCE, entityTypes: undefined }], total: 1, offset: 0, limit: 100, matchKind: 'lexical' }) });
 
     expect(text(await browseResources(client, {})))
       .toBe('Found 1 resources:\n- The Iliad (res-iliad) — no types');

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { asStates } from '../../../../__tests__/test-client';
 import { sessionOf } from '../../../../__tests__/test-client';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
-import { filter, skip, take, toArray } from 'rxjs/operators';
+import { filter, map, skip, take, toArray } from 'rxjs/operators';
 import type { SemiontClient } from '@semiont/sdk';
 import type { ShellStateUnit } from '../../../../state/shell-state-unit';
 import { createDiscoverStateUnit } from '../discover-state-unit';
@@ -36,7 +36,11 @@ function mockClient(overrides: {
     browse: {
       resources: (filters: BrowseFilters = {}) => {
         resourceCalls.push(filters);
-        return asStates(resourcesFn(filters).asObservable());
+        return asStates(resourcesFn(filters).asObservable().pipe(
+          // Arrays get the list envelope `resources()` now emits; explicit
+          // status objects (B15 fixtures) and `undefined` pass through.
+          map((v) => (Array.isArray(v) ? { resources: v, total: v.length, offset: 0, limit: 20, matchKind: 'lexical' } : v)),
+        ));
       },
       entityTypes: () => asStates(entityTypes$.asObservable()),
     },

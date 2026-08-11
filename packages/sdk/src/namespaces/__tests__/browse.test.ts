@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { map, BehaviorSubject, firstValueFrom, filter } from 'rxjs';
-import { EventBus, resourceId, annotationId } from '@semiont/core';
+import { EventBus, resourceId, annotationId, isObject } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
 import { isReady } from '../../cache';
 import type { ConnectionState, ITransport, IContentTransport } from '@semiont/core';
@@ -204,7 +204,8 @@ describe('BrowseNamespace', () => {
     it('fetches on first subscribe', async () => {
       const val = await firstDefined(browse.resources());
       expect(emitSpy).toHaveBeenCalledTimes(1);
-      expect(val).toHaveLength(1);
+      expect(val.resources).toHaveLength(1);
+      expect(val.matchKind).toBe('lexical');
     });
 
     it('uses separate cache keys for different filters', async () => {
@@ -220,6 +221,33 @@ describe('BrowseNamespace', () => {
 
       await firstDefined(browse.resources({ search: 'bar' }));
       expect(emitSpy).toHaveBeenCalledTimes(2);
+    });
+
+    // ── SEMANTIC-FALLBACK P3a: S9/S10 ─────────────────────────────────────
+    // RED was observed with `it.fails` + isObject probes (arrays excluded)
+    // before `resources()` carried the envelope; flipped to typed reads when
+    // the cache was widened to `ResourceList`.
+
+    function semanticBrowse(): BrowseNamespace {
+      const responses = defaultResponses();
+      responses['browse:resources-requested'] = () => ({
+        resultChannel: 'browse:resources-result',
+        response: { resources: [mockResource('res-sem')], total: 1, offset: 0, limit: 20, matchKind: 'semantic' },
+      });
+      return new BrowseNamespace(createMockTransport(responses).transport, new EventBus(), makeContent());
+    }
+
+    it('S9: a caller can read matchKind from the emission', async () => {
+      const value = await firstDefined(semanticBrowse().resources({ search: 'kitten' }));
+      expect(value.matchKind).toBe('semantic');
+    });
+
+    it('S10: the label and the resources it describes arrive as one value', async () => {
+      const st = await firstValueFrom(semanticBrowse().resources({ search: 'kitten' }).pipe(filter(isReady)));
+      // The one ready emission carries the label AND the page it labels —
+      // there is no second observable to (mis)pair them from.
+      expect(isObject(st.value) && st.value.matchKind === 'semantic').toBe(true);
+      expect(st.value.resources.map((r) => r.name)).toEqual(['Resource res-sem']);
     });
   });
 

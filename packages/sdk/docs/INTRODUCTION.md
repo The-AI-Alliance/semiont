@@ -129,7 +129,7 @@ import { useObservable } from '@semiont/react-ui';
 
 const state = useObservable(session.client.browse.resources());
 // state: { status: 'pending' }
-//      | { status: 'ready',  value: ResourceDescriptor[] }
+//      | { status: 'ready',  value: ResourceList }   ← { resources, total, matchKind, … }
 //      | { status: 'failed', error: Error }
 //      | undefined   ← react-ui's hook, on the very first render (see below)
 ```

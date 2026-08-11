@@ -129,7 +129,7 @@ import { firstValueFrom } from '@semiont/sdk';
 const names = await firstValueFrom(
   semiont.browse.resources()
     .pipe(filter(isReady))
-    .pipe(map((st) => st.value.map((r) => r.name)))
+    .pipe(map((st) => st.value.resources.map((r) => r.name)))
 );
 ```
 

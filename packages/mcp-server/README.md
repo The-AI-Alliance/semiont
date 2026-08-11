@@ -33,7 +33,7 @@ const semiont = new SemiontClient(transport, new HttpContentTransport(transport)
 
 // All handlers receive the client instance and call its verb namespaces
 async function browseResources(semiont: SemiontClient, args: any) {
-  const resources = await semiont.browse.resources({ limit: args.limit });
+  const { resources } = await semiont.browse.resources({ limit: args.limit }).fresh();
 
   return {
     content: [{

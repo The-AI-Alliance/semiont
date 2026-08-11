@@ -226,10 +226,23 @@ export type YieldGenerationEvent =
  * Backend actor: Browser (context classes)
  * Event prefix: browse:*
  */
+
+/**
+ * What `browse.resources()` emits: the full list-reply envelope, not just the
+ * page of descriptors. `matchKind` labels how the answer was produced —
+ * `'lexical'` (title/metadata matching) or `'semantic'` (the empty-lexical
+ * vector fallback) — and it arrives WITH the resources it describes as one
+ * value, so a consumer can never pair the label with a different query's
+ * list (SEMANTIC-FALLBACK S10).
+ */
+export type ResourceList = Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {
+  resources: ResourceDescriptor[];
+};
+
 export interface BrowseNamespace {
   // Live queries (Observable — bus gateway driven, cached in BehaviorSubject)
   resource(resourceId: ResourceId): CacheObservable<ResourceDescriptor>;
-  resources(filters?: { limit?: number; archived?: boolean; search?: string; entityType?: string }): CacheObservable<ResourceDescriptor[]>;
+  resources(filters?: { limit?: number; archived?: boolean; search?: string; entityType?: string }): CacheObservable<ResourceList>;
   annotations(resourceId: ResourceId): CacheObservable<Annotation[]>;
   annotation(resourceId: ResourceId, annotationId: AnnotationId): CacheObservable<Annotation>;
   entityTypes(): CacheObservable<string[]>;

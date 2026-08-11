@@ -97,7 +97,7 @@ re-emitting on change), `.fresh()` for a one-shot fresh value. `resources(...)` 
 filters; text and binary content are one-shot `Promise` reads.
 
 ```typescript
-const docs    = await session.client.browse.resources({ entityType: 'Concept', limit: 50 }).fresh();
+const { resources: docs } = await session.client.browse.resources({ entityType: 'Concept', limit: 50 }).fresh();
 const content = await session.client.browse.resourceContent(rId);          // Promise<string>
 const types   = await session.client.browse.entityTypes().fresh();         // string[]
 
