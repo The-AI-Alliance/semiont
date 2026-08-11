@@ -568,6 +568,24 @@ func (e KnowledgeGraphNodesType) Valid() bool {
 	}
 }
 
+// Defines values for ListResourcesResponseMatchKind.
+const (
+	Lexical  ListResourcesResponseMatchKind = "lexical"
+	Semantic ListResourcesResponseMatchKind = "semantic"
+)
+
+// Valid indicates whether the value is a known member of the ListResourcesResponseMatchKind enum.
+func (e ListResourcesResponseMatchKind) Valid() bool {
+	switch e {
+	case Lexical:
+		return true
+	case Semantic:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MarkAssistRequestEventOptionsTone.
 const (
 	Analytical     MarkAssistRequestEventOptionsTone = "analytical"
@@ -2697,11 +2715,17 @@ type KnowledgeGraphNodesType string
 
 // ListResourcesResponse defines model for ListResourcesResponse.
 type ListResourcesResponse struct {
-	Limit     float32              `json:"limit"`
-	Offset    float32              `json:"offset"`
-	Resources []ResourceDescriptor `json:"resources"`
-	Total     float32              `json:"total"`
+	Limit float32 `json:"limit"`
+
+	// MatchKind What kind of answer this is: 'lexical' — the resources matched the query text; 'semantic' — no lexical match existed, and these resources discuss the query per the vector index (SEMANTIC-FALLBACK). Required so every producer labels its answer; a UI can render semantic results as a different kind of page ('no title matches, but these documents discuss it').
+	MatchKind ListResourcesResponseMatchKind `json:"matchKind"`
+	Offset    float32                        `json:"offset"`
+	Resources []ResourceDescriptor           `json:"resources"`
+	Total     float32                        `json:"total"`
 }
+
+// ListResourcesResponseMatchKind What kind of answer this is: 'lexical' — the resources matched the query text; 'semantic' — no lexical match existed, and these resources discuss the query per the vector index (SEMANTIC-FALLBACK). Required so every producer labels its answer; a UI can render semantic results as a different kind of page ('no title matches, but these documents discuss it').
+type ListResourcesResponseMatchKind string
 
 // MarkArchiveCommand Bus command to archive a resource and optionally remove its file.
 type MarkArchiveCommand struct {
