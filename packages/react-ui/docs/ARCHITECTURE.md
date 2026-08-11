@@ -95,13 +95,16 @@ class ResourceService {
 
 // ✅ CORRECT - Subscribe to the SDK live query directly
 import { useObservable, useSemiont } from '@semiont/react-ui';
+import { readyValue } from '@semiont/sdk';
 
 function ResourceList() {
   const browser = useSemiont();
-  const client = useObservable(browser.activeSession$); // SemiontClient | undefined
-  // `client.browse.resources(...)` returns an RxJS Observable backed by the
-  // SDK's read-through cache. `useObservable` turns it into React state.
-  const resources = useObservable(client?.browse.resources({})) ?? [];
+  const client = useObservable(browser.activeSession$)?.client; // SemiontClient | undefined
+  // `client.browse.resources(...)` emits CacheState<ResourceList> from the
+  // SDK's read-through cache. `useObservable` turns it into React state;
+  // readyValue projects the ready envelope, whose array is `.resources`.
+  const state = useObservable(client?.browse.resources({}));
+  const resources = (state && readyValue(state)?.resources) ?? [];
   return <ul>{resources.map((r) => <li key={r.id}>{r.name}</li>)}</ul>;
 }
 ```
@@ -426,8 +429,9 @@ observables rather than imperative fetches:
 
 ```tsx
 const browser = useSemiont();
-const client = useObservable(browser.activeSession$);
-const resources = useObservable(client?.browse.resources({})) ?? [];
+const client = useObservable(browser.activeSession$)?.client;
+const state = useObservable(client?.browse.resources({}));
+const resources = (state && readyValue(state)?.resources) ?? []; // CacheState → ResourceList → array
 ```
 
 ### Context State

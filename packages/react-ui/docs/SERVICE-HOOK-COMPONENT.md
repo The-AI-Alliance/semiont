@@ -31,7 +31,7 @@ This architecture leverages RxJS EventBus for event routing, eliminates callback
 **Implementation**: subscribe to the resource's `browse.*(resourceId)` live queries.
 
 The page state unit (`resource-viewer-page-state-unit`) builds its
-`annotations$`, `events$`, and `referencedBy$` observables from
+annotations, events, and referencedBy list states with `trackList` over
 `client.browse.*(resourceId)`. **Freshness follows observation** (#847):
 subscribing to any of them acquires the resource's SSE scope (ref-counted
 across all of them), and the last unsubscribe releases it. There is no
@@ -39,11 +39,12 @@ explicit `subscribeToResource` call.
 
 ```typescript
 // packages/react-ui/src/features/resource-viewer/state/resource-viewer-page-state-unit.ts
-const annotations$ = client.browse.annotations(resourceId).pipe(map((a) => a ?? []));
-const events$ = client.browse.events(resourceId).pipe(map((e) => e ?? []));
-const referencedBy$ = client.browse.referencedBy(resourceId).pipe(map((r) => r ?? []));
-// Subscribing to any of these (from Layer 2 / Layer 3) keeps the resource
-// scope live; dropping the last subscriber releases it on teardown.
+const annotations = trackList<Annotation[]>(() => client.browse.annotations(resourceId), []);
+const events = trackList<StoredEventResponse[]>(() => client.browse.events(resourceId), []);
+const referencedBy = trackList<ReferencedByEntry[]>(() => client.browse.referencedBy(resourceId), []);
+// trackList opens the CacheState<T> live query and exposes its `state.value$`
+// projection. Subscribing to any of these (from Layer 2 / Layer 3) keeps the
+// resource scope live; dropping the last subscriber releases it on teardown.
 ```
 
 Under the hood: a `browse.*(resourceId)` subscription drives the transport's

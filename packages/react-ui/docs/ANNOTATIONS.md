@@ -578,14 +578,17 @@ need the data read it via `useObservable`:
 
 ```typescript
 import { useObservable, useSemiont } from '@semiont/react-ui';
+import { readyValue } from '@semiont/sdk';
 
 function AnnotationsList({ rId }: { rId: ResourceId }) {
   const browser = useSemiont();
-  const client = useObservable(browser.activeSession$);
+  const client = useObservable(browser.activeSession$)?.client;
   // Subscribing to this live query acquires the resource scope; the SDK cache
   // keeps it fresh off `mark:added` / `mark:removed` / `mark:body-updated`
-  // bus events — no invalidation calls here.
-  const annotations = useObservable(client?.browse.annotations(rId)) ?? [];
+  // bus events — no invalidation calls here. Emissions are
+  // CacheState<Annotation[]>; readyValue projects out the ready value.
+  const state = useObservable(client?.browse.annotations(rId));
+  const annotations = (state && readyValue(state)) ?? [];
 
   return <AnnotationsPanel annotations={annotations} />;
 }

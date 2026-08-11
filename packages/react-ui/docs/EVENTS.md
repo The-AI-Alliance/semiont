@@ -196,7 +196,8 @@ queries (`client.browse.*(rId)`) re-emit and any
 
 ```tsx
 // No manual query-client invalidation — just observe the live query.
-const annotations = useObservable(client.browse.annotations(rId));
+const state = useObservable(client.browse.annotations(rId)); // CacheState<Annotation[]>
+const annotations = state && readyValue(state); // readyValue from @semiont/sdk
 ```
 
 The bridge between backend-broadcast events and resource-scoped
