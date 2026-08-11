@@ -43,7 +43,7 @@ describe('Make-Meaning Service', () => {
     eventBus = new EventBus();
 
     config = {
-      gather: { settleTimeoutMs: 15_000 },
+      gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
       services: {
         graph: {
           platform: { type: 'posix' },
@@ -254,7 +254,7 @@ describe('startup dependency connects', () => {
     const project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
     const eventBus = new EventBus();
     const config: MakeMeaningConfig = {
-      gather: { settleTimeoutMs: 15_000 },
+      gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
       services: {
         graph: { platform: { type: 'posix' }, type: 'memory' },
         vectors: { platform: { type: 'posix' }, type: 'memory' },

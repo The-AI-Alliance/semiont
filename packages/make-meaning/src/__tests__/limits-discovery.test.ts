@@ -30,7 +30,7 @@ const mockLogger: Logger = {
 // Two distinct pairs: one worker-derived (serves job types), one actor-only.
 const CONFIG: MakeMeaningConfig = {
   services: {},
-  gather: { settleTimeoutMs: 15_000 },
+  gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
   site: { domain: 'kb.example' },
   workers: { default: { type: 'anthropic', model: 'model-a', apiKey: 'k' } },
   actors: { matcher: { type: 'ollama', model: 'model-b' } },
@@ -152,6 +152,7 @@ describe('LimitsDiscovery (INFERENCE-LIMITS-EXPOSURE P2)', () => {
       { root: '/tmp' } as never,
       CONFIG,
       createLimitsDiscovery(CONFIG, mockLogger, { clientFactory: factory }),
+      undefined,
       mockLogger,
     );
     await browser.initialize();

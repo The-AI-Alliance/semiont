@@ -48,8 +48,9 @@ function browserOver(kb: Record<string, unknown>) {
     kb as never,
     eventBus,
     { root: '/tmp' } as never,
-    { services: {}, gather: { settleTimeoutMs: 15_000 } } as MakeMeaningConfig,
+    { services: {}, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } } as MakeMeaningConfig,
     { enrich: async (entries) => entries },
+    undefined,
     mockLogger,
   );
   return { eventBus, browser };

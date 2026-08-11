@@ -29,7 +29,7 @@ async function main() {
     // barrier). TOML deployments set it at
     // [environments.<env>.make-meaning.gather]; hand-built configs state
     // their policy explicitly — there is no in-code default.
-    gather: { settleTimeoutMs: 15_000 },
+    gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
     services: {
       graph: { platform: { type: 'posix' }, type: 'memory' },
     },

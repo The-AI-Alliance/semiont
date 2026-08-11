@@ -45,6 +45,14 @@ export interface MakeMeaningConfig {
    * nest inside downstream watchdogs (A4).
    */
   gather: { settleTimeoutMs: number };
+  /**
+   * Search policy. `semanticFloor` is the minimum cosine score a vector hit
+   * needs to appear in the semantic fallback (SEMANTIC-FALLBACK decision #1)
+   * — REQUIRED: the TOML loader owns the one default (0.6 at
+   * `[environments.<env>.make-meaning.search]`); hand-built configs
+   * (scripts, tests) state their policy explicitly.
+   */
+  search: { semanticFloor: number };
   services: {
     graph?: GraphServiceConfig;
     vectors?: VectorsServiceConfig;

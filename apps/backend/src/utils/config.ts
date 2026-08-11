@@ -16,6 +16,7 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
     actors?: MakeMeaningConfig['actors'];
     workers?: MakeMeaningConfig['workers'];
     gather?: MakeMeaningConfig['gather'];
+    search?: MakeMeaningConfig['search'];
   }) | undefined;
 
   // The TOML loader always sets _metadata.gather (it owns the one default —
@@ -25,9 +26,14 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
   if (!gather) {
     throw new Error('make-meaning gather config missing — load config via loadEnvironmentConfig (the TOML loader owns the settleTimeoutMs default)');
   }
+  const search = meta?.search;
+  if (!search) {
+    throw new Error('make-meaning search config missing — load config via loadEnvironmentConfig (the TOML loader owns the semanticFloor default)');
+  }
 
   return {
     gather,
+    search,
     services: {
       graph: config.services?.graph,
       vectors: config.services?.vectors,

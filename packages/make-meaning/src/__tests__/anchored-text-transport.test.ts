@@ -39,7 +39,7 @@ const silentLogger: Logger = {
 const TEST_USER_ID = makeUserId('test-host');
 
 const config: MakeMeaningConfig = {
-  gather: { settleTimeoutMs: 15_000 },
+  gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
   services: { graph: { platform: { type: 'posix' }, type: 'memory' } },
   actors: {
     gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },

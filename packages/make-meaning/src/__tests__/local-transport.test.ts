@@ -46,7 +46,7 @@ const silentLogger: Logger = {
 };
 
 const config: MakeMeaningConfig = {
-  gather: { settleTimeoutMs: 15_000 },
+  gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
   services: {
     graph: { platform: { type: 'posix' }, type: 'memory' },
   },

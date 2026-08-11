@@ -111,6 +111,25 @@ settleTimeoutMs = 45000
     expect((config._metadata as any)?.gather).toEqual({ settleTimeoutMs: 45_000 });
   });
 
+  it('always sets _metadata.search.semanticFloor, defaulting to 0.6 when absent', () => {
+    // SEMANTIC-FALLBACK decision #1: the loader is the ONE home of the
+    // default — guess-now (0.6), tune-from-evidence-later; any KB overrides
+    // per-TOML without code.
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
+
+    expect((config._metadata as any)?.search).toEqual({ semanticFloor: 0.6 });
+  });
+
+  it('honors an explicit make-meaning.search.semanticFloor', () => {
+    const toml = `${MINIMAL_TOML}
+[environments.local.make-meaning.search]
+semanticFloor = 0.75
+`;
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+
+    expect((config._metadata as any)?.search).toEqual({ semanticFloor: 0.75 });
+  });
+
   it('resolves ${VAR} env var references', () => {
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_ENV_VAR_TOML), { MY_API_KEY: 'sk-secret' });
 
