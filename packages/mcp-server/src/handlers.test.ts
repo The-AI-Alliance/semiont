@@ -194,8 +194,8 @@ describe('markAssist', () => {
   it('reports the total found and every progress stage', async () => {
     const { client, mark } = createStub();
     const events: MarkAssistEvent[] = [
-      { kind: 'progress', data: { percentage: 40, message: 'reading' } },
-      { kind: 'progress', data: { percentage: 90, message: 'writing' } },
+      { kind: 'progress', data: { percentage: 40, message: { code: 'analyzing' } } },
+      { kind: 'progress', data: { percentage: 90, message: { code: 'analyzing' } } },
       ASSIST_COMPLETE,
     ];
     mark.assist.mockReturnValue(of(...events));
@@ -254,7 +254,7 @@ describe('markAssist', () => {
     const { client, mark } = createStub();
     const progress: MarkAssistEvent = {
       kind: 'progress',
-      data: { percentage: 40, message: 'reading' },
+      data: { percentage: 40, message: { code: 'analyzing' } },
     };
     mark.assist.mockReturnValue(of(progress));
 
@@ -314,7 +314,7 @@ describe('gatherAnnotation', () => {
 
   it('throws when the stream ends without a context payload', async () => {
     const { client, gather } = createStub();
-    gather.annotation.mockResolvedValue({ message: 'still working', percentage: 50 });
+    gather.annotation.mockResolvedValue({ message: 'still gathering', percentage: 50 });
 
     await expect(gatherAnnotation(client, { resourceId: 'res-iliad', annotationId: 'anno-reference' }))
       .rejects.toThrow('Gather finished without a context payload');
@@ -417,7 +417,7 @@ describe('yieldFromAnnotation', () => {
   it('reports every progress stage', async () => {
     const { client, yield: yieldNamespace } = createStub();
     const events: YieldGenerationEvent[] = [
-      { kind: 'progress', data: { percentage: 50, message: 'writing' } },
+      { kind: 'progress', data: { percentage: 50, message: { code: 'analyzing' } } },
       GENERATION_COMPLETE,
     ];
     yieldNamespace.fromContext.mockReturnValue(of(...events));

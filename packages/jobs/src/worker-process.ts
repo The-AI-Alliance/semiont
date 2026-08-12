@@ -281,7 +281,7 @@ async function handleJobInner(
     ready = source;
   }
 
-  const onProgress: OnProgress = (percentage, message, stage, extra) => {
+  const onProgress: OnProgress = (percentage, message, extra) => {
     // Progress doubles as the worker's liveness heartbeat: it feeds the
     // stall watchdog here and refreshes the backend janitor's mtime
     // heartbeat via the job:report-progress mirror.

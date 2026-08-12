@@ -69,7 +69,6 @@ export type BuildAnnotation = (
 export type OnProgress = (
   percentage: number,
   message: JobProgressMessage,
-  stage: string,
   extra?: Partial<JobProgress>,
 ) => void;
 
@@ -321,16 +320,16 @@ export async function processHighlightJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<HighlightDetectionResult>> {
-  onProgress(10, { code: 'loading' }, 'analyzing');
-  onProgress(30, { code: 'analyzing' }, 'analyzing');
+  onProgress(10, { code: 'loading' });
+  onProgress(30, { code: 'analyzing' });
 
   const highlights = await AnnotationDetection.detectHighlights(
     content, inferenceClient, params.instructions, params.density, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
-    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), { code: 'analyzing' }, 'analyzing'),
+    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), { code: 'analyzing' }),
   );
 
-  onProgress(60, { code: 'creating-annotations', count: highlights.length }, 'creating');
+  onProgress(60, { code: 'creating-annotations', count: highlights.length });
 
   // Highlights carry no body — motivation:'highlighting' on a target
   // is a complete annotation per the W3C Web Annotation Model.
@@ -338,7 +337,7 @@ export async function processHighlightJob(
     buildAnnotation('highlighting', h),
   ));
 
-  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'highlight' }, 'creating');
+  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'highlight' });
 
   return {
     annotations,
@@ -353,17 +352,17 @@ export async function processCommentJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<CommentDetectionResult>> {
-  onProgress(10, { code: 'loading' }, 'analyzing');
-  onProgress(30, { code: 'analyzing' }, 'analyzing');
+  onProgress(10, { code: 'loading' });
+  onProgress(30, { code: 'analyzing' });
 
   const comments = await AnnotationDetection.detectComments(
     content, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
-    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), { code: 'analyzing' }, 'analyzing'),
+    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), { code: 'analyzing' }),
   );
 
-  onProgress(60, { code: 'creating-annotations', count: comments.length }, 'creating');
+  onProgress(60, { code: 'creating-annotations', count: comments.length });
 
   // The body's `language` reflects the locale the LLM was asked to write in
   // (`params.language` — the user's UI locale). Defaults to 'en' when the
@@ -378,7 +377,7 @@ export async function processCommentJob(
     ]),
   ));
 
-  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'comment' }, 'creating');
+  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'comment' });
 
   return {
     annotations,
@@ -393,17 +392,17 @@ export async function processAssessmentJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<AssessmentDetectionResult>> {
-  onProgress(10, { code: 'loading' }, 'analyzing');
-  onProgress(30, { code: 'analyzing' }, 'analyzing');
+  onProgress(10, { code: 'loading' });
+  onProgress(30, { code: 'analyzing' });
 
   const assessments = await AnnotationDetection.detectAssessments(
     content, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
-    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), { code: 'analyzing' }, 'analyzing'),
+    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), { code: 'analyzing' }),
   );
 
-  onProgress(60, { code: 'creating-annotations', count: assessments.length }, 'creating');
+  onProgress(60, { code: 'creating-annotations', count: assessments.length });
 
   const bodyLanguage = params.language ?? 'en';
   const annotations = dedupeAnnotations(assessments.map((a) =>
@@ -418,7 +417,7 @@ export async function processAssessmentJob(
     }),
   ));
 
-  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'assessment' }, 'creating');
+  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'assessment' });
 
   return {
     annotations,
@@ -442,7 +441,7 @@ export async function processReferenceJob(
   let errors = 0;
   const allAnnotations: Annotation[] = [];
 
-  onProgress(10, { code: 'loading' }, 'analyzing', { requestParams });
+  onProgress(10, { code: 'loading' }, { requestParams });
 
   const bodyLanguage = params.language ?? 'en';
 
@@ -450,7 +449,7 @@ export async function processReferenceJob(
     const entityTypeName = entityTypeNames[i];
     if (!entityTypeName) continue;
     const pct = 20 + Math.round((i / entityTypeNames.length) * 60);
-    onProgress(pct, { code: 'detecting-entities', entityType: entityTypeName }, 'analyzing', {
+    onProgress(pct, { code: 'detecting-entities', entityType: entityTypeName }, {
       processedEntityTypes: i,
       totalEntityTypes: entityTypeNames.length,
       entitiesFound: totalFound,
@@ -471,7 +470,7 @@ export async function processReferenceJob(
       // advance.
       (completed, total) => {
         const interpolated = 20 + Math.round(((i + completed / total) / entityTypeNames.length) * 60);
-        onProgress(interpolated, { code: 'detecting-entities', entityType: entityTypeName }, 'analyzing', {
+        onProgress(interpolated, { code: 'detecting-entities', entityType: entityTypeName }, {
           processedEntityTypes: i,
           totalEntityTypes: entityTypeNames.length,
           entitiesFound: totalFound,
@@ -527,7 +526,7 @@ export async function processReferenceJob(
   // the same span (same entity type) become a single annotation.
   const annotations = dedupeAnnotations(allAnnotations);
 
-  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'reference' }, 'creating');
+  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'reference' });
 
   return {
     annotations,
@@ -542,8 +541,8 @@ export async function processTagJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<TagDetectionResult>> {
-  onProgress(10, { code: 'loading' }, 'analyzing');
-  onProgress(30, { code: 'analyzing-tags' }, 'analyzing');
+  onProgress(10, { code: 'loading' });
+  onProgress(30, { code: 'analyzing-tags' });
 
   const allTags = [];
   for (let c = 0; c < params.categories.length; c++) {
@@ -554,14 +553,14 @@ export async function processTagJob(
       // slice of the 30–60 band.
       (completed, total) => onProgress(
         30 + Math.round(((c + completed / total) / params.categories.length) * 30),
-        { code: 'analyzing-tags' }, 'analyzing',
+        { code: 'analyzing-tags' },
       ),
     );
     allTags.push(...categoryTags);
   }
   const tags = allTags;
 
-  onProgress(60, { code: 'creating-tag-annotations', count: tags.length }, 'creating');
+  onProgress(60, { code: 'creating-tag-annotations', count: tags.length });
 
   const bodyLanguage = params.language ?? 'en';
   const annotations = dedupeAnnotations(tags.map((t) => {
@@ -587,7 +586,7 @@ export async function processTagJob(
     byCategory[category] = (byCategory[category] ?? 0) + 1;
   }
 
-  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'tag' }, 'creating');
+  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'tag' });
 
   return {
     annotations,
@@ -636,7 +635,7 @@ export async function processGenerationJob(
   // until the citation branch (P4) provides it, `cite` fails fast and loudly
   // rather than minting selectors that would render nothing.
   if (outputMediaType === 'application/pdf') {
-    onProgress(5, { code: 'generating-resource' }, 'generating');
+    onProgress(5, { code: 'generating-resource' });
 
     // Under `cite`, [[<id>]] tokens are stripped from the SOURCE before every
     // compile — they must never render into the artifact. The citations carry
@@ -689,7 +688,7 @@ export async function processGenerationJob(
     }
 
     assertWithinOutputBudget(compiled.pdf.byteLength);
-    onProgress(95, { code: 'creating-resource' }, 'creating');
+    onProgress(95, { code: 'creating-resource' });
 
     return {
       content: compiled.pdf,
@@ -709,7 +708,7 @@ export async function processGenerationJob(
   // approximate the share of expected wall-clock complete at each transition
   // (a single atomic LLM call has no measurable progress, and inference
   // dominates the job): its start is ~5, its end ~95.
-  onProgress(5, { code: 'generating-resource' }, 'generating');
+  onProgress(5, { code: 'generating-resource' });
 
   const generated = await generateResourceFromTopic(
     title,
@@ -740,7 +739,7 @@ export async function processGenerationJob(
     citations = resolved.citations;
   }
 
-  onProgress(95, { code: 'creating-resource' }, 'creating');
+  onProgress(95, { code: 'creating-resource' });
 
   // The artifact is bytes; text is an encoding of them. One shape for every
   // output media type, so a string can never travel mislabeled as a binary

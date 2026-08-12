@@ -196,7 +196,7 @@ describe('handleJob orchestration', () => {
       // is silent: every event still flows, the UI just goes back to having
       // nothing to render, which is the defect this arc exists to remove.
       vi.mocked(processHighlightJob).mockImplementation(async (_c, _i, _p, _b, onProgress) => {
-        onProgress(60, { code: 'creating-annotations', count: 2 }, 'creating');
+        onProgress(60, { code: 'creating-annotations', count: 2 });
         return { annotations: [], result: { highlightsFound: 0, highlightsCreated: 0 } as never };
       });
       const h = makeFakeSessionAndAdapter();
