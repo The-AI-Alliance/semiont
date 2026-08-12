@@ -13,16 +13,9 @@ export interface VoyageConfig {
   endpoint?: string;
 }
 
-const VOYAGE_DIMENSIONS: Record<string, number> = {
-  'voyage-3': 1024,
-  'voyage-3-lite': 512,
-  'voyage-code-3': 1024,
-  'voyage-finance-2': 1024,
-  'voyage-law-2': 1024,
-};
-
 export class VoyageEmbeddingProvider implements EmbeddingProvider {
   private config: VoyageConfig;
+  private dimensionsPromise?: Promise<number>;
 
   constructor(config: VoyageConfig) {
     this.config = config;
@@ -57,8 +50,27 @@ export class VoyageEmbeddingProvider implements EmbeddingProvider {
     return json.data.map(d => d.embedding);
   }
 
-  dimensions(): number {
-    return VOYAGE_DIMENSIONS[this.config.model] ?? 1024;
+  dimensions(): Promise<number> {
+    if (!this.dimensionsPromise) {
+      this.dimensionsPromise = this.measureDimensions().catch((err: unknown) => {
+        // Never cache a failed discovery — a transient outage would otherwise
+        // pin every future call to the same rejection.
+        this.dimensionsPromise = undefined;
+        throw err;
+      });
+    }
+    return this.dimensionsPromise;
+  }
+
+  private async measureDimensions(): Promise<number> {
+    // Dimensionality is intrinsic to the model, so the model is the
+    // authority: embed a probe and measure it. A hand-maintained table goes
+    // stale the day a new model ships and silently mis-sizes the index.
+    const probe = await this.embed('dimension probe');
+    if (!Array.isArray(probe) || probe.length === 0) {
+      throw new Error(`Voyage returned no embedding for dimension probe of model '${this.config.model}'`);
+    }
+    return probe.length;
   }
 
   model(): string {

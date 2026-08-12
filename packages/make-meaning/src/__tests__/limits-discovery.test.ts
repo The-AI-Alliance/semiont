@@ -19,6 +19,7 @@ import { createLimitsDiscovery } from '../limits-discovery';
 import { deriveAgentRoster } from '../agent-roster';
 import { Browser } from '../browser';
 import type { InferenceConfig, MakeMeaningConfig } from '../config';
+import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 
 type InferenceLimits = components['schemas']['InferenceLimits'];
 
@@ -29,7 +30,7 @@ const mockLogger: Logger = {
 
 // Two distinct pairs: one worker-derived (serves job types), one actor-only.
 const CONFIG: MakeMeaningConfig = {
-  services: {},
+  services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
   gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
   site: { domain: 'kb.example' },
   workers: { default: { type: 'anthropic', model: 'model-a', apiKey: 'k' } },
@@ -152,7 +153,7 @@ describe('LimitsDiscovery (INFERENCE-LIMITS-EXPOSURE P2)', () => {
       { root: '/tmp' } as never,
       CONFIG,
       createLimitsDiscovery(CONFIG, mockLogger, { clientFactory: factory }),
-      undefined,
+      createMockEmbeddingProvider(),
       mockLogger,
     );
     await browser.initialize();

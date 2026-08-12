@@ -61,6 +61,16 @@ vi.mock('../utils/config', () => ({
         platform: { type: 'posix' as const },
         type: 'memory' as const,
       },
+      // Mandatory per MANDATORY-EMBEDDING D0+D1 — every config names both.
+      vectors: {
+        platform: { type: 'external' as const },
+        type: 'memory' as const,
+      },
+      embedding: {
+        platform: { type: 'external' as const },
+        type: 'ollama' as const,
+        model: 'nomic-embed-text',
+      },
     },
     site: {
       siteName: 'Test Site',

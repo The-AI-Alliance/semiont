@@ -40,7 +40,8 @@ function toSearchResult(point: Schemas['ScoredPoint']): VectorSearchResult {
 export interface QdrantConfig {
   host: string;
   port: number;
-  dimensions: number;
+  /** Resolves the embedding dimensionality; called only when creating a collection. */
+  dimensions: () => Promise<number>;
 }
 
 /** The payload fields a stamp is read from — one list for the scroll and the
@@ -87,8 +88,8 @@ export class QdrantVectorStore implements VectorStore {
     });
 
     // Ensure collections exist
-    await this.ensureCollection('resources', this.config.dimensions);
-    await this.ensureCollection('annotations', this.config.dimensions);
+    await this.ensureCollection('resources');
+    await this.ensureCollection('annotations');
     // Payload indexes so filtered operations scale:
     //  - entityTypes: the excludeEntityTypes recall filter.
     //  - resourceId: searchByResource's by-resource scroll + self-exclusion, and
@@ -106,22 +107,27 @@ export class QdrantVectorStore implements VectorStore {
   async clearAll(): Promise<void> {
     try { await this.qdrant.deleteCollection('resources'); } catch { /* may not exist */ }
     try { await this.qdrant.deleteCollection('annotations'); } catch { /* may not exist */ }
-    await this.ensureCollection('resources', this.config.dimensions);
-    await this.ensureCollection('annotations', this.config.dimensions);
+    await this.ensureCollection('resources');
+    await this.ensureCollection('annotations');
   }
 
   isConnected(): boolean {
     return this.client !== null;
   }
 
-  private async ensureCollection(name: string, dimensions: number): Promise<void> {
+  private async ensureCollection(name: string): Promise<void> {
     try {
       await this.qdrant.getCollection(name);
-    } catch {
-      await this.qdrant.createCollection(name, {
-        vectors: { size: dimensions, distance: 'Cosine' },
-      });
-    }
+      return;
+    } catch { /* absent — create it below, which is the only path needing the size */ }
+
+    // The dimensionality is discovered from the embedding provider, so it is
+    // resolved HERE and nowhere else: an existing collection already encodes
+    // its vector size, and consulting the provider to re-derive a number we
+    // would not use is exactly the eager-probe coupling this avoids.
+    await this.qdrant.createCollection(name, {
+      vectors: { size: await this.config.dimensions(), distance: 'Cosine' },
+    });
   }
 
   /**

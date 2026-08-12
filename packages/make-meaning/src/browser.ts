@@ -59,8 +59,8 @@ export class Browser {
     private config: MakeMeaningConfig,
     /** Discovered per-(provider, model) ceilings for the roster (INFERENCE-LIMITS-EXPOSURE P2). */
     private limitsDiscovery: LimitsDiscovery,
-    /** For the semantic search fallback; undefined when embedding is unconfigured (SEMANTIC-FALLBACK S4). */
-    private embeddingProvider: EmbeddingProvider | undefined,
+    /** For the semantic search fallback — mandatory (MANDATORY-EMBEDDING D0). */
+    private embeddingProvider: EmbeddingProvider,
     logger: Logger,
   ) {
     this.logger = logger;

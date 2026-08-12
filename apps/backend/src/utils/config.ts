@@ -35,9 +35,12 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
     gather,
     search,
     services: {
-      graph: config.services?.graph,
-      vectors: config.services?.vectors,
-      embedding: config.services?.embedding,
+      // vectors/embedding are required on both sides (MANDATORY-EMBEDDING P3):
+      // core's ServicesConfig requires the pair, so a config missing either
+      // already refused at the TOML loader — nothing to re-check here.
+      graph: config.services.graph,
+      vectors: config.services.vectors,
+      embedding: config.services.embedding,
     },
     // The KB's canonical identity — the agent roster mints DIDs from this,
     // the SAME value /api/tokens/agent uses (agent-did-host-skew fix). The

@@ -362,6 +362,12 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 	secErr := func(section, format string, a ...any) error {
 		return fmt.Errorf("%s: [environments.%s.%s] %s", path, envName, section, fmt.Sprintf(format, a...))
 	}
+	// envErr names the ENVIRONMENT rather than one of its sections — for the
+	// refusals where the missing thing IS the section, so secErr's prefix
+	// would point at a heading that does not exist.
+	envErr := func(format string, a ...any) error {
+		return fmt.Errorf("%s: [environments.%s] %s", path, envName, fmt.Sprintf(format, a...))
+	}
 	// bindingsUseOllama: does any actor/worker perform inference through the
 	// local Ollama? This decides who owns that Ollama (inference vs
 	// embedding) and what the inference role IS.
@@ -435,38 +441,50 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		plan.Roles["graph"] = rp
 	}
 
-	// vectors — platform defaults to "external" (the template omits it);
-	// type is required.
-	if v := env.Vectors; v == nil {
-		plan.Roles["vectors"] = rolePlan{Role: "vectors", Obligation: obligationAbsent}
-	} else {
-		if v.Type == "" {
-			return nil, secErr("vectors", "missing required key %q", "type")
-		}
-		spec, ok := driverCatalog["vectors"][v.Type]
-		if !ok {
-			return nil, secErr("vectors", "unknown type %q (known drivers: %s)", v.Type, knownDrivers("vectors"))
-		}
-		if v.Host == "" {
-			return nil, secErr("vectors", "missing required key %q", "host")
-		}
-		port := v.Port
-		if port == 0 {
-			port = spec.defaultPort
-		}
-		rp := rolePlan{Role: "vectors", Driver: v.Type, Port: port}
-		if classify(v.Host, "QDRANT_HOST") == obligationProvided {
-			rp.Obligation = obligationProvided
-			rp.Image = spec.image
-			if v.Image != "" {
-				rp.Image = v.Image
-			}
-		} else {
-			rp.Obligation = obligationExternal
-			rp.Address = v.Host
-		}
-		plan.Roles["vectors"] = rp
+	// vectors — REQUIRED. Semantic search is always available, so the
+	// backend's TOML loader refuses a config that names no vector store; the
+	// launcher reads the same file with its own structs, so it refuses the
+	// same configs, one round trip earlier — before a single container is
+	// launched. Same rule, same words. platform defaults to "external" (the
+	// template omits it); type and host are required.
+	v := env.Vectors
+	if v == nil {
+		return nil, envErr(`names no vector store — add [environments.%s.vectors] with type = "qdrant" and host = "${QDRANT_HOST}". Semiont requires a vector store; nothing is defaulted.`, envName)
 	}
+	if v.Type == "" {
+		return nil, secErr("vectors", "missing required key %q", "type")
+	}
+	// `memory` is a first-class store to the BACKEND, and unusable here: a
+	// launcher-managed stack runs the backend and the Smelter as separate
+	// containers, and an in-process index cannot be shared across processes.
+	// Named explicitly so an operator who followed the loader's own advice is
+	// told WHY, rather than that the value is unknown.
+	if v.Type == "memory" {
+		return nil, secErr("vectors", `type "memory" keeps the index inside one process, and a launcher-managed stack runs the backend and the Smelter as separate containers — they cannot share it. Use type = "qdrant" here.`)
+	}
+	vspec, knownVectors := driverCatalog["vectors"][v.Type]
+	if !knownVectors {
+		return nil, secErr("vectors", "unknown type %q (known drivers: %s)", v.Type, knownDrivers("vectors"))
+	}
+	if v.Host == "" {
+		return nil, secErr("vectors", "missing required key %q", "host")
+	}
+	vectorsPort := v.Port
+	if vectorsPort == 0 {
+		vectorsPort = vspec.defaultPort
+	}
+	vectorsPlan := rolePlan{Role: "vectors", Driver: v.Type, Port: vectorsPort}
+	if classify(v.Host, "QDRANT_HOST") == obligationProvided {
+		vectorsPlan.Obligation = obligationProvided
+		vectorsPlan.Image = vspec.image
+		if v.Image != "" {
+			vectorsPlan.Image = v.Image
+		}
+	} else {
+		vectorsPlan.Obligation = obligationExternal
+		vectorsPlan.Address = v.Host
+	}
+	plan.Roles["vectors"] = vectorsPlan
 
 	// database — type defaults to "postgres" (the template omits it).
 	if d := env.Database; d == nil {
@@ -513,18 +531,21 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		plan.Roles["database"] = rp
 	}
 
-	// embedding — a role the launcher never launches. Its platform is
-	// external in both shapes: ollama means the inference role's Ollama also
-	// serves embeddings (same process, same port — which is why embedding has
-	// no container of its own and never contends for a port), voyage means
-	// remote SaaS. Absent means the KB declares no embedding at all, which
-	// status reports as "not configured" exactly as it does for any other
-	// unreferenced role.
+	// embedding — REQUIRED, and a role the launcher never launches. Its
+	// platform is external in both shapes: ollama means the inference role's
+	// Ollama also serves embeddings (same process, same port — which is why
+	// embedding has no container of its own and never contends for a port),
+	// voyage means remote SaaS. Type AND model are both required, matching the
+	// backend loader exactly: half a rule enforced here is the drift this
+	// refusal exists to end.
 	if e := env.Embedding; e == nil {
-		plan.Roles["embedding"] = rolePlan{Role: "embedding", Obligation: obligationAbsent}
+		return nil, envErr(`names no embedding provider — add [environments.%s.embedding] with type = "ollama" or "voyage" and a model. Semiont requires an embedding provider; nothing is defaulted.`, envName)
 	} else {
 		if e.Type == "" {
 			return nil, secErr("embedding", "missing required key %q", "type")
+		}
+		if e.Model == "" {
+			return nil, secErr("embedding", "missing required key %q", "model")
 		}
 		spec, ok := driverCatalog["embedding"][e.Type]
 		if !ok {
@@ -550,12 +571,10 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			Role: "embedding", Obligation: obligationExternal,
 			Driver: e.Type, Address: host, Port: port,
 		}
-		if e.Model != "" {
-			rp.Models = []string{e.Model}
-			rp.OllamaServed = []string{}
-			if e.Type == "ollama" {
-				rp.OllamaServed = []string{e.Model}
-			}
+		rp.Models = []string{e.Model}
+		rp.OllamaServed = []string{}
+		if e.Type == "ollama" {
+			rp.OllamaServed = []string{e.Model}
 		}
 		// WHO runs the local Ollama an ollama embedding needs? If any actor/
 		// worker binding is ollama-typed, the inference role runs it and the

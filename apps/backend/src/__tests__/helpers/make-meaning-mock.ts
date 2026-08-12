@@ -39,6 +39,7 @@ export function stubKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): Knowl
     // honours the contract — what is written comes back — it simply does not
     // outlive the test.
     anchoredText:   inMemoryAnchoredText(),
+    vectors:        {} as KnowledgeBase['vectors'],
     weaveProgress: { dispose: vi.fn() } as unknown as KnowledgeBase['weaveProgress'],
     smeltProgress: { settledAt: vi.fn(), whenSettled: vi.fn(async () => 'inert' as const), dispose: vi.fn() } as unknown as KnowledgeBase['smeltProgress'],
     projectionsDir: '',

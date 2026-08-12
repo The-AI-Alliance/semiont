@@ -31,6 +31,7 @@ import { getGraphDatabase } from '@semiont/graph';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { createTestProject } from '../helpers/test-project';
+import { createVectorStore } from '@semiont/vectors';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -142,7 +143,7 @@ describe('Tag Schemas Projection Reader', () => {
       const eventBus = new EventBus();
       const eventStore = createEventStore(project, eventBus, mockLogger);
       const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-      const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger);
+      const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger, { vectorStore: await createVectorStore({ type: 'memory', dimensions: async () => 4 }) });
       const stower = new Stower(kb, eventBus, project, mockLogger);
       await stower.initialize();
 

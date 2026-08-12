@@ -168,14 +168,13 @@ async function main() {
   });
   logger.info('Embedding provider ready', { type: embeddingType, model: embeddingModel });
 
-  const dimensions = embeddingProvider.dimensions();
   const vectorStore = await createVectorStore({
     type: 'qdrant',
     host: qdrantHost,
     port: qdrantPort,
-    dimensions,
+    dimensions: () => embeddingProvider.dimensions(),
   });
-  logger.info('Vector store ready', { host: qdrantHost, port: qdrantPort, dimensions });
+  logger.info('Vector store ready', { host: qdrantHost, port: qdrantPort });
 
   // Tier 3 observability: report index point count. Polled at the
   // metric-collection interval (default 30s).

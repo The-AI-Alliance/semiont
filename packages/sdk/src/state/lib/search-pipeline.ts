@@ -8,10 +8,12 @@
  * (e.g. by a view layer's lazy initializer), then observed via `state$`. The
  * pipeline is pure RxJS — unit-testable without any view-layer dependency.
  *
- * The fetch function is expected to return `Observable<T[] | undefined>`,
- * matching the cache-miss-then-data shape of `BrowseNamespace` Observables:
+ * The fetch function is expected to return `Observable<T[] | undefined>`:
  * `undefined` means "fetch in flight, no value yet"; an array means "data
- * available (possibly empty)".
+ * available (possibly empty)". A `BrowseNamespace` live query emits
+ * `CacheState` values — adapt it with `map((st) => readyValue(st)?.resources)`
+ * (or the equivalent projection), which collapses pending/failed to
+ * `undefined`.
  */
 
 import { Subject, of, type Observable } from 'rxjs';

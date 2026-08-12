@@ -12,8 +12,14 @@ export interface EmbeddingProvider {
   /** Embed multiple texts in a single batch call. */
   embedBatch(texts: string[]): Promise<number[][]>;
 
-  /** The dimensionality of vectors produced by this provider. */
-  dimensions(): number;
+  /**
+   * The dimensionality of vectors produced by this provider.
+   *
+   * Discovered from the provider itself (a measured probe embedding), never
+   * a hand-maintained constant. Resolved once per instance; a failed
+   * discovery is not cached, so a later call retries.
+   */
+  dimensions(): Promise<number>;
 
   /** The model identifier (e.g. "voyage-3", "nomic-embed-text"). */
   model(): string;

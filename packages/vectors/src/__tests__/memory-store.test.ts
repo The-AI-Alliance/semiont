@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { MemoryVectorStore } from '../store/memory';
-import { MockEmbeddingProvider } from './mock-embedding-provider';
+import { MockEmbeddingProvider } from '../testing';
 import type { ResourceId, AnnotationId } from '@semiont/core';
 
 describe('MemoryVectorStore', () => {

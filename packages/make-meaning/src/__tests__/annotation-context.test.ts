@@ -15,6 +15,9 @@ import { WorkingTreeStore } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
 import type { KnowledgeBase } from '../knowledge-base';
 import { createTestProject } from './helpers/test-project';
+import { createMockEmbeddingProvider } from './helpers/smelter-harness';
+
+const mockEmbeddingProvider = createMockEmbeddingProvider();
 
 function createMockGraphDb(): GraphDatabase {
   return {
@@ -78,6 +81,7 @@ describe('AnnotationContext', () => {
       content: new WorkingTreeStore(project, mockLogger),
       graph: mockGraphDb,
       anchoredText: memoryAnchoredTextStore(),
+      vectors: { searchResources: vi.fn().mockResolvedValue([]), searchAnnotations: vi.fn().mockResolvedValue([]), searchByResource: vi.fn().mockResolvedValue([]) } as any,
       projectionsDir: project.projectionsDir,
       weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
     };
@@ -180,6 +184,7 @@ describe('AnnotationContext', () => {
         annotationId('test-1'),
         resourceId(testResourceId),
         kb,
+        mockEmbeddingProvider,
         { contextWindow: 50 },
         undefined,
         mockLogger
@@ -192,6 +197,7 @@ describe('AnnotationContext', () => {
         annotationId('test-2'),
         resourceId(testResourceId),
         kb,
+        mockEmbeddingProvider,
         { contextWindow: 6000 },
         undefined,
         mockLogger
@@ -211,6 +217,7 @@ describe('AnnotationContext', () => {
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
+        mockEmbeddingProvider,
         { contextWindow: 100 },
         undefined,
         mockLogger
@@ -223,6 +230,7 @@ describe('AnnotationContext', () => {
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
+        mockEmbeddingProvider,
         { contextWindow: 5000 },
         undefined,
         mockLogger
@@ -235,6 +243,7 @@ describe('AnnotationContext', () => {
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
+        mockEmbeddingProvider,
         { contextWindow: 1500 },
         undefined,
         mockLogger
@@ -253,6 +262,7 @@ describe('AnnotationContext', () => {
       annotationId(testAnnId),
       resourceId(testResourceId),
       kb,
+        mockEmbeddingProvider,
       {},
       undefined,
       mockLogger
@@ -274,6 +284,7 @@ describe('AnnotationContext', () => {
       annotationId(testAnnId),
       resourceId(testResourceId),
       kb,
+        mockEmbeddingProvider,
       { includeSourceContext: true },
       undefined,
       mockLogger
@@ -283,6 +294,7 @@ describe('AnnotationContext', () => {
       annotationId(testAnnId),
       resourceId(testResourceId),
       kb,
+        mockEmbeddingProvider,
       { includeSourceContext: false },
       undefined,
       mockLogger
@@ -299,6 +311,7 @@ describe('AnnotationContext', () => {
         annotationId('nonexistent'),
         resourceId('nonexistent-resource'),
         kb,
+        mockEmbeddingProvider,
         {},
         undefined,
         mockLogger
@@ -351,6 +364,7 @@ describe('AnnotationContext', () => {
       annotationId(testAnnId),
       resourceId(testResourceId),
       kb,
+        mockEmbeddingProvider,
       {},
       undefined,
       mockLogger
@@ -385,6 +399,7 @@ describe('AnnotationContext', () => {
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
+        mockEmbeddingProvider,
         {},
         undefined,
         mockLogger
@@ -426,6 +441,7 @@ describe('AnnotationContext', () => {
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
+        mockEmbeddingProvider,
         {},
         undefined,
         mockLogger
@@ -455,6 +471,7 @@ describe('AnnotationContext', () => {
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
+        mockEmbeddingProvider,
         {},
         undefined,
         mockLogger
@@ -525,6 +542,7 @@ describe('AnnotationContext', () => {
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
+        mockEmbeddingProvider,
         {},
         undefined,
         mockLogger
@@ -564,6 +582,7 @@ describe('AnnotationContext', () => {
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
+        mockEmbeddingProvider,
         {},
         mockInferenceClient,
         mockLogger
@@ -592,6 +611,7 @@ describe('AnnotationContext', () => {
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
+        mockEmbeddingProvider,
         {},
         undefined,
         mockLogger
@@ -623,6 +643,7 @@ describe('AnnotationContext', () => {
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
+        mockEmbeddingProvider,
         {},
         mockInferenceClient,
         mockLogger
@@ -651,6 +672,7 @@ describe('AnnotationContext', () => {
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
+        mockEmbeddingProvider,
         {},
         undefined,
         mockLogger

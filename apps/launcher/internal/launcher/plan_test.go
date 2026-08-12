@@ -267,45 +267,83 @@ password = "localpass"
 	}
 }
 
-func TestDerivePlanAbsentVectors(t *testing.T) {
-	plan := mustDerive(t, variantConfig(t, map[string]string{"vectors": ""}))
-	if got := plan.Roles["vectors"]; got.Obligation != obligationAbsent {
-		t.Errorf("absent vectors: got %+v", got)
+// mustRefuse derives and requires a refusal naming the given fragments. The
+// message is the deliverable here: a config the backend will not boot must be
+// refused BEFORE anything is launched, and saying so is the whole value.
+func mustRefuse(t *testing.T, path string, want ...string) {
+	t.Helper()
+	env, envName, _, err := loadConfig(path)
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	plan, err := derivePlan(env, envName, path)
+	if err == nil {
+		t.Fatalf("derivePlan accepted a config the backend refuses to boot: %+v", plan.Roles)
+	}
+	for _, w := range want {
+		if !strings.Contains(err.Error(), w) {
+			t.Errorf("refusal missing %q; got: %v", w, err)
+		}
 	}
 }
 
-func TestDerivePlanNoOllamaAnywhere(t *testing.T) {
-	// No embedding section and no ollama-typed binding: inference is absent —
-	// the launcher launches Ollama only when the config references it.
-	plan := mustDerive(t, variantConfig(t, map[string]string{"embedding": ""}))
-	// No [embedding] section: the role still exists, reported absent — the
-	// same "not configured" shape every unreferenced role gets.
-	checkRole(t, plan, "embedding", rolePlan{Obligation: obligationAbsent})
-	// The fixture's worker binds Claude, so inference is a configured
-	// EXTERNAL role — "absent" would be the old drag-in logic's answer.
-	checkRole(t, plan, "inference", rolePlan{
-		Obligation: obligationExternal, Driver: "anthropic",
-		Address: "api.anthropic.com", Port: 443,
-		Models:       []string{"claude-sonnet-4-5-20250929"},
-		OllamaServed: []string{},
-	})
+// Semantic search is always available (MANDATORY-EMBEDDING D0/D1), so the
+// backend's TOML loader refuses a config naming no vector store and no
+// embedding provider. The launcher parses the same file with its own structs,
+// so it must refuse the same configs — otherwise `semiont start` launches
+// every container and the backend then dies at boot on a config the launcher
+// already had in its hands. Same rule, same vocabulary, one round trip
+// earlier.
+func TestDerivePlanRefusesAConfigNamingNoVectorStore(t *testing.T) {
+	mustRefuse(t, variantConfig(t, map[string]string{"vectors": ""}),
+		"names no vector store", "[environments.local.vectors]", "nothing is defaulted")
+}
 
-	// voyage: remote SaaS. Still external, still a role — the platform is
-	// what differs, not its standing. No baseURL is normal there, so the
-	// driver's own host and TLS port stand in.
-	vp := mustDerive(t, variantConfig(t, map[string]string{"embedding": `[environments.local.embedding]
+func TestDerivePlanRefusesAConfigNamingNoEmbeddingProvider(t *testing.T) {
+	mustRefuse(t, variantConfig(t, map[string]string{"embedding": ""}),
+		"names no embedding provider", "[environments.local.embedding]", "nothing is defaulted")
+}
+
+// A provider without a model is the same gap one level down — the loader
+// requires both, and half a rule is the drift this phase exists to end.
+func TestDerivePlanRefusesAnEmbeddingWithoutAModel(t *testing.T) {
+	mustRefuse(t, variantConfig(t, map[string]string{"embedding": `[environments.local.embedding]
+type = "ollama"
+baseURL = "http://${OLLAMA_HOST}:11434"
+`}), "[environments.local.embedding]", `missing required key "model"`)
+}
+
+// `memory` is a first-class store to the BACKEND (D1) and unusable in a
+// launcher-managed stack, which runs the backend and the Smelter as separate
+// containers. Refusing it is right; refusing it as an "unknown driver" is
+// not — the operator would read the loader's own advice, follow it, and be
+// told the value does not exist.
+func TestDerivePlanExplainsWhyMemoryIsNotAvailableHere(t *testing.T) {
+	mustRefuse(t, variantConfig(t, map[string]string{"vectors": `[environments.local.vectors]
+type = "memory"
+`}), "separate containers", `type = "qdrant"`)
+}
+
+func TestDerivePlanNoOllamaAnywhere(t *testing.T) {
+	// A voyage embedding and no ollama-typed binding: nothing in the config
+	// references the local Ollama, so the launcher launches nothing for
+	// either role. Voyage is remote SaaS — still external, still a role; the
+	// platform is what differs, not its standing. No baseURL is normal there,
+	// so the driver's own host and TLS port stand in.
+	plan := mustDerive(t, variantConfig(t, map[string]string{"embedding": `[environments.local.embedding]
 platform = "external"
 type = "voyage"
 model = "voyage-3"
 `}))
-	checkRole(t, vp, "embedding", rolePlan{
+	checkRole(t, plan, "embedding", rolePlan{
 		Obligation: obligationExternal, Driver: "voyage",
 		Address: "api.voyageai.com", Port: 443,
 		Models: []string{"voyage-3"}, // voyage is remote: nothing to install
 	})
-	// A voyage embedding must not drag Ollama in — and with the fixture's
-	// Claude-bound worker, inference is the same external-Anthropic role.
-	checkRole(t, vp, "inference", rolePlan{
+	// The fixture's worker binds Claude, so inference is a configured
+	// EXTERNAL role — "absent" would be the old drag-in logic's answer, and a
+	// voyage embedding must not drag Ollama in either.
+	checkRole(t, plan, "inference", rolePlan{
 		Obligation: obligationExternal, Driver: "anthropic",
 		Address: "api.anthropic.com", Port: 443,
 		Models:       []string{"claude-sonnet-4-5-20250929"},

@@ -32,6 +32,9 @@ import { LocalTransport } from '../local-transport';
 import { LocalContentTransport } from '../local-content-transport';
 import { ResourceOperations } from '../resource-operations';
 import { startMakeMeaning, type MakeMeaningConfig, type MakeMeaningService } from '../service';
+import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
+
+stubEmbeddingProbeFetch();
 
 const SETTLE_MS = 5_000;
 
@@ -49,6 +52,8 @@ const config: MakeMeaningConfig = {
   gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
   services: {
     graph: { platform: { type: 'posix' }, type: 'memory' },
+    vectors: { type: 'memory' },
+    embedding: { type: 'ollama', model: 'nomic-embed-text' },
   },
   actors: {
     gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },

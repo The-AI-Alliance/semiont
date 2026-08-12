@@ -38,12 +38,15 @@ export interface KnowledgeBase {
   graph:         GraphDatabase;
   weaveProgress: WeaveProgress;
   smeltProgress: SmeltProgress;
-  vectors?:      VectorStore;
+  vectors:       VectorStore;
   projectionsDir: string;
 }
 
 export interface CreateKnowledgeBaseOptions {
-  vectorStore?: VectorStore;
+  /** Required (MANDATORY-EMBEDDING D0): a KB without vector search is not a
+   *  configuration we support; `MemoryVectorStore` is the explicit named
+   *  choice for stores that may rebuild on restart. */
+  vectorStore: VectorStore;
   skipRebuild?: boolean;
 }
 
@@ -53,7 +56,7 @@ export async function createKnowledgeBase(
   graphDb: GraphDatabase,
   eventBus: EventBus,
   logger: Logger,
-  options?: CreateKnowledgeBaseOptions,
+  options: CreateKnowledgeBaseOptions,
 ): Promise<KnowledgeBase> {
   const views = new FilesystemViewStorage(project, logger.child({ component: 'view-storage' }));
   const content = new WorkingTreeStore(
@@ -92,12 +95,9 @@ export async function createKnowledgeBase(
 
   const kb: KnowledgeBase = {
     eventStore, views, content, anchoredText, graph: graphDb, weaveProgress, smeltProgress,
+    vectors: options.vectorStore,
     projectionsDir: project.projectionsDir,
   };
-
-  if (options?.vectorStore) {
-    kb.vectors = options.vectorStore;
-  }
 
   return kb;
 }

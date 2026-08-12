@@ -20,6 +20,18 @@ publicURL = "http://localhost:4000"
 [environments.integration.make-meaning.graph]
 type = "memory"
 
+# Mandatory per MANDATORY-EMBEDDING D0+D1 — every config names both, nothing is
+# defaulted. This TOML is written to disk and parsed by the real loader, so it
+# needs the sections in their own right: the EnvironmentConfig object further
+# down is a separate surface, and having only that one is what left the
+# integration suite failing at loadEnvironmentConfig.
+[environments.integration.vectors]
+type = "memory"
+
+[environments.integration.embedding]
+type = "ollama"
+model = "nomic-embed-text"
+
 [environments.integration.make-meaning.actors.gatherer.inference]
 type = "ollama"
 model = "llama3"
@@ -138,6 +150,16 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
       graph: {
         platform: { type: 'posix' },
         type: 'memory',
+      },
+      // Mandatory per MANDATORY-EMBEDDING D0+D1 — every config names both.
+      vectors: {
+        platform: { type: 'external' },
+        type: 'memory',
+      },
+      embedding: {
+        platform: { type: 'external' },
+        type: 'ollama',
+        model: 'nomic-embed-text',
       },
     },
     site: {

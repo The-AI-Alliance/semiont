@@ -19,6 +19,9 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
+
+stubEmbeddingProbeFetch();
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -48,7 +51,9 @@ describe('Make-Meaning Service', () => {
         graph: {
           platform: { type: 'posix' },
           type: 'memory'
-        }
+        },
+        vectors: { type: 'memory' },
+        embedding: { type: 'ollama', model: 'nomic-embed-text' },
       },
       actors: {
         gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
@@ -70,6 +75,28 @@ describe('Make-Meaning Service', () => {
     }
     await project.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
+  });
+
+  describe('mandatory vector pair (MANDATORY-EMBEDDING P3, D1 explicit opt-in)', () => {
+    it('a config naming type: memory constructs a WORKING in-memory store, with the rebuild-on-restart breadcrumb', async () => {
+      // D1: `memory` is a first-class explicit choice, never a fallback —
+      // and its cost (the index rebuilds from the event log on every
+      // restart) is announced at startup per the L4 discipline, so whoever
+      // wrote the config sees what they chose.
+      config.services.vectors = { type: 'memory' };
+      config.services.embedding = { type: 'ollama', model: 'nomic-embed-text' };
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
+
+      // The store is real and usable, not a stub: kb.vectors is present and
+      // answers an (empty) search without error.
+      const vectors = service.knowledgeSystem.kb.vectors;
+      expect(vectors).toBeDefined();
+      await expect(vectors.searchResources([0, 0, 0], { limit: 1 })).resolves.toEqual([]);
+
+      const breadcrumbed = vi.mocked(mockLogger.info).mock.calls
+        .some(([msg]) => typeof msg === 'string' && /memory vector store.*rebuil|rebuil.*memory vector store/i.test(msg));
+      expect(breadcrumbed).toBe(true);
+    });
   });
 
   describe('A4 nesting assertion (gather barrier budgets vs the worker stall watchdog)', () => {
@@ -236,9 +263,10 @@ describe('Make-Meaning Service', () => {
 
 // The 2026-07-20 startup-hang fix (withStartupTimeout) wrapped the three
 // dependency connects and announced each one. The helper is unit-tested in
-// startup-timeout.test.ts; THIS exercises the call sites — hermetically,
-// because a memory vector store connects in-process and the Ollama embedding
-// provider makes no network call until first embed.
+// startup-timeout.test.ts; THIS exercises the call sites — hermetically:
+// a memory vector store connects in-process, and the embedding provider's
+// only startup network call (the dimension-discovery probe) is served by a
+// stubbed fetch.
 describe('startup dependency connects', () => {
   const mockLogger: Logger = {
     debug: vi.fn(),
@@ -249,6 +277,13 @@ describe('startup dependency connects', () => {
   };
 
   it('announces and bounds each connect, and initializes vector search', async () => {
+    // Stubbed so that IF startup probed the provider it would succeed — the
+    // point below is that it never does.
+    const providerFetch = vi.fn(async () => new Response(
+      JSON.stringify({ embeddings: [[0.1, 0.2, 0.3, 0.4]] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ));
+    vi.stubGlobal('fetch', providerFetch);
     const testDir = join(tmpdir(), `semiont-test-connects-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
     const project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
@@ -279,7 +314,16 @@ describe('startup dependency connects', () => {
       expect(infos).toContain('Connecting to embedding provider');
       expect(infos).toContain('Connecting to vector store');
       expect(infos).toContain('Vector search initialized');
+
+      // Startup makes NO call to the embedding provider. Dimensionality is a
+      // provider-derived fact, so it follows the inference rule — discovered
+      // at the point of use, not as a precondition of booting — and a memory
+      // store needs no dimensionality at all. Eagerly probing here is what
+      // made an unreachable provider fatal at startup: CI (postgres only,
+      // no Ollama) could not boot the backend even with a `memory` store.
+      expect(providerFetch).not.toHaveBeenCalled();
     } finally {
+      vi.unstubAllGlobals();
       await service.stop();
       await fs.rm(testDir, { recursive: true, force: true });
     }

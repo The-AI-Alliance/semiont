@@ -30,6 +30,9 @@ import { SemiontProject } from '@semiont/core/node';
 import { LocalContentTransport } from '../local-content-transport';
 import { ResourceOperations } from '../resource-operations';
 import { startMakeMeaning, type MakeMeaningConfig, type MakeMeaningService } from '../service';
+import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
+
+stubEmbeddingProbeFetch();
 
 const silentLogger: Logger = {
   debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
@@ -40,7 +43,7 @@ const TEST_USER_ID = makeUserId('test-host');
 
 const config: MakeMeaningConfig = {
   gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
-  services: { graph: { platform: { type: 'posix' }, type: 'memory' } },
+  services: { graph: { platform: { type: 'posix' }, type: 'memory' }, vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
   actors: {
     gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
     matcher: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },

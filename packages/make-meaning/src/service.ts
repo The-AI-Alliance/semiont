@@ -150,39 +150,53 @@ async function createKnowledgeSystemFromConfig(
   const graphDb = await withStartupTimeout('Graph database', getGraphDatabase(graphConfig));
   const eventStore = createEventStoreCore(project, eventBus, logger.child({ component: 'event-store' }));
 
-  // Initialize vector search if both vectors and embedding services are configured
-  let vectorStore: import('@semiont/vectors').VectorStore | undefined;
-  let embeddingProvider: import('@semiont/vectors').EmbeddingProvider | undefined;
+  // The vector pair is mandatory and explicitly configured (MANDATORY-
+  // EMBEDDING D0+D1): construction is unconditional — the config NAMES the
+  // store and the provider, or the type (and the TOML loader before it)
+  // already refused. No fallback path exists; a `memory` choice is an
+  // informed one and announces its rebuild-on-restart cost below.
   const vectorsConfig = config.services.vectors;
   const embeddingConfig = config.services.embedding;
-  if (vectorsConfig && embeddingConfig) {
-    const { createVectorStore, createEmbeddingProvider } = await import('@semiont/vectors');
-    logger.info('Connecting to embedding provider', { type: embeddingConfig.type, model: embeddingConfig.model });
-    embeddingProvider = await withStartupTimeout(
-      'Embedding provider',
-      createEmbeddingProvider(embeddingConfig),
-    );
-    logger.info('Connecting to vector store', { type: vectorsConfig.type ?? 'qdrant' });
-    vectorStore = await withStartupTimeout(
-      'Vector store',
-      createVectorStore({
-        type: vectorsConfig.type ?? 'qdrant',
-        host: vectorsConfig.host,
-        port: vectorsConfig.port,
-        dimensions: embeddingProvider.dimensions(),
-      }),
-    );
-    logger.info('Vector search initialized', {
-      store: vectorsConfig.type,
-      embedding: embeddingConfig.type,
-      model: embeddingConfig.model,
-    });
-
-    // Tier 3 observability: report index point count. Polled at the
-    // metric-collection interval (default 30s).
-    const store = vectorStore;
-    registerVectorIndexSizeProvider(() => store.count());
+  const { createVectorStore, createEmbeddingProvider } = await import('@semiont/vectors');
+  logger.info('Connecting to embedding provider', { type: embeddingConfig.type, model: embeddingConfig.model });
+  const embeddingProvider = await withStartupTimeout(
+    'Embedding provider',
+    createEmbeddingProvider(embeddingConfig),
+  );
+  logger.info('Connecting to vector store', { type: vectorsConfig.type });
+  const vectorStore = await withStartupTimeout(
+    'Vector store',
+    createVectorStore({
+      type: vectorsConfig.type,
+      host: vectorsConfig.host,
+      port: vectorsConfig.port,
+      // Dimensionality is discovered from the provider, so it is passed as a
+      // thunk rather than probed here: the store calls it only if it needs it
+      // (Qdrant, and only to CREATE a collection). This matches how inference
+      // treats provider-derived facts — the client is built with no I/O and
+      // `limits()` are discovered at the point of use — instead of making a
+      // network round-trip a precondition of booting. A `memory` store, or a
+      // Qdrant whose collections already exist, never consults the provider.
+      dimensions: () => embeddingProvider.dimensions(),
+    }),
+  );
+  if (vectorsConfig.type === 'memory') {
+    // L4 breadcrumb: the named cost of the named choice — this index lives
+    // in process memory and the Smelter's reconcile re-embeds the whole KB
+    // from the event log on every restart.
+    // No `dimensions` here on purpose: logging it would resolve the thunk and
+    // reinstate the eager provider probe this breadcrumb sits next to.
+    logger.info('memory vector store: the index rebuilds from the event log on every restart (reconcile re-embeds)');
   }
+  logger.info('Vector search initialized', {
+    store: vectorsConfig.type,
+    embedding: embeddingConfig.type,
+    model: embeddingConfig.model,
+  });
+
+  // Tier 3 observability: report index point count. Polled at the
+  // metric-collection interval (default 30s).
+  registerVectorIndexSizeProvider(() => vectorStore.count());
 
   const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, {
     vectorStore,

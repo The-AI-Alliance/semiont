@@ -32,6 +32,8 @@ async function main() {
     gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
     services: {
       graph: { platform: { type: 'posix' }, type: 'memory' },
+      vectors: { type: 'memory' },
+      embedding: { type: 'ollama', model: 'nomic-embed-text' },
     },
     actors: {
       gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: process.env.ANTHROPIC_API_KEY! },

@@ -462,7 +462,42 @@ export function loadTomlConfig(
 
   const frontend = resolved.frontend;
 
-  const services: EnvironmentConfig['services'] = {};
+  // Semantic search is always available, so a config must NAME both a vector
+  // store and an embedding provider — nothing is defaulted, and absence
+  // refuses the load with a config-actionable message (MANDATORY-EMBEDDING
+  // D0+D1: explicit opt-in; `memory` is a first-class choice, not a fallback).
+  if (!resolved.vectors?.type) {
+    throw new Error(
+      `[environments.${resolvedEnvironment}] names no vector store — add [environments.${resolvedEnvironment}.vectors] with type = "qdrant" or "memory". Semiont requires a vector store; nothing is defaulted.`,
+    );
+  }
+  const embeddingSource = resolved.embedding ?? resolved.vectors?.embedding;
+  if (!embeddingSource?.type || !embeddingSource.model) {
+    throw new Error(
+      `[environments.${resolvedEnvironment}] names no embedding provider — add [environments.${resolvedEnvironment}.embedding] with type = "voyage" or "ollama" and a model. Semiont requires an embedding provider; nothing is defaulted.`,
+    );
+  }
+
+  const services: EnvironmentConfig['services'] = {
+    vectors: {
+      platform: { type: 'external' as PlatformType },
+      type: resolved.vectors.type,
+      host: resolved.vectors.host,
+      port: resolved.vectors.port ?? 6333,
+    } as EnvironmentConfig['services']['vectors'],
+    embedding: {
+      platform: { type: 'external' as PlatformType },
+      type: embeddingSource.type,
+      model: embeddingSource.model,
+      apiKey: embeddingSource.apiKey,
+      baseURL: embeddingSource.baseURL,
+      endpoint: embeddingSource.endpoint,
+      chunking: (resolved.embedding?.chunking ?? resolved.vectors?.chunking) ? {
+        chunkSize: (resolved.embedding?.chunking ?? resolved.vectors?.chunking)?.chunkSize ?? 512,
+        overlap: (resolved.embedding?.chunking ?? resolved.vectors?.chunking)?.overlap ?? 64,
+      } : undefined,
+    } as EnvironmentConfig['services']['embedding'],
+  };
 
   if (backend) {
     services.backend = {
@@ -502,32 +537,6 @@ export function loadTomlConfig(
       user: resolved.database.user,
       password: resolved.database.password,
     } as EnvironmentConfig['services']['database'];
-  }
-
-  if (resolved.vectors) {
-    services.vectors = {
-      platform: { type: 'external' as PlatformType },
-      type: (resolved.vectors.type ?? 'qdrant') as 'qdrant' | 'memory',
-      host: resolved.vectors.host,
-      port: resolved.vectors.port ?? 6333,
-    } as EnvironmentConfig['services']['vectors'];
-  }
-
-  // Embedding: top-level takes precedence, fall back to legacy vectors.embedding
-  const embeddingSource = resolved.embedding ?? resolved.vectors?.embedding;
-  if (embeddingSource) {
-    services.embedding = {
-      platform: { type: 'external' as PlatformType },
-      type: embeddingSource.type!,
-      model: embeddingSource.model!,
-      apiKey: embeddingSource.apiKey,
-      baseURL: embeddingSource.baseURL,
-      endpoint: embeddingSource.endpoint,
-      chunking: (resolved.embedding?.chunking ?? resolved.vectors?.chunking) ? {
-        chunkSize: (resolved.embedding?.chunking ?? resolved.vectors?.chunking)?.chunkSize ?? 512,
-        overlap: (resolved.embedding?.chunking ?? resolved.vectors?.chunking)?.overlap ?? 64,
-      } : undefined,
-    } as EnvironmentConfig['services']['embedding'];
   }
 
   const config: EnvironmentConfig = {

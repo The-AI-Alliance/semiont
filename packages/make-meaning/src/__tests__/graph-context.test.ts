@@ -31,6 +31,7 @@ describe('GraphContext', () => {
     content: {} as any,
     graph: mockGraphDb as any,
     anchoredText: memoryAnchoredTextStore(),
+      vectors: { searchResources: vi.fn().mockResolvedValue([]), searchAnnotations: vi.fn().mockResolvedValue([]), searchByResource: vi.fn().mockResolvedValue([]) } as any,
     projectionsDir: '',
     weaveProgress: mockWeaveProgress as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
   };

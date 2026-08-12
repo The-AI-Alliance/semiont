@@ -20,6 +20,7 @@ import { getGraphDatabase } from '@semiont/graph';
 import { deriveStorageUri } from '@semiont/content';
 import type { KnowledgeBase } from '../knowledge-base';
 import { createTestProject } from './helpers/test-project';
+import { createVectorStore } from '@semiont/vectors';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -59,7 +60,7 @@ describe('ResourceOperations', () => {
     eventBus = new EventBus();
     testEventStore = createEventStore(project, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-    kb = await createKnowledgeBase(testEventStore, project, graphDb, eventBus, mockLogger);
+    kb = await createKnowledgeBase(testEventStore, project, graphDb, eventBus, mockLogger, { vectorStore: await createVectorStore({ type: 'memory', dimensions: async () => 4 }) });
 
     stower = new Stower(kb, eventBus, project, mockLogger);
     await stower.initialize();

@@ -301,6 +301,19 @@ semiont stop
   Ollama and reports the same provider — one process is never described two
   ways. `type = "voyage"` is remote SaaS; either way embedding has a status
   row and start/stop belongs to whatever provides it.
+- **A config naming no vector store or no embedding provider is refused, before
+  anything launches.** Semantic search is always available, so the backend's
+  TOML loader refuses such a config at boot. The launcher reads the same file
+  with its own structs, so it refuses the same configs one round trip earlier —
+  otherwise `semiont start` brings the whole stack up and the backend dies
+  seconds later on a file the launcher already had in its hands. Same rule,
+  same words as the loader's, plus the config path. Both sections are required
+  and `embedding` needs its `model`; the refusal happens in `derivePlan`, so
+  `--dry-run` and the `semiont init` self-vet enforce it too, not just `start`.
+  `type = "memory"` is a first-class vector store to the *backend* and is
+  refused *here* with its own explanation: a launcher-managed stack runs the
+  backend and the Smelter as separate containers, and an in-process index
+  cannot be shared across them.
 - **The inference and embedding rows list their models.** Which models a stack
   uses is config truth, recorded at start (the union of `actors.*` and
   `workers.*` inference models, and `embedding.model`); whether each is pulled
