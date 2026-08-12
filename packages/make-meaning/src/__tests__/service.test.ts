@@ -277,10 +277,13 @@ describe('startup dependency connects', () => {
   };
 
   it('announces and bounds each connect, and initializes vector search', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(
+    // Stubbed so that IF startup probed the provider it would succeed — the
+    // point below is that it never does.
+    const providerFetch = vi.fn(async () => new Response(
       JSON.stringify({ embeddings: [[0.1, 0.2, 0.3, 0.4]] }),
       { status: 200, headers: { 'Content-Type': 'application/json' } },
-    )));
+    ));
+    vi.stubGlobal('fetch', providerFetch);
     const testDir = join(tmpdir(), `semiont-test-connects-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
     const project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
@@ -309,9 +312,16 @@ describe('startup dependency connects', () => {
       const infos = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
       expect(infos).toContain('Connecting to graph database');
       expect(infos).toContain('Connecting to embedding provider');
-      expect(infos).toContain('Discovering embedding dimensions');
       expect(infos).toContain('Connecting to vector store');
       expect(infos).toContain('Vector search initialized');
+
+      // Startup makes NO call to the embedding provider. Dimensionality is a
+      // provider-derived fact, so it follows the inference rule — discovered
+      // at the point of use, not as a precondition of booting — and a memory
+      // store needs no dimensionality at all. Eagerly probing here is what
+      // made an unreachable provider fatal at startup: CI (postgres only,
+      // no Ollama) could not boot the backend even with a `memory` store.
+      expect(providerFetch).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();
       await service.stop();

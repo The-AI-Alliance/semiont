@@ -256,6 +256,14 @@ jobs:
             '[environments.ci.make-meaning.graph]' \
             'type = "memory"' \
             '' \
+            '[environments.ci.vectors]' \
+            'type = "memory"' \
+            '' \
+            '[environments.ci.embedding]' \
+            'type = "ollama"' \
+            'model = "nomic-embed-text"' \
+            'baseURL = "http://localhost:11434"' \
+            '' \
             '[environments.ci.make-meaning.actors.gatherer.inference]' \
             'type = "ollama"' \
             'model = "llama3"' \

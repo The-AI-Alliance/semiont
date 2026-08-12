@@ -63,7 +63,7 @@ vi.mock('@qdrant/js-client-rest', () => ({ QdrantClient: FakeQdrantClient }));
 import { QdrantVectorStore } from '../qdrant';
 
 async function connected() {
-  const store = new QdrantVectorStore({ host: 'localhost', port: 6333, dimensions: 2 });
+  const store = new QdrantVectorStore({ host: 'localhost', port: 6333, dimensions: async () => 2 });
   await store.connect();
   return store;
 }
@@ -121,6 +121,21 @@ describe('QdrantVectorStore uses the query API', () => {
 
     expect(results.map((r) => r.resourceId)).toEqual(expect.arrayContaining(['res-0', 'res-1']));
     expect(results[0]!.score).toBeGreaterThanOrEqual(results[results.length - 1]!.score);
+  });
+
+  it('does not consult the embedding provider when the collections already exist', async () => {
+    // The fake's getCollection resolves, so both collections are present and
+    // nothing needs a vector size. Probing anyway would make a reachable
+    // embedding server a precondition of connecting — the eager coupling that
+    // broke CI startup. (Creation still resolves it; that path genuinely
+    // needs the size, and `connect()` below never reaches it.)
+    const dimensions = vi.fn(async () => 2);
+    const store = new QdrantVectorStore({ host: 'localhost', port: 6333, dimensions });
+
+    await store.connect();
+
+    expect(store.isConnected()).toBe(true);
+    expect(dimensions).not.toHaveBeenCalled();
   });
 
   it('over-fetches points per batch, because the merge yields resources', async () => {

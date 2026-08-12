@@ -163,8 +163,6 @@ async function createKnowledgeSystemFromConfig(
     'Embedding provider',
     createEmbeddingProvider(embeddingConfig),
   );
-  logger.info('Discovering embedding dimensions', { model: embeddingConfig.model });
-  const dimensions = await withStartupTimeout('Embedding dimensions', embeddingProvider.dimensions());
   logger.info('Connecting to vector store', { type: vectorsConfig.type });
   const vectorStore = await withStartupTimeout(
     'Vector store',
@@ -172,16 +170,23 @@ async function createKnowledgeSystemFromConfig(
       type: vectorsConfig.type,
       host: vectorsConfig.host,
       port: vectorsConfig.port,
-      dimensions,
+      // Dimensionality is discovered from the provider, so it is passed as a
+      // thunk rather than probed here: the store calls it only if it needs it
+      // (Qdrant, and only to CREATE a collection). This matches how inference
+      // treats provider-derived facts — the client is built with no I/O and
+      // `limits()` are discovered at the point of use — instead of making a
+      // network round-trip a precondition of booting. A `memory` store, or a
+      // Qdrant whose collections already exist, never consults the provider.
+      dimensions: () => embeddingProvider.dimensions(),
     }),
   );
   if (vectorsConfig.type === 'memory') {
     // L4 breadcrumb: the named cost of the named choice — this index lives
     // in process memory and the Smelter's reconcile re-embeds the whole KB
     // from the event log on every restart.
-    logger.info('memory vector store: the index rebuilds from the event log on every restart (reconcile re-embeds)', {
-      dimensions,
-    });
+    // No `dimensions` here on purpose: logging it would resolve the thunk and
+    // reinstate the eager provider probe this breadcrumb sits next to.
+    logger.info('memory vector store: the index rebuilds from the event log on every restart (reconcile re-embeds)');
   }
   logger.info('Vector search initialized', {
     store: vectorsConfig.type,

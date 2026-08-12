@@ -49,7 +49,7 @@ describe('Stower mark:update-entity-types vocabulary gate', () => {
     eventBus = new EventBus();
     eventStore = createEventStore(project, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-    const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger, { vectorStore: await createVectorStore({ type: 'memory', dimensions: 4 }) });
+    const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger, { vectorStore: await createVectorStore({ type: 'memory', dimensions: async () => 4 }) });
     stower = new Stower(kb, eventBus, project, mockLogger);
     await stower.initialize();
 

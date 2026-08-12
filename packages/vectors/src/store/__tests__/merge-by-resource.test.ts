@@ -15,7 +15,8 @@
  * not as its average one.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { createVectorStore } from '../factory';
 import { mergeByResource } from '../merge';
 import type { VectorSearchResult } from '../interface';
 import type { ResourceId } from '@semiont/core';
@@ -92,5 +93,23 @@ describe('mergeByResource', () => {
     ]);
 
     expect(merged).toHaveLength(3);
+  });
+});
+
+/**
+ * Dimensionality is a provider-derived fact, so it follows the inference rule:
+ * discovered at the point of use, never as a precondition of construction.
+ * A memory store needs no dimensionality at all, so it must not reach for one —
+ * otherwise a deployment that named `type = "memory"` still could not boot
+ * without a reachable embedding server, which is a coupling nobody chose.
+ */
+describe('dimension discovery is lazy', () => {
+  it('a memory store never consults the provider', async () => {
+    const dimensions = vi.fn(async () => 768);
+
+    const store = await createVectorStore({ type: 'memory', dimensions });
+
+    expect(store.isConnected()).toBe(true);
+    expect(dimensions).not.toHaveBeenCalled();
   });
 });
