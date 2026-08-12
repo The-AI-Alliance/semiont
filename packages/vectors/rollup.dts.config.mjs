@@ -43,6 +43,7 @@ function isExternal(id) {
 
 const entries = [
   { input: 'dist-types/index.d.ts', file: 'dist/index.d.ts' },
+  { input: 'dist-types/testing.d.ts', file: 'dist/testing.d.ts' },
 ];
 
 export default entries.map(({ input, file }) => ({
