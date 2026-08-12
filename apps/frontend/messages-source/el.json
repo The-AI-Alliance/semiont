@@ -253,7 +253,8 @@
     "composeFirstResource": "Σύνθεση Πρώτου Πόρου",
     "loadingKnowledgeBase": "Φόρτωση βάσης γνώσης...",
     "recentFailed": "Δεν ήταν δυνατή η φόρτωση των πόρων.",
-    "retry": "Δοκιμάστε ξανά"
+    "retry": "Δοκιμάστε ξανά",
+    "semanticFallbackNotice": "Καμία αντιστοιχία τίτλου — εμφανίζονται σχετικά έγγραφα."
   },
   "Compose": {
     "title": "Νέος Πόρος",

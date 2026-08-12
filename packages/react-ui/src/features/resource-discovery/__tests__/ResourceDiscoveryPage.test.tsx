@@ -45,6 +45,7 @@ const createMockProps = (overrides?: Partial<ResourceDiscoveryPageProps>): Resou
     searchPlaceholder: 'Search resources...',
     searchButton: 'Search',
     searching: 'Searching...',
+    semanticFallbackNotice: 'No title matches — showing related documents.',
     filterByEntityType: 'Filter by type',
     all: 'All',
     recentResources: 'Recent Resources',
@@ -70,6 +71,60 @@ const renderWithProviders = (ui: React.ReactElement) => {
 };
 
 describe('ResourceDiscoveryPage', () => {
+  // SEMANTIC-FALLBACK P3b / S11. The distinction is asserted through a stable
+  // hook, never the sentence: decision 3 set the wording and it will be revised
+  // from use, so a copy-pinned test would rot on the first edit and teach the
+  // next reader to weaken it.
+  describe('semantic fallback notice', () => {
+    const NOTICE = 'semiont-semantic-match-notice';
+
+    it('marks a semantic result set as distinct from a lexical one', () => {
+      const props = createMockProps({
+        searchQuery: 'kitten',
+        searchDocuments: [createMockResource('r1', 'All about cats')],
+        searchMatchKind: 'semantic',
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.getByTestId(NOTICE)).toBeTruthy();
+    });
+
+    it('says nothing when the answer was lexical', () => {
+      const props = createMockProps({
+        searchQuery: 'cats',
+        searchDocuments: [createMockResource('r1', 'All about cats')],
+        searchMatchKind: 'lexical',
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.queryByTestId(NOTICE)).toBeNull();
+    });
+
+    it('does not carry a stale label onto the no-query view', () => {
+      // Clearing the box returns to "recent", which no label describes; a
+      // leftover `semantic` must not annotate that list.
+      const props = createMockProps({
+        searchQuery: '',
+        searchDocuments: [],
+        searchMatchKind: 'semantic',
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.queryByTestId(NOTICE)).toBeNull();
+    });
+
+    it('renders exactly as today when the prop is absent', () => {
+      const props = createMockProps({
+        searchQuery: 'cats',
+        searchDocuments: [createMockResource('r1', 'All about cats')],
+      });
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
+
+      expect(screen.queryByTestId(NOTICE)).toBeNull();
+    });
+  });
+
+
   beforeEach(() => {
   });
 

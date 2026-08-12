@@ -253,7 +253,8 @@
     "composeFirstResource": "Soạn thảo tài nguyên đầu tiên",
     "loadingKnowledgeBase": "Đang tải cơ sở tri thức...",
     "recentFailed": "Không thể tải tài nguyên.",
-    "retry": "Thử lại"
+    "retry": "Thử lại",
+    "semanticFallbackNotice": "Không có tiêu đề khớp — đang hiển thị tài liệu liên quan."
   },
   "Compose": {
     "title": "Tài nguyên mới",

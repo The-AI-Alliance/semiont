@@ -136,7 +136,7 @@ Both actors can find resources by name; the question is what kind of question is
 
 The same primitive (`kb.graph.listResources({ search })`) is used by both actors today. That's fine: the difference is what each actor *does with the result*. Browse returns it ranked and paged. Match treats it as one of four candidate sources and runs it through structural + semantic scoring.
 
-The rule: **if the answer could be a single SQL/Cypher query against a single index, it's Browse. If it needs to fuse multiple sources or score against context, it's Match.** When discover-page search eventually wants fuzzy / semantic / context-boosted recall, that's the moment to route it through the Matcher instead of the Browser — and the http-transport surface would shift from `browse.resources({ search })` to `match.search(...)` accordingly.
+The rule: **if the answer could be a single query against a single index, it's Browse. If it needs to fuse multiple sources or score against context, it's Match.** The boundary is *fusion*, not *modality*: the semantic fallback (SEMANTIC-FALLBACK — an empty lexical search answered from the vector index, labelled `matchKind: 'semantic'`) is one query against one index, fuses nothing, scores against no `GatheredContext`, and calls no LLM, so it lives in Browse and the transport surface stays `browse.resources({ search })`. What would genuinely move to the Matcher — and `match.search(...)` — is *blended* recall: fusing a lexical rank with a cosine score, or boosting either against context. That fusion is the Matcher's composite scorer's job, and it remains out of scope for Browse.
 
 ### Gatherer (Context Assembly Actor)
 

@@ -73,8 +73,9 @@ import Image from 'next/image';
 
 Server data is cached by the SDK's `browse` observable caches — no per-call cache configuration. A live query is shared and deduplicated across all subscribers and revalidated by backend domain events:
 ```typescript
-// Shared, deduplicated cache; re-emits when the resource changes
-const resources = useObservable(semiont.browse.resources());
+// Shared, deduplicated cache; re-emits CacheState<ResourceList> as it revalidates
+const state = useObservable(client.browse.resources());
+const resources = state && readyValue(state)?.resources; // ready envelope's array
 ```
 
 ### 4. Error Boundaries

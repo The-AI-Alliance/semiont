@@ -28,6 +28,16 @@ export interface ResourceDiscoveryPageProps {
   recentError?: Error | null;
   onRetryRecent?: () => void;
   isSearching: boolean;
+  /**
+   * How the current search answer was produced — `'lexical'` (title/metadata
+   * matching) or `'semantic'` (the vector fallback that runs only when lexical
+   * matching returned nothing). Undefined before the first answer, and on the
+   * no-query view where `recent` renders and no label describes it.
+   *
+   * Optional so hosts that never wire it — including external consumers —
+   * render exactly as before (SEMANTIC-FALLBACK P3b).
+   */
+  searchMatchKind?: 'lexical' | 'semantic';
 
   // Controlled search state
   searchQuery: string;
@@ -53,6 +63,7 @@ export interface ResourceDiscoveryPageProps {
     searchPlaceholder: string;
     searchButton: string;
     searching: string;
+    semanticFallbackNotice: string;
     filterByEntityType: string;
     all: string;
     recentResources: string;
@@ -80,6 +91,7 @@ export function ResourceDiscoveryPage({
   recentError = null,
   onRetryRecent,
   isSearching,
+  searchMatchKind,
   searchQuery,
   onSearchQueryChange,
   selectedEntityType,
@@ -231,6 +243,23 @@ export function ResourceDiscoveryPage({
                   : t.recentResources
               }
             </h3>
+
+            {/* Decision 3: label it, minimally. Someone who searches "kitten"
+                and gets documents about cats otherwise has no way to know why,
+                and an unexplained answer is a worse trust outcome than the
+                empty page this replaced. Only ever appears where the
+                alternative was that empty page (S5), so it never competes with
+                a better answer. `aria-live` because the results it explains
+                arrive without any control being activated. */}
+            {hasSearchQuery && searchMatchKind === 'semantic' && searchDocuments.length > 0 && (
+              <p
+                className="semiont-card__documents-note"
+                data-testid="semiont-semantic-match-notice"
+                aria-live="polite"
+              >
+                {t.semanticFallbackNotice}
+              </p>
+            )}
 
             {showNoResultsWarning && (
               <div className="semiont-card__warning">

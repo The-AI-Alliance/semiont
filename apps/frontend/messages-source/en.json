@@ -253,7 +253,8 @@
     "composeFirstResource": "Compose First Resource",
     "loadingKnowledgeBase": "Loading knowledge base...",
     "recentFailed": "Could not load resources.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "semanticFallbackNotice": "No title matches — showing related documents."
   },
   "KnowledgeBasePanel": {
     "title": "Knowledge Bases",

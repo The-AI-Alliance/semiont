@@ -185,7 +185,8 @@ const activeKbId = useObservable(browser.activeKbId$);
 
 // The SemiontClient lives on the active session; namespace verbs hang off it.
 // The session feeds the client its in-memory bearer token automatically.
-const resource = await session?.client.browse.resource(id);
+// (One-shot read: .fresh() is the explicit fetch on a CacheObservable.)
+const resource = await session?.client.browse.resource(id).fresh();
 
 // Mutations go through the browser:
 await browser.signOut(activeKbId!);
@@ -283,7 +284,7 @@ semiont.yield.fromContext(...);      // StreamObservable<YieldGenerationEvent>
 semiont.frame.addEntityType(type);   // Promise<void>
 ```
 
-`CacheObservable<T>` and `StreamObservable<T>` extend RxJS `Observable<T>` and are also `PromiseLike<T>`, so both `.subscribe()` (or `useObservable`) and `await` work without any wrapper. See [`@semiont/sdk` Usage.md](../../../packages/sdk/docs/Usage.md) for the full namespace API.
+`StreamObservable<T>` extends RxJS `Observable<T>` and is also `PromiseLike<T>`, so both `.subscribe()` and `await` work without any wrapper. `CacheObservable<T>` extends `Observable<CacheState<T>>` — subscribe (or `useObservable`) for the live pending/ready/failed view, or call `.fresh()` for a one-shot `Promise<T>`. See [`@semiont/sdk` Usage.md](../../../packages/sdk/docs/Usage.md) for the full namespace API.
 
 ### Caching and Invalidation
 
@@ -314,7 +315,7 @@ session.errors$.subscribe((err) => {
 
 `SessionSignals` holds the modal state as `BehaviorSubject`s (`sessionExpiredAt$`, `permissionDeniedAt$`, …); `SessionExpiredModal` and `PermissionDeniedModal` render by subscribing to the browser's `activeSignals$` via `useObservable`. When no session is active (e.g. on the landing page), `activeSignals$` is `null`, so auth errors have nowhere to surface and are no-ops.
 
-**Component-level:** a live query carries its own loading/error state in the value it emits — `useObservable(semiont.browse.resource(id))` is `undefined` while loading. One-shot hooks such as `useResourceGraph` return an explicit `{ data, loading, error }` shape:
+**Component-level:** a live query carries its own loading/error state in the value it emits — `useObservable(semiont.browse.resource(id))` yields `CacheState` values (`pending` / `ready` / `failed`, plus `undefined` on the very first render). One-shot hooks such as `useResourceGraph` return an explicit `{ data, loading, error }` shape:
 
 ```typescript
 const { graph, loading, error } = useResourceGraph(id);
@@ -562,9 +563,10 @@ if (!session?.backendToken) {
 // Each component subscribes to exactly the observables it needs
 function ResourceView({ resourceId }: { resourceId: ResourceId }) {
   const semiont = useObservable(useSemiont().activeSession$)?.client;
-  const resource = useObservable(semiont?.browse.resource(resourceId));
-  const annotations = useObservable(semiont?.browse.annotations(resourceId));
-  // Each is `undefined` while loading and re-emits on every cache update
+  const resource = useObservable(semiont?.browse.resource(resourceId));     // CacheState<ResourceDescriptor>
+  const annotations = useObservable(semiont?.browse.annotations(resourceId)); // CacheState<Annotation[]>
+  // Each emits CacheState (pending → ready | failed) and re-emits on every
+  // cache update; unwrap the value with readyValue(...) from @semiont/sdk
   // ...
 }
 ```

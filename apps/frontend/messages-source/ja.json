@@ -253,7 +253,8 @@
     "composeFirstResource": "最初のリソースを作成",
     "loadingKnowledgeBase": "ナレッジベースを読み込み中...",
     "recentFailed": "リソースを読み込めませんでした。",
-    "retry": "再試行"
+    "retry": "再試行",
+    "semanticFallbackNotice": "タイトルの一致なし — 関連する文書を表示しています。"
   },
   "Compose": {
     "title": "新しいリソース",

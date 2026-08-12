@@ -314,10 +314,11 @@ TypeScript provides compile-time validation across all components:
 // All components are fully typed
 export function ResourceTitle({ id }: { id: ResourceId }): JSX.Element {
   const semiont = useObservable(useSemiont().activeSession$)?.client;
-  const resource = useObservable(semiont?.browse.resource(id));
-  // `resource` is typed ResourceDescriptor | undefined — the compiler
-  // enforces the shape the API contract guarantees
-  return <h1>{resource?.title}</h1>;
+  const state = useObservable(semiont?.browse.resource(id));
+  // `state` is typed CacheState<ResourceDescriptor> | undefined — the
+  // compiler enforces the shape the API contract guarantees
+  const resource = state && readyValue(state); // readyValue from @semiont/sdk
+  return <h1>{resource?.name}</h1>;
 }
 ```
 
@@ -475,7 +476,8 @@ export function ResourceViewer(props: ResourceViewerProps) {
   const client = useObservable(useSemiont().activeSession$)?.client;
   const { t } = useTranslations(); // From TranslationProvider
 
-  const data = useObservable(client?.browse.resource(props.resourceId));
+  // CacheState<ResourceDescriptor> | undefined — unwrap via readyValue(...)
+  const state = useObservable(client?.browse.resource(props.resourceId));
 
   // Pure component logic - all framework-agnostic
   return (

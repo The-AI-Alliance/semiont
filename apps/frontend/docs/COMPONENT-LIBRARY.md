@@ -143,11 +143,13 @@ Flow VMs and namespace methods return RxJS Observables. The
 
 ```tsx
 import { useSemiont, useObservable } from '@semiont/react-ui';
+import { readyValue } from '@semiont/sdk';
 
 function ResourceTitle({ resourceId }) {
   // The client lives on the active session (null until one is active)
   const client = useObservable(useSemiont().activeSession$)?.client;
-  const resource = useObservable(client?.browse.resource(resourceId));
+  const state = useObservable(client?.browse.resource(resourceId)); // CacheState<ResourceDescriptor>
+  const resource = state && readyValue(state);
   return <h1>{resource?.name}</h1>;
 }
 ```
@@ -157,7 +159,7 @@ Most components reach for a dedicated hook (`useResourceContent`,
 directly.
 
 Cache invalidation, refetching, and bus-driven updates happen inside
-`BrowseNamespace` — the component only sees the current value.
+`BrowseNamespace` — the component only sees the current `CacheState`.
 
 ### Custom styling
 

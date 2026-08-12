@@ -253,7 +253,8 @@
     "composeFirstResource": "Luo ensimmäinen resurssi",
     "loadingKnowledgeBase": "Ladataan tietokantaa...",
     "recentFailed": "Resursseja ei voitu ladata.",
-    "retry": "Yritä uudelleen"
+    "retry": "Yritä uudelleen",
+    "semanticFallbackNotice": "Ei osumia otsikoissa – näytetään aiheeseen liittyvät asiakirjat."
   },
   "Compose": {
     "title": "Uusi resurssi",

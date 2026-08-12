@@ -622,12 +622,14 @@ Components fetch data by observing the SDK's live queries:
 import { useSemiont, useObservable } from '@semiont/react-ui';
 
 function MyComponent() {
-  const semiont = useSemiont();
-  const data = useObservable(semiont.browse.resources());
+  const client = useObservable(useSemiont().activeSession$)?.client;
+  // Emissions are CacheState<ResourceList>: pending → ready | failed.
+  const state = useObservable(client?.browse.resources());
 
-  if (data === undefined) return <Spinner />;
+  if (!state || state.status === 'pending') return <Spinner />;
+  if (state.status === 'failed') return <ErrorNotice error={state.error} />;
 
-  return <ResourceList items={data} />;
+  return <ResourceList items={state.value.resources} />;
 }
 ```
 

@@ -46,7 +46,7 @@ const silentLogger: Logger = {
 };
 
 const config: MakeMeaningConfig = {
-  gather: { settleTimeoutMs: 15_000 },
+  gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
   services: {
     graph: { platform: { type: 'posix' }, type: 'memory' },
   },
@@ -149,7 +149,7 @@ describe('SemiontClient over LocalTransport', () => {
     it('returns an empty list for an empty knowledge base', async () => {
       const h = await bootHarness();
       try {
-        const resources = await firstValueFrom(h.client.browse.resources({}).pipe(filter(isReady), map((st) => st.value)));
+        const resources = await firstValueFrom(h.client.browse.resources({}).pipe(filter(isReady), map((st) => st.value.resources)));
         expect(resources).toHaveLength(0);
       } finally {
         await h.dispose();
@@ -160,7 +160,7 @@ describe('SemiontClient over LocalTransport', () => {
       const h = await bootHarness();
       try {
         const id = await h.seedResource({ name: 'overview', content: 'hello world' });
-        const resources = await firstValueFrom(h.client.browse.resources({}).pipe(filter(isReady), map((st) => st.value)));
+        const resources = await firstValueFrom(h.client.browse.resources({}).pipe(filter(isReady), map((st) => st.value.resources)));
         expect(resources).toHaveLength(1);
         const got = resources[0]!;
         expect(got['@id'] ?? got.id).toBe(id);
@@ -414,7 +414,7 @@ describe('SemiontClient over LocalTransport', () => {
     it('client.dispose() does not throw and tears down the transport', async () => {
       const h = await bootHarness();
       try {
-        await firstValueFrom(h.client.browse.resources({}).pipe(filter(isReady), map((st) => st.value)));
+        await firstValueFrom(h.client.browse.resources({}).pipe(filter(isReady), map((st) => st.value.resources)));
         expect(() => h.client.dispose()).not.toThrow();
       } finally {
         // Avoid double-disposing the client; harness.dispose() guards.

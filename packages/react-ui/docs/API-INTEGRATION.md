@@ -50,27 +50,39 @@ returns `undefined` until both the session and the first cache emission land.
 ## Reading data
 
 Each `browse.*` method returns a `CacheObservable`. Subscribe with
-`useObservable()`; the first value comes from cache (or `undefined` while it
-loads), and the component re-renders as the read-through cache revalidates.
+`useObservable()`; emissions are `CacheState` values — `{ status: 'pending' }`,
+`{ status: 'ready', value }`, or `{ status: 'failed', error }` — plus
+`undefined` on the very first render, before the subscription lands (treat it
+as pending). The component re-renders as the read-through cache revalidates.
+For list reads the ready value is the `ResourceList` envelope
+(`{ resources, total, offset, limit, matchKind }`), not a bare array.
 
 ```tsx
 import { useSemiont, useObservable } from '@semiont/react-ui';
 
 function ResourceList() {
   const client = useObservable(useSemiont().activeSession$)?.client;
-  const resources = useObservable(client?.browse.resources({ limit: 20 }));
+  const state = useObservable(client?.browse.resources({ limit: 20 }));
 
-  if (!resources) return <div>Loading…</div>;
+  if (!state || state.status === 'pending') return <div>Loading…</div>;
+  if (state.status === 'failed') return <div>Failed to load</div>;
 
   return (
     <ul>
-      {resources.map(resource => (
+      {state.value.resources.map(resource => (
         <li key={resource['@id']}>{resource.name}</li>
       ))}
     </ul>
   );
 }
 ```
+
+For a one-shot read outside the live cache, use
+`await client.browse.resources(filters).fresh()` — it resolves to the same
+`ResourceList` envelope, so the array is `.resources` on the result. For
+compact projection in observable pipes, `readyValue(state)?.resources`
+(`readyValue` is exported from `@semiont/sdk`) collapses the non-ready states
+to `undefined`.
 
 **Available reads** (all return `CacheObservable<…>`):
 
@@ -101,6 +113,8 @@ import {
   useObservable,
   createSearchPipeline,
 } from '@semiont/react-ui';
+import { readyValue } from '@semiont/sdk';
+import { map } from 'rxjs/operators';
 import { useState, useEffect } from 'react';
 import type { components } from '@semiont/core';
 
@@ -110,7 +124,13 @@ function MySearchUI() {
   const client = useObservable(useSemiont().activeSession$)?.client;
   const [pipeline] = useState(() =>
     createSearchPipeline<ResourceDescriptor>(
-      (q) => client!.browse.resources({ search: q, limit: 20 }),
+      // The fetch closure must return Observable<T[] | undefined>: map each
+      // CacheState emission to the ready envelope's array — undefined while
+      // pending, which the pipeline reads as "search in flight".
+      (q) =>
+        client!.browse.resources({ search: q, limit: 20 }).pipe(
+          map((st) => readyValue(st)?.resources),
+        ),
     ),
   );
   useEffect(() => () => pipeline.dispose(), [pipeline]);

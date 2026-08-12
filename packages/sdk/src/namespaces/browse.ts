@@ -32,6 +32,7 @@ import type {
   BrowseNamespace as IBrowseNamespace,
   ReferencedByEntry,
   AnnotationHistoryResponse,
+  ResourceList,
 } from './types';
 type StoredEventResponse = components['schemas']['StoredEventResponse'];
 type EnrichedResourceEvent = components['schemas']['EnrichedResourceEvent'];
@@ -66,7 +67,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   // the caches are an implementation detail of this namespace.
 
   private readonly resourceCache: Cache<ResourceId, ResourceDescriptor>;
-  private readonly resourceListCache: Cache<string, ResourceDescriptor[]>;
+  private readonly resourceListCache: Cache<string, ResourceList>;
   private readonly annotationListCache: Cache<ResourceId, AnnotationsListResponse>;
   /**
    * Annotation-detail cache keyed by `annotationId` only — the resourceId
@@ -175,7 +176,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       return result.resource as ResourceDescriptor;
     }, persisted<ResourceId, ResourceDescriptor>('resource')));
 
-    this.resourceListCache = createCache<string, ResourceDescriptor[]>(async (key) => {
+    this.resourceListCache = createCache<string, ResourceList>(async (key) => {
       const filters = this.resourceListFilters.get(key) ?? {};
       const search = filters.search ? searchQuery(filters.search) : undefined;
       const result = await busRequest(
@@ -191,8 +192,10 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.busTimeoutMs,
       );
       // Brand the wire type (unbranded @id: string) to the SDK's ResourceDescriptor
-      // (@id: ResourceId) at the boundary — same as resourceCache above.
-      return result.resources as ResourceDescriptor[];
+      // (@id: ResourceId) at the boundary — same as resourceCache above. The
+      // whole envelope is cached, not just the page: `matchKind` and the list
+      // it labels are one value (SEMANTIC-FALLBACK S10).
+      return { ...result, resources: result.resources as ResourceDescriptor[] };
     });
 
     this.annotationListCache = track(createCache<ResourceId, AnnotationsListResponse>(async (resourceId) => {
@@ -319,7 +322,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     return CacheObservable.from(this.withScope(resourceId, this.resourceCache.observe(resourceId)), () => this.resourceCache.fetch(resourceId));
   }
 
-  resources(filters?: ResourceListFilters): CacheObservable<ResourceDescriptor[]> {
+  resources(filters?: ResourceListFilters): CacheObservable<ResourceList> {
     const key = JSON.stringify(filters ?? {});
     // Remember the filter blob so `invalidateResourceLists` can drive
     // per-key SWR refetches without the caller re-passing filters.

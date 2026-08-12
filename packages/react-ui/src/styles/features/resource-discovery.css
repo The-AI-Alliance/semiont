@@ -203,6 +203,19 @@
   color: var(--semiont-color-gray-300);
 }
 
+/* Semantic-fallback caption: explains WHY these results, without competing
+   with them. Quieter than the heading it sits under (SEMANTIC-FALLBACK P3b). */
+.semiont-card__documents-note {
+  margin: -0.25rem 0 0.75rem;
+  font-size: 0.8125rem;
+  font-style: italic;
+  color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-card__documents-note {
+  color: var(--semiont-color-gray-400);
+}
+
 .semiont-card__warning {
   padding: 1rem;
   background: var(--semiont-color-yellow-50);

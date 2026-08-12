@@ -68,7 +68,7 @@ const defaultStat = { size: 1024, mtime: new Date('2026-01-01T00:00:00Z') };
 
 const mockKb = { graph: {}, views: {} } as any;
 
-const emptyConfig: MakeMeaningConfig = { services: {}, gather: { settleTimeoutMs: 15_000 } };
+const emptyConfig: MakeMeaningConfig = { services: {}, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } };
 
 // Enrichment-neutral discovery for tests whose subject is not limits — the
 // pool's own semantics are pinned in limits-discovery.test.ts.
@@ -91,6 +91,7 @@ describe('Browser actor', () => {
       { root: PROJECT_ROOT } as any,
       emptyConfig,
       passthroughDiscovery,
+      undefined,
       mockLogger,
     );
     await browser.initialize();
@@ -99,6 +100,25 @@ describe('Browser actor', () => {
   afterEach(async () => {
     await browser.stop();
     eventBus.destroy();
+  });
+
+  // ── resources search reply ─────────────────────────────────────────────────
+
+  it('labels the resources reply with matchKind (SEMANTIC-FALLBACK P1b)', async () => {
+    // The wire discriminator is REQUIRED so the compiler finds every emitter:
+    // an optional field defaulting to lexical would be a compatibility shim
+    // (a missing value silently reads as lexical). The lexical path labels
+    // itself here; P2's fallback labels its answers 'semantic'.
+    mockKb.graph.listResources = vi.fn().mockResolvedValue({ resources: [], total: 0 });
+
+    const result$ = eventBus.get('browse:resources-result');
+    const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
+
+    eventBus.get('browse:resources-requested').next({ correlationId: 'cid-mk', search: 'ouranos' });
+
+    const event = await resultPromise;
+    expect(event.correlationId).toBe('cid-mk');
+    expect(event.response.matchKind).toBe('lexical');
   });
 
   // ── path traversal guard ───────────────────────────────────────────────────
@@ -219,6 +239,7 @@ describe('Browser actor', () => {
       { root: PROJECT_ROOT } as any,
       emptyConfig,
       passthroughDiscovery,
+      undefined,
       mockLogger,
     );
     await browser.initialize();
@@ -335,7 +356,7 @@ describe('Browser actor', () => {
         graph: { getResourceReferencedBy: mockReferencedBy, getResource: mockGetResource },
         views: { get: mockViewGet },
       } as any;
-      browser = new Browser(makeViews([]) as any, kb, eventBus, { root: PROJECT_ROOT } as any, emptyConfig, passthroughDiscovery, mockLogger);
+      browser = new Browser(makeViews([]) as any, kb, eventBus, { root: PROJECT_ROOT } as any, emptyConfig, passthroughDiscovery, undefined, mockLogger);
       await browser.initialize();
     });
 
@@ -498,7 +519,7 @@ describe('Browser actor', () => {
       discovery?: { enrich(entries: CollaboratorEntry[]): Promise<CollaboratorEntry[]> },
     ) {
       const bus = new EventBus();
-      const b = new Browser(makeViews([]) as any, mockKb, bus, { root: PROJECT_ROOT } as any, config, discovery ?? passthroughDiscovery, mockLogger);
+      const b = new Browser(makeViews([]) as any, mockKb, bus, { root: PROJECT_ROOT } as any, config, discovery ?? passthroughDiscovery, undefined, mockLogger);
       await b.initialize();
       try {
         await fn(bus);
@@ -528,7 +549,7 @@ describe('Browser actor', () => {
       await withBrowser(
         {
           services: {},
-          gather: { settleTimeoutMs: 15_000 },
+          gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
           site: { domain: SITE_DOMAIN },
           workers: {
             default: { type: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'secret-key-do-not-leak' },
@@ -578,7 +599,7 @@ describe('Browser actor', () => {
       await withBrowser(
         {
           services: {},
-          gather: { settleTimeoutMs: 15_000 },
+          gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
           site: { domain: SITE_DOMAIN },
           actors: { gatherer: { type: 'ollama', model: 'llama3' } },
         },
@@ -607,7 +628,7 @@ describe('Browser actor', () => {
       await withBrowser(
         {
           services: {},
-          gather: { settleTimeoutMs: 15_000 },
+          gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
           site: { domain: SITE_DOMAIN },
           workers: { default: { type: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'k' } },
         },
@@ -622,7 +643,7 @@ describe('Browser actor', () => {
     });
 
     it('answers an empty roster when no workers or actors are declared', async () => {
-      await withBrowser({ services: {}, gather: { settleTimeoutMs: 15_000 }, site: { domain: SITE_DOMAIN } }, async (bus) => {
+      await withBrowser({ services: {}, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 }, site: { domain: SITE_DOMAIN } }, async (bus) => {
         const r = await requestAgents(bus);
         if (r.kind !== 'result') throw new Error(`expected result, got failed: ${r.e.message}`);
         expect(r.e.response.agents).toEqual([]);
@@ -630,7 +651,7 @@ describe('Browser actor', () => {
     });
 
     it('fails naming the missing config key when site.domain is absent', async () => {
-      await withBrowser({ services: {}, gather: { settleTimeoutMs: 15_000 } }, async (bus) => {
+      await withBrowser({ services: {}, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } }, async (bus) => {
         const r = await requestAgents(bus);
         if (r.kind !== 'failed') throw new Error('expected failed');
         expect(r.e.correlationId).toBe('cid-agents');

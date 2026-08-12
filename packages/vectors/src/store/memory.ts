@@ -7,6 +7,7 @@
 
 import type { ResourceId, AnnotationId } from '@semiont/core';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload, VectorSearchResult, SearchOptions, ResourceStamp } from './interface';
+import { mergeByResource } from './merge';
 
 function toStamp(point: { payload: { contentChecksum?: string; entityTypes?: string[]; machineRead?: boolean } }): ResourceStamp {
   return {
@@ -171,10 +172,10 @@ export class MemoryVectorStore implements VectorStore {
     // Self-exclude the source; carry the caller's filter (e.g. excludeEntityTypes).
     const filter: SearchOptions['filter'] = { ...opts.filter, excludeResourceId: resourceId };
 
-    // Per-chunk max-sim, merged by resource: each candidate point scores as the
-    // best similarity to any of the source's query chunks; keep, per target
-    // resource, the single best-matching point (its score and its text).
-    const bestByResource = new Map<string, StoredPoint & { score: number }>();
+    // Score every candidate point against the source's chunks (exhaustive — no
+    // per-chunk top-K to crowd anything out), then let the shared max-sim fold
+    // collapse chunk hits to one entry per resource.
+    const hits: VectorSearchResult[] = [];
     for (const cand of this.resources) {
       if (!this.passesFilter(cand, filter)) continue;
       let best = -Infinity;
@@ -182,19 +183,11 @@ export class MemoryVectorStore implements VectorStore {
         const score = cosineSimilarity(q.vector, cand.vector);
         if (score > best) best = score;
       }
-      const prev = bestByResource.get(cand.payload.resourceId);
-      if (!prev || best > prev.score) {
-        bestByResource.set(cand.payload.resourceId, { ...cand, score: best });
-      }
+      if (opts.scoreThreshold !== undefined && best < opts.scoreThreshold) continue;
+      hits.push(this.toResult({ ...cand, score: best }));
     }
 
-    let merged = [...bestByResource.values()];
-    if (opts.scoreThreshold !== undefined) {
-      const threshold = opts.scoreThreshold;
-      merged = merged.filter(s => s.score >= threshold);
-    }
-    merged.sort((a, b) => b.score - a.score);
-    return merged.slice(0, opts.limit).map(s => this.toResult(s));
+    return mergeByResource(hits).slice(0, opts.limit);
   }
 
   private passesFilter(p: StoredPoint, filter: SearchOptions['filter']): boolean {

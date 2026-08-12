@@ -33,6 +33,8 @@ export default function DiscoverPage() {
   const searchState = useObservable(stateUnit?.search.state$);
   const searchDocuments = searchState?.results ?? [];
   const isSearching = searchState?.isSearching ?? false;
+  // Read off the SAME value as the results, never a sibling observable (S10).
+  const searchMatchKind = searchState?.matchKind;
   const selectedEntityType = useObservable(stateUnit?.selectedEntityType$) ?? '';
 
   const { resolvedTheme } = useTheme();
@@ -48,6 +50,7 @@ export default function DiscoverPage() {
       recentError={recentError}
       onRetryRecent={stateUnit?.recent.retry}
       isSearching={isSearching}
+      {...(searchMatchKind ? { searchMatchKind } : {})}
       searchQuery={searchQuery}
       onSearchQueryChange={stateUnit?.search.setQuery}
       selectedEntityType={selectedEntityType}
@@ -62,6 +65,7 @@ export default function DiscoverPage() {
         searchPlaceholder: t('searchPlaceholder'),
         searchButton: t('searchButton'),
         searching: t('searching'),
+        semanticFallbackNotice: t('semanticFallbackNotice'),
         filterByEntityType: t('filterByEntityType'),
         all: t('all'),
         recentResources: t('recentResources'),

@@ -242,7 +242,9 @@ The modals drive search through `semiont.browse.resources()` (wired up via
 import { ResourceSearchModal, useSemiont } from '@semiont/react-ui';
 
 // The modal uses the SDK's Observable surface internally:
-// semiont.browse.resources({ search, limit }) — debounced via RxJS.
+// client.browse.resources({ search, limit }) — debounced via RxJS. The fetch
+// closure maps each CacheState emission to the ready ResourceList envelope's
+// array: map((st) => readyValue(st)?.resources).
 // For custom search elsewhere, use the same approach: see API-INTEGRATION.md.
 ```
 

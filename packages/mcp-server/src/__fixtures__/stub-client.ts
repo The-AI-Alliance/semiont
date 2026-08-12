@@ -25,6 +25,7 @@ import type {
   GenerationOptions,
   MarkAssistEvent,
   MarkAssistOptions,
+  ResourceList,
   YieldGenerationEvent,
 } from '@semiont/sdk';
 
@@ -110,7 +111,7 @@ export const GENERATION_COMPLETE: YieldGenerationEvent = {
 export function createStub() {
   const browse = {
     resource: vi.fn<(id: ResourceId) => { fresh(): Promise<ResourceDescriptor> }>(() => ({ fresh: async () => RESOURCE })),
-    resources: vi.fn<(filters: { limit?: number; archived?: boolean; search?: string }) => { fresh(): Promise<ResourceDescriptor[]> }>(() => ({ fresh: async () => [RESOURCE] })),
+    resources: vi.fn<(filters: { limit?: number; archived?: boolean; search?: string }) => { fresh(): Promise<ResourceList> }>(() => ({ fresh: async () => ({ resources: [RESOURCE], total: 1, offset: 0, limit: 100, matchKind: 'lexical' }) })),
     annotations: vi.fn<(id: ResourceId) => { fresh(): Promise<Annotation[]> }>(() => ({ fresh: async () => [HIGHLIGHT, BOUND_REFERENCE, UNBOUND_REFERENCE] })),
   };
   const mark = {

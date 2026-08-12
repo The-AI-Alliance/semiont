@@ -253,7 +253,8 @@
     "composeFirstResource": "ایجاد اولین منبع",
     "loadingKnowledgeBase": "در حال بارگذاری پایگاه دانش...",
     "recentFailed": "بارگذاری منابع ممکن نشد.",
-    "retry": "تلاش مجدد"
+    "retry": "تلاش مجدد",
+    "semanticFallbackNotice": "هیچ عنوانی مطابقت ندارد — نمایش اسناد مرتبط."
   },
   "Compose": {
     "title": "منبع جدید",

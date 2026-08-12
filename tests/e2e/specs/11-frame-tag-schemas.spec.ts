@@ -166,7 +166,7 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       //
       // Find any seeded resource — we just need a valid resourceId for
       // the call shape.
-      const resources = await client.browse.resources({ limit: 50 }).fresh();
+      const { resources } = await client.browse.resources({ limit: 50 }).fresh();
       expect(resources.length, 'seeded KB must have ≥1 resource').toBeGreaterThan(0);
       const target = resources.find((r) => r.name === 'Quantum Computing Primer') ?? resources[0]!;
       const targetId = ridBrand(target['@id']);

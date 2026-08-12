@@ -109,10 +109,13 @@ import { ResourceViewer, useSemiont, useObservable } from '@semiont/react-ui';
 function MyComponent() {
   const semiont = useObservable(useSemiont().activeSession$)?.client;
   // browse.resources() is an SDK live query backed by the read-through cache.
-  const resources = useObservable(semiont?.browse.resources({ limit: 20 }));
+  // It emits CacheState<ResourceList>: pending → ready | failed.
+  const state = useObservable(semiont?.browse.resources({ limit: 20 }));
 
-  if (!resources) return <div>Loading...</div>;
+  if (!state || state.status === 'pending') return <div>Loading...</div>;
+  if (state.status === 'failed') return <div>Failed to load</div>;
 
+  const { resources } = state.value; // ResourceList: { resources, total, matchKind, … }
   return <ResourceViewer resource={resources[0]} />;
 }
 ```
@@ -224,12 +227,15 @@ observables; writes go through the typed namespaces (`client.mark.*`,
 
 ```tsx
 import { useSemiont, useObservable } from '@semiont/react-ui';
+import { readyValue } from '@semiont/sdk';
 
 function Example() {
   const client = useObservable(useSemiont().activeSession$)?.client;
 
-  // Read: live query over the read-through cache
-  const resources = useObservable(client?.browse.resources({ limit: 10 }));
+  // Read: live query over the read-through cache. Emissions are
+  // CacheState<ResourceList>; readyValue projects out the ready envelope.
+  const state = useObservable(client?.browse.resources({ limit: 10 }));
+  const resources = state && readyValue(state)?.resources; // undefined until ready
 
   // Write: typed namespace call (cache invalidation is handled by the SDK)
   const archive = (rUri) => client?.mark.archive(rUri);

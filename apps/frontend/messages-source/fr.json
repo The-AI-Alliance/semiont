@@ -253,7 +253,8 @@
     "composeFirstResource": "Rédiger la première ressource",
     "loadingKnowledgeBase": "Chargement de la base de connaissances...",
     "recentFailed": "Impossible de charger les ressources.",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "semanticFallbackNotice": "Aucun titre correspondant — documents apparentés affichés."
   },
   "Compose": {
     "title": "Nouvelle ressource",

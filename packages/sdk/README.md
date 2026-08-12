@@ -125,7 +125,7 @@ const semiont = await SemiontClient.signInHttp({
   email: 'me@example.com',
   password: 'pwd',
 });
-const resources = await semiont.browse.resources({ limit: 10 }).fresh();
+const { resources } = await semiont.browse.resources({ limit: 10 }).fresh();
 semiont.dispose();
 ```
 
@@ -143,7 +143,7 @@ const session = await SemiontSession.signInHttp({
   email: 'me@example.com',
   password: 'pwd',
 });
-const resources = await session.client.browse.resources({ limit: 10 }).fresh();
+const { resources } = await session.client.browse.resources({ limit: 10 }).fresh();
 await session.dispose();
 ```
 

@@ -376,7 +376,7 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
     // short page would report a present seed as missing and re-create it, which
     // is the bug this replaces.
     const present = new Set<string>();
-    for (const r of await client.browse.resources({ limit: 500, archived: false }).fresh()) {
+    for (const r of (await client.browse.resources({ limit: 500, archived: false }).fresh()).resources) {
       if (r.storageUri) present.add(r.storageUri);
     }
 

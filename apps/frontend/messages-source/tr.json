@@ -253,7 +253,8 @@
     "composeFirstResource": "İlk Kaynağı Oluştur",
     "loadingKnowledgeBase": "Bilgi tabanı yükleniyor...",
     "recentFailed": "Kaynaklar yüklenemedi.",
-    "retry": "Tekrar dene"
+    "retry": "Tekrar dene",
+    "semanticFallbackNotice": "Başlık eşleşmesi yok — ilgili belgeler gösteriliyor."
   },
   "Compose": {
     "title": "Yeni Kaynak",

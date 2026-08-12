@@ -41,6 +41,7 @@ import { assembleResourceGraph } from './resource-graph';
 import type { MakeMeaningConfig } from './config';
 import { deriveAgentRoster } from './agent-roster';
 import type { LimitsDiscovery } from './limits-discovery';
+import type { EmbeddingProvider } from '@semiont/vectors';
 
 type DirectoryEntry = components['schemas']['DirectoryEntry'];
 type FileEntry      = components['schemas']['FileEntry'];
@@ -58,6 +59,8 @@ export class Browser {
     private config: MakeMeaningConfig,
     /** Discovered per-(provider, model) ceilings for the roster (INFERENCE-LIMITS-EXPOSURE P2). */
     private limitsDiscovery: LimitsDiscovery,
+    /** For the semantic search fallback; undefined when embedding is unconfigured (SEMANTIC-FALLBACK S4). */
+    private embeddingProvider: EmbeddingProvider | undefined,
     logger: Logger,
   ) {
     this.logger = logger;
@@ -169,26 +172,35 @@ export class Browser {
       const offset = event.offset ?? 0;
       const limit = event.limit ?? 50;
 
-      const { resources, total } = await ResourceContext.listResources({
+      const result = await ResourceContext.listResources({
         search: event.search,
         archived: event.archived,
         entityType: event.entityType,
         offset,
         limit,
-      }, this.kb);
+      }, this.kb, {
+        embeddingProvider: this.embeddingProvider,
+        semanticFloor: this.config.search.semanticFloor,
+        logger: this.logger,
+      });
 
-      // Add content previews for search results
-      const formattedDocs = event.search
-        ? await ResourceContext.addContentPreviews(resources, this.kb)
-        : resources;
+      // Add content previews for lexical search results. Semantic hits
+      // already carry `content` — the passage that actually matched — and
+      // a first-200-chars preview must not overwrite it (SEMANTIC-FALLBACK).
+      const formattedDocs = event.search && result.matchKind === 'lexical'
+        ? await ResourceContext.addContentPreviews(result.resources, this.kb)
+        : result.resources;
 
       this.eventBus.get('browse:resources-result').next({
         correlationId: event.correlationId,
         response: {
           resources: formattedDocs,
-          total,
+          total: result.total,
           offset,
           limit,
+          // The producer of the answer labels it (P1b moved the label here
+          // from a hardcoded 'lexical' when the fallback landed).
+          matchKind: result.matchKind,
         },
       });
     } catch (error) {

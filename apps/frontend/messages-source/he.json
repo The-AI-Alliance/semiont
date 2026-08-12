@@ -253,7 +253,8 @@
     "composeFirstResource": "חיבור משאב ראשון",
     "loadingKnowledgeBase": "טוען מאגר ידע...",
     "recentFailed": "לא ניתן לטעון את המשאבים.",
-    "retry": "נסה שוב"
+    "retry": "נסה שוב",
+    "semanticFallbackNotice": "אין התאמות בכותרות — מוצגים מסמכים קשורים."
   },
   "Compose": {
     "title": "משאב חדש",

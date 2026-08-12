@@ -117,11 +117,13 @@ val documents = client.documentsApi.listDocuments()
 **Starting Point**:
 ```typescript
 // apps/mobile-app
-import { SemiontClient } from '@semiont/sdk';
+import { SemiontClient, readyValue } from '@semiont/sdk';
 import { useObservable } from '@semiont/react-ui';
 
 function ResourceList({ semiont }: { semiont: SemiontClient }) {
-  const resources = useObservable(semiont.browse.resources());
+  // Emissions are CacheState<ResourceList>; project out the ready envelope.
+  const state = useObservable(semiont.browse.resources());
+  const resources = state && readyValue(state)?.resources;
 
   return (
     <FlatList

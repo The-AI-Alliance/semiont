@@ -175,12 +175,13 @@ import { useSemiont, useObservable } from "@semiont/react-ui";
 
 export function DashboardContent() {
   const session = useObservable(useSemiont().activeSession$);
-  // Verb-namespace queries on the client return RxJS Observables; `useObservable`
-  // bridges them into React state (e.g. session?.client.browse.entityTypes()).
-  const data = useObservable(session?.client.browse.entityTypes());
+  // Verb-namespace queries emit CacheState values; `useObservable` bridges
+  // them into React state (e.g. session?.client.browse.entityTypes()).
+  const state = useObservable(session?.client.browse.entityTypes());
 
   if (!session) return <div>Please sign in to view dashboard</div>;
-  if (!data) return <div>Loading...</div>;
+  if (!state || state.status === 'pending') return <div>Loading...</div>;
+  if (state.status === 'failed') return <div>Failed to load</div>;
 
   return (
     <div>
@@ -203,15 +204,15 @@ backed by EventBus-invalidated caches. Adding a new read means:
 // 1. The OpenAPI spec + generated types define the response shape
 //    (specs/ → @semiont/core types). No hand-written response interfaces.
 
-// 2. The SDK exposes it as a namespace method returning an Observable
-//    (added in @semiont/sdk, e.g. BrowseNamespace.dashboard(): Observable<DashboardData>)
+// 2. The SDK exposes it as a namespace method returning a CacheObservable
+//    (added in @semiont/sdk, e.g. BrowseNamespace.dashboard(): CacheObservable<DashboardData>)
 
 // 3. The component subscribes via useObservable — no React Query, no manual cache keys
 import { useSemiont, useObservable } from '@semiont/react-ui';
 
 function Dashboard() {
   const session = useObservable(useSemiont().activeSession$);
-  const data = useObservable(session?.client.browse.dashboard());
+  const state = useObservable(session?.client.browse.dashboard()); // CacheState<DashboardData>
   // EventBus domain events invalidate and refresh the cache automatically.
 }
 ```

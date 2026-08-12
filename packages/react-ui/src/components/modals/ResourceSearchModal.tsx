@@ -77,7 +77,7 @@ export function ResourceSearchModal({
       (q) =>
         semiontRef.current!.browse.resources({ search: q, limit: SEARCH_LIMIT }).pipe(
           map((st) => {
-            const resources = readyValue(st);
+            const resources = readyValue(st)?.resources;
             if (resources === undefined) return undefined;
             return resources
               .map(toSearchResult)

@@ -253,7 +253,8 @@
     "composeFirstResource": "Utwórz pierwszy zasób",
     "loadingKnowledgeBase": "Ładowanie bazy wiedzy...",
     "recentFailed": "Nie można załadować zasobów.",
-    "retry": "Spróbuj ponownie"
+    "retry": "Spróbuj ponownie",
+    "semanticFallbackNotice": "Brak dopasowań w tytułach — pokazuję powiązane dokumenty."
   },
   "Compose": {
     "title": "Nowy zasób",

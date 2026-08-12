@@ -253,7 +253,8 @@
     "composeFirstResource": "Karang Sumber Pertama",
     "loadingKnowledgeBase": "Memuatkan pangkalan pengetahuan...",
     "recentFailed": "Tidak dapat memuatkan sumber.",
-    "retry": "Cuba lagi"
+    "retry": "Cuba lagi",
+    "semanticFallbackNotice": "Tiada padanan tajuk — memaparkan dokumen berkaitan."
   },
   "Compose": {
     "title": "Sumber Baharu",

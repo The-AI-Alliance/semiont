@@ -12,6 +12,7 @@ export type { QdrantConfig } from './store/qdrant';
 export { MemoryVectorStore } from './store/memory';
 export { createVectorStore } from './store/factory';
 export type { VectorStoreConfig } from './store/factory';
+export { mergeByResource } from './store/merge';
 
 // Embedding
 export type { EmbeddingProvider } from './embedding/interface';

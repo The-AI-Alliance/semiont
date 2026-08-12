@@ -203,6 +203,16 @@ interface EnvironmentSection {
      * liveness, client stall watchdogs) — see SMELTER-INDEX-SYNC A4.
      */
     gather?: { settleTimeoutMs?: number };
+    /**
+     * Search knobs. `semanticFloor` is the minimum cosine score a vector hit
+     * needs to appear in the semantic fallback (SEMANTIC-FALLBACK decision
+     * #1) — fired only when a lexical search returns nothing. The loader is
+     * the ONE home of the default: 0.6, midway between the Matcher's
+     * recall-oriented 0.4 (which feeds a composite scorer) and a
+     * precision-strict 0.8 — a guess to be tuned from the fallback's own
+     * score-distribution debug line, revisable here in one line.
+     */
+    search?: { semanticFloor?: number };
   };
   workers?: Record<string, { inference?: InferenceConfig }>;
   actors?: Record<string, { inference?: InferenceConfig }>;
@@ -543,6 +553,7 @@ export function loadTomlConfig(
       // Consuming code (make-meaning's gather path) receives a required
       // value and defaults nothing.
       gather: { settleTimeoutMs: makeMeaningSection?.gather?.settleTimeoutMs ?? 15_000 },
+      search: { semanticFloor: makeMeaningSection?.search?.semanticFloor ?? 0.6 },
     },
   };
 

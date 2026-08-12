@@ -223,7 +223,7 @@ async function createKnowledgeSystemFromConfig(
   // roster (provider, model); its instances' internal caching is the only
   // storage (INFERENCE-LIMITS-EXPOSURE D1).
   const limitsDiscovery = createLimitsDiscovery(config, logger.child({ component: 'limits-discovery' }));
-  const browser = new Browser(kb.views, kb, eventBus, project, config, limitsDiscovery, logger.child({ component: 'browser' }));
+  const browser = new Browser(kb.views, kb, eventBus, project, config, limitsDiscovery, embeddingProvider, logger.child({ component: 'browser' }));
   await browser.initialize();
 
   const cloneTokenManager = new CloneTokenManager(kb, eventBus, logger.child({ component: 'clone-token-manager' }));

@@ -253,7 +253,8 @@
     "composeFirstResource": "Erste Ressource erstellen",
     "loadingKnowledgeBase": "Wissensdatenbank wird geladen...",
     "recentFailed": "Ressourcen konnten nicht geladen werden.",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "semanticFallbackNotice": "Keine Titeltreffer – zugehörige Dokumente werden angezeigt."
   },
   "Compose": {
     "title": "Neue Ressource",

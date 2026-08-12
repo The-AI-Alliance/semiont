@@ -253,7 +253,8 @@
     "composeFirstResource": "Opret første ressource",
     "loadingKnowledgeBase": "Indlæser vidensbase...",
     "recentFailed": "Ressourcer kunne ikke indlæses.",
-    "retry": "Prøv igen"
+    "retry": "Prøv igen",
+    "semanticFallbackNotice": "Ingen titeltræffere — viser relaterede dokumenter."
   },
   "Compose": {
     "title": "Ny ressource",
