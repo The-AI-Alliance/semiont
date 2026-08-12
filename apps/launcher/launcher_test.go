@@ -3156,7 +3156,14 @@ func writeKBConfig(t *testing.T, s *scenario, name, body string) {
 }
 
 const stdVectors = "[environments.local.vectors]\ntype = \"qdrant\"\nhost = \"${QDRANT_HOST}\"\nport = 6333\n\n"
-const stdEmbedding = "[environments.local.embedding]\ntype = \"ollama\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"\n\n"
+
+// Every config must name a vector store and an embedding provider — the
+// launcher refuses one that does not, exactly as the backend's loader does.
+// So these two are as standard as stdGraph/stdDatabase, and a variant that
+// wants no local Ollama reaches for stdEmbeddingVoyage rather than dropping
+// the section.
+const stdEmbedding = "[environments.local.embedding]\ntype = \"ollama\"\nmodel = \"nomic-embed-text\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"\n\n"
+const stdEmbeddingVoyage = "[environments.local.embedding]\nplatform = \"external\"\ntype = \"voyage\"\nmodel = \"voyage-3\"\n\n"
 const stdDatabase = "[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5432\nname = \"semiont\"\nuser = \"postgres\"\npassword = \"localpass\"\n\n"
 const stdGraph = "[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\nusername = \"neo4j\"\npassword = \"localpass\"\n\n"
 
@@ -3233,7 +3240,7 @@ func TestStartNoInferenceBoot(t *testing.T) {
 	// ollama/inference conflation's answer.
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "no-ollama",
-		stdGraph+stdVectors+stdDatabase+
+		stdGraph+stdVectors+stdDatabase+stdEmbeddingVoyage+
 			"[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"https://api.anthropic.com\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n"+
 			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n")
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
@@ -3246,15 +3253,18 @@ func TestStartNoInferenceBoot(t *testing.T) {
 		t.Errorf("no-ollama config still touched ollama:\n%s", argv)
 	}
 
-	// status: inference reads "not configured", exits healthy without it;
-	// stop never touches an ollama container.
+	// status: both roles read as the remote services they are, and the report
+	// exits healthy with no Ollama anywhere; stop never touches an ollama
+	// container either.
 	stdout, _, code = s.run(t, "status")
 	if code != 0 {
 		t.Errorf("status: exit %d\n%s", code, stdout)
 	}
-	// embedding is absent here → "not configured"; inference is the external
-	// Anthropic row.
-	mustContain(t, "status stdout", stdout, "not configured", "inference (Anthropic)", "external")
+	mustContain(t, "status stdout", stdout,
+		"inference (Anthropic)", "embedding (Voyage)", "external")
+	if strings.Contains(stdout, "Ollama") {
+		t.Errorf("a config referencing no Ollama still named one in status:\n%s", stdout)
+	}
 	preStop := s.argv(t)
 	if _, _, code := s.run(t, "stop"); code != 0 {
 		t.Fatalf("stop: exit %d", code)
@@ -4757,7 +4767,7 @@ func TestRemoteModelMetadataAndAvailability(t *testing.T) {
 	anthPort := serveAnthropicModels(t, "claude-sonnet-4-5-20250929") // haiku deliberately absent
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "anthropic-meta",
-		stdGraph+stdVectors+stdDatabase+
+		stdGraph+stdVectors+stdDatabase+stdEmbedding+
 			fmt.Sprintf("[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:%d\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n", anthPort)+
 			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n"+
 			"[environments.local.workers.tag.inference]\ntype = \"anthropic\"\nmodel = \"claude-haiku-4-5-20251001\"\n\n")
@@ -4777,6 +4787,49 @@ func TestRemoteModelMetadataAndAvailability(t *testing.T) {
 	// …and never fabricates an install state for a remote model.
 	if strings.Contains(stdout, "ollama pull claude") {
 		t.Errorf("remote model offered an ollama pull:\n%s", stdout)
+	}
+}
+
+// --- semantic search is mandatory (MANDATORY-EMBEDDING P4) ---
+
+// A config the backend refuses to boot must be refused HERE, before a single
+// container is launched. Otherwise start brings the whole stack up and the
+// backend dies seconds later on a file the launcher already had in its hands.
+func TestStartRefusesAConfigWithNoSemanticSearch(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		body  string
+		wants []string
+	}{
+		{
+			"no-vectors",
+			stdGraph + stdEmbedding + stdDatabase,
+			[]string{"names no vector store", "[environments.local.vectors]", "nothing is defaulted"},
+		},
+		{
+			"no-embedding",
+			stdGraph + stdVectors + stdDatabase,
+			[]string{"names no embedding provider", "[environments.local.embedding]", "nothing is defaulted"},
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			s := newScenario(t, "container")
+			writeKBConfig(t, s, c.name, c.body)
+			stdout, stderr, code := s.run(t, "start", "--config", c.name)
+			if code == 0 {
+				t.Fatalf("start accepted a config the backend refuses to boot\nstdout:\n%s", stdout)
+			}
+			mustContain(t, "refusal", stdout+stderr, c.wants...)
+			// The refusal must precede every runtime invocation — root
+			// discovery (a git rev-parse) is all that legitimately runs
+			// before the config is read.
+			for _, line := range strings.Split(strings.TrimSpace(s.argv(t)), "\n") {
+				if line == "" || strings.HasPrefix(strings.TrimSpace(line), "git ") {
+					continue
+				}
+				t.Errorf("a refused config reached the container runtime: %q", strings.TrimSpace(line))
+			}
+		})
 	}
 }
 
@@ -4907,7 +4960,7 @@ func mixedStackScenario(t *testing.T, env ...string) *scenario {
 	anthPort := serveAnthropicModels(t, "claude-sonnet-4-5-20250929")
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "mixed",
-		stdGraph+stdVectors+stdDatabase+
+		stdGraph+stdVectors+stdDatabase+stdEmbedding+
 			fmt.Sprintf("[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:%d\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n", anthPort)+
 			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n")
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
