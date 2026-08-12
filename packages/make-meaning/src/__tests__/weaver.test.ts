@@ -240,32 +240,6 @@ describe('Weaver', () => {
       expect(graphDb.deleteAnnotation).not.toHaveBeenCalled();
     });
 
-    it('should skip job.progress events', async () => {
-      const docId = resourceId(`filter-progress-${Date.now()}`);
-
-      await eventStore.appendEvent({
-        type: 'yield:created',
-        resourceId: docId,
-        userId: userId('user1'),
-        version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
-      });
-      await tick();
-      vi.clearAllMocks();
-
-      await eventStore.appendEvent({
-        type: 'job:progress',
-        resourceId: docId,
-        userId: userId('user1'),
-        version: 1,
-        payload: { jobId: 'job-1' as any, jobType: 'reference-annotation', percentage: 50 },
-      });
-
-      await tick();
-
-      expect(graphDb.createResource).not.toHaveBeenCalled();
-      expect(graphDb.createAnnotation).not.toHaveBeenCalled();
-    });
   });
 
   describe('event application', () => {

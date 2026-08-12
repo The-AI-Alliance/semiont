@@ -305,7 +305,6 @@ export class ViewMaterializer {
 
       // Job events don't affect resource metadata
       case 'job:started':
-      case 'job:progress':
       case 'job:completed':
       case 'job:failed':
         break;
@@ -385,7 +384,6 @@ export class ViewMaterializer {
 
       // Job events don't affect annotations
       case 'job:started':
-      case 'job:progress':
       case 'job:completed':
       case 'job:failed':
         break;

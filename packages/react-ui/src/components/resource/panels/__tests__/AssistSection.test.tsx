@@ -44,6 +44,8 @@ const mockT = vi.fn((key: string) => {
     densityDense: 'Dense',
     annotate: 'Annotate',
     annotating: 'Annotating...',
+    complete: 'Annotation complete!',
+    failed: 'Annotation failed',
   };
   return translations[key] || key;
 });
@@ -71,7 +73,7 @@ describe('AssistSection', () => {
   });
 
   describe('Progress Display', () => {
-    it('should render progress message when progress prop provided', () => {
+    it('should render the translated status line when progress prop provided', () => {
       renderWithProviders(
         <AssistSection
           session={session}
@@ -80,15 +82,14 @@ describe('AssistSection', () => {
           progress={{
             stage: 'analyzing',
             percentage: 30,
-            message: 'Analyzing text for highlights...',
           }}
         />
       );
 
-      expect(screen.getByText('Analyzing text for highlights...')).toBeInTheDocument();
+      expect(screen.getByText('Annotating...')).toBeInTheDocument();
     });
 
-    it('should render progress message with sparkle icon', () => {
+    it('should render the status line with sparkle icon', () => {
       renderWithProviders(
         <AssistSection
           session={session}
@@ -97,13 +98,12 @@ describe('AssistSection', () => {
           progress={{
             stage: 'analyzing',
             percentage: 0,
-            message: 'Processing...',
           }}
         />
       );
 
-      // Check for icon and message
-      const progressDiv = screen.getByText('Processing...').closest('.semiont-annotation-progress__message');
+      // Check for icon and status text
+      const progressDiv = screen.getByText('Annotating...').closest('.semiont-annotation-progress__message');
       expect(progressDiv).toBeInTheDocument();
       expect(progressDiv?.querySelector('.semiont-annotation-progress__icon')).toBeInTheDocument();
     });
@@ -117,7 +117,6 @@ describe('AssistSection', () => {
           progress={{
             stage: 'analyzing',
             percentage: 0,
-            message: 'Analyzing...',
             requestParams: [
               { label: 'Instructions', value: 'Find important points' },
               { label: 'Density', value: '5' },
@@ -142,7 +141,6 @@ describe('AssistSection', () => {
           progress={{
             stage: 'analyzing',
             percentage: 0,
-            message: 'Analyzing...',
           }}
         />
       );
@@ -191,13 +189,12 @@ describe('AssistSection', () => {
           progress={{
             stage: 'complete',
             percentage: 100,
-            message: 'Complete! Created 14 highlights',
           }}
         />
       );
 
-      // Progress should still be visible
-      expect(screen.getByText('Complete! Created 14 highlights')).toBeInTheDocument();
+      // Progress should still be visible, with the translated terminal copy
+      expect(screen.getByText('Annotation complete!')).toBeInTheDocument();
       // Form should NOT be visible
       expect(screen.queryByPlaceholderText('Enter custom instructions...')).not.toBeInTheDocument();
     });
@@ -455,7 +452,7 @@ describe('AssistSection', () => {
   });
 
   describe('Edge Cases', () => {
-    it('should handle empty progress message', () => {
+    it('should handle progress without a message', () => {
       renderWithProviders(
         <AssistSection
           session={session}
@@ -464,31 +461,14 @@ describe('AssistSection', () => {
           progress={{
             stage: 'analyzing',
             percentage: 0,
-            message: '',
           }}
         />
       );
 
-      // Should render progress section even with empty message
+      // Renders the progress section with the translated status line — the
+      // wire carries a code (or nothing), never a sentence to fall back on.
       const progressDiv = document.querySelector('.semiont-annotation-progress');
       expect(progressDiv).toBeInTheDocument();
-    });
-
-    it('should handle progress without percentage', () => {
-      renderWithProviders(
-        <AssistSection
-          session={session}
-          annotationType="highlight"
-          isAssisting={true}
-          progress={{
-            stage: 'analyzing',
-            percentage: 0,
-            message: 'Processing...',
-          }}
-        />
-      );
-
-      expect(screen.getByText('Processing...')).toBeInTheDocument();
     });
 
     it('should handle progress with empty requestParams array', () => {
@@ -500,7 +480,6 @@ describe('AssistSection', () => {
           progress={{
             stage: 'analyzing',
             percentage: 0,
-            message: 'Processing...',
             requestParams: [],
           }}
         />

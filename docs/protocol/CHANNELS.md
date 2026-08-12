@@ -13,7 +13,7 @@ Past-tense `-ed` channels appended to the event store. These drive materialized 
 - `mark:entity-tag-added`, `mark:entity-tag-removed`
 - `yield:created`, `yield:cloned`, `yield:updated`, `yield:moved`
 - `yield:representation-added`, `yield:representation-removed`
-- `job:started`, `job:progress`, `job:completed`, `job:failed`
+- `job:started`, `job:completed`, `job:failed`
 
 The authoritative list is `PERSISTED_EVENT_TYPES` in [`packages/core/src/persisted-events.ts`](../../packages/core/src/persisted-events.ts). The typecheck enforces that every `StoredEvent`-typed entry in `EventMap` is in this list.
 

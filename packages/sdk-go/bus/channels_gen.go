@@ -429,9 +429,6 @@ const (
 	// payload: StoredEvent(job:started) — not emittable
 	JobStarted Channel = "job:started"
 
-	// payload: StoredEvent(job:progress) — not emittable
-	JobProgress Channel = "job:progress"
-
 	// payload: StoredEvent(job:completed) — not emittable
 	JobCompleted Channel = "job:completed"
 

@@ -17,7 +17,7 @@ const CTX_ANN = annotationContextFor('res-1', 'ref-ann-1');
 const CTX_RES = resourceContextFor('res-1');
 
 function makeProgress(overrides: Partial<JobProgress> = {}): JobProgress {
-  return { stage: 'generating', percentage: 50, message: 'Working...', ...overrides };
+  return { stage: 'generating', percentage: 50, ...overrides };
 }
 
 function withYield(fromContextFn: ReturnType<typeof vi.fn>): TestClient {

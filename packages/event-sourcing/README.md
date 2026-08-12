@@ -191,7 +191,6 @@ All persisted events use flow verb names (see `ResourceEvent` in `@semiont/core`
 | `frame:entity-type-added` | Frame | New entity type added (system-level) |
 | `frame:tag-schema-added` | Frame | Tag schema added (system-level) |
 | `job:started` | Job | Background job started |
-| `job:progress` | Job | Background job progress update |
 | `job:completed` | Job | Background job completed |
 | `job:failed` | Job | Background job failed |
 

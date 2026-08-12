@@ -480,8 +480,8 @@
       "JobProgress": {
         "$ref": "components/schemas/JobProgress.json"
       },
-      "JobProgressPayload": {
-        "$ref": "components/schemas/JobProgressPayload.json"
+      "JobProgressMessage": {
+        "$ref": "components/schemas/JobProgressMessage.json"
       },
       "JobQueuedEvent": {
         "$ref": "components/schemas/JobQueuedEvent.json"

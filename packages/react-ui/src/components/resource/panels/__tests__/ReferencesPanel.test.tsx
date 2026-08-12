@@ -66,6 +66,9 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       includeDescriptiveReferences: 'Include descriptive references',
       descriptiveReferencesTooltip: 'Also find phrases like \'the CEO\', \'the tech giant\', \'the physicist\' (in addition to names)',
       cancel: 'Cancel',
+      annotating: 'Annotating...',
+      complete: 'Annotation complete!',
+      failed: 'Annotation failed',
     };
     let result = translations[key] || key;
     // Replace {count} with actual count value if provided
@@ -325,7 +328,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ stage: 'analyzing', percentage: 0, message: 'Detecting references...', completedEntityTypes: [] }}
+          progress={{ stage: 'analyzing', percentage: 0, completedEntityTypes: [] }}
         />
       );
 
@@ -337,7 +340,6 @@ describe('ReferencesPanel Component', () => {
           progress={{
             stage: 'complete',
             percentage: 100,
-            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -378,18 +380,17 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ stage: 'analyzing', percentage: 0, message: 'Detecting references...', completedEntityTypes: [] }}
+          progress={{ stage: 'analyzing', percentage: 0, completedEntityTypes: [] }}
         />
       );
 
-      expect(screen.getByText('Detecting references...')).toBeInTheDocument();
+      expect(screen.getByText('Annotating...')).toBeInTheDocument();
     });
 
     it('should pass progress data to widget', () => {
       const progress = {
         stage: 'complete',
         percentage: 100,
-        message: 'Annotation complete',
         completedEntityTypes: [
           { entityType: 'Person', foundCount: 5 },
           { entityType: 'Organization', foundCount: 3 },
@@ -421,7 +422,6 @@ describe('ReferencesPanel Component', () => {
           progress={{
             stage: 'complete',
             percentage: 100,
-            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -440,7 +440,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ stage: 'analyzing', percentage: 0, message: 'Detecting references...', completedEntityTypes: [] }}
+          progress={{ stage: 'analyzing', percentage: 0, completedEntityTypes: [] }}
         />
       );
 
@@ -453,7 +453,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ stage: 'analyzing', percentage: 0, message: 'Detecting references...', completedEntityTypes: [] }}
+          progress={{ stage: 'analyzing', percentage: 0, completedEntityTypes: [] }}
         />
       );
 
@@ -473,7 +473,6 @@ describe('ReferencesPanel Component', () => {
           progress={{
             stage: 'complete',
             percentage: 100,
-            message: 'Annotation complete',
             completedEntityTypes: [
               { entityType: 'Person', foundCount: 5 },
               { entityType: 'Organization', foundCount: 3 },
@@ -503,7 +502,6 @@ describe('ReferencesPanel Component', () => {
           progress={{
             stage: 'complete',
             percentage: 100,
-            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -523,7 +521,6 @@ describe('ReferencesPanel Component', () => {
           progress={{
             stage: 'complete',
             percentage: 100,
-            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -543,7 +540,6 @@ describe('ReferencesPanel Component', () => {
           progress={{
             stage: 'complete',
             percentage: 100,
-            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -566,7 +562,6 @@ describe('ReferencesPanel Component', () => {
           progress={{
             stage: 'complete',
             percentage: 100,
-            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -589,7 +584,6 @@ describe('ReferencesPanel Component', () => {
           progress={{
             stage: 'complete',
             percentage: 100,
-            message: 'Annotation complete',
             completedEntityTypes: [],
           }}
         />
@@ -615,12 +609,12 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ stage: 'analyzing', percentage: 0, message: 'Detecting references...', completedEntityTypes: [] }}
+          progress={{ stage: 'analyzing', percentage: 0, completedEntityTypes: [] }}
         />
       );
 
       // Detecting state
-      expect(screen.getByText('Detecting references...')).toBeInTheDocument();
+      expect(screen.getByText('Annotating...')).toBeInTheDocument();
       expect(screen.queryByText('Select entity types')).not.toBeInTheDocument();
     });
 
@@ -629,12 +623,12 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ stage: 'analyzing', percentage: 0, message: 'Detecting references...', completedEntityTypes: [] }}
+          progress={{ stage: 'analyzing', percentage: 0, completedEntityTypes: [] }}
         />
       );
 
       // Detecting
-      expect(screen.getByText('Detecting references...')).toBeInTheDocument();
+      expect(screen.getByText('Annotating...')).toBeInTheDocument();
 
       // Complete - first trigger useEffect to copy to lastDetectionLog
       rerender(
@@ -644,7 +638,6 @@ describe('ReferencesPanel Component', () => {
           progress={{
             stage: 'complete',
             percentage: 100,
-            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -655,7 +648,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel {...panelProps()} isAssisting={false} progress={null} />
       );
 
-      expect(screen.queryByText('Annotation complete')).not.toBeInTheDocument();
+      expect(screen.queryByText('Annotation complete!')).not.toBeInTheDocument();
       // Both log and selection UI should be visible
       expect(screen.getByText('Person:')).toBeInTheDocument();
       expect(screen.getByText('Select entity types')).toBeInTheDocument();
@@ -669,7 +662,6 @@ describe('ReferencesPanel Component', () => {
           progress={{
             stage: 'complete',
             percentage: 100,
-            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -763,7 +755,6 @@ describe('ReferencesPanel Component', () => {
           progress={{
             stage: 'complete',
             percentage: 100,
-            message: 'Annotation complete',
             completedEntityTypes: [{ entityType: 'Person', foundCount: 0 }],
           }}
         />

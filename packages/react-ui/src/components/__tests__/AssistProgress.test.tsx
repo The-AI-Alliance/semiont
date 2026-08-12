@@ -24,7 +24,7 @@ import { AssistProgress, type AssistProgressTranslations } from '../AssistProgre
 type JobProgress = components['schemas']['JobProgress'];
 
 const running = (over: Partial<JobProgress> = {}): JobProgress => ({
-  stage: 'analyzing', percentage: 40, message: 'working on it', ...over,
+  stage: 'analyzing', percentage: 40, ...over,
 });
 
 /** Every required key, echoing its own name; override per test. */
@@ -40,7 +40,7 @@ const T = (over: Partial<AssistProgressTranslations> = {}): AssistProgressTransl
 });
 
 describe('AssistProgress', () => {
-  it('renders provider-free: message, params, and data hooks', () => {
+  it('renders provider-free: status line, params, and data hooks', () => {
     const { container } = render(
       <AssistProgress
         progress={running({ requestParams: [{ label: 'Density', value: '5' }] })}
@@ -48,7 +48,7 @@ describe('AssistProgress', () => {
         translations={T()}
       />,
     );
-    expect(screen.getByText('working on it')).toBeInTheDocument();
+    expect(screen.getByText('tr.inProgress')).toBeInTheDocument();
     expect(screen.getByText(/Density/)).toBeInTheDocument();
     expect(screen.getByText('5')).toBeInTheDocument();
     const root = container.querySelector('.semiont-annotation-progress');
@@ -94,27 +94,23 @@ describe('AssistProgress', () => {
     // Error is terminal too — offering cancel on a dead job is misleading and
     // invites redundant cancel requests.
     rerender(
-      <AssistProgress progress={running({ stage: 'error', message: 'it broke' })} dataType="generation" onCancel={onCancel} translations={tr} />,
+      <AssistProgress progress={running({ stage: 'error' })} dataType="generation" onCancel={onCancel} translations={tr} />,
     );
     expect(screen.queryByTitle('Cancel Job')).not.toBeInTheDocument();
   });
 
-  it('stage branching: both terminal stages prefer the job message, then the translated copy', () => {
-    // The job composes detail no static string can ("Created 14 highlights"),
-    // so it wins on BOTH terminal stages; the translated copy covers the
-    // required-but-empty message case (pinned below).
+  it('stage branching: terminal stages render the translated copy, never wire prose', () => {
+    // The wire no longer carries a sentence — `message` is a code + typed
+    // params, and rendering it is P3's work. Until then both terminal stages
+    // render the client's own translated copy, unconditionally.
     const { rerender } = render(
       <AssistProgress progress={running({ stage: 'complete' })} dataType="reference" translations={T({ complete: 'All done!' })} />,
     );
-    expect(screen.getByText('working on it')).toBeInTheDocument();
-    rerender(
-      <AssistProgress progress={running({ stage: 'complete', message: '' })} dataType="reference" translations={T({ complete: 'All done!' })} />,
-    );
     expect(screen.getByText('All done!')).toBeInTheDocument();
     rerender(
-      <AssistProgress progress={running({ stage: 'error', message: 'it broke' })} dataType="reference" translations={T({ failed: 'Failed' })} />,
+      <AssistProgress progress={running({ stage: 'error' })} dataType="reference" translations={T({ failed: 'Failed' })} />,
     );
-    expect(screen.getByText('it broke')).toBeInTheDocument();
+    expect(screen.getByText('Failed')).toBeInTheDocument();
   });
 
   it('renders the completed entity-type log when data + formatter are present', () => {
@@ -135,7 +131,11 @@ describe('AssistProgress', () => {
         dataType="reference" translations={T({ current: (l) => `Current: ${l}` })}
       />,
     );
-    expect(screen.getByText('Current: Location')).toBeInTheDocument();
+    // getAllByText: with no wire prose, the status line falls back to the
+    // same currentLabel the detail line renders — defect 1's duplicate,
+    // visible in tests now that fixtures carry no message. P3 deletes it
+    // (ASSIST-PROGRESS-CONSOLIDATION A1).
+    expect(screen.getAllByText('Current: Location').length).toBeGreaterThan(0);
     rerender(
       <AssistProgress
         progress={running({ currentCategory: 'Rule', processedCategories: 2, totalCategories: 5 })}
@@ -153,7 +153,8 @@ describe('AssistProgress', () => {
     const { rerender } = render(
       <AssistProgress progress={running({ currentEntityType: 'Location' })} dataType="reference" translations={T()} />,
     );
-    expect(screen.getByText('tr.processing(Location)')).toBeInTheDocument();
+    // getAllByText: same defect-1 duplicate as above; A1 (P3) collapses it.
+    expect(screen.getAllByText('tr.processing(Location)').length).toBeGreaterThan(0);
     rerender(
       <AssistProgress progress={running({ currentCategory: 'Rule' })} dataType="tag" translations={T()} />,
     );
@@ -189,19 +190,6 @@ describe('AssistProgress', () => {
     expect(screen.queryByLabelText('Dismiss')).not.toBeInTheDocument();
   });
 
-  it('terminal stages never render a blank status line, and never an English one', () => {
-    // JobProgress.message is required but can be '' — a terminal display with
-    // no text at all is worse than a generic word, but that word must be the
-    // caller's translated one.
-    const { rerender } = render(
-      <AssistProgress progress={running({ stage: 'complete', message: '' })} dataType="reference" translations={T()} />,
-    );
-    expect(screen.getByText('tr.complete')).toBeInTheDocument();
-    rerender(
-      <AssistProgress progress={running({ stage: 'error', message: '' })} dataType="reference" translations={T()} />,
-    );
-    expect(screen.getByText('tr.failed')).toBeInTheDocument();
-  });
 
   it('renders dismiss whenever the caller offers it (WHEN is the caller\'s policy)', async () => {
     // AssistShell withholds onDismiss while the assist is running — that

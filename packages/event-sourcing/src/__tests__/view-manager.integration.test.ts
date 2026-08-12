@@ -20,7 +20,7 @@
  * The gap between `get` returning and `save` completing is wide enough for
  * concurrent handlers to interleave their reads and writes and clobber
  * each other. These tests simulate the canonical production burst — the
- * reference-detection worker emitting `mark:added` + `job:progress` +
+ * reference-detection worker emitting `mark:added` + `job:started` +
  * `job:completed` for one resource within a few milliseconds — and assert
  * that all events actually land in the final view.
  *
@@ -102,10 +102,10 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
     } as PersistedEvent;
   }
 
-  function jobProgressEvent(rid: ResourceId, percentage: number): PersistedEvent {
+  function jobStartedEvent(rid: ResourceId): PersistedEvent {
     return {
-      id: `event-job-progress-${percentage}-${uuidv4()}`,
-      type: 'job:progress',
+      id: `event-job-started-${uuidv4()}`,
+      type: 'job:started',
       timestamp: new Date().toISOString(),
       userId: userId('user1'),
       resourceId: rid,
@@ -113,7 +113,6 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
       payload: {
         jobId: 'job-test',
         jobType: 'reference-annotation',
-        percentage,
       },
     } as PersistedEvent;
   }
@@ -181,7 +180,7 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
 
   it('simulates the reference-detection worker burst without losing events', async () => {
     // The exact pattern that triggered the bug in production:
-    //   mark:added + job:progress + job:completed fired within ~5ms of each
+    //   mark:added + job:started + job:completed fired within ~5ms of each
     //   other for the same resource. Pre-fix, the non-annotation events
     //   would clobber the mark:added write and the annotation would disappear.
     const rid = resourceId('doc-burst');
@@ -190,20 +189,20 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
     await manager.materializeResource(rid, stored(created, 1), async () => [stored(created, 1)]);
 
     const mark = markAddedEvent(rid, 0);
-    const progress = jobProgressEvent(rid, 100);
+    const started = jobStartedEvent(rid);
     const complete = jobCompletedEvent(rid);
 
     const history: StoredEvent[] = [
       stored(created, 1),
       stored(mark, 2),
-      stored(progress, 3),
+      stored(started, 3),
       stored(complete, 4),
     ];
 
     // Fire all three at once — this is the race window
     await Promise.all([
       manager.materializeResource(rid, stored(mark, 2), async () => history),
-      manager.materializeResource(rid, stored(progress, 3), async () => history),
+      manager.materializeResource(rid, stored(started, 3), async () => history),
       manager.materializeResource(rid, stored(complete, 4), async () => history),
     ]);
 

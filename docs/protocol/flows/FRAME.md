@@ -111,7 +111,7 @@ If `mark.assist` is called with a `schemaId` that isn't in the projection, the d
 
 ## Migrating from earlier channel names
 
-Frame's wire channels were renamed from `mark:*` to `frame:*` when Frame was promoted to flow status. KBs created before the rename have event logs containing `"type": "mark:entity-type-added"` records under `__system__.jsonl`; the migration script at [`scripts/migrate-event-types.ts`](../../../scripts/migrate-event-types.ts) rewrites these in place to the new names. The SDK and backend reject the old channel names — there is no fallback shim — so any pre-rename event log must be migrated before the runtime can read it.
+Frame's wire channels were renamed from `mark:*` to `frame:*` when Frame was promoted to flow status. KBs created before the rename have event logs containing `"type": "mark:entity-type-added"` records under `__system__.jsonl`. The SDK and backend reject the old channel names — there is no fallback shim, and no migration tooling ships — so a pre-rename event log has to be rewritten to the current names before the runtime can read it.
 
 ## Future scope
 

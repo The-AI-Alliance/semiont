@@ -135,11 +135,14 @@ export function createMarkStateUnit(
       staleTimer = setTimeout(() => {
         staleTimer = null;
         const last = progress$.getValue();
+        // No prose here: the wire (and this state unit's output) carries
+        // codes, not sentences, and the stale notice is the UI's copy to
+        // own — it hears about the silence via `mark:assist-timeout` below.
         progress$.next({
           ...(last ?? {}),
           stage: last?.stage ?? 'analyzing',
-          message: 'Still working — no update from the annotation job for a few minutes',
-        } as JobProgress);
+          percentage: last?.percentage ?? 0,
+        });
         // The one notification the user gets. `assistingMotivation$` stays
         // set: the job is still running as far as anyone here knows.
         client.bus.get('mark:assist-timeout').next({

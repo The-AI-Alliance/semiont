@@ -34,6 +34,9 @@ const mockT = vi.fn((key: string) => {
     densitySparse: 'Sparse',
     densityDense: 'Dense',
     annotate: 'Annotate',
+    annotating: 'Annotating...',
+    complete: 'Annotation complete!',
+    failed: 'Annotation failed',
   };
   return translations[key] || key;
 });
@@ -87,14 +90,13 @@ describe('HighlightPanel + AssistSection Integration', () => {
           progress={{
             stage: 'analyzing',
             percentage: 30,
-            message: 'Analyzing text for highlights...',
           }}
           annotateMode={true}
         />
       );
 
       // Verify AssistSection received and rendered the progress
-      expect(screen.getByText('Analyzing text for highlights...')).toBeInTheDocument();
+      expect(screen.getByText('Annotating...')).toBeInTheDocument();
     });
 
     it('should pass null progress to AssistSection', () => {
@@ -138,14 +140,13 @@ describe('HighlightPanel + AssistSection Integration', () => {
           progress={{
             stage: 'complete',
             percentage: 100,
-            message: 'Complete! Created 14 highlights',
           }}
           annotateMode={true}
         />
       );
 
       // Progress should still be visible
-      expect(screen.getByText('Complete! Created 14 highlights')).toBeInTheDocument();
+      expect(screen.getByText('Annotation complete!')).toBeInTheDocument();
       // Form should NOT be visible
       expect(screen.queryByPlaceholderText('Enter custom instructions...')).not.toBeInTheDocument();
     });
@@ -159,7 +160,6 @@ describe('HighlightPanel + AssistSection Integration', () => {
           progress={{
             stage: 'analyzing',
             percentage: 0,
-            message: 'Analyzing...',
             requestParams: [
               { label: 'Instructions', value: 'Find important points' },
               { label: 'Density', value: '5' },
@@ -213,13 +213,12 @@ describe('HighlightPanel + AssistSection Integration', () => {
           progress={{
             stage: 'analyzing',
             percentage: 0,
-            message: 'Analyzing...',
           }}
           annotateMode={true}
         />
       );
 
-      expect(screen.getByText('Analyzing...')).toBeInTheDocument();
+      expect(screen.getByText('Annotating...')).toBeInTheDocument();
 
       // Switch to browse mode
       rerender(
@@ -230,14 +229,13 @@ describe('HighlightPanel + AssistSection Integration', () => {
           progress={{
             stage: 'analyzing',
             percentage: 0,
-            message: 'Analyzing...',
           }}
           annotateMode={false}
         />
       );
 
       // Progress should be hidden
-      expect(screen.queryByText('Analyzing...')).not.toBeInTheDocument();
+      expect(screen.queryByText('Annotating...')).not.toBeInTheDocument();
     });
   });
 
@@ -266,14 +264,13 @@ describe('HighlightPanel + AssistSection Integration', () => {
           progress={{
             stage: 'complete',
             percentage: 100,
-            message: 'Done!',
           }}
           annotateMode={true}
         />
       );
 
       // Progress should be visible
-      expect(screen.getByText('Done!')).toBeInTheDocument();
+      expect(screen.getByText('Annotation complete!')).toBeInTheDocument();
       // Form should be hidden
       expect(screen.queryByPlaceholderText('Enter custom instructions...')).not.toBeInTheDocument();
     });
@@ -287,13 +284,14 @@ describe('HighlightPanel + AssistSection Integration', () => {
           progress={{
             stage: 'started',
             percentage: 0,
-            message: 'Starting...',
           }}
           annotateMode={true}
         />
       );
 
-      expect(screen.getByText('Starting...')).toBeInTheDocument();
+      // Stage is the observable across non-terminal updates now that the
+      // status text is a single translated string (the wire carries codes).
+      expect(document.querySelector('.semiont-annotation-progress')).toHaveAttribute('data-status', 'started');
 
       // Update to analyzing
       rerender(
@@ -304,14 +302,13 @@ describe('HighlightPanel + AssistSection Integration', () => {
           progress={{
             stage: 'analyzing',
             percentage: 50,
-            message: 'Analyzing...',
           }}
           annotateMode={true}
         />
       );
 
-      expect(screen.queryByText('Starting...')).not.toBeInTheDocument();
-      expect(screen.getByText('Analyzing...')).toBeInTheDocument();
+      expect(document.querySelector('.semiont-annotation-progress')).toHaveAttribute('data-status', 'analyzing');
+      expect(screen.getByText('Annotating...')).toBeInTheDocument();
 
       // Update to complete
       rerender(
@@ -322,14 +319,13 @@ describe('HighlightPanel + AssistSection Integration', () => {
           progress={{
             stage: 'complete',
             percentage: 100,
-            message: 'Complete!',
           }}
           annotateMode={true}
         />
       );
 
-      expect(screen.queryByText('Analyzing...')).not.toBeInTheDocument();
-      expect(screen.getByText('Complete!')).toBeInTheDocument();
+      expect(screen.queryByText('Annotating...')).not.toBeInTheDocument();
+      expect(screen.getByText('Annotation complete!')).toBeInTheDocument();
     });
   });
 
@@ -343,14 +339,13 @@ describe('HighlightPanel + AssistSection Integration', () => {
           progress={{
             stage: 'analyzing',
             percentage: 0,
-            message: 'Analyzing...',
           }}
           annotateMode={true}
         />
       );
 
       // Both progress and highlights should be visible
-      expect(screen.getByText('Analyzing...')).toBeInTheDocument();
+      expect(screen.getByText('Annotating...')).toBeInTheDocument();
       expect(screen.getByText('Highlights')).toBeInTheDocument();
     });
 

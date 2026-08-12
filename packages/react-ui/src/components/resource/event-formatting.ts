@@ -81,7 +81,6 @@ export function formatEventType(type: PersistedEventType, t: TranslateFn, payloa
 
     case 'job:completed':
     case 'job:started':
-    case 'job:progress':
     case 'job:failed':
       return t('jobEvent');
 
@@ -128,7 +127,6 @@ export function getEventEmoji(type: PersistedEventType, payload?: any): string {
     case 'job:completed':
       return '🔗';  // Link emoji for linked document creation
     case 'job:started':
-    case 'job:progress':
       return '⚙️';  // Gear for job processing
     case 'job:failed':
       return '❌';  // X mark for failed jobs
@@ -276,7 +274,6 @@ export function getEventDisplayContent(
     }
 
     case 'job:started':
-    case 'job:progress':
     case 'job:failed':
     case 'yield:representation-added':
     case 'yield:representation-removed':

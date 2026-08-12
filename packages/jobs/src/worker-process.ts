@@ -290,16 +290,21 @@ async function handleJobInner(
     ready = source;
   }
 
-  const onProgress: OnProgress = (percentage, message, stage, extra) => {
+  const onProgress: OnProgress = (percentage, _message, stage, extra) => {
     // Progress doubles as the worker's liveness heartbeat: it feeds the
     // stall watchdog here and refreshes the backend janitor's mtime
     // heartbeat via the job:report-progress mirror.
+    //
+    // The prose `_message` arg is dropped: the wire carries a code + typed
+    // params (`JobProgress.message`), and the processors switch to emitting
+    // codes in the next arc (ASSIST-PROGRESS-CONSOLIDATION P2) — until then
+    // progress events carry stage/percentage/extra and no message.
     adapter.touchActivity();
     emitEvent(session, 'job:report-progress', {
       ...lifecycleBase,
       percentage,
       progress: {
-        stage, percentage, message,
+        stage, percentage,
         ...(annotationId ? { annotationId } : {}),
         ...(extra ?? {}),
       },

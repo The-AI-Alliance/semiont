@@ -314,12 +314,14 @@ describe('createMarkStateUnit', () => {
 
     vi.advanceTimersByTime(ASSIST_SILENCE_MS);
 
-    // Still assisting — and the UI is told WHY it has gone quiet rather than
-    // being handed a blank.
+    // Still assisting — the silence tick refreshes progress$ (no prose: the
+    // SDK emits codes or nothing; the stale-notice copy is the UI's, driven
+    // by the mark:assist-timeout event asserted elsewhere in this file).
     expect(motiv[motiv.length - 1]).toBe('highlighting');
-    const last = prog[prog.length - 1] as { message?: string } | null;
+    const last = prog[prog.length - 1] as { stage?: string; message?: unknown } | null;
     expect(last).not.toBeNull();
-    expect(String(last?.message)).toMatch(/no (update|signal)/i);
+    expect(last?.stage).toBe('analyzing');
+    expect(last?.message).toBeUndefined();
 
     stateUnit.dispose();
     vi.useRealTimers();

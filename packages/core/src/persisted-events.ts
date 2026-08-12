@@ -45,7 +45,6 @@ type PersistedEventCatalog = {
   'frame:entity-type-added': components['schemas']['EntityTypeAddedPayload'];
   'frame:tag-schema-added': components['schemas']['TagSchemaAddedPayload'];
   'job:started': components['schemas']['JobStartedPayload'];
-  'job:progress': components['schemas']['JobProgressPayload'];
   'job:completed': components['schemas']['JobCompletedPayload'];
   'job:failed': components['schemas']['JobFailedPayload'];
 };
@@ -95,7 +94,6 @@ export const PERSISTED_EVENT_TYPES = [
   'frame:entity-type-added',
   'frame:tag-schema-added',
   'job:started',
-  'job:progress',
   'job:completed',
   'job:failed',
 ] as const satisfies readonly PersistedEventType[];

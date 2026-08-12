@@ -119,25 +119,22 @@ export function AssistProgress({
         {progress.stage === 'complete' ? (
           <div className="semiont-annotation-progress__message">
             <span className="semiont-annotation-progress__icon">✅</span>
-            {/* Same precedence as 'error' below: the job's own message carries
-                detail no static string can ("Created 14 highlights"), and
-                `tr.complete` covers the required-but-possibly-'' case so a
-                terminal line is never blank. NOTE: job messages are composed
-                backend-side and are not localized — a real gap, but a backend
-                one; see ASSIST-SURFACE-WARTS watch-items. */}
-            <span>{progress.message || tr.complete}</span>
+            {/* Terminal copy is the client's own translated string. The wire
+                carries a code + typed params (`progress.message`), not prose;
+                rendering the coded copy is the consolidation arc's P3
+                (ASSIST-PROGRESS-CONSOLIDATION). */}
+            <span>{tr.complete}</span>
           </div>
         ) : progress.stage === 'error' ? (
           <div className="semiont-annotation-progress__message">
             <span className="semiont-annotation-progress__icon">❌</span>
-            <span>{progress.message || tr.failed}</span>
+            <span>{tr.failed}</span>
           </div>
         ) : (
           <div className="semiont-annotation-progress__message">
             <span className="semiont-annotation-progress__icon">✨</span>
             <span>
-              {progress.message
-                || (progress.currentEntityType ? currentLabel(progress.currentEntityType) : tr.inProgress)}
+              {progress.currentEntityType ? currentLabel(progress.currentEntityType) : tr.inProgress}
             </span>
           </div>
         )}

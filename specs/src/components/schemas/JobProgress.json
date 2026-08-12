@@ -4,7 +4,10 @@
   "properties": {
     "stage": { "type": "string", "description": "Current processing stage (e.g. 'analyzing', 'creating', 'complete', 'error')" },
     "percentage": { "type": "number", "description": "Completion percentage (0-100)" },
-    "message": { "type": "string", "description": "Human-readable progress message" },
+    "message": {
+      "$ref": "./JobProgressMessage.json",
+      "description": "What the job is doing right now, as a code plus typed params; the client renders the sentence. Optional: pure percentage heartbeats carry none, and consumers render nothing message-shaped when it is absent (this is also the whole tolerance story for pre-2026-08 persisted events that carried prose here)."
+    },
     "annotationId": {
       "type": "string",
       "description": "Annotation this job is attached to, when applicable. Echoed inside JobProgress (in addition to the outer command envelope) so consumers that only see the inner progress object (e.g. client.yield.fromContext's Observable) can still route visual feedback to a specific annotation."
@@ -42,5 +45,5 @@
       }
     }
   },
-  "required": ["stage", "percentage", "message"]
+  "required": ["stage", "percentage"]
 }
