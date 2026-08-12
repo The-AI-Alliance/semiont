@@ -117,9 +117,9 @@ describe('AssistSection', () => {
       );
 
       // Check for icon and status text
-      const progressDiv = screen.getByText('Annotating...').closest('.semiont-annotation-progress__message');
+      const progressDiv = screen.getByText('Annotating...').closest('.semiont-assist-progress__status');
       expect(progressDiv).toBeInTheDocument();
-      expect(progressDiv?.querySelector('.semiont-annotation-progress__icon')).toBeInTheDocument();
+      expect(progressDiv?.querySelector('.semiont-assist-progress__icon')).toBeInTheDocument();
     });
 
     it('should render request parameters when provided', () => {
@@ -482,7 +482,7 @@ describe('AssistSection', () => {
 
       // Renders the progress section with the translated status line — the
       // wire carries a code (or nothing), never a sentence to fall back on.
-      const progressDiv = document.querySelector('.semiont-annotation-progress');
+      const progressDiv = document.querySelector('.semiont-assist-progress');
       expect(progressDiv).toBeInTheDocument();
     });
 

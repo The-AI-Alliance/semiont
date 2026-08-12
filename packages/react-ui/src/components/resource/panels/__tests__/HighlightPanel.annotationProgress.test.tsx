@@ -307,7 +307,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
       // Stage is the observable across non-terminal updates now that the
       // status text is a single translated string (the wire carries codes).
-      expect(document.querySelector('.semiont-annotation-progress')).toHaveAttribute('data-status', 'started');
+      expect(document.querySelector('.semiont-assist-progress')).toHaveAttribute('data-ended', 'false');
 
       // Update to analyzing
       rerender(
@@ -323,7 +323,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
         />
       );
 
-      expect(document.querySelector('.semiont-annotation-progress')).toHaveAttribute('data-status', 'analyzing');
+      expect(document.querySelector('.semiont-assist-progress')).toHaveAttribute('data-ended', 'false');
       expect(screen.getByText('Annotating...')).toBeInTheDocument();
 
       // Update to complete
