@@ -43,7 +43,7 @@ export function createMockEmbeddingProvider(model = 'mock-model'): EmbeddingProv
   return {
     embed: vi.fn().mockImplementation(async (text: string) => deterministicEmbed(text)),
     embedBatch: vi.fn().mockImplementation(async (texts: string[]) => texts.map(deterministicEmbed)),
-    dimensions: vi.fn().mockReturnValue(4),
+    dimensions: vi.fn().mockResolvedValue(4),
     model: vi.fn().mockReturnValue(model),
   };
 }

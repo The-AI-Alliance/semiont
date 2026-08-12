@@ -168,7 +168,7 @@ async function main() {
   });
   logger.info('Embedding provider ready', { type: embeddingType, model: embeddingModel });
 
-  const dimensions = embeddingProvider.dimensions();
+  const dimensions = await embeddingProvider.dimensions();
   const vectorStore = await createVectorStore({
     type: 'qdrant',
     host: qdrantHost,

@@ -162,6 +162,8 @@ async function createKnowledgeSystemFromConfig(
       'Embedding provider',
       createEmbeddingProvider(embeddingConfig),
     );
+    logger.info('Discovering embedding dimensions', { model: embeddingConfig.model });
+    const dimensions = await withStartupTimeout('Embedding dimensions', embeddingProvider.dimensions());
     logger.info('Connecting to vector store', { type: vectorsConfig.type ?? 'qdrant' });
     vectorStore = await withStartupTimeout(
       'Vector store',
@@ -169,7 +171,7 @@ async function createKnowledgeSystemFromConfig(
         type: vectorsConfig.type ?? 'qdrant',
         host: vectorsConfig.host,
         port: vectorsConfig.port,
-        dimensions: embeddingProvider.dimensions(),
+        dimensions,
       }),
     );
     logger.info('Vector search initialized', {

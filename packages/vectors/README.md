@@ -43,6 +43,8 @@ Brute-force cosine similarity. No external dependencies.
 
 ## Embedding Providers
 
+Vector dimensionality is intrinsic to the embedding model, so it is discovered from the provider itself — `await provider.dimensions()` embeds a probe string once per instance and measures it. There is no hand-maintained model→width table: any model the provider serves works, and an unreachable provider fails loudly instead of yielding a wrong-width index.
+
 ### Voyage AI (cloud)
 
 ```typescript
@@ -50,24 +52,20 @@ import { createEmbeddingProvider } from '@semiont/vectors';
 
 const provider = await createEmbeddingProvider({
   type: 'voyage',
-  model: 'voyage-3',       // 1024 dimensions
+  model: 'voyage-3',
   apiKey: '...',
 });
 ```
-
-Models: `voyage-3` (1024), `voyage-3-lite` (512), `voyage-code-3`, `voyage-finance-2`, `voyage-law-2`.
 
 ### Ollama (local)
 
 ```typescript
 const provider = await createEmbeddingProvider({
   type: 'ollama',
-  model: 'nomic-embed-text',  // 768 dimensions
+  model: 'nomic-embed-text',
   baseURL: 'http://localhost:11434',
 });
 ```
-
-Models: `nomic-embed-text` (768), `all-minilm` (384), `mxbai-embed-large` (1024), `snowflake-arctic-embed` (1024).
 
 ## Text Chunking
 

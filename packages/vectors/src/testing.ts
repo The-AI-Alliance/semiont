@@ -34,7 +34,7 @@ export class MockEmbeddingProvider implements EmbeddingProvider {
     return texts.map(t => this.deterministicVector(t));
   }
 
-  dimensions(): number {
+  async dimensions(): Promise<number> {
     return this.dims;
   }
 

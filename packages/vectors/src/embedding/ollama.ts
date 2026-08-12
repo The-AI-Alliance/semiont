@@ -12,15 +12,9 @@ export interface OllamaEmbeddingConfig {
   baseURL?: string;
 }
 
-const OLLAMA_DIMENSIONS: Record<string, number> = {
-  'nomic-embed-text': 768,
-  'all-minilm': 384,
-  'mxbai-embed-large': 1024,
-  'snowflake-arctic-embed': 1024,
-};
-
 export class OllamaEmbeddingProvider implements EmbeddingProvider {
   private config: OllamaEmbeddingConfig;
+  private dimensionsPromise?: Promise<number>;
 
   constructor(config: OllamaEmbeddingConfig) {
     this.config = config;
@@ -69,8 +63,27 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
     return json.embeddings;
   }
 
-  dimensions(): number {
-    return OLLAMA_DIMENSIONS[this.config.model] ?? 768;
+  dimensions(): Promise<number> {
+    if (!this.dimensionsPromise) {
+      this.dimensionsPromise = this.measureDimensions().catch((err: unknown) => {
+        // Never cache a failed discovery — a transient outage would otherwise
+        // pin every future call to the same rejection.
+        this.dimensionsPromise = undefined;
+        throw err;
+      });
+    }
+    return this.dimensionsPromise;
+  }
+
+  private async measureDimensions(): Promise<number> {
+    // Dimensionality is intrinsic to the model, so the model is the
+    // authority: embed a probe and measure it. A hand-maintained table goes
+    // stale the day a new model ships and silently mis-sizes the index.
+    const probe = await this.embed('dimension probe');
+    if (!Array.isArray(probe) || probe.length === 0) {
+      throw new Error(`Ollama returned no embedding for dimension probe of model '${this.config.model}'`);
+    }
+    return probe.length;
   }
 
   model(): string {

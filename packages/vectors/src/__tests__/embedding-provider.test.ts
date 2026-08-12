@@ -37,8 +37,8 @@ describe('MockEmbeddingProvider', () => {
     vecs.forEach(v => expect(v).toHaveLength(8));
   });
 
-  it('reports correct dimensions', () => {
-    expect(provider.dimensions()).toBe(8);
+  it('reports correct dimensions', async () => {
+    expect(await provider.dimensions()).toBe(8);
   });
 
   it('reports correct model name', () => {
