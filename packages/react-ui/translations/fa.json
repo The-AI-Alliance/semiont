@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "بستن",
-    "paramsTitle": "پارامترهای درخواست:",
-    "processing": "فعلی: {{label}}"
+    "codeLoading": "در حال بارگذاری…",
+    "codeAnalyzing": "در حال نشانه‌گذاری…",
+    "codeAnalyzingTags": "نشانه‌گذاری برچسب‌ها…",
+    "codeDetectingEntities": "در حال نشانه‌گذاری…",
+    "codeCreatingAnnotations": "ایجاد {{count}} حاشیه‌نویسی…",
+    "codeCreatingTagAnnotations": "ایجاد {{count}} برچسب…",
+    "codeCompleteCreated": "{{count}} {{kind}} ایجاد شد",
+    "codeGeneratingResource": "در حال تولید…",
+    "codeCreatingResource": "ایجاد منبع…",
+    "kindHighlight": "برجسته‌سازی",
+    "kindComment": "دیدگاه",
+    "kindAssessment": "ارزیابی",
+    "kindReference": "ارجاع",
+    "kindTag": "برچسب",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} از {{total}})"
   },
   "PdfViewer": {
     "loadFailed": "بارگذاری PDF ناموفق بود",

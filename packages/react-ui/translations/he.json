@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "סגור",
-    "paramsTitle": "פרמטרים של הבקשה:",
-    "processing": "נוכחי: {{label}}"
+    "codeLoading": "טוען…",
+    "codeAnalyzing": "מסמן…",
+    "codeAnalyzingTags": "מסמן תגיות…",
+    "codeDetectingEntities": "מסמן…",
+    "codeCreatingAnnotations": "יוצר {{count}} הערות…",
+    "codeCreatingTagAnnotations": "יוצר {{count}} תגיות…",
+    "codeCompleteCreated": "נוצרו {{count}} {{kind}}",
+    "codeGeneratingResource": "מייצר…",
+    "codeCreatingResource": "יוצר את המשאב…",
+    "kindHighlight": "הדגשות",
+    "kindComment": "הערות",
+    "kindAssessment": "הערכות",
+    "kindReference": "הפניות",
+    "kindTag": "תגיות",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} מתוך {{total}})"
   },
   "PdfViewer": {
     "loadFailed": "טעינת ה-PDF נכשלה",

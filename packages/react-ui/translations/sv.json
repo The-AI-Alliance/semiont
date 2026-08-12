@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "Stäng",
-    "paramsTitle": "Begäranparametrar:",
-    "processing": "Aktuell: {{label}}"
+    "codeLoading": "Läser in…",
+    "codeAnalyzing": "Märker upp…",
+    "codeAnalyzingTags": "Märker upp taggar…",
+    "codeDetectingEntities": "Märker upp…",
+    "codeCreatingAnnotations": "Skapar {{count}} annoteringar…",
+    "codeCreatingTagAnnotations": "Skapar {{count}} taggar…",
+    "codeCompleteCreated": "Skapade {{count}} {{kind}}",
+    "codeGeneratingResource": "Genererar…",
+    "codeCreatingResource": "Skapar resursen…",
+    "kindHighlight": "markeringar",
+    "kindComment": "kommentarer",
+    "kindAssessment": "bedömningar",
+    "kindReference": "referenser",
+    "kindTag": "taggar",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} av {{total}})"
   },
   "PdfViewer": {
     "loadFailed": "Det gick inte att läsa in PDF:en",

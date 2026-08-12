@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "Închide",
-    "paramsTitle": "Parametrii cererii:",
-    "processing": "Curent: {{label}}"
+    "codeLoading": "Se încarcă…",
+    "codeAnalyzing": "Se marchează…",
+    "codeAnalyzingTags": "Se marchează etichetele…",
+    "codeDetectingEntities": "Se marchează…",
+    "codeCreatingAnnotations": "Se creează {{count}} adnotări…",
+    "codeCreatingTagAnnotations": "Se creează {{count}} etichete…",
+    "codeCompleteCreated": "S-au creat {{count}} {{kind}}",
+    "codeGeneratingResource": "Se generează…",
+    "codeCreatingResource": "Se creează resursa…",
+    "kindHighlight": "evidențieri",
+    "kindComment": "comentarii",
+    "kindAssessment": "evaluări",
+    "kindReference": "referințe",
+    "kindTag": "etichete",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} din {{total}})"
   },
   "PdfViewer": {
     "loadFailed": "Încărcarea PDF-ului a eșuat",

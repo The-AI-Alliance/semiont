@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "Zavřít",
-    "paramsTitle": "Parametry požadavku:",
-    "processing": "Aktuální: {{label}}"
+    "codeLoading": "Načítání…",
+    "codeAnalyzing": "Označování…",
+    "codeAnalyzingTags": "Označování štítků…",
+    "codeDetectingEntities": "Označování…",
+    "codeCreatingAnnotations": "Vytváření {{count}} anotací…",
+    "codeCreatingTagAnnotations": "Vytváření {{count}} štítků…",
+    "codeCompleteCreated": "Vytvořeno {{count}} {{kind}}",
+    "codeGeneratingResource": "Generování…",
+    "codeCreatingResource": "Vytváření zdroje…",
+    "kindHighlight": "zvýraznění",
+    "kindComment": "komentářů",
+    "kindAssessment": "hodnocení",
+    "kindReference": "odkazů",
+    "kindTag": "štítků",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} z {{total}})"
   },
   "PdfViewer": {
     "loadFailed": "Nepodařilo se načíst PDF",

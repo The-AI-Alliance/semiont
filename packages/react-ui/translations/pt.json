@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "Fechar",
-    "paramsTitle": "Parâmetros da solicitação:",
-    "processing": "Atual: {{label}}"
+    "codeLoading": "A carregar…",
+    "codeAnalyzing": "A anotar…",
+    "codeAnalyzingTags": "A anotar etiquetas…",
+    "codeDetectingEntities": "A anotar…",
+    "codeCreatingAnnotations": "A criar {{count}} anotações…",
+    "codeCreatingTagAnnotations": "A criar {{count}} etiquetas…",
+    "codeCompleteCreated": "{{count}} {{kind}} criados",
+    "codeGeneratingResource": "A gerar…",
+    "codeCreatingResource": "A criar o recurso…",
+    "kindHighlight": "destaques",
+    "kindComment": "comentários",
+    "kindAssessment": "avaliações",
+    "kindReference": "referências",
+    "kindTag": "etiquetas",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} de {{total}})"
   },
   "PdfViewer": {
     "loadFailed": "Falha ao carregar o PDF",

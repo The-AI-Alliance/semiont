@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "닫기",
-    "paramsTitle": "요청 매개변수:",
-    "processing": "현재: {{label}}"
+    "codeLoading": "불러오는 중…",
+    "codeAnalyzing": "표시하는 중…",
+    "codeAnalyzingTags": "태그를 표시하는 중…",
+    "codeDetectingEntities": "표시하는 중…",
+    "codeCreatingAnnotations": "주석 {{count}}개 생성 중…",
+    "codeCreatingTagAnnotations": "태그 {{count}}개 생성 중…",
+    "codeCompleteCreated": "{{kind}} {{count}}개 생성됨",
+    "codeGeneratingResource": "생성 중…",
+    "codeCreatingResource": "리소스 생성 중…",
+    "kindHighlight": "하이라이트",
+    "kindComment": "댓글",
+    "kindAssessment": "평가",
+    "kindReference": "참조",
+    "kindTag": "태그",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{total}}개 중 {{done}}번째)"
   },
   "PdfViewer": {
     "loadFailed": "PDF를 로드하지 못했습니다",

@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "إغلاق",
-    "paramsTitle": "معاملات الطلب:",
-    "processing": "الحالي: {{label}}"
+    "codeLoading": "جارٍ التحميل…",
+    "codeAnalyzing": "جارٍ التوسيم…",
+    "codeAnalyzingTags": "توسيم الوسوم…",
+    "codeDetectingEntities": "جارٍ التوسيم…",
+    "codeCreatingAnnotations": "إنشاء {{count}} تعليقات توضيحية…",
+    "codeCreatingTagAnnotations": "إنشاء {{count}} وسوم…",
+    "codeCompleteCreated": "تم إنشاء {{count}} {{kind}}",
+    "codeGeneratingResource": "جارٍ التوليد…",
+    "codeCreatingResource": "إنشاء المورد…",
+    "kindHighlight": "تظليلات",
+    "kindComment": "تعليقات",
+    "kindAssessment": "تقييمات",
+    "kindReference": "مراجع",
+    "kindTag": "وسوم",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} من {{total}})"
   },
   "PdfViewer": {
     "loadFailed": "فشل تحميل ملف PDF",

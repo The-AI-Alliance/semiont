@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "ปิด",
-    "paramsTitle": "พารามิเตอร์คำขอ:",
-    "processing": "ปัจจุบัน: {{label}}"
+    "codeLoading": "กำลังโหลด…",
+    "codeAnalyzing": "กำลังทำเครื่องหมาย…",
+    "codeAnalyzingTags": "กำลังทำเครื่องหมายแท็ก…",
+    "codeDetectingEntities": "กำลังทำเครื่องหมาย…",
+    "codeCreatingAnnotations": "กำลังสร้างคำอธิบายประกอบ {{count}} รายการ…",
+    "codeCreatingTagAnnotations": "กำลังสร้างแท็ก {{count}} รายการ…",
+    "codeCompleteCreated": "สร้าง{{kind}} {{count}} รายการแล้ว",
+    "codeGeneratingResource": "กำลังสร้าง…",
+    "codeCreatingResource": "กำลังสร้างทรัพยากร…",
+    "kindHighlight": "ไฮไลต์",
+    "kindComment": "ความคิดเห็น",
+    "kindAssessment": "การประเมิน",
+    "kindReference": "การอ้างอิง",
+    "kindTag": "แท็ก",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} จาก {{total}})"
   },
   "PdfViewer": {
     "loadFailed": "โหลด PDF ไม่สำเร็จ",

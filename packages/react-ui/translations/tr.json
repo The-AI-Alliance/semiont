@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "Kapat",
-    "paramsTitle": "İstek parametreleri:",
-    "processing": "Mevcut: {{label}}"
+    "codeLoading": "Yükleniyor…",
+    "codeAnalyzing": "İşaretleniyor…",
+    "codeAnalyzingTags": "Etiketler işaretleniyor…",
+    "codeDetectingEntities": "İşaretleniyor…",
+    "codeCreatingAnnotations": "{{count}} açıklama oluşturuluyor…",
+    "codeCreatingTagAnnotations": "{{count}} etiket oluşturuluyor…",
+    "codeCompleteCreated": "{{count}} {{kind}} oluşturuldu",
+    "codeGeneratingResource": "Oluşturuluyor…",
+    "codeCreatingResource": "Kaynak oluşturuluyor…",
+    "kindHighlight": "vurgu",
+    "kindComment": "yorum",
+    "kindAssessment": "değerlendirme",
+    "kindReference": "referans",
+    "kindTag": "etiket",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{total}} içinden {{done}})"
   },
   "PdfViewer": {
     "loadFailed": "PDF yüklenemedi",

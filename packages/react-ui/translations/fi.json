@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "Sulje",
-    "paramsTitle": "Pyynnön parametrit:",
-    "processing": "Nykyinen: {{label}}"
+    "codeLoading": "Ladataan…",
+    "codeAnalyzing": "Merkitään…",
+    "codeAnalyzingTags": "Merkitään tunnisteita…",
+    "codeDetectingEntities": "Merkitään…",
+    "codeCreatingAnnotations": "Luodaan {{count}} merkintää…",
+    "codeCreatingTagAnnotations": "Luodaan {{count}} tunnistetta…",
+    "codeCompleteCreated": "Luotiin {{count}} {{kind}}",
+    "codeGeneratingResource": "Luodaan…",
+    "codeCreatingResource": "Luodaan resurssia…",
+    "kindHighlight": "korostusta",
+    "kindComment": "kommenttia",
+    "kindAssessment": "arviota",
+    "kindReference": "viitettä",
+    "kindTag": "tunnistetta",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}}/{{total}})"
   },
   "PdfViewer": {
     "loadFailed": "PDF-tiedoston lataus epäonnistui",

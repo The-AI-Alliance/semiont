@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "बंद करें",
-    "paramsTitle": "अनुरोध पैरामीटर:",
-    "processing": "वर्तमान: {{label}}"
+    "codeLoading": "लोड हो रहा है…",
+    "codeAnalyzing": "चिह्नित किया जा रहा है…",
+    "codeAnalyzingTags": "टैग चिह्नित किए जा रहे हैं…",
+    "codeDetectingEntities": "चिह्नित किया जा रहा है…",
+    "codeCreatingAnnotations": "{{count}} एनोटेशन बनाए जा रहे हैं…",
+    "codeCreatingTagAnnotations": "{{count}} टैग बनाए जा रहे हैं…",
+    "codeCompleteCreated": "{{count}} {{kind}} बनाए गए",
+    "codeGeneratingResource": "बनाया जा रहा है…",
+    "codeCreatingResource": "संसाधन बनाया जा रहा है…",
+    "kindHighlight": "हाइलाइट",
+    "kindComment": "टिप्पणियाँ",
+    "kindAssessment": "आकलन",
+    "kindReference": "संदर्भ",
+    "kindTag": "टैग",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{total}} में से {{done}})"
   },
   "PdfViewer": {
     "loadFailed": "PDF लोड नहीं हो सका",

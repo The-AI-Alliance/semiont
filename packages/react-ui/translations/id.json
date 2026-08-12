@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "Tutup",
-    "paramsTitle": "Parameter permintaan:",
-    "processing": "Saat ini: {{label}}"
+    "codeLoading": "Memuat…",
+    "codeAnalyzing": "Menandai…",
+    "codeAnalyzingTags": "Menandai tag…",
+    "codeDetectingEntities": "Menandai…",
+    "codeCreatingAnnotations": "Membuat {{count}} anotasi…",
+    "codeCreatingTagAnnotations": "Membuat {{count}} tag…",
+    "codeCompleteCreated": "{{count}} {{kind}} dibuat",
+    "codeGeneratingResource": "Membuat…",
+    "codeCreatingResource": "Membuat sumber daya…",
+    "kindHighlight": "sorotan",
+    "kindComment": "komentar",
+    "kindAssessment": "penilaian",
+    "kindReference": "referensi",
+    "kindTag": "tag",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} dari {{total}})"
   },
   "PdfViewer": {
     "loadFailed": "Gagal memuat PDF",

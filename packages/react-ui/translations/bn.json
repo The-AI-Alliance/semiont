@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "বন্ধ করুন",
-    "paramsTitle": "অনুরোধের প্যারামিটার:",
-    "processing": "বর্তমান: {{label}}"
+    "codeLoading": "লোড হচ্ছে…",
+    "codeAnalyzing": "চিহ্নিত করা হচ্ছে…",
+    "codeAnalyzingTags": "ট্যাগ চিহ্নিত করা হচ্ছে…",
+    "codeDetectingEntities": "চিহ্নিত করা হচ্ছে…",
+    "codeCreatingAnnotations": "{{count}}টি টীকা তৈরি হচ্ছে…",
+    "codeCreatingTagAnnotations": "{{count}}টি ট্যাগ তৈরি হচ্ছে…",
+    "codeCompleteCreated": "{{count}}টি {{kind}} তৈরি হয়েছে",
+    "codeGeneratingResource": "তৈরি হচ্ছে…",
+    "codeCreatingResource": "রিসোর্স তৈরি হচ্ছে…",
+    "kindHighlight": "হাইলাইট",
+    "kindComment": "মন্তব্য",
+    "kindAssessment": "মূল্যায়ন",
+    "kindReference": "রেফারেন্স",
+    "kindTag": "ট্যাগ",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{total}}টির {{done}})"
   },
   "PdfViewer": {
     "loadFailed": "PDF লোড করা যায়নি",

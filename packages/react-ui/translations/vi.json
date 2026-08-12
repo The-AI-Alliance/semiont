@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "Đóng",
-    "paramsTitle": "Tham số yêu cầu:",
-    "processing": "Hiện tại: {{label}}"
+    "codeLoading": "Đang tải…",
+    "codeAnalyzing": "Đang đánh dấu…",
+    "codeAnalyzingTags": "Đang đánh dấu thẻ…",
+    "codeDetectingEntities": "Đang đánh dấu…",
+    "codeCreatingAnnotations": "Đang tạo {{count}} chú thích…",
+    "codeCreatingTagAnnotations": "Đang tạo {{count}} thẻ…",
+    "codeCompleteCreated": "Đã tạo {{count}} {{kind}}",
+    "codeGeneratingResource": "Đang tạo…",
+    "codeCreatingResource": "Đang tạo tài nguyên…",
+    "kindHighlight": "đánh dấu",
+    "kindComment": "bình luận",
+    "kindAssessment": "đánh giá",
+    "kindReference": "tham chiếu",
+    "kindTag": "thẻ",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}}/{{total}})"
   },
   "PdfViewer": {
     "loadFailed": "Không tải được PDF",

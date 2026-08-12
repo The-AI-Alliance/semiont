@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "Sluiten",
-    "paramsTitle": "Aanvraagparameters:",
-    "processing": "Huidig: {{label}}"
+    "codeLoading": "Laden…",
+    "codeAnalyzing": "Annoteren…",
+    "codeAnalyzingTags": "Tags annoteren…",
+    "codeDetectingEntities": "Annoteren…",
+    "codeCreatingAnnotations": "{{count}} annotaties maken…",
+    "codeCreatingTagAnnotations": "{{count}} tags maken…",
+    "codeCompleteCreated": "{{count}} {{kind}} gemaakt",
+    "codeGeneratingResource": "Genereren…",
+    "codeCreatingResource": "Bron maken…",
+    "kindHighlight": "markeringen",
+    "kindComment": "opmerkingen",
+    "kindAssessment": "beoordelingen",
+    "kindReference": "verwijzingen",
+    "kindTag": "tags",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} van {{total}})"
   },
   "PdfViewer": {
     "loadFailed": "Kan de PDF niet laden",

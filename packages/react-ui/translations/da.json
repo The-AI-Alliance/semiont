@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "Luk",
-    "paramsTitle": "Anmodningsparametre:",
-    "processing": "Aktuel: {{label}}"
+    "codeLoading": "Indlæser…",
+    "codeAnalyzing": "Markerer…",
+    "codeAnalyzingTags": "Markerer tags…",
+    "codeDetectingEntities": "Markerer…",
+    "codeCreatingAnnotations": "Opretter {{count}} annotationer…",
+    "codeCreatingTagAnnotations": "Opretter {{count}} tags…",
+    "codeCompleteCreated": "Oprettede {{count}} {{kind}}",
+    "codeGeneratingResource": "Genererer…",
+    "codeCreatingResource": "Opretter ressourcen…",
+    "kindHighlight": "fremhævninger",
+    "kindComment": "kommentarer",
+    "kindAssessment": "vurderinger",
+    "kindReference": "referencer",
+    "kindTag": "tags",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} af {{total}})"
   },
   "PdfViewer": {
     "loadFailed": "Kunne ikke indlæse PDF",

@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "Close",
-    "paramsTitle": "Request Parameters:",
-    "processing": "Current: {{label}}"
+    "codeLoading": "Loading…",
+    "codeAnalyzing": "Marking…",
+    "codeAnalyzingTags": "Marking tags…",
+    "codeDetectingEntities": "Marking…",
+    "codeCreatingAnnotations": "Creating {{count}} annotations…",
+    "codeCreatingTagAnnotations": "Creating {{count}} tags…",
+    "codeCompleteCreated": "Created {{count}} {{kind}}",
+    "codeGeneratingResource": "Generating…",
+    "codeCreatingResource": "Creating the resource…",
+    "kindHighlight": "highlights",
+    "kindComment": "comments",
+    "kindAssessment": "assessments",
+    "kindReference": "references",
+    "kindTag": "tags",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} of {{total}})"
   },
   "PdfViewer": {
     "loadFailed": "Failed to load PDF",

@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "Закрити",
-    "paramsTitle": "Параметри запиту:",
-    "processing": "Поточний: {{label}}"
+    "codeLoading": "Завантаження…",
+    "codeAnalyzing": "Позначення…",
+    "codeAnalyzingTags": "Позначення міток…",
+    "codeDetectingEntities": "Позначення…",
+    "codeCreatingAnnotations": "Створення {{count}} анотацій…",
+    "codeCreatingTagAnnotations": "Створення {{count}} міток…",
+    "codeCompleteCreated": "Створено {{count}} {{kind}}",
+    "codeGeneratingResource": "Генерування…",
+    "codeCreatingResource": "Створення ресурсу…",
+    "kindHighlight": "виділень",
+    "kindComment": "коментарів",
+    "kindAssessment": "оцінок",
+    "kindReference": "посилань",
+    "kindTag": "міток",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} з {{total}})"
   },
   "PdfViewer": {
     "loadFailed": "Не вдалося завантажити PDF",

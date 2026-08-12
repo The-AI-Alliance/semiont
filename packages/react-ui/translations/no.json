@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "Lukk",
-    "paramsTitle": "Forespørselsparametere:",
-    "processing": "Nåværende: {{label}}"
+    "codeLoading": "Laster…",
+    "codeAnalyzing": "Merker…",
+    "codeAnalyzingTags": "Merker etiketter…",
+    "codeDetectingEntities": "Merker…",
+    "codeCreatingAnnotations": "Oppretter {{count}} merknader…",
+    "codeCreatingTagAnnotations": "Oppretter {{count}} etiketter…",
+    "codeCompleteCreated": "Opprettet {{count}} {{kind}}",
+    "codeGeneratingResource": "Genererer…",
+    "codeCreatingResource": "Oppretter ressursen…",
+    "kindHighlight": "uthevinger",
+    "kindComment": "kommentarer",
+    "kindAssessment": "vurderinger",
+    "kindReference": "referanser",
+    "kindTag": "etiketter",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} av {{total}})"
   },
   "PdfViewer": {
     "loadFailed": "Kunne ikke laste PDF",

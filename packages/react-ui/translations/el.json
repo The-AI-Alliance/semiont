@@ -1,8 +1,22 @@
 {
   "AssistProgress": {
     "close": "Κλείσιμο",
-    "paramsTitle": "Παράμετροι αιτήματος:",
-    "processing": "Τρέχον: {{label}}"
+    "codeLoading": "Φόρτωση…",
+    "codeAnalyzing": "Επισήμανση…",
+    "codeAnalyzingTags": "Επισήμανση ετικετών…",
+    "codeDetectingEntities": "Επισήμανση…",
+    "codeCreatingAnnotations": "Δημιουργία {{count}} σχολιασμών…",
+    "codeCreatingTagAnnotations": "Δημιουργία {{count}} ετικετών…",
+    "codeCompleteCreated": "Δημιουργήθηκαν {{count}} {{kind}}",
+    "codeGeneratingResource": "Δημιουργία…",
+    "codeCreatingResource": "Δημιουργία πόρου…",
+    "kindHighlight": "επισημάνσεις",
+    "kindComment": "σχόλια",
+    "kindAssessment": "αξιολογήσεις",
+    "kindReference": "αναφορές",
+    "kindTag": "ετικέτες",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} από {{total}})"
   },
   "PdfViewer": {
     "loadFailed": "Αποτυχία φόρτωσης PDF",
