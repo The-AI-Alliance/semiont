@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { MockEmbeddingProvider } from './mock-embedding-provider';
+import { MockEmbeddingProvider } from '../testing';
 
 describe('MockEmbeddingProvider', () => {
   let provider: MockEmbeddingProvider;

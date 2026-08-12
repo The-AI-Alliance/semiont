@@ -1,6 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import { loadTomlConfig } from '../../config/toml-loader';
 
+// Every environment must NAME a vector store and an embedding provider —
+// nothing is defaulted, and the loader refuses without them
+// (MANDATORY-EMBEDDING D0+D1). Appended to every fixture that loads.
+const SERVICES_LOCAL = `
+[environments.local.vectors]
+type = "memory"
+
+[environments.local.embedding]
+type = "ollama"
+model = "nomic-embed-text"
+`;
+
 const MINIMAL_TOML = `
 [environments.local.backend]
 platform = "posix"
@@ -10,7 +22,7 @@ frontendURL = "http://localhost:3000"
 
 [environments.local.make-meaning.graph]
 type = "memory"
-`;
+${SERVICES_LOCAL}`;
 
 const WITH_INFERENCE_TOML = `
 [environments.local.make-meaning.actors.gatherer.inference]
@@ -36,14 +48,14 @@ type = "anthropic"
 model = "claude-sonnet-4-6"
 maxTokens = 16384
 apiKey = "test-key"
-`;
+${SERVICES_LOCAL}`;
 
 const WITH_ENV_VAR_TOML = `
 [environments.local.make-meaning.actors.gatherer.inference]
 type = "anthropic"
 model = "claude-haiku-4-5-20251001"
 apiKey = "\${MY_API_KEY}"
-`;
+${SERVICES_LOCAL}`;
 
 function makeReader(globalContent: string | null, projectContent?: string): { readIfExists: (p: string) => string | null } {
   return {
@@ -186,7 +198,14 @@ publicURL = "http://localhost:5005"
 platform = "posix"
 port = 3001
 publicURL = "http://localhost:3001"
-`;
+
+[environments.staging.vectors]
+type = "memory"
+
+[environments.staging.embedding]
+type = "ollama"
+model = "nomic-embed-text"
+${SERVICES_LOCAL}`;
 
   it('resolves the environment from [defaults] environment when none is passed', () => {
     const config = loadTomlConfig('/project', undefined, '/home/user/.semiontconfig', makeReader(DEFAULTS_STAGING), {});
@@ -209,6 +228,20 @@ publicURL = "http://localhost:3001"
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(DEFAULTS_STAGING), {});
     expect(config._metadata?.environment).toBe('local');
     expect(config.services?.backend?.port).toBe(3001);
+  });
+
+  it('refuses a config naming no vector store, config-actionably (MANDATORY-EMBEDDING D1)', () => {
+    const noVectors = MINIMAL_TOML.replace(/\[environments\.local\.vectors\][^[]*/, '');
+    expect(() =>
+      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(noVectors), {})
+    ).toThrow(/names no vector store/);
+  });
+
+  it('refuses a config naming no embedding provider, config-actionably (MANDATORY-EMBEDDING D1)', () => {
+    const noEmbedding = MINIMAL_TOML.replace(/\[environments\.local\.embedding\][^[]*$/, '');
+    expect(() =>
+      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(noEmbedding), {})
+    ).toThrow(/names no embedding provider/);
   });
 
   it('throws when nothing selects an environment (no arg, no [defaults]) even if SEMIONT_ENV is set', () => {

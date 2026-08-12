@@ -139,6 +139,16 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
         platform: { type: 'posix' },
         type: 'memory',
       },
+      // Mandatory per MANDATORY-EMBEDDING D0+D1 — every config names both.
+      vectors: {
+        platform: { type: 'external' },
+        type: 'memory',
+      },
+      embedding: {
+        platform: { type: 'external' },
+        type: 'ollama',
+        model: 'nomic-embed-text',
+      },
     },
     site: {
       domain: 'test.local',

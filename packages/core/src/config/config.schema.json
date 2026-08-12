@@ -447,8 +447,7 @@
         },
         "type": {
           "type": "string",
-          "enum": ["qdrant", "memory"],
-          "default": "qdrant"
+          "enum": ["qdrant", "memory"]
         },
         "host": {
           "type": "string"
@@ -1113,6 +1112,7 @@
           "$ref": "#/definitions/EmbeddingServiceConfig"
         }
       },
+      "required": ["vectors", "embedding"],
       "additionalProperties": true
     },
     "SiteConfig": {
