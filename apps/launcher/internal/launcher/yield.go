@@ -467,10 +467,14 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 				// Narrating the stage too is what makes a minutes-long
 				// generation legible.
 				if p.Progress != nil {
+					// The CODE is the narration now. `stage` was removed as
+					// redundant denormalization (P5) — every code mapped to
+					// exactly one stage. An unrecognized or absent code prints
+					// NOTHING rather than an empty bullet: the previous form
+					// printed `stage` as the label with this as dim detail, so
+					// when both were empty it emitted a bare "▸ " with no text.
 					if text := progressText(p.Progress.Message); text != "" {
-						u.log("%s %s", p.Progress.Stage, u.dim(text))
-					} else {
-						u.log("%s", p.Progress.Stage)
+						u.log("%s", u.dim(text))
 					}
 				}
 			case "job:fail":

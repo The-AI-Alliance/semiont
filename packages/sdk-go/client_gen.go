@@ -2599,7 +2599,7 @@ type JobHighlightAnnotationResult struct {
 	HighlightsFound   int `json:"highlightsFound"`
 }
 
-// JobProgress Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present. This is the single progress shape for every job type — annotation workers and generation alike.
+// JobProgress Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present. This is the single progress shape for every job type — annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Every code mapped to exactly one stage, and `stage`'s own description advertised 'complete' and 'error' that no producer ever emitted — a comment describing a contract nobody implemented, which cost a consumer two dead branches. Terminality is signalled on `job:complete` / `job:fail`, not here. `currentEntityType` duplicated `detecting-entities`' `entityType` in the same call.
 type JobProgress struct {
 	// AnnotationId Annotation this job is attached to, when applicable. Echoed inside JobProgress (in addition to the outer command envelope) so consumers that only see the inner progress object (e.g. client.yield.fromContext's Observable) can still route visual feedback to a specific annotation.
 	AnnotationId *string `json:"annotationId,omitempty"`
@@ -2612,9 +2612,6 @@ type JobProgress struct {
 
 	// CurrentCategory Category currently being processed (tag-annotation)
 	CurrentCategory *string `json:"currentCategory,omitempty"`
-
-	// CurrentEntityType Entity type currently being processed
-	CurrentEntityType *string `json:"currentEntityType,omitempty"`
 
 	// EntitiesEmitted Annotations emitted so far (reference-annotation)
 	EntitiesEmitted *int `json:"entitiesEmitted,omitempty"`
@@ -2639,9 +2636,6 @@ type JobProgress struct {
 		Label string `json:"label"`
 		Value string `json:"value"`
 	} `json:"requestParams,omitempty"`
-
-	// Stage Current processing stage (e.g. 'analyzing', 'creating', 'complete', 'error')
-	Stage string `json:"stage"`
 
 	// TotalCategories Total categories (tag-annotation)
 	TotalCategories *int `json:"totalCategories,omitempty"`
@@ -2737,7 +2731,7 @@ type JobReportProgressCommand struct {
 	JobType    JobType `json:"jobType"`
 	Percentage float32 `json:"percentage"`
 
-	// Progress Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present. This is the single progress shape for every job type — annotation workers and generation alike.
+	// Progress Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present. This is the single progress shape for every job type — annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Every code mapped to exactly one stage, and `stage`'s own description advertised 'complete' and 'error' that no producer ever emitted — a comment describing a contract nobody implemented, which cost a consumer two dead branches. Terminality is signalled on `job:complete` / `job:fail`, not here. `currentEntityType` duplicated `detecting-entities`' `entityType` in the same call.
 	Progress   *JobProgress `json:"progress,omitempty"`
 	ResourceId string       `json:"resourceId"`
 }
