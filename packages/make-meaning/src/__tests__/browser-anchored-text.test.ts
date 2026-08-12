@@ -22,6 +22,7 @@ import { EventBus, type AnchoredText, type Logger } from '@semiont/core';
 import type { MakeMeaningConfig } from '../service';
 import { Browser } from '../browser';
 import { SmeltProgressTimeout } from '../smelt-progress';
+import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 
 const mockLogger: Logger = {
   debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
@@ -48,9 +49,9 @@ function browserOver(kb: Record<string, unknown>) {
     kb as never,
     eventBus,
     { root: '/tmp' } as never,
-    { services: {}, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } } as MakeMeaningConfig,
+    { services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } }, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } } as MakeMeaningConfig,
     { enrich: async (entries) => entries },
-    undefined,
+    createMockEmbeddingProvider(),
     mockLogger,
   );
   return { eventBus, browser };

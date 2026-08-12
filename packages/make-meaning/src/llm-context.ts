@@ -124,54 +124,54 @@ export class LLMContext {
     // the gather ever waits (D3). Timeout degrades to absent plus exactly
     // one L4 breadcrumb; a `skipped` decision resolves immediately (D4).
     let semanticContext: GatheredContext['semanticContext'];
+    // Vectors are mandatory (MANDATORY-EMBEDDING D0) — the read is
+    // unconditional; only the settle barrier's outcome decides absence.
     const vectors = kb.vectors;
-    if (vectors) {
-      const excludeEntityTypes = options.excludeEntityTypes ?? [];
-      const search = () =>
-        vectors.searchByResource(resourceId, {
-          limit: options.maxResources,
-          scoreThreshold: 0.5,
-          ...(excludeEntityTypes.length ? { filter: { excludeEntityTypes } } : {}),
-        });
+    const excludeEntityTypes = options.excludeEntityTypes ?? [];
+    const search = () =>
+      vectors.searchByResource(resourceId, {
+        limit: options.maxResources,
+        scoreThreshold: 0.5,
+        ...(excludeEntityTypes.length ? { filter: { excludeEntityTypes } } : {}),
+      });
 
-      let matches = await search();
-      if (matches.length === 0) {
-        const contentChecksum = getPrimaryRepresentation(mainDoc)?.checksum;
-        if (contentChecksum) {
-          try {
-            const outcome = await kb.smeltProgress.whenSettled(resourceIdStr, contentChecksum, settleTimeoutMs);
-            if (outcome === 'indexed') {
-              matches = await search();
-            }
-            // 'skipped' | 'inert': legitimately absent — no breadcrumb.
-          } catch (error) {
-            if (!(error instanceof SmeltProgressTimeout)) throw error;
-            // Countable AND loggable: the counter feeds fleet alerting
-            // (a rising degrade rate = the Smelter isn't keeping up); the
-            // breadcrumb carries the per-incident detail (L4).
-            recordGatherDegrade('vectors');
-            logger.warn('[gather DEGRADED] semanticContext absent — the vector projection did not settle within the barrier', {
-              resourceId: resourceIdStr,
-              contentChecksum,
-              timeoutMs: settleTimeoutMs,
-            });
+    let matches = await search();
+    if (matches.length === 0) {
+      const contentChecksum = getPrimaryRepresentation(mainDoc)?.checksum;
+      if (contentChecksum) {
+        try {
+          const outcome = await kb.smeltProgress.whenSettled(resourceIdStr, contentChecksum, settleTimeoutMs);
+          if (outcome === 'indexed') {
+            matches = await search();
           }
+          // 'skipped' | 'inert': legitimately absent — no breadcrumb.
+        } catch (error) {
+          if (!(error instanceof SmeltProgressTimeout)) throw error;
+          // Countable AND loggable: the counter feeds fleet alerting
+          // (a rising degrade rate = the Smelter isn't keeping up); the
+          // breadcrumb carries the per-incident detail (L4).
+          recordGatherDegrade('vectors');
+          logger.warn('[gather DEGRADED] semanticContext absent — the vector projection did not settle within the barrier', {
+            resourceId: resourceIdStr,
+            contentChecksum,
+            timeoutMs: settleTimeoutMs,
+          });
         }
       }
+    }
 
-      if (matches.length > 0) {
-        semanticContext = {
-          similar: matches.map((m) => ({
-            text: m.text,
-            resourceId: m.resourceId,
-            ...(m.annotationId ? { annotationId: m.annotationId } : {}),
-            score: m.score,
-            ...(m.entityTypes ? { entityTypes: m.entityTypes } : {}),
-            ...(m.machineRead ? { machineRead: true } : {}),
-          })),
-          ...(excludeEntityTypes.length ? { excludedEntityTypes: excludeEntityTypes } : {}),
-        };
-      }
+    if (matches.length > 0) {
+      semanticContext = {
+        similar: matches.map((m) => ({
+          text: m.text,
+          resourceId: m.resourceId,
+          ...(m.annotationId ? { annotationId: m.annotationId } : {}),
+          score: m.score,
+          ...(m.entityTypes ? { entityTypes: m.entityTypes } : {}),
+          ...(m.machineRead ? { machineRead: true } : {}),
+        })),
+        ...(excludeEntityTypes.length ? { excludedEntityTypes: excludeEntityTypes } : {}),
+      };
     }
 
     // Assemble the unified GatheredContext (focus.kind:'resource'). Related resources and

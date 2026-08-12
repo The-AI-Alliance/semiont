@@ -20,6 +20,7 @@ import { EventBus, resourceId, type GatheredContext, type Logger, type ResourceI
 import type { KnowledgeBase } from '../knowledge-base';
 import type { InferenceClient } from '@semiont/inference';
 import { Matcher } from '../matcher';
+import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 
 type AnnotationFocus = Extract<GatheredContext['focus'], { kind: 'annotation' }>;
 type KnowledgeGraph = GatheredContext['graph'];
@@ -146,6 +147,7 @@ function createMockKb(overrides: MockGraphOverrides = {}): KnowledgeBase {
     views: { get: overrides.viewsGet ?? vi.fn().mockResolvedValue(null) } as any,
     content: {} as any,
     anchoredText: memoryAnchoredTextStore(),
+      vectors: { searchResources: vi.fn().mockResolvedValue([]), searchAnnotations: vi.fn().mockResolvedValue([]), searchByResource: vi.fn().mockResolvedValue([]) } as any,
     projectionsDir: '',
       weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
     graph: {
@@ -185,7 +187,7 @@ describe('Matcher', () => {
     eventBus = new EventBus();
     mockSearchFn = vi.fn<SearchMatches>();
     kb = createMockKb({ searchMatches: mockSearchFn });
-    matcher = new Matcher(kb, eventBus, mockLogger, noopInference);
+    matcher = new Matcher(kb, eventBus, mockLogger, noopInference, createMockEmbeddingProvider());
     await matcher.initialize();
   });
 
@@ -288,7 +290,7 @@ describe('Matcher', () => {
         getResource: mockGetResource,
         viewsGet: mockViewGet,
       });
-      matcher = new Matcher(kb, eventBus, mockLogger, noopInference);
+      matcher = new Matcher(kb, eventBus, mockLogger, noopInference, createMockEmbeddingProvider());
       await matcher.initialize();
     });
 
@@ -636,7 +638,7 @@ describe('Matcher', () => {
         limits: vi.fn().mockResolvedValue({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 }),
         generateStructured: vi.fn().mockResolvedValue({ items: [], stopReason: 'end_turn' }),
       };
-      matcher = new Matcher(kb, eventBus, mockLogger, mockInference);
+      matcher = new Matcher(kb, eventBus, mockLogger, mockInference, createMockEmbeddingProvider());
       await matcher.initialize();
 
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
@@ -684,7 +686,7 @@ describe('Matcher', () => {
         limits: vi.fn().mockResolvedValue({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 }),
         generateStructured: vi.fn().mockResolvedValue({ items: [], stopReason: 'end_turn' }),
       };
-      matcher = new Matcher(kb, eventBus, mockLogger, mockInference);
+      matcher = new Matcher(kb, eventBus, mockLogger, mockInference, createMockEmbeddingProvider());
       await matcher.initialize();
 
       const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
@@ -768,7 +770,7 @@ describe('Matcher', () => {
           limits: vi.fn().mockResolvedValue({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 }),
           generateStructured: vi.fn().mockResolvedValue({ items: [], stopReason: 'end_turn' }),
         };
-        matcher = new Matcher(kb, eventBus, mockLogger, mockInference as InferenceClient);
+        matcher = new Matcher(kb, eventBus, mockLogger, mockInference as InferenceClient, createMockEmbeddingProvider());
         await matcher.initialize();
       });
 

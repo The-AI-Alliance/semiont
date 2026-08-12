@@ -225,3 +225,15 @@ export function createFakeKsBus(
     },
   };
 }
+
+/**
+ * Serve the embedding provider's dimension-discovery probe — startMakeMeaning's
+ * only embedding network call (MANDATORY-EMBEDDING P3) — so service startup is
+ * hermetic. A plain function, not a vi.fn(): clearAllMocks must not strip it.
+ */
+export function stubEmbeddingProbeFetch(): void {
+  vi.stubGlobal('fetch', async () => new Response(
+    JSON.stringify({ embeddings: [[0.1, 0.2, 0.3, 0.4]] }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  ));
+}

@@ -42,12 +42,15 @@ export interface ListResourcesResult {
 
 /**
  * What the semantic fallback needs, passed as plain arguments (the
- * buildContext idiom — providers are parameters, not fields). `embeddingProvider`
- * is undefined when vectors/embedding are unconfigured; the fallback then
- * degrades to the empty lexical page (axioms S3/S4).
+ * buildContext idiom — providers are parameters, not fields). Both the
+ * provider and `kb.vectors` are mandatory (MANDATORY-EMBEDDING D0; the old
+ * unconfigured branches — SEMANTIC-FALLBACK S3/S4 — were deliberately
+ * retired with that change). What still degrades is FAILURE: a throwing
+ * embed yields the empty lexical page (S5), because mandatory does not
+ * mean always up.
  */
 export interface SemanticFallbackDeps {
-  embeddingProvider: EmbeddingProvider | undefined;
+  embeddingProvider: EmbeddingProvider;
   /** Minimum cosine score for a hit to appear — `search.semanticFloor`. */
   semanticFloor: number;
   logger: Logger;
@@ -91,7 +94,7 @@ export class ResourceContext {
   static async listResources(
     filters: ListResourcesFilters | undefined,
     kb: KnowledgeBase,
-    semantic?: SemanticFallbackDeps,
+    semantic: SemanticFallbackDeps,
   ): Promise<ListResourcesResult> {
     const { search: rawSearch, archived, entityType, offset = 0, limit = 50 } = filters ?? {};
     // Blank input is not a search: it must not divert the listing onto the
@@ -146,10 +149,9 @@ export class ResourceContext {
     search: string,
     limit: number,
     kb: KnowledgeBase,
-    semantic: SemanticFallbackDeps | undefined,
+    semantic: SemanticFallbackDeps,
   ): Promise<ListResourcesResult> {
     const empty: ListResourcesResult = { resources: [], total: 0, matchKind: 'lexical' };
-    if (!semantic?.embeddingProvider || !kb.vectors) return empty;
 
     try {
       const embedding = await semantic.embeddingProvider.embed(search);

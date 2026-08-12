@@ -29,6 +29,7 @@ vi.mock('../llm-context', () => ({
 
 import { AnnotationContext } from '../annotation-context';
 import { LLMContext } from '../llm-context';
+import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -50,6 +51,7 @@ function createMockKb(): KnowledgeBase {
     content: {} as any,
     graph: {} as any,
     anchoredText: memoryAnchoredTextStore(),
+      vectors: { searchResources: vi.fn().mockResolvedValue([]), searchAnnotations: vi.fn().mockResolvedValue([]), searchByResource: vi.fn().mockResolvedValue([]) } as any,
     projectionsDir: '',
       weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
   };
@@ -59,12 +61,13 @@ describe('Gatherer', () => {
   let eventBus: EventBus;
   let gatherer: Gatherer;
   let kb: KnowledgeBase;
+  const mockEmbeddingProvider = createMockEmbeddingProvider();
 
   beforeEach(async () => {
     vi.clearAllMocks();
     eventBus = new EventBus();
     kb = createMockKb();
-    gatherer = new Gatherer(kb, eventBus, mockInferenceClient as any, 15_000, mockLogger);
+    gatherer = new Gatherer(kb, eventBus, mockInferenceClient as any, 15_000, mockLogger, mockEmbeddingProvider);
     await gatherer.initialize();
   });
 
@@ -117,10 +120,10 @@ describe('Gatherer', () => {
         'ann-1',
         'res-1',
         kb,
+        mockEmbeddingProvider,
         {},
         mockInferenceClient,
         mockLogger,
-        undefined,
       );
     });
 

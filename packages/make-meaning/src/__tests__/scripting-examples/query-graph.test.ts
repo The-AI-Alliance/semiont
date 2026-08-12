@@ -33,6 +33,9 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { stubEmbeddingProbeFetch } from '../helpers/smelter-harness';
+
+stubEmbeddingProbeFetch();
 
 // Mock @semiont/inference
 const mockInferenceClient = vi.hoisted(() => ({ client: null as any }));
@@ -91,7 +94,9 @@ describe('Scripting Example: Query Graph Database', () => {
         graph: {
           platform: { type: 'posix' },
           type: 'memory'
-        }
+        },
+        vectors: { type: 'memory' },
+        embedding: { type: 'ollama', model: 'nomic-embed-text' },
       },
       actors: {
         gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },

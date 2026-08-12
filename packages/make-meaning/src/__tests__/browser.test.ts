@@ -25,6 +25,7 @@ vi.mock('fs', () => {
 });
 
 import { promises as fsMock } from 'fs';
+import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 const mockStat   = fsMock.stat   as ReturnType<typeof vi.fn>;
 const mockReaddir = fsMock.readdir as ReturnType<typeof vi.fn>;
 
@@ -68,7 +69,7 @@ const defaultStat = { size: 1024, mtime: new Date('2026-01-01T00:00:00Z') };
 
 const mockKb = { graph: {}, views: {} } as any;
 
-const emptyConfig: MakeMeaningConfig = { services: {}, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } };
+const emptyConfig: MakeMeaningConfig = { services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } }, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } };
 
 // Enrichment-neutral discovery for tests whose subject is not limits — the
 // pool's own semantics are pinned in limits-discovery.test.ts.
@@ -91,7 +92,7 @@ describe('Browser actor', () => {
       { root: PROJECT_ROOT } as any,
       emptyConfig,
       passthroughDiscovery,
-      undefined,
+      createMockEmbeddingProvider(),
       mockLogger,
     );
     await browser.initialize();
@@ -109,7 +110,10 @@ describe('Browser actor', () => {
     // an optional field defaulting to lexical would be a compatibility shim
     // (a missing value silently reads as lexical). The lexical path labels
     // itself here; P2's fallback labels its answers 'semantic'.
-    mockKb.graph.listResources = vi.fn().mockResolvedValue({ resources: [], total: 0 });
+    // Non-empty on purpose: under MANDATORY-EMBEDDING the empty search page
+    // falls through to the semantic fallback and labels itself 'semantic'
+    // (pinned in resource-context.test.ts) — the lexical label needs a hit.
+    mockKb.graph.listResources = vi.fn().mockResolvedValue({ resources: [{ '@id': 'res-ouranos', name: 'ouranos' }], total: 1 });
 
     const result$ = eventBus.get('browse:resources-result');
     const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
@@ -239,7 +243,7 @@ describe('Browser actor', () => {
       { root: PROJECT_ROOT } as any,
       emptyConfig,
       passthroughDiscovery,
-      undefined,
+      createMockEmbeddingProvider(),
       mockLogger,
     );
     await browser.initialize();
@@ -356,7 +360,7 @@ describe('Browser actor', () => {
         graph: { getResourceReferencedBy: mockReferencedBy, getResource: mockGetResource },
         views: { get: mockViewGet },
       } as any;
-      browser = new Browser(makeViews([]) as any, kb, eventBus, { root: PROJECT_ROOT } as any, emptyConfig, passthroughDiscovery, undefined, mockLogger);
+      browser = new Browser(makeViews([]) as any, kb, eventBus, { root: PROJECT_ROOT } as any, emptyConfig, passthroughDiscovery, createMockEmbeddingProvider(), mockLogger);
       await browser.initialize();
     });
 
@@ -519,7 +523,7 @@ describe('Browser actor', () => {
       discovery?: { enrich(entries: CollaboratorEntry[]): Promise<CollaboratorEntry[]> },
     ) {
       const bus = new EventBus();
-      const b = new Browser(makeViews([]) as any, mockKb, bus, { root: PROJECT_ROOT } as any, config, discovery ?? passthroughDiscovery, undefined, mockLogger);
+      const b = new Browser(makeViews([]) as any, mockKb, bus, { root: PROJECT_ROOT } as any, config, discovery ?? passthroughDiscovery, createMockEmbeddingProvider(), mockLogger);
       await b.initialize();
       try {
         await fn(bus);
@@ -548,7 +552,7 @@ describe('Browser actor', () => {
     it('answers the deduplicated software roster: worker-derivation DIDs, resolved capabilities', async () => {
       await withBrowser(
         {
-          services: {},
+          services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
           gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
           site: { domain: SITE_DOMAIN },
           workers: {
@@ -598,7 +602,7 @@ describe('Browser actor', () => {
     it('omits servesJobTypes for an actors-only agent', async () => {
       await withBrowser(
         {
-          services: {},
+          services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
           gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
           site: { domain: SITE_DOMAIN },
           actors: { gatherer: { type: 'ollama', model: 'llama3' } },
@@ -627,7 +631,7 @@ describe('Browser actor', () => {
       };
       await withBrowser(
         {
-          services: {},
+          services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
           gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
           site: { domain: SITE_DOMAIN },
           workers: { default: { type: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'k' } },
@@ -643,7 +647,7 @@ describe('Browser actor', () => {
     });
 
     it('answers an empty roster when no workers or actors are declared', async () => {
-      await withBrowser({ services: {}, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 }, site: { domain: SITE_DOMAIN } }, async (bus) => {
+      await withBrowser({ services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } }, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 }, site: { domain: SITE_DOMAIN } }, async (bus) => {
         const r = await requestAgents(bus);
         if (r.kind !== 'result') throw new Error(`expected result, got failed: ${r.e.message}`);
         expect(r.e.response.agents).toEqual([]);
@@ -651,7 +655,7 @@ describe('Browser actor', () => {
     });
 
     it('fails naming the missing config key when site.domain is absent', async () => {
-      await withBrowser({ services: {}, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } }, async (bus) => {
+      await withBrowser({ services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } }, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } }, async (bus) => {
         const r = await requestAgents(bus);
         if (r.kind !== 'failed') throw new Error('expected failed');
         expect(r.e.correlationId).toBe('cid-agents');

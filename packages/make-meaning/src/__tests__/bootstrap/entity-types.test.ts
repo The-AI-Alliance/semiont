@@ -18,6 +18,7 @@ import { createKnowledgeBase, type KnowledgeBase } from '../../knowledge-base';
 import { Stower } from '../../stower';
 import { getGraphDatabase } from '@semiont/graph';
 import { createTestProject } from '../helpers/test-project';
+import { createVectorStore } from '@semiont/vectors';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -41,7 +42,7 @@ describe('Entity Types Bootstrap', () => {
     eventBus = new EventBus();
     eventStore = createEventStore(project, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-    kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger);
+    kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger, { vectorStore: await createVectorStore({ type: 'memory', dimensions: 4 }) });
     stower = new Stower(kb, eventBus, project, mockLogger);
     await stower.initialize();
   });

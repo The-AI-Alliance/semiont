@@ -46,7 +46,7 @@ export class Gatherer {
     /** Settle bound for the resource-gather barrier — operator-owned config (D5), threaded from `MakeMeaningConfig.gather`. */
     private settleTimeoutMs: number,
     logger: Logger,
-    private embeddingProvider?: EmbeddingProvider,
+    private embeddingProvider: EmbeddingProvider,
   ) {
     this.logger = logger;
   }
@@ -101,10 +101,10 @@ export class Gatherer {
         makeAnnotationId(event.annotationId),
         resourceId(event.resourceId),
         this.kb,
+        this.embeddingProvider,
         event.options ?? {},
         this.inferenceClient,
         this.logger,
-        this.embeddingProvider,
       );
 
       this.eventBus.get('gather:complete').next({

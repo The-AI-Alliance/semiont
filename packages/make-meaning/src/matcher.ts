@@ -34,7 +34,7 @@ export class Matcher {
     private eventBus: EventBus,
     logger: Logger,
     private inferenceClient: InferenceClient,
-    private embeddingProvider?: EmbeddingProvider,
+    private embeddingProvider: EmbeddingProvider,
   ) {
     this.logger = logger;
   }
@@ -432,7 +432,7 @@ For each candidate, output a line with the number and score, like:
   private async searchVectors(
     searchTerm: string,
   ): Promise<Array<{ resourceId: string; score: number }>> {
-    if (!this.kb.vectors || !this.embeddingProvider || !searchTerm.trim()) return [];
+    if (!searchTerm.trim()) return [];
 
     try {
       const embedding = await this.embeddingProvider.embed(searchTerm);

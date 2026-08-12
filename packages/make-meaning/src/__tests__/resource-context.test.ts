@@ -49,9 +49,19 @@ describe('ResourceContext', () => {
       content: mockRepStore,
       graph: mockGraph,
       anchoredText: memoryAnchoredTextStore(),
+      vectors: { searchResources: vi.fn().mockResolvedValue([]), searchAnnotations: vi.fn().mockResolvedValue([]), searchByResource: vi.fn().mockResolvedValue([]) } as any,
       projectionsDir: '',
       weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
     };
+  });
+
+  // Every listResources caller supplies the fallback deps (MANDATORY-EMBEDDING
+  // P3 made the pair required). Tests not about the fallback pass an inert bag;
+  // the fallback's own axioms below build theirs per-case.
+  const inertSemantic = () => ({
+    embeddingProvider: { embed: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]) } as any,
+    semanticFloor: 0.6,
+    logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() } as any,
   });
 
   describe('getResourceMetadata', () => {
@@ -148,7 +158,7 @@ describe('ResourceContext', () => {
     test('should list all resources when no filters provided', async () => {
       mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(mockResource2)]);
 
-      const result = await ResourceContext.listResources(undefined, mockKb);
+      const result = await ResourceContext.listResources(undefined, mockKb, inertSemantic());
 
       expect(result.total).toBe(2);
       expect(result.resources).toContainEqual(mockResource1);
@@ -158,7 +168,7 @@ describe('ResourceContext', () => {
     test('should filter by archived status (false)', async () => {
       mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(mockResource3)]);
 
-      const result = await ResourceContext.listResources({ archived: false }, mockKb);
+      const result = await ResourceContext.listResources({ archived: false }, mockKb, inertSemantic());
 
       expect(result.resources).toEqual([mockResource1]);
       expect(result.total).toBe(1);
@@ -167,7 +177,7 @@ describe('ResourceContext', () => {
     test('should filter by archived status (true)', async () => {
       mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(mockResource3)]);
 
-      const result = await ResourceContext.listResources({ archived: true }, mockKb);
+      const result = await ResourceContext.listResources({ archived: true }, mockKb, inertSemantic());
 
       expect(result.resources).toEqual([mockResource3]);
       expect(result.total).toBe(1);
@@ -181,7 +191,7 @@ describe('ResourceContext', () => {
       const result = await ResourceContext.listResources(
         { entityType: 'Document', limit: 1, offset: 0 },
         mockKb,
-      );
+        inertSemantic());
 
       // Two Documents match; the page holds one. `total` describes the match
       // set, because that is what the caller pages on.
@@ -196,7 +206,7 @@ describe('ResourceContext', () => {
       const result = await ResourceContext.listResources(
         { search: 'special', archived: false, entityType: 'Document', offset: 20, limit: 10 },
         mockKb,
-      );
+        inertSemantic());
 
       // Every filter travels into the engine. Narrowing any of them in JS after
       // the fact would apply it to one page instead of the whole match set.
@@ -215,7 +225,7 @@ describe('ResourceContext', () => {
     test('a whitespace-only query is not a search', async () => {
       mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(mockResource2)]);
 
-      const result = await ResourceContext.listResources({ search: '   ' }, mockKb);
+      const result = await ResourceContext.listResources({ search: '   ' }, mockKb, inertSemantic());
 
       // Blank input must not divert the listing onto the eventually-consistent
       // graph path, and must not match every name containing a space.
@@ -227,7 +237,7 @@ describe('ResourceContext', () => {
     test('search path returns nothing when the graph has no matches', async () => {
       mockGraph.listResources.mockResolvedValue({ resources: [], total: 0 });
 
-      const result = await ResourceContext.listResources({ search: 'nonexistent' }, mockKb);
+      const result = await ResourceContext.listResources({ search: 'nonexistent' }, mockKb, inertSemantic());
 
       expect(result.resources).toEqual([]);
       expect(result.total).toBe(0);
@@ -238,7 +248,7 @@ describe('ResourceContext', () => {
         asView(mockResource1), asView(mockResource2), asView(mockResource3),
       ]);
 
-      const result = await ResourceContext.listResources(undefined, mockKb);
+      const result = await ResourceContext.listResources(undefined, mockKb, inertSemantic());
 
       expect(result.resources.map(r => r.dateCreated)).toEqual([
         '2024-01-03T00:00:00Z',
@@ -259,7 +269,7 @@ describe('ResourceContext', () => {
 
       mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(resourceNoDate)]);
 
-      const result = await ResourceContext.listResources(undefined, mockKb);
+      const result = await ResourceContext.listResources(undefined, mockKb, inertSemantic());
 
       expect(result.total).toBe(2);
       // Resource with date should come first
@@ -451,8 +461,8 @@ describe('ResourceContext', () => {
     let searchResources: ReturnType<typeof vi.fn>;
     let warn: ReturnType<typeof vi.fn>;
 
-    const semantic = (over?: { provider?: false; floor?: number }) => ({
-      embeddingProvider: over?.provider === false ? undefined : ({ embed } as any),
+    const semantic = (over?: { floor?: number }) => ({
+      embeddingProvider: { embed } as any,
       semanticFloor: over?.floor ?? FLOOR,
       logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn(), child: vi.fn() } as any,
     });
@@ -489,26 +499,11 @@ describe('ResourceContext', () => {
       expect((result.resources[0] as { content?: string }).content).toBe('the passage that matched');
     });
 
-    test('S3: vectors unconfigured yields the empty lexical result, labelled lexical', async () => {
-      mockGraph.listResources.mockResolvedValue({ resources: [], total: 0 });
-      delete (mockKb as any).vectors;
-
-      const result = await ResourceContext.listResources({ search: 'ouranos' }, mockKb, semantic());
-
-      expect(result.matchKind).toBe('lexical');
-      expect(result.total).toBe(0);
-      expect(embed).not.toHaveBeenCalled();
-    });
-
-    test('S4: provider absent behaves exactly like S3', async () => {
-      mockGraph.listResources.mockResolvedValue({ resources: [], total: 0 });
-
-      const result = await ResourceContext.listResources({ search: 'ouranos' }, mockKb, semantic({ provider: false }));
-
-      expect(result.matchKind).toBe('lexical');
-      expect(result.total).toBe(0);
-      expect(embed).not.toHaveBeenCalled();
-    });
+    // S3/S4 (vectors unconfigured / provider absent → empty lexical, labelled
+    // lexical) retired 2026-08-12: MANDATORY-EMBEDDING P3 made the pair
+    // required at the type level, so their premise is unrepresentable.
+    // Reciprocal entries live in both plans' ledgers. S5 survives — mandatory
+    // is not the same as always up.
 
     test('S5: a throwing embed degrades to the empty lexical result, logged — never an error', async () => {
       mockGraph.listResources.mockResolvedValue({ resources: [], total: 0 });

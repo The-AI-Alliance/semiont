@@ -64,10 +64,10 @@ export class AnnotationContext {
     annotationId: AnnotationId,
     resourceId: ResourceId,
     kb: KnowledgeBase,
+    embeddingProvider: EmbeddingProvider,
     options: BuildContextOptions = {},
     inferenceClient?: InferenceClient,
     logger?: Logger,
-    embeddingProvider?: EmbeddingProvider,
   ): Promise<GatheredContext> {
     const {
       includeSourceContext = true,
@@ -251,9 +251,10 @@ Summary:`;
       }
     }
 
-    // Build semantic context via vector search (if vectors and embedding are configured)
+    // Build semantic context via vector search — vectors and the provider
+    // are mandatory (MANDATORY-EMBEDDING D0); only a missing selection skips.
     let semanticContext: GatheredContext['semanticContext'];
-    if (kb.vectors && embeddingProvider && sourceContext?.selected) {
+    if (sourceContext?.selected) {
       try {
         const focalEmbedding = await embeddingProvider.embed(sourceContext.selected);
         const results = await kb.vectors.searchAnnotations(focalEmbedding, {

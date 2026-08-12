@@ -19,6 +19,9 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
+
+stubEmbeddingProbeFetch();
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -48,7 +51,9 @@ describe('Make-Meaning Service', () => {
         graph: {
           platform: { type: 'posix' },
           type: 'memory'
-        }
+        },
+        vectors: { type: 'memory' },
+        embedding: { type: 'ollama', model: 'nomic-embed-text' },
       },
       actors: {
         gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
@@ -70,6 +75,28 @@ describe('Make-Meaning Service', () => {
     }
     await project.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
+  });
+
+  describe('mandatory vector pair (MANDATORY-EMBEDDING P3, D1 explicit opt-in)', () => {
+    it('a config naming type: memory constructs a WORKING in-memory store, with the rebuild-on-restart breadcrumb', async () => {
+      // D1: `memory` is a first-class explicit choice, never a fallback —
+      // and its cost (the index rebuilds from the event log on every
+      // restart) is announced at startup per the L4 discipline, so whoever
+      // wrote the config sees what they chose.
+      config.services.vectors = { type: 'memory' };
+      config.services.embedding = { type: 'ollama', model: 'nomic-embed-text' };
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
+
+      // The store is real and usable, not a stub: kb.vectors is present and
+      // answers an (empty) search without error.
+      const vectors = service.knowledgeSystem.kb.vectors;
+      expect(vectors).toBeDefined();
+      await expect(vectors.searchResources([0, 0, 0], { limit: 1 })).resolves.toEqual([]);
+
+      const breadcrumbed = vi.mocked(mockLogger.info).mock.calls
+        .some(([msg]) => typeof msg === 'string' && /memory vector store.*rebuil|rebuil.*memory vector store/i.test(msg));
+      expect(breadcrumbed).toBe(true);
+    });
   });
 
   describe('A4 nesting assertion (gather barrier budgets vs the worker stall watchdog)', () => {

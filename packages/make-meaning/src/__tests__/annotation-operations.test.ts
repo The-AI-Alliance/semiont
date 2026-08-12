@@ -96,7 +96,8 @@ describe('AnnotationOperations', () => {
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
     const { WorkingTreeStore } = await import('@semiont/content');
     const repStore = new WorkingTreeStore(project, mockLogger);
-    kb = { anchoredText: memoryAnchoredTextStore(), eventStore: testEventStore, views: testEventStore.viewStorage, content: repStore, graph: graphDb, projectionsDir: project.projectionsDir, weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} }, };
+    kb = { anchoredText: memoryAnchoredTextStore(),
+      vectors: { searchResources: vi.fn().mockResolvedValue([]), searchAnnotations: vi.fn().mockResolvedValue([]), searchByResource: vi.fn().mockResolvedValue([]) } as any, eventStore: testEventStore, views: testEventStore.viewStorage, content: repStore, graph: graphDb, projectionsDir: project.projectionsDir, weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} }, };
 
     stower = new Stower(kb, eventBus, project, mockLogger);
     await stower.initialize();

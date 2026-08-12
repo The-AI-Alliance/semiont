@@ -55,8 +55,14 @@ export interface MakeMeaningConfig {
   search: { semanticFloor: number };
   services: {
     graph?: GraphServiceConfig;
-    vectors?: VectorsServiceConfig;
-    embedding?: EmbeddingServiceConfig;
+    /** REQUIRED (MANDATORY-EMBEDDING D0+D1, type-level per the 2026-08-12
+     *  ruling): the config NAMES its store — `memory` is a first-class
+     *  explicit choice, never a fallback. The TOML loader refuses configs
+     *  without it; the type makes hand-built configs state their choice. */
+    vectors: VectorsServiceConfig;
+    /** REQUIRED (same ruling): the embedding provider is the KB's semantic
+     *  identity — always named, never detected or defaulted. */
+    embedding: EmbeddingServiceConfig;
   };
   /**
    * The KB's canonical identity domain — the SAME value `/api/tokens/agent`

@@ -24,6 +24,7 @@ import type { GraphServiceConfig } from '@semiont/core';
 import { Stower } from '../stower';
 import { createKnowledgeBase } from '../knowledge-base';
 import { createTestProject } from './helpers/test-project';
+import { createVectorStore } from '@semiont/vectors';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -48,7 +49,7 @@ describe('Stower mark:update-entity-types vocabulary gate', () => {
     eventBus = new EventBus();
     eventStore = createEventStore(project, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-    const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger);
+    const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger, { vectorStore: await createVectorStore({ type: 'memory', dimensions: 4 }) });
     stower = new Stower(kb, eventBus, project, mockLogger);
     await stower.initialize();
 
