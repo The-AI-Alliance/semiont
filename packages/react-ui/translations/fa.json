@@ -444,5 +444,22 @@
     "searching": "در حال جستجو...",
     "search": "جستجو",
     "maxLengthCeiling": "محدود به {{maxOutputTokens}} توکن توسط {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "ایجاد حاشیه‌نویسی ممکن نشد: {{detail}}",
+    "deleteFailed": "حذف حاشیه‌نویسی ممکن نشد: {{detail}}",
+    "referenceUpdateFailed": "به‌روزرسانی ارجاع ممکن نشد: {{detail}}",
+    "unknownError": "خطای ناشناخته",
+    "assistQuiet": "هنوز در حال کار — چند دقیقه است خبری نیست",
+    "resourceCreatedNamed": "«{{name}}» ایجاد شد",
+    "resourceCreated": "منبع ایجاد شد",
+    "annotationComplete": "حاشیه‌نویسی کامل شد",
+    "annotationFailed": "حاشیه‌نویسی ناموفق بود",
+    "generationFailed": "تولید ناموفق بود: {{detail}}",
+    "decline_no-text-layer": "این PDF یک اسکن است که متن آن شناسایی نشد.",
+    "decline_encrypted": "این PDF با رمز محافظت شده و متن آن خوانده نمی‌شود.",
+    "decline_corrupt": "این PDF خوانده نشد — ممکن است فایل آسیب دیده باشد.",
+    "decline_too-large": "این سند برای استخراج متن بسیار بزرگ است.",
+    "decline_empty": "این سند متنی برای حاشیه‌نویسی ندارد."
   }
 }

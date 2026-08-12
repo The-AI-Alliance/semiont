@@ -444,5 +444,22 @@
     "searching": "กำลังค้นหา...",
     "search": "ค้นหา",
     "maxLengthCeiling": "จำกัดที่ {{maxOutputTokens}} โทเค็นโดย {{model}}"
+  },
+  "OutcomeToasts": {
+    "createFailed": "สร้างคำอธิบายประกอบไม่สำเร็จ: {{detail}}",
+    "deleteFailed": "ลบคำอธิบายประกอบไม่สำเร็จ: {{detail}}",
+    "referenceUpdateFailed": "อัปเดตการอ้างอิงไม่สำเร็จ: {{detail}}",
+    "unknownError": "ข้อผิดพลาดที่ไม่รู้จัก",
+    "assistQuiet": "ยังทำงานอยู่ — ไม่มีความคืบหน้ามาสองสามนาทีแล้ว",
+    "resourceCreatedNamed": "สร้าง “{{name}}” แล้ว",
+    "resourceCreated": "สร้างทรัพยากรแล้ว",
+    "annotationComplete": "ทำคำอธิบายประกอบเสร็จแล้ว",
+    "annotationFailed": "ทำคำอธิบายประกอบไม่สำเร็จ",
+    "generationFailed": "สร้างไม่สำเร็จ: {{detail}}",
+    "decline_no-text-layer": "PDF นี้เป็นภาพสแกนที่ไม่สามารถอ่านข้อความได้",
+    "decline_encrypted": "PDF นี้ป้องกันด้วยรหัสผ่าน จึงอ่านข้อความไม่ได้",
+    "decline_corrupt": "อ่าน PDF นี้ไม่ได้ — ไฟล์อาจเสียหาย",
+    "decline_too-large": "เอกสารนี้ใหญ่เกินกว่าจะดึงข้อความได้",
+    "decline_empty": "เอกสารนี้ไม่มีข้อความให้ทำคำอธิบายประกอบ"
   }
 }

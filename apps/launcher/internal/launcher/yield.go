@@ -509,7 +509,7 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 					// wording. Non-zero all the same: the caller asked for a
 					// resource and has none, and nothing downstream of a
 					// `yield --delegate && ...` should run.
-					u.fail("Declined (%s): %s", declined.Reason, declined.Message)
+					u.fail("Declined: %s", declineText(declined.Reason))
 					fmt.Fprintf(os.Stderr, "  Nothing was written to %s.\n", opts.storageURI)
 					return 1
 				}
@@ -538,6 +538,31 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 // result returns a zero-valued struct — err nil, Declined false. Only the
 // schema's `"declined": true` const separates the two, so only reading it
 // tells them apart.
+// declineText renders a decline reason as English terminal copy — the sibling
+// of progressText below, and for the same reason: the wire carries a CODE, and
+// each client owns its words. react-ui translates these five reasons into 29
+// locales; a terminal is English-only by design, which is exactly why the
+// backend must not compose the sentence for both.
+//
+// An unrecognized reason falls back to the raw code rather than an empty
+// string: for a CLI a bare token is still diagnostic, and a decline the user
+// cannot name is worse than an ugly one.
+func declineText(reason semiont.JobDeclinedResultReason) string {
+	switch reason {
+	case "no-text-layer":
+		return "this PDF is a scan whose text could not be recognized, so there was nothing to annotate"
+	case "encrypted":
+		return "this PDF is password-protected, so its text could not be read"
+	case "corrupt":
+		return "this PDF could not be read — the file may be damaged"
+	case "too-large":
+		return "this document is too large to extract text from"
+	case "empty":
+		return "this document has no text to annotate"
+	}
+	return string(reason)
+}
+
 // progressText renders a JobProgressMessage code as English terminal copy.
 // The wire deliberately carries no sentence — every client owns its words
 // (react-ui translates into 29 locales; this terminal is English-only by

@@ -444,5 +444,22 @@
     "searching": "Buscando...",
     "search": "Buscar",
     "maxLengthCeiling": "Limitado a {{maxOutputTokens}} tokens por {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "No se pudo crear la anotación: {{detail}}",
+    "deleteFailed": "No se pudo eliminar la anotación: {{detail}}",
+    "referenceUpdateFailed": "No se pudo actualizar la referencia: {{detail}}",
+    "unknownError": "error desconocido",
+    "assistQuiet": "Sigue en curso: sin novedades desde hace unos minutos",
+    "resourceCreatedNamed": "«{{name}}» creado",
+    "resourceCreated": "Recurso creado",
+    "annotationComplete": "Anotación completada",
+    "annotationFailed": "La anotación falló",
+    "generationFailed": "La generación falló: {{detail}}",
+    "decline_no-text-layer": "Este PDF es un escaneo cuyo texto no se pudo reconocer.",
+    "decline_encrypted": "Este PDF está protegido con contraseña y su texto no se puede leer.",
+    "decline_corrupt": "No se pudo leer este PDF; el archivo puede estar dañado.",
+    "decline_too-large": "Este documento es demasiado grande para extraer su texto.",
+    "decline_empty": "Este documento no tiene texto que anotar."
   }
 }

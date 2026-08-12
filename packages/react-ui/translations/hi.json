@@ -444,5 +444,22 @@
     "searching": "खोज रहे हैं...",
     "search": "खोजें",
     "maxLengthCeiling": "{{model}} द्वारा {{maxOutputTokens}} टोकन तक सीमित।"
+  },
+  "OutcomeToasts": {
+    "createFailed": "एनोटेशन नहीं बनाया जा सका: {{detail}}",
+    "deleteFailed": "एनोटेशन नहीं हटाया जा सका: {{detail}}",
+    "referenceUpdateFailed": "संदर्भ अपडेट नहीं हो सका: {{detail}}",
+    "unknownError": "अज्ञात त्रुटि",
+    "assistQuiet": "अभी भी चल रहा है — कुछ मिनटों से कोई अपडेट नहीं",
+    "resourceCreatedNamed": "“{{name}}” बनाया गया",
+    "resourceCreated": "संसाधन बनाया गया",
+    "annotationComplete": "एनोटेशन पूर्ण",
+    "annotationFailed": "एनोटेशन विफल",
+    "generationFailed": "जनरेशन विफल: {{detail}}",
+    "decline_no-text-layer": "यह PDF एक स्कैन है जिसका पाठ पहचाना नहीं जा सका।",
+    "decline_encrypted": "यह PDF पासवर्ड-सुरक्षित है, इसका पाठ नहीं पढ़ा जा सकता।",
+    "decline_corrupt": "यह PDF पढ़ा नहीं जा सका — फ़ाइल क्षतिग्रस्त हो सकती है।",
+    "decline_too-large": "यह दस्तावेज़ पाठ निकालने के लिए बहुत बड़ा है।",
+    "decline_empty": "इस दस्तावेज़ में एनोटेट करने योग्य कोई पाठ नहीं है।"
   }
 }

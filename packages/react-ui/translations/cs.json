@@ -444,5 +444,22 @@
     "searching": "Vyhledávání...",
     "search": "Hledat",
     "maxLengthCeiling": "Omezeno na {{maxOutputTokens}} tokenů modelem {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Anotaci se nepodařilo vytvořit: {{detail}}",
+    "deleteFailed": "Anotaci se nepodařilo smazat: {{detail}}",
+    "referenceUpdateFailed": "Odkaz se nepodařilo aktualizovat: {{detail}}",
+    "unknownError": "neznámá chyba",
+    "assistQuiet": "Stále pracuje — několik minut bez aktualizace",
+    "resourceCreatedNamed": "Vytvořeno „{{name}}“",
+    "resourceCreated": "Zdroj vytvořen",
+    "annotationComplete": "Anotace dokončena",
+    "annotationFailed": "Anotace selhala",
+    "generationFailed": "Generování selhalo: {{detail}}",
+    "decline_no-text-layer": "Toto PDF je sken, jehož text nebylo možné rozpoznat.",
+    "decline_encrypted": "Toto PDF je chráněno heslem, jeho text nelze přečíst.",
+    "decline_corrupt": "Toto PDF nebylo možné přečíst — soubor může být poškozen.",
+    "decline_too-large": "Tento dokument je příliš velký na extrakci textu.",
+    "decline_empty": "Tento dokument neobsahuje text k anotaci."
   }
 }

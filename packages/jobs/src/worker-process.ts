@@ -33,7 +33,7 @@ import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourc
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
 import { deriveStorageUri, extractPdfTextLayer, type AnchoredTextStore } from '@semiont/content';
-import { prepareDetection, type DetectionDecline } from './workers/detection/prepare-detection';
+import { prepareDetection } from './workers/detection/prepare-detection';
 import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
 import {
   processHighlightJob,
@@ -75,14 +75,6 @@ type Agent = components['schemas']['Agent'];
  * extraction vocabulary, minus `no-extractor` — that one is a user error
  * (detection asked of a media type that can never yield text) and throws.
  */
-const DECLINE_MESSAGES: Record<Exclude<DetectionDecline['declined'], 'no-extractor'>, string> = {
-  'no-text-layer': 'This PDF is a scan whose text could not be recognized; there is nothing to detect over.',
-  'encrypted': 'This PDF is password-protected, so its text cannot be read.',
-  'corrupt': 'This PDF could not be parsed — the file may be damaged or truncated.',
-  'too-large': 'This document is too large to extract text from.',
-  'empty': 'This document contains no text to detect over.',
-};
-
 export interface WorkerProcessConfig {
   /**
    * The session authenticated as this worker's software-agent identity.
@@ -281,7 +273,6 @@ async function handleJobInner(
         result: {
           declined: true,
           reason: source.declined,
-          message: DECLINE_MESSAGES[source.declined],
         },
       });
       adapter.completeJob();

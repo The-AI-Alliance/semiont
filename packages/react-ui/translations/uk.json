@@ -444,5 +444,22 @@
     "searching": "Пошук...",
     "search": "Пошук",
     "maxLengthCeiling": "Обмежено до {{maxOutputTokens}} токенів моделлю {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Не вдалося створити анотацію: {{detail}}",
+    "deleteFailed": "Не вдалося видалити анотацію: {{detail}}",
+    "referenceUpdateFailed": "Не вдалося оновити посилання: {{detail}}",
+    "unknownError": "невідома помилка",
+    "assistQuiet": "Ще працює — кілька хвилин без оновлень",
+    "resourceCreatedNamed": "Створено «{{name}}»",
+    "resourceCreated": "Ресурс створено",
+    "annotationComplete": "Анотування завершено",
+    "annotationFailed": "Анотування не вдалося",
+    "generationFailed": "Генерування не вдалося: {{detail}}",
+    "decline_no-text-layer": "Цей PDF — скан, текст якого не вдалося розпізнати.",
+    "decline_encrypted": "Цей PDF захищено паролем, текст прочитати неможливо.",
+    "decline_corrupt": "Не вдалося прочитати цей PDF — файл може бути пошкоджено.",
+    "decline_too-large": "Цей документ завеликий для видобування тексту.",
+    "decline_empty": "У цьому документі немає тексту для анотування."
   }
 }

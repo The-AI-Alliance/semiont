@@ -444,5 +444,22 @@
     "searching": "Se caută...",
     "search": "Caută",
     "maxLengthCeiling": "Limitat la {{maxOutputTokens}} tokenuri de {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Nu s-a putut crea adnotarea: {{detail}}",
+    "deleteFailed": "Nu s-a putut șterge adnotarea: {{detail}}",
+    "referenceUpdateFailed": "Nu s-a putut actualiza referința: {{detail}}",
+    "unknownError": "eroare necunoscută",
+    "assistQuiet": "Încă lucrează — nicio actualizare de câteva minute",
+    "resourceCreatedNamed": "„{{name}}” creat",
+    "resourceCreated": "Resursă creată",
+    "annotationComplete": "Adnotare finalizată",
+    "annotationFailed": "Adnotarea a eșuat",
+    "generationFailed": "Generarea a eșuat: {{detail}}",
+    "decline_no-text-layer": "Acest PDF este o scanare al cărei text nu a putut fi recunoscut.",
+    "decline_encrypted": "Acest PDF este protejat prin parolă, textul nu poate fi citit.",
+    "decline_corrupt": "Acest PDF nu a putut fi citit — fișierul poate fi deteriorat.",
+    "decline_too-large": "Acest document este prea mare pentru extragerea textului.",
+    "decline_empty": "Acest document nu are text de adnotat."
   }
 }

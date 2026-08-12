@@ -444,5 +444,22 @@
     "searching": "Mencari...",
     "search": "Cari",
     "maxLengthCeiling": "Dibatasi hingga {{maxOutputTokens}} token oleh {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Tidak dapat membuat anotasi: {{detail}}",
+    "deleteFailed": "Tidak dapat menghapus anotasi: {{detail}}",
+    "referenceUpdateFailed": "Tidak dapat memperbarui referensi: {{detail}}",
+    "unknownError": "kesalahan tidak diketahui",
+    "assistQuiet": "Masih berjalan — tidak ada kabar selama beberapa menit",
+    "resourceCreatedNamed": "“{{name}}” dibuat",
+    "resourceCreated": "Sumber daya dibuat",
+    "annotationComplete": "Anotasi selesai",
+    "annotationFailed": "Anotasi gagal",
+    "generationFailed": "Pembuatan gagal: {{detail}}",
+    "decline_no-text-layer": "PDF ini hasil pindaian yang teksnya tidak dapat dikenali.",
+    "decline_encrypted": "PDF ini dilindungi kata sandi, teksnya tidak dapat dibaca.",
+    "decline_corrupt": "PDF ini tidak dapat dibaca — berkas mungkin rusak.",
+    "decline_too-large": "Dokumen ini terlalu besar untuk diekstrak teksnya.",
+    "decline_empty": "Dokumen ini tidak memiliki teks untuk dianotasi."
   }
 }

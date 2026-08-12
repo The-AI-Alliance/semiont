@@ -444,5 +444,22 @@
     "searching": "Zoeken...",
     "search": "Zoeken",
     "maxLengthCeiling": "Beperkt tot {{maxOutputTokens}} tokens door {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Kon de annotatie niet maken: {{detail}}",
+    "deleteFailed": "Kon de annotatie niet verwijderen: {{detail}}",
+    "referenceUpdateFailed": "Kon de verwijzing niet bijwerken: {{detail}}",
+    "unknownError": "onbekende fout",
+    "assistQuiet": "Nog bezig — al enkele minuten geen update",
+    "resourceCreatedNamed": "“{{name}}” gemaakt",
+    "resourceCreated": "Bron gemaakt",
+    "annotationComplete": "Annotatie voltooid",
+    "annotationFailed": "Annotatie mislukt",
+    "generationFailed": "Genereren mislukt: {{detail}}",
+    "decline_no-text-layer": "Deze PDF is een scan waarvan de tekst niet herkend kon worden.",
+    "decline_encrypted": "Deze PDF is met een wachtwoord beveiligd; de tekst is onleesbaar.",
+    "decline_corrupt": "Deze PDF kon niet gelezen worden — het bestand is mogelijk beschadigd.",
+    "decline_too-large": "Dit document is te groot om tekst uit te halen.",
+    "decline_empty": "Dit document bevat geen tekst om te annoteren."
   }
 }

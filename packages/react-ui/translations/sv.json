@@ -444,5 +444,22 @@
     "searching": "Söker...",
     "search": "Sök",
     "maxLengthCeiling": "Begränsat till {{maxOutputTokens}} tokens av {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Kunde inte skapa annoteringen: {{detail}}",
+    "deleteFailed": "Kunde inte ta bort annoteringen: {{detail}}",
+    "referenceUpdateFailed": "Kunde inte uppdatera referensen: {{detail}}",
+    "unknownError": "okänt fel",
+    "assistQuiet": "Arbetar fortfarande — ingen uppdatering på några minuter",
+    "resourceCreatedNamed": "”{{name}}” skapad",
+    "resourceCreated": "Resurs skapad",
+    "annotationComplete": "Annotering klar",
+    "annotationFailed": "Annoteringen misslyckades",
+    "generationFailed": "Genereringen misslyckades: {{detail}}",
+    "decline_no-text-layer": "Denna PDF är en skanning vars text inte kunde tolkas.",
+    "decline_encrypted": "Denna PDF är lösenordsskyddad och texten går inte att läsa.",
+    "decline_corrupt": "Denna PDF kunde inte läsas — filen kan vara skadad.",
+    "decline_too-large": "Detta dokument är för stort för att extrahera text ur.",
+    "decline_empty": "Detta dokument har ingen text att annotera."
   }
 }

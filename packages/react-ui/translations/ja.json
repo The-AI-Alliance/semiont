@@ -444,5 +444,22 @@
     "searching": "検索中...",
     "search": "検索",
     "maxLengthCeiling": "{{model}} により {{maxOutputTokens}} トークンに制限されています。"
+  },
+  "OutcomeToasts": {
+    "createFailed": "注釈を作成できませんでした: {{detail}}",
+    "deleteFailed": "注釈を削除できませんでした: {{detail}}",
+    "referenceUpdateFailed": "参照を更新できませんでした: {{detail}}",
+    "unknownError": "不明なエラー",
+    "assistQuiet": "処理中です — 数分間更新がありません",
+    "resourceCreatedNamed": "「{{name}}」を作成しました",
+    "resourceCreated": "リソースを作成しました",
+    "annotationComplete": "注釈が完了しました",
+    "annotationFailed": "注釈に失敗しました",
+    "generationFailed": "生成に失敗しました: {{detail}}",
+    "decline_no-text-layer": "この PDF はスキャン画像で、テキストを認識できませんでした。",
+    "decline_encrypted": "この PDF はパスワード保護されているため、テキストを読み取れません。",
+    "decline_corrupt": "この PDF を読み取れませんでした。ファイルが破損している可能性があります。",
+    "decline_too-large": "この文書は大きすぎてテキストを抽出できません。",
+    "decline_empty": "この文書には注釈を付けるテキストがありません。"
   }
 }

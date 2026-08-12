@@ -444,5 +444,22 @@
     "searching": "Đang tìm kiếm...",
     "search": "Tìm kiếm",
     "maxLengthCeiling": "Giới hạn {{maxOutputTokens}} token bởi {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Không thể tạo chú thích: {{detail}}",
+    "deleteFailed": "Không thể xóa chú thích: {{detail}}",
+    "referenceUpdateFailed": "Không thể cập nhật tham chiếu: {{detail}}",
+    "unknownError": "lỗi không xác định",
+    "assistQuiet": "Vẫn đang chạy — vài phút chưa có cập nhật",
+    "resourceCreatedNamed": "Đã tạo “{{name}}”",
+    "resourceCreated": "Đã tạo tài nguyên",
+    "annotationComplete": "Chú thích hoàn tất",
+    "annotationFailed": "Chú thích thất bại",
+    "generationFailed": "Tạo thất bại: {{detail}}",
+    "decline_no-text-layer": "PDF này là bản quét mà văn bản không nhận dạng được.",
+    "decline_encrypted": "PDF này được bảo vệ bằng mật khẩu nên không đọc được văn bản.",
+    "decline_corrupt": "Không đọc được PDF này — tệp có thể bị hỏng.",
+    "decline_too-large": "Tài liệu này quá lớn để trích xuất văn bản.",
+    "decline_empty": "Tài liệu này không có văn bản để chú thích."
   }
 }

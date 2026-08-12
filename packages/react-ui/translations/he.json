@@ -444,5 +444,22 @@
     "searching": "מחפש...",
     "search": "חיפוש",
     "maxLengthCeiling": "מוגבל ל-{{maxOutputTokens}} טוקנים על ידי {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "לא ניתן ליצור את ההערה: {{detail}}",
+    "deleteFailed": "לא ניתן למחוק את ההערה: {{detail}}",
+    "referenceUpdateFailed": "לא ניתן לעדכן את ההפניה: {{detail}}",
+    "unknownError": "שגיאה לא ידועה",
+    "assistQuiet": "עדיין פועל — אין עדכון כבר כמה דקות",
+    "resourceCreatedNamed": "נוצר „{{name}}”",
+    "resourceCreated": "המשאב נוצר",
+    "annotationComplete": "ההערות הושלמו",
+    "annotationFailed": "ההערה נכשלה",
+    "generationFailed": "היצירה נכשלה: {{detail}}",
+    "decline_no-text-layer": "קובץ PDF זה הוא סריקה שהטקסט בה לא זוהה.",
+    "decline_encrypted": "קובץ PDF זה מוגן בסיסמה ולא ניתן לקרוא את הטקסט.",
+    "decline_corrupt": "לא ניתן היה לקרוא קובץ PDF זה — ייתכן שהקובץ פגום.",
+    "decline_too-large": "מסמך זה גדול מדי לחילוץ טקסט.",
+    "decline_empty": "במסמך זה אין טקסט להערה."
   }
 }

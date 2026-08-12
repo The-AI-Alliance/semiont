@@ -2547,17 +2547,14 @@ type JobDeclinedResult struct {
 	// Declined Discriminant. Always true — a job that did its work reports one of the other result shapes.
 	Declined JobDeclinedResultDeclined `json:"declined"`
 
-	// Message Human-readable explanation, suitable for showing to the user.
-	Message string `json:"message"`
-
-	// Reason Why the resource could not be read.
+	// Reason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed backend-side and was therefore English everywhere (ASSIST-PROGRESS-CONSOLIDATION P5).
 	Reason JobDeclinedResultReason `json:"reason"`
 }
 
 // JobDeclinedResultDeclined Discriminant. Always true — a job that did its work reports one of the other result shapes.
 type JobDeclinedResultDeclined bool
 
-// JobDeclinedResultReason Why the resource could not be read.
+// JobDeclinedResultReason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed backend-side and was therefore English everywhere (ASSIST-PROGRESS-CONSOLIDATION P5).
 type JobDeclinedResultReason string
 
 // JobFailCommand Command to mark a job as failed

@@ -444,5 +444,22 @@
     "searching": "搜索中...",
     "search": "搜索",
     "maxLengthCeiling": "受 {{model}} 限制为 {{maxOutputTokens}} 个词元。"
+  },
+  "OutcomeToasts": {
+    "createFailed": "无法创建批注：{{detail}}",
+    "deleteFailed": "无法删除批注：{{detail}}",
+    "referenceUpdateFailed": "无法更新引用：{{detail}}",
+    "unknownError": "未知错误",
+    "assistQuiet": "仍在处理 — 已有几分钟没有更新",
+    "resourceCreatedNamed": "已创建“{{name}}”",
+    "resourceCreated": "资源已创建",
+    "annotationComplete": "批注完成",
+    "annotationFailed": "批注失败",
+    "generationFailed": "生成失败：{{detail}}",
+    "decline_no-text-layer": "此 PDF 是扫描件，无法识别其文本。",
+    "decline_encrypted": "此 PDF 受密码保护，无法读取其文本。",
+    "decline_corrupt": "无法读取此 PDF — 文件可能已损坏。",
+    "decline_too-large": "此文档过大，无法提取文本。",
+    "decline_empty": "此文档没有可批注的文本。"
   }
 }

@@ -444,5 +444,22 @@
     "searching": "Suche läuft...",
     "search": "Suchen",
     "maxLengthCeiling": "Durch {{model}} auf {{maxOutputTokens}} Token begrenzt."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Anmerkung konnte nicht erstellt werden: {{detail}}",
+    "deleteFailed": "Anmerkung konnte nicht gelöscht werden: {{detail}}",
+    "referenceUpdateFailed": "Verweis konnte nicht aktualisiert werden: {{detail}}",
+    "unknownError": "unbekannter Fehler",
+    "assistQuiet": "Läuft noch — seit einigen Minuten keine Rückmeldung",
+    "resourceCreatedNamed": "„{{name}}“ erstellt",
+    "resourceCreated": "Ressource erstellt",
+    "annotationComplete": "Annotation abgeschlossen",
+    "annotationFailed": "Annotation fehlgeschlagen",
+    "generationFailed": "Generierung fehlgeschlagen: {{detail}}",
+    "decline_no-text-layer": "Dieses PDF ist ein Scan, dessen Text nicht erkannt werden konnte.",
+    "decline_encrypted": "Dieses PDF ist passwortgeschützt, der Text ist nicht lesbar.",
+    "decline_corrupt": "Dieses PDF konnte nicht gelesen werden — die Datei ist womöglich beschädigt.",
+    "decline_too-large": "Dieses Dokument ist zu groß für die Textextraktion.",
+    "decline_empty": "Dieses Dokument enthält keinen Text zum Annotieren."
   }
 }

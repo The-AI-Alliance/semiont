@@ -444,5 +444,22 @@
     "searching": "Wyszukiwanie...",
     "search": "Szukaj",
     "maxLengthCeiling": "Ograniczone do {{maxOutputTokens}} tokenów przez {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Nie udało się utworzyć adnotacji: {{detail}}",
+    "deleteFailed": "Nie udało się usunąć adnotacji: {{detail}}",
+    "referenceUpdateFailed": "Nie udało się zaktualizować odniesienia: {{detail}}",
+    "unknownError": "nieznany błąd",
+    "assistQuiet": "Nadal trwa — brak aktualizacji od kilku minut",
+    "resourceCreatedNamed": "Utworzono „{{name}}”",
+    "resourceCreated": "Zasób utworzony",
+    "annotationComplete": "Adnotacje ukończone",
+    "annotationFailed": "Adnotacja nie powiodła się",
+    "generationFailed": "Generowanie nie powiodło się: {{detail}}",
+    "decline_no-text-layer": "Ten PDF to skan, którego tekstu nie rozpoznano.",
+    "decline_encrypted": "Ten PDF jest chroniony hasłem, tekstu nie można odczytać.",
+    "decline_corrupt": "Nie udało się odczytać tego PDF-a — plik może być uszkodzony.",
+    "decline_too-large": "Ten dokument jest zbyt duży, aby wyodrębnić tekst.",
+    "decline_empty": "Ten dokument nie zawiera tekstu do adnotacji."
   }
 }

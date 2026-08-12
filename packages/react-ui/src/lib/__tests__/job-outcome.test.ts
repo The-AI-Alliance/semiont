@@ -1,22 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { declinedMessage } from '../job-outcome';
+import { declineReason } from '../job-outcome';
 
-describe('declinedMessage', () => {
-  it('returns the message for a declined result (scanned-PDF no-text-layer)', () => {
-    expect(
-      declinedMessage({ declined: true, reason: 'no-text-layer', message: 'No extractable text layer.' }),
-    ).toBe('No extractable text layer.');
+// `declinedMessage` was DELETED by P5, not aliased: the wire no longer carries
+// a sentence to return. Its pins are superseded by the `declineReason` block.
+
+describe('declineReason', () => {
+  it('returns the typed reason, never a wire-supplied sentence', () => {
+    expect(declineReason({ declined: true, reason: 'no-text-layer' })).toBe('no-text-layer');
+    expect(declineReason({ declined: true, reason: 'encrypted' })).toBe('encrypted');
   });
 
-  it('returns null for an ordinary annotation result', () => {
-    expect(declinedMessage({ highlightsFound: 3, highlightsCreated: 3 })).toBeNull();
+  it('is null for an ordinary result', () => {
+    expect(declineReason({ highlightsFound: 3 })).toBeNull();
+    expect(declineReason(undefined)).toBeNull();
+    expect(declineReason({ declined: false, reason: 'empty' })).toBeNull();
   });
 
-  it('returns null for undefined, non-objects, and malformed declines', () => {
-    expect(declinedMessage(undefined)).toBeNull();
-    expect(declinedMessage(null)).toBeNull();
-    expect(declinedMessage('nope')).toBeNull();
-    expect(declinedMessage({ declined: true })).toBeNull();               // declined but no message
-    expect(declinedMessage({ declined: false, message: 'x' })).toBeNull(); // has message but not declined
+  it('is null for a reason outside the vocabulary — never renders a raw string', () => {
+    // A reason this client does not know has no copy; showing the bare token
+    // would be the untranslated leak this phase exists to remove.
+    expect(declineReason({ declined: true, reason: 'something-new' })).toBeNull();
   });
 });

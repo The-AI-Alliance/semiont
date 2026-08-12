@@ -444,5 +444,22 @@
     "searching": "Aranıyor...",
     "search": "Ara",
     "maxLengthCeiling": "{{model}} tarafından {{maxOutputTokens}} belirteçle sınırlı."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Açıklama oluşturulamadı: {{detail}}",
+    "deleteFailed": "Açıklama silinemedi: {{detail}}",
+    "referenceUpdateFailed": "Referans güncellenemedi: {{detail}}",
+    "unknownError": "bilinmeyen hata",
+    "assistQuiet": "Hâlâ çalışıyor — birkaç dakikadır güncelleme yok",
+    "resourceCreatedNamed": "“{{name}}” oluşturuldu",
+    "resourceCreated": "Kaynak oluşturuldu",
+    "annotationComplete": "Açıklama tamamlandı",
+    "annotationFailed": "Açıklama başarısız",
+    "generationFailed": "Oluşturma başarısız: {{detail}}",
+    "decline_no-text-layer": "Bu PDF, metni tanınamayan bir tarama.",
+    "decline_encrypted": "Bu PDF parola korumalı, metni okunamıyor.",
+    "decline_corrupt": "Bu PDF okunamadı — dosya bozuk olabilir.",
+    "decline_too-large": "Bu belge metin çıkarmak için fazla büyük.",
+    "decline_empty": "Bu belgede açıklama eklenecek metin yok."
   }
 }

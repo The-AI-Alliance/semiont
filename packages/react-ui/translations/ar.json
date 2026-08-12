@@ -444,5 +444,22 @@
     "searching": "جاري البحث...",
     "search": "بحث",
     "maxLengthCeiling": "محدود بـ {{maxOutputTokens}} رمزًا بواسطة {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "تعذّر إنشاء التعليق التوضيحي: {{detail}}",
+    "deleteFailed": "تعذّر حذف التعليق التوضيحي: {{detail}}",
+    "referenceUpdateFailed": "تعذّر تحديث المرجع: {{detail}}",
+    "unknownError": "خطأ غير معروف",
+    "assistQuiet": "لا يزال قيد التنفيذ — لا تحديث منذ عدة دقائق",
+    "resourceCreatedNamed": "تم إنشاء «{{name}}»",
+    "resourceCreated": "تم إنشاء المورد",
+    "annotationComplete": "اكتمل التوسيم",
+    "annotationFailed": "فشل التوسيم",
+    "generationFailed": "فشل التوليد: {{detail}}",
+    "decline_no-text-layer": "هذا الملف صورة ممسوحة تعذّر التعرّف على نصها.",
+    "decline_encrypted": "هذا الملف محمي بكلمة مرور، ولا يمكن قراءة نصه.",
+    "decline_corrupt": "تعذّرت قراءة هذا الملف — قد يكون تالفًا.",
+    "decline_too-large": "هذا المستند أكبر من أن يُستخرج نصه.",
+    "decline_empty": "لا يحتوي هذا المستند على نص لتوسيمه."
   }
 }

@@ -444,5 +444,22 @@
     "searching": "Søger...",
     "search": "Søg",
     "maxLengthCeiling": "Begrænset til {{maxOutputTokens}} tokens af {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Kunne ikke oprette annotationen: {{detail}}",
+    "deleteFailed": "Kunne ikke slette annotationen: {{detail}}",
+    "referenceUpdateFailed": "Kunne ikke opdatere referencen: {{detail}}",
+    "unknownError": "ukendt fejl",
+    "assistQuiet": "Arbejder stadig — ingen opdatering i et par minutter",
+    "resourceCreatedNamed": "“{{name}}” oprettet",
+    "resourceCreated": "Ressource oprettet",
+    "annotationComplete": "Annotation fuldført",
+    "annotationFailed": "Annotation mislykkedes",
+    "generationFailed": "Generering mislykkedes: {{detail}}",
+    "decline_no-text-layer": "Denne PDF er en scanning, hvis tekst ikke kunne genkendes.",
+    "decline_encrypted": "Denne PDF er adgangskodebeskyttet, så teksten kan ikke læses.",
+    "decline_corrupt": "Denne PDF kunne ikke læses — filen er måske beskadiget.",
+    "decline_too-large": "Dette dokument er for stort til at udtrække tekst fra.",
+    "decline_empty": "Dette dokument har ingen tekst at annotere."
   }
 }

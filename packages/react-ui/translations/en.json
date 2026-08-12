@@ -444,5 +444,22 @@
     "searching": "Searching...",
     "search": "Search",
     "maxLengthCeiling": "Limited to {{maxOutputTokens}} tokens by {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Couldn’t create the annotation: {{detail}}",
+    "deleteFailed": "Couldn’t delete the annotation: {{detail}}",
+    "referenceUpdateFailed": "Couldn’t update the reference: {{detail}}",
+    "unknownError": "unknown error",
+    "assistQuiet": "Still working — no update from the annotation job for a few minutes",
+    "resourceCreatedNamed": "Created “{{name}}”",
+    "resourceCreated": "Resource created",
+    "annotationComplete": "Annotation complete",
+    "annotationFailed": "Annotation failed",
+    "generationFailed": "Generation failed: {{detail}}",
+    "decline_no-text-layer": "This PDF is a scan whose text couldn’t be recognized, so there’s nothing to annotate.",
+    "decline_encrypted": "This PDF is password-protected, so its text can’t be read.",
+    "decline_corrupt": "This PDF couldn’t be read — the file may be damaged.",
+    "decline_too-large": "This document is too large to extract text from.",
+    "decline_empty": "This document has no text to annotate."
   }
 }

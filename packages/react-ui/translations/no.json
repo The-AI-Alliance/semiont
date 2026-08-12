@@ -444,5 +444,22 @@
     "searching": "Søker...",
     "search": "Søk",
     "maxLengthCeiling": "Begrenset til {{maxOutputTokens}} tokens av {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Kunne ikke opprette merknaden: {{detail}}",
+    "deleteFailed": "Kunne ikke slette merknaden: {{detail}}",
+    "referenceUpdateFailed": "Kunne ikke oppdatere referansen: {{detail}}",
+    "unknownError": "ukjent feil",
+    "assistQuiet": "Jobber fortsatt — ingen oppdatering på noen minutter",
+    "resourceCreatedNamed": "«{{name}}» opprettet",
+    "resourceCreated": "Ressurs opprettet",
+    "annotationComplete": "Merknader fullført",
+    "annotationFailed": "Merknad mislyktes",
+    "generationFailed": "Generering mislyktes: {{detail}}",
+    "decline_no-text-layer": "Denne PDF-en er en skanning der teksten ikke kunne gjenkjennes.",
+    "decline_encrypted": "Denne PDF-en er passordbeskyttet, så teksten kan ikke leses.",
+    "decline_corrupt": "Denne PDF-en kunne ikke leses — filen kan være skadet.",
+    "decline_too-large": "Dette dokumentet er for stort til å hente ut tekst fra.",
+    "decline_empty": "Dette dokumentet har ingen tekst å merke."
   }
 }
