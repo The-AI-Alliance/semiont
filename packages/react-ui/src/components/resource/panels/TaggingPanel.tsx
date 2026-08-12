@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { assistProgressCopy, assistSubjectCopy } from '../../../lib/assist-progress-copy';
 import { isReady } from '@semiont/sdk';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useObservable } from '../../../hooks/useObservable';
@@ -364,16 +365,13 @@ export function TaggingPanel({
             isAssisting={isAssisting}
             progress={progress}
             progressProps={{
-              showPercentBar: true,
               onDismiss: handleDismissProgress,
               translations: {
                 cancel: t('cancel'),
                 inProgress: t('annotating'),
-                complete: t('complete'),
-                failed: t('failed'),
-                paramsTitle: ta('paramsTitle'),
-                processing: (label) => ta('processing', { label }),
                 close: ta('close'),
+                message: assistProgressCopy(ta),
+                subject: assistSubjectCopy(ta),
               },
             }}
             form={

@@ -70,6 +70,11 @@ export function AssistShell({ assistType, title, isAssisting, progress, form, pr
             <AssistProgress
               progress={progress}
               dataType={assistType}
+              // D7: terminality is the OWNER's fact. `isAssisting` follows the
+              // job lifecycle (job:complete / job:fail); the widget must never
+              // infer "done" from a progress payload, which cannot tell it
+              // about a cancel or a crash after the last tick.
+              ended={!isAssisting}
               {...progressProps}
               {...(isAssisting ? { onDismiss: undefined } : {})}
             />

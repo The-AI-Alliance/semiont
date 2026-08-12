@@ -22,7 +22,7 @@ import type { Annotation, AnnotationId } from '@semiont/core';
 
 // Mock translations - simulates useTranslations('HighlightPanel')
 // The mock receives keys like 'title', 'noHighlights', etc. and returns translated strings
-const mockT = vi.fn((key: string) => {
+const mockT = vi.fn((key: string, params?: Record<string, unknown>) => {
   const translations: Record<string, string> = {
     title: 'Highlights',
     noHighlights: 'No highlights yet',
@@ -35,10 +35,24 @@ const mockT = vi.fn((key: string) => {
     densityDense: 'Dense',
     annotate: 'Annotate',
     annotating: 'Annotating...',
-    complete: 'Annotation complete!',
-    failed: 'Annotation failed',
   };
-  return translations[key] || key;
+  // P3: the coded status line. Interpolates `{{var}}` like production —
+  // a mock that ignored params would let copy that cannot interpolate in the
+  // app still pass here.
+  Object.assign(translations, {
+    codeLoading: 'Loading…',
+    codeAnalyzing: 'Marking…',
+    codeDetectingEntities: 'Marking…',
+    codeCompleteCreated: 'Created {{count}} {{kind}}',
+    kindHighlight: 'highlights',
+    subject: '{{label}}',
+    subjectWithPosition: '{{label}} ({{done}} of {{total}})',
+  });
+  let out = translations[key] || key;
+  for (const [k, v] of Object.entries((params ?? {}) as Record<string, unknown>)) {
+    out = out.replace(`{{${k}}}`, String(v));
+  }
+  return out;
 });
 
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -139,6 +153,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
           isAssisting={false}
           progress={{
             stage: 'complete',
+            message: { code: 'complete-created', count: 3, kind: 'highlight' },
             percentage: 100,
           }}
           annotateMode={true}
@@ -146,7 +161,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
       );
 
       // Progress should still be visible
-      expect(screen.getByText('Annotation complete!')).toBeInTheDocument();
+      expect(screen.getByText('Created 3 highlights')).toBeInTheDocument();
       // Form should NOT be visible
       expect(screen.queryByPlaceholderText('Enter custom instructions...')).not.toBeInTheDocument();
     });
@@ -169,7 +184,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
         />
       );
 
-      expect(screen.getByText('paramsTitle')).toBeInTheDocument();
+      expect(screen.getByTestId('semiont-assist-params')).toBeInTheDocument();
       expect(screen.getByText('Find important points')).toBeInTheDocument();
       expect(screen.getByText('5')).toBeInTheDocument();
     });
@@ -263,6 +278,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
           isAssisting={false}
           progress={{
             stage: 'complete',
+            message: { code: 'complete-created', count: 3, kind: 'highlight' },
             percentage: 100,
           }}
           annotateMode={true}
@@ -270,7 +286,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
       );
 
       // Progress should be visible
-      expect(screen.getByText('Annotation complete!')).toBeInTheDocument();
+      expect(screen.getByText('Created 3 highlights')).toBeInTheDocument();
       // Form should be hidden
       expect(screen.queryByPlaceholderText('Enter custom instructions...')).not.toBeInTheDocument();
     });
@@ -318,6 +334,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
           isAssisting={false}
           progress={{
             stage: 'complete',
+            message: { code: 'complete-created', count: 3, kind: 'highlight' },
             percentage: 100,
           }}
           annotateMode={true}
@@ -325,7 +342,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
       );
 
       expect(screen.queryByText('Annotating...')).not.toBeInTheDocument();
-      expect(screen.getByText('Annotation complete!')).toBeInTheDocument();
+      expect(screen.getByText('Created 3 highlights')).toBeInTheDocument();
     });
   });
 

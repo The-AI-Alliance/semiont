@@ -23,188 +23,257 @@ import { AssistProgress, type AssistProgressTranslations } from '../AssistProgre
 
 type JobProgress = components['schemas']['JobProgress'];
 
-const running = (over: Partial<JobProgress> = {}): JobProgress => ({
-  stage: 'analyzing', percentage: 40, ...over,
-});
-
-/** Every required key, echoing its own name; override per test. */
-const T = (over: Partial<AssistProgressTranslations> = {}): AssistProgressTranslations => ({
-  cancel: 'tr.cancel',
-  inProgress: 'tr.inProgress',
-  complete: 'tr.complete',
-  failed: 'tr.failed',
-  close: 'tr.close',
-  paramsTitle: 'tr.paramsTitle',
-  processing: (label: string) => `tr.processing(${label})`,
-  ...over,
-});
-
 describe('AssistProgress', () => {
-  it('renders provider-free: status line, params, and data hooks', () => {
+  // Trimmed by P3 (2026-08-12). Five tests were DELETED rather than adapted
+  // because they pinned surfaces this phase removes, and each has a successor
+  // in the P3 block below:
+  //   • paramsTitle copy          → H1 (the label is gone; the line is conditional)
+  //   • "title header only when given one" → A2 (the section header is the title)
+  //   • "cancel in the header / hidden once complete" → A3 ×2 (one control)
+  //   • "stage branching"          → A8 + A3-ended (D7: no producer emits a
+  //                                  terminal stage; terminality is a prop)
+  //   • "percentage bar only when opted in" → A4 (a bar follows the data, not a flag)
+  // What survives here is what P3 does NOT change.
+
+  it('renders provider-free — no session, no context, no providers', () => {
+    // The embeddable contract: this must render standalone. If it ever reaches
+    // for a provider, this throws rather than silently degrading.
     const { container } = render(
-      <AssistProgress
-        progress={running({ requestParams: [{ label: 'Density', value: '5' }] })}
-        dataType="comment"
-        translations={T()}
-      />,
+      <AssistProgress progress={detecting()} dataType="reference" translations={T3()} />,
     );
-    expect(screen.getByText('tr.inProgress')).toBeInTheDocument();
-    expect(screen.getByText(/Density/)).toBeInTheDocument();
-    expect(screen.getByText('5')).toBeInTheDocument();
-    const root = container.querySelector('.semiont-annotation-progress');
-    expect(root).toHaveAttribute('data-type', 'comment');
-    expect(root).toHaveAttribute('data-status', 'analyzing');
-  });
-
-  it('renders the request-parameters title from translations, never a literal', () => {
-    render(
-      <AssistProgress
-        progress={running({ requestParams: [{ label: 'Density', value: '5' }] })}
-        dataType="comment"
-        translations={T()}
-      />,
-    );
-    expect(screen.getByText('tr.paramsTitle')).toBeInTheDocument();
-    expect(screen.queryByText('Request Parameters:')).not.toBeInTheDocument();
-  });
-
-  it('renders a title header only when given one', () => {
-    const { rerender } = render(
-      <AssistProgress progress={running()} dataType="reference" translations={T({ title: 'Annotating Entity References' })} />,
-    );
-    expect(screen.getByText('Annotating Entity References')).toBeInTheDocument();
-    rerender(<AssistProgress progress={running()} dataType="comment" translations={T()} />);
-    expect(screen.queryByText('Annotating Entity References')).not.toBeInTheDocument();
-  });
-
-  it('shows cancel in the header while running, hides it once complete', async () => {
-    // Cancel lives in the title header — both flows that offer cancel
-    // (reference detection, generation) render the titled profile.
-    const onCancel = vi.fn();
-    const tr = T({ title: 'Generating Resource', cancel: 'Cancel Job' });
-    const { rerender } = render(
-      <AssistProgress progress={running()} dataType="generation" onCancel={onCancel} translations={tr} />,
-    );
-    await userEvent.click(screen.getByTitle('Cancel Job'));
-    expect(onCancel).toHaveBeenCalledOnce();
-    rerender(
-      <AssistProgress progress={running({ stage: 'complete' })} dataType="generation" onCancel={onCancel} translations={tr} />,
-    );
-    expect(screen.queryByTitle('Cancel Job')).not.toBeInTheDocument();
-    // Error is terminal too — offering cancel on a dead job is misleading and
-    // invites redundant cancel requests.
-    rerender(
-      <AssistProgress progress={running({ stage: 'error' })} dataType="generation" onCancel={onCancel} translations={tr} />,
-    );
-    expect(screen.queryByTitle('Cancel Job')).not.toBeInTheDocument();
-  });
-
-  it('stage branching: terminal stages render the translated copy, never wire prose', () => {
-    // The wire no longer carries a sentence — `message` is a code + typed
-    // params, and rendering it is P3's work. Until then both terminal stages
-    // render the client's own translated copy, unconditionally.
-    const { rerender } = render(
-      <AssistProgress progress={running({ stage: 'complete' })} dataType="reference" translations={T({ complete: 'All done!' })} />,
-    );
-    expect(screen.getByText('All done!')).toBeInTheDocument();
-    rerender(
-      <AssistProgress progress={running({ stage: 'error' })} dataType="reference" translations={T({ failed: 'Failed' })} />,
-    );
-    expect(screen.getByText('Failed')).toBeInTheDocument();
+    expect(container.querySelector('.semiont-assist-progress')).toBeInTheDocument();
+    expect(container.querySelector('[data-type="reference"]')).toBeInTheDocument();
   });
 
   it('renders the completed entity-type log when data + formatter are present', () => {
     render(
       <AssistProgress
-        progress={running({ completedEntityTypes: [{ entityType: 'Person', foundCount: 3 }] })}
-        dataType="reference" translations={T({ found: (n) => `Found ${n}` })}
+        progress={detecting({
+          completedEntityTypes: [{ entityType: 'Person', foundCount: 3 }],
+        })}
+        dataType="reference"
+        translations={T3()}
       />,
     );
     expect(screen.getByText('Person:')).toBeInTheDocument();
-    expect(screen.getByText('Found 3')).toBeInTheDocument();
+    expect(screen.getByText('tr.found(3)')).toBeInTheDocument();
   });
 
-  it('renders the current-work detail line: entity type via formatter, category with counts', () => {
-    const { rerender } = render(
-      <AssistProgress
-        progress={running({ currentEntityType: 'Location' })}
-        dataType="reference" translations={T({ current: (l) => `Current: ${l}` })}
-      />,
-    );
-    // getAllByText: with no wire prose, the status line falls back to the
-    // same currentLabel the detail line renders — defect 1's duplicate,
-    // visible in tests now that fixtures carry no message. P3 deletes it
-    // (ASSIST-PROGRESS-CONSOLIDATION A1).
-    expect(screen.getAllByText('Current: Location').length).toBeGreaterThan(0);
-    rerender(
-      <AssistProgress
-        progress={running({ currentCategory: 'Rule', processedCategories: 2, totalCategories: 5 })}
-        dataType="tag" translations={T()}
-      />,
-    );
-    expect(screen.getByText(/Rule/)).toBeInTheDocument();
-    expect(screen.getByText(/2\/5/)).toBeInTheDocument();
-  });
-
-  it('falls back to the generic processing formatter — never the English literal', () => {
-    // The reference flow passes its own `current` wording; every other flow
-    // (tag categories, and any flow without one) uses `processing`. Neither
-    // path may render a hardcoded "Processing: ".
-    const { rerender } = render(
-      <AssistProgress progress={running({ currentEntityType: 'Location' })} dataType="reference" translations={T()} />,
-    );
-    // getAllByText: same defect-1 duplicate as above; A1 (P3) collapses it.
-    expect(screen.getAllByText('tr.processing(Location)').length).toBeGreaterThan(0);
-    rerender(
-      <AssistProgress progress={running({ currentCategory: 'Rule' })} dataType="tag" translations={T()} />,
-    );
-    expect(screen.getByText(/tr\.processing\(Rule\)/)).toBeInTheDocument();
-    expect(screen.queryByText(/^Processing: /)).not.toBeInTheDocument();
-  });
-
-  it('renders the percentage bar only when opted in', () => {
-    const { container, rerender } = render(
-      <AssistProgress progress={running({ percentage: 40 })} dataType="tag" showPercentBar translations={T()} />,
-    );
-    const fill = container.querySelector('.semiont-progress-bar__fill');
-    expect(fill).toBeInTheDocument();
-    expect(fill).toHaveStyle({ width: '40%' });
-    rerender(
-      <AssistProgress progress={running({ percentage: 40 })} dataType="reference" translations={T()} />,
-    );
-    expect(container.querySelector('.semiont-progress-bar__fill')).not.toBeInTheDocument();
-  });
-
-  it('cancel and dismiss take their accessible names from translations', () => {
-    // ✕ / × glyphs alone are meaningless to screen readers, and an English
-    // fallback is meaningless to a non-English reader. The labels are
-    // required keys, so there is nothing to fall back TO.
+  it('omits the entity-type log when the formatter is absent (non-reference flows)', () => {
+    const tr = T3();
+    delete (tr as Partial<AssistProgressTranslations>).found;
     render(
-      <AssistProgress progress={running()} dataType="generation"
-        onCancel={vi.fn()} onDismiss={vi.fn()}
-        translations={T({ title: 'Generating' })} />,
+      <AssistProgress
+        progress={detecting({ completedEntityTypes: [{ entityType: 'Person', foundCount: 3 }] })}
+        dataType="comment"
+        translations={tr}
+      />,
+    );
+    expect(screen.queryByText('Person:')).toBeNull();
+  });
+
+  it('the control takes its accessible name from translations, per lifecycle', () => {
+    const { rerender } = render(
+      <AssistProgress
+        progress={detecting()} dataType="reference"
+        onCancel={vi.fn()} onDismiss={vi.fn()} translations={T3()}
+      />,
     );
     expect(screen.getByLabelText('tr.cancel')).toBeInTheDocument();
+
+    rerender(
+      <AssistProgress
+        progress={detecting()} dataType="reference" ended
+        onCancel={vi.fn()} onDismiss={vi.fn()} translations={T3()}
+      />,
+    );
     expect(screen.getByLabelText('tr.close')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Cancel')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Dismiss')).not.toBeInTheDocument();
   });
 
+  it('offers no control at all when the caller wires neither callback', () => {
+    render(<AssistProgress progress={detecting()} dataType="reference" translations={T3()} />);
+    expect(screen.queryByTestId('semiont-assist-control')).toBeNull();
+  });
 
-  it('renders dismiss whenever the caller offers it (WHEN is the caller\'s policy)', async () => {
-    // AssistShell withholds onDismiss while the assist is running — that
-    // gate is pinned in AssistShell.test; here the contract is just
-    // "callback present → affordance rendered".
+  it('falls back to the generic in-progress copy when no code has arrived', () => {
+    // `JobProgress.message` is optional: a pure liveness heartbeat carries none.
+    const noCode = { stage: 'analyzing', percentage: 5 } as JobProgress;
+    render(<AssistProgress progress={noCode} dataType="comment" translations={T3()} />);
+    expect(screen.getByTestId('semiont-assist-status').textContent).toBe('tr.inProgress');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ASSIST-PROGRESS-CONSOLIDATION P3 — the RED wave (A1-A5, A8).
+//
+// These assert STRUCTURE, never copy: H3 set the wording ("Marking…", subject
+// beneath) and it will be revised from use. A test pinned to a sentence rots on
+// the first edit and teaches the next reader to weaken it.
+// ─────────────────────────────────────────────────────────────────────────────
+const STATUS = 'semiont-assist-status';
+const SUBJECT = 'semiont-assist-subject';
+const CONTROL = 'semiont-assist-control';
+const BAR = 'semiont-assist-bar';
+const PARAMS = 'semiont-assist-params';
+
+/** Post-P3 translations: one function for the coded copy, plus structure keys. */
+const T3 = (over: Partial<AssistProgressTranslations> = {}): AssistProgressTranslations =>
+  ({
+    cancel: 'tr.cancel',
+    close: 'tr.close',
+    inProgress: 'tr.inProgress',
+    message: (m: any) => `tr.code(${m.code})`,
+    subject: (label: string, done?: number, total?: number) =>
+      done === undefined ? `tr.subject(${label})` : `tr.subject(${label}|${done}/${total})`,
+    found: (n: number) => `tr.found(${n})`,
+    ...over,
+  }) as AssistProgressTranslations;
+
+const detecting = (over: Partial<JobProgress> = {}): JobProgress =>
+  ({
+    stage: 'analyzing',
+    percentage: 40,
+    message: { code: 'detecting-entities', entityType: 'Person' },
+    currentEntityType: 'Person',
+    processedEntityTypes: 1,
+    totalEntityTypes: 3,
+    ...over,
+  }) as JobProgress;
+
+describe('AssistProgress — P3 consolidation', () => {
+  it('A1: renders the subject exactly once for one progress event', () => {
+    // Defect 1: the status line and the detail line both called
+    // `currentLabel(currentEntityType)`. Post-P1 they produce the IDENTICAL
+    // string, which is why two tests here had to use getAllByText. Singular
+    // `getByText` throws on multiple matches — that IS the assertion.
+    render(<AssistProgress progress={detecting()} dataType="reference" translations={T3()} />);
+
+    expect(screen.getByText(/tr\.subject\(Person/)).toBeInTheDocument();
+    // And the status line is the CODE's copy, not a second copy of the subject.
+    expect(screen.getByTestId(STATUS).textContent).toContain('tr.code(detecting-entities)');
+    expect(screen.getByTestId(STATUS).textContent).not.toContain('tr.subject');
+  });
+
+  it('A2: renders no heading of its own — the section header is the title', () => {
+    const { container } = render(
+      <AssistProgress progress={detecting()} dataType="reference" translations={T3()} />,
+    );
+    expect(container.querySelector('h1,h2,h3,h4,h5,h6')).toBeNull();
+  });
+
+  it('A3: offers exactly one control, and it means cancel while running', async () => {
+    const onCancel = vi.fn();
     const onDismiss = vi.fn();
-    const { rerender } = render(
-      <AssistProgress progress={running()} dataType="highlight" translations={T({ close: 'Close' })} />,
+    render(
+      <AssistProgress
+        progress={detecting()} dataType="reference"
+        onCancel={onCancel} onDismiss={onDismiss} translations={T3()}
+      />,
     );
-    expect(screen.queryByLabelText('Close')).not.toBeInTheDocument();
-    rerender(
-      <AssistProgress progress={running()} dataType="highlight"
-        onDismiss={onDismiss} translations={T({ close: 'Close' })} />,
+    const controls = screen.getAllByTestId(CONTROL);
+    expect(controls).toHaveLength(1);
+
+    await userEvent.click(controls[0]!);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onDismiss).not.toHaveBeenCalled();
+  });
+
+  it('A3: the same single control means dismiss once the run has ENDED', async () => {
+    // D7: terminality is the owner's fact, arriving as a prop. The component
+    // never reads `progress.stage` — no producer emits a terminal stage.
+    const onCancel = vi.fn();
+    const onDismiss = vi.fn();
+    render(
+      <AssistProgress
+        progress={detecting({ message: { code: 'complete-created', count: 7, kind: 'reference' } } as any)}
+        dataType="reference" ended
+        onCancel={onCancel} onDismiss={onDismiss} translations={T3()}
+      />,
     );
-    await userEvent.click(screen.getByLabelText('Close'));
-    expect(onDismiss).toHaveBeenCalledOnce();
+    const controls = screen.getAllByTestId(CONTROL);
+    expect(controls).toHaveLength(1);
+
+    await userEvent.click(controls[0]!);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it('A4: the REFERENCE flow renders a fraction and a bar — data it already receives', () => {
+    render(<AssistProgress progress={detecting()} dataType="reference" translations={T3()} />);
+
+    expect(screen.getByTestId(SUBJECT).textContent).toBe('tr.subject(Person|1/3)');
+    expect(screen.getByTestId(BAR)).toBeInTheDocument();
+  });
+
+  it('A4: the TAG flow keeps its fraction and bar from the same fields', () => {
+    render(
+      <AssistProgress
+        progress={{
+          stage: 'creating', percentage: 50,
+          message: { code: 'creating-tag-annotations', count: 4 },
+          currentCategory: 'Rule', processedCategories: 2, totalCategories: 5,
+        } as JobProgress}
+        dataType="tag" translations={T3()}
+      />,
+    );
+    expect(screen.getByTestId(SUBJECT).textContent).toBe('tr.subject(Rule|2/5)');
+    expect(screen.getByTestId(BAR)).toBeInTheDocument();
+  });
+
+  it('A4: no bar when there is nothing to fill it', () => {
+    render(
+      <AssistProgress
+        progress={{ stage: 'analyzing', percentage: 10, message: { code: 'loading' } } as JobProgress}
+        dataType="comment" translations={T3()}
+      />,
+    );
+    expect(screen.queryByTestId(BAR)).toBeNull();
+  });
+
+  it('A5: every rendered string is traceable to translations', () => {
+    const { container } = render(
+      <AssistProgress progress={detecting()} dataType="reference" translations={T3()} />,
+    );
+    // Key-echo strings mean any text NOT starting `tr.` came from the component.
+    const stray = Array.from(container.querySelectorAll('*'))
+      .filter((el) => el.children.length === 0)
+      .map((el) => el.textContent?.trim() ?? '')
+      .filter((t) => t.length > 0 && !t.startsWith('tr.') && !/^[\s✨✅✓×✕()0-9/of]+$/.test(t));
+    expect(stray).toEqual([]);
+  });
+
+  it('A8: renders no failure UI of its own — job:fail owns that surface', () => {
+    // Revised by D7. `stage: 'error'` has no producer anywhere in the repo;
+    // failure reaches the user through useOutcomeToasts' job:fail handler.
+    // The widget must not resurrect a branch for a state it never sees.
+    render(
+      <AssistProgress
+        progress={detecting({ stage: 'error' } as Partial<JobProgress>)}
+        dataType="reference" translations={T3()}
+      />,
+    );
+    // Still the ordinary running render — no special-cased error text.
+    expect(screen.getByTestId(STATUS).textContent).toContain('tr.code(detecting-entities)');
+  });
+
+  it('H1: the params line appears only when it adds information', () => {
+    // The discriminator is the COUNT, not the copy — splitting a localized
+    // string on commas to decide whether to show it would be its own defect.
+    const oneType = detecting({
+      requestParams: [{ label: 'Entity types', value: 'Person' }],
+      totalEntityTypes: 1,
+    });
+    const { unmount } = render(
+      <AssistProgress progress={oneType} dataType="reference" translations={T3()} />,
+    );
+    expect(screen.queryByTestId(PARAMS)).toBeNull();
+    unmount();
+
+    const many = detecting({
+      requestParams: [{ label: 'Entity types', value: 'Person, Organization, Location' }],
+      totalEntityTypes: 3,
+    });
+    render(<AssistProgress progress={many} dataType="reference" translations={T3()} />);
+    expect(screen.getByTestId(PARAMS)).toBeInTheDocument();
   });
 });

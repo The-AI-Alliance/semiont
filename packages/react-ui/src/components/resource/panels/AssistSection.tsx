@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { assistProgressCopy, assistSubjectCopy } from '../../../lib/assist-progress-copy';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { SemiontSession } from '@semiont/sdk';
 import type { Motivation, components } from '@semiont/core';
@@ -93,11 +94,9 @@ export function AssistSection({
         translations: {
           cancel: t('cancel'),
           inProgress: t('annotating'),
-          complete: t('complete'),
-          failed: t('failed'),
-          paramsTitle: ta('paramsTitle'),
-          processing: (label) => ta('processing', { label }),
           close: ta('close'),
+          message: assistProgressCopy(ta),
+          subject: assistSubjectCopy(ta),
         },
       }}
       form={

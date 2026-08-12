@@ -14,9 +14,13 @@ import { AssistShell } from '../AssistShell';
 const progress = { stage: 'analyzing', percentage: 50 };
 
 /** AssistProgress requires a full translation set; the shell just passes it through. */
-const TR = { cancel: 'tr.cancel', inProgress: 'tr.inProgress', complete: 'tr.complete',
-  failed: 'tr.failed', close: 'tr.close', paramsTitle: 'tr.paramsTitle',
-  processing: (l: string) => `tr.processing(${l})` };
+const TR = {
+  cancel: 'tr.cancel',
+  close: 'tr.close',
+  inProgress: 'tr.inProgress',
+  message: () => 'tr.code',
+  subject: (l: string) => `tr.subject(${l})`,
+};
 
 describe('AssistShell', () => {
   beforeEach(() => {
