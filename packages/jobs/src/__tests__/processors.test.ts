@@ -151,8 +151,10 @@ describe('processHighlightJob', () => {
     // Highlights carry no body — motivation alone is the content per W3C.
     expect((result.annotations[0] as Record<string, unknown>).body).toBeUndefined();
     expect(result.result).toEqual({ highlightsFound: 2, highlightsCreated: 2 });
-    expect(progress).toHaveBeenCalledWith(10, expect.any(String), 'analyzing');
-    expect(progress).toHaveBeenLastCalledWith(100, expect.stringContaining('2 highlights'), 'creating');
+    expect(progress).toHaveBeenCalledWith(10, { code: 'loading' }, 'analyzing');
+    expect(progress).toHaveBeenLastCalledWith(
+      100, { code: 'complete-created', count: 2, kind: 'highlight' }, 'creating',
+    );
   });
 
   it('keeps distinct PDF highlights (dedupe must not key on an absent TextPositionSelector)', async () => {
@@ -385,8 +387,8 @@ describe('processGenerationJob', () => {
     // Percentages approximate the share of expected wall-clock complete at each
     // transition: inference dominates, so its start is ~5 and its end ~95.
     expect(progress).toHaveBeenCalledTimes(2);
-    expect(progress).toHaveBeenNthCalledWith(1, 5, expect.any(String), 'generating');
-    expect(progress).toHaveBeenNthCalledWith(2, 95, expect.any(String), 'creating');
+    expect(progress).toHaveBeenNthCalledWith(1, 5, { code: 'generating-resource' }, 'generating');
+    expect(progress).toHaveBeenNthCalledWith(2, 95, { code: 'creating-resource' }, 'creating');
   });
 
   it('falls back to request title when generator omits it', async () => {
@@ -1311,5 +1313,113 @@ describe('annotation de-duplication', () => {
     expect(result.annotations).toHaveLength(1);
     expect(result.result.tagsCreated).toBe(1);
     expect(result.result.byCategory).toEqual({ Issue: 1 });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// ASSIST-PROGRESS-CONSOLIDATION P2 (A6, producer half): a progress event
+// carries a CODE plus typed params, never a prose sentence. The backend
+// reports what happened; each client renders it in the user's language.
+//
+// Pinned at the PROCESSOR call, deliberately: P1 already severed prose at
+// the wire (`worker-process.ts` drops the argument), so a wire-level
+// assertion would pass today without a single producer changing. The
+// processors are where the English literals still live.
+// ─────────────────────────────────────────────────────────────────────
+
+/** Every message a processor emitted, in order. */
+function messagesFrom(progress: ReturnType<typeof vi.fn>): unknown[] {
+  return progress.mock.calls.map(call => call[1]);
+}
+
+describe('progress messages are codes, not prose (A6)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('highlight: loading → analyzing → creating-annotations → complete-created', async () => {
+    const content = 'A critical finding and a second one.';
+    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+      { exact: 'critical', start: content.indexOf('critical'), end: content.indexOf('critical') + 8 },
+    ]);
+
+    const progress = vi.fn();
+    await processHighlightJob(
+      content, makeInferenceClient(), { resourceId: RID, density: 5 },
+      textBuild(content), progress,
+    );
+
+    const messages = messagesFrom(progress);
+    expect(messages[0]).toEqual({ code: 'loading' });
+    expect(messages).toContainEqual({ code: 'analyzing' });
+    expect(messages).toContainEqual({ code: 'creating-annotations', count: 1 });
+    expect(messages[messages.length - 1]).toEqual({
+      code: 'complete-created', count: 1, kind: 'highlight',
+    });
+  });
+
+  it('reference: detecting-entities carries the entity type as a param, not in a sentence', async () => {
+    vi.mocked(extractEntities).mockResolvedValue([
+      { exact: 'Paris', entityType: 'Location' } as never,
+    ]);
+
+    const progress = vi.fn();
+    await processReferenceJob(
+      'Paris', makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild('Paris'), progress, LOGGER,
+    );
+
+    const messages = messagesFrom(progress);
+    expect(messages).toContainEqual({ code: 'detecting-entities', entityType: 'Location' });
+    expect(messages[messages.length - 1]).toEqual({
+      code: 'complete-created', count: 1, kind: 'reference',
+    });
+  });
+
+  it('tag: its own analyzing and creating codes, distinct from the annotation ones', async () => {
+    const content = 'Issue: the duty of care.';
+    vi.mocked(AnnotationDetection.detectTags).mockResolvedValue([
+      { exact: 'duty of care', start: 11, end: 23, category: 'Issue' },
+    ]);
+
+    const progress = vi.fn();
+    await processTagJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'] },
+      textBuild(content), progress,
+    );
+
+    const messages = messagesFrom(progress);
+    expect(messages).toContainEqual({ code: 'analyzing-tags' });
+    expect(messages).toContainEqual({ code: 'creating-tag-annotations', count: 1 });
+    expect(messages[messages.length - 1]).toEqual({
+      code: 'complete-created', count: 1, kind: 'tag',
+    });
+  });
+
+  it('NO processor emits a prose sentence — the census is the enum, and tsc is its enforcement', async () => {
+    // The sweeping guard: whatever a processor reports, it is an object with
+    // a `code`. A string here is the defect this phase exists to remove.
+    const content = 'A critical finding.';
+    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+      { exact: 'critical', start: 2, end: 10 },
+    ]);
+    vi.mocked(AnnotationDetection.detectComments).mockResolvedValue([
+      { exact: 'critical', start: 2, end: 10, comment: 'note' },
+    ]);
+    vi.mocked(AnnotationDetection.detectAssessments).mockResolvedValue([
+      { exact: 'critical', start: 2, end: 10, assessment: 'weak' },
+    ]);
+
+    const progress = vi.fn();
+    await processHighlightJob(content, makeInferenceClient(), { resourceId: RID }, textBuild(content), progress);
+    await processCommentJob(content, makeInferenceClient(), { resourceId: RID }, textBuild(content), progress);
+    await processAssessmentJob(content, makeInferenceClient(), { resourceId: RID }, textBuild(content), progress);
+
+    const messages = messagesFrom(progress);
+    expect(messages.length).toBeGreaterThan(6);
+    for (const message of messages) {
+      expect(typeof message).toBe('object');
+      expect(message).toHaveProperty('code');
+    }
   });
 });
