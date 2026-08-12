@@ -1,9 +1,11 @@
 {
   "type": "object",
-  "description": "Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present. This is the single progress shape for every job type — annotation workers and generation alike.",
+  "description": "Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present. This is the single progress shape for every job type \u2014 annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Every code mapped to exactly one stage, and `stage`'s own description advertised 'complete' and 'error' that no producer ever emitted \u2014 a comment describing a contract nobody implemented, which cost a consumer two dead branches. Terminality is signalled on `job:complete` / `job:fail`, not here. `currentEntityType` duplicated `detecting-entities`' `entityType` in the same call.",
   "properties": {
-    "stage": { "type": "string", "description": "Current processing stage (e.g. 'analyzing', 'creating', 'complete', 'error')" },
-    "percentage": { "type": "number", "description": "Completion percentage (0-100)" },
+    "percentage": {
+      "type": "number",
+      "description": "Completion percentage (0-100)"
+    },
     "message": {
       "$ref": "./JobProgressMessage.json",
       "description": "What the job is doing right now, as a code plus typed params; the client renders the sentence. Optional: pure percentage heartbeats carry none, and consumers render nothing message-shaped when it is absent (this is also the whole tolerance story for pre-2026-08 persisted events that carried prose here)."
@@ -12,38 +14,74 @@
       "type": "string",
       "description": "Annotation this job is attached to, when applicable. Echoed inside JobProgress (in addition to the outer command envelope) so consumers that only see the inner progress object (e.g. client.yield.fromContext's Observable) can still route visual feedback to a specific annotation."
     },
-    "totalEntityTypes": { "type": "integer", "description": "Total entity types to process (reference-annotation)" },
-    "processedEntityTypes": { "type": "integer", "description": "Entity types processed so far (reference-annotation)" },
-    "entitiesFound": { "type": "integer", "description": "Entities found so far (reference-annotation)" },
-    "entitiesEmitted": { "type": "integer", "description": "Annotations emitted so far (reference-annotation)" },
-    "currentEntityType": { "type": "string", "description": "Entity type currently being processed" },
+    "totalEntityTypes": {
+      "type": "integer",
+      "description": "Total entity types to process (reference-annotation)"
+    },
+    "processedEntityTypes": {
+      "type": "integer",
+      "description": "Entity types processed so far (reference-annotation)"
+    },
+    "entitiesFound": {
+      "type": "integer",
+      "description": "Entities found so far (reference-annotation)"
+    },
+    "entitiesEmitted": {
+      "type": "integer",
+      "description": "Annotations emitted so far (reference-annotation)"
+    },
     "completedEntityTypes": {
       "type": "array",
       "description": "Reference annotation: completed entity types with per-type counts, for UI progress display",
       "items": {
         "type": "object",
         "properties": {
-          "entityType": { "type": "string" },
-          "foundCount": { "type": "integer" }
+          "entityType": {
+            "type": "string"
+          },
+          "foundCount": {
+            "type": "integer"
+          }
         },
-        "required": ["entityType", "foundCount"]
+        "required": [
+          "entityType",
+          "foundCount"
+        ]
       }
     },
-    "processedCategories": { "type": "integer", "description": "Categories processed (tag-annotation)" },
-    "totalCategories": { "type": "integer", "description": "Total categories (tag-annotation)" },
-    "currentCategory": { "type": "string", "description": "Category currently being processed (tag-annotation)" },
+    "processedCategories": {
+      "type": "integer",
+      "description": "Categories processed (tag-annotation)"
+    },
+    "totalCategories": {
+      "type": "integer",
+      "description": "Total categories (tag-annotation)"
+    },
+    "currentCategory": {
+      "type": "string",
+      "description": "Category currently being processed (tag-annotation)"
+    },
     "requestParams": {
       "type": "array",
       "description": "Echoed job parameters for display in the progress UI (e.g. entity types or categories the user asked to detect)",
       "items": {
         "type": "object",
         "properties": {
-          "label": { "type": "string" },
-          "value": { "type": "string" }
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
         },
-        "required": ["label", "value"]
+        "required": [
+          "label",
+          "value"
+        ]
       }
     }
   },
-  "required": ["stage", "percentage"]
+  "required": [
+    "percentage"
+  ]
 }

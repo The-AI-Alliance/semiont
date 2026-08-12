@@ -94,7 +94,6 @@ describe('AssistSection', () => {
           annotationType="highlight"
           isAssisting={true}
           progress={{
-            stage: 'analyzing',
             percentage: 30,
           }}
         />
@@ -110,7 +109,6 @@ describe('AssistSection', () => {
           annotationType="highlight"
           isAssisting={true}
           progress={{
-            stage: 'analyzing',
             percentage: 0,
           }}
         />
@@ -129,7 +127,6 @@ describe('AssistSection', () => {
           annotationType="highlight"
           isAssisting={true}
           progress={{
-            stage: 'analyzing',
             percentage: 0,
             requestParams: [
               { label: 'Instructions', value: 'Find important points' },
@@ -153,7 +150,6 @@ describe('AssistSection', () => {
           annotationType="highlight"
           isAssisting={true}
           progress={{
-            stage: 'analyzing',
             percentage: 0,
           }}
         />
@@ -201,7 +197,6 @@ describe('AssistSection', () => {
           annotationType="highlight"
           isAssisting={false}
           progress={{
-            stage: 'complete',
             message: { code: 'complete-created', count: 3, kind: 'highlight' },
             percentage: 100,
           }}
@@ -474,7 +469,6 @@ describe('AssistSection', () => {
           annotationType="highlight"
           isAssisting={true}
           progress={{
-            stage: 'analyzing',
             percentage: 0,
           }}
         />
@@ -493,7 +487,6 @@ describe('AssistSection', () => {
           annotationType="highlight"
           isAssisting={true}
           progress={{
-            stage: 'analyzing',
             percentage: 0,
             requestParams: [],
           }}

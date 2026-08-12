@@ -11,7 +11,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { AssistShell } from '../AssistShell';
 
-const progress = { stage: 'analyzing', percentage: 50 };
+const progress = { percentage: 50 };
 
 /** AssistProgress requires a full translation set; the shell just passes it through. */
 const TR = {

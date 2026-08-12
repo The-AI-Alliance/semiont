@@ -296,7 +296,7 @@ async function handleJobInner(
       ...lifecycleBase,
       percentage,
       progress: {
-        stage, percentage, message,
+        percentage, message,
         ...(annotationId ? { annotationId } : {}),
         ...(extra ?? {}),
       },

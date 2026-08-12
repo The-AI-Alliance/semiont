@@ -206,7 +206,6 @@ describe('handleJob orchestration', () => {
       const progressEvent = h.busEmits.find(e => e.channel === 'job:report-progress');
       expect(progressEvent).toBeDefined();
       expect((progressEvent!.payload as { progress: unknown }).progress).toMatchObject({
-        stage: 'creating',
         percentage: 60,
         message: { code: 'creating-annotations', count: 2 },
       });

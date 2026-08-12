@@ -205,8 +205,8 @@ describe('createMarkStateUnit', () => {
     stateUnit.progress$.subscribe(v => prog.push(v));
 
     tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
-    progressSubject.next({ kind: 'progress', data: { stage: 'analyzing', percentage: 42, message: 'working' } });
-    expect(prog[prog.length - 1]).toEqual({ stage: 'analyzing', percentage: 42, message: 'working' });
+    progressSubject.next({ kind: 'progress', data: { percentage: 42, message: 'working' } });
+    expect(prog[prog.length - 1]).toEqual({ percentage: 42, message: 'working' });
     stateUnit.dispose();
   });
 
@@ -402,7 +402,7 @@ describe('createMarkStateUnit', () => {
     expect(motiv[motiv.length - 1]).toBe('highlighting');
 
     vi.advanceTimersByTime(ASSIST_SILENCE_MS - 10_000);
-    progressSubject.next({ kind: 'progress', data: { stage: 'analyzing', percentage: 50, message: 'm' } });
+    progressSubject.next({ kind: 'progress', data: { percentage: 50, message: 'm' } });
 
     // The emission reset the window — nothing has gone quiet.
     vi.advanceTimersByTime(ASSIST_SILENCE_MS - 10_000);

@@ -643,12 +643,12 @@ describe('JobQueue', () => {
       const job = createRunningDetectionJob('job-progress');
       await jobQueue.createJob(job);
 
-      await jobQueue.recordProgress(jobId('job-progress'), { stage: 'analyzing', percentage: 40 });
+      await jobQueue.recordProgress(jobId('job-progress'), { percentage: 40 });
 
       const updated = await jobQueue.getJob(jobId('job-progress'));
       expect(updated?.status).toBe('running');
       if (updated?.status === 'running') {
-        expect(updated.progress).toEqual({ stage: 'analyzing', percentage: 40 });
+        expect(updated.progress).toEqual({ percentage: 40 });
       }
     });
 
@@ -656,13 +656,13 @@ describe('JobQueue', () => {
       const job = createRunningDetectionJob('job-chatty');
       await jobQueue.createJob(job);
 
-      await jobQueue.recordProgress(jobId('job-chatty'), { stage: 'analyzing', percentage: 10 });
-      await jobQueue.recordProgress(jobId('job-chatty'), { stage: 'analyzing', percentage: 11 });
+      await jobQueue.recordProgress(jobId('job-chatty'), { percentage: 10 });
+      await jobQueue.recordProgress(jobId('job-chatty'), { percentage: 11 });
 
       const updated = await jobQueue.getJob(jobId('job-chatty'));
       expect(updated?.status).toBe('running');
       if (updated?.status === 'running') {
-        expect(updated.progress).toEqual({ stage: 'analyzing', percentage: 10 });
+        expect(updated.progress).toEqual({ percentage: 10 });
       }
     });
 
@@ -672,14 +672,14 @@ describe('JobQueue', () => {
         const job = createRunningDetectionJob('job-patient');
         await jobQueue.createJob(job);
 
-        await jobQueue.recordProgress(jobId('job-patient'), { stage: 'analyzing', percentage: 10 });
+        await jobQueue.recordProgress(jobId('job-patient'), { percentage: 10 });
         vi.advanceTimersByTime(6_000);
-        await jobQueue.recordProgress(jobId('job-patient'), { stage: 'creating', percentage: 80 });
+        await jobQueue.recordProgress(jobId('job-patient'), { percentage: 80 });
 
         const updated = await jobQueue.getJob(jobId('job-patient'));
         expect(updated?.status).toBe('running');
         if (updated?.status === 'running') {
-          expect(updated.progress).toEqual({ stage: 'creating', percentage: 80 });
+          expect(updated.progress).toEqual({ percentage: 80 });
         }
       } finally {
         vi.useRealTimers();
@@ -773,7 +773,7 @@ describe('JobQueue', () => {
       const past = new Date(Date.now() - 31 * 60_000);
       await fs.utimes(filePath, past, past);
 
-      await jobQueue.recordProgress(jobId('job-heartbeat'), { stage: 'analyzing', percentage: 50 });
+      await jobQueue.recordProgress(jobId('job-heartbeat'), { percentage: 50 });
 
       expect(await jobQueue.recoverStaleRunningJobs()).toBe(0);
       expect((await jobQueue.getJob(jobId('job-heartbeat')))?.status).toBe('running');

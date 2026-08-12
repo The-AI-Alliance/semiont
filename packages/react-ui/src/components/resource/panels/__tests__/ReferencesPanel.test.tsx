@@ -328,7 +328,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ stage: 'analyzing', percentage: 0, completedEntityTypes: [] }}
+          progress={{ percentage: 0, completedEntityTypes: [] }}
         />
       );
 
@@ -338,7 +338,6 @@ describe('ReferencesPanel Component', () => {
           {...panelProps()}
           isAssisting={false}
           progress={{
-            stage: 'complete',
             percentage: 100,
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
@@ -380,7 +379,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ stage: 'analyzing', percentage: 0, completedEntityTypes: [] }}
+          progress={{ percentage: 0, completedEntityTypes: [] }}
         />
       );
 
@@ -389,7 +388,6 @@ describe('ReferencesPanel Component', () => {
 
     it('should pass progress data to widget', () => {
       const progress = {
-        stage: 'complete',
         percentage: 100,
         completedEntityTypes: [
           { entityType: 'Person', foundCount: 5 },
@@ -420,7 +418,6 @@ describe('ReferencesPanel Component', () => {
           {...panelProps()}
           isAssisting={false}
           progress={{
-            stage: 'complete',
             percentage: 100,
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
@@ -440,7 +437,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ stage: 'analyzing', percentage: 0, completedEntityTypes: [] }}
+          progress={{ percentage: 0, completedEntityTypes: [] }}
         />
       );
 
@@ -453,7 +450,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ stage: 'analyzing', percentage: 0, completedEntityTypes: [] }}
+          progress={{ percentage: 0, completedEntityTypes: [] }}
         />
       );
 
@@ -471,7 +468,6 @@ describe('ReferencesPanel Component', () => {
           {...panelProps()}
           isAssisting={false}
           progress={{
-            stage: 'complete',
             percentage: 100,
             completedEntityTypes: [
               { entityType: 'Person', foundCount: 5 },
@@ -500,7 +496,6 @@ describe('ReferencesPanel Component', () => {
           {...panelProps()}
           isAssisting={false}
           progress={{
-            stage: 'complete',
             percentage: 100,
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
@@ -519,7 +514,6 @@ describe('ReferencesPanel Component', () => {
           {...panelProps()}
           isAssisting={false}
           progress={{
-            stage: 'complete',
             percentage: 100,
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
@@ -538,7 +532,6 @@ describe('ReferencesPanel Component', () => {
           {...panelProps()}
           isAssisting={false}
           progress={{
-            stage: 'complete',
             percentage: 100,
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
@@ -560,7 +553,6 @@ describe('ReferencesPanel Component', () => {
           {...panelProps()}
           isAssisting={false}
           progress={{
-            stage: 'complete',
             percentage: 100,
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
@@ -582,7 +574,6 @@ describe('ReferencesPanel Component', () => {
           {...panelProps()}
           isAssisting={false}
           progress={{
-            stage: 'complete',
             percentage: 100,
             completedEntityTypes: [],
           }}
@@ -609,7 +600,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ stage: 'analyzing', percentage: 0, completedEntityTypes: [] }}
+          progress={{ percentage: 0, completedEntityTypes: [] }}
         />
       );
 
@@ -623,7 +614,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ stage: 'analyzing', percentage: 0, completedEntityTypes: [] }}
+          progress={{ percentage: 0, completedEntityTypes: [] }}
         />
       );
 
@@ -636,7 +627,6 @@ describe('ReferencesPanel Component', () => {
           {...panelProps()}
           isAssisting={false}
           progress={{
-            stage: 'complete',
             percentage: 100,
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
@@ -660,7 +650,6 @@ describe('ReferencesPanel Component', () => {
           {...panelProps()}
           isAssisting={false}
           progress={{
-            stage: 'complete',
             percentage: 100,
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
@@ -753,7 +742,6 @@ describe('ReferencesPanel Component', () => {
           {...panelProps()}
           isAssisting={false}
           progress={{
-            stage: 'complete',
             percentage: 100,
             completedEntityTypes: [{ entityType: 'Person', foundCount: 0 }],
           }}

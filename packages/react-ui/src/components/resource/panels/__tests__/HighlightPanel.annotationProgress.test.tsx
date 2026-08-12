@@ -102,7 +102,6 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={true}
           progress={{
-            stage: 'analyzing',
             percentage: 30,
           }}
           annotateMode={true}
@@ -152,7 +151,6 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={false}
           progress={{
-            stage: 'complete',
             message: { code: 'complete-created', count: 3, kind: 'highlight' },
             percentage: 100,
           }}
@@ -173,7 +171,6 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={true}
           progress={{
-            stage: 'analyzing',
             percentage: 0,
             requestParams: [
               { label: 'Instructions', value: 'Find important points' },
@@ -226,7 +223,6 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={true}
           progress={{
-            stage: 'analyzing',
             percentage: 0,
           }}
           annotateMode={true}
@@ -242,7 +238,6 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={true}
           progress={{
-            stage: 'analyzing',
             percentage: 0,
           }}
           annotateMode={false}
@@ -277,7 +272,6 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={false}
           progress={{
-            stage: 'complete',
             message: { code: 'complete-created', count: 3, kind: 'highlight' },
             percentage: 100,
           }}
@@ -298,7 +292,6 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={true}
           progress={{
-            stage: 'started',
             percentage: 0,
           }}
           annotateMode={true}
@@ -316,7 +309,6 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={true}
           progress={{
-            stage: 'analyzing',
             percentage: 50,
           }}
           annotateMode={true}
@@ -333,7 +325,6 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={false}
           progress={{
-            stage: 'complete',
             message: { code: 'complete-created', count: 3, kind: 'highlight' },
             percentage: 100,
           }}
@@ -354,7 +345,6 @@ describe('HighlightPanel + AssistSection Integration', () => {
           pendingAnnotation={null}
           isAssisting={true}
           progress={{
-            stage: 'analyzing',
             percentage: 0,
           }}
           annotateMode={true}

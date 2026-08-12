@@ -97,7 +97,7 @@ describe('AssistProgress', () => {
 
   it('falls back to the generic in-progress copy when no code has arrived', () => {
     // `JobProgress.message` is optional: a pure liveness heartbeat carries none.
-    const noCode = { stage: 'analyzing', percentage: 5 } as JobProgress;
+    const noCode = { percentage: 5 } as JobProgress;
     render(<AssistProgress progress={noCode} dataType="comment" translations={T3()} />);
     expect(screen.getByTestId('semiont-assist-status').textContent).toBe('tr.inProgress');
   });
@@ -131,7 +131,6 @@ const T3 = (over: Partial<AssistProgressTranslations> = {}): AssistProgressTrans
 
 const detecting = (over: Partial<JobProgress> = {}): JobProgress =>
   ({
-    stage: 'analyzing',
     percentage: 40,
     message: { code: 'detecting-entities', entityType: 'Person' },
     currentEntityType: 'Person',
@@ -209,7 +208,7 @@ describe('AssistProgress — P3 consolidation', () => {
     render(
       <AssistProgress
         progress={{
-          stage: 'creating', percentage: 50,
+          percentage: 50,
           message: { code: 'creating-tag-annotations', count: 4 },
           currentCategory: 'Rule', processedCategories: 2, totalCategories: 5,
         } as JobProgress}
@@ -223,7 +222,7 @@ describe('AssistProgress — P3 consolidation', () => {
   it('A4: no bar when there is nothing to fill it', () => {
     render(
       <AssistProgress
-        progress={{ stage: 'analyzing', percentage: 10, message: { code: 'loading' } } as JobProgress}
+        progress={{ percentage: 10, message: { code: 'loading' } } as JobProgress}
         dataType="comment" translations={T3()}
       />,
     );

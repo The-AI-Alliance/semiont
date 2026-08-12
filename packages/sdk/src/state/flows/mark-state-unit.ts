@@ -140,7 +140,6 @@ export function createMarkStateUnit(
         // own — it hears about the silence via `mark:assist-timeout` below.
         progress$.next({
           ...(last ?? {}),
-          stage: last?.stage ?? 'analyzing',
           percentage: last?.percentage ?? 0,
         });
         // The one notification the user gets. `assistingMotivation$` stays

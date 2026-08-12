@@ -451,7 +451,6 @@ export async function processReferenceJob(
     if (!entityTypeName) continue;
     const pct = 20 + Math.round((i / entityTypeNames.length) * 60);
     onProgress(pct, { code: 'detecting-entities', entityType: entityTypeName }, 'analyzing', {
-      currentEntityType: entityTypeName,
       processedEntityTypes: i,
       totalEntityTypes: entityTypeNames.length,
       entitiesFound: totalFound,
@@ -473,7 +472,6 @@ export async function processReferenceJob(
       (completed, total) => {
         const interpolated = 20 + Math.round(((i + completed / total) / entityTypeNames.length) * 60);
         onProgress(interpolated, { code: 'detecting-entities', entityType: entityTypeName }, 'analyzing', {
-          currentEntityType: entityTypeName,
           processedEntityTypes: i,
           totalEntityTypes: entityTypeNames.length,
           entitiesFound: totalFound,

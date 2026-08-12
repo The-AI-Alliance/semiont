@@ -194,8 +194,8 @@ describe('markAssist', () => {
   it('reports the total found and every progress stage', async () => {
     const { client, mark } = createStub();
     const events: MarkAssistEvent[] = [
-      { kind: 'progress', data: { stage: 'analyzing', percentage: 40, message: 'reading' } },
-      { kind: 'progress', data: { stage: 'creating', percentage: 90, message: 'writing' } },
+      { kind: 'progress', data: { percentage: 40, message: 'reading' } },
+      { kind: 'progress', data: { percentage: 90, message: 'writing' } },
       ASSIST_COMPLETE,
     ];
     mark.assist.mockReturnValue(of(...events));
@@ -254,7 +254,7 @@ describe('markAssist', () => {
     const { client, mark } = createStub();
     const progress: MarkAssistEvent = {
       kind: 'progress',
-      data: { stage: 'analyzing', percentage: 40, message: 'reading' },
+      data: { percentage: 40, message: 'reading' },
     };
     mark.assist.mockReturnValue(of(progress));
 
@@ -417,7 +417,7 @@ describe('yieldFromAnnotation', () => {
   it('reports every progress stage', async () => {
     const { client, yield: yieldNamespace } = createStub();
     const events: YieldGenerationEvent[] = [
-      { kind: 'progress', data: { stage: 'generating', percentage: 50, message: 'writing' } },
+      { kind: 'progress', data: { percentage: 50, message: 'writing' } },
       GENERATION_COMPLETE,
     ];
     yieldNamespace.fromContext.mockReturnValue(of(...events));

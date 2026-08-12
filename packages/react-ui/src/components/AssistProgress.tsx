@@ -78,7 +78,12 @@ export function AssistProgress({
   translations: tr,
 }: AssistProgressProps) {
   // Reference and tag flows count different things; both report the same shape.
-  const label = progress.currentEntityType ?? progress.currentCategory;
+  // The entity type comes off the MESSAGE — `currentEntityType` was the same
+  // value denormalized alongside it and is gone (P5 schema cruft). Tags keep
+  // `currentCategory`: no code carries a category, so it is not a duplicate.
+  const label =
+    (progress.message && 'entityType' in progress.message ? progress.message.entityType : undefined)
+    ?? progress.currentCategory;
   const done = progress.processedEntityTypes ?? progress.processedCategories;
   const total = progress.totalEntityTypes ?? progress.totalCategories;
 
