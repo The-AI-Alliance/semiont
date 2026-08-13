@@ -28,10 +28,6 @@
   margin-left: 0.5rem;
 }
 
-[data-theme="dark"] .semiont-annotation-prompt__char-count {
-  color: var(--semiont-text-tertiary);
-}
-
 .semiont-annotation-prompt__actions {
   display: flex;
   gap: 0.5rem;
@@ -118,7 +114,7 @@
 }
 
 [data-theme="dark"] .semiont-progress-bar__fill {
-  background-color: var(--semiont-color-primary-500);
+  background-color: var(--semiont-color-primary-400);
 }
 
 [data-theme="dark"] .semiont-progress-bar {

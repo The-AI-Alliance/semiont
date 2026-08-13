@@ -19,6 +19,3 @@
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-user-panel__title {
-  color: var(--semiont-text-primary);
-}

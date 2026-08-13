@@ -178,22 +178,45 @@ We use BEM (Block Element Modifier) methodology with the `semiont-` prefix:
 
 ## Dark Mode Support
 
-All components support dark mode using the `data-theme` attribute:
+Dark mode is served two ways, and choosing the right one is the whole of it.
+
+**Semantic tokens flip themselves.** `--semiont-text-*`, `--semiont-bg-*`,
+`--semiont-border-*`, `--semiont-bg-hover` and `--semiont-focus-ring` are
+redefined under `[data-theme="dark"]` in `variables.css`. A rule built from
+them is already dark-aware, and **must not** be given a `[data-theme="dark"]`
+twin — an override with the same value on both sides is a rule that provably
+changes nothing. 106 of those had accumulated before the linter learned the
+difference; they were deleted, not blessed.
 
 ```css
-/* Light mode (default) */
+/* Both themes, one rule — the token carries the theme. */
 .semiont-component {
-  background-color: var(--semiont-color-white);
-  color: var(--semiont-color-gray-900);
-}
-
-/* Dark mode */
-[data-theme="dark"] .semiont-component,
-:root:not([data-theme="light"]) .semiont-component {
-  background-color: var(--semiont-color-gray-900);
-  color: var(--semiont-color-white);
+  background-color: var(--semiont-bg-secondary);
+  color: var(--semiont-text-primary);
 }
 ```
+
+**Palette tokens do not flip.** `--semiont-color-primary-500`,
+`--semiont-color-gray-300`, `--semiont-color-warning` and the rest are one
+fixed hue in both themes, so a rule using them needs a real variant. Accents
+step lighter against a dark surface; the status colours have `-light`
+companions built for exactly this.
+
+```css
+.semiont-progress__fill--error {
+  background-color: var(--semiont-color-error);
+}
+
+[data-theme="dark"] .semiont-progress__fill--error {
+  background-color: var(--semiont-color-error-light);
+}
+```
+
+`semiont/invariants` enforces this split: it reads which properties
+`variables.css` redefines for dark mode and warns only where the colour is
+genuinely fixed. Write `[data-theme="dark"]` — **not**
+`:root:not([data-theme="light"])`, which the same rule reports as an invalid
+theme selector.
 
 ## CSS Variables
 
@@ -520,16 +543,23 @@ Leverage design tokens for consistency:
 
 ### 4. Support Dark Mode
 
-Always provide dark mode styles:
+Reach for a semantic token first — it themes itself and needs no second rule.
+Add a `[data-theme="dark"]` variant only when the colour is a fixed palette
+hue. See [Dark Mode Support](#dark-mode-support).
 
 ```css
+/* Preferred: one rule, themed by the token. */
 .semiont-component {
-  background: var(--semiont-color-white);
+  background: var(--semiont-bg-primary);
 }
 
-[data-theme="dark"] .semiont-component,
-:root:not([data-theme="light"]) .semiont-component {
-  background: var(--semiont-color-gray-900);
+/* Only when the value is a fixed hue: */
+.semiont-component__accent {
+  background: var(--semiont-color-primary-500);
+}
+
+[data-theme="dark"] .semiont-component__accent {
+  background: var(--semiont-color-primary-400);
 }
 ```
 

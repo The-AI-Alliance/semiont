@@ -111,11 +111,6 @@
   background-color: var(--semiont-bg-tertiary);
 }
 
-[data-theme="dark"] .semiont-modal__close:hover {
-  color: var(--semiont-text-primary);
-  background-color: var(--semiont-bg-tertiary);
-}
-
 .semiont-modal__close-icon {
   width: 1.25rem;
   height: 1.25rem;
@@ -352,12 +347,6 @@
   cursor: not-allowed;
 }
 
-[data-theme="dark"] .semiont-button--disabled,
-[data-theme="dark"] .semiont-button[data-disabled="true"] {
-  background-color: var(--semiont-bg-tertiary);
-  color: var(--semiont-text-tertiary);
-}
-
 /* Keyboard Shortcuts Styles */
 .semiont-shortcuts {
   display: flex;
@@ -544,10 +533,6 @@
   margin: 0;
 }
 
-[data-theme="dark"] .semiont-jsonld-view__title {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-jsonld-view__back-button,
 .semiont-jsonld-view__copy-button {
   padding: 0.5rem 1rem;
@@ -572,20 +557,10 @@
   border-color: var(--semiont-border-primary);
 }
 
-[data-theme="dark"] .semiont-jsonld-view__back-button:hover,
-[data-theme="dark"] .semiont-jsonld-view__copy-button:hover {
-  background-color: var(--semiont-bg-secondary);
-  border-color: var(--semiont-border-secondary);
-}
-
 .semiont-jsonld-view__editor {
   flex: 1;
   overflow: auto;
   padding: 1rem;
-  background-color: var(--semiont-bg-primary);
-}
-
-[data-theme="dark"] .semiont-jsonld-view__editor {
   background-color: var(--semiont-bg-primary);
 }
 
@@ -620,19 +595,11 @@
   margin: 0;
 }
 
-[data-theme="dark"] .semiont-popup-header__title {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-popup-header__subtitle {
   font-size: 0.875rem;
   font-weight: normal;
   color: var(--semiont-text-secondary);
   margin-left: 0.5rem;
-}
-
-[data-theme="dark"] .semiont-popup-header__subtitle {
-  color: var(--semiont-text-secondary);
 }
 
 .semiont-popup-header__close-button {
@@ -655,15 +622,6 @@
 .semiont-popup-header__close-button:focus-visible {
   outline: 2px solid var(--semiont-color-primary-500);
   outline-offset: 2px;
-}
-
-[data-theme="dark"] .semiont-popup-header__close-button {
-  color: var(--semiont-text-secondary);
-}
-
-[data-theme="dark"] .semiont-popup-header__close-button:hover {
-  background-color: var(--semiont-bg-tertiary);
-  color: var(--semiont-text-primary);
 }
 
 [data-theme="dark"] .semiont-popup-header__close-button:focus-visible {

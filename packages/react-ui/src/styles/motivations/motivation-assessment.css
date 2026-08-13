@@ -246,7 +246,7 @@
 }
 
 [data-theme="dark"] .semiont-assessment-star {
-  color: var(--semiont-color-warning);
+  color: var(--semiont-color-warning-light);
 }
 
 .semiont-assessment-star:hover {
@@ -258,5 +258,5 @@
 }
 
 [data-theme="dark"] .semiont-assessment-star--filled {
-  color: var(--semiont-color-warning);
+  color: var(--semiont-color-warning-light);
 }

@@ -487,8 +487,10 @@
   color: var(--semiont-color-white);
 }
 
+/* Hover lifts. The dark active state is primary-600, so hovering to 700 sank
+   it — the opposite of the sibling .semiont-panel-button:hover above. */
 [data-theme="dark"] .semiont-panel-button-active:hover {
-  background-color: var(--semiont-color-primary-700);
+  background-color: var(--semiont-color-primary-500);
 }
 
 /* ============================================

@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const stylelint = require('stylelint');
 const { report, ruleMessages, validateOptions } = stylelint.utils;
 
@@ -220,6 +222,72 @@ function isThemeIndependentValue(value) {
   ].includes(normalized);
 }
 
+/** The one token file whose `[data-theme="dark"]` block defines what "themed" means. */
+const TOKEN_FILE = path.resolve(__dirname, '../../packages/react-ui/src/styles/variables.css');
+
+let themeAwareTokens = null;
+
+/**
+ * The custom properties that the token layer itself redefines for dark mode —
+ * read from `variables.css` rather than assumed from a name prefix, so this
+ * tracks the file instead of drifting from it.
+ *
+ * Both dark selectors count: `[data-theme="dark"]` (explicit toggle) and the
+ * `prefers-color-scheme: dark` media block (OS default). A property in either
+ * one resolves to a different colour in dark mode with no help from the rule
+ * that uses it.
+ */
+function getThemeAwareTokens() {
+  if (themeAwareTokens) return themeAwareTokens;
+
+  themeAwareTokens = new Set();
+  let css;
+  try {
+    css = fs.readFileSync(TOKEN_FILE, 'utf8');
+  } catch {
+    // No token file (a consumer running this plugin standalone): fall back to
+    // the strict behaviour — every themed property wants an explicit variant.
+    return themeAwareTokens;
+  }
+
+  for (const match of css.matchAll(/(\[data-theme="dark"\]|prefers-color-scheme:\s*dark)([\s\S]*?)\n\}/g)) {
+    for (const decl of match[2].matchAll(/(--[a-zA-Z0-9_-]+)\s*:/g)) {
+      themeAwareTokens.add(decl[1]);
+    }
+  }
+  return themeAwareTokens;
+}
+
+/**
+ * True when every colour in the value comes from a token the theme layer
+ * already flips — `var(--semiont-text-primary)` and friends.
+ *
+ * Such a rule IS dark-theme-aware: that is the entire purpose of the semantic
+ * token layer. Demanding a `[data-theme="dark"]` variant for it produces a
+ * copy of the declaration with the identical value — a rule that provably
+ * changes nothing, added only to satisfy a linter. 121 of those had already
+ * accumulated in react-ui before this check learned the difference.
+ *
+ * The check still bites where dark mode actually breaks: raw palette tokens
+ * (`--semiont-color-primary-500` is one fixed hue in both themes) and
+ * hardcoded colours. A value mixing the two warns, because the fixed part is
+ * what needs the variant.
+ */
+function isThemeAwareValue(value) {
+  const tokens = [...value.matchAll(/var\(\s*(--[a-zA-Z0-9_-]+)/g)].map((m) => m[1]);
+  if (tokens.length === 0) return false;
+
+  const themed = getThemeAwareTokens();
+  if (!tokens.every((token) => themed.has(token))) return false;
+
+  // Whatever sits outside the var() calls (`1px solid`, `0 1px 2px`) must not
+  // carry a colour of its own — `1px solid var(--themed) #fff` is not covered.
+  const outside = value.replace(/var\((?:[^()]|\([^()]*\))*\)/g, ' ');
+  if (/#[0-9a-f]{3,8}\b/i.test(outside)) return false;
+  if (/\b(rgba?|hsla?|color-mix|light-dark)\(/i.test(outside)) return false;
+  return !outside.split(/[\s,/]+/).filter(Boolean).some(hasHardcodedColor);
+}
+
 const plugin = stylelint.createPlugin(
   ruleName,
   (primaryOption, secondaryOptions, context) => {
@@ -317,6 +385,7 @@ const plugin = stylelint.createPlugin(
           // Track selectors with theme-sensitive properties
           if (needsDarkThemeSupport(prop) &&
               !isThemeIndependentValue(value) &&
+              !isThemeAwareValue(value) &&
               !selector.includes('[data-theme="dark"]')) {
             selectorsWithThemeProps.add(selector);
           }
@@ -349,7 +418,9 @@ const plugin = stylelint.createPlugin(
                 if (rule.selector === selector) {
                   let hasThemeProperty = false;
                   rule.walkDecls((decl) => {
-                    if (needsDarkThemeSupport(decl.prop) && !isThemeIndependentValue(decl.value)) {
+                    if (needsDarkThemeSupport(decl.prop) &&
+                        !isThemeIndependentValue(decl.value) &&
+                        !isThemeAwareValue(decl.value)) {
                       hasThemeProperty = true;
                     }
                   });

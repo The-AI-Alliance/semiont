@@ -24,10 +24,6 @@
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-jsonld-panel__title {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-jsonld-panel__editor {
   flex: 1;
   overflow: hidden;

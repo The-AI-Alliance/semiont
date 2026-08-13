@@ -26,8 +26,10 @@
   animation: slideIn var(--semiont-duration-base) var(--semiont-ease);
 }
 
+/* Separation, not decoration: a 10%-black shadow is invisible against a dark
+   backdrop, so the dark theme takes the deeper one. */
 [data-theme="dark"] .semiont-toast {
-  box-shadow: var(--semiont-shadow-lg);
+  box-shadow: var(--semiont-shadow-xl);
 }
 
 @keyframes slideIn {

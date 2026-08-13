@@ -31,10 +31,6 @@
   margin-bottom: var(--semiont-panel-header-margin-bottom);
 }
 
-[data-theme="dark"] .semiont-comments-panel__title {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-comments-panel__list {
   flex: 1;
   overflow-y: auto;
@@ -68,16 +64,8 @@
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-comments-panel__comment-author {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-comments-panel__comment-time {
   font-size: var(--semiont-text-xs);
-  color: var(--semiont-text-tertiary);
-}
-
-[data-theme="dark"] .semiont-comments-panel__comment-time {
   color: var(--semiont-text-tertiary);
 }
 
@@ -85,10 +73,6 @@
   font-size: var(--semiont-text-sm);
   color: var(--semiont-text-primary);
   line-height: 1.5;
-}
-
-[data-theme="dark"] .semiont-comments-panel__comment-text {
-  color: var(--semiont-text-primary);
 }
 
 .semiont-comments-panel__input-area {

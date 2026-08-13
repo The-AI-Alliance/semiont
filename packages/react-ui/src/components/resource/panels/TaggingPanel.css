@@ -30,10 +30,6 @@
   letter-spacing: 0.05em;
 }
 
-[data-theme="dark"] .semiont-tagging-panel__label {
-  color: var(--semiont-text-secondary);
-}
-
 .semiont-tagging-panel__input {
   padding: var(--semiont-panel-padding-sm);
   background: var(--semiont-bg-secondary);

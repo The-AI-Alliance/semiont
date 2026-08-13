@@ -37,28 +37,16 @@
   margin-bottom: var(--semiont-panel-header-margin-bottom);
 }
 
-[data-theme="dark"] .semiont-references-panel__title {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-references-panel__path {
   font-size: var(--semiont-text-sm);
   color: var(--semiont-text-tertiary);
   margin-top: var(--semiont-panel-padding-xs);
 }
 
-[data-theme="dark"] .semiont-references-panel__path {
-  color: var(--semiont-text-tertiary);
-}
-
 .semiont-references-panel__count {
   font-size: var(--semiont-text-sm);
   color: var(--semiont-text-tertiary);
   margin-top: var(--semiont-panel-padding-xs);
-}
-
-[data-theme="dark"] .semiont-references-panel__count {
-  color: var(--semiont-text-tertiary);
 }
 
 /* Reference Icon Group — status icon + hover-reveal unlink */

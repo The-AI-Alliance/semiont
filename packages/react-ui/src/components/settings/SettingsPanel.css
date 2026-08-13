@@ -15,10 +15,6 @@
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-settings-panel__title {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-settings-panel__content {
   display: flex;
   flex-direction: column;

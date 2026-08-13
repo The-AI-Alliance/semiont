@@ -105,10 +105,6 @@
   background-color: var(--semiont-bg-tertiary);
 }
 
-[data-theme="dark"] .semiont-chip--selectable[data-selected="false"]:hover {
-  background-color: var(--semiont-bg-tertiary);
-}
-
 .semiont-chip--selectable[data-selected="true"] {
   background-color: rgba(59, 130, 246, 0.1);
   color: var(--semiont-color-blue-700);

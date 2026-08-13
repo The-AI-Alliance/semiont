@@ -53,16 +53,8 @@
   margin-bottom: 0.5rem;
 }
 
-[data-theme="dark"] .semiont-auth__welcome {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-auth__subtitle {
   font-size: 1rem;
-  color: var(--semiont-text-secondary);
-}
-
-[data-theme="dark"] .semiont-auth__subtitle {
   color: var(--semiont-text-secondary);
 }
 
@@ -127,10 +119,6 @@
   font-size: 0.875rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-}
-
-[data-theme="dark"] .semiont-auth__divider-text {
-  color: var(--semiont-text-secondary);
 }
 
 /* Info text */
@@ -227,10 +215,6 @@
   margin-bottom: 0.5rem;
 }
 
-[data-theme="dark"] .semiont-auth__signup-title {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-auth__signup-content {
   display: flex;
   flex-direction: column;
@@ -242,10 +226,6 @@
   font-size: 0.875rem;
   color: var(--semiont-text-secondary);
   line-height: 1.5;
-}
-
-[data-theme="dark"] .semiont-auth__signup-info {
-  color: var(--semiont-text-secondary);
 }
 
 .semiont-auth__signup-footer {
@@ -350,16 +330,12 @@
   display: inline-block;
 }
 
-[data-theme="dark"] .semiont-form__url-status--checking {
-  color: var(--semiont-text-tertiary);
-}
-
 .semiont-form__url-status--ok {
   color: var(--semiont-color-success);
 }
 
 [data-theme="dark"] .semiont-form__url-status--ok {
-  color: var(--semiont-color-success);
+  color: var(--semiont-color-success-light);
 }
 
 .semiont-form__url-status--error {
@@ -367,5 +343,5 @@
 }
 
 [data-theme="dark"] .semiont-form__url-status--error {
-  color: var(--semiont-color-error);
+  color: var(--semiont-color-error-light);
 }

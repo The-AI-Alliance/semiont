@@ -20,10 +20,6 @@
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-history-panel__title {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-history-panel__loading {
   margin: 0;
   padding: 0.5rem;
@@ -102,20 +98,12 @@
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-history-group__type {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-history-group__type-icon {
   font-size: var(--semiont-panel-icon-size);
 }
 
 .semiont-history-group__count {
   font-size: var(--semiont-text-sm);
-  color: var(--semiont-text-tertiary);
-}
-
-[data-theme="dark"] .semiont-history-group__count {
   color: var(--semiont-text-tertiary);
 }
 
@@ -174,16 +162,8 @@
   margin-left: auto;
 }
 
-[data-theme="dark"] .semiont-history-event__timestamp {
-  color: var(--semiont-text-tertiary);
-}
-
 .semiont-history-event__text--quoted {
   font-style: italic;
-  color: var(--semiont-text-secondary);
-}
-
-[data-theme="dark"] .semiont-history-event__text--quoted {
   color: var(--semiont-text-secondary);
 }
 
@@ -214,17 +194,9 @@
   color: var(--semiont-text-tertiary);
 }
 
-[data-theme="dark"] .semiont-history-event__detail {
-  color: var(--semiont-text-tertiary);
-}
-
 .semiont-history-event__detail-value {
   color: var(--semiont-text-primary);
   font-weight: var(--semiont-font-medium);
-}
-
-[data-theme="dark"] .semiont-history-event__detail-value {
-  color: var(--semiont-text-primary);
 }
 
 .semiont-history-event__detail-value--uppercase {
@@ -236,10 +208,6 @@
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-history-event__action {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-history-event__text {
   font-size: var(--semiont-text-sm);
   color: var(--semiont-text-secondary);
@@ -248,10 +216,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.5;
-}
-
-[data-theme="dark"] .semiont-history-event__text {
-  color: var(--semiont-text-secondary);
 }
 
 .semiont-history-event__meta {
@@ -273,10 +237,6 @@
 
 .semiont-history-event__time {
   font-size: var(--semiont-text-xs);
-  color: var(--semiont-text-tertiary);
-}
-
-[data-theme="dark"] .semiont-history-event__time {
   color: var(--semiont-text-tertiary);
 }
 

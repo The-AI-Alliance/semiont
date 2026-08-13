@@ -18,10 +18,6 @@
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-unified-panel__title {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-unified-panel__tabs {
   display: flex;
   gap: 0;

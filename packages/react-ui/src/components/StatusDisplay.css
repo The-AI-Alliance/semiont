@@ -414,7 +414,7 @@
 }
 
 [data-theme="dark"] .semiont-icon-warning {
-  color: var(--semiont-color-amber-400);
+  color: var(--semiont-color-warning-light);
 }
 
 [data-theme="dark"] .semiont-async-error-title {

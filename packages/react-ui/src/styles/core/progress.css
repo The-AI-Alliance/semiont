@@ -83,7 +83,7 @@
 }
 
 [data-theme="dark"] .semiont-progress__fill--warning {
-  background-color: var(--semiont-color-warning);
+  background-color: var(--semiont-color-warning-light);
 }
 
 .semiont-progress__fill--error {
@@ -91,7 +91,7 @@
 }
 
 [data-theme="dark"] .semiont-progress__fill--error {
-  background-color: var(--semiont-color-error);
+  background-color: var(--semiont-color-error-light);
 }
 
 /* With Label */
@@ -105,10 +105,6 @@
   display: flex;
   justify-content: space-between;
   font-size: var(--semiont-text-sm);
-  color: var(--semiont-text-secondary);
-}
-
-[data-theme="dark"] .semiont-progress__label {
   color: var(--semiont-text-secondary);
 }
 
@@ -166,5 +162,5 @@
 
 [data-theme="dark"] .semiont-progress-bar__fill,
 [data-theme="dark"] .semiont-panel-progress__fill {
-  background-color: var(--semiont-color-primary-500);
+  background-color: var(--semiont-color-primary-400);
 }

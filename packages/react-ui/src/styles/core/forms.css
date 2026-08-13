@@ -67,11 +67,6 @@
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-form__checkbox-label,
-[data-theme="dark"] .semiont-form__radio-label {
-  color: var(--semiont-text-primary);
-}
-
 /* Form actions */
 .semiont-form__actions {
   display: flex;
@@ -119,10 +114,6 @@
   font-weight: 600;
   color: var(--semiont-text-primary);
   padding: 0 0.5rem;
-}
-
-[data-theme="dark"] .semiont-form__legend {
-  color: var(--semiont-text-primary);
 }
 
 /* Note: Disabled states for form controls are defined in their respective core files */
@@ -218,10 +209,6 @@
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-form-field__label {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-form-field__label--with-checkbox {
   display: flex;
   align-items: center;
@@ -235,18 +222,10 @@
   font-weight: var(--semiont-font-medium);
 }
 
-[data-theme="dark"] .semiont-form-field__info {
-  color: var(--semiont-text-tertiary);
-}
-
 .semiont-form-field__char-count {
   font-size: var(--semiont-text-xs);
   color: var(--semiont-text-tertiary);
   text-align: right;
-}
-
-[data-theme="dark"] .semiont-form-field__char-count {
-  color: var(--semiont-text-tertiary);
 }
 
 /* Note: Basic form controls (.semiont-textarea, .semiont-select, .semiont-checkbox)

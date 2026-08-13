@@ -57,19 +57,11 @@
   color: var(--semiont-text-secondary);
 }
 
-[data-theme="dark"] .semiont-statistics-panel__label {
-  color: var(--semiont-text-secondary);
-}
-
 .semiont-statistics-panel__value {
   font-size: var(--semiont-text-lg);
   font-weight: var(--semiont-font-semibold);
   color: var(--semiont-text-primary);
   margin-left: auto;
-}
-
-[data-theme="dark"] .semiont-statistics-panel__value {
-  color: var(--semiont-text-primary);
 }
 
 /* Sub-items (indented) */
@@ -93,17 +85,9 @@
   color: var(--semiont-text-tertiary);
 }
 
-[data-theme="dark"] .semiont-statistics-panel__sublabel {
-  color: var(--semiont-text-tertiary);
-}
-
 .semiont-statistics-panel__subvalue {
   font-size: var(--semiont-text-sm);
   font-weight: var(--semiont-font-medium);
-  color: var(--semiont-text-secondary);
-}
-
-[data-theme="dark"] .semiont-statistics-panel__subvalue {
   color: var(--semiont-text-secondary);
 }
 
@@ -138,10 +122,6 @@
   font-size: var(--semiont-text-sm);
   color: var(--semiont-text-primary);
   flex: 1;
-}
-
-[data-theme="dark"] .semiont-statistics-panel__entity-name {
-  color: var(--semiont-text-primary);
 }
 
 /* Tags use .semiont-tag from core/tags.css */

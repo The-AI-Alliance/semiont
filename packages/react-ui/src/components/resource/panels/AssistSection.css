@@ -126,11 +126,9 @@
    Detection Log (Completed Results)
    ============================================ */
 
-
 /* ============================================
    Detection Progress Display
    ============================================ */
-
 
 /* ── Assist progress: TWO containers, not five ──────────────────────────────
    The widget was `.semiont-assist-widget` > `.semiont-annotation-progress` >
@@ -152,10 +150,6 @@
   padding-right: 1.5rem; /* room for the single control */
   font-size: var(--semiont-text-sm);
   font-weight: var(--semiont-font-medium);
-  color: var(--semiont-text-primary);
-}
-
-[data-theme="dark"] .semiont-assist-progress__status {
   color: var(--semiont-text-primary);
 }
 
@@ -208,10 +202,6 @@
 
 [data-theme="dark"] .semiont-assist-progress__control {
   color: var(--semiont-text-secondary);
-}
-
-[data-theme="dark"] .semiont-assist-progress__control:hover {
-  color: var(--semiont-text-primary);
 }
 
 .semiont-assist-widget[data-type="highlight"] {

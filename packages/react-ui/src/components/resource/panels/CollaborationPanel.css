@@ -19,10 +19,6 @@
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-collaboration-panel__title {
-  color: var(--semiont-text-primary);
-}
-
 /* Sections */
 .semiont-collaboration-panel__section {
   display: flex;
@@ -93,10 +89,6 @@
   color: var(--semiont-text-tertiary);
 }
 
-[data-theme="dark"] .semiont-collaboration-panel__status-text {
-  color: var(--semiont-text-tertiary);
-}
-
 .semiont-collaboration-panel__status-text[data-connected="true"] {
   color: var(--semiont-color-success-dark);
 }
@@ -107,10 +99,6 @@
 
 .semiont-collaboration-panel__event-count {
   font-size: var(--semiont-text-xs);
-  color: var(--semiont-text-tertiary);
-}
-
-[data-theme="dark"] .semiont-collaboration-panel__event-count {
   color: var(--semiont-text-tertiary);
 }
 
@@ -130,10 +118,6 @@
 
 .semiont-collaboration-panel__label {
   font-weight: var(--semiont-font-medium);
-  color: var(--semiont-text-primary);
-}
-
-[data-theme="dark"] .semiont-collaboration-panel__label {
   color: var(--semiont-text-primary);
 }
 
@@ -208,18 +192,11 @@
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-collaboration-panel__username {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-collaboration-panel__user-status {
   font-size: var(--semiont-text-xs);
   color: var(--semiont-text-tertiary);
 }
 
-[data-theme="dark"] .semiont-collaboration-panel__user-status {
-  color: var(--semiont-text-tertiary);
-}
 /* Collaborators roster — one row per software agent (INFERENCE-LIMITS-EXPOSURE P3a) */
 .semiont-collaboration-panel__collaborator {
   display: flex;
