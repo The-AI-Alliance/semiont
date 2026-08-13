@@ -30,10 +30,6 @@
   letter-spacing: 0.05em;
 }
 
-[data-theme="dark"] .semiont-assessment-panel__label {
-  color: var(--semiont-text-secondary);
-}
-
 .semiont-assessment-panel__rating {
   display: flex;
   gap: var(--semiont-panel-padding-xs);
@@ -46,8 +42,11 @@
   transition: color 0.2s ease;
 }
 
+/* An UNRATED star must recede. gray-300 is near-white: on a dark panel the
+   empty stars outshone the filled ones, inverting the reading. Dark takes a
+   dim grey; the filled star keeps the warning hue. */
 [data-theme="dark"] .semiont-assessment-panel__star {
-  color: var(--semiont-color-gray-300);
+  color: var(--semiont-color-gray-600);
 }
 
 .semiont-assessment-panel__star:hover {
@@ -59,7 +58,7 @@
 }
 
 [data-theme="dark"] .semiont-assessment-panel__star--filled {
-  color: var(--semiont-color-warning);
+  color: var(--semiont-color-warning-light);
 }
 
 .semiont-assessment-panel__textarea {

@@ -30,10 +30,6 @@
   letter-spacing: 0.05em;
 }
 
-[data-theme="dark"] .semiont-highlight-panel__label {
-  color: var(--semiont-text-secondary);
-}
-
 .semiont-highlight-panel__colors {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -58,6 +54,3 @@
   transform: scale(1.1);
 }
 
-[data-theme="dark"] .semiont-highlight-panel__color--selected {
-  border-color: var(--semiont-text-primary);
-}

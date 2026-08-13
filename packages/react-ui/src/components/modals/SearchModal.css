@@ -503,10 +503,6 @@
   font-weight: 500;
 }
 
-[data-theme="dark"] .semiont-gather__loading-text {
-  color: var(--semiont-text-secondary);
-}
-
 .semiont-gather__loading-dot {
   display: inline-block;
   width: 0.625rem;
@@ -599,10 +595,6 @@
   margin-bottom: 0.5rem;
 }
 
-[data-theme="dark"] .semiont-gather__footer-label {
-  color: var(--semiont-text-tertiary);
-}
-
 .semiont-gather__actions {
   display: flex;
   flex-flow: row nowrap;
@@ -663,10 +655,6 @@
 
 .semiont-gather__expand-btn:hover {
   color: var(--semiont-color-primary-600);
-}
-
-[data-theme="dark"] .semiont-gather__expand-btn {
-  color: var(--semiont-text-tertiary);
 }
 
 [data-theme="dark"] .semiont-gather__expand-btn:hover {

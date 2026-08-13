@@ -17,10 +17,6 @@
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-toggle-label__text {
-  color: var(--semiont-text-primary);
-}
-
 /* Toggle Switch */
 .semiont-toggle {
   position: relative;

@@ -22,7 +22,6 @@
     "./styles": "./src/styles/index.css",
     "./styles/index.css": "./src/styles/index.css",
     "./styles/variables.css": "./src/styles/variables.css",
-    "./tailwind": "./src/integrations/tailwind-plugin.cjs",
     "./integrations/css-modules": {
       "types": "./dist/integrations/css-modules-helper.d.ts",
       "import": "./dist/integrations/css-modules-helper.js",
@@ -125,6 +124,7 @@
     "@semiont/core": "*",
     "@semiont/http-transport": "*",
     "@semiont/sdk": "*",
+    "clsx": "^2.1.1",
     "pdfjs-dist": "^6.2.108",
     "react-error-boundary": "^6.1.2",
     "react-markdown": "^10.1.0",

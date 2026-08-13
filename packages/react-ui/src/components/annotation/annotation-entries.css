@@ -133,10 +133,6 @@
   color: var(--semiont-text-tertiary);
 }
 
-[data-theme="dark"] .semiont-annotation-entry__char-count {
-  color: var(--semiont-text-tertiary);
-}
-
 /* Tags within entries */
 .semiont-annotation-entry__tags {
   display: flex;

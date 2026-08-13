@@ -43,10 +43,6 @@
   letter-spacing: 0.05em;
 }
 
-[data-theme="dark"] .semiont-panel-section__heading {
-  color: var(--semiont-text-secondary);
-}
-
 /* Section Content */
 .semiont-panel-section__content {
   display: flex;
@@ -118,10 +114,6 @@
 .semiont-panel-tab:focus-visible {
   outline: 2px solid var(--semiont-color-primary-500);
   outline-offset: -2px;
-}
-
-[data-theme="dark"] .semiont-panel-tab {
-  color: var(--semiont-text-secondary);
 }
 
 [data-theme="dark"] .semiont-panel-tab:focus-visible {
@@ -197,27 +189,15 @@
   margin-right: 0.5rem;
 }
 
-[data-theme="dark"] .semiont-panel-field__label {
-  color: var(--semiont-text-tertiary);
-}
-
 .semiont-panel-field__value {
   font-size: var(--semiont-text-sm);
   color: var(--semiont-text-primary);
   font-weight: var(--semiont-font-medium);
 }
 
-[data-theme="dark"] .semiont-panel-field__value {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-panel-field__value--empty {
   color: var(--semiont-text-tertiary);
   font-style: italic;
-}
-
-[data-theme="dark"] .semiont-panel-field__value--empty {
-  color: var(--semiont-text-tertiary);
 }
 
 /* Section Input Areas */
@@ -308,17 +288,9 @@
   letter-spacing: 0.05em;
 }
 
-[data-theme="dark"] .semiont-panel-card__label {
-  color: var(--semiont-text-tertiary);
-}
-
 .semiont-panel-card__value {
   font-size: var(--semiont-text-2xl);
   font-weight: var(--semiont-font-semibold);
-  color: var(--semiont-text-primary);
-}
-
-[data-theme="dark"] .semiont-panel-card__value {
   color: var(--semiont-text-primary);
 }
 
@@ -366,7 +338,7 @@
 }
 
 [data-theme="dark"] .semiont-panel-progress__fill {
-  background-color: var(--semiont-color-primary-500);
+  background-color: var(--semiont-color-primary-400);
 }
 
 /* User Lists */
@@ -426,15 +398,8 @@
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-panel-user__name {
-  color: var(--semiont-text-primary);
-}
-
 .semiont-panel-user__status {
   font-size: var(--semiont-text-xs);
   color: var(--semiont-text-tertiary);
 }
 
-[data-theme="dark"] .semiont-panel-user__status {
-  color: var(--semiont-text-tertiary);
-}

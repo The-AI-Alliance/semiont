@@ -88,8 +88,10 @@
   color: var(--semiont-color-gray-700);
 }
 
+/* gray-500 is thin for this size on a near-black surface, and the hover below
+   already lifts to gray-300 — resting darker than its own hover target. */
 [data-theme="dark"] .semiont-protected-error-boundary-summary {
-  color: var(--semiont-color-gray-500);
+  color: var(--semiont-color-gray-400);
 }
 
 [data-theme="dark"] .semiont-protected-error-boundary-summary:hover {

@@ -131,10 +131,6 @@
   color: var(--semiont-text-secondary);
 }
 
-[data-theme="dark"] .semiont-indicator__label {
-  color: var(--semiont-text-secondary);
-}
-
 /* Indicator Badge (dot with count) */
 .semiont-indicator-badge {
   position: relative;

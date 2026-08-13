@@ -36,10 +36,6 @@
   align-items: center;
 }
 
-[data-theme="dark"] .semiont-nav-section__header-button {
-  color: inherit;
-}
-
 .semiont-nav-section__header-button:hover {
   opacity: 0.8;
 }
@@ -68,10 +64,6 @@
   text-align: left;
 }
 
-[data-theme="dark"] .semiont-nav-section__header-text {
-  color: inherit;
-}
-
 .semiont-nav-section__header-icon {
   display: flex;
   align-items: center;
@@ -97,14 +89,6 @@
 .semiont-nav-section__header-icon:focus-visible {
   outline: 2px solid var(--semiont-color-primary-500);
   outline-offset: 2px;
-}
-
-[data-theme="dark"] .semiont-nav-section__header-icon {
-  color: var(--semiont-text-secondary);
-}
-
-[data-theme="dark"] .semiont-nav-section__header-icon:hover {
-  background: var(--semiont-bg-tertiary);
 }
 
 [data-theme="dark"] .semiont-nav-section__header-icon:focus-visible {
@@ -359,10 +343,6 @@
 
 [data-theme="dark"] .semiont-resource-tab__link:focus-visible {
   outline-color: var(--semiont-color-primary-400);
-}
-
-[data-theme="dark"] .semiont-resource-tab__link:visited {
-  color: inherit !important;
 }
 
 /* Resource tab icon (emoji) */

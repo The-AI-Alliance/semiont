@@ -101,9 +101,16 @@
   scrollbar-width: none; /* standard; Firefox + recent Chromium */
 }
 
-/* WebKit/Safari, which has no `scrollbar-width` support to rely on. */
+/*
+ * WebKit/Safari, which has no `scrollbar-width` support to rely on.
+ *
+ * This hides a SCROLLBAR, not content: `scrollbar-width: none` above already
+ * does the same for every other engine, the rail still scrolls by wheel and
+ * drag, and each page is a focusable button — so tabbing through the rail
+ * scrolls it, which is the keyboard path the rule is protecting.
+ */
 .semiont-pdf-annotation-canvas__strip::-webkit-scrollbar {
-  display: none;
+  display: none; /* stylelint-disable-line semiont/accessibility */
 }
 
 /*
@@ -158,6 +165,18 @@
   background: var(--semiont-color-primary-500);
   color: var(--semiont-color-neutral-0);
   font-weight: var(--semiont-font-semibold);
+}
+
+/*
+ * Palette tokens are one fixed hue in both themes, so this marker needs a real
+ * variant — the accent steps lighter against a dark surface (the treatment
+ * `.semiont-checkbox:checked` uses), and the number flips to dark type, which
+ * at this size reads far better on that lighter blue than white does.
+ */
+[data-theme="dark"] .semiont-pdf-annotation-canvas__strip-page[aria-current="page"] {
+  border-color: var(--semiont-color-primary-400);
+  background: var(--semiont-color-primary-400);
+  color: var(--semiont-color-neutral-900);
 }
 
 .semiont-pdf-annotation-canvas__strip-page:focus-visible {

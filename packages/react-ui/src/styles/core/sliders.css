@@ -212,10 +212,6 @@
   color: var(--semiont-text-secondary);
 }
 
-[data-theme="dark"] .semiont-slider__labels {
-  color: var(--semiont-text-secondary);
-}
-
 /* Small labels variant — reduced font size for compact inline contexts */
 .semiont-slider__labels--small {
   font-size: 0.6875rem;
