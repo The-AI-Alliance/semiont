@@ -91,7 +91,14 @@ export function AssistSection({
       progress={progress}
       progressProps={{
         onDismiss: handleDismissProgress,
-        translations: assistProgressTranslations(ta),
+        translations: {
+          cancel: t('cancel'),
+          inProgress: t('annotating'),
+          close: ta('close'),
+          message: assistProgressCopy(ta),
+          subject: assistSubjectCopy(ta),
+          paramLabel: assistParamLabel(ta),
+        },
       }}
       form={
         <>
