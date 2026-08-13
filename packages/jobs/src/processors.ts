@@ -54,7 +54,7 @@ export type BuildAnnotation = (
 /**
  * Progress callback. The three positional args satisfy the minimum
  * `JobProgress` fields (`percentage`, `message`, `stage`). The fourth
- * optional arg carries job-type-specific fields (`currentEntityType`,
+ * optional arg carries job-type-specific fields (
  * `completedEntityTypes`, `requestParams`, etc.) that the progress UI
  * renders.
  *

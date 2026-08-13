@@ -65,7 +65,6 @@ function createRunningDetectionJob(id: string): RunningJob<DetectionParams, Dete
     progress: {
       totalEntityTypes: 2,
       processedEntityTypes: 1,
-      currentEntityType: 'Person',
       entitiesFound: 5,
       entitiesEmitted: 5,
     },

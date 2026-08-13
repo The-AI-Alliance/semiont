@@ -58,7 +58,6 @@ interface DetectionParams {
 interface DetectionProgress {
   totalEntityTypes: number;
   processedEntityTypes: number;
-  currentEntityType?: string;
   entitiesFound: number;
   entitiesEmitted: number;
 }

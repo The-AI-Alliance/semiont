@@ -156,11 +156,17 @@ const { resourceId } = await session.client.yield.resource({
 `mark.assist` runs an AI pass that writes annotations onto a resource: `'linking'` extracts
 entity references (the connections later retrieval reads as graph context), `'tagging'` applies
 a tag schema, plus `'highlighting'`/`'assessing'`/`'commenting'`. It's a long-running job —
-`.run()` for progress; each progress snapshot names the entity type currently being detected.
+`.run()` for progress. Each snapshot carries a `message` CODE with typed params rather than
+a sentence — the client owns the wording, so a browser localizes it and a CLI renders English
+from the same value. `detecting-entities` names the entity type being worked on.
 
 ```typescript
 await session.client.mark.assist(resourceId, 'linking', { entityTypes: ['Person', 'Organization'] })
-  .run((ev) => { if (ev.kind === 'progress') log(ev.data.currentEntityType); });
+  .run((ev) => {
+    if (ev.kind !== 'progress') return;
+    const m = ev.data.message;
+    if (m && 'entityType' in m) log(m.entityType);
+  });
 
 // structured tagging:
 await session.client.mark.assist(resourceId, 'tagging', { schemaId: 'legal-irac', categories: ['issue', 'rule', 'application', 'conclusion'] });
