@@ -97,7 +97,7 @@ export function AssistSection({
           close: ta('close'),
           message: assistProgressCopy(ta),
           subject: assistSubjectCopy(ta),
-                paramLabel: assistParamLabel(ta),
+          paramLabel: assistParamLabel(ta),
         },
       }}
       form={

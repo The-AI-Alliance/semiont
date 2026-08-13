@@ -270,9 +270,9 @@ export function ResourceViewerPage({
   }, [stateUnit, clearNewAnnotationId, resource]);
 
   // Resource-generate flow (GENERATE-FROM-BUTTON): drive the SAME yield progress$
-  // the annotation path uses so the full AnnotateReferencesProgressWidget shows —
-  // NOT a toast. Both paths are one `generate(context, options)` now: the
-  // context's focus.kind (resource here, annotation above) decides the shape.
+  // the annotation path uses so the full `AssistProgress` widget shows — NOT a
+  // toast. Both paths are one `generate(context, options)` now: the context's
+  // focus.kind (resource here, annotation above) decides the shape.
   const handleResourceGenerateSubmit = useCallback((_resourceId: string, config: GenerationConfig) => {
     stateUnit?.yield.generate(config.context, {
       title: config.title,
