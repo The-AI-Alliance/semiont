@@ -10,6 +10,7 @@ import {
   isUndefined,
   isNullish,
   isDefined,
+  isGatheredContext,
   isGenerationJobParams,
 } from '../type-guards';
 
@@ -225,3 +226,28 @@ describe('isGenerationJobParams', () => {
   });
 });
 
+describe('isGatheredContext', () => {
+  const valid = {
+    focus: { kind: 'annotation', annotation: {}, sourceResource: {} },
+    graph: { nodes: [], edges: [] },
+    metadata: {},
+  };
+
+  it('accepts what the gather flow actually returns', () => {
+    expect(isGatheredContext(valid)).toBe(true);
+  });
+
+  it('rejects a context whose graph has no node/edge arrays', () => {
+    // The shape that reached `deriveViews` and threw during render: a stale
+    // sessionStorage stash written by an older build.
+    expect(isGatheredContext({ ...valid, graph: {} })).toBe(false);
+    expect(isGatheredContext({ ...valid, graph: { nodes: [] } })).toBe(false);
+    expect(isGatheredContext({ focus: valid.focus, metadata: {} })).toBe(false);
+  });
+
+  it('rejects the shapes a severed JSON.parse can produce', () => {
+    for (const value of [null, undefined, 'a string', 42, [], { focus: 'not an object' }]) {
+      expect(isGatheredContext(value)).toBe(false);
+    }
+  });
+});
