@@ -288,6 +288,9 @@
       "BrowseTagSchemasResult": {
         "$ref": "components/schemas/BrowseTagSchemasResult.json"
       },
+      "BusEmitAccepted": {
+        "$ref": "components/schemas/BusEmitAccepted.json"
+      },
       "BusEmitRequest": {
         "$ref": "components/schemas/BusEmitRequest.json"
       },

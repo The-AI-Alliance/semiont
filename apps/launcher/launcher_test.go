@@ -6387,13 +6387,18 @@ func TestMatchGathersThenSearches(t *testing.T) {
 		`"limit":5`, `"useSemanticScoring":true`, `"context"`)
 }
 
-func TestBeckonEmitsWithoutClaimingDelivery(t *testing.T) {
+// RETITLED (GUIDED-TOUR P1): the verb still claims no delivery, but it no
+// longer prints a bare ✓ over a signal that reached an empty room. Nothing is
+// subscribed to beckon:focus in this scenario, and the backend now says so, so
+// the honest line names that — the old "no delivery confirmation" wording is
+// reserved for the case where the count is genuinely unknown.
+func TestBeckonSaysWhenNobodyIsSubscribed(t *testing.T) {
 	s := busScenario(t)
 	stdout, stderr, code := s.run(t, "beckon", "--resource", "res-1", "--annotation", "ann-2")
 	if code != 0 {
-		t.Fatalf("beckon: exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("an empty room is not a failure — beckon is fire-and-forget: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "stdout", stdout, "res-1", "ann-2", "no delivery confirmation")
+	mustContain(t, "stdout", stdout, "res-1", "ann-2", "nothing is subscribed to beckon:focus")
 	b := lastEmit(t, s)
 	// BeckonFocusEvent carries exactly these two fields; a `message` the
 	// schema does not declare must not reach the wire.

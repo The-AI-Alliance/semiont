@@ -33,6 +33,34 @@ This is a broadcast signal: it has no reply, so the command can confirm only
 that the signal was sent — not that a participant is watching.
 `
 
+// audienceNote renders what the backend's subscriber count licenses this verb
+// to say, and nothing more. The three cases are genuinely different answers:
+//
+//	n == 0   nobody was subscribed — the signal reached an empty room. Said
+//	         plainly, because a ✓ over this is the silent failure the whole
+//	         subscriber count exists to end.
+//	n < 0    the backend answered 2xx with a body we could not read (an older
+//	         backend). We know it was accepted and know nothing about reach —
+//	         so we claim nothing, which is what this verb used to always do.
+//	n > 0    n connections were listening at dispatch. Still not delivery: a
+//	         subscriber is a connection, not a pair of eyes, and beckon is a
+//	         broadcast with no reply channel.
+//
+// The exit code is 0 in all three: beckon is fire-and-forget by contract, and
+// an empty room is a fact, not a failure.
+func audienceNote(u *ui, subscribers int, channel string) string {
+	switch {
+	case subscribers == 0:
+		return u.wrap(ansiYellow, "— nothing is subscribed to "+channel+", so no one received it")
+	case subscribers < 0:
+		return u.dim("(broadcast — no delivery confirmation)")
+	case subscribers == 1:
+		return u.dim("(1 subscriber — broadcast, so still no confirmation anyone looked)")
+	default:
+		return u.dim(fmt.Sprintf("(%d subscribers — broadcast, so still no confirmation anyone looked)", subscribers))
+	}
+}
+
 func Beckon(args []string) int {
 	u := newUI(false)
 	var resource, annotation, repo string
@@ -96,7 +124,8 @@ func Beckon(args []string) int {
 	if annotation != "" {
 		ev.AnnotationId = &annotation
 	}
-	if err := cli.Emit(context.Background(), "beckon:focus", ev, ""); err != nil {
+	subscribers, err := cli.Emit(context.Background(), "beckon:focus", ev, "")
+	if err != nil {
 		return busFail(u, "beckon", err)
 	}
 
@@ -104,6 +133,6 @@ func Beckon(args []string) int {
 	if annotation != "" {
 		target = fmt.Sprintf("%s (%s)", resource, annotation)
 	}
-	u.ok("Beckoned toward %s %s", target, u.dim("(broadcast — no delivery confirmation)"))
+	u.ok("Beckoned toward %s %s", target, audienceNote(u, subscribers, "beckon:focus"))
 	return 0
 }

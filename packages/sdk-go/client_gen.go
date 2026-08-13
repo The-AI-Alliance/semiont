@@ -1754,6 +1754,12 @@ type BrowseTagSchemasResult struct {
 	Response      GetTagSchemasResponse `json:"response"`
 }
 
+// BusEmitAccepted Result of publishing one event. `subscribers` is the number of observers attached to the target subject at dispatch — the GLOBAL subject for an unscoped emit, the scoped one when `scope` is set. Zero means the signal reached nobody: /bus/subscribe enforces no channel allowlist and the emit handler publishes unconditionally, so a client can emit a channel no participant subscribes to and otherwise receive a clean 202 with no way to tell. Deliberately NOT named `delivered`: this is the count at dispatch, and a subscriber may still drop the frame downstream, so the field is named after what the server can actually observe.
+type BusEmitAccepted struct {
+	// Subscribers Observers on the target subject when the event was dispatched.
+	Subscribers int `json:"subscribers"`
+}
+
 // BusEmitRequest Emit an event on the Semiont bus. Channel names come from bus-protocol.ts; payload shape is validated against the channel's registered schema (CHANNEL_SCHEMAS). An optional scope routes resource-scoped broadcasts (e.g. mark:added, job:complete) to per-resource subscribers via eventBus.scope(scope); leave it unset for unscoped/global events.
 type BusEmitRequest struct {
 	// Channel Channel name from bus-protocol.ts EventMap
@@ -12522,6 +12528,7 @@ func (r GetApiUsersMeResponse) StatusCode() int {
 type PostBusEmitResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON202      *BusEmitAccepted
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 }
@@ -13996,6 +14003,13 @@ func ParsePostBusEmitResponse(rsp *http.Response) (*PostBusEmitResponse, error) 
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest BusEmitAccepted
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

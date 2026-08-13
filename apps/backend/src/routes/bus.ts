@@ -540,17 +540,42 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       ? (tracestate ? { traceparent, tracestate } : { traceparent })
       : undefined;
 
+    // How many observers the target subject had AT DISPATCH. Zero means the
+    // signal reached nobody — the failure this route could not previously
+    // express. `/bus/subscribe` enforces no channel allowlist and this
+    // handler publishes unconditionally, so a client can emit a channel no
+    // participant subscribes to and otherwise get a clean 202 back.
+    // `warnIfUnobservedReply` does not cover it: that detector requires a
+    // `correlationId`, and fire-and-forget UI signals carry none.
+    //
+    // Counted on the SCOPED subject when `scope` is set — an unscoped
+    // subscriber is not a subscriber to a scoped emit, and counting the
+    // global subject would report a healthy fan-out for a signal nobody
+    // scoped will receive.
+    let subscribers = 0;
+
     await withTraceparent(carrier, () =>
       withSpan(
         `bus.dispatch:${channel}`,
         () => {
           const bus = scope ? eventBus.scope(scope) : eventBus;
           const subject = bus.get(channel as keyof EventMap);
+          subscribers = subject.observers.length;
           subject.next(payload as never);
 
           busLog('EMIT', channel, payload, scope);
           recordBusEmit(channel, scope);
-          getBusLogger().info('emit', { channel, scope, correlationId: (payload as Record<string, unknown>).correlationId });
+          getBusLogger().info('emit', { channel, scope, subscribers, correlationId: (payload as Record<string, unknown>).correlationId });
+          if (subscribers === 0) {
+            // The caller is told in the response body too; this is for the
+            // operator reading logs after the fact, when nobody was watching
+            // the exit code of a script.
+            getBusLogger().warn('emit reached no subscribers', {
+              channel,
+              scope,
+              hint: 'Nothing on this backend subscribes to that channel. For a UI signal meant to cross to a participant, check that the channel is in BRIDGED_BROADCASTS and that a client subscribed to it.',
+            });
+          }
         },
         {
           kind: SpanKind.SERVER,
@@ -562,7 +587,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       ),
     );
 
-    return c.json(null, 202);
+    return c.json({ subscribers }, 202);
   });
 
   return busRouter;
