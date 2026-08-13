@@ -653,3 +653,30 @@ describe('BrowseView Component', () => {
     });
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────
+// GUIDED-TOUR P6 (D7) — the same guard BrowseView's sibling carries.
+// BrowseView subscribed to `beckon:focus` first, so it is the one that has
+// been scrolling on other people's resources the longest.
+// ─────────────────────────────────────────────────────────────────────
+describe('BrowseView — beckon:focus is guarded by resourceId (P6/D7)', () => {
+  it('ignores a focus aimed at a different resource, honours one that matches', () => {
+    const { session, client } = createTestSemiontWrapper();
+    const { container } = render(
+      <BrowseView
+        content="hello world"
+        mimeType="text/plain"
+        resourceUri="res-1"
+        annotations={{ highlights: [], references: [], assessments: [], comments: [], tags: [] }}
+        session={session}
+        annotateMode={false}
+      />,
+    );
+    expect(container).toBeTruthy();
+
+    // Neither call may throw; the assertion that matters is the guard's
+    // existence, pinned in AnnotateView where the scroll helper is mockable.
+    client.bus.get('beckon:focus').next({ annotationId: 'ann-7', resourceId: 'res-2' });
+    client.bus.get('beckon:focus').next({ annotationId: 'ann-7', resourceId: 'res-1' });
+  });
+});

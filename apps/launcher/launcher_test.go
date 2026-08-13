@@ -6294,6 +6294,52 @@ func TestBrowseBrowserRefusesLocalRenderings(t *testing.T) {
 	}
 }
 
+// --- beckon --sparkle: the branch menu (GUIDED-TOUR P6) ---
+
+// focus SCROLLS, so beckoning three references in a row scroll-fights and only
+// the last one wins. Sparkle is inert-but-visible: it marks an annotation
+// without moving anything, so a guide can light up three and say "any of
+// these". Same verb, same target, different signal — not a second command.
+func TestBeckonSparkleEmitsSparkleNotFocus(t *testing.T) {
+	s := busScenario(t)
+	stdout, stderr, code := s.run(t, "beckon", "--resource", "res-42", "--annotation", "ref-a", "--sparkle")
+	if code != 0 {
+		t.Fatalf("beckon --sparkle: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "emit", lastEmit(t, s), `"channel":"beckon:sparkle"`, `"annotationId":"ref-a"`)
+
+	// An implementation that emitted BOTH would scroll-fight exactly as before,
+	// which is the thing this flag exists to avoid.
+	for _, e := range emits(t, s) {
+		if strings.Contains(e, `"channel":"beckon:focus"`) {
+			t.Errorf("--sparkle also emitted focus, the scroll-fight it exists to avoid:\n%s", e)
+		}
+	}
+
+	// P1's subscriber count carries through, in beckon's existing vocabulary.
+	mustContain(t, "audience", stdout, "nothing is subscribed to beckon:sparkle")
+}
+
+// BeckonSparkleEvent requires annotationId — there is no resource-wide sparkle.
+// Refuse rather than guess at one.
+func TestBeckonSparkleNeedsAnAnnotation(t *testing.T) {
+	s := busScenario(t)
+	stdout, stderr, code := s.run(t, "beckon", "--resource", "res-42", "--sparkle")
+	if code == 0 {
+		t.Fatalf("--sparkle without an annotation must refuse\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "refusal", stdout+stderr, "--sparkle", "--annotation")
+}
+
+// Without the flag, beckon is unchanged: focus, which scrolls.
+func TestBeckonWithoutSparkleStillFocuses(t *testing.T) {
+	s := busScenario(t)
+	if _, stderr, code := s.run(t, "beckon", "--resource", "res-42", "--annotation", "ref-a"); code != 0 {
+		t.Fatalf("beckon: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "emit", lastEmit(t, s), `"channel":"beckon:focus"`)
+}
+
 func TestBrowseFailureChannelIsReported(t *testing.T) {
 	s := busScenario(t, "FAKERT_BUS_FAIL=resource vanished")
 	stdout, stderr, code := s.run(t, "browse", "res-9")

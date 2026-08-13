@@ -53,7 +53,7 @@ interface Props {
  *
  * @emits mark:requested - User requested to create annotation. Payload: { selector: Selector | Selector[], motivation: SelectionMotivation }
  * @subscribes beckon:hover - Annotation hovered. Payload: { annotationId: string | null }
- * @subscribes beckon:focus - Scroll to and highlight annotation. Payload: { annotationId: string }
+ * @subscribes beckon:focus - Scroll to and highlight annotation, unless `resourceId` names a different resource (D7). Payload: { annotationId: string, resourceId?: string }
  */
 export function AnnotateView({
   content,
@@ -111,10 +111,21 @@ export function AnnotateView({
   // serves, so the behaviour no longer depends on which view mode is active.
   // The `scrollToAnnotationId` prop path (uiState → renderer) stays as the
   // host-facing capability it is; this is the in-app producer's route.
-  const handleAnnotationFocus = useCallback(({ annotationId }: { annotationId?: string | null }) => {
-    if (!containerRef.current) return;
-    scrollAnnotationIntoView(annotationId ?? null, containerRef.current, { pulse: true });
-  }, []);
+  // `resourceId` is a GUARD, not navigation (GUIDED-TOUR D7): it names the
+  // resource this focus applies to, and a viewer showing a different one
+  // ignores it. Absent means unscoped — the in-app emitters (history panel,
+  // annotation list) omit it because they are already scoped to the open
+  // resource, so treating absence as "not mine" would silence all of them.
+  // Focus never navigates; driving the Browser to a resource is
+  // `browse:resource-open`'s job.
+  const handleAnnotationFocus = useCallback(
+    ({ annotationId, resourceId }: { annotationId?: string | null; resourceId?: string }) => {
+      if (resourceId && resourceId !== resourceUri) return;
+      if (!containerRef.current) return;
+      scrollAnnotationIntoView(annotationId ?? null, containerRef.current, { pulse: true });
+    },
+    [resourceUri],
+  );
 
   // Annotation hover (session-scoped). Toolbar preference changes flow through
   // props/callbacks, not the bus (TOOLBAR-PREFS-AS-PROPS).

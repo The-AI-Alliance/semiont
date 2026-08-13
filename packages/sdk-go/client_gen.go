@@ -1393,10 +1393,12 @@ type AuthResponse struct {
 	} `json:"user"`
 }
 
-// BeckonFocusEvent Emitted when an annotation receives focus for beckoning
+// BeckonFocusEvent Emitted when an annotation receives focus for beckoning. resourceId is a guard, not navigation: it names the resource this focus applies to, and a viewer currently showing a different resource ignores the event — a deliberate ignore rather than a silent no-op. Focus never moves the viewer; driving the Browser to a resource is browse:resource-open's job.
 type BeckonFocusEvent struct {
 	AnnotationId *string `json:"annotationId,omitempty"`
-	ResourceId   *string `json:"resourceId,omitempty"`
+
+	// ResourceId Guard: the resource this focus applies to. A viewer showing a different resource ignores the event. Never causes navigation.
+	ResourceId *string `json:"resourceId,omitempty"`
 }
 
 // BeckonHoverEvent Emitted when an annotation is hovered over for beckoning

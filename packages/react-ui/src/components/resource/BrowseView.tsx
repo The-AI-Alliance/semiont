@@ -263,9 +263,20 @@ export const BrowseView = memo(function BrowseView({
     scrollToAnnotation(annotationId);
   }, [scrollToAnnotation]);
 
-  const handleAnnotationFocus = useCallback(({ annotationId }: { annotationId?: string | null }) => {
-    scrollToAnnotation(annotationId ?? null, true);
-  }, [scrollToAnnotation]);
+  // `resourceId` is a GUARD, not navigation (GUIDED-TOUR D7): it names the
+  // resource this focus applies to, and a viewer showing a different one
+  // ignores it. Absent means unscoped — the in-app emitters (history panel,
+  // annotation list) omit it because they are already scoped to the open
+  // resource, so treating absence as "not mine" would silence all of them.
+  // Focus never navigates; driving the Browser to a resource is
+  // `browse:resource-open`'s job.
+  const handleAnnotationFocus = useCallback(
+    ({ annotationId, resourceId }: { annotationId?: string | null; resourceId?: string }) => {
+      if (resourceId && resourceId !== resourceUri) return;
+      scrollToAnnotation(annotationId ?? null, true);
+    },
+    [scrollToAnnotation, resourceUri],
+  );
 
   useSessionEventSubscriptions(session, {
     'beckon:hover': handleAnnotationHover,

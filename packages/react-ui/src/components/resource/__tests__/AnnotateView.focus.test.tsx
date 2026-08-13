@@ -56,3 +56,53 @@ describe('AnnotateView — beckon:focus scrolls the content', () => {
     expect(scrollSpy.mock.calls[0]?.[0]).toBe('ann-7');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────
+// GUIDED-TOUR P6 (D7) — `resourceId` is a GUARD, not navigation.
+//
+// The schema now says so out loud: "it names the resource this focus applies
+// to, and a viewer currently showing a different resource ignores the event".
+// Without the comparison the field was decorative — a guide beckoning a
+// reference in doc B scrolled every participant's doc A.
+// ─────────────────────────────────────────────────────────────────────
+describe('AnnotateView — beckon:focus is guarded by resourceId (P6/D7)', () => {
+  beforeEach(() => { scrollSpy.mockClear(); });
+
+  const renderAt = (resourceUri: string) => {
+    const { session, client } = createTestSemiontWrapper();
+    render(
+      <AnnotateView
+        content="hello world"
+        mimeType="text/plain"
+        resourceUri={resourceUri}
+        annotations={emptyAnnotations}
+        uiState={uiState}
+        session={session}
+        annotateMode
+      />,
+    );
+    return client;
+  };
+
+  it('ignores a focus aimed at a DIFFERENT resource', () => {
+    const client = renderAt('res-1');
+    client.bus.get('beckon:focus').next({ annotationId: 'ann-7', resourceId: 'res-2' });
+    expect(scrollSpy).not.toHaveBeenCalled();
+  });
+
+  it('still scrolls when the resource matches', () => {
+    const client = renderAt('res-1');
+    client.bus.get('beckon:focus').next({ annotationId: 'ann-7', resourceId: 'res-1' });
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('still scrolls when the event names no resource at all', () => {
+    // `resourceId` is optional in the schema (`required: []`), and the in-app
+    // emitters — the history panel, the annotation list — omit it because they
+    // are already scoped to the open resource. A guard that treated absence as
+    // "not mine" would break every one of them.
+    const client = renderAt('res-1');
+    client.bus.get('beckon:focus').next({ annotationId: 'ann-7' });
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+  });
+});

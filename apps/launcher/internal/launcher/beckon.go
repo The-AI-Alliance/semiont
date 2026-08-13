@@ -15,7 +15,7 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
-const beckonUsage = `Usage: semiont beckon --resource <resourceId> [--annotation <id>]
+const beckonUsage = `Usage: semiont beckon --resource <resourceId> [--annotation <id>] [--sparkle]
 
 Draw attention to a resource (or one annotation in it) for anyone watching
 this KB in a Browser.
@@ -23,6 +23,8 @@ this KB in a Browser.
 Options:
   --resource <id>      The resource to point at (required)
   --annotation <id>    Narrow the attention to one annotation
+  --sparkle            Mark the annotation WITHOUT scrolling to it
+                       (requires --annotation)
   --repo <owner/name>  Target a codespace stack (default: the local stack)
   --runtime <rt>       Target the local stack explicitly
   --help               Show this help
@@ -65,6 +67,7 @@ func Beckon(args []string) int {
 	u := newUI(false)
 	var resource, annotation, repo string
 	wantLocal := false
+	sparkle := false
 
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -84,6 +87,8 @@ func Beckon(args []string) int {
 			annotation, ok = val()
 		case "--repo":
 			repo, ok = val()
+		case "--sparkle":
+			sparkle, ok = true, true
 		case "--runtime":
 			_, ok = val()
 			wantLocal = true
@@ -110,6 +115,12 @@ func Beckon(args []string) int {
 		fmt.Print(beckonUsage)
 		return 1
 	}
+	// BeckonSparkleEvent requires an annotationId — there is no resource-wide
+	// sparkle to fall back to, so this refuses rather than inventing one.
+	if sparkle && annotation == "" {
+		u.fail("--sparkle marks one annotation, so it needs --annotation <id>")
+		return 1
+	}
 
 	t, ok := verbSession(u, "beckon", repo, wantLocal)
 	if !ok {
@@ -117,14 +128,28 @@ func Beckon(args []string) int {
 	}
 	cli := bus.NewClient(t.base, t.token)
 
-	// BeckonFocusEvent carries a resource and an annotation — and nothing
-	// else. An earlier version sent a `message` field the schema does not
-	// declare; the flag is gone rather than quietly dropped on the wire.
-	ev := semiont.BeckonFocusEvent{ResourceId: &resource}
-	if annotation != "" {
-		ev.AnnotationId = &annotation
+	// Two signals, one act (GUIDED-TOUR P6). Focus SCROLLS, so beckoning three
+	// references in a row scroll-fights and only the last survives; sparkle is
+	// inert-but-visible, which is what makes it the branch menu — light up three
+	// and let the participant choose. They are mutually exclusive by
+	// construction: this emits one channel, never both.
+	channel := bus.Channel("beckon:focus")
+	var payload any
+	if sparkle {
+		channel = bus.Channel("beckon:sparkle")
+		payload = semiont.BeckonSparkleEvent{AnnotationId: annotation}
+	} else {
+		// BeckonFocusEvent carries a resource and an annotation — and nothing
+		// else. An earlier version sent a `message` field the schema does not
+		// declare; the flag is gone rather than quietly dropped on the wire.
+		ev := semiont.BeckonFocusEvent{ResourceId: &resource}
+		if annotation != "" {
+			ev.AnnotationId = &annotation
+		}
+		payload = ev
 	}
-	subscribers, err := cli.Emit(context.Background(), "beckon:focus", ev, "")
+
+	subscribers, err := cli.Emit(context.Background(), channel, payload, "")
 	if err != nil {
 		return busFail(u, "beckon", err)
 	}
@@ -133,6 +158,10 @@ func Beckon(args []string) int {
 	if annotation != "" {
 		target = fmt.Sprintf("%s (%s)", resource, annotation)
 	}
-	u.ok("Beckoned toward %s %s", target, audienceNote(u, subscribers, "beckon:focus"))
+	verb := "Beckoned toward"
+	if sparkle {
+		verb = "Sparkled"
+	}
+	u.ok("%s %s %s", verb, target, audienceNote(u, subscribers, string(channel)))
 	return 0
 }
