@@ -240,8 +240,8 @@
       "BrowsePanelToggleEvent": {
         "$ref": "components/schemas/BrowsePanelToggleEvent.json"
       },
-      "BrowseReferenceNavigateEvent": {
-        "$ref": "components/schemas/BrowseReferenceNavigateEvent.json"
+      "BrowseResourceOpenEvent": {
+        "$ref": "components/schemas/BrowseResourceOpenEvent.json"
       },
       "BrowseReferencedByRequest": {
         "$ref": "components/schemas/BrowseReferencedByRequest.json"

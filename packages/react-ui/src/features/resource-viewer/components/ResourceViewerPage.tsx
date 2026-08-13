@@ -119,7 +119,7 @@ export interface ResourceViewerPageProps {
  * @subscribes yield:clone - Clone the current resource
  * @subscribes beckon:sparkle - Trigger sparkle animation
  * @subscribes mark:added - Annotation was created (sparkle)
- * @subscribes browse:reference-navigate - Navigate to a referenced document
+ * @subscribes browse:resource-open - Open a resource in the viewer (local links + the launcher's tour verbs)
  * @subscribes browse:entity-type-clicked - Navigate filtered by entity type
  *
  * Outcome-notification channels (mark:create-error, mark:delete-error,
@@ -391,7 +391,7 @@ export function ResourceViewerPage({
     triggerSparkleAnimation(stored.payload.annotation.id);
   }, [triggerSparkleAnimation]);
 
-  const handleReferenceNavigate = useCallback(({ resourceId }: { resourceId: string }) => {
+  const handleResourceOpen = useCallback(({ resourceId }: { resourceId: string }) => {
     if (routes.resourceDetail) {
       const path = routes.resourceDetail(resourceId);
       browser.emit('nav:push', { path, reason: 'reference-link' });
@@ -420,7 +420,7 @@ export function ResourceViewerPage({
     'yield:clone': handleResourceClone,
     'beckon:sparkle': handleAnnotationSparkle,
     'mark:added': handleAnnotationAdded,
-    'browse:reference-navigate': handleReferenceNavigate,
+    'browse:resource-open': handleResourceOpen,
     'browse:entity-type-clicked': handleEntityTypeClicked,
   });
 

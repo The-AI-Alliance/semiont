@@ -164,7 +164,7 @@ export interface RenderWithProvidersOptions extends TestProvidersOptions, Omit<R
   /**
    * If true, returns the session (client) EventBus — session-scoped
    * channels (mark:*, beckon:*, gather:*, match:*, bind:*, yield:*,
-   * browse:click, browse:reference-navigate, browse:entity-type-clicked).
+   * browse:click, browse:resource-open, browse:entity-type-clicked).
    */
   returnEventBus?: boolean;
   /**

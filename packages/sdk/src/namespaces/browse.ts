@@ -474,8 +474,8 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.bus.get('browse:click').next({ annotationId, motivation, ...(anchorRect ? { anchorRect } : {}) });
   }
 
-  navigateReference(resourceId: ResourceId): void {
-    this.bus.get('browse:reference-navigate').next({ resourceId });
+  openResource(resourceId: ResourceId): void {
+    this.bus.get('browse:resource-open').next({ resourceId });
   }
 
   // ── Cache-mutation API (used by the bus-event subscribers below and by

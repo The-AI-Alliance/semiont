@@ -390,8 +390,8 @@ const (
 	// not emittable (no registered schema)
 	BrowseDirectoryFailed Channel = "browse:directory-failed"
 
-	// payload: BrowseReferenceNavigateEvent
-	BrowseReferenceNavigate Channel = "browse:reference-navigate"
+	// payload: BrowseResourceOpenEvent
+	BrowseResourceOpen Channel = "browse:resource-open"
 
 	// payload: BrowseEntityTypeClickedEvent
 	BrowseEntityTypeClicked Channel = "browse:entity-type-clicked"
@@ -610,7 +610,7 @@ var ChannelSchemas = map[Channel]string{
 	BrowseAgentsResult:               "BrowseAgentsResult",
 	BrowseDirectoryRequested:         "BrowseDirectoryRequest",
 	BrowseDirectoryResult:            "BrowseDirectoryResult",
-	BrowseReferenceNavigate:          "BrowseReferenceNavigateEvent",
+	BrowseResourceOpen:               "BrowseResourceOpenEvent",
 	BrowseEntityTypeClicked:          "BrowseEntityTypeClickedEvent",
 	PanelToggle:                      "BrowsePanelToggleEvent",
 	TabsClose:                        "BrowseResourceCloseEvent",

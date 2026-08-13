@@ -155,7 +155,7 @@ export function ResourceInfoPanel({
                     <button
                       key={id}
                       className="semiont-resource-info-panel__link"
-                      onClick={() => session?.client.browse.navigateReference(makeResourceId(id))}
+                      onClick={() => session?.client.browse.openResource(makeResourceId(id))}
                     >
                       {i > 0 && ', '}{id}
                     </button>

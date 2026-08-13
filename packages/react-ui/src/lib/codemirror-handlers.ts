@@ -85,7 +85,7 @@ export function dispatchWidgetClick(result: WidgetClickResult, session: SemiontS
   if (!result.handled) return;
 
   if (result.action === 'navigate' && result.resourceId) {
-    session.client.browse.navigateReference(toResourceId(result.resourceId));
+    session.client.browse.openResource(toResourceId(result.resourceId));
   } else if (result.action === 'browse-click' && result.annotationId) {
     session.client.browse.click(toAnnotationId(result.annotationId), result.motivation || 'linking');
   }

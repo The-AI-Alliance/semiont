@@ -1680,11 +1680,6 @@ type BrowsePanelToggleEvent struct {
 	Panel string `json:"panel"`
 }
 
-// BrowseReferenceNavigateEvent Emitted when navigation to a reference resource is requested
-type BrowseReferenceNavigateEvent struct {
-	ResourceId string `json:"resourceId"`
-}
-
 // BrowseReferencedByRequest Request to browse annotations that reference a resource
 type BrowseReferencedByRequest struct {
 	CorrelationId string  `json:"correlationId"`
@@ -1700,6 +1695,11 @@ type BrowseReferencedByResult struct {
 
 // BrowseResourceCloseEvent Emitted when a resource is closed in the browse panel
 type BrowseResourceCloseEvent struct {
+	ResourceId string `json:"resourceId"`
+}
+
+// BrowseResourceOpenEvent Domain intent to open a resource in the viewer (GUIDED-TOUR D1/D2): emitted locally by in-app link handlers and remotely by the launcher's tour verbs; the viewer translates it to host routing (nav:push). Deliberately not named 'navigate' — that word and the nav:* prefix belong to the host-local framework layer.
+type BrowseResourceOpenEvent struct {
 	ResourceId string `json:"resourceId"`
 }
 

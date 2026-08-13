@@ -113,15 +113,15 @@ describe('UI signal wrappers', () => {
     });
   });
 
-  describe('browse.navigateReference', () => {
-    it('emits browse:reference-navigate with the given resourceId (local bus)', () => {
+  describe('browse.openResource', () => {
+    it('emits browse:resource-open with the given resourceId (local bus)', () => {
       const bus = new EventBus();
-      const spy = busSpy(bus, 'browse:reference-navigate');
+      const spy = busSpy(bus, 'browse:resource-open');
       const browse = new BrowseNamespace(makeMockTransport(), bus, makeMockContent());
 
-      browse.navigateReference(RID);
+      browse.openResource(RID);
 
-      expect(spy).toHaveBeenCalledExactlyOnceWith('browse:reference-navigate', {
+      expect(spy).toHaveBeenCalledExactlyOnceWith('browse:resource-open', {
         resourceId: RID,
       });
     });

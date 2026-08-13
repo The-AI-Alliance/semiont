@@ -92,6 +92,9 @@ const FROZEN_BRIDGED = [
   'frame:tag-schema-add-ok', 'frame:tag-schema-add-failed',
   'beckon:focus', 'beckon:sparkle',
   'bus:resume-gap',
+  // GUIDED-TOUR P2: the tour's imperative — domain intent, bridged so a
+  // launcher emit reaches every watching Browser (nav:* stays host-local, D1).
+  'browse:resource-open',
 ];
 
 describe('bus channel-classification invariants', () => {
