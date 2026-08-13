@@ -1721,6 +1721,11 @@ type BrowseResourceResult struct {
 	Response      GetResourceResponse `json:"response"`
 }
 
+// BrowseResourceViewedEvent REPORT that a resource has loaded in a viewer — emitted on arrival by ANY means: a followed cue, an in-app link, the back button, a typed URL (GUIDED-TOUR D6). Deliberately distinct from the imperative browse:resource-open: drive and report never share a channel, or the driver hears its own commands and one viewer's arrival steers another's page.
+type BrowseResourceViewedEvent struct {
+	ResourceId string `json:"resourceId"`
+}
+
 // BrowseResourcesRequest Request to browse resources with optional filtering and pagination
 type BrowseResourcesRequest struct {
 	Archived      *bool   `json:"archived,omitempty"`

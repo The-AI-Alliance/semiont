@@ -478,6 +478,14 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.bus.get('browse:resource-open').next({ resourceId });
   }
 
+  resourceViewed(resourceId: ResourceId): void {
+    // REPORT, over the wire (the beckon:focus idiom): the viewer announces
+    // arrival — however the user got here — so a remote listener (the tour
+    // guide's `semiont listen`) can branch on it. Deliberately a different
+    // channel from the imperative `browse:resource-open` (GUIDED-TOUR D6).
+    void this.transport.emit('browse:resource-viewed', { resourceId });
+  }
+
   // ── Cache-mutation API (used by the bus-event subscribers below and by
   //    other namespaces that know about specific updates) ─────────────────
   //

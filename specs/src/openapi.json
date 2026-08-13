@@ -243,6 +243,9 @@
       "BrowseResourceOpenEvent": {
         "$ref": "components/schemas/BrowseResourceOpenEvent.json"
       },
+      "BrowseResourceViewedEvent": {
+        "$ref": "components/schemas/BrowseResourceViewedEvent.json"
+      },
       "BrowseReferencedByRequest": {
         "$ref": "components/schemas/BrowseReferencedByRequest.json"
       },

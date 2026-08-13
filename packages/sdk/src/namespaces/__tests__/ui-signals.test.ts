@@ -127,6 +127,23 @@ describe('UI signal wrappers', () => {
     });
   });
 
+  describe('browse.resourceViewed', () => {
+    it('emits browse:resource-viewed over the TRANSPORT (wire) — the tour report, not a local signal', () => {
+      // D6 (GUIDED-TOUR): the viewer REPORTS arrival so a remote guide can
+      // branch on it. A local-bus emit would never leave the page; the
+      // beckon:focus idiom (transport.emit) is the wire path.
+      const bus = new EventBus();
+      const transport = makeMockTransport();
+      const browse = new BrowseNamespace(transport, bus, makeMockContent());
+
+      browse.resourceViewed(RID);
+
+      expect(transport.emit).toHaveBeenCalledExactlyOnceWith('browse:resource-viewed', {
+        resourceId: RID,
+      });
+    });
+  });
+
   describe('mark.request', () => {
     it('emits mark:requested with selector and motivation (local bus)', () => {
       const bus = new EventBus();

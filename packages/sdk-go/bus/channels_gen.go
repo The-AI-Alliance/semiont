@@ -393,6 +393,9 @@ const (
 	// payload: BrowseResourceOpenEvent
 	BrowseResourceOpen Channel = "browse:resource-open"
 
+	// payload: BrowseResourceViewedEvent
+	BrowseResourceViewed Channel = "browse:resource-viewed"
+
 	// payload: BrowseEntityTypeClickedEvent
 	BrowseEntityTypeClicked Channel = "browse:entity-type-clicked"
 
@@ -611,6 +614,7 @@ var ChannelSchemas = map[Channel]string{
 	BrowseDirectoryRequested:         "BrowseDirectoryRequest",
 	BrowseDirectoryResult:            "BrowseDirectoryResult",
 	BrowseResourceOpen:               "BrowseResourceOpenEvent",
+	BrowseResourceViewed:             "BrowseResourceViewedEvent",
 	BrowseEntityTypeClicked:          "BrowseEntityTypeClickedEvent",
 	PanelToggle:                      "BrowsePanelToggleEvent",
 	TabsClose:                        "BrowseResourceCloseEvent",

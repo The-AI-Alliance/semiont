@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { assistProgressTranslations } from '../../../lib/assist-progress-copy';
+import { useResourceViewedReport } from '../hooks/useResourceViewedReport';
 import type { components, ResourceDescriptor, ResourceId, GatheredContext, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import { annotationId } from '@semiont/core';
@@ -438,6 +439,11 @@ export function ResourceViewerPage({
       announceResourceLoaded(resource.name);
     }
   }, [contentLoading, content, resource.name, announceResourceLoading, announceResourceLoaded]);
+
+  // Report the arrival on the wire (browse:resource-viewed) — same
+  // load-complete condition the announcement uses, so "viewed" means the
+  // content is actually on screen (GUIDED-TOUR P5, D6).
+  useResourceViewedReport(rUri, !contentLoading && !!content);
 
   // Derived state
   const documentEntityTypes = resource.entityTypes || [];

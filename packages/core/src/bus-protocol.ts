@@ -341,6 +341,7 @@ export type EventMap = {
   // UI events (session-scoped — fire on the client bus, tied to a KB)
   'browse:click': components['schemas']['BrowseClickEvent'] & { anchorRect?: AnchorRect };
   'browse:resource-open': components['schemas']['BrowseResourceOpenEvent'];
+  'browse:resource-viewed': components['schemas']['BrowseResourceViewedEvent'];
   'browse:entity-type-clicked': components['schemas']['BrowseEntityTypeClickedEvent'];
 
   // ========================================================================
@@ -687,6 +688,7 @@ export const CHANNEL_SCHEMAS = {
   'browse:directory-failed':          null, // { correlationId; path } & CommandError
   'browse:click':                     null, // includes runtime `anchorRect?: AnchorRect`
   'browse:resource-open':             'BrowseResourceOpenEvent',
+  'browse:resource-viewed':           'BrowseResourceViewedEvent',
   'browse:entity-type-clicked':       'BrowseEntityTypeClickedEvent',
 
   // ── SHELL (app-scoped UI events, fire on SemiontBrowser bus) ────

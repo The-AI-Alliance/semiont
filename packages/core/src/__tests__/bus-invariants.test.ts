@@ -95,6 +95,10 @@ const FROZEN_BRIDGED = [
   // GUIDED-TOUR P2: the tour's imperative — domain intent, bridged so a
   // launcher emit reaches every watching Browser (nav:* stays host-local, D1).
   'browse:resource-open',
+  // GUIDED-TOUR P5: the tour's REPORT — the viewer announces arrival (by cue,
+  // link, back button, or typed URL) so the guide can branch on it. Never the
+  // channel P2/P3 drive with (D6: drive and report stay separate).
+  'browse:resource-viewed',
 ];
 
 describe('bus channel-classification invariants', () => {

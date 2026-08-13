@@ -274,6 +274,7 @@ export interface BrowseNamespace {
   // UI signals (fire-and-forget, broadcast to other participants via the bus)
   click(annotationId: AnnotationId, motivation: Motivation): void;
   openResource(resourceId: ResourceId): void;
+  resourceViewed(resourceId: ResourceId): void;
 }
 
 /**

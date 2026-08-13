@@ -19,6 +19,7 @@ var BridgedBroadcasts = []Channel{
 	BeckonSparkle,
 	BusResumeGap,
 	BrowseResourceOpen,
+	BrowseResourceViewed,
 }
 
 // BridgedChannels: everything a transport delivers — the broadcasts plus

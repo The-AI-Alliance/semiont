@@ -130,6 +130,7 @@
       "browse:directory-failed",
       "browse:click",
       "browse:resource-open",
+      "browse:resource-viewed",
       "browse:entity-type-clicked",
       "panel:toggle",
       "panel:open",
@@ -308,6 +309,7 @@
       "browse:directory-failed",
       "browse:click",
       "browse:resource-open",
+      "browse:resource-viewed",
       "browse:entity-type-clicked",
       "panel:toggle",
       "panel:open",
@@ -2423,6 +2425,21 @@
       }
     },
     {
+      "channel": "browse:resource-viewed",
+      "shape": "schema",
+      "schema": "BrowseResourceViewedEvent",
+      "validate": "BrowseResourceViewedEvent",
+      "ts": "components['schemas']['BrowseResourceViewedEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
       "channel": "browse:entity-type-clicked",
       "shape": "schema",
       "schema": "BrowseEntityTypeClickedEvent",
@@ -3646,7 +3663,8 @@
       "beckon:focus",
       "beckon:sparkle",
       "bus:resume-gap",
-      "browse:resource-open"
+      "browse:resource-open",
+      "browse:resource-viewed"
     ]
   }
 }
