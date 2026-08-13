@@ -747,7 +747,7 @@ describe('YieldNamespace', () => {
     await new Promise((r) => setTimeout(r, 20));
     eventBus.get('job:report-progress').next({
       jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'generation',
-      percentage: 50, progress: { stage: 'generating', percentage: 50, message: 'halfway' },
+      percentage: 50, progress: { percentage: 50, message: 'halfway' },
     } as any);
     eventBus.get('job:complete').next({
       jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'generation',

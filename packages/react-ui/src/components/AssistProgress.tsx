@@ -4,178 +4,174 @@ import type { components } from '@semiont/core';
 import { EntityFoundLog } from './EntityFoundLog';
 
 type JobProgress = components['schemas']['JobProgress'];
+type JobProgressMessage = components['schemas']['JobProgressMessage'];
 
 /**
- * Every string this component renders. Required by default and with NO
- * English fallbacks (ASSIST-SURFACE-WARTS Lane A): a `tr.x || 'X'` default
- * turns a forgotten key into English text in a Japanese UI, silently and
- * only at runtime. Required keys make the same mistake a type error at the
- * call site. Only genuinely conditional copy is optional.
+ * Every string this component renders. Required by default and with NO English
+ * fallbacks (ASSIST-SURFACE-WARTS Lane A): a `tr.x || 'X'` default turns a
+ * forgotten key into English text in a Japanese UI, silently and only at
+ * runtime. Required keys make the same mistake a type error at the call site.
+ *
+ * The nine wire codes collapse to ONE required function rather than nine keys:
+ * the code→copy switch belongs in one place, and threading nine strings through
+ * five call sites would put five copies of it in the tree. Build it with
+ * `assistProgressCopy(t)`.
  */
 export interface AssistProgressTranslations {
-  /** Header title (e.g. "Annotating Entity References" / "Generating Resource"). Omit for the headerless inline style. */
-  title?: string;
-  /** Cancel-button title attribute. */
+  /** Control label while the run is in flight. */
   cancel: string;
-  /** Default in-progress status message (used when the job sends no `message`). */
+  /** Control label once the run has ended. */
+  close: string;
+  /** Localized copy for a progress code. */
+  message: (m: JobProgressMessage) => string;
+  /**
+   * Shown when no code has arrived yet — a pure liveness heartbeat, or an event
+   * predating the coded wire. `JobProgress.message` is optional for exactly
+   * these cases.
+   */
   inProgress: string;
-  /** Status copy for the terminal 'complete' stage. */
-  complete: string;
-  /** Fallback status copy for the terminal 'error' stage. */
-  failed: string;
-  /** Request-parameters block heading. */
-  paramsTitle: string;
-  /** Current-work detail line — the generic form, used by every flow. */
-  processing: (label: string) => string;
+  /** The subject line: what is being worked on, with its position when known. */
+  subject: (label: string, done?: number, total?: number) => string;
+  /**
+   * Localized NAME for an echoed request parameter. The wire sends a code
+   * (`instructions`, `tone`, …); the VALUE beside it is the user's own words
+   * and is never translated.
+   */
+  paramLabel: (code: string) => string;
   /** Completed entity-type log line (reference flow only). */
   found?: (count: number) => string;
-  /** Current-work detail line, reference-flow wording; falls back to `processing`. */
-  current?: (label: string) => string;
-  /** Dismiss-button label. */
-  close: string;
 }
 
 export interface AssistProgressProps {
   progress: JobProgress;
   /** CSS `data-type` hook ('highlight' | 'comment' | … | 'reference' | 'tag' | 'generation'). */
   dataType: string;
-  /** Cancel the underlying job — rendered while running when provided. Caller wires `client.job.cancelRequest(...)`. */
-  onCancel?: () => void;
   /**
-   * Dismiss the display — rendered whenever provided. WHEN dismissal is
-   * offered is the caller's policy (AssistShell withholds the callback while
-   * the assist is still running). Caller wires `client.mark.dismissProgress()`.
+   * The run has ENDED. The owner's fact, not the payload's
+   * (ASSIST-PROGRESS-CONSOLIDATION D7): terminality is signalled on
+   * `job:complete` / `job:fail`, which `AssistShell` already observes via
+   * `isAssisting`. This component deliberately does not read `progress.stage` —
+   * no producer in the repo emits a terminal stage, and the two branches that
+   * believed the schema's description were unreachable for exactly that reason.
    */
+  ended?: boolean;
+  /** Cancel the underlying job. Caller wires `client.job.cancelRequest(...)`. */
+  onCancel?: () => void;
+  /** Dismiss the display. Caller wires `client.mark.dismissProgress()`. */
   onDismiss?: () => void;
-  /** Render the percentage bar (tag flow's visual; percentage itself comes from `progress`). */
-  showPercentBar?: boolean;
   translations: AssistProgressTranslations;
 }
 
 /**
- * The one job-progress renderer (#7) — unifies the three previous shapes
- * (AssistSection's inline block, the reference/generation widget, TaggingPanel's
- * inline block). Presentational and provider-free: no session, no context —
- * cancel/dismiss arrive as callbacks, so it renders identically on the page and
- * in embeddable (bring-your-own-session) hosts. Feature blocks are
- * data-presence-driven: each call site keeps its established visuals by passing
- * the data and translations it always had.
+ * The one job-progress renderer, for all five motivations.
+ *
+ * Presentational and provider-free: no session, no context — cancel/dismiss
+ * arrive as callbacks, so it renders identically on the page and in embeddable
+ * (bring-your-own-session) hosts.
+ *
+ * One shape for every flow. What varies is DATA, not flags: a bar appears
+ * because there is a fraction to fill it, a subject line appears because there
+ * is a subject. The previous `title` / `showPercentBar` / `found` / `current`
+ * opt-ins produced four unrelated layouts from one component, which is what
+ * generated the duplicate renders and doubled chrome this replaces.
  */
 export function AssistProgress({
   progress,
   dataType,
+  ended = false,
   onCancel,
   onDismiss,
-  showPercentBar = false,
   translations: tr,
 }: AssistProgressProps) {
-  const terminal = progress.stage === 'complete' || progress.stage === 'error';
-  // The reference flow words this line its own way; everyone else gets the
-  // generic one. Both are translated — there is no untranslated branch.
-  const currentLabel = tr.current ?? tr.processing;
+  // Reference and tag flows count different things; both report the same shape.
+  // The entity type comes off the MESSAGE — `currentEntityType` was the same
+  // value denormalized alongside it and is gone (P5 schema cruft). Tags keep
+  // `currentCategory`: no code carries a category, so it is not a duplicate.
+  const label =
+    (progress.message && 'entityType' in progress.message ? progress.message.entityType : undefined)
+    ?? progress.currentCategory;
+  const done = progress.processedEntityTypes ?? progress.processedCategories;
+  const total = progress.totalEntityTypes ?? progress.totalCategories;
+
+  // H1: the params line earns its space only when it says something the status
+  // line does not. The ONLY redundant case is a single entity type, where the
+  // subject beneath already names it — so that case alone is suppressed.
+  //
+  // Deliberately NOT `total > 1`: other flows send params that never restate the
+  // subject (a highlight run reports Instructions and Density), and those have
+  // no `total` at all. Gating on the presence of a count would have hidden
+  // genuinely informative parameters — an over-application of H1 caught by
+  // AssistSection's highlight fixture.
+  const params = total === 1 ? undefined : progress.requestParams;
+
+  // `percentage` is REQUIRED on JobProgress, so every progress event can fill a
+  // bar — the bar's existence is not conditional on anything.
+  //
+  // It used to also require the fraction (`done`/`total`), which SILENTLY
+  // REMOVED THE TAG FLOW'S BAR: `processTagJob` reports percentage only and
+  // emits no category fields at all, so `done`/`total` are permanently
+  // undefined there (caught in review of PR #1179). The fraction is a richer,
+  // optional signal that only flows counting per-item work have; it belongs to
+  // the SUBJECT line, not to whether a bar exists.
 
   return (
-    <div className="semiont-annotation-progress" data-status={progress.stage} data-type={dataType}>
-      {/* Header (title + cancel) — reference/generation style; omitted inline */}
-      {tr.title && (
-        <div className="semiont-annotation-header">
-          <h3 className="semiont-annotation-title">
-            <span className="semiont-annotation-sparkle">✨</span>
-            {tr.title}
-          </h3>
-          {onCancel && !terminal && (
-            <button
-              onClick={onCancel}
-              className="semiont-annotation-cancel"
-              title={tr.cancel}
-              aria-label={tr.cancel}
-              type="button"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Request parameters */}
-      {progress.requestParams && progress.requestParams.length > 0 && (
-        <div className="semiont-annotation-progress__params" data-type={dataType}>
-          <div className="semiont-annotation-progress__params-title">{tr.paramsTitle}</div>
-          {progress.requestParams.map((param, idx) => (
-            <div key={idx} className="semiont-annotation-progress__param">
-              <span className="semiont-annotation-progress__param-label">{param.label}:</span> <span>{param.value}</span>
-            </div>
+    <div className="semiont-assist-progress" data-type={dataType} data-ended={ended}>
+      {params && params.length > 0 && (
+        <div className="semiont-assist-progress__params" data-testid="semiont-assist-params">
+          {/* H1 removed the BLOCK HEADING ("Request Parameters:"), not the
+              per-parameter labels: a bare "5" for Density says nothing. */}
+          {params.map((param, idx) => (
+            <span key={idx} className="semiont-assist-progress__param">
+              <span className="semiont-assist-progress__param-label">
+                {tr.paramLabel(param.label)}:
+              </span>{' '}
+              <span>{param.value}</span>
+            </span>
           ))}
         </div>
       )}
 
-      {/* Completed entity-type log (reference flow) */}
+      {/* H2: kept uncapped — entity-type counts are small in practice. */}
       {tr.found && progress.completedEntityTypes && (
         <EntityFoundLog entries={progress.completedEntityTypes} formatFound={tr.found} />
       )}
 
-      {/* Status line with stage branching */}
-      <div className="semiont-annotation-progress__status">
-        {progress.stage === 'complete' ? (
-          <div className="semiont-annotation-progress__message">
-            <span className="semiont-annotation-progress__icon">✅</span>
-            {/* Same precedence as 'error' below: the job's own message carries
-                detail no static string can ("Created 14 highlights"), and
-                `tr.complete` covers the required-but-possibly-'' case so a
-                terminal line is never blank. NOTE: job messages are composed
-                backend-side and are not localized — a real gap, but a backend
-                one; see ASSIST-SURFACE-WARTS watch-items. */}
-            <span>{progress.message || tr.complete}</span>
-          </div>
-        ) : progress.stage === 'error' ? (
-          <div className="semiont-annotation-progress__message">
-            <span className="semiont-annotation-progress__icon">❌</span>
-            <span>{progress.message || tr.failed}</span>
-          </div>
-        ) : (
-          <div className="semiont-annotation-progress__message">
-            <span className="semiont-annotation-progress__icon">✨</span>
-            <span>
-              {progress.message
-                || (progress.currentEntityType ? currentLabel(progress.currentEntityType) : tr.inProgress)}
-            </span>
-          </div>
-        )}
-
-        {/* Current-work detail while running */}
-        {!terminal && progress.currentEntityType && (
-          <div className="semiont-annotation-progress__details">
-            {currentLabel(progress.currentEntityType)}
-          </div>
-        )}
-        {!terminal && progress.currentCategory && (
-          <div className="semiont-annotation-progress__details">
-            {tr.processing(progress.currentCategory)}
-            {progress.processedCategories !== undefined && progress.totalCategories !== undefined && (
-              <> ({progress.processedCategories}/{progress.totalCategories})</>
-            )}
-          </div>
-        )}
-
-        {/* Dismiss — rendered whenever the caller offers it */}
-        {onDismiss && (
-          <button
-            onClick={onDismiss}
-            className="semiont-annotation-progress__close"
-            aria-label={tr.close}
-            title={tr.close}
-            type="button"
-          >
-            ×
-          </button>
-        )}
+      <div className="semiont-assist-progress__status">
+        <span className="semiont-assist-progress__icon" aria-hidden="true">
+          {ended ? '✅' : '✨'}
+        </span>
+        <span data-testid="semiont-assist-status">
+          {progress.message ? tr.message(progress.message) : tr.inProgress}
+        </span>
       </div>
 
-      {/* Percentage bar (tag flow) */}
-      {showPercentBar && progress.percentage !== undefined && (
-        <div className="semiont-progress-bar">
-          <div className="semiont-progress-bar__fill" data-type={dataType} style={{ width: `${progress.percentage}%` }} />
+      {/* H3: stage above, subject beneath. */}
+      {label && (
+        <div className="semiont-assist-progress__subject" data-testid="semiont-assist-subject">
+          {tr.subject(label, done, total)}
         </div>
+      )}
+
+      <div className="semiont-progress-bar" data-testid="semiont-assist-bar">
+        <div
+          className="semiont-progress-bar__fill"
+          data-type={dataType}
+          style={{ width: `${progress.percentage}%` }}
+        />
+      </div>
+
+      {/* D3: ONE control, its meaning set by the lifecycle. */}
+      {(ended ? onDismiss : onCancel) && (
+        <button
+          onClick={ended ? onDismiss : onCancel}
+          className="semiont-assist-progress__control"
+          data-testid="semiont-assist-control"
+          title={ended ? tr.close : tr.cancel}
+          aria-label={ended ? tr.close : tr.cancel}
+          type="button"
+        >
+          ✕
+        </button>
       )}
     </div>
   );

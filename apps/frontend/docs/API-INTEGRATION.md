@@ -269,8 +269,9 @@ queries. The frontend awaits a result event matched by correlationId.
 
 **Asynchronous (job-based)** — operations that run minutes to hours:
 entity detection, resource generation. The frontend emits `job:create`,
-gets back `job:created` with a `jobId`, then listens for `job:progress`
-/ `job:completed` / `mark:progress` events scoped to the resource.
+gets back `job:created` with a `jobId`, then listens for
+`job:report-progress` / `job:complete` / `mark:progress` events scoped to
+the resource.
 
 Both flow through the same bus gateway. The difference is whether the
 final result event arrives in the same HTTP turnaround as the command

@@ -1,8 +1,26 @@
 {
   "AssistProgress": {
     "close": "बंद करें",
-    "paramsTitle": "अनुरोध पैरामीटर:",
-    "processing": "वर्तमान: {{label}}"
+    "codeLoading": "लोड हो रहा है…",
+    "codeAnalyzing": "चिह्नित किया जा रहा है…",
+    "codeAnalyzingTags": "टैग चिह्नित किए जा रहे हैं…",
+    "codeDetectingEntities": "चिह्नित किया जा रहा है…",
+    "codeCreatingAnnotations": "{{count}} एनोटेशन बनाए जा रहे हैं…",
+    "codeCreatingTagAnnotations": "{{count}} टैग बनाए जा रहे हैं…",
+    "codeCompleteCreated": "{{count}} {{kind}} बनाए गए",
+    "codeGeneratingResource": "बनाया जा रहा है…",
+    "codeCreatingResource": "संसाधन बनाया जा रहा है…",
+    "kindHighlight": "हाइलाइट",
+    "kindComment": "टिप्पणियाँ",
+    "kindAssessment": "आकलन",
+    "kindReference": "संदर्भ",
+    "kindTag": "टैग",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{total}} में से {{done}})",
+    "paramEntityTypes": "इकाई प्रकार",
+    "paramInstructions": "निर्देश",
+    "paramTone": "स्वर",
+    "paramDensity": "घनत्व"
   },
   "PdfViewer": {
     "loadFailed": "PDF लोड नहीं हो सका",
@@ -430,5 +448,22 @@
     "searching": "खोज रहे हैं...",
     "search": "खोजें",
     "maxLengthCeiling": "{{model}} द्वारा {{maxOutputTokens}} टोकन तक सीमित।"
+  },
+  "OutcomeToasts": {
+    "createFailed": "एनोटेशन नहीं बनाया जा सका: {{detail}}",
+    "deleteFailed": "एनोटेशन नहीं हटाया जा सका: {{detail}}",
+    "referenceUpdateFailed": "संदर्भ अपडेट नहीं हो सका: {{detail}}",
+    "unknownError": "अज्ञात त्रुटि",
+    "assistQuiet": "अभी भी चल रहा है — कुछ मिनटों से कोई अपडेट नहीं",
+    "resourceCreatedNamed": "“{{name}}” बनाया गया",
+    "resourceCreated": "संसाधन बनाया गया",
+    "annotationComplete": "एनोटेशन पूर्ण",
+    "annotationFailed": "एनोटेशन विफल",
+    "generationFailed": "जनरेशन विफल: {{detail}}",
+    "decline_no-text-layer": "यह PDF एक स्कैन है जिसका पाठ पहचाना नहीं जा सका।",
+    "decline_encrypted": "यह PDF पासवर्ड-सुरक्षित है, इसका पाठ नहीं पढ़ा जा सकता।",
+    "decline_corrupt": "यह PDF पढ़ा नहीं जा सका — फ़ाइल क्षतिग्रस्त हो सकती है।",
+    "decline_too-large": "यह दस्तावेज़ पाठ निकालने के लिए बहुत बड़ा है।",
+    "decline_empty": "इस दस्तावेज़ में एनोटेट करने योग्य कोई पाठ नहीं है।"
   }
 }

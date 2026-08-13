@@ -194,15 +194,15 @@ describe('markAssist', () => {
   it('reports the total found and every progress stage', async () => {
     const { client, mark } = createStub();
     const events: MarkAssistEvent[] = [
-      { kind: 'progress', data: { stage: 'analyzing', percentage: 40, message: 'reading' } },
-      { kind: 'progress', data: { stage: 'creating', percentage: 90, message: 'writing' } },
+      { kind: 'progress', data: { percentage: 40, message: { code: 'analyzing' } } },
+      { kind: 'progress', data: { percentage: 90, message: { code: 'analyzing' } } },
       ASSIST_COMPLETE,
     ];
     mark.assist.mockReturnValue(of(...events));
 
     const result = await markAssist(client, { resourceId: 'res-iliad' });
 
-    expect(text(result)).toBe('Detection complete. Found 7 entities.\nanalyzing: 40%\ncreating: 90%');
+    expect(text(result)).toBe('Detection complete. Found 7 entities.\nanalyzing: 40%\nanalyzing: 90%');
   });
 
   it('falls back to a motivation-specific count when totalFound is absent', async () => {
@@ -254,7 +254,7 @@ describe('markAssist', () => {
     const { client, mark } = createStub();
     const progress: MarkAssistEvent = {
       kind: 'progress',
-      data: { stage: 'analyzing', percentage: 40, message: 'reading' },
+      data: { percentage: 40, message: { code: 'analyzing' } },
     };
     mark.assist.mockReturnValue(of(progress));
 
@@ -314,7 +314,7 @@ describe('gatherAnnotation', () => {
 
   it('throws when the stream ends without a context payload', async () => {
     const { client, gather } = createStub();
-    gather.annotation.mockResolvedValue({ message: 'still working', percentage: 50 });
+    gather.annotation.mockResolvedValue({ message: 'still gathering', percentage: 50 });
 
     await expect(gatherAnnotation(client, { resourceId: 'res-iliad', annotationId: 'anno-reference' }))
       .rejects.toThrow('Gather finished without a context payload');
@@ -417,7 +417,7 @@ describe('yieldFromAnnotation', () => {
   it('reports every progress stage', async () => {
     const { client, yield: yieldNamespace } = createStub();
     const events: YieldGenerationEvent[] = [
-      { kind: 'progress', data: { stage: 'generating', percentage: 50, message: 'writing' } },
+      { kind: 'progress', data: { percentage: 50, message: { code: 'analyzing' } } },
       GENERATION_COMPLETE,
     ];
     yieldNamespace.fromContext.mockReturnValue(of(...events));
@@ -426,7 +426,7 @@ describe('yieldFromAnnotation', () => {
       resourceId: 'res-iliad',
       annotationId: 'anno-reference',
       storageUri: 'file://docs/achilles.md',
-    }))).toBe('Generation complete.\ngenerating: 50%');
+    }))).toBe('Generation complete.\nanalyzing: 50%');
   });
 
   it('returns an error result when generation fails', async () => {

@@ -82,7 +82,7 @@ const JID = 'job-xyz';
 
 /** Captured interactions — bus emits, complete/fail, and yield.resource call. */
 interface BusEmit { channel: string; payload: unknown; scope?: string | undefined; }
-interface AdapterCall { method: 'completeJob' | 'failJob'; args: unknown[]; }
+interface AdapterCall { method: 'completeJob' | 'failJob' | 'touchActivity'; args: unknown[]; }
 
 function makeFakeSessionAndAdapter() {
   const busEmits: BusEmit[] = [];
@@ -132,6 +132,9 @@ function makeFakeSessionAndAdapter() {
   const adapter = {
     completeJob: vi.fn(() => adapterCalls.push({ method: 'completeJob', args: [] })),
     failJob: vi.fn((jid: string, err: string) => adapterCalls.push({ method: 'failJob', args: [jid, err] })),
+    // Every progress emission refreshes the worker's liveness first — a fake
+    // without it throws the moment a test drives `onProgress`.
+    touchActivity: vi.fn(() => adapterCalls.push({ method: 'touchActivity', args: [] })),
   } as unknown as JobClaimAdapter;
 
   return { session, adapter, busEmits, yieldResourceCalls, adapterCalls };
@@ -186,6 +189,28 @@ describe('handleJob orchestration', () => {
   //   (5) adapter.completeJob called exactly once, AFTER the above
 
   describe('highlight-annotation', () => {
+    it('forwards the progress CODE onto the wire — the producer says what, clients say it in their language', async () => {
+      // ASSIST-PROGRESS-CONSOLIDATION A6, the wire half. P1 deliberately
+      // dropped this argument as an interim (nothing worth forwarding until
+      // the processors emitted codes); P2 closed the loop. Dropping it again
+      // is silent: every event still flows, the UI just goes back to having
+      // nothing to render, which is the defect this arc exists to remove.
+      vi.mocked(processHighlightJob).mockImplementation(async (_c, _i, _p, _b, onProgress) => {
+        onProgress(60, { code: 'creating-annotations', count: 2 });
+        return { annotations: [], result: { highlightsFound: 0, highlightsCreated: 0 } as never };
+      });
+      const h = makeFakeSessionAndAdapter();
+
+      await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
+
+      const progressEvent = h.busEmits.find(e => e.channel === 'job:report-progress');
+      expect(progressEvent).toBeDefined();
+      expect((progressEvent!.payload as { progress: unknown }).progress).toMatchObject({
+        percentage: 60,
+        message: { code: 'creating-annotations', count: 2 },
+      });
+    });
+
     it('emits job:start, mark:create per annotation, then job:complete', async () => {
       vi.mocked(processHighlightJob).mockResolvedValue({
         annotations: [{ id: 'a1' }, { id: 'a2' }] as never,

@@ -1,8 +1,26 @@
 {
   "AssistProgress": {
     "close": "Tutup",
-    "paramsTitle": "Parameter permintaan:",
-    "processing": "Saat ini: {{label}}"
+    "codeLoading": "Memuat…",
+    "codeAnalyzing": "Menandai…",
+    "codeAnalyzingTags": "Menandai tag…",
+    "codeDetectingEntities": "Menandai…",
+    "codeCreatingAnnotations": "Membuat {{count}} anotasi…",
+    "codeCreatingTagAnnotations": "Membuat {{count}} tag…",
+    "codeCompleteCreated": "{{count}} {{kind}} dibuat",
+    "codeGeneratingResource": "Membuat…",
+    "codeCreatingResource": "Membuat sumber daya…",
+    "kindHighlight": "sorotan",
+    "kindComment": "komentar",
+    "kindAssessment": "penilaian",
+    "kindReference": "referensi",
+    "kindTag": "tag",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} dari {{total}})",
+    "paramEntityTypes": "Tipe Entitas",
+    "paramInstructions": "Instruksi",
+    "paramTone": "Nada",
+    "paramDensity": "Kepadatan"
   },
   "PdfViewer": {
     "loadFailed": "Gagal memuat PDF",
@@ -430,5 +448,22 @@
     "searching": "Mencari...",
     "search": "Cari",
     "maxLengthCeiling": "Dibatasi hingga {{maxOutputTokens}} token oleh {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Tidak dapat membuat anotasi: {{detail}}",
+    "deleteFailed": "Tidak dapat menghapus anotasi: {{detail}}",
+    "referenceUpdateFailed": "Tidak dapat memperbarui referensi: {{detail}}",
+    "unknownError": "kesalahan tidak diketahui",
+    "assistQuiet": "Masih berjalan — tidak ada kabar selama beberapa menit",
+    "resourceCreatedNamed": "“{{name}}” dibuat",
+    "resourceCreated": "Sumber daya dibuat",
+    "annotationComplete": "Anotasi selesai",
+    "annotationFailed": "Anotasi gagal",
+    "generationFailed": "Pembuatan gagal: {{detail}}",
+    "decline_no-text-layer": "PDF ini hasil pindaian yang teksnya tidak dapat dikenali.",
+    "decline_encrypted": "PDF ini dilindungi kata sandi, teksnya tidak dapat dibaca.",
+    "decline_corrupt": "PDF ini tidak dapat dibaca — berkas mungkin rusak.",
+    "decline_too-large": "Dokumen ini terlalu besar untuk diekstrak teksnya.",
+    "decline_empty": "Dokumen ini tidak memiliki teks untuk dianotasi."
   }
 }

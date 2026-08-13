@@ -123,7 +123,6 @@ async function replayEvent(
 
     // Job events are transient — skip during replay
     case 'job:started':
-    case 'job:progress':
     case 'job:completed':
     case 'job:failed':
       logger?.debug('Skipping job event during replay', { type: event.type });

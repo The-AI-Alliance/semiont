@@ -11,12 +11,17 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { AssistShell } from '../AssistShell';
 
-const progress = { stage: 'analyzing', percentage: 50, message: 'working' };
+const progress = { percentage: 50 };
 
 /** AssistProgress requires a full translation set; the shell just passes it through. */
-const TR = { cancel: 'tr.cancel', inProgress: 'tr.inProgress', complete: 'tr.complete',
-  failed: 'tr.failed', close: 'tr.close', paramsTitle: 'tr.paramsTitle',
-  processing: (l: string) => `tr.processing(${l})` };
+const TR = {
+  cancel: 'tr.cancel',
+  close: 'tr.close',
+  inProgress: 'tr.inProgress',
+  message: () => 'tr.code',
+  subject: (l: string) => `tr.subject(${l})`,
+  paramLabel: (c: string) => `tr.param(${c})`,
+};
 
 describe('AssistShell', () => {
   beforeEach(() => {
@@ -34,7 +39,7 @@ describe('AssistShell', () => {
         form={<button type="button">the form</button>} progressProps={{ translations: TR }} />,
     );
     expect(screen.queryByText('the form')).not.toBeInTheDocument();
-    expect(screen.getByText('working')).toBeInTheDocument();
+    expect(screen.getByText('tr.inProgress')).toBeInTheDocument();
   });
 
   it('withholds dismiss while assisting, offers it once terminal', async () => {

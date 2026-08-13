@@ -1,8 +1,26 @@
 {
   "AssistProgress": {
     "close": "Sulje",
-    "paramsTitle": "Pyynnön parametrit:",
-    "processing": "Nykyinen: {{label}}"
+    "codeLoading": "Ladataan…",
+    "codeAnalyzing": "Merkitään…",
+    "codeAnalyzingTags": "Merkitään tunnisteita…",
+    "codeDetectingEntities": "Merkitään…",
+    "codeCreatingAnnotations": "Luodaan {{count}} merkintää…",
+    "codeCreatingTagAnnotations": "Luodaan {{count}} tunnistetta…",
+    "codeCompleteCreated": "Luotiin {{count}} {{kind}}",
+    "codeGeneratingResource": "Luodaan…",
+    "codeCreatingResource": "Luodaan resurssia…",
+    "kindHighlight": "korostusta",
+    "kindComment": "kommenttia",
+    "kindAssessment": "arviota",
+    "kindReference": "viitettä",
+    "kindTag": "tunnistetta",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}}/{{total}})",
+    "paramEntityTypes": "Entiteettityypit",
+    "paramInstructions": "Ohjeet",
+    "paramTone": "Sävy",
+    "paramDensity": "Tiheys"
   },
   "PdfViewer": {
     "loadFailed": "PDF-tiedoston lataus epäonnistui",
@@ -430,5 +448,22 @@
     "searching": "Haetaan...",
     "search": "Hae",
     "maxLengthCeiling": "Rajoitettu {{maxOutputTokens}} tokeniin mallilla {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Merkinnän luonti epäonnistui: {{detail}}",
+    "deleteFailed": "Merkinnän poisto epäonnistui: {{detail}}",
+    "referenceUpdateFailed": "Viitteen päivitys epäonnistui: {{detail}}",
+    "unknownError": "tuntematon virhe",
+    "assistQuiet": "Työ jatkuu — ei päivitystä muutamaan minuuttiin",
+    "resourceCreatedNamed": "”{{name}}” luotu",
+    "resourceCreated": "Resurssi luotu",
+    "annotationComplete": "Merkinnät valmiit",
+    "annotationFailed": "Merkintä epäonnistui",
+    "generationFailed": "Luonti epäonnistui: {{detail}}",
+    "decline_no-text-layer": "Tämä PDF on skannaus, jonka tekstiä ei tunnistettu.",
+    "decline_encrypted": "Tämä PDF on salasanasuojattu, joten tekstiä ei voi lukea.",
+    "decline_corrupt": "Tätä PDF:ää ei voitu lukea — tiedosto voi olla vaurioitunut.",
+    "decline_too-large": "Tämä asiakirja on liian suuri tekstin poimintaan.",
+    "decline_empty": "Tässä asiakirjassa ei ole merkittävää tekstiä."
   }
 }

@@ -373,7 +373,6 @@ export type EventMap = {
 
   // Domain events (branded — system of record)
   'job:started': StoredEvent<EventOfType<'job:started'>>;
-  'job:progress': StoredEvent<EventOfType<'job:progress'>>;
   'job:completed': StoredEvent<EventOfType<'job:completed'>>;
   'job:failed': StoredEvent<EventOfType<'job:failed'>>;
 
@@ -708,7 +707,6 @@ export const CHANNEL_SCHEMAS = {
 
   // ── JOB FLOW ────────────────────────────────────────────────────
   'job:started':                      null, // StoredEvent
-  'job:progress':                     null,
   'job:completed':                    null,
   'job:failed':                       null,
   'job:start':                        'JobStartCommand',

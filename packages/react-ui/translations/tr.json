@@ -1,8 +1,26 @@
 {
   "AssistProgress": {
     "close": "Kapat",
-    "paramsTitle": "İstek parametreleri:",
-    "processing": "Mevcut: {{label}}"
+    "codeLoading": "Yükleniyor…",
+    "codeAnalyzing": "İşaretleniyor…",
+    "codeAnalyzingTags": "Etiketler işaretleniyor…",
+    "codeDetectingEntities": "İşaretleniyor…",
+    "codeCreatingAnnotations": "{{count}} açıklama oluşturuluyor…",
+    "codeCreatingTagAnnotations": "{{count}} etiket oluşturuluyor…",
+    "codeCompleteCreated": "{{count}} {{kind}} oluşturuldu",
+    "codeGeneratingResource": "Oluşturuluyor…",
+    "codeCreatingResource": "Kaynak oluşturuluyor…",
+    "kindHighlight": "vurgu",
+    "kindComment": "yorum",
+    "kindAssessment": "değerlendirme",
+    "kindReference": "referans",
+    "kindTag": "etiket",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{total}} içinden {{done}})",
+    "paramEntityTypes": "Varlık Türleri",
+    "paramInstructions": "Talimatlar",
+    "paramTone": "Ton",
+    "paramDensity": "Yoğunluk"
   },
   "PdfViewer": {
     "loadFailed": "PDF yüklenemedi",
@@ -430,5 +448,22 @@
     "searching": "Aranıyor...",
     "search": "Ara",
     "maxLengthCeiling": "{{model}} tarafından {{maxOutputTokens}} belirteçle sınırlı."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Açıklama oluşturulamadı: {{detail}}",
+    "deleteFailed": "Açıklama silinemedi: {{detail}}",
+    "referenceUpdateFailed": "Referans güncellenemedi: {{detail}}",
+    "unknownError": "bilinmeyen hata",
+    "assistQuiet": "Hâlâ çalışıyor — birkaç dakikadır güncelleme yok",
+    "resourceCreatedNamed": "“{{name}}” oluşturuldu",
+    "resourceCreated": "Kaynak oluşturuldu",
+    "annotationComplete": "Açıklama tamamlandı",
+    "annotationFailed": "Açıklama başarısız",
+    "generationFailed": "Oluşturma başarısız: {{detail}}",
+    "decline_no-text-layer": "Bu PDF, metni tanınamayan bir tarama.",
+    "decline_encrypted": "Bu PDF parola korumalı, metni okunamıyor.",
+    "decline_corrupt": "Bu PDF okunamadı — dosya bozuk olabilir.",
+    "decline_too-large": "Bu belge metin çıkarmak için fazla büyük.",
+    "decline_empty": "Bu belgede açıklama eklenecek metin yok."
   }
 }

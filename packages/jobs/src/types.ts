@@ -144,7 +144,6 @@ export interface TagDetectionParams {
 export interface DetectionProgress {
   totalEntityTypes: number;
   processedEntityTypes: number;
-  currentEntityType?: string;
   entitiesFound: number;
   entitiesEmitted: number;
 }

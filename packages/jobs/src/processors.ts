@@ -52,20 +52,31 @@ export type BuildAnnotation = (
 ) => Annotation;
 
 /**
- * Progress callback. The three positional args satisfy the minimum
- * `JobProgress` required fields (`percentage`, `message`, `stage`).
- * The fourth optional arg carries job-type-specific fields
- * (`currentEntityType`, `completedEntityTypes`, `requestParams`, etc.)
+ * Progress callback. The two positional args are the required `JobProgress`
+ * fields (`percentage`, `message`). The third optional arg carries the
+ * job-type-specific fields (`completedEntityTypes`, `requestParams`, etc.)
  * that the progress UI renders.
+ *
+ * Anything in `extra` describing the RUN rather than the moment must be passed
+ * on EVERY call: the client's `progress$` replaces its value per event, so a
+ * field sent once disappears on the next tick.
+ *
+ * `message` is a CODE plus typed params, never a prose sentence
+ * (ASSIST-PROGRESS-CONSOLIDATION A6). The producer reports what happened;
+ * each client renders it in the user's language — react-ui from its 29
+ * locales, the Go launcher from its English map. The vocabulary is frozen
+ * by the census of these call sites: adding a shape means adding a variant
+ * to `JobProgressMessage.json` and copy in every client, not composing a
+ * new sentence here.
  */
 export type OnProgress = (
   percentage: number,
-  message: string,
-  stage: string,
+  message: JobProgressMessage,
   extra?: Partial<JobProgress>,
 ) => void;
 
 type JobProgress = components['schemas']['JobProgress'];
+type JobProgressMessage = components['schemas']['JobProgressMessage'];
 
 /** The five W3C motivations this system mints — a closed vocabulary, so it is
  *  typed as one rather than as `string`. */
@@ -312,16 +323,18 @@ export async function processHighlightJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<HighlightDetectionResult>> {
-  onProgress(10, 'Loading resource...', 'analyzing');
-  onProgress(30, 'Analyzing text...', 'analyzing');
+  const echo = detectionEcho(params);
+
+  onProgress(10, { code: 'loading' }, echo);
+  onProgress(30, { code: 'analyzing' }, echo);
 
   const highlights = await AnnotationDetection.detectHighlights(
     content, inferenceClient, params.instructions, params.density, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
-    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), 'Analyzing text...', 'analyzing'),
+    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), { code: 'analyzing' }, echo),
   );
 
-  onProgress(60, `Creating ${highlights.length} annotations...`, 'creating');
+  onProgress(60, { code: 'creating-annotations', count: highlights.length }, echo);
 
   // Highlights carry no body — motivation:'highlighting' on a target
   // is a complete annotation per the W3C Web Annotation Model.
@@ -329,12 +342,36 @@ export async function processHighlightJob(
     buildAnnotation('highlighting', h),
   ));
 
-  onProgress(100, `Complete! Created ${annotations.length} highlights`, 'creating');
+  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'highlight' }, echo);
 
   return {
     annotations,
     result: { highlightsFound: highlights.length, highlightsCreated: annotations.length },
   };
+}
+
+/**
+ * The user's own inputs, echoed back for the progress widget. Labels are CODES
+ * (the client localizes them); values are the user's words and are shown
+ * verbatim. Absent or blank inputs are omitted rather than rendered as empty
+ * rows — "Instructions:" with nothing after it is noise, not information.
+ *
+ * Returned as the `extra` object rather than a bare array because every
+ * `onProgress` in the run passes it: `progress$` REPLACES its value per event
+ * (mark-state-unit), so a field sent once would flash at 10% and disappear.
+ * The parameters describe the whole run, so every event carries them — the
+ * same convention `processReferenceJob` already follows for its entity types.
+ */
+function detectionEcho(p: {
+  instructions?: string;
+  tone?: string;
+  density?: number;
+}): Partial<JobProgress> {
+  const requestParams: Array<{ label: 'instructions' | 'tone' | 'density'; value: string }> = [];
+  if (p.instructions?.trim()) requestParams.push({ label: 'instructions', value: p.instructions.trim() });
+  if (p.tone?.trim()) requestParams.push({ label: 'tone', value: p.tone.trim() });
+  if (p.density !== undefined) requestParams.push({ label: 'density', value: String(p.density) });
+  return requestParams.length > 0 ? { requestParams } : {};
 }
 
 export async function processCommentJob(
@@ -344,17 +381,19 @@ export async function processCommentJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<CommentDetectionResult>> {
-  onProgress(10, 'Loading resource...', 'analyzing');
-  onProgress(30, 'Analyzing text...', 'analyzing');
+  const echo = detectionEcho(params);
+
+  onProgress(10, { code: 'loading' }, echo);
+  onProgress(30, { code: 'analyzing' }, echo);
 
   const comments = await AnnotationDetection.detectComments(
     content, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
-    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), 'Analyzing text...', 'analyzing'),
+    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), { code: 'analyzing' }, echo),
   );
 
-  onProgress(60, `Creating ${comments.length} annotations...`, 'creating');
+  onProgress(60, { code: 'creating-annotations', count: comments.length }, echo);
 
   // The body's `language` reflects the locale the LLM was asked to write in
   // (`params.language` — the user's UI locale). Defaults to 'en' when the
@@ -369,7 +408,7 @@ export async function processCommentJob(
     ]),
   ));
 
-  onProgress(100, `Complete! Created ${annotations.length} comments`, 'creating');
+  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'comment' }, echo);
 
   return {
     annotations,
@@ -384,17 +423,19 @@ export async function processAssessmentJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<AssessmentDetectionResult>> {
-  onProgress(10, 'Loading resource...', 'analyzing');
-  onProgress(30, 'Analyzing text...', 'analyzing');
+  const echo = detectionEcho(params);
+
+  onProgress(10, { code: 'loading' }, echo);
+  onProgress(30, { code: 'analyzing' }, echo);
 
   const assessments = await AnnotationDetection.detectAssessments(
     content, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
-    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), 'Analyzing text...', 'analyzing'),
+    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), { code: 'analyzing' }, echo),
   );
 
-  onProgress(60, `Creating ${assessments.length} annotations...`, 'creating');
+  onProgress(60, { code: 'creating-annotations', count: assessments.length }, echo);
 
   const bodyLanguage = params.language ?? 'en';
   const annotations = dedupeAnnotations(assessments.map((a) =>
@@ -409,7 +450,7 @@ export async function processAssessmentJob(
     }),
   ));
 
-  onProgress(100, `Complete! Created ${annotations.length} assessments`, 'creating');
+  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'assessment' }, echo);
 
   return {
     annotations,
@@ -426,14 +467,14 @@ export async function processReferenceJob(
   logger: Logger,
 ): Promise<ProcessorResult<DetectionResult>> {
   const entityTypeNames = params.entityTypes.map(String);
-  const requestParams = [{ label: 'Entity types', value: entityTypeNames.join(', ') }];
+  const requestParams = [{ label: 'entity-types' as const, value: entityTypeNames.join(', ') }];
   const completedEntityTypes: Array<{ entityType: string; foundCount: number }> = [];
   let totalFound = 0;
   let totalEmitted = 0;
   let errors = 0;
   const allAnnotations: Annotation[] = [];
 
-  onProgress(10, 'Loading resource...', 'analyzing', { requestParams });
+  onProgress(10, { code: 'loading' }, { requestParams });
 
   const bodyLanguage = params.language ?? 'en';
 
@@ -441,8 +482,7 @@ export async function processReferenceJob(
     const entityTypeName = entityTypeNames[i];
     if (!entityTypeName) continue;
     const pct = 20 + Math.round((i / entityTypeNames.length) * 60);
-    onProgress(pct, `Detecting ${entityTypeName} entities...`, 'analyzing', {
-      currentEntityType: entityTypeName,
+    onProgress(pct, { code: 'detecting-entities', entityType: entityTypeName }, {
       processedEntityTypes: i,
       totalEntityTypes: entityTypeNames.length,
       entitiesFound: totalFound,
@@ -463,8 +503,7 @@ export async function processReferenceJob(
       // advance.
       (completed, total) => {
         const interpolated = 20 + Math.round(((i + completed / total) / entityTypeNames.length) * 60);
-        onProgress(interpolated, `Detecting ${entityTypeName} entities...`, 'analyzing', {
-          currentEntityType: entityTypeName,
+        onProgress(interpolated, { code: 'detecting-entities', entityType: entityTypeName }, {
           processedEntityTypes: i,
           totalEntityTypes: entityTypeNames.length,
           entitiesFound: totalFound,
@@ -520,7 +559,7 @@ export async function processReferenceJob(
   // the same span (same entity type) become a single annotation.
   const annotations = dedupeAnnotations(allAnnotations);
 
-  onProgress(100, `Complete! Created ${annotations.length} references`, 'creating');
+  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'reference' }, { requestParams });
 
   return {
     annotations,
@@ -535,8 +574,8 @@ export async function processTagJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<TagDetectionResult>> {
-  onProgress(10, 'Loading resource...', 'analyzing');
-  onProgress(30, 'Analyzing text for tags...', 'analyzing');
+  onProgress(10, { code: 'loading' });
+  onProgress(30, { code: 'analyzing-tags' });
 
   const allTags = [];
   for (let c = 0; c < params.categories.length; c++) {
@@ -547,14 +586,14 @@ export async function processTagJob(
       // slice of the 30–60 band.
       (completed, total) => onProgress(
         30 + Math.round(((c + completed / total) / params.categories.length) * 30),
-        'Analyzing text for tags...', 'analyzing',
+        { code: 'analyzing-tags' },
       ),
     );
     allTags.push(...categoryTags);
   }
   const tags = allTags;
 
-  onProgress(60, `Creating ${tags.length} tag annotations...`, 'creating');
+  onProgress(60, { code: 'creating-tag-annotations', count: tags.length });
 
   const bodyLanguage = params.language ?? 'en';
   const annotations = dedupeAnnotations(tags.map((t) => {
@@ -580,7 +619,7 @@ export async function processTagJob(
     byCategory[category] = (byCategory[category] ?? 0) + 1;
   }
 
-  onProgress(100, `Complete! Created ${annotations.length} tags`, 'creating');
+  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'tag' });
 
   return {
     annotations,
@@ -629,7 +668,7 @@ export async function processGenerationJob(
   // until the citation branch (P4) provides it, `cite` fails fast and loudly
   // rather than minting selectors that would render nothing.
   if (outputMediaType === 'application/pdf') {
-    onProgress(5, 'Generating resource...', 'generating');
+    onProgress(5, { code: 'generating-resource' });
 
     // Under `cite`, [[<id>]] tokens are stripped from the SOURCE before every
     // compile — they must never render into the artifact. The citations carry
@@ -682,7 +721,7 @@ export async function processGenerationJob(
     }
 
     assertWithinOutputBudget(compiled.pdf.byteLength);
-    onProgress(95, 'Creating resource...', 'creating');
+    onProgress(95, { code: 'creating-resource' });
 
     return {
       content: compiled.pdf,
@@ -702,7 +741,7 @@ export async function processGenerationJob(
   // approximate the share of expected wall-clock complete at each transition
   // (a single atomic LLM call has no measurable progress, and inference
   // dominates the job): its start is ~5, its end ~95.
-  onProgress(5, 'Generating resource...', 'generating');
+  onProgress(5, { code: 'generating-resource' });
 
   const generated = await generateResourceFromTopic(
     title,
@@ -733,7 +772,7 @@ export async function processGenerationJob(
     citations = resolved.citations;
   }
 
-  onProgress(95, 'Creating resource...', 'creating');
+  onProgress(95, { code: 'creating-resource' });
 
   // The artifact is bytes; text is an encoding of them. One shape for every
   // output media type, so a string can never travel mislabeled as a binary

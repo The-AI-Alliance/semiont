@@ -1,8 +1,26 @@
 {
   "AssistProgress": {
     "close": "Luk",
-    "paramsTitle": "Anmodningsparametre:",
-    "processing": "Aktuel: {{label}}"
+    "codeLoading": "Indlæser…",
+    "codeAnalyzing": "Markerer…",
+    "codeAnalyzingTags": "Markerer tags…",
+    "codeDetectingEntities": "Markerer…",
+    "codeCreatingAnnotations": "Opretter {{count}} annotationer…",
+    "codeCreatingTagAnnotations": "Opretter {{count}} tags…",
+    "codeCompleteCreated": "Oprettede {{count}} {{kind}}",
+    "codeGeneratingResource": "Genererer…",
+    "codeCreatingResource": "Opretter ressourcen…",
+    "kindHighlight": "fremhævninger",
+    "kindComment": "kommentarer",
+    "kindAssessment": "vurderinger",
+    "kindReference": "referencer",
+    "kindTag": "tags",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} af {{total}})",
+    "paramEntityTypes": "Enhedstyper",
+    "paramInstructions": "Instruktioner",
+    "paramTone": "Tone",
+    "paramDensity": "Tæthed"
   },
   "PdfViewer": {
     "loadFailed": "Kunne ikke indlæse PDF",
@@ -430,5 +448,22 @@
     "searching": "Søger...",
     "search": "Søg",
     "maxLengthCeiling": "Begrænset til {{maxOutputTokens}} tokens af {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Kunne ikke oprette annotationen: {{detail}}",
+    "deleteFailed": "Kunne ikke slette annotationen: {{detail}}",
+    "referenceUpdateFailed": "Kunne ikke opdatere referencen: {{detail}}",
+    "unknownError": "ukendt fejl",
+    "assistQuiet": "Arbejder stadig — ingen opdatering i et par minutter",
+    "resourceCreatedNamed": "“{{name}}” oprettet",
+    "resourceCreated": "Ressource oprettet",
+    "annotationComplete": "Annotation fuldført",
+    "annotationFailed": "Annotation mislykkedes",
+    "generationFailed": "Generering mislykkedes: {{detail}}",
+    "decline_no-text-layer": "Denne PDF er en scanning, hvis tekst ikke kunne genkendes.",
+    "decline_encrypted": "Denne PDF er adgangskodebeskyttet, så teksten kan ikke læses.",
+    "decline_corrupt": "Denne PDF kunne ikke læses — filen er måske beskadiget.",
+    "decline_too-large": "Dette dokument er for stort til at udtrække tekst fra.",
+    "decline_empty": "Dette dokument har ingen tekst at annotere."
   }
 }

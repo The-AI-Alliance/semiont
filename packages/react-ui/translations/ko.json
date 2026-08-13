@@ -1,8 +1,26 @@
 {
   "AssistProgress": {
     "close": "닫기",
-    "paramsTitle": "요청 매개변수:",
-    "processing": "현재: {{label}}"
+    "codeLoading": "불러오는 중…",
+    "codeAnalyzing": "표시하는 중…",
+    "codeAnalyzingTags": "태그를 표시하는 중…",
+    "codeDetectingEntities": "표시하는 중…",
+    "codeCreatingAnnotations": "주석 {{count}}개 생성 중…",
+    "codeCreatingTagAnnotations": "태그 {{count}}개 생성 중…",
+    "codeCompleteCreated": "{{kind}} {{count}}개 생성됨",
+    "codeGeneratingResource": "생성 중…",
+    "codeCreatingResource": "리소스 생성 중…",
+    "kindHighlight": "하이라이트",
+    "kindComment": "댓글",
+    "kindAssessment": "평가",
+    "kindReference": "참조",
+    "kindTag": "태그",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{total}}개 중 {{done}}번째)",
+    "paramEntityTypes": "개체 유형",
+    "paramInstructions": "지시사항",
+    "paramTone": "톤",
+    "paramDensity": "밀도"
   },
   "PdfViewer": {
     "loadFailed": "PDF를 로드하지 못했습니다",
@@ -430,5 +448,22 @@
     "searching": "검색 중...",
     "search": "검색",
     "maxLengthCeiling": "{{model}}에 의해 {{maxOutputTokens}} 토큰으로 제한됩니다."
+  },
+  "OutcomeToasts": {
+    "createFailed": "주석을 만들지 못했습니다: {{detail}}",
+    "deleteFailed": "주석을 삭제하지 못했습니다: {{detail}}",
+    "referenceUpdateFailed": "참조를 업데이트하지 못했습니다: {{detail}}",
+    "unknownError": "알 수 없는 오류",
+    "assistQuiet": "계속 진행 중 — 몇 분째 소식이 없습니다",
+    "resourceCreatedNamed": "“{{name}}” 생성됨",
+    "resourceCreated": "리소스가 생성되었습니다",
+    "annotationComplete": "주석 완료",
+    "annotationFailed": "주석 실패",
+    "generationFailed": "생성 실패: {{detail}}",
+    "decline_no-text-layer": "이 PDF는 스캔본이며 텍스트를 인식하지 못했습니다.",
+    "decline_encrypted": "이 PDF는 암호로 보호되어 텍스트를 읽을 수 없습니다.",
+    "decline_corrupt": "이 PDF를 읽지 못했습니다 — 파일이 손상되었을 수 있습니다.",
+    "decline_too-large": "이 문서는 너무 커서 텍스트를 추출할 수 없습니다.",
+    "decline_empty": "이 문서에는 주석을 달 텍스트가 없습니다."
   }
 }

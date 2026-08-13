@@ -1,7 +1,8 @@
 import type { components } from '@semiont/core';
 import { useToast } from '../components/Toast';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
-import { declinedMessage } from '../lib/job-outcome';
+import { declineReason } from '../lib/job-outcome';
+import { useTranslations } from '../contexts/TranslationContext';
 
 /**
  * Toasts for domain **outcome** events on a resource — the complete set of
@@ -19,6 +20,13 @@ import { declinedMessage } from '../lib/job-outcome';
  *     except a clean decline (e.g. a scanned/image-only PDF with no text
  *     layer, #736/#738) → info: a decline is a valid no-op, neither a
  *     success (nothing was detected) nor a failure (nothing broke).
+ *
+ * **Every string here is localized** (ASSIST-PROGRESS-CONSOLIDATION P5). This
+ * hook previously rendered eight English literals and read `useTranslations`
+ * zero times, so every toast in the resource viewer was English in all 29
+ * locales. Decline copy is keyed on the wire's `reason` CODE — the launcher
+ * renders the same codes as English terminal copy, which is correct for a CLI
+ * and is exactly why the wire must not carry a sentence.
  *
  * Every subscribed channel is filtered to `resourceId`, so N mounted
  * viewers each toast only their own resource's outcomes.
@@ -40,20 +48,21 @@ import { declinedMessage } from '../lib/job-outcome';
  * subscriptions (actions, sparkles, settings, navigation).
  */
 export function useOutcomeToasts(resourceId: string): void {
+  const t = useTranslations('OutcomeToasts');
   const { showError, showSuccess, showInfo } = useToast();
 
   useEventSubscriptions({
     'mark:create-error': (event) => {
       if (event.resourceId !== resourceId) return;
-      showError(`Failed to create annotation: ${event.message || 'unknown error'}`);
+      showError(t('createFailed', { detail: event.message || t('unknownError') }));
     },
     'mark:delete-error': (event) => {
       if (event.resourceId !== resourceId) return;
-      showError(`Failed to delete annotation: ${event.message || 'unknown error'}`);
+      showError(t('deleteFailed', { detail: event.message || t('unknownError') }));
     },
     'bind:body-error': (event) => {
       if (event.resourceId !== resourceId) return;
-      showError(`Failed to update reference: ${event.message || 'unknown error'}`);
+      showError(t('referenceUpdateFailed', { detail: event.message || t('unknownError') }));
     },
     'mark:assist-timeout': (event) => {
       if (event.resourceId !== resourceId) return;
@@ -61,7 +70,7 @@ export function useOutcomeToasts(resourceId: string): void {
       // still land (proven live — a run the UI gave up on persisted 221).
       // The client has merely stopped hearing from it, so this is an
       // advisory, not an error (DETECTION-HEARTBEAT Phase B).
-      showInfo('Still working — no update from the annotation job for a few minutes');
+      showInfo(t('assistQuiet'));
     },
     'job:complete': (event) => {
       if (event.resourceId !== resourceId) return;
@@ -69,23 +78,25 @@ export function useOutcomeToasts(resourceId: string): void {
         const result = event.result as components['schemas']['JobGenerationResult'] | undefined;
         const name = result?.resourceName;
         showSuccess(name
-          ? `Resource "${name}" created successfully!`
-          : 'Resource created successfully!');
+          ? t('resourceCreatedNamed', { name })
+          : t('resourceCreated'));
         return;
       }
-      const declined = declinedMessage(event.result);
-      if (declined) {
-        showInfo(declined);
+      const reason = declineReason(event.result);
+      if (reason) {
+        // `decline_no-text-layer` etc. — the code IS the key suffix, so a new
+        // reason on the wire needs copy and the translations gate says so.
+        showInfo(t(`decline_${reason}`));
       } else {
-        showSuccess('Annotation complete');
+        showSuccess(t('annotationComplete'));
       }
     },
     'job:fail': (event) => {
       if (event.resourceId !== resourceId) return;
       if (event.jobType === 'generation') {
-        showError(`Resource generation failed: ${event.error}`);
+        showError(t('generationFailed', { detail: event.error }));
       } else {
-        showError(event.error || 'Annotation failed');
+        showError(event.error || t('annotationFailed'));
       }
     },
   });

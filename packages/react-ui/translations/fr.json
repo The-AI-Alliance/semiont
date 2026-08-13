@@ -1,8 +1,26 @@
 {
   "AssistProgress": {
     "close": "Fermer",
-    "paramsTitle": "Paramètres de la requête :",
-    "processing": "En cours : {{label}}"
+    "codeLoading": "Chargement…",
+    "codeAnalyzing": "Annotation…",
+    "codeAnalyzingTags": "Annotation des étiquettes…",
+    "codeDetectingEntities": "Annotation…",
+    "codeCreatingAnnotations": "Création de {{count}} annotations…",
+    "codeCreatingTagAnnotations": "Création de {{count}} étiquettes…",
+    "codeCompleteCreated": "{{count}} {{kind}} créés",
+    "codeGeneratingResource": "Génération…",
+    "codeCreatingResource": "Création de la ressource…",
+    "kindHighlight": "surlignages",
+    "kindComment": "commentaires",
+    "kindAssessment": "évaluations",
+    "kindReference": "références",
+    "kindTag": "étiquettes",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} sur {{total}})",
+    "paramEntityTypes": "Types d'entité",
+    "paramInstructions": "Instructions",
+    "paramTone": "Ton",
+    "paramDensity": "Densité"
   },
   "PdfViewer": {
     "loadFailed": "Échec du chargement du PDF",
@@ -430,5 +448,22 @@
     "searching": "Recherche en cours...",
     "search": "Rechercher",
     "maxLengthCeiling": "Limité à {{maxOutputTokens}} jetons par {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Impossible de créer l’annotation : {{detail}}",
+    "deleteFailed": "Impossible de supprimer l’annotation : {{detail}}",
+    "referenceUpdateFailed": "Impossible de mettre à jour la référence : {{detail}}",
+    "unknownError": "erreur inconnue",
+    "assistQuiet": "Toujours en cours — aucune nouvelle depuis quelques minutes",
+    "resourceCreatedNamed": "« {{name}} » créée",
+    "resourceCreated": "Ressource créée",
+    "annotationComplete": "Annotation terminée",
+    "annotationFailed": "Échec de l’annotation",
+    "generationFailed": "Échec de la génération : {{detail}}",
+    "decline_no-text-layer": "Ce PDF est un scan dont le texte n’a pas pu être reconnu.",
+    "decline_encrypted": "Ce PDF est protégé par mot de passe, son texte est illisible.",
+    "decline_corrupt": "Ce PDF n’a pas pu être lu — le fichier est peut-être endommagé.",
+    "decline_too-large": "Ce document est trop volumineux pour en extraire le texte.",
+    "decline_empty": "Ce document ne contient aucun texte à annoter."
   }
 }

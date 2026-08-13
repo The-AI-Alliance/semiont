@@ -144,7 +144,6 @@
       "beckon:focus",
       "beckon:sparkle",
       "job:started",
-      "job:progress",
       "job:completed",
       "job:failed",
       "job:start",
@@ -323,7 +322,6 @@
       "beckon:focus",
       "beckon:sparkle",
       "job:started",
-      "job:progress",
       "job:completed",
       "job:failed",
       "job:start",
@@ -2658,21 +2656,6 @@
           "  // ── JOB FLOW ────────────────────────────────────────────────────"
         ],
         "trailing": "// StoredEvent"
-      }
-    },
-    {
-      "channel": "job:progress",
-      "shape": "storedEvent",
-      "event": "job:progress",
-      "validate": null,
-      "ts": "StoredEvent<EventOfType<'job:progress'>>",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
       }
     },
     {

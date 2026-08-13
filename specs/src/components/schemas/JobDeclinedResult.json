@@ -1,21 +1,28 @@
 {
   "type": "object",
-  "description": "Result of a job that completed without doing its work because the resource could not be read. Distinct from a failure: nothing went wrong, there was simply no text to work with — an encrypted or damaged PDF, a scan whose text could not be recognized, or a document that yielded nothing. The reasons are the extraction vocabulary the Smelter reports on `smelt:settled`, MINUS `no-extractor`: a media type that can never yield text (a zip, an image) is a bad request rather than a decline, so a worker asked to detect over one throws and the job reports `job:fail`. Everything here is a resource-specific outcome — the same media type would have succeeded on a different document.",
+  "description": "Result of a job that completed without doing its work because the resource could not be read. Distinct from a failure: nothing went wrong, there was simply no text to work with \u2014 an encrypted or damaged PDF, a scan whose text could not be recognized, or a document that yielded nothing. The reasons are the extraction vocabulary the Smelter reports on `smelt:settled`, MINUS `no-extractor`: a media type that can never yield text (a zip, an image) is a bad request rather than a decline, so a worker asked to detect over one throws and the job reports `job:fail`. Everything here is a resource-specific outcome \u2014 the same media type would have succeeded on a different document.",
   "properties": {
     "declined": {
       "type": "boolean",
-      "enum": [true],
-      "description": "Discriminant. Always true — a job that did its work reports one of the other result shapes."
+      "enum": [
+        true
+      ],
+      "description": "Discriminant. Always true \u2014 a job that did its work reports one of the other result shapes."
     },
     "reason": {
       "type": "string",
-      "enum": ["no-text-layer", "encrypted", "corrupt", "too-large", "empty"],
-      "description": "Why the resource could not be read."
-    },
-    "message": {
-      "type": "string",
-      "description": "Human-readable explanation, suitable for showing to the user."
+      "enum": [
+        "no-text-layer",
+        "encrypted",
+        "corrupt",
+        "too-large",
+        "empty"
+      ],
+      "description": "Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed backend-side and was therefore English everywhere (ASSIST-PROGRESS-CONSOLIDATION P5)."
     }
   },
-  "required": ["declined", "reason", "message"]
+  "required": [
+    "declined",
+    "reason"
+  ]
 }

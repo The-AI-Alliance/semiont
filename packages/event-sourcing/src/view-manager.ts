@@ -28,8 +28,8 @@ export interface ViewManagerConfig {
  * `materializeResource` runs read-modify-write cycles on the view file for
  * a given resource (load JSON → apply event → save JSON). When multiple
  * events arrive for the same resource in rapid succession — the canonical
- * example is the reference-detection worker emitting `mark:added` +
- * `job:progress` + `job:completed` within a few milliseconds — concurrent
+ * example is the reference-detection worker emitting several `mark:added`
+ * events + `job:completed` within a few milliseconds — concurrent
  * RMW cycles will clobber each other, losing events and occasionally
  * corrupting the view file entirely.
  *

@@ -498,13 +498,13 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
       jobId: 'job-p1',
       jobType: 'generation',
       percentage: 40,
-      progress: { stage: 'generating', percentage: 40, message: 'Generating...' },
+      progress: { percentage: 40, message: 'Generating...' },
     } as never);
 
     await vi.waitFor(() => {
       expect(jobQueue.recordProgress).toHaveBeenCalledWith(
         'job-p1',
-        { stage: 'generating', percentage: 40, message: 'Generating...' },
+        { percentage: 40, message: 'Generating...' },
       );
     });
   });

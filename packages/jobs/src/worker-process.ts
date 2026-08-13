@@ -33,7 +33,7 @@ import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourc
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
 import { deriveStorageUri, extractPdfTextLayer, type AnchoredTextStore } from '@semiont/content';
-import { prepareDetection, type DetectionDecline } from './workers/detection/prepare-detection';
+import { prepareDetection } from './workers/detection/prepare-detection';
 import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
 import {
   processHighlightJob,
@@ -75,14 +75,6 @@ type Agent = components['schemas']['Agent'];
  * extraction vocabulary, minus `no-extractor` — that one is a user error
  * (detection asked of a media type that can never yield text) and throws.
  */
-const DECLINE_MESSAGES: Record<Exclude<DetectionDecline['declined'], 'no-extractor'>, string> = {
-  'no-text-layer': 'This PDF is a scan whose text could not be recognized; there is nothing to detect over.',
-  'encrypted': 'This PDF is password-protected, so its text cannot be read.',
-  'corrupt': 'This PDF could not be parsed — the file may be damaged or truncated.',
-  'too-large': 'This document is too large to extract text from.',
-  'empty': 'This document contains no text to detect over.',
-};
-
 export interface WorkerProcessConfig {
   /**
    * The session authenticated as this worker's software-agent identity.
@@ -281,7 +273,6 @@ async function handleJobInner(
         result: {
           declined: true,
           reason: source.declined,
-          message: DECLINE_MESSAGES[source.declined],
         },
       });
       adapter.completeJob();
@@ -290,16 +281,22 @@ async function handleJobInner(
     ready = source;
   }
 
-  const onProgress: OnProgress = (percentage, message, stage, extra) => {
+  const onProgress: OnProgress = (percentage, message, extra) => {
     // Progress doubles as the worker's liveness heartbeat: it feeds the
     // stall watchdog here and refreshes the backend janitor's mtime
     // heartbeat via the job:report-progress mirror.
+    //
+    // `message` is a code plus typed params, forwarded verbatim — the
+    // producer says WHAT happened and every client renders it in its own
+    // language (ASSIST-PROGRESS-CONSOLIDATION A6). No sentence is composed
+    // anywhere on this path. (P1 dropped the prose arg here as an interim;
+    // P2 gave the processors codes worth forwarding.)
     adapter.touchActivity();
     emitEvent(session, 'job:report-progress', {
       ...lifecycleBase,
       percentage,
       progress: {
-        stage, percentage, message,
+        percentage, message,
         ...(annotationId ? { annotationId } : {}),
         ...(extra ?? {}),
       },

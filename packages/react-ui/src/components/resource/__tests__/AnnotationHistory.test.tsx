@@ -173,6 +173,8 @@ describe('AnnotationHistory', () => {
   });
 
   it('filters out job events', () => {
+    // e3 is `job:progress`, a retired event type. Logs written before it was
+    // retired still hold them, so the filter must keep excluding it.
     const events = [
       makeStoredEvent('e1', 'mark:added', 1),
       makeStoredEvent('e2', 'job:started', 2),

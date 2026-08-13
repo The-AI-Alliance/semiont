@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { assistProgressCopy, assistSubjectCopy, assistParamLabel } from '../../../lib/assist-progress-copy';
 import type { components, ResourceDescriptor, ResourceId, GatheredContext, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import { annotationId } from '@semiont/core';
@@ -489,14 +490,12 @@ export function ResourceViewerPage({
               dataType="generation"
               onCancel={() => session?.client.job.cancelRequest('generation')}
               translations={{
-                title: tg('progressTitle'),
                 cancel: tg('progressCancel'),
                 inProgress: tg('progressInProgress'),
-                complete: tg('progressComplete'),
-                failed: tg('progressFailed'),
-                paramsTitle: ta('paramsTitle'),
-                processing: (label) => ta('processing', { label }),
                 close: ta('close'),
+                message: assistProgressCopy(ta),
+                subject: assistSubjectCopy(ta),
+                paramLabel: assistParamLabel(ta),
               }}
             />
           )}

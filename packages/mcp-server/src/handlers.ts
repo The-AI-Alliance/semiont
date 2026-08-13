@@ -178,7 +178,7 @@ export async function markAssist(semiont: McpClient, args: any): Promise<McpResu
         sourceLanguage: args?.sourceLanguage,
       }).pipe(
         tap((e) => {
-          if (e.kind === 'progress') progressMessages.push(`${e.data.stage}: ${e.data.percentage}%`);
+          if (e.kind === 'progress') progressMessages.push(`${e.data.message?.code ?? 'working'}: ${e.data.percentage}%`);
         }),
       ),
     );
@@ -258,7 +258,7 @@ export async function yieldFromAnnotation(semiont: McpClient, args: any): Promis
         sourceLanguage: args?.sourceLanguage ?? ctxSourceLanguage,
       }).pipe(
         tap((e) => {
-          if (e.kind === 'progress') progressMessages.push(`${e.data.stage}: ${e.data.percentage}%`);
+          if (e.kind === 'progress') progressMessages.push(`${e.data.message?.code ?? 'working'}: ${e.data.percentage}%`);
         }),
       ),
     );

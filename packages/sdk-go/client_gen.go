@@ -493,6 +493,132 @@ func (e JobDeclinedResultReason) Valid() bool {
 	}
 }
 
+// Defines values for JobProgressRequestParamsLabel.
+const (
+	Density      JobProgressRequestParamsLabel = "density"
+	EntityTypes  JobProgressRequestParamsLabel = "entity-types"
+	Instructions JobProgressRequestParamsLabel = "instructions"
+	Tone         JobProgressRequestParamsLabel = "tone"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressRequestParamsLabel enum.
+func (e JobProgressRequestParamsLabel) Valid() bool {
+	switch e {
+	case Density:
+		return true
+	case EntityTypes:
+		return true
+	case Instructions:
+		return true
+	case Tone:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobProgressMessage0Code.
+const (
+	Analyzing          JobProgressMessage0Code = "analyzing"
+	AnalyzingTags      JobProgressMessage0Code = "analyzing-tags"
+	CreatingResource   JobProgressMessage0Code = "creating-resource"
+	GeneratingResource JobProgressMessage0Code = "generating-resource"
+	Loading            JobProgressMessage0Code = "loading"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressMessage0Code enum.
+func (e JobProgressMessage0Code) Valid() bool {
+	switch e {
+	case Analyzing:
+		return true
+	case AnalyzingTags:
+		return true
+	case CreatingResource:
+		return true
+	case GeneratingResource:
+		return true
+	case Loading:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobProgressMessage1Code.
+const (
+	DetectingEntities JobProgressMessage1Code = "detecting-entities"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressMessage1Code enum.
+func (e JobProgressMessage1Code) Valid() bool {
+	switch e {
+	case DetectingEntities:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobProgressMessage2Code.
+const (
+	CreatingAnnotations    JobProgressMessage2Code = "creating-annotations"
+	CreatingTagAnnotations JobProgressMessage2Code = "creating-tag-annotations"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressMessage2Code enum.
+func (e JobProgressMessage2Code) Valid() bool {
+	switch e {
+	case CreatingAnnotations:
+		return true
+	case CreatingTagAnnotations:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobProgressMessage3Code.
+const (
+	CompleteCreated JobProgressMessage3Code = "complete-created"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressMessage3Code enum.
+func (e JobProgressMessage3Code) Valid() bool {
+	switch e {
+	case CompleteCreated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobProgressMessage3Kind.
+const (
+	Assessment JobProgressMessage3Kind = "assessment"
+	Comment    JobProgressMessage3Kind = "comment"
+	Highlight  JobProgressMessage3Kind = "highlight"
+	Reference  JobProgressMessage3Kind = "reference"
+	Tag        JobProgressMessage3Kind = "tag"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressMessage3Kind enum.
+func (e JobProgressMessage3Kind) Valid() bool {
+	switch e {
+	case Assessment:
+		return true
+	case Comment:
+		return true
+	case Highlight:
+		return true
+	case Reference:
+		return true
+	case Tag:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for JobStatusResponseStatus.
 const (
 	Cancelled JobStatusResponseStatus = "cancelled"
@@ -2409,7 +2535,6 @@ type JobCompletedPayload struct {
 
 	// JobType Type of background job
 	JobType JobType `json:"jobType"`
-	Message *string `json:"message,omitempty"`
 
 	// Result Full result object for extensibility
 	Result *map[string]interface{} `json:"result,omitempty"`
@@ -2446,17 +2571,14 @@ type JobDeclinedResult struct {
 	// Declined Discriminant. Always true — a job that did its work reports one of the other result shapes.
 	Declined JobDeclinedResultDeclined `json:"declined"`
 
-	// Message Human-readable explanation, suitable for showing to the user.
-	Message string `json:"message"`
-
-	// Reason Why the resource could not be read.
+	// Reason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed backend-side and was therefore English everywhere (ASSIST-PROGRESS-CONSOLIDATION P5).
 	Reason JobDeclinedResultReason `json:"reason"`
 }
 
 // JobDeclinedResultDeclined Discriminant. Always true — a job that did its work reports one of the other result shapes.
 type JobDeclinedResultDeclined bool
 
-// JobDeclinedResultReason Why the resource could not be read.
+// JobDeclinedResultReason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed backend-side and was therefore English everywhere (ASSIST-PROGRESS-CONSOLIDATION P5).
 type JobDeclinedResultReason string
 
 // JobFailCommand Command to mark a job as failed
@@ -2501,7 +2623,7 @@ type JobHighlightAnnotationResult struct {
 	HighlightsFound   int `json:"highlightsFound"`
 }
 
-// JobProgress Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present. This is the single progress shape for every job type — annotation workers and generation alike.
+// JobProgress Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present. This is the single progress shape for every job type — annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Every code mapped to exactly one stage, and `stage`'s own description advertised 'complete' and 'error' that no producer ever emitted — a comment describing a contract nobody implemented, which cost a consumer two dead branches. Terminality is signalled on `job:complete` / `job:fail`, not here. `currentEntityType` duplicated `detecting-entities`' `entityType` in the same call.
 type JobProgress struct {
 	// AnnotationId Annotation this job is attached to, when applicable. Echoed inside JobProgress (in addition to the outer command envelope) so consumers that only see the inner progress object (e.g. client.yield.fromContext's Observable) can still route visual feedback to a specific annotation.
 	AnnotationId *string `json:"annotationId,omitempty"`
@@ -2515,17 +2637,14 @@ type JobProgress struct {
 	// CurrentCategory Category currently being processed (tag-annotation)
 	CurrentCategory *string `json:"currentCategory,omitempty"`
 
-	// CurrentEntityType Entity type currently being processed
-	CurrentEntityType *string `json:"currentEntityType,omitempty"`
-
 	// EntitiesEmitted Annotations emitted so far (reference-annotation)
 	EntitiesEmitted *int `json:"entitiesEmitted,omitempty"`
 
 	// EntitiesFound Entities found so far (reference-annotation)
 	EntitiesFound *int `json:"entitiesFound,omitempty"`
 
-	// Message Human-readable progress message
-	Message string `json:"message"`
+	// Message What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). The vocabulary is the census of every onProgress call site in @semiont/jobs (.plans/ASSIST-PROGRESS-CONSOLIDATION.md P1, 2026-08-12); extending it means adding a variant here and copy in every client, gated by the locale-completeness check.
+	Message *JobProgressMessage `json:"message,omitempty"`
 
 	// Percentage Completion percentage (0-100)
 	Percentage float32 `json:"percentage"`
@@ -2536,14 +2655,14 @@ type JobProgress struct {
 	// ProcessedEntityTypes Entity types processed so far (reference-annotation)
 	ProcessedEntityTypes *int `json:"processedEntityTypes,omitempty"`
 
-	// RequestParams Echoed job parameters for display in the progress UI (e.g. entity types or categories the user asked to detect)
+	// RequestParams Echoed job parameters for display in the progress UI. `label` is a CODE, not a sentence — the client owns the wording, same rule as the progress message. `value` is the user's own input (an entity-type list, their instructions) and is deliberately NOT translated: it is their words, not ours.
 	RequestParams *[]struct {
-		Label string `json:"label"`
+		// Label Which parameter this is. The client renders a localized name for it.
+		Label JobProgressRequestParamsLabel `json:"label"`
+
+		// Value The user's own input, shown verbatim.
 		Value string `json:"value"`
 	} `json:"requestParams,omitempty"`
-
-	// Stage Current processing stage (e.g. 'analyzing', 'creating', 'complete', 'error')
-	Stage string `json:"stage"`
 
 	// TotalCategories Total categories (tag-annotation)
 	TotalCategories *int `json:"totalCategories,omitempty"`
@@ -2552,25 +2671,60 @@ type JobProgress struct {
 	TotalEntityTypes *int `json:"totalEntityTypes,omitempty"`
 }
 
-// JobProgressPayload Payload for job:progress domain event
-type JobProgressPayload struct {
-	// CurrentStep Human-readable current step
-	CurrentStep *string `json:"currentStep,omitempty"`
+// JobProgressRequestParamsLabel Which parameter this is. The client renders a localized name for it.
+type JobProgressRequestParamsLabel string
 
-	// FoundCount For detection: entities found so far
-	FoundCount *int   `json:"foundCount,omitempty"`
-	JobId      string `json:"jobId"`
-
-	// JobType Type of background job
-	JobType        JobType `json:"jobType"`
-	Message        *string `json:"message,omitempty"`
-	Percentage     float32 `json:"percentage"`
-	ProcessedSteps *int    `json:"processedSteps,omitempty"`
-
-	// Progress Full progress object for extensibility
-	Progress   *map[string]interface{} `json:"progress,omitempty"`
-	TotalSteps *int                    `json:"totalSteps,omitempty"`
+// JobProgressMessage What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). The vocabulary is the census of every onProgress call site in @semiont/jobs (.plans/ASSIST-PROGRESS-CONSOLIDATION.md P1, 2026-08-12); extending it means adding a variant here and copy in every client, gated by the locale-completeness check.
+type JobProgressMessage struct {
+	union json.RawMessage
 }
+
+// JobProgressMessage0 Codes that carry no params.
+type JobProgressMessage0 struct {
+	Code JobProgressMessage0Code `json:"code"`
+}
+
+// JobProgressMessage0Code defines model for JobProgressMessage.0.Code.
+type JobProgressMessage0Code string
+
+// JobProgressMessage1 Entity detection, one entity type at a time.
+type JobProgressMessage1 struct {
+	Code JobProgressMessage1Code `json:"code"`
+
+	// EntityType Entity type currently being detected
+	EntityType string `json:"entityType"`
+}
+
+// JobProgressMessage1Code defines model for JobProgressMessage.1.Code.
+type JobProgressMessage1Code string
+
+// JobProgressMessage2 Writing detected annotations back to the resource.
+type JobProgressMessage2 struct {
+	Code JobProgressMessage2Code `json:"code"`
+
+	// Count How many annotations are being created
+	Count int `json:"count"`
+}
+
+// JobProgressMessage2Code defines model for JobProgressMessage.2.Code.
+type JobProgressMessage2Code string
+
+// JobProgressMessage3 Terminal success summary.
+type JobProgressMessage3 struct {
+	Code JobProgressMessage3Code `json:"code"`
+
+	// Count How many annotations were created
+	Count int `json:"count"`
+
+	// Kind What kind of annotation was created; clients pluralize/translate
+	Kind JobProgressMessage3Kind `json:"kind"`
+}
+
+// JobProgressMessage3Code defines model for JobProgressMessage.3.Code.
+type JobProgressMessage3Code string
+
+// JobProgressMessage3Kind What kind of annotation was created; clients pluralize/translate
+type JobProgressMessage3Kind string
 
 // JobQueuedEvent Event indicating a job has been queued
 type JobQueuedEvent struct {
@@ -2607,7 +2761,7 @@ type JobReportProgressCommand struct {
 	JobType    JobType `json:"jobType"`
 	Percentage float32 `json:"percentage"`
 
-	// Progress Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present. This is the single progress shape for every job type — annotation workers and generation alike.
+	// Progress Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present. This is the single progress shape for every job type — annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Every code mapped to exactly one stage, and `stage`'s own description advertised 'complete' and 'error' that no producer ever emitted — a comment describing a contract nobody implemented, which cost a consumer two dead branches. Terminality is signalled on `job:complete` / `job:fail`, not here. `currentEntityType` duplicated `detecting-entities`' `entityType` in the same call.
 	Progress   *JobProgress `json:"progress,omitempty"`
 	ResourceId string       `json:"resourceId"`
 }
@@ -7142,6 +7296,120 @@ func (t GatheredContext_Focus) MarshalJSON() ([]byte, error) {
 }
 
 func (t *GatheredContext_Focus) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsJobProgressMessage0 returns the union data inside the JobProgressMessage as a JobProgressMessage0
+func (t JobProgressMessage) AsJobProgressMessage0() (JobProgressMessage0, error) {
+	var body JobProgressMessage0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobProgressMessage0 overwrites any union data inside the JobProgressMessage as the provided JobProgressMessage0
+func (t *JobProgressMessage) FromJobProgressMessage0(v JobProgressMessage0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobProgressMessage0 performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressMessage0
+func (t *JobProgressMessage) MergeJobProgressMessage0(v JobProgressMessage0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobProgressMessage1 returns the union data inside the JobProgressMessage as a JobProgressMessage1
+func (t JobProgressMessage) AsJobProgressMessage1() (JobProgressMessage1, error) {
+	var body JobProgressMessage1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobProgressMessage1 overwrites any union data inside the JobProgressMessage as the provided JobProgressMessage1
+func (t *JobProgressMessage) FromJobProgressMessage1(v JobProgressMessage1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobProgressMessage1 performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressMessage1
+func (t *JobProgressMessage) MergeJobProgressMessage1(v JobProgressMessage1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobProgressMessage2 returns the union data inside the JobProgressMessage as a JobProgressMessage2
+func (t JobProgressMessage) AsJobProgressMessage2() (JobProgressMessage2, error) {
+	var body JobProgressMessage2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobProgressMessage2 overwrites any union data inside the JobProgressMessage as the provided JobProgressMessage2
+func (t *JobProgressMessage) FromJobProgressMessage2(v JobProgressMessage2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobProgressMessage2 performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressMessage2
+func (t *JobProgressMessage) MergeJobProgressMessage2(v JobProgressMessage2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobProgressMessage3 returns the union data inside the JobProgressMessage as a JobProgressMessage3
+func (t JobProgressMessage) AsJobProgressMessage3() (JobProgressMessage3, error) {
+	var body JobProgressMessage3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobProgressMessage3 overwrites any union data inside the JobProgressMessage as the provided JobProgressMessage3
+func (t *JobProgressMessage) FromJobProgressMessage3(v JobProgressMessage3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobProgressMessage3 performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressMessage3
+func (t *JobProgressMessage) MergeJobProgressMessage3(v JobProgressMessage3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t JobProgressMessage) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *JobProgressMessage) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { assistProgressCopy, assistSubjectCopy, assistParamLabel } from '../../../lib/assist-progress-copy';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
@@ -372,16 +373,13 @@ export function ReferencesPanel({
               onCancel: () => session?.client.job.cancelRequest('annotation'),
               onDismiss: () => session?.client.mark.dismissProgress(),
               translations: {
-                title: t('annotationProgressTitle'),
                 cancel: t('cancelAnnotation'),
                 inProgress: t('annotating'),
-                complete: t('complete'),
-                failed: t('failed'),
                 found: (count) => t('found', { count }),
-                current: (entityType) => t('current', { entityType }),
-                paramsTitle: ta('paramsTitle'),
-                processing: (label) => ta('processing', { label }),
                 close: ta('close'),
+                message: assistProgressCopy(ta),
+                subject: assistSubjectCopy(ta),
+                paramLabel: assistParamLabel(ta),
               },
             }}
             form={

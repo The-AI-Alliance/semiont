@@ -251,7 +251,7 @@ onProgress(60, `Creating ${count} annotations...`, 'creating');
 onProgress(100, `Complete! Created ${count} summaries`, 'creating');
 ```
 
-The fourth argument carries extra fields the progress UI renders (e.g. `processReferenceJob` passes `currentEntityType`, `completedEntityTypes`, `requestParams`). Progress events are ephemeral — Stower ignores them.
+The third argument carries extra fields the progress UI renders (e.g. `processReferenceJob` passes `completedEntityTypes`, `requestParams`). The entity type being worked on rides the `detecting-entities` message code itself, not a separate field. Progress events are ephemeral — Stower ignores them.
 
 ## Testing a Processor
 

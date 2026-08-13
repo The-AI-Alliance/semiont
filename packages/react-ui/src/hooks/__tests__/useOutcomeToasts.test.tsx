@@ -8,6 +8,16 @@ import type { ReactNode } from 'react';
 // The hook's only dependencies are the toast surface and the bus — spy on the
 // former, drive the latter through the real subscription path (the wiring:
 // channel registration, resourceId filter, severity choice).
+// P5: every string is localized now. Echo keys + params so an assertion names
+// the KEY that fired, not the sentence — the sentence is copy, and copy moves.
+vi.mock('../../contexts/TranslationContext', () => ({
+  useTranslations: () => (key: string, params?: Record<string, unknown>) =>
+    params && Object.keys(params).length
+      ? `${key}(${Object.entries(params).map(([k, v]) => `${k}=${v}`).join(',')})`
+      : key,
+  TranslationProvider: ({ children }: { children: ReactNode }) => children,
+}));
+
 const { showError, showSuccess, showInfo } = vi.hoisted(() => ({
   showError: vi.fn(),
   showSuccess: vi.fn(),
@@ -47,7 +57,7 @@ describe('useOutcomeToasts', () => {
         result: { declined: true, reason: 'no-text-layer', message: 'This PDF has no extractable text layer (scanned or image-only); detection is not supported.' },
       }) as never);
     });
-    expect(showInfo).toHaveBeenCalledWith(expect.stringContaining('no extractable text layer'));
+    expect(showInfo).toHaveBeenCalledWith('decline_no-text-layer');
     expect(showSuccess).not.toHaveBeenCalled();
     expect(showError).not.toHaveBeenCalled();
   });
@@ -59,7 +69,7 @@ describe('useOutcomeToasts', () => {
         result: { highlightsFound: 3, highlightsCreated: 3 },
       }) as never);
     });
-    expect(showSuccess).toHaveBeenCalledWith('Annotation complete');
+    expect(showSuccess).toHaveBeenCalledWith('annotationComplete');
     expect(showInfo).not.toHaveBeenCalled();
   });
 
@@ -71,7 +81,7 @@ describe('useOutcomeToasts', () => {
         result: { resourceName: 'Cell Biology Notes' },
       }) as never);
     });
-    expect(showSuccess).toHaveBeenCalledWith(expect.stringContaining('Cell Biology Notes'));
+    expect(showSuccess).toHaveBeenCalledWith('resourceCreatedNamed(name=Cell Biology Notes)');
   });
 
   it('completions for a different resource are ignored (resourceId filter)', () => {
@@ -98,7 +108,7 @@ describe('useOutcomeToasts', () => {
     act(() => {
       eventBus.get('mark:create-error').next({ resourceId: RID, message: 'nope' });
     });
-    expect(showError).toHaveBeenCalledWith('Failed to create annotation: nope');
+    expect(showError).toHaveBeenCalledWith('createFailed(detail=nope)');
     expect(showError).toHaveBeenCalledTimes(1);
   });
 
@@ -108,7 +118,7 @@ describe('useOutcomeToasts', () => {
       eventBus.get('mark:delete-error').next({ resourceId: RID, message: 'gone wrong' });
       eventBus.get('mark:delete-error').next({ resourceId: 'other-res', message: 'not mine' });
     });
-    expect(showError).toHaveBeenCalledWith('Failed to delete annotation: gone wrong');
+    expect(showError).toHaveBeenCalledWith('deleteFailed(detail=gone wrong)');
     expect(showError).toHaveBeenCalledTimes(1);
   });
 
@@ -140,7 +150,7 @@ describe('useOutcomeToasts', () => {
       eventBus.get('bind:body-error').next({ resourceId: RID, message: 'nope' });
       eventBus.get('bind:body-error').next({ resourceId: 'other-res', message: 'not mine' });
     });
-    expect(showError).toHaveBeenCalledWith('Failed to update reference: nope');
+    expect(showError).toHaveBeenCalledWith('referenceUpdateFailed(detail=nope)');
     expect(showError).toHaveBeenCalledTimes(1);
   });
 
@@ -152,7 +162,7 @@ describe('useOutcomeToasts', () => {
     act(() => {
       eventBus.get('mark:assist-timeout').next({ resourceId: RID, motivation: 'highlighting' });
     });
-    expect(showInfo).toHaveBeenCalledWith(expect.stringMatching(/still working|no update/i));
+    expect(showInfo).toHaveBeenCalledWith('assistQuiet');
     expect(showError).not.toHaveBeenCalled();
   });
 

@@ -1,8 +1,26 @@
 {
   "AssistProgress": {
     "close": "বন্ধ করুন",
-    "paramsTitle": "অনুরোধের প্যারামিটার:",
-    "processing": "বর্তমান: {{label}}"
+    "codeLoading": "লোড হচ্ছে…",
+    "codeAnalyzing": "চিহ্নিত করা হচ্ছে…",
+    "codeAnalyzingTags": "ট্যাগ চিহ্নিত করা হচ্ছে…",
+    "codeDetectingEntities": "চিহ্নিত করা হচ্ছে…",
+    "codeCreatingAnnotations": "{{count}}টি টীকা তৈরি হচ্ছে…",
+    "codeCreatingTagAnnotations": "{{count}}টি ট্যাগ তৈরি হচ্ছে…",
+    "codeCompleteCreated": "{{count}}টি {{kind}} তৈরি হয়েছে",
+    "codeGeneratingResource": "তৈরি হচ্ছে…",
+    "codeCreatingResource": "রিসোর্স তৈরি হচ্ছে…",
+    "kindHighlight": "হাইলাইট",
+    "kindComment": "মন্তব্য",
+    "kindAssessment": "মূল্যায়ন",
+    "kindReference": "রেফারেন্স",
+    "kindTag": "ট্যাগ",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{total}}টির {{done}})",
+    "paramEntityTypes": "সত্তার ধরন",
+    "paramInstructions": "নির্দেশনা",
+    "paramTone": "সুর",
+    "paramDensity": "ঘনত্ব"
   },
   "PdfViewer": {
     "loadFailed": "PDF লোড করা যায়নি",
@@ -430,5 +448,22 @@
     "searching": "অনুসন্ধান করা হচ্ছে...",
     "search": "অনুসন্ধান",
     "maxLengthCeiling": "{{model}} দ্বারা {{maxOutputTokens}} টোকেনে সীমিত।"
+  },
+  "OutcomeToasts": {
+    "createFailed": "টীকা তৈরি করা যায়নি: {{detail}}",
+    "deleteFailed": "টীকা মুছে ফেলা যায়নি: {{detail}}",
+    "referenceUpdateFailed": "রেফারেন্স আপডেট করা যায়নি: {{detail}}",
+    "unknownError": "অজানা ত্রুটি",
+    "assistQuiet": "এখনও চলছে — কয়েক মিনিট ধরে কোনো আপডেট নেই",
+    "resourceCreatedNamed": "“{{name}}” তৈরি হয়েছে",
+    "resourceCreated": "রিসোর্স তৈরি হয়েছে",
+    "annotationComplete": "টীকা সম্পূর্ণ",
+    "annotationFailed": "টীকা ব্যর্থ হয়েছে",
+    "generationFailed": "জেনারেশন ব্যর্থ: {{detail}}",
+    "decline_no-text-layer": "এই PDF একটি স্ক্যান, এর লেখা শনাক্ত করা যায়নি।",
+    "decline_encrypted": "এই PDF পাসওয়ার্ড-সুরক্ষিত, লেখা পড়া যাচ্ছে না।",
+    "decline_corrupt": "এই PDF পড়া যায়নি — ফাইলটি ক্ষতিগ্রস্ত হতে পারে।",
+    "decline_too-large": "এই নথিটি এত বড় যে লেখা বের করা যাচ্ছে না।",
+    "decline_empty": "এই নথিতে টীকা দেওয়ার মতো কোনো লেখা নেই।"
   }
 }

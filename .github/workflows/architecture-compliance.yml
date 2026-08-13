@@ -46,6 +46,7 @@ jobs:
           fail=0
           npm run lint:css || fail=1
           npm run lint:css-variables || fail=1
+          npm run lint:translations || fail=1
           npm run lint:no-utility-classes || fail=1
           echo "::endgroup::"
           exit $fail

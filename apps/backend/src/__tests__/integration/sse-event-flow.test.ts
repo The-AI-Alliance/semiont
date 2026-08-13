@@ -59,12 +59,6 @@ describe('SSE Event Flow - End-to-End', () => {
       }
     }));
 
-    subscriptions.push(scopedBus.get('job:progress').subscribe((event) => {
-      if (event.payload.jobId === testJobId) {
-        receivedEvents.push(event);
-      }
-    }));
-
     subscriptions.push(scopedBus.get('job:completed').subscribe((event) => {
       if (event.payload.jobId === testJobId) {
         receivedEvents.push(event);
@@ -85,40 +79,6 @@ describe('SSE Event Flow - End-to-End', () => {
     });
 
     await eventStore.appendEvent({
-      type: 'job:progress',
-      resourceId: rId,
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        jobId: testJobId,
-        jobType: 'reference-annotation',
-        percentage: 33,
-        currentStep: 'Person',
-        processedSteps: 1,
-        totalSteps: 3,
-        foundCount: 2,
-        message: 'Scanning for Person...'
-      }
-    });
-
-    await eventStore.appendEvent({
-      type: 'job:progress',
-      resourceId: rId,
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        jobId: testJobId,
-        jobType: 'reference-annotation',
-        percentage: 66,
-        currentStep: 'Organization',
-        processedSteps: 2,
-        totalSteps: 3,
-        foundCount: 5,
-        message: 'Scanning for Organization...'
-      }
-    });
-
-    await eventStore.appendEvent({
       type: 'job:completed',
       resourceId: rId,
       userId: userId('user-1'),
@@ -128,20 +88,15 @@ describe('SSE Event Flow - End-to-End', () => {
         jobType: 'reference-annotation',
         totalSteps: 3,
         foundCount: 7,
-        message: 'Detection complete!'
       }
     });
 
     // Wait for async notifications
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    expect(receivedEvents).toHaveLength(4);
+    expect(receivedEvents).toHaveLength(2);
     expect(receivedEvents[0].type).toBe('job:started');
-    expect(receivedEvents[1].type).toBe('job:progress');
-    expect(receivedEvents[1].payload.percentage).toBe(33);
-    expect(receivedEvents[2].type).toBe('job:progress');
-    expect(receivedEvents[2].payload.percentage).toBe(66);
-    expect(receivedEvents[3].type).toBe('job:completed');
+    expect(receivedEvents[1].type).toBe('job:completed');
 
     subscriptions.forEach(s => s.unsubscribe());
   });
@@ -156,23 +111,13 @@ describe('SSE Event Flow - End-to-End', () => {
 
     subscriptions.push(scopedBus.get('job:started').subscribe((event) => {
       if (event.payload.jobId === testJobId) {
-        receivedEvents.push({ type: event.type, stage: null, percentage: null });
-      }
-    }));
-
-    subscriptions.push(scopedBus.get('job:progress').subscribe((event) => {
-      if (event.payload.jobId === testJobId) {
-        receivedEvents.push({
-          type: event.type,
-          stage: event.payload.currentStep,
-          percentage: event.payload.percentage
-        });
+        receivedEvents.push({ type: event.type, percentage: null });
       }
     }));
 
     subscriptions.push(scopedBus.get('job:completed').subscribe((event) => {
       if (event.payload.jobId === testJobId) {
-        receivedEvents.push({ type: event.type, stage: null, percentage: null });
+        receivedEvents.push({ type: event.type, percentage: null });
       }
     }));
 
@@ -189,29 +134,6 @@ describe('SSE Event Flow - End-to-End', () => {
       }
     });
 
-    const stages = [
-      { step: 'fetching', percentage: 20 },
-      { step: 'generating', percentage: 40 },
-      { step: 'creating', percentage: 85 },
-      { step: 'linking', percentage: 95 }
-    ];
-
-    for (const stage of stages) {
-      await eventStore.appendEvent({
-        type: 'job:progress',
-        resourceId: rId,
-        userId: userId('user-1'),
-        version: 1,
-        payload: {
-          jobId: testJobId,
-          jobType: 'generation',
-          percentage: stage.percentage,
-          currentStep: stage.step,
-          message: `${stage.step}...`
-        }
-      });
-    }
-
     await eventStore.appendEvent({
       type: 'job:completed',
       resourceId: rId,
@@ -221,19 +143,14 @@ describe('SSE Event Flow - End-to-End', () => {
         jobId: testJobId,
         jobType: 'generation',
         resultResourceId: resourceId('new-resource-id'),
-        message: 'Draft resource created!'
       }
     });
 
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    expect(receivedEvents).toHaveLength(6); // 1 started + 4 progress + 1 completed
+    expect(receivedEvents).toHaveLength(2); // 1 started + 1 completed
     expect(receivedEvents[0].type).toBe('job:started');
-    expect(receivedEvents[1].stage).toBe('fetching');
-    expect(receivedEvents[2].stage).toBe('generating');
-    expect(receivedEvents[3].stage).toBe('creating');
-    expect(receivedEvents[4].stage).toBe('linking');
-    expect(receivedEvents[5].type).toBe('job:completed');
+    expect(receivedEvents[1].type).toBe('job:completed');
 
     subscriptions.forEach(s => s.unsubscribe());
   });
@@ -247,12 +164,6 @@ describe('SSE Event Flow - End-to-End', () => {
     const subscriptions: Subscription[] = [];
 
     subscriptions.push(scopedBus.get('job:started').subscribe((event) => {
-      if (event.payload.jobId === testJobId) {
-        receivedEvents.push({ type: event.type, error: null });
-      }
-    }));
-
-    subscriptions.push(scopedBus.get('job:progress').subscribe((event) => {
       if (event.payload.jobId === testJobId) {
         receivedEvents.push({ type: event.type, error: null });
       }
@@ -277,21 +188,6 @@ describe('SSE Event Flow - End-to-End', () => {
       }
     });
 
-    // Simulate progress
-    await eventStore.appendEvent({
-      type: 'job:progress',
-      resourceId: rId,
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        jobId: testJobId,
-        jobType: 'reference-annotation',
-        percentage: 50,
-        currentStep: 'Person',
-        message: 'Processing...'
-      }
-    });
-
     // Simulate failure
     await eventStore.appendEvent({
       type: 'job:failed',
@@ -308,11 +204,10 @@ describe('SSE Event Flow - End-to-End', () => {
 
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    expect(receivedEvents).toHaveLength(3);
+    expect(receivedEvents).toHaveLength(2);
     expect(receivedEvents[0].type).toBe('job:started');
-    expect(receivedEvents[1].type).toBe('job:progress');
-    expect(receivedEvents[2].type).toBe('job:failed');
-    expect(receivedEvents[2].error).toBe('AI service unavailable');
+    expect(receivedEvents[1].type).toBe('job:failed');
+    expect(receivedEvents[1].error).toBe('AI service unavailable');
 
     subscriptions.forEach(s => s.unsubscribe());
   });
@@ -327,7 +222,7 @@ describe('SSE Event Flow - End-to-End', () => {
     const scopedBus = coreEventBus.scope(String(rId));
     const subscriptions: Subscription[] = [];
 
-    subscriptions.push(scopedBus.get('job:progress').subscribe((event) => {
+    subscriptions.push(scopedBus.get('job:started').subscribe((event) => {
       if (event.payload.jobId === jobId1) {
         receivedJob1Events.push(event);
       }
@@ -341,26 +236,24 @@ describe('SSE Event Flow - End-to-End', () => {
 
     // Emit events for both jobs
     await eventStore.appendEvent({
-      type: 'job:progress',
+      type: 'job:started',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
       payload: {
         jobId: jobId1,
-        jobType: 'reference-annotation',
-        percentage: 50
+        jobType: 'reference-annotation'
       }
     });
 
     await eventStore.appendEvent({
-      type: 'job:progress',
+      type: 'job:started',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
       payload: {
         jobId: jobId2,
-        jobType: 'reference-annotation',
-        percentage: 50
+        jobType: 'reference-annotation'
       }
     });
 
@@ -448,20 +341,19 @@ describe('SSE Event Flow - End-to-End', () => {
     const testJobId = jobId('job-e2e-6');
     let notifyTime: number | null = null;
 
-    const subscription: Subscription = coreEventBus.scope(String(rId)).get('job:progress').subscribe(() => {
+    const subscription: Subscription = coreEventBus.scope(String(rId)).get('job:started').subscribe(() => {
       notifyTime = Date.now();
     });
 
     const emitTime = Date.now();
     await eventStore.appendEvent({
-      type: 'job:progress',
+      type: 'job:started',
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'reference-annotation',
-        percentage: 50
+        jobType: 'reference-annotation'
       }
     });
 

@@ -460,11 +460,22 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 				if json.Unmarshal(ev.Payload, &p) != nil || p.JobId != jobID {
 					continue // another job's broadcast
 				}
-				// JobProgress is the one progress shape for every job type;
-				// stage and message are always present. Narrating the stage
-				// too is what makes a minutes-long generation legible.
+				// JobProgress is the one progress shape for every job type.
+				// The wire carries a code + typed params, never a sentence —
+				// each client owns its own words, and this terminal's are
+				// English-only by design (ASSIST-PROGRESS-CONSOLIDATION P1).
+				// Narrating the stage too is what makes a minutes-long
+				// generation legible.
 				if p.Progress != nil {
-					u.log("%s %s", p.Progress.Stage, u.dim(p.Progress.Message))
+					// The CODE is the narration now. `stage` was removed as
+					// redundant denormalization (P5) — every code mapped to
+					// exactly one stage. An unrecognized or absent code prints
+					// NOTHING rather than an empty bullet: the previous form
+					// printed `stage` as the label with this as dim detail, so
+					// when both were empty it emitted a bare "▸ " with no text.
+					if text := progressText(p.Progress.Message); text != "" {
+						u.log("%s", u.dim(text))
+					}
 				}
 			case "job:fail":
 				var f semiont.JobFailCommand
@@ -502,7 +513,7 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 					// wording. Non-zero all the same: the caller asked for a
 					// resource and has none, and nothing downstream of a
 					// `yield --delegate && ...` should run.
-					u.fail("Declined (%s): %s", declined.Reason, declined.Message)
+					u.fail("Declined (%s): %s", declined.Reason, declineText(declined.Reason))
 					fmt.Fprintf(os.Stderr, "  Nothing was written to %s.\n", opts.storageURI)
 					return 1
 				}
@@ -531,6 +542,80 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 // result returns a zero-valued struct — err nil, Declined false. Only the
 // schema's `"declined": true` const separates the two, so only reading it
 // tells them apart.
+// declineText renders a decline reason as English terminal copy — the sibling
+// of progressText below, and for the same reason: the wire carries a CODE, and
+// each client owns its words. react-ui translates these five reasons into 29
+// locales; a terminal is English-only by design, which is exactly why the
+// backend must not compose the sentence for both.
+//
+// An unrecognized reason falls back to the raw code rather than an empty
+// string: for a CLI a bare token is still diagnostic, and a decline the user
+// cannot name is worse than an ugly one.
+func declineText(reason semiont.JobDeclinedResultReason) string {
+	switch reason {
+	case "no-text-layer":
+		return "this PDF is a scan whose text could not be recognized, so there was nothing to annotate"
+	case "encrypted":
+		return "this PDF is password-protected, so its text could not be read"
+	case "corrupt":
+		return "this PDF could not be read — the file may be damaged"
+	case "too-large":
+		return "this document is too large to extract text from"
+	case "empty":
+		return "this document has no text to annotate"
+	}
+	return string(reason)
+}
+
+// progressText renders a JobProgressMessage code as English terminal copy.
+// The wire deliberately carries no sentence — every client owns its words
+// (react-ui translates into 29 locales; this terminal is English-only by
+// design). Decodes the union through its raw JSON into one flat shape
+// rather than the generated As*() accessors, which unmarshal with no
+// discriminant check (see the decline handling below for that lesson).
+// An unknown or absent code renders "" and the caller falls back to the
+// stage — new codes degrade legibly instead of breaking old launchers.
+func progressText(m *semiont.JobProgressMessage) string {
+	if m == nil {
+		return ""
+	}
+	raw, err := m.MarshalJSON()
+	if err != nil {
+		return ""
+	}
+	var flat struct {
+		Code       string `json:"code"`
+		EntityType string `json:"entityType"`
+		Count      int    `json:"count"`
+		Kind       string `json:"kind"`
+	}
+	if json.Unmarshal(raw, &flat) != nil {
+		return ""
+	}
+	switch flat.Code {
+	case "loading":
+		return "Loading resource"
+	case "analyzing":
+		return "Analyzing text"
+	case "analyzing-tags":
+		return "Analyzing text for tags"
+	case "generating-resource":
+		return "Generating resource"
+	case "creating-resource":
+		return "Creating resource"
+	case "detecting-entities":
+		return fmt.Sprintf("Detecting %s entities", flat.EntityType)
+	case "creating-annotations":
+		return fmt.Sprintf("Creating %d annotations", flat.Count)
+	case "creating-tag-annotations":
+		return fmt.Sprintf("Creating %d tag annotations", flat.Count)
+	case "complete-created":
+		return fmt.Sprintf("Created %d %ss", flat.Count, flat.Kind)
+	default:
+		return ""
+	}
+}
+
 func declinedResult(r *semiont.JobResult) (semiont.JobDeclinedResult, bool) {
 	if r == nil {
 		return semiont.JobDeclinedResult{}, false

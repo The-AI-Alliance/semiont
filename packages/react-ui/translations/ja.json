@@ -1,8 +1,26 @@
 {
   "AssistProgress": {
     "close": "閉じる",
-    "paramsTitle": "リクエストパラメータ:",
-    "processing": "現在: {{label}}"
+    "codeLoading": "読み込み中…",
+    "codeAnalyzing": "マークアップ中…",
+    "codeAnalyzingTags": "タグをマークアップ中…",
+    "codeDetectingEntities": "マークアップ中…",
+    "codeCreatingAnnotations": "{{count}} 件の注釈を作成中…",
+    "codeCreatingTagAnnotations": "{{count}} 件のタグを作成中…",
+    "codeCompleteCreated": "{{count}} 件の{{kind}}を作成しました",
+    "codeGeneratingResource": "生成中…",
+    "codeCreatingResource": "リソースを作成中…",
+    "kindHighlight": "ハイライト",
+    "kindComment": "コメント",
+    "kindAssessment": "評価",
+    "kindReference": "参照",
+    "kindTag": "タグ",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}}（{{total}} 件中 {{done}} 件目）",
+    "paramEntityTypes": "エンティティタイプ",
+    "paramInstructions": "指示",
+    "paramTone": "トーン",
+    "paramDensity": "密度"
   },
   "PdfViewer": {
     "loadFailed": "PDF を読み込めませんでした",
@@ -430,5 +448,22 @@
     "searching": "検索中...",
     "search": "検索",
     "maxLengthCeiling": "{{model}} により {{maxOutputTokens}} トークンに制限されています。"
+  },
+  "OutcomeToasts": {
+    "createFailed": "注釈を作成できませんでした: {{detail}}",
+    "deleteFailed": "注釈を削除できませんでした: {{detail}}",
+    "referenceUpdateFailed": "参照を更新できませんでした: {{detail}}",
+    "unknownError": "不明なエラー",
+    "assistQuiet": "処理中です — 数分間更新がありません",
+    "resourceCreatedNamed": "「{{name}}」を作成しました",
+    "resourceCreated": "リソースを作成しました",
+    "annotationComplete": "注釈が完了しました",
+    "annotationFailed": "注釈に失敗しました",
+    "generationFailed": "生成に失敗しました: {{detail}}",
+    "decline_no-text-layer": "この PDF はスキャン画像で、テキストを認識できませんでした。",
+    "decline_encrypted": "この PDF はパスワード保護されているため、テキストを読み取れません。",
+    "decline_corrupt": "この PDF を読み取れませんでした。ファイルが破損している可能性があります。",
+    "decline_too-large": "この文書は大きすぎてテキストを抽出できません。",
+    "decline_empty": "この文書には注釈を付けるテキストがありません。"
   }
 }

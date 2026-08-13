@@ -310,7 +310,7 @@ describe('replay', () => {
     });
 
     it('skips job events without error', async () => {
-      const jobTypes = ['job:started', 'job:progress', 'job:completed', 'job:failed'];
+      const jobTypes = ['job:started', 'job:completed', 'job:failed'];
       const lines = jobTypes.map((type) =>
         makeStoredEvent({
           type,
@@ -324,7 +324,7 @@ describe('replay', () => {
       const resolver: ContentBlobResolver = () => undefined;
 
       const result = await replayEventStream(jsonl, eventBus, mockEventStore, resolver, mockContentStore);
-      expect(result.stats.eventsReplayed).toBe(4);
+      expect(result.stats.eventsReplayed).toBe(3);
       expect(result.stats.resourcesCreated).toBe(0);
       expect(result.stats.annotationsCreated).toBe(0);
     });

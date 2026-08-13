@@ -131,262 +131,89 @@
    Detection Progress Display
    ============================================ */
 
-.semiont-annotation-progress {
-  background-color: var(--semiont-bg-primary);
-  border-radius: 0.5rem;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  padding: 1rem;
-  border: 2px solid var(--semiont-color-blue-500);
-}
 
-[data-theme="dark"] .semiont-annotation-progress {
-  background-color: var(--semiont-color-gray-800);
-  border-color: var(--semiont-color-blue-600);
-}
-
-/* Header section */
-.semiont-annotation-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.75rem;
-}
-
-.semiont-annotation-title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--semiont-color-gray-900);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0;
-}
-
-[data-theme="dark"] .semiont-annotation-title {
-  color: var(--semiont-color-gray-100);
-}
-
-.semiont-annotation-sparkle {
-  font-size: 1.125rem;
-  animation: semiont-sparkle-infinite 1.5s ease-in-out infinite;
-}
-
-@keyframes semiont-sparkle-infinite {
-  0%, 100% {
-    opacity: 0.5;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.1);
-  }
-}
-
-.semiont-annotation-cancel {
-  color: var(--semiont-color-gray-600);
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: color 0.2s;
-}
-
-.semiont-annotation-cancel:hover {
-  color: var(--semiont-color-gray-900);
-}
-
-[data-theme="dark"] .semiont-annotation-cancel {
-  color: var(--semiont-color-gray-400);
-}
-
-[data-theme="dark"] .semiont-annotation-cancel:hover {
-  color: var(--semiont-color-gray-300);
-}
-
-/* Completed entity types log */
-.semiont-annotation-log {
-  margin-bottom: 0.75rem;
+/* ── Assist progress: TWO containers, not five ──────────────────────────────
+   The widget was `.semiont-assist-widget` > `.semiont-annotation-progress` >
+   `__params` > `__message`, each with its own border, padding and tint — four
+   nested boxes around one sentence of status. The outer `.semiont-assist-widget`
+   (above) already provides the card; this provides the status region inside it.
+   ASSIST-PROGRESS-CONSOLIDATION P3. */
+.semiont-assist-progress {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-}
-
-.semiont-annotation-log-item {
-  font-size: 0.75rem;
-  color: var(--semiont-color-gray-600);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-[data-theme="dark"] .semiont-annotation-log-item {
-  color: var(--semiont-color-gray-400);
-}
-
-.semiont-annotation-check {
-  color: var(--semiont-color-green-600);
-}
-
-[data-theme="dark"] .semiont-annotation-check {
-  color: var(--semiont-color-green-400);
-}
-
-.semiont-annotation-entity-type {
-  font-weight: 500;
-}
-
-.semiont-annotation-progress__params {
-  margin-bottom: 0.75rem;
-  padding: 0.5rem;
-  background-color: rgba(59, 130, 246, 0.05);
-  border-radius: 0.375rem;
-  border: 1px solid rgba(59, 130, 246, 0.2);
-}
-
-[data-theme="dark"] .semiont-annotation-progress__params {
-  background-color: rgba(59, 130, 246, 0.1);
-  border-color: rgba(59, 130, 246, 0.3);
-}
-
-.semiont-annotation-progress__params-title {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--semiont-color-blue-700);
-  margin-bottom: 0.25rem;
-}
-
-[data-theme="dark"] .semiont-annotation-progress__params-title {
-  color: var(--semiont-color-blue-300);
-}
-
-.semiont-annotation-progress__param {
-  font-size: 0.75rem;
-  color: var(--semiont-color-gray-700);
-}
-
-[data-theme="dark"] .semiont-annotation-progress__param {
-  color: var(--semiont-color-gray-300);
-}
-
-.semiont-annotation-progress__param-label {
-  font-weight: 500;
-}
-
-.semiont-annotation-progress__status {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.375rem;
   position: relative;
 }
 
-.semiont-annotation-progress__message {
+.semiont-assist-progress__status {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.5rem;
-  font-size: 0.875rem;
-  color: var(--semiont-color-gray-900);
-  font-weight: 500;
-  padding: 0.75rem 2.5rem 0.75rem 1rem; /* Extra right padding for close button */
-  border-radius: 0.5rem;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(37, 99, 235, 0.15));
-  border: 2px solid rgba(59, 130, 246, 0.3);
-  animation: semiont-detection-pulse 2s ease-in-out infinite;
+  padding-right: 1.5rem; /* room for the single control */
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  color: var(--semiont-text-primary);
 }
 
-.semiont-annotation-progress__close {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  width: 1.5rem;
-  height: 1.5rem;
-  border: none;
-  background-color: rgba(0, 0, 0, 0.1);
-  color: var(--semiont-color-gray-700);
-  font-size: 1.25rem;
-  line-height: 1;
-  border-radius: 0.25rem;
-  cursor: pointer;
+[data-theme="dark"] .semiont-assist-progress__status {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-assist-progress__icon {
+  flex: none;
+}
+
+/* The subject and the parameters are context for the status, not peers of it. */
+.semiont-assist-progress__subject,
+.semiont-assist-progress__params {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-secondary);
+}
+
+[data-theme="dark"] .semiont-assist-progress__subject,
+[data-theme="dark"] .semiont-assist-progress__params {
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-assist-progress__subject {
+  font-variant-numeric: tabular-nums;
+}
+
+.semiont-assist-progress__params {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
-.semiont-annotation-progress__close:hover {
-  background-color: rgba(0, 0, 0, 0.2);
-  color: var(--semiont-color-gray-900);
+.semiont-assist-progress__param-label {
+  font-weight: var(--semiont-font-medium);
 }
 
-[data-theme="dark"] .semiont-annotation-progress__close {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: var(--semiont-color-gray-300);
+/* One control, top-right, quiet until hovered. */
+.semiont-assist-progress__control {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 0.125rem 0.25rem;
+  line-height: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--semiont-text-secondary);
 }
 
-[data-theme="dark"] .semiont-annotation-progress__close:hover {
-  background-color: rgba(255, 255, 255, 0.2);
-  color: var(--semiont-color-gray-100);
+.semiont-assist-progress__control:hover {
+  color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-annotation-progress__message {
-  color: var(--semiont-color-gray-100);
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(37, 99, 235, 0.25));
-  border-color: rgba(59, 130, 246, 0.5);
+[data-theme="dark"] .semiont-assist-progress__control {
+  color: var(--semiont-text-secondary);
 }
 
-@keyframes semiont-detection-pulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.85;
-    transform: scale(1.02);
-  }
+[data-theme="dark"] .semiont-assist-progress__control:hover {
+  color: var(--semiont-text-primary);
 }
 
-.semiont-annotation-progress__icon {
-  font-size: 1.125rem;
-  animation: semiont-sparkle-rotate 2s linear infinite;
-}
-
-@keyframes semiont-sparkle-rotate {
-  0% {
-    transform: rotate(0deg) scale(1);
-    filter: brightness(1);
-  }
-  25% {
-    transform: rotate(90deg) scale(1.2);
-    filter: brightness(1.3);
-  }
-  50% {
-    transform: rotate(180deg) scale(1);
-    filter: brightness(1);
-  }
-  75% {
-    transform: rotate(270deg) scale(1.2);
-    filter: brightness(1.3);
-  }
-  100% {
-    transform: rotate(360deg) scale(1);
-    filter: brightness(1);
-  }
-}
-
-.semiont-annotation-progress__details {
-  font-size: 0.75rem;
-  color: var(--semiont-color-gray-500);
-}
-
-[data-theme="dark"] .semiont-annotation-progress__details {
-  color: var(--semiont-color-gray-400);
-}
-
-/* ============================================
-   Motivation-Specific Theming via data-type
-   ============================================ */
-
-/* Highlight */
 .semiont-assist-widget[data-type="highlight"] {
   border-color: var(--semiont-color-yellow-300);
 }
@@ -436,56 +263,17 @@
    ============================================ */
 
 /* Highlight - Yellow */
-.semiont-annotation-progress[data-type="highlight"] .semiont-annotation-progress__message {
-  background: linear-gradient(135deg, rgba(250, 204, 21, 0.15), rgba(234, 179, 8, 0.15));
-  border-color: rgba(250, 204, 21, 0.3);
+
+/* The shared progress-bar track paints `--semiont-bg-secondary` — which is
+   EXACTLY `.semiont-assist-widget`'s own background, so inside this card the
+   track is invisible and the fill floats with nothing to measure it against
+   (spotted in live testing, 2026-08-12). Scoped rather than changing the shared
+   track: elsewhere it sits on a different surface and is fine. Matches the
+   contrast the card's own border already uses. */
+.semiont-assist-progress .semiont-progress-bar {
+  background-color: var(--semiont-color-gray-200);
 }
 
-[data-theme="dark"] .semiont-annotation-progress[data-type="highlight"] .semiont-annotation-progress__message {
-  background: linear-gradient(135deg, rgba(250, 204, 21, 0.25), rgba(234, 179, 8, 0.25));
-  border-color: rgba(250, 204, 21, 0.5);
-}
-
-/* Comment - Gray */
-.semiont-annotation-progress[data-type="comment"] .semiont-annotation-progress__message {
-  background: linear-gradient(135deg, rgba(107, 114, 128, 0.15), rgba(75, 85, 99, 0.15));
-  border-color: rgba(107, 114, 128, 0.3);
-}
-
-[data-theme="dark"] .semiont-annotation-progress[data-type="comment"] .semiont-annotation-progress__message {
-  background: linear-gradient(135deg, rgba(107, 114, 128, 0.25), rgba(75, 85, 99, 0.25));
-  border-color: rgba(107, 114, 128, 0.5);
-}
-
-/* Assessment - Purple */
-.semiont-annotation-progress[data-type="assessment"] .semiont-annotation-progress__message {
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(147, 51, 234, 0.15));
-  border-color: rgba(168, 85, 247, 0.3);
-}
-
-[data-theme="dark"] .semiont-annotation-progress[data-type="assessment"] .semiont-annotation-progress__message {
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(147, 51, 234, 0.25));
-  border-color: rgba(168, 85, 247, 0.5);
-}
-
-/* Tag - Orange */
-.semiont-annotation-progress[data-type="tag"] .semiont-annotation-progress__message {
-  background: linear-gradient(135deg, rgba(251, 146, 60, 0.15), rgba(249, 115, 22, 0.15));
-  border-color: rgba(251, 146, 60, 0.3);
-}
-
-[data-theme="dark"] .semiont-annotation-progress[data-type="tag"] .semiont-annotation-progress__message {
-  background: linear-gradient(135deg, rgba(251, 146, 60, 0.25), rgba(249, 115, 22, 0.25));
-  border-color: rgba(251, 146, 60, 0.5);
-}
-
-/* Reference - Blue */
-.semiont-annotation-progress[data-type="reference"] .semiont-annotation-progress__message {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(37, 99, 235, 0.15));
-  border-color: rgba(59, 130, 246, 0.3);
-}
-
-[data-theme="dark"] .semiont-annotation-progress[data-type="reference"] .semiont-annotation-progress__message {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(37, 99, 235, 0.25));
-  border-color: rgba(59, 130, 246, 0.5);
+[data-theme="dark"] .semiont-assist-progress .semiont-progress-bar {
+  background-color: var(--semiont-color-gray-700);
 }

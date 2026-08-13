@@ -1,8 +1,26 @@
 {
   "AssistProgress": {
     "close": "Κλείσιμο",
-    "paramsTitle": "Παράμετροι αιτήματος:",
-    "processing": "Τρέχον: {{label}}"
+    "codeLoading": "Φόρτωση…",
+    "codeAnalyzing": "Επισήμανση…",
+    "codeAnalyzingTags": "Επισήμανση ετικετών…",
+    "codeDetectingEntities": "Επισήμανση…",
+    "codeCreatingAnnotations": "Δημιουργία {{count}} σχολιασμών…",
+    "codeCreatingTagAnnotations": "Δημιουργία {{count}} ετικετών…",
+    "codeCompleteCreated": "Δημιουργήθηκαν {{count}} {{kind}}",
+    "codeGeneratingResource": "Δημιουργία…",
+    "codeCreatingResource": "Δημιουργία πόρου…",
+    "kindHighlight": "επισημάνσεις",
+    "kindComment": "σχόλια",
+    "kindAssessment": "αξιολογήσεις",
+    "kindReference": "αναφορές",
+    "kindTag": "ετικέτες",
+    "subject": "{{label}}",
+    "subjectWithPosition": "{{label}} ({{done}} από {{total}})",
+    "paramEntityTypes": "Τύποι Οντοτήτων",
+    "paramInstructions": "Οδηγίες",
+    "paramTone": "Τόνος",
+    "paramDensity": "Πυκνότητα"
   },
   "PdfViewer": {
     "loadFailed": "Αποτυχία φόρτωσης PDF",
@@ -430,5 +448,22 @@
     "searching": "Αναζήτηση...",
     "search": "Αναζήτηση",
     "maxLengthCeiling": "Περιορισμένο σε {{maxOutputTokens}} tokens από το {{model}}."
+  },
+  "OutcomeToasts": {
+    "createFailed": "Δεν ήταν δυνατή η δημιουργία του σχολιασμού: {{detail}}",
+    "deleteFailed": "Δεν ήταν δυνατή η διαγραφή του σχολιασμού: {{detail}}",
+    "referenceUpdateFailed": "Δεν ήταν δυνατή η ενημέρωση της αναφοράς: {{detail}}",
+    "unknownError": "άγνωστο σφάλμα",
+    "assistQuiet": "Σε εξέλιξη — καμία ενημέρωση εδώ και λίγα λεπτά",
+    "resourceCreatedNamed": "Δημιουργήθηκε «{{name}}»",
+    "resourceCreated": "Ο πόρος δημιουργήθηκε",
+    "annotationComplete": "Ο σχολιασμός ολοκληρώθηκε",
+    "annotationFailed": "Ο σχολιασμός απέτυχε",
+    "generationFailed": "Η δημιουργία απέτυχε: {{detail}}",
+    "decline_no-text-layer": "Αυτό το PDF είναι σάρωση της οποίας το κείμενο δεν αναγνωρίστηκε.",
+    "decline_encrypted": "Αυτό το PDF προστατεύεται με κωδικό και το κείμενο δεν διαβάζεται.",
+    "decline_corrupt": "Δεν ήταν δυνατή η ανάγνωση αυτού του PDF — το αρχείο ίσως είναι κατεστραμμένο.",
+    "decline_too-large": "Αυτό το έγγραφο είναι πολύ μεγάλο για εξαγωγή κειμένου.",
+    "decline_empty": "Αυτό το έγγραφο δεν έχει κείμενο για σχολιασμό."
   }
 }

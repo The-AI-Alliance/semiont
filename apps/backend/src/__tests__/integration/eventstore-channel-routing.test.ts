@@ -179,14 +179,12 @@ describe('EventStore Channel Routing Integration', () => {
     const rId = resourceId('test-resource-4');
     const testJobId = jobId('job-test-4');
     const startedEvents: any[] = [];
-    const progressEvents: any[] = [];
     const completedEvents: any[] = [];
     const failedEvents: any[] = [];
 
     // Subscribe to all job event types
     const scopedBus = coreEventBus.scope(rId);
     const startedSub = scopedBus.get('job:started').subscribe(e => startedEvents.push(e));
-    const progressSub = scopedBus.get('job:progress').subscribe(e => progressEvents.push(e));
     const completedSub = scopedBus.get('job:completed').subscribe(e => completedEvents.push(e));
     const failedSub = scopedBus.get('job:failed').subscribe(e => failedEvents.push(e));
 
@@ -197,14 +195,6 @@ describe('EventStore Channel Routing Integration', () => {
       userId: userId('user-1'),
       version: 1,
       payload: { jobId: testJobId, jobType: 'tag-annotation', totalSteps: 2 }
-    });
-
-    await eventStore.appendEvent({
-      type: 'job:progress',
-      resourceId: rId,
-      userId: userId('user-1'),
-      version: 1,
-      payload: { jobId: testJobId, jobType: 'tag-annotation' as const, percentage: 50, currentStep: 'Processing...', message: 'Processing...' }
     });
 
     await eventStore.appendEvent({
@@ -222,16 +212,12 @@ describe('EventStore Channel Routing Integration', () => {
     expect(startedEvents).toHaveLength(1);
     expect(startedEvents[0].type).toBe('job:started');
 
-    expect(progressEvents).toHaveLength(1);
-    expect(progressEvents[0].type).toBe('job:progress');
-
     expect(completedEvents).toHaveLength(1);
     expect(completedEvents[0].type).toBe('job:completed');
 
     expect(failedEvents).toHaveLength(0); // No failed events emitted
 
     startedSub.unsubscribe();
-    progressSub.unsubscribe();
     completedSub.unsubscribe();
     failedSub.unsubscribe();
   });
