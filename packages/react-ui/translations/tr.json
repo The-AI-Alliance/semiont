@@ -16,7 +16,11 @@
     "kindReference": "referans",
     "kindTag": "etiket",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{total}} içinden {{done}})"
+    "subjectWithPosition": "{{label}} ({{total}} içinden {{done}})",
+    "paramEntityTypes": "Varlık Türleri",
+    "paramInstructions": "Talimatlar",
+    "paramTone": "Ton",
+    "paramDensity": "Yoğunluk"
   },
   "PdfViewer": {
     "loadFailed": "PDF yüklenemedi",

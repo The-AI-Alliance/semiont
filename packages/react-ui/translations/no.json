@@ -16,7 +16,11 @@
     "kindReference": "referanser",
     "kindTag": "etiketter",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} av {{total}})"
+    "subjectWithPosition": "{{label}} ({{done}} av {{total}})",
+    "paramEntityTypes": "Entitetstyper",
+    "paramInstructions": "Instruksjoner",
+    "paramTone": "Tone",
+    "paramDensity": "Tetthet"
   },
   "PdfViewer": {
     "loadFailed": "Kunne ikke laste PDF",

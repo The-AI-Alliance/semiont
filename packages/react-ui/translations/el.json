@@ -16,7 +16,11 @@
     "kindReference": "αναφορές",
     "kindTag": "ετικέτες",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} από {{total}})"
+    "subjectWithPosition": "{{label}} ({{done}} από {{total}})",
+    "paramEntityTypes": "Τύποι Οντοτήτων",
+    "paramInstructions": "Οδηγίες",
+    "paramTone": "Τόνος",
+    "paramDensity": "Πυκνότητα"
   },
   "PdfViewer": {
     "loadFailed": "Αποτυχία φόρτωσης PDF",

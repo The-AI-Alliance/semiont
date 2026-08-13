@@ -16,7 +16,11 @@
     "kindReference": "Verweise",
     "kindTag": "Tags",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} von {{total}})"
+    "subjectWithPosition": "{{label}} ({{done}} von {{total}})",
+    "paramEntityTypes": "Entitätstypen",
+    "paramInstructions": "Anweisungen",
+    "paramTone": "Tonfall",
+    "paramDensity": "Dichte"
   },
   "PdfViewer": {
     "loadFailed": "PDF konnte nicht geladen werden",

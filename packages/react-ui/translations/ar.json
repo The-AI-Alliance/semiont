@@ -16,7 +16,11 @@
     "kindReference": "مراجع",
     "kindTag": "وسوم",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} من {{total}})"
+    "subjectWithPosition": "{{label}} ({{done}} من {{total}})",
+    "paramEntityTypes": "أنواع الكيانات",
+    "paramInstructions": "التعليمات",
+    "paramTone": "النبرة",
+    "paramDensity": "الكثافة"
   },
   "PdfViewer": {
     "loadFailed": "فشل تحميل ملف PDF",

@@ -14,7 +14,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { components } from '@semiont/core';
-import { assistProgressCopy, assistSubjectCopy } from '../assist-progress-copy';
+import { assistProgressCopy, assistSubjectCopy, assistParamLabel } from '../assist-progress-copy';
 import en from '../../../translations/en.json';
 
 type JobProgressMessage = components['schemas']['JobProgressMessage'];
@@ -113,5 +113,30 @@ describe('assistSubjectCopy', () => {
     const { t, calls } = spy();
     assistSubjectCopy(t)('Person', 2, undefined);
     expect(calls[0]?.key).toBe('subject');
+  });
+});
+
+describe('assistParamLabel', () => {
+  /** Every label code the schema's enum permits. */
+  const CODES = ['entity-types', 'instructions', 'tone', 'density'] as const;
+
+  it.each(CODES)('names a real en.json key for %s', (code) => {
+    const { t, calls } = spy();
+    assistParamLabel(t)(code);
+    const key = calls[0]?.key;
+    expect(key).toBeDefined();
+    expect(key! in NAMESPACE).toBe(true);
+  });
+
+  it('never renders the wire code itself for a known label', () => {
+    // The codes are wire tokens — kebab-case and English. A user reading a
+    // Japanese UI must never see "entity-types".
+    const { t } = spy();
+    for (const code of CODES) expect(assistParamLabel(t)(code)).not.toBe(code);
+  });
+
+  it('falls back to the code for an unknown label rather than rendering nothing', () => {
+    const { t } = spy();
+    expect(assistParamLabel(t)('future-param')).toBe('future-param');
   });
 });

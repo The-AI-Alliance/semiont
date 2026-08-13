@@ -320,7 +320,7 @@ export async function processHighlightJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<HighlightDetectionResult>> {
-  onProgress(10, { code: 'loading' });
+  onProgress(10, { code: 'loading' }, { requestParams: detectionRequestParams(params) });
   onProgress(30, { code: 'analyzing' });
 
   const highlights = await AnnotationDetection.detectHighlights(
@@ -345,6 +345,24 @@ export async function processHighlightJob(
   };
 }
 
+/**
+ * The user's own inputs, echoed back for the progress widget. Labels are CODES
+ * (the client localizes them); values are the user's words and are shown
+ * verbatim. Absent or blank inputs are omitted rather than rendered as empty
+ * rows — "Instructions:" with nothing after it is noise, not information.
+ */
+function detectionRequestParams(p: {
+  instructions?: string;
+  tone?: string;
+  density?: number;
+}): Array<{ label: 'instructions' | 'tone' | 'density'; value: string }> {
+  const out: Array<{ label: 'instructions' | 'tone' | 'density'; value: string }> = [];
+  if (p.instructions?.trim()) out.push({ label: 'instructions', value: p.instructions.trim() });
+  if (p.tone?.trim()) out.push({ label: 'tone', value: p.tone.trim() });
+  if (p.density !== undefined) out.push({ label: 'density', value: String(p.density) });
+  return out;
+}
+
 export async function processCommentJob(
   content: string,
   inferenceClient: InferenceClient,
@@ -352,7 +370,7 @@ export async function processCommentJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<CommentDetectionResult>> {
-  onProgress(10, { code: 'loading' });
+  onProgress(10, { code: 'loading' }, { requestParams: detectionRequestParams(params) });
   onProgress(30, { code: 'analyzing' });
 
   const comments = await AnnotationDetection.detectComments(
@@ -392,7 +410,7 @@ export async function processAssessmentJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
 ): Promise<ProcessorResult<AssessmentDetectionResult>> {
-  onProgress(10, { code: 'loading' });
+  onProgress(10, { code: 'loading' }, { requestParams: detectionRequestParams(params) });
   onProgress(30, { code: 'analyzing' });
 
   const assessments = await AnnotationDetection.detectAssessments(
@@ -434,7 +452,7 @@ export async function processReferenceJob(
   logger: Logger,
 ): Promise<ProcessorResult<DetectionResult>> {
   const entityTypeNames = params.entityTypes.map(String);
-  const requestParams = [{ label: 'Entity types', value: entityTypeNames.join(', ') }];
+  const requestParams = [{ label: 'entity-types' as const, value: entityTypeNames.join(', ') }];
   const completedEntityTypes: Array<{ entityType: string; foundCount: number }> = [];
   let totalFound = 0;
   let totalEmitted = 0;

@@ -16,7 +16,11 @@
     "kindReference": "references",
     "kindTag": "tags",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} of {{total}})"
+    "subjectWithPosition": "{{label}} ({{done}} of {{total}})",
+    "paramEntityTypes": "Entity Types",
+    "paramInstructions": "Instructions",
+    "paramTone": "Tone",
+    "paramDensity": "Density"
   },
   "PdfViewer": {
     "loadFailed": "Failed to load PDF",

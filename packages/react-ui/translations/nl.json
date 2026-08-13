@@ -16,7 +16,11 @@
     "kindReference": "verwijzingen",
     "kindTag": "tags",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} van {{total}})"
+    "subjectWithPosition": "{{label}} ({{done}} van {{total}})",
+    "paramEntityTypes": "Entiteitstypen",
+    "paramInstructions": "Instructies",
+    "paramTone": "Toon",
+    "paramDensity": "Dichtheid"
   },
   "PdfViewer": {
     "loadFailed": "Kan de PDF niet laden",

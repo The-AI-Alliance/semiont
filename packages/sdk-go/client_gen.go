@@ -493,6 +493,30 @@ func (e JobDeclinedResultReason) Valid() bool {
 	}
 }
 
+// Defines values for JobProgressRequestParamsLabel.
+const (
+	Density      JobProgressRequestParamsLabel = "density"
+	EntityTypes  JobProgressRequestParamsLabel = "entity-types"
+	Instructions JobProgressRequestParamsLabel = "instructions"
+	Tone         JobProgressRequestParamsLabel = "tone"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressRequestParamsLabel enum.
+func (e JobProgressRequestParamsLabel) Valid() bool {
+	switch e {
+	case Density:
+		return true
+	case EntityTypes:
+		return true
+	case Instructions:
+		return true
+	case Tone:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for JobProgressMessage0Code.
 const (
 	Analyzing          JobProgressMessage0Code = "analyzing"
@@ -2631,9 +2655,12 @@ type JobProgress struct {
 	// ProcessedEntityTypes Entity types processed so far (reference-annotation)
 	ProcessedEntityTypes *int `json:"processedEntityTypes,omitempty"`
 
-	// RequestParams Echoed job parameters for display in the progress UI (e.g. entity types or categories the user asked to detect)
+	// RequestParams Echoed job parameters for display in the progress UI. `label` is a CODE, not a sentence — the client owns the wording, same rule as the progress message. `value` is the user's own input (an entity-type list, their instructions) and is deliberately NOT translated: it is their words, not ours.
 	RequestParams *[]struct {
-		Label string `json:"label"`
+		// Label Which parameter this is. The client renders a localized name for it.
+		Label JobProgressRequestParamsLabel `json:"label"`
+
+		// Value The user's own input, shown verbatim.
 		Value string `json:"value"`
 	} `json:"requestParams,omitempty"`
 
@@ -2643,6 +2670,9 @@ type JobProgress struct {
 	// TotalEntityTypes Total entity types to process (reference-annotation)
 	TotalEntityTypes *int `json:"totalEntityTypes,omitempty"`
 }
+
+// JobProgressRequestParamsLabel Which parameter this is. The client renders a localized name for it.
+type JobProgressRequestParamsLabel string
 
 // JobProgressMessage What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). The vocabulary is the census of every onProgress call site in @semiont/jobs (.plans/ASSIST-PROGRESS-CONSOLIDATION.md P1, 2026-08-12); extending it means adding a variant here and copy in every client, gated by the locale-completeness check.
 type JobProgressMessage struct {

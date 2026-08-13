@@ -16,7 +16,11 @@
     "kindReference": "การอ้างอิง",
     "kindTag": "แท็ก",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} จาก {{total}})"
+    "subjectWithPosition": "{{label}} ({{done}} จาก {{total}})",
+    "paramEntityTypes": "ประเภทเอนทิตี",
+    "paramInstructions": "คำสั่ง",
+    "paramTone": "น้ำเสียง",
+    "paramDensity": "ความหนาแน่น"
   },
   "PdfViewer": {
     "loadFailed": "โหลด PDF ไม่สำเร็จ",

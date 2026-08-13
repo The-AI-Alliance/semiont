@@ -32,6 +32,12 @@ export interface AssistProgressTranslations {
   inProgress: string;
   /** The subject line: what is being worked on, with its position when known. */
   subject: (label: string, done?: number, total?: number) => string;
+  /**
+   * Localized NAME for an echoed request parameter. The wire sends a code
+   * (`instructions`, `tone`, …); the VALUE beside it is the user's own words
+   * and is never translated.
+   */
+  paramLabel: (code: string) => string;
   /** Completed entity-type log line (reference flow only). */
   found?: (count: number) => string;
 }
@@ -98,12 +104,15 @@ export function AssistProgress({
   // AssistSection's highlight fixture.
   const params = total === 1 ? undefined : progress.requestParams;
 
-  // A bar appears when there is something to fill it. `percentage` is the
-  // job's own estimate; the fraction is the honest floor when it is absent.
-  const percent =
-    progress.percentage ??
-    (done !== undefined && total ? Math.round((done / total) * 100) : undefined);
-  const showBar = done !== undefined && total !== undefined && percent !== undefined;
+  // `percentage` is REQUIRED on JobProgress, so every progress event can fill a
+  // bar — the bar's existence is not conditional on anything.
+  //
+  // It used to also require the fraction (`done`/`total`), which SILENTLY
+  // REMOVED THE TAG FLOW'S BAR: `processTagJob` reports percentage only and
+  // emits no category fields at all, so `done`/`total` are permanently
+  // undefined there (caught in review of PR #1179). The fraction is a richer,
+  // optional signal that only flows counting per-item work have; it belongs to
+  // the SUBJECT line, not to whether a bar exists.
 
   return (
     <div className="semiont-assist-progress" data-type={dataType} data-ended={ended}>
@@ -113,7 +122,9 @@ export function AssistProgress({
               per-parameter labels: a bare "5" for Density says nothing. */}
           {params.map((param, idx) => (
             <span key={idx} className="semiont-assist-progress__param">
-              <span className="semiont-assist-progress__param-label">{param.label}:</span>{' '}
+              <span className="semiont-assist-progress__param-label">
+                {tr.paramLabel(param.label)}:
+              </span>{' '}
               <span>{param.value}</span>
             </span>
           ))}
@@ -141,15 +152,13 @@ export function AssistProgress({
         </div>
       )}
 
-      {showBar && (
-        <div className="semiont-progress-bar" data-testid="semiont-assist-bar">
-          <div
-            className="semiont-progress-bar__fill"
-            data-type={dataType}
-            style={{ width: `${percent}%` }}
-          />
-        </div>
-      )}
+      <div className="semiont-progress-bar" data-testid="semiont-assist-bar">
+        <div
+          className="semiont-progress-bar__fill"
+          data-type={dataType}
+          style={{ width: `${progress.percentage}%` }}
+        />
+      </div>
 
       {/* D3: ONE control, its meaning set by the lifecycle. */}
       {(ended ? onDismiss : onCancel) && (

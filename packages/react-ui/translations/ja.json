@@ -16,7 +16,11 @@
     "kindReference": "参照",
     "kindTag": "タグ",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}}（{{total}} 件中 {{done}} 件目）"
+    "subjectWithPosition": "{{label}}（{{total}} 件中 {{done}} 件目）",
+    "paramEntityTypes": "エンティティタイプ",
+    "paramInstructions": "指示",
+    "paramTone": "トーン",
+    "paramDensity": "密度"
   },
   "PdfViewer": {
     "loadFailed": "PDF を読み込めませんでした",

@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { assistProgressCopy, assistSubjectCopy } from '../../../lib/assist-progress-copy';
+import { assistProgressCopy, assistSubjectCopy, assistParamLabel } from '../../../lib/assist-progress-copy';
 import type { components, ResourceDescriptor, ResourceId, GatheredContext, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import { annotationId } from '@semiont/core';
@@ -495,6 +495,7 @@ export function ResourceViewerPage({
                 close: ta('close'),
                 message: assistProgressCopy(ta),
                 subject: assistSubjectCopy(ta),
+                paramLabel: assistParamLabel(ta),
               }}
             />
           )}

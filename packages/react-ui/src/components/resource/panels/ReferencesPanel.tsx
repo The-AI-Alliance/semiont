@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { assistProgressCopy, assistSubjectCopy } from '../../../lib/assist-progress-copy';
+import { assistProgressCopy, assistSubjectCopy, assistParamLabel } from '../../../lib/assist-progress-copy';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
@@ -379,6 +379,7 @@ export function ReferencesPanel({
                 close: ta('close'),
                 message: assistProgressCopy(ta),
                 subject: assistSubjectCopy(ta),
+                paramLabel: assistParamLabel(ta),
               },
             }}
             form={

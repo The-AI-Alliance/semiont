@@ -63,15 +63,23 @@
     },
     "requestParams": {
       "type": "array",
-      "description": "Echoed job parameters for display in the progress UI (e.g. entity types or categories the user asked to detect)",
+      "description": "Echoed job parameters for display in the progress UI. `label` is a CODE, not a sentence \u2014 the client owns the wording, same rule as the progress message. `value` is the user's own input (an entity-type list, their instructions) and is deliberately NOT translated: it is their words, not ours.",
       "items": {
         "type": "object",
         "properties": {
           "label": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "entity-types",
+              "instructions",
+              "tone",
+              "density"
+            ],
+            "description": "Which parameter this is. The client renders a localized name for it."
           },
           "value": {
-            "type": "string"
+            "type": "string",
+            "description": "The user's own input, shown verbatim."
           }
         },
         "required": [

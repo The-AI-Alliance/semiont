@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { assistProgressCopy, assistSubjectCopy } from '../../../lib/assist-progress-copy';
+import { assistProgressCopy, assistSubjectCopy, assistParamLabel } from '../../../lib/assist-progress-copy';
 import { isReady } from '@semiont/sdk';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useObservable } from '../../../hooks/useObservable';
@@ -372,6 +372,7 @@ export function TaggingPanel({
                 close: ta('close'),
                 message: assistProgressCopy(ta),
                 subject: assistSubjectCopy(ta),
+                paramLabel: assistParamLabel(ta),
               },
             }}
             form={

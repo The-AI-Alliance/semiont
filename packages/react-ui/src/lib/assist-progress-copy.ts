@@ -73,3 +73,23 @@ export function assistSubjectCopy(
       ? t('subject', { label })
       : t('subjectWithPosition', { label, done: done + 1, total });
 }
+
+/**
+ * Localized NAME for an echoed request parameter. The value beside it is the
+ * user's own input and stays verbatim — translating someone's instructions
+ * back at them would be absurd.
+ *
+ * Unknown codes fall back to the code itself: a future parameter shows an ugly
+ * name rather than an empty label, and the locale gate will flag the gap.
+ */
+export function assistParamLabel(t: Translate): (code: string) => string {
+  return (code) => {
+    switch (code) {
+      case 'entity-types': return t('paramEntityTypes');
+      case 'instructions': return t('paramInstructions');
+      case 'tone': return t('paramTone');
+      case 'density': return t('paramDensity');
+      default: return code;
+    }
+  };
+}

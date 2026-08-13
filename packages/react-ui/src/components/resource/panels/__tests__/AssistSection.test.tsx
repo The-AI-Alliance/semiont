@@ -129,8 +129,8 @@ describe('AssistSection', () => {
           progress={{
             percentage: 0,
             requestParams: [
-              { label: 'Instructions', value: 'Find important points' },
-              { label: 'Density', value: '5' },
+              { label: 'instructions', value: 'Find important points' },
+              { label: 'density', value: '5' },
             ],
           }}
         />
@@ -138,9 +138,13 @@ describe('AssistSection', () => {
 
       expect(screen.getByTestId('semiont-assist-params')).toBeInTheDocument();
       expect(screen.getByText('Find important points')).toBeInTheDocument();
-      expect(screen.getByText(/Instructions:/)).toBeInTheDocument();
       expect(screen.getByText('5')).toBeInTheDocument();
-      expect(screen.getByText(/Density:/)).toBeInTheDocument();
+      // The wire carries a CODE; the label the user reads is looked up. The
+      // mock translator renders `<namespace>.<key>`, so seeing the key here is
+      // the assertion that the raw code never reaches the screen.
+      expect(screen.getByText(/AssistProgress\.paramInstructions:/)).toBeInTheDocument();
+      expect(screen.getByText(/AssistProgress\.paramDensity:/)).toBeInTheDocument();
+      expect(screen.queryByText(/instructions:/)).toBeNull();
     });
 
     it('should hide form when progress is present', () => {

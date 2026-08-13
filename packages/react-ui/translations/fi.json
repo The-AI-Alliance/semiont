@@ -16,7 +16,11 @@
     "kindReference": "viitettä",
     "kindTag": "tunnistetta",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}}/{{total}})"
+    "subjectWithPosition": "{{label}} ({{done}}/{{total}})",
+    "paramEntityTypes": "Entiteettityypit",
+    "paramInstructions": "Ohjeet",
+    "paramTone": "Sävy",
+    "paramDensity": "Tiheys"
   },
   "PdfViewer": {
     "loadFailed": "PDF-tiedoston lataus epäonnistui",

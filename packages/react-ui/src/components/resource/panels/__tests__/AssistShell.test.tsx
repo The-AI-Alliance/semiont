@@ -20,6 +20,7 @@ const TR = {
   inProgress: 'tr.inProgress',
   message: () => 'tr.code',
   subject: (l: string) => `tr.subject(${l})`,
+  paramLabel: (c: string) => `tr.param(${c})`,
 };
 
 describe('AssistShell', () => {

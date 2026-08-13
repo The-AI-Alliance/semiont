@@ -16,7 +16,11 @@
     "kindReference": "הפניות",
     "kindTag": "תגיות",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} מתוך {{total}})"
+    "subjectWithPosition": "{{label}} ({{done}} מתוך {{total}})",
+    "paramEntityTypes": "סוגי ישויות",
+    "paramInstructions": "הוראות",
+    "paramTone": "טון",
+    "paramDensity": "צפיפות"
   },
   "PdfViewer": {
     "loadFailed": "טעינת ה-PDF נכשלה",

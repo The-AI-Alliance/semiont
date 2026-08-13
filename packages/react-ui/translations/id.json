@@ -16,7 +16,11 @@
     "kindReference": "referensi",
     "kindTag": "tag",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} dari {{total}})"
+    "subjectWithPosition": "{{label}} ({{done}} dari {{total}})",
+    "paramEntityTypes": "Tipe Entitas",
+    "paramInstructions": "Instruksi",
+    "paramTone": "Nada",
+    "paramDensity": "Kepadatan"
   },
   "PdfViewer": {
     "loadFailed": "Gagal memuat PDF",

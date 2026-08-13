@@ -16,7 +16,11 @@
     "kindReference": "ارجاع",
     "kindTag": "برچسب",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} از {{total}})"
+    "subjectWithPosition": "{{label}} ({{done}} از {{total}})",
+    "paramEntityTypes": "انواع موجودیت",
+    "paramInstructions": "دستورالعمل‌ها",
+    "paramTone": "لحن",
+    "paramDensity": "تراکم"
   },
   "PdfViewer": {
     "loadFailed": "بارگذاری PDF ناموفق بود",

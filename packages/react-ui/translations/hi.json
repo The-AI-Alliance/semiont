@@ -16,7 +16,11 @@
     "kindReference": "संदर्भ",
     "kindTag": "टैग",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{total}} में से {{done}})"
+    "subjectWithPosition": "{{label}} ({{total}} में से {{done}})",
+    "paramEntityTypes": "इकाई प्रकार",
+    "paramInstructions": "निर्देश",
+    "paramTone": "स्वर",
+    "paramDensity": "घनत्व"
   },
   "PdfViewer": {
     "loadFailed": "PDF लोड नहीं हो सका",

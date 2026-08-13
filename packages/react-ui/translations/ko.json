@@ -16,7 +16,11 @@
     "kindReference": "참조",
     "kindTag": "태그",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{total}}개 중 {{done}}번째)"
+    "subjectWithPosition": "{{label}} ({{total}}개 중 {{done}}번째)",
+    "paramEntityTypes": "개체 유형",
+    "paramInstructions": "지시사항",
+    "paramTone": "톤",
+    "paramDensity": "밀도"
   },
   "PdfViewer": {
     "loadFailed": "PDF를 로드하지 못했습니다",

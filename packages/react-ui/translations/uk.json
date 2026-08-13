@@ -16,7 +16,11 @@
     "kindReference": "посилань",
     "kindTag": "міток",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} з {{total}})"
+    "subjectWithPosition": "{{label}} ({{done}} з {{total}})",
+    "paramEntityTypes": "Типи сутностей",
+    "paramInstructions": "Інструкції",
+    "paramTone": "Тон",
+    "paramDensity": "Щільність"
   },
   "PdfViewer": {
     "loadFailed": "Не вдалося завантажити PDF",

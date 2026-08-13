@@ -16,7 +16,11 @@
     "kindReference": "odkazů",
     "kindTag": "štítků",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} z {{total}})"
+    "subjectWithPosition": "{{label}} ({{done}} z {{total}})",
+    "paramEntityTypes": "Typy entit",
+    "paramInstructions": "Pokyny",
+    "paramTone": "Tón",
+    "paramDensity": "Hustota"
   },
   "PdfViewer": {
     "loadFailed": "Nepodařilo se načíst PDF",

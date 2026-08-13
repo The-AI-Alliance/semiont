@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { assistProgressCopy, assistSubjectCopy } from '../../../lib/assist-progress-copy';
+import { assistProgressCopy, assistSubjectCopy, assistParamLabel } from '../../../lib/assist-progress-copy';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { SemiontSession } from '@semiont/sdk';
 import type { Motivation, components } from '@semiont/core';
@@ -97,6 +97,7 @@ export function AssistSection({
           close: ta('close'),
           message: assistProgressCopy(ta),
           subject: assistSubjectCopy(ta),
+                paramLabel: assistParamLabel(ta),
         },
       }}
       form={

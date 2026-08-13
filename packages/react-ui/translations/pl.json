@@ -16,7 +16,11 @@
     "kindReference": "odniesień",
     "kindTag": "tagów",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} z {{total}})"
+    "subjectWithPosition": "{{label}} ({{done}} z {{total}})",
+    "paramEntityTypes": "Typy encji",
+    "paramInstructions": "Instrukcje",
+    "paramTone": "Ton",
+    "paramDensity": "Gęstość"
   },
   "PdfViewer": {
     "loadFailed": "Nie udało się załadować PDF",

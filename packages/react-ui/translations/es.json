@@ -16,7 +16,11 @@
     "kindReference": "referencias",
     "kindTag": "etiquetas",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} de {{total}})"
+    "subjectWithPosition": "{{label}} ({{done}} de {{total}})",
+    "paramEntityTypes": "Tipos de Entidad",
+    "paramInstructions": "Instrucciones",
+    "paramTone": "Tono",
+    "paramDensity": "Densidad"
   },
   "PdfViewer": {
     "loadFailed": "No se pudo cargar el PDF",

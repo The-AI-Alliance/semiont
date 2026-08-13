@@ -16,7 +16,11 @@
     "kindReference": "referenser",
     "kindTag": "taggar",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} av {{total}})"
+    "subjectWithPosition": "{{label}} ({{done}} av {{total}})",
+    "paramEntityTypes": "Entitetstyper",
+    "paramInstructions": "Instruktioner",
+    "paramTone": "Ton",
+    "paramDensity": "Täthet"
   },
   "PdfViewer": {
     "loadFailed": "Det gick inte att läsa in PDF:en",

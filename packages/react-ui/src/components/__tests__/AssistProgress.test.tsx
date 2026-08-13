@@ -125,6 +125,7 @@ const T3 = (over: Partial<AssistProgressTranslations> = {}): AssistProgressTrans
     message: (m: any) => `tr.code(${m.code})`,
     subject: (label: string, done?: number, total?: number) =>
       done === undefined ? `tr.subject(${label})` : `tr.subject(${label}|${done}/${total})`,
+    paramLabel: (code: string) => `tr.param(${code})`,
     found: (n: number) => `tr.found(${n})`,
     ...over,
   }) as AssistProgressTranslations;
@@ -204,29 +205,37 @@ describe('AssistProgress — P3 consolidation', () => {
     expect(screen.getByTestId(BAR)).toBeInTheDocument();
   });
 
-  it('A4: the TAG flow keeps its fraction and bar from the same fields', () => {
+  it('A4: the TAG flow gets a bar from percentage alone — it sends no fraction', () => {
+    // The REAL tag shape. `processTagJob` emits percentage and nothing else:
+    // no currentCategory, no processedCategories, no totalCategories. An
+    // earlier version of this test invented those fields and so "passed" while
+    // the tag flow had silently lost its bar (PR #1179 review).
     render(
       <AssistProgress
         progress={{
-          percentage: 50,
+          percentage: 60,
           message: { code: 'creating-tag-annotations', count: 4 },
-          currentCategory: 'Rule', processedCategories: 2, totalCategories: 5,
         } as JobProgress}
         dataType="tag" translations={T3()}
       />,
     );
-    expect(screen.getByTestId(SUBJECT).textContent).toBe('tr.subject(Rule|2/5)');
     expect(screen.getByTestId(BAR)).toBeInTheDocument();
+    // No fraction to show, so no subject line — and that is correct, not a gap.
+    expect(screen.queryByTestId(SUBJECT)).toBeNull();
   });
 
-  it('A4: no bar when there is nothing to fill it', () => {
+  it('A4: the bar is unconditional — percentage is required on every event', () => {
+    // Replaces a test that asserted "no bar when nothing fills it". That state
+    // is unreachable: `percentage` is a REQUIRED field on JobProgress, so there
+    // is always something to fill a bar with. Asserting an impossible case is
+    // how the tag regression hid.
     render(
       <AssistProgress
         progress={{ percentage: 10, message: { code: 'loading' } } as JobProgress}
         dataType="comment" translations={T3()}
       />,
     );
-    expect(screen.queryByTestId(BAR)).toBeNull();
+    expect(screen.getByTestId(BAR)).toBeInTheDocument();
   });
 
   it('A5: every rendered string is traceable to translations', () => {
@@ -259,7 +268,7 @@ describe('AssistProgress — P3 consolidation', () => {
     // The discriminator is the COUNT, not the copy — splitting a localized
     // string on commas to decide whether to show it would be its own defect.
     const oneType = detecting({
-      requestParams: [{ label: 'Entity types', value: 'Person' }],
+      requestParams: [{ label: 'entity-types', value: 'Person' }],
       totalEntityTypes: 1,
     });
     const { unmount } = render(
@@ -269,7 +278,7 @@ describe('AssistProgress — P3 consolidation', () => {
     unmount();
 
     const many = detecting({
-      requestParams: [{ label: 'Entity types', value: 'Person, Organization, Location' }],
+      requestParams: [{ label: 'entity-types', value: 'Person, Organization, Location' }],
       totalEntityTypes: 3,
     });
     render(<AssistProgress progress={many} dataType="reference" translations={T3()} />);

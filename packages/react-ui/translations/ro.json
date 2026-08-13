@@ -16,7 +16,11 @@
     "kindReference": "referințe",
     "kindTag": "etichete",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} din {{total}})"
+    "subjectWithPosition": "{{label}} ({{done}} din {{total}})",
+    "paramEntityTypes": "Tipuri de entitate",
+    "paramInstructions": "Instrucțiuni",
+    "paramTone": "Ton",
+    "paramDensity": "Densitate"
   },
   "PdfViewer": {
     "loadFailed": "Încărcarea PDF-ului a eșuat",

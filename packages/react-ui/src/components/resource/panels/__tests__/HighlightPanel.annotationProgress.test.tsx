@@ -173,8 +173,8 @@ describe('HighlightPanel + AssistSection Integration', () => {
           progress={{
             percentage: 0,
             requestParams: [
-              { label: 'Instructions', value: 'Find important points' },
-              { label: 'Density', value: '5' },
+              { label: 'instructions', value: 'Find important points' },
+              { label: 'density', value: '5' },
             ],
           }}
           annotateMode={true}

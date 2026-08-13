@@ -16,7 +16,11 @@
     "kindReference": "tham chiếu",
     "kindTag": "thẻ",
     "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}}/{{total}})"
+    "subjectWithPosition": "{{label}} ({{done}}/{{total}})",
+    "paramEntityTypes": "Loại thực thể",
+    "paramInstructions": "Hướng dẫn",
+    "paramTone": "Giọng điệu",
+    "paramDensity": "Mật độ"
   },
   "PdfViewer": {
     "loadFailed": "Không tải được PDF",
