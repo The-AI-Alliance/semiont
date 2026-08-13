@@ -151,9 +151,11 @@ describe('processHighlightJob', () => {
     // Highlights carry no body — motivation alone is the content per W3C.
     expect((result.annotations[0] as Record<string, unknown>).body).toBeUndefined();
     expect(result.result).toEqual({ highlightsFound: 2, highlightsCreated: 2 });
-    expect(progress).toHaveBeenCalledWith(10, { code: 'loading' });
+    // The run's own parameters ride every event, including the first and last.
+    const echo = { requestParams: [{ label: 'density', value: '5' }] };
+    expect(progress).toHaveBeenCalledWith(10, { code: 'loading' }, echo);
     expect(progress).toHaveBeenLastCalledWith(
-      100, { code: 'complete-created', count: 2, kind: 'highlight' },
+      100, { code: 'complete-created', count: 2, kind: 'highlight' }, echo,
     );
   });
 
@@ -1332,6 +1334,11 @@ function messagesFrom(progress: ReturnType<typeof vi.fn>): unknown[] {
   return progress.mock.calls.map(call => call[1]);
 }
 
+/** The `extra` payload of every event, in order (undefined where none). */
+function extrasFrom(progress: ReturnType<typeof vi.fn>): Array<Record<string, unknown> | undefined> {
+  return progress.mock.calls.map(call => call[2]);
+}
+
 describe('progress messages are codes, not prose (A6)', () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -1421,5 +1428,96 @@ describe('progress messages are codes, not prose (A6)', () => {
       expect(typeof message).toBe('object');
       expect(message).toHaveProperty('code');
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// The user's own request, echoed for the whole run.
+//
+// The client's `progress$` REPLACES its value on each event, so a field
+// describing the RUN (not the moment) must ride EVERY event — sent once, it
+// flashes at 10% and vanishes. The comment flow showed "Marking…" and nothing
+// else for the rest of the run because of exactly that.
+// ─────────────────────────────────────────────────────────────────────
+describe('request parameters ride every event', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('comment: every event carries the instructions, as a CODE plus the raw value', async () => {
+    const content = 'A critical finding.';
+    vi.mocked(AnnotationDetection.detectComments).mockResolvedValue([
+      { exact: 'critical', start: 2, end: 10, comment: 'note' },
+    ]);
+
+    const progress = vi.fn();
+    await processCommentJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, instructions: 'Focus on methodology', tone: 'scholarly', density: 5 },
+      textBuild(content), progress,
+    );
+
+    const extras = extrasFrom(progress);
+    expect(extras.length).toBeGreaterThan(1);
+    for (const extra of extras) {
+      expect(extra?.requestParams).toEqual([
+        { label: 'instructions', value: 'Focus on methodology' },
+        { label: 'tone', value: 'scholarly' },
+        { label: 'density', value: '5' },
+      ]);
+    }
+  });
+
+  it('the label is a wire code and the value is the user\'s words, verbatim', async () => {
+    // The label is localized by the client; the value never is — translating
+    // someone's own instructions back at them would be absurd.
+    const content = 'A critical finding.';
+    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+      { exact: 'critical', start: 2, end: 10 },
+    ]);
+
+    const progress = vi.fn();
+    await processHighlightJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, instructions: '  Mark the Führer-era citations  ' },
+      textBuild(content), progress,
+    );
+
+    const params = extrasFrom(progress)[0]?.requestParams as Array<{ label: string; value: string }>;
+    expect(params[0]?.label).toBe('instructions');
+    expect(params[0]?.value).toBe('Mark the Führer-era citations');
+  });
+
+  it('omits the block entirely when the user supplied nothing to echo', async () => {
+    // An empty array would render an empty box. Absent means absent.
+    const content = 'A critical finding.';
+    vi.mocked(AnnotationDetection.detectAssessments).mockResolvedValue([
+      { exact: 'critical', start: 2, end: 10, assessment: 'weak' },
+    ]);
+
+    const progress = vi.fn();
+    await processAssessmentJob(
+      content, makeInferenceClient(), { resourceId: RID }, textBuild(content), progress,
+    );
+
+    for (const extra of extrasFrom(progress)) {
+      expect(extra?.requestParams).toBeUndefined();
+    }
+  });
+
+  it('reference: the entity types survive to the terminal event too', async () => {
+    vi.mocked(extractEntities).mockResolvedValue([
+      { exact: 'Paris', entityType: 'Location' } as never,
+    ]);
+
+    const progress = vi.fn();
+    await processReferenceJob(
+      'Paris', makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild('Paris'), progress, LOGGER,
+    );
+
+    const extras = extrasFrom(progress);
+    expect(extras[extras.length - 1]?.requestParams).toEqual([
+      { label: 'entity-types', value: 'Location' },
+    ]);
   });
 });
