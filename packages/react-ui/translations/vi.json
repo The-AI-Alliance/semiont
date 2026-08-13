@@ -15,12 +15,16 @@
     "kindAssessment": "đánh giá",
     "kindReference": "tham chiếu",
     "kindTag": "thẻ",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}}/{{total}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{done}}/{{total}})",
     "paramEntityTypes": "Loại thực thể",
     "paramInstructions": "Hướng dẫn",
     "paramTone": "Giọng điệu",
-    "paramDensity": "Mật độ"
+    "paramDensity": "Mật độ",
+    "subjectKindEntityType": "Loại thực thể",
+    "subjectKindCategory": "Danh mục",
+    "cancel": "Hủy",
+    "inProgress": "Đang chú thích..."
   },
   "PdfViewer": {
     "loadFailed": "Không tải được PDF",

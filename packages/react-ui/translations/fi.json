@@ -15,12 +15,16 @@
     "kindAssessment": "arviota",
     "kindReference": "viitettä",
     "kindTag": "tunnistetta",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}}/{{total}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{done}}/{{total}})",
     "paramEntityTypes": "Entiteettityypit",
     "paramInstructions": "Ohjeet",
     "paramTone": "Sävy",
-    "paramDensity": "Tiheys"
+    "paramDensity": "Tiheys",
+    "subjectKindEntityType": "Entiteettityyppi",
+    "subjectKindCategory": "Kategoria",
+    "cancel": "Peruuta",
+    "inProgress": "Merkinnöitä tehdään..."
   },
   "PdfViewer": {
     "loadFailed": "PDF-tiedoston lataus epäonnistui",

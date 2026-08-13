@@ -67,6 +67,9 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       descriptiveReferencesTooltip: 'Also find phrases like \'the CEO\', \'the tech giant\', \'the physicist\' (in addition to names)',
       cancel: 'Cancel',
       annotating: 'Annotating...',
+      // CLEAN-PROGRESS D3: the widget's own strings come from the
+      // AssistProgress namespace now, not from this panel's.
+      inProgress: 'Annotating...',
       complete: 'Annotation complete!',
       failed: 'Annotation failed',
     };
@@ -328,7 +331,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ percentage: 0, completedEntityTypes: [] }}
+          progress={{ percentage: 0, completedItems: [] }}
         />
       );
 
@@ -339,7 +342,7 @@ describe('ReferencesPanel Component', () => {
           isAssisting={false}
           progress={{
             percentage: 100,
-            completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
+            completedItems: [{ value: 'Person', foundCount: 5 }],
           }}
         />
       );
@@ -379,7 +382,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ percentage: 0, completedEntityTypes: [] }}
+          progress={{ percentage: 0, completedItems: [] }}
         />
       );
 
@@ -389,9 +392,9 @@ describe('ReferencesPanel Component', () => {
     it('should pass progress data to widget', () => {
       const progress = {
         percentage: 100,
-        completedEntityTypes: [
-          { entityType: 'Person', foundCount: 5 },
-          { entityType: 'Organization', foundCount: 3 },
+        completedItems: [
+          { value: 'Person', foundCount: 5 },
+          { value: 'Organization', foundCount: 3 },
         ],
       };
 
@@ -419,7 +422,7 @@ describe('ReferencesPanel Component', () => {
           isAssisting={false}
           progress={{
             percentage: 100,
-            completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
+            completedItems: [{ value: 'Person', foundCount: 5 }],
           }}
         />
       );
@@ -437,7 +440,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ percentage: 0, completedEntityTypes: [] }}
+          progress={{ percentage: 0, completedItems: [] }}
         />
       );
 
@@ -450,13 +453,12 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ percentage: 0, completedEntityTypes: [] }}
+          progress={{ percentage: 0, completedItems: [] }}
         />
       );
 
-      // Real AssistProgress titles the cancel button with t('cancelAnnotation')
-      // (the mock translator echoes unknown keys).
-      const cancelButton = screen.getByTitle('cancelAnnotation');
+      // The control's label comes from the AssistProgress namespace's `cancel`.
+      const cancelButton = screen.getByTitle('Cancel');
       expect(cancelButton).toBeInTheDocument();
     });
   });
@@ -469,9 +471,9 @@ describe('ReferencesPanel Component', () => {
           isAssisting={false}
           progress={{
             percentage: 100,
-            completedEntityTypes: [
-              { entityType: 'Person', foundCount: 5 },
-              { entityType: 'Organization', foundCount: 3 },
+            completedItems: [
+              { value: 'Person', foundCount: 5 },
+              { value: 'Organization', foundCount: 3 },
             ],
           }}
         />
@@ -497,7 +499,7 @@ describe('ReferencesPanel Component', () => {
           isAssisting={false}
           progress={{
             percentage: 100,
-            completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
+            completedItems: [{ value: 'Person', foundCount: 5 }],
           }}
         />
       );
@@ -515,7 +517,7 @@ describe('ReferencesPanel Component', () => {
           isAssisting={false}
           progress={{
             percentage: 100,
-            completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
+            completedItems: [{ value: 'Person', foundCount: 5 }],
           }}
         />
       );
@@ -533,7 +535,7 @@ describe('ReferencesPanel Component', () => {
           isAssisting={false}
           progress={{
             percentage: 100,
-            completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
+            completedItems: [{ value: 'Person', foundCount: 5 }],
           }}
         />
       );
@@ -554,7 +556,7 @@ describe('ReferencesPanel Component', () => {
           isAssisting={false}
           progress={{
             percentage: 100,
-            completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
+            completedItems: [{ value: 'Person', foundCount: 5 }],
           }}
         />
       );
@@ -575,7 +577,7 @@ describe('ReferencesPanel Component', () => {
           isAssisting={false}
           progress={{
             percentage: 100,
-            completedEntityTypes: [],
+            completedItems: [],
           }}
         />
       );
@@ -600,7 +602,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ percentage: 0, completedEntityTypes: [] }}
+          progress={{ percentage: 0, completedItems: [] }}
         />
       );
 
@@ -614,7 +616,7 @@ describe('ReferencesPanel Component', () => {
         <ReferencesPanel
           {...panelProps()}
           isAssisting={true}
-          progress={{ percentage: 0, completedEntityTypes: [] }}
+          progress={{ percentage: 0, completedItems: [] }}
         />
       );
 
@@ -628,7 +630,7 @@ describe('ReferencesPanel Component', () => {
           isAssisting={false}
           progress={{
             percentage: 100,
-            completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
+            completedItems: [{ value: 'Person', foundCount: 5 }],
           }}
         />
       );
@@ -651,7 +653,7 @@ describe('ReferencesPanel Component', () => {
           isAssisting={false}
           progress={{
             percentage: 100,
-            completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
+            completedItems: [{ value: 'Person', foundCount: 5 }],
           }}
         />
       );
@@ -743,7 +745,7 @@ describe('ReferencesPanel Component', () => {
           isAssisting={false}
           progress={{
             percentage: 100,
-            completedEntityTypes: [{ entityType: 'Person', foundCount: 0 }],
+            completedItems: [{ value: 'Person', foundCount: 0 }],
           }}
         />
       );

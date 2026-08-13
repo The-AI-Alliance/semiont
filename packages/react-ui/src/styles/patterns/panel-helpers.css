@@ -97,26 +97,3 @@
   color: var(--semiont-color-blue-300);
 }
 
-/* Progress Bar (moved to panel-sections.css as .semiont-panel-progress) */
-.semiont-progress-bar {
-  position: relative;
-  width: 100%;
-  height: 0.5rem;
-  background-color: var(--semiont-bg-secondary);
-  border-radius: var(--semiont-radius-full);
-  overflow: hidden;
-}
-
-.semiont-progress-bar__fill {
-  height: 100%;
-  background-color: var(--semiont-color-primary-500);
-  transition: width 0.3s ease;
-}
-
-[data-theme="dark"] .semiont-progress-bar__fill {
-  background-color: var(--semiont-color-primary-400);
-}
-
-[data-theme="dark"] .semiont-progress-bar {
-  background-color: var(--semiont-bg-tertiary);
-}

@@ -1,7 +1,7 @@
 'use client';
 
 import type { components } from '@semiont/core';
-import { EntityFoundLog } from './EntityFoundLog';
+import { ItemFoundLog } from './ItemFoundLog';
 
 type JobProgress = components['schemas']['JobProgress'];
 type JobProgressMessage = components['schemas']['JobProgressMessage'];
@@ -30,8 +30,12 @@ export interface AssistProgressTranslations {
    * these cases.
    */
   inProgress: string;
-  /** The subject line: what is being worked on, with its position when known. */
-  subject: (label: string, done?: number, total?: number) => string;
+  /**
+   * The subject line: what is being worked on, with its position when known.
+   * Takes the wire's `{ kind, value }` — the localized name for `kind` is the
+   * translation layer's business, not this component's.
+   */
+  subject: (current: NonNullable<JobProgress['current']>, done?: number, total?: number) => string;
   /**
    * Localized NAME for an echoed request parameter. The wire sends a code
    * (`instructions`, `tone`, …); the VALUE beside it is the user's own words
@@ -42,10 +46,17 @@ export interface AssistProgressTranslations {
   found?: (count: number) => string;
 }
 
+/**
+ * The CSS `data-type` hook: five motivations plus generation. A closed set, so
+ * it is typed as one — a typo used to produce unstyled chrome, silently
+ * (CLEAN-PROGRESS A9).
+ */
+export type AssistDataType =
+  | 'highlight' | 'comment' | 'assessment' | 'reference' | 'tag' | 'generation';
+
 export interface AssistProgressProps {
   progress: JobProgress;
-  /** CSS `data-type` hook ('highlight' | 'comment' | … | 'reference' | 'tag' | 'generation'). */
-  dataType: string;
+  dataType: AssistDataType;
   /**
    * The run has ENDED. The owner's fact, not the payload's
    * (ASSIST-PROGRESS-CONSOLIDATION D7): terminality is signalled on
@@ -53,8 +64,14 @@ export interface AssistProgressProps {
    * `isAssisting`. This component deliberately does not read `progress.stage` —
    * no producer in the repo emits a terminal stage, and the two branches that
    * believed the schema's description were unreachable for exactly that reason.
+   *
+   * REQUIRED (CLEAN-PROGRESS A1). It was optional, and the one call site that
+   * forgot it shipped a flow that could never reach the ended state at all.
+   * Nothing about a progress payload can tell this component the run is over,
+   * so the owner must say — and a default of `false` is a wrong answer, not a
+   * safe one.
    */
-  ended?: boolean;
+  ended: boolean;
   /** Cancel the underlying job. Caller wires `client.job.cancelRequest(...)`. */
   onCancel?: () => void;
   /** Dismiss the display. Caller wires `client.mark.dismissProgress()`. */
@@ -78,20 +95,17 @@ export interface AssistProgressProps {
 export function AssistProgress({
   progress,
   dataType,
-  ended = false,
+  ended,
   onCancel,
   onDismiss,
   translations: tr,
 }: AssistProgressProps) {
-  // Reference and tag flows count different things; both report the same shape.
-  // The entity type comes off the MESSAGE — `currentEntityType` was the same
-  // value denormalized alongside it and is gone (P5 schema cruft). Tags keep
-  // `currentCategory`: no code carries a category, so it is not a duplicate.
-  const label =
-    (progress.message && 'entityType' in progress.message ? progress.message.entityType : undefined)
-    ?? progress.currentCategory;
-  const done = progress.processedEntityTypes ?? progress.processedCategories;
-  const total = progress.totalEntityTypes ?? progress.totalCategories;
+  // One vocabulary, so no guessing (CLEAN-PROGRESS D2). This used to be a pair
+  // of `??` chains reconciling entity-type fields with category fields — the
+  // component had to know which flow it was drawing to find the same two facts.
+  const current = progress.current;
+  const done = progress.processed;
+  const total = progress.total;
 
   // H1: the params line earns its space only when it says something the status
   // line does not. The ONLY redundant case is a single entity type, where the
@@ -131,9 +145,9 @@ export function AssistProgress({
         </div>
       )}
 
-      {/* H2: kept uncapped — entity-type counts are small in practice. */}
-      {tr.found && progress.completedEntityTypes && (
-        <EntityFoundLog entries={progress.completedEntityTypes} formatFound={tr.found} />
+      {/* H2: kept uncapped — per-item counts are small in practice. */}
+      {tr.found && progress.completedItems && (
+        <ItemFoundLog entries={progress.completedItems} formatFound={tr.found} />
       )}
 
       <div className="semiont-assist-progress__status">
@@ -146,9 +160,9 @@ export function AssistProgress({
       </div>
 
       {/* H3: stage above, subject beneath. */}
-      {label && (
+      {current && (
         <div className="semiont-assist-progress__subject" data-testid="semiont-assist-subject">
-          {tr.subject(label, done, total)}
+          {tr.subject(current, done, total)}
         </div>
       )}
 

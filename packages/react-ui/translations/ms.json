@@ -15,12 +15,16 @@
     "kindAssessment": "penilaian",
     "kindReference": "rujukan",
     "kindTag": "tag",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} daripada {{total}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{done}} daripada {{total}})",
     "paramEntityTypes": "Jenis Entiti",
     "paramInstructions": "Arahan",
     "paramTone": "Nada",
-    "paramDensity": "Ketumpatan"
+    "paramDensity": "Ketumpatan",
+    "subjectKindEntityType": "Jenis entiti",
+    "subjectKindCategory": "Kategori",
+    "cancel": "Batal",
+    "inProgress": "Menganotasi..."
   },
   "PdfViewer": {
     "loadFailed": "Gagal memuatkan PDF",

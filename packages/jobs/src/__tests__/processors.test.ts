@@ -1521,3 +1521,80 @@ describe('request parameters ride every event', () => {
     ]);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────
+// CLEAN-PROGRESS Lane B — one vocabulary for "what is in flight".
+//
+// Reference and tag iterate the same way over a user-chosen list, so they
+// report the same shape: `current: {kind, value}` + `processed` + `total`.
+// `kind` is a wire CODE the client localizes; `value` is KB data (an entity
+// type, a category) shown verbatim.
+// ─────────────────────────────────────────────────────────────────────
+describe('what is in flight is reported one way (CLEAN-PROGRESS A4/A5)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('reference: the entity type rides `current`, kind-tagged, with its position', async () => {
+    vi.mocked(extractEntities).mockResolvedValue([
+      { exact: 'Paris', entityType: 'Location' } as never,
+    ]);
+
+    const progress = vi.fn();
+    await processReferenceJob(
+      'Paris', makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location'), entityType('Person')] },
+      textBuild('Paris'), progress, LOGGER,
+    );
+
+    const detecting = extrasFrom(progress).filter((e) => e?.current);
+    expect(detecting.length).toBeGreaterThan(0);
+    expect(detecting[0]).toMatchObject({
+      current: { kind: 'entity-type', value: 'Location' },
+      processed: 0,
+      total: 2,
+    });
+  });
+
+  it('tag: the category rides the SAME field, kind-tagged — tags get a subject at last', async () => {
+    // processTagJob already loops per category; it just never said so. This is
+    // the parity gap Copilot flagged on #1179, now a one-field change.
+    const content = 'Issue: the duty of care.';
+    vi.mocked(AnnotationDetection.detectTags).mockResolvedValue([
+      { exact: 'duty of care', start: 11, end: 23, category: 'Issue' },
+    ]);
+
+    const progress = vi.fn();
+    await processTagJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, schema: SCHEMA_1, categories: ['Issue', 'Holding'] },
+      textBuild(content), progress,
+    );
+
+    const withCurrent = extrasFrom(progress).filter((e) => e?.current);
+    expect(withCurrent.length).toBeGreaterThan(0);
+    expect(withCurrent[0]).toMatchObject({
+      current: { kind: 'category', value: 'Issue' },
+      processed: 0,
+      total: 2,
+    });
+  });
+
+  it('no producer emits the old flow-specific field names', async () => {
+    // The whole point: one vocabulary. A reappearance of any of these is the
+    // regression this lane exists to prevent.
+    vi.mocked(extractEntities).mockResolvedValue([
+      { exact: 'Paris', entityType: 'Location' } as never,
+    ]);
+    const progress = vi.fn();
+    await processReferenceJob(
+      'Paris', makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild('Paris'), progress, LOGGER,
+    );
+
+    const dead = ['processedEntityTypes', 'totalEntityTypes', 'currentEntityType',
+                  'processedCategories', 'totalCategories', 'currentCategory'];
+    for (const extra of extrasFrom(progress)) {
+      for (const field of dead) expect(extra ?? {}).not.toHaveProperty(field);
+    }
+  });
+});

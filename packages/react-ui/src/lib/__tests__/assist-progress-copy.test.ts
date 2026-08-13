@@ -90,29 +90,54 @@ describe('assistProgressCopy', () => {
 });
 
 describe('assistSubjectCopy', () => {
+  const ENTITY_TYPE = { kind: 'entity-type', value: 'Person' } as const;
+  const CATEGORY = { kind: 'category', value: 'Issue' } as const;
+
   it('uses the positionless form when there is no fraction', () => {
     const { t, calls } = spy();
-    assistSubjectCopy(t)('Person');
-    expect(calls[0]?.key).toBe('subject');
-    expect(calls[0]?.params).toMatchObject({ label: 'Person' });
+    assistSubjectCopy(t)(ENTITY_TYPE);
+    expect(calls.map((c) => c.key)).toContain('subject');
+    expect(calls.at(-1)?.params).toMatchObject({ label: 'Person' });
     expect('subject' in NAMESPACE).toBe(true);
   });
 
   it('uses the positioned form and counts from ONE, not zero', () => {
-    // `processedEntityTypes` is a zero-based count of COMPLETED types, so the
-    // type in flight is index+1. Rendering "0 of 3" while working on the first
-    // would read as not-started.
+    // `processed` is a zero-based count of COMPLETED items, so the one in
+    // flight is index+1. Rendering "0 of 3" while working on the first would
+    // read as not-started.
     const { t, calls } = spy();
-    assistSubjectCopy(t)('Person', 0, 3);
-    expect(calls[0]?.key).toBe('subjectWithPosition');
-    expect(calls[0]?.params).toMatchObject({ label: 'Person', done: 1, total: 3 });
+    assistSubjectCopy(t)(ENTITY_TYPE, 0, 3);
+    expect(calls.map((c) => c.key)).toContain('subjectWithPosition');
+    expect(calls.at(-1)?.params).toMatchObject({ label: 'Person', done: 1, total: 3 });
     expect('subjectWithPosition' in NAMESPACE).toBe(true);
   });
 
   it('falls back to the positionless form when either number is absent', () => {
     const { t, calls } = spy();
-    assistSubjectCopy(t)('Person', 2, undefined);
-    expect(calls[0]?.key).toBe('subject');
+    assistSubjectCopy(t)(ENTITY_TYPE, 2, undefined);
+    expect(calls.map((c) => c.key)).toContain('subject');
+  });
+
+  it('localizes the KIND and never leaks the wire code (A5b)', () => {
+    // "Person" is an entity type and the line should say so — but "entity-type"
+    // is a wire token, and a user reading a Japanese UI must never see it.
+    for (const [current, key] of [
+      [ENTITY_TYPE, 'subjectKindEntityType'],
+      [CATEGORY, 'subjectKindCategory'],
+    ] as const) {
+      const { t, calls } = spy();
+      assistSubjectCopy(t)(current, 0, 2);
+      expect(calls.map((c) => c.key)).toContain(key);
+      expect(key in NAMESPACE).toBe(true);
+      expect(calls.at(-1)?.params?.kind).toBe(key);   // the spy echoes the key
+      expect(calls.at(-1)?.params?.kind).not.toBe(current.kind);
+    }
+  });
+
+  it('shows the item VALUE verbatim — it is the user/KB\'s word, not ours', () => {
+    const { t, calls } = spy();
+    assistSubjectCopy(t)({ kind: 'category', value: 'Führungsverhalten' }, 1, 4);
+    expect(calls.at(-1)?.params?.label).toBe('Führungsverhalten');
   });
 });
 

@@ -468,7 +468,7 @@ export async function processReferenceJob(
 ): Promise<ProcessorResult<DetectionResult>> {
   const entityTypeNames = params.entityTypes.map(String);
   const requestParams = [{ label: 'entity-types' as const, value: entityTypeNames.join(', ') }];
-  const completedEntityTypes: Array<{ entityType: string; foundCount: number }> = [];
+  const completedItems: Array<{ value: string; foundCount: number }> = [];
   let totalFound = 0;
   let totalEmitted = 0;
   let errors = 0;
@@ -483,11 +483,14 @@ export async function processReferenceJob(
     if (!entityTypeName) continue;
     const pct = 20 + Math.round((i / entityTypeNames.length) * 60);
     onProgress(pct, { code: 'detecting-entities', entityType: entityTypeName }, {
-      processedEntityTypes: i,
-      totalEntityTypes: entityTypeNames.length,
+      // One vocabulary for "what is in flight" (CLEAN-PROGRESS D2): the entity
+      // type is KB data, `kind` is the code the client localizes around it.
+      current: { kind: 'entity-type', value: entityTypeName },
+      processed: i,
+      total: entityTypeNames.length,
       entitiesFound: totalFound,
       entitiesEmitted: totalEmitted,
-      completedEntityTypes: [...completedEntityTypes],
+      completedItems: [...completedItems],
       requestParams,
     });
 
@@ -504,18 +507,19 @@ export async function processReferenceJob(
       (completed, total) => {
         const interpolated = 20 + Math.round(((i + completed / total) / entityTypeNames.length) * 60);
         onProgress(interpolated, { code: 'detecting-entities', entityType: entityTypeName }, {
-          processedEntityTypes: i,
-          totalEntityTypes: entityTypeNames.length,
+          current: { kind: 'entity-type', value: entityTypeName },
+          processed: i,
+          total: entityTypeNames.length,
           entitiesFound: totalFound,
           entitiesEmitted: totalEmitted,
-          completedEntityTypes: [...completedEntityTypes],
+          completedItems: [...completedItems],
           requestParams,
         });
       },
     );
 
     totalFound += extractedEntities.length;
-    completedEntityTypes.push({ entityType: entityTypeName, foundCount: extractedEntities.length });
+    completedItems.push({ value: entityTypeName, foundCount: extractedEntities.length });
 
     // Unresolved reference body: the entity type as a tagging TextualBody,
     // stamped with the body locale to match the comment/assess/tag pattern.
@@ -578,8 +582,22 @@ export async function processTagJob(
   onProgress(30, { code: 'analyzing-tags' });
 
   const allTags = [];
+  const completedItems: Array<{ value: string; foundCount: number }> = [];
   for (let c = 0; c < params.categories.length; c++) {
     const category = params.categories[c]!;
+    // The loop always existed; it just never reported itself, so the tag flow
+    // was the one counting flow with no subject line (CLEAN-PROGRESS A5).
+    const position = () => ({
+      current: { kind: 'category' as const, value: category },
+      processed: c,
+      total: params.categories.length,
+      completedItems: [...completedItems],
+    });
+    onProgress(
+      30 + Math.round((c / params.categories.length) * 30),
+      { code: 'analyzing-tags' },
+      position(),
+    );
     const categoryTags = await AnnotationDetection.detectTags(
       content, inferenceClient, params.schema, category, params.sourceLanguage,
       // Liveness (chunk boundaries + in-flight heartbeat): this category's
@@ -587,8 +605,10 @@ export async function processTagJob(
       (completed, total) => onProgress(
         30 + Math.round(((c + completed / total) / params.categories.length) * 30),
         { code: 'analyzing-tags' },
+        position(),
       ),
     );
+    completedItems.push({ value: category, foundCount: categoryTags.length });
     allTags.push(...categoryTags);
   }
   const tags = allTags;

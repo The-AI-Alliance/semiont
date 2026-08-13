@@ -15,12 +15,16 @@
     "kindAssessment": "评估",
     "kindReference": "引用",
     "kindTag": "标签",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}}（第 {{done}}/{{total}} 项）",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}}（第 {{done}}/{{total}} 项）",
     "paramEntityTypes": "实体类型",
     "paramInstructions": "说明",
     "paramTone": "语气",
-    "paramDensity": "密度"
+    "paramDensity": "密度",
+    "subjectKindEntityType": "实体类型",
+    "subjectKindCategory": "分类",
+    "cancel": "取消",
+    "inProgress": "正在注释..."
   },
   "PdfViewer": {
     "loadFailed": "PDF 加载失败",

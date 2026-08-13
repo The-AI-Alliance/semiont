@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { assistProgressCopy, assistSubjectCopy, assistParamLabel } from '../../../lib/assist-progress-copy';
+import { assistProgressTranslations } from '../../../lib/assist-progress-copy';
 import type { components, ResourceDescriptor, ResourceId, GatheredContext, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import { annotationId } from '@semiont/core';
@@ -238,6 +238,7 @@ export function ResourceViewerPage({
   const panelInitialTab = useObservable(stateUnit?.browse.panelInitialTab$) ?? null;
   const onScrollCompleted = stateUnit?.browse.onScrollCompleted;
   const generationProgress = useObservable(stateUnit?.yield.progress$) ?? null;
+  const isGenerating = useObservable(stateUnit?.yield.isGenerating$) ?? false;
   const gatherContext = useObservable(stateUnit?.gather.context$) ?? null;
   const gatherLoading = useObservable(stateUnit?.gather.loading$) ?? false;
   const gatherError = useObservable(stateUnit?.gather.error$) ?? null;
@@ -488,15 +489,14 @@ export function ResourceViewerPage({
             <AssistProgress
               progress={generationProgress}
               dataType="generation"
+              // The ending is the owner's fact and every owner must state it
+              // (CLEAN-PROGRESS D1). This call site used to pass neither
+              // `ended` nor `onDismiss`, so a finished generation stayed in its
+              // running form and then vanished on a timer.
+              ended={!isGenerating}
               onCancel={() => session?.client.job.cancelRequest('generation')}
-              translations={{
-                cancel: tg('progressCancel'),
-                inProgress: tg('progressInProgress'),
-                close: ta('close'),
-                message: assistProgressCopy(ta),
-                subject: assistSubjectCopy(ta),
-                paramLabel: assistParamLabel(ta),
-              }}
+              onDismiss={() => stateUnit?.yield.dismissProgress()}
+              translations={assistProgressTranslations(ta)}
             />
           )}
           {/* Scrollable body wrapper - contains document content, header is sibling above */}

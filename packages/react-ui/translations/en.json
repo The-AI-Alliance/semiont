@@ -15,12 +15,16 @@
     "kindAssessment": "assessments",
     "kindReference": "references",
     "kindTag": "tags",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} of {{total}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{done}} of {{total}})",
     "paramEntityTypes": "Entity Types",
     "paramInstructions": "Instructions",
     "paramTone": "Tone",
-    "paramDensity": "Density"
+    "paramDensity": "Density",
+    "subjectKindEntityType": "Entity type",
+    "subjectKindCategory": "Category",
+    "cancel": "Cancel",
+    "inProgress": "Annotating..."
   },
   "PdfViewer": {
     "loadFailed": "Failed to load PDF",

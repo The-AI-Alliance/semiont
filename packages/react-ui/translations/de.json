@@ -15,12 +15,16 @@
     "kindAssessment": "Bewertungen",
     "kindReference": "Verweise",
     "kindTag": "Tags",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} von {{total}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{done}} von {{total}})",
     "paramEntityTypes": "Entitätstypen",
     "paramInstructions": "Anweisungen",
     "paramTone": "Tonfall",
-    "paramDensity": "Dichte"
+    "paramDensity": "Dichte",
+    "subjectKindEntityType": "Entitätstyp",
+    "subjectKindCategory": "Kategorie",
+    "cancel": "Abbrechen",
+    "inProgress": "Wird annotiert..."
   },
   "PdfViewer": {
     "loadFailed": "PDF konnte nicht geladen werden",

@@ -15,12 +15,16 @@
     "kindAssessment": "평가",
     "kindReference": "참조",
     "kindTag": "태그",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{total}}개 중 {{done}}번째)",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{total}}개 중 {{done}}번째)",
     "paramEntityTypes": "개체 유형",
     "paramInstructions": "지시사항",
     "paramTone": "톤",
-    "paramDensity": "밀도"
+    "paramDensity": "밀도",
+    "subjectKindEntityType": "개체 유형",
+    "subjectKindCategory": "카테고리",
+    "cancel": "취소",
+    "inProgress": "주석 달기 중..."
   },
   "PdfViewer": {
     "loadFailed": "PDF를 로드하지 못했습니다",

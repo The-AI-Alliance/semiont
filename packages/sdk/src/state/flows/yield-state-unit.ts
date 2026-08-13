@@ -29,6 +29,8 @@ export interface YieldStateUnit extends StateUnit {
    * derived from the focus; see `client.yield.fromContext`.
    */
   generate(context: GatheredContext, options: GenerateDocumentOptions): void;
+  /** Clear a finished (or abandoned) progress display. Wired to the widget's Close. */
+  dismissProgress(): void;
 }
 
 export function createYieldStateUnit(
@@ -38,7 +40,6 @@ export function createYieldStateUnit(
   const subs: Subscription[] = [];
   const isGenerating$ = new BehaviorSubject<boolean>(false);
   const progress$ = new BehaviorSubject<JobProgress | null>(null);
-  let clearTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Generation progress/complete/fail is driven entirely by the StreamObservable
   // returned from `client.yield.fromContext` — it is filtered to this job's
@@ -63,9 +64,11 @@ export function createYieldStateUnit(
         }
       },
       complete: () => {
+        // The finished display STAYS until dismissed (CLEAN-PROGRESS D1) —
+        // `isGenerating$` going false is what flips it to its ended form.
+        // It used to clear itself after 2 s, which is a different ending from
+        // the assist path's 5 s, in the same component.
         isGenerating$.next(false);
-        if (clearTimer) clearTimeout(clearTimer);
-        clearTimer = setTimeout(() => { progress$.next(null); clearTimer = null; }, 2000);
       },
       error: () => {
         progress$.next(null);
@@ -86,9 +89,9 @@ export function createYieldStateUnit(
     isGenerating$: isGenerating$.asObservable(),
     progress$: progress$.asObservable(),
     generate,
+    dismissProgress() { progress$.next(null); },
     dispose() {
       subs.forEach(s => s.unsubscribe());
-      if (clearTimer) clearTimeout(clearTimer);
       isGenerating$.complete();
       progress$.complete();
     },

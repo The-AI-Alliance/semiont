@@ -15,12 +15,16 @@
     "kindAssessment": "vurderinger",
     "kindReference": "referencer",
     "kindTag": "tags",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} af {{total}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{done}} af {{total}})",
     "paramEntityTypes": "Enhedstyper",
     "paramInstructions": "Instruktioner",
     "paramTone": "Tone",
-    "paramDensity": "Tæthed"
+    "paramDensity": "Tæthed",
+    "subjectKindEntityType": "Enhedstype",
+    "subjectKindCategory": "Kategori",
+    "cancel": "Annuller",
+    "inProgress": "Annoterer..."
   },
   "PdfViewer": {
     "loadFailed": "Kunne ikke indlæse PDF",

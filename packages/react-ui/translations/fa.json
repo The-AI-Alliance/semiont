@@ -15,12 +15,16 @@
     "kindAssessment": "ارزیابی",
     "kindReference": "ارجاع",
     "kindTag": "برچسب",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} از {{total}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{done}} از {{total}})",
     "paramEntityTypes": "انواع موجودیت",
     "paramInstructions": "دستورالعمل‌ها",
     "paramTone": "لحن",
-    "paramDensity": "تراکم"
+    "paramDensity": "تراکم",
+    "subjectKindEntityType": "نوع موجودیت",
+    "subjectKindCategory": "دسته‌بندی",
+    "cancel": "انصراف",
+    "inProgress": "در حال حاشیه‌نویسی..."
   },
   "PdfViewer": {
     "loadFailed": "بارگذاری PDF ناموفق بود",

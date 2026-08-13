@@ -15,12 +15,16 @@
     "kindAssessment": "bedömningar",
     "kindReference": "referenser",
     "kindTag": "taggar",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} av {{total}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{done}} av {{total}})",
     "paramEntityTypes": "Entitetstyper",
     "paramInstructions": "Instruktioner",
     "paramTone": "Ton",
-    "paramDensity": "Täthet"
+    "paramDensity": "Täthet",
+    "subjectKindEntityType": "Entitetstyp",
+    "subjectKindCategory": "Kategori",
+    "cancel": "Avbryt",
+    "inProgress": "Annoterar..."
   },
   "PdfViewer": {
     "loadFailed": "Det gick inte att läsa in PDF:en",

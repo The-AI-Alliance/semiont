@@ -493,6 +493,24 @@ func (e JobDeclinedResultReason) Valid() bool {
 	}
 }
 
+// Defines values for JobProgressCurrentKind.
+const (
+	Category   JobProgressCurrentKind = "category"
+	EntityType JobProgressCurrentKind = "entity-type"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressCurrentKind enum.
+func (e JobProgressCurrentKind) Valid() bool {
+	switch e {
+	case Category:
+		return true
+	case EntityType:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for JobProgressRequestParamsLabel.
 const (
 	Density      JobProgressRequestParamsLabel = "density"
@@ -2623,19 +2641,28 @@ type JobHighlightAnnotationResult struct {
 	HighlightsFound   int `json:"highlightsFound"`
 }
 
-// JobProgress Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present. This is the single progress shape for every job type — annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Every code mapped to exactly one stage, and `stage`'s own description advertised 'complete' and 'error' that no producer ever emitted — a comment describing a contract nobody implemented, which cost a consumer two dead branches. Terminality is signalled on `job:complete` / `job:fail`, not here. `currentEntityType` duplicated `detecting-entities`' `entityType` in the same call.
+// JobProgress Progress report from a running job. The required field is `percentage`; `message` carries the coded phase and the rest are optional job-shape fields. This is the single progress shape for every job type — annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Terminality is signalled on `job:complete` / `job:fail`, not here. The per-flow progress vocabularies (`processedEntityTypes`/`totalEntityTypes` for references, `processedCategories`/`totalCategories`/`currentCategory` for tags) were replaced by one `current`/`processed`/`total` triple (CLEAN-PROGRESS D2): both flows iterate a user-chosen list, so they report the same shape and the client stops guessing which flow it is drawing.
 type JobProgress struct {
 	// AnnotationId Annotation this job is attached to, when applicable. Echoed inside JobProgress (in addition to the outer command envelope) so consumers that only see the inner progress object (e.g. client.yield.fromContext's Observable) can still route visual feedback to a specific annotation.
 	AnnotationId *string `json:"annotationId,omitempty"`
 
-	// CompletedEntityTypes Reference annotation: completed entity types with per-type counts, for UI progress display
-	CompletedEntityTypes *[]struct {
-		EntityType string `json:"entityType"`
-		FoundCount int    `json:"foundCount"`
-	} `json:"completedEntityTypes,omitempty"`
+	// CompletedItems Per-item results for the items already finished, for the UI's completed log. Generic across flows for the same reason `current` is.
+	CompletedItems *[]struct {
+		// FoundCount Annotations found for it.
+		FoundCount int `json:"foundCount"`
 
-	// CurrentCategory Category currently being processed (tag-annotation)
-	CurrentCategory *string `json:"currentCategory,omitempty"`
+		// Value The item, shown verbatim.
+		Value string `json:"value"`
+	} `json:"completedItems,omitempty"`
+
+	// Current What the run is working on right now. `kind` is a CODE the client renders a localized name for; `value` is KB data (an entity type, a tag category) shown verbatim — the same split as `requestParams`. Absent on flows that iterate nothing, such as generation.
+	Current *struct {
+		// Kind What sort of thing `value` is. Adding a variant means adding client copy for it in every locale.
+		Kind JobProgressCurrentKind `json:"kind"`
+
+		// Value The item itself, shown verbatim and never translated.
+		Value string `json:"value"`
+	} `json:"current,omitempty"`
 
 	// EntitiesEmitted Annotations emitted so far (reference-annotation)
 	EntitiesEmitted *int `json:"entitiesEmitted,omitempty"`
@@ -2649,11 +2676,8 @@ type JobProgress struct {
 	// Percentage Completion percentage (0-100)
 	Percentage float32 `json:"percentage"`
 
-	// ProcessedCategories Categories processed (tag-annotation)
-	ProcessedCategories *int `json:"processedCategories,omitempty"`
-
-	// ProcessedEntityTypes Entity types processed so far (reference-annotation)
-	ProcessedEntityTypes *int `json:"processedEntityTypes,omitempty"`
+	// Processed Items completed so far, zero-based — the item in `current` is the one after these. Paired with `total`.
+	Processed *int `json:"processed,omitempty"`
 
 	// RequestParams Echoed job parameters for display in the progress UI. `label` is a CODE, not a sentence — the client owns the wording, same rule as the progress message. `value` is the user's own input (an entity-type list, their instructions) and is deliberately NOT translated: it is their words, not ours.
 	RequestParams *[]struct {
@@ -2664,12 +2688,12 @@ type JobProgress struct {
 		Value string `json:"value"`
 	} `json:"requestParams,omitempty"`
 
-	// TotalCategories Total categories (tag-annotation)
-	TotalCategories *int `json:"totalCategories,omitempty"`
-
-	// TotalEntityTypes Total entity types to process (reference-annotation)
-	TotalEntityTypes *int `json:"totalEntityTypes,omitempty"`
+	// Total Items this run will process in all.
+	Total *int `json:"total,omitempty"`
 }
+
+// JobProgressCurrentKind What sort of thing `value` is. Adding a variant means adding client copy for it in every locale.
+type JobProgressCurrentKind string
 
 // JobProgressRequestParamsLabel Which parameter this is. The client renders a localized name for it.
 type JobProgressRequestParamsLabel string
@@ -2761,7 +2785,7 @@ type JobReportProgressCommand struct {
 	JobType    JobType `json:"jobType"`
 	Percentage float32 `json:"percentage"`
 
-	// Progress Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present. This is the single progress shape for every job type — annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Every code mapped to exactly one stage, and `stage`'s own description advertised 'complete' and 'error' that no producer ever emitted — a comment describing a contract nobody implemented, which cost a consumer two dead branches. Terminality is signalled on `job:complete` / `job:fail`, not here. `currentEntityType` duplicated `detecting-entities`' `entityType` in the same call.
+	// Progress Progress report from a running job. The required field is `percentage`; `message` carries the coded phase and the rest are optional job-shape fields. This is the single progress shape for every job type — annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Terminality is signalled on `job:complete` / `job:fail`, not here. The per-flow progress vocabularies (`processedEntityTypes`/`totalEntityTypes` for references, `processedCategories`/`totalCategories`/`currentCategory` for tags) were replaced by one `current`/`processed`/`total` triple (CLEAN-PROGRESS D2): both flows iterate a user-chosen list, so they report the same shape and the client stops guessing which flow it is drawing.
 	Progress   *JobProgress `json:"progress,omitempty"`
 	ResourceId string       `json:"resourceId"`
 }

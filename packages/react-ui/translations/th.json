@@ -15,12 +15,16 @@
     "kindAssessment": "การประเมิน",
     "kindReference": "การอ้างอิง",
     "kindTag": "แท็ก",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} จาก {{total}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{done}} จาก {{total}})",
     "paramEntityTypes": "ประเภทเอนทิตี",
     "paramInstructions": "คำสั่ง",
     "paramTone": "น้ำเสียง",
-    "paramDensity": "ความหนาแน่น"
+    "paramDensity": "ความหนาแน่น",
+    "subjectKindEntityType": "ประเภทเอนทิตี",
+    "subjectKindCategory": "หมวดหมู่",
+    "cancel": "ยกเลิก",
+    "inProgress": "กำลังสร้างคำอธิบายประกอบ..."
   },
   "PdfViewer": {
     "loadFailed": "โหลด PDF ไม่สำเร็จ",
