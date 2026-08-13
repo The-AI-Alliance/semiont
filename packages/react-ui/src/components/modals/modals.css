@@ -251,6 +251,22 @@
   gap: 0.5rem;
 }
 
+/*
+ * The wizard footer (WIZARD-NAVIGATION D2). Retreat sits at the leading edge and
+ * advance at the trailing one, and neither stretches — `--flex` on all three
+ * buttons is what made "Cancel", "Back" and "Search" read as three peers.
+ * `margin-inline-end: auto` rather than `space-between` so a footer with only
+ * one child still lands on the correct side.
+ */
+.semiont-modal__actions--wizard {
+  justify-content: flex-end;
+  padding-top: 0.5rem;
+}
+
+.semiont-wizard-footer__back {
+  margin-inline-end: auto;
+}
+
 /* Chip Styles */
 .semiont-chip {
   padding: 0.25rem 0.75rem;

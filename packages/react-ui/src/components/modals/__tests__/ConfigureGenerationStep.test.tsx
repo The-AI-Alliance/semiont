@@ -8,6 +8,7 @@
  * lowers it to something the provider will actually honour.
  */
 import { describe, it, expect, vi } from 'vitest';
+import { useState } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { CollaboratorEntry, GatheredContext } from '@semiont/core';
@@ -27,12 +28,17 @@ const translations = {
   maxLengthHelp: 'How long the generated resource may be.',
   // Named model + ceiling, so the bound is legible rather than mysterious (D6).
   maxLengthCeiling: 'Limited to {{maxOutputTokens}} tokens by {{model}}.',
-  cancel: 'Cancel',
   back: 'Back',
   generate: 'Generate',
 };
 
 const context = { resources: [], annotations: [] } as unknown as GatheredContext;
+
+/** The wizard's initial draft (WIZARD-NAVIGATION D3). */
+const DRAFT = {
+  title: 'Untitled', storagePath: '', prompt: '', language: 'en',
+  temperature: 0.7, maxTokensText: '500',
+};
 
 const agentWithCeiling = (maxOutputTokens: number): CollaboratorEntry =>
   ({
@@ -46,20 +52,34 @@ const agentWithCeiling = (maxOutputTokens: number): CollaboratorEntry =>
     limits: { contextTokens: 200_000, maxOutputTokens },
   }) as unknown as CollaboratorEntry;
 
+/**
+ * The step is CONTROLLED since WIZARD-NAVIGATION D3 — the wizard owns the draft so
+ * Back cannot discard it. These tests therefore mount a tiny stateful harness rather
+ * than the bare component: a `vi.fn()` for `onConfigChange` would swallow every edit
+ * and quietly turn each assertion below into a test of nothing.
+ */
+function Harness({ generationAgent }: { generationAgent?: CollaboratorEntry }) {
+  const [draft, setDraft] = useState(DRAFT);
+  return (
+    <ConfigureGenerationStep
+      config={draft}
+      onConfigChange={setDraft}
+      context={context}
+      onBack={vi.fn()}
+      onGenerate={onGenerateSpy}
+      translations={translations}
+      {...(generationAgent ? { generationAgent } : {})}
+    />
+  );
+}
+
+let onGenerateSpy = vi.fn();
+
 function renderStep(generationAgent?: CollaboratorEntry) {
-  const props = {
-    defaultTitle: 'Untitled',
-    locale: 'en',
-    context,
-    onBack: vi.fn(),
-    onCancel: vi.fn(),
-    onGenerate: vi.fn(),
-    translations,
-    ...(generationAgent ? { generationAgent } : {}),
-  };
-  const utils = render(<ConfigureGenerationStep {...props} />);
+  onGenerateSpy = vi.fn();
+  const utils = render(<Harness {...(generationAgent ? { generationAgent } : {})} />);
   const input = () => screen.getByLabelText('Max length') as HTMLInputElement;
-  return { ...utils, input, props };
+  return { ...utils, input, props: { onGenerate: onGenerateSpy } };
 }
 
 function fillRequired() {
@@ -105,18 +125,7 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
     fireEvent.change(input(), { target: { value: '3000' } });
     expect(input().value).toBe('3000');
 
-    rerender(
-      <ConfigureGenerationStep
-        defaultTitle="Untitled"
-        locale="en"
-        context={context}
-        onBack={vi.fn()}
-        onCancel={vi.fn()}
-        onGenerate={vi.fn()}
-        translations={translations}
-        generationAgent={agentWithCeiling(1_000)}
-      />,
-    );
+    rerender(<Harness generationAgent={agentWithCeiling(1_000)} />);
 
     expect(input().max).toBe('1000');
     // 3000 is now out of range and must not survive as a submittable value.
@@ -127,18 +136,7 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
     const { input, rerender } = renderStep(undefined);
     fireEvent.change(input(), { target: { value: '800' } });
 
-    rerender(
-      <ConfigureGenerationStep
-        defaultTitle="Untitled"
-        locale="en"
-        context={context}
-        onBack={vi.fn()}
-        onCancel={vi.fn()}
-        onGenerate={vi.fn()}
-        translations={translations}
-        generationAgent={agentWithCeiling(4_000)}
-      />,
-    );
+    rerender(<Harness generationAgent={agentWithCeiling(4_000)} />);
 
     expect(input().value).toBe('800');
   });
@@ -162,19 +160,8 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
   });
 
   it('submits the clamped value, not the typed one', () => {
-    const onGenerate = vi.fn();
-    render(
-      <ConfigureGenerationStep
-        defaultTitle="Untitled"
-        locale="en"
-        context={context}
-        onBack={vi.fn()}
-        onCancel={vi.fn()}
-        onGenerate={onGenerate}
-        translations={translations}
-        generationAgent={agentWithCeiling(1_500)}
-      />,
-    );
+    const { props } = renderStep(agentWithCeiling(1_500));
+    const onGenerate = props.onGenerate;
 
     fillRequired();
     const input = screen.getByLabelText('Max length') as HTMLInputElement;
@@ -191,19 +178,8 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
     // warns about and which would travel into the job config. Clearing must
     // stay possible (you cannot retype a number otherwise), so the contract is
     // about what SUBMITS, not about forbidding the empty state.
-    const onGenerate = vi.fn();
-    render(
-      <ConfigureGenerationStep
-        defaultTitle="Untitled"
-        locale="en"
-        context={context}
-        onBack={vi.fn()}
-        onCancel={vi.fn()}
-        onGenerate={onGenerate}
-        translations={translations}
-        generationAgent={agentWithCeiling(4_000)}
-      />,
-    );
+    const { props } = renderStep(agentWithCeiling(4_000));
+    const onGenerate = props.onGenerate;
     const input = screen.getByLabelText('Max length') as HTMLInputElement;
 
     fillRequired();

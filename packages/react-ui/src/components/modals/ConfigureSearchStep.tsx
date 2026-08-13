@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
+import { WizardFooter } from './WizardFooter';
 
 export interface SearchConfig {
   limit: number;
@@ -8,15 +9,21 @@ export interface SearchConfig {
 }
 
 export interface ConfigureSearchStepProps {
+  /**
+   * CONTROLLED (WIZARD-NAVIGATION D3). This used to be local `useState`, so stepping
+   * Back unmounted the component and silently discarded what the user had chosen —
+   * a Back button that costs you work is worse than no Back button, because it
+   * invites the press. The wizard owns it for the modal's lifetime instead.
+   */
+  config: SearchConfig;
+  onConfigChange: (config: SearchConfig) => void;
   isSearching?: boolean;
   onBack: () => void;
-  onCancel: () => void;
   onSearch: (config: SearchConfig) => void;
   translations: {
     maxResults: string;
     semanticScoring: string;
     semanticScoringHelp: string;
-    cancel: string;
     back: string;
     search: string;
     searching: string;
@@ -24,18 +31,16 @@ export interface ConfigureSearchStepProps {
 }
 
 export function ConfigureSearchStep({
+  config,
+  onConfigChange,
   isSearching = false,
   onBack,
-  onCancel,
   onSearch,
   translations: t,
 }: ConfigureSearchStepProps) {
-  const [limit, setLimit] = useState(10);
-  const [useSemanticScoring, setUseSemanticScoring] = useState(true);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSearch({ limit, useSemanticScoring });
+    onSearch(config);
   };
 
   return (
@@ -47,8 +52,8 @@ export function ConfigureSearchStep({
         </label>
         <select
           id="wizard-limit"
-          value={limit}
-          onChange={(e) => setLimit(parseInt(e.target.value))}
+          value={config.limit}
+          onChange={(e) => onConfigChange({ ...config, limit: parseInt(e.target.value) })}
           className="semiont-select"
         >
           <option value={1}>1</option>
@@ -60,11 +65,11 @@ export function ConfigureSearchStep({
 
       {/* Semantic Scoring Toggle */}
       <div className="semiont-form__field">
-        <label className="semiont-form__label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <label className="semiont-form__label semiont-form__label--inline">
           <input
             type="checkbox"
-            checked={useSemanticScoring}
-            onChange={(e) => setUseSemanticScoring(e.target.checked)}
+            checked={config.useSemanticScoring}
+            onChange={(e) => onConfigChange({ ...config, useSemanticScoring: e.target.checked })}
           />
           {t.semanticScoring}
         </label>
@@ -73,33 +78,11 @@ export function ConfigureSearchStep({
         </p>
       </div>
 
-      {/* Action Buttons */}
-      <div className="semiont-modal__actions" style={{ paddingTop: '0.5rem' }}>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="semiont-button--secondary semiont-button--flex"
-          disabled={isSearching}
-        >
-          ✕ {t.cancel}
-        </button>
-        <button
-          type="button"
-          onClick={onBack}
-          className="semiont-button--secondary semiont-button--flex"
-          disabled={isSearching}
-        >
-          ◀ {t.back}
-        </button>
-        <button
-          type="submit"
-          className="semiont-button--primary semiont-button--flex"
-          disabled={isSearching}
-          data-generating={isSearching ? 'true' : 'false'}
-        >
-          {isSearching ? `✨ ${t.searching}` : `🔍 ${t.search}`}
-        </button>
-      </div>
+      <WizardFooter
+        backLabel={t.back}
+        onBack={onBack}
+        primary={{ label: t.search, pendingLabel: t.searching, pending: isSearching, type: 'submit' }}
+      />
     </form>
   );
 }

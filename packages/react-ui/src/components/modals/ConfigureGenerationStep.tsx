@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
+import { WizardFooter } from './WizardFooter';
 import type { CollaboratorEntry, GatheredContext } from '@semiont/core';
 import { LOCALES } from '@semiont/core';
 
@@ -11,6 +12,17 @@ import { LOCALES } from '@semiont/core';
  */
 const MIN_MAX_TOKENS = 100;
 const DEFAULT_MAX_TOKENS_CEILING = 4000;
+/** The step's form values, owned by the wizard so Back cannot discard them (D3). */
+export interface GenerationDraft {
+  title: string;
+  storagePath: string;
+  prompt: string;
+  language: string;
+  temperature: number;
+  /** Text, not number: the field is user-editable and may be mid-edit or empty. */
+  maxTokensText: string;
+}
+
 export interface GenerationConfig {
   title: string;
   storagePath: string;
@@ -22,11 +34,11 @@ export interface GenerationConfig {
 }
 
 export interface ConfigureGenerationStepProps {
-  defaultTitle: string;
-  locale: string;
   context: GatheredContext;
+  /** Owned by the wizard so Back is lossless (WIZARD-NAVIGATION D3). */
+  config: GenerationDraft;
+  onConfigChange: (config: GenerationDraft) => void;
   onBack: () => void;
-  onCancel: () => void;
   onGenerate: (config: GenerationConfig) => void;
   translations: {
     resourceTitle: string;
@@ -46,7 +58,6 @@ export interface ConfigureGenerationStepProps {
      * and `{{model}}`.
      */
     maxLengthCeiling: string;
-    cancel: string;
     back: string;
     generate: string;
   };
@@ -61,24 +72,21 @@ export interface ConfigureGenerationStepProps {
 }
 
 export function ConfigureGenerationStep({
-  defaultTitle,
-  locale,
   context,
+  config,
+  onConfigChange,
   onBack,
-  onCancel,
   onGenerate,
   translations: t,
   generationAgent,
 }: ConfigureGenerationStepProps) {
-  const [title, setTitle] = useState(defaultTitle);
-  const [storagePath, setStoragePath] = useState('');
-  const [prompt, setPrompt] = useState('');
-  const [language, setLanguage] = useState(locale);
-  const [temperature, setTemperature] = useState(0.7);
-  // Held as TEXT, not a number, so the field can be cleared while retyping.
-  // The old `parseInt(e.target.value)` turned an empty field into NaN, which
-  // React warns about and which travelled into the job config.
-  const [maxTokensText, setMaxTokensText] = useState('500');
+  // CONTROLLED (WIZARD-NAVIGATION D3): these were six local `useState`s, so Back
+  // unmounted the step and threw away every typed instruction, the save path and
+  // both sliders. `maxTokensText` stays TEXT rather than a number so the field can
+  // be cleared mid-edit — `parseInt` on an empty field yields NaN, which React
+  // warns about and which used to travel into the job config.
+  const { title, storagePath, prompt, language, temperature, maxTokensText } = config;
+  const set = (patch: Partial<GenerationDraft>) => onConfigChange({ ...config, ...patch });
 
   const ceiling = generationAgent?.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS_CEILING;
 
@@ -96,12 +104,12 @@ export function ConfigureGenerationStep({
   // first render and lands later; clamping only in the `useState` initializer
   // would satisfy a mount-time test and do nothing in the running app.
   useEffect(() => {
-    setMaxTokensText((current) => {
-      const n = parseInt(current, 10);
-      // An empty/mid-edit field is left alone; submission clamps it anyway.
-      if (!Number.isFinite(n)) return current;
-      return n > ceiling ? String(ceiling) : current;
-    });
+    const n = parseInt(maxTokensText, 10);
+    // An empty/mid-edit field is left alone; submission clamps it anyway.
+    if (Number.isFinite(n) && n > ceiling) set({ maxTokensText: String(ceiling) });
+    // `set` and the draft are intentionally out of the dep list: this reacts to the
+    // CEILING arriving (browse.agents() is async), not to the user typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ceiling]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -129,7 +137,7 @@ export function ConfigureGenerationStep({
           id="wizard-title"
           type="text"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => set({ title: e.target.value })}
           required
           className="semiont-input"
           placeholder={t.resourceTitlePlaceholder}
@@ -147,7 +155,7 @@ export function ConfigureGenerationStep({
             id="wizard-storagePath"
             type="text"
             value={storagePath}
-            onChange={(e) => setStoragePath(e.target.value)}
+            onChange={(e) => set({ storagePath: e.target.value })}
             required
             className="semiont-input semiont-input--addon"
             placeholder="generated/my-resource.md"
@@ -163,7 +171,7 @@ export function ConfigureGenerationStep({
         <textarea
           id="wizard-prompt"
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={(e) => set({ prompt: e.target.value })}
           rows={2}
           className="semiont-textarea"
           placeholder={t.additionalInstructionsPlaceholder}
@@ -179,7 +187,7 @@ export function ConfigureGenerationStep({
           <select
             id="wizard-language"
             value={language}
-            onChange={(e) => setLanguage(e.target.value)}
+            onChange={(e) => set({ language: e.target.value })}
             className="semiont-select"
           >
             {LOCALES.map((lang) => (
@@ -201,7 +209,7 @@ export function ConfigureGenerationStep({
             max="1"
             step="0.1"
             value={temperature}
-            onChange={(e) => setTemperature(parseFloat(e.target.value))}
+            onChange={(e) => set({ temperature: parseFloat(e.target.value) })}
             className="semiont-slider"
           />
           <div className="semiont-slider__labels semiont-slider__labels--small">
@@ -224,13 +232,13 @@ export function ConfigureGenerationStep({
             onChange={(e) => {
               const raw = e.target.value;
               // Empty is a legitimate transient state while retyping.
-              if (raw === '') { setMaxTokensText(''); return; }
+              if (raw === '') { set({ maxTokensText: '' }); return; }
               const n = parseInt(raw, 10);
               if (!Number.isFinite(n)) return;
               // `max` alone does not stop a larger value being typed — it only
               // marks the field invalid. D6 says it cannot be entered, so the
               // clamp lives here.
-              setMaxTokensText(String(Math.min(n, ceiling)));
+              set({ maxTokensText: String(Math.min(n, ceiling)) });
             }}
             className="semiont-input"
           />
@@ -248,29 +256,11 @@ export function ConfigureGenerationStep({
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="semiont-modal__actions" style={{ paddingTop: '0.5rem' }}>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="semiont-button--secondary semiont-button--flex"
-        >
-          ✕ {t.cancel}
-        </button>
-        <button
-          type="button"
-          onClick={onBack}
-          className="semiont-button--secondary semiont-button--flex"
-        >
-          ◀ {t.back}
-        </button>
-        <button
-          type="submit"
-          className="semiont-button--primary semiont-button--flex"
-        >
-          ✨ {t.generate}
-        </button>
-      </div>
+      <WizardFooter
+        backLabel={t.back}
+        onBack={onBack}
+        primary={{ label: t.generate, type: 'submit' }}
+      />
     </form>
   );
 }
