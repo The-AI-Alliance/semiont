@@ -151,9 +151,9 @@ describe('processHighlightJob', () => {
     // Highlights carry no body — motivation alone is the content per W3C.
     expect((result.annotations[0] as Record<string, unknown>).body).toBeUndefined();
     expect(result.result).toEqual({ highlightsFound: 2, highlightsCreated: 2 });
-    expect(progress).toHaveBeenCalledWith(10, { code: 'loading' }, 'analyzing');
+    expect(progress).toHaveBeenCalledWith(10, { code: 'loading' });
     expect(progress).toHaveBeenLastCalledWith(
-      100, { code: 'complete-created', count: 2, kind: 'highlight' }, 'creating',
+      100, { code: 'complete-created', count: 2, kind: 'highlight' },
     );
   });
 
@@ -387,8 +387,8 @@ describe('processGenerationJob', () => {
     // Percentages approximate the share of expected wall-clock complete at each
     // transition: inference dominates, so its start is ~5 and its end ~95.
     expect(progress).toHaveBeenCalledTimes(2);
-    expect(progress).toHaveBeenNthCalledWith(1, 5, { code: 'generating-resource' }, 'generating');
-    expect(progress).toHaveBeenNthCalledWith(2, 95, { code: 'creating-resource' }, 'creating');
+    expect(progress).toHaveBeenNthCalledWith(1, 5, { code: 'generating-resource' });
+    expect(progress).toHaveBeenNthCalledWith(2, 95, { code: 'creating-resource' });
   });
 
   it('falls back to request title when generator omits it', async () => {

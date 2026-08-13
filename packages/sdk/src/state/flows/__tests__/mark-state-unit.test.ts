@@ -320,7 +320,6 @@ describe('createMarkStateUnit', () => {
     expect(motiv[motiv.length - 1]).toBe('highlighting');
     const last = prog[prog.length - 1] as { stage?: string; message?: unknown } | null;
     expect(last).not.toBeNull();
-    expect(last?.stage).toBe('analyzing');
     expect(last?.message).toBeUndefined();
 
     stateUnit.dispose();

@@ -1303,7 +1303,7 @@ func serve(ports []string) {
 						if body.Channel == "job:create" {
 							jobID := "fake-job-1"
 							busPublish("job:report-progress", map[string]any{
-								"jobId": jobID, "progress": map[string]any{"message": "drafting"}})
+								"jobId": jobID, "progress": map[string]any{"message": map[string]any{"code": "generating-resource"}}})
 							if msg := os.Getenv("FAKERT_JOB_FAIL"); msg != "" {
 								busPublish("job:fail", map[string]any{"jobId": jobID, "error": msg})
 							} else {

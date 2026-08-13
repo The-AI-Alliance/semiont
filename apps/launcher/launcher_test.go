@@ -6511,7 +6511,7 @@ func TestYieldDelegateFollowsJobToCompletion(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("delegate: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Generating", "drafting", "res-new", "Generated")
+	mustContain(t, "stdout", stdout, "Generating", "Generating resource", "res-new", "Generated")
 	b := lastEmit(t, s)
 	// The job carries the gathered context and the generation params.
 	mustContain(t, "job:create emit", b,
@@ -6552,12 +6552,12 @@ func TestYieldDelegateReportsJobFailure(t *testing.T) {
 func TestYieldDelegateReportsADecline(t *testing.T) {
 	s := busScenario(t,
 		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
-		`FAKERT_JOB_RESULT={"declined":true,"reason":"encrypted","message":"the PDF is password-protected"}`)
+		`FAKERT_JOB_RESULT={"declined":true,"reason":"encrypted","message":"this PDF is password-protected"}`)
 	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived")
 	if code == 0 {
 		t.Fatalf("a declined job produced nothing; exit 0 tells a script to carry on\nstdout:\n%s", stdout)
 	}
-	mustContain(t, "decline", stdout+stderr, "encrypted", "the PDF is password-protected")
+	mustContain(t, "decline", stdout+stderr, "encrypted", "this PDF is password-protected")
 	if strings.Contains(stdout, "Yielded") {
 		t.Errorf("claimed a yield that never happened:\n%s", stdout)
 	}

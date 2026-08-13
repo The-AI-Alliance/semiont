@@ -513,7 +513,7 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 					// wording. Non-zero all the same: the caller asked for a
 					// resource and has none, and nothing downstream of a
 					// `yield --delegate && ...` should run.
-					u.fail("Declined: %s", declineText(declined.Reason))
+					u.fail("Declined (%s): %s", declined.Reason, declineText(declined.Reason))
 					fmt.Fprintf(os.Stderr, "  Nothing was written to %s.\n", opts.storageURI)
 					return 1
 				}

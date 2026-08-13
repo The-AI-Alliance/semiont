@@ -202,7 +202,7 @@ describe('markAssist', () => {
 
     const result = await markAssist(client, { resourceId: 'res-iliad' });
 
-    expect(text(result)).toBe('Detection complete. Found 7 entities.\nanalyzing: 40%\ncreating: 90%');
+    expect(text(result)).toBe('Detection complete. Found 7 entities.\nanalyzing: 40%\nanalyzing: 90%');
   });
 
   it('falls back to a motivation-specific count when totalFound is absent', async () => {
@@ -426,7 +426,7 @@ describe('yieldFromAnnotation', () => {
       resourceId: 'res-iliad',
       annotationId: 'anno-reference',
       storageUri: 'file://docs/achilles.md',
-    }))).toBe('Generation complete.\ngenerating: 50%');
+    }))).toBe('Generation complete.\nanalyzing: 50%');
   });
 
   it('returns an error result when generation fails', async () => {
