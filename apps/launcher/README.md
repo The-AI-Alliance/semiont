@@ -445,6 +445,32 @@ didn't complete), and `semiont status --verbose` lists every stored
 session under SESSIONS, live-verified against the stack when reachable —
 valid / expired / unverified, never a guess.
 
+### Driving a participant's Browser
+
+`semiont browse <resourceId> --browser` opens that resource on the
+PARTICIPANT's screen instead of printing it here — the same act as a plain
+`browse`, with a different audience, which is why it is a flag and not a
+second verb. It emits `browse:resource-open`, a domain signal the viewer
+resolves into its own route; the launcher never learns a URL. `--browser`
+needs a resourceId and refuses to combine with `--json`, `--annotations` or
+`--entity-types`, since each of those names a local rendering and the pair
+would state two destinations at once.
+
+Every emit now reports how many subscribers the backend's target subject had
+**at dispatch**, and the verbs say so plainly:
+
+```
+✓ Opened res-42 in the Browser (2 subscribers — broadcast, so still no confirmation anyone looked)
+✓ Beckoned toward res-42 (ann-9) — nothing is subscribed to beckon:focus, so no one received it
+```
+
+That number is deliberately not called delivery: a subscriber is a connection,
+not a pair of eyes, and these channels have no reply. But zero subscribers is a
+fact worth saying out loud — `/bus/subscribe` enforces no channel allowlist and
+the backend publishes unconditionally, so before this an emit into an empty
+room returned a clean ✓. Exit stays 0 either way; an empty room is a fact, not
+a failure.
+
 ### Where state lives
 
 Local-stack databases persist across restarts. Each local semiont root gets

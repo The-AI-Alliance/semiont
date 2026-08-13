@@ -6239,6 +6239,61 @@ func TestBrowseJSONPassesThrough(t *testing.T) {
 	}
 }
 
+// --- browse --browser: the same act, a different audience (GUIDED-TOUR P3) ---
+
+// `browse <id>` renders a resource HERE; `browse <id> --browser` renders it on
+// the participant's screen. One verb, two destinations — not a second verb,
+// because the act is identical and only the audience differs (D2b).
+func TestBrowseBrowserPutsTheResourceOnTheParticipantsScreen(t *testing.T) {
+	s := busScenario(t)
+	stdout, stderr, code := s.run(t, "browse", "res-42", "--browser")
+	if code != 0 {
+		t.Fatalf("browse --browser: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	b := lastEmit(t, s)
+	mustContain(t, "emit", b, `"channel":"browse:resource-open"`, `"resourceId":"res-42"`)
+
+	// It is a SIGNAL, not a read: nothing is fetched and nothing is rendered
+	// locally. A --browser that also performed the read would double the work
+	// and print a table nobody asked for.
+	for _, e := range emits(t, s) {
+		if strings.Contains(e, "browse:resource-requested") {
+			t.Errorf("--browser performed a local read as well as signalling:\n%s", e)
+		}
+	}
+
+	// P1's subscriber count carries through: nothing is watching in this
+	// scenario, and saying so is the whole point of that phase.
+	mustContain(t, "audience", stdout, "nothing is subscribed to browse:resource-open")
+}
+
+func TestBrowseBrowserNeedsAResourceId(t *testing.T) {
+	// "Show them the index" is a legitimate tour step and a different route;
+	// until that exists, a bare --browser must refuse rather than guess.
+	s := busScenario(t)
+	stdout, stderr, code := s.run(t, "browse", "--browser")
+	if code == 0 {
+		t.Fatalf("--browser without a resourceId must refuse\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "refusal", stdout+stderr, "--browser", "resourceId")
+}
+
+// --browser names a DESTINATION; --json/--annotations/--entity-types each name
+// a local rendering. Combining them states two destinations at once, so the
+// verb refuses instead of silently honouring one (D2b).
+func TestBrowseBrowserRefusesLocalRenderings(t *testing.T) {
+	for _, flag := range []string{"--json", "--annotations", "--entity-types"} {
+		t.Run(flag, func(t *testing.T) {
+			s := busScenario(t)
+			stdout, stderr, code := s.run(t, "browse", "res-42", "--browser", flag)
+			if code == 0 {
+				t.Fatalf("--browser %s must refuse\nstdout:\n%s", flag, stdout)
+			}
+			mustContain(t, "refusal", stdout+stderr, "--browser", flag)
+		})
+	}
+}
+
 func TestBrowseFailureChannelIsReported(t *testing.T) {
 	s := busScenario(t, "FAKERT_BUS_FAIL=resource vanished")
 	stdout, stderr, code := s.run(t, "browse", "res-9")
