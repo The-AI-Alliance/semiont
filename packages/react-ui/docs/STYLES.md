@@ -4,6 +4,29 @@
 
 The Semiont React UI package uses a modular, semantic CSS architecture with zero utility framework dependencies. All styles are organized into logical modules using BEM methodology and CSS custom properties.
 
+## The styling policy
+
+**Plain CSS only.** No Tailwind, no `@apply`, no utility classes, no CSS-in-JS
+in this package — a component's appearance comes from `semiont-`-prefixed BEM
+classes, data attributes, and custom properties, and nothing else. A stylesheet
+built that way drops into any host stack; one built on a utility framework
+drags that framework in with it.
+
+Three gates enforce it, so this is a build failure rather than a convention:
+
+- `npm run lint:no-utility-classes` — no utility framework in `packages/react-ui`
+- `semiont/invariants` — rejects utility class names and hardcoded colours
+- `.stylelintrc.json`'s `selector-class-pattern` — class names must be
+  `semiont-*` (plus a short, explicit allowlist for `annotation-*`, CodeMirror,
+  and markdown classes)
+
+**Hosts are unconstrained.** The policy binds this package, not the app
+consuming it — `apps/frontend` uses Tailwind. A host adopts the styles by
+importing `@semiont/react-ui/styles`, or takes only the tokens from
+`@semiont/react-ui/styles/variables.css`, or bridges through
+`@semiont/react-ui/integrations/css-modules` or
+`.../integrations/styled-components`.
+
 ## Using the Styles in Your App
 
 ### Import Styles

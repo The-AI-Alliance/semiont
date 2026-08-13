@@ -171,6 +171,24 @@ The library follows strict architectural principles:
 
 ## CSS Architecture
 
+**This package ships plain CSS and no utility framework.** No Tailwind, no
+`@apply`, no utility classes — only `semiont-`-prefixed BEM classes, data
+attributes, and CSS custom properties. The rule exists so the stylesheet drops
+into any stack a host happens to use, and it is enforced, not merely intended:
+`npm run lint:no-utility-classes` plus the `semiont/invariants` stylelint rule
+fail on a utility class or a non-`semiont-` selector.
+
+The rule binds the library, not its hosts. An app is free to use whatever it
+likes — `apps/frontend` uses Tailwind — and consumes this package by whichever
+route fits:
+
+| Host stack | Consume via |
+|---|---|
+| Anything with PostCSS | `@import '@semiont/react-ui/styles'` |
+| Own design system | `@semiont/react-ui/styles/variables.css` for the tokens alone |
+| CSS Modules | `@semiont/react-ui/integrations/css-modules` |
+| styled-components | `@semiont/react-ui/integrations/styled-components` |
+
 The styles are organized into a modular, maintainable structure:
 
 - **Design Tokens** - Centralized variables for consistent theming
