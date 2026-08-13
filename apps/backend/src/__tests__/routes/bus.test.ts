@@ -173,6 +173,65 @@ describe('bus routes', () => {
     app = buildApp(eventBus);
   });
 
+  // Presence is SSE CONNECTION LIFECYCLE, not login (D5): `semiont login`
+  // hits REST and mints a token that may sit unused for hours, while what a
+  // tour needs to know is whether anyone is WATCHING. The backend already
+  // tracked exactly that for its metrics gauge (recordSubscriberConnect /
+  // recordSubscriberDisconnect) and threw the information away; these two
+  // channels publish it.
+  describe('presence', () => {
+    it('announces session:joined with the participant DID when an SSE stream opens', async () => {
+      const joined: any[] = [];
+      eventBus.get('session:joined').subscribe((v) => joined.push(v));
+
+      const res = await app.request('/bus/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ global: ['mark:added'], scoped: [] }),
+      });
+      await readSSE(res, () => joined.length > 0);
+
+      expect(joined).toHaveLength(1);
+      expect(joined[0].participant).toBe('did:web:test.local:users:test%40test.local');
+    });
+
+    it('announces session:left when the stream aborts', async () => {
+      const left: any[] = [];
+      eventBus.get('session:left').subscribe((v) => left.push(v));
+
+      const res = await app.request('/bus/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ global: ['mark:added'], scoped: [] }),
+      });
+      // readSSE cancels the reader on the way out, which aborts the stream.
+      await readSSE(res, () => false, 150);
+      await vi.waitFor(() => expect(left).toHaveLength(1));
+      expect(left[0].participant).toBe('did:web:test.local:users:test%40test.local');
+    });
+
+    // joined and left must name the SAME connection, or a guide watching two
+    // viewers cannot tell which one left. The DID alone cannot do it: one
+    // person with two tabs is two connections under one DID.
+    it('pairs joined and left by connectionId', async () => {
+      const joined: any[] = [];
+      const left: any[] = [];
+      eventBus.get('session:joined').subscribe((v) => joined.push(v));
+      eventBus.get('session:left').subscribe((v) => left.push(v));
+
+      const res = await app.request('/bus/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ global: ['mark:added'], scoped: [] }),
+      });
+      await readSSE(res, () => joined.length > 0);
+      await vi.waitFor(() => expect(left).toHaveLength(1));
+
+      expect(joined[0].connectionId).toBeTruthy();
+      expect(left[0].connectionId).toBe(joined[0].connectionId);
+    });
+  });
+
   describe('POST /bus/emit', () => {
     it('emits an event onto the bus and returns 202 for unvalidated channel', async () => {
       const received: unknown[] = [];

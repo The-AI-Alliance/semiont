@@ -533,6 +533,12 @@ const (
 
 	// not emittable (no registered schema)
 	BusResumeGap Channel = "bus:resume-gap"
+
+	// payload: SessionJoinedEvent
+	SessionJoined Channel = "session:joined"
+
+	// payload: SessionLeftEvent
+	SessionLeft Channel = "session:left"
 )
 
 // ChannelSchemas maps an emittable channel to the OpenAPI schema name its
@@ -641,6 +647,8 @@ var ChannelSchemas = map[Channel]string{
 	SettingsThemeChanged:             "SettingsThemeChangedEvent",
 	SettingsLocaleChanged:            "SettingsLocaleChangedEvent",
 	SettingsHoverDelayChanged:        "SettingsHoverDelayChangedEvent",
+	SessionJoined:                    "SessionJoinedEvent",
+	SessionLeft:                      "SessionLeftEvent",
 }
 
 // Emittable reports whether the backend accepts this channel on /bus/emit.

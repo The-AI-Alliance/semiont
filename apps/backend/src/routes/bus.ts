@@ -225,6 +225,9 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     const { global: channels, scoped, pendingReplies } = parsed;
     const eventBus = c.get('eventBus');
     const makeMeaning = c.get('makeMeaning');
+    // Read OUTSIDE the stream callback: `c` is the request context, and the
+    // presence pair below must name the principal on this connection.
+    const subscriberDid = c.get('principalDid') as string | undefined;
 
     let retention = retentionByBus.get(eventBus);
     if (!retention) {
@@ -263,9 +266,24 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // Tier 3: track active SSE subscribers via UpDownCounter. Connect
       // increments; disconnect (stream.onAbort) decrements. The gauge
       // reflects current concurrent SSE connections per service instance.
+      //
+      // The same two moments are PRESENCE (GUIDED-TOUR D5): the backend
+      // already knew who was watching and only counted it. Publishing it
+      // needs no new tracking — one emit each side. Presence is connection
+      // lifecycle, NOT login: a token can be minted and sit unused for hours,
+      // and what a collaborator (or a tour script) needs to know is whether
+      // anyone is actually watching.
+      //
+      // connectionId rides along because the DID cannot stand alone: one
+      // person with two tabs is two connections under one principal, so a
+      // consumer that retires presence by DID would drop a viewer who merely
+      // closed a duplicate tab.
+      const presence = { participant: subscriberDid ?? '', connectionId };
       recordSubscriberConnect();
+      eventBus.get('session:joined').next(presence);
       stream.onAbort(() => {
         recordSubscriberDisconnect();
+        eventBus.get('session:left').next(presence);
         getBusLogger().info('SSE disconnect', { connectionId });
       });
 

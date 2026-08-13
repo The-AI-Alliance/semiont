@@ -3768,6 +3768,24 @@ type SemanticMatch struct {
 	Text string `json:"text"`
 }
 
+// SessionJoinedEvent A participant opened a live connection to this KB — an SSE stream on /bus/subscribe. Presence is CONNECTION lifecycle, not login: a token can be minted and sit unused, so what this reports is that someone is WATCHING. One person with two tabs produces two of these, which is why connectionId is required — the DID alone cannot tell two connections apart, and a consumer that counts DIDs will undercount viewers.
+type SessionJoinedEvent struct {
+	// ConnectionId Identifies this connection for its lifetime. The matching session:left carries the same value.
+	ConnectionId string `json:"connectionId"`
+
+	// Participant DID of the authenticated principal on that connection. A person or a software agent — the bus does not distinguish.
+	Participant string `json:"participant"`
+}
+
+// SessionLeftEvent A participant's live connection to this KB ended — the SSE stream aborted. Carries the same connectionId as the session:joined that opened it, so a consumer tracking who is present can retire the right connection rather than assuming one per participant.
+type SessionLeftEvent struct {
+	// ConnectionId The connectionId announced by the matching session:joined.
+	ConnectionId string `json:"connectionId"`
+
+	// Participant DID of the authenticated principal on that connection.
+	Participant string `json:"participant"`
+}
+
 // SettingsHoverDelayChangedEvent Emitted when the hover delay setting changes
 type SettingsHoverDelayChangedEvent struct {
 	HoverDelayMs int `json:"hoverDelayMs"`

@@ -50,6 +50,8 @@ export const BRIDGED_BROADCASTS = [
   'bus:resume-gap',
   'browse:resource-open',
   'browse:resource-viewed',
+  'session:joined',
+  'session:left',
 ] as const satisfies readonly EventName[];
 
 // ── Derivation ──────────────────────────────────────────────────────────────

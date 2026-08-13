@@ -178,7 +178,9 @@
       "settings:hover-delay-changed",
       "stream-connected",
       "replay-window-exceeded",
-      "bus:resume-gap"
+      "bus:resume-gap",
+      "session:joined",
+      "session:left"
     ],
     "schemas": [
       "yield:created",
@@ -357,7 +359,9 @@
       "smelt:rebuild-anchors-failed",
       "stream-connected",
       "replay-window-exceeded",
-      "bus:resume-gap"
+      "bus:resume-gap",
+      "session:joined",
+      "session:left"
     ]
   },
   "channels": [
@@ -3259,6 +3263,36 @@
         "lead": [],
         "trailing": "// inline payload"
       }
+    },
+    {
+      "channel": "session:joined",
+      "shape": "schema",
+      "schema": "SessionJoinedEvent",
+      "validate": "SessionJoinedEvent",
+      "ts": "components['schemas']['SessionJoinedEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "session:left",
+      "shape": "schema",
+      "schema": "SessionLeftEvent",
+      "validate": "SessionLeftEvent",
+      "ts": "components['schemas']['SessionLeftEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
     }
   ],
   "operations": [
@@ -3664,7 +3698,9 @@
       "beckon:sparkle",
       "bus:resume-gap",
       "browse:resource-open",
-      "browse:resource-viewed"
+      "browse:resource-viewed",
+      "session:joined",
+      "session:left"
     ]
   }
 }

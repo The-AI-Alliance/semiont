@@ -20,6 +20,8 @@ var BridgedBroadcasts = []Channel{
 	BusResumeGap,
 	BrowseResourceOpen,
 	BrowseResourceViewed,
+	SessionJoined,
+	SessionLeft,
 }
 
 // BridgedChannels: everything a transport delivers — the broadcasts plus

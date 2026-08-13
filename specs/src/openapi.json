@@ -627,6 +627,12 @@
       "SemanticMatch": {
         "$ref": "components/schemas/SemanticMatch.json"
       },
+      "SessionJoinedEvent": {
+        "$ref": "components/schemas/SessionJoinedEvent.json"
+      },
+      "SessionLeftEvent": {
+        "$ref": "components/schemas/SessionLeftEvent.json"
+      },
       "SettingsHoverDelayChangedEvent": {
         "$ref": "components/schemas/SettingsHoverDelayChangedEvent.json"
       },

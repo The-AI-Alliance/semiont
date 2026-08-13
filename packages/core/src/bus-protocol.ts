@@ -476,6 +476,8 @@ export type EventMap = {
    * `reason` is human-readable, for logging.
    */
   'bus:resume-gap': { scope?: string; lastSeenId?: string; reason: string };
+  'session:joined': components['schemas']['SessionJoinedEvent'];
+  'session:left': components['schemas']['SessionLeftEvent'];
 };
 
 export type { AnchorRect } from './bus-ui-types';
@@ -749,6 +751,8 @@ export const CHANNEL_SCHEMAS = {
   'stream-connected':                 null, // Record<string, never>
   'replay-window-exceeded':           null, // inline payload
   'bus:resume-gap':                   null, // inline payload
+  'session:joined':                   'SessionJoinedEvent',
+  'session:left':                     'SessionLeftEvent',
 } as const satisfies Record<EventName, keyof components['schemas'] | null>;
 
 /** Channels where `/bus/emit` validates the payload (non-null schema). */
