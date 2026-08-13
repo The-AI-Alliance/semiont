@@ -180,7 +180,7 @@ const done = await semiont.mark.assist(rId, 'linking', {}).run((event) => {
 - `mark.request`, `mark.requestAssist`, `mark.submit`, `mark.cancelPending`, `mark.dismissProgress`
 - `mark.changeSelection`, `mark.changeClick`, `mark.changeShape`, `mark.toggleMode`
 - `bind.initiate`
-- `browse.click`, `browse.navigateReference`
+- `browse.click` (local fan-out only), `browse.openResource`, `browse.resourceViewed`
 - `match.requestSearch`
 - `yield.clone`
 - `beckon.hover`, `beckon.attention`, `beckon.sparkle`

@@ -37,7 +37,7 @@ Data attributes set by widgets:
 **States**:
 
 1. **Resolved (🔗)**: Has a referenced document
-   - Click: Emits `browse:reference-navigate` event
+   - Click: Emits `browse:resource-open` (via `browse.openResource(...)`)
    - Hover: Shows tooltip with target document name via `showWidgetPreview()`
 
 2. **Generating (✨)**: Document is being created
@@ -80,7 +80,7 @@ hideWidgetPreview(container: HTMLElement): void
 
 In `CodeMirrorRenderer.tsx`, three handlers manage widget interactions:
 
-**`handleWidgetClick`**: Finds `.reference-preview-widget` via `closest()`. If resolved with a body source, emits `browse:reference-navigate`. Otherwise emits `browse:click`.
+**`handleWidgetClick`**: Finds `.reference-preview-widget` via `closest()`. If resolved with a body source, emits `browse:resource-open`. Otherwise emits `browse:click`.
 
 **`handleWidgetMouseEnter`** (capture phase): Sets indicator opacity to 1. If resolved with a target name, calls `showWidgetPreview()`.
 
