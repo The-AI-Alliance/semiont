@@ -59,7 +59,7 @@ func fetchModelCeilings(st *stackState) modelCeilings {
 	if !ok || e.Token == "" {
 		return nil
 	}
-	reply, err := bus.NewClient(base, e.Token).Request(
+	reply, err := newTransport(base, e.Token).Request(
 		context.Background(),
 		bus.BrowseAgentsRequested,
 		semiont.BrowseAgentsRequest{},

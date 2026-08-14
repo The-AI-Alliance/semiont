@@ -144,7 +144,7 @@ func Browse(args []string) int {
 	if !ok {
 		return 1
 	}
-	cli := bus.NewClient(t.base, t.token)
+	cli := newTransport(t.base, t.token)
 
 	// --browser is the one path in this file that SIGNALS instead of reading:
 	// a fire-and-forget emit, no correlation id, no reply, nothing rendered

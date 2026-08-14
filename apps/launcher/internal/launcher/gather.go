@@ -117,7 +117,7 @@ func Gather(args []string) int {
 	if !ok {
 		return 1
 	}
-	cli := bus.NewClient(t.base, t.token)
+	cli := newTransport(t.base, t.token)
 
 	// The two gathers take DIFFERENT option sets — the resource variant
 	// traverses a graph, the annotation variant windows text around a mark.

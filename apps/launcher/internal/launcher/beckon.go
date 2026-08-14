@@ -126,7 +126,7 @@ func Beckon(args []string) int {
 	if !ok {
 		return 1
 	}
-	cli := bus.NewClient(t.base, t.token)
+	cli := newTransport(t.base, t.token)
 
 	// Two signals, one act (GUIDED-TOUR P6). Focus SCROLLS, so beckoning three
 	// references in a row scroll-fights and only the last survives; sparkle is

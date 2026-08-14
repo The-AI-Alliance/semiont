@@ -114,7 +114,7 @@ func Listen(args []string) int {
 	if !ok {
 		return 1
 	}
-	cli := bus.NewClient(t.base, t.token)
+	cli := newTransport(t.base, t.token)
 
 	// Resource names, fetched ONCE before the stream opens. Not per event: a
 	// lookup is a correlated Request, which opens its own SSE connection, and
@@ -176,7 +176,7 @@ func Listen(args []string) int {
 // uses. Best effort by design: a KB that cannot answer, or answers partially,
 // costs the console nothing — every id still renders as an id. Failing the
 // whole `listen` because a cosmetic lookup failed would be the wrong trade.
-func prefetchResourceNames(cli *bus.Client) map[string]string {
+func prefetchResourceNames(cli bus.Transport) map[string]string {
 	names := map[string]string{}
 	ctx, cancel := context.WithTimeout(context.Background(), prefetchTimeout)
 	defer cancel()

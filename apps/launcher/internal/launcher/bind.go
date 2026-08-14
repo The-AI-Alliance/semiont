@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
 const bindUsage = `Usage: semiont bind <resourceId> <annotationId> <targetResourceId>
@@ -93,7 +92,7 @@ func Bind(args []string) int {
 	if !ok {
 		return 1
 	}
-	cli := bus.NewClient(t.base, t.token)
+	cli := newTransport(t.base, t.token)
 
 	var item semiont.AnnotationBody
 	purpose := semiont.BodyPurpose("linking")
