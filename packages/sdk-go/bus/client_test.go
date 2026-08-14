@@ -272,9 +272,15 @@ func TestEmitRefusesNonEmittableChannel(t *testing.T) {
 	c := NewClient("http://unused", "tok")
 	// A domain event is not emittable — the backend would reject it, so the
 	// client refuses rather than making a doomed round trip.
-	err := c.Emit(context.Background(), "yield:created", map[string]any{}, "")
+	subscribers, err := c.Emit(context.Background(), "yield:created", map[string]any{}, "")
 	if err == nil || !strings.Contains(err.Error(), "not emittable") {
 		t.Errorf("want a not-emittable refusal, got %v", err)
+	}
+	// -1, not 0: the request never left, so "nobody was subscribed" is a claim
+	// this client is in no position to make. Zero means the server counted
+	// zero; -1 means we never found out.
+	if subscribers != -1 {
+		t.Errorf("a refused emit must report an UNKNOWN count, got %d", subscribers)
 	}
 }
 
