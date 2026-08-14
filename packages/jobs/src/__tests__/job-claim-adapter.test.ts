@@ -37,6 +37,7 @@ function fakeBus() {
     state$: new BehaviorSubject<ConnectionState>('open'),
     emit: vi.fn(async (channel: string, payload: Record<string, unknown>) => {
       emits.push({ channel, payload });
+      return -1;
     }),
   };
 

@@ -52,7 +52,7 @@ describe('BrowseNamespace cache rehydration (B17)', () => {
       version: 1,
     }).save(new Map([[String(RID), DESCRIPTOR]]));
 
-    const emit = vi.fn<(channel: string, ...rest: unknown[]) => Promise<void>>(async () => {});
+    const emit = vi.fn<(channel: string, ...rest: unknown[]) => Promise<number>>(async () => 1);
     const browse = new BrowseNamespace(
       inertTransport(emit as unknown as ITransport['emit']),
       new EventBus(),
@@ -83,7 +83,7 @@ describe('BrowseNamespace cache rehydration (B17)', () => {
   it('persists what it fetches: a later construction rehydrates it', async () => {
     const storage = new TestStorage();
     const first = new BrowseNamespace(
-      inertTransport(async () => {}),
+      inertTransport(async () => 1),
       new EventBus(),
       {} as unknown as IContentTransport,
       { busTimeoutMs: 50, cachePersistence: { storage, keyPrefix: 'kb-1' } },
@@ -95,7 +95,7 @@ describe('BrowseNamespace cache rehydration (B17)', () => {
     await new Promise((resolve) => setTimeout(resolve, 80)); // > save debounce
     first.dispose();
 
-    const emit = vi.fn(async () => {});
+    const emit = vi.fn(async () => 1);
     const second = new BrowseNamespace(
       inertTransport(emit),
       new EventBus(),

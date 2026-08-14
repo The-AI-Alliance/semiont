@@ -190,7 +190,7 @@ export function createFakeKsBus(
     emitted,
     // In-process fake — replies are queued on emit, so 'open' is the truth.
     state$: new BehaviorSubject<ConnectionState>('open'),
-    async emit<K extends keyof EventMap>(name: K, payload: EventMap[K]): Promise<void> {
+    async emit<K extends keyof EventMap>(name: K, payload: EventMap[K]): Promise<number> {
       const request = payload as Record<string, unknown>;
       emitted.push({ channel: name as string, payload: request });
       if (name === 'browse:resources-requested') {
@@ -219,6 +219,7 @@ export function createFakeKsBus(
           response: { annotations, total: annotations.length },
         }));
       }
+      return 1;
     },
     stream<K extends keyof EventMap>(name: K): Observable<EventMap[K]> {
       return channel(name as string) as unknown as Observable<EventMap[K]>;

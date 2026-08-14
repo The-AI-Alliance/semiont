@@ -110,6 +110,39 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
+  it('emit resolves with the subscriber count from the response body', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ subscribers: 3 }) });
+
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: [],
+    });
+
+    await expect(stateUnit.emit('mark:added', { annotationId: 'a-1' })).resolves.toBe(3);
+
+    stateUnit.dispose();
+  });
+
+  it('emit resolves -1 when the body is absent or unreadable (older backend ≠ empty room)', async () => {
+    // A parse failure must NOT read as "nobody is listening": -1 (unknown,
+    // matching the Go client) keeps an older backend distinguishable from a
+    // genuine zero-subscriber emit.
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => { throw new Error('no body'); } });
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: [],
+    });
+
+    await expect(stateUnit.emit('mark:added', { annotationId: 'a-1' })).resolves.toBe(-1);
+    await expect(stateUnit.emit('mark:added', { annotationId: 'a-2' })).resolves.toBe(-1);
+
+    stateUnit.dispose();
+  });
+
   it('emit includes scope only when explicitly passed', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true });
     mockFetch.mockResolvedValueOnce({ ok: true });

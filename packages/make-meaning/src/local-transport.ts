@@ -101,7 +101,7 @@ export class LocalTransport implements ITransport {
     channel: K,
     payload: EventMap[K],
     resourceScope?: ResourceId,
-  ): Promise<void> {
+  ): Promise<number> {
     busLog('EMIT', channel as string, payload, resourceScope as string | undefined);
     recordBusEmit(channel as string, resourceScope as string | undefined);
     await withSpan(
@@ -126,6 +126,9 @@ export class LocalTransport implements ITransport {
         },
       },
     );
+    // In-process delivery has no subscriber accounting — `-1` is the
+    // ITransport "count unknown" sentinel, not an error.
+    return -1;
   }
 
   on<K extends keyof EventMap>(channel: K, handler: (payload: EventMap[K]) => void): () => void {

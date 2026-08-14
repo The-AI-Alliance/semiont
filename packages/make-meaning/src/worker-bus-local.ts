@@ -29,8 +29,10 @@ export function workerBusOverEventBus(eventBus: EventBus): WorkerBus {
     // (X1): the subject's mutators must not leak to consumers.
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
 
-    emit: async (channel: string, payload: Record<string, unknown>): Promise<void> => {
+    emit: async (channel: string, payload: Record<string, unknown>): Promise<number> => {
       eventBus.get(channel as EventName).next(payload as EventMap[EventName]);
+      // In-process: no subscriber accounting — the ITransport "unknown" sentinel.
+      return -1;
     },
 
     addChannels: () => {

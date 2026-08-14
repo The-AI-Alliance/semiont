@@ -64,7 +64,7 @@ export const LINGER_MS = 1_000;
 
 export interface ActorStateUnit extends StateUnit {
   on$<T = Record<string, unknown>>(channel: string): Observable<T>;
-  emit(channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<void>;
+  emit(channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<number>;
   state$: Observable<ConnectionState>;
   /** With `scope`: upsert channels into that scope's matrix entry. Without: global channels. */
   addChannels(channels: string[], scope?: string): void;
@@ -511,7 +511,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       );
     },
 
-    emit: async (channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<void> => {
+    emit: async (channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<number> => {
       // EMIT logging + bus.emit span live at the transport contract layer
       // (`HttpTransport.emit`). ActorStateUnit is plumbing. We do propagate the
       // active span's W3C traceparent on the outbound POST so the backend
@@ -527,11 +527,19 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         headers['traceparent'] = trace.traceparent;
         if (trace.tracestate) headers['tracestate'] = trace.tracestate;
       }
-      await fetch(`${baseUrl}/bus/emit`, {
+      const res = await fetch(`${baseUrl}/bus/emit`, {
         method: 'POST',
         headers,
         body: JSON.stringify(body),
       });
+      // `-1` = count unknown (older backend / unreadable body) — never let a
+      // parse failure read as an empty room. Same sentinel as the Go client.
+      try {
+        const reply = (await res.json()) as { subscribers?: unknown };
+        return typeof reply.subscribers === 'number' ? reply.subscribers : -1;
+      } catch {
+        return -1;
+      }
     },
 
     state$: state$.asObservable(),

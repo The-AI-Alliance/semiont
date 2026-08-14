@@ -37,7 +37,7 @@ function fakeBus() {
     state$: new BehaviorSubject<ConnectionState>('open'),
     // Required by the WorkerBus shape; the fan-in never emits — the Weaver
     // itself emits weave:applied through its own bus handle.
-    emit: vi.fn(async () => {}),
+    emit: vi.fn(async () => -1),
   };
 
   return {

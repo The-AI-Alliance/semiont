@@ -37,7 +37,7 @@ function fakeBus() {
     state$: new BehaviorSubject<ConnectionState>('open'),
     // Required by the WorkerBus shape; the smelter state unit is a silent
     // sink (SMELTER-AXIOMS.md, D3) and never calls it.
-    emit: vi.fn(async () => {}),
+    emit: vi.fn(async () => -1),
   };
 
   return {

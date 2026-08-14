@@ -12,9 +12,10 @@ import type { ConnectionState, EventBus, EventMap, BusRequestPrimitive } from '@
  */
 export function asBusRequestPrimitive(eventBus: EventBus): BusRequestPrimitive {
   return {
-    emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<void> {
+    emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<number> {
       eventBus.get(channel).next(payload);
-      return Promise.resolve();
+      // In-process: no subscriber accounting — the ITransport "unknown" sentinel.
+      return Promise.resolve(-1);
     },
     stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
       return eventBus.get(channel).asObservable();

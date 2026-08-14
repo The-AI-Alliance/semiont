@@ -31,7 +31,7 @@ import type { WorkerBus } from '@semiont/sdk';
  */
 function workerBusAsPrimitive(bus: WorkerBus): BusRequestPrimitive {
   return {
-    emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<void> {
+    emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<number> {
       return bus.emit(channel as string, payload as Record<string, unknown>);
     },
     stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {

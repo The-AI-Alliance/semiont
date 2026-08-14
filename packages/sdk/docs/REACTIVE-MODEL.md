@@ -183,10 +183,16 @@ const done = await semiont.mark.assist(rId, 'linking', {}).run((event) => {
 - `browse.click` (local fan-out only), `browse.openResource`, `browse.resourceViewed`
 - `match.requestSearch`
 - `yield.clone`
-- `beckon.hover`, `beckon.attention`, `beckon.sparkle`
+- `beckon.hover`, `beckon.sparkle` (both local fan-out only)
 - `job.cancelRequest`
 
 These produce no return value at the call site — observation happens on the bus side via `session.subscribe(channel, handler)` or `client.bus.get(channel)`. A frontend state unit emits `mark.changeShape('rectangle')`; a different participant subscribed to `mark:shape-changed` reacts.
+
+**Wire drives** (return `Promise<number>`; emit over the transport at every other participant):
+
+- `beckon.attention`, `beckon.openResource`, `beckon.sparkleAll`
+
+These are the guided-tour moves: they drive *other* participants' viewers, and they resolve with the `/bus/emit` subscriber count (`-1` = unknown — an older backend or in-process transport, never conflated with a genuine zero). Neither fire-and-forget nor an ack: the count is *information* — a tour script can tell an empty room from a full one before its next move.
 
 **Plain `Observable<T>` / `BehaviorSubject<T>`** (no thenable wrapper, by design — observed continuously, not awaited):
 

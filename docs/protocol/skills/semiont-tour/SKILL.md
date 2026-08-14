@@ -133,30 +133,31 @@ State these to the user rather than letting them discover them mid-demo:
 
 ## From TypeScript instead
 
-The SDK covers half of this today, and the halves are not obvious:
+The SDK expresses every tour move through `beckon` — the wire drives — plus the arrival
+report:
 
 ```ts
-client.beckon.attention(resourceId, annotationId); // → wire (beckon:focus)
-client.browse.resourceViewed(resourceId);          // → wire (the report)
-
-client.browse.openResource(resourceId);            // LOCAL bus only
-client.beckon.sparkle(annotationId);               // LOCAL bus only
+const n = await client.beckon.openResource(resourceId);   // → wire (browse:resource-open)
+await client.beckon.sparkleAll(annotationId);             // → wire (beckon:sparkle)
+await client.beckon.attention(resourceId, annotationId);  // → wire (beckon:focus)
+client.browse.resourceViewed(resourceId);                 // → wire (the report)
 ```
 
-`openResource` and `sparkle` are in-browser fan-out helpers — from a Node script they reach
-nobody. To drive a tour from TypeScript, use the documented escape hatch:
+Every drive resolves with the subscriber count (`-1` = unknown) — the same signal the
+launcher's tour verbs print. `n === 0` means the room is empty, and the script can say so
+instead of touring nobody.
 
-```ts
-void client.transport.emit('browse:resource-open', { resourceId });
-void client.transport.emit('beckon:sparkle', { annotationId });
-```
+The unmarked local pair stays local by design: `browse.openResource()` and
+`beckon.sparkle()` are this viewer's own fan-out — from a Node script they reach nobody,
+and that is correct (D6: a wire emit there would broadcast one viewer's own click to the
+room).
 
 For anything long-running, build on [`semiont-session`](../semiont-session/SKILL.md) rather
 than a bare client: a tour that outlives its access token needs the refresh machinery, and
 `session.subscribe(channel, handler)` is the SDK equivalent of `semiont listen`.
 
-**Recommend the launcher for tours.** The shell path is what these channels were built and
-verified against, the four moves are one command each, and there is no token lifecycle to own.
+**Either surface drives a tour.** The launcher's four moves are one command each with no
+token lifecycle to own; the SDK path is the same wire with a programmable driver around it.
 
 ## Related
 

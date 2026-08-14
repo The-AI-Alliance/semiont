@@ -117,13 +117,19 @@ describe('UI signal wrappers', () => {
     it('emits browse:resource-open with the given resourceId (local bus)', () => {
       const bus = new EventBus();
       const spy = busSpy(bus, 'browse:resource-open');
-      const browse = new BrowseNamespace(makeMockTransport(), bus, makeMockContent());
+      const transport = makeMockTransport();
+      const browse = new BrowseNamespace(transport, bus, makeMockContent());
 
       browse.openResource(RID);
 
       expect(spy).toHaveBeenCalledExactlyOnceWith('browse:resource-open', {
         resourceId: RID,
       });
+      // NEVER the wire: `browse:resource-open` is bridged (GUIDED-TOUR P2),
+      // so a transport emit here would broadcast this viewer's own click to
+      // every participant — the D6 feedback loop. The wire path is
+      // `beckon.openResource()` (SDK-REMOTE-SIGNALS).
+      expect(transport.emit).not.toHaveBeenCalled();
     });
   });
 
@@ -169,11 +175,71 @@ describe('UI signal wrappers', () => {
     it('emits beckon:sparkle with the given annotationId (local bus)', () => {
       const bus = new EventBus();
       const spy = busSpy(bus, 'beckon:sparkle');
-      const beckon = new BeckonNamespace(makeMockTransport(), bus);
+      const transport = makeMockTransport();
+      const beckon = new BeckonNamespace(transport, bus);
 
       beckon.sparkle(AID);
 
       expect(spy).toHaveBeenCalledExactlyOnceWith('beckon:sparkle', { annotationId: AID });
+      // NEVER the wire: the just-created-annotation affordance is this
+      // viewer's own. The wire path is `beckon.sparkleAll()`.
+      expect(transport.emit).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── SDK-REMOTE-SIGNALS P2: the beckon wire drives ───────────────────────
+  // These drive OTHER participants (the guided-tour moves) and resolve with
+  // the subscriber count from /bus/emit (`-1` = unknown; ITransport.emit).
+
+  describe('beckon.openResource (wire drive)', () => {
+    it('emits browse:resource-open over the TRANSPORT and resolves the subscriber count', async () => {
+      const bus = new EventBus();
+      const localSpy = busSpy(bus, 'browse:resource-open');
+      const transport = makeMockTransport();
+      (transport.emit as ReturnType<typeof vi.fn>).mockResolvedValue(3);
+      const beckon = new BeckonNamespace(transport, bus);
+
+      await expect(beckon.openResource(RID)).resolves.toBe(3);
+
+      expect(transport.emit).toHaveBeenCalledExactlyOnceWith('browse:resource-open', {
+        resourceId: RID,
+      });
+      // The drive is for OTHER participants; it must not loop back locally
+      // (arrivals come in bridged, like any remote emit).
+      expect(localSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('beckon.sparkleAll (wire drive)', () => {
+    it('emits beckon:sparkle over the TRANSPORT and resolves the subscriber count', async () => {
+      const bus = new EventBus();
+      const localSpy = busSpy(bus, 'beckon:sparkle');
+      const transport = makeMockTransport();
+      (transport.emit as ReturnType<typeof vi.fn>).mockResolvedValue(2);
+      const beckon = new BeckonNamespace(transport, bus);
+
+      await expect(beckon.sparkleAll(AID)).resolves.toBe(2);
+
+      expect(transport.emit).toHaveBeenCalledExactlyOnceWith('beckon:sparkle', {
+        annotationId: AID,
+      });
+      expect(localSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('beckon.attention (wire drive)', () => {
+    it('emits beckon:focus over the TRANSPORT and resolves the subscriber count', async () => {
+      const bus = new EventBus();
+      const transport = makeMockTransport();
+      (transport.emit as ReturnType<typeof vi.fn>).mockResolvedValue(4);
+      const beckon = new BeckonNamespace(transport, bus);
+
+      await expect(beckon.attention(RID, AID)).resolves.toBe(4);
+
+      expect(transport.emit).toHaveBeenCalledExactlyOnceWith('beckon:focus', {
+        annotationId: AID,
+        resourceId: RID,
+      });
     });
   });
 

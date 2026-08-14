@@ -27,7 +27,7 @@ Three framings hold the SDK's surface together. Skim them once and the per-names
 
 **Eight verbs.** Every operation belongs to one of eight flows — *browse, bind, yield, mark, frame, gather, match, beckon* — that describe what a participant *does* with a shared corpus. Seven of them act on content (resources, annotations, references, attention); Frame acts on the schema layer (the conceptual vocabulary the others operate within). Each flow is a namespace on `SemiontClient`. The verb is the unit of mental model; methods belong to flows, not to nouns. The protocol-level definitions live in [`docs/protocol/flows`](../../../docs/protocol/flows); the per-namespace examples in this guide track the same vocabulary.
 
-**Four return shapes.** Method return types follow a predictable convention:
+**Five return shapes.** Method return types follow a predictable convention:
 
 | Shape | Naming | When to reach for it |
 |---|---|---|
@@ -35,6 +35,7 @@ Three framings hold the SDK's surface together. Skim them once and the per-names
 | `StreamObservable<T>` | plain verb (`mark.assist`, `gather.annotation`) | long-running progress streams — `await` for the final value, `.subscribe(...)` for every emit |
 | `CacheObservable<T>` | plain noun (`browse.resource`, `browse.annotations`) | live queries — `.subscribe(...)` for `CacheState` emissions (`pending`/`ready`/`failed`, kept live), `.fresh()` for an explicit one-shot fetch |
 | `void` | imperative or progressive verb (`beckon.hover`, `mark.changeShape`) | collaboration signals — fire-and-forget onto the bus, observed by other participants |
+| `Promise<number>` | imperative verb aimed at other participants (`beckon.openResource`, `beckon.sparkleAll`) | wire drives — beckon every other participant's viewer; resolves with the `/bus/emit` subscriber count (`-1` = unknown), so a driver can tell an empty room from a full one |
 
 Streams and uploads are thenable, so `await` works without learning RxJS. Live queries are deliberately NOT thenable — the one-shot network read is always spelled `.fresh()`, and subscribing yields typed states rather than `T | undefined`. Full design in [REACTIVE-MODEL.md](./REACTIVE-MODEL.md).
 
@@ -450,11 +451,27 @@ semiont.match.search(resourceId, referenceId, gatheredContext, {
 
 ## Beckon
 
-Fire-and-forget. Ephemeral presence signal.
+Attention coordination, with two audiences the return type states. Local signals (`void`)
+are this viewer's own fan-out. Wire drives (`Promise<number>`) beckon every **other**
+participant — the guided-tour moves — and resolve with the subscriber count (`-1` =
+unknown), so a driver can tell an empty room from a full one.
 
 ```typescript
-semiont.beckon.attention(resourceId, annotationId);
+// Wire drives — every other participant's viewer
+const watching = await semiont.beckon.attention(resourceId, annotationId);
+if (watching === 0) console.warn('nobody is watching');
+await semiont.beckon.openResource(resourceId); // open it on their screens
+await semiont.beckon.sparkleAll(annotationId); // sparkle it on their screens
+
+// Local signals — this viewer only (never the wire)
+semiont.beckon.hover(annotationId);
+semiont.beckon.sparkle(annotationId);
 ```
+
+`browse.openResource()` / `beckon.openResource()` are the teachable pair: browse opens it
+for **me**, beckon opens it for **everyone else**. `sparkleAll` carries an audience marker
+only because its unmarked sibling (`sparkle`, the just-created-annotation affordance) lives
+in the same namespace and must stay local.
 
 ## Auth
 

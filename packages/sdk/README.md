@@ -40,7 +40,7 @@ with a shared corpus. Learn them once and the surface stays small.
 | **frame** | Define and evolve the schema vocabulary (entity types, tag schemas) | `frame.addEntityTypes`, `frame.addTagSchema` |
 | **gather** | Assemble grounding context around a resource or an annotation | `gather.resource`, `gather.annotation` |
 | **match** | Search the corpus for candidate resources | `match.search` |
-| **beckon** | Coordinate attention across participants | `beckon.hover`, `beckon.sparkle` |
+| **beckon** | Coordinate attention across participants | `beckon.hover`, `beckon.sparkle`, `beckon.openResource` |
 
 Each flow is a namespace on `SemiontClient` (`client.mark.X(...)`); the verb is the unit of
 mental model. Frame is the schema-layer flow — the others operate within the vocabulary it
