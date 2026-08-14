@@ -12,7 +12,7 @@ import { EventBus, type Logger } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 
 const eventBus = new EventBus();
-const project = new SemiontProject('/path/to/project');
+const project = new SemiontProject('/path/to/project', { anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR! });
 const queue = new FsJobQueue(project, logger, eventBus);
 await queue.initialize();
 ```

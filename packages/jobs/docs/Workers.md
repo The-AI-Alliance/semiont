@@ -330,7 +330,7 @@ describe('FsJobQueue', () => {
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'job-queue-test-'));
-    project = new SemiontProject(tempDir);
+    project = new SemiontProject(tempDir, { anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR! });
     queue = new FsJobQueue(project, mockLogger, new EventBus());
     await queue.initialize();
   });

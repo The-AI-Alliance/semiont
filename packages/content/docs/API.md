@@ -12,7 +12,7 @@ The `@semiont/content` package manages files in the project working tree, record
 import { WorkingTreeStore } from '@semiont/content';
 import { SemiontProject } from '@semiont/core/node';
 
-const project = new SemiontProject('/path/to/project');
+const project = new SemiontProject('/path/to/project', { anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR! });
 const store = new WorkingTreeStore(project, logger /* optional */);
 ```
 
