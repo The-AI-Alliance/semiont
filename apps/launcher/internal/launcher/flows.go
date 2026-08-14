@@ -54,7 +54,9 @@ func flowFullStart(x executor, fc flowCtx) int {
 	// nothing removed there is nothing to settle, and every first start paid
 	// a second for it.
 	if removed > 0 || swept {
-		x.pause()
+		// Every port this start is about to claim, since the sweep may have
+		// released any of them.
+		x.settle(claimedPorts(fc)...)
 	}
 	if removed == 0 {
 		x.say(sayOK, "No prior containers")
@@ -179,7 +181,7 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 			// with "already exists" on every runtime (Copilot review, PR
 			// #1064; the same reason stop.go always rm's).
 			x.stopRm("semiont-frontend")
-			x.pause()
+			x.settle(port)
 			if !x.portCheck(portNeed{port, "Frontend"}) {
 				return 1
 			}
@@ -397,7 +399,7 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 			// hold the name (latent since the --rm removal; surfaced by the
 			// same review).
 			x.stopRm("semiont-ollama")
-			x.pause()
+			x.settle(rp.Port)
 			if !x.portCheck(portNeed{rp.Port, "Ollama"}) {
 				return 1
 			}
@@ -508,11 +510,11 @@ func flowOneService(x executor, fc flowCtx) int {
 	// verifies stack-port release while the Browser deliberately keeps
 	// running on its port.
 	if svc != "inference" && svc != "frontend" {
+		ports := servicePortNeeds(svc, fc.plan, fc.opts)
 		if x.stopRm(roles[svc].container) {
 			x.say(sayLog, "Removed prior %s container", svc)
-			x.pause()
+			x.settle(portNumbers(ports)...)
 		}
-		ports := servicePortNeeds(svc, fc.plan, fc.opts)
 		if !x.portChecks(ports) {
 			return 1
 		}
@@ -652,4 +654,32 @@ func servicePortNeeds(svc string, plan *launchPlan, opts startOptions) []portNee
 		}
 	}
 	return ports
+}
+
+// portNumbers strips a port-need list to bare numbers, for settle.
+func portNumbers(needs []portNeed) []int {
+	out := make([]int, 0, len(needs))
+	for _, n := range needs {
+		out = append(out, n.port)
+	}
+	return out
+}
+
+// claimedPorts is every port this start intends to bind — what a preflight
+// sweep may have just released, and therefore what is worth waiting on.
+func claimedPorts(fc flowCtx) []int {
+	if fc.plan == nil {
+		return nil
+	}
+	seen := map[int]bool{}
+	out := []int{}
+	for _, rp := range fc.plan.Roles {
+		for _, p := range append([]int{rp.Port}, 0) {
+			if p != 0 && !seen[p] {
+				seen[p] = true
+				out = append(out, p)
+			}
+		}
+	}
+	return out
 }

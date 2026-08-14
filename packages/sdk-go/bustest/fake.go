@@ -26,6 +26,15 @@ type Emitted struct {
 	Scope   string
 }
 
+// Requested is one recorded call to Request. The PAYLOAD is recorded, not just
+// the operation: most of what a verb gets wrong is what it put in the request —
+// a missing filter, a selector built from the wrong flag, an id that never made
+// it onto the wire.
+type Requested struct {
+	Channel bus.Channel
+	Payload any
+}
+
 // Fake implements bus.Transport. The zero value is not ready — use NewFake, so
 // Subscribers defaults to the honest "unknown" rather than a silent 0 that
 // would read as "nobody is listening".
@@ -52,8 +61,8 @@ type Fake struct {
 	// Emits records every Emit in order — a fan-out verb that drops its
 	// second command is invisible to a last-call-only assertion.
 	Emits []Emitted
-	// Requests records every Request's operation, in order.
-	Requests []bus.Channel
+	// Requests records every Request, in order, with its payload.
+	Requests []Requested
 }
 
 func NewFake() *Fake {
@@ -82,10 +91,10 @@ func (f *Fake) Subscribe(context.Context, []bus.Channel, []bus.Channel, string) 
 	return nil, fmt.Errorf("bustest.Fake does not implement Subscribe — use the fake runtime for streaming verbs")
 }
 
-func (f *Fake) Request(_ context.Context, op bus.Channel, _ any, _ *bus.RequestOptions) (json.RawMessage, error) {
+func (f *Fake) Request(_ context.Context, op bus.Channel, payload any, _ *bus.RequestOptions) (json.RawMessage, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.Requests = append(f.Requests, op)
+	f.Requests = append(f.Requests, Requested{Channel: op, Payload: payload})
 	if f.RequestErr != nil {
 		return nil, f.RequestErr
 	}
@@ -95,6 +104,28 @@ func (f *Fake) Request(_ context.Context, op bus.Channel, _ any, _ *bus.RequestO
 	// An unscripted operation is a test bug, and a silent empty reply would let
 	// the verb under test "pass" against a reply it never received.
 	return nil, fmt.Errorf("bustest.Fake has no scripted reply for %q", op)
+}
+
+// Ops is the recorded operations in order — the common assertion, without
+// making every caller reach through the payload it does not care about.
+func (f *Fake) Ops() []bus.Channel {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]bus.Channel, len(f.Requests))
+	for i, r := range f.Requests {
+		out[i] = r.Channel
+	}
+	return out
+}
+
+// JSON renders a recorded payload the way it went on the wire, for substring
+// assertions about fields a verb built.
+func JSON(payload any) string {
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Sprintf("<unmarshalable: %v>", err)
+	}
+	return string(b)
 }
 
 var _ bus.Transport = (*Fake)(nil)

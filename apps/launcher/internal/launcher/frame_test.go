@@ -41,7 +41,7 @@ func TestFrameAddsEachEntityTypeSeparatelyInProcess(t *testing.T) {
 			t.Fatalf("frame: exit %d", code)
 		}
 	})
-	mustContain(t, "stdout", out, "Person", "Organization")
+	mustContainAll(t, "stdout", out, "Person", "Organization")
 
 	// TWO commands, in order — one per entity type. A verb that batched them
 	// into a single request, or dropped the second, passes any assertion that
@@ -50,8 +50,14 @@ func TestFrameAddsEachEntityTypeSeparatelyInProcess(t *testing.T) {
 		t.Fatalf("want 2 requests, got %d: %v", len(fake.Requests), fake.Requests)
 	}
 	for i, want := range []bus.Channel{"frame:add-entity-type", "frame:add-entity-type"} {
-		if fake.Requests[i] != want {
-			t.Errorf("request %d = %q, want %q", i, fake.Requests[i], want)
+		if fake.Requests[i].Channel != want {
+			t.Errorf("request %d = %q, want %q", i, fake.Requests[i].Channel, want)
+		}
+	}
+	// One tag per command, in the order given.
+	for i, tag := range []string{"Person", "Organization"} {
+		if got := bustest.JSON(fake.Requests[i].Payload); !strings.Contains(got, tag) {
+			t.Errorf("request %d payload %s missing %q", i, got, tag)
 		}
 	}
 }
@@ -64,12 +70,12 @@ func TestFrameStopsAtTheFirstRejectionInProcess(t *testing.T) {
 	// backend's own words. A plain error would take a different branch.
 	fake.RequestErr = &bus.RequestError{Channel: "frame:add-entity-type-failed", Message: "vocabulary is frozen"}
 
-	out := captureStdout(t, func() {
+	out, errOut := captureOutput(t, func() {
 		if code := Frame([]string{"--entity-type", "Person", "--entity-type", "Organization"}); code == 0 {
 			t.Fatal("a rejected add must fail the command")
 		}
 	})
-	_ = out // the message goes to stderr via u.fail; the count is the assertion
+	mustContainAll(t, "rejection", out+errOut, "vocabulary is frozen")
 
 	if len(fake.Requests) != 1 {
 		t.Errorf("frame kept going after a rejection: %d requests: %v", len(fake.Requests), fake.Requests)
@@ -77,7 +83,7 @@ func TestFrameStopsAtTheFirstRejectionInProcess(t *testing.T) {
 }
 
 // Argument refusals never reach a transport — they land before verbSession, so
-// they need neither a session nor a stack.
+// nothing should be sent, whichever stream the message goes to.
 func TestFrameArgumentRefusals(t *testing.T) {
 	for _, c := range []struct {
 		name string
@@ -90,25 +96,15 @@ func TestFrameArgumentRefusals(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			fake, restore := withFake(t)
 			defer restore()
-			out := captureStdout(t, func() {
+			out, errOut := captureOutput(t, func() {
 				if code := Frame(c.args); code == 0 {
 					t.Fatal("must refuse")
 				}
 			})
-			if !strings.Contains(out, c.want) && !strings.Contains(captureStderrHint, c.want) {
-				// usage goes to stdout; the positional refusal to stderr — assert
-				// the one we can see and pin the request count either way.
-				if c.want == "Usage: semiont frame" {
-					t.Errorf("stdout %q missing %q", out, c.want)
-				}
-			}
+			mustContainAll(t, "refusal", out+errOut, c.want)
 			if len(fake.Requests) != 0 || len(fake.Emits) != 0 {
 				t.Errorf("a refused argument still reached the wire: %v %v", fake.Requests, fake.Emits)
 			}
 		})
 	}
 }
-
-// captureStderrHint is a placeholder for the stderr path; the refusal test
-// asserts on the request count, which is the behaviour that matters.
-const captureStderrHint = ""
