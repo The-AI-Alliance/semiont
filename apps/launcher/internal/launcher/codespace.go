@@ -1619,6 +1619,8 @@ const forwardBindTries = 30
 
 // forwardSettle is how long a tunnel must outlive its first connection before
 // it counts as working — the death it may die arrives just after the dial.
+// LOAD-BEARING: see the select in tryForward for why the caller's death watch
+// cannot replace it.
 const forwardSettle = time.Second
 
 // tryForward makes one attempt and reports how it went, with gh's own last
@@ -1638,6 +1640,23 @@ func tryForward(u *ui, name string, kbPort int) (int, <-chan struct{}, forwardOu
 			// channel through and exits — so "the dial worked" is not "the
 			// tunnel works" (live 2026-07-28: the bind check passed and the
 			// forward died a second later). It has to survive being used.
+			//
+			// The settle is NOT redundant with the caller's death watch, and
+			// removing it (attempted 2026-08-14) fails
+			// TestCodespaceWaitsOutATransientSshOutage in 0.04 s. The two
+			// watchers classify the SAME event differently:
+			//
+			//   here    a death just after the dial means the remote port is
+			//           empty — forwardRemoteEmpty, which establishForward
+			//           RETRIES while the codespace is still coming up.
+			//   caller  a death during the health gate is a forward FAULT —
+			//           it fails the start and tells you to respawn.
+			//
+			// Return early and a not-yet-ready stack is reported as a broken
+			// forward instead of being waited out, which is precisely the bug
+			// the 2026-07-28 incident left behind. The second buys the
+			// distinction between "not up yet" and "broken", and nothing else
+			// in the flow can make it.
 			select {
 			case <-dead:
 				ghErr := lastForwardError(pid)
