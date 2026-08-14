@@ -221,7 +221,7 @@ export function SvgDrawingCanvas({
         });
 
         if (clickedAnnotation) {
-          session?.client.browse.click(clickedAnnotation.id, clickedAnnotation.motivation, hitRect);
+          session?.client.browse.click(clickedAnnotation.id, hitRect);
           setIsDrawing(false);
           setStartPoint(null);
           setCurrentPoint(null);

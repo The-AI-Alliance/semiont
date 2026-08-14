@@ -18,7 +18,7 @@
  *   → `StreamObservable<T>` (progress + result; subscribe yields every
  *   emit, await yields the last one)
  * - Ephemeral signals, local (beckon.hover/sparkle, browse.click, …) → `void`
- * - Wire drives at other participants (beckon.attention/openResource/
+ * - Wire drives at other participants (beckon.attention/click/openResource/
  *   sparkleAll) → `Promise<number>`: the /bus/emit subscriber count
  *   (`-1` = unknown) — information, not an ack (X5's third shape)
  *
@@ -40,6 +40,7 @@ import type {
   GraphConnection,
   JobId,
   Motivation,
+  AnchorRect,
   GatheredContext,
   ProgressEvent,
   TagSchema,
@@ -274,8 +275,11 @@ export interface BrowseNamespace {
   resourcesByName(query: string, limit?: number): Promise<ResourceDescriptor[]>;
   files(dirPath?: string, sort?: 'name' | 'mtime' | 'annotationCount'): Promise<components['schemas']['BrowseFilesResponse']>;
 
-  // UI signals (fire-and-forget, broadcast to other participants via the bus)
-  click(annotationId: AnnotationId, motivation: Motivation): void;
+  // UI signals — THIS viewer's own local fan-out, never the wire. The
+  // cross-namespace pair is the rule: `browse.X()` does it for me,
+  // `beckon.X()` does it for everyone else. (`resourceViewed` is the one
+  // exception and goes to the wire — it is a REPORT, not a drive.)
+  click(annotationId: AnnotationId, anchorRect?: AnchorRect): void;
   openResource(resourceId: ResourceId): void;
   resourceViewed(resourceId: ResourceId): void;
 }
@@ -493,6 +497,7 @@ export interface BeckonNamespace {
   // Wire drives — beckon OTHER participants (guided-tour moves). Each
   // resolves with the subscriber count (`-1` = unknown; ITransport.emit).
   attention(resourceId: ResourceId, annotationId: AnnotationId): Promise<number>;
+  click(annotationId: AnnotationId): Promise<number>;
   openResource(resourceId: ResourceId): Promise<number>;
   sparkleAll(annotationId: AnnotationId): Promise<number>;
   // Local signals — this viewer's own fan-out; never the wire.

@@ -147,7 +147,6 @@ describe('HighlightEntry', () => {
 
       expect(clickHandler).toHaveBeenCalledWith({
         annotationId: 'highlight-1',
-        motivation: 'highlighting',
       });
 
       subscription.unsubscribe();

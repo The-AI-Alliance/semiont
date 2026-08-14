@@ -61,8 +61,10 @@ func TestBrowseBrowserSignalsWithoutReadingInProcess(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
 	// Stated, not defaulted: the fake's -1 means "count unknown", which prints
-	// a different line. An empty room is 0, and that is what this asserts.
-	fake.Subscribers = 0
+	// a different line. One subscriber is a room with someone in it — the
+	// EMPTY room is now a refusal with its own probe, and belongs to the
+	// BROWSER-HANDOFF tests rather than here.
+	fake.Subscribers = 1
 
 	out := captureStdout(t, func() {
 		if code := Browse([]string{"res-42", "--browser"}); code != 0 {
@@ -78,7 +80,7 @@ func TestBrowseBrowserSignalsWithoutReadingInProcess(t *testing.T) {
 	if len(fake.Requests) != 0 {
 		t.Errorf("--browser also performed a read: %v", fake.Ops())
 	}
-	mustContainAll(t, "audience", out, "nothing is subscribed to browse:resource-open")
+	mustContainAll(t, "audience", out, "1 subscriber")
 }
 
 func TestBrowseBrowserRefusalsInProcess(t *testing.T) {

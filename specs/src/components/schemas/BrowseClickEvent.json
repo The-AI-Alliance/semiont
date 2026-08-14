@@ -1,13 +1,10 @@
 {
   "type": "object",
-  "description": "Emitted when an annotation is clicked in the browse panel",
+  "description": "An annotation was clicked — open it: the viewer selects its entry in the annotations panel and relays a focus signal to scroll to it. The annotation id is the whole address; it identifies exactly one annotation on exactly one resource, so no resource field is carried and none is needed to scope the event. Motivation is NOT on the wire either: the viewer derives it from the annotation the id names, so the wire states the fact once. A viewer that has not loaded that annotation finds nothing and does nothing. Emitted locally by every clickable annotation surface, and over the wire by a driver opening an annotation on another participant's screen.",
   "properties": {
     "annotationId": {
       "type": "string"
-    },
-    "motivation": {
-      "$ref": "./Motivation.json"
     }
   },
-  "required": ["annotationId", "motivation"]
+  "required": ["annotationId"]
 }

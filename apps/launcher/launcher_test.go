@@ -6243,10 +6243,6 @@ func TestBrowseListsResources(t *testing.T) {
 	mustContain(t, "emit", b, `"channel":"browse:resources-requested"`, `"limit":5`, `"correlationId"`)
 }
 
-// --- browse --browser: the same act, a different audience (GUIDED-TOUR P3) ---
-
-// --- beckon --sparkle: the branch menu (GUIDED-TOUR P6) ---
-
 func TestBrowseWithoutSessionAdvisesLogin(t *testing.T) {
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {

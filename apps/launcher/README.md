@@ -468,8 +468,44 @@ That number is deliberately not called delivery: a subscriber is a connection,
 not a pair of eyes, and these channels have no reply. But zero subscribers is a
 fact worth saying out loud — `/bus/subscribe` enforces no channel allowlist and
 the backend publishes unconditionally, so before this an emit into an empty
-room returned a clean ✓. Exit stays 0 either way; an empty room is a fact, not
-a failure.
+room returned a clean ✓.
+
+`beckon` exits 0 into an empty room — a beckon is genuinely fire-and-forget,
+and an empty room is a fact, not a failure. **`browse --browser` does not.** It
+asked for a specific outcome, a resource on a participant's screen, and zero
+subscribers means that did not happen; a tour script running under `set -e`
+should stop rather than narrate on. So it probes the Browser and says which of
+three things is true:
+
+```
+✗ Nobody saw res-42 — nothing is subscribed to browse:resource-open.
+  The Browser is running, but no web browser is watching it.
+  Open http://localhost:3000, log in, then run this again.
+```
+
+```
+✗ Nobody saw res-42 — nothing is subscribed to browse:resource-open.
+  No Browser is running on this machine.
+  Start it:  semiont browse res-42 --browser --launch
+  or:        semiont start --service frontend
+```
+
+The two failures are independent — the Browser is the frontend *container*,
+and what has to be watching it is a human's *web browser* — so the messages
+keep those words distinct. A container that exists but is not answering gets
+its own third sentence rather than being flattened into either.
+
+`--launch` starts the Browser when none is running, through the same
+`start --service frontend` that pulls, publishes the port and waits for health.
+It starts a *container*: it cannot open a window or log anyone in, so it still
+reports that nobody is watching. Starting one is never implicit — a read verb's
+flag does not get to bring a container up as a side effect.
+
+The launcher names an **origin** and never a path. `http://localhost:3000` is
+its own fact — it publishes that port and records the endpoint — while
+`/know/resource/<id>` belongs to the frontend, and mirroring a route here would
+break silently the day the route moves. `--browser-url` overrides the recorded
+origin (precedence: flag → record → `http://localhost:3000`).
 
 ### Watching a KB
 

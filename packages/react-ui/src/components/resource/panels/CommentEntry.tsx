@@ -87,7 +87,7 @@ export function CommentEntry({
       data-type="comment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        session?.client.browse.click(comment.id, comment.motivation);
+        session?.client.browse.click(comment.id);
       }}
       {...hoverProps}
     >

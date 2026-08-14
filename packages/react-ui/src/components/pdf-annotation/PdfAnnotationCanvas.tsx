@@ -353,7 +353,7 @@ function PdfPageView({
         });
 
         if (hit) {
-          session?.client.browse.click(hit.annId, hit.annotation.motivation, hitRect);
+          session?.client.browse.click(hit.annId, hitRect);
           setIsDrawing(false);
           setSelection(null);
           return;
@@ -515,7 +515,7 @@ function PdfPageView({
                       cursor: 'pointer',
                       opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
                     }}
-                    onClick={(e) => session?.client.browse.click(r.annId, r.annotation.motivation, e.currentTarget.getBoundingClientRect())}
+                    onClick={(e) => session?.client.browse.click(r.annId, e.currentTarget.getBoundingClientRect())}
                     onMouseEnter={() => handleMouseEnter(r.annId)}
                     onMouseLeave={handleMouseLeave}
                   />

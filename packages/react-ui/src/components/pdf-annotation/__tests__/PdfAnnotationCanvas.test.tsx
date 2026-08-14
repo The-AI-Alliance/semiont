@@ -275,7 +275,7 @@ describe('PdfAnnotationCanvas', () => {
     });
   });
 
-  test('passes the annotation rect as browse.click third argument (A1 anchor)', async () => {
+  test('passes the annotation rect as browse.click second argument (A1 anchor)', async () => {
     const click = vi.fn();
     const session = {
       client: { browse: { click }, beckon: { hover: vi.fn() } },
@@ -328,8 +328,7 @@ describe('PdfAnnotationCanvas', () => {
 
     expect(click).toHaveBeenCalledTimes(1);
     expect(click.mock.calls[0]?.[0]).toBe('ann-1');
-    expect(click.mock.calls[0]?.[1]).toBe('highlighting');
-    const anchorRect = click.mock.calls[0]?.[2];
+    const anchorRect = click.mock.calls[0]?.[1];
     expect(anchorRect).toBeDefined();
     expect(typeof anchorRect.width).toBe('number');
   });
@@ -401,8 +400,7 @@ describe('PdfAnnotationCanvas', () => {
 
     expect(click).toHaveBeenCalledTimes(1);
     expect(click.mock.calls[0]?.[0]).toBe('ann-hit-1');
-    expect(click.mock.calls[0]?.[1]).toBe('highlighting');
-    expect(click.mock.calls[0]?.[2]).toMatchObject({
+    expect(click.mock.calls[0]?.[1]).toMatchObject({
       left: displayRect.x,
       top: displayRect.y,
       width: displayRect.width,

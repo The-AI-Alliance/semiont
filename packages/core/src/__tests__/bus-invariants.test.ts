@@ -105,6 +105,12 @@ const FROZEN_BRIDGED = [
   // are different processes.
   'session:joined',
   'session:left',
+  // TOUR-CLICK P1: the tour's fourth drive — OPEN an annotation (panel entry
+  // selected, then relayed to beckon:focus for the scroll), where focus only
+  // points at one. Bridging is fan-IN only, so the eight in-browser
+  // `browse.click()` emitters stay local exactly as `browse.openResource()`
+  // does; the wire emitter is `beckon.click()`.
+  'browse:click',
 ];
 
 describe('bus channel-classification invariants', () => {

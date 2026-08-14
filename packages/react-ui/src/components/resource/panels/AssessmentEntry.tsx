@@ -88,7 +88,7 @@ export function AssessmentEntry({
       data-type="assessment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        session?.client.browse.click(assessment.id, assessment.motivation);
+        session?.client.browse.click(assessment.id);
       }}
       {...hoverProps}
     >

@@ -427,7 +427,7 @@ describe('BrowseView Component', () => {
         { id: 'comment-1', type: 'comment', motivation: 'commenting' },
       ] as const;
 
-      for (const { id, type, motivation } of clickCases) {
+      for (const { id, type } of clickCases) {
         const el = document.createElement('span');
         el.setAttribute('data-annotation-id', id);
         el.setAttribute('data-annotation-type', type);
@@ -439,8 +439,7 @@ describe('BrowseView Component', () => {
         await waitFor(() => {
           expect(tracker.events.some(e =>
             e.event === 'browse:click' &&
-            e.payload?.annotationId === id &&
-            e.payload?.motivation === motivation
+            e.payload?.annotationId === id
           )).toBe(true);
         });
       }

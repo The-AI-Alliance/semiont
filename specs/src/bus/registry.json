@@ -2398,8 +2398,9 @@
     },
     {
       "channel": "browse:click",
-      "shape": "custom",
-      "validate": null,
+      "shape": "schema",
+      "schema": "BrowseClickEvent",
+      "validate": "BrowseClickEvent",
       "ts": "components['schemas']['BrowseClickEvent'] & { anchorRect?: AnchorRect }",
       "docs": {
         "lead": [
@@ -3700,7 +3701,8 @@
       "browse:resource-open",
       "browse:resource-viewed",
       "session:joined",
-      "session:left"
+      "session:left",
+      "browse:click"
     ]
   }
 }

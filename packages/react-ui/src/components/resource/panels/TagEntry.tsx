@@ -52,7 +52,7 @@ export function TagEntry({
     <div
       ref={ref}
       onClick={() => {
-        session?.client.browse.click(tag.id, tag.motivation);
+        session?.client.browse.click(tag.id);
       }}
       {...hoverProps}
       className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}

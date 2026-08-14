@@ -82,7 +82,7 @@ describe('ReferencesPanel — headless (session prop, no providers)', () => {
     expect(entryText).toBeInTheDocument();
 
     fireEvent.click(entryText);
-    expect(client.browse.click).toHaveBeenCalledWith('ref-1', 'linking');
+    expect(client.browse.click).toHaveBeenCalledWith('ref-1');
   });
 
   describe('incoming references — terminal load failure', () => {

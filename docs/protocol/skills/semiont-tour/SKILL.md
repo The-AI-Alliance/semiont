@@ -44,6 +44,12 @@ screen too. There is no per-participant addressing, deliberately — see "What t
 beckoning three references in a row scroll-fights and only the last survives. Sparkle marks an
 annotation in place. A three-way branch is three sparkles; "begin here" is one focus.
 
+**Only the first move fails on an empty room.** Every emit reports how many subscribers the
+target subject had at dispatch, but the two verbs treat zero differently on purpose: `beckon`
+exits 0 because a beckon is fire-and-forget, while `browse --browser` exits 1 because it asked
+for a specific outcome — a resource on a screen — and zero subscribers means it did not happen.
+That makes the first move a natural gate for the whole tour.
+
 ## Building the tour
 
 Read the KB first — every verb takes ids, and `browse` is what produces them:
@@ -66,6 +72,10 @@ set -euo pipefail
 # this fires when a Browser opens an event stream, not when a token is minted.
 semiont listen --channel session:joined --json | head -1 >/dev/null
 
+# Fails (exit 1) if nobody is subscribed, so `set -e` stops the tour rather
+# than narrating to an empty room. Add --launch to start the Browser when none
+# is running — it starts a CONTAINER, and someone must still open a web
+# browser and log in.
 semiont browse res-intro --browser
 sleep 90
 

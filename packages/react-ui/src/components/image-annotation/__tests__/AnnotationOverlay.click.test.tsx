@@ -2,7 +2,7 @@
  * A1 anchor thread (HEADLESS-ANNOTATION-PANELS Phase 3) — image overlay pin.
  *
  * The overlay's shape elements own their on-screen geometry: a click passes
- * the element's viewport rect as browse.click's third argument so hosts can
+ * the element's viewport rect as browse.click's second argument so hosts can
  * anchor popovers. Runtime-only view geometry; no schema involvement.
  */
 import { describe, it, expect, vi } from 'vitest';
@@ -43,7 +43,7 @@ function sessionDouble() {
 }
 
 describe('AnnotationOverlay — anchorRect on click', () => {
-  it('passes the shape element rect as browse.click third argument', () => {
+  it('passes the shape element rect as browse.click second argument', () => {
     const { session, click } = sessionDouble();
 
     const { container } = render(
@@ -65,8 +65,7 @@ describe('AnnotationOverlay — anchorRect on click', () => {
 
     expect(click).toHaveBeenCalledTimes(1);
     expect(click.mock.calls[0]?.[0]).toBe('img-ann-1');
-    expect(click.mock.calls[0]?.[1]).toBe('highlighting');
-    const anchorRect = click.mock.calls[0]?.[2];
+    const anchorRect = click.mock.calls[0]?.[1];
     expect(anchorRect).toBeDefined();
     expect(typeof anchorRect.width).toBe('number');
     expect(typeof anchorRect.left).toBe('number');
@@ -77,7 +76,7 @@ describe('AnnotationOverlay — anchorRect on click', () => {
   it.each([
     ['circle', svgAnnotation('img-circle-1', 'commenting', '<svg><circle cx="30" cy="30" r="10"/></svg>')],
     ['polygon', svgAnnotation('img-polygon-1', 'assessing', '<svg><polygon points="10,10 30,10 20,30"/></svg>')],
-  ] as const)('passes the %s element rect as browse.click third argument', (_kind, annotation) => {
+  ] as const)('passes the %s element rect as browse.click second argument', (_kind, annotation) => {
     const { session, click } = sessionDouble();
 
     const { container } = render(
@@ -99,12 +98,12 @@ describe('AnnotationOverlay — anchorRect on click', () => {
 
     expect(click).toHaveBeenCalledTimes(1);
     expect(click.mock.calls[0]?.[0]).toBe(annotation.id);
-    const anchorRect = click.mock.calls[0]?.[2];
+    const anchorRect = click.mock.calls[0]?.[1];
     expect(anchorRect).toBeDefined();
     expect(typeof anchorRect.width).toBe('number');
   });
 
-  it('passes the status-indicator element rect as browse.click third argument', () => {
+  it('passes the status-indicator element rect as browse.click second argument', () => {
     // Only references render a status indicator (🔗/❓).
     const reference = svgAnnotation('img-ref-1', 'linking', '<svg><rect x="10" y="10" width="20" height="20"/></svg>');
     const { session, click } = sessionDouble();
@@ -129,8 +128,7 @@ describe('AnnotationOverlay — anchorRect on click', () => {
     // stopPropagation: the indicator's own handler emits, exactly once.
     expect(click).toHaveBeenCalledTimes(1);
     expect(click.mock.calls[0]?.[0]).toBe('img-ref-1');
-    expect(click.mock.calls[0]?.[1]).toBe('linking');
-    const anchorRect = click.mock.calls[0]?.[2];
+    const anchorRect = click.mock.calls[0]?.[1];
     expect(anchorRect).toBeDefined();
     expect(typeof anchorRect.width).toBe('number');
   });
