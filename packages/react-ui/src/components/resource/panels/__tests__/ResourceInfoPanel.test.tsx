@@ -95,7 +95,9 @@ const renderWithEventBus = (component: React.ReactElement<{ session: SemiontSess
   );
   // The component is provider-free: inject the factory session so it is the
   // SAME session whose client the tracker spies on / whose bus it subscribes.
-  return render(React.cloneElement(component, { session }), { wrapper: Wrapper });
+  // The injected session/client are returned too: a test that spies on what the
+  // panel calls has to spy on THIS client, not a second factory's.
+  return { ...render(React.cloneElement(component, { session }), { wrapper: Wrapper }), session, client };
 };
 
 describe('ResourceInfoPanel Component', () => {
@@ -357,6 +359,40 @@ describe('ResourceInfoPanel Component', () => {
       );
       expect(screen.getByText('Derived from')).toBeInTheDocument();
       expect(screen.getByText('urn:semiont:resource:abc123')).toBeInTheDocument();
+    });
+
+    it('a derived-from id is a LINK, and clicking it opens that resource', () => {
+      // Rendering the id is half the feature; the provenance chain is only
+      // walkable if the id navigates. The click goes through the session's
+      // client, so a panel handed no session must not throw either — the
+      // optional chain below is load-bearing, not defensive noise.
+      // `renderWithEventBus` injects its own per-test session via cloneElement,
+      // so the spy has to go on THAT client — one created here would never be
+      // the one the button calls.
+      const { client } = renderWithEventBus(
+        <ResourceInfoPanel
+          {...defaultProps}
+          wasDerivedFrom="urn:semiont:resource:abc123"
+        />
+      );
+      const openSpy = vi.spyOn(client.browse, 'openResource');
+
+      fireEvent.click(screen.getByText('urn:semiont:resource:abc123'));
+      expect(openSpy).toHaveBeenCalledTimes(1);
+      expect(String(openSpy.mock.calls[0]![0])).toBe('urn:semiont:resource:abc123');
+    });
+
+    it('renders every id when the resource derives from several', () => {
+      renderWithEventBus(
+        <ResourceInfoPanel
+          {...defaultProps}
+          wasDerivedFrom={['urn:semiont:resource:a', 'urn:semiont:resource:b'] as never}
+        />
+      );
+      // The separator lives inside the button (`{i > 0 && ', '}{id}`), so the
+      // second one's text node is ", urn:…:b" — matched loosely on purpose.
+      expect(screen.getByText(/urn:semiont:resource:a/)).toBeInTheDocument();
+      expect(screen.getByText(/urn:semiont:resource:b/)).toBeInTheDocument();
     });
 
     it('falls back to generator for attribution when wasAttributedTo is absent', () => {

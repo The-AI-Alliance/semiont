@@ -194,3 +194,46 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
     expect(submitted).toBeLessThanOrEqual(4_000);
   });
 });
+
+// The rest of the draft, same contract as the ceiling: every field reports to
+// the owner (WIZARD-NAVIGATION D3). A field that kept its own state would look
+// right until someone pressed Back.
+describe('ConfigureGenerationStep — the draft is the owner\'s', () => {
+  it('reports edits to title, instructions, language and creativity', async () => {
+    const { input } = renderStep(agentWithCeiling(4_000));
+    expect(input()).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(translations.resourceTitle), { target: { value: 'Caspian Sea' } });
+    expect((screen.getByLabelText(translations.resourceTitle) as HTMLInputElement).value).toBe('Caspian Sea');
+
+    fireEvent.change(screen.getByLabelText(translations.additionalInstructions), { target: { value: 'hydrology only' } });
+    expect((screen.getByLabelText(translations.additionalInstructions) as HTMLTextAreaElement).value).toBe('hydrology only');
+
+    // The label carries the live value — "Creativity (0.7)" — which is itself
+    // the proof the slider is controlled: it can only update if the owner's
+    // draft came back down.
+    const slider = () => screen.getByLabelText(new RegExp(`^${translations.creativity}`)) as HTMLInputElement;
+    fireEvent.change(slider(), { target: { value: '0.2' } });
+    expect(slider().value).toBe('0.2');
+    expect(screen.getByText(/Creativity \(0\.2\)/)).toBeInTheDocument();
+  });
+
+  it('carries the typed instructions into the submitted config, trimmed', () => {
+    const { props } = renderStep(agentWithCeiling(4_000));
+    fillRequired();
+    fireEvent.change(screen.getByLabelText(translations.additionalInstructions), { target: { value: '  hydrology only  ' } });
+    fireEvent.click(screen.getByText(new RegExp(translations.generate)));
+
+    expect(props.onGenerate).toHaveBeenCalledTimes(1);
+    expect(props.onGenerate.mock.calls[0]![0].prompt).toBe('hydrology only');
+  });
+
+  it('omits the prompt entirely when the field is blank', () => {
+    // `prompt` is optional on the wire; sending "" would be a claim the user
+    // never made, and the worker would prepend an empty instruction block.
+    const { props } = renderStep(agentWithCeiling(4_000));
+    fillRequired();
+    fireEvent.click(screen.getByText(new RegExp(translations.generate)));
+    expect(props.onGenerate.mock.calls[0]![0]).not.toHaveProperty('prompt');
+  });
+});
