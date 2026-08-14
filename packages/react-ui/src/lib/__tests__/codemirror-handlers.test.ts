@@ -20,13 +20,13 @@ function makeSegment(id: string, motivation: string): TextSegment {
 
 function makeSession() {
   const click = vi.fn();
-  const navigateReference = vi.fn();
+  const openResource = vi.fn();
   return {
     client: {
-      browse: { click, navigateReference },
+      browse: { click, openResource },
     },
     click,
-    navigateReference,
+    openResource,
   } as any;
 }
 
@@ -134,10 +134,10 @@ describe('dispatchWidgetClick', () => {
     const session = makeSession();
     dispatchWidgetClick({ handled: false }, session);
     expect(session.click).not.toHaveBeenCalled();
-    expect(session.navigateReference).not.toHaveBeenCalled();
+    expect(session.openResource).not.toHaveBeenCalled();
   });
 
-  it('emits browse:reference-navigate for navigate action', () => {
+  it('emits browse:resource-open for navigate action', () => {
     const session = makeSession();
     const result: WidgetClickResult = {
       handled: true,
@@ -146,7 +146,7 @@ describe('dispatchWidgetClick', () => {
       annotationId: 'ann-1',
     };
     dispatchWidgetClick(result, session);
-    expect(session.navigateReference).toHaveBeenCalledWith('doc-1');
+    expect(session.openResource).toHaveBeenCalledWith('doc-1');
   });
 
   it('emits browse:click for browse-click action', () => {

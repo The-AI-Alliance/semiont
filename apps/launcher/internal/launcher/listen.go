@@ -13,10 +13,10 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
@@ -41,6 +41,14 @@ but is not bridged will deliver nothing at all, so this warns before
 subscribing rather than leaving you watching a stream that can never
 produce an event.
 `
+
+// Name prefetch bounds. One request, small and quick: this is cosmetics, and
+// a console that stalled on startup to pretty-print ids would be worse than
+// one that prints ids. Over the limit, later resources render as ids.
+const (
+	prefetchLimit   = 200
+	prefetchTimeout = 3 * time.Second
+)
 
 // The default subscription is the GENERATED broadcast set
 // (packages/sdk-go/bus/bridged_gen.go, from specs/src/bus/registry.json) —
@@ -108,6 +116,14 @@ func Listen(args []string) int {
 	}
 	cli := bus.NewClient(t.base, t.token)
 
+	// Resource names, fetched ONCE before the stream opens. Not per event: a
+	// lookup is a correlated Request, which opens its own SSE connection, and
+	// since presence landed (P7) every connection publishes session:joined/left
+	// — so inline resolution would make this console generate the churn it is
+	// meant to report. One request up front, then never again; ids the prefetch
+	// misses render as ids.
+	render := newListenRenderer(prefetchResourceNames(cli))
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -126,6 +142,13 @@ func Listen(args []string) int {
 		where = "resource " + scope
 	}
 	u.log("Listening to %s %s", where, u.dim("(Ctrl-C to stop)"))
+	// INBOUND ONLY. The guide's own cues (`browse --browser`, `beckon`) are not
+	// echoed back on this stream, and silence where a cue should appear must not
+	// read as "the cue never landed" — so say it once, up front, rather than
+	// letting the absence speak.
+	if !asJSON {
+		u.log("%s", u.dim("Shows events RECEIVED from this KB — your own beckon/browse cues are not echoed here."))
+	}
 
 	for {
 		select {
@@ -144,40 +167,43 @@ func Listen(args []string) int {
 				u.warn("The event stream closed.")
 				return 1
 			}
-			printEvent(u, ev, asJSON)
+			printEvent(u, render, ev, asJSON)
 		}
 	}
 }
 
-func printEvent(u *ui, ev bus.Event, asJSON bool) {
+// prefetchResourceNames builds the resourceId → name map the human rendering
+// uses. Best effort by design: a KB that cannot answer, or answers partially,
+// costs the console nothing — every id still renders as an id. Failing the
+// whole `listen` because a cosmetic lookup failed would be the wrong trade.
+func prefetchResourceNames(cli *bus.Client) map[string]string {
+	names := map[string]string{}
+	ctx, cancel := context.WithTimeout(context.Background(), prefetchTimeout)
+	defer cancel()
+	limit := prefetchLimit
+	req := semiont.BrowseResourcesRequest{}
+	req.Limit = &limit
+	reply, err := cli.Request(ctx, "browse:resources-requested", req, &bus.RequestOptions{Timeout: prefetchTimeout})
+	if err != nil {
+		return names
+	}
+	var r semiont.BrowseResourcesResult
+	if json.Unmarshal(reply, &r) != nil {
+		return names
+	}
+	for _, res := range r.Response.Resources {
+		names[res.Id] = res.Name
+	}
+	return names
+}
+
+func printEvent(u *ui, render *listenRenderer, ev bus.Event, asJSON bool) {
 	if asJSON {
+		// UNCHANGED, deliberately: scripts parse this. The human rendering must
+		// never leak into the machine one.
 		b, _ := json.Marshal(map[string]any{"channel": ev.Channel, "payload": json.RawMessage(ev.Payload), "scope": ev.Scope})
 		fmt.Println(string(b))
 		return
 	}
-	// One line per event: time, channel, and whichever identifier the
-	// payload carries — enough to follow along without a JSON reader.
-	var p struct {
-		ResourceID   string `json:"resourceId"`
-		AnnotationID string `json:"annotationId"`
-		JobID        string `json:"jobId"`
-		Message      string `json:"message"`
-		Name         string `json:"name"`
-	}
-	_ = json.Unmarshal(ev.Payload, &p)
-	var bits []string
-	for _, kv := range []struct{ k, v string }{
-		{"resource", p.ResourceID}, {"annotation", p.AnnotationID},
-		{"job", p.JobID}, {"name", p.Name}, {"", p.Message},
-	} {
-		if kv.v == "" {
-			continue
-		}
-		if kv.k == "" {
-			bits = append(bits, kv.v)
-		} else {
-			bits = append(bits, kv.k+"="+kv.v)
-		}
-	}
-	fmt.Printf("  %s %-28s %s\n", u.dim(time.Now().Format("15:04:05")), ev.Channel, u.dim(strings.Join(bits, "  ")))
+	fmt.Println(render.line(u, ev))
 }

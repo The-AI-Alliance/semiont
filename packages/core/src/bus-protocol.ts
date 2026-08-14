@@ -340,7 +340,8 @@ export type EventMap = {
 
   // UI events (session-scoped — fire on the client bus, tied to a KB)
   'browse:click': components['schemas']['BrowseClickEvent'] & { anchorRect?: AnchorRect };
-  'browse:reference-navigate': components['schemas']['BrowseReferenceNavigateEvent'];
+  'browse:resource-open': components['schemas']['BrowseResourceOpenEvent'];
+  'browse:resource-viewed': components['schemas']['BrowseResourceViewedEvent'];
   'browse:entity-type-clicked': components['schemas']['BrowseEntityTypeClickedEvent'];
 
   // ========================================================================
@@ -475,6 +476,8 @@ export type EventMap = {
    * `reason` is human-readable, for logging.
    */
   'bus:resume-gap': { scope?: string; lastSeenId?: string; reason: string };
+  'session:joined': components['schemas']['SessionJoinedEvent'];
+  'session:left': components['schemas']['SessionLeftEvent'];
 };
 
 export type { AnchorRect } from './bus-ui-types';
@@ -686,7 +689,8 @@ export const CHANNEL_SCHEMAS = {
   'browse:directory-result':          'BrowseDirectoryResult',
   'browse:directory-failed':          null, // { correlationId; path } & CommandError
   'browse:click':                     null, // includes runtime `anchorRect?: AnchorRect`
-  'browse:reference-navigate':        'BrowseReferenceNavigateEvent',
+  'browse:resource-open':             'BrowseResourceOpenEvent',
+  'browse:resource-viewed':           'BrowseResourceViewedEvent',
   'browse:entity-type-clicked':       'BrowseEntityTypeClickedEvent',
 
   // ── SHELL (app-scoped UI events, fire on SemiontBrowser bus) ────
@@ -747,6 +751,8 @@ export const CHANNEL_SCHEMAS = {
   'stream-connected':                 null, // Record<string, never>
   'replay-window-exceeded':           null, // inline payload
   'bus:resume-gap':                   null, // inline payload
+  'session:joined':                   'SessionJoinedEvent',
+  'session:left':                     'SessionLeftEvent',
 } as const satisfies Record<EventName, keyof components['schemas'] | null>;
 
 /** Channels where `/bus/emit` validates the payload (non-null schema). */

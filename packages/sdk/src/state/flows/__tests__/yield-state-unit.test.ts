@@ -111,7 +111,7 @@ describe('createYieldStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('flips isGenerating=false on Observable complete and dismisses progress after 2s', () => {
+  it('flips isGenerating=false on complete and KEEPS the finished display', () => {
     vi.useFakeTimers();
     const progressSubject = new Subject<YieldGenerationEvent>();
     const fromContextFn = vi.fn(() => progressSubject.asObservable());
@@ -129,7 +129,12 @@ describe('createYieldStateUnit', () => {
     expect(gen[gen.length - 1]).toBe(false);
     expect(prog[prog.length - 1]).not.toBeNull();
 
-    vi.advanceTimersByTime(2000);
+    // CLEAN-PROGRESS D1: no 2 s timer, and no 5 s one either — the two flows
+    // had different endings in the same component. Dismissal is explicit.
+    vi.advanceTimersByTime(60_000);
+    expect(prog[prog.length - 1]).not.toBeNull();
+
+    stateUnit.dismissProgress();
     expect(prog[prog.length - 1]).toBeNull();
 
     stateUnit.dispose();

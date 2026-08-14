@@ -15,12 +15,16 @@
     "kindAssessment": "hodnocení",
     "kindReference": "odkazů",
     "kindTag": "štítků",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} z {{total}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{done}} z {{total}})",
     "paramEntityTypes": "Typy entit",
     "paramInstructions": "Pokyny",
     "paramTone": "Tón",
-    "paramDensity": "Hustota"
+    "paramDensity": "Hustota",
+    "subjectKindEntityType": "Typ entity",
+    "subjectKindCategory": "Kategorie",
+    "cancel": "Zrušit",
+    "inProgress": "Anotování..."
   },
   "PdfViewer": {
     "loadFailed": "Nepodařilo se načíst PDF",

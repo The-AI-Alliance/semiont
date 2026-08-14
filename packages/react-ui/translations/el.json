@@ -15,12 +15,16 @@
     "kindAssessment": "αξιολογήσεις",
     "kindReference": "αναφορές",
     "kindTag": "ετικέτες",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} από {{total}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{done}} από {{total}})",
     "paramEntityTypes": "Τύποι Οντοτήτων",
     "paramInstructions": "Οδηγίες",
     "paramTone": "Τόνος",
-    "paramDensity": "Πυκνότητα"
+    "paramDensity": "Πυκνότητα",
+    "subjectKindEntityType": "Τύπος οντότητας",
+    "subjectKindCategory": "Κατηγορία",
+    "cancel": "Ακύρωση",
+    "inProgress": "Σχολιασμός..."
   },
   "PdfViewer": {
     "loadFailed": "Αποτυχία φόρτωσης PDF",

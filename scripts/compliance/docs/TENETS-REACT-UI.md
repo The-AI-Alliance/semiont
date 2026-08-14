@@ -144,26 +144,26 @@ function MyComponent({ onSave }: Props) {
 
 **✅ Correct**:
 ```typescript
-function MyComponent({ toggleCollapsed }: Props) {
-  // Handle sidebar toggle events
-  const handleSidebarToggle = useCallback(() => {
-    toggleCollapsed();
-  }, [toggleCollapsed]);
+function MyComponent({ openResource }: Props) {
+  // Handle resource-open events
+  const handleResourceOpen = useCallback(({ resourceId }: { resourceId: string }) => {
+    openResource(resourceId);
+  }, [openResource]);
 
-  // Subscribe to sidebar toggle events
+  // Subscribe to resource-open events
   useEventSubscriptions({
-    'browse:sidebar-toggle': handleSidebarToggle,
+    'browse:resource-open': handleResourceOpen,
   });
 }
 ```
 
 **❌ Wrong**:
 ```typescript
-function MyComponent({ toggleCollapsed }: Props) {
-  // Subscribe to sidebar toggle events
+function MyComponent({ openResource }: Props) {
+  // Subscribe to resource-open events
   useEventSubscriptions({
-    'browse:sidebar-toggle': () => { // ❌ Inline handler
-      toggleCollapsed();
+    'browse:resource-open': ({ resourceId }) => { // ❌ Inline handler
+      openResource(resourceId);
     }
   });
 }

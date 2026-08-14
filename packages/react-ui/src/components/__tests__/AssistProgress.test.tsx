@@ -39,7 +39,7 @@ describe('AssistProgress', () => {
     // The embeddable contract: this must render standalone. If it ever reaches
     // for a provider, this throws rather than silently degrading.
     const { container } = render(
-      <AssistProgress progress={detecting()} dataType="reference" translations={T3()} />,
+      <AssistProgress ended={false} progress={detecting()} dataType="reference" translations={T3()} />,
     );
     expect(container.querySelector('.semiont-assist-progress')).toBeInTheDocument();
     expect(container.querySelector('[data-type="reference"]')).toBeInTheDocument();
@@ -47,9 +47,9 @@ describe('AssistProgress', () => {
 
   it('renders the completed entity-type log when data + formatter are present', () => {
     render(
-      <AssistProgress
+      <AssistProgress ended={false}
         progress={detecting({
-          completedEntityTypes: [{ entityType: 'Person', foundCount: 3 }],
+          completedItems: [{ value: 'Person', foundCount: 3 }],
         })}
         dataType="reference"
         translations={T3()}
@@ -64,8 +64,9 @@ describe('AssistProgress', () => {
     delete (tr as Partial<AssistProgressTranslations>).found;
     render(
       <AssistProgress
-        progress={detecting({ completedEntityTypes: [{ entityType: 'Person', foundCount: 3 }] })}
+        progress={detecting({ completedItems: [{ value: 'Person', foundCount: 3 }] })}
         dataType="comment"
+        ended={false}
         translations={tr}
       />,
     );
@@ -74,7 +75,7 @@ describe('AssistProgress', () => {
 
   it('the control takes its accessible name from translations, per lifecycle', () => {
     const { rerender } = render(
-      <AssistProgress
+      <AssistProgress ended={false}
         progress={detecting()} dataType="reference"
         onCancel={vi.fn()} onDismiss={vi.fn()} translations={T3()}
       />,
@@ -91,14 +92,14 @@ describe('AssistProgress', () => {
   });
 
   it('offers no control at all when the caller wires neither callback', () => {
-    render(<AssistProgress progress={detecting()} dataType="reference" translations={T3()} />);
+    render(<AssistProgress ended={false} progress={detecting()} dataType="reference" translations={T3()} />);
     expect(screen.queryByTestId('semiont-assist-control')).toBeNull();
   });
 
   it('falls back to the generic in-progress copy when no code has arrived', () => {
     // `JobProgress.message` is optional: a pure liveness heartbeat carries none.
     const noCode = { percentage: 5 } as JobProgress;
-    render(<AssistProgress progress={noCode} dataType="comment" translations={T3()} />);
+    render(<AssistProgress ended={false} progress={noCode} dataType="comment" translations={T3()} />);
     expect(screen.getByTestId('semiont-assist-status').textContent).toBe('tr.inProgress');
   });
 });
@@ -123,8 +124,10 @@ const T3 = (over: Partial<AssistProgressTranslations> = {}): AssistProgressTrans
     close: 'tr.close',
     inProgress: 'tr.inProgress',
     message: (m: any) => `tr.code(${m.code})`,
-    subject: (label: string, done?: number, total?: number) =>
-      done === undefined ? `tr.subject(${label})` : `tr.subject(${label}|${done}/${total})`,
+    subject: (current: { kind: string; value: string }, done?: number, total?: number) =>
+      done === undefined
+        ? `tr.subject(${current.kind}:${current.value})`
+        : `tr.subject(${current.kind}:${current.value}|${done}/${total})`,
     paramLabel: (code: string) => `tr.param(${code})`,
     found: (n: number) => `tr.found(${n})`,
     ...over,
@@ -134,9 +137,9 @@ const detecting = (over: Partial<JobProgress> = {}): JobProgress =>
   ({
     percentage: 40,
     message: { code: 'detecting-entities', entityType: 'Person' },
-    currentEntityType: 'Person',
-    processedEntityTypes: 1,
-    totalEntityTypes: 3,
+    current: { kind: 'entity-type', value: 'Person' },
+    processed: 1,
+    total: 3,
     ...over,
   }) as JobProgress;
 
@@ -146,9 +149,9 @@ describe('AssistProgress — P3 consolidation', () => {
     // `currentLabel(currentEntityType)`. Post-P1 they produce the IDENTICAL
     // string, which is why two tests here had to use getAllByText. Singular
     // `getByText` throws on multiple matches — that IS the assertion.
-    render(<AssistProgress progress={detecting()} dataType="reference" translations={T3()} />);
+    render(<AssistProgress progress={detecting()} dataType="reference" ended={false} translations={T3()} />);
 
-    expect(screen.getByText(/tr\.subject\(Person/)).toBeInTheDocument();
+    expect(screen.getByText(/tr\.subject\(entity-type:Person/)).toBeInTheDocument();
     // And the status line is the CODE's copy, not a second copy of the subject.
     expect(screen.getByTestId(STATUS).textContent).toContain('tr.code(detecting-entities)');
     expect(screen.getByTestId(STATUS).textContent).not.toContain('tr.subject');
@@ -156,7 +159,7 @@ describe('AssistProgress — P3 consolidation', () => {
 
   it('A2: renders no heading of its own — the section header is the title', () => {
     const { container } = render(
-      <AssistProgress progress={detecting()} dataType="reference" translations={T3()} />,
+      <AssistProgress ended={false} progress={detecting()} dataType="reference" translations={T3()} />,
     );
     expect(container.querySelector('h1,h2,h3,h4,h5,h6')).toBeNull();
   });
@@ -165,7 +168,7 @@ describe('AssistProgress — P3 consolidation', () => {
     const onCancel = vi.fn();
     const onDismiss = vi.fn();
     render(
-      <AssistProgress
+      <AssistProgress ended={false}
         progress={detecting()} dataType="reference"
         onCancel={onCancel} onDismiss={onDismiss} translations={T3()}
       />,
@@ -199,19 +202,19 @@ describe('AssistProgress — P3 consolidation', () => {
   });
 
   it('A4: the REFERENCE flow renders a fraction and a bar — data it already receives', () => {
-    render(<AssistProgress progress={detecting()} dataType="reference" translations={T3()} />);
+    render(<AssistProgress ended={false} progress={detecting()} dataType="reference" translations={T3()} />);
 
-    expect(screen.getByTestId(SUBJECT).textContent).toBe('tr.subject(Person|1/3)');
+    expect(screen.getByTestId(SUBJECT).textContent).toBe('tr.subject(entity-type:Person|1/3)');
     expect(screen.getByTestId(BAR)).toBeInTheDocument();
   });
 
   it('A4: the TAG flow gets a bar from percentage alone — it sends no fraction', () => {
     // The REAL tag shape. `processTagJob` emits percentage and nothing else:
-    // no currentCategory, no processedCategories, no totalCategories. An
+    // no currentCategory, no processed, no total. An
     // earlier version of this test invented those fields and so "passed" while
     // the tag flow had silently lost its bar (PR #1179 review).
     render(
-      <AssistProgress
+      <AssistProgress ended={false}
         progress={{
           percentage: 60,
           message: { code: 'creating-tag-annotations', count: 4 },
@@ -230,7 +233,7 @@ describe('AssistProgress — P3 consolidation', () => {
     // is always something to fill a bar with. Asserting an impossible case is
     // how the tag regression hid.
     render(
-      <AssistProgress
+      <AssistProgress ended={false}
         progress={{ percentage: 10, message: { code: 'loading' } } as JobProgress}
         dataType="comment" translations={T3()}
       />,
@@ -240,7 +243,7 @@ describe('AssistProgress — P3 consolidation', () => {
 
   it('A5: every rendered string is traceable to translations', () => {
     const { container } = render(
-      <AssistProgress progress={detecting()} dataType="reference" translations={T3()} />,
+      <AssistProgress ended={false} progress={detecting()} dataType="reference" translations={T3()} />,
     );
     // Key-echo strings mean any text NOT starting `tr.` came from the component.
     const stray = Array.from(container.querySelectorAll('*'))
@@ -255,7 +258,7 @@ describe('AssistProgress — P3 consolidation', () => {
     // failure reaches the user through useOutcomeToasts' job:fail handler.
     // The widget must not resurrect a branch for a state it never sees.
     render(
-      <AssistProgress
+      <AssistProgress ended={false}
         progress={detecting({ stage: 'error' } as Partial<JobProgress>)}
         dataType="reference" translations={T3()}
       />,
@@ -269,19 +272,19 @@ describe('AssistProgress — P3 consolidation', () => {
     // string on commas to decide whether to show it would be its own defect.
     const oneType = detecting({
       requestParams: [{ label: 'entity-types', value: 'Person' }],
-      totalEntityTypes: 1,
+      total: 1,
     });
     const { unmount } = render(
-      <AssistProgress progress={oneType} dataType="reference" translations={T3()} />,
+      <AssistProgress ended={false} progress={oneType} dataType="reference" translations={T3()} />,
     );
     expect(screen.queryByTestId(PARAMS)).toBeNull();
     unmount();
 
     const many = detecting({
       requestParams: [{ label: 'entity-types', value: 'Person, Organization, Location' }],
-      totalEntityTypes: 3,
+      total: 3,
     });
-    render(<AssistProgress progress={many} dataType="reference" translations={T3()} />);
+    render(<AssistProgress ended={false} progress={many} dataType="reference" translations={T3()} />);
     expect(screen.getByTestId(PARAMS)).toBeInTheDocument();
   });
 });

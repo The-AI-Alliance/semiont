@@ -6,7 +6,8 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { assistProgressCopy, assistSubjectCopy, assistParamLabel } from '../../../lib/assist-progress-copy';
+import { assistProgressTranslations } from '../../../lib/assist-progress-copy';
+import { useResourceViewedReport } from '../hooks/useResourceViewedReport';
 import type { components, ResourceDescriptor, ResourceId, GatheredContext, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import { annotationId } from '@semiont/core';
@@ -119,7 +120,7 @@ export interface ResourceViewerPageProps {
  * @subscribes yield:clone - Clone the current resource
  * @subscribes beckon:sparkle - Trigger sparkle animation
  * @subscribes mark:added - Annotation was created (sparkle)
- * @subscribes browse:reference-navigate - Navigate to a referenced document
+ * @subscribes browse:resource-open - Open a resource in the viewer (local links + the launcher's tour verbs)
  * @subscribes browse:entity-type-clicked - Navigate filtered by entity type
  *
  * Outcome-notification channels (mark:create-error, mark:delete-error,
@@ -238,6 +239,7 @@ export function ResourceViewerPage({
   const panelInitialTab = useObservable(stateUnit?.browse.panelInitialTab$) ?? null;
   const onScrollCompleted = stateUnit?.browse.onScrollCompleted;
   const generationProgress = useObservable(stateUnit?.yield.progress$) ?? null;
+  const isGenerating = useObservable(stateUnit?.yield.isGenerating$) ?? false;
   const gatherContext = useObservable(stateUnit?.gather.context$) ?? null;
   const gatherLoading = useObservable(stateUnit?.gather.loading$) ?? false;
   const gatherError = useObservable(stateUnit?.gather.error$) ?? null;
@@ -270,9 +272,9 @@ export function ResourceViewerPage({
   }, [stateUnit, clearNewAnnotationId, resource]);
 
   // Resource-generate flow (GENERATE-FROM-BUTTON): drive the SAME yield progress$
-  // the annotation path uses so the full AnnotateReferencesProgressWidget shows —
-  // NOT a toast. Both paths are one `generate(context, options)` now: the
-  // context's focus.kind (resource here, annotation above) decides the shape.
+  // the annotation path uses so the full `AssistProgress` widget shows — NOT a
+  // toast. Both paths are one `generate(context, options)` now: the context's
+  // focus.kind (resource here, annotation above) decides the shape.
   const handleResourceGenerateSubmit = useCallback((_resourceId: string, config: GenerationConfig) => {
     stateUnit?.yield.generate(config.context, {
       title: config.title,
@@ -390,7 +392,7 @@ export function ResourceViewerPage({
     triggerSparkleAnimation(stored.payload.annotation.id);
   }, [triggerSparkleAnimation]);
 
-  const handleReferenceNavigate = useCallback(({ resourceId }: { resourceId: string }) => {
+  const handleResourceOpen = useCallback(({ resourceId }: { resourceId: string }) => {
     if (routes.resourceDetail) {
       const path = routes.resourceDetail(resourceId);
       browser.emit('nav:push', { path, reason: 'reference-link' });
@@ -419,7 +421,7 @@ export function ResourceViewerPage({
     'yield:clone': handleResourceClone,
     'beckon:sparkle': handleAnnotationSparkle,
     'mark:added': handleAnnotationAdded,
-    'browse:reference-navigate': handleReferenceNavigate,
+    'browse:resource-open': handleResourceOpen,
     'browse:entity-type-clicked': handleEntityTypeClicked,
   });
 
@@ -437,6 +439,11 @@ export function ResourceViewerPage({
       announceResourceLoaded(resource.name);
     }
   }, [contentLoading, content, resource.name, announceResourceLoading, announceResourceLoaded]);
+
+  // Report the arrival on the wire (browse:resource-viewed) — same
+  // load-complete condition the announcement uses, so "viewed" means the
+  // content is actually on screen (GUIDED-TOUR P5, D6).
+  useResourceViewedReport(rUri, !contentLoading && !!content);
 
   // Derived state
   const documentEntityTypes = resource.entityTypes || [];
@@ -488,15 +495,14 @@ export function ResourceViewerPage({
             <AssistProgress
               progress={generationProgress}
               dataType="generation"
+              // The ending is the owner's fact and every owner must state it
+              // (CLEAN-PROGRESS D1). This call site used to pass neither
+              // `ended` nor `onDismiss`, so a finished generation stayed in its
+              // running form and then vanished on a timer.
+              ended={!isGenerating}
               onCancel={() => session?.client.job.cancelRequest('generation')}
-              translations={{
-                cancel: tg('progressCancel'),
-                inProgress: tg('progressInProgress'),
-                close: ta('close'),
-                message: assistProgressCopy(ta),
-                subject: assistSubjectCopy(ta),
-                paramLabel: assistParamLabel(ta),
-              }}
+              onDismiss={() => stateUnit?.yield.dismissProgress()}
+              translations={assistProgressTranslations(ta)}
             />
           )}
           {/* Scrollable body wrapper - contains document content, header is sibling above */}

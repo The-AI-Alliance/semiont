@@ -225,6 +225,9 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     const { global: channels, scoped, pendingReplies } = parsed;
     const eventBus = c.get('eventBus');
     const makeMeaning = c.get('makeMeaning');
+    // Read OUTSIDE the stream callback: `c` is the request context, and the
+    // presence pair below must name the principal on this connection.
+    const subscriberDid = c.get('principalDid') as string | undefined;
 
     let retention = retentionByBus.get(eventBus);
     if (!retention) {
@@ -263,9 +266,24 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // Tier 3: track active SSE subscribers via UpDownCounter. Connect
       // increments; disconnect (stream.onAbort) decrements. The gauge
       // reflects current concurrent SSE connections per service instance.
+      //
+      // The same two moments are PRESENCE (GUIDED-TOUR D5): the backend
+      // already knew who was watching and only counted it. Publishing it
+      // needs no new tracking — one emit each side. Presence is connection
+      // lifecycle, NOT login: a token can be minted and sit unused for hours,
+      // and what a collaborator (or a tour script) needs to know is whether
+      // anyone is actually watching.
+      //
+      // connectionId rides along because the DID cannot stand alone: one
+      // person with two tabs is two connections under one principal, so a
+      // consumer that retires presence by DID would drop a viewer who merely
+      // closed a duplicate tab.
+      const presence = { participant: subscriberDid ?? '', connectionId };
       recordSubscriberConnect();
+      eventBus.get('session:joined').next(presence);
       stream.onAbort(() => {
         recordSubscriberDisconnect();
+        eventBus.get('session:left').next(presence);
         getBusLogger().info('SSE disconnect', { connectionId });
       });
 
@@ -540,17 +558,42 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       ? (tracestate ? { traceparent, tracestate } : { traceparent })
       : undefined;
 
+    // How many observers the target subject had AT DISPATCH. Zero means the
+    // signal reached nobody — the failure this route could not previously
+    // express. `/bus/subscribe` enforces no channel allowlist and this
+    // handler publishes unconditionally, so a client can emit a channel no
+    // participant subscribes to and otherwise get a clean 202 back.
+    // `warnIfUnobservedReply` does not cover it: that detector requires a
+    // `correlationId`, and fire-and-forget UI signals carry none.
+    //
+    // Counted on the SCOPED subject when `scope` is set — an unscoped
+    // subscriber is not a subscriber to a scoped emit, and counting the
+    // global subject would report a healthy fan-out for a signal nobody
+    // scoped will receive.
+    let subscribers = 0;
+
     await withTraceparent(carrier, () =>
       withSpan(
         `bus.dispatch:${channel}`,
         () => {
           const bus = scope ? eventBus.scope(scope) : eventBus;
           const subject = bus.get(channel as keyof EventMap);
+          subscribers = subject.observers.length;
           subject.next(payload as never);
 
           busLog('EMIT', channel, payload, scope);
           recordBusEmit(channel, scope);
-          getBusLogger().info('emit', { channel, scope, correlationId: (payload as Record<string, unknown>).correlationId });
+          getBusLogger().info('emit', { channel, scope, subscribers, correlationId: (payload as Record<string, unknown>).correlationId });
+          if (subscribers === 0) {
+            // The caller is told in the response body too; this is for the
+            // operator reading logs after the fact, when nobody was watching
+            // the exit code of a script.
+            getBusLogger().warn('emit reached no subscribers', {
+              channel,
+              scope,
+              hint: 'Nothing on this backend subscribes to that channel. For a UI signal meant to cross to a participant, check that the channel is in BRIDGED_BROADCASTS and that a client subscribed to it.',
+            });
+          }
         },
         {
           kind: SpanKind.SERVER,
@@ -562,7 +605,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       ),
     );
 
-    return c.json(null, 202);
+    return c.json({ subscribers }, 202);
   });
 
   return busRouter;

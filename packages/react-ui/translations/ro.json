@@ -15,12 +15,16 @@
     "kindAssessment": "evaluări",
     "kindReference": "referințe",
     "kindTag": "etichete",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} din {{total}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{done}} din {{total}})",
     "paramEntityTypes": "Tipuri de entitate",
     "paramInstructions": "Instrucțiuni",
     "paramTone": "Ton",
-    "paramDensity": "Densitate"
+    "paramDensity": "Densitate",
+    "subjectKindEntityType": "Tip de entitate",
+    "subjectKindCategory": "Categorie",
+    "cancel": "Anulare",
+    "inProgress": "Se adnotează..."
   },
   "PdfViewer": {
     "loadFailed": "Încărcarea PDF-ului a eșuat",

@@ -44,11 +44,13 @@ export function createMarkStateUnit(
   const pendingAnnotation$ = new BehaviorSubject<PendingAnnotation | null>(null);
   const assistingMotivation$ = new BehaviorSubject<Motivation | null>(null);
   const progress$ = new BehaviorSubject<JobProgress | null>(null);
-  let progressDismissTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const clearProgressTimer = () => {
-    if (progressDismissTimer) { clearTimeout(progressDismissTimer); progressDismissTimer = null; }
-  };
+  // A finished run STAYS on screen (CLEAN-PROGRESS D1). There is no dismissal
+  // timer: the result line — "Created 7 references" — is the one thing in the
+  // whole run worth reading, and a timer that eats it is why the generation
+  // flow felt like it vanished mid-sentence. The ended display carries an
+  // explicit Close control; it clears on that, on `mark:progress-dismiss`, or
+  // when the next assist replaces it below.
 
   // The view layer is responsible for opening the annotations panel in
   // response to `pendingAnnotation$` becoming non-null. The state unit stays pure:
@@ -112,7 +114,6 @@ export function createMarkStateUnit(
   // on `job:complete`, errors on `job:fail`. mark-state-unit's only job is to
   // drive the three UI observables from that stream.
   subs.push(client.bus.get('mark:assist-request').subscribe((event) => {
-    clearProgressTimer();
     assistingMotivation$.next(event.motivation);
     progress$.next(null);
 
@@ -166,19 +167,15 @@ export function createMarkStateUnit(
       complete: () => {
         // Resolves the UI whenever it arrives — including long after the
         // silence marker, which is the whole point of not tearing down.
+        // `assistingMotivation$` going null is what flips the display to its
+        // ended form; the payload is left in place for the user to read.
         clearStale();
         assistingMotivation$.next(null);
-        clearProgressTimer();
-        progressDismissTimer = setTimeout(() => {
-          progress$.next(null);
-          progressDismissTimer = null;
-        }, 5000);
       },
       error: () => {
         // A real failure: `job:fail` already toasts it through the outcome
         // channel, so clear the assist state and stay quiet here.
         clearStale();
-        clearProgressTimer();
         assistingMotivation$.next(null);
         progress$.next(null);
       },
@@ -187,7 +184,6 @@ export function createMarkStateUnit(
   }));
 
   subs.push(client.bus.get('mark:progress-dismiss').subscribe(() => {
-    clearProgressTimer();
     progress$.next(null);
   }));
 
@@ -197,7 +193,6 @@ export function createMarkStateUnit(
     progress$: progress$.asObservable(),
     dispose() {
       subs.forEach(s => s.unsubscribe());
-      clearProgressTimer();
       pendingAnnotation$.complete();
       assistingMotivation$.complete();
       progress$.complete();

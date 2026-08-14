@@ -15,12 +15,16 @@
     "kindAssessment": "değerlendirme",
     "kindReference": "referans",
     "kindTag": "etiket",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{total}} içinden {{done}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{total}} içinden {{done}})",
     "paramEntityTypes": "Varlık Türleri",
     "paramInstructions": "Talimatlar",
     "paramTone": "Ton",
-    "paramDensity": "Yoğunluk"
+    "paramDensity": "Yoğunluk",
+    "subjectKindEntityType": "Varlık türü",
+    "subjectKindCategory": "Kategori",
+    "cancel": "İptal",
+    "inProgress": "Açıklanıyor..."
   },
   "PdfViewer": {
     "loadFailed": "PDF yüklenemedi",

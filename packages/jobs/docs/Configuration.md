@@ -10,7 +10,7 @@ import { EventBus } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 
 const eventBus = new EventBus();
-const project = new SemiontProject('/path/to/project');
+const project = new SemiontProject('/path/to/project', { anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR! });
 const queue = new FsJobQueue(project, logger, eventBus);
 await queue.initialize();
 ```
@@ -20,7 +20,7 @@ await queue.initialize();
 `FsJobQueue` takes a `SemiontProject` and stores jobs under `project.jobsDir` (`{stateDir}/jobs/`). The project computes all of its paths from the project root and XDG environment variables at construction time:
 
 ```typescript
-const project = new SemiontProject('/path/to/project');
+const project = new SemiontProject('/path/to/project', { anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR! });
 project.jobsDir; // → {XDG_STATE_HOME}/semiont/{name}/jobs/
 ```
 
@@ -74,7 +74,7 @@ import { EventBus } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 
 const eventBus = new EventBus();
-const project = new SemiontProject('/path/to/project');
+const project = new SemiontProject('/path/to/project', { anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR! });
 const service = await startMakeMeaning(project, config, eventBus, logger);
 
 // Queue + handlers are running. To stop:

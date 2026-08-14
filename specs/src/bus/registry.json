@@ -129,7 +129,8 @@
       "browse:directory-result",
       "browse:directory-failed",
       "browse:click",
-      "browse:reference-navigate",
+      "browse:resource-open",
+      "browse:resource-viewed",
       "browse:entity-type-clicked",
       "panel:toggle",
       "panel:open",
@@ -177,7 +178,9 @@
       "settings:hover-delay-changed",
       "stream-connected",
       "replay-window-exceeded",
-      "bus:resume-gap"
+      "bus:resume-gap",
+      "session:joined",
+      "session:left"
     ],
     "schemas": [
       "yield:created",
@@ -307,7 +310,8 @@
       "browse:directory-result",
       "browse:directory-failed",
       "browse:click",
-      "browse:reference-navigate",
+      "browse:resource-open",
+      "browse:resource-viewed",
       "browse:entity-type-clicked",
       "panel:toggle",
       "panel:open",
@@ -355,7 +359,9 @@
       "smelt:rebuild-anchors-failed",
       "stream-connected",
       "replay-window-exceeded",
-      "bus:resume-gap"
+      "bus:resume-gap",
+      "session:joined",
+      "session:left"
     ]
   },
   "channels": [
@@ -2408,11 +2414,26 @@
       }
     },
     {
-      "channel": "browse:reference-navigate",
+      "channel": "browse:resource-open",
       "shape": "schema",
-      "schema": "BrowseReferenceNavigateEvent",
-      "validate": "BrowseReferenceNavigateEvent",
-      "ts": "components['schemas']['BrowseReferenceNavigateEvent']",
+      "schema": "BrowseResourceOpenEvent",
+      "validate": "BrowseResourceOpenEvent",
+      "ts": "components['schemas']['BrowseResourceOpenEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:resource-viewed",
+      "shape": "schema",
+      "schema": "BrowseResourceViewedEvent",
+      "validate": "BrowseResourceViewedEvent",
+      "ts": "components['schemas']['BrowseResourceViewedEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3242,6 +3263,36 @@
         "lead": [],
         "trailing": "// inline payload"
       }
+    },
+    {
+      "channel": "session:joined",
+      "shape": "schema",
+      "schema": "SessionJoinedEvent",
+      "validate": "SessionJoinedEvent",
+      "ts": "components['schemas']['SessionJoinedEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "session:left",
+      "shape": "schema",
+      "schema": "SessionLeftEvent",
+      "validate": "SessionLeftEvent",
+      "ts": "components['schemas']['SessionLeftEvent']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
     }
   ],
   "operations": [
@@ -3645,7 +3696,11 @@
       "frame:tag-schema-added",
       "beckon:focus",
       "beckon:sparkle",
-      "bus:resume-gap"
+      "bus:resume-gap",
+      "browse:resource-open",
+      "browse:resource-viewed",
+      "session:joined",
+      "session:left"
     ]
   }
 }

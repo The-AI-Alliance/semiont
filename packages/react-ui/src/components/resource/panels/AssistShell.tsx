@@ -2,13 +2,13 @@
 
 import { useState, useEffect, type ReactNode } from 'react';
 import type { components } from '@semiont/core';
-import { AssistProgress, type AssistProgressProps } from '../../AssistProgress';
+import { AssistProgress, type AssistProgressProps, type AssistDataType } from '../../AssistProgress';
 
 type JobProgress = components['schemas']['JobProgress'];
 
 export interface AssistShellProps {
-  /** localStorage persist-key suffix and CSS `data-type` ('highlight' | 'comment' | 'assessment' | 'reference' | 'tag'). */
-  assistType: string;
+  /** localStorage persist-key suffix and CSS `data-type`. */
+  assistType: AssistDataType;
   /** Collapsible section title (already translated). */
   title: string;
   isAssisting: boolean;
@@ -24,7 +24,7 @@ export interface AssistShellProps {
    * itself, so a caller that omitted this would render untranslated chrome —
    * the failure Lane A exists to make impossible.
    */
-  progressProps: Omit<AssistProgressProps, 'progress' | 'dataType'>;
+  progressProps: Omit<AssistProgressProps, 'progress' | 'dataType' | 'ended'>;
 }
 
 /**
@@ -70,6 +70,9 @@ export function AssistShell({ assistType, title, isAssisting, progress, form, pr
             <AssistProgress
               progress={progress}
               dataType={assistType}
+              // `ended` is deliberately NOT in `progressProps` (it is Omit'd):
+              // the shell watches the job lifecycle, so a panel cannot get this
+              // wrong or forget it.
               // D7: terminality is the OWNER's fact. `isAssisting` follows the
               // job lifecycle (job:complete / job:fail); the widget must never
               // infer "done" from a progress payload, which cannot tell it

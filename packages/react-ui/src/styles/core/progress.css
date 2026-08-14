@@ -136,31 +136,3 @@
   }
 }
 
-/* Legacy Compatibility Mappings (deprecated - use base classes above)
-   These will be removed in a future version. Update components to use .semiont-progress */
-.semiont-progress-bar,
-.semiont-panel-progress {
-  position: relative;
-  width: 100%;
-  height: 0.5rem;
-  background-color: var(--semiont-bg-secondary);
-  border-radius: var(--semiont-radius-full);
-  overflow: hidden;
-}
-
-[data-theme="dark"] .semiont-progress-bar,
-[data-theme="dark"] .semiont-panel-progress {
-  background-color: var(--semiont-bg-tertiary);
-}
-
-.semiont-progress-bar__fill,
-.semiont-panel-progress__fill {
-  height: 100%;
-  background-color: var(--semiont-color-primary-500);
-  transition: width 0.3s ease;
-}
-
-[data-theme="dark"] .semiont-progress-bar__fill,
-[data-theme="dark"] .semiont-panel-progress__fill {
-  background-color: var(--semiont-color-primary-400);
-}

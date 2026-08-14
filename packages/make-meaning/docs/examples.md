@@ -13,7 +13,7 @@ import { SemiontProject } from '@semiont/core/node';
 import { firstValueFrom, filter, timeout, race } from 'rxjs';
 
 const eventBus = new EventBus();
-const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot), config, eventBus, logger);
+const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot, { anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR! }), config, eventBus, logger);
 const { kb } = makeMeaning.knowledgeSystem;
 ```
 

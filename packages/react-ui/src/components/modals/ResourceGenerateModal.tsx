@@ -6,7 +6,7 @@ import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@
 import { useResourceGather } from '../../hooks/useResourceGather';
 import { ConfigureGatherStep, type ResourceGatherConfig } from './ConfigureGatherStep';
 import { GatherContextStep } from './GatherContextStep';
-import { ConfigureGenerationStep, type GenerationConfig } from './ConfigureGenerationStep';
+import { ConfigureGenerationStep, type GenerationConfig, type GenerationDraft } from './ConfigureGenerationStep';
 
 export interface ResourceGenerateModalTranslations {
   // Step titles + nav
@@ -92,6 +92,13 @@ export function ResourceGenerateModal({
   translations: t,
   generationAgent,
 }: ResourceGenerateModalProps) {
+  // Same draft ownership as the wizard (WIZARD-NAVIGATION D3): the step is
+  // controlled, so stepping back through this modal keeps what was typed.
+  const [generationDraft, setGenerationDraft] = useState<GenerationDraft>({
+    title: defaultTitle, storagePath: '', prompt: '', language: locale,
+    temperature: 0.7, maxTokensText: '500',
+  });
+
   const [step, setStep] = useState<Step>('configure-gather');
   const { context, loading, error, gather, reset } = useResourceGather();
   // Supplied by the owner, which already tracks the list with its failure
@@ -162,12 +169,12 @@ export function ResourceGenerateModal({
                     onGather={handleGather}
                     onCancel={onClose}
                     translations={{
+                      cancel: t.cancel,
                       intro: t.gatherIntro,
                       includeContent: t.includeContent,
                       includeSummary: t.includeSummary,
                       depth: t.gatherDepth,
                       maxResources: t.gatherMaxResources,
-                      cancel: t.cancel,
                       gather: t.gatherButton,
                     }}
                   >
@@ -240,11 +247,10 @@ export function ResourceGenerateModal({
                 {step === 'configure-generation' && context && (
                   <ConfigureGenerationStep
                     {...(generationAgent ? { generationAgent } : {})}
-                    defaultTitle={defaultTitle}
-                    locale={locale}
                     context={context}
+                    config={generationDraft}
+                    onConfigChange={setGenerationDraft}
                     onBack={() => setStep('review')}
-                    onCancel={onClose}
                     onGenerate={handleGenerate}
                     translations={{
                       resourceTitle: t.resourceTitle,
@@ -259,7 +265,6 @@ export function ResourceGenerateModal({
                       maxLength: t.maxLength,
                       maxLengthHelp: t.maxLengthHelp,
                       maxLengthCeiling: t.maxLengthCeiling,
-                      cancel: t.cancel,
                       back: t.back,
                       generate: t.generate,
                     }}

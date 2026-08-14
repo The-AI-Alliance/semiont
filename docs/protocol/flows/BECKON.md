@@ -46,12 +46,21 @@ eventBus.get('beckon:focus').next({ annotationId: annotations[0].id });
 | Event | Payload | Description |
 |-------|---------|-------------|
 | `beckon:hover` | `{ annotationId: string \| null }` | Mouse entered/left an annotation element |
-| `browse:click` | `{ annotationId: string; motivation: Motivation }` | User clicked an annotation |
-| `beckon:focus` | `{ annotationId: string \| null }` | Scroll-to-annotation signal (relayed from click) |
+| `browse:click` | `{ annotationId: string; motivation: Motivation; anchorRect? }` | User clicked an annotation |
+| `beckon:focus` | `{ annotationId?: string \| null; resourceId? }` | Scroll-to-annotation signal (relayed from click) |
 | `beckon:sparkle` | `{ annotationId: string }` | Trigger sparkle animation on an annotation |
-| `browse:panel-toggle` | `{ panel: string }` | Toggle a panel open/closed |
-| `browse:panel-open` | `{ panel: string; scrollToAnnotationId?: string }` | Open a specific panel (optionally scroll to annotation) |
-| `browse:panel-close` | `void` | Close the active panel |
+
+**`beckon:focus.resourceId` is a guard, not navigation.** It names the resource
+the focus applies to; a viewer currently showing a different resource
+*deliberately ignores* the event rather than silently no-oping. Moving the
+viewer is [`browse:resource-open`](./BROWSE.md#cross-participant-navigation)'s
+job. The field is optional, and **absence still scrolls** — the in-app emitters
+(history panel, annotation list) omit it because they are already scoped to the
+open resource, so treating absent as "not mine" would silence all of them.
+
+Panel state is not an event flow — see
+[Panel and sidebar state](./BROWSE.md#panel-and-sidebar-state) in the Browse
+flow.
 
 ## Hover Coordination
 

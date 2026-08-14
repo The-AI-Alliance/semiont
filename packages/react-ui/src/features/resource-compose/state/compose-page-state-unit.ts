@@ -1,6 +1,6 @@
 import { BehaviorSubject, type Observable } from 'rxjs';
 import type { GatheredContext, AnnotationId, AccessToken, ResourceDescriptor, ResourceId } from '@semiont/core';
-import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
+import { isGatheredContext, resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { createDisposer } from '@semiont/sdk';
 import type { StateUnit } from '@semiont/core';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
@@ -102,7 +102,16 @@ export function createComposePageStateUnit(
       entityTypes,
     });
     if (params.storedContext) {
-      try { gatheredContext$.next(JSON.parse(params.storedContext)); } catch { /* ignore malformed */ }
+      // The stash is the one place a `GatheredContext` arrives with its type
+      // history severed (sessionStorage → JSON.parse), so it is checked here and
+      // trusted everywhere after. A stale entry — a tab held open across a deploy
+      // — used to reach `deriveViews`, which maps `graph.nodes` during render and
+      // throws rather than degrading. A failed guard is treated as NO stash: the
+      // ordinary gather path runs, with the loading and error states it already has.
+      try {
+        const parsed: unknown = JSON.parse(params.storedContext);
+        if (isGatheredContext(parsed)) gatheredContext$.next(parsed);
+      } catch { /* ignore malformed */ }
     }
     loading$.next(false);
   } else if (isCloneMode) {

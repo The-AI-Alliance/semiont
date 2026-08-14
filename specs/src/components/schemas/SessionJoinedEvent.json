@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "A participant opened a live connection to this KB — an SSE stream on /bus/subscribe. Presence is CONNECTION lifecycle, not login: a token can be minted and sit unused, so what this reports is that someone is WATCHING. One person with two tabs produces two of these, which is why connectionId is required — the DID alone cannot tell two connections apart, and a consumer that counts DIDs will undercount viewers.",
+  "properties": {
+    "participant": {
+      "type": "string",
+      "description": "DID of the authenticated principal on that connection. A person or a software agent — the bus does not distinguish."
+    },
+    "connectionId": {
+      "type": "string",
+      "description": "Identifies this connection for its lifetime. The matching session:left carries the same value."
+    }
+  },
+  "required": ["participant", "connectionId"]
+}

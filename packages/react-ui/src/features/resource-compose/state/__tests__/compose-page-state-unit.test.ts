@@ -83,7 +83,14 @@ describe('createComposePageStateUnit', () => {
   });
 
   it('parses storedContext in reference mode', async () => {
-    const context = { annotation: { id: 'ann-1' }, sourceContext: 'text' };
+    // A real `GatheredContext` shape. The old fixture here was
+    // `{ annotation, sourceContext }` — not a context at all — and it round-tripped
+    // because nothing checked. That is the hole the guard closes.
+    const context = {
+      focus: { kind: 'annotation', annotation: { id: 'ann-1' }, sourceResource: { id: 'doc-1' } },
+      graph: { nodes: [], edges: [] },
+      metadata: {},
+    };
     const stateUnit = createComposePageStateUnit(sessionOf(mockClient()), mockBrowse(), {
       annotationUri: 'ann-1',
       sourceDocumentId: 'doc-1',
@@ -93,6 +100,23 @@ describe('createComposePageStateUnit', () => {
 
     const gathered = await firstValueFrom(stateUnit.gatheredContext$.pipe(filter((g) => g !== null)));
     expect(gathered).toEqual(context);
+
+    stateUnit.dispose();
+  });
+
+  it('ignores a stash that parses but is not a GatheredContext', async () => {
+    // The realistic case: an entry written by an older build, read back after a
+    // deploy. It used to sail through and reach `deriveViews`, which maps
+    // `graph.nodes` during render and throws instead of degrading.
+    const stateUnit = createComposePageStateUnit(sessionOf(mockClient()), mockBrowse(), {
+      annotationUri: 'ann-1',
+      sourceDocumentId: 'doc-1',
+      name: 'Ref',
+      storedContext: JSON.stringify({ annotation: { id: 'ann-1' }, sourceContext: 'text' }),
+    });
+
+    // Treated as NO stash: the ordinary gather path owns the outcome from here.
+    expect(await firstValueFrom(stateUnit.gatheredContext$)).toBeNull();
 
     stateUnit.dispose();
   });

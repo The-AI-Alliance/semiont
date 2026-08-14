@@ -92,6 +92,19 @@ const FROZEN_BRIDGED = [
   'frame:tag-schema-add-ok', 'frame:tag-schema-add-failed',
   'beckon:focus', 'beckon:sparkle',
   'bus:resume-gap',
+  // GUIDED-TOUR P2: the tour's imperative — domain intent, bridged so a
+  // launcher emit reaches every watching Browser (nav:* stays host-local, D1).
+  'browse:resource-open',
+  // GUIDED-TOUR P5: the tour's REPORT — the viewer announces arrival (by cue,
+  // link, back button, or typed URL) so the guide can branch on it. Never the
+  // channel P2/P3 drive with (D6: drive and report stay separate).
+  'browse:resource-viewed',
+  // GUIDED-TOUR P7: presence. SSE connection lifecycle, not login (D5) — a
+  // token can be minted and never used, so what a tour needs is whether
+  // anyone is WATCHING. Bridged because the watcher and the watcher's guide
+  // are different processes.
+  'session:joined',
+  'session:left',
 ];
 
 describe('bus channel-classification invariants', () => {

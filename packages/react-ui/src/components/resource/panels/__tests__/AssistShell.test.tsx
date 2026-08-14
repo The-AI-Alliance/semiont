@@ -19,7 +19,7 @@ const TR = {
   close: 'tr.close',
   inProgress: 'tr.inProgress',
   message: () => 'tr.code',
-  subject: (l: string) => `tr.subject(${l})`,
+  subject: (c: { kind: string; value: string }) => `tr.subject(${c.kind}:${c.value})`,
   paramLabel: (c: string) => `tr.param(${c})`,
 };
 
@@ -45,7 +45,7 @@ describe('AssistShell', () => {
   it('withholds dismiss while assisting, offers it once terminal', async () => {
     const onDismiss = vi.fn();
     const props = {
-      assistType: 'highlight', title: 'Annotate Highlights', progress,
+      assistType: 'highlight' as const, title: 'Annotate Highlights', progress,
       form: <span>form</span>,
       progressProps: { onDismiss, translations: { ...TR, close: 'Close' } },
     };

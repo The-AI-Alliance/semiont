@@ -18,7 +18,14 @@
     },
     "responses": {
       "202": {
-        "description": "Event accepted and published to subscribers"
+        "description": "Event accepted and published. The body reports how many subscribers the target subject had at dispatch; zero means the signal reached nobody.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/BusEmitAccepted.json"
+            }
+          }
+        }
       },
       "400": {
         "description": "Missing/invalid channel, payload, or scope; or payload failed schema validation for the channel",

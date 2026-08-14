@@ -15,12 +15,16 @@
     "kindAssessment": "beoordelingen",
     "kindReference": "verwijzingen",
     "kindTag": "tags",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} van {{total}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{done}} van {{total}})",
     "paramEntityTypes": "Entiteitstypen",
     "paramInstructions": "Instructies",
     "paramTone": "Toon",
-    "paramDensity": "Dichtheid"
+    "paramDensity": "Dichtheid",
+    "subjectKindEntityType": "Entiteitstype",
+    "subjectKindCategory": "Categorie",
+    "cancel": "Annuleren",
+    "inProgress": "Annoteren..."
   },
   "PdfViewer": {
     "loadFailed": "Kan de PDF niet laden",

@@ -15,12 +15,16 @@
     "kindAssessment": "आकलन",
     "kindReference": "संदर्भ",
     "kindTag": "टैग",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{total}} में से {{done}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{total}} में से {{done}})",
     "paramEntityTypes": "इकाई प्रकार",
     "paramInstructions": "निर्देश",
     "paramTone": "स्वर",
-    "paramDensity": "घनत्व"
+    "paramDensity": "घनत्व",
+    "subjectKindEntityType": "इकाई प्रकार",
+    "subjectKindCategory": "श्रेणी",
+    "cancel": "रद्द करें",
+    "inProgress": "एनोटेट हो रहा है..."
   },
   "PdfViewer": {
     "loadFailed": "PDF लोड नहीं हो सका",

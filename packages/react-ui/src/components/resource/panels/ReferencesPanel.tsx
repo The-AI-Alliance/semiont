@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { assistProgressCopy, assistSubjectCopy, assistParamLabel } from '../../../lib/assist-progress-copy';
+import { assistProgressTranslations } from '../../../lib/assist-progress-copy';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import { AssistShell } from './AssistShell';
-import { EntityFoundLog } from '../../EntityFoundLog';
+import { ItemFoundLog } from '../../ItemFoundLog';
 import { ReferenceEntry } from './ReferenceEntry';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
@@ -127,7 +127,7 @@ export function ReferencesPanel({
   // lives in one namespace so the same words aren't re-translated per panel.
   const ta = useTranslations('AssistProgress');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
-  const [lastAnnotationLog, setLastDetectionLog] = useState<Array<{ entityType: string; foundCount: number }> | null>(null);
+  const [lastAnnotationLog, setLastDetectionLog] = useState<Array<{ value: string; foundCount: number }> | null>(null);
   const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
   const [includeDescriptiveReferences, setIncludeDescriptiveReferences] = useState(false);
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
@@ -244,8 +244,8 @@ export function ReferencesPanel({
 
   // Save detection log when detection completes
   // Only depends on isAssisting boolean to avoid infinite loops from array reference changes
-  // Trade-off: If completedEntityTypes changes while isAssisting stays false, we won't update
-  // This is acceptable because in practice, completedEntityTypes only changes when annotation finishes
+  // Trade-off: If completedItems changes while isAssisting stays false, we won't update
+  // This is acceptable because in practice, completedItems only changes when annotation finishes
   useEffect(() => {
     // When annotation starts, reset the flag
     if (isAssisting) {
@@ -254,12 +254,12 @@ export function ReferencesPanel({
     }
 
     // When annotation is complete and we haven't saved yet, save the log
-    if (!hasSavedLogRef.current && progress?.completedEntityTypes) {
+    if (!hasSavedLogRef.current && progress?.completedItems) {
       hasSavedLogRef.current = true;
-      setLastDetectionLog(progress.completedEntityTypes);
+      setLastDetectionLog(progress.completedItems);
       setSelectedEntityTypes([]);
     }
-  }, [isAssisting, progress?.completedEntityTypes]); // Both dependencies needed to annotation completion
+  }, [isAssisting, progress?.completedItems]); // Both dependencies needed to annotation completion
 
   const togglePendingEntityType = (type: string) => {
     setPendingEntityTypes(prev =>
@@ -372,21 +372,15 @@ export function ReferencesPanel({
             progressProps={{
               onCancel: () => session?.client.job.cancelRequest('annotation'),
               onDismiss: () => session?.client.mark.dismissProgress(),
-              translations: {
-                cancel: t('cancelAnnotation'),
-                inProgress: t('annotating'),
-                found: (count) => t('found', { count }),
-                close: ta('close'),
-                message: assistProgressCopy(ta),
-                subject: assistSubjectCopy(ta),
-                paramLabel: assistParamLabel(ta),
-              },
+              translations: assistProgressTranslations(ta, {
+                found: (count: number) => t('found', { count }),
+              }),
             }}
             form={
               <>
                 {/* Completed annotation log - shown after completion */}
                 {lastAnnotationLog && (
-                  <EntityFoundLog
+                  <ItemFoundLog
                     entries={lastAnnotationLog}
                     formatFound={(count) => t('found', { count })}
                   />

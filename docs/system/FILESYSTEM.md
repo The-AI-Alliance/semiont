@@ -80,7 +80,7 @@ All paths are resolved through `SemiontProject`:
 ```typescript
 import { SemiontProject } from '@semiont/core/node';
 
-const project = new SemiontProject(projectRoot);
+const project = new SemiontProject(projectRoot, { anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR! });
 
 // Event log and views — state dir
 project.stateDir   // $XDG_STATE_HOME/semiont/{project}/

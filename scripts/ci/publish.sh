@@ -94,7 +94,10 @@ publish_pkg() {
   if [[ "$DRY_RUN" == "true" ]]; then
     echo -e "  ${YELLOW}dry-run${RESET}  $pkg_name@$pkg_version${label:+ ($label)}"
   else
-    (cd "$dir" && npm publish --registry "$REGISTRY" --tag "$TAG" --access public "${NPMRC_ARGS[@]}")
+    # --loglevel=warn drops npm's per-file "Tarball Contents" listing, which for
+    # react-ui alone is ~100 lines of dist/*.js and .map entries. Warnings and
+    # errors still print; the `ok` line below is the signal worth reading.
+    (cd "$dir" && npm publish --loglevel=warn --registry "$REGISTRY" --tag "$TAG" --access public "${NPMRC_ARGS[@]}")
     ok "$pkg_name@$pkg_version${label:+ ($label)}"
   fi
 }

@@ -303,24 +303,23 @@ export class HttpTransport implements ITransport, IBackendOperations {
     channel: K,
     payload: EventMap[K],
     resourceScope?: ResourceId,
-  ): Promise<void> {
+  ): Promise<number> {
     busLog('EMIT', channel as string, payload, resourceScope as string | undefined);
     recordBusEmit(channel as string, resourceScope as string | undefined);
-    await withSpan(
+    return withSpan(
       `bus.emit:${channel as string}`,
       async () => {
         if (resourceScope !== undefined) {
-          await this.actor.emit(
+          return this.actor.emit(
             channel as string,
             payload as unknown as Record<string, unknown>,
             resourceScope as string,
           );
-        } else {
-          await this.actor.emit(
-            channel as string,
-            payload as unknown as Record<string, unknown>,
-          );
         }
+        return this.actor.emit(
+          channel as string,
+          payload as unknown as Record<string, unknown>,
+        );
       },
       {
         kind: SpanKind.PRODUCER,

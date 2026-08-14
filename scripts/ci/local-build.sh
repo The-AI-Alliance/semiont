@@ -63,7 +63,14 @@ RT=$(detect_runtime)
 # clean. Disabled at the end of the happy path so Verdaccio keeps running for
 # later image pulls — the user stops it manually when done.
 # (Avoids --rm with -d, which is broken on Apple Container CLI.)
+#
+# Only ever tears down a registry THIS run started. `--images-only` reuses the
+# registry a previous run left behind; destroying it because an image build
+# failed would take the published packages with it and force a full rebuild
+# just to retry the image.
+VERDACCIO_OURS=false
 verdaccio_cleanup() {
+  [[ "$VERDACCIO_OURS" == true ]] || return 0
   if [[ -n "${VERDACCIO_NAME:-}" ]]; then
     $RT stop "$VERDACCIO_NAME" >/dev/null 2>&1 || true
     $RT rm   "$VERDACCIO_NAME" >/dev/null 2>&1 || true
@@ -108,12 +115,14 @@ step "Container runtime: ${BOLD}$RT${RESET}"
 # --- Parse arguments ---
 
 SKIP_BUILD=false
+IMAGES_ONLY=false
 PACKAGES=""
 START_FROM=""
 IMAGES="backend worker smelter weaver frontend"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
+    --images-only) IMAGES_ONLY=true; shift ;;
     --package) PACKAGES="$2"; shift 2 ;;
     --start-from) START_FROM="$2"; shift 2 ;;
     --image) IMAGES="${2//,/ }"; shift 2 ;;
@@ -137,7 +146,19 @@ while [[ $# -gt 0 ]]; do
       echo "  --skip-build       Skip build, publish only (reuse previous artifacts)"
       echo "  --image <list>     Comma-separated images to build (default:"
       echo "                     backend,worker,smelter,weaver,frontend)"
+      echo "  --images-only      Build ONLY container images, against the Verdaccio a"
+      echo "                     previous run left running. Skips the npm build+publish,"
+      echo "                     the drift gates and the launcher. Pair with --image to"
+      echo "                     rebuild one service in ~a minute instead of the lot."
       echo "  -h, --help         Show this help"
+      echo ""
+      echo "Rebuilding one image after a code change:"
+      echo "  ./scripts/ci/local-build.sh                          # full run, leaves Verdaccio up"
+      echo "  ./scripts/ci/local-build.sh --images-only --image worker"
+      echo ""
+      echo "  --images-only reuses the packages already in Verdaccio, so it picks up a"
+      echo "  code change ONLY if that package was republished. Change package source"
+      echo "  and you want a full run (or --package <pkg>) first."
       echo ""
       echo "Build order:"
       echo "  http-transport, ontology, core, content, event-sourcing, graph, inference,"
@@ -173,146 +194,172 @@ done
 
 banner "LOCAL REGISTRY"
 
-step "Ensuring port 4873 is free..."
-# Kill any process holding the port
-PID_ON_PORT=$(lsof -ti :4873 2>/dev/null || echo "")
-if [[ -n "$PID_ON_PORT" ]]; then
-  echo "  Port 4873 held by PID $PID_ON_PORT — killing..."
-  kill $PID_ON_PORT 2>/dev/null || true
-  for i in $(seq 1 10); do
-    if ! lsof -ti :4873 > /dev/null 2>&1; then break; fi
+if [[ "$IMAGES_ONLY" == true ]]; then
+  # Reuse the registry a previous run left up. VERDACCIO_OURS stays false, so
+  # the cleanup trap will not tear down a registry we did not create.
+  step "Reusing the running Verdaccio (--images-only)..."
+  if ! curl -sf "$REGISTRY/-/ping" > /dev/null 2>&1; then
+    fail "No Verdaccio at $REGISTRY — --images-only builds against the registry a previous run left running."
+    echo ""
+    echo -e "  Run a full build first:  ${BOLD}./scripts/ci/local-build.sh${RESET}"
+    echo ""
+    exit 1
+  fi
+  REUSED_COUNT=$(curl -sf "$REGISTRY/-/verdaccio/data/packages" 2>/dev/null | jq 'length' 2>/dev/null || echo 0)
+  if [[ "${REUSED_COUNT:-0}" -eq 0 ]]; then
+    fail "Verdaccio at $REGISTRY is up but holds no packages — an image build would have nothing to install."
+    echo ""
+    echo -e "  Run a full build first:  ${BOLD}./scripts/ci/local-build.sh${RESET}"
+    echo ""
+    exit 1
+  fi
+  ok "Verdaccio reachable with $REUSED_COUNT packages (reused, not rebuilt)"
+else
+  step "Ensuring port 4873 is free..."
+  # Kill any process holding the port
+  PID_ON_PORT=$(lsof -ti :4873 2>/dev/null || echo "")
+  if [[ -n "$PID_ON_PORT" ]]; then
+    echo "  Port 4873 held by PID $PID_ON_PORT — killing..."
+    kill $PID_ON_PORT 2>/dev/null || true
+    for i in $(seq 1 10); do
+      if ! lsof -ti :4873 > /dev/null 2>&1; then break; fi
+      sleep 0.5
+    done
+  fi
+  # Remove any leftover Verdaccio container that might be holding the port
+  $RT stop semiont-verdaccio 2>/dev/null || true
+  $RT rm   semiont-verdaccio 2>/dev/null || true
+  if lsof -ti :4873 > /dev/null 2>&1; then
+    fail "Port 4873 is still in use after kill"
+    lsof -i :4873 2>/dev/null
+    exit 1
+  fi
+  ok "Port 4873 is free"
+
+  step "Starting fresh Verdaccio..."
+  VERDACCIO_STORAGE=$(mktemp -d)
+  # Copy config into a temp dir so we can mount the whole directory.
+  # Apple Container CLI sandboxes single-file bind mounts in a way that
+  # makes them unreadable inside the container; a directory mount works.
+  VERDACCIO_CONF=$(mktemp -d)
+  cp "$SCRIPT_DIR/verdaccio.yaml" "$VERDACCIO_CONF/config.yaml"
+  echo "  Container name: $VERDACCIO_NAME"
+  echo "  Storage dir:    $VERDACCIO_STORAGE"
+  echo "  Config dir:     $VERDACCIO_CONF"
+
+  # Note: intentionally no --rm — Apple Container CLI v0.11 silently drops
+  # detached containers that use --rm, making logs unreachable on failure.
+  # The EXIT trap above handles cleanup instead.
+  $RT run -d \
+    --name "$VERDACCIO_NAME" \
+    -p 4873:4873 \
+    -v "$VERDACCIO_CONF:/verdaccio/conf" \
+    -v "$VERDACCIO_STORAGE:/verdaccio/storage" \
+    verdaccio/verdaccio > /dev/null
+  VERDACCIO_OURS=true
+
+  # Wait for Verdaccio to be ready
+  for i in $(seq 1 30); do
+    if curl -sf "$REGISTRY/-/ping" > /dev/null 2>&1; then
+      break
+    fi
     sleep 0.5
   done
-fi
-# Remove any leftover Verdaccio container that might be holding the port
-$RT stop semiont-verdaccio 2>/dev/null || true
-$RT rm   semiont-verdaccio 2>/dev/null || true
-if lsof -ti :4873 > /dev/null 2>&1; then
-  fail "Port 4873 is still in use after kill"
-  lsof -i :4873 2>/dev/null
-  exit 1
-fi
-ok "Port 4873 is free"
-
-step "Starting fresh Verdaccio..."
-VERDACCIO_STORAGE=$(mktemp -d)
-# Copy config into a temp dir so we can mount the whole directory.
-# Apple Container CLI sandboxes single-file bind mounts in a way that
-# makes them unreadable inside the container; a directory mount works.
-VERDACCIO_CONF=$(mktemp -d)
-cp "$SCRIPT_DIR/verdaccio.yaml" "$VERDACCIO_CONF/config.yaml"
-echo "  Container name: $VERDACCIO_NAME"
-echo "  Storage dir:    $VERDACCIO_STORAGE"
-echo "  Config dir:     $VERDACCIO_CONF"
-
-# Note: intentionally no --rm — Apple Container CLI v0.11 silently drops
-# detached containers that use --rm, making logs unreachable on failure.
-# The EXIT trap above handles cleanup instead.
-$RT run -d \
-  --name "$VERDACCIO_NAME" \
-  -p 4873:4873 \
-  -v "$VERDACCIO_CONF:/verdaccio/conf" \
-  -v "$VERDACCIO_STORAGE:/verdaccio/storage" \
-  verdaccio/verdaccio > /dev/null
-
-# Wait for Verdaccio to be ready
-for i in $(seq 1 30); do
-  if curl -sf "$REGISTRY/-/ping" > /dev/null 2>&1; then
-    break
+  if ! curl -sf "$REGISTRY/-/ping" > /dev/null 2>&1; then
+    fail "Verdaccio failed to start"
+    echo "  Container logs:"
+    $RT logs "$VERDACCIO_NAME" 2>&1 | tail -20
+    exit 1
   fi
-  sleep 0.5
-done
-if ! curl -sf "$REGISTRY/-/ping" > /dev/null 2>&1; then
-  fail "Verdaccio failed to start"
-  echo "  Container logs:"
-  $RT logs "$VERDACCIO_NAME" 2>&1 | tail -20
-  exit 1
-fi
-ok "Verdaccio running at $REGISTRY"
+  ok "Verdaccio running at $REGISTRY"
 
-# Verify storage is empty (htpasswd should not exist)
-echo "  Checking storage dir contents: $(ls "$VERDACCIO_STORAGE" 2>/dev/null || echo '(empty)')"
+  # Verify storage is empty (htpasswd should not exist)
+  echo "  Checking storage dir contents: $(ls "$VERDACCIO_STORAGE" 2>/dev/null || echo '(empty)')"
 
-# Register user and get auth token
-step "Registering user..."
-VERDACCIO_TOKEN=""
-for i in $(seq 1 10); do
-  RESPONSE=$(curl -s -X PUT "$REGISTRY/-/user/org.couchdb.user:$VERDACCIO_USER" \
-    -H 'Content-Type: application/json' \
-    -d "{\"name\":\"$VERDACCIO_USER\",\"password\":\"$VERDACCIO_PASS\"}" 2>/dev/null || echo "")
-  echo "  Attempt $i: $RESPONSE"
-  VERDACCIO_TOKEN=$(echo "$RESPONSE" | grep -o '"token": *"[^"]*"' | cut -d'"' -f4 || echo "")
-  if [[ -n "$VERDACCIO_TOKEN" ]]; then
-    break
+  # Register user and get auth token
+  step "Registering user..."
+  VERDACCIO_TOKEN=""
+  for i in $(seq 1 10); do
+    RESPONSE=$(curl -s -X PUT "$REGISTRY/-/user/org.couchdb.user:$VERDACCIO_USER" \
+      -H 'Content-Type: application/json' \
+      -d "{\"name\":\"$VERDACCIO_USER\",\"password\":\"$VERDACCIO_PASS\"}" 2>/dev/null || echo "")
+    echo "  Attempt $i: $RESPONSE"
+    VERDACCIO_TOKEN=$(echo "$RESPONSE" | grep -o '"token": *"[^"]*"' | cut -d'"' -f4 || echo "")
+    if [[ -n "$VERDACCIO_TOKEN" ]]; then
+      break
+    fi
+    sleep 1
+  done
+
+  if [[ -z "$VERDACCIO_TOKEN" ]]; then
+    fail "Failed to get auth token from fresh Verdaccio"
+    echo "  Storage dir contents: $(ls -la "$VERDACCIO_STORAGE" 2>/dev/null)"
+    echo "  htpasswd: $(cat "$VERDACCIO_STORAGE/htpasswd" 2>/dev/null || echo '(not found)')"
+    exit 1
   fi
-  sleep 1
-done
-
-if [[ -z "$VERDACCIO_TOKEN" ]]; then
-  fail "Failed to get auth token from fresh Verdaccio"
-  echo "  Storage dir contents: $(ls -la "$VERDACCIO_STORAGE" 2>/dev/null)"
-  echo "  htpasswd: $(cat "$VERDACCIO_STORAGE/htpasswd" 2>/dev/null || echo '(not found)')"
-  exit 1
+  ok "Auth token acquired"
 fi
-ok "Auth token acquired"
 
 # --- Resolve host address ---
 
 HOST_ADDR=$($RT run --rm node:24-alpine sh -c "ip route | awk '/default/{print \$3}'")
 step "Host address from container: ${DIM}$HOST_ADDR${RESET}"
 
-# --- Clean staging directory ---
+if [[ "$IMAGES_ONLY" != true ]]; then
+  # --- Clean staging directory ---
 
-chmod -R u+rwX .npm-stage 2>/dev/null || true
-rm -rf .npm-stage
+  chmod -R u+rwX .npm-stage 2>/dev/null || true
+  rm -rf .npm-stage
 
-# --- Build + Publish in container ---
+  # --- Build + Publish in container ---
 
-banner "BUILD + PUBLISH"
+  banner "BUILD + PUBLISH"
 
-# Snapshot dirtiness *before* publish, then arm the revert trap, so the EXIT
-# handler can undo only the publish stamp and not any pre-existing edits. Same
-# path set the restore uses — a file the snapshot ignores is a file the restore
-# would clobber.
-PRE_DIRTY=$(git -C "$REPO_ROOT" status --porcelain -- "${STAMPED_PATHS[@]}" 2>/dev/null || true)
-trap restore_manifests EXIT
+  # Snapshot dirtiness *before* publish, then arm the revert trap, so the EXIT
+  # handler can undo only the publish stamp and not any pre-existing edits. Same
+  # path set the restore uses — a file the snapshot ignores is a file the restore
+  # would clobber.
+  PRE_DIRTY=$(git -C "$REPO_ROOT" status --porcelain -- "${STAMPED_PATHS[@]}" 2>/dev/null || true)
+  trap restore_manifests EXIT
 
-$RT run --rm \
-  -v "$REPO_ROOT":/workspace \
-  -w /workspace \
-  -m 8g \
-  -e NODE_OPTIONS="--max-old-space-size=4096" \
-  node:24-alpine \
-  sh -c "
-    set -e
-    apk add --no-cache bash git > /dev/null
+  $RT run --rm \
+    -v "$REPO_ROOT":/workspace \
+    -w /workspace \
+    -m 8g \
+    -e NODE_OPTIONS="--max-old-space-size=4096" \
+    node:24-alpine \
+    sh -c "
+      set -e
+      apk add --no-cache bash git > /dev/null
 
-    # Create .npmrc for Verdaccio auth
-    cat > /tmp/.npmrc <<NPMRC
-registry=http://$HOST_ADDR:4873
-//$HOST_ADDR:4873/:_authToken=$VERDACCIO_TOKEN
-NPMRC
+      # Create .npmrc for Verdaccio auth
+      cat > /tmp/.npmrc <<NPMRC
+  registry=http://$HOST_ADDR:4873
+  //$HOST_ADDR:4873/:_authToken=$VERDACCIO_TOKEN
+  NPMRC
 
-    # Build (unless --skip-build)
-    if [ '$SKIP_BUILD' != 'true' ]; then
-      BUILD_ARGS=''
-      if [ -n '$PACKAGES' ]; then
-        BUILD_ARGS='--package $PACKAGES'
-      elif [ -n '$START_FROM' ]; then
-        BUILD_ARGS='--start-from $START_FROM'
+      # Build (unless --skip-build)
+      if [ '$SKIP_BUILD' != 'true' ]; then
+        BUILD_ARGS=''
+        if [ -n '$PACKAGES' ]; then
+          BUILD_ARGS='--package $PACKAGES'
+        elif [ -n '$START_FROM' ]; then
+          BUILD_ARGS='--start-from $START_FROM'
+        fi
+        ./scripts/ci/build.sh \$BUILD_ARGS
+      else
+        echo -e '\n\033[0;33m⚠\033[0m Skipping build (--skip-build)\n'
       fi
-      ./scripts/ci/build.sh \$BUILD_ARGS
-    else
-      echo -e '\n\033[0;33m⚠\033[0m Skipping build (--skip-build)\n'
-    fi
 
-    # Publish
-    ./scripts/ci/publish.sh \
-      --registry http://$HOST_ADDR:4873 \
-      --tag latest \
-      --clean \
-      --npmrc /tmp/.npmrc
-  "
+      # Publish
+      ./scripts/ci/publish.sh \
+        --registry http://$HOST_ADDR:4873 \
+        --tag latest \
+        --clean \
+        --npmrc /tmp/.npmrc
+    "
+fi
+
 
 BUILD_REGISTRY="http://$HOST_ADDR:4873"
 
@@ -383,6 +430,23 @@ for img in $IMAGES; do
   fanout_image "$TAG"
 done
 
+if [[ "$IMAGES_ONLY" == true ]]; then
+  # Deliberately stops here. The drift gates and the launcher are unrelated to
+  # image contents, and paying for them would undo the point of the flag — a
+  # one-image rebuild should cost about a minute.
+  banner "IMAGES DONE ✓"
+  echo -e "${BOLD}Rebuilt:${RESET}${IMAGES// / }"
+  echo ""
+  echo -e "  Restart the affected service(s) to pick them up, e.g."
+  echo -e "    ${BOLD}SEMIONT_VERSION=local <your-kb>/semiont restart${RESET}"
+  echo ""
+  echo -e "${DIM}Skipped (use a full run for these): npm build+publish, bus/sdk-go drift gates, launcher.${RESET}"
+  echo ""
+  echo -e "\033[2m[$(date '+%Y-%m-%d %H:%M:%S')] local-build finished (--images-only)\033[0m"
+  exit 0
+fi
+
+
 # --- bus registry drift gate ---
 #
 # specs/src/bus/registry.json is the AUTHORITY for the event bus: channels,
@@ -425,36 +489,74 @@ banner "SDK-GO DRIFT GATE"
 
 step "Checking packages/sdk-go/client_gen.go against specs/openapi.json..."
 GOCACHE_DIR=/tmp/semiont-gocache
-mkdir -p "$GOCACHE_DIR"
-if $RT run --rm \
+# The MODULE cache is persisted too, not just the build cache. Without it every
+# run re-downloads the whole oapi-codegen tree (~100 MB, 21 modules), which is
+# why a DNS blip could take this gate down. (/tmp, not $TMPDIR: Apple Container
+# cannot sustain mounts from /var/folders. Go writes the module cache
+# read-only, so `chmod -R u+w` before removing it by hand.)
+GOMODCACHE_DIR=/tmp/semiont-gomodcache
+mkdir -p "$GOCACHE_DIR" "$GOMODCACHE_DIR"
+# Caching alone is not enough: `go run <pkg>@<version>` resolves the version
+# against the proxy on EVERY run — including a deprecation lookup — so a
+# populated cache still needed the network. Pointing GOPROXY at the cache's own
+# download dir (a valid module proxy) serves the pinned generator locally and
+# falls through to the network only on a miss. Measured both ways: warm cache
+# succeeds with the network proxies removed entirely; a cold cache still
+# populates through the fallback.
+GOPROXY_CACHED='file:///go/pkg/mod/cache/download,https://proxy.golang.org,direct'
+
+# Generation and comparison report SEPARATELY. Collapsing them into one `&&`
+# made every generator failure — a DNS blip fetching oapi-codegen, an
+# unreadable spec, a container that never started — print "the OpenAPI spec
+# changed without regenerating the Go client": a specific cause the gate had
+# not established, and one that sends the reader to regenerate a file that was
+# never stale. Ignorance is not a finding.
+DRIFT_RC=0
+$RT run --rm \
   -v "$REPO_ROOT":/workspace \
   -v "$GOCACHE_DIR":/root/.cache/go-build \
+  -v "$GOMODCACHE_DIR":/go/pkg/mod \
+  -e GOPROXY="$GOPROXY_CACHED" \
   -w /workspace \
   golang:1.25 \
   sh -c 'go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
            -generate types,client,skip-prune -package semiont \
-           -o /tmp/client_gen.check.go specs/openapi.json \
-         && diff -q /tmp/client_gen.check.go packages/sdk-go/client_gen.go >/dev/null'; then
-  ok "packages/sdk-go matches the spec"
+           -o /tmp/client_gen.check.go specs/openapi.json || exit 3
+         diff -q /tmp/client_gen.check.go packages/sdk-go/client_gen.go >/dev/null || exit 4' \
+  || DRIFT_RC=$?
+
+case "$DRIFT_RC" in
+  0)
+    ok "packages/sdk-go matches the spec"
+    ;;
+  4)
+    fail "packages/sdk-go/client_gen.go is STALE — the OpenAPI spec changed without regenerating the Go client."
+    echo ""
+    echo -e "  Regenerate and commit it:"
+    echo ""
+    echo -e "    ${BOLD}cd packages/sdk-go && go generate ./...${RESET}"
+    echo -e "    ${BOLD}git add packages/sdk-go/client_gen.go${RESET}   (then commit)"
+    echo ""
+    exit 1
+    ;;
+  *)
+    fail "The sdk-go drift gate could not RUN (the generator exited $DRIFT_RC; its output is above)."
+    echo ""
+    echo -e "  This says nothing about whether the Go client is stale — the check never got"
+    echo -e "  far enough to compare. A failed module fetch (${BOLD}proxy.golang.org${RESET}) is the usual"
+    echo -e "  cause; retry once the network is back, and the pinned generator will be cached"
+    echo -e "  in ${BOLD}${GOMODCACHE_DIR}${RESET} for subsequent offline runs."
+    echo ""
+    exit 1
+    ;;
+esac
 
 step "Checking the generated Go client covers every schema..."
-if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace node:24-alpine \
+if ! $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace node:24-alpine \
   node scripts/ci/check-go-schema-coverage.mjs; then
-  :
-else
   fail "The generated Go client is missing schemas (see above)."
   echo ""
   echo -e "    ${BOLD}cd packages/sdk-go && go generate ./...${RESET}"
-  echo ""
-  exit 1
-fi
-else
-  fail "packages/sdk-go/client_gen.go is STALE — the OpenAPI spec changed without regenerating the Go client."
-  echo ""
-  echo -e "  Regenerate and commit it:"
-  echo ""
-  echo -e "    ${BOLD}cd packages/sdk-go && go generate ./...${RESET}"
-  echo -e "    ${BOLD}git add packages/sdk-go/client_gen.go${RESET}   (then commit)"
   echo ""
   exit 1
 fi
@@ -481,13 +583,14 @@ case "$(uname -m)" in
   *)             LAUNCHER_GOARCH=amd64; warn "Unrecognized host arch $(uname -m) — building amd64" ;;
 esac
 
-GOCACHE_DIR=/tmp/semiont-gocache
-mkdir -p "$GOCACHE_DIR"
+mkdir -p "$GOCACHE_DIR" "$GOMODCACHE_DIR"
 step "Building the semiont launcher (${LAUNCHER_GOOS}/${LAUNCHER_GOARCH}) in golang:1.25..."
 $RT run --rm \
   -v "$REPO_ROOT":/workspace \
   -v "$GOCACHE_DIR":/root/.cache/go-build \
+  -v "$GOMODCACHE_DIR":/go/pkg/mod \
   -w /workspace/apps/launcher \
+  -e GOPROXY="$GOPROXY_CACHED" \
   -e GOOS="$LAUNCHER_GOOS" -e GOARCH="$LAUNCHER_GOARCH" -e CGO_ENABLED=0 \
   golang:1.25 \
   go build -o dist/semiont .

@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "A participant's live connection to this KB ended — the SSE stream aborted. Carries the same connectionId as the session:joined that opened it, so a consumer tracking who is present can retire the right connection rather than assuming one per participant.",
+  "properties": {
+    "participant": {
+      "type": "string",
+      "description": "DID of the authenticated principal on that connection."
+    },
+    "connectionId": {
+      "type": "string",
+      "description": "The connectionId announced by the matching session:joined."
+    }
+  },
+  "required": ["participant", "connectionId"]
+}

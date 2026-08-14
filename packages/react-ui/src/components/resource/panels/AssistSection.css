@@ -254,16 +254,35 @@
 
 /* Highlight - Yellow */
 
-/* The shared progress-bar track paints `--semiont-bg-secondary` — which is
-   EXACTLY `.semiont-assist-widget`'s own background, so inside this card the
-   track is invisible and the fill floats with nothing to measure it against
-   (spotted in live testing, 2026-08-12). Scoped rather than changing the shared
-   track: elsewhere it sits on a different surface and is fine. Matches the
-   contrast the card's own border already uses. */
-.semiont-assist-progress .semiont-progress-bar {
+/*
+ * The progress bar. `AssistProgress` is its only consumer in the whole
+ * package, so it lives here rather than in `styles/core/` — it was defined in
+ * three files while nothing else rendered it (CLEAN-PROGRESS D4). If a second
+ * consumer ever appears, promoting these rules to core is a move, not a copy.
+ *
+ * The track is NOT `--semiont-bg-secondary`: that is exactly
+ * `.semiont-assist-widget`'s own background, so the track went invisible inside
+ * the card and the fill floated with nothing to measure it against (spotted in
+ * live testing, 2026-08-12).
+ */
+.semiont-progress-bar {
+  width: 100%;
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: var(--semiont-radius-full);
   background-color: var(--semiont-color-gray-200);
 }
 
-[data-theme="dark"] .semiont-assist-progress .semiont-progress-bar {
+[data-theme="dark"] .semiont-progress-bar {
   background-color: var(--semiont-color-gray-700);
+}
+
+.semiont-progress-bar__fill {
+  height: 100%;
+  background-color: var(--semiont-color-primary-500);
+  transition: width 0.3s ease;
+}
+
+[data-theme="dark"] .semiont-progress-bar__fill {
+  background-color: var(--semiont-color-primary-400);
 }

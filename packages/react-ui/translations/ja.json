@@ -15,12 +15,16 @@
     "kindAssessment": "評価",
     "kindReference": "参照",
     "kindTag": "タグ",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}}（{{total}} 件中 {{done}} 件目）",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}}（{{total}} 件中 {{done}} 件目）",
     "paramEntityTypes": "エンティティタイプ",
     "paramInstructions": "指示",
     "paramTone": "トーン",
-    "paramDensity": "密度"
+    "paramDensity": "密度",
+    "subjectKindEntityType": "エンティティタイプ",
+    "subjectKindCategory": "カテゴリ",
+    "cancel": "キャンセル",
+    "inProgress": "アノテーション中..."
   },
   "PdfViewer": {
     "loadFailed": "PDF を読み込めませんでした",

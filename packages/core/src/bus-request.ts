@@ -42,7 +42,12 @@ export class BusRequestError extends SemiontError {
  * can satisfy it without round-tripping through HTTP.
  */
 export interface BusRequestPrimitive {
-  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<void>;
+  /**
+   * Matches `ITransport.emit`'s return: the subscriber count (`-1` =
+   * unknown). `busRequest` itself ignores it — the reply channel is its
+   * ack — but the primitive must stay assignable from every ITransport.
+   */
+  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<number>;
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
   /**
    * Connection state of the stream that carries replies. Required, not

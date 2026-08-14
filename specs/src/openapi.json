@@ -240,8 +240,11 @@
       "BrowsePanelToggleEvent": {
         "$ref": "components/schemas/BrowsePanelToggleEvent.json"
       },
-      "BrowseReferenceNavigateEvent": {
-        "$ref": "components/schemas/BrowseReferenceNavigateEvent.json"
+      "BrowseResourceOpenEvent": {
+        "$ref": "components/schemas/BrowseResourceOpenEvent.json"
+      },
+      "BrowseResourceViewedEvent": {
+        "$ref": "components/schemas/BrowseResourceViewedEvent.json"
       },
       "BrowseReferencedByRequest": {
         "$ref": "components/schemas/BrowseReferencedByRequest.json"
@@ -287,6 +290,9 @@
       },
       "BrowseTagSchemasResult": {
         "$ref": "components/schemas/BrowseTagSchemasResult.json"
+      },
+      "BusEmitAccepted": {
+        "$ref": "components/schemas/BusEmitAccepted.json"
       },
       "BusEmitRequest": {
         "$ref": "components/schemas/BusEmitRequest.json"
@@ -620,6 +626,12 @@
       },
       "SemanticMatch": {
         "$ref": "components/schemas/SemanticMatch.json"
+      },
+      "SessionJoinedEvent": {
+        "$ref": "components/schemas/SessionJoinedEvent.json"
+      },
+      "SessionLeftEvent": {
+        "$ref": "components/schemas/SessionLeftEvent.json"
       },
       "SettingsHoverDelayChangedEvent": {
         "$ref": "components/schemas/SettingsHoverDelayChangedEvent.json"

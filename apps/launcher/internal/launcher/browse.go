@@ -23,7 +23,11 @@ const browseUsage = `Usage: semiont browse [<resourceId>] [options]
 Read the knowledge base. With no resourceId, lists resources; with one,
 shows that resource (add --annotations for its annotations).
 
+With --browser, the resource opens on the PARTICIPANT's screen instead of
+printing here — the same act, a different audience.
+
 Options:
+  --browser             Open <resourceId> in the Browser instead of printing it
   --search <text>       Filter the list by text
   --entity-type <name>  Filter the list by entity type
   --limit <n>           Maximum results (default 20)
@@ -42,6 +46,7 @@ func Browse(args []string) int {
 	var resourceID, search, entityType, repo string
 	limit := 20
 	annotations, entityTypes, asJSON, wantLocal := false, false, false, false
+	toBrowser := false
 
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -94,6 +99,8 @@ func Browse(args []string) int {
 			entityTypes = true
 		case "--json":
 			asJSON = true
+		case "--browser":
+			toBrowser = true
 		case "--help", "-h":
 			fmt.Print(browseUsage)
 			return 0
@@ -113,12 +120,45 @@ func Browse(args []string) int {
 		u.fail("--annotations needs a resourceId: semiont browse <resourceId> --annotations")
 		return 1
 	}
+	// --browser names a DESTINATION; the rendering flags each name a local
+	// rendering. Together they state two destinations at once, so say which
+	// pair conflicts rather than silently honouring one of them.
+	if toBrowser {
+		for _, conflict := range []struct {
+			set  bool
+			flag string
+		}{{asJSON, "--json"}, {annotations, "--annotations"}, {entityTypes, "--entity-types"}} {
+			if conflict.set {
+				u.fail("--browser opens the resource in the Browser; %s renders it here. Pick one.", conflict.flag)
+				return 1
+			}
+		}
+		if resourceID == "" {
+			u.fail("--browser needs a resourceId: semiont browse <resourceId> --browser")
+			fmt.Fprintln(os.Stderr, "  (Opening the resource LIST in the Browser is a different route and is not supported yet.)")
+			return 1
+		}
+	}
 
 	t, ok := verbSession(u, "browse", repo, wantLocal)
 	if !ok {
 		return 1
 	}
 	cli := bus.NewClient(t.base, t.token)
+
+	// --browser is the one path in this file that SIGNALS instead of reading:
+	// a fire-and-forget emit, no correlation id, no reply, nothing rendered
+	// locally. It returns here rather than threading a "did we render" flag
+	// through the request/reply path below, which stays a pure read.
+	if toBrowser {
+		subscribers, err := cli.Emit(context.Background(), bus.BrowseResourceOpen,
+			semiont.BrowseResourceOpenEvent{ResourceId: resourceID}, "")
+		if err != nil {
+			return busFail(u, "browse", err)
+		}
+		u.ok("Opened %s in the Browser %s", resourceID, audienceNote(u, subscribers, string(bus.BrowseResourceOpen)))
+		return 0
+	}
 
 	// Typed request per operation — the generated types come from the same
 	// schemas the backend validates against, so a wrong or missing field is

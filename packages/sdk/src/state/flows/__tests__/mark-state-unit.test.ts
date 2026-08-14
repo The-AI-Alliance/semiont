@@ -259,21 +259,32 @@ describe('createMarkStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('dismisses progress 5s after Observable complete', () => {
+  it('KEEPS a finished run on screen — no timer takes the result away', () => {
+    // CLEAN-PROGRESS D1. This used to clear itself after 5 s (and the generation
+    // flow after 2 s: one component, two endings). The result line is the one
+    // thing in the run worth reading, so it stays until the user dismisses it.
     vi.useFakeTimers();
     const progressSubject = new Subject();
     const assistFn = vi.fn(() => progressSubject.asObservable());
     tc = withMark({ assist: assistFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const prog: unknown[] = [];
+    const assisting: unknown[] = [];
     stateUnit.progress$.subscribe(v => prog.push(v));
+    stateUnit.assistingMotivation$.subscribe(v => assisting.push(v));
 
     tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
-    progressSubject.next({ kind: 'progress', data: { stage: 'x', percentage: 50, message: 'm' } });
+    progressSubject.next({ kind: 'progress', data: { percentage: 100, message: { code: 'analyzing' } } });
     progressSubject.complete();
 
+    // Terminality is signalled by the motivation clearing — that is what flips
+    // the widget to its ended form — while the payload stays put.
+    expect(assisting[assisting.length - 1]).toBeNull();
+    vi.advanceTimersByTime(60_000);
     expect(prog[prog.length - 1]).not.toBeNull();
-    vi.advanceTimersByTime(5000);
+
+    // And the explicit dismiss is what clears it.
+    tc.bus.get('mark:progress-dismiss').next({} as any);
     expect(prog[prog.length - 1]).toBeNull();
 
     stateUnit.dispose();

@@ -15,12 +15,16 @@
     "kindAssessment": "মূল্যায়ন",
     "kindReference": "রেফারেন্স",
     "kindTag": "ট্যাগ",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{total}}টির {{done}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{total}}টির {{done}})",
     "paramEntityTypes": "সত্তার ধরন",
     "paramInstructions": "নির্দেশনা",
     "paramTone": "সুর",
-    "paramDensity": "ঘনত্ব"
+    "paramDensity": "ঘনত্ব",
+    "subjectKindEntityType": "সত্তার ধরন",
+    "subjectKindCategory": "বিভাগ",
+    "cancel": "বাতিল করুন",
+    "inProgress": "টীকাকরণ হচ্ছে..."
   },
   "PdfViewer": {
     "loadFailed": "PDF লোড করা যায়নি",

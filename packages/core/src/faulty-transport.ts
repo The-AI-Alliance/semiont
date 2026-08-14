@@ -131,8 +131,11 @@ export class FaultyTransport implements ITransport {
     channel: K,
     payload: EventMap[K],
     resourceScope?: ResourceId,
-  ): Promise<void> {
-    if (this.disposed) return;
+  ): Promise<number> {
+    // The double models exactly one connected participant, so a delivered
+    // emit reports `1`; post-dispose it is inert and reports the `-1`
+    // "count unknown" sentinel.
+    if (this.disposed) return -1;
     const name = channel as string;
     if (!isOperation(name)) {
       // Non-request channel: forward as-is (scoped or global).
@@ -140,7 +143,7 @@ export class FaultyTransport implements ITransport {
         ? this.bus.get(channel)
         : this.bus.scope(resourceScope as string).get(channel);
       target.next(payload);
-      return;
+      return 1;
     }
 
     const record = payload as Record<string, unknown>;
@@ -198,6 +201,7 @@ export class FaultyTransport implements ITransport {
       case 'drop-reply':
         break;
     }
+    return 1;
   }
 
   on<K extends keyof EventMap>(channel: K, handler: (payload: EventMap[K]) => void): () => void {

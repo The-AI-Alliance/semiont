@@ -1066,6 +1066,20 @@ func busUnsubscribe(target *busSub) {
 }
 
 // busPublish fans one event out to every subscriber listening for it.
+// busSubscriberCount reports how many live subscriptions cover a channel —
+// the fake's answer to the real backend's observer count.
+func busSubscriberCount(channel string) int {
+	busMu.Lock()
+	defer busMu.Unlock()
+	n := 0
+	for _, s := range busSubs {
+		if s.channels[channel] {
+			n++
+		}
+	}
+	return n
+}
+
 func busPublish(channel string, payload map[string]any) {
 	busMu.Lock()
 	subs := append([]*busSub(nil), busSubs...)
@@ -1326,7 +1340,15 @@ func serve(ports []string) {
 							}
 						}
 					}
+					// FIDELITY: the real backend answers 202 with the number
+					// of subscribers its target subject had at dispatch, and
+					// the launcher's output turns on that number. Count the
+					// fake's own live subscribers for that channel rather than
+					// inventing one — a fake that always says "1" would let a
+					// verb claim an audience it never had.
+					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusAccepted)
+					_ = json.NewEncoder(w).Encode(map[string]any{"subscribers": busSubscriberCount(body.Channel)})
 					return
 				}
 				if r.URL.Path == "/bus/subscribe" {

@@ -55,6 +55,7 @@ function makeBus(
     emit: vi.fn(async (channel: keyof EventMap, payload: EventMap[keyof EventMap]) => {
       bus.emitChannel = channel as string;
       bus.emitPayload = payload as Record<string, unknown>;
+      return 1;
     }) as BusRequestPrimitive['emit'],
     stream: vi.fn((channel: keyof EventMap) => {
       if ((channel as string) === resultChannel) {
@@ -272,7 +273,7 @@ describe('busRequest', () => {
       const bus = makeBus(RESULT, FAILURE);
       // emit never resolves → busRequest parks at `await bus.emit()`, so its
       // `await resultPromise` is never reached (resultPromise has no awaiter).
-      bus.emit = vi.fn(() => new Promise<void>(() => {})) as BusRequestPrimitive['emit'];
+      bus.emit = vi.fn(() => new Promise<number>(() => {})) as BusRequestPrimitive['emit'];
 
       // Fire-and-forget: do NOT await the returned promise.
       void busRequest(bus, EMIT, {});

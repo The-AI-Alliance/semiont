@@ -18,7 +18,12 @@ import type { ConnectionState } from '@semiont/core';
 
 export interface WorkerBus {
   on$<T = Record<string, unknown>>(channel: string): Observable<T>;
-  emit(channel: string, payload: Record<string, unknown>): Promise<void>;
+  /**
+   * Matches `ITransport.emit`'s return: subscriber count, `-1` = unknown.
+   * Worker callers ignore it — the reply channel is their ack — but the
+   * shape must stay assignable from `ActorStateUnit.emit`.
+   */
+  emit(channel: string, payload: Record<string, unknown>): Promise<number>;
   /**
    * Connection state of the stream that delivers replies. Required
    * (.plans/BUS-ATTACH-GATE.md D2): worker-side `busRequest`s gate their

@@ -45,8 +45,14 @@ const mockT = vi.fn((key: string, params?: Record<string, unknown>) => {
     codeDetectingEntities: 'Marking…',
     codeCompleteCreated: 'Created {{count}} {{kind}}',
     kindHighlight: 'highlights',
-    subject: '{{label}}',
-    subjectWithPosition: '{{label}} ({{done}} of {{total}})',
+    subject: '{{kind}}: {{label}}',
+    subjectWithPosition: '{{kind}}: {{label}} ({{done}} of {{total}})',
+    subjectKindEntityType: 'Entity type',
+    subjectKindCategory: 'Category',
+    // CLEAN-PROGRESS D3: the widget's own strings now come from the
+    // AssistProgress namespace, not from each panel's.
+    cancel: 'Cancel',
+    inProgress: 'Annotating...',
   });
   let out = translations[key] || key;
   for (const [k, v] of Object.entries((params ?? {}) as Record<string, unknown>)) {

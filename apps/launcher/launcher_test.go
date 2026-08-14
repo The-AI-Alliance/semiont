@@ -6239,6 +6239,107 @@ func TestBrowseJSONPassesThrough(t *testing.T) {
 	}
 }
 
+// --- browse --browser: the same act, a different audience (GUIDED-TOUR P3) ---
+
+// `browse <id>` renders a resource HERE; `browse <id> --browser` renders it on
+// the participant's screen. One verb, two destinations — not a second verb,
+// because the act is identical and only the audience differs (D2b).
+func TestBrowseBrowserPutsTheResourceOnTheParticipantsScreen(t *testing.T) {
+	s := busScenario(t)
+	stdout, stderr, code := s.run(t, "browse", "res-42", "--browser")
+	if code != 0 {
+		t.Fatalf("browse --browser: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	b := lastEmit(t, s)
+	mustContain(t, "emit", b, `"channel":"browse:resource-open"`, `"resourceId":"res-42"`)
+
+	// It is a SIGNAL, not a read: nothing is fetched and nothing is rendered
+	// locally. A --browser that also performed the read would double the work
+	// and print a table nobody asked for.
+	for _, e := range emits(t, s) {
+		if strings.Contains(e, "browse:resource-requested") {
+			t.Errorf("--browser performed a local read as well as signalling:\n%s", e)
+		}
+	}
+
+	// P1's subscriber count carries through: nothing is watching in this
+	// scenario, and saying so is the whole point of that phase.
+	mustContain(t, "audience", stdout, "nothing is subscribed to browse:resource-open")
+}
+
+func TestBrowseBrowserNeedsAResourceId(t *testing.T) {
+	// "Show them the index" is a legitimate tour step and a different route;
+	// until that exists, a bare --browser must refuse rather than guess.
+	s := busScenario(t)
+	stdout, stderr, code := s.run(t, "browse", "--browser")
+	if code == 0 {
+		t.Fatalf("--browser without a resourceId must refuse\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "refusal", stdout+stderr, "--browser", "resourceId")
+}
+
+// --browser names a DESTINATION; --json/--annotations/--entity-types each name
+// a local rendering. Combining them states two destinations at once, so the
+// verb refuses instead of silently honouring one (D2b).
+func TestBrowseBrowserRefusesLocalRenderings(t *testing.T) {
+	for _, flag := range []string{"--json", "--annotations", "--entity-types"} {
+		t.Run(flag, func(t *testing.T) {
+			s := busScenario(t)
+			stdout, stderr, code := s.run(t, "browse", "res-42", "--browser", flag)
+			if code == 0 {
+				t.Fatalf("--browser %s must refuse\nstdout:\n%s", flag, stdout)
+			}
+			mustContain(t, "refusal", stdout+stderr, "--browser", flag)
+		})
+	}
+}
+
+// --- beckon --sparkle: the branch menu (GUIDED-TOUR P6) ---
+
+// focus SCROLLS, so beckoning three references in a row scroll-fights and only
+// the last one wins. Sparkle is inert-but-visible: it marks an annotation
+// without moving anything, so a guide can light up three and say "any of
+// these". Same verb, same target, different signal — not a second command.
+func TestBeckonSparkleEmitsSparkleNotFocus(t *testing.T) {
+	s := busScenario(t)
+	stdout, stderr, code := s.run(t, "beckon", "--resource", "res-42", "--annotation", "ref-a", "--sparkle")
+	if code != 0 {
+		t.Fatalf("beckon --sparkle: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "emit", lastEmit(t, s), `"channel":"beckon:sparkle"`, `"annotationId":"ref-a"`)
+
+	// An implementation that emitted BOTH would scroll-fight exactly as before,
+	// which is the thing this flag exists to avoid.
+	for _, e := range emits(t, s) {
+		if strings.Contains(e, `"channel":"beckon:focus"`) {
+			t.Errorf("--sparkle also emitted focus, the scroll-fight it exists to avoid:\n%s", e)
+		}
+	}
+
+	// P1's subscriber count carries through, in beckon's existing vocabulary.
+	mustContain(t, "audience", stdout, "nothing is subscribed to beckon:sparkle")
+}
+
+// BeckonSparkleEvent requires annotationId — there is no resource-wide sparkle.
+// Refuse rather than guess at one.
+func TestBeckonSparkleNeedsAnAnnotation(t *testing.T) {
+	s := busScenario(t)
+	stdout, stderr, code := s.run(t, "beckon", "--resource", "res-42", "--sparkle")
+	if code == 0 {
+		t.Fatalf("--sparkle without an annotation must refuse\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "refusal", stdout+stderr, "--sparkle", "--annotation")
+}
+
+// Without the flag, beckon is unchanged: focus, which scrolls.
+func TestBeckonWithoutSparkleStillFocuses(t *testing.T) {
+	s := busScenario(t)
+	if _, stderr, code := s.run(t, "beckon", "--resource", "res-42", "--annotation", "ref-a"); code != 0 {
+		t.Fatalf("beckon: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "emit", lastEmit(t, s), `"channel":"beckon:focus"`)
+}
+
 func TestBrowseFailureChannelIsReported(t *testing.T) {
 	s := busScenario(t, "FAKERT_BUS_FAIL=resource vanished")
 	stdout, stderr, code := s.run(t, "browse", "res-9")
@@ -6387,13 +6488,18 @@ func TestMatchGathersThenSearches(t *testing.T) {
 		`"limit":5`, `"useSemanticScoring":true`, `"context"`)
 }
 
-func TestBeckonEmitsWithoutClaimingDelivery(t *testing.T) {
+// RETITLED (GUIDED-TOUR P1): the verb still claims no delivery, but it no
+// longer prints a bare ✓ over a signal that reached an empty room. Nothing is
+// subscribed to beckon:focus in this scenario, and the backend now says so, so
+// the honest line names that — the old "no delivery confirmation" wording is
+// reserved for the case where the count is genuinely unknown.
+func TestBeckonSaysWhenNobodyIsSubscribed(t *testing.T) {
 	s := busScenario(t)
 	stdout, stderr, code := s.run(t, "beckon", "--resource", "res-1", "--annotation", "ann-2")
 	if code != 0 {
-		t.Fatalf("beckon: exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("an empty room is not a failure — beckon is fire-and-forget: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "stdout", stdout, "res-1", "ann-2", "no delivery confirmation")
+	mustContain(t, "stdout", stdout, "res-1", "ann-2", "nothing is subscribed to beckon:focus")
 	b := lastEmit(t, s)
 	// BeckonFocusEvent carries exactly these two fields; a `message` the
 	// schema does not declare must not reach the wire.

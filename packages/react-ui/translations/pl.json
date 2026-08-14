@@ -15,12 +15,16 @@
     "kindAssessment": "ocen",
     "kindReference": "odniesień",
     "kindTag": "tagów",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} z {{total}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{done}} z {{total}})",
     "paramEntityTypes": "Typy encji",
     "paramInstructions": "Instrukcje",
     "paramTone": "Ton",
-    "paramDensity": "Gęstość"
+    "paramDensity": "Gęstość",
+    "subjectKindEntityType": "Typ encji",
+    "subjectKindCategory": "Kategoria",
+    "cancel": "Anuluj",
+    "inProgress": "Adnotowanie..."
   },
   "PdfViewer": {
     "loadFailed": "Nie udało się załadować PDF",

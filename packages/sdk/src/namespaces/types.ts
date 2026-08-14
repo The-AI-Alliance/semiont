@@ -17,7 +17,10 @@
  * - Long-running ops (gather, match, yield.fromContext, mark.assist)
  *   → `StreamObservable<T>` (progress + result; subscribe yields every
  *   emit, await yields the last one)
- * - Ephemeral signals (beckon) → `void`
+ * - Ephemeral signals, local (beckon.hover/sparkle, browse.click, …) → `void`
+ * - Wire drives at other participants (beckon.attention/openResource/
+ *   sparkleAll) → `Promise<number>`: the /bus/emit subscriber count
+ *   (`-1` = unknown) — information, not an ack (X5's third shape)
  *
  * `StreamObservable` and `CacheObservable` are `Observable` subclasses
  * that also implement `PromiseLike<T>` — `await client.X.Y(...)` works
@@ -273,7 +276,8 @@ export interface BrowseNamespace {
 
   // UI signals (fire-and-forget, broadcast to other participants via the bus)
   click(annotationId: AnnotationId, motivation: Motivation): void;
-  navigateReference(resourceId: ResourceId): void;
+  openResource(resourceId: ResourceId): void;
+  resourceViewed(resourceId: ResourceId): void;
 }
 
 /**
@@ -486,7 +490,12 @@ export interface YieldNamespace {
  * Event prefix: beckon:*
  */
 export interface BeckonNamespace {
-  attention(resourceId: ResourceId, annotationId: AnnotationId): void;
+  // Wire drives — beckon OTHER participants (guided-tour moves). Each
+  // resolves with the subscriber count (`-1` = unknown; ITransport.emit).
+  attention(resourceId: ResourceId, annotationId: AnnotationId): Promise<number>;
+  openResource(resourceId: ResourceId): Promise<number>;
+  sparkleAll(annotationId: AnnotationId): Promise<number>;
+  // Local signals — this viewer's own fan-out; never the wire.
   hover(annotationId: AnnotationId | null): void;
   sparkle(annotationId: AnnotationId): void;
 }

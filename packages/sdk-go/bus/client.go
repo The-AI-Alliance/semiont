@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -77,12 +78,25 @@ func (c *Client) request(ctx context.Context, method, path string, body any) (*h
 	return c.hc.Do(req)
 }
 
-// Emit publishes one event. Only channels in ChannelSchemas are accepted by
-// the backend; emitting anything else is a client bug, so it is refused here
-// rather than at the far end.
-func (c *Client) Emit(ctx context.Context, ch Channel, payload any, scope string) error {
+// Emit publishes one event and reports how many subscribers the backend's
+// target subject had AT DISPATCH. Only channels in ChannelSchemas are accepted
+// by the backend; emitting anything else is a client bug, so it is refused
+// here rather than at the far end.
+//
+// A zero count is not an error — the emit was accepted and published. It means
+// nothing was listening, which for a fire-and-forget signal is the difference
+// between "sent" and "seen" and is the caller's to act on. Callers that treat
+// success as delivery are the reason this returns a number at all: the backend
+// subscribes no one on the client's behalf, and an unbridged channel publishes
+// into an empty subject with a clean 202.
+//
+// -1 means the server answered 2xx with a body this client could not read
+// (an older backend, or a body shape change) — distinguishable from a true
+// zero, because reporting "nobody is listening" on the strength of a parse
+// failure would be the same overclaim in reverse.
+func (c *Client) Emit(ctx context.Context, ch Channel, payload any, scope string) (int, error) {
 	if !ch.Emittable() {
-		return fmt.Errorf("channel %q is not emittable (no registered schema)", ch)
+		return -1, fmt.Errorf("channel %q is not emittable (no registered schema)", ch)
 	}
 	body := map[string]any{"channel": string(ch), "payload": payload}
 	if scope != "" {
@@ -90,13 +104,20 @@ func (c *Client) Emit(ctx context.Context, ch Channel, payload any, scope string
 	}
 	resp, err := c.request(ctx, http.MethodPost, "/bus/emit", body)
 	if err != nil {
-		return err
+		return -1, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("emit %s: HTTP %d", ch, resp.StatusCode)
+		return -1, fmt.Errorf("emit %s: HTTP %d", ch, resp.StatusCode)
 	}
-	return nil
+	var accepted struct {
+		Subscribers *int `json:"subscribers"`
+	}
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+	if err != nil || json.Unmarshal(raw, &accepted) != nil || accepted.Subscribers == nil {
+		return -1, nil
+	}
+	return *accepted.Subscribers, nil
 }
 
 // Subscription is a live SSE stream. Events closes when the stream ends;
@@ -289,7 +310,12 @@ func (c *Client) Request(ctx context.Context, op Channel, payload any, opts *Req
 		}
 	}
 	body["correlationId"] = correlationID
-	if err := c.Emit(rctx, op, body, opts.Scope); err != nil {
+	// The subscriber count is deliberately ignored here: Request has already
+	// subscribed to the reply channels itself, and a request/reply operation
+	// whose handler is not listening fails as a TIMEOUT with a channel name —
+	// a better diagnosis than a count. The count matters for fire-and-forget
+	// emits, which have no other way to tell.
+	if _, err := c.Emit(rctx, op, body, opts.Scope); err != nil {
 		return nil, fmt.Errorf("emit %s: %w", op, err)
 	}
 

@@ -1,4 +1,5 @@
 'use client';
+import { WizardFooter } from './WizardFooter';
 
 import type { GatheredContext, ResourceDescriptor } from '@semiont/core';
 import { ContextSummary } from './ContextSummary';
@@ -14,12 +15,10 @@ export interface SearchResultsStepProps {
   context: GatheredContext;
   onLink: (resourceId: string) => void;
   onBack: () => void;
-  onCancel: () => void;
   translations: {
     noResults: string;
     link: string;
     back: string;
-    cancel: string;
     score: string;
   } & ContextSummaryTranslations;
 }
@@ -29,7 +28,6 @@ export function SearchResultsStep({
   context,
   onLink,
   onBack,
-  onCancel,
   translations: t,
 }: SearchResultsStepProps) {
   return (
@@ -102,23 +100,7 @@ export function SearchResultsStep({
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="semiont-modal__actions" style={{ paddingTop: '0.5rem' }}>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="semiont-button--secondary semiont-button--flex"
-        >
-          ✕ {t.cancel}
-        </button>
-        <button
-          type="button"
-          onClick={onBack}
-          className="semiont-button--secondary semiont-button--flex"
-        >
-          ◀ {t.back}
-        </button>
-      </div>
+      <WizardFooter backLabel={t.back} onBack={onBack} />
     </>
   );
 }

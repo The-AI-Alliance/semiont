@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Progress report from a running job. Common fields are stage/percentage/message; job-type-specific fields may also be present. This is the single progress shape for every job type \u2014 annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Every code mapped to exactly one stage, and `stage`'s own description advertised 'complete' and 'error' that no producer ever emitted \u2014 a comment describing a contract nobody implemented, which cost a consumer two dead branches. Terminality is signalled on `job:complete` / `job:fail`, not here. `currentEntityType` duplicated `detecting-entities`' `entityType` in the same call.",
+  "description": "Progress report from a running job. The required field is `percentage`; `message` carries the coded phase and the rest are optional job-shape fields. This is the single progress shape for every job type \u2014 annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Terminality is signalled on `job:complete` / `job:fail`, not here. The per-flow progress vocabularies (`processedEntityTypes`/`totalEntityTypes` for references, `processedCategories`/`totalCategories`/`currentCategory` for tags) were replaced by one `current`/`processed`/`total` triple (CLEAN-PROGRESS D2): both flows iterate a user-chosen list, so they report the same shape and the client stops guessing which flow it is drawing.",
   "properties": {
     "percentage": {
       "type": "number",
@@ -14,13 +14,35 @@
       "type": "string",
       "description": "Annotation this job is attached to, when applicable. Echoed inside JobProgress (in addition to the outer command envelope) so consumers that only see the inner progress object (e.g. client.yield.fromContext's Observable) can still route visual feedback to a specific annotation."
     },
-    "totalEntityTypes": {
-      "type": "integer",
-      "description": "Total entity types to process (reference-annotation)"
+    "current": {
+      "type": "object",
+      "description": "What the run is working on right now. `kind` is a CODE the client renders a localized name for; `value` is KB data (an entity type, a tag category) shown verbatim \u2014 the same split as `requestParams`. Absent on flows that iterate nothing, such as generation.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "entity-type",
+            "category"
+          ],
+          "description": "What sort of thing `value` is. Adding a variant means adding client copy for it in every locale."
+        },
+        "value": {
+          "type": "string",
+          "description": "The item itself, shown verbatim and never translated."
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ]
     },
-    "processedEntityTypes": {
+    "processed": {
       "type": "integer",
-      "description": "Entity types processed so far (reference-annotation)"
+      "description": "Items completed so far, zero-based \u2014 the item in `current` is the one after these. Paired with `total`."
+    },
+    "total": {
+      "type": "integer",
+      "description": "Items this run will process in all."
     },
     "entitiesFound": {
       "type": "integer",
@@ -30,36 +52,26 @@
       "type": "integer",
       "description": "Annotations emitted so far (reference-annotation)"
     },
-    "completedEntityTypes": {
+    "completedItems": {
       "type": "array",
-      "description": "Reference annotation: completed entity types with per-type counts, for UI progress display",
+      "description": "Per-item results for the items already finished, for the UI's completed log. Generic across flows for the same reason `current` is.",
       "items": {
         "type": "object",
         "properties": {
-          "entityType": {
-            "type": "string"
+          "value": {
+            "type": "string",
+            "description": "The item, shown verbatim."
           },
           "foundCount": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Annotations found for it."
           }
         },
         "required": [
-          "entityType",
+          "value",
           "foundCount"
         ]
       }
-    },
-    "processedCategories": {
-      "type": "integer",
-      "description": "Categories processed (tag-annotation)"
-    },
-    "totalCategories": {
-      "type": "integer",
-      "description": "Total categories (tag-annotation)"
-    },
-    "currentCategory": {
-      "type": "string",
-      "description": "Category currently being processed (tag-annotation)"
     },
     "requestParams": {
       "type": "array",

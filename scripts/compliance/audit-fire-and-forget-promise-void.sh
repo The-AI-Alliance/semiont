@@ -14,6 +14,12 @@ set -euo pipefail
 # signal (make it `void`). It is a thin regression speed-bump — every current match is a
 # legitimate awaiting op, so the live target set is empty; its job is to keep it that way.
 #
+# A deliberate THIRD shape exists outside this gate's grep (SDK-REMOTE-SIGNALS D2): the
+# beckon wire drives return `Promise<number>` — a round trip that returns INFORMATION
+# (the /bus/emit subscriber count, -1 = unknown), neither fire-and-forget `void` nor an
+# ack `Promise<void>`. If more `Promise<number>` emitters appear, that is the pattern
+# they are following, not a convention violation.
+#
 # Scope: `packages/sdk/src/namespaces/*.ts`.
 # Exit code: 0 if clean, 1 if violations found.
 

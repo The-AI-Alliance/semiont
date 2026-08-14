@@ -12,6 +12,7 @@ import { ConfigureGenerationStep } from './ConfigureGenerationStep';
 import type { GenerationConfig } from './ConfigureGenerationStep';
 import { ConfigureSearchStep } from './ConfigureSearchStep';
 import type { SearchConfig } from './ConfigureSearchStep';
+import type { GenerationDraft } from './ConfigureGenerationStep';
 import { SearchResultsStep } from './SearchResultsStep';
 import type { ScoredResult } from './SearchResultsStep';
 
@@ -108,6 +109,14 @@ export function ReferenceWizardModal({
 }: ReferenceWizardModalProps) {
   const session = useObservable(useSemiont().activeSession$);
   const [wizardStep, setWizardStep] = useState<WizardStep>({ step: 'gather' });
+  // Both step drafts live HERE, not in the steps (WIZARD-NAVIGATION D3). Stepping
+  // back unmounts a step; if the step owned its values, Back would silently discard
+  // everything typed — which is exactly what it used to do.
+  const [searchConfig, setSearchConfig] = useState<SearchConfig>({ limit: 10, useSemanticScoring: true });
+  const [generationDraft, setGenerationDraft] = useState<GenerationDraft>({
+    title: defaultTitle, storagePath: '', prompt: '', language: locale,
+    temperature: 0.7, maxTokensText: '500',
+  });
   const [isSearching, setIsSearching] = useState(false);
   const [userHint, setUserHint] = useState('');
 
@@ -115,6 +124,11 @@ export function ReferenceWizardModal({
   useEffect(() => {
     if (isOpen) {
       setWizardStep({ step: 'gather' });
+      setSearchConfig({ limit: 10, useSemanticScoring: true });
+      setGenerationDraft({
+        title: defaultTitle, storagePath: '', prompt: '', language: locale,
+        temperature: 0.7, maxTokensText: '500',
+      });
       setIsSearching(false);
       setUserHint('');
     }
@@ -133,25 +147,44 @@ export function ReferenceWizardModal({
     setWizardStep({ step: 'configure-search' });
   }, []);
 
+  /**
+   * The gather step's Hint, placed where the schema says it lives.
+   *
+   * Two defects, one line. (1) Search and compose each built this inline and
+   * generation did not, so picking the AI path silently discarded what the user had
+   * typed — and then showed them an empty "Additional Instructions" box.
+   * (2) Both existing sites wrote `{ ...context, userHint }`, a TOP-LEVEL key
+   * `GatheredContext` does not define; `GatheredContext.json` puts it at
+   * `focus.userHint` ("hint to supplement or replace the selected text for search and
+   * generation"). So the hint was misplaced on every path, not just missing on one.
+   *
+   * NOTE: no production code reads `focus.userHint` yet — this is correct plumbing
+   * for a field nothing consumes. Making the hint actually steer search or generation
+   * is a separate change (see WIZARD-NAVIGATION's execution log).
+   */
+  const contextWithHint = !context
+    ? null
+    : userHint
+      ? { ...context, focus: { ...context.focus, userHint } }
+      : context;
+
   const handleGenerate = useCallback(() => {
     setWizardStep({ step: 'configure-generation' });
   }, []);
 
   const handleCompose = useCallback(() => {
-    if (!context || !annotationId || !resourceId) return;
-    const contextWithHint = userHint ? { ...context, userHint } : context;
+    if (!contextWithHint || !annotationId || !resourceId) return;
     onComposeNavigate(contextWithHint, annotationId, resourceId, defaultTitle, entityTypes);
     onClose();
-  }, [context, annotationId, resourceId, defaultTitle, entityTypes, onComposeNavigate, onClose, userHint]);
+  }, [contextWithHint, annotationId, resourceId, defaultTitle, entityTypes, onComposeNavigate, onClose]);
 
   const handleBackToGather = useCallback(() => {
     setWizardStep({ step: 'gather' });
   }, []);
 
   const handleSearchSubmit = useCallback((config: SearchConfig) => {
-    if (!annotationId || !context || !resourceId) return;
+    if (!annotationId || !contextWithHint || !resourceId) return;
     setIsSearching(true);
-    const contextWithHint = userHint ? { ...context, userHint } : context;
     session?.client.match.requestSearch({
       correlationId: uuidV4(),
       resourceId,
@@ -161,7 +194,7 @@ export function ReferenceWizardModal({
       useSemanticScoring: config.useSemanticScoring,
     });
     // Stay on configure-search until results arrive (subscription above handles transition)
-  }, [annotationId, resourceId, context, session, userHint]);
+  }, [annotationId, resourceId, contextWithHint, session]);
 
   const handleGenerateSubmit = useCallback((config: GenerationConfig) => {
     if (!annotationId) return;
@@ -254,11 +287,10 @@ export function ReferenceWizardModal({
                 {wizardStep.step === 'configure-generation' && context && (
                   <ConfigureGenerationStep
                     {...(generationAgent ? { generationAgent } : {})}
-                    defaultTitle={defaultTitle}
-                    locale={locale}
-                    context={context}
+                    context={contextWithHint ?? context}
+                    config={generationDraft}
+                    onConfigChange={setGenerationDraft}
                     onBack={handleBackToGather}
-                    onCancel={onClose}
                     onGenerate={handleGenerateSubmit}
                     translations={{
                       resourceTitle: t.resourceTitle,
@@ -273,7 +305,6 @@ export function ReferenceWizardModal({
                       maxLength: t.maxLength,
                       maxLengthHelp: t.maxLengthHelp,
                       maxLengthCeiling: t.maxLengthCeiling,
-                      cancel: t.cancel,
                       back: t.back,
                       generate: t.generate,
                     }}
@@ -282,15 +313,15 @@ export function ReferenceWizardModal({
 
                 {wizardStep.step === 'configure-search' && (
                   <ConfigureSearchStep
+                    config={searchConfig}
+                    onConfigChange={setSearchConfig}
                     isSearching={isSearching}
                     onBack={handleBackToGather}
-                    onCancel={onClose}
                     onSearch={handleSearchSubmit}
                     translations={{
                       maxResults: t.maxResults,
                       semanticScoring: t.semanticScoring,
                       semanticScoringHelp: t.semanticScoringHelp,
-                      cancel: t.cancel,
                       back: t.back,
                       search: t.search,
                       searching: t.searching,
@@ -304,12 +335,10 @@ export function ReferenceWizardModal({
                     context={context}
                     onLink={handleLink}
                     onBack={handleBackToGather}
-                    onCancel={onClose}
                     translations={{
                       noResults: t.noResults,
                       link: t.link,
                       back: t.back,
-                      cancel: t.cancel,
                       score: t.score,
                       sourceContextLabel: t.sourceContextLabel,
                       connectionsLabel: t.connectionsLabel,

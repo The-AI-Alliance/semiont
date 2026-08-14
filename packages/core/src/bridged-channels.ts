@@ -48,6 +48,10 @@ export const BRIDGED_BROADCASTS = [
   'beckon:focus',
   'beckon:sparkle',
   'bus:resume-gap',
+  'browse:resource-open',
+  'browse:resource-viewed',
+  'session:joined',
+  'session:left',
 ] as const satisfies readonly EventName[];
 
 // ── Derivation ──────────────────────────────────────────────────────────────

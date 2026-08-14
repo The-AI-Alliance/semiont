@@ -173,6 +173,65 @@ describe('bus routes', () => {
     app = buildApp(eventBus);
   });
 
+  // Presence is SSE CONNECTION LIFECYCLE, not login (D5): `semiont login`
+  // hits REST and mints a token that may sit unused for hours, while what a
+  // tour needs to know is whether anyone is WATCHING. The backend already
+  // tracked exactly that for its metrics gauge (recordSubscriberConnect /
+  // recordSubscriberDisconnect) and threw the information away; these two
+  // channels publish it.
+  describe('presence', () => {
+    it('announces session:joined with the participant DID when an SSE stream opens', async () => {
+      const joined: any[] = [];
+      eventBus.get('session:joined').subscribe((v) => joined.push(v));
+
+      const res = await app.request('/bus/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ global: ['mark:added'], scoped: [] }),
+      });
+      await readSSE(res, () => joined.length > 0);
+
+      expect(joined).toHaveLength(1);
+      expect(joined[0].participant).toBe('did:web:test.local:users:test%40test.local');
+    });
+
+    it('announces session:left when the stream aborts', async () => {
+      const left: any[] = [];
+      eventBus.get('session:left').subscribe((v) => left.push(v));
+
+      const res = await app.request('/bus/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ global: ['mark:added'], scoped: [] }),
+      });
+      // readSSE cancels the reader on the way out, which aborts the stream.
+      await readSSE(res, () => false, 150);
+      await vi.waitFor(() => expect(left).toHaveLength(1));
+      expect(left[0].participant).toBe('did:web:test.local:users:test%40test.local');
+    });
+
+    // joined and left must name the SAME connection, or a guide watching two
+    // viewers cannot tell which one left. The DID alone cannot do it: one
+    // person with two tabs is two connections under one DID.
+    it('pairs joined and left by connectionId', async () => {
+      const joined: any[] = [];
+      const left: any[] = [];
+      eventBus.get('session:joined').subscribe((v) => joined.push(v));
+      eventBus.get('session:left').subscribe((v) => left.push(v));
+
+      const res = await app.request('/bus/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ global: ['mark:added'], scoped: [] }),
+      });
+      await readSSE(res, () => joined.length > 0);
+      await vi.waitFor(() => expect(left).toHaveLength(1));
+
+      expect(joined[0].connectionId).toBeTruthy();
+      expect(left[0].connectionId).toBe(joined[0].connectionId);
+    });
+  });
+
   describe('POST /bus/emit', () => {
     it('emits an event onto the bus and returns 202 for unvalidated channel', async () => {
       const received: unknown[] = [];
@@ -189,6 +248,70 @@ describe('bus routes', () => {
 
       expect(res.status).toBe(202);
       expect(received).toHaveLength(1);
+    });
+
+    // An emit that reached nobody is the silent failure this route was
+    // missing. `/bus/subscribe` enforces no allowlist and the emit handler
+    // publishes unconditionally, so a client can emit a channel no
+    // participant subscribes to, get a clean 202, and never learn that the
+    // signal died in an empty subject. `warnIfUnobservedReply` cannot cover
+    // it: that detector requires a `correlationId`, which fire-and-forget UI
+    // signals (beckon, navigation) do not carry.
+    //
+    // The field is `subscribers`, NOT `delivered`: it is the observer count
+    // at dispatch, and a subscriber can still drop the frame downstream.
+    // Naming it after an outcome it cannot verify would be the same overclaim
+    // this check exists to end.
+    it('reports zero subscribers when nothing is listening', async () => {
+      const res = await app.request('/bus/emit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: 'beckon:focus',
+          payload: { annotationId: 'ann-1' },
+        }),
+      });
+
+      expect(res.status).toBe(202);
+      await expect(res.json()).resolves.toEqual({ subscribers: 0 });
+    });
+
+    it('reports how many subscribers an emit reached', async () => {
+      eventBus.get('beckon:focus').subscribe(() => {});
+      eventBus.get('beckon:focus').subscribe(() => {});
+
+      const res = await app.request('/bus/emit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: 'beckon:focus',
+          payload: { annotationId: 'ann-1' },
+        }),
+      });
+
+      expect(res.status).toBe(202);
+      await expect(res.json()).resolves.toEqual({ subscribers: 2 });
+    });
+
+    // Scope matters: a resource-scoped emit lands on the scoped subject, so
+    // an unscoped subscriber is NOT a subscriber to it. Counting the global
+    // subject here would report a healthy fan-out for a signal nobody scoped
+    // will receive.
+    it('counts subscribers on the SCOPED subject for a scoped emit', async () => {
+      eventBus.get('beckon:focus').subscribe(() => {});
+
+      const res = await app.request('/bus/emit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: 'beckon:focus',
+          payload: { annotationId: 'ann-1' },
+          scope: 'res-1',
+        }),
+      });
+
+      expect(res.status).toBe(202);
+      await expect(res.json()).resolves.toEqual({ subscribers: 0 });
     });
 
     // The bus reads `principalDid` off the request context (set by the

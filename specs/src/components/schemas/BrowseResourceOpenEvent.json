@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "description": "Domain intent to open a resource in the viewer (GUIDED-TOUR D1/D2): emitted locally by in-app link handlers and remotely by the launcher's tour verbs; the viewer translates it to host routing (nav:push). Deliberately not named 'navigate' \u2014 that word and the nav:* prefix belong to the host-local framework layer.",
+  "properties": {
+    "resourceId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "resourceId"
+  ]
+}

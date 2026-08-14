@@ -39,6 +39,25 @@ describe('useEventSubscription', () => {
       expect(handler).toHaveBeenCalledTimes(1);
     });
 
+    it('delivers browse:resource-open to a subscriber — the tour imperative (GUIDED-TOUR P2)', () => {
+      // The channel is bridged (BRIDGED_BROADCASTS), so a launcher emit
+      // arrives on this bus over SSE; the viewer's handler turns it into
+      // routes.resourceDetail → nav:push. This pins the subscription half.
+      const handler = vi.fn();
+      const { wrapper, eventBus } = makeWrapper();
+
+      renderHook(
+        () => useEventSubscription('browse:resource-open', handler),
+        { wrapper },
+      );
+
+      act(() => {
+        (eventBus.get('browse:resource-open') as any).next({ resourceId: 'res-42' });
+      });
+
+      expect(handler).toHaveBeenCalledWith({ resourceId: 'res-42' });
+    });
+
     it('should always use latest handler (no stale closure)', () => {
       const calls: string[] = [];
       let message = 'initial';

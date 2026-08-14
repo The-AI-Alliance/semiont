@@ -20,7 +20,16 @@ import { SemiontProject } from '@semiont/core/node';
 import { startMakeMeaning, type MakeMeaningConfig } from '@semiont/make-meaning';
 
 async function main() {
-  const project = new SemiontProject(process.env.SEMIONT_ROOT!);
+  // anchoredTextDir is REQUIRED and has no default. It names where this KB's
+  // derived anchored-text (OCR) store lives. A default would let a script that
+  // forgot it write a full OCR pass per representation into a directory nobody
+  // reads, lose it on exit, and re-derive it forever — silent, expensive, and
+  // indistinguishable from working. Containers get it from the image
+  // (SEMIONT_ANCHORED_TEXT_DIR=/anchored-text, mounted by `semiont start`);
+  // a script running outside one names it itself.
+  const project = new SemiontProject(process.env.SEMIONT_ROOT!, {
+    anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR!,
+  });
   const logger = createLogger('script');
 
   // Typically loaded from your project's environment JSON

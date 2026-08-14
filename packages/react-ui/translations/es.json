@@ -15,12 +15,16 @@
     "kindAssessment": "valoraciones",
     "kindReference": "referencias",
     "kindTag": "etiquetas",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} de {{total}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{done}} de {{total}})",
     "paramEntityTypes": "Tipos de Entidad",
     "paramInstructions": "Instrucciones",
     "paramTone": "Tono",
-    "paramDensity": "Densidad"
+    "paramDensity": "Densidad",
+    "subjectKindEntityType": "Tipo de entidad",
+    "subjectKindCategory": "Categoría",
+    "cancel": "Cancelar",
+    "inProgress": "Anotando..."
   },
   "PdfViewer": {
     "loadFailed": "No se pudo cargar el PDF",

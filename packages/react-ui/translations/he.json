@@ -15,12 +15,16 @@
     "kindAssessment": "הערכות",
     "kindReference": "הפניות",
     "kindTag": "תגיות",
-    "subject": "{{label}}",
-    "subjectWithPosition": "{{label}} ({{done}} מתוך {{total}})",
+    "subject": "{{kind}}: {{label}}",
+    "subjectWithPosition": "{{kind}}: {{label}} ({{done}} מתוך {{total}})",
     "paramEntityTypes": "סוגי ישויות",
     "paramInstructions": "הוראות",
     "paramTone": "טון",
-    "paramDensity": "צפיפות"
+    "paramDensity": "צפיפות",
+    "subjectKindEntityType": "סוג ישות",
+    "subjectKindCategory": "קטגוריה",
+    "cancel": "ביטול",
+    "inProgress": "מעיר..."
   },
   "PdfViewer": {
     "loadFailed": "טעינת ה-PDF נכשלה",
