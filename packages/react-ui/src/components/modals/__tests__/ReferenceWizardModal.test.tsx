@@ -169,3 +169,88 @@ describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () =>
     expect(screen.getByText(T.gatherTitle)).toBeInTheDocument();
   });
 });
+
+describe('ReferenceWizardModal — the three strategies complete', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('search results arrive over the bus and linking one resolves the reference', async () => {
+    const { client, onLinkResource, onClose } = renderWizard();
+    await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
+    await userEvent.click(screen.getByRole('button', { name: T.search }));
+
+    // The results step is entered by the REPLY, not by the click — the wizard
+    // sits on the configure step until the bus answers (which is why dismissal
+    // must stay available; see the A5 pin in WizardFooter.test).
+    client.bus.get('match:search-results').next({
+      referenceId: 'ann-1',
+      // `ResourceDescriptor` is JSON-LD: the identifier is `@id`, and the
+      // results step links on that. A fixture using `id` renders the row and
+      // links `undefined` — passing the eye, failing the reference.
+      response: [{ '@id': 'res-9', name: 'Caspian Sea', score: 54.2 }],
+    } as never);
+
+    expect(await screen.findByText(T.searchResultsTitle)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: new RegExp(T.link) }));
+
+    expect(onLinkResource).toHaveBeenCalledWith('ann-1', 'res-9');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores results addressed to a different annotation', () => {
+    // Two wizards can never be open at once, but one reply can outlive the
+    // annotation it was asked for — a late answer must not hijack the step.
+    const { client } = renderWizard();
+    client.bus.get('match:search-results').next({
+      referenceId: 'someone-elses-annotation',
+      response: [{ '@id': 'res-9', name: 'Caspian Sea' }],
+    } as never);
+    expect(screen.getByText(T.gatherTitle)).toBeInTheDocument();
+  });
+
+  it('generation submits the step\'s config against this annotation, then closes', async () => {
+    const { onGenerateSubmit, onClose } = renderWizard();
+    await userEvent.click(screen.getByText(new RegExp(T.generate)));
+    await userEvent.type(screen.getByLabelText(/Save location/i), 'generated/out.md');
+    await userEvent.click(screen.getByRole('button', { name: T.generate }));
+
+    expect(onGenerateSubmit).toHaveBeenCalledTimes(1);
+    expect(onGenerateSubmit.mock.calls[0]![0]).toBe('ann-1');
+    expect(onGenerateSubmit.mock.calls[0]![1].title).toBe('Caspian Sea');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('retreats from a configure step back to the gather step', async () => {
+    renderWizard();
+    await userEvent.click(screen.getByText(new RegExp(T.generate)));
+    expect(screen.getByText(T.configureGenerationTitle)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Back/ }));
+    expect(screen.getByText(T.gatherTitle)).toBeInTheDocument();
+  });
+});
+
+describe('ReferenceWizardModal — nothing fires without an annotation to resolve', () => {
+  // Every strategy guards on `annotationId` / `resourceId` / a context. The
+  // props are nullable because the page renders this modal before a reference
+  // is chosen, so "open but not yet aimed" is a real state, and acting in it
+  // would resolve a reference nobody selected.
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('compose, search and generate all no-op', async () => {
+    const { onComposeNavigate, onGenerateSubmit, searchSpy, client } =
+      renderWizard({ annotationId: null, resourceId: null });
+
+    await userEvent.click(screen.getByText(new RegExp(T.compose)));
+    expect(onComposeNavigate).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
+    await userEvent.click(screen.getByRole('button', { name: T.search }));
+    expect(searchSpy).not.toHaveBeenCalled();
+
+    // A reply that arrives anyway is ignored rather than advancing the step.
+    client.bus.get('match:search-results').next({
+      referenceId: 'ann-1', response: [{ '@id': 'res-9', name: 'X' }],
+    } as never);
+    expect(screen.queryByText(T.searchResultsTitle)).not.toBeInTheDocument();
+    expect(onGenerateSubmit).not.toHaveBeenCalled();
+  });
+});

@@ -218,6 +218,22 @@ describe('ConfigureGenerationStep — the draft is the owner\'s', () => {
     expect(screen.getByText(/Creativity \(0\.2\)/)).toBeInTheDocument();
   });
 
+  it('lets the max-length field go empty while retyping', () => {
+    // Clearing is a legitimate mid-edit state — you cannot retype a number
+    // otherwise — so the field must accept '' and let submission clamp it.
+    const { input } = renderStep(agentWithCeiling(4_000));
+    fireEvent.change(input(), { target: { value: '' } });
+    expect(input().value).toBe('');
+  });
+
+  it('reports a language change to the owner', () => {
+    renderStep(agentWithCeiling(4_000));
+    const select = () => screen.getByLabelText(translations.language) as HTMLSelectElement;
+    const other = Array.from(select().options).map((o) => o.value).find((v) => v !== select().value);
+    fireEvent.change(select(), { target: { value: other } });
+    expect(select().value).toBe(other);
+  });
+
   it('carries the typed instructions into the submitted config, trimmed', () => {
     const { props } = renderStep(agentWithCeiling(4_000));
     fillRequired();
