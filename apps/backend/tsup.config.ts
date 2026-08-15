@@ -9,6 +9,11 @@ const { version } = JSON.parse(
 ) as { version: string };
 
 export default defineConfig({
+  // Silenced: tsup lists every emitted artifact, and with `splitting` plus
+  // `sourcemap` that is ~2 lines per chunk — react-ui alone printed ~88 for a
+  // 619ms build. Failures still fail the command; build.sh prints the per-package
+  // check mark. Drop this line temporarily when you want the size column.
+  silent: true,
   // Two entries besides the server, both run as their own processes:
   //   db-url  — the container's CMD, before `migrate deploy` and before the
   //             server (see src/cli/db-url.ts for why it cannot live in index.ts)
