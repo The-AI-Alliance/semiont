@@ -252,7 +252,12 @@ func selectRuntime(u *ui, requested string) (string, bool) {
 
 // --- Health waits ---
 
-var healthClient = &http.Client{Timeout: 2 * time.Second}
+// healthProbeTimeout bounds ONE host-side probe. Shared with the SDK-backed
+// backend probe (roleHealthy) so the two cannot drift into a status report
+// where one role is allowed to stall longer than the rest.
+const healthProbeTimeout = 2 * time.Second
+
+var healthClient = &http.Client{Timeout: healthProbeTimeout}
 
 // netDialTimeout: one TCP reachability check (external-role verification).
 func netDialTimeout(addr string) (net.Conn, error) {
