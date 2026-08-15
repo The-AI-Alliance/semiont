@@ -26,21 +26,37 @@ jobs:
         run: npm ci --include=optional
 
       - name: Build packages (doc-snippets gate checks docs against dist)
+        id: build
         run: npm run build:packages
 
+      # Every gate below is INDEPENDENT: each checks a different invariant, and a
+      # failure in one says nothing about the others. They defaulted to
+      # `if: success()`, so the first failure skipped the rest — which meant one
+      # push per problem, and (because two of the skipped steps WRITE the
+      # compliance reports) a `cat` further down failing on a file nobody was
+      # going to produce.
+      #
+      # They all depend on the build, though: auditing docs against a `dist` that
+      # was never emitted would report nonsense. So each runs when the BUILD
+      # succeeded, regardless of its sibling gates. `!cancelled()` rather than
+      # `always()` so a cancelled run stops promptly.
+
       - name: Run Doc Snippets Audit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           echo "::group::Doc Snippets Audit (sdk docs' code fences compile against dist through the exports map)"
           ./scripts/compliance/audit-doc-snippets.sh
           echo "::endgroup::"
 
       - name: Run Raw Bus Access Audit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           echo "::group::Raw Bus Access Audit (forbid client.emit/.on/.stream outside the SDK)"
           ./scripts/compliance/audit-raw-bus.sh
           echo "::endgroup::"
 
       - name: Run CSS Gates
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           echo "::group::CSS Gates (stylelint + every var() resolves + no utility frameworks)"
           fail=0
@@ -53,6 +69,7 @@ jobs:
           exit $fail
 
       - name: Run StateUnit Compliance Audit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           echo "::group::StateUnit Compliance Audit (A1-static no-class / X3-static no-module-state / X5 fire-and-forget)"
           fail=0
@@ -64,6 +81,7 @@ jobs:
 
       - name: Run React-UI Compliance Audit
         id: react-ui-audit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           echo "::group::React-UI Compliance Audit"
           cd packages/react-ui
@@ -86,6 +104,7 @@ jobs:
 
       - name: Run Frontend Compliance Audit
         id: frontend-audit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           echo "::group::Frontend Compliance Audit"
           cd apps/frontend
