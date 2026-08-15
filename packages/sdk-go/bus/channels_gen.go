@@ -390,6 +390,9 @@ const (
 	// not emittable (no registered schema)
 	BrowseDirectoryFailed Channel = "browse:directory-failed"
 
+	// payload: BrowseClickEvent
+	BrowseClick Channel = "browse:click"
+
 	// payload: BrowseResourceOpenEvent
 	BrowseResourceOpen Channel = "browse:resource-open"
 
@@ -619,6 +622,7 @@ var ChannelSchemas = map[Channel]string{
 	BrowseAgentsResult:               "BrowseAgentsResult",
 	BrowseDirectoryRequested:         "BrowseDirectoryRequest",
 	BrowseDirectoryResult:            "BrowseDirectoryResult",
+	BrowseClick:                      "BrowseClickEvent",
 	BrowseResourceOpen:               "BrowseResourceOpenEvent",
 	BrowseResourceViewed:             "BrowseResourceViewedEvent",
 	BrowseEntityTypeClicked:          "BrowseEntityTypeClickedEvent",

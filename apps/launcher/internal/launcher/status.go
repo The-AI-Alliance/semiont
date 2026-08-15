@@ -241,6 +241,58 @@ func Status(args []string) int {
 	return 0
 }
 
+// browserProbe answers the two questions anything that wants to reach the
+// Browser has to ask: WHERE is it, and is it up?
+//
+// Endpoint is an ORIGIN and never a path. That line is the whole of
+// BROWSER-HANDOFF D6/O1: the launcher publishes the container's host port and
+// records the endpoint, so `http://localhost:3000` is its own fact —
+// `/know/resource/<id>` is the frontend's, and mirroring it here would drift
+// silently the day the route moves. If you find yourself adding a route to a
+// Go file, that decision was reopened without saying so.
+type browserProbe struct {
+	Endpoint string // origin: flag override → record → http://localhost:3000
+	Running  bool   // the endpoint answers — the only test of "can a human open this"
+	State    string // container state; "" when no container carries either handle
+}
+
+// browserTarget probes the Browser. Extracted from printBrowser, which is
+// still its first caller: `browse --browser` needs the same three facts to
+// explain an emit that reached nobody, and a second implementation would be
+// a second set of bugs (notably the stale-ID fallback below).
+//
+// override is `--browser-url`, taking precedence over the record.
+func browserTarget(ss *stackSet, override string) browserProbe {
+	b := ss.Browser
+	p := browserProbe{Endpoint: "http://localhost:3000"}
+	handle := "semiont-frontend"
+	if b != nil {
+		if b.Endpoint != "" {
+			p.Endpoint = b.Endpoint
+		}
+		if b.ID != "" {
+			handle = b.ID
+		}
+	}
+	if override != "" {
+		p.Endpoint = override
+	}
+	p.Running = probeHealth(p.Endpoint)
+	// Query only the runtime the record names — a record must narrow the
+	// sweep, same rule the stack table keeps. No record: all installed.
+	rts := installedRuntimes()
+	if b != nil && b.Runtime != "" && onPath(b.Runtime) {
+		rts = []string{b.Runtime}
+	}
+	p.State, _ = containerState(rts, handle)
+	if p.State == "" && handle != "semiont-frontend" {
+		// A stale recorded ID must not contradict a live endpoint ("absent"
+		// beside ✓): the stable name is the fallback truth (Copilot review).
+		p.State, _ = containerState(rts, "semiont-frontend")
+	}
+	return p
+}
+
 // printBrowser renders the BROWSER section — FIRST, because the viewer sits
 // architecturally above every stack it views (and is the least interesting
 // line, fine to scroll away). Shows the image tag so browser-vs-stack skew
@@ -248,30 +300,9 @@ func Status(args []string) int {
 func printBrowser(u *ui, ss *stackSet) (healthy bool) {
 	u.section("BROWSER")
 	b := ss.Browser
-	endpoint := "http://localhost:3000"
-	handle := "semiont-frontend"
-	if b != nil {
-		if b.Endpoint != "" {
-			endpoint = b.Endpoint
-		}
-		if b.ID != "" {
-			handle = b.ID
-		}
-	}
-	healthy = probeHealth(endpoint)
-	// Query only the runtime the record names — a record must narrow the
-	// sweep, same rule the stack table keeps. No record: all installed.
-	rts := installedRuntimes()
-	if b != nil && b.Runtime != "" && onPath(b.Runtime) {
-		rts = []string{b.Runtime}
-	}
-	state, _ := containerState(rts, handle)
-	if state == "" && handle != "semiont-frontend" {
-		// A stale recorded ID must not contradict a live endpoint ("absent"
-		// beside ✓): the stable name is the fallback truth (Copilot review).
-		state, _ = containerState(rts, "semiont-frontend")
-	}
-	word := state
+	p := browserTarget(ss, "")
+	healthy = p.Running
+	word := p.State
 	if word == "" {
 		word = "absent"
 	}
@@ -289,11 +320,11 @@ func printBrowser(u *ui, ss *stackSet) (healthy bool) {
 			}
 		}
 	}
-	if !healthy && state == "" {
+	if !healthy && p.State == "" {
 		fmt.Printf("  %s %-12s %s\n", mark, word, u.dim("any semiont start brings it up (or: semiont start --service frontend)"))
 		return healthy
 	}
-	fmt.Printf("  %s %-12s %s  %s\n", mark, word, endpoint, u.dim("("+detail+")"))
+	fmt.Printf("  %s %-12s %s  %s\n", mark, word, p.Endpoint, u.dim("("+detail+")"))
 	return healthy
 }
 

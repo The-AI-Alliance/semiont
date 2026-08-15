@@ -100,8 +100,7 @@ describe('SvgDrawingCanvas — drawing-path hit-test anchorRect', () => {
 
     expect(click).toHaveBeenCalledTimes(1);
     expect(click.mock.calls[0]?.[0]).toBe('canvas-ann-1');
-    expect(click.mock.calls[0]?.[1]).toBe('highlighting');
-    expect(click.mock.calls[0]?.[2]).toEqual({
+    expect(click.mock.calls[0]?.[1]).toEqual({
       x: 20, y: 20, left: 20, top: 20, width: 40, height: 40, right: 60, bottom: 60,
     });
   });

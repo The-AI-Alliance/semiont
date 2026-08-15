@@ -921,6 +921,47 @@ func removeStagedConfigs() {
 // incident. lsof -ti prints one PID per line when several processes hold a
 // port (parent+child servers, SO_REUSEPORT), so everything here iterates
 // over all of them.
+// portHeld reports whether anything holds the port, without judging it. The
+// judging (and the message) is requirePortFree's job.
+func portHeld(port int) bool {
+	out, err := capture("lsof", "-ti", fmt.Sprintf(":%d", port))
+	return err == nil && out != ""
+}
+
+// portSettleBudget bounds settlePorts. Generous, because it is only ever spent
+// when a runtime is genuinely slow to release — the common path returns on the
+// first check having waited nothing at all.
+const portSettleBudget = 3 * time.Second
+
+// settlePorts waits for ports we JUST tore something off to actually come free.
+//
+// It replaces a flat `time.Sleep(time.Second)` that ran after every teardown.
+// That sleep was both too long (a runtime that released instantly still paid a
+// second — and it was ~65% of the launcher test suite's runtime) and too short
+// (a loaded machine could need longer, and the port check that followed would
+// fail with a conflict message naming our own dying container).
+//
+// It deliberately does NOT decide anything. The caller's requirePortFree still
+// delivers the verdict and the "held by <pid> (<comm>)" message, so a port held
+// by a FOREIGN process is still refused promptly instead of being waited out.
+func settlePorts(ports ...int) {
+	deadline := time.Now().Add(portSettleBudget)
+	t0 := time.Now()
+	for {
+		held := false
+		for _, p := range ports {
+			if p != 0 && portHeld(p) {
+				held = true
+				break
+			}
+		}
+		if !held || !time.Now().Before(deadline) {
+			return
+		}
+		time.Sleep(pollDelay(time.Since(t0)))
+	}
+}
+
 func requirePortFree(u *ui, port int, service string) bool {
 	out, err := capture("lsof", "-ti", fmt.Sprintf(":%d", port))
 	if err != nil || out == "" {

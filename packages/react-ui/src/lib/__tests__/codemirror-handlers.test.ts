@@ -64,7 +64,7 @@ describe('handleAnnotationClick', () => {
 
     const result = handleAnnotationClick(child, segmentsById, session);
     expect(result).toBe(true);
-    expect(session.click).toHaveBeenCalledWith('ann-1', 'highlighting');
+    expect(session.click).toHaveBeenCalledWith('ann-1');
   });
 });
 
@@ -115,18 +115,9 @@ describe('handleWidgetClick', () => {
       handled: true,
       action: 'browse-click',
       annotationId: 'ann-1',
-      motivation: 'linking',
     });
   });
 
-  it('defaults motivation to linking when not set', () => {
-    const widget = createElement('div', {
-      class: 'reference-preview-widget',
-      'data-widget-annotation-id': 'ann-1',
-    });
-    const result = handleWidgetClick(widget);
-    expect(result.motivation).toBe('linking');
-  });
 });
 
 describe('dispatchWidgetClick', () => {
@@ -155,10 +146,9 @@ describe('dispatchWidgetClick', () => {
       handled: true,
       action: 'browse-click',
       annotationId: 'ann-1',
-      motivation: 'linking' as any,
     };
     dispatchWidgetClick(result, session);
-    expect(session.click).toHaveBeenCalledWith('ann-1', 'linking');
+    expect(session.click).toHaveBeenCalledWith('ann-1');
   });
 });
 

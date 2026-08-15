@@ -1,6 +1,6 @@
 ---
 name: semiont-tour
-description: Drive a participant's Browser from outside — a timed, branching "guided tour" of a knowledge base using browse --browser, beckon, and listen
+description: Drive a participant's Browser from outside — a timed, branching "guided tour" of a knowledge base: browse --browser moves them to a resource or opens an annotation, beckon offers choices, listen reports where they went
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep
@@ -31,18 +31,45 @@ logs in once, and the tour drives from there.
 subscribed to that KB, so running a tour while a colleague reads the same KB will drive their
 screen too. There is no per-participant addressing, deliberately — see "What this cannot do".
 
-## The four moves
+## The moves
+
+Four drives and one report:
 
 | move | command | channel |
 |---|---|---|
 | put a resource on their screen | `semiont browse <id> --browser` | `browse:resource-open` |
+| **open an annotation** (panel entry + scroll) | `semiont browse --annotation <id> --browser` | `browse:click` |
 | offer a branch (no scroll) | `semiont beckon --resource <id> --annotation <id> --sparkle` | `beckon:sparkle` |
 | say "start here" (scrolls) | `semiont beckon --resource <id> --annotation <id>` | `beckon:focus` |
 | see where they went | `semiont listen --channel browse:resource-viewed` | report |
 
+**`browse` advances the story; `beckon` offers a choice.** This is the shape of a tour, and
+getting it backwards is the common mistake. The two `browse --browser` forms are how a guide
+moves a participant along on a schedule — to the next resource, or to the passage worth
+reading inside it. `beckon` is punctuation: it marks options and lets the participant pick.
+A tour built entirely from beckons is not a tour, it is a scavenger hunt — it stalls after
+the opening move, waiting for a choice at every step.
+
+**Point versus open.** `beckon:focus` scrolls the viewer to an annotation and stops there.
+`browse --annotation --browser` *opens* it: the annotations panel comes up with that entry
+selected, and the scroll happens too. Point when you want them to notice something; open when
+you want them reading it.
+
 **Sparkle for menus, focus for one thing.** Focus *scrolls the viewer to* the annotation, so
 beckoning three references in a row scroll-fights and only the last survives. Sparkle marks an
 annotation in place. A three-way branch is three sparkles; "begin here" is one focus.
+
+**The annotation form takes no resourceId** — not on the command line, not on the wire. An
+annotation id names exactly one annotation on exactly one resource, so the id is the whole
+address; a second id would only be something for you to keep consistent. The launcher rejects
+one rather than ignoring it.
+
+**The `browse` moves fail on an empty room; the `beckon` moves do not.** Every emit reports
+how many subscribers the target subject had at dispatch, but the two verbs treat zero
+differently on purpose: `beckon` exits 0 because a beckon is fire-and-forget, while **both**
+`browse --browser` forms exit 1 because each asked for a specific outcome — something on a
+screen — and zero subscribers means it did not happen. Under `set -e` that makes every
+`browse` move a gate, starting with the first.
 
 ## Building the tour
 
@@ -66,24 +93,42 @@ set -euo pipefail
 # this fires when a Browser opens an event stream, not when a token is minted.
 semiont listen --channel session:joined --json | head -1 >/dev/null
 
+# Fails (exit 1) if nobody is subscribed, so `set -e` stops the tour rather
+# than narrating to an empty room. Add --launch to start the Browser when none
+# is running — it starts a CONTAINER, and someone must still open a web
+# browser and log in.
 semiont browse res-intro --browser
 sleep 90
 
-# The branch menu: mark both paths, then point at one as the suggested start.
-semiont beckon --resource res-intro --annotation ref-history --sparkle
-semiont beckon --resource res-intro --annotation ref-method  --sparkle
-semiont beckon --resource res-intro --annotation ref-history
+# Keep moving: open the passage that matters, don't just point at it. The
+# panel comes up with this entry selected and the view scrolls to it.
+semiont browse --annotation ann-thesis --browser
+sleep 60
+
+# Advance to the next stop on the guide's schedule.
+semiont browse res-method --browser
+sleep 90
+
+# NOW hand over a choice — this is what beckon is for. Two sparkles mark the
+# options without scroll-fighting; one focus says which to start with.
+semiont beckon --resource res-method --annotation ref-history --sparkle
+semiont beckon --resource res-method --annotation ref-sources --sparkle
+semiont beckon --resource res-method --annotation ref-history
 
 # Branch on where they actually went — including arrivals by link, back button,
 # or a typed URL, not just cues they followed.
 semiont listen --channel browse:resource-viewed --json |
   while read -r ev; do
     case "$(jq -r '.payload.resourceId' <<<"$ev")" in
-      res-history) semiont beckon --resource res-history --annotation ref-sources --sparkle ;;
-      res-method)  semiont browse res-method-detail --browser ;;
+      res-history) semiont browse --annotation ann-origins --browser ;;
+      res-sources) semiont browse res-sources-detail --browser ;;
     esac
   done
 ```
+
+Note the rhythm: **four `browse` moves carry the tour, one `beckon` cluster offers the
+branch.** The guide keeps the story moving on its own schedule and hands over control at the
+moment a choice is genuinely interesting — not at every step.
 
 Timing is `sleep`. Semiont has no scheduler and wants none — the tour's pace is the author's.
 
@@ -115,7 +160,12 @@ Every emit reports how many subscribers the backend had **at dispatch**:
 
 Zero means the signal reached an empty room — worth acting on, because these channels have no
 reply and would otherwise fail silently. A positive count is **not** delivery: a subscriber is
-a connection, not a pair of eyes. Both cases exit 0; an empty room is a fact, not an error.
+a connection, not a pair of eyes.
+
+**Zero is an error for `browse --browser` and a fact for `beckon`**, per the split above:
+both `--browser` forms exit 1 (they asked for a specific outcome that did not happen), while
+`beckon` exits 0 (fire-and-forget by contract). Under `set -e` that makes any `browse
+--browser` a gate and no `beckon` one.
 
 ## What this cannot do
 
@@ -128,8 +178,13 @@ State these to the user rather than letting them discover them mid-demo:
 - **No forced navigation to a resource the viewer cannot see.** `beckon:focus` carries a
   `resourceId` as a *guard*: a viewer on a different resource ignores it. Moving someone is
   `browse --browser`'s job, and it is a separate, deliberate act.
-- **No annotation-level engagement reporting.** You see which resources they arrived at, not
-  which annotations they read.
+- **Opening an annotation the viewer has not loaded does nothing.** It is a silent no-op, not
+  an error — the viewer resolves the annotation by id and finds nothing. So open a resource
+  before opening an annotation inside it, or accept that the cue may land nowhere.
+- **No annotation-level engagement reporting.** You can now *drive* a click, but you still
+  only see which **resources** they arrived at — not which annotations they read. The drive
+  and the report are asymmetric here, deliberately: `browse:resource-viewed` is the only
+  arrival signal.
 
 ## From TypeScript instead
 
@@ -138,25 +193,30 @@ report:
 
 ```ts
 const n = await client.beckon.openResource(resourceId);   // → wire (browse:resource-open)
+await client.beckon.click(annotationId);                  // → wire (browse:click)
 await client.beckon.sparkleAll(annotationId);             // → wire (beckon:sparkle)
 await client.beckon.attention(resourceId, annotationId);  // → wire (beckon:focus)
 client.browse.resourceViewed(resourceId);                 // → wire (the report)
 ```
 
+The pairing is the rule worth remembering: **`browse.X()` does it for me, `beckon.X()` does
+it for everyone else.** `browse.openResource()` and `browse.click()` are this viewer's own
+local fan-out; their `beckon` twins are the wire drives a tour uses.
+
 Every drive resolves with the subscriber count (`-1` = unknown) — the same signal the
 launcher's tour verbs print. `n === 0` means the room is empty, and the script can say so
 instead of touring nobody.
 
-The unmarked local pair stays local by design: `browse.openResource()` and
-`beckon.sparkle()` are this viewer's own fan-out — from a Node script they reach nobody,
-and that is correct (D6: a wire emit there would broadcast one viewer's own click to the
-room).
+The unmarked local members stay local by design: `browse.openResource()`, `browse.click()`
+and `beckon.sparkle()` are this viewer's own fan-out — from a Node script they reach nobody,
+and that is correct. A wire emit there would broadcast one viewer's own click to the whole
+room, which is the drive-versus-report loop the split exists to prevent.
 
 For anything long-running, build on [`semiont-session`](../semiont-session/SKILL.md) rather
 than a bare client: a tour that outlives its access token needs the refresh machinery, and
 `session.subscribe(channel, handler)` is the SDK equivalent of `semiont listen`.
 
-**Either surface drives a tour.** The launcher's four moves are one command each with no
+**Either surface drives a tour.** The launcher's moves are one command each with no
 token lifecycle to own; the SDK path is the same wire with a programmable driver around it.
 
 ## Related

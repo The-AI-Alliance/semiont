@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
 const markUsage = `Usage: semiont mark <resourceId> [selector] [body] [options]
@@ -148,7 +147,7 @@ func Mark(args []string) int {
 	if !ok {
 		return 1
 	}
-	cli := bus.NewClient(t.base, t.token)
+	cli := newTransport(t.base, t.token)
 
 	if deleteID != "" {
 		_, err := cli.Request(context.Background(), "mark:delete",

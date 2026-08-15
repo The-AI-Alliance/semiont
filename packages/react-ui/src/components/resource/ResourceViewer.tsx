@@ -8,7 +8,7 @@ import { BrowseView, type ReferenceHover } from './BrowseView';
 import type { BrowseMediaRenderers } from './browse-renderers';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
-import type { Annotation, AnnotationId, ResourceDescriptor as SemiontResource, components, EventMap, AnchorRect } from '@semiont/core';
+import type { Annotation, AnnotationId, ResourceDescriptor as SemiontResource, EventMap, AnchorRect } from '@semiont/core';
 import { getExactText, getTargetSelector, getPrimaryMediaType, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
@@ -102,7 +102,10 @@ interface Props {
  * panel opening invokes the host's `onOpenPanel` callback — the host owns
  * the panel and any `panel:open` emission.
  *
- * @subscribes browse:click - User clicked on annotation. Payload: { annotationId: string, motivation, anchorRect? }
+ * @subscribes browse:click - An annotation was clicked — locally, or driven over
+ *   the wire by another participant. Payload: { annotationId: string, anchorRect? };
+ *   the motivation is derived from the annotation the id names, and an id this
+ *   viewer has not loaded is a no-op.
  */
 export function ResourceViewer({
   resource,
@@ -270,38 +273,34 @@ export function ResourceViewer({
   }, [annotateMode, selectedClick, onOpenResource]);
 
   // Annotation click coordinator - handles panel opening and scrolling
-  const handleAnnotationClickEvent = useCallback(({ annotationId, motivation, anchorRect }: {
+  const handleAnnotationClickEvent = useCallback(({ annotationId, anchorRect }: {
     annotationId: string;
-    motivation: components['schemas']['Motivation'];
     anchorRect?: AnchorRect;
   }) => {
-    // Find the annotation metadata
-    const metadata = Object.values(ANNOTATORS).find(a => a.matchesAnnotation({ motivation } as Annotation));
+    // Resolve the annotation FIRST. The id is the whole address, and the
+    // motivation is derived from the annotation it names rather than carried
+    // beside it (TOUR-CLICK D2) — one fact, one encoding. Resolving first also
+    // means a click naming an annotation this viewer has not loaded (a remote
+    // drive that arrived while the participant was elsewhere) finds nothing
+    // and does nothing, which is why the channel needs no resourceId guard.
+    const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
+    const annotation = allAnnotations.find(a => a.id === annotationId);
+    if (!annotation) return;
 
-    if (!metadata?.hasSidePanel) {
-      // Annotation doesn't have a side panel - let handleAnnotationClick handle it
-      const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
-      const annotation = allAnnotations.find(a => a.id === annotationId);
-      if (annotation) {
-        handleAnnotationClick(annotation);
-      }
-      return;
-    }
+    // The real annotation, not a `{ motivation } as Annotation` stand-in.
+    const metadata = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(annotation));
 
-    if (selectedClick !== 'detail') {
-      // Only open panels in detail mode - for other modes, let handleAnnotationClick handle it
-      const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
-      const annotation = allAnnotations.find(a => a.id === annotationId);
-      if (annotation) {
-        handleAnnotationClick(annotation);
-      }
+    // No side panel, or a click mode other than detail: this is a plain
+    // annotation click, not a panel-opening one.
+    if (!metadata?.hasSidePanel || selectedClick !== 'detail') {
+      handleAnnotationClick(annotation);
       return;
     }
 
     // All annotations open the unified annotations panel — the host owns the panel.
     // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel.
     // View geometry passes through untouched: the emitter owned it, the host anchors with it.
-    onOpenPanel?.({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation, ...(anchorRect ? { anchorRect } : {}) });
+    onOpenPanel?.({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation: annotation.motivation, ...(anchorRect ? { anchorRect } : {}) });
   }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick, onOpenPanel]);
 
   // Single subscription call per file (see scripts/compliance/audit-hooks-ordering.ts).

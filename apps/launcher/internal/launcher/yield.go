@@ -360,7 +360,7 @@ Requires a session:  semiont login --email <address>
 `
 
 func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOptions) int {
-	cli := bus.NewClient(t.base, t.token)
+	cli := newTransport(t.base, t.token)
 	ctx := context.Background()
 	resourceID := positional[0]
 

@@ -38,6 +38,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -691,16 +692,44 @@ func runtimeCmd(base string, args []string) {
 			fmt.Fprintln(os.Stderr, "Error: no such volume")
 			os.Exit(1)
 		}
-	case "list":
-		// Apple container format: name in column 1.
-		if os.Getenv("FAKERT_STACK_RUNTIME") == base {
-			fmt.Println("ID              IMAGE                       STATE")
-			fmt.Println("semiont-backend ghcr.io/x/semiont-backend  running")
+	case "list", "ps":
+		// Two callers, two questions:
+		//
+		//   list / ps            "which runtime is the stack on?" — answered by
+		//                        FAKERT_STACK_RUNTIME, as before.
+		//   list -a / ps -a      "which semiont containers EXIST here?" — the
+		//                        teardown's question. Answered from
+		//                        FAKERT_STATE_<svc>, the same source `inspect`
+		//                        uses, so the fake cannot tell the launcher a
+		//                        container exists and then deny it on inspect.
+		all := false
+		for _, a := range args {
+			if a == "-a" || a == "--all" {
+				all = true
+			}
 		}
-	case "ps":
-		// docker/podman `ps --format {{.Names}}`: bare names.
+		header := base == "container" // Apple container prints a header row
+		if all {
+			names := existingContainers()
+			if header && len(names) > 0 {
+				fmt.Println("ID              IMAGE                       STATE")
+			}
+			for _, n := range names {
+				if header {
+					fmt.Printf("%s ghcr.io/x/%s  running\n", n, strings.TrimPrefix(n, "semiont-"))
+				} else {
+					fmt.Println(n)
+				}
+			}
+			return
+		}
 		if os.Getenv("FAKERT_STACK_RUNTIME") == base {
-			fmt.Println("semiont-backend")
+			if header {
+				fmt.Println("ID              IMAGE                       STATE")
+				fmt.Println("semiont-backend ghcr.io/x/semiont-backend  running")
+			} else {
+				fmt.Println("semiont-backend")
+			}
 		}
 	case "logs":
 		name := strings.TrimPrefix(handleName(args[len(args)-1]), "semiont-")
@@ -1143,6 +1172,47 @@ var busScripted = map[string]bool{
 	"bind:update-body":              true,
 	"match:search-requested":        true,
 	"job:create":                    true,
+}
+
+// existingContainers is every semiont-* container that exists here, from BOTH
+// sources — and it must be both, or the fake lies to a teardown:
+//
+//	FAKERT_STATE_<svc>   containers the TEST scripted as pre-existing
+//	serve-<name>.pid     containers THIS RUN started (`run -d --name`), which
+//	                     no env var knows about
+//
+// The second source is the one a restart depends on: a launcher that starts a
+// stack and then starts it again must find its own containers to tear them
+// down. Before the teardown asked (it fired stop/rm blindly), so the gap was
+// invisible; now that it asks, an incomplete answer becomes a name collision.
+//
+// Sorted, so the argv goldens are stable.
+func existingContainers() []string {
+	seen := map[string]bool{}
+	for _, kv := range os.Environ() {
+		k, v, ok := strings.Cut(kv, "=")
+		if !ok || v == "" || !strings.HasPrefix(k, "FAKERT_STATE_") {
+			continue
+		}
+		seen["semiont-"+strings.TrimPrefix(k, "FAKERT_STATE_")] = true
+	}
+	if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+		entries, _ := os.ReadDir(dir)
+		for _, e := range entries {
+			n := e.Name()
+			if strings.HasPrefix(n, "serve-") && strings.HasSuffix(n, ".pid") {
+				seen[strings.TrimSuffix(strings.TrimPrefix(n, "serve-"), ".pid")] = true
+			}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for n := range seen {
+		if strings.HasPrefix(n, "semiont-") {
+			out = append(out, n)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func killServe(name string) bool {

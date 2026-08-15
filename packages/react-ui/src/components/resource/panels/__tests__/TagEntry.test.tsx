@@ -183,7 +183,6 @@ describe('TagEntry', () => {
 
       expect(clickHandler).toHaveBeenCalledWith({
         annotationId: 'tag-1',
-        motivation: 'tagging',
       });
 
       subscription.unsubscribe();

@@ -29,6 +29,20 @@ export class BeckonNamespace implements IBeckonNamespace {
   }
 
   /**
+   * Open an annotation on every OTHER participant's screen (wire:
+   * `browse:click` — the viewer selects its panel entry and scrolls to it).
+   * Strictly richer than `attention()`, which only points.
+   *
+   * The local counterpart is `browse.click()`: this viewer's own. No audience
+   * marker on the name — beckon has no local `click` sibling forcing the
+   * distinction, the same reason `openResource` needs none and `sparkleAll`
+   * does.
+   */
+  click(annotationId: AnnotationId): Promise<number> {
+    return this.transport.emit('browse:click', { annotationId });
+  }
+
+  /**
    * Sparkle an annotation on every participant's viewer (wire:
    * `beckon:sparkle`). The `All` marker exists because `sparkle()` — the
    * unmarked sibling — is this viewer's own local affordance and must stay

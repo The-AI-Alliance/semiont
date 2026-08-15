@@ -4285,6 +4285,12 @@ func TestStartServiceWorker(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv,
 		"FAKERT_STATE_backend=running",
+		// The worker is ALREADY RUNNING — this is a restart, and a restart is
+		// only a restart if there is something to replace. The teardown now
+		// lists before it acts, so a scenario that wants stop+rm asserted has
+		// to say the container exists rather than relying on stop/rm being
+		// fired blindly at a name that was never there.
+		"FAKERT_STATE_worker=running",
 		"FAKERT_SECRET=recovered-secret-123",
 	)
 	serveHealth(t, 16686)
@@ -4336,6 +4342,10 @@ func TestStartServiceGraph(t *testing.T) {
 	// Infra service: no config, no secret, no host-addr probe, no pull
 	// (pinned image) — just its own stop+rm, run, and health gate.
 	s := newScenario(t, "container")
+	// Already running, so "Restarting graph" has something to replace. The
+	// teardown lists before it acts; a scenario asserting stop+rm must say the
+	// container is there rather than relying on a blind fire at its name.
+	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_neo4j=running")
 	stdout, stderr, code := s.run(t, "start", "--service", "graph")
 	if code != 0 {
 		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -6214,6 +6224,11 @@ func busScenario(t *testing.T, env ...string) *scenario {
 	return s
 }
 
+// WIRE SMOKE TEST (browse) — SDK-GO-TRANSPORT P2. This family's logic now runs
+// in process against a fake transport (internal/launcher/verbs_test.go). This
+// one stays end-to-end deliberately: it is the only thing proving the BUILT
+// BINARY speaks HTTP a real server understands. A family tested only against a
+// double can agree with a bug in our own client.
 func TestBrowseListsResources(t *testing.T) {
 	s := busScenario(t, `FAKERT_BUS_REPLY_browse_resources_requested={"resources":[`+
 		`{"@id":"res-1","name":"Letter","entityTypes":["Letter"]},`+
@@ -6228,127 +6243,6 @@ func TestBrowseListsResources(t *testing.T) {
 	mustContain(t, "emit", b, `"channel":"browse:resources-requested"`, `"limit":5`, `"correlationId"`)
 }
 
-func TestBrowseJSONPassesThrough(t *testing.T) {
-	s := busScenario(t, `FAKERT_BUS_REPLY_browse_resources_requested={"resources":[],"total":0}`)
-	stdout, _, code := s.run(t, "browse", "--json")
-	if code != 0 {
-		t.Fatalf("exit %d", code)
-	}
-	if !strings.Contains(stdout, `"response"`) {
-		t.Errorf("--json must print the raw reply, got:\n%s", stdout)
-	}
-}
-
-// --- browse --browser: the same act, a different audience (GUIDED-TOUR P3) ---
-
-// `browse <id>` renders a resource HERE; `browse <id> --browser` renders it on
-// the participant's screen. One verb, two destinations — not a second verb,
-// because the act is identical and only the audience differs (D2b).
-func TestBrowseBrowserPutsTheResourceOnTheParticipantsScreen(t *testing.T) {
-	s := busScenario(t)
-	stdout, stderr, code := s.run(t, "browse", "res-42", "--browser")
-	if code != 0 {
-		t.Fatalf("browse --browser: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
-	}
-	b := lastEmit(t, s)
-	mustContain(t, "emit", b, `"channel":"browse:resource-open"`, `"resourceId":"res-42"`)
-
-	// It is a SIGNAL, not a read: nothing is fetched and nothing is rendered
-	// locally. A --browser that also performed the read would double the work
-	// and print a table nobody asked for.
-	for _, e := range emits(t, s) {
-		if strings.Contains(e, "browse:resource-requested") {
-			t.Errorf("--browser performed a local read as well as signalling:\n%s", e)
-		}
-	}
-
-	// P1's subscriber count carries through: nothing is watching in this
-	// scenario, and saying so is the whole point of that phase.
-	mustContain(t, "audience", stdout, "nothing is subscribed to browse:resource-open")
-}
-
-func TestBrowseBrowserNeedsAResourceId(t *testing.T) {
-	// "Show them the index" is a legitimate tour step and a different route;
-	// until that exists, a bare --browser must refuse rather than guess.
-	s := busScenario(t)
-	stdout, stderr, code := s.run(t, "browse", "--browser")
-	if code == 0 {
-		t.Fatalf("--browser without a resourceId must refuse\nstdout:\n%s", stdout)
-	}
-	mustContain(t, "refusal", stdout+stderr, "--browser", "resourceId")
-}
-
-// --browser names a DESTINATION; --json/--annotations/--entity-types each name
-// a local rendering. Combining them states two destinations at once, so the
-// verb refuses instead of silently honouring one (D2b).
-func TestBrowseBrowserRefusesLocalRenderings(t *testing.T) {
-	for _, flag := range []string{"--json", "--annotations", "--entity-types"} {
-		t.Run(flag, func(t *testing.T) {
-			s := busScenario(t)
-			stdout, stderr, code := s.run(t, "browse", "res-42", "--browser", flag)
-			if code == 0 {
-				t.Fatalf("--browser %s must refuse\nstdout:\n%s", flag, stdout)
-			}
-			mustContain(t, "refusal", stdout+stderr, "--browser", flag)
-		})
-	}
-}
-
-// --- beckon --sparkle: the branch menu (GUIDED-TOUR P6) ---
-
-// focus SCROLLS, so beckoning three references in a row scroll-fights and only
-// the last one wins. Sparkle is inert-but-visible: it marks an annotation
-// without moving anything, so a guide can light up three and say "any of
-// these". Same verb, same target, different signal — not a second command.
-func TestBeckonSparkleEmitsSparkleNotFocus(t *testing.T) {
-	s := busScenario(t)
-	stdout, stderr, code := s.run(t, "beckon", "--resource", "res-42", "--annotation", "ref-a", "--sparkle")
-	if code != 0 {
-		t.Fatalf("beckon --sparkle: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
-	}
-	mustContain(t, "emit", lastEmit(t, s), `"channel":"beckon:sparkle"`, `"annotationId":"ref-a"`)
-
-	// An implementation that emitted BOTH would scroll-fight exactly as before,
-	// which is the thing this flag exists to avoid.
-	for _, e := range emits(t, s) {
-		if strings.Contains(e, `"channel":"beckon:focus"`) {
-			t.Errorf("--sparkle also emitted focus, the scroll-fight it exists to avoid:\n%s", e)
-		}
-	}
-
-	// P1's subscriber count carries through, in beckon's existing vocabulary.
-	mustContain(t, "audience", stdout, "nothing is subscribed to beckon:sparkle")
-}
-
-// BeckonSparkleEvent requires annotationId — there is no resource-wide sparkle.
-// Refuse rather than guess at one.
-func TestBeckonSparkleNeedsAnAnnotation(t *testing.T) {
-	s := busScenario(t)
-	stdout, stderr, code := s.run(t, "beckon", "--resource", "res-42", "--sparkle")
-	if code == 0 {
-		t.Fatalf("--sparkle without an annotation must refuse\nstdout:\n%s", stdout)
-	}
-	mustContain(t, "refusal", stdout+stderr, "--sparkle", "--annotation")
-}
-
-// Without the flag, beckon is unchanged: focus, which scrolls.
-func TestBeckonWithoutSparkleStillFocuses(t *testing.T) {
-	s := busScenario(t)
-	if _, stderr, code := s.run(t, "beckon", "--resource", "res-42", "--annotation", "ref-a"); code != 0 {
-		t.Fatalf("beckon: exit %d\nstderr:\n%s", code, stderr)
-	}
-	mustContain(t, "emit", lastEmit(t, s), `"channel":"beckon:focus"`)
-}
-
-func TestBrowseFailureChannelIsReported(t *testing.T) {
-	s := busScenario(t, "FAKERT_BUS_FAIL=resource vanished")
-	stdout, stderr, code := s.run(t, "browse", "res-9")
-	if code == 0 {
-		t.Fatalf("a failure reply must fail the command\nstdout:\n%s", stdout)
-	}
-	mustContain(t, "rejection", stdout+stderr, "rejected", "resource vanished")
-}
-
 func TestBrowseWithoutSessionAdvisesLogin(t *testing.T) {
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
@@ -6361,6 +6255,11 @@ func TestBrowseWithoutSessionAdvisesLogin(t *testing.T) {
 	mustContain(t, "fix-it", stdout+stderr, "semiont login")
 }
 
+// WIRE SMOKE TEST (gather) — SDK-GO-TRANSPORT P2. This family's logic now runs
+// in process against a fake transport (internal/launcher/verbs_test.go). This
+// one stays end-to-end deliberately: it is the only thing proving the BUILT
+// BINARY speaks HTTP a real server understands. A family tested only against a
+// double can agree with a bug in our own client.
 func TestGatherResourceSummarizes(t *testing.T) {
 	// The REAL GatheredContext shape (schema-defined): metadata +
 	// inferredRelationshipSummary, not the content/summary/resources fields
@@ -6382,17 +6281,11 @@ func TestGatherResourceSummarizes(t *testing.T) {
 	mustContain(t, "emit", b, `"channel":"gather:resource-requested"`, `"resourceId":"res-1"`, `"includeContent":true`)
 }
 
-func TestGatherAnnotationUsesStreamingOperation(t *testing.T) {
-	s := busScenario(t, `FAKERT_BUS_REPLY_gather_requested={"content":"ctx","resources":[]}`)
-	stdout, stderr, code := s.run(t, "gather", "res-1", "ann-7")
-	if code != 0 {
-		t.Fatalf("gather annotation: exit %d\nstderr:\n%s", code, stderr)
-	}
-	_ = stdout
-	b := lastEmit(t, s)
-	mustContain(t, "emit", b, `"channel":"gather:requested"`, `"annotationId":"ann-7"`, `"resourceId":"res-1"`)
-}
-
+// WIRE SMOKE TEST (mark) — SDK-GO-TRANSPORT P2. This family's logic now runs
+// in process against a fake transport (internal/launcher/verbs_test.go). This
+// one stays end-to-end deliberately: it is the only thing proving the BUILT
+// BINARY speaks HTTP a real server understands. A family tested only against a
+// double can agree with a bug in our own client.
 func TestMarkCreatesWithSelectorAndBody(t *testing.T) {
 	s := busScenario(t, `FAKERT_BUS_REPLY_mark_create_request={"annotationId":"ann-42"}`)
 	stdout, stderr, code := s.run(t, "mark", "res-1",
@@ -6409,39 +6302,11 @@ func TestMarkCreatesWithSelectorAndBody(t *testing.T) {
 		`"motivation":"commenting"`) // inferred from the body
 }
 
-func TestMarkLinkInfersLinkingMotivation(t *testing.T) {
-	s := busScenario(t, `FAKERT_BUS_REPLY_mark_create_request={"annotationId":"ann-9"}`)
-	if _, stderr, code := s.run(t, "mark", "res-1", "--link", "res-2"); code != 0 {
-		t.Fatalf("mark --link: exit %d\nstderr:\n%s", code, stderr)
-	}
-	b := lastEmit(t, s)
-	mustContain(t, "emit", b, `"motivation":"linking"`, `"SpecificResource"`, `"source":"res-2"`)
-}
-
-func TestMarkSelectorFlagsAreExclusive(t *testing.T) {
-	s := busScenario(t)
-	_, stderr, code := s.run(t, "mark", "res-1", "--quote", "x", "--start", "1", "--end", "2")
-	if code == 0 {
-		t.Fatal("--quote with --start/--end must refuse")
-	}
-	mustContain(t, "refusal", stderr, "pick one")
-	// And a half-given position range is a refusal, not a silent whole-resource mark.
-	if _, stderr, code := s.run(t, "mark", "res-1", "--start", "1"); code == 0 {
-		t.Error("--start without --end must refuse")
-	} else {
-		mustContain(t, "refusal", stderr, "go together")
-	}
-}
-
-func TestMarkDeleteNeedsResource(t *testing.T) {
-	s := busScenario(t)
-	_, stderr, code := s.run(t, "mark", "--delete", "ann-1")
-	if code == 0 {
-		t.Fatal("--delete without --resource must refuse")
-	}
-	mustContain(t, "refusal", stderr, "--resource")
-}
-
+// WIRE SMOKE TEST (bind) — SDK-GO-TRANSPORT P2. This family's logic now runs
+// in process against a fake transport (internal/launcher/verbs_test.go). This
+// one stays end-to-end deliberately: it is the only thing proving the BUILT
+// BINARY speaks HTTP a real server understands. A family tested only against a
+// double can agree with a bug in our own client.
 func TestBindAddsAndRemovesTarget(t *testing.T) {
 	s := busScenario(t, `FAKERT_BUS_REPLY_bind_update_body={}`)
 	if _, stderr, code := s.run(t, "bind", "res-1", "ann-1", "res-2"); code != 0 {
@@ -6458,6 +6323,11 @@ func TestBindAddsAndRemovesTarget(t *testing.T) {
 	mustContain(t, "emit", b, `"op":"remove"`)
 }
 
+// WIRE SMOKE TEST (match) — SDK-GO-TRANSPORT P2. This family's logic now runs
+// in process against a fake transport (internal/launcher/verbs_test.go). This
+// one stays end-to-end deliberately: it is the only thing proving the BUILT
+// BINARY speaks HTTP a real server understands. A family tested only against a
+// double can agree with a bug in our own client.
 func TestMatchGathersThenSearches(t *testing.T) {
 	// match is TWO exchanges: the search requires a context payload, so a
 	// gather must precede it — not an optimization, a precondition.
@@ -6493,6 +6363,11 @@ func TestMatchGathersThenSearches(t *testing.T) {
 // subscribed to beckon:focus in this scenario, and the backend now says so, so
 // the honest line names that — the old "no delivery confirmation" wording is
 // reserved for the case where the count is genuinely unknown.
+// WIRE SMOKE TEST (beckon) — SDK-GO-TRANSPORT P2. This family's logic now runs
+// in process against a fake transport (internal/launcher/verbs_test.go). This
+// one stays end-to-end deliberately: it is the only thing proving the BUILT
+// BINARY speaks HTTP a real server understands. A family tested only against a
+// double can agree with a bug in our own client.
 func TestBeckonSaysWhenNobodyIsSubscribed(t *testing.T) {
 	s := busScenario(t)
 	stdout, stderr, code := s.run(t, "beckon", "--resource", "res-1", "--annotation", "ann-2")
@@ -6509,21 +6384,19 @@ func TestBeckonSaysWhenNobodyIsSubscribed(t *testing.T) {
 	}
 }
 
-func TestBeckonNeedsAResource(t *testing.T) {
-	s := busScenario(t)
-	stdout, _, code := s.run(t, "beckon")
-	if code == 0 {
-		t.Fatal("beckon without a resource must refuse")
-	}
-	mustContain(t, "usage", stdout, "Usage: semiont beckon")
-}
-
 // --- frame: the schema-layer flow ---
 
 // Frame is a FAN-OUT verb: the protocol has no batch add, so N entity types
 // are N `frame:add-entity-type` commands. This asserts against every emit,
 // not the last one — a verb that dropped all but the final tag would pass a
 // last-emit check while losing the caller's work.
+// WIRE SMOKE TEST (SDK-GO-TRANSPORT P2). The verb's logic — one command per
+// entity type, stop at the first rejection, refuse bad arguments — moved to
+// internal/launcher/frame_test.go, where it runs in process against a fake
+// transport in ~0 s. This one stays end-to-end on purpose: it is the only thing
+// proving the BUILT BINARY speaks HTTP a server actually understands. Retiring
+// it would leave the whole verb family tested against a double that could agree
+// with a bug.
 func TestFrameAddsEachEntityTypeSeparately(t *testing.T) {
 	s := busScenario(t)
 	stdout, stderr, code := s.run(t, "frame", "--entity-type", "Person", "--entity-type", "Organization")
@@ -6544,43 +6417,6 @@ func TestFrameAddsEachEntityTypeSeparately(t *testing.T) {
 	if strings.Contains(all[0], `"_userId"`) {
 		t.Errorf("client set a field the gateway owns:\n%s", all[0])
 	}
-}
-
-// A rejected add STOPS the run. Continuing would report a success total the
-// backend never agreed to, and the remaining tags are cheap to re-issue —
-// the vocabulary is grow-only, so a rerun costs nothing.
-func TestFrameStopsAtTheFirstRejection(t *testing.T) {
-	s := busScenario(t, "FAKERT_BUS_FAIL=vocabulary is frozen")
-	stdout, stderr, code := s.run(t, "frame", "--entity-type", "Person", "--entity-type", "Organization")
-	if code == 0 {
-		t.Fatalf("a rejected add must fail the command\nstdout:\n%s", stdout)
-	}
-	mustContain(t, "rejection", stdout+stderr, "vocabulary is frozen")
-	if all := emits(t, s); len(all) != 1 {
-		t.Errorf("frame kept going after a rejection: %d commands sent:\n%s", len(all), strings.Join(all, "\n"))
-	}
-}
-
-func TestFrameNeedsAnEntityType(t *testing.T) {
-	s := busScenario(t)
-	stdout, _, code := s.run(t, "frame")
-	if code == 0 {
-		t.Fatal("frame with nothing to add must refuse")
-	}
-	mustContain(t, "usage", stdout, "Usage: semiont frame")
-}
-
-// Bare operands are refused rather than guessed at. Frame owns two schema
-// primitives in the protocol (entity types and tag schemas); a positional
-// would have to mean one of them, and picking silently is how the second
-// one becomes impossible to add later without breaking the first.
-func TestFrameRefusesBarePositionals(t *testing.T) {
-	s := busScenario(t)
-	_, stderr, code := s.run(t, "frame", "Person")
-	if code == 0 {
-		t.Fatal("a bare positional must refuse")
-	}
-	mustContain(t, "refusal", stderr, "--entity-type")
 }
 
 func TestListenRefusesWithoutSession(t *testing.T) {

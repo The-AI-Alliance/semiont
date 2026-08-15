@@ -236,7 +236,6 @@ describe('ReferenceEntry', () => {
 
       expect(clickHandler).toHaveBeenCalledWith({
         annotationId: 'ref-1',
-        motivation: 'linking',
       });
 
       subscription.unsubscribe();

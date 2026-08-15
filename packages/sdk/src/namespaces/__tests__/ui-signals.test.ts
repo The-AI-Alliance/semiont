@@ -99,17 +99,25 @@ describe('UI signal wrappers', () => {
   });
 
   describe('browse.click', () => {
-    it('emits browse:click with annotationId and motivation (local bus)', () => {
+    it('emits browse:click with the annotationId alone (local bus)', () => {
       const bus = new EventBus();
       const spy = busSpy(bus, 'browse:click');
-      const browse = new BrowseNamespace(makeMockTransport(), bus, makeMockContent());
+      const transport = makeMockTransport();
+      const browse = new BrowseNamespace(transport, bus, makeMockContent());
 
-      browse.click(AID, 'linking');
+      browse.click(AID);
 
+      // No motivation: the id addresses exactly one annotation, and the viewer
+      // derives the motivation from the annotation it names (TOUR-CLICK D2).
+      // Carrying it too would state one fact twice on a wire that also carries
+      // the id it comes from.
       expect(spy).toHaveBeenCalledExactlyOnceWith('browse:click', {
         annotationId: AID,
-        motivation: 'linking',
       });
+      // NEVER the wire: browse:click is bridged (TOUR-CLICK P1), so a transport
+      // emit here would broadcast this viewer's own click to every participant
+      // — the D6 feedback loop. The wire path is `beckon.click()`.
+      expect(transport.emit).not.toHaveBeenCalled();
     });
   });
 
@@ -206,6 +214,26 @@ describe('UI signal wrappers', () => {
       });
       // The drive is for OTHER participants; it must not loop back locally
       // (arrivals come in bridged, like any remote emit).
+      expect(localSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('beckon.click (wire drive)', () => {
+    it('emits browse:click over the TRANSPORT and resolves the subscriber count', async () => {
+      const bus = new EventBus();
+      const localSpy = busSpy(bus, 'browse:click');
+      const transport = makeMockTransport();
+      (transport.emit as ReturnType<typeof vi.fn>).mockResolvedValue(4);
+      const beckon = new BeckonNamespace(transport, bus);
+
+      await expect(beckon.click(AID)).resolves.toBe(4);
+
+      expect(transport.emit).toHaveBeenCalledExactlyOnceWith('browse:click', {
+        annotationId: AID,
+      });
+      // Same cross-namespace rule as openResource: `browse.click()` opens it
+      // for me, `beckon.click()` opens it for everyone else. No audience
+      // marker — beckon has no local `click` sibling to disambiguate from.
       expect(localSpy).not.toHaveBeenCalled();
     });
   });

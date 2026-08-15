@@ -22,7 +22,7 @@ type executor interface {
 	// --- effects ---
 	stopRm(name string) bool        // teardown; reports whether anything existed
 	sweepStray(names []string) bool // stop+rm the names under every OTHER installed runtime; reports whether anything existed
-	pause()                         // the settle sleep after teardown
+	settle(ports ...int)            // wait for torn-down ports to be released
 	sweepStaging()                  // /tmp/semiont-config.* removal (+ state forget)
 	portChecks(ports []portNeed) bool
 	portCheck(p portNeed) bool    // singular wording in plan mode
@@ -77,20 +77,70 @@ const (
 // --- live ---
 
 type liveExec struct {
-	u       *ui
-	rt      string
-	st      *stackState
-	version string // SEMIONT_VERSION, for records created lazily (--service mode)
-	root    string // KB root, ditto ("" for root-free services)
+	u  *ui
+	rt string
+	st *stackState
+	// existing: semiont-* container names per runtime, listed once and cached
+	// for the life of the command (see present).
+	existing map[string]map[string]bool
+	version  string // SEMIONT_VERSION, for records created lazily (--service mode)
+	root     string // KB root, ditto ("" for root-free services)
 	// plan lets record() stamp each role's configured models without every
 	// flow having to pass them; models are config truth, so they belong to
 	// the record the same way the driver does.
 	plan *launchPlan
 }
 
+// present lists the semiont-* containers that EXIST under a runtime — running
+// or stopped, because a stopped container still holds its name and the next
+// `run --name` fails on it.
+//
+// ONE list per runtime, cached for the life of the command. The teardown used
+// to ask by firing `stop` then `rm` at all nine names blindly, on every
+// installed runtime: 54 fork/execs to discover, usually, that nothing was
+// there. It also inferred "did anything exist?" from the exit codes of commands
+// it EXPECTED to fail, which is why the settle below then slept a second on a
+// maybe. Asking once is both faster and a straight answer.
+func (x *liveExec) present(rt string) map[string]bool {
+	if x.existing == nil {
+		x.existing = map[string]map[string]bool{}
+	}
+	if got, ok := x.existing[rt]; ok {
+		return got
+	}
+	names := map[string]bool{}
+	// The listing idiom the launcher already trusts (see logs.go stackRuntime),
+	// with -a so STOPPED containers are included — the ones a teardown most
+	// needs to find.
+	var out string
+	var err error
+	if rt == "container" {
+		out, err = capture(rt, "list", "-a")
+	} else {
+		out, err = capture(rt, "ps", "-a", "--format", "{{.Names}}")
+	}
+	if err == nil {
+		for _, line := range strings.Split(out, "\n") {
+			if f := strings.Fields(line); len(f) > 0 && strings.HasPrefix(f[0], "semiont-") {
+				names[f[0]] = true
+			}
+		}
+	}
+	// A runtime that cannot be listed yields an empty set, and every later
+	// stop/rm is skipped. That is the honest failure: unknown is not "present",
+	// and firing teardown at a runtime that would not answer a list is how the
+	// old code spent 18 spawns learning nothing.
+	x.existing[rt] = names
+	return names
+}
+
 func (x *liveExec) stopRm(name string) bool {
+	if !x.present(x.rt)[name] {
+		return false // not there; nothing to stop, nothing to remove
+	}
 	stopped := runSilent(x.rt, "stop", name) == nil
 	rmed := runSilent(x.rt, "rm", name) == nil
+	delete(x.existing[x.rt], name)
 	return stopped || rmed
 }
 
@@ -103,8 +153,12 @@ func (x *liveExec) sweepStray(names []string) bool {
 		if rt == x.rt {
 			continue
 		}
+		here := x.present(rt)
 		removed := 0
 		for _, c := range names {
+			if !here[c] {
+				continue
+			}
 			stopped := runSilent(rt, "stop", c) == nil
 			rmed := runSilent(rt, "rm", c) == nil
 			if stopped || rmed {
@@ -119,7 +173,9 @@ func (x *liveExec) sweepStray(names []string) bool {
 	return swept
 }
 
-func (x *liveExec) pause() { time.Sleep(time.Second) }
+// settle waits for the named ports to be released after a teardown. See
+// settlePorts: a condition, not a duration.
+func (x *liveExec) settle(ports ...int) { settlePorts(ports...) }
 
 func (x *liveExec) portCheck(p portNeed) bool {
 	return requirePortFree(x.u, p.port, p.label)
@@ -624,7 +680,7 @@ type planExec struct {
 func (x *planExec) p(args ...string)          { fmt.Println(renderCmd(x.rt, args...)) }
 func (x *planExec) c(format string, a ...any) { fmt.Printf("# "+format+"\n", a...) }
 func (x *planExec) stopRm(name string) bool   { x.p("stop", name); x.p("rm", name); return false }
-func (x *planExec) pause()                    {}
+func (x *planExec) settle(...int)             {} // plan mode tears nothing down
 func (x *planExec) sweepStaging()             { x.c("remove staged config copies: /tmp/semiont-config.*") }
 
 func (x *planExec) sweepStray(names []string) bool {

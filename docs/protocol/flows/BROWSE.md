@@ -17,8 +17,8 @@ The Browse flow provides structured navigation through the knowledge base. The a
 Four categories, distinguished by *who can hear them*:
 
 1. **Read operations** — thirteen `browse:*-requested` request/reply pairs that fetch resources, annotations, history, and directory listings. Correlated; the replies are bridged by construction.
-2. **Cross-participant navigation** — `browse:resource-open` (drive) and `browse:resource-viewed` (report). Bridged broadcasts: an agent or the launcher can move a participant's Browser, and the viewer announces where it landed.
-3. **Local UI signals** — `browse:click`, `browse:entity-type-clicked`. Local-bus fan-out inside one browser session; never on the wire.
+2. **Cross-participant navigation** — `browse:resource-open` and `browse:click` (drives) and `browse:resource-viewed` (report). Bridged broadcasts: an agent or the launcher can move a participant's Browser or open an annotation on it, and the viewer announces where it landed.
+3. **Local UI signals** — `browse:entity-type-clicked`. Local-bus fan-out inside one browser session; never on the wire.
 4. **Host routing** — the `nav:*` channels. Framework-shaped, host-local, and deliberately never bridged.
 
 Browse is therefore **not** purely a frontend concern. Categories 1 and 2 cross the backend; only 3 and 4 stay in the page.
@@ -61,36 +61,45 @@ These are what `client.browse.*` calls in the SDK, and what `semiont browse` use
 
 ## Cross-participant navigation
 
-Within one browser session, clicking a resolved reference is a local affair. But `browse:resource-open` and `browse:resource-viewed` are **bridged broadcasts**, which makes the same acts available to anything holding a session — the launcher, an agent, a script running a guided tour. Signals are delivered to whoever is subscribed and silently dropped if nobody is, the same stateless semantics as Beckon.
+Within one browser session, clicking a resolved reference is a local affair. But `browse:resource-open`, `browse:click` and `browse:resource-viewed` are **bridged broadcasts**, which makes the same acts available to anything holding a session — the launcher, an agent, a script running a guided tour. Signals are delivered to whoever is subscribed and silently dropped if nobody is, the same stateless semantics as Beckon.
 
 | Event | Payload | Direction |
 |---|---|---|
 | `browse:resource-open` | `{ resourceId }` | **Drive** — put this resource on the participant's screen |
+| `browse:click` | `{ annotationId }` | **Drive** — open this annotation: select its panel entry, and scroll to it |
 | `browse:resource-viewed` | `{ resourceId }` | **Report** — the viewer arrived at this resource |
 
-**These two must never be collapsed into one bidirectional channel.** A driver signal and a user report sharing a channel is a feedback loop: a launcher listening for arrivals would hear its own commands, and one viewer's click would drive another viewer's page.
+**Drive and report must never be collapsed into one channel.** A driver signal and a user report sharing a channel is a feedback loop: a launcher listening for arrivals would hear its own commands, and one viewer's click would drive another viewer's page.
+
+**Bridging does not leak local clicks.** `BRIDGED_CHANNELS` is the *fan-in* set — channels a transport receives and pushes onto the client's bus. It says nothing about what the client emits. So `browse.click()` and `browse.openResource()`, which emit on the local bus only, stay inside the page even though their channels are bridged; the wire versions are separate methods (below).
 
 **`browse:resource-open`** is emitted by `browse.openResource(resourceId)` — from `ResourceInfoPanel`, from the CodeMirror reference-widget handlers, and from `semiont browse <resourceId> --browser`. `ResourceViewerPage` subscribes and translates to `nav:push`, so a remote caller never learns a URL.
+
+**`browse:click`** is the richer of the two drives: where `beckon:focus` only scrolls to an annotation, a click *opens* it — the annotations panel comes up with that entry selected, and the relay through `createBeckonStateUnit` does the scroll. Locally it comes from `browse.click(annotationId)` at every clickable annotation surface; over the wire from `beckon.click(annotationId)` and `semiont browse --annotation <id> --browser`.
+
+The payload is **the annotation id and nothing else**. An annotation id names exactly one annotation on exactly one resource, so the id is the whole address — no `resourceId` is carried, and none is needed to scope the event. The **motivation is derived viewer-side** from the annotation the id names rather than sent beside it, which keeps one fact in one place. A viewer that has not loaded that annotation resolves nothing and does nothing, so an unscoped drive is a natural no-op rather than a mis-fire. `anchorRect` is viewport geometry and stays a **local-only** extra on the same channel: a bridged-in remote click simply arrives without one.
 
 **`browse:resource-viewed`** is emitted on the viewer's load-complete transition (`useResourceViewedReport`), gated on the same condition as the accessibility load announcement — so "viewed" means content actually reached the screen. It fires however the participant arrived: followed cue, in-app link, back button, or typed URL. That last part is why it exists rather than the driver simply assuming its own cue landed.
 
 Because these are broadcasts on a KB-wide channel, the model is **one participant, one session**: a launcher authenticated as a given user reaches that user's open Browser. There is no addressing. Every emit through the bus gateway reports the subscriber count at dispatch, so a caller that expected one viewer can see that there were two — but the count is *not* delivery confirmation, since a subscriber is a connection rather than a pair of eyes, and these channels carry no reply.
 
+### Who handles a click
+
+Local or remote, a `browse:click` reaches the same subscribers:
+
+- **createBeckonStateUnit** — relays as `beckon:focus` to scroll the document view to the annotation
+- **ResourceViewer** — resolves the annotation by id, derives its motivation, and opens the annotations panel with scroll-to coordination
+- **Panel components** (HighlightPanel, CommentsPanel, AssessmentPanel, TaggingPanel, ReferencesPanel) — update focused/selected state to highlight the clicked entry
+
+Local emitters are every clickable annotation surface: CodeMirror document view, BrowseView, PDF canvas, image overlay, and the panel entries (HighlightEntry, CommentEntry, AssessmentEntry, TagEntry, ReferenceEntry).
+
 ## Local UI signals
 
-Local-bus fan-out within a single page. Not bridged, and `browse:click`'s payload has no wire schema at all.
+Local-bus fan-out within a single page — never on the wire.
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `browse:click` | `{ annotationId, motivation, anchorRect? }` | User clicked an annotation element |
 | `browse:entity-type-clicked` | `{ entityType }` | Filter resources by an entity type |
-
-**`browse:click`** is emitted through `browse.click(...)` from every clickable annotation surface: CodeMirror document view, BrowseView, PDF canvas, image overlay, and the panel entries (HighlightEntry, CommentEntry, AssessmentEntry, TagEntry, ReferenceEntry). The optional `anchorRect` carries the clicked element's bounding rect for positioning.
-
-Subscribers:
-- **createBeckonStateUnit** — relays as `beckon:focus` to scroll the document view to the annotation
-- **ResourceViewer** — opens the annotations panel with scroll-to-annotation coordination
-- **Panel components** (HighlightPanel, CommentsPanel, AssessmentPanel, TaggingPanel, ReferencesPanel) — update focused/selected state to highlight the clicked entry
 
 **`browse:entity-type-clicked`** is consumed by `ResourceViewerPage`, which applies the filter by emitting `nav:push`. The channel is wired on the subscribe side only — no in-repo emitter currently sends it.
 

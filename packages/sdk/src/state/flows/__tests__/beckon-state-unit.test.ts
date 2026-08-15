@@ -69,7 +69,7 @@ describe('createBeckonStateUnit', () => {
     const focuses: string[] = [];
     tc.bus.get('beckon:focus').subscribe(e => focuses.push(e.annotationId!));
 
-    tc.bus.get('browse:click').next({ annotationId: 'ann-click', motivation: 'highlighting' });
+    tc.bus.get('browse:click').next({ annotationId: 'ann-click' });
     expect(focuses).toEqual(['ann-click']);
     stateUnit.dispose();
   });
@@ -80,7 +80,7 @@ describe('createBeckonStateUnit', () => {
     stateUnit.hoveredAnnotationId$.subscribe(v => values.push(v));
 
     tc.bus.get('beckon:hover').next({ annotationId: 'ann-hovered' });
-    tc.bus.get('browse:click').next({ annotationId: 'ann-clicked', motivation: 'highlighting' });
+    tc.bus.get('browse:click').next({ annotationId: 'ann-clicked' });
     expect(values).toEqual([null, 'ann-hovered']);
     stateUnit.dispose();
   });

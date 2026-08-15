@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
-	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
 const matchUsage = `Usage: semiont match <resourceId> <annotationId> [options]
@@ -97,7 +96,7 @@ func Match(args []string) int {
 	if !ok {
 		return 1
 	}
-	cli := bus.NewClient(t.base, t.token)
+	cli := newTransport(t.base, t.token)
 	ctx := context.Background()
 
 	// Step 1: the annotation's context (streaming operation).

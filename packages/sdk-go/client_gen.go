@@ -1591,12 +1591,9 @@ type BrowseAnnotationsResult struct {
 	Response      GetAnnotationsResponse `json:"response"`
 }
 
-// BrowseClickEvent Emitted when an annotation is clicked in the browse panel
+// BrowseClickEvent An annotation was clicked — open it: the viewer selects its entry in the annotations panel and relays a focus signal to scroll to it. The annotation id is the whole address; it identifies exactly one annotation on exactly one resource, so no resource field is carried and none is needed to scope the event. Motivation is NOT on the wire either: the viewer derives it from the annotation the id names, so the wire states the fact once. A viewer that has not loaded that annotation finds nothing and does nothing. Emitted locally by every clickable annotation surface, and over the wire by a driver opening an annotation on another participant's screen.
 type BrowseClickEvent struct {
 	AnnotationId string `json:"annotationId"`
-
-	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
-	Motivation Motivation `json:"motivation"`
 }
 
 // BrowseDirectoryRequest Request to browse a directory listing

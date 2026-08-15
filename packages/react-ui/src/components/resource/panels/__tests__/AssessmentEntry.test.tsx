@@ -185,7 +185,6 @@ describe('AssessmentEntry', () => {
 
       expect(clickHandler).toHaveBeenCalledWith({
         annotationId: 'assessment-1',
-        motivation: 'assessing',
       });
 
       subscription.unsubscribe();

@@ -53,8 +53,16 @@ func flowFullStart(x executor, fc flowCtx) int {
 	// The settle is for the runtime to release what we just tore down. With
 	// nothing removed there is nothing to settle, and every first start paid
 	// a second for it.
+	// The ports this start is about to claim — computed once and used twice:
+	// waited on here because the sweep may have just released any of them,
+	// then verified free below. Deriving the wait from a second, hand-rolled
+	// list is how the two drift: the earlier one missed the backend, the three
+	// sidecars and Neo4j's aux port (exactly what a torn-down stack still
+	// holds) while including ports for roles bound to a REMOTE service, which
+	// this start never binds.
+	checks := planPortChecks(fc.plan, fc.opts.observe)
 	if removed > 0 || swept {
-		x.pause()
+		x.settle(portNumbers(checks)...)
 	}
 	if removed == 0 {
 		x.say(sayOK, "No prior containers")
@@ -62,7 +70,6 @@ func flowFullStart(x executor, fc flowCtx) int {
 		x.say(sayOK, "Removed %d prior container(s)", removed)
 	}
 
-	checks := planPortChecks(fc.plan, fc.opts.observe)
 	if !x.portChecks(checks) {
 		return 1
 	}
@@ -179,7 +186,7 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 			// with "already exists" on every runtime (Copilot review, PR
 			// #1064; the same reason stop.go always rm's).
 			x.stopRm("semiont-frontend")
-			x.pause()
+			x.settle(port)
 			if !x.portCheck(portNeed{port, "Frontend"}) {
 				return 1
 			}
@@ -397,7 +404,7 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 			// hold the name (latent since the --rm removal; surfaced by the
 			// same review).
 			x.stopRm("semiont-ollama")
-			x.pause()
+			x.settle(rp.Port)
 			if !x.portCheck(portNeed{rp.Port, "Ollama"}) {
 				return 1
 			}
@@ -508,11 +515,11 @@ func flowOneService(x executor, fc flowCtx) int {
 	// verifies stack-port release while the Browser deliberately keeps
 	// running on its port.
 	if svc != "inference" && svc != "frontend" {
+		ports := servicePortNeeds(svc, fc.plan, fc.opts)
 		if x.stopRm(roles[svc].container) {
 			x.say(sayLog, "Removed prior %s container", svc)
-			x.pause()
+			x.settle(portNumbers(ports)...)
 		}
-		ports := servicePortNeeds(svc, fc.plan, fc.opts)
 		if !x.portChecks(ports) {
 			return 1
 		}
@@ -652,4 +659,13 @@ func servicePortNeeds(svc string, plan *launchPlan, opts startOptions) []portNee
 		}
 	}
 	return ports
+}
+
+// portNumbers strips a port-need list to bare numbers, for settle.
+func portNumbers(needs []portNeed) []int {
+	out := make([]int, 0, len(needs))
+	for _, n := range needs {
+		out = append(out, n.port)
+	}
+	return out
 }

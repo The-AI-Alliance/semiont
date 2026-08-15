@@ -22,6 +22,7 @@ var BridgedBroadcasts = []Channel{
 	BrowseResourceViewed,
 	SessionJoined,
 	SessionLeft,
+	BrowseClick,
 }
 
 // BridgedChannels: everything a transport delivers — the broadcasts plus

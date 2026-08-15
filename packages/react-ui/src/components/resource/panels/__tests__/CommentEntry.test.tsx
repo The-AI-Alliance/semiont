@@ -264,8 +264,7 @@ describe('CommentEntry Component', () => {
       await userEvent.click(commentDiv);
 
       expect(clickHandler).toHaveBeenCalledWith({
-        annotationId: 'comment-1',
-        motivation: 'commenting'
+        annotationId: 'comment-1'
       });
 
       // Clean up

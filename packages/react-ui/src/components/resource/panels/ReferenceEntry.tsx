@@ -117,7 +117,7 @@ export function ReferenceEntry({
       data-type="reference"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        session?.client.browse.click(reference.id, reference.motivation);
+        session?.client.browse.click(reference.id);
       }}
       {...hoverProps}
     >

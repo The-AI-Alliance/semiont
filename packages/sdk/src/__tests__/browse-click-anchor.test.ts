@@ -32,10 +32,10 @@ describe('browse.click anchorRect payload contract', () => {
     const payloads: object[] = [];
     bus.get('browse:click').subscribe((p) => payloads.push(p));
 
-    browse.click(annotationId('a1'), 'linking');
+    browse.click(annotationId('a1'));
 
     expect(payloads).toHaveLength(1);
-    expect(payloads[0]).toEqual({ annotationId: 'a1', motivation: 'linking' });
+    expect(payloads[0]).toEqual({ annotationId: 'a1' });
     expect('anchorRect' in payloads[0]!).toBe(false);
   });
 
@@ -49,12 +49,11 @@ describe('browse.click anchorRect payload contract', () => {
     const anchorRect: AnchorRect = {
       x: 1, y: 2, width: 3, height: 4, top: 2, right: 4, bottom: 6, left: 1,
     };
-    browse.click(annotationId('a1'), 'highlighting', anchorRect);
+    browse.click(annotationId('a1'), anchorRect);
 
     expect(payloads).toHaveLength(1);
     expect(payloads[0]).toEqual({
       annotationId: 'a1',
-      motivation: 'highlighting',
       anchorRect,
     });
   });

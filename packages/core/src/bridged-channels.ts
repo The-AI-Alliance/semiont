@@ -52,6 +52,7 @@ export const BRIDGED_BROADCASTS = [
   'browse:resource-viewed',
   'session:joined',
   'session:left',
+  'browse:click',
 ] as const satisfies readonly EventName[];
 
 // ── Derivation ──────────────────────────────────────────────────────────────

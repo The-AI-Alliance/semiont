@@ -11,7 +11,6 @@ import type {
   AnchorRect,
   AnnotationId,
   GraphConnection,
-  Motivation,
   TagSchema,
   CollaboratorEntry,
   components,
@@ -470,8 +469,17 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   // ── UI signals (local bus fan-out) ────────────────────────────────────
 
-  click(annotationId: AnnotationId, motivation: Motivation, anchorRect?: AnchorRect): void {
-    this.bus.get('browse:click').next({ annotationId, motivation, ...(anchorRect ? { anchorRect } : {}) });
+  /**
+   * Open an annotation for THIS viewer (local: panel entry selected, relayed
+   * to `beckon:focus` for the scroll). The wire counterpart is
+   * `beckon.click()`: open it for everyone else.
+   *
+   * No `motivation` parameter — the id addresses exactly one annotation and
+   * the viewer derives the motivation from it (TOUR-CLICK D2). `anchorRect` is
+   * viewport geometry and stays a local-only extra; it never crosses a wire.
+   */
+  click(annotationId: AnnotationId, anchorRect?: AnchorRect): void {
+    this.bus.get('browse:click').next({ annotationId, ...(anchorRect ? { anchorRect } : {}) });
   }
 
   openResource(resourceId: ResourceId): void {
