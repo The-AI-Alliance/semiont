@@ -452,7 +452,7 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 		default:
 			state, rt = containerState(runtimes, handle)
 		}
-		isHealthy := probeHealth(endpoint)
+		isHealthy := roleHealthy(svc.name, endpoint)
 		if svc.name == "inference" && rec == nil && state == "" && isHealthy {
 			rt = "host"
 		}
@@ -791,6 +791,40 @@ func containerState(runtimes []string, name string) (state, rt string) {
 		return strings.TrimSpace(out), r
 	}
 	return "", ""
+}
+
+// roleHealthy probes one role of the stack.
+//
+// The BACKEND goes through the Go SDK. It is the only role in this table that
+// is a semiont service with a generated client, and asking it directly was the
+// last application request the launcher made to the backend over a
+// hand-written path — the thing packages/sdk-go exists to own, and which the
+// TypeScript side has always covered (`healthCheck` on `IBackendOperations`).
+//
+// Everything else keeps the generic prober, and that is not laziness: the
+// sidecars serve `/health` with no client of their own, and the rest are
+// third-party (Ollama, Qdrant, Neo4j, Jaeger) or not HTTP at all. One prober
+// spanning them is the point.
+func roleHealthy(role, endpoint string) bool {
+	if role != "backend" {
+		return probeHealth(endpoint)
+	}
+	base, ok := strings.CutSuffix(endpoint, "/api/health")
+	if !ok || base == "" {
+		// A backend endpoint that is not the health route is a record this
+		// function cannot speak for; the generic prober still can.
+		return probeHealth(endpoint)
+	}
+	cli, err := semiont.NewHealthClient(base)
+	if err != nil {
+		return false
+	}
+	// The budget matches the generic prober's, so one slow role cannot stall
+	// a status report longer than any other.
+	ctx, cancel := context.WithTimeout(context.Background(), healthProbeTimeout)
+	defer cancel()
+	_, err = cli.HealthCheck(ctx)
+	return err == nil
 }
 
 // probeHealth runs one host-side application probe: 2xx for http endpoints,

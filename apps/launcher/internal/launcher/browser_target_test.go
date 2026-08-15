@@ -111,6 +111,46 @@ func TestBrowserTargetPrefersTheOverrideOverTheRecord(t *testing.T) {
 	}
 }
 
+// ── the backend's probe goes through the SDK ────────────────────────────
+
+// The backend is the one role in the status table with a generated client,
+// and its probe must use it — that is the whole of "the launcher does not
+// touch the wire". Asserted by watching the ROUTE: the generic prober fetches
+// the recorded endpoint verbatim, the SDK asks its own /api/health.
+func TestRoleHealthyProbesTheBackendThroughTheSDK(t *testing.T) {
+	var paths []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"healthy"}`))
+	}))
+	defer srv.Close()
+
+	if !roleHealthy("backend", srv.URL+"/api/health") {
+		t.Error("a serving backend must read healthy")
+	}
+	// A sidecar serves /health and has no client of its own; it keeps the
+	// generic prober, and the recorded path must survive untouched.
+	if !roleHealthy("worker", srv.URL+"/health") {
+		t.Error("a serving sidecar must read healthy")
+	}
+	want := []string{"/api/health", "/health"}
+	if len(paths) != 2 || paths[0] != want[0] || paths[1] != want[1] {
+		t.Errorf("probed %v, want %v", paths, want)
+	}
+}
+
+func TestRoleHealthyReportsADeadBackend(t *testing.T) {
+	if roleHealthy("backend", deadOrigin(t)+"/api/health") {
+		t.Error("an unreachable backend must not read healthy")
+	}
+	// A backend record that is not the health route falls back rather than
+	// guessing at an origin it cannot derive.
+	if roleHealthy("backend", deadOrigin(t)) {
+		t.Error("an unreachable backend must not read healthy on the fallback path either")
+	}
+}
+
 // ── P2: what it says when nobody was there ──────────────────────────────
 
 func TestBrowseBrowserRefusesWhenNoOneIsWatching(t *testing.T) {
