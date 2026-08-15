@@ -110,6 +110,96 @@ func TestBrowseBrowserRefusalsInProcess(t *testing.T) {
 	}
 }
 
+// ── browse --annotation --browser: the fourth tour move (TOUR-CLICK P4) ──
+
+// The click drive: an annotation id is the WHOLE address, so the emit carries
+// it and nothing else, and the verb signals without also reading.
+func TestBrowseAnnotationDrivesAClick(t *testing.T) {
+	fake, restore := withFake(t)
+	defer restore()
+	fake.Subscribers = 1
+
+	out := captureStdout(t, func() {
+		if code := Browse([]string{"--annotation", "ann-9", "--browser"}); code != 0 {
+			t.Fatalf("browse --annotation --browser: exit %d", code)
+		}
+	})
+	if len(fake.Emits) != 1 || fake.Emits[0].Channel != bus.BrowseClick {
+		t.Fatalf("want one browse:click emit, got %v", fake.Emits)
+	}
+	payload := bustest.JSON(fake.Emits[0].Payload)
+	mustContainAll(t, "emit payload", payload, `"annotationId":"ann-9"`)
+	// D2/D3: the id determines the resource, so neither field rides along. A
+	// motivation here would be the denormalization the schema was trimmed of.
+	for _, gone := range []string{"resourceId", "motivation"} {
+		if strings.Contains(payload, gone) {
+			t.Errorf("payload carries %q, which the wire dropped: %s", gone, payload)
+		}
+	}
+	if len(fake.Requests) != 0 {
+		t.Errorf("--annotation --browser also performed a read: %v", fake.Ops())
+	}
+	mustContainAll(t, "report", out, "ann-9", "1 subscriber")
+}
+
+// An empty room fails the click for the same reason it fails the resource
+// move: the caller asked for a specific outcome and did not get it. The retry
+// line has to name the CLICK form, or it sends a tour author to the wrong one.
+func TestBrowseAnnotationRefusesWhenNoOneIsWatching(t *testing.T) {
+	fake, restore := withFake(t)
+	defer restore()
+	noRuntimes(t)
+	fake.Subscribers = 0
+
+	out, errOut := captureOutput(t, func() {
+		if code := Browse([]string{"--annotation", "ann-9", "--browser", "--browser-url", deadOrigin(t)}); code != 1 {
+			t.Errorf("exit %d, want 1", code)
+		}
+	})
+	mustContainAll(t, "refusal", out+errOut,
+		"Nobody saw annotation ann-9", "browse:click",
+		"semiont browse --annotation ann-9 --browser --launch")
+	if len(fake.Emits) != 1 {
+		t.Errorf("the emit should still have gone out, got %v", fake.Emits)
+	}
+}
+
+func TestBrowseAnnotationRefusals(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		args []string
+		want []string
+	}{
+		// The singular/plural trap is one keystroke, so the message names it
+		// rather than reporting a generic conflict.
+		{"with --annotations", []string{"res-42", "--annotation", "ann-9", "--browser", "--annotations"},
+			[]string{"--annotation", "--annotations", "plural"}},
+		// Option (c): the click form takes no resourceId, and silently
+		// ignoring one would leave the driver keeping two ids consistent.
+		{"with a resourceId", []string{"res-42", "--annotation", "ann-9", "--browser"},
+			[]string{"--annotation", "drop the resourceId"}},
+		// It names a remote act; there is no local rendering it could mean.
+		{"without --browser", []string{"--annotation", "ann-9"},
+			[]string{"--annotation", "only applies with --browser"}},
+		{"with --json", []string{"--annotation", "ann-9", "--browser", "--json"},
+			[]string{"--browser", "--json"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			fake, restore := withFake(t)
+			defer restore()
+			out, errOut := captureOutput(t, func() {
+				if code := Browse(c.args); code == 0 {
+					t.Fatal("must refuse")
+				}
+			})
+			mustContainAll(t, "refusal", out+errOut, c.want...)
+			if len(fake.Emits) != 0 || len(fake.Requests) != 0 {
+				t.Errorf("a refused argument still reached the wire: %v %v", fake.Emits, fake.Ops())
+			}
+		})
+	}
+}
+
 func TestBrowseReportsARejection(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()

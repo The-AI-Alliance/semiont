@@ -452,15 +452,33 @@ PARTICIPANT's screen instead of printing it here — the same act as a plain
 `browse`, with a different audience, which is why it is a flag and not a
 second verb. It emits `browse:resource-open`, a domain signal the viewer
 resolves into its own route; the launcher never learns a URL. `--browser`
-needs a resourceId and refuses to combine with `--json`, `--annotations` or
-`--entity-types`, since each of those names a local rendering and the pair
-would state two destinations at once.
+refuses to combine with `--json`, `--annotations` or `--entity-types`, since
+each of those names a local rendering and the pair would state two
+destinations at once.
+
+`semiont browse --annotation <id> --browser` opens **one annotation** the same
+way (`browse:click`): the viewer selects that entry in its annotations panel
+and scrolls to it. Where a `beckon` only *points*, this *opens* — the two are
+distinct moves, not synonyms.
+
+That form takes **no resourceId**, and rejects one rather than ignoring it. An
+annotation id names exactly one annotation on exactly one resource, so the id
+is the whole address; the wire carries nothing else. Accepting a resourceId
+the launcher never sends would hand the caller a second id to keep consistent
+for no benefit — and since verifying the pair would need a read this signal
+deliberately does not perform, a mismatched pair could only be echoed back as
+a lie.
+
+`--annotation` (open one, remotely) sits beside `--annotations` (list them
+here). They are one keystroke apart and mean opposite things, so they refuse
+each other with a message that says so.
 
 Every emit now reports how many subscribers the backend's target subject had
 **at dispatch**, and the verbs say so plainly:
 
 ```
 ✓ Opened res-42 in the Browser (2 subscribers — broadcast, so still no confirmation anyone looked)
+✓ Opened annotation ann-9 in the Browser (2 subscribers — broadcast, so still no confirmation anyone looked)
 ✓ Beckoned toward res-42 (ann-9) — nothing is subscribed to beckon:focus, so no one received it
 ```
 
@@ -471,11 +489,11 @@ the backend publishes unconditionally, so before this an emit into an empty
 room returned a clean ✓.
 
 `beckon` exits 0 into an empty room — a beckon is genuinely fire-and-forget,
-and an empty room is a fact, not a failure. **`browse --browser` does not.** It
-asked for a specific outcome, a resource on a participant's screen, and zero
-subscribers means that did not happen; a tour script running under `set -e`
-should stop rather than narrate on. So it probes the Browser and says which of
-three things is true:
+and an empty room is a fact, not a failure. **`browse --browser` does not,** in
+either form. It asked for a specific outcome, something on a participant's
+screen, and zero subscribers means that did not happen; a tour script running
+under `set -e` should stop rather than narrate on. So it probes the Browser and
+says which of three things is true:
 
 ```
 ✗ Nobody saw res-42 — nothing is subscribed to browse:resource-open.
@@ -494,6 +512,11 @@ The two failures are independent — the Browser is the frontend *container*,
 and what has to be watching it is a human's *web browser* — so the messages
 keep those words distinct. A container that exists but is not answering gets
 its own third sentence rather than being flattened into either.
+
+The annotation form reports the same three ways, naming what it sent and the
+command that retries *it*: `Nobody saw annotation ann-9 — nothing is subscribed
+to browse:click`, with `semiont browse --annotation ann-9 --browser --launch`.
+A retry line that named the wrong form would be worse than none.
 
 `--launch` starts the Browser when none is running, through the same
 `start --service frontend` that pulls, publishes the port and waits for health.

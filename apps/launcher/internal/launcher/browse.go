@@ -23,19 +23,28 @@ const browseUsage = `Usage: semiont browse [<resourceId>] [options]
 Read the knowledge base. With no resourceId, lists resources; with one,
 shows that resource (add --annotations for its annotations).
 
-With --browser, the resource opens on the PARTICIPANT's screen instead of
-printing here — the same act, a different audience. That needs a web browser
-watching the Browser; when none is, the command says so and exits non-zero,
-so a tour script can stop rather than narrate to an empty room.
+With --browser, the act lands on the PARTICIPANT's screen instead of printing
+here — the same act, a different audience. Two things can be opened:
+
+  semiont browse <resourceId> --browser              a resource
+  semiont browse --annotation <id> --browser         one annotation, opened
+
+The annotation form takes no resourceId: an annotation id names exactly one
+annotation on exactly one resource, so the id is the whole address.
+
+Either form needs a web browser watching the Browser; when none is, the
+command says so and exits non-zero, so a tour script can stop rather than
+narrate to an empty room.
 
 Options:
-  --browser             Open <resourceId> in the Browser instead of printing it
+  --browser             Open it in the Browser instead of printing here
+  --annotation <id>     With --browser: open ONE annotation (not --annotations)
   --launch              With --browser: start the Browser if none is running
   --browser-url <url>   Browser origin to report (default: the recorded one)
   --search <text>       Filter the list by text
   --entity-type <name>  Filter the list by entity type
   --limit <n>           Maximum results (default 20)
-  --annotations         With a resourceId: show its annotations instead
+  --annotations         With a resourceId: show its annotations here
   --entity-types        List the KB's entity-type vocabulary
   --json                Raw JSON reply instead of a table
   --repo <owner/name>   Target a codespace stack (default: the local stack)
@@ -47,7 +56,7 @@ Requires a session:  semiont login --email <address>
 
 func Browse(args []string) int {
 	u := newUI(false)
-	var resourceID, search, entityType, repo, browserURL string
+	var resourceID, search, entityType, repo, browserURL, annotation string
 	limit := 20
 	annotations, entityTypes, asJSON, wantLocal := false, false, false, false
 	toBrowser, launch := false, false
@@ -105,6 +114,12 @@ func Browse(args []string) int {
 			asJSON = true
 		case "--browser":
 			toBrowser = true
+		case "--annotation":
+			v, ok := val()
+			if !ok {
+				return 1
+			}
+			annotation = v
 		case "--launch":
 			launch = true
 		case "--browser-url":
@@ -128,6 +143,14 @@ func Browse(args []string) int {
 			resourceID = a
 		}
 	}
+	// --annotation and --annotations are one keystroke apart and mean opposite
+	// things: one DRIVES a remote viewer to a single annotation, the other
+	// RENDERS a list here. Name the trap — "conflicting flags" is exactly the
+	// message a typo needs and does not get.
+	if annotation != "" && annotations {
+		u.fail("--annotation <id> opens ONE annotation on the participant's screen; --annotations (plural) lists them here. Pick one.")
+		return 1
+	}
 	if annotations && resourceID == "" {
 		u.fail("--annotations needs a resourceId: semiont browse <resourceId> --annotations")
 		return 1
@@ -141,11 +164,23 @@ func Browse(args []string) int {
 			flag string
 		}{{asJSON, "--json"}, {annotations, "--annotations"}, {entityTypes, "--entity-types"}} {
 			if conflict.set {
-				u.fail("--browser opens the resource in the Browser; %s renders it here. Pick one.", conflict.flag)
+				u.fail("--browser opens it in the Browser; %s renders it here. Pick one.", conflict.flag)
 				return 1
 			}
 		}
-		if resourceID == "" {
+		// An annotation id names exactly one annotation on exactly one
+		// resource, so this form carries no resourceId — on the wire OR here.
+		// Accepting one the launcher never sends would put the driver back in
+		// charge of keeping two ids consistent, which is the redundancy
+		// BrowseClickEvent was trimmed of; and since verifying the pair would
+		// take a read this verb must not do, an unmatched pair could only be
+		// echoed back as a lie.
+		if annotation != "" {
+			if resourceID != "" {
+				u.fail("--annotation %s already names one annotation on one resource; drop the resourceId %q.", annotation, resourceID)
+				return 1
+			}
+		} else if resourceID == "" {
 			u.fail("--browser needs a resourceId: semiont browse <resourceId> --browser")
 			fmt.Fprintln(os.Stderr, "  (Opening the resource LIST in the Browser is a different route and is not supported yet.)")
 			return 1
@@ -157,7 +192,7 @@ func Browse(args []string) int {
 	for _, dep := range []struct {
 		set  bool
 		flag string
-	}{{launch, "--launch"}, {browserURL != "", "--browser-url"}} {
+	}{{launch, "--launch"}, {browserURL != "", "--browser-url"}, {annotation != "", "--annotation"}} {
 		if dep.set && !toBrowser {
 			u.fail("%s only applies with --browser.", dep.flag)
 			return 1
@@ -175,8 +210,21 @@ func Browse(args []string) int {
 	// locally. It returns here rather than threading a "did we render" flag
 	// through the request/reply path below, which stays a pure read.
 	if toBrowser {
-		subscribers, err := cli.Emit(context.Background(), bus.BrowseResourceOpen,
-			semiont.BrowseResourceOpenEvent{ResourceId: resourceID}, "")
+		d := drive{
+			subject: resourceID,
+			channel: bus.BrowseResourceOpen,
+			payload: semiont.BrowseResourceOpenEvent{ResourceId: resourceID},
+			retry:   fmt.Sprintf("semiont browse %s --browser", resourceID),
+		}
+		if annotation != "" {
+			d = drive{
+				subject: "annotation " + annotation,
+				channel: bus.BrowseClick,
+				payload: semiont.BrowseClickEvent{AnnotationId: annotation},
+				retry:   fmt.Sprintf("semiont browse --annotation %s --browser", annotation),
+			}
+		}
+		subscribers, err := cli.Emit(context.Background(), d.channel, d.payload, "")
 		if err != nil {
 			return busFail(u, "browse", err)
 		}
@@ -185,9 +233,9 @@ func Browse(args []string) int {
 		// happy path must not pay for an HTTP round trip it never reads, and
 		// -1 ("count unknown") is not evidence of an empty room.
 		if subscribers == 0 {
-			return nobodySaw(u, resourceID, browserURL, launch)
+			return nobodySaw(u, d, browserURL, launch)
 		}
-		u.ok("Opened %s in the Browser %s", resourceID, audienceNote(u, subscribers, string(bus.BrowseResourceOpen)))
+		u.ok("Opened %s in the Browser %s", d.subject, audienceNote(u, subscribers, string(d.channel)))
 		return 0
 	}
 
@@ -230,6 +278,17 @@ func Browse(args []string) int {
 	return renderBrowse(u, op, reply)
 }
 
+// drive is one `--browser` act: what was sent, on which channel, and the
+// command that would retry it. It exists so the empty-room report below is
+// written once — a resource and an annotation fail for identical reasons, and
+// a second copy of that three-message branch would drift from this one.
+type drive struct {
+	subject string // how to name it to a human: "res-42", "annotation ann-9"
+	channel bus.Channel
+	payload any
+	retry   string // the exact command, minus --launch
+}
+
 // nobodySaw explains a `--browser` emit that reached zero subscribers, and
 // fails the command. Three situations reach here and they want three
 // different things said — collapsing them into one "not available" is the
@@ -244,7 +303,7 @@ func Browse(args []string) int {
 // asked for a specific outcome — a resource on a participant's screen — and
 // it did not happen. A tour that narrates on to step 2 is worse than one that
 // stops.
-func nobodySaw(u *ui, resourceID, override string, launch bool) int {
+func nobodySaw(u *ui, d drive, override string, launch bool) int {
 	p := browserTarget(loadStackSet(), override)
 	if !p.Running && launch {
 		next, ok := launchBrowser(u, override)
@@ -254,7 +313,7 @@ func nobodySaw(u *ui, resourceID, override string, launch bool) int {
 		p = next
 	}
 
-	u.fail("Nobody saw %s — nothing is subscribed to %s.", resourceID, bus.BrowseResourceOpen)
+	u.fail("Nobody saw %s — nothing is subscribed to %s.", d.subject, d.channel)
 	if p.Running {
 		// The Browser CONTAINER is up; what is missing is a human's web
 		// browser pointed at it. Those two fail independently — this branch
@@ -268,7 +327,7 @@ func nobodySaw(u *ui, resourceID, override string, launch bool) int {
 	} else {
 		fmt.Fprintf(os.Stderr, "  The Browser container is %s and is not answering on %s.\n", p.State, p.Endpoint)
 	}
-	fmt.Fprintf(os.Stderr, "  Start it:  semiont browse %s --browser --launch\n", resourceID)
+	fmt.Fprintf(os.Stderr, "  Start it:  %s --launch\n", d.retry)
 	fmt.Fprintln(os.Stderr, "  or:        semiont start --service frontend")
 	return 1
 }
