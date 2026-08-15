@@ -36,6 +36,7 @@
   },
   "files": [
     "dist",
+    "!dist/**/*.map",
     "src/styles",
     "src/components",
     "src/features",
