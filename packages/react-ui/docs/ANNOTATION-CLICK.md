@@ -94,7 +94,9 @@ interface EventMap {
   // User clicks annotation on resource overlay
   'browse:click': {
     annotationId: string;
-    motivation: Motivation;
+    // Local-only extra: viewport geometry for anchoring a popup. Never on the
+    // wire — a bridged-in remote click simply arrives without one.
+    anchorRect?: AnchorRect;
   };
 
   // Bidirectional hover: annotation overlay ↔ panel entry
@@ -143,10 +145,10 @@ sequenceDiagram
     participant Entry as ReferenceEntry
 
     User->>Overlay: Click annotation shape
-    Overlay->>Bus: emit('browse:click', {<br/>  annotationId: 'anno-123',<br/>  motivation: 'linking'<br/>})
+    Overlay->>Bus: emit('browse:click', {<br/>  annotationId: 'anno-123'<br/>})
     Bus->>Coord: browse:click event
 
-    Note over Coord: Maps motivation → panel type<br/>'linking' → 'references'
+    Note over Coord: Resolves the annotation by id,<br/>derives its motivation → panel type<br/>'linking' → 'references'
 
     Coord->>Bus: emit('panel:open', {<br/>  activePanel: 'references',<br/>  scrollToAnnotationId: 'anno-123'<br/>})
     Bus->>Page: panel:open event
@@ -405,10 +407,9 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
         data-focused={isFocused ? 'true' : 'false'}
         onClick={() => {
           // Click → Open panel
-          session?.client.emit('browse:click', {
-            annotationId: reference.id,
-            motivation: reference.motivation
-          });
+          // The id is the whole address; the viewer derives the motivation
+          // from the annotation it names.
+          session?.client.browse.click(reference.id);
         }}
         onMouseEnter={() => {
           // Hover entry → Highlight annotation on resource

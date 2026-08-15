@@ -33,8 +33,10 @@ const annotations = await firstValueFrom(
 );
 
 // Programmatically direct attention — broadcasts across participants
-// via the bus gateway.
-client.beckon.attention(annotations[0].id, resourceId);
+// via the bus gateway. Each wire drive resolves with the subscriber
+// count at dispatch (-1 = unknown).
+await client.beckon.attention(resourceId, annotations[0].id);  // point at it
+await client.beckon.click(annotations[0].id);                  // OPEN it
 
 // Or, for local-only scroll (no broadcast), emit directly on the
 // workspace EventBus:
@@ -46,7 +48,7 @@ eventBus.get('beckon:focus').next({ annotationId: annotations[0].id });
 | Event | Payload | Description |
 |-------|---------|-------------|
 | `beckon:hover` | `{ annotationId: string \| null }` | Mouse entered/left an annotation element |
-| `browse:click` | `{ annotationId: string; motivation: Motivation; anchorRect? }` | User clicked an annotation |
+| `browse:click` | `{ annotationId: string }` (+ local-only `anchorRect?`) | An annotation was clicked — **open** it (see Browse flow) |
 | `beckon:focus` | `{ annotationId?: string \| null; resourceId? }` | Scroll-to-annotation signal (relayed from click) |
 | `beckon:sparkle` | `{ annotationId: string }` | Trigger sparkle animation on an annotation |
 
@@ -57,6 +59,18 @@ viewer is [`browse:resource-open`](./BROWSE.md#cross-participant-navigation)'s
 job. The field is optional, and **absence still scrolls** — the in-app emitters
 (history panel, annotation list) omit it because they are already scoped to the
 open resource, so treating absent as "not mine" would silence all of them.
+
+**Focus points; a click opens.** `beckon:focus` scrolls the viewer to an
+annotation and stops. `browse:click` opens it — the annotations panel comes up
+with that entry selected, and this flow's relay then produces the scroll. Both
+are drivable from outside the page, so a guide chooses between "notice this"
+and "read this"; see
+[Cross-participant navigation](./BROWSE.md#cross-participant-navigation).
+
+Note the asymmetry with the guard above: a click carries no `resourceId`
+because its `annotationId` is **required** and already names one annotation on
+one resource. Focus's `annotationId` is optional — it can name a resource
+alone — which is what leaves `resourceId` something to guard.
 
 Panel state is not an event flow — see
 [Panel and sidebar state](./BROWSE.md#panel-and-sidebar-state) in the Browse
@@ -83,7 +97,7 @@ Two forms are provided for emitting hover events:
 Click events relay through `beckon:focus` to scroll the document view:
 
 1. User clicks an annotation entry in the panel
-2. `browse:click` fires with `annotationId` and `motivation`
+2. `browse:click` fires with `annotationId` (the motivation is derived from the annotation it names, not carried)
 3. `createBeckonStateUnit` relays as `beckon:focus`
 4. BrowseView subscribes to `beckon:focus` and scrolls the document to the annotation's position
 
@@ -94,7 +108,7 @@ Click events relay through `beckon:focus` to scroll the document view:
 same `beckon:focus` signal to everyone watching the workspace, through
 the unified bus gateway:
 
-1. Originator calls `client.beckon.attention(annotationId, resourceId)`, which
+1. Originator calls `client.beckon.attention(resourceId, annotationId)`, which
    invokes `actor.emit('beckon:focus', ...)` → `POST /bus/emit`.
 2. Backend emits the event on the in-process EventBus.
 3. Every connected `SemiontClient` has `beckon:focus` and

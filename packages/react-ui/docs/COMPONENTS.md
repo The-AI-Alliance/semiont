@@ -362,7 +362,7 @@ import { CommentEntry, ReferenceEntry } from '@semiont/react-ui';
 
 **The shared contract:**
 - `session`, the annotation (prop named by motivation: `highlight` / `reference` / `comment` / `assessment` / `tag`), and `isFocused` are required; `isHovered?` pulses the row, `ref?` reaches the row element.
-- Click emits `browse:click` via `session.client.browse.click(id, motivation)` — the same event the stock Browser routes to panel focus, so a host-composed list and any Semiont surface on the same session stay in sync for free.
+- Click emits `browse:click` via `session.client.browse.click(id)` — the same event the stock Browser routes to panel focus, so a host-composed list and any Semiont surface on the same session stay in sync for free.
 - Hover (debounced) emits the beckon hover signal that highlights the annotation in an open viewer on the same session.
 - `ReferenceEntry` extras: `onOpenResource?` (host navigation when the resolved reference is followed), `annotateMode?` (resolve / unlink affordances), `isGenerating?`.
 
