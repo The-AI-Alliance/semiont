@@ -53,10 +53,16 @@ func flowFullStart(x executor, fc flowCtx) int {
 	// The settle is for the runtime to release what we just tore down. With
 	// nothing removed there is nothing to settle, and every first start paid
 	// a second for it.
+	// The ports this start is about to claim — computed once and used twice:
+	// waited on here because the sweep may have just released any of them,
+	// then verified free below. Deriving the wait from a second, hand-rolled
+	// list is how the two drift: the earlier one missed the backend, the three
+	// sidecars and Neo4j's aux port (exactly what a torn-down stack still
+	// holds) while including ports for roles bound to a REMOTE service, which
+	// this start never binds.
+	checks := planPortChecks(fc.plan, fc.opts.observe)
 	if removed > 0 || swept {
-		// Every port this start is about to claim, since the sweep may have
-		// released any of them.
-		x.settle(claimedPorts(fc)...)
+		x.settle(portNumbers(checks)...)
 	}
 	if removed == 0 {
 		x.say(sayOK, "No prior containers")
@@ -64,7 +70,6 @@ func flowFullStart(x executor, fc flowCtx) int {
 		x.say(sayOK, "Removed %d prior container(s)", removed)
 	}
 
-	checks := planPortChecks(fc.plan, fc.opts.observe)
 	if !x.portChecks(checks) {
 		return 1
 	}
@@ -661,25 +666,6 @@ func portNumbers(needs []portNeed) []int {
 	out := make([]int, 0, len(needs))
 	for _, n := range needs {
 		out = append(out, n.port)
-	}
-	return out
-}
-
-// claimedPorts is every port this start intends to bind — what a preflight
-// sweep may have just released, and therefore what is worth waiting on.
-func claimedPorts(fc flowCtx) []int {
-	if fc.plan == nil {
-		return nil
-	}
-	seen := map[int]bool{}
-	out := []int{}
-	for _, rp := range fc.plan.Roles {
-		for _, p := range append([]int{rp.Port}, 0) {
-			if p != 0 && !seen[p] {
-				seen[p] = true
-				out = append(out, p)
-			}
-		}
 	}
 	return out
 }
