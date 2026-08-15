@@ -215,7 +215,7 @@ The bus is the SDK's substrate for cross-participant coordination. Three legitim
 
 ```ts
 client.beckon.hover(annotationId);
-client.browse.click(annotationId, 'commenting');
+client.browse.click(annotationId);
 const ctx = await client.gather.annotation(rId, aId);
 ```
 
