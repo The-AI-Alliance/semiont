@@ -1,6 +1,6 @@
 {
   "name": "@semiont/react-ui",
-  "version": "0.5.27",
+  "version": "0.5.28",
   "engines": {
     "node": ">=24.0.0"
   },
@@ -36,6 +36,7 @@
   },
   "files": [
     "dist",
+    "!dist/**/*.map",
     "src/styles",
     "src/components",
     "src/features",

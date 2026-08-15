@@ -1,6 +1,11 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
+  // Silenced: tsup lists every emitted artifact, and with `splitting` plus
+  // `sourcemap` that is ~2 lines per chunk — react-ui alone printed ~88 for a
+  // 619ms build. Failures still fail the command; build.sh prints the per-package
+  // check mark. Drop this line temporarily when you want the size column.
+  silent: true,
   // Two entries: the runtime surface, and `@semiont/vectors/testing` — the test
   // doubles, which consumers import from their suites and nothing in the
   // runtime entry imports.

@@ -333,10 +333,13 @@ if [[ "$IMAGES_ONLY" != true ]]; then
       apk add --no-cache bash git > /dev/null
 
       # Create .npmrc for Verdaccio auth
+      # The body and the NPMRC terminator MUST stay at column 0 — this is
+      # `<<NPMRC`, not `<<-NPMRC`, so an indented terminator never closes the
+      # heredoc and every command below it silently becomes .npmrc content.
       cat > /tmp/.npmrc <<NPMRC
-  registry=http://$HOST_ADDR:4873
-  //$HOST_ADDR:4873/:_authToken=$VERDACCIO_TOKEN
-  NPMRC
+registry=http://$HOST_ADDR:4873
+//$HOST_ADDR:4873/:_authToken=$VERDACCIO_TOKEN
+NPMRC
 
       # Build (unless --skip-build)
       if [ '$SKIP_BUILD' != 'true' ]; then
