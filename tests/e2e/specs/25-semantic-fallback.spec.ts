@@ -166,19 +166,30 @@ test.describe.serial('semantic fallback answers what lexical search cannot', () 
    * any resource name, can only be answered by the fallback.
    */
   test('a body-only phrase returns the resource that discusses it', async () => {
+    // Poll for THIS resource, not for a non-empty page.
+    //
+    // `.length > 0` was the original predicate and it is a trap: the KB holds
+    // other resources, the fallback returns its best matches for any query, so
+    // "some result exists" is satisfied on the first attempt — before the
+    // Smelter has indexed the resource this spec just created. The poll then
+    // exits immediately and the assertion below fails on a document that would
+    // have been found a few seconds later. Measured 2026-08-15: failed in
+    // 128ms against a 120s budget that never ran.
+    //
+    // The rule this cost us: a poll predicate must be the SAME condition as
+    // the assertion it is waiting for, or it is waiting for the wrong thing.
     await expect
-      .poll(async () => (await semanticSearch(client)).length, { timeout: INDEXING_TIMEOUT })
-      .toBeGreaterThan(0);
+      .poll(async () => (await semanticSearch(client)).some((r) => r['@id'] === rid), {
+        timeout: INDEXING_TIMEOUT,
+        message:
+          'a phrase present only in the BODY must retrieve the resource; lexical search is ' +
+          'name-only, so nothing but the semantic fallback could produce this hit',
+      })
+      .toBe(true);
 
     const hits = await semanticSearch(client);
     // eslint-disable-next-line no-console
     console.log(`SEMANTIC: "${BODY_QUERY}" -> ${hits.length} result(s)`);
-
-    expect(
-      hits.some((r) => r.id === rid),
-      'a phrase present only in the BODY retrieved the resource; lexical search is name-only, ' +
-        'so nothing but the semantic fallback could have produced this hit',
-    ).toBe(true);
   });
 
   /**
@@ -187,7 +198,7 @@ test.describe.serial('semantic fallback answers what lexical search cannot', () 
    */
   test('the content field carries the matched passage, not the opening preview', async () => {
     const hits = await semanticSearch(client);
-    const hit = hits.find((r) => r.id === rid);
+    const hit = hits.find((r) => r['@id'] === rid);
     expect(hit, 'the seeded resource is among the semantic hits').toBeDefined();
 
     const content = hit?.content;
