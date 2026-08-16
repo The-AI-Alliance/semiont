@@ -6489,8 +6489,10 @@ func TestYieldDelegateReportsJobFailure(t *testing.T) {
 //
 // The trap this guards is specific. Every generated As*() accessor is a bare
 // json.Unmarshal with no discriminant check, so a declined result decodes
-// CLEANLY into JobGenerationResult with an empty resource id — which reads
-// exactly like "a generation with no id to print".
+// CLEANLY into JobGenerationResult with a zero-value resource id. A real
+// generation always carries the id (the schema requires it), so an empty id
+// here means "this is not a generation result" — which is why the decline
+// must be read first, by its own discriminant.
 func TestYieldDelegateReportsADecline(t *testing.T) {
 	s := busScenario(t,
 		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,

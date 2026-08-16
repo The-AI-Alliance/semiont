@@ -2636,10 +2636,10 @@ type JobFailedPayload struct {
 	JobType JobType `json:"jobType"`
 }
 
-// JobGenerationResult Result of a completed generation job. resourceId is assigned by Stower when yield:create is processed; the worker emits job:complete with only resourceName, and Stower populates resourceId on the persisted payload.
+// JobGenerationResult Result of a completed generation job. The worker creates the resource first (the yield:create round-trip returns the id), then emits job:complete carrying it — so resourceId is always present on the wire.
 type JobGenerationResult struct {
-	// ResourceId ID of the generated resource (populated by Stower, not by the worker)
-	ResourceId *string `json:"resourceId,omitempty"`
+	// ResourceId ID of the generated resource, obtained by the worker from the create round-trip before job:complete is emitted
+	ResourceId string `json:"resourceId"`
 
 	// ResourceName Name of the generated resource
 	ResourceName string `json:"resourceName"`
