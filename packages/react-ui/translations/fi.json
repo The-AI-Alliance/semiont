@@ -10,6 +10,7 @@
     "codeCompleteCreated": "Luotiin {{count}} {{kind}}",
     "codeGeneratingResource": "Luodaan…",
     "codeCreatingResource": "Luodaan resurssia…",
+    "codeCompleteGenerated": "Resurssi luotu",
     "kindHighlight": "korostusta",
     "kindComment": "kommenttia",
     "kindAssessment": "arviota",

@@ -10,6 +10,7 @@
     "codeCompleteCreated": "Created {{count}} {{kind}}",
     "codeGeneratingResource": "Generating…",
     "codeCreatingResource": "Creating the resource…",
+    "codeCompleteGenerated": "Created the resource",
     "kindHighlight": "highlights",
     "kindComment": "comments",
     "kindAssessment": "assessments",

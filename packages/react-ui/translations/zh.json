@@ -10,6 +10,7 @@
     "codeCompleteCreated": "已创建 {{count}} 个{{kind}}",
     "codeGeneratingResource": "生成中…",
     "codeCreatingResource": "正在创建资源…",
+    "codeCompleteGenerated": "已创建资源",
     "kindHighlight": "高亮",
     "kindComment": "评论",
     "kindAssessment": "评估",

@@ -10,6 +10,7 @@
     "codeCompleteCreated": "Створено {{count}} {{kind}}",
     "codeGeneratingResource": "Генерування…",
     "codeCreatingResource": "Створення ресурсу…",
+    "codeCompleteGenerated": "Ресурс створено",
     "kindHighlight": "виділень",
     "kindComment": "коментарів",
     "kindAssessment": "оцінок",

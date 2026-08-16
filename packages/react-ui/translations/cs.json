@@ -10,6 +10,7 @@
     "codeCompleteCreated": "Vytvořeno {{count}} {{kind}}",
     "codeGeneratingResource": "Generování…",
     "codeCreatingResource": "Vytváření zdroje…",
+    "codeCompleteGenerated": "Zdroj byl vytvořen",
     "kindHighlight": "zvýraznění",
     "kindComment": "komentářů",
     "kindAssessment": "hodnocení",

@@ -10,6 +10,7 @@
     "codeCompleteCreated": "{{count}} {{kind}} gemaakt",
     "codeGeneratingResource": "Genereren…",
     "codeCreatingResource": "Bron maken…",
+    "codeCompleteGenerated": "Bron gemaakt",
     "kindHighlight": "markeringen",
     "kindComment": "opmerkingen",
     "kindAssessment": "beoordelingen",

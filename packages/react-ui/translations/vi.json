@@ -10,6 +10,7 @@
     "codeCompleteCreated": "Đã tạo {{count}} {{kind}}",
     "codeGeneratingResource": "Đang tạo…",
     "codeCreatingResource": "Đang tạo tài nguyên…",
+    "codeCompleteGenerated": "Đã tạo tài nguyên",
     "kindHighlight": "đánh dấu",
     "kindComment": "bình luận",
     "kindAssessment": "đánh giá",

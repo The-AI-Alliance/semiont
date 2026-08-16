@@ -10,6 +10,7 @@
     "codeCompleteCreated": "Skapade {{count}} {{kind}}",
     "codeGeneratingResource": "Genererar…",
     "codeCreatingResource": "Skapar resursen…",
+    "codeCompleteGenerated": "Resursen har skapats",
     "kindHighlight": "markeringar",
     "kindComment": "kommentarer",
     "kindAssessment": "bedömningar",

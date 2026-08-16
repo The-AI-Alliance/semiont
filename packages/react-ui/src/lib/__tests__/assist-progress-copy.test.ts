@@ -38,6 +38,7 @@ const ALL: Array<{ message: JobProgressMessage; key: string }> = [
   { message: { code: 'analyzing-tags' }, key: 'codeAnalyzingTags' },
   { message: { code: 'generating-resource' }, key: 'codeGeneratingResource' },
   { message: { code: 'creating-resource' }, key: 'codeCreatingResource' },
+  { message: { code: 'complete-generated' }, key: 'codeCompleteGenerated' },
   { message: { code: 'detecting-entities', entityType: 'Person' }, key: 'codeDetectingEntities' },
   { message: { code: 'creating-annotations', count: 3 }, key: 'codeCreatingAnnotations' },
   { message: { code: 'creating-tag-annotations', count: 4 }, key: 'codeCreatingTagAnnotations' },

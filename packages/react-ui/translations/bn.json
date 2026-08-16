@@ -10,6 +10,7 @@
     "codeCompleteCreated": "{{count}}টি {{kind}} তৈরি হয়েছে",
     "codeGeneratingResource": "তৈরি হচ্ছে…",
     "codeCreatingResource": "রিসোর্স তৈরি হচ্ছে…",
+    "codeCompleteGenerated": "রিসোর্স তৈরি হয়েছে",
     "kindHighlight": "হাইলাইট",
     "kindComment": "মন্তব্য",
     "kindAssessment": "মূল্যায়ন",

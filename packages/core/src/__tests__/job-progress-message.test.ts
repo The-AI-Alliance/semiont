@@ -21,7 +21,9 @@ describe('JobProgress message shape (A6, type half)', () => {
     const detecting: Message = { code: 'detecting-entities', entityType: 'Person' };
     const creating: Message = { code: 'creating-annotations', count: 3 };
     const done: Message = { code: 'complete-created', count: 3, kind: 'highlight' };
-    expect([bare, detecting, creating, done].every((m) => typeof m === 'object')).toBe(true);
+    // Generation's terminal success — generic, no params (GENERATE-FROM-RESOURCE P1/D7).
+    const generated: Message = { code: 'complete-generated' };
+    expect([bare, detecting, creating, done, generated].every((m) => typeof m === 'object')).toBe(true);
   });
 
   it('params are required where the census requires them', () => {

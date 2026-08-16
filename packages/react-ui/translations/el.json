@@ -10,6 +10,7 @@
     "codeCompleteCreated": "Δημιουργήθηκαν {{count}} {{kind}}",
     "codeGeneratingResource": "Δημιουργία…",
     "codeCreatingResource": "Δημιουργία πόρου…",
+    "codeCompleteGenerated": "Ο πόρος δημιουργήθηκε",
     "kindHighlight": "επισημάνσεις",
     "kindComment": "σχόλια",
     "kindAssessment": "αξιολογήσεις",

@@ -362,11 +362,15 @@ describe('processTagJob', () => {
 describe('processGenerationJob', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('generates content and returns title + format', async () => {
+  it('generates content and returns the CALLER\'s title + format', async () => {
+    // The generator echoes the caller's topic verbatim (resource-generation.ts
+    // parseResponse: "Title is provided by the caller (topic), not extracted") —
+    // so the processor's title is the request's title, unconditionally. The mock
+    // mirrors that contract; a diverging title is a state that cannot occur.
     vi.mocked(generateResourceFromTopic).mockResolvedValue({
       content: '# Generated resource\n\nBody.',
-      title: 'Generated Title',
-    } as any);
+      title: 'Initial',
+    });
 
     const progress = vi.fn();
     const result = await processGenerationJob(
@@ -380,37 +384,23 @@ describe('processGenerationJob', () => {
     );
 
     expect(new TextDecoder().decode(result.content)).toContain('Generated resource');
-    expect(result.title).toBe('Generated Title');
+    expect(result.title).toBe('Initial');
     expect(result.format).toBe('text/markdown');
-    expect(result.result.resourceName).toBe('Generated Title');
+    expect(result.result.resourceName).toBe('Initial');
     // Honest lifecycle: generation has exactly two real transitions — the LLM
     // call starting, and content finalized / creation beginning. No 'fetching'
     // stage (it labeled zero work; context arrives pre-gathered in params).
     // Percentages approximate the share of expected wall-clock complete at each
     // transition: inference dominates, so its start is ~5 and its end ~95.
-    expect(progress).toHaveBeenCalledTimes(2);
+    // The producer owns terminality (GENERATE-FROM-RESOURCE P1/D1): the run
+    // ends with a terminal code at 100, like every annotation flow — without
+    // it, the client's last frame forever says 95% "creating".
+    expect(progress).toHaveBeenCalledTimes(3);
     expect(progress).toHaveBeenNthCalledWith(1, 5, { code: 'generating-resource' });
     expect(progress).toHaveBeenNthCalledWith(2, 95, { code: 'creating-resource' });
+    expect(progress).toHaveBeenNthCalledWith(3, 100, { code: 'complete-generated' });
   });
 
-  it('falls back to request title when generator omits it', async () => {
-    vi.mocked(generateResourceFromTopic).mockResolvedValue({
-      content: 'text',
-    } as any);
-
-    const result = await processGenerationJob(
-      makeInferenceClient(),
-      { ...GEN_REQUIRED,
-        title: 'Fallback Title',
-        entityTypes: [],
-      },
-      vi.fn(),
-      LOGGER,
-    );
-
-    expect(result.title).toBe('Fallback Title');
-    expect(result.result.resourceName).toBe('Fallback Title');
-  });
 });
 
 describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () => {
@@ -531,16 +521,20 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
     const pdf = new TextEncoder().encode('%PDF-FAKE');
     vi.mocked(compileTypst).mockReturnValue({ pdf });
 
+    const progress = vi.fn();
     const r = await processGenerationJob(
       makeInferenceClient(),
       { ...GEN_REQUIRED, title: 'T', outputMediaType: 'application/pdf' },
-      vi.fn(),
+      progress,
       LOGGER,
     );
 
     expect(compileTypst).toHaveBeenCalledWith('= Title\nBody.');
     expect(r.content).toBe(pdf);
     expect(r.format).toBe('application/pdf');
+    // Terminal honesty (GENERATE-FROM-RESOURCE P1): the PDF path ends like
+    // every other flow — a terminal code at 100, never a dangling 95.
+    expect(progress.mock.calls.at(-1)).toEqual([100, { code: 'complete-generated' }]);
   });
 
   it('feeds a compile error back for a bounded repair, then succeeds', async () => {

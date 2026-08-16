@@ -742,15 +742,19 @@ export async function processGenerationJob(
 
     assertWithinOutputBudget(compiled.pdf.byteLength);
     onProgress(95, { code: 'creating-resource' });
+    // The producer owns terminality (GENERATE-FROM-RESOURCE P1/D1): without
+    // this, the client's last frame is forever the 95% payload. Generic by
+    // design — the outcome (name + link) travels on job:complete (D8).
+    onProgress(100, { code: 'complete-generated' });
 
     return {
       content: compiled.pdf,
-      title: generated.title ?? title,
+      title,
       format: outputMediaType,
       citations,
       result: {
         resourceId: '' as ResourceId,
-        resourceName: generated.title ?? title,
+        resourceName: title,
       },
     };
   }
@@ -800,14 +804,19 @@ export async function processGenerationJob(
   const artifact = new TextEncoder().encode(content);
   assertWithinOutputBudget(artifact.byteLength);
 
+  // The producer owns terminality (GENERATE-FROM-RESOURCE P1/D1): without
+  // this, the client's last frame is forever the 95% payload. Generic by
+  // design — the outcome (name + link) travels on job:complete (D8).
+  onProgress(100, { code: 'complete-generated' });
+
   return {
     content: artifact,
-    title: generated.title ?? title,
+    title,
     format: outputMediaType,
     citations,
     result: {
       resourceId: '' as ResourceId,
-      resourceName: generated.title ?? title,
+      resourceName: title,
     },
   };
 }

@@ -10,6 +10,7 @@
     "codeCompleteCreated": "{{count}} {{kind}} ایجاد شد",
     "codeGeneratingResource": "در حال تولید…",
     "codeCreatingResource": "ایجاد منبع…",
+    "codeCompleteGenerated": "منبع ایجاد شد",
     "kindHighlight": "برجسته‌سازی",
     "kindComment": "دیدگاه",
     "kindAssessment": "ارزیابی",

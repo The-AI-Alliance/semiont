@@ -3,11 +3,11 @@
   "oneOf": [
     {
       "type": "object",
-      "description": "Codes that carry no params.",
+      "description": "Codes that carry no params. `complete-generated` is generation's terminal success and is deliberately generic: the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress (GENERATE-FROM-RESOURCE D7/D8).",
       "properties": {
         "code": {
           "type": "string",
-          "enum": ["loading", "analyzing", "analyzing-tags", "generating-resource", "creating-resource"]
+          "enum": ["loading", "analyzing", "analyzing-tags", "generating-resource", "creating-resource", "complete-generated"]
         }
       },
       "required": ["code"]

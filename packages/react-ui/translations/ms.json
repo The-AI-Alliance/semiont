@@ -10,6 +10,7 @@
     "codeCompleteCreated": "{{count}} {{kind}} dicipta",
     "codeGeneratingResource": "Menjana…",
     "codeCreatingResource": "Mencipta sumber…",
+    "codeCompleteGenerated": "Sumber dicipta",
     "kindHighlight": "sorotan",
     "kindComment": "komen",
     "kindAssessment": "penilaian",

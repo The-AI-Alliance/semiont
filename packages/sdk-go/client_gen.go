@@ -539,6 +539,7 @@ func (e JobProgressRequestParamsLabel) Valid() bool {
 const (
 	Analyzing          JobProgressMessage0Code = "analyzing"
 	AnalyzingTags      JobProgressMessage0Code = "analyzing-tags"
+	CompleteGenerated  JobProgressMessage0Code = "complete-generated"
 	CreatingResource   JobProgressMessage0Code = "creating-resource"
 	GeneratingResource JobProgressMessage0Code = "generating-resource"
 	Loading            JobProgressMessage0Code = "loading"
@@ -550,6 +551,8 @@ func (e JobProgressMessage0Code) Valid() bool {
 	case Analyzing:
 		return true
 	case AnalyzingTags:
+		return true
+	case CompleteGenerated:
 		return true
 	case CreatingResource:
 		return true
@@ -2713,7 +2716,7 @@ type JobProgressMessage struct {
 	union json.RawMessage
 }
 
-// JobProgressMessage0 Codes that carry no params.
+// JobProgressMessage0 Codes that carry no params. `complete-generated` is generation's terminal success and is deliberately generic: the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress (GENERATE-FROM-RESOURCE D7/D8).
 type JobProgressMessage0 struct {
 	Code JobProgressMessage0Code `json:"code"`
 }

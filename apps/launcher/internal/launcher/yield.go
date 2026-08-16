@@ -605,6 +605,8 @@ func progressText(m *semiont.JobProgressMessage) string {
 		return "Generating resource"
 	case "creating-resource":
 		return "Creating resource"
+	case "complete-generated":
+		return "Created resource"
 	case "detecting-entities":
 		return fmt.Sprintf("Detecting %s entities", flat.EntityType)
 	case "creating-annotations":

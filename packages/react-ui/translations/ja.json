@@ -10,6 +10,7 @@
     "codeCompleteCreated": "{{count}} 件の{{kind}}を作成しました",
     "codeGeneratingResource": "生成中…",
     "codeCreatingResource": "リソースを作成中…",
+    "codeCompleteGenerated": "リソースを作成しました",
     "kindHighlight": "ハイライト",
     "kindComment": "コメント",
     "kindAssessment": "評価",

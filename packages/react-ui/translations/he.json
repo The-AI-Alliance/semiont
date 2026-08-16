@@ -10,6 +10,7 @@
     "codeCompleteCreated": "נוצרו {{count}} {{kind}}",
     "codeGeneratingResource": "מייצר…",
     "codeCreatingResource": "יוצר את המשאב…",
+    "codeCompleteGenerated": "המשאב נוצר",
     "kindHighlight": "הדגשות",
     "kindComment": "הערות",
     "kindAssessment": "הערכות",

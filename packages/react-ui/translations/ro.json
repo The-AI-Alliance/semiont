@@ -10,6 +10,7 @@
     "codeCompleteCreated": "S-au creat {{count}} {{kind}}",
     "codeGeneratingResource": "Se generează…",
     "codeCreatingResource": "Se creează resursa…",
+    "codeCompleteGenerated": "Resursa a fost creată",
     "kindHighlight": "evidențieri",
     "kindComment": "comentarii",
     "kindAssessment": "evaluări",
