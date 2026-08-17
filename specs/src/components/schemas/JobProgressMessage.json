@@ -3,14 +3,26 @@
   "oneOf": [
     {
       "type": "object",
-      "description": "Codes that carry no params. `complete-generated` is generation's terminal success and is deliberately generic: the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress (GENERATE-FROM-RESOURCE D7/D8).",
+      "description": "Codes that carry no params.",
       "properties": {
         "code": {
           "type": "string",
-          "enum": ["loading", "analyzing", "analyzing-tags", "generating-resource", "creating-resource", "complete-generated"]
+          "enum": ["loading", "analyzing", "analyzing-tags", "generating-resource", "creating-resource"]
         }
       },
       "required": ["code"]
+    },
+    {
+      "type": "object",
+      "description": "Generation's terminal success. Deliberately generic — the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress (GENERATE-FROM-RESOURCE D7/D8). `truncated` qualifies the completion (D6): the same bit `JobGenerationResult.truncated` carries, so the two surfaces cannot drift.",
+      "properties": {
+        "code": { "type": "string", "enum": ["complete-generated"] },
+        "truncated": {
+          "type": "boolean",
+          "description": "True when the model stopped at the maxTokens ceiling — the artifact is cut off, not complete."
+        }
+      },
+      "required": ["code", "truncated"]
     },
     {
       "type": "object",

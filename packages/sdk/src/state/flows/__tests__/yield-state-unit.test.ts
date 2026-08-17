@@ -26,6 +26,7 @@ const GEN_RESULT: JobCompleteCommand['result'] = {
   kind: 'generation',
   resourceId: 'res-new-1',
   resourceName: 'Summary of PB',
+  truncated: false,
 };
 
 // fromContext derives every id FROM the focus — the state unit passes the

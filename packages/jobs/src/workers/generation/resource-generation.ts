@@ -7,7 +7,7 @@
 import { getLocaleEnglishName, deriveViews } from '@semiont/core';
 import type { GatheredContext, Logger, SupportedMediaType } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
-import { boundedGenerate } from '../inference-call';
+import { boundedGenerateWithMetadata } from '../inference-call';
 
 
 function getLanguageName(locale: string): string {
@@ -29,6 +29,15 @@ const SEMANTIC_MATCH_CHARS = 240;
 function idLabel(resourceId: string, annotationId?: string): string {
   return `[${resourceId}${annotationId ? `/${annotationId}` : ''}]`;
 }
+
+/**
+ * The canonical backend default for maxTokens — a short-definition size. The
+ * UI also initialises its field to 500 as a UX convenience, but the
+ * authoritative fallback lives here so direct API callers get a sensible
+ * limit when they omit the parameter. Exported so error messages elsewhere
+ * can name the ceiling that actually applied (one constant, no drift).
+ */
+export const DEFAULT_MAX_TOKENS = 500;
 
 /**
  * Generate resource content using inference.
@@ -57,7 +66,7 @@ export async function generateResourceFromTopic(
   structure?: string,
   cite: boolean = false,
   repair?: { source: string; error: string }
-): Promise<{ title: string; content: string }> {
+): Promise<{ title: string; content: string; truncated: boolean }> {
   logger.debug('Generating resource from topic', {
     topicPreview: topic.substring(0, 100),
     entityTypes,
@@ -73,11 +82,8 @@ export async function generateResourceFromTopic(
   });
 
   // Use provided values or defaults.
-  // 500 tokens is the canonical backend default for maxTokens; the UI also initialises
-  // its field to 500 as a UX convenience, but the authoritative fallback lives here so
-  // that direct API callers get a sensible limit even when they omit the parameter.
   const finalTemperature = temperature ?? 0.7;
-  const finalMaxTokens = maxTokens ?? 500;
+  const finalMaxTokens = maxTokens ?? DEFAULT_MAX_TOKENS;
 
   // Determine language instructions. Body locale ("write the resource in X")
   // and source locale ("the embedded source text is in Y") are independent —
@@ -331,10 +337,10 @@ ${formatRequirements}`;
     temperature: finalTemperature,
     maxTokens: finalMaxTokens
   });
-  const response = await boundedGenerate(client, prompt, finalMaxTokens, finalTemperature);
-  logger.debug('Got response from inference', { responseLength: response.length });
+  const response = await boundedGenerateWithMetadata(client, prompt, finalMaxTokens, finalTemperature);
+  logger.debug('Got response from inference', { responseLength: response.text.length, stopReason: response.stopReason });
 
-  const result = parseResponse(response);
+  const result = parseResponse(response.text);
   logger.debug('Parsed response', {
     hasTitle: !!result.title,
     titleLength: result.title?.length,
@@ -342,5 +348,8 @@ ${formatRequirements}`;
     contentLength: result.content?.length
   });
 
-  return result;
+  // The provider's stopReason collapses to one protocol-owned bit HERE and
+  // nowhere else (GENERATE-FROM-RESOURCE D6): 'max_tokens' means the artifact
+  // is cut off, not complete; every other reason is a natural stop.
+  return { ...result, truncated: response.stopReason === 'max_tokens' };
 }

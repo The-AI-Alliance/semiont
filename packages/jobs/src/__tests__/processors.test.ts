@@ -36,6 +36,8 @@ vi.mock('../workers/detection/entity-extractor', () => ({
 
 vi.mock('../workers/generation/resource-generation', () => ({
   generateResourceFromTopic: vi.fn(),
+  // Real value, not a stand-in: the fail-fast error message names this ceiling.
+  DEFAULT_MAX_TOKENS: 500,
 }));
 
 vi.mock('../workers/generation/typst-compiler', async (importOriginal) => ({
@@ -371,6 +373,7 @@ describe('processGenerationJob', () => {
     vi.mocked(generateResourceFromTopic).mockResolvedValue({
       content: '# Generated resource\n\nBody.',
       title: 'Initial',
+      truncated: false,
     });
 
     const progress = vi.fn();
@@ -388,6 +391,9 @@ describe('processGenerationJob', () => {
     expect(result.title).toBe('Initial');
     expect(result.format).toBe('text/markdown');
     expect(result.result.resourceName).toBe('Initial');
+    // A natural stop reports truncated: false — required, never absent (P3a/D6:
+    // the producer always knows; structure expresses it).
+    expect(result.result.truncated).toBe(false);
     // Honest lifecycle: generation has exactly two real transitions — the LLM
     // call starting, and content finalized / creation beginning. No 'fetching'
     // stage (it labeled zero work; context arrives pre-gathered in params).
@@ -399,7 +405,29 @@ describe('processGenerationJob', () => {
     expect(progress).toHaveBeenCalledTimes(3);
     expect(progress).toHaveBeenNthCalledWith(1, 5, { code: 'generating-resource' });
     expect(progress).toHaveBeenNthCalledWith(2, 95, { code: 'creating-resource' });
-    expect(progress).toHaveBeenNthCalledWith(3, 100, { code: 'complete-generated' });
+    expect(progress).toHaveBeenNthCalledWith(3, 100, { code: 'complete-generated', truncated: false });
+  });
+
+  it('a max_tokens stop reports truncated on the terminal event AND the result (P3a)', async () => {
+    // N7: the worker KNOWS the artifact was cut off and used to tell nobody.
+    // The bit rides both surfaces — the event (the frame P3b renders) and the
+    // result (the record).
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({
+      content: 'Cut off mid-sen',
+      title: 'Initial',
+      truncated: true,
+    });
+
+    const progress = vi.fn();
+    const result = await processGenerationJob(
+      makeInferenceClient(),
+      { ...GEN_REQUIRED, title: 'Initial', entityTypes: [] },
+      progress,
+      LOGGER,
+    );
+
+    expect(result.result.truncated).toBe(true);
+    expect(progress).toHaveBeenNthCalledWith(3, 100, { code: 'complete-generated', truncated: true });
   });
 
 });
@@ -440,6 +468,7 @@ describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () =
     vi.mocked(generateResourceFromTopic).mockResolvedValue({
       content: 'Paris is the capital of France. [[ctx-9]] It is large.',
       title: 'T',
+      truncated: false,
     });
 
     const r = await processGenerationJob(
@@ -465,6 +494,7 @@ describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () =
     vi.mocked(generateResourceFromTopic).mockResolvedValue({
       content: 'A bold claim. [[not-in-context]]',
       title: 'T',
+      truncated: false,
     });
 
     const r = await processGenerationJob(
@@ -483,6 +513,7 @@ describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () =
     vi.mocked(generateResourceFromTopic).mockResolvedValue({
       content: 'Wiki-style [[links]] are legitimate content.',
       title: 'T',
+      truncated: false,
     });
 
     const r = await processGenerationJob(
@@ -502,7 +533,7 @@ describe('processGenerationJob — byte return (PDF-GENERATION P1)', () => {
   // output media type, so a string can never travel mislabeled as a binary
   // format. The sole consumer (worker upload) already does Buffer.from().
   it('returns the artifact content as Uint8Array', async () => {
-    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: 'Generated body', title: 'T' });
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: 'Generated body', title: 'T', truncated: false });
 
     const r = await processGenerationJob(makeInferenceClient(), { ...GEN_REQUIRED, title: 'T' }, vi.fn(), LOGGER);
 
@@ -518,7 +549,7 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
   });
 
   it('compiles model-authored Typst to PDF bytes', async () => {
-    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: '= Title\nBody.', title: 'T' });
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: '= Title\nBody.', title: 'T', truncated: false });
     const pdf = new TextEncoder().encode('%PDF-FAKE');
     vi.mocked(compileTypst).mockReturnValue({ pdf });
 
@@ -535,13 +566,52 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
     expect(r.format).toBe('application/pdf');
     // Terminal honesty (GENERATE-FROM-RESOURCE P1): the PDF path ends like
     // every other flow — a terminal code at 100, never a dangling 95.
-    expect(progress.mock.calls.at(-1)).toEqual([100, { code: 'complete-generated' }]);
+    expect(progress.mock.calls.at(-1)).toEqual([100, { code: 'complete-generated', truncated: false }]);
+  });
+
+  it('a truncated source that still compiles carries the truncated flag (P3a)', async () => {
+    // Truncation that happens to land at a syntactic boundary compiles fine —
+    // the artifact is still incomplete, and the bit still travels.
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: '= Title\nCut off', title: 'T', truncated: true });
+    const pdf = new TextEncoder().encode('%PDF-FAKE');
+    vi.mocked(compileTypst).mockReturnValue({ pdf });
+
+    const progress = vi.fn();
+    const r = await processGenerationJob(
+      makeInferenceClient(),
+      { ...GEN_REQUIRED, title: 'T', outputMediaType: 'application/pdf' },
+      progress,
+      LOGGER,
+    );
+
+    expect(r.result.truncated).toBe(true);
+    expect(progress.mock.calls.at(-1)).toEqual([100, { code: 'complete-generated', truncated: true }]);
+  });
+
+  it('a truncated source that fails to compile fails FAST, naming the ceiling — no repairs (P3a)', async () => {
+    // Repair cannot restore content that was never generated: the source is
+    // cut off, not wrong, and every repair regenerates under the same ceiling.
+    // Burning the repair budget here would end in an error naming a compile
+    // problem the user cannot fix; the honest error names the token ceiling.
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: '#let broken = [cut', title: 'T', truncated: true });
+    vi.mocked(compileTypst).mockReturnValue({ error: 'error: unclosed delimiter' });
+
+    await expect(
+      processGenerationJob(
+        makeInferenceClient(),
+        { ...GEN_REQUIRED, title: 'T', outputMediaType: 'application/pdf' },
+        vi.fn(),
+        LOGGER,
+      ),
+    ).rejects.toThrow(/maxTokens ceiling/);
+
+    expect(generateResourceFromTopic).toHaveBeenCalledTimes(1);
   });
 
   it('feeds a compile error back for a bounded repair, then succeeds', async () => {
     vi.mocked(generateResourceFromTopic)
-      .mockResolvedValueOnce({ content: '#let broken = [unclosed', title: 'T' })
-      .mockResolvedValueOnce({ content: '= Fixed\nBody.', title: 'T' });
+      .mockResolvedValueOnce({ content: '#let broken = [unclosed', title: 'T', truncated: false })
+      .mockResolvedValueOnce({ content: '= Fixed\nBody.', title: 'T', truncated: false });
     const pdf = new TextEncoder().encode('%PDF-FAKE');
     vi.mocked(compileTypst)
       .mockReturnValueOnce({ error: 'error: unclosed delimiter\n  ┌─ doc.typ:1:14' })
@@ -565,7 +635,7 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
   });
 
   it('gives up loudly after the bounded repairs are exhausted', async () => {
-    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: '#broken', title: 'T' });
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: '#broken', title: 'T', truncated: false });
     vi.mocked(compileTypst).mockReturnValue({ error: 'error: unclosed delimiter' });
 
     await expect(
@@ -590,6 +660,7 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
     vi.mocked(generateResourceFromTopic).mockResolvedValue({
       content: '= Answer\nParis is the capital of France. [[ctx-9]]',
       title: 'T',
+      truncated: false,
     });
     const pdf = new TextEncoder().encode('%PDF-FAKE');
     vi.mocked(compileTypst).mockReturnValue({ pdf });
@@ -627,7 +698,7 @@ describe('processGenerationJob — output bound (PDF-GENERATION P5)', () => {
 
 describe('processGenerationJob — outputMediaType', () => {
   beforeEach(() => {
-    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: 'c', title: 'T' });
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: 'c', title: 'T', truncated: false });
   });
 
   it('defaults the generated resource format to text/markdown', async () => {
@@ -954,7 +1025,7 @@ describe('locale threading', () => {
 
     it('forwards sourceLanguage and language to generateResourceFromTopic', async () => {
       vi.mocked(generateResourceFromTopic).mockResolvedValue({
-        content: 'text', title: 'T',
+        content: 'text', title: 'T', truncated: false,
       } as any);
       const client = makeInferenceClient();
 

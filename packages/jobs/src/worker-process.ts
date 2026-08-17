@@ -495,7 +495,7 @@ async function handleJobInner(
 
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
-      result: { kind: 'generation', resourceId: newResourceId, resourceName: genResult.title },
+      result: { kind: 'generation', resourceId: newResourceId, resourceName: genResult.title, truncated: genResult.result.truncated },
     });
     adapter.completeJob();
 

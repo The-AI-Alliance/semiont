@@ -615,7 +615,6 @@ func (e JobProgressRequestParamsLabel) Valid() bool {
 const (
 	Analyzing          JobProgressMessage0Code = "analyzing"
 	AnalyzingTags      JobProgressMessage0Code = "analyzing-tags"
-	CompleteGenerated  JobProgressMessage0Code = "complete-generated"
 	CreatingResource   JobProgressMessage0Code = "creating-resource"
 	GeneratingResource JobProgressMessage0Code = "generating-resource"
 	Loading            JobProgressMessage0Code = "loading"
@@ -627,8 +626,6 @@ func (e JobProgressMessage0Code) Valid() bool {
 	case Analyzing:
 		return true
 	case AnalyzingTags:
-		return true
-	case CompleteGenerated:
 		return true
 	case CreatingResource:
 		return true
@@ -643,13 +640,13 @@ func (e JobProgressMessage0Code) Valid() bool {
 
 // Defines values for JobProgressMessage1Code.
 const (
-	DetectingEntities JobProgressMessage1Code = "detecting-entities"
+	CompleteGenerated JobProgressMessage1Code = "complete-generated"
 )
 
 // Valid indicates whether the value is a known member of the JobProgressMessage1Code enum.
 func (e JobProgressMessage1Code) Valid() bool {
 	switch e {
-	case DetectingEntities:
+	case CompleteGenerated:
 		return true
 	default:
 		return false
@@ -658,12 +655,27 @@ func (e JobProgressMessage1Code) Valid() bool {
 
 // Defines values for JobProgressMessage2Code.
 const (
-	CreatingAnnotations    JobProgressMessage2Code = "creating-annotations"
-	CreatingTagAnnotations JobProgressMessage2Code = "creating-tag-annotations"
+	DetectingEntities JobProgressMessage2Code = "detecting-entities"
 )
 
 // Valid indicates whether the value is a known member of the JobProgressMessage2Code enum.
 func (e JobProgressMessage2Code) Valid() bool {
+	switch e {
+	case DetectingEntities:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobProgressMessage3Code.
+const (
+	CreatingAnnotations    JobProgressMessage3Code = "creating-annotations"
+	CreatingTagAnnotations JobProgressMessage3Code = "creating-tag-annotations"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressMessage3Code enum.
+func (e JobProgressMessage3Code) Valid() bool {
 	switch e {
 	case CreatingAnnotations:
 		return true
@@ -674,13 +686,13 @@ func (e JobProgressMessage2Code) Valid() bool {
 	}
 }
 
-// Defines values for JobProgressMessage3Code.
+// Defines values for JobProgressMessage4Code.
 const (
-	CompleteCreated JobProgressMessage3Code = "complete-created"
+	CompleteCreated JobProgressMessage4Code = "complete-created"
 )
 
-// Valid indicates whether the value is a known member of the JobProgressMessage3Code enum.
-func (e JobProgressMessage3Code) Valid() bool {
+// Valid indicates whether the value is a known member of the JobProgressMessage4Code enum.
+func (e JobProgressMessage4Code) Valid() bool {
 	switch e {
 	case CompleteCreated:
 		return true
@@ -689,17 +701,17 @@ func (e JobProgressMessage3Code) Valid() bool {
 	}
 }
 
-// Defines values for JobProgressMessage3Kind.
+// Defines values for JobProgressMessage4Kind.
 const (
-	Assessment JobProgressMessage3Kind = "assessment"
-	Comment    JobProgressMessage3Kind = "comment"
-	Highlight  JobProgressMessage3Kind = "highlight"
-	Reference  JobProgressMessage3Kind = "reference"
-	Tag        JobProgressMessage3Kind = "tag"
+	Assessment JobProgressMessage4Kind = "assessment"
+	Comment    JobProgressMessage4Kind = "comment"
+	Highlight  JobProgressMessage4Kind = "highlight"
+	Reference  JobProgressMessage4Kind = "reference"
+	Tag        JobProgressMessage4Kind = "tag"
 )
 
-// Valid indicates whether the value is a known member of the JobProgressMessage3Kind enum.
-func (e JobProgressMessage3Kind) Valid() bool {
+// Valid indicates whether the value is a known member of the JobProgressMessage4Kind enum.
+func (e JobProgressMessage4Kind) Valid() bool {
 	switch e {
 	case Assessment:
 		return true
@@ -2773,6 +2785,9 @@ type JobGenerationResult struct {
 
 	// ResourceName Name of the generated resource
 	ResourceName string `json:"resourceName"`
+
+	// Truncated True when the model stopped at the maxTokens ceiling — the artifact is cut off, not complete. Derived at the producer from the provider's stopReason ('max_tokens' → true); required because the worker always knows (GENERATE-FROM-RESOURCE D6/P3a).
+	Truncated bool `json:"truncated"`
 }
 
 // JobGenerationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
@@ -2852,7 +2867,7 @@ type JobProgressMessage struct {
 	union json.RawMessage
 }
 
-// JobProgressMessage0 Codes that carry no params. `complete-generated` is generation's terminal success and is deliberately generic: the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress (GENERATE-FROM-RESOURCE D7/D8).
+// JobProgressMessage0 Codes that carry no params.
 type JobProgressMessage0 struct {
 	Code JobProgressMessage0Code `json:"code"`
 }
@@ -2860,44 +2875,55 @@ type JobProgressMessage0 struct {
 // JobProgressMessage0Code defines model for JobProgressMessage.0.Code.
 type JobProgressMessage0Code string
 
-// JobProgressMessage1 Entity detection, one entity type at a time.
+// JobProgressMessage1 Generation's terminal success. Deliberately generic — the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress (GENERATE-FROM-RESOURCE D7/D8). `truncated` qualifies the completion (D6): the same bit `JobGenerationResult.truncated` carries, so the two surfaces cannot drift.
 type JobProgressMessage1 struct {
 	Code JobProgressMessage1Code `json:"code"`
 
-	// EntityType Entity type currently being detected
-	EntityType string `json:"entityType"`
+	// Truncated True when the model stopped at the maxTokens ceiling — the artifact is cut off, not complete.
+	Truncated bool `json:"truncated"`
 }
 
 // JobProgressMessage1Code defines model for JobProgressMessage.1.Code.
 type JobProgressMessage1Code string
 
-// JobProgressMessage2 Writing detected annotations back to the resource.
+// JobProgressMessage2 Entity detection, one entity type at a time.
 type JobProgressMessage2 struct {
 	Code JobProgressMessage2Code `json:"code"`
 
-	// Count How many annotations are being created
-	Count int `json:"count"`
+	// EntityType Entity type currently being detected
+	EntityType string `json:"entityType"`
 }
 
 // JobProgressMessage2Code defines model for JobProgressMessage.2.Code.
 type JobProgressMessage2Code string
 
-// JobProgressMessage3 Terminal success summary.
+// JobProgressMessage3 Writing detected annotations back to the resource.
 type JobProgressMessage3 struct {
 	Code JobProgressMessage3Code `json:"code"`
 
-	// Count How many annotations were created
+	// Count How many annotations are being created
 	Count int `json:"count"`
-
-	// Kind What kind of annotation was created; clients pluralize/translate
-	Kind JobProgressMessage3Kind `json:"kind"`
 }
 
 // JobProgressMessage3Code defines model for JobProgressMessage.3.Code.
 type JobProgressMessage3Code string
 
-// JobProgressMessage3Kind What kind of annotation was created; clients pluralize/translate
-type JobProgressMessage3Kind string
+// JobProgressMessage4 Terminal success summary.
+type JobProgressMessage4 struct {
+	Code JobProgressMessage4Code `json:"code"`
+
+	// Count How many annotations were created
+	Count int `json:"count"`
+
+	// Kind What kind of annotation was created; clients pluralize/translate
+	Kind JobProgressMessage4Kind `json:"kind"`
+}
+
+// JobProgressMessage4Code defines model for JobProgressMessage.4.Code.
+type JobProgressMessage4Code string
+
+// JobProgressMessage4Kind What kind of annotation was created; clients pluralize/translate
+type JobProgressMessage4Kind string
 
 // JobQueuedEvent Event indicating a job has been queued
 type JobQueuedEvent struct {
@@ -7599,6 +7625,32 @@ func (t *JobProgressMessage) FromJobProgressMessage3(v JobProgressMessage3) erro
 
 // MergeJobProgressMessage3 performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressMessage3
 func (t *JobProgressMessage) MergeJobProgressMessage3(v JobProgressMessage3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobProgressMessage4 returns the union data inside the JobProgressMessage as a JobProgressMessage4
+func (t JobProgressMessage) AsJobProgressMessage4() (JobProgressMessage4, error) {
+	var body JobProgressMessage4
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobProgressMessage4 overwrites any union data inside the JobProgressMessage as the provided JobProgressMessage4
+func (t *JobProgressMessage) FromJobProgressMessage4(v JobProgressMessage4) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobProgressMessage4 performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressMessage4
+func (t *JobProgressMessage) MergeJobProgressMessage4(v JobProgressMessage4) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err

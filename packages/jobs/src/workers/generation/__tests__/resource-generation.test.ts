@@ -161,6 +161,26 @@ describe('generateResourceFromTopic', () => {
     expect(result.content).toContain('Quantum computing');
   });
 
+  // ── Truncation surfacing (GENERATE-FROM-RESOURCE P3a) ─────────────────────
+  // The provider's stopReason collapses to one protocol-owned bit at the
+  // producer (D6): 'max_tokens' → truncated, everything else → not.
+
+  it('derives truncated: true when the model stops on max_tokens', async () => {
+    client.setResponses(['Cut off mid-'], ['max_tokens']);
+
+    const result = await generateResourceFromTopic('Topic', [], client, LOGGER);
+
+    expect(result.truncated).toBe(true);
+  });
+
+  it('derives truncated: false on a natural stop', async () => {
+    client.setResponses(['Complete.'], ['end_turn']);
+
+    const result = await generateResourceFromTopic('Topic', [], client, LOGGER);
+
+    expect(result.truncated).toBe(false);
+  });
+
   // NOTE: the function uses the topic parameter as the title rather than extracting it
   // from the markdown heading — intentional (see resource-generation.ts). Kept as a skipped
   // record of the alternative (AI-generated titles overriding the topic).

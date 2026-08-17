@@ -16,7 +16,7 @@ type JobGenerationResult = components['schemas']['JobGenerationResult'];
 
 describe('JobGenerationResult — the id is always there (A1)', () => {
   it('a result with both fields is the wire shape', () => {
-    const full: JobGenerationResult = { kind: 'generation', resourceId: 'res-1', resourceName: 'Ouranos' };
+    const full: JobGenerationResult = { kind: 'generation', resourceId: 'res-1', resourceName: 'Ouranos', truncated: false };
     expect(full.resourceId).toBe('res-1');
   });
 
@@ -60,7 +60,7 @@ function describeResult(r: JobResult): string {
 
 describe('JobResult — the union discriminates (A2, A3)', () => {
   it('narrows every member by kind, castless', () => {
-    expect(describeResult({ kind: 'generation', resourceId: 'res-1', resourceName: 'Ouranos' })).toBe('Ouranos → res-1');
+    expect(describeResult({ kind: 'generation', resourceId: 'res-1', resourceName: 'Ouranos', truncated: false })).toBe('Ouranos → res-1');
     expect(describeResult({ kind: 'reference-annotation', totalFound: 4, totalEmitted: 3, errors: 0 })).toBe('3/4');
     expect(describeResult({ kind: 'highlight-annotation', highlightsFound: 2, highlightsCreated: 2 })).toBe('2/2');
     expect(describeResult({ kind: 'assessment-annotation', assessmentsFound: 1, assessmentsCreated: 1 })).toBe('1/1');

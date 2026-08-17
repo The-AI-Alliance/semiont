@@ -333,7 +333,7 @@ describe('ResourceInfoPanel Component', () => {
       const { client } = renderWithEventBus(
         <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
           isGenerating={false}
-          generationProgress={{ percentage: 100, message: { code: 'complete-generated' } }}
+          generationProgress={{ percentage: 100, message: { code: 'complete-generated', truncated: false } }}
           generationOutcome={{
             resourceId: makeResourceId('urn:semiont:resource:new1'),
             resourceName: 'Summary of PB',
@@ -354,7 +354,7 @@ describe('ResourceInfoPanel Component', () => {
       renderWithEventBus(
         <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
           isGenerating={false}
-          generationProgress={{ percentage: 100, message: { code: 'complete-generated' } }}
+          generationProgress={{ percentage: 100, message: { code: 'complete-generated', truncated: false } }}
           generationOutcome={null} />
       );
       expect(screen.queryByText('Summary of PB')).toBeNull();

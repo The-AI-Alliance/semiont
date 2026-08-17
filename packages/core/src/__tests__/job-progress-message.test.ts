@@ -21,8 +21,8 @@ describe('JobProgress message shape (A6, type half)', () => {
     const detecting: Message = { code: 'detecting-entities', entityType: 'Person' };
     const creating: Message = { code: 'creating-annotations', count: 3 };
     const done: Message = { code: 'complete-created', count: 3, kind: 'highlight' };
-    // Generation's terminal success — generic, no params (GENERATE-FROM-RESOURCE P1/D7).
-    const generated: Message = { code: 'complete-generated' };
+    // Generation's terminal success — generic plus the truncation bit (GENERATE-FROM-RESOURCE P1/D7, P3a/D6).
+    const generated: Message = { code: 'complete-generated', truncated: false };
     expect([bare, detecting, creating, done, generated].every((m) => typeof m === 'object')).toBe(true);
   });
 

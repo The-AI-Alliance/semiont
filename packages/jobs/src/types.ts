@@ -175,6 +175,8 @@ export interface GenerationResult {
   kind: 'generation';
   resourceId: ResourceId;
   resourceName: string;
+  /** True when the model stopped at the maxTokens ceiling — the artifact is cut off, not complete (GENERATE-FROM-RESOURCE D6). */
+  truncated: boolean;
 }
 
 /**

@@ -16,11 +16,16 @@
     "resourceName": {
       "type": "string",
       "description": "Name of the generated resource"
+    },
+    "truncated": {
+      "type": "boolean",
+      "description": "True when the model stopped at the maxTokens ceiling — the artifact is cut off, not complete. Derived at the producer from the provider's stopReason ('max_tokens' → true); required because the worker always knows (GENERATE-FROM-RESOURCE D6/P3a)."
     }
   },
   "required": [
     "kind",
     "resourceId",
-    "resourceName"
+    "resourceName",
+    "truncated"
   ]
 }
