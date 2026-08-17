@@ -269,17 +269,32 @@ func (e DiscoveryDocumentVersion) Valid() bool {
 	}
 }
 
-// Defines values for ExtractionOutcome0Method.
+// Defines values for ExtractedTextKind.
 const (
-	Form            ExtractionOutcome0Method = "form"
-	Ocr             ExtractionOutcome0Method = "ocr"
-	PdfTextLayer    ExtractionOutcome0Method = "pdf-text-layer"
-	Table           ExtractionOutcome0Method = "table"
-	TextPassthrough ExtractionOutcome0Method = "text-passthrough"
+	Extracted ExtractedTextKind = "extracted"
 )
 
-// Valid indicates whether the value is a known member of the ExtractionOutcome0Method enum.
-func (e ExtractionOutcome0Method) Valid() bool {
+// Valid indicates whether the value is a known member of the ExtractedTextKind enum.
+func (e ExtractedTextKind) Valid() bool {
+	switch e {
+	case Extracted:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExtractedTextMethod.
+const (
+	Form            ExtractedTextMethod = "form"
+	Ocr             ExtractedTextMethod = "ocr"
+	PdfTextLayer    ExtractedTextMethod = "pdf-text-layer"
+	Table           ExtractedTextMethod = "table"
+	TextPassthrough ExtractedTextMethod = "text-passthrough"
+)
+
+// Valid indicates whether the value is a known member of the ExtractedTextMethod enum.
+func (e ExtractedTextMethod) Valid() bool {
 	switch e {
 	case Form:
 		return true
@@ -296,19 +311,19 @@ func (e ExtractionOutcome0Method) Valid() bool {
 	}
 }
 
-// Defines values for ExtractionOutcome0PdfClass.
+// Defines values for ExtractedTextPdfClass.
 const (
-	A ExtractionOutcome0PdfClass = "A"
-	B ExtractionOutcome0PdfClass = "B"
-	C ExtractionOutcome0PdfClass = "C"
-	D ExtractionOutcome0PdfClass = "D"
-	E ExtractionOutcome0PdfClass = "E"
-	F ExtractionOutcome0PdfClass = "F"
-	G ExtractionOutcome0PdfClass = "G"
+	A ExtractedTextPdfClass = "A"
+	B ExtractedTextPdfClass = "B"
+	C ExtractedTextPdfClass = "C"
+	D ExtractedTextPdfClass = "D"
+	E ExtractedTextPdfClass = "E"
+	F ExtractedTextPdfClass = "F"
+	G ExtractedTextPdfClass = "G"
 )
 
-// Valid indicates whether the value is a known member of the ExtractionOutcome0PdfClass enum.
-func (e ExtractionOutcome0PdfClass) Valid() bool {
+// Valid indicates whether the value is a known member of the ExtractedTextPdfClass enum.
+func (e ExtractedTextPdfClass) Valid() bool {
 	switch e {
 	case A:
 		return true
@@ -329,24 +344,39 @@ func (e ExtractionOutcome0PdfClass) Valid() bool {
 	}
 }
 
-// Defines values for ExtractionOutcome1Declined.
+// Defines values for ExtractionDeclinedDeclined.
 const (
-	ExtractionOutcome1DeclinedCorrupt     ExtractionOutcome1Declined = "corrupt"
-	ExtractionOutcome1DeclinedEncrypted   ExtractionOutcome1Declined = "encrypted"
-	ExtractionOutcome1DeclinedNoTextLayer ExtractionOutcome1Declined = "no-text-layer"
-	ExtractionOutcome1DeclinedTooLarge    ExtractionOutcome1Declined = "too-large"
+	ExtractionDeclinedDeclinedCorrupt     ExtractionDeclinedDeclined = "corrupt"
+	ExtractionDeclinedDeclinedEncrypted   ExtractionDeclinedDeclined = "encrypted"
+	ExtractionDeclinedDeclinedNoTextLayer ExtractionDeclinedDeclined = "no-text-layer"
+	ExtractionDeclinedDeclinedTooLarge    ExtractionDeclinedDeclined = "too-large"
 )
 
-// Valid indicates whether the value is a known member of the ExtractionOutcome1Declined enum.
-func (e ExtractionOutcome1Declined) Valid() bool {
+// Valid indicates whether the value is a known member of the ExtractionDeclinedDeclined enum.
+func (e ExtractionDeclinedDeclined) Valid() bool {
 	switch e {
-	case ExtractionOutcome1DeclinedCorrupt:
+	case ExtractionDeclinedDeclinedCorrupt:
 		return true
-	case ExtractionOutcome1DeclinedEncrypted:
+	case ExtractionDeclinedDeclinedEncrypted:
 		return true
-	case ExtractionOutcome1DeclinedNoTextLayer:
+	case ExtractionDeclinedDeclinedNoTextLayer:
 		return true
-	case ExtractionOutcome1DeclinedTooLarge:
+	case ExtractionDeclinedDeclinedTooLarge:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExtractionDeclinedKind.
+const (
+	ExtractionDeclinedKindDeclined ExtractionDeclinedKind = "declined"
+)
+
+// Valid indicates whether the value is a known member of the ExtractionDeclinedKind enum.
+func (e ExtractionDeclinedKind) Valid() bool {
+	switch e {
+	case ExtractionDeclinedKindDeclined:
 		return true
 	default:
 		return false
@@ -499,13 +529,13 @@ func (e JobDeclinedResultDeclined) Valid() bool {
 
 // Defines values for JobDeclinedResultKind.
 const (
-	Declined JobDeclinedResultKind = "declined"
+	JobDeclinedResultKindDeclined JobDeclinedResultKind = "declined"
 )
 
 // Valid indicates whether the value is a known member of the JobDeclinedResultKind enum.
 func (e JobDeclinedResultKind) Valid() bool {
 	switch e {
-	case Declined:
+	case JobDeclinedResultKindDeclined:
 		return true
 	default:
 		return false
@@ -2226,18 +2256,16 @@ type EventStreamResponse struct {
 	Id    *string `json:"id,omitempty"`
 }
 
-// ExtractionOutcome The full outcome of text extraction for one representation — the record the anchored-text store holds and the wire serves (PERSIST-ANCHORS decision D1). Either a success (the anchored text plus its provenance: how it was extracted, what class of PDF it came from, how confident OCR was, which pages could not be read) or a named decline. A decline is a first-class, cacheable outcome: 'we ran and there was nothing' costs a full recognition pass to discover. ocrConfidence is extraction quality for operators, deliberately not anchor confidence.
-type ExtractionOutcome struct {
-	union json.RawMessage
-}
-
-// ExtractionOutcome0 defines model for .
-type ExtractionOutcome0 struct {
+// ExtractedText defines model for ExtractedText.
+type ExtractedText struct {
 	// Items Positioned runs indexing `text`, roughly one per word.
 	Items []PdfTextItem `json:"items"`
 
+	// Kind Discriminant — both ExtractionOutcome members carry `kind`, single-valued (D6: category here, detail in `method`).
+	Kind ExtractedTextKind `json:"kind"`
+
 	// Method How the text was extracted.
-	Method ExtractionOutcome0Method `json:"method"`
+	Method ExtractedTextMethod `json:"method"`
 
 	// OcrConfidence How well the engine read the pixels, when any of this text came from OCR.
 	OcrConfidence *struct {
@@ -2250,7 +2278,7 @@ type ExtractionOutcome0 struct {
 	} `json:"ocrConfidence,omitempty"`
 
 	// PdfClass PDF classification, when the source was a PDF.
-	PdfClass *ExtractionOutcome0PdfClass `json:"pdfClass,omitempty"`
+	PdfClass *ExtractedTextPdfClass `json:"pdfClass,omitempty"`
 
 	// Text Reading-order text of the whole resource.
 	Text string `json:"text"`
@@ -2259,20 +2287,34 @@ type ExtractionOutcome0 struct {
 	UnreadPages *[]int `json:"unreadPages,omitempty"`
 }
 
-// ExtractionOutcome0Method How the text was extracted.
-type ExtractionOutcome0Method string
+// ExtractedTextKind Discriminant — both ExtractionOutcome members carry `kind`, single-valued (D6: category here, detail in `method`).
+type ExtractedTextKind string
 
-// ExtractionOutcome0PdfClass PDF classification, when the source was a PDF.
-type ExtractionOutcome0PdfClass string
+// ExtractedTextMethod How the text was extracted.
+type ExtractedTextMethod string
 
-// ExtractionOutcome1 defines model for .
-type ExtractionOutcome1 struct {
+// ExtractedTextPdfClass PDF classification, when the source was a PDF.
+type ExtractedTextPdfClass string
+
+// ExtractionDeclined A named decline: extraction ran and yielded nothing, by class. A first-class, cacheable outcome — 'we ran and there was nothing' costs a full recognition pass to discover.
+type ExtractionDeclined struct {
 	// Declined Why extraction yielded nothing, by class.
-	Declined ExtractionOutcome1Declined `json:"declined"`
+	Declined ExtractionDeclinedDeclined `json:"declined"`
+
+	// Kind Discriminant — both ExtractionOutcome members carry `kind`, single-valued (D6: category here, detail in `declined`).
+	Kind ExtractionDeclinedKind `json:"kind"`
 }
 
-// ExtractionOutcome1Declined Why extraction yielded nothing, by class.
-type ExtractionOutcome1Declined string
+// ExtractionDeclinedDeclined Why extraction yielded nothing, by class.
+type ExtractionDeclinedDeclined string
+
+// ExtractionDeclinedKind Discriminant — both ExtractionOutcome members carry `kind`, single-valued (D6: category here, detail in `declined`).
+type ExtractionDeclinedKind string
+
+// ExtractionOutcome The full outcome of text extraction for one representation — the record the anchored-text store holds and the wire serves (PERSIST-ANCHORS decision D1). Discriminated on `kind` (WIRE-UNION-DISCRIMINANTS P5c/D6): 'extracted' — the anchored text with its provenance; 'declined' — a named decline. ocrConfidence is extraction quality for operators, deliberately not anchor confidence.
+type ExtractionOutcome struct {
+	union json.RawMessage
+}
 
 // FileEntry defines model for FileEntry.
 type FileEntry struct {
@@ -7595,22 +7637,24 @@ func (t *DirectoryEntry) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsExtractionOutcome0 returns the union data inside the ExtractionOutcome as a ExtractionOutcome0
-func (t ExtractionOutcome) AsExtractionOutcome0() (ExtractionOutcome0, error) {
-	var body ExtractionOutcome0
+// AsExtractedText returns the union data inside the ExtractionOutcome as a ExtractedText
+func (t ExtractionOutcome) AsExtractedText() (ExtractedText, error) {
+	var body ExtractedText
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromExtractionOutcome0 overwrites any union data inside the ExtractionOutcome as the provided ExtractionOutcome0
-func (t *ExtractionOutcome) FromExtractionOutcome0(v ExtractionOutcome0) error {
+// FromExtractedText overwrites any union data inside the ExtractionOutcome as the provided ExtractedText
+func (t *ExtractionOutcome) FromExtractedText(v ExtractedText) error {
+	v.Kind = "extracted"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeExtractionOutcome0 performs a merge with any union data inside the ExtractionOutcome, using the provided ExtractionOutcome0
-func (t *ExtractionOutcome) MergeExtractionOutcome0(v ExtractionOutcome0) error {
+// MergeExtractedText performs a merge with any union data inside the ExtractionOutcome, using the provided ExtractedText
+func (t *ExtractionOutcome) MergeExtractedText(v ExtractedText) error {
+	v.Kind = "extracted"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7621,22 +7665,24 @@ func (t *ExtractionOutcome) MergeExtractionOutcome0(v ExtractionOutcome0) error 
 	return err
 }
 
-// AsExtractionOutcome1 returns the union data inside the ExtractionOutcome as a ExtractionOutcome1
-func (t ExtractionOutcome) AsExtractionOutcome1() (ExtractionOutcome1, error) {
-	var body ExtractionOutcome1
+// AsExtractionDeclined returns the union data inside the ExtractionOutcome as a ExtractionDeclined
+func (t ExtractionOutcome) AsExtractionDeclined() (ExtractionDeclined, error) {
+	var body ExtractionDeclined
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromExtractionOutcome1 overwrites any union data inside the ExtractionOutcome as the provided ExtractionOutcome1
-func (t *ExtractionOutcome) FromExtractionOutcome1(v ExtractionOutcome1) error {
+// FromExtractionDeclined overwrites any union data inside the ExtractionOutcome as the provided ExtractionDeclined
+func (t *ExtractionOutcome) FromExtractionDeclined(v ExtractionDeclined) error {
+	v.Kind = "declined"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeExtractionOutcome1 performs a merge with any union data inside the ExtractionOutcome, using the provided ExtractionOutcome1
-func (t *ExtractionOutcome) MergeExtractionOutcome1(v ExtractionOutcome1) error {
+// MergeExtractionDeclined performs a merge with any union data inside the ExtractionOutcome, using the provided ExtractionDeclined
+func (t *ExtractionOutcome) MergeExtractionDeclined(v ExtractionDeclined) error {
+	v.Kind = "declined"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7645,6 +7691,29 @@ func (t *ExtractionOutcome) MergeExtractionOutcome1(v ExtractionOutcome1) error 
 	merged, err := runtime.JSONMerge(t.union, b)
 	t.union = merged
 	return err
+}
+
+func (t ExtractionOutcome) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"kind"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t ExtractionOutcome) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "declined":
+		return t.AsExtractionDeclined()
+	case "extracted":
+		return t.AsExtractedText()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
 }
 
 func (t ExtractionOutcome) MarshalJSON() ([]byte, error) {
