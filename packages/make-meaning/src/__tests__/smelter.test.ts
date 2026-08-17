@@ -459,6 +459,7 @@ describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
     // obtained. So the projection that carries the text carries the fact.
     const h = await pdfHarness({ 'res-scan': SCANNED_PDF });
     vi.mocked(EXTRACTORS['pdf-text-layer']!.extract).mockResolvedValueOnce({
+      kind: 'extracted',
       text: 'recovered from a scan',
       items: [],
       method: 'ocr',
@@ -481,7 +482,7 @@ describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
     // lose the provenance the other half carries.
     const h = await pdfHarness({ 'res-scan': SCANNED_PDF });
     vi.mocked(EXTRACTORS['pdf-text-layer']!.extract).mockResolvedValueOnce({
-      text: 'recovered from a scan', items: [], method: 'ocr', pdfClass: 'B',
+      kind: 'extracted', text: 'recovered from a scan', items: [], method: 'ocr', pdfClass: 'B',
     });
     try {
       h.events$.next({ type: 'yield:created', resourceId: 'res-scan', payload: {} });
@@ -832,7 +833,7 @@ describe('Smelter.reconcile — anchored-text re-derivation (PERSIST-ANCHORS P0)
       // under their checksum (P1b).
       const restored = anchored.get(LOSTMAP_CHECKSUM);
       expect(restored).toBeDefined();
-      if (!restored || 'declined' in restored) throw new Error('expected a restored success outcome');
+      if (!restored || restored.kind === 'declined') throw new Error('expected a restored success outcome');
       expect(restored.items.length).toBeGreaterThan(0);
       // Re-anchoring re-runs EXTRACTION, never embedding: the vectors are
       // already correct and only the map was missing (the S13 discipline —
@@ -846,14 +847,14 @@ describe('Smelter.reconcile — anchored-text re-derivation (PERSIST-ANCHORS P0)
 
   it('plans nothing when the artifact is present (do-not-cry-wolf)', async () => {
     const anchored = new Map<string, ExtractionOutcome>();
-    anchored.set(LOSTMAP_CHECKSUM, { text: 'already here', items: [], method: 'ocr' });
+    anchored.set(LOSTMAP_CHECKSUM, { kind: 'extracted', text: 'already here', items: [], method: 'ocr' });
     const { smelter, embeddingProvider } = await reanchorHarness(anchored);
     try {
       await smelter.reconcile();
 
       // The seeded artifact was not overwritten and nothing embedded — a
       // present artifact under a current checksum is a healthy resource.
-      expect(anchored.get(LOSTMAP_CHECKSUM)).toEqual({ text: 'already here', items: [], method: 'ocr' });
+      expect(anchored.get(LOSTMAP_CHECKSUM)).toEqual({ kind: 'extracted', text: 'already here', items: [], method: 'ocr' });
       expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
     } finally {
       smelter.stop();
@@ -870,10 +871,11 @@ describe('Smelter embed consults the artifact store before extracting (PERSIST-A
   // PDF's own text layer.
   it('embeds the stored outcome on a cache hit', async () => {
     const checksum = calculateChecksum(Buffer.from(NATIVE_PDF));
-    const stored: ExtractionOutcome = {
+    const stored = {
+      kind: 'extracted' as const,
       text: 'stored text from the artifact cache',
       items: [{ start: 0, end: 6, page: 1, x: 72, y: 720, width: 40, height: 12 }],
-      method: 'ocr',
+      method: 'ocr' as const,
     };
     const anchored = new Map<string, ExtractionOutcome>();
     anchored.set(checksum, stored);

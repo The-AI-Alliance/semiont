@@ -202,12 +202,16 @@ func Mark(args []string) int {
 		target.Selector = &u
 	}
 
+	// The `type` discriminant is NOT set here: AnnotationBody declares one in
+	// the schema, so the generated From* stamps it on the way in. A literal
+	// beside these fields would be overwritten with the same value — and would
+	// quietly absorb a typo rather than failing.
 	var bodies []semiont.AnnotationBody
 	if bodyText != "" {
 		var b semiont.AnnotationBody
 		purpose := semiont.BodyPurpose("commenting")
 		if err := b.FromTextualBody(semiont.TextualBody{
-			Type: "TextualBody", Value: bodyText, Purpose: &purpose,
+			Value: bodyText, Purpose: &purpose,
 		}); err != nil {
 			return markBuildFail(err)
 		}
@@ -217,7 +221,7 @@ func Mark(args []string) int {
 		var b semiont.AnnotationBody
 		purpose := semiont.BodyPurpose("linking")
 		if err := b.FromSpecificResource(semiont.SpecificResource{
-			Type: "SpecificResource", Source: link, Purpose: &purpose,
+			Source: link, Purpose: &purpose,
 		}); err != nil {
 			return markBuildFail(err)
 		}

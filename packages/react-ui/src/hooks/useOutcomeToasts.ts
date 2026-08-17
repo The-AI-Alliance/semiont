@@ -1,4 +1,3 @@
-import type { components } from '@semiont/core';
 import { useToast } from '../components/Toast';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { declineReason } from '../lib/job-outcome';
@@ -74,11 +73,12 @@ export function useOutcomeToasts(resourceId: string): void {
     },
     'job:complete': (event) => {
       if (event.resourceId !== resourceId) return;
-      if (event.jobType === 'generation') {
-        const result = event.result as components['schemas']['JobGenerationResult'] | undefined;
-        const name = result?.resourceName;
-        showSuccess(name
-          ? t('resourceCreatedNamed', { name })
+      // The union discriminates (WIRE-UNION-DISCRIMINANTS D1): the result
+      // names its own kind, so no cast and no reliance on the envelope's
+      // jobType to know what arrived.
+      if (event.result?.kind === 'generation') {
+        showSuccess(event.result.resourceName
+          ? t('resourceCreatedNamed', { name: event.result.resourceName })
           : t('resourceCreated'));
         return;
       }

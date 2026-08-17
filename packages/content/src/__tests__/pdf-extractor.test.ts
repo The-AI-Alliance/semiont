@@ -31,7 +31,7 @@ describe('pdfExtractor (Phase 1 registry slot)', () => {
         expect(ex).not.toBeNull();
         const out = await ex!.extract(readFixture('single-line.pdf'), 'application/pdf');
         expect(out).not.toHaveProperty('declined');
-        if ('declined' in out) throw new Error('unreachable');
+        if (out.kind === 'declined') throw new Error('unreachable');
         expect(out.text).toContain(KNOWN_PHRASE);
         expect(out.method).toBe('pdf-text-layer');
         expect(out.pdfClass).toBe('A');
@@ -44,14 +44,14 @@ describe('pdfExtractor (Phase 1 registry slot)', () => {
         const ex = EXTRACTORS['pdf-text-layer'];
         expect(ex).not.toBeNull();
         const out = await ex!.extract(readFixture('scanned.pdf'), 'application/pdf');
-        expect(out).toEqual({ declined: 'no-text-layer' });
+        expect(out).toEqual({ kind: 'declined', declined: 'no-text-layer' });
     });
 
     it("class G: corrupt bytes decline 'corrupt'", async () => {
         const ex = EXTRACTORS['pdf-text-layer'];
         expect(ex).not.toBeNull();
         const out = await ex!.extract(Buffer.from('not a pdf at all', 'utf8'), 'application/pdf');
-        expect(out).toEqual({ declined: 'corrupt' });
+        expect(out).toEqual({ kind: 'declined', declined: 'corrupt' });
     });
 });
 
@@ -64,7 +64,7 @@ describe('class C — hybrid native/scanned routing (Phase 3)', () => {
 
     it('names the pages it could not read, and labels the document hybrid', async () => {
         const out = await extract('mixed.pdf');
-        if ('declined' in out) throw new Error(`unexpected decline: ${out.declined}`);
+        if (out.kind === 'declined') throw new Error(`unexpected decline: ${out.declined}`);
         expect(out.pdfClass).toBe('C');
         expect(out.unreadPages).toEqual([2]);
         // Partial coverage still yields what it can — page 1 embeds today.
@@ -73,7 +73,7 @@ describe('class C — hybrid native/scanned routing (Phase 3)', () => {
 
     it('a fully native document reports no gap', async () => {
         const out = await extract('multi-page.pdf');
-        if ('declined' in out) throw new Error(`unexpected decline: ${out.declined}`);
+        if (out.kind === 'declined') throw new Error(`unexpected decline: ${out.declined}`);
         expect(out.pdfClass).toBe('A');
         expect(out.unreadPages).toBeUndefined();
     });
@@ -84,7 +84,7 @@ describe('class C — hybrid native/scanned routing (Phase 3)', () => {
     // where OCR *does* recover text.
     it('a scan OCR cannot read declines', async () => {
         const out = await extract('scanned-image.pdf');
-        expect(out).toEqual({ declined: 'no-text-layer' });
+        expect(out).toEqual({ kind: 'declined', declined: 'no-text-layer' });
     });
 });
 
@@ -93,7 +93,7 @@ describe('class D — table structure (Phase 2)', () => {
         const ex = EXTRACTORS['pdf-text-layer'];
         expect(ex).not.toBeNull();
         const out = await ex!.extract(readFixture(fixture), 'application/pdf');
-        if ('declined' in out) throw new Error(`unexpected decline: ${out.declined}`);
+        if (out.kind === 'declined') throw new Error(`unexpected decline: ${out.declined}`);
         return out;
     };
 
@@ -138,7 +138,7 @@ describe('class E — AcroForm field values (Phase 2)', () => {
         const ex = EXTRACTORS['pdf-text-layer'];
         expect(ex).not.toBeNull();
         const out = await ex!.extract(readFixture(fixture), 'application/pdf');
-        if ('declined' in out) throw new Error(`unexpected decline: ${out.declined}`);
+        if (out.kind === 'declined') throw new Error(`unexpected decline: ${out.declined}`);
         return out;
     };
 

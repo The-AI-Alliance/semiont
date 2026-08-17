@@ -8,8 +8,26 @@ import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 import type { YieldGenerationEvent } from '../../../namespaces/types';
 
 type JobProgress = components['schemas']['JobProgress'];
+type JobCompleteCommand = components['schemas']['JobCompleteCommand'];
 
 const progressEvent = (p: JobProgress): YieldGenerationEvent => ({ kind: 'progress', data: p });
+
+const completeEvent = (result?: JobCompleteCommand['result']): YieldGenerationEvent => ({
+  kind: 'complete',
+  data: {
+    resourceId: 'res-1',
+    jobId: 'job-1',
+    jobType: 'generation',
+    ...(result ? { result } : {}),
+  },
+});
+
+const GEN_RESULT: JobCompleteCommand['result'] = {
+  kind: 'generation',
+  resourceId: 'res-new-1',
+  resourceName: 'Summary of PB',
+  truncated: false,
+};
 
 // fromContext derives every id FROM the focus — the state unit passes the
 // context through untouched, so these fixtures are the whole identity story.
@@ -205,6 +223,94 @@ describe('createYieldStateUnit', () => {
     vi.useRealTimers();
   });
 
+  // ── The outcome (GENERATE-FROM-RESOURCE P2, D8) ─────────────────────────────
+  // The link's fields come from `job:complete` — the broadcast, after citations
+  // attach — which the driven stream already delivers as its `complete`-kind
+  // event. The unit holds them so the terminal frame can render a link long
+  // after the event has passed.
+
+  it('outcome$ starts null and stays null through progress', () => {
+    const progressSubject = new Subject<YieldGenerationEvent>();
+    tc = withYield(vi.fn(() => progressSubject.asObservable()));
+    const stateUnit = createYieldStateUnit(tc.client, 'en');
+    const out: unknown[] = [];
+    stateUnit.outcome$.subscribe(v => out.push(v));
+
+    stateUnit.generate(CTX_RES, { title: 'T', storageUri: 's' });
+    progressSubject.next(progressEvent(makeProgress({ percentage: 95 })));
+
+    expect(out.every(v => v === null)).toBe(true);
+    stateUnit.dispose();
+  });
+
+  it('outcome$ emits the generation result from the stream complete event', () => {
+    const progressSubject = new Subject<YieldGenerationEvent>();
+    tc = withYield(vi.fn(() => progressSubject.asObservable()));
+    const stateUnit = createYieldStateUnit(tc.client, 'en');
+    const out: unknown[] = [];
+    stateUnit.outcome$.subscribe(v => out.push(v));
+
+    stateUnit.generate(CTX_RES, { title: 'Summary of PB', storageUri: 's' });
+    progressSubject.next(completeEvent(GEN_RESULT));
+    progressSubject.complete();
+
+    expect(out.at(-1)).toEqual({ resourceId: 'res-new-1', resourceName: 'Summary of PB' });
+    stateUnit.dispose();
+  });
+
+  it('a complete event without a generation result leaves outcome$ null', () => {
+    const progressSubject = new Subject<YieldGenerationEvent>();
+    tc = withYield(vi.fn(() => progressSubject.asObservable()));
+    const stateUnit = createYieldStateUnit(tc.client, 'en');
+    const out: unknown[] = [];
+    stateUnit.outcome$.subscribe(v => out.push(v));
+
+    stateUnit.generate(CTX_RES, { title: 'T', storageUri: 's' });
+    progressSubject.next(completeEvent());
+    progressSubject.complete();
+
+    expect(out.at(-1)).toBeNull();
+    stateUnit.dispose();
+  });
+
+  it('dismissProgress clears the outcome with the frame that displayed it', () => {
+    const progressSubject = new Subject<YieldGenerationEvent>();
+    tc = withYield(vi.fn(() => progressSubject.asObservable()));
+    const stateUnit = createYieldStateUnit(tc.client, 'en');
+    const out: unknown[] = [];
+    stateUnit.outcome$.subscribe(v => out.push(v));
+
+    stateUnit.generate(CTX_RES, { title: 'T', storageUri: 's' });
+    progressSubject.next(completeEvent(GEN_RESULT));
+    progressSubject.complete();
+    expect(out.at(-1)).not.toBeNull();
+
+    stateUnit.dismissProgress();
+    expect(out.at(-1)).toBeNull();
+    stateUnit.dispose();
+  });
+
+  it('a new generate() clears the previous outcome', () => {
+    const first = new Subject<YieldGenerationEvent>();
+    const second = new Subject<YieldGenerationEvent>();
+    const fromContextFn = vi.fn()
+      .mockReturnValueOnce(first.asObservable())
+      .mockReturnValueOnce(second.asObservable());
+    tc = withYield(fromContextFn);
+    const stateUnit = createYieldStateUnit(tc.client, 'en');
+    const out: unknown[] = [];
+    stateUnit.outcome$.subscribe(v => out.push(v));
+
+    stateUnit.generate(CTX_RES, { title: 'T', storageUri: 's' });
+    first.next(completeEvent(GEN_RESULT));
+    first.complete();
+    expect(out.at(-1)).not.toBeNull();
+
+    stateUnit.generate(CTX_RES, { title: 'T2', storageUri: 's2' });
+    expect(out.at(-1)).toBeNull();
+    stateUnit.dispose();
+  });
+
   it('stops responding after dispose', () => {
     const progressSubject = new Subject<YieldGenerationEvent>();
     const fromContextFn = vi.fn(() => progressSubject.asObservable());
@@ -234,7 +340,7 @@ describe('YieldStateUnit — StateUnit axioms', () => {
         const tc = makeTestClient({ yield: { fromContext: vi.fn(stub) } });
         return { unit: createYieldStateUnit(tc.client, 'en'), teardown: () => tc.bus.destroy() };
       },
-      surfaces: (u) => [u.isGenerating$, u.progress$],
+      surfaces: (u) => [u.isGenerating$, u.progress$, u.outcome$],
       invocations: (u) => [() => u.generate(CTX_ANN, opts), () => u.generate(CTX_RES, opts)],
       numRuns: 15,
     });

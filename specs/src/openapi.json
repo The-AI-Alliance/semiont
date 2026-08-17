@@ -117,6 +117,15 @@
       "Agent": {
         "$ref": "components/schemas/Agent.json"
       },
+      "AgentOrganization": {
+        "$ref": "components/schemas/AgentOrganization.json"
+      },
+      "AgentPerson": {
+        "$ref": "components/schemas/AgentPerson.json"
+      },
+      "AgentSoftware": {
+        "$ref": "components/schemas/AgentSoftware.json"
+      },
       "Annotation": {
         "$ref": "components/schemas/Annotation.json"
       },
@@ -366,6 +375,12 @@
       "EventStreamResponse": {
         "$ref": "components/schemas/EventStreamResponse.json"
       },
+      "ExtractedText": {
+        "$ref": "components/schemas/ExtractedText.json"
+      },
+      "ExtractionDeclined": {
+        "$ref": "components/schemas/ExtractionDeclined.json"
+      },
       "ExtractionOutcome": {
         "$ref": "components/schemas/ExtractionOutcome.json"
       },
@@ -488,6 +503,36 @@
       },
       "JobProgressMessage": {
         "$ref": "components/schemas/JobProgressMessage.json"
+      },
+      "JobProgressAnalyzing": {
+        "$ref": "components/schemas/JobProgressAnalyzing.json"
+      },
+      "JobProgressAnalyzingTags": {
+        "$ref": "components/schemas/JobProgressAnalyzingTags.json"
+      },
+      "JobProgressCompleteCreated": {
+        "$ref": "components/schemas/JobProgressCompleteCreated.json"
+      },
+      "JobProgressCompleteGenerated": {
+        "$ref": "components/schemas/JobProgressCompleteGenerated.json"
+      },
+      "JobProgressCreatingAnnotations": {
+        "$ref": "components/schemas/JobProgressCreatingAnnotations.json"
+      },
+      "JobProgressCreatingResource": {
+        "$ref": "components/schemas/JobProgressCreatingResource.json"
+      },
+      "JobProgressCreatingTagAnnotations": {
+        "$ref": "components/schemas/JobProgressCreatingTagAnnotations.json"
+      },
+      "JobProgressDetectingEntities": {
+        "$ref": "components/schemas/JobProgressDetectingEntities.json"
+      },
+      "JobProgressGeneratingResource": {
+        "$ref": "components/schemas/JobProgressGeneratingResource.json"
+      },
+      "JobProgressLoading": {
+        "$ref": "components/schemas/JobProgressLoading.json"
       },
       "JobQueuedEvent": {
         "$ref": "components/schemas/JobQueuedEvent.json"

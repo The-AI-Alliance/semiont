@@ -287,6 +287,24 @@ semiont.yield.fromContext(resourceContext, {
   complete: () => console.log('Resource generated'),
 });
 
+// The OUTCOME. `job:complete.result` is a discriminated union on `kind`
+// (the six job types + 'declined'), so it narrows without a cast — and an
+// unhandled member is a compile error, never a runtime surprise.
+const done = await semiont.yield.fromContext(gatheredContext, {
+  title: 'Generated Summary',
+  storageUri: 'file://generated/summary.md',
+});
+if (done.kind === 'complete' && done.data.result?.kind === 'generation') {
+  const { resourceId, resourceName, truncated } = done.data.result;
+  // resourceId is SAFE TO LINK: the worker emits job:complete only after
+  // every cite-minted citation annotation has attached — the ordering
+  // guarantee documented in the Yield flow. (yield:create-ok fires earlier,
+  // when the row exists, and answers only its own caller.)
+  // truncated=true means the model stopped at the maxTokens ceiling — the
+  // artifact is cut off, not complete. Say so; don't report a clean success.
+  console.log(resourceName, resourceId, truncated ? '(truncated)' : '');
+}
+
 // Clone
 const { token } = await semiont.yield.cloneToken(resourceId);
 const source = await semiont.yield.fromToken(token);

@@ -1,48 +1,50 @@
 {
-  "description": "What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). The vocabulary is the census of every onProgress call site in @semiont/jobs (.plans/ASSIST-PROGRESS-CONSOLIDATION.md P1, 2026-08-12); extending it means adding a variant here and copy in every client, gated by the locale-completeness check.",
+  "description": "What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). One named schema per code, discriminated on `code` (WIRE-UNION-DISCRIMINANTS P5b), so generated clients get typed variants and copy-map completeness is statically checkable. The vocabulary is the census of every onProgress call site in @semiont/jobs (.plans/ASSIST-PROGRESS-CONSOLIDATION.md P1); extending it means adding a named variant here and copy in every client, gated by the locale-completeness check.",
   "oneOf": [
     {
-      "type": "object",
-      "description": "Codes that carry no params.",
-      "properties": {
-        "code": {
-          "type": "string",
-          "enum": ["loading", "analyzing", "analyzing-tags", "generating-resource", "creating-resource"]
-        }
-      },
-      "required": ["code"]
+      "$ref": "./JobProgressLoading.json"
     },
     {
-      "type": "object",
-      "description": "Entity detection, one entity type at a time.",
-      "properties": {
-        "code": { "type": "string", "enum": ["detecting-entities"] },
-        "entityType": { "type": "string", "description": "Entity type currently being detected" }
-      },
-      "required": ["code", "entityType"]
+      "$ref": "./JobProgressAnalyzing.json"
     },
     {
-      "type": "object",
-      "description": "Writing detected annotations back to the resource.",
-      "properties": {
-        "code": { "type": "string", "enum": ["creating-annotations", "creating-tag-annotations"] },
-        "count": { "type": "integer", "description": "How many annotations are being created" }
-      },
-      "required": ["code", "count"]
+      "$ref": "./JobProgressAnalyzingTags.json"
     },
     {
-      "type": "object",
-      "description": "Terminal success summary.",
-      "properties": {
-        "code": { "type": "string", "enum": ["complete-created"] },
-        "count": { "type": "integer", "description": "How many annotations were created" },
-        "kind": {
-          "type": "string",
-          "enum": ["highlight", "comment", "assessment", "reference", "tag"],
-          "description": "What kind of annotation was created; clients pluralize/translate"
-        }
-      },
-      "required": ["code", "count", "kind"]
+      "$ref": "./JobProgressGeneratingResource.json"
+    },
+    {
+      "$ref": "./JobProgressCreatingResource.json"
+    },
+    {
+      "$ref": "./JobProgressCompleteGenerated.json"
+    },
+    {
+      "$ref": "./JobProgressDetectingEntities.json"
+    },
+    {
+      "$ref": "./JobProgressCreatingAnnotations.json"
+    },
+    {
+      "$ref": "./JobProgressCreatingTagAnnotations.json"
+    },
+    {
+      "$ref": "./JobProgressCompleteCreated.json"
     }
-  ]
+  ],
+  "discriminator": {
+    "propertyName": "code",
+    "mapping": {
+      "loading": "./JobProgressLoading.json",
+      "analyzing": "./JobProgressAnalyzing.json",
+      "analyzing-tags": "./JobProgressAnalyzingTags.json",
+      "generating-resource": "./JobProgressGeneratingResource.json",
+      "creating-resource": "./JobProgressCreatingResource.json",
+      "complete-generated": "./JobProgressCompleteGenerated.json",
+      "detecting-entities": "./JobProgressDetectingEntities.json",
+      "creating-annotations": "./JobProgressCreatingAnnotations.json",
+      "creating-tag-annotations": "./JobProgressCreatingTagAnnotations.json",
+      "complete-created": "./JobProgressCompleteCreated.json"
+    }
+  }
 }

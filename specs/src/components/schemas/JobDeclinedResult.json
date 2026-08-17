@@ -1,13 +1,20 @@
 {
   "type": "object",
-  "description": "Result of a job that completed without doing its work because the resource could not be read. Distinct from a failure: nothing went wrong, there was simply no text to work with \u2014 an encrypted or damaged PDF, a scan whose text could not be recognized, or a document that yielded nothing. The reasons are the extraction vocabulary the Smelter reports on `smelt:settled`, MINUS `no-extractor`: a media type that can never yield text (a zip, an image) is a bad request rather than a decline, so a worker asked to detect over one throws and the job reports `job:fail`. Everything here is a resource-specific outcome \u2014 the same media type would have succeeded on a different document.",
+  "description": "Result of a job that completed without doing its work because the resource could not be read. Distinct from a failure: nothing went wrong, there was simply no text to work with — an encrypted or damaged PDF, a scan whose text could not be recognized, or a document that yielded nothing. The reasons are the extraction vocabulary the Smelter reports on `smelt:settled`, MINUS `no-extractor`: a media type that can never yield text (a zip, an image) is a bad request rather than a decline, so a worker asked to detect over one throws and the job reports `job:fail`. Everything here is a resource-specific outcome — the same media type would have succeeded on a different document.",
   "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "declined"
+      ],
+      "description": "Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1)."
+    },
     "declined": {
       "type": "boolean",
       "enum": [
         true
       ],
-      "description": "Discriminant. Always true \u2014 a job that did its work reports one of the other result shapes."
+      "description": "Discriminant. Always true — a job that did its work reports one of the other result shapes."
     },
     "reason": {
       "type": "string",
@@ -22,6 +29,7 @@
     }
   },
   "required": [
+    "kind",
     "declined",
     "reason"
   ]

@@ -59,7 +59,6 @@ const T = {
   configureTitle: 'Configure Generation',
   next: 'Next',
   back: 'Back',
-  cancel: 'Cancel',
   gatherIntro: 'Choose what to include.',
   includeContent: 'Include content',
   includeSummary: 'Include summary',
@@ -199,5 +198,50 @@ describe('ResourceGenerateModal', () => {
     renderModal();
     fireEvent.click(screen.getByLabelText('Close'));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('opening seeds the proposed title from defaultTitle, even one that arrived after mount (GFR A4)', () => {
+    // The page passes the source resource's name, which loads asynchronously —
+    // a draft seeded only in the useState initializer holds whatever was there
+    // at FIRST render, which for the real page was ''. Opening is the moment
+    // that matters: the draft re-seeds then.
+    h.state.context = RESOURCE_CONTEXT;
+    const { rerender } = render(
+      <ResourceGenerateModal
+        isOpen={false} onClose={onClose} resourceId="res-1" defaultTitle=""
+        locale="en" entityTypeOptions={[]} onGenerateSubmit={onGenerateSubmit}
+        translations={T}
+      />,
+    );
+    rerender(
+      <ResourceGenerateModal
+        isOpen onClose={onClose} resourceId="res-1" defaultTitle="PB"
+        locale="en" entityTypeOptions={[]} onGenerateSubmit={onGenerateSubmit}
+        translations={T}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Gather/ })); // → review
+    fireEvent.click(screen.getByRole('button', { name: /Next/ }));   // → configure-generation
+    expect(screen.getByLabelText('New resource title')).toHaveValue('PB');
+  });
+
+  it('every footer is the wizard footer — no dismissal, no flex (GFR A5)', () => {
+    // The modal renders via a HeadlessUI portal, so query the whole document.
+    h.state.context = RESOURCE_CONTEXT;
+    const { baseElement } = renderModal();
+    const footerPins = () => {
+      expect(baseElement.querySelector('.semiont-modal__actions--wizard')).not.toBeNull();
+      expect(baseElement.querySelectorAll('.semiont-button--flex')).toHaveLength(0);
+      const footerButtons = Array.from(
+        baseElement.querySelectorAll('.semiont-modal__actions button'),
+      ).map((b) => b.textContent ?? '');
+      expect(footerButtons.filter((l) => /cancel|✕/i.test(l))).toEqual([]);
+    };
+
+    footerPins(); // configure-gather
+    fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
+    footerPins(); // review
+    fireEvent.click(screen.getByRole('button', { name: /Next/ }));
+    footerPins(); // configure-generation (already WizardFooter — stays that way)
   });
 });

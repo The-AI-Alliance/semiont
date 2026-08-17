@@ -152,6 +152,7 @@ export interface DetectionProgress {
  * Detection job result
  */
 export interface DetectionResult {
+  kind: 'reference-annotation';
   totalFound: number;
   totalEmitted: number;
   errors: number;
@@ -171,8 +172,11 @@ export interface YieldProgress {
  * Generation job result
  */
 export interface GenerationResult {
+  kind: 'generation';
   resourceId: ResourceId;
   resourceName: string;
+  /** True when the model stopped at the maxTokens ceiling — the artifact is cut off, not complete (GENERATE-FROM-RESOURCE D6). */
+  truncated: boolean;
 }
 
 /**
@@ -188,6 +192,7 @@ export interface HighlightDetectionProgress {
  * Highlight detection job result
  */
 export interface HighlightDetectionResult {
+  kind: 'highlight-annotation';
   highlightsFound: number;
   highlightsCreated: number;
 }
@@ -205,6 +210,7 @@ export interface AssessmentDetectionProgress {
  * Assessment detection job result
  */
 export interface AssessmentDetectionResult {
+  kind: 'assessment-annotation';
   assessmentsFound: number;
   assessmentsCreated: number;
 }
@@ -222,6 +228,7 @@ export interface CommentDetectionProgress {
  * Comment detection job result
  */
 export interface CommentDetectionResult {
+  kind: 'comment-annotation';
   commentsFound: number;
   commentsCreated: number;
 }
@@ -242,6 +249,7 @@ export interface TagDetectionProgress {
  * Tag detection job result
  */
 export interface TagDetectionResult {
+  kind: 'tag-annotation';
   tagsFound: number;
   tagsCreated: number;
   byCategory: Record<string, number>;

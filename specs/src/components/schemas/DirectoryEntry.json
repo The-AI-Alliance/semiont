@@ -2,5 +2,13 @@
   "oneOf": [
     { "$ref": "./FileEntry.json" },
     { "$ref": "./DirEntry.json" }
-  ]
+  ],
+  "discriminator": {
+    "propertyName": "type",
+    "mapping": {
+      "file": "./FileEntry.json",
+      "dir": "./DirEntry.json"
+    }
+  },
+  "description": "One entry in a directory listing: a file, which may carry the resource it was ingested as, or a subdirectory. Tell them apart by `type`, which is required on both and single-valued."
 }

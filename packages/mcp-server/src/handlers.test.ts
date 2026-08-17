@@ -195,6 +195,8 @@ describe('markAssist', () => {
     const { client, mark } = createStub();
     const events: MarkAssistEvent[] = [
       { kind: 'progress', data: { percentage: 40, message: { code: 'analyzing' } } },
+      // A pure percentage heartbeat carries no message.
+      { kind: 'progress', data: { percentage: 60 } },
       { kind: 'progress', data: { percentage: 90, message: { code: 'analyzing' } } },
       ASSIST_COMPLETE,
     ];
@@ -202,7 +204,7 @@ describe('markAssist', () => {
 
     const result = await markAssist(client, { resourceId: 'res-iliad' });
 
-    expect(text(result)).toBe('Detection complete. Found 7 entities.\nanalyzing: 40%\nanalyzing: 90%');
+    expect(text(result)).toBe('Detection complete. Found 7 entities.\nanalyzing: 40%\nworking: 60%\nanalyzing: 90%');
   });
 
   it('falls back to a motivation-specific count when totalFound is absent', async () => {
@@ -213,7 +215,7 @@ describe('markAssist', () => {
         resourceId: 'res-iliad',
         jobId: 'job-1',
         jobType: 'highlight-annotation',
-        result: { highlightsFound: 3, highlightsCreated: 3 },
+        result: { kind: 'highlight-annotation', highlightsFound: 3, highlightsCreated: 3 },
       },
     };
     mark.assist.mockReturnValue(of(complete));
@@ -223,9 +225,9 @@ describe('markAssist', () => {
   });
 
   it.each([
-    ['comment-annotation' as const, { commentsFound: 4, commentsCreated: 4 }, 4],
-    ['assessment-annotation' as const, { assessmentsFound: 5, assessmentsCreated: 5 }, 5],
-    ['tag-annotation' as const, { tagsFound: 6, tagsCreated: 6, byCategory: { Topic: 6 } }, 6],
+    ['comment-annotation' as const, { kind: 'comment-annotation' as const, commentsFound: 4, commentsCreated: 4 }, 4],
+    ['assessment-annotation' as const, { kind: 'assessment-annotation' as const, assessmentsFound: 5, assessmentsCreated: 5 }, 5],
+    ['tag-annotation' as const, { kind: 'tag-annotation' as const, tagsFound: 6, tagsCreated: 6, byCategory: { Topic: 6 } }, 6],
   ])('reads the %s count', async (jobType, result, expected) => {
     const { client, mark } = createStub();
     const complete: MarkAssistEvent = {
@@ -236,6 +238,42 @@ describe('markAssist', () => {
 
     expect(text(await markAssist(client, { resourceId: 'res-iliad' })))
       .toContain(`Found ${expected} entities.`);
+  });
+
+  it('surfaces a decline with its reason instead of reporting zero', async () => {
+    const { client, mark } = createStub();
+    const complete: MarkAssistEvent = {
+      kind: 'complete',
+      data: {
+        resourceId: 'res-iliad',
+        jobId: 'job-1',
+        jobType: 'reference-annotation',
+        result: { kind: 'declined', declined: true, reason: 'no-text-layer' },
+      },
+    };
+    mark.assist.mockReturnValue(of(complete));
+
+    const result = await markAssist(client, { resourceId: 'res-iliad' });
+
+    expect(text(result)).toContain('Detection declined (no-text-layer).');
+    expect(text(result)).not.toContain('Found 0 entities');
+  });
+
+  it('answers rather than counting when the result is not an assist result', async () => {
+    const { client, mark } = createStub();
+    const complete: MarkAssistEvent = {
+      kind: 'complete',
+      data: {
+        resourceId: 'res-iliad',
+        jobId: 'job-1',
+        jobType: 'generation',
+        result: { kind: 'generation', resourceId: 'res-new', resourceName: 'New', truncated: false },
+      },
+    };
+    mark.assist.mockReturnValue(of(complete));
+
+    expect(text(await markAssist(client, { resourceId: 'res-iliad' })))
+      .toContain('Found 0 entities.');
   });
 
   it('reports zero when the completion carries no result', async () => {
@@ -418,6 +456,8 @@ describe('yieldFromAnnotation', () => {
     const { client, yield: yieldNamespace } = createStub();
     const events: YieldGenerationEvent[] = [
       { kind: 'progress', data: { percentage: 50, message: { code: 'analyzing' } } },
+      // A pure percentage heartbeat carries no message.
+      { kind: 'progress', data: { percentage: 75 } },
       GENERATION_COMPLETE,
     ];
     yieldNamespace.fromContext.mockReturnValue(of(...events));
@@ -426,7 +466,7 @@ describe('yieldFromAnnotation', () => {
       resourceId: 'res-iliad',
       annotationId: 'anno-reference',
       storageUri: 'file://docs/achilles.md',
-    }))).toBe('Generation complete.\nanalyzing: 50%');
+    }))).toBe('Generation complete.\nanalyzing: 50%\nworking: 75%');
   });
 
   it('returns an error result when generation fails', async () => {

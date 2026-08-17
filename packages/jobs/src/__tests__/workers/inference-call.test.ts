@@ -26,7 +26,6 @@ vi.mock('@semiont/observability', async (importOriginal) => ({
   withSpan: withSpanMock,
 }));
 import {
-  boundedGenerate,
   boundedGenerateStructured,
   boundedGenerateWithMetadata,
   INFERENCE_TIMEOUT_MS,
@@ -59,7 +58,6 @@ describe('bounded inference calls', () => {
     const client = clientWith({});
     const ELEMENT = { type: 'object' };
 
-    await expect(boundedGenerate(client, 'p', 100, 0.1)).resolves.toBe('text');
     await expect(
       boundedGenerateWithMetadata(client, 'p', 100, 0.1),
     ).resolves.toEqual({ text: '[]', stopReason: 'end_turn' });
@@ -67,7 +65,6 @@ describe('bounded inference calls', () => {
       boundedGenerateStructured(client, 'p', 100, 0.1, ELEMENT),
     ).resolves.toEqual({ items: [], stopReason: 'end_turn' });
 
-    expect(client.generateText).toHaveBeenCalledWith('p', 100, 0.1);
     expect(client.generateTextWithMetadata).toHaveBeenCalledWith('p', 100, 0.1);
     expect(client.generateStructured).toHaveBeenCalledWith('p', 100, 0.1, ELEMENT);
   });
@@ -82,24 +79,14 @@ describe('bounded inference calls', () => {
     await assertion;
   });
 
-  it('rejects the simple-interface variant on timeout too', async () => {
-    vi.useFakeTimers();
-    const client = clientWith({ generateText: vi.fn(never) });
-
-    const pending = boundedGenerate(client, 'p', 100, 0.1);
-    const assertion = expect(pending).rejects.toThrow(/timed out/);
-    await vi.advanceTimersByTimeAsync(INFERENCE_TIMEOUT_MS + 1);
-    await assertion;
-  });
-
   it('propagates model errors unchanged — no timeout masking', async () => {
     const client = clientWith({
-      generateText: vi.fn(async () => {
+      generateTextWithMetadata: vi.fn(async () => {
         throw new Error('model exploded');
       }),
     });
 
-    await expect(boundedGenerate(client, 'p', 100, 0.1)).rejects.toThrow('model exploded');
+    await expect(boundedGenerateWithMetadata(client, 'p', 100, 0.1)).rejects.toThrow('model exploded');
   });
 
   // DETECTION-HEARTBEAT Phase A: liveness must come from ELAPSED TIME, not
@@ -214,21 +201,20 @@ describe('bounded inference calls', () => {
     it('wraps the free-text calls too, under their own span name', async () => {
       const client = clientWith({});
 
-      await boundedGenerate(client, 'p', 100, 0.1);
       await boundedGenerateWithMetadata(client, 'p', 100, 0.1);
 
       const textSpans = withSpanMock.mock.calls.filter(([name]) => name === 'inference:text');
-      expect(textSpans).toHaveLength(2);
+      expect(textSpans).toHaveLength(1);
     });
 
     it('the span wraps the whole call — a failure is recorded inside it, not outside', async () => {
       // withSpan marks the span errored on a throw; that only works if the
       // throw happens INSIDE the wrapped work.
       const client = clientWith({
-        generateText: vi.fn(async () => { throw new Error('model exploded'); }),
+        generateTextWithMetadata: vi.fn(async () => { throw new Error('model exploded'); }),
       });
 
-      await expect(boundedGenerate(client, 'p', 100, 0.1)).rejects.toThrow('model exploded');
+      await expect(boundedGenerateWithMetadata(client, 'p', 100, 0.1)).rejects.toThrow('model exploded');
 
       // The work function the span received is the one that threw.
       const call = withSpanMock.mock.calls.find(([name]) => name === 'inference:text');

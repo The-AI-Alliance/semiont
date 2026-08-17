@@ -18,23 +18,42 @@ const ajv = new Ajv({
   allErrors: true,      // Return all errors, not just the first one
   coerceTypes: true,    // Coerce types (e.g., "123" -> 123)
   removeAdditional: false, // Don't remove additional properties
-  keywords: ['example'], // Allow OpenAPI's "example" keyword (annotation-only, no validation)
+  // Allow OpenAPI's annotation-only keywords (no validation semantics).
+  // "discriminator" stays annotation-only deliberately: the sibling oneOf is
+  // the validation authority, and Ajv's own `discriminator: true` option
+  // rejects the explicit `mapping` our discriminated unions declare.
+  keywords: ['example', 'discriminator'],
 });
 
 // Add format validators (email, uri, date-time, etc.)
 addFormats(ajv);
 
 /**
- * Convert OpenAPI 3.0 `nullable: true` to JSON Schema `type: [original, "null"]`.
- * OpenAPI 3.0 uses `nullable` but Ajv expects JSON Schema draft-07 style.
- * Mutates the object in place (operates on a deep clone).
+ * Convert OpenAPI 3.0 `nullable: true` to JSON Schema draft-07, which Ajv
+ * expects. Mutates the object in place (operates on a deep clone).
+ *
+ * Two 3.0 idioms to cover: `nullable` beside a string `type` becomes
+ * `type: [original, "null"]`, and `nullable` beside `allOf` — 3.0's only way
+ * to express a nullable `$ref`, since a bare `$ref` takes no siblings —
+ * becomes `anyOf: [{type: "null"}, <the rest>]`. Leaving either in place is
+ * not an option: strict-mode Ajv refuses the keyword at compile time, which
+ * surfaces as a 500 on the first request through that schema.
  */
 function convertNullable(obj: unknown): void {
   if (obj === null || obj === undefined || typeof obj !== 'object') return;
   const record = obj as Record<string, unknown>;
-  if (record.nullable === true && typeof record.type === 'string') {
-    record.type = [record.type, 'null'];
+  if (record.nullable === true) {
     delete record.nullable;
+    if (typeof record.type === 'string') {
+      record.type = [record.type, 'null'];
+    } else {
+      const inner: Record<string, unknown> = {};
+      for (const key of Object.keys(record)) {
+        inner[key] = record[key];
+        delete record[key];
+      }
+      record.anyOf = [{ type: 'null' }, inner];
+    }
   }
   for (const v of Object.values(record)) {
     if (typeof v === 'object') convertNullable(v);

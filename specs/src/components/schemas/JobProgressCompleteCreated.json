@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "description": "Terminal success summary.",
+  "properties": {
+    "code": {
+      "type": "string",
+      "enum": [
+        "complete-created"
+      ]
+    },
+    "count": {
+      "type": "integer",
+      "description": "How many annotations were created"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "highlight",
+        "comment",
+        "assessment",
+        "reference",
+        "tag"
+      ],
+      "description": "What kind of annotation was created; clients pluralize/translate"
+    }
+  },
+  "required": [
+    "code",
+    "count",
+    "kind"
+  ]
+}

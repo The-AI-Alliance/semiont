@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "description": "Entity detection, one entity type at a time.",
+  "properties": {
+    "code": {
+      "type": "string",
+      "enum": [
+        "detecting-entities"
+      ]
+    },
+    "entityType": {
+      "type": "string",
+      "description": "Entity type currently being detected"
+    }
+  },
+  "required": [
+    "code",
+    "entityType"
+  ]
+}

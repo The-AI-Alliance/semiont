@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { CollaboratorEntry } from '@semiont/core';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { useResourceGather } from '../../hooks/useResourceGather';
 import { ConfigureGatherStep, type ResourceGatherConfig } from './ConfigureGatherStep';
 import { GatherContextStep } from './GatherContextStep';
+import { WizardFooter } from './WizardFooter';
 import { ConfigureGenerationStep, type GenerationConfig, type GenerationDraft } from './ConfigureGenerationStep';
 
 export interface ResourceGenerateModalTranslations {
@@ -15,7 +16,6 @@ export interface ResourceGenerateModalTranslations {
   configureTitle: string;
   next: string;
   back: string;
-  cancel: string;
   // ConfigureGatherStep
   gatherIntro: string;
   includeContent: string;
@@ -94,10 +94,11 @@ export function ResourceGenerateModal({
 }: ResourceGenerateModalProps) {
   // Same draft ownership as the wizard (WIZARD-NAVIGATION D3): the step is
   // controlled, so stepping back through this modal keeps what was typed.
-  const [generationDraft, setGenerationDraft] = useState<GenerationDraft>({
+  const freshDraft = (): GenerationDraft => ({
     title: defaultTitle, storagePath: '', prompt: '', language: locale,
     temperature: 0.7, maxTokensText: '500',
   });
+  const [generationDraft, setGenerationDraft] = useState<GenerationDraft>(freshDraft);
 
   const [step, setStep] = useState<Step>('configure-gather');
   const { context, loading, error, gather, reset } = useResourceGather();
@@ -107,13 +108,23 @@ export function ResourceGenerateModal({
   // entity types. See .plans/PANEL-FAILURE-STATES.md
   const [excludeEntityTypes, setExcludeEntityTypes] = useState<string[]>([]);
 
-  // Reset to the first step whenever the modal (re)opens.
+  // Reset to the first step ON OPENING — and re-seed the draft, because
+  // `defaultTitle` is the source resource's name and loads asynchronously: the
+  // useState initializer ran at mount, which for the real page was before the
+  // name existed (GFR A4). Guarded to the false→true transition so a name
+  // arriving mid-flow cannot clobber what the user has typed.
+  const wasOpen = useRef(false);
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpen.current) {
       setStep('configure-gather');
       setExcludeEntityTypes([]);
+      setGenerationDraft(freshDraft());
       reset();
     }
+    wasOpen.current = isOpen;
+    // freshDraft reads defaultTitle/locale at call time; the effect keys on the
+    // OPENING, not on their drift while open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, reset]);
 
   const handleGather = useCallback((config: ResourceGatherConfig) => {
@@ -167,9 +178,7 @@ export function ResourceGenerateModal({
                   <ConfigureGatherStep
                     defaults={gatherDefaults}
                     onGather={handleGather}
-                    onCancel={onClose}
                     translations={{
-                      cancel: t.cancel,
                       intro: t.gatherIntro,
                       includeContent: t.includeContent,
                       includeSummary: t.includeSummary,
@@ -210,37 +219,23 @@ export function ResourceGenerateModal({
                       contextLoading={loading}
                       contextError={error}
                       translations={{
-                        title: '',
                         loadingContext: t.loadingContext,
                         failedContext: t.failedContext,
-                        search: '',
-                        generate: '',
-                        compose: '',
-                        resolutionStrategyLabel: '',
                         sourceContextLabel: t.sourceContextLabel,
                         connectionsLabel: t.connectionsLabel,
                         citedByLabel: t.citedByLabel,
-                        userHintLabel: '',
-                        userHintPlaceholder: '',
                       }}
                     />
-                    <div className="semiont-modal__actions" style={{ paddingTop: '0.5rem' }}>
-                      <button
-                        type="button"
-                        onClick={() => setStep('configure-gather')}
-                        className="semiont-button--secondary semiont-button--flex"
-                      >
-                        ◀ {t.back}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStep('configure-generation')}
-                        disabled={!context}
-                        className="semiont-button--primary semiont-button--flex"
-                      >
-                        {t.next} ▶
-                      </button>
-                    </div>
+                    <WizardFooter
+                      backLabel={t.back}
+                      onBack={() => setStep('configure-gather')}
+                      primary={{
+                        label: t.next,
+                        type: 'button',
+                        onClick: () => setStep('configure-generation'),
+                        disabled: !context,
+                      }}
+                    />
                   </>
                 )}
 

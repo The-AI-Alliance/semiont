@@ -50,7 +50,7 @@ const T = {
   sourceContextLabel: 'Source', connectionsLabel: 'Connections', citedByLabel: 'Cited by',
   userHintLabel: 'Hint', userHintPlaceholder: 'Describe what this refers to…',
   loadingContext: 'Loading…', failedContext: 'Failed',
-  cancel: 'Cancel', search: 'Search', searching: 'Searching…', generate: 'Generate',
+  search: 'Search', searching: 'Searching…', generate: 'Generate',
   compose: 'Compose', resolutionStrategyLabel: 'Resolution Strategy', back: 'Back',
   link: 'Link', score: 'Score', noResults: 'No results',
   resourceTitle: 'Resource Title', resourceTitlePlaceholder: 'Title…',

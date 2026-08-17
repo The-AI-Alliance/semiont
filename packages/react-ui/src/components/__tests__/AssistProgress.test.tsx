@@ -267,6 +267,26 @@ describe('AssistProgress — P3 consolidation', () => {
     expect(screen.getByTestId(STATUS).textContent).toContain('tr.code(detecting-entities)');
   });
 
+  it('the outcome link renders only in the ended frame (GENERATE-FROM-RESOURCE P2, D8)', async () => {
+    // The label is the resource's name — user content, deliberately NOT a
+    // translation. While the run is live there is no outcome to offer, even if
+    // a caller wires the prop early.
+    const onOpen = vi.fn();
+    const outcome = { label: 'Summary of PB', onOpen };
+    const { rerender } = render(
+      <AssistProgress ended={false} progress={detecting()} dataType="generation"
+        outcome={outcome} translations={T3()} />,
+    );
+    expect(screen.queryByText('Summary of PB')).toBeNull();
+
+    rerender(
+      <AssistProgress ended progress={detecting()} dataType="generation"
+        outcome={outcome} translations={T3()} />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Summary of PB' }));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
   it('H1: the params line appears only when it adds information', () => {
     // The discriminator is the COUNT, not the copy — splitting a localized
     // string on commas to decide whether to show it would be its own defect.

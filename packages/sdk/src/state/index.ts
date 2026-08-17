@@ -50,6 +50,7 @@ export {
 export {
   createYieldStateUnit,
   type YieldStateUnit,
+  type YieldOutcome,
   type GenerateDocumentOptions,
 } from './flows/yield-state-unit';
 export {

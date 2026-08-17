@@ -5,24 +5,37 @@ import type { GatheredContext } from '@semiont/core';
 import { ContextSummary } from './ContextSummary';
 import type { ContextSummaryTranslations } from './ContextSummary';
 
-export interface GatherContextStepProps {
-  context: GatheredContext | null;
-  contextLoading: boolean;
-  contextError: Error | null;
-  /** Annotation-wizard controls. Omit for a display-only (e.g. resource-focus) render. */
-  userHint?: string;
-  onUserHintChange?: (value: string) => void;
-  onBind?: () => void;
-  onGenerate?: () => void;
-  onCompose?: () => void;
+/**
+ * The annotation-wizard resolution controls, as ONE optional group: a caller
+ * either serves the whole surface (hint + Bind/Generate/Compose, with their
+ * labels) or none of it. This is what keeps a display-only caller from having
+ * to pass `''` for keys it will never render (GENERATE-FROM-RESOURCE D2).
+ */
+export interface GatherContextStepAnnotate {
+  userHint: string;
+  onUserHintChange: (value: string) => void;
+  onBind: () => void;
+  onGenerate: () => void;
+  onCompose: () => void;
   translations: {
-    title: string;
-    loadingContext: string;
-    failedContext: string;
     search: string;
     generate: string;
     compose: string;
     resolutionStrategyLabel: string;
+    userHintLabel: string;
+    userHintPlaceholder: string;
+  };
+}
+
+export interface GatherContextStepProps {
+  context: GatheredContext | null;
+  contextLoading: boolean;
+  contextError: Error | null;
+  /** Omit for a display-only (e.g. resource-focus) render. */
+  annotate?: GatherContextStepAnnotate;
+  translations: {
+    loadingContext: string;
+    failedContext: string;
   } & ContextSummaryTranslations;
 }
 
@@ -30,11 +43,7 @@ export function GatherContextStep({
   context,
   contextLoading,
   contextError,
-  userHint = '',
-  onUserHintChange,
-  onBind,
-  onGenerate,
-  onCompose,
+  annotate,
   translations: t,
 }: GatherContextStepProps) {
   const [sourceExpanded, setSourceExpanded] = useState(false);
@@ -144,13 +153,13 @@ export function GatherContextStep({
                 </div>
               )}
               {resourceFocus.suggestedReferences && resourceFocus.suggestedReferences.length > 0 && (
-                <div style={{ marginTop: '0.5rem' }}>
+                // Prose, not chips (D3): the live values are full research
+                // prompts — sentences. The chip vocabulary stays for tokens.
+                <ul className="semiont-gather__suggested">
                   {resourceFocus.suggestedReferences.map(ref => (
-                    <span key={ref} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.375rem', marginRight: '0.25rem' }}>
-                      {ref}
-                    </span>
+                    <li key={ref}>{ref}</li>
                   ))}
-                </div>
+                </ul>
               )}
             </div>
           )}
@@ -162,17 +171,17 @@ export function GatherContextStep({
               <ContextSummary context={context} translations={t} />
             </div>
 
-            {/* Right: hint textarea (annotation focus only) */}
-            {focus && (
+            {/* Right: hint textarea (annotation-wizard callers only) */}
+            {focus && annotate && (
               <div className="semiont-gather__right">
                 <div className="semiont-form__field">
                   <label className="semiont-form__label">
-                    {t.userHintLabel}
+                    {annotate.translations.userHintLabel}
                   </label>
                   <textarea
-                    value={userHint}
-                    onChange={(e) => onUserHintChange?.(e.target.value)}
-                    placeholder={t.userHintPlaceholder}
+                    value={annotate.userHint}
+                    onChange={(e) => annotate.onUserHintChange(e.target.value)}
+                    placeholder={annotate.translations.userHintPlaceholder}
                     className="semiont-search-modal__search-input semiont-gather__hint-textarea"
                     style={{ resize: 'vertical', fontFamily: 'inherit' }}
                   />
@@ -181,34 +190,34 @@ export function GatherContextStep({
             )}
           </div>
 
-          {/* Full-width footer: resolution strategy (annotation focus only) */}
-          {focus && (
+          {/* Full-width footer: resolution strategy (annotation-wizard callers only) */}
+          {focus && annotate && (
             <div className="semiont-gather__footer">
-              <div className="semiont-gather__footer-label">{t.resolutionStrategyLabel}</div>
+              <div className="semiont-gather__footer-label">{annotate.translations.resolutionStrategyLabel}</div>
               <div className="semiont-gather__actions">
                 <button
                   type="button"
-                  onClick={onBind}
+                  onClick={annotate.onBind}
                   disabled={!contextReady}
                   className="semiont-button--primary semiont-button--flex"
                 >
-                  🔍 {t.search}…
+                  🔍 {annotate.translations.search}…
                 </button>
                 <button
                   type="button"
-                  onClick={onGenerate}
+                  onClick={annotate.onGenerate}
                   disabled={!contextReady}
                   className="semiont-button--primary semiont-button--flex"
                 >
-                  ✨ {t.generate}…
+                  ✨ {annotate.translations.generate}…
                 </button>
                 <button
                   type="button"
-                  onClick={onCompose}
+                  onClick={annotate.onCompose}
                   disabled={!contextReady}
                   className="semiont-button--secondary semiont-button--flex"
                 >
-                  ✍️ {t.compose}
+                  ✍️ {annotate.translations.compose}
                 </button>
               </div>
             </div>

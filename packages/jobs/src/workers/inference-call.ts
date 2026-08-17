@@ -114,20 +114,6 @@ async function withTimeout<T>(work: Promise<T>, label: string, onHeartbeat?: Inf
   }
 }
 
-export function boundedGenerate(
-  client: InferenceClient,
-  prompt: string,
-  maxTokens: number,
-  temperature: number,
-  onHeartbeat?: InferenceHeartbeat,
-): Promise<string> {
-  return spanned(client, 'text', maxTokens, () => withTimeout(
-    client.generateText(prompt, maxTokens, temperature),
-    `${client.type}:${client.modelId}`,
-    onHeartbeat,
-  ));
-}
-
 export function boundedGenerateWithMetadata(
   client: InferenceClient,
   prompt: string,

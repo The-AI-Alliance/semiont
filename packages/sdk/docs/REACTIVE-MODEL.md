@@ -74,12 +74,17 @@ A third subclass — `UploadObservable` — is shaped specifically for `yield.re
 
 ## Return-shape discipline
 
-Namespace methods return one of exactly four shapes:
+Namespace methods return one of exactly five shapes:
 
 - **`Promise<T>`** — atomic backend ops (CRUD, auth, admin reads).
 - **`StreamObservable<T>`** (or **`UploadObservable`** for `yield.resource`) — long-running operations with progress events plus a final value.
 - **`CacheObservable<T>`** — live queries with stale-while-revalidate semantics.
-- **`void`** — collaboration signals; observation happens on the bus.
+- **`void`** — LOCAL collaboration signals; observation happens on the bus.
+- **`Promise<number>`** — wire drives at other participants (`beckon.attention` /
+  `click` / `openResource` / `sparkleAll`): resolves with the `/bus/emit` subscriber
+  count (`-1` = unknown). Information, not an ack — neither fire-and-forget `void`
+  nor a confirmed write, which is why it is its own row (the X5 gate names it as
+  the third shape).
 
 (One deliberate exception *outside* the namespaces: the module-level `subscribeDiscovery`
 returns a plain rxjs `Observable` — a poll loop has no terminal value, so there is nothing
@@ -95,6 +100,7 @@ The discipline is enforceable. A namespace method's return type must be one of:
 - `StreamObservable<T>` (or `UploadObservable` / future bounded-stream subclasses)
 - `CacheObservable<T>`
 - `void`
+- `Promise<number>` (wire drives only)
 
 Plain `Observable<T>` does not appear on the public verb-namespace surface. (It still appears on lifecycle / escape-hatch surfaces — `client.transport.state$`, `client.transport.errors$`, `client.bus.get(channel)` — see "Plain Observables" below.) A future CI lint can enforce the rule at build time; the discipline already holds in the current code.
 

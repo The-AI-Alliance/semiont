@@ -685,7 +685,7 @@ export function PdfAnnotationCanvas({
 
     const uri = resourceUri;
     const outcome = session.client.browse.resourceAnchoredText(toResourceId(uri)).then(
-      (served) => (served && !('declined' in served) ? served : null),
+      (served) => (served && served.kind === 'extracted' ? served : null),
       () => {
         if (resourceAnchoredRef.current?.uri === uri) resourceAnchoredRef.current = null;
         return null;

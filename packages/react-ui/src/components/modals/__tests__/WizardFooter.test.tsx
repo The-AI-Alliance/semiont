@@ -16,6 +16,7 @@ import { WizardFooter } from '../WizardFooter';
 import { ConfigureSearchStep } from '../ConfigureSearchStep';
 import { ConfigureGenerationStep } from '../ConfigureGenerationStep';
 import { SearchResultsStep } from '../SearchResultsStep';
+import { ConfigureGatherStep } from '../ConfigureGatherStep';
 import type { GatheredContext } from '@semiont/core';
 
 /** Anything that reads as "get me out of here" belongs in the corner, not the footer. */
@@ -78,6 +79,25 @@ describe('WizardFooter', () => {
     await userEvent.click(screen.getByText(/Back/));
     expect(onBack).not.toHaveBeenCalled();
   });
+
+  it('a disabled primary is not clickable, but Back stays live', async () => {
+    // `disabled` is the action's PRECONDITION loading (review step waiting on
+    // gather) — distinct from `pending`, which is the action itself running and
+    // rightly freezes retreat too. While a precondition loads, retreat must work.
+    const onBack = vi.fn();
+    const onAdvance = vi.fn();
+    render(
+      <WizardFooter
+        backLabel="Back"
+        onBack={onBack}
+        primary={{ label: 'Next', type: 'button', onClick: onAdvance, disabled: true }}
+      />,
+    );
+    await userEvent.click(screen.getByText(/Next/));
+    expect(onAdvance).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByText(/Back/));
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────
@@ -99,7 +119,11 @@ const GEN_T = {
 
 const CONTEXT_T = {
   sourceContextLabel: 'Source', connectionsLabel: 'Connections', citedByLabel: 'Cited by',
-  userHintLabel: 'Hint', userHintPlaceholder: '',
+};
+
+const GATHER_T = {
+  intro: 'Choose what to include.', includeContent: 'Content', includeSummary: 'Summary',
+  depth: 'Depth', maxResources: 'Max', gather: 'Gather',
 };
 
 const RESULTS_T = { noResults: 'None', score: 'Score', link: 'Link', back: 'Back', ...CONTEXT_T };
@@ -159,6 +183,15 @@ describe('every step footer follows the grammar (A1, A2)', () => {
     );
     const labels = buttonsIn(footerOf(container)!).map((b) => b.textContent ?? '');
     expect(labels).toHaveLength(2);
+    expect(labels.filter((l) => DISMISSAL.test(l))).toEqual([]);
+  });
+
+  it('ConfigureGatherStep — first step of the resource-generate flow: advance only (GFR A5)', () => {
+    const { container } = render(
+      <ConfigureGatherStep onGather={vi.fn()} translations={GATHER_T} />,
+    );
+    const labels = buttonsIn(footerOf(container)!).map((b) => b.textContent ?? '');
+    expect(labels).toHaveLength(1); // nowhere to go back to, and dismissal is the corner's job
     expect(labels.filter((l) => DISMISSAL.test(l))).toEqual([]);
   });
 });

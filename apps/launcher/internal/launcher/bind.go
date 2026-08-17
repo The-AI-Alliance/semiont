@@ -96,8 +96,10 @@ func Bind(args []string) int {
 
 	var item semiont.AnnotationBody
 	purpose := semiont.BodyPurpose("linking")
+	// No `type` literal: AnnotationBody's discriminator means the generated
+	// FromSpecificResource stamps it (see mark.go).
 	if err := item.FromSpecificResource(semiont.SpecificResource{
-		Type: "SpecificResource", Source: target, Purpose: &purpose,
+		Source: target, Purpose: &purpose,
 	}); err != nil {
 		u.fail("could not build the body item: %v", err)
 		return 1

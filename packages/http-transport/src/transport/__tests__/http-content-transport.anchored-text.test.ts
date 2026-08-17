@@ -34,6 +34,7 @@ const testBaseUrl = baseUrl('http://test.example.com');
 const RID = resourceId('res-1');
 
 const MAP: ExtractionOutcome = {
+  kind: 'extracted',
   text: 'alpha beta',
   items: [{ start: 0, end: 5, page: 1, x: 72, y: 700, width: 28, height: 12 }],
   method: 'ocr',
@@ -124,7 +125,7 @@ describe('HttpContentTransport.getAnchoredText', () => {
     // A recognition pass that recovered nothing is a stored result, and the
     // 200 that carries it must not collapse into the 204 above.
     const { content, mockKy } = makeContent();
-    const empty: ExtractionOutcome = { text: '', items: [], method: 'ocr' };
+    const empty: ExtractionOutcome = { kind: 'extracted', text: '', items: [], method: 'ocr' };
     vi.mocked(mockKy.get!).mockResolvedValue(response(200, empty) as never);
 
     await expect(content.getAnchoredText(RID)).resolves.toEqual(empty);

@@ -78,7 +78,7 @@ describe('useOutcomeToasts', () => {
     act(() => {
       eventBus.get('job:complete').next(jobComplete({
         jobType: 'generation',
-        result: { resourceName: 'Cell Biology Notes' },
+        result: { kind: 'generation', resourceId: 'res-gen', resourceName: 'Cell Biology Notes' },
       }) as never);
     });
     expect(showSuccess).toHaveBeenCalledWith('resourceCreatedNamed(name=Cell Biology Notes)');

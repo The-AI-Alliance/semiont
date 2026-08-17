@@ -133,7 +133,7 @@ export class MarkNamespace implements IMarkNamespace {
                       jobId,
                       jobType: (status.type ?? 'annotation') as components['schemas']['JobType'],
                       resourceId: resourceId as string,
-                      result: status.result as components['schemas']['JobResult'] | undefined,
+                      result: status.result,
                     },
                   });
                   subscriber.complete();

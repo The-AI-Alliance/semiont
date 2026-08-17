@@ -263,34 +263,41 @@ Generation runs as a job processor in [@semiont/jobs](../../../packages/jobs/) �
 **Processor**: [processGenerationJob](../../../packages/jobs/src/processors.ts)
 **Synthesis**: [resource-generation.ts](../../../packages/jobs/src/workers/generation/resource-generation.ts) — `generateResourceFromTopic()`
 
-**Processing Stages**:
+**Progress on the wire** — exactly three frames, coded not prose
+(`JobProgressMessage` is a discriminated union; each code is its own named
+schema and each client renders it in the user's language):
 
-1. **Load Source Resource (20%)**
-   - Fetch source resource from Materialized Views
-   - Load reference annotation by ID
-   - Extract reference text and context
+| % | code | meaning |
+|---|---|---|
+| 5 | `generating-resource` | prompt built, inference running |
+| 95 | `creating-resource` | content generated; uploading + linking |
+| 100 | `complete-generated` | terminal — carries required `truncated` |
 
-2. **Generate Content (40-70%)**
-   - Build generation prompt with reference text and context
-   - Apply user parameters (prompt, entity types, language, source language, temperature, max tokens)
-   - Call AI inference using `generateResourceFromTopic()`
-   - Parse and validate generated content
+`complete-generated.truncated` is the honesty bit (required, never optional): `true`
+means the model stopped at the `maxTokens` ceiling and the artifact is cut off, not
+complete. The worker derives it from the provider's stop reason at exactly one site;
+the same bit rides `job:complete`'s result, so both the progress frame and the outcome
+say it.
 
-3. **Create Resource (85%)**
-   - Upload content via `client.yield.resource()` (HTTP multipart — content is not bus traffic)
-   - Backend persists content and emits `yield:create` → Stower appends `yield:created`
-   - Worker receives the new resource ID from the upload response
+**What happens inside those frames**:
 
-4. **Link Source Reference (95%)**
-   - Annotation-focus: the upload's `sourceAnnotationId` drives the Stower's auto-bind,
-     which emits `mark:update-body` → `mark:body-updated`
-   - Resource-focus: the worker emits `mark:create` to mint a source→derived provenance reference
-   - Domain event broadcasts to SSE subscribers (document viewers)
-
-5. **Complete (100%)**
-   - Emit `job:complete` event on EventBus with new resource ID
-   - Frontend receives completion via generation progress SSE
-   - Document viewer receives `mark:body-updated` via resource events SSE
+1. **Load** — fetch the source resource from Materialized Views; extract the
+   grounding context
+2. **Generate** — build the prompt, apply user parameters (prompt, entity types,
+   language, temperature, max tokens), call inference via `generateResourceFromTopic()`
+3. **Create** — upload content via `client.yield.resource()` (HTTP multipart —
+   content is not bus traffic); the backend persists it and emits `yield:create` →
+   Stower appends `yield:created`; the worker receives the new resource ID from the
+   upload response
+4. **Link** — annotation-focus: the upload's `sourceAnnotationId` drives the Stower's
+   auto-bind (`mark:update-body` → `mark:body-updated`); resource-focus: the worker
+   emits `mark:create` to mint a source→derived provenance reference. Under `cite`,
+   the worker then mints **every citation annotation** (`mark:create` per citation,
+   on the derived resource)
+5. **Complete** — emit `job:complete` with the discriminated result
+   `{ kind: 'generation', resourceId, resourceName, truncated }` — *after* the
+   citation loop, which is a real ordering guarantee (see "Which event carries the
+   outcome" below)
 
 See [Job Workers Documentation](../../../packages/make-meaning/docs/job-workers.md) for complete implementation details and error handling.
 
@@ -479,6 +486,32 @@ Both events flow through EventBus → Stower → Event Store → Materialized Vi
 - Source document viewer sees the reference resolve in real-time
 - New resource is immediately queryable and browsable
 - Graph database tracks relationship: (Source)-[:HAS_ANNOTATION]->(Reference)-[:LINKS_TO]->(Generated)
+
+**Which event carries the outcome — `job:complete`, not `yield:create-ok`.** Two
+signals could plausibly announce a finished generation, and they are not
+interchangeable:
+
+- **`yield:create-ok`** is a **correlated reply**: only the caller that sent
+  `yield:create` can match its `correlationId` — for generation, that caller is the
+  worker's own upload. It answers **when the resource row exists**, and it answers
+  its caller alone.
+- **`job:complete`** is the **broadcast** every observer already subscribes to, and
+  the worker emits it **after** the citation loop — every `cite`-minted linking
+  annotation is attached before it fires
+  ([worker-process.ts](../../../packages/jobs/src/worker-process.ts), the
+  `mark:create`-per-citation loop directly above the generation `job:complete`).
+
+That ordering is a guarantee consumers may rely on: **a link built from
+`job:complete.result.resourceId` opens a resource whose citations have landed.** A
+consumer linking off `yield:create-ok` instead would hand the user a resource whose
+citation annotations are still being minted — and would only ever work for the one
+caller holding the correlation anyway.
+
+The result narrows without a cast: `JobResult` is a discriminated union on `kind`
+(the six job types plus `'declined'`), so `result.kind === 'generation'` is the
+whole check — this is how the SDK's `YieldStateUnit.outcome$` and react-ui's
+outcome toasts read it, and an unhandled member is a compile error, not a runtime
+surprise.
 
 ## Frontend Implementation
 

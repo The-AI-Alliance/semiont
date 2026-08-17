@@ -52,7 +52,7 @@ describe('class B — a fully scanned document', () => {
     it('is read by OCR instead of declined', async () => {
         recognizesAs('RECOVERED FROM THE SCAN');
         const out = await extract('scanned-image.pdf');
-        if ('declined' in out) throw new Error(`unexpected decline: ${out.declined}`);
+        if (out.kind === 'declined') throw new Error(`unexpected decline: ${out.declined}`);
         expect(out.text).toContain('RECOVERED FROM THE SCAN');
         expect(out.pdfClass).toBe('B');
         expect(out.method).toBe('ocr');
@@ -65,7 +65,7 @@ describe('class B — a fully scanned document', () => {
         // match, so drift here surfaces as a failed annotation, not a nudged box.
         recognizesAs('RECOVERED FROM THE SCAN');
         const out = await extract('scanned-image.pdf');
-        if ('declined' in out) throw new Error(`unexpected decline: ${out.declined}`);
+        if (out.kind === 'declined') throw new Error(`unexpected decline: ${out.declined}`);
         expect(out.items?.length).toBe(4);
         for (const item of out.items!) {
             expect(out.text.slice(item.start, item.end)).toMatch(/^(RECOVERED|FROM|THE|SCAN)$/);
@@ -75,7 +75,7 @@ describe('class B — a fully scanned document', () => {
     it('places words on the page in PDF points, not pixels', async () => {
         recognizesAs('SCANNED');
         const out = await extract('scanned-image.pdf');
-        if ('declined' in out) throw new Error('unexpected decline');
+        if (out.kind === 'declined') throw new Error('unexpected decline');
         const [item] = out.items!;
         // The fixture's raster covers the whole 612×792 page, so any word must
         // land inside it — pixel coordinates (max 240×140) would not.
@@ -88,7 +88,7 @@ describe('class B — a fully scanned document', () => {
 
     it("declines 'no-text-layer' when OCR finds nothing — now meaning it truly failed", async () => {
         recognizesAs('');
-        expect(await extract('scanned-image.pdf')).toEqual({ declined: 'no-text-layer' });
+        expect(await extract('scanned-image.pdf')).toEqual({ kind: 'declined', declined: 'no-text-layer' });
         // "It truly failed" is the whole claim in that name, and the decline
         // alone does not carry it: a page whose image never reaches the engine
         // declines identically. Both real bugs found on 2026-08-02 produced
@@ -103,7 +103,7 @@ describe('class B — a fully scanned document', () => {
     it('declines when the page holds no image to read', async () => {
         recognizesAs('should never be reached');
         // The degenerate scan: an empty page, no pixels at all.
-        expect(await extract('scanned.pdf')).toEqual({ declined: 'no-text-layer' });
+        expect(await extract('scanned.pdf')).toEqual({ kind: 'declined', declined: 'no-text-layer' });
         expect(recognizeImages).not.toHaveBeenCalled();
     });
 });
@@ -114,7 +114,7 @@ describe('class C — a hybrid document', () => {
     it('keeps its native text and gains the scanned page', async () => {
         recognizesAs('TEXT FROM THE SCANNED PAGE');
         const out = await extract('mixed.pdf');
-        if ('declined' in out) throw new Error(`unexpected decline: ${out.declined}`);
+        if (out.kind === 'declined') throw new Error(`unexpected decline: ${out.declined}`);
         expect(out.text).toContain('native page text');
         expect(out.text).toContain('TEXT FROM THE SCANNED PAGE');
         expect(out.pdfClass).toBe('C');
@@ -139,7 +139,7 @@ describe('class C — a hybrid document', () => {
     it('still reports a gap for pages OCR could not read', async () => {
         recognizesAs('');
         const out = await extract('mixed.pdf');
-        if ('declined' in out) throw new Error(`unexpected decline: ${out.declined}`);
+        if (out.kind === 'declined') throw new Error(`unexpected decline: ${out.declined}`);
         expect(out.text).toContain('native page text');
         expect(out.unreadPages).toEqual([2]);
         expect(out.pdfClass).toBe('C');
@@ -148,7 +148,7 @@ describe('class C — a hybrid document', () => {
     it('leaves a fully native document untouched — OCR is never invoked', async () => {
         recognizesAs('should never be reached');
         const out = await extract('multi-page.pdf');
-        if ('declined' in out) throw new Error(`unexpected decline: ${out.declined}`);
+        if (out.kind === 'declined') throw new Error(`unexpected decline: ${out.declined}`);
         expect(out.pdfClass).toBe('A');
         expect(recognizeImages).not.toHaveBeenCalled();
     });

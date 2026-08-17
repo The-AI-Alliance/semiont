@@ -55,6 +55,7 @@ const config: MakeMeaningConfig = {
 
 /** One page of recognized words — the shape OCR produces via `mapWordsToItems`. */
 const MAP: ExtractionOutcome = {
+  kind: 'extracted',
   text: 'alpha beta',
   items: [
     { start: 0, end: 5, page: 1, x: 72, y: 700, width: 28, height: 12 },
@@ -136,7 +137,7 @@ describe('anchored text over IContentTransport', () => {
     // Re-extraction is legitimate — a stamp change, a re-upload, a reconcile.
     // The store holds one map per resource and the newest wins; nothing here
     // accumulates generations.
-    const revised: ExtractionOutcome = { text: 'gamma', items: [{ start: 0, end: 5, page: 2, x: 10, y: 20, width: 30, height: 12 }], method: 'ocr' };
+    const revised: ExtractionOutcome = { kind: 'extracted', text: 'gamma', items: [{ start: 0, end: 5, page: 2, x: 10, y: 20, width: 30, height: 12 }], method: 'ocr' };
     await content.putAnchoredText(checksum, revised);
     expect(await content.getAnchoredText(rid)).toEqual(revised);
   });

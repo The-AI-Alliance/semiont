@@ -16,13 +16,12 @@ const t = {
   includeSummary: 'Include summary',
   depth: 'Depth',
   maxResources: 'Max resources',
-  cancel: 'Cancel',
   gather: 'Gather',
 };
 
 describe('ConfigureGatherStep', () => {
   it('renders the intro and the default option values', () => {
-    render(<ConfigureGatherStep onGather={vi.fn()} onCancel={vi.fn()} translations={t} />);
+    render(<ConfigureGatherStep onGather={vi.fn()} translations={t} />);
     expect(screen.getByText('Choose what to include.')).toBeInTheDocument();
     expect(screen.getByLabelText('Include content')).toBeChecked();
     expect(screen.getByLabelText('Include summary')).toBeChecked();
@@ -32,14 +31,14 @@ describe('ConfigureGatherStep', () => {
 
   it('emits the default config on submit', () => {
     const onGather = vi.fn();
-    render(<ConfigureGatherStep onGather={onGather} onCancel={vi.fn()} translations={t} />);
+    render(<ConfigureGatherStep onGather={onGather} translations={t} />);
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
     expect(onGather).toHaveBeenCalledWith({ includeContent: true, includeSummary: true, depth: 2, maxResources: 10 });
   });
 
   it('reflects edits in the emitted config', () => {
     const onGather = vi.fn();
-    render(<ConfigureGatherStep onGather={onGather} onCancel={vi.fn()} translations={t} />);
+    render(<ConfigureGatherStep onGather={onGather} translations={t} />);
     fireEvent.click(screen.getByLabelText('Include content')); // uncheck
     fireEvent.click(screen.getByLabelText('Include summary')); // uncheck
     fireEvent.change(screen.getByLabelText('Depth'), { target: { value: '4' } });
@@ -54,7 +53,6 @@ describe('ConfigureGatherStep', () => {
       <ConfigureGatherStep
         defaults={{ includeSummary: false, depth: 1, maxResources: 5 }}
         onGather={onGather}
-        onCancel={vi.fn()}
         translations={t}
       />,
     );
@@ -64,16 +62,21 @@ describe('ConfigureGatherStep', () => {
     expect(onGather).toHaveBeenCalledWith({ includeContent: true, includeSummary: false, depth: 1, maxResources: 5 });
   });
 
-  it('calls onCancel from the cancel button', () => {
-    const onCancel = vi.fn();
-    render(<ConfigureGatherStep onGather={vi.fn()} onCancel={onCancel} translations={t} />);
-    fireEvent.click(screen.getByRole('button', { name: /Cancel/ }));
-    expect(onCancel).toHaveBeenCalledTimes(1);
+  it('the footer is the wizard footer: advance only, no dismissal, no flex (GFR A5)', () => {
+    // Dismissal lives on the modal's corner ✕/Esc/backdrop, never in a step
+    // footer (WIZARD-NAVIGATION D1); this is the first step, so no retreat either.
+    const { container } = render(<ConfigureGatherStep onGather={vi.fn()} translations={t} />);
+    const footer = container.querySelector('.semiont-modal__actions--wizard');
+    expect(footer).not.toBeNull();
+    const buttons = Array.from(footer!.querySelectorAll('button'));
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]!.textContent).not.toMatch(/cancel|✕/i);
+    expect(buttons[0]!.className).not.toContain('semiont-button--flex');
   });
 
   it('renders the children slot (exclusion picker)', () => {
     render(
-      <ConfigureGatherStep onGather={vi.fn()} onCancel={vi.fn()} translations={t}>
+      <ConfigureGatherStep onGather={vi.fn()} translations={t}>
         <div>EXCLUDE-SLOT</div>
       </ConfigureGatherStep>,
     );

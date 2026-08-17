@@ -1,12 +1,38 @@
 {
-  "description": "Discriminated union of all job result types.",
+  "description": "Discriminated union of all job result types — every member carries a single-valued `kind` (WIRE-UNION-DISCRIMINANTS D1/D2). Consumers switch on `kind`; generated clients get typed variants.",
   "oneOf": [
-    { "$ref": "./JobGenerationResult.json" },
-    { "$ref": "./JobReferenceAnnotationResult.json" },
-    { "$ref": "./JobHighlightAnnotationResult.json" },
-    { "$ref": "./JobAssessmentAnnotationResult.json" },
-    { "$ref": "./JobCommentAnnotationResult.json" },
-    { "$ref": "./JobTagAnnotationResult.json" },
-    { "$ref": "./JobDeclinedResult.json" }
-  ]
+    {
+      "$ref": "./JobGenerationResult.json"
+    },
+    {
+      "$ref": "./JobReferenceAnnotationResult.json"
+    },
+    {
+      "$ref": "./JobHighlightAnnotationResult.json"
+    },
+    {
+      "$ref": "./JobAssessmentAnnotationResult.json"
+    },
+    {
+      "$ref": "./JobCommentAnnotationResult.json"
+    },
+    {
+      "$ref": "./JobTagAnnotationResult.json"
+    },
+    {
+      "$ref": "./JobDeclinedResult.json"
+    }
+  ],
+  "discriminator": {
+    "propertyName": "kind",
+    "mapping": {
+      "generation": "./JobGenerationResult.json",
+      "reference-annotation": "./JobReferenceAnnotationResult.json",
+      "highlight-annotation": "./JobHighlightAnnotationResult.json",
+      "assessment-annotation": "./JobAssessmentAnnotationResult.json",
+      "comment-annotation": "./JobCommentAnnotationResult.json",
+      "tag-annotation": "./JobTagAnnotationResult.json",
+      "declined": "./JobDeclinedResult.json"
+    }
+  }
 }

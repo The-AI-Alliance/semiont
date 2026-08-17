@@ -176,11 +176,11 @@ describe('prepareDetection × ExtractionCache (PERSIST-ANCHORS P2d)', () => {
   it('a stored decline is a hit — the second look at an unreadable scan runs nothing (D1: declines cacheable)', async () => {
     const bytes = Buffer.from('scanned pixels, no text layer');
     const { store } = memoryStore({
-      [calculateChecksum(bytes)]: { declined: 'no-text-layer' } as ExtractionOutcome,
+      [calculateChecksum(bytes)]: { kind: 'declined', declined: 'no-text-layer' },
     });
 
     const source = await prepareDetection('application/pdf', sessionServing(bytes), RID, USER, GENERATOR, store);
 
-    expect(source).toEqual({ declined: 'no-text-layer' });
+    expect(source).toEqual({ kind: 'declined', declined: 'no-text-layer' });
   });
 });

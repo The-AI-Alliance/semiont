@@ -172,7 +172,7 @@ function foldFormFields(layer: PdfTextLayer): ExtractedText {
       height: field.height,
     });
   }
-  return { text, items, method: 'form', pdfClass: 'E' };
+  return { kind: 'extracted', text, items, method: 'form', pdfClass: 'E' };
 }
 
 /**
@@ -205,7 +205,7 @@ function shapeTables(layer: PdfTextLayer): ExtractedText | null {
       }
     }
   }
-  return { text, items, method: 'table', pdfClass: 'D' };
+  return { kind: 'extracted', text, items, method: 'table', pdfClass: 'D' };
 }
 
 export const pdfExtractor: ContentExtractor = {
@@ -233,7 +233,7 @@ export const pdfExtractor: ContentExtractor = {
     // make them fail. The path that must insist on a write is the smelter's
     // re-anchor publish (P0), not this seam.
     if (cache) {
-      if ('declined' in outcome) await cache.store.write(cache.key, outcome);
+      if (outcome.kind === 'declined') await cache.store.write(cache.key, outcome);
       else if (outcome.items) await cache.store.write(cache.key, { ...outcome, items: outcome.items });
     }
     return outcome;
@@ -245,22 +245,23 @@ async function extractPdf(content: Buffer): Promise<ExtractedText | ExtractionDe
     // Before the parser sees it: everything downstream — parse, image decode,
     // OCR — expands from these bytes, so this is the only gate that costs
     // nothing to enforce.
-    if (!withinByteBudget(content.length)) return { declined: 'too-large' };
+    if (!withinByteBudget(content.length)) return { kind: 'declined', declined: 'too-large' };
 
     let layer;
     try {
       layer = await extractPdfTextLayer(content);
     } catch (error) {
-      return { declined: classifyPdfError(error) };
+      return { kind: 'declined', declined: classifyPdfError(error) };
     }
     // Class B — no text operators anywhere: the characters exist only as
     // pixels, so read them. 'no-text-layer' now means OCR genuinely came up
     // empty, not that we never tried.
     if (!layer) {
       const ocr = await ocrPages(content);
-      if (!ocr.text) return { declined: 'no-text-layer' };
+      if (!ocr.text) return { kind: 'declined', declined: 'no-text-layer' };
       const confidence = summarize(ocr.confidences);
       return {
+        kind: 'extracted',
         text: ocr.text,
         items: ocr.items,
         method: 'ocr',
@@ -275,7 +276,7 @@ async function extractPdf(content: Buffer): Promise<ExtractedText | ExtractionDe
     const shaped = layer.fields.length > 0
       ? foldFormFields(layer)
       : shapeTables(layer)
-        ?? { text: layer.text, items: layer.items, method: 'pdf-text-layer' as const, pdfClass: 'A' as const };
+        ?? { kind: 'extracted' as const, text: layer.text, items: layer.items, method: 'pdf-text-layer' as const, pdfClass: 'A' as const };
 
     // A page with no text-showing operators is scanned: its characters exist
     // only as pixels. Report those pages rather than dropping them silently —

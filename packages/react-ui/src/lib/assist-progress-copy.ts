@@ -38,6 +38,13 @@ export function assistProgressCopy(t: Translate): (m: JobProgressMessage) => str
         return t('codeGeneratingResource');
       case 'creating-resource':
         return t('codeCreatingResource');
+      case 'complete-generated':
+        // Generation's terminal success. Generic by design: the client holds
+        // the title it typed, and the outcome (name + link) arrives on
+        // job:complete (GENERATE-FROM-RESOURCE D7/D8). A run cut off at the
+        // maxTokens ceiling still completes — but never silently (D6): the
+        // producer derives the bit, this is where it becomes a sentence.
+        return m.truncated ? t('codeCompleteGeneratedTruncated') : t('codeCompleteGenerated');
       case 'detecting-entities':
         // The entity type itself belongs on the subject line beneath, not
         // repeated here — that repetition is defect 2.

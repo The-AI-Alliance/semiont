@@ -6489,12 +6489,14 @@ func TestYieldDelegateReportsJobFailure(t *testing.T) {
 //
 // The trap this guards is specific. Every generated As*() accessor is a bare
 // json.Unmarshal with no discriminant check, so a declined result decodes
-// CLEANLY into JobGenerationResult with an empty resource id — which reads
-// exactly like "a generation with no id to print".
+// CLEANLY into JobGenerationResult with a zero-value resource id. A real
+// generation always carries the id (the schema requires it), so an empty id
+// here means "this is not a generation result" — which is why the decline
+// must be read first, by its own discriminant.
 func TestYieldDelegateReportsADecline(t *testing.T) {
 	s := busScenario(t,
 		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
-		`FAKERT_JOB_RESULT={"declined":true,"reason":"encrypted","message":"this PDF is password-protected"}`)
+		`FAKERT_JOB_RESULT={"kind":"declined","declined":true,"reason":"encrypted","message":"this PDF is password-protected"}`)
 	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived")
 	if code == 0 {
 		t.Fatalf("a declined job produced nothing; exit 0 tells a script to carry on\nstdout:\n%s", stdout)
@@ -6515,7 +6517,7 @@ func TestYieldDelegateReportsADecline(t *testing.T) {
 func TestYieldDelegateDeclineFailsUnderJSON(t *testing.T) {
 	s := busScenario(t,
 		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
-		`FAKERT_JOB_RESULT={"declined":true,"reason":"no-text-layer","message":"scanned pages, no recognizable text"}`)
+		`FAKERT_JOB_RESULT={"kind":"declined","declined":true,"reason":"no-text-layer","message":"scanned pages, no recognizable text"}`)
 	stdout, _, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived", "--json")
 	if code == 0 {
 		t.Fatalf("--json must not turn a decline into a success\nstdout:\n%s", stdout)

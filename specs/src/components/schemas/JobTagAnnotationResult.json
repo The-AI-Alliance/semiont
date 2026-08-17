@@ -2,13 +2,31 @@
   "type": "object",
   "description": "Result of a completed tag-annotation job.",
   "properties": {
-    "tagsFound": { "type": "integer" },
-    "tagsCreated": { "type": "integer" },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "tag-annotation"
+      ],
+      "description": "Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1)."
+    },
+    "tagsFound": {
+      "type": "integer"
+    },
+    "tagsCreated": {
+      "type": "integer"
+    },
     "byCategory": {
       "type": "object",
       "description": "Count of tags created per category",
-      "additionalProperties": { "type": "integer" }
+      "additionalProperties": {
+        "type": "integer"
+      }
     }
   },
-  "required": ["tagsFound", "tagsCreated", "byCategory"]
+  "required": [
+    "kind",
+    "tagsFound",
+    "tagsCreated",
+    "byCategory"
+  ]
 }

@@ -91,6 +91,7 @@ function createCompleteJob(): CompleteJob<DetectionParams, DetectionResult> {
     startedAt: new Date().toISOString(),
     completedAt: new Date().toISOString(),
     result: {
+      kind: 'reference-annotation',
       totalFound: 5,
       totalEmitted: 5,
       errors: 0,

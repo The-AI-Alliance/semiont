@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { WizardFooter } from './WizardFooter';
 
 export interface ResourceGatherConfig {
   depth: number;
@@ -12,14 +13,12 @@ export interface ResourceGatherConfig {
 export interface ConfigureGatherStepProps {
   defaults?: Partial<ResourceGatherConfig>;
   onGather: (config: ResourceGatherConfig) => void;
-  onCancel: () => void;
   translations: {
     intro: string;
     includeContent: string;
     includeSummary: string;
     depth: string;
     maxResources: string;
-    cancel: string;
     gather: string;
   };
   /** Slot for the exclusion multi-select (GENERATE-FROM-BUTTON Phase 4). */
@@ -29,9 +28,10 @@ export interface ConfigureGatherStepProps {
 /**
  * First step of the resource-generate flow: pick the gather options before
  * `gather.resource` runs. The `children` slot hosts the entity-type exclusion
- * multi-select (Phase 4).
+ * multi-select (Phase 4). Dismissal is the modal's corner ✕/Esc/backdrop
+ * (WIZARD-NAVIGATION D1), so the footer carries the advance alone.
  */
-export function ConfigureGatherStep({ defaults, onGather, onCancel, translations: t, children }: ConfigureGatherStepProps) {
+export function ConfigureGatherStep({ defaults, onGather, translations: t, children }: ConfigureGatherStepProps) {
   const [includeContent, setIncludeContent] = useState(defaults?.includeContent ?? true);
   const [includeSummary, setIncludeSummary] = useState(defaults?.includeSummary ?? true);
   const [depth, setDepth] = useState(defaults?.depth ?? 2);
@@ -89,14 +89,7 @@ export function ConfigureGatherStep({ defaults, onGather, onCancel, translations
       {/* Exclusion multi-select slot (Phase 4) */}
       {children}
 
-      <div className="semiont-modal__actions" style={{ paddingTop: '0.5rem' }}>
-        <button type="button" onClick={onCancel} className="semiont-button--secondary semiont-button--flex">
-          ✕ {t.cancel}
-        </button>
-        <button type="submit" className="semiont-button--primary semiont-button--flex">
-          ✨ {t.gather}
-        </button>
-      </div>
+      <WizardFooter primary={{ label: t.gather, type: 'submit' }} />
     </form>
   );
 }

@@ -102,7 +102,7 @@ describe('prepareDetection', () => {
 
   it('positioned runs: anchors by viewrect geometry from the SAME extraction', async () => {
     const { session } = fakeSession();
-    pdfExtract.mockResolvedValue({ text: PDF_TEXT, items: PDF_ITEMS, method: 'pdf-text-layer', pdfClass: 'A' });
+    pdfExtract.mockResolvedValue({ kind: 'extracted', text: PDF_TEXT, items: PDF_ITEMS, method: 'pdf-text-layer', pdfClass: 'A' });
 
     const source = await prepareDetection('application/pdf', session, RID, USER_DID, GENERATOR, MISS_STORE);
     if ('declined' in source) throw new Error(`unexpected decline: ${source.declined}`);
@@ -119,7 +119,7 @@ describe('prepareDetection', () => {
     // The point of #739: OCR'd words are ordinary positioned runs, so class B
     // takes the identical path a native text layer does.
     const { session } = fakeSession();
-    pdfExtract.mockResolvedValue({ text: PDF_TEXT, items: PDF_ITEMS, method: 'ocr', pdfClass: 'B' });
+    pdfExtract.mockResolvedValue({ kind: 'extracted', text: PDF_TEXT, items: PDF_ITEMS, method: 'ocr', pdfClass: 'B' });
 
     const source = await prepareDetection('application/pdf', session, RID, USER_DID, GENERATOR, MISS_STORE);
     if ('declined' in source) throw new Error('unexpected decline');
@@ -129,10 +129,10 @@ describe('prepareDetection', () => {
 
   it("passes an extractor's own decline through by name", async () => {
     const { session } = fakeSession();
-    pdfExtract.mockResolvedValue({ declined: 'encrypted' });
+    pdfExtract.mockResolvedValue({ kind: 'declined', declined: 'encrypted' });
 
     expect(await prepareDetection('application/pdf', session, RID, USER_DID, GENERATOR, MISS_STORE))
-      .toEqual({ declined: 'encrypted' });
+      .toEqual({ kind: 'declined', declined: 'encrypted' });
   });
 
   it("declines 'no-extractor' for a media type that can never yield text", async () => {

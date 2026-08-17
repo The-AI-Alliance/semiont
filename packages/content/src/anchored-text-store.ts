@@ -25,9 +25,6 @@ import path from 'path';
 import { createRequire } from 'module';
 import { getShardPath, isObject, isString, isNumber, isArray, type ExtractionOutcome, type Logger, type PdfTextItem } from '@semiont/core';
 
-/** The two halves of the wire record, split for storage. */
-type SuccessOutcome = Exclude<ExtractionOutcome, { declined: string }>;
-type DeclineOutcome = Extract<ExtractionOutcome, { declined: string }>;
 
 /**
  * One line of recognized text: the geometry every word on it shares, plus the
@@ -81,11 +78,11 @@ export type CachedAnchoredText =
         stamp: string;
         text: string;
         lines: CachedLine[];
-    } & Omit<SuccessOutcome, 'text' | 'items'>)
+    } & Omit<Extract<ExtractionOutcome, { kind: 'extracted' }>, 'kind' | 'text' | 'items'>)
     | ({
         v: 2;
         stamp: string;
-    } & DeclineOutcome);
+    } & Omit<Extract<ExtractionOutcome, { kind: 'declined' }>, 'kind'>);
 
 /**
  * What the cached value must be recomputed against.
@@ -237,9 +234,12 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
                 ...(hit ? ('declined' in hit ? { declined: hit.declined } : { lines: hit.lines.length }) : {}),
             });
             if (!hit) return null;
-            if ('declined' in hit) return { declined: hit.declined };
+            // `kind` is not persisted — the branch is implied by the record's
+            // own shape, and re-added here so readers get the discriminated
+            // wire union (WIRE-UNION-DISCRIMINANTS P5c).
+            if ('declined' in hit) return { kind: 'declined', declined: hit.declined };
             const { v: _v, stamp: _stamp, lines, text, ...provenance } = hit;
-            return { text, items: decodeLines(lines), ...provenance };
+            return { kind: 'extracted', text, items: decodeLines(lines), ...provenance };
         },
 
         async write(key, outcome) {
@@ -250,10 +250,14 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
             }
             // Key order (`v`, `stamp`, first) is load-bearing: `list()` below
             // reads only a prefix of each file and matches the stamp there.
-            const entry: CachedAnchoredText = 'declined' in outcome
+            const entry: CachedAnchoredText = outcome.kind === 'declined'
                 ? { v: 2, stamp: STAMP, declined: outcome.declined }
                 : (() => {
-                    const { text, items, ...provenance } = outcome;
+                    // `kind` is deliberately destructured OUT: persisting it
+                    // would store a byte the branch already implies, and a
+                    // stored-shape change here would outrun the release-derived
+                    // STAMP (WIRE-UNION-DISCRIMINANTS P5c).
+                    const { kind: _kind, text, items, ...provenance } = outcome;
                     return { v: 2, stamp: STAMP, text, lines: encodeLines(items), ...provenance };
                 })();
             // Write-then-rename: a reader never observes a half-written entry,

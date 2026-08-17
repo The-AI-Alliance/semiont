@@ -531,6 +531,18 @@
   padding-top: 0.25rem;
 }
 
+/* Suggested references are prose (D3) — sentences, listed, not chipped. */
+.semiont-gather__suggested {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-gather__suggested li {
+  margin-bottom: 0.25rem;
+}
+
 /* Two-column body below the strip */
 .semiont-gather__body {
   display: flex;

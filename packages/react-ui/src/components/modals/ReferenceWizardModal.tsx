@@ -62,7 +62,6 @@ export interface ReferenceWizardModalProps {
     userHintPlaceholder: string;
     loadingContext: string;
     failedContext: string;
-    cancel: string;
     search: string;
     searching: string;
     generate: string;
@@ -262,24 +261,27 @@ export function ReferenceWizardModal({
                     context={context}
                     contextLoading={contextLoading}
                     contextError={contextError}
-                    userHint={userHint}
-                    onUserHintChange={setUserHint}
-                    onBind={handleBind}
-                    onGenerate={handleGenerate}
-                    onCompose={handleCompose}
+                    annotate={{
+                      userHint,
+                      onUserHintChange: setUserHint,
+                      onBind: handleBind,
+                      onGenerate: handleGenerate,
+                      onCompose: handleCompose,
+                      translations: {
+                        search: t.search,
+                        generate: t.generate,
+                        compose: t.compose,
+                        resolutionStrategyLabel: t.resolutionStrategyLabel,
+                        userHintLabel: t.userHintLabel,
+                        userHintPlaceholder: t.userHintPlaceholder,
+                      },
+                    }}
                     translations={{
-                      title: t.gatherTitle,
+                      loadingContext: t.loadingContext,
+                      failedContext: t.failedContext,
                       sourceContextLabel: t.sourceContextLabel,
                       connectionsLabel: t.connectionsLabel,
                       citedByLabel: t.citedByLabel,
-                      userHintLabel: t.userHintLabel,
-                      userHintPlaceholder: t.userHintPlaceholder,
-                      loadingContext: t.loadingContext,
-                      failedContext: t.failedContext,
-                      search: t.search,
-                      generate: t.generate,
-                      compose: t.compose,
-                      resolutionStrategyLabel: t.resolutionStrategyLabel,
                     }}
                   />
                 )}
@@ -343,8 +345,6 @@ export function ReferenceWizardModal({
                       sourceContextLabel: t.sourceContextLabel,
                       connectionsLabel: t.connectionsLabel,
                       citedByLabel: t.citedByLabel,
-                      userHintLabel: t.userHintLabel,
-                      userHintPlaceholder: t.userHintPlaceholder,
                     }}
                   />
                 )}

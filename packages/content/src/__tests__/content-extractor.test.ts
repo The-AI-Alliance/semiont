@@ -31,7 +31,7 @@ describe('passthrough extractor', () => {
     const ex = EXTRACTORS['decode'];
     expect(ex).not.toBeNull();
     const out = await ex!.extract(Buffer.from(text, 'utf8'), 'text/markdown');
-    expect(out).toEqual({ text, method: 'text-passthrough' });
+    expect(out).toEqual({ kind: 'extracted', text, method: 'text-passthrough' });
   });
 
   it('honors the charset parameter via decodeRepresentation', async () => {
@@ -41,7 +41,7 @@ describe('passthrough extractor', () => {
     const ex = EXTRACTORS['decode'];
     expect(ex).not.toBeNull();
     const out = await ex!.extract(latin1, 'text/plain; charset=iso-8859-1');
-    if ('declined' in out) throw new Error('unexpected decline');
+    if (out.kind === 'declined') throw new Error('unexpected decline');
     expect(out.text).toBe('café');
     expect(out.method).toBe('text-passthrough');
   });

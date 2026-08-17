@@ -6,7 +6,6 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { assistProgressTranslations } from '../../../lib/assist-progress-copy';
 import { useResourceViewedReport } from '../hooks/useResourceViewedReport';
 import type { components, ResourceDescriptor, ResourceId, GatheredContext, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
@@ -45,7 +44,6 @@ import { useShellStateUnit } from '../../../hooks/useShellStateUnit';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizardModal';
 import { ResourceGenerateModal } from '../../../components/modals/ResourceGenerateModal';
-import { AssistProgress } from '../../../components/AssistProgress';
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
 
 type SemiontResource = ResourceDescriptor;
@@ -143,7 +141,6 @@ export function ResourceViewerPage({
   // Translations
   const tw = useTranslations('ReferenceWizard');
   const tg = useTranslations('ResourceGenerate');
-  const ta = useTranslations('AssistProgress');
 
   const browser = useSemiont();
   const session = useObservable(browser.activeSession$);
@@ -240,6 +237,7 @@ export function ResourceViewerPage({
   const onScrollCompleted = stateUnit?.browse.onScrollCompleted;
   const generationProgress = useObservable(stateUnit?.yield.progress$) ?? null;
   const isGenerating = useObservable(stateUnit?.yield.isGenerating$) ?? false;
+  const generationOutcome = useObservable(stateUnit?.yield.outcome$) ?? null;
   const gatherContext = useObservable(stateUnit?.gather.context$) ?? null;
   const gatherLoading = useObservable(stateUnit?.gather.loading$) ?? false;
   const gatherError = useObservable(stateUnit?.gather.error$) ?? null;
@@ -490,21 +488,6 @@ export function ResourceViewerPage({
               </h2>
             </div>
           </div>
-          {/* Resource-generation progress (GENERATE-FROM-BUTTON P7) — no annotationId ⇒ a resource-gen job */}
-          {generationProgress && !generationProgress.annotationId && (
-            <AssistProgress
-              progress={generationProgress}
-              dataType="generation"
-              // The ending is the owner's fact and every owner must state it
-              // (CLEAN-PROGRESS D1). This call site used to pass neither
-              // `ended` nor `onDismiss`, so a finished generation stayed in its
-              // running form and then vanished on a timer.
-              ended={!isGenerating}
-              onCancel={() => session?.client.job.cancelRequest('generation')}
-              onDismiss={() => stateUnit?.yield.dismissProgress()}
-              translations={assistProgressTranslations(ta)}
-            />
-          )}
           {/* Scrollable body wrapper - contains document content, header is sibling above */}
           <div className="semiont-document-viewer__scrollable-body" lang={getLanguage(resource) || undefined}>
             <ErrorBoundary
@@ -644,6 +627,15 @@ export function ResourceViewerPage({
                 wasDerivedFrom={resource.wasDerivedFrom}
                 generator={resource.generator as components['schemas']['Agent'] | components['schemas']['Agent'][] | undefined}
                 onGenerate={() => setGenerateOpen(true)}
+                // The panel is generation's progress surface (GENERATE-FROM-
+                // RESOURCE D7); no annotationId ⇒ a resource-gen job — the
+                // annotation path's frame renders in the reference wizard.
+                isGenerating={isGenerating}
+                generationProgress={
+                  generationProgress && !generationProgress.annotationId ? generationProgress : null
+                }
+                generationOutcome={generationOutcome}
+                onDismissProgress={() => stateUnit?.yield.dismissProgress()}
               />
             )}
 
@@ -700,7 +692,6 @@ export function ResourceViewerPage({
           userHintPlaceholder: tw('userHintPlaceholder'),
           loadingContext: tw('loadingContext'),
           failedContext: tw('failedContext'),
-          cancel: tw('cancel'),
           search: tw('search'),
           searching: tw('searching'),
           generate: tw('generate'),
@@ -734,7 +725,9 @@ export function ResourceViewerPage({
         isOpen={generateOpen}
         onClose={() => setGenerateOpen(false)}
         resourceId={rUri}
-        defaultTitle=""
+        // Seed the proposed title from the source resource's name (GFR D4/A4);
+        // the field stays editable and required.
+        defaultTitle={resource.name}
         locale={locale}
         entityTypeOptions={allEntityTypes}
         onGenerateSubmit={handleResourceGenerateSubmit}
@@ -744,7 +737,6 @@ export function ResourceViewerPage({
           configureTitle: tg('configureTitle'),
           next: tg('next'),
           back: tg('back'),
-          cancel: tg('cancel'),
           gatherIntro: tg('gatherIntro'),
           includeContent: tg('includeContent'),
           includeSummary: tg('includeSummary'),

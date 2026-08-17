@@ -7,5 +7,12 @@
       "$ref": "./SpecificResource.json"
     }
   ],
-  "description": "Phase 2: Body can be TextualBody (for entity tags, descriptions) or SpecificResource (for links)"
+  "discriminator": {
+    "propertyName": "type",
+    "mapping": {
+      "TextualBody": "./TextualBody.json",
+      "SpecificResource": "./SpecificResource.json"
+    }
+  },
+  "description": "An annotation's body: a TextualBody carries text the annotation states (entity tags, descriptions, comments), a SpecificResource points at what it links to. Tell them apart by `type`, which is required on both and single-valued — a consumer never has to probe for which fields happen to be present."
 }

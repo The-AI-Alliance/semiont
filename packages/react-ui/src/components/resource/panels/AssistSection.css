@@ -173,6 +173,31 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* D8: the finished run's artifact, offered as a link. */
+.semiont-assist-progress__outcome {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-color-primary-600);
+  text-decoration: underline;
+  text-align: left;
+}
+
+.semiont-assist-progress__outcome:hover {
+  color: var(--semiont-color-primary-700);
+}
+
+[data-theme="dark"] .semiont-assist-progress__outcome {
+  color: var(--semiont-color-primary-400);
+}
+
+[data-theme="dark"] .semiont-assist-progress__outcome:hover {
+  color: var(--semiont-color-primary-300);
+}
+
 .semiont-assist-progress__params {
   display: flex;
   flex-wrap: wrap;

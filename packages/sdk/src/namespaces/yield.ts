@@ -194,7 +194,7 @@ export class YieldNamespace implements IYieldNamespace {
                       jobId: jid,
                       jobType: (status.type ?? 'generation') as components['schemas']['JobType'],
                       resourceId: resourceId as string,
-                      result: status.result as components['schemas']['JobResult'] | undefined,
+                      result: status.result,
                     },
                   });
                   subscriber.complete();

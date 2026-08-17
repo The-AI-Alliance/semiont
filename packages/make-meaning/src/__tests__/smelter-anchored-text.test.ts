@@ -99,7 +99,7 @@ describe('Smelter publishes derived anchored text', () => {
     expect(key).toBe(calculateChecksum(Buffer.from(PDF_BYTES)));
     // The published record is the full outcome (P2a) — a success here, with
     // geometry, not just text: the whole reason a consumer wants this.
-    if ('declined' in map) throw new Error(`expected a success outcome, got decline: ${map.declined}`);
+    if (map.kind === 'declined') throw new Error(`expected a success outcome, got decline: ${map.declined}`);
     expect(map.text).toContain('alpha');
     expect(map.items.length).toBeGreaterThan(0);
     expect(map.items[0]).toMatchObject({ page: 1 });

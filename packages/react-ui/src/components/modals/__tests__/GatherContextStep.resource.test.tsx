@@ -12,18 +12,28 @@ import { GatherContextStep } from '../GatherContextStep';
 import { ContextSummary } from '../ContextSummary';
 
 const t = {
-  title: 'Gather',
   loadingContext: 'Loading…',
   failedContext: 'Failed',
-  search: 'Search',
-  generate: 'Generate',
-  compose: 'Compose',
-  resolutionStrategyLabel: 'Strategy',
   sourceContextLabel: 'Source',
   connectionsLabel: 'Connections',
   citedByLabel: 'Cited by',
-  userHintLabel: 'Hint',
-  userHintPlaceholder: 'hint…',
+};
+
+/** The annotation-wizard controls travel as ONE optional group (GFR D2). */
+const annotate = {
+  userHint: '',
+  onUserHintChange: () => {},
+  onBind: () => {},
+  onGenerate: () => {},
+  onCompose: () => {},
+  translations: {
+    search: 'Search',
+    generate: 'Generate',
+    compose: 'Compose',
+    resolutionStrategyLabel: 'Strategy',
+    userHintLabel: 'Hint',
+    userHintPlaceholder: 'hint…',
+  },
 };
 
 function resourceContext(): GatheredContext {
@@ -69,7 +79,7 @@ describe('GatheredContext display — resource focus', () => {
     );
     expect(container.textContent).toContain('My Resource');     // focal resource name
     expect(container.textContent).toContain('A short summary'); // resource summary
-    expect(container.textContent).toContain('Suggested Topic'); // suggestedReferences chip
+    expect(container.textContent).toContain('Suggested Topic'); // suggestedReferences entry
     expect(container.textContent).toContain('Related Resource'); // graph view via ContextSummary
     // annotation-only controls are gated out for a resource focus
     expect(container.textContent).not.toContain('Strategy');
@@ -78,30 +88,67 @@ describe('GatheredContext display — resource focus', () => {
   });
 
   it('GatherContextStep still shows the footer for an annotation focus', () => {
-    const annotationContext = {
-      focus: {
-        kind: 'annotation',
-        annotation: { id: 'anno-1', motivation: 'linking' },
-        sourceResource: { id: 'res-1', name: 'Host' },
-        selected: { before: 'a ', text: 'term', after: ' b' },
-      },
-      graph: { nodes: [], edges: [] },
-      metadata: {},
-    } as unknown as GatheredContext;
     const { container } = render(
       <GatherContextStep
-        context={annotationContext}
+        context={annotationContext()}
         contextLoading={false}
         contextError={null}
-        userHint=""
-        onUserHintChange={() => {}}
-        onBind={() => {}}
-        onGenerate={() => {}}
-        onCompose={() => {}}
+        annotate={annotate}
         translations={t}
       />,
     );
     expect(container.querySelector('.semiont-gather__footer')).not.toBeNull();
     expect(container.textContent).toContain('Strategy');
   });
+
+  it('suggestedReferences render as a prose list, never chips (GFR A3)', () => {
+    // The live values are full research prompts — sentences. The chip vocabulary
+    // stays for tokens (entity types, categories, counts); a pill that wraps
+    // across three lines is not a pill (GENERATE-FROM-RESOURCE D3).
+    const { container } = render(
+      <GatherContextStep
+        context={resourceContext()}
+        contextLoading={false}
+        contextError={null}
+        translations={t}
+      />,
+    );
+    const item = Array.from(container.querySelectorAll('li'))
+      .find((el) => el.textContent === 'Suggested Topic');
+    expect(item).toBeDefined();
+    expect(item!.className).not.toContain('semiont-chip');
+    // The entity-type tokens beside the summary stay chips.
+    const chipTexts = Array.from(container.querySelectorAll('.semiont-chip')).map((el) => el.textContent);
+    expect(chipTexts).toContain('Topic');
+    expect(chipTexts).not.toContain('Suggested Topic');
+  });
+
+  it('an annotation focus WITHOUT the annotate group renders display-only (GFR A2)', () => {
+    // The resolution controls belong to the caller that can serve them. A
+    // display-only caller must never get a hint textarea wired to nothing —
+    // which is what the old always-on gate produced for an annotation focus.
+    const { container } = render(
+      <GatherContextStep
+        context={annotationContext()}
+        contextLoading={false}
+        contextError={null}
+        translations={t}
+      />,
+    );
+    expect(container.querySelector('.semiont-gather__footer')).toBeNull();
+    expect(container.querySelector('.semiont-gather__hint-textarea')).toBeNull();
+  });
 });
+
+function annotationContext(): GatheredContext {
+  return {
+    focus: {
+      kind: 'annotation',
+      annotation: { id: 'anno-1', motivation: 'linking' },
+      sourceResource: { id: 'res-1', name: 'Host' },
+      selected: { before: 'a ', text: 'term', after: ' b' },
+    },
+    graph: { nodes: [], edges: [] },
+    metadata: {},
+  } as unknown as GatheredContext;
+}

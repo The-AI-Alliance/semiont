@@ -6,8 +6,6 @@ export interface ContextSummaryTranslations {
   sourceContextLabel: string;
   connectionsLabel: string;
   citedByLabel: string;
-  userHintLabel: string;
-  userHintPlaceholder: string;
 }
 
 export interface ContextSummaryProps {

@@ -11,7 +11,7 @@
 
 import { AnnotationDetection } from './workers/annotation-detection';
 import { extractEntities } from './workers/detection/entity-extractor';
-import { generateResourceFromTopic } from './workers/generation/resource-generation';
+import { DEFAULT_MAX_TOKENS, generateResourceFromTopic } from './workers/generation/resource-generation';
 import { compileTypst, MAX_COMPILE_REPAIRS } from './workers/generation/typst-compiler';
 import { withinByteBudget, MAX_PDF_BYTES } from '@semiont/content';
 import { resolveCitationTokens, collectContextResourceIds, type GenerationCitation } from './workers/generation/citation-resolver';
@@ -346,7 +346,7 @@ export async function processHighlightJob(
 
   return {
     annotations,
-    result: { highlightsFound: highlights.length, highlightsCreated: annotations.length },
+    result: { kind: 'highlight-annotation', highlightsFound: highlights.length, highlightsCreated: annotations.length },
   };
 }
 
@@ -412,7 +412,7 @@ export async function processCommentJob(
 
   return {
     annotations,
-    result: { commentsFound: comments.length, commentsCreated: annotations.length },
+    result: { kind: 'comment-annotation', commentsFound: comments.length, commentsCreated: annotations.length },
   };
 }
 
@@ -454,7 +454,7 @@ export async function processAssessmentJob(
 
   return {
     annotations,
-    result: { assessmentsFound: assessments.length, assessmentsCreated: annotations.length },
+    result: { kind: 'assessment-annotation', assessmentsFound: assessments.length, assessmentsCreated: annotations.length },
   };
 }
 
@@ -567,7 +567,7 @@ export async function processReferenceJob(
 
   return {
     annotations,
-    result: { totalFound, totalEmitted: annotations.length, errors },
+    result: { kind: 'reference-annotation', totalFound, totalEmitted: annotations.length, errors },
   };
 }
 
@@ -643,7 +643,7 @@ export async function processTagJob(
 
   return {
     annotations,
-    result: { tagsFound: tags.length, tagsCreated: annotations.length, byCategory },
+    result: { kind: 'tag-annotation', tagsFound: tags.length, tagsCreated: annotations.length, byCategory },
   };
 }
 
@@ -712,7 +712,22 @@ export async function processGenerationJob(
     }
     let compiled = compileTypst(source);
     let repairs = 0;
-    while ('error' in compiled && repairs < MAX_COMPILE_REPAIRS) {
+    while ('error' in compiled) {
+      // A truncated source that fails to compile is cut off, not wrong —
+      // every repair regenerates under the same ceiling and cannot restore
+      // content that was never generated. Fail immediately with the actual
+      // cause instead of burning the repair budget and blaming the compiler
+      // (GENERATE-FROM-RESOURCE P3a).
+      if (generated.truncated) {
+        throw new Error(
+          `Generation stopped at the maxTokens ceiling (${params.maxTokens ?? DEFAULT_MAX_TOKENS} tokens) and the cut-off Typst source does not compile — repair cannot help; raise maxTokens. Compile error: ${compiled.error}`,
+        );
+      }
+      if (repairs >= MAX_COMPILE_REPAIRS) {
+        throw new Error(
+          `Typst compilation failed after ${MAX_COMPILE_REPAIRS} repair attempts: ${compiled.error}`,
+        );
+      }
       repairs++;
       logger.warn('Typst compile failed — feeding the error back for repair', {
         attempt: repairs,
@@ -734,23 +749,26 @@ export async function processGenerationJob(
       }
       compiled = compileTypst(source);
     }
-    if ('error' in compiled) {
-      throw new Error(
-        `Typst compilation failed after ${MAX_COMPILE_REPAIRS} repair attempts: ${compiled.error}`,
-      );
-    }
 
     assertWithinOutputBudget(compiled.pdf.byteLength);
     onProgress(95, { code: 'creating-resource' });
+    // The producer owns terminality (GENERATE-FROM-RESOURCE P1/D1): without
+    // this, the client's last frame is forever the 95% payload. Generic by
+    // design — the outcome (name + link) travels on job:complete (D8).
+    // `truncated` rides both surfaces (P3a/D6): truncation that lands at a
+    // syntactic boundary still compiles, and the artifact is still cut off.
+    onProgress(100, { code: 'complete-generated', truncated: generated.truncated });
 
     return {
       content: compiled.pdf,
-      title: generated.title ?? title,
+      title,
       format: outputMediaType,
       citations,
       result: {
+        kind: 'generation',
         resourceId: '' as ResourceId,
-        resourceName: generated.title ?? title,
+        resourceName: title,
+        truncated: generated.truncated,
       },
     };
   }
@@ -800,14 +818,23 @@ export async function processGenerationJob(
   const artifact = new TextEncoder().encode(content);
   assertWithinOutputBudget(artifact.byteLength);
 
+  // The producer owns terminality (GENERATE-FROM-RESOURCE P1/D1): without
+  // this, the client's last frame is forever the 95% payload. Generic by
+  // design — the outcome (name + link) travels on job:complete (D8).
+  // `truncated` rides both surfaces (P3a/D6): the event is the frame the
+  // client renders, the result is the record.
+  onProgress(100, { code: 'complete-generated', truncated: generated.truncated });
+
   return {
     content: artifact,
-    title: generated.title ?? title,
+    title,
     format: outputMediaType,
     citations,
     result: {
+      kind: 'generation',
       resourceId: '' as ResourceId,
-      resourceName: generated.title ?? title,
+      resourceName: title,
+      truncated: generated.truncated,
     },
   };
 }

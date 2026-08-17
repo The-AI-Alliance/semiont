@@ -36,6 +36,8 @@ vi.mock('../workers/detection/entity-extractor', () => ({
 
 vi.mock('../workers/generation/resource-generation', () => ({
   generateResourceFromTopic: vi.fn(),
+  // Real value, not a stand-in: the fail-fast error message names this ceiling.
+  DEFAULT_MAX_TOKENS: 500,
 }));
 
 vi.mock('../workers/generation/typst-compiler', async (importOriginal) => ({
@@ -150,7 +152,7 @@ describe('processHighlightJob', () => {
     });
     // Highlights carry no body — motivation alone is the content per W3C.
     expect((result.annotations[0] as Record<string, unknown>).body).toBeUndefined();
-    expect(result.result).toEqual({ highlightsFound: 2, highlightsCreated: 2 });
+    expect(result.result).toEqual({ kind: 'highlight-annotation', highlightsFound: 2, highlightsCreated: 2 });
     // The run's own parameters ride every event, including the first and last.
     const echo = { requestParams: [{ label: 'density', value: '5' }] };
     expect(progress).toHaveBeenCalledWith(10, { code: 'loading' }, echo);
@@ -179,7 +181,7 @@ describe('processHighlightJob', () => {
     );
 
     expect(result.annotations).toHaveLength(2);
-    expect(result.result).toEqual({ highlightsFound: 2, highlightsCreated: 2 });
+    expect(result.result).toEqual({ kind: 'highlight-annotation', highlightsFound: 2, highlightsCreated: 2 });
     for (const ann of result.annotations) {
       const selectors = (ann as { target: { selector: Array<{ type: string }> } }).target.selector;
       expect(selectors.some((s) => s.type === 'FragmentSelector')).toBe(true);
@@ -213,7 +215,7 @@ describe('processCommentJob', () => {
     expect((result.annotations[0] as any).body).toEqual([
       { type: 'TextualBody', value: 'interesting point', purpose: 'commenting', format: 'text/plain', language: 'en' },
     ]);
-    expect(result.result).toEqual({ commentsFound: 1, commentsCreated: 1 });
+    expect(result.result).toEqual({ kind: 'comment-annotation', commentsFound: 1, commentsCreated: 1 });
   });
 });
 
@@ -244,7 +246,7 @@ describe('processAssessmentJob', () => {
     expect((result.annotations[0] as any).body).toEqual({
       type: 'TextualBody', value: 'dubious', purpose: 'assessing', format: 'text/plain', language: 'en',
     });
-    expect(result.result).toEqual({ assessmentsFound: 1, assessmentsCreated: 1 });
+    expect(result.result).toEqual({ kind: 'assessment-annotation', assessmentsFound: 1, assessmentsCreated: 1 });
   });
 });
 
@@ -277,7 +279,7 @@ describe('processReferenceJob', () => {
     expect((result.annotations[0] as any).body).toEqual([
       { type: 'TextualBody', value: 'Location', purpose: 'tagging', format: 'text/plain', language: 'en' },
     ]);
-    expect(result.result).toEqual({ totalFound: 2, totalEmitted: 2, errors: 0 });
+    expect(result.result).toEqual({ kind: 'reference-annotation', totalFound: 2, totalEmitted: 2, errors: 0 });
   });
 
   it('counts errors when reconciliation drops an entity (text not in source)', async () => {
@@ -298,7 +300,7 @@ describe('processReferenceJob', () => {
     );
 
     expect(result.annotations).toHaveLength(1);
-    expect(result.result).toEqual({ totalFound: 2, totalEmitted: 1, errors: 1 });
+    expect(result.result).toEqual({ kind: 'reference-annotation', totalFound: 2, totalEmitted: 1, errors: 1 });
   });
 
   it('returns zero counts when no entities are found', async () => {
@@ -314,7 +316,7 @@ describe('processReferenceJob', () => {
     );
 
     expect(result.annotations).toHaveLength(0);
-    expect(result.result).toEqual({ totalFound: 0, totalEmitted: 0, errors: 0 });
+    expect(result.result).toEqual({ kind: 'reference-annotation', totalFound: 0, totalEmitted: 0, errors: 0 });
   });
 });
 
@@ -352,6 +354,7 @@ describe('processTagJob', () => {
       ]);
     }
     expect(result.result).toEqual({
+      kind: 'tag-annotation',
       tagsFound: 3,
       tagsCreated: 3,
       byCategory: { catA: 2, catB: 1 },
@@ -362,11 +365,16 @@ describe('processTagJob', () => {
 describe('processGenerationJob', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('generates content and returns title + format', async () => {
+  it('generates content and returns the CALLER\'s title + format', async () => {
+    // The generator echoes the caller's topic verbatim (resource-generation.ts
+    // parseResponse: "Title is provided by the caller (topic), not extracted") —
+    // so the processor's title is the request's title, unconditionally. The mock
+    // mirrors that contract; a diverging title is a state that cannot occur.
     vi.mocked(generateResourceFromTopic).mockResolvedValue({
       content: '# Generated resource\n\nBody.',
-      title: 'Generated Title',
-    } as any);
+      title: 'Initial',
+      truncated: false,
+    });
 
     const progress = vi.fn();
     const result = await processGenerationJob(
@@ -380,37 +388,48 @@ describe('processGenerationJob', () => {
     );
 
     expect(new TextDecoder().decode(result.content)).toContain('Generated resource');
-    expect(result.title).toBe('Generated Title');
+    expect(result.title).toBe('Initial');
     expect(result.format).toBe('text/markdown');
-    expect(result.result.resourceName).toBe('Generated Title');
+    expect(result.result.resourceName).toBe('Initial');
+    // A natural stop reports truncated: false — required, never absent (P3a/D6:
+    // the producer always knows; structure expresses it).
+    expect(result.result.truncated).toBe(false);
     // Honest lifecycle: generation has exactly two real transitions — the LLM
     // call starting, and content finalized / creation beginning. No 'fetching'
     // stage (it labeled zero work; context arrives pre-gathered in params).
     // Percentages approximate the share of expected wall-clock complete at each
     // transition: inference dominates, so its start is ~5 and its end ~95.
-    expect(progress).toHaveBeenCalledTimes(2);
+    // The producer owns terminality (GENERATE-FROM-RESOURCE P1/D1): the run
+    // ends with a terminal code at 100, like every annotation flow — without
+    // it, the client's last frame forever says 95% "creating".
+    expect(progress).toHaveBeenCalledTimes(3);
     expect(progress).toHaveBeenNthCalledWith(1, 5, { code: 'generating-resource' });
     expect(progress).toHaveBeenNthCalledWith(2, 95, { code: 'creating-resource' });
+    expect(progress).toHaveBeenNthCalledWith(3, 100, { code: 'complete-generated', truncated: false });
   });
 
-  it('falls back to request title when generator omits it', async () => {
+  it('a max_tokens stop reports truncated on the terminal event AND the result (P3a)', async () => {
+    // N7: the worker KNOWS the artifact was cut off and used to tell nobody.
+    // The bit rides both surfaces — the event (the frame P3b renders) and the
+    // result (the record).
     vi.mocked(generateResourceFromTopic).mockResolvedValue({
-      content: 'text',
-    } as any);
+      content: 'Cut off mid-sen',
+      title: 'Initial',
+      truncated: true,
+    });
 
+    const progress = vi.fn();
     const result = await processGenerationJob(
       makeInferenceClient(),
-      { ...GEN_REQUIRED,
-        title: 'Fallback Title',
-        entityTypes: [],
-      },
-      vi.fn(),
+      { ...GEN_REQUIRED, title: 'Initial', entityTypes: [] },
+      progress,
       LOGGER,
     );
 
-    expect(result.title).toBe('Fallback Title');
-    expect(result.result.resourceName).toBe('Fallback Title');
+    expect(result.result.truncated).toBe(true);
+    expect(progress).toHaveBeenNthCalledWith(3, 100, { code: 'complete-generated', truncated: true });
   });
+
 });
 
 describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () => {
@@ -449,6 +468,7 @@ describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () =
     vi.mocked(generateResourceFromTopic).mockResolvedValue({
       content: 'Paris is the capital of France. [[ctx-9]] It is large.',
       title: 'T',
+      truncated: false,
     });
 
     const r = await processGenerationJob(
@@ -474,6 +494,7 @@ describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () =
     vi.mocked(generateResourceFromTopic).mockResolvedValue({
       content: 'A bold claim. [[not-in-context]]',
       title: 'T',
+      truncated: false,
     });
 
     const r = await processGenerationJob(
@@ -492,6 +513,7 @@ describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () =
     vi.mocked(generateResourceFromTopic).mockResolvedValue({
       content: 'Wiki-style [[links]] are legitimate content.',
       title: 'T',
+      truncated: false,
     });
 
     const r = await processGenerationJob(
@@ -511,7 +533,7 @@ describe('processGenerationJob — byte return (PDF-GENERATION P1)', () => {
   // output media type, so a string can never travel mislabeled as a binary
   // format. The sole consumer (worker upload) already does Buffer.from().
   it('returns the artifact content as Uint8Array', async () => {
-    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: 'Generated body', title: 'T' });
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: 'Generated body', title: 'T', truncated: false });
 
     const r = await processGenerationJob(makeInferenceClient(), { ...GEN_REQUIRED, title: 'T' }, vi.fn(), LOGGER);
 
@@ -527,26 +549,69 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
   });
 
   it('compiles model-authored Typst to PDF bytes', async () => {
-    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: '= Title\nBody.', title: 'T' });
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: '= Title\nBody.', title: 'T', truncated: false });
     const pdf = new TextEncoder().encode('%PDF-FAKE');
     vi.mocked(compileTypst).mockReturnValue({ pdf });
 
+    const progress = vi.fn();
     const r = await processGenerationJob(
       makeInferenceClient(),
       { ...GEN_REQUIRED, title: 'T', outputMediaType: 'application/pdf' },
-      vi.fn(),
+      progress,
       LOGGER,
     );
 
     expect(compileTypst).toHaveBeenCalledWith('= Title\nBody.');
     expect(r.content).toBe(pdf);
     expect(r.format).toBe('application/pdf');
+    // Terminal honesty (GENERATE-FROM-RESOURCE P1): the PDF path ends like
+    // every other flow — a terminal code at 100, never a dangling 95.
+    expect(progress.mock.calls.at(-1)).toEqual([100, { code: 'complete-generated', truncated: false }]);
+  });
+
+  it('a truncated source that still compiles carries the truncated flag (P3a)', async () => {
+    // Truncation that happens to land at a syntactic boundary compiles fine —
+    // the artifact is still incomplete, and the bit still travels.
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: '= Title\nCut off', title: 'T', truncated: true });
+    const pdf = new TextEncoder().encode('%PDF-FAKE');
+    vi.mocked(compileTypst).mockReturnValue({ pdf });
+
+    const progress = vi.fn();
+    const r = await processGenerationJob(
+      makeInferenceClient(),
+      { ...GEN_REQUIRED, title: 'T', outputMediaType: 'application/pdf' },
+      progress,
+      LOGGER,
+    );
+
+    expect(r.result.truncated).toBe(true);
+    expect(progress.mock.calls.at(-1)).toEqual([100, { code: 'complete-generated', truncated: true }]);
+  });
+
+  it('a truncated source that fails to compile fails FAST, naming the ceiling — no repairs (P3a)', async () => {
+    // Repair cannot restore content that was never generated: the source is
+    // cut off, not wrong, and every repair regenerates under the same ceiling.
+    // Burning the repair budget here would end in an error naming a compile
+    // problem the user cannot fix; the honest error names the token ceiling.
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: '#let broken = [cut', title: 'T', truncated: true });
+    vi.mocked(compileTypst).mockReturnValue({ error: 'error: unclosed delimiter' });
+
+    await expect(
+      processGenerationJob(
+        makeInferenceClient(),
+        { ...GEN_REQUIRED, title: 'T', outputMediaType: 'application/pdf' },
+        vi.fn(),
+        LOGGER,
+      ),
+    ).rejects.toThrow(/maxTokens ceiling/);
+
+    expect(generateResourceFromTopic).toHaveBeenCalledTimes(1);
   });
 
   it('feeds a compile error back for a bounded repair, then succeeds', async () => {
     vi.mocked(generateResourceFromTopic)
-      .mockResolvedValueOnce({ content: '#let broken = [unclosed', title: 'T' })
-      .mockResolvedValueOnce({ content: '= Fixed\nBody.', title: 'T' });
+      .mockResolvedValueOnce({ content: '#let broken = [unclosed', title: 'T', truncated: false })
+      .mockResolvedValueOnce({ content: '= Fixed\nBody.', title: 'T', truncated: false });
     const pdf = new TextEncoder().encode('%PDF-FAKE');
     vi.mocked(compileTypst)
       .mockReturnValueOnce({ error: 'error: unclosed delimiter\n  ┌─ doc.typ:1:14' })
@@ -570,7 +635,7 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
   });
 
   it('gives up loudly after the bounded repairs are exhausted', async () => {
-    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: '#broken', title: 'T' });
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: '#broken', title: 'T', truncated: false });
     vi.mocked(compileTypst).mockReturnValue({ error: 'error: unclosed delimiter' });
 
     await expect(
@@ -595,6 +660,7 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
     vi.mocked(generateResourceFromTopic).mockResolvedValue({
       content: '= Answer\nParis is the capital of France. [[ctx-9]]',
       title: 'T',
+      truncated: false,
     });
     const pdf = new TextEncoder().encode('%PDF-FAKE');
     vi.mocked(compileTypst).mockReturnValue({ pdf });
@@ -632,7 +698,7 @@ describe('processGenerationJob — output bound (PDF-GENERATION P5)', () => {
 
 describe('processGenerationJob — outputMediaType', () => {
   beforeEach(() => {
-    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: 'c', title: 'T' });
+    vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: 'c', title: 'T', truncated: false });
   });
 
   it('defaults the generated resource format to text/markdown', async () => {
@@ -959,7 +1025,7 @@ describe('locale threading', () => {
 
     it('forwards sourceLanguage and language to generateResourceFromTopic', async () => {
       vi.mocked(generateResourceFromTopic).mockResolvedValue({
-        content: 'text', title: 'T',
+        content: 'text', title: 'T', truncated: false,
       } as any);
       const client = makeInferenceClient();
 
@@ -1158,7 +1224,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
       LOGGER,
     );
 
-    expect(result.result).toEqual({ totalFound: 2, totalEmitted: 1, errors: 1 });
+    expect(result.result).toEqual({ kind: 'reference-annotation', totalFound: 2, totalEmitted: 1, errors: 1 });
     expect(result.annotations).toHaveLength(1);
     const ann = result.annotations[0] as any;
     const posSel = ann.target.selector.find((s: any) => s.type === 'TextPositionSelector');

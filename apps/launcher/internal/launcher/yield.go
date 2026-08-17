@@ -492,11 +492,13 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 				// A DECLINE is read first, and by its DISCRIMINANT. Every
 				// generated As*() accessor is a bare json.Unmarshal with no
 				// discriminant check, so a declined result decodes cleanly
-				// into JobGenerationResult with an empty resource id —
-				// indistinguishable, to the check below, from a generation
-				// that simply had no id to print. Ordering alone would not
-				// be enough either: AsJobDeclinedResult succeeds on a
-				// generation too, with Declined false.
+				// into JobGenerationResult with a zero-value resource id.
+				// A real generation ALWAYS carries the id (the worker holds
+				// it before job:complete — the schema requires it), so the
+				// empty check below is a decline-detector, not a missing-id
+				// fallback. Ordering alone would not be enough either:
+				// AsJobDeclinedResult succeeds on a generation too, with
+				// Declined false.
 				declined, ok := declinedResult(done.Result)
 				if opts.asJSON {
 					fmt.Println(string(ev.Payload))
@@ -520,8 +522,8 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 				// JobResult is a union over every job type; a generation names
 				// the resource it produced.
 				if done.Result != nil {
-					if gen, err := done.Result.AsJobGenerationResult(); err == nil && gen.ResourceId != nil {
-						u.ok("Yielded %s → %s %s", opts.storageURI, *gen.ResourceId, u.dim(gen.ResourceName))
+					if gen, err := done.Result.AsJobGenerationResult(); err == nil && gen.ResourceId != "" {
+						u.ok("Yielded %s → %s %s", opts.storageURI, gen.ResourceId, u.dim(gen.ResourceName))
 						return 0
 					}
 				}
@@ -603,6 +605,8 @@ func progressText(m *semiont.JobProgressMessage) string {
 		return "Generating resource"
 	case "creating-resource":
 		return "Creating resource"
+	case "complete-generated":
+		return "Created resource"
 	case "detecting-entities":
 		return fmt.Sprintf("Detecting %s entities", flat.EntityType)
 	case "creating-annotations":
