@@ -92,7 +92,7 @@
   },
   "devDependencies": {
     "@headlessui/react": "^2.2.10",
-    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.1.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
