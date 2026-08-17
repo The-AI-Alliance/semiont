@@ -1,13 +1,16 @@
 'use client';
 
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { SemiontSession } from '@semiont/sdk';
+import type { SemiontSession, YieldOutcome } from '@semiont/sdk';
 import { formatLocaleDisplay } from '@semiont/core';
 import { resourceId as makeResourceId, type components } from '@semiont/core';
 import { renderAgentLabel } from './agent-label';
+import { AssistShell } from './AssistShell';
+import { assistProgressTranslations } from '../../../lib/assist-progress-copy';
 import './ResourceInfoPanel.css';
 
 type Agent = components['schemas']['Agent'];
+type JobProgress = components['schemas']['JobProgress'];
 
 interface Props {
   /** Session carrying the client and event bus; null renders inert. */
@@ -30,6 +33,17 @@ interface Props {
    * to a verb). Omit to hide the Generate action.
    */
   onGenerate?: () => void;
+  /**
+   * Generation lifecycle, page-held (`yield.isGenerating$` / `yield.progress$`
+   * / `yield.outcome$`): this panel is generation's progress surface
+   * (GENERATE-FROM-RESOURCE D7) — the run reports where it was started.
+   */
+  isGenerating?: boolean;
+  generationProgress?: JobProgress | null;
+  /** The finished run's result; the ended frame links it by name (D8). */
+  generationOutcome?: YieldOutcome | null;
+  /** Clear the finished display — wires `yield.dismissProgress()`. */
+  onDismissProgress?: () => void;
 }
 
 /**
@@ -54,8 +68,13 @@ export function ResourceInfoPanel({
   wasDerivedFrom,
   generator,
   onGenerate,
+  isGenerating = false,
+  generationProgress = null,
+  generationOutcome = null,
+  onDismissProgress,
 }: Props) {
   const t = useTranslations('ResourceInfoPanel');
+  const ta = useTranslations('AssistProgress');
 
   // Single attribution surface. `wasAttributedTo` is the canonical list
   // of responsible parties; if a producer set only `generator` we
@@ -185,19 +204,40 @@ export function ResourceInfoPanel({
         </div>
       )}
 
-      {/* Generate Action — opens the resource-generate flow (UI-only) */}
+      {/* Generate — the run reports where it was started (GENERATE-FROM-RESOURCE
+          D7): the same AssistShell every assist uses, its form the Generate
+          control, the progress frame in its place while a generation runs. */}
       {onGenerate && (
-        <div className="semiont-resource-info-panel__action-section">
-          <button
-            onClick={onGenerate}
-            className="semiont-resource-button semiont-resource-button--secondary"
-          >
-            ✨ {t('generate')}
-          </button>
-          <p className="semiont-resource-info-panel__description">
-            {t('generateDescription')}
-          </p>
-        </div>
+        <AssistShell
+          assistType="generation"
+          title={t('generate')}
+          isAssisting={isGenerating}
+          progress={generationProgress}
+          progressProps={{
+            onCancel: () => session?.client.job.cancelRequest('generation'),
+            ...(onDismissProgress ? { onDismiss: onDismissProgress } : {}),
+            ...(generationOutcome ? {
+              outcome: {
+                label: generationOutcome.resourceName,
+                onOpen: () => session?.client.browse.openResource(generationOutcome.resourceId),
+              },
+            } : {}),
+            translations: assistProgressTranslations(ta),
+          }}
+          form={
+            <>
+              <button
+                onClick={onGenerate}
+                className="semiont-resource-button semiont-resource-button--secondary"
+              >
+                ✨ {t('generate')}
+              </button>
+              <p className="semiont-resource-info-panel__description">
+                {t('generateDescription')}
+              </p>
+            </>
+          }
+        />
       )}
 
       {/* Clone Action */}

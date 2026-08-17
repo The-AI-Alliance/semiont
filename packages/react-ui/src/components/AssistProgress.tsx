@@ -58,6 +58,13 @@ export interface AssistProgressProps {
   progress: JobProgress;
   dataType: AssistDataType;
   /**
+   * What the finished run produced, offered as a link in the ended frame
+   * (GENERATE-FROM-RESOURCE D8). The label is the artifact's own name — user
+   * content, never translated. Rendered only once `ended`: mid-run there is no
+   * outcome to offer, whatever the caller has wired.
+   */
+  outcome?: { label: string; onOpen: () => void } | undefined;
+  /**
    * The run has ENDED. The owner's fact, not the payload's
    * (ASSIST-PROGRESS-CONSOLIDATION D7): terminality is signalled on
    * `job:complete` / `job:fail`, which `AssistShell` already observes via
@@ -96,6 +103,7 @@ export function AssistProgress({
   progress,
   dataType,
   ended,
+  outcome,
   onCancel,
   onDismiss,
   translations: tr,
@@ -164,6 +172,18 @@ export function AssistProgress({
         <div className="semiont-assist-progress__subject" data-testid="semiont-assist-subject">
           {tr.subject(current, done, total)}
         </div>
+      )}
+
+      {/* D8: the finished run's artifact, by name. */}
+      {ended && outcome && (
+        <button
+          type="button"
+          onClick={outcome.onOpen}
+          className="semiont-assist-progress__outcome"
+          data-testid="semiont-assist-outcome"
+        >
+          {outcome.label}
+        </button>
       )}
 
       <div className="semiont-progress-bar" data-testid="semiont-assist-bar">

@@ -3,6 +3,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { EventBus } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontClient, SemiontSession } from '@semiont/sdk';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
 import { createTestSemiontWrapper } from '../../../../test-utils';
@@ -281,17 +282,19 @@ describe('ResourceInfoPanel Component', () => {
   });
 
   describe('Generate Action', () => {
+    // The shell's collapsible header is ALSO a button named "Generate", so the
+    // form control is targeted by its exact accessible name (the ✨ is part of it).
     it('renders the Generate button when onGenerate is provided', () => {
       renderWithEventBus(
         <ResourceInfoPanel {...defaultProps} onGenerate={() => {}} />
       );
-      expect(screen.getByRole('button', { name: /Generate/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '✨ Generate' })).toBeInTheDocument();
       expect(screen.getByText("Generate a new resource from this one's context")).toBeInTheDocument();
     });
 
     it('hides the Generate button when onGenerate is omitted', () => {
       renderWithEventBus(<ResourceInfoPanel {...defaultProps} />);
-      expect(screen.queryByRole('button', { name: /Generate/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '✨ Generate' })).not.toBeInTheDocument();
     });
 
     it('calls onGenerate when clicked', () => {
@@ -299,8 +302,62 @@ describe('ResourceInfoPanel Component', () => {
       renderWithEventBus(
         <ResourceInfoPanel {...defaultProps} onGenerate={onGenerate} />
       );
-      fireEvent.click(screen.getByRole('button', { name: /Generate/i }));
+      fireEvent.click(screen.getByRole('button', { name: '✨ Generate' }));
       expect(onGenerate).toHaveBeenCalledTimes(1);
+    });
+
+    // ── GENERATE-FROM-RESOURCE P2 (D7/D8): the panel is the progress surface ──
+
+    it('the Generate control lives inside the assist shell (D7)', () => {
+      const { container } = renderWithEventBus(
+        <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
+          isGenerating={false} generationProgress={null} />
+      );
+      const shell = container.querySelector('.semiont-assist-widget[data-type="generation"]');
+      expect(shell).not.toBeNull();
+      expect(shell!.querySelector('button')).not.toBeNull(); // the form IS the Generate control
+    });
+
+    it('progress replaces the Generate form while a generation runs', () => {
+      const { container } = renderWithEventBus(
+        <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
+          isGenerating
+          generationProgress={{ percentage: 40, message: { code: 'generating-resource' } }} />
+      );
+      expect(container.querySelector('.semiont-assist-progress')).not.toBeNull();
+      expect(screen.queryByRole('button', { name: '✨ Generate' })).toBeNull();
+    });
+
+    it('the ended frame links the generated resource by name, and dismisses (D8)', () => {
+      const onDismissProgress = vi.fn();
+      const { client } = renderWithEventBus(
+        <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
+          isGenerating={false}
+          generationProgress={{ percentage: 100, message: { code: 'complete-generated' } }}
+          generationOutcome={{
+            resourceId: makeResourceId('urn:semiont:resource:new1'),
+            resourceName: 'Summary of PB',
+          }}
+          onDismissProgress={onDismissProgress} />
+      );
+      const openSpy = vi.spyOn(client.browse, 'openResource');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Summary of PB' }));
+      expect(openSpy).toHaveBeenCalledTimes(1);
+      expect(String(openSpy.mock.calls[0]![0])).toBe('urn:semiont:resource:new1');
+
+      fireEvent.click(screen.getByTestId('semiont-assist-control'));
+      expect(onDismissProgress).toHaveBeenCalledTimes(1);
+    });
+
+    it('no outcome, no link: the ended frame renders without one until job:complete arrives', () => {
+      renderWithEventBus(
+        <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
+          isGenerating={false}
+          generationProgress={{ percentage: 100, message: { code: 'complete-generated' } }}
+          generationOutcome={null} />
+      );
+      expect(screen.queryByText('Summary of PB')).toBeNull();
     });
   });
 

@@ -1,12 +1,24 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import { timeout } from 'rxjs/operators';
-import type { GatheredContext, components } from '@semiont/core';
+import type { GatheredContext, ResourceId, components } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
 import type { StreamObservable } from '../../awaitable';
 import type { YieldGenerationEvent } from '../../namespaces/types';
 
 type JobProgress = components['schemas']['JobProgress'];
+
+/**
+ * What a finished generation produced, held for the terminal display
+ * (GENERATE-FROM-RESOURCE D8). Sourced from `job:complete` — the broadcast,
+ * emitted after citations attach — never from a progress event, which is
+ * mid-run and carries no result.
+ */
+export interface YieldOutcome {
+  resourceId: ResourceId;
+  resourceName: string;
+}
 
 export interface GenerateDocumentOptions {
   title: string;
@@ -24,6 +36,13 @@ export interface YieldStateUnit extends StateUnit {
   isGenerating$: Observable<boolean>;
   progress$: Observable<JobProgress | null>;
   /**
+   * The finished run's result, once `job:complete` arrives with a generation
+   * result; null while running and after dismissal. Lives and dies with the
+   * progress display: a new `generate()` clears it, `dismissProgress()` clears
+   * both together.
+   */
+  outcome$: Observable<YieldOutcome | null>;
+  /**
    * Grounded generation — the context's `focus.kind` decides the shape
    * (annotation focus auto-binds; resource focus mints provenance). Ids are
    * derived from the focus; see `client.yield.fromContext`.
@@ -40,6 +59,7 @@ export function createYieldStateUnit(
   const subs: Subscription[] = [];
   const isGenerating$ = new BehaviorSubject<boolean>(false);
   const progress$ = new BehaviorSubject<JobProgress | null>(null);
+  const outcome$ = new BehaviorSubject<YieldOutcome | null>(null);
 
   // Generation progress/complete/fail is driven entirely by the StreamObservable
   // returned from `client.yield.fromContext` — it is filtered to this job's
@@ -55,12 +75,19 @@ export function createYieldStateUnit(
       timeout({ each: 300_000 }),
     ).subscribe({
       next: (e) => {
-        // Surface live progress to the UI; `complete` events carry the final job
-        // result for awaiting callers but produce no extra panel signal here
-        // (the `complete` callback fires next).
+        // Surface live progress to the UI.
         if (e.kind === 'progress') {
           progress$.next(e.data);
           isGenerating$.next(true);
+        }
+        // The `complete` event is `job:complete` — the union discriminates
+        // (WIRE-UNION-DISCRIMINANTS D1), so the result names its own kind and
+        // narrows without a cast. Held for the terminal frame's link (D8).
+        if (e.kind === 'complete' && e.data.result?.kind === 'generation') {
+          outcome$.next({
+            resourceId: makeResourceId(e.data.result.resourceId),
+            resourceName: e.data.result.resourceName,
+          });
         }
       },
       complete: () => {
@@ -79,6 +106,8 @@ export function createYieldStateUnit(
   };
 
   const generate = (context: GatheredContext, options: GenerateDocumentOptions): void => {
+    // A new run's frame must not carry the previous run's link.
+    outcome$.next(null);
     drive(client.yield.fromContext(
       context,
       { ...options, language: options.language || locale },
@@ -88,12 +117,17 @@ export function createYieldStateUnit(
   return {
     isGenerating$: isGenerating$.asObservable(),
     progress$: progress$.asObservable(),
+    outcome$: outcome$.asObservable(),
     generate,
-    dismissProgress() { progress$.next(null); },
+    dismissProgress() {
+      progress$.next(null);
+      outcome$.next(null);
+    },
     dispose() {
       subs.forEach(s => s.unsubscribe());
       isGenerating$.complete();
       progress$.complete();
+      outcome$.complete();
     },
   };
 }
