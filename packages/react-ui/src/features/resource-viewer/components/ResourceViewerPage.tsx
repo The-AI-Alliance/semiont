@@ -725,7 +725,9 @@ export function ResourceViewerPage({
         isOpen={generateOpen}
         onClose={() => setGenerateOpen(false)}
         resourceId={rUri}
-        defaultTitle=""
+        // Seed the proposed title from the source resource's name (GFR D4/A4);
+        // the field stays editable and required.
+        defaultTitle={resource.name}
         locale={locale}
         entityTypeOptions={allEntityTypes}
         onGenerateSubmit={handleResourceGenerateSubmit}

@@ -200,6 +200,31 @@ describe('ResourceGenerateModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('opening seeds the proposed title from defaultTitle, even one that arrived after mount (GFR A4)', () => {
+    // The page passes the source resource's name, which loads asynchronously —
+    // a draft seeded only in the useState initializer holds whatever was there
+    // at FIRST render, which for the real page was ''. Opening is the moment
+    // that matters: the draft re-seeds then.
+    h.state.context = RESOURCE_CONTEXT;
+    const { rerender } = render(
+      <ResourceGenerateModal
+        isOpen={false} onClose={onClose} resourceId="res-1" defaultTitle=""
+        locale="en" entityTypeOptions={[]} onGenerateSubmit={onGenerateSubmit}
+        translations={T}
+      />,
+    );
+    rerender(
+      <ResourceGenerateModal
+        isOpen onClose={onClose} resourceId="res-1" defaultTitle="PB"
+        locale="en" entityTypeOptions={[]} onGenerateSubmit={onGenerateSubmit}
+        translations={T}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Gather/ })); // → review
+    fireEvent.click(screen.getByRole('button', { name: /Next/ }));   // → configure-generation
+    expect(screen.getByLabelText('New resource title')).toHaveValue('PB');
+  });
+
   it('every footer is the wizard footer — no dismissal, no flex (GFR A5)', () => {
     // The modal renders via a HeadlessUI portal, so query the whole document.
     h.state.context = RESOURCE_CONTEXT;

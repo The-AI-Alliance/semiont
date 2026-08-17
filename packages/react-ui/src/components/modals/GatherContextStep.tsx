@@ -153,13 +153,13 @@ export function GatherContextStep({
                 </div>
               )}
               {resourceFocus.suggestedReferences && resourceFocus.suggestedReferences.length > 0 && (
-                <div style={{ marginTop: '0.5rem' }}>
+                // Prose, not chips (D3): the live values are full research
+                // prompts — sentences. The chip vocabulary stays for tokens.
+                <ul className="semiont-gather__suggested">
                   {resourceFocus.suggestedReferences.map(ref => (
-                    <span key={ref} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.375rem', marginRight: '0.25rem' }}>
-                      {ref}
-                    </span>
+                    <li key={ref}>{ref}</li>
                   ))}
-                </div>
+                </ul>
               )}
             </div>
           )}

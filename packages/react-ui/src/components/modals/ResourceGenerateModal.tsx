@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { CollaboratorEntry } from '@semiont/core';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { useResourceGather } from '../../hooks/useResourceGather';
@@ -94,10 +94,11 @@ export function ResourceGenerateModal({
 }: ResourceGenerateModalProps) {
   // Same draft ownership as the wizard (WIZARD-NAVIGATION D3): the step is
   // controlled, so stepping back through this modal keeps what was typed.
-  const [generationDraft, setGenerationDraft] = useState<GenerationDraft>({
+  const freshDraft = (): GenerationDraft => ({
     title: defaultTitle, storagePath: '', prompt: '', language: locale,
     temperature: 0.7, maxTokensText: '500',
   });
+  const [generationDraft, setGenerationDraft] = useState<GenerationDraft>(freshDraft);
 
   const [step, setStep] = useState<Step>('configure-gather');
   const { context, loading, error, gather, reset } = useResourceGather();
@@ -107,13 +108,23 @@ export function ResourceGenerateModal({
   // entity types. See .plans/PANEL-FAILURE-STATES.md
   const [excludeEntityTypes, setExcludeEntityTypes] = useState<string[]>([]);
 
-  // Reset to the first step whenever the modal (re)opens.
+  // Reset to the first step ON OPENING — and re-seed the draft, because
+  // `defaultTitle` is the source resource's name and loads asynchronously: the
+  // useState initializer ran at mount, which for the real page was before the
+  // name existed (GFR A4). Guarded to the false→true transition so a name
+  // arriving mid-flow cannot clobber what the user has typed.
+  const wasOpen = useRef(false);
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpen.current) {
       setStep('configure-gather');
       setExcludeEntityTypes([]);
+      setGenerationDraft(freshDraft());
       reset();
     }
+    wasOpen.current = isOpen;
+    // freshDraft reads defaultTitle/locale at call time; the effect keys on the
+    // OPENING, not on their drift while open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, reset]);
 
   const handleGather = useCallback((config: ResourceGatherConfig) => {
