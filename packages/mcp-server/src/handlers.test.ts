@@ -195,6 +195,8 @@ describe('markAssist', () => {
     const { client, mark } = createStub();
     const events: MarkAssistEvent[] = [
       { kind: 'progress', data: { percentage: 40, message: { code: 'analyzing' } } },
+      // A pure percentage heartbeat carries no message.
+      { kind: 'progress', data: { percentage: 60 } },
       { kind: 'progress', data: { percentage: 90, message: { code: 'analyzing' } } },
       ASSIST_COMPLETE,
     ];
@@ -202,7 +204,7 @@ describe('markAssist', () => {
 
     const result = await markAssist(client, { resourceId: 'res-iliad' });
 
-    expect(text(result)).toBe('Detection complete. Found 7 entities.\nanalyzing: 40%\nanalyzing: 90%');
+    expect(text(result)).toBe('Detection complete. Found 7 entities.\nanalyzing: 40%\nworking: 60%\nanalyzing: 90%');
   });
 
   it('falls back to a motivation-specific count when totalFound is absent', async () => {
@@ -454,6 +456,8 @@ describe('yieldFromAnnotation', () => {
     const { client, yield: yieldNamespace } = createStub();
     const events: YieldGenerationEvent[] = [
       { kind: 'progress', data: { percentage: 50, message: { code: 'analyzing' } } },
+      // A pure percentage heartbeat carries no message.
+      { kind: 'progress', data: { percentage: 75 } },
       GENERATION_COMPLETE,
     ];
     yieldNamespace.fromContext.mockReturnValue(of(...events));
@@ -462,7 +466,7 @@ describe('yieldFromAnnotation', () => {
       resourceId: 'res-iliad',
       annotationId: 'anno-reference',
       storageUri: 'file://docs/achilles.md',
-    }))).toBe('Generation complete.\nanalyzing: 50%');
+    }))).toBe('Generation complete.\nanalyzing: 50%\nworking: 75%');
   });
 
   it('returns an error result when generation fails', async () => {
