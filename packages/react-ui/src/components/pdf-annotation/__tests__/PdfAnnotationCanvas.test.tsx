@@ -508,6 +508,7 @@ describe('PdfAnnotationCanvas', () => {
         beckon: { hover: vi.fn() },
         browse: {
           resourceAnchoredText: vi.fn().mockResolvedValue({
+            kind: 'extracted',
             text: 'Hello world again',
             items: [
               { start: 0, end: 5, page: 1, x: 72, y: 700, width: 30, height: 12 },
@@ -560,6 +561,7 @@ describe('PdfAnnotationCanvas', () => {
     } as unknown as Awaited<ReturnType<typeof loadPdfDocument>>);
 
     const resourceAnchoredText = vi.fn().mockResolvedValue({
+      kind: 'extracted',
       text: 'Hello world again',
       items: [
         { start: 0, end: 5, page: 1, x: 72, y: 700, width: 30, height: 12 },
@@ -727,6 +729,7 @@ describe('PdfAnnotationCanvas', () => {
       scannedDoc();
 
       const resourceAnchoredText = vi.fn().mockResolvedValue({
+        kind: 'extracted',
         text: 'Hello world again',
         items: [{ start: 0, end: 5, page: 1, x: 72, y: 700, width: 30, height: 12 }],
       });
@@ -1244,7 +1247,7 @@ describe('PdfAnnotationCanvas', () => {
 
       const resourceAnchoredText = vi.fn()
         .mockRejectedValueOnce(new Error('transport down'))
-        .mockResolvedValue({ text: 'later', items: [] });
+        .mockResolvedValue({ kind: 'extracted', text: 'later', items: [] });
       const session = {
         client: { beckon: { hover: vi.fn() }, browse: { resourceAnchoredText } },
       } as unknown as import('@semiont/sdk').SemiontSession;
