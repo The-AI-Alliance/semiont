@@ -13,11 +13,14 @@ import type {
   Annotation,
   AnnotationId,
   BodyOperation,
+  components,
   GatheredContext,
   Motivation,
   ResourceDescriptor,
   ResourceId,
 } from '@semiont/core';
+
+type JobResult = components['schemas']['JobResult'];
 import type {
   CreateAnnotationInput,
   CreateResourceInput,
@@ -139,6 +142,33 @@ export async function browseReferences(semiont: McpClient, args: any): Promise<M
 
 // ── Mark ────────────────────────────────────────────────────────────────────
 
+/**
+ * What an assist job reported, as one sentence.
+ *
+ * Switches on `kind` rather than probing for whichever count field happens to be
+ * present (WIRE-UNION-DISCRIMINANTS D1/D5). Exhaustiveness is the point: an eighth
+ * `JobResult` member fails to compile here (TS2366 — no ending return statement)
+ * instead of silently counting zero, which is what the old cast-and-probe did.
+ * That is also why there is no `default`: it would answer for the new member and
+ * take the compile error with it.
+ */
+function assistOutcome(result: JobResult | undefined): string {
+  const found = (n: number) => `Detection complete. Found ${n} entities.`;
+  if (!result) return found(0);
+  switch (result.kind) {
+    case 'reference-annotation':  return found(result.totalFound);
+    case 'highlight-annotation':  return found(result.highlightsFound);
+    case 'comment-annotation':    return found(result.commentsFound);
+    case 'assessment-annotation': return found(result.assessmentsFound);
+    case 'tag-annotation':        return found(result.tagsFound);
+    // A declined job read nothing and says why; "found 0" would hide that.
+    case 'declined':              return `Detection declined (${result.reason}).`;
+    // Not reachable through mark.assist — a generation job is a different type —
+    // but the union admits it, so it answers rather than counting nothing.
+    case 'generation':            return found(0);
+  }
+}
+
 export async function markAnnotation(semiont: McpClient, args: any): Promise<McpResult> {
   const selectionData = args?.selectionData || {};
   const entityTypes = args?.entityTypes || [];
@@ -182,13 +212,9 @@ export async function markAssist(semiont: McpClient, args: any): Promise<McpResu
         }),
       ),
     );
-    const r = (final.kind === 'complete' ? final.data.result : undefined) as
-      | { entitiesFound?: number; highlightsFound?: number; commentsFound?: number; assessmentsFound?: number; tagsFound?: number; totalFound?: number }
-      | undefined;
-    const count =
-      r?.totalFound ?? r?.highlightsFound ?? r?.commentsFound ??
-      r?.assessmentsFound ?? r?.tagsFound ?? 0;
-    return { content: [{ type: 'text', text: `Detection complete. Found ${count} entities.\n${progressMessages.join('\n')}` }] };
+    const result = final.kind === 'complete' ? final.data.result : undefined;
+    const outcome = assistOutcome(result);
+    return { content: [{ type: 'text', text: `${outcome}\n${progressMessages.join('\n')}` }] };
   } catch (err) {
     return { content: [{ type: 'text', text: `Detection failed: ${(err as Error).message}` }], isError: true };
   }

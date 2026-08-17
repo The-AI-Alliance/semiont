@@ -238,6 +238,42 @@ describe('markAssist', () => {
       .toContain(`Found ${expected} entities.`);
   });
 
+  it('surfaces a decline with its reason instead of reporting zero', async () => {
+    const { client, mark } = createStub();
+    const complete: MarkAssistEvent = {
+      kind: 'complete',
+      data: {
+        resourceId: 'res-iliad',
+        jobId: 'job-1',
+        jobType: 'reference-annotation',
+        result: { kind: 'declined', declined: true, reason: 'no-text-layer' },
+      },
+    };
+    mark.assist.mockReturnValue(of(complete));
+
+    const result = await markAssist(client, { resourceId: 'res-iliad' });
+
+    expect(text(result)).toContain('Detection declined (no-text-layer).');
+    expect(text(result)).not.toContain('Found 0 entities');
+  });
+
+  it('answers rather than counting when the result is not an assist result', async () => {
+    const { client, mark } = createStub();
+    const complete: MarkAssistEvent = {
+      kind: 'complete',
+      data: {
+        resourceId: 'res-iliad',
+        jobId: 'job-1',
+        jobType: 'generation',
+        result: { kind: 'generation', resourceId: 'res-new', resourceName: 'New', truncated: false },
+      },
+    };
+    mark.assist.mockReturnValue(of(complete));
+
+    expect(text(await markAssist(client, { resourceId: 'res-iliad' })))
+      .toContain('Found 0 entities.');
+  });
+
   it('reports zero when the completion carries no result', async () => {
     const { client, mark } = createStub();
     const complete: MarkAssistEvent = {
