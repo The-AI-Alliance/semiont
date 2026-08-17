@@ -2122,7 +2122,7 @@ type CreateAnnotationRequest_Body struct {
 	union json.RawMessage
 }
 
-// CreateResourceResponse Response body for POST /resources (202 Accepted). Resource creation is asynchronous — the backend writes content to disk, emits yield:create on the bus, and returns the newly-minted resourceId immediately. Consumers watch SSE domain events (yield:created) to observe the fully-persisted state.
+// CreateResourceResponse Response body for POST /resources (202 Accepted). The route writes content to disk, emits yield:create, and AWAITS the confirmed-write reply — so the returned resourceId is the one Stower minted, and the resource's event is persisted before this response is sent. What remains asynchronous is downstream projection: graph, views and vectors settle after the 202.
 type CreateResourceResponse struct {
 	// ResourceId The id of the newly-created resource. Assigned by Stower when it persists yield:create.
 	ResourceId string `json:"resourceId"`

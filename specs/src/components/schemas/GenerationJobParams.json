@@ -12,7 +12,7 @@
     },
     "context": {
       "$ref": "./GatheredContext.json",
-      "description": "The gathered context that grounds the generation. Its `focus` names the anchor (the sdk derives the job's resourceId \u2014 and referenceId, for annotation focus \u2014 from it); under `cite`, the ids its embedding carries are the only valid citation targets."
+      "description": "The gathered context that grounds the generation. Its `focus` names the anchor: the DISPATCHER derives the job's resourceId from it (resource focus \u2192 focus.resource; annotation focus \u2192 focus.sourceResource, with the worker auto-binding to focus.annotation) and REJECTS a caller-supplied id \u2014 the context is authoritative. Under `cite`, the ids its embedding carries are the only valid citation targets."
     },
     "prompt": {
       "type": "string",

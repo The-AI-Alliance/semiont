@@ -1,8 +1,10 @@
 {
   "type": "object",
-  "description": "Wire format emitted by GET /resources/:id/events/stream. Extends StoredEventResponse with optional enrichment fields populated from the materialized view at SSE-write time. Subscribers can read the enrichment fields directly to update local caches without an additional fetch.",
+  "description": "Wire format for persisted events delivered over the bus SSE stream (GET /bus/subscribe). Extends StoredEventResponse with optional enrichment fields the EventStore populates from the materialized view at publish time (persistence \u2192 view \u2192 enrich \u2192 notification). Subscribers read the enrichment fields directly to update local caches without an additional fetch.",
   "allOf": [
-    { "$ref": "./StoredEventResponse.json" },
+    {
+      "$ref": "./StoredEventResponse.json"
+    },
     {
       "type": "object",
       "properties": {

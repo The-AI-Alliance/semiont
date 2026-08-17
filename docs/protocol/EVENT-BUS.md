@@ -54,6 +54,37 @@ Each channel falls into one of five payload categories. The category tells you w
 
 `CHANNEL_SCHEMAS` — declared in [the registry](../../specs/src/bus/registry.json), generated into `bus-protocol.ts` — maps every channel to its OpenAPI schema name (or `null` when validation isn't applicable — `StoredEvent` wrappers, `void` signals, compound inline types). The `/bus/emit` route reads this map and rejects payloads that don't validate.
 
+### Wire unions discriminate — every one of them
+
+Every `oneOf` in the wire vocabulary carries an in-band discriminant, declared as an
+OpenAPI `discriminator` with an explicit `mapping`. This is a protocol property, not a
+per-schema accident:
+
+| union | discriminant |
+|---|---|
+| `JobResult` | `kind` — the six job types + `'declined'` (a decline is an *outcome* any job type can produce, which is why it is not named `jobType`) |
+| `JobProgressMessage` | `code` — one named schema per code |
+| `Agent` | `@type` — `Person` / `Organization` / `Software` |
+| `AnnotationBody` | `type` |
+| `DirectoryEntry` | `type` — `file` / `dir` |
+| `ExtractionOutcome` | `kind` — `extracted` / `declined` |
+
+What that buys each generated client: **TypeScript** narrows with an exhaustive
+`switch` whose `default` is `never` — an unhandled member is a compile error, and no
+consumer needs a cast or a property probe (`'resourceId' in result` was the
+pre-discriminant idiom; if you find yourself writing one against a wire union, the
+schema owns the answer). **Go** gets typed variants with `Discriminator()` /
+`ValueByDiscriminator()` instead of an opaque `json.RawMessage` — and note that the
+positional `As*()` accessors remain bare unmarshals that succeed on the wrong
+variant; `ValueByDiscriminator()` is the honest dispatch.
+
+Go has no `never`, so exhaustiveness there is held by **census pins** instead of the
+compiler: the launcher's progress-code → English map (`yield.go`) has a `default: ""`
+that degrades silently on an unhandled code, so `TestProgressTextCoversEveryCode`
+feeds it every wire code and requires non-empty text for each. A new code fails that
+pin, not a user's terminal. When adding a member to any union above, that is the
+pattern: TS gets it free from the `never` default; Go needs its census extended.
+
 ## Identity: `_userId` is gateway-injected
 
 Commands that mutate state need to know who's making them. The convention: clients **never** set `_userId` themselves. The HTTP gateway reads the authenticated user from the JWT and stamps `_userId` onto the payload before forwarding to the in-process bus:

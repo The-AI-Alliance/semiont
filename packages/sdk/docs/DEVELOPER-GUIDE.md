@@ -267,8 +267,11 @@ const done = await session.client.yield.fromContext(context, {
   outputMediaType: 'text/markdown',
 }).run((ev) => { if (ev.kind === 'progress') showProgress(ev.data); });
 
+// JobResult is a discriminated union — narrow on `kind`, never probe for
+// properties. (`truncated` on the same member says whether the model hit the
+// maxTokens ceiling; a cut-off artifact should be reported as such.)
 const newId =
-  done.kind === 'complete' && done.data.result && 'resourceId' in done.data.result
+  done.kind === 'complete' && done.data.result?.kind === 'generation'
     ? done.data.result.resourceId
     : undefined;
 ```

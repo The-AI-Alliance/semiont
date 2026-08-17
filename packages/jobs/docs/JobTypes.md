@@ -67,6 +67,7 @@ interface DetectionProgress {
 
 ```typescript
 interface DetectionResult {
+  kind: 'reference-annotation';   // discriminant — every JobResult member carries one
   totalFound: number;
   totalEmitted: number;
   errors: number;
@@ -159,20 +160,27 @@ The same helper serves every other jobType by passing their own
 
 ```typescript
 interface YieldProgress {
-  stage: 'fetching' | 'generating' | 'creating' | 'linking';
+  /** The two real generation transitions — LLM call running, then persisting. */
+  stage: 'generating' | 'creating';
   percentage: number;
   message?: string;
 }
 ```
 
-Note: The progress type is `YieldProgress`, not `GenerationProgress`.
+Note: The progress type is `YieldProgress`, not `GenerationProgress`. On the wire,
+progress is the coded `JobProgressMessage` — for generation exactly three frames:
+5% `generating-resource`, 95% `creating-resource`, and the terminal 100%
+`complete-generated` carrying required `truncated`.
 
 **Result:**
 
 ```typescript
 interface GenerationResult {
+  kind: 'generation';
   resourceId: ResourceId;
   resourceName: string;
+  truncated: boolean;   // true ⇒ the model stopped at the maxTokens ceiling —
+                        // the artifact is cut off, not complete. Never silent.
 }
 ```
 
@@ -248,6 +256,7 @@ interface HighlightDetectionProgress {
 
 ```typescript
 interface HighlightDetectionResult {
+  kind: 'highlight-annotation';
   highlightsFound: number;
   highlightsCreated: number;
 }
@@ -308,6 +317,7 @@ interface AssessmentDetectionProgress {
 
 ```typescript
 interface AssessmentDetectionResult {
+  kind: 'assessment-annotation';
   assessmentsFound: number;
   assessmentsCreated: number;
 }
@@ -344,6 +354,7 @@ interface CommentDetectionProgress {
 
 ```typescript
 interface CommentDetectionResult {
+  kind: 'comment-annotation';
   commentsFound: number;
   commentsCreated: number;
 }
@@ -382,6 +393,7 @@ interface TagDetectionProgress {
 
 ```typescript
 interface TagDetectionResult {
+  kind: 'tag-annotation';
   tagsFound: number;
   tagsCreated: number;
   byCategory: Record<string, number>;
