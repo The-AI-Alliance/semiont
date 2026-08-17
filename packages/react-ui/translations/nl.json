@@ -11,6 +11,7 @@
     "codeGeneratingResource": "Genereren…",
     "codeCreatingResource": "Bron maken…",
     "codeCompleteGenerated": "Bron gemaakt",
+    "codeCompleteGeneratedTruncated": "Bron gemaakt — afgekapt bij de lengtelimiet",
     "kindHighlight": "markeringen",
     "kindComment": "opmerkingen",
     "kindAssessment": "beoordelingen",

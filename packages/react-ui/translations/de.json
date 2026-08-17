@@ -11,6 +11,7 @@
     "codeGeneratingResource": "Wird generiert…",
     "codeCreatingResource": "Ressource wird erstellt…",
     "codeCompleteGenerated": "Ressource erstellt",
+    "codeCompleteGeneratedTruncated": "Ressource erstellt — an der Längenbegrenzung abgeschnitten",
     "kindHighlight": "Hervorhebungen",
     "kindComment": "Kommentare",
     "kindAssessment": "Bewertungen",

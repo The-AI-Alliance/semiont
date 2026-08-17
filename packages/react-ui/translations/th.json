@@ -11,6 +11,7 @@
     "codeGeneratingResource": "กำลังสร้าง…",
     "codeCreatingResource": "กำลังสร้างทรัพยากร…",
     "codeCompleteGenerated": "สร้างทรัพยากรแล้ว",
+    "codeCompleteGeneratedTruncated": "สร้างทรัพยากรแล้ว — ถูกตัดที่ขีดจำกัดความยาว",
     "kindHighlight": "ไฮไลต์",
     "kindComment": "ความคิดเห็น",
     "kindAssessment": "การประเมิน",

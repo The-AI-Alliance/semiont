@@ -11,6 +11,7 @@
     "codeGeneratingResource": "बनाया जा रहा है…",
     "codeCreatingResource": "संसाधन बनाया जा रहा है…",
     "codeCompleteGenerated": "संसाधन बनाया गया",
+    "codeCompleteGeneratedTruncated": "संसाधन बनाया गया — लंबाई सीमा पर कट गया",
     "kindHighlight": "हाइलाइट",
     "kindComment": "टिप्पणियाँ",
     "kindAssessment": "आकलन",

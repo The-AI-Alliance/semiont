@@ -11,6 +11,7 @@
     "codeGeneratingResource": "جارٍ التوليد…",
     "codeCreatingResource": "إنشاء المورد…",
     "codeCompleteGenerated": "تم إنشاء المورد",
+    "codeCompleteGeneratedTruncated": "تم إنشاء المورد — اقتُطع عند حد الطول",
     "kindHighlight": "تظليلات",
     "kindComment": "تعليقات",
     "kindAssessment": "تقييمات",

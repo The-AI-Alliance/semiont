@@ -11,6 +11,7 @@
     "codeGeneratingResource": "তৈরি হচ্ছে…",
     "codeCreatingResource": "রিসোর্স তৈরি হচ্ছে…",
     "codeCompleteGenerated": "রিসোর্স তৈরি হয়েছে",
+    "codeCompleteGeneratedTruncated": "রিসোর্স তৈরি হয়েছে — দৈর্ঘ্যের সীমায় কেটে গেছে",
     "kindHighlight": "হাইলাইট",
     "kindComment": "মন্তব্য",
     "kindAssessment": "মূল্যায়ন",

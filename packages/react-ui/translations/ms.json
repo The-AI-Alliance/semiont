@@ -11,6 +11,7 @@
     "codeGeneratingResource": "Menjana…",
     "codeCreatingResource": "Mencipta sumber…",
     "codeCompleteGenerated": "Sumber dicipta",
+    "codeCompleteGeneratedTruncated": "Sumber dicipta — terpotong pada had panjang",
     "kindHighlight": "sorotan",
     "kindComment": "komen",
     "kindAssessment": "penilaian",

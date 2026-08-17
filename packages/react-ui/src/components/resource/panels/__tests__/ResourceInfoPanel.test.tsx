@@ -350,6 +350,28 @@ describe('ResourceInfoPanel Component', () => {
       expect(onDismissProgress).toHaveBeenCalledTimes(1);
     });
 
+    it('a truncated completion says so; a natural stop does not (GFR P3b, D6)', () => {
+      // The mocked translator echoes unknown keys, so the assertion reads the
+      // KEY the real assistProgressCopy branch picked — structure, not copy.
+      const base = { ...defaultProps, onGenerate: () => {}, isGenerating: false };
+      const { unmount } = renderWithEventBus(
+        <ResourceInfoPanel {...base}
+          generationProgress={{ percentage: 100, message: { code: 'complete-generated', truncated: true } }} />
+      );
+      expect(screen.getByTestId('semiont-assist-status').textContent)
+        .toContain('codeCompleteGeneratedTruncated');
+      unmount();
+
+      renderWithEventBus(
+        <ResourceInfoPanel {...base}
+          generationProgress={{ percentage: 100, message: { code: 'complete-generated', truncated: false } }} />
+      );
+      expect(screen.getByTestId('semiont-assist-status').textContent)
+        .toContain('codeCompleteGenerated');
+      expect(screen.getByTestId('semiont-assist-status').textContent)
+        .not.toContain('Truncated');
+    });
+
     it('no outcome, no link: the ended frame renders without one until job:complete arrives', () => {
       renderWithEventBus(
         <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}

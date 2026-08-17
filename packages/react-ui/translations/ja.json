@@ -11,6 +11,7 @@
     "codeGeneratingResource": "生成中…",
     "codeCreatingResource": "リソースを作成中…",
     "codeCompleteGenerated": "リソースを作成しました",
+    "codeCompleteGeneratedTruncated": "リソースを作成しました — 長さの上限で途切れています",
     "kindHighlight": "ハイライト",
     "kindComment": "コメント",
     "kindAssessment": "評価",

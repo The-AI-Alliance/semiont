@@ -11,6 +11,7 @@
     "codeGeneratingResource": "Genererer…",
     "codeCreatingResource": "Opretter ressourcen…",
     "codeCompleteGenerated": "Ressourcen er oprettet",
+    "codeCompleteGeneratedTruncated": "Ressourcen er oprettet — afskåret ved længdegrænsen",
     "kindHighlight": "fremhævninger",
     "kindComment": "kommentarer",
     "kindAssessment": "vurderinger",

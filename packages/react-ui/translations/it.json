@@ -11,6 +11,7 @@
     "codeGeneratingResource": "Generazione…",
     "codeCreatingResource": "Creazione della risorsa…",
     "codeCompleteGenerated": "Risorsa creata",
+    "codeCompleteGeneratedTruncated": "Risorsa creata — troncata al limite di lunghezza",
     "kindHighlight": "evidenziazioni",
     "kindComment": "commenti",
     "kindAssessment": "valutazioni",

@@ -11,6 +11,7 @@
     "codeGeneratingResource": "Generování…",
     "codeCreatingResource": "Vytváření zdroje…",
     "codeCompleteGenerated": "Zdroj byl vytvořen",
+    "codeCompleteGeneratedTruncated": "Zdroj byl vytvořen — oříznut na limitu délky",
     "kindHighlight": "zvýraznění",
     "kindComment": "komentářů",
     "kindAssessment": "hodnocení",

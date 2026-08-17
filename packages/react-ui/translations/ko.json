@@ -11,6 +11,7 @@
     "codeGeneratingResource": "생성 중…",
     "codeCreatingResource": "리소스 생성 중…",
     "codeCompleteGenerated": "리소스 생성됨",
+    "codeCompleteGeneratedTruncated": "리소스 생성됨 — 길이 제한에서 잘림",
     "kindHighlight": "하이라이트",
     "kindComment": "댓글",
     "kindAssessment": "평가",

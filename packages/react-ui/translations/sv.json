@@ -11,6 +11,7 @@
     "codeGeneratingResource": "Genererar…",
     "codeCreatingResource": "Skapar resursen…",
     "codeCompleteGenerated": "Resursen har skapats",
+    "codeCompleteGeneratedTruncated": "Resursen har skapats — avklippt vid längdgränsen",
     "kindHighlight": "markeringar",
     "kindComment": "kommentarer",
     "kindAssessment": "bedömningar",

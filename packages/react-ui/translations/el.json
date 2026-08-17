@@ -11,6 +11,7 @@
     "codeGeneratingResource": "Δημιουργία…",
     "codeCreatingResource": "Δημιουργία πόρου…",
     "codeCompleteGenerated": "Ο πόρος δημιουργήθηκε",
+    "codeCompleteGeneratedTruncated": "Ο πόρος δημιουργήθηκε — περικόπηκε στο όριο μήκους",
     "kindHighlight": "επισημάνσεις",
     "kindComment": "σχόλια",
     "kindAssessment": "αξιολογήσεις",

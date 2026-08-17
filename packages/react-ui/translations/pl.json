@@ -11,6 +11,7 @@
     "codeGeneratingResource": "Generowanie…",
     "codeCreatingResource": "Tworzenie zasobu…",
     "codeCompleteGenerated": "Utworzono zasób",
+    "codeCompleteGeneratedTruncated": "Utworzono zasób — ucięty na limicie długości",
     "kindHighlight": "wyróżnień",
     "kindComment": "komentarzy",
     "kindAssessment": "ocen",

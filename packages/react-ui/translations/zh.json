@@ -11,6 +11,7 @@
     "codeGeneratingResource": "生成中…",
     "codeCreatingResource": "正在创建资源…",
     "codeCompleteGenerated": "已创建资源",
+    "codeCompleteGeneratedTruncated": "已创建资源 — 在长度限制处被截断",
     "kindHighlight": "高亮",
     "kindComment": "评论",
     "kindAssessment": "评估",

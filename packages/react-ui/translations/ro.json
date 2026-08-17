@@ -11,6 +11,7 @@
     "codeGeneratingResource": "Se generează…",
     "codeCreatingResource": "Se creează resursa…",
     "codeCompleteGenerated": "Resursa a fost creată",
+    "codeCompleteGeneratedTruncated": "Resursa a fost creată — trunchiată la limita de lungime",
     "kindHighlight": "evidențieri",
     "kindComment": "comentarii",
     "kindAssessment": "evaluări",

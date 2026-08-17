@@ -11,6 +11,7 @@
     "codeGeneratingResource": "Oluşturuluyor…",
     "codeCreatingResource": "Kaynak oluşturuluyor…",
     "codeCompleteGenerated": "Kaynak oluşturuldu",
+    "codeCompleteGeneratedTruncated": "Kaynak oluşturuldu — uzunluk sınırında kesildi",
     "kindHighlight": "vurgu",
     "kindComment": "yorum",
     "kindAssessment": "değerlendirme",

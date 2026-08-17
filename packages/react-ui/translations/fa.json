@@ -11,6 +11,7 @@
     "codeGeneratingResource": "در حال تولید…",
     "codeCreatingResource": "ایجاد منبع…",
     "codeCompleteGenerated": "منبع ایجاد شد",
+    "codeCompleteGeneratedTruncated": "منبع ایجاد شد — در حد طول بریده شد",
     "kindHighlight": "برجسته‌سازی",
     "kindComment": "دیدگاه",
     "kindAssessment": "ارزیابی",

@@ -11,6 +11,7 @@
     "codeGeneratingResource": "מייצר…",
     "codeCreatingResource": "יוצר את המשאב…",
     "codeCompleteGenerated": "המשאב נוצר",
+    "codeCompleteGeneratedTruncated": "המשאב נוצר — נחתך במגבלת האורך",
     "kindHighlight": "הדגשות",
     "kindComment": "הערות",
     "kindAssessment": "הערכות",

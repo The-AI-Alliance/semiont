@@ -11,6 +11,7 @@
     "codeGeneratingResource": "Đang tạo…",
     "codeCreatingResource": "Đang tạo tài nguyên…",
     "codeCompleteGenerated": "Đã tạo tài nguyên",
+    "codeCompleteGeneratedTruncated": "Đã tạo tài nguyên — bị cắt ở giới hạn độ dài",
     "kindHighlight": "đánh dấu",
     "kindComment": "bình luận",
     "kindAssessment": "đánh giá",

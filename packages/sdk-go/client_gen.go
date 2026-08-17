@@ -1438,7 +1438,7 @@ type AnnotationAddedPayload struct {
 	ContentChecksum *string `json:"contentChecksum,omitempty"`
 }
 
-// AnnotationBody Phase 2: Body can be TextualBody (for entity tags, descriptions) or SpecificResource (for links)
+// AnnotationBody An annotation's body: a TextualBody carries text the annotation states (entity tags, descriptions, comments), a SpecificResource points at what it links to. Tell them apart by `type`, which is required on both and single-valued — a consumer never has to probe for which fields happen to be present.
 type AnnotationBody struct {
 	union json.RawMessage
 }
@@ -1534,13 +1534,13 @@ type BeckonSparkleEvent struct {
 
 // BindBodyOperation One edit to a linking annotation's body list: add or remove a body item, or replace an existing one.
 type BindBodyOperation struct {
-	// Item Phase 2: Body can be TextualBody (for entity tags, descriptions) or SpecificResource (for links)
+	// Item An annotation's body: a TextualBody carries text the annotation states (entity tags, descriptions, comments), a SpecificResource points at what it links to. Tell them apart by `type`, which is required on both and single-valued — a consumer never has to probe for which fields happen to be present.
 	Item *AnnotationBody `json:"item,omitempty"`
 
-	// NewItem Phase 2: Body can be TextualBody (for entity tags, descriptions) or SpecificResource (for links)
+	// NewItem An annotation's body: a TextualBody carries text the annotation states (entity tags, descriptions, comments), a SpecificResource points at what it links to. Tell them apart by `type`, which is required on both and single-valued — a consumer never has to probe for which fields happen to be present.
 	NewItem *AnnotationBody `json:"newItem,omitempty"`
 
-	// OldItem Phase 2: Body can be TextualBody (for entity tags, descriptions) or SpecificResource (for links)
+	// OldItem An annotation's body: a TextualBody carries text the annotation states (entity tags, descriptions, comments), a SpecificResource points at what it links to. Tell them apart by `type`, which is required on both and single-valued — a consumer never has to probe for which fields happen to be present.
 	OldItem *AnnotationBody `json:"oldItem,omitempty"`
 
 	// Op The type of body operation
@@ -2060,7 +2060,7 @@ type DirEntry struct {
 // DirEntryType defines model for DirEntry.Type.
 type DirEntryType string
 
-// DirectoryEntry defines model for DirectoryEntry.
+// DirectoryEntry One entry in a directory listing: a file, which may carry the resource it was ingested as, or a subdirectory. Tell them apart by `type`, which is required on both and single-valued.
 type DirectoryEntry struct {
 	union json.RawMessage
 }
@@ -6640,6 +6640,7 @@ func (t AnnotationBody) AsTextualBody() (TextualBody, error) {
 
 // FromTextualBody overwrites any union data inside the AnnotationBody as the provided TextualBody
 func (t *AnnotationBody) FromTextualBody(v TextualBody) error {
+	v.Type = "TextualBody"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -6647,6 +6648,7 @@ func (t *AnnotationBody) FromTextualBody(v TextualBody) error {
 
 // MergeTextualBody performs a merge with any union data inside the AnnotationBody, using the provided TextualBody
 func (t *AnnotationBody) MergeTextualBody(v TextualBody) error {
+	v.Type = "TextualBody"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -6666,6 +6668,7 @@ func (t AnnotationBody) AsSpecificResource() (SpecificResource, error) {
 
 // FromSpecificResource overwrites any union data inside the AnnotationBody as the provided SpecificResource
 func (t *AnnotationBody) FromSpecificResource(v SpecificResource) error {
+	v.Type = "SpecificResource"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -6673,6 +6676,7 @@ func (t *AnnotationBody) FromSpecificResource(v SpecificResource) error {
 
 // MergeSpecificResource performs a merge with any union data inside the AnnotationBody, using the provided SpecificResource
 func (t *AnnotationBody) MergeSpecificResource(v SpecificResource) error {
+	v.Type = "SpecificResource"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -6681,6 +6685,29 @@ func (t *AnnotationBody) MergeSpecificResource(v SpecificResource) error {
 	merged, err := runtime.JSONMerge(t.union, b)
 	t.union = merged
 	return err
+}
+
+func (t AnnotationBody) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t AnnotationBody) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "SpecificResource":
+		return t.AsSpecificResource()
+	case "TextualBody":
+		return t.AsTextualBody()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
 }
 
 func (t AnnotationBody) MarshalJSON() ([]byte, error) {
@@ -7354,6 +7381,7 @@ func (t DirectoryEntry) AsFileEntry() (FileEntry, error) {
 
 // FromFileEntry overwrites any union data inside the DirectoryEntry as the provided FileEntry
 func (t *DirectoryEntry) FromFileEntry(v FileEntry) error {
+	v.Type = "file"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7361,6 +7389,7 @@ func (t *DirectoryEntry) FromFileEntry(v FileEntry) error {
 
 // MergeFileEntry performs a merge with any union data inside the DirectoryEntry, using the provided FileEntry
 func (t *DirectoryEntry) MergeFileEntry(v FileEntry) error {
+	v.Type = "file"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7380,6 +7409,7 @@ func (t DirectoryEntry) AsDirEntry() (DirEntry, error) {
 
 // FromDirEntry overwrites any union data inside the DirectoryEntry as the provided DirEntry
 func (t *DirectoryEntry) FromDirEntry(v DirEntry) error {
+	v.Type = "dir"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7387,6 +7417,7 @@ func (t *DirectoryEntry) FromDirEntry(v DirEntry) error {
 
 // MergeDirEntry performs a merge with any union data inside the DirectoryEntry, using the provided DirEntry
 func (t *DirectoryEntry) MergeDirEntry(v DirEntry) error {
+	v.Type = "dir"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7395,6 +7426,29 @@ func (t *DirectoryEntry) MergeDirEntry(v DirEntry) error {
 	merged, err := runtime.JSONMerge(t.union, b)
 	t.union = merged
 	return err
+}
+
+func (t DirectoryEntry) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t DirectoryEntry) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "dir":
+		return t.AsDirEntry()
+	case "file":
+		return t.AsFileEntry()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
 }
 
 func (t DirectoryEntry) MarshalJSON() ([]byte, error) {

@@ -11,6 +11,7 @@
     "codeGeneratingResource": "Luodaan…",
     "codeCreatingResource": "Luodaan resurssia…",
     "codeCompleteGenerated": "Resurssi luotu",
+    "codeCompleteGeneratedTruncated": "Resurssi luotu — katkaistu pituusrajalla",
     "kindHighlight": "korostusta",
     "kindComment": "kommenttia",
     "kindAssessment": "arviota",

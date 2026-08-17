@@ -11,6 +11,7 @@
     "codeGeneratingResource": "Генерування…",
     "codeCreatingResource": "Створення ресурсу…",
     "codeCompleteGenerated": "Ресурс створено",
+    "codeCompleteGeneratedTruncated": "Ресурс створено — обрізано на межі довжини",
     "kindHighlight": "виділень",
     "kindComment": "коментарів",
     "kindAssessment": "оцінок",
