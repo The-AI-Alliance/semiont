@@ -20,6 +20,12 @@ export interface WizardFooterPrimary {
   /** Shown while `pending`; falls back to `label`. */
   pendingLabel?: string;
   pending?: boolean;
+  /**
+   * The action's PRECONDITION is not met yet (e.g. the review step waiting on
+   * gather). Unlike `pending` — the action itself running — this disables only
+   * the primary: retreat must stay live while a precondition loads.
+   */
+  disabled?: boolean;
   type: 'submit' | 'button';
   onClick?: () => void;
 }
@@ -52,7 +58,7 @@ export function WizardFooter({ backLabel, onBack, primary }: WizardFooterProps) 
           type={primary.type}
           {...(primary.onClick ? { onClick: primary.onClick } : {})}
           className="semiont-button--primary"
-          disabled={pending}
+          disabled={pending || (primary.disabled ?? false)}
           data-pending={pending ? 'true' : 'false'}
         >
           {pending ? (primary.pendingLabel ?? primary.label) : primary.label}

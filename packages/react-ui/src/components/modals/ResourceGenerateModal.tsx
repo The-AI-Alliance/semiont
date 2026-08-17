@@ -6,6 +6,7 @@ import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@
 import { useResourceGather } from '../../hooks/useResourceGather';
 import { ConfigureGatherStep, type ResourceGatherConfig } from './ConfigureGatherStep';
 import { GatherContextStep } from './GatherContextStep';
+import { WizardFooter } from './WizardFooter';
 import { ConfigureGenerationStep, type GenerationConfig, type GenerationDraft } from './ConfigureGenerationStep';
 
 export interface ResourceGenerateModalTranslations {
@@ -15,7 +16,6 @@ export interface ResourceGenerateModalTranslations {
   configureTitle: string;
   next: string;
   back: string;
-  cancel: string;
   // ConfigureGatherStep
   gatherIntro: string;
   includeContent: string;
@@ -167,9 +167,7 @@ export function ResourceGenerateModal({
                   <ConfigureGatherStep
                     defaults={gatherDefaults}
                     onGather={handleGather}
-                    onCancel={onClose}
                     translations={{
-                      cancel: t.cancel,
                       intro: t.gatherIntro,
                       includeContent: t.includeContent,
                       includeSummary: t.includeSummary,
@@ -210,37 +208,23 @@ export function ResourceGenerateModal({
                       contextLoading={loading}
                       contextError={error}
                       translations={{
-                        title: '',
                         loadingContext: t.loadingContext,
                         failedContext: t.failedContext,
-                        search: '',
-                        generate: '',
-                        compose: '',
-                        resolutionStrategyLabel: '',
                         sourceContextLabel: t.sourceContextLabel,
                         connectionsLabel: t.connectionsLabel,
                         citedByLabel: t.citedByLabel,
-                        userHintLabel: '',
-                        userHintPlaceholder: '',
                       }}
                     />
-                    <div className="semiont-modal__actions" style={{ paddingTop: '0.5rem' }}>
-                      <button
-                        type="button"
-                        onClick={() => setStep('configure-gather')}
-                        className="semiont-button--secondary semiont-button--flex"
-                      >
-                        ◀ {t.back}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStep('configure-generation')}
-                        disabled={!context}
-                        className="semiont-button--primary semiont-button--flex"
-                      >
-                        {t.next} ▶
-                      </button>
-                    </div>
+                    <WizardFooter
+                      backLabel={t.back}
+                      onBack={() => setStep('configure-gather')}
+                      primary={{
+                        label: t.next,
+                        type: 'button',
+                        onClick: () => setStep('configure-generation'),
+                        disabled: !context,
+                      }}
+                    />
                   </>
                 )}
 
