@@ -17,6 +17,7 @@ import { ConfigureSearchStep } from '../ConfigureSearchStep';
 import { ConfigureGenerationStep } from '../ConfigureGenerationStep';
 import { SearchResultsStep } from '../SearchResultsStep';
 import { ConfigureGatherStep } from '../ConfigureGatherStep';
+import { GatherContextStep } from '../GatherContextStep';
 import type { GatheredContext } from '@semiont/core';
 
 /** Anything that reads as "get me out of here" belongs in the corner, not the footer. */
@@ -193,6 +194,75 @@ describe('every step footer follows the grammar (A1, A2)', () => {
     const labels = buttonsIn(footerOf(container)!).map((b) => b.textContent ?? '');
     expect(labels).toHaveLength(1); // nowhere to go back to, and dismissal is the corner's job
     expect(labels.filter((l) => DISMISSAL.test(l))).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// The THIRD footer species: the resolution CHOOSER. The one deliberate
+// exception to the WizardFooter grammar — a three-way fork the
+// one-retreat-plus-one-advance component cannot express. Its grammar is
+// its own, and this pin is what keeps it a species instead of drift.
+// ─────────────────────────────────────────────────────────────────────
+describe('the resolution chooser (GatherContextStep) — the named exception', () => {
+  const ANNOTATE = {
+    userHint: '',
+    onUserHintChange: vi.fn(),
+    onBind: vi.fn(),
+    onGenerate: vi.fn(),
+    onCompose: vi.fn(),
+    translations: {
+      search: 'Search', generate: 'Generate', compose: 'Compose',
+      resolutionStrategyLabel: 'Strategy', userHintLabel: 'Hint', userHintPlaceholder: '',
+    },
+  };
+  const DISPLAY_T = { loadingContext: 'Loading…', failedContext: 'Failed', ...CONTEXT_T };
+
+  const chooserButtons = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll('.semiont-gather__actions button'));
+
+  it('three equal-width peers, one of them quiet, none of them dismissal', () => {
+    const { container } = render(
+      <GatherContextStep
+        context={CONTEXT} contextLoading={false} contextError={null}
+        annotate={ANNOTATE} translations={DISPLAY_T}
+      />,
+    );
+    const buttons = chooserButtons(container);
+    expect(buttons).toHaveLength(3);
+    // Equal width is HONEST here — these are actual peers. This is the same
+    // `--flex` the shared footer bans for making retreat read as advance's peer.
+    for (const b of buttons) expect(b.className).toContain('semiont-button--flex');
+    // The AI paths are primary; the manual path's demotion to secondary is the
+    // recorded convention, not drift.
+    const secondary = buttons.filter((b) => b.className.includes('semiont-button--secondary'));
+    expect(secondary).toHaveLength(1);
+    expect(secondary[0]!.textContent).toContain('Compose');
+    // Dismissal stays in the corner, as on every footer.
+    expect(buttons.map((b) => b.textContent ?? '').filter((l) => DISMISSAL.test(l))).toEqual([]);
+  });
+
+  it('ellipses mark step-vs-act: the step-leading choices carry one, the acting one does not', () => {
+    // The "…" is component-owned markup, not translated copy: Search and
+    // Generate lead to another step; Compose acts immediately (navigates away).
+    const { container } = render(
+      <GatherContextStep
+        context={CONTEXT} contextLoading={false} contextError={null}
+        annotate={ANNOTATE} translations={DISPLAY_T}
+      />,
+    );
+    const labels = chooserButtons(container).map((b) => (b.textContent ?? '').trim());
+    expect(labels.filter((l) => l.endsWith('…'))).toHaveLength(2);
+    expect(labels.find((l) => l.includes('Compose'))!.endsWith('…')).toBe(false);
+  });
+
+  it('every choice waits for context', () => {
+    const { container } = render(
+      <GatherContextStep
+        context={CONTEXT} contextLoading contextError={null}
+        annotate={ANNOTATE} translations={DISPLAY_T}
+      />,
+    );
+    for (const b of chooserButtons(container)) expect(b).toBeDisabled();
   });
 });
 
