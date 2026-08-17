@@ -1,5 +1,4 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
-import { timeout } from 'rxjs/operators';
 import type { GatheredContext, ResourceId, components } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontClient } from '../../client';
@@ -70,10 +69,12 @@ export function createYieldStateUnit(
   // to `subs`, torn down on dispose). Callers observe `progress$`/`isGenerating$`;
   // they never get the stream back (a second subscription would re-fire the job —
   // the A2 cold-stream double-fire), which is why the public methods return `void`.
+  // No timer of its own: the stall guard lives in the stream's producer
+  // (`runGeneration`), shared with every other consumption — A1 of
+  // FLOW-LIFECYCLE-CONVERGENCE. A stall arrives here as a plain stream
+  // error (GenerationStallError), handled below like any other.
   const drive = (gen$: StreamObservable<YieldGenerationEvent>): void => {
-    const genSub = gen$.pipe(
-      timeout({ each: 300_000 }),
-    ).subscribe({
+    const genSub = gen$.subscribe({
       next: (e) => {
         // Surface live progress to the UI.
         if (e.kind === 'progress') {

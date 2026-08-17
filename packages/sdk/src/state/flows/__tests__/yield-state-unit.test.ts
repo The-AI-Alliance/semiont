@@ -178,50 +178,12 @@ describe('createYieldStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('times out a silent Observable after 300s (no progress within window)', () => {
-    vi.useFakeTimers();
-    const fromContextFn = vi.fn(() => new Observable(() => {}));
-    tc = withYield(fromContextFn);
-    const stateUnit = createYieldStateUnit(tc.client, 'en');
-    const gen: boolean[] = [];
-    stateUnit.isGenerating$.subscribe(v => gen.push(v));
-
-    stateUnit.generate(CTX_ANN, { title: 'T', storageUri: 's' });
-    expect(gen[gen.length - 1]).toBe(false);  // no progress yet → not flipped to true
-
-    vi.advanceTimersByTime(300_000);
-    // Timeout fires → Observable errors → state stays clear
-    expect(gen[gen.length - 1]).toBe(false);
-
-    stateUnit.dispose();
-    vi.useRealTimers();
-  });
-
-  it('resets timeout on each progress emission', () => {
-    vi.useFakeTimers();
-    const progressSubject = new Subject<YieldGenerationEvent>();
-    const fromContextFn = vi.fn(() => progressSubject.asObservable());
-    tc = withYield(fromContextFn);
-    const stateUnit = createYieldStateUnit(tc.client, 'en');
-    const gen: boolean[] = [];
-    stateUnit.isGenerating$.subscribe(v => gen.push(v));
-
-    stateUnit.generate(CTX_ANN, { title: 'T', storageUri: 's' });
-
-    vi.advanceTimersByTime(290_000);
-    progressSubject.next(progressEvent(makeProgress({ percentage: 50 })));
-
-    // 290s after last progress — still within 300s window
-    vi.advanceTimersByTime(290_000);
-    expect(gen[gen.length - 1]).toBe(true);
-
-    // 300s after last progress — timeout
-    vi.advanceTimersByTime(10_000);
-    expect(gen[gen.length - 1]).toBe(false);
-
-    stateUnit.dispose();
-    vi.useRealTimers();
-  });
+  // The unit's own 300s timer is GONE (FLOW-LIFECYCLE-CONVERGENCE A1): the
+  // one stall guard lives in `runGeneration`'s producer, so it cannot be
+  // exercised through this file's mocked `fromContext`. Its behavior — stall
+  // → server-side cancel → typed error → display cleared — is pinned at the
+  // stream level in `namespaces/__tests__/generation-stall.test.ts`,
+  // including the unit's drive path over the REAL namespace.
 
   // ── The outcome (GENERATE-FROM-RESOURCE P2, D8) ─────────────────────────────
   // The link's fields come from `job:complete` — the broadcast, after citations
