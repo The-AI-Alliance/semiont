@@ -31,7 +31,7 @@ describe('passthrough extractor', () => {
     const ex = EXTRACTORS['decode'];
     expect(ex).not.toBeNull();
     const out = await ex!.extract(Buffer.from(text, 'utf8'), 'text/markdown');
-    expect(out).toEqual({ text, method: 'text-passthrough' });
+    expect(out).toEqual({ kind: 'extracted', text, method: 'text-passthrough' });
   });
 
   it('honors the charset parameter via decodeRepresentation', async () => {

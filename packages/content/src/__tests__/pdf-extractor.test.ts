@@ -44,14 +44,14 @@ describe('pdfExtractor (Phase 1 registry slot)', () => {
         const ex = EXTRACTORS['pdf-text-layer'];
         expect(ex).not.toBeNull();
         const out = await ex!.extract(readFixture('scanned.pdf'), 'application/pdf');
-        expect(out).toEqual({ declined: 'no-text-layer' });
+        expect(out).toEqual({ kind: 'declined', declined: 'no-text-layer' });
     });
 
     it("class G: corrupt bytes decline 'corrupt'", async () => {
         const ex = EXTRACTORS['pdf-text-layer'];
         expect(ex).not.toBeNull();
         const out = await ex!.extract(Buffer.from('not a pdf at all', 'utf8'), 'application/pdf');
-        expect(out).toEqual({ declined: 'corrupt' });
+        expect(out).toEqual({ kind: 'declined', declined: 'corrupt' });
     });
 });
 
@@ -84,7 +84,7 @@ describe('class C — hybrid native/scanned routing (Phase 3)', () => {
     // where OCR *does* recover text.
     it('a scan OCR cannot read declines', async () => {
         const out = await extract('scanned-image.pdf');
-        expect(out).toEqual({ declined: 'no-text-layer' });
+        expect(out).toEqual({ kind: 'declined', declined: 'no-text-layer' });
     });
 });
 

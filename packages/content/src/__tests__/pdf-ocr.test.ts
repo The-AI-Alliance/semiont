@@ -88,7 +88,7 @@ describe('class B — a fully scanned document', () => {
 
     it("declines 'no-text-layer' when OCR finds nothing — now meaning it truly failed", async () => {
         recognizesAs('');
-        expect(await extract('scanned-image.pdf')).toEqual({ declined: 'no-text-layer' });
+        expect(await extract('scanned-image.pdf')).toEqual({ kind: 'declined', declined: 'no-text-layer' });
         // "It truly failed" is the whole claim in that name, and the decline
         // alone does not carry it: a page whose image never reaches the engine
         // declines identically. Both real bugs found on 2026-08-02 produced
@@ -103,7 +103,7 @@ describe('class B — a fully scanned document', () => {
     it('declines when the page holds no image to read', async () => {
         recognizesAs('should never be reached');
         // The degenerate scan: an empty page, no pixels at all.
-        expect(await extract('scanned.pdf')).toEqual({ declined: 'no-text-layer' });
+        expect(await extract('scanned.pdf')).toEqual({ kind: 'declined', declined: 'no-text-layer' });
         expect(recognizeImages).not.toHaveBeenCalled();
     });
 });

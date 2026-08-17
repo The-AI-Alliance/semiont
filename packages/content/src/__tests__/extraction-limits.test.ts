@@ -90,7 +90,7 @@ describe('input size budget', () => {
         Object.defineProperty(oversized, 'length', { value: MAX_PDF_BYTES + 1 });
 
         const out = await EXTRACTORS['pdf-text-layer']!.extract(oversized, 'application/pdf');
-        expect(out).toEqual({ declined: 'too-large' });
+        expect(out).toEqual({ kind: 'declined', declined: 'too-large' });
     });
 });
 
