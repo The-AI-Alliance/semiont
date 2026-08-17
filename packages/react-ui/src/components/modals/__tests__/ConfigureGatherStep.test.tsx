@@ -53,7 +53,6 @@ describe('ConfigureGatherStep', () => {
       <ConfigureGatherStep
         defaults={{ includeSummary: false, depth: 1, maxResources: 5 }}
         onGather={onGather}
-       
         translations={t}
       />,
     );
