@@ -318,6 +318,29 @@ describe('generateResourceFromTopic', () => {
     expect(prompt).toContain('Comment: test comment');
   });
 
+  it("the user's hint steers the prompt when present, and leaves no residue when absent", async () => {
+    // `focus.userHint` — "supplement or replace the selected text for search and
+    // generation" (GatheredContext.json). The matcher has consumed it since #911;
+    // this pins the generation half of that contract.
+    client.setResponses(['# X\n\nContent.']);
+    await generateResourceFromTopic(
+      'X', [], client, LOGGER, undefined, undefined,
+      makeContext({
+        selected: { text: 'X' },
+        userHint: 'the ancient city, not the modern province',
+      }),
+    );
+    expect(promptArg()).toContain('the ancient city, not the modern province');
+
+    client.reset();
+    client.setResponses(['# X\n\nContent.']);
+    await generateResourceFromTopic(
+      'X', [], client, LOGGER, undefined, undefined,
+      makeContext({ selected: { text: 'X' } }),
+    );
+    expect(promptArg()).not.toContain('User hint');
+  });
+
   // ── Annotation focus: graph-derived sections (via deriveViews over `graph`) ───
 
   describe('graph context in prompt', () => {
