@@ -1,0 +1,37 @@
+{
+  "description": "A software peer (an inference model acting as a first-class participant) — the Software branch of Agent. Carries structured provider + model.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "@type": {
+      "type": "string",
+      "const": "Software"
+    },
+    "@id": {
+      "type": "string",
+      "format": "uri",
+      "description": "DID-shaped identifier (e.g. did:web:host:agents:provider:model)"
+    },
+    "name": {
+      "type": "string",
+      "description": "Stable human-friendly label. Not parsed; UI composes display from structured fields."
+    },
+    "provider": {
+      "type": "string",
+      "description": "Inference provider (e.g. ollama, anthropic)"
+    },
+    "model": {
+      "type": "string",
+      "description": "Model identifier (e.g. gemma2:27b, claude-3-5-sonnet)"
+    },
+    "parameters": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Inference parameters (temperature, maxTokens, systemPrompt, etc.). Runtime metadata, not part of identity."
+    }
+  },
+  "required": [
+    "@type",
+    "name"
+  ]
+}

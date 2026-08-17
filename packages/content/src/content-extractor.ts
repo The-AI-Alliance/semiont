@@ -19,6 +19,8 @@ import type { AnchoredTextStore } from './anchored-text-store';
 import { pdfExtractor } from './pdf-extractor';
 
 export interface ExtractedText {
+  /** Discriminant — mirrors the wire member (WIRE-UNION-DISCRIMINANTS P5c/D6). */
+  kind: 'extracted';
   /** Reading-order plain text, ready for the chunker. */
   text: string;
   /**
@@ -64,6 +66,8 @@ export interface ExtractedText {
  * could not name its class; SMELTER-MEDIA-TYPES Phase 0 log, note a).
  */
 export interface ExtractionDecline {
+  /** Discriminant — mirrors the wire member (WIRE-UNION-DISCRIMINANTS P5c/D6). */
+  kind: 'declined';
   declined: 'no-text-layer' | 'encrypted' | 'corrupt' | 'too-large';
 }
 
@@ -117,7 +121,7 @@ export interface ContentExtractor {
 const passthroughExtractor: ContentExtractor = {
   yieldsGeometry: false,
   async extract(content, mediaType) {
-    return { text: decodeRepresentation(content, mediaType), method: 'text-passthrough' };
+    return { kind: 'extracted', text: decodeRepresentation(content, mediaType), method: 'text-passthrough' };
   },
 };
 

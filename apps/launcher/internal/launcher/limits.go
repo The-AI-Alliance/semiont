@@ -77,11 +77,15 @@ func fetchModelCeilings(st *stackState) modelCeilings {
 		if entry.Limits == nil {
 			continue
 		}
-		// The Agent union's accessors are bare unmarshals with no discriminant
-		// check, so a Person would decode into the Software shape and read
-		// back as an empty provider. Check @type here, where it is cheap.
-		sw, err := entry.Agent.AsAgent2()
-		if err != nil || sw.Type != "Software" || sw.Provider == nil || sw.Model == nil {
+		// The schema owns the dispatch: ValueByDiscriminator switches on
+		// @type and returns the right named variant, so no hand-written
+		// type check can drift from the wire (WIRE-UNION-DISCRIMINANTS P5a).
+		v, err := entry.Agent.ValueByDiscriminator()
+		if err != nil {
+			continue
+		}
+		sw, ok := v.(semiont.AgentSoftware)
+		if !ok || sw.Provider == nil || sw.Model == nil {
 			continue
 		}
 		out[ceilingKey(*sw.Provider, *sw.Model)] = *entry.Limits

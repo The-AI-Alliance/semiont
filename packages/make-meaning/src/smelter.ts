@@ -435,11 +435,11 @@ export class Smelter {
       key: checksum,
       store: this.anchoredStore,
     });
-    if ('declined' in extracted || !extracted.items?.length) {
+    if (extracted.kind === 'declined' || !extracted.items?.length) {
       this.logger.info('Re-anchor extraction yielded no geometry', {
         resourceId: rid,
         contentType,
-        ...('declined' in extracted ? { declined: extracted.declined } : {}),
+        ...(extracted.kind === 'declined' ? { declined: extracted.declined } : {}),
       });
       return;
     }
@@ -498,7 +498,7 @@ export class Smelter {
         key: checksum,
         store: this.anchoredStore,
       });
-      if ('declined' in extracted) {
+      if (extracted.kind === 'declined') {
         this.logger.debug('Extractor declined', { resourceId, contentType, reason: extracted.declined });
         return { kind: 'skipped', checksum, reason: extracted.declined };
       }

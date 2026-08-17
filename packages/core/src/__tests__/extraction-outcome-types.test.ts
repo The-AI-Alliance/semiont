@@ -25,9 +25,38 @@ type BrowseReply = components['schemas']['BrowseAnchoredTextResult']['response']
 type GetResponse =
   paths['/resources/{id}/anchored-text']['get']['responses']['200']['content']['application/json'];
 
+/**
+ * A2/A3's shape for THIS union — WIRE-UNION-DISCRIMINANTS P5c (D6: Option A).
+ * Both members carry a single-valued `kind`; a consumer narrows without a
+ * type assertion, and an unhandled member is a compile error. Before this,
+ * success carried `method` and the decline carried `declined` with NO shared
+ * property — Defect 2's shape, which forced the `Exclude`/`Extract` probes
+ * this phase deletes from the store.
+ */
+function describeOutcome(o: Outcome): string {
+  switch (o.kind) {
+    case 'extracted':
+      return `${o.method}: ${o.text.length} chars`;
+    case 'declined':
+      return o.declined;
+    default: {
+      const unhandled: never = o;
+      return unhandled;
+    }
+  }
+}
+
+describe('ExtractionOutcome — the union discriminates (P5c)', () => {
+  it('narrows both members by kind, castless', () => {
+    expect(describeOutcome({ kind: 'extracted', text: 'abc', items: [], method: 'ocr' })).toBe('ocr: 3 chars');
+    expect(describeOutcome({ kind: 'declined', declined: 'encrypted' })).toBe('encrypted');
+  });
+});
+
 describe('anchored-text record — extraction outcome guard (P2a)', () => {
   it('a success outcome carries geometry plus provenance', () => {
     const success: Outcome = {
+      kind: 'extracted',
       text: 'scanned words',
       items: [],
       method: 'ocr',
@@ -39,12 +68,12 @@ describe('anchored-text record — extraction outcome guard (P2a)', () => {
   });
 
   it('a named decline is a first-class, cacheable outcome', () => {
-    const decline: Outcome = { declined: 'no-text-layer' };
+    const decline: Outcome = { kind: 'declined', declined: 'no-text-layer' };
     expect(decline).toBeDefined();
   });
 
   it('the PUT body and browse/GET replies carry the outcome, and the bare AnchoredText no longer typechecks', () => {
-    const outcome: Outcome = { text: 't', items: [], method: 'pdf-text-layer' };
+    const outcome: Outcome = { kind: 'extracted', text: 't', items: [], method: 'pdf-text-layer' };
     const put: PutBody = outcome;
     const browse: BrowseReply = outcome;
     const browseNull: BrowseReply = null;

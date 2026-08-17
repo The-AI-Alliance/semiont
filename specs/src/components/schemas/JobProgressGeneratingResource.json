@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "The model is generating the resource.",
+  "properties": {
+    "code": {
+      "type": "string",
+      "enum": [
+        "generating-resource"
+      ]
+    }
+  },
+  "required": [
+    "code"
+  ]
+}

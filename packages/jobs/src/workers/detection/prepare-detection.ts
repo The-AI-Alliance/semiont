@@ -9,9 +9,11 @@ type Agent = components['schemas']['Agent'];
 /**
  * What a detection job needs to run, or why it cannot.
  *
- * Discriminated the same way `ContentExtractor` reports its own outcome —
- * `'declined' in result` — so one idiom covers extraction end to end rather
- * than a `null` that cannot say what went wrong.
+ * The decline mirrors extraction's named-decline idiom — a reason, never a
+ * `null` that cannot say what went wrong. This union is worker-internal
+ * (its decline enum is wider than the wire's), so it narrows by `declined`
+ * presence; the wire outcome it wraps discriminates by `kind`
+ * (WIRE-UNION-DISCRIMINANTS P5c).
  */
 export type DetectionSource =
   | { text: string; buildAnnotation: BuildAnnotation }
@@ -66,7 +68,7 @@ export async function prepareDetection(
     key: calculateChecksum(bytes),
     store,
   });
-  if ('declined' in extracted) return extracted;
+  if (extracted.kind === 'declined') return extracted;
   if (!extracted.text.trim()) return { declined: 'empty' };
 
   // Positioned runs mean the source has real geometry to anchor to — a PDF's

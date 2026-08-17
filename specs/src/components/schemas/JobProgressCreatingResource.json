@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "Writing the generated resource.",
+  "properties": {
+    "code": {
+      "type": "string",
+      "enum": [
+        "creating-resource"
+      ]
+    }
+  },
+  "required": [
+    "code"
+  ]
+}

@@ -681,7 +681,7 @@ describe('handleJob orchestration', () => {
     it.each(PDF_FANOUT)('fans $jobType out to the pdf-text-layer path', async ({ jobType, arm, lastCall }) => {
       arm();
       vi.mocked(EXTRACTORS['pdf-text-layer']!.extract).mockResolvedValue({
-        text: 'the quick brown fox', items: [], method: 'pdf-text-layer', pdfClass: 'A',
+        kind: 'extracted', text: 'the quick brown fox', items: [], method: 'pdf-text-layer', pdfClass: 'A',
       });
       const h = makeFakeSessionAndAdapter();
       vi.mocked(h.session.client.browse.resource).mockReturnValue({
@@ -706,7 +706,7 @@ describe('handleJob orchestration', () => {
       // A scan OCR could not read declines by name. The dispatch completes the
       // job with that reason rather than crashing or running the model on
       // nothing — and the reason is now the extractor's own, not a guess.
-      vi.mocked(EXTRACTORS['pdf-text-layer']!.extract).mockResolvedValue({ declined: 'no-text-layer' });
+      vi.mocked(EXTRACTORS['pdf-text-layer']!.extract).mockResolvedValue({ kind: 'declined', declined: 'no-text-layer' });
       const h = makeFakeSessionAndAdapter();
       vi.mocked(h.session.client.browse.resource).mockReturnValue({
         fresh: async () => ({

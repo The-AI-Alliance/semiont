@@ -124,7 +124,8 @@ const CONTENT_CHECKSUM = /^[0-9a-f]{64}$/;
  */
 function isExtractionOutcome(value: unknown): value is ExtractionOutcome {
   if (!isObject(value)) return false;
-  if (isString(value.declined)) return DECLINE_REASONS.has(value.declined);
+  if (value.kind === 'declined') return isString(value.declined) && DECLINE_REASONS.has(value.declined);
+  if (value.kind !== 'extracted') return false;
   if (!isString(value.text) || !isArray(value.items)) return false;
   if (!isString(value.method) || !EXTRACTION_METHODS.has(value.method)) return false;
   if (value.pdfClass !== undefined && !(isString(value.pdfClass) && PDF_CLASSES.has(value.pdfClass))) return false;

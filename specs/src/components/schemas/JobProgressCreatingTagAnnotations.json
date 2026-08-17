@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "description": "Writing detected tag annotations back to the resource.",
+  "properties": {
+    "code": {
+      "type": "string",
+      "enum": [
+        "creating-tag-annotations"
+      ]
+    },
+    "count": {
+      "type": "integer",
+      "description": "How many annotations are being created"
+    }
+  },
+  "required": [
+    "code",
+    "count"
+  ]
+}

@@ -47,6 +47,21 @@ describe('browse:agents — operation + reply-shape guard (P1)', () => {
     expect(entry.agent['@type']).toBe('Software');
   });
 
+  it('the Agent members are NAMED schemas a consumer can reference (WIRE-UNION-DISCRIMINANTS P5a)', () => {
+    // `discriminator` requires named members — an inline oneOf branch cannot
+    // be a mapping target. The named types are also what lets a consumer
+    // hold "a software agent" as a type rather than a re-derived narrowing.
+    const software: components['schemas']['AgentSoftware'] = {
+      '@type': 'Software',
+      name: 'anthropic claude-haiku-4-5',
+      provider: 'anthropic',
+      model: 'claude-haiku-4-5',
+    };
+    const person: components['schemas']['AgentPerson'] = { '@type': 'Person', name: 'Ada' };
+    expect(software['@type']).toBe('Software');
+    expect(person['@type']).toBe('Person');
+  });
+
   it('an entry admits a Person WITHOUT servesJobTypes (P4 composes into the same shape)', () => {
     const entry: CollaboratorEntry = {
       agent: {

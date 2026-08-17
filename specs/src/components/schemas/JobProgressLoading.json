@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "Loading the resource content.",
+  "properties": {
+    "code": {
+      "type": "string",
+      "enum": [
+        "loading"
+      ]
+    }
+  },
+  "required": [
+    "code"
+  ]
+}

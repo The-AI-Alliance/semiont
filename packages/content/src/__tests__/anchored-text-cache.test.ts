@@ -289,7 +289,7 @@ describe('anchored-text cache', () => {
     // asserted is the clean decline, the same one 22-pdf-scanned-decline
     // depends on. What matters here is that the engine still ran.
     const out = await pdfExtractor.extract(SCAN, 'application/pdf');
-    expect(out).toEqual({ declined: 'no-text-layer' });
+    expect(out).toEqual({ kind: 'declined', declined: 'no-text-layer' });
     expect(recognizeSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -302,11 +302,11 @@ describe('anchored-text cache', () => {
     const key = calculateChecksum(SCAN);
 
     expect(await pdfExtractor.extract(SCAN, 'application/pdf', { key, store }))
-      .toEqual({ declined: 'no-text-layer' });
+      .toEqual({ kind: 'declined', declined: 'no-text-layer' });
     expect(recognizeSpy).toHaveBeenCalledTimes(1);
 
     expect(await pdfExtractor.extract(SCAN, 'application/pdf', { key, store }))
-      .toEqual({ declined: 'no-text-layer' });
+      .toEqual({ kind: 'declined', declined: 'no-text-layer' });
     expect(recognizeSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -352,7 +352,7 @@ describe('the seam is extract(), not the OCR boundary (PERSIST-ANCHORS P2b)', ()
     // The record depends on the pdf.js parse (classification, text layer,
     // shaping) since the seam moved — a parser upgrade must read as a miss.
     const store = createAnchoredTextStore(dir);
-    await store.write(calculateChecksum(Buffer.from('b')), { text: 'x', items: [], method: 'ocr' });
+    await store.write(calculateChecksum(Buffer.from('b')), { kind: 'extracted', text: 'x', items: [], method: 'ocr' });
 
     const [file] = allEntryFiles(dir);
     const { stamp } = JSON.parse(fs.readFileSync(file!, 'utf8'));
@@ -365,15 +365,15 @@ describe('the seam is extract(), not the OCR boundary (PERSIST-ANCHORS P2b)', ()
     const key = calculateChecksum(SCAN);
 
     expect(await pdfExtractor.extract(SCAN, 'application/pdf', { key, store }))
-      .toEqual({ declined: 'no-text-layer' });
+      .toEqual({ kind: 'declined', declined: 'no-text-layer' });
 
     // "We read this and there was nothing" is a result — stored as what it
     // is, not as an empty success standing in for one.
-    expect(await store.read(key)).toEqual({ declined: 'no-text-layer' });
+    expect(await store.read(key)).toEqual({ kind: 'declined', declined: 'no-text-layer' });
 
     const parses = parseSpy.mock.calls.length;
     expect(await pdfExtractor.extract(SCAN, 'application/pdf', { key, store }))
-      .toEqual({ declined: 'no-text-layer' });
+      .toEqual({ kind: 'declined', declined: 'no-text-layer' });
 
     expect(parseSpy.mock.calls.length).toBe(parses);   // the decline hit skips the parser
     expect(recognizeSpy).toHaveBeenCalledTimes(1);     // and the engine
@@ -390,6 +390,7 @@ describe('the key binds an entry to its bytes (PERSIST-ANCHORS P1)', () => {
   // have. Under the checksum key the miss holds by construction, not by
   // invalidation.
   const MAP_FOR_OLD_BYTES = {
+    kind: 'extracted' as const,
     text: 'alpha beta',
     items: [{ start: 0, end: 5, page: 1, x: 72, y: 720, width: 30, height: 12 }],
     method: 'ocr' as const,
@@ -428,11 +429,55 @@ describe('the key binds an entry to its bytes (PERSIST-ANCHORS P1)', () => {
     // the strip: no file is created, and the read is an ordinary miss.
     const store = createAnchoredTextStore(dir);
 
-    await store.write('../escape/attempt', { text: 'x', items: [], method: 'ocr' });
-    await store.write('not a checksum!', { text: 'x', items: [], method: 'ocr' });
+    await store.write('../escape/attempt', { kind: 'extracted', text: 'x', items: [], method: 'ocr' });
+    await store.write('not a checksum!', { kind: 'extracted', text: 'x', items: [], method: 'ocr' });
 
     expect(allEntryFiles(dir)).toEqual([]);
     expect(await store.read('../escape/attempt')).toBeNull();
+  });
+});
+
+describe('the discriminant never reaches disk (WIRE-UNION-DISCRIMINANTS P5c)', () => {
+  // The store persists its OWN record and rebuilds the outcome on read, so
+  // `kind` is stripped on write and re-added on read. Two consequences, each
+  // pinned: entries written before the discriminant existed read back as
+  // discriminated outcomes (no migration, no stamp bump), and entries written
+  // now contain no `kind` byte the record's own shape already implies.
+
+  it('reads a pre-P5c v2 entry back as a discriminated outcome', async () => {
+    const store = createAnchoredTextStore(dir);
+    // Steal the live stamp from a real write, then plant byte-for-byte what
+    // write() produced before `kind` existed — success and decline flavors.
+    await store.write('feed0001', { kind: 'extracted', text: 'x', items: [], method: 'ocr' });
+    const [file] = allEntryFiles(dir);
+    const { stamp } = JSON.parse(fs.readFileSync(file!, 'utf8'));
+
+    const entryFile = (key: string) => {
+      const [ab, cd] = getShardPath(key);
+      return path.join(dir, ab, cd, `${key}.json`);
+    };
+    fs.writeFileSync(entryFile('feed0001'), JSON.stringify({
+      v: 2, stamp, text: 'alpha', method: 'ocr',
+      lines: [{ p: 1, y: 720, h: 12, words: [[72, 30, 0, 5]] }],
+    }));
+    fs.mkdirSync(path.dirname(entryFile('feed0002')), { recursive: true });
+    fs.writeFileSync(entryFile('feed0002'), JSON.stringify({ v: 2, stamp, declined: 'encrypted' }));
+
+    expect(await store.read('feed0001')).toEqual({
+      kind: 'extracted', text: 'alpha', method: 'ocr',
+      items: [{ start: 0, end: 5, page: 1, x: 72, y: 720, width: 30, height: 12 }],
+    });
+    expect(await store.read('feed0002')).toEqual({ kind: 'declined', declined: 'encrypted' });
+  });
+
+  it('writes no kind byte on either branch', async () => {
+    const store = createAnchoredTextStore(dir);
+    await store.write('feed0003', { kind: 'extracted', text: 'x', items: [], method: 'ocr' });
+    await store.write('feed0004', { kind: 'declined', declined: 'corrupt' });
+
+    for (const file of allEntryFiles(dir)) {
+      expect(fs.readFileSync(file, 'utf8')).not.toContain('"kind"');
+    }
   });
 });
 
@@ -442,7 +487,7 @@ describe('would-hit key listing (PERSIST-ANCHORS P0)', () => {
   // load-bearing in both directions: a listed key that read() would miss is a
   // permanent loss the drift diff can never see (the post-engine-upgrade
   // hole); an unlisted key that read() would hit is a wasted recognition pass.
-  const MAP = { text: 'alpha beta', items: [{ start: 0, end: 5, page: 1, x: 72, y: 720, width: 30, height: 12 }], method: 'ocr' as const };
+  const MAP = { kind: 'extracted' as const, text: 'alpha beta', items: [{ start: 0, end: 5, page: 1, x: 72, y: 720, width: 30, height: 12 }], method: 'ocr' as const };
 
   it('lists exactly the keys read() would hit', async () => {
     const store = createAnchoredTextStore(dir);

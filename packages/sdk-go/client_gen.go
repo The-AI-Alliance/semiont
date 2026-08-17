@@ -611,88 +611,43 @@ func (e JobProgressRequestParamsLabel) Valid() bool {
 	}
 }
 
-// Defines values for JobProgressMessage0Code.
+// Defines values for JobProgressAnalyzingCode.
 const (
-	Analyzing          JobProgressMessage0Code = "analyzing"
-	AnalyzingTags      JobProgressMessage0Code = "analyzing-tags"
-	CreatingResource   JobProgressMessage0Code = "creating-resource"
-	GeneratingResource JobProgressMessage0Code = "generating-resource"
-	Loading            JobProgressMessage0Code = "loading"
+	Analyzing JobProgressAnalyzingCode = "analyzing"
 )
 
-// Valid indicates whether the value is a known member of the JobProgressMessage0Code enum.
-func (e JobProgressMessage0Code) Valid() bool {
+// Valid indicates whether the value is a known member of the JobProgressAnalyzingCode enum.
+func (e JobProgressAnalyzingCode) Valid() bool {
 	switch e {
 	case Analyzing:
 		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobProgressAnalyzingTagsCode.
+const (
+	AnalyzingTags JobProgressAnalyzingTagsCode = "analyzing-tags"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressAnalyzingTagsCode enum.
+func (e JobProgressAnalyzingTagsCode) Valid() bool {
+	switch e {
 	case AnalyzingTags:
 		return true
-	case CreatingResource:
-		return true
-	case GeneratingResource:
-		return true
-	case Loading:
-		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for JobProgressMessage1Code.
+// Defines values for JobProgressCompleteCreatedCode.
 const (
-	CompleteGenerated JobProgressMessage1Code = "complete-generated"
+	CompleteCreated JobProgressCompleteCreatedCode = "complete-created"
 )
 
-// Valid indicates whether the value is a known member of the JobProgressMessage1Code enum.
-func (e JobProgressMessage1Code) Valid() bool {
-	switch e {
-	case CompleteGenerated:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for JobProgressMessage2Code.
-const (
-	DetectingEntities JobProgressMessage2Code = "detecting-entities"
-)
-
-// Valid indicates whether the value is a known member of the JobProgressMessage2Code enum.
-func (e JobProgressMessage2Code) Valid() bool {
-	switch e {
-	case DetectingEntities:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for JobProgressMessage3Code.
-const (
-	CreatingAnnotations    JobProgressMessage3Code = "creating-annotations"
-	CreatingTagAnnotations JobProgressMessage3Code = "creating-tag-annotations"
-)
-
-// Valid indicates whether the value is a known member of the JobProgressMessage3Code enum.
-func (e JobProgressMessage3Code) Valid() bool {
-	switch e {
-	case CreatingAnnotations:
-		return true
-	case CreatingTagAnnotations:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for JobProgressMessage4Code.
-const (
-	CompleteCreated JobProgressMessage4Code = "complete-created"
-)
-
-// Valid indicates whether the value is a known member of the JobProgressMessage4Code enum.
-func (e JobProgressMessage4Code) Valid() bool {
+// Valid indicates whether the value is a known member of the JobProgressCompleteCreatedCode enum.
+func (e JobProgressCompleteCreatedCode) Valid() bool {
 	switch e {
 	case CompleteCreated:
 		return true
@@ -701,17 +656,17 @@ func (e JobProgressMessage4Code) Valid() bool {
 	}
 }
 
-// Defines values for JobProgressMessage4Kind.
+// Defines values for JobProgressCompleteCreatedKind.
 const (
-	Assessment JobProgressMessage4Kind = "assessment"
-	Comment    JobProgressMessage4Kind = "comment"
-	Highlight  JobProgressMessage4Kind = "highlight"
-	Reference  JobProgressMessage4Kind = "reference"
-	Tag        JobProgressMessage4Kind = "tag"
+	Assessment JobProgressCompleteCreatedKind = "assessment"
+	Comment    JobProgressCompleteCreatedKind = "comment"
+	Highlight  JobProgressCompleteCreatedKind = "highlight"
+	Reference  JobProgressCompleteCreatedKind = "reference"
+	Tag        JobProgressCompleteCreatedKind = "tag"
 )
 
-// Valid indicates whether the value is a known member of the JobProgressMessage4Kind enum.
-func (e JobProgressMessage4Kind) Valid() bool {
+// Valid indicates whether the value is a known member of the JobProgressCompleteCreatedKind enum.
+func (e JobProgressCompleteCreatedKind) Valid() bool {
 	switch e {
 	case Assessment:
 		return true
@@ -722,6 +677,111 @@ func (e JobProgressMessage4Kind) Valid() bool {
 	case Reference:
 		return true
 	case Tag:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobProgressCompleteGeneratedCode.
+const (
+	CompleteGenerated JobProgressCompleteGeneratedCode = "complete-generated"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressCompleteGeneratedCode enum.
+func (e JobProgressCompleteGeneratedCode) Valid() bool {
+	switch e {
+	case CompleteGenerated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobProgressCreatingAnnotationsCode.
+const (
+	CreatingAnnotations JobProgressCreatingAnnotationsCode = "creating-annotations"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressCreatingAnnotationsCode enum.
+func (e JobProgressCreatingAnnotationsCode) Valid() bool {
+	switch e {
+	case CreatingAnnotations:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobProgressCreatingResourceCode.
+const (
+	CreatingResource JobProgressCreatingResourceCode = "creating-resource"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressCreatingResourceCode enum.
+func (e JobProgressCreatingResourceCode) Valid() bool {
+	switch e {
+	case CreatingResource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobProgressCreatingTagAnnotationsCode.
+const (
+	CreatingTagAnnotations JobProgressCreatingTagAnnotationsCode = "creating-tag-annotations"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressCreatingTagAnnotationsCode enum.
+func (e JobProgressCreatingTagAnnotationsCode) Valid() bool {
+	switch e {
+	case CreatingTagAnnotations:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobProgressDetectingEntitiesCode.
+const (
+	DetectingEntities JobProgressDetectingEntitiesCode = "detecting-entities"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressDetectingEntitiesCode enum.
+func (e JobProgressDetectingEntitiesCode) Valid() bool {
+	switch e {
+	case DetectingEntities:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobProgressGeneratingResourceCode.
+const (
+	GeneratingResource JobProgressGeneratingResourceCode = "generating-resource"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressGeneratingResourceCode enum.
+func (e JobProgressGeneratingResourceCode) Valid() bool {
+	switch e {
+	case GeneratingResource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobProgressLoadingCode.
+const (
+	Loading JobProgressLoadingCode = "loading"
+)
+
+// Valid indicates whether the value is a known member of the JobProgressLoadingCode enum.
+func (e JobProgressLoadingCode) Valid() bool {
+	switch e {
+	case Loading:
 		return true
 	default:
 		return false
@@ -1304,13 +1364,22 @@ type AdminUsersListResponse struct {
 	} `json:"users"`
 }
 
-// Agent Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software. Each branch carries fields appropriate to its kind. Software peers are first-class participants, not a sub-class of Person.
+// Agent Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
 type Agent struct {
 	union json.RawMessage
 }
 
-// Agent0 defines model for .
-type Agent0 struct {
+// AgentOrganization An organization — the Organization branch of Agent.
+type AgentOrganization struct {
+	Id                   *string                `json:"@id,omitempty"`
+	Type                 string                 `json:"@type"`
+	Homepage             *string                `json:"homepage,omitempty"`
+	Name                 string                 `json:"name"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// AgentPerson A human participant — the Person branch of Agent.
+type AgentPerson struct {
 	// Id DID-shaped identifier (e.g. did:web:host:users:email%40host)
 	Id        *string `json:"@id,omitempty"`
 	Type      string  `json:"@type"`
@@ -1324,17 +1393,8 @@ type Agent0 struct {
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
-// Agent1 defines model for .
-type Agent1 struct {
-	Id                   *string                `json:"@id,omitempty"`
-	Type                 string                 `json:"@type"`
-	Homepage             *string                `json:"homepage,omitempty"`
-	Name                 string                 `json:"name"`
-	AdditionalProperties map[string]interface{} `json:"-"`
-}
-
-// Agent2 defines model for .
-type Agent2 struct {
+// AgentSoftware A software peer (an inference model acting as a first-class participant) — the Software branch of Agent. Carries structured provider + model.
+type AgentSoftware struct {
 	// Id DID-shaped identifier (e.g. did:web:host:agents:provider:model)
 	Id   *string `json:"@id,omitempty"`
 	Type string  `json:"@type"`
@@ -1371,7 +1431,7 @@ type Annotation struct {
 	Body    *Annotation_Body `json:"body,omitempty"`
 	Created *string          `json:"created,omitempty"`
 
-	// Creator Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software. Each branch carries fields appropriate to its kind. Software peers are first-class participants, not a sub-class of Person.
+	// Creator Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
 	Creator *Agent `json:"creator,omitempty"`
 
 	// Generator Web Annotation generator — the SoftwareAgent that produced the annotation, when software was involved. Absent for purely manual annotations. Single object is the common case; array supports pipelines that combine multiple software peers.
@@ -1932,7 +1992,7 @@ type CloneResourceWithTokenResponse struct {
 
 // CollaboratorEntry One collaborator in the KB's directory: a W3C Agent plus, for software agents declared in the KB's worker inference config, the job types it serves. Actor-role-only agents (gatherer/matcher) and Persons omit servesJobTypes.
 type CollaboratorEntry struct {
-	// Agent Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software. Each branch carries fields appropriate to its kind. Software peers are first-class participants, not a sub-class of Person.
+	// Agent Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
 	Agent Agent `json:"agent"`
 
 	// Limits A provider's actual ceilings for a model, discovered from the provider itself (Anthropic Models API; Ollama /api/show) — never hand-maintained constants. Semantics differ by provider shape: Anthropic reports maximum input tokens in contextTokens with a separate output ceiling in maxOutputTokens; Ollama reports the shared input+output window and mirrors it into both fields (there is no separate output ceiling), so maxOutputTokens === contextTokens signals a shared window.
@@ -2834,7 +2894,7 @@ type JobProgress struct {
 	// EntitiesFound Entities found so far (reference-annotation)
 	EntitiesFound *int `json:"entitiesFound,omitempty"`
 
-	// Message What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). The vocabulary is the census of every onProgress call site in @semiont/jobs (.plans/ASSIST-PROGRESS-CONSOLIDATION.md P1, 2026-08-12); extending it means adding a variant here and copy in every client, gated by the locale-completeness check.
+	// Message What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). One named schema per code, discriminated on `code` (WIRE-UNION-DISCRIMINANTS P5b), so generated clients get typed variants and copy-map completeness is statically checkable. The vocabulary is the census of every onProgress call site in @semiont/jobs (.plans/ASSIST-PROGRESS-CONSOLIDATION.md P1); extending it means adding a named variant here and copy in every client, gated by the locale-completeness check.
 	Message *JobProgressMessage `json:"message,omitempty"`
 
 	// Percentage Completion percentage (0-100)
@@ -2862,68 +2922,111 @@ type JobProgressCurrentKind string
 // JobProgressRequestParamsLabel Which parameter this is. The client renders a localized name for it.
 type JobProgressRequestParamsLabel string
 
-// JobProgressMessage What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). The vocabulary is the census of every onProgress call site in @semiont/jobs (.plans/ASSIST-PROGRESS-CONSOLIDATION.md P1, 2026-08-12); extending it means adding a variant here and copy in every client, gated by the locale-completeness check.
-type JobProgressMessage struct {
-	union json.RawMessage
+// JobProgressAnalyzing Analyzing the content.
+type JobProgressAnalyzing struct {
+	Code JobProgressAnalyzingCode `json:"code"`
 }
 
-// JobProgressMessage0 Codes that carry no params.
-type JobProgressMessage0 struct {
-	Code JobProgressMessage0Code `json:"code"`
+// JobProgressAnalyzingCode defines model for JobProgressAnalyzing.Code.
+type JobProgressAnalyzingCode string
+
+// JobProgressAnalyzingTags Analyzing the content against the tag schema.
+type JobProgressAnalyzingTags struct {
+	Code JobProgressAnalyzingTagsCode `json:"code"`
 }
 
-// JobProgressMessage0Code defines model for JobProgressMessage.0.Code.
-type JobProgressMessage0Code string
+// JobProgressAnalyzingTagsCode defines model for JobProgressAnalyzingTags.Code.
+type JobProgressAnalyzingTagsCode string
 
-// JobProgressMessage1 Generation's terminal success. Deliberately generic — the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress (GENERATE-FROM-RESOURCE D7/D8). `truncated` qualifies the completion (D6): the same bit `JobGenerationResult.truncated` carries, so the two surfaces cannot drift.
-type JobProgressMessage1 struct {
-	Code JobProgressMessage1Code `json:"code"`
-
-	// Truncated True when the model stopped at the maxTokens ceiling — the artifact is cut off, not complete.
-	Truncated bool `json:"truncated"`
-}
-
-// JobProgressMessage1Code defines model for JobProgressMessage.1.Code.
-type JobProgressMessage1Code string
-
-// JobProgressMessage2 Entity detection, one entity type at a time.
-type JobProgressMessage2 struct {
-	Code JobProgressMessage2Code `json:"code"`
-
-	// EntityType Entity type currently being detected
-	EntityType string `json:"entityType"`
-}
-
-// JobProgressMessage2Code defines model for JobProgressMessage.2.Code.
-type JobProgressMessage2Code string
-
-// JobProgressMessage3 Writing detected annotations back to the resource.
-type JobProgressMessage3 struct {
-	Code JobProgressMessage3Code `json:"code"`
-
-	// Count How many annotations are being created
-	Count int `json:"count"`
-}
-
-// JobProgressMessage3Code defines model for JobProgressMessage.3.Code.
-type JobProgressMessage3Code string
-
-// JobProgressMessage4 Terminal success summary.
-type JobProgressMessage4 struct {
-	Code JobProgressMessage4Code `json:"code"`
+// JobProgressCompleteCreated Terminal success summary.
+type JobProgressCompleteCreated struct {
+	Code JobProgressCompleteCreatedCode `json:"code"`
 
 	// Count How many annotations were created
 	Count int `json:"count"`
 
 	// Kind What kind of annotation was created; clients pluralize/translate
-	Kind JobProgressMessage4Kind `json:"kind"`
+	Kind JobProgressCompleteCreatedKind `json:"kind"`
 }
 
-// JobProgressMessage4Code defines model for JobProgressMessage.4.Code.
-type JobProgressMessage4Code string
+// JobProgressCompleteCreatedCode defines model for JobProgressCompleteCreated.Code.
+type JobProgressCompleteCreatedCode string
 
-// JobProgressMessage4Kind What kind of annotation was created; clients pluralize/translate
-type JobProgressMessage4Kind string
+// JobProgressCompleteCreatedKind What kind of annotation was created; clients pluralize/translate
+type JobProgressCompleteCreatedKind string
+
+// JobProgressCompleteGenerated Generation's terminal success. Deliberately generic — the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress (GENERATE-FROM-RESOURCE D7/D8). `truncated` qualifies the completion (D6): the same bit `JobGenerationResult.truncated` carries, so the two surfaces cannot drift.
+type JobProgressCompleteGenerated struct {
+	Code JobProgressCompleteGeneratedCode `json:"code"`
+
+	// Truncated True when the model stopped at the maxTokens ceiling — the artifact is cut off, not complete.
+	Truncated bool `json:"truncated"`
+}
+
+// JobProgressCompleteGeneratedCode defines model for JobProgressCompleteGenerated.Code.
+type JobProgressCompleteGeneratedCode string
+
+// JobProgressCreatingAnnotations Writing detected annotations back to the resource.
+type JobProgressCreatingAnnotations struct {
+	Code JobProgressCreatingAnnotationsCode `json:"code"`
+
+	// Count How many annotations are being created
+	Count int `json:"count"`
+}
+
+// JobProgressCreatingAnnotationsCode defines model for JobProgressCreatingAnnotations.Code.
+type JobProgressCreatingAnnotationsCode string
+
+// JobProgressCreatingResource Writing the generated resource.
+type JobProgressCreatingResource struct {
+	Code JobProgressCreatingResourceCode `json:"code"`
+}
+
+// JobProgressCreatingResourceCode defines model for JobProgressCreatingResource.Code.
+type JobProgressCreatingResourceCode string
+
+// JobProgressCreatingTagAnnotations Writing detected tag annotations back to the resource.
+type JobProgressCreatingTagAnnotations struct {
+	Code JobProgressCreatingTagAnnotationsCode `json:"code"`
+
+	// Count How many annotations are being created
+	Count int `json:"count"`
+}
+
+// JobProgressCreatingTagAnnotationsCode defines model for JobProgressCreatingTagAnnotations.Code.
+type JobProgressCreatingTagAnnotationsCode string
+
+// JobProgressDetectingEntities Entity detection, one entity type at a time.
+type JobProgressDetectingEntities struct {
+	Code JobProgressDetectingEntitiesCode `json:"code"`
+
+	// EntityType Entity type currently being detected
+	EntityType string `json:"entityType"`
+}
+
+// JobProgressDetectingEntitiesCode defines model for JobProgressDetectingEntities.Code.
+type JobProgressDetectingEntitiesCode string
+
+// JobProgressGeneratingResource The model is generating the resource.
+type JobProgressGeneratingResource struct {
+	Code JobProgressGeneratingResourceCode `json:"code"`
+}
+
+// JobProgressGeneratingResourceCode defines model for JobProgressGeneratingResource.Code.
+type JobProgressGeneratingResourceCode string
+
+// JobProgressLoading Loading the resource content.
+type JobProgressLoading struct {
+	Code JobProgressLoadingCode `json:"code"`
+}
+
+// JobProgressLoadingCode defines model for JobProgressLoading.Code.
+type JobProgressLoadingCode string
+
+// JobProgressMessage What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). One named schema per code, discriminated on `code` (WIRE-UNION-DISCRIMINANTS P5b), so generated clients get typed variants and copy-map completeness is statically checkable. The vocabulary is the census of every onProgress call site in @semiont/jobs (.plans/ASSIST-PROGRESS-CONSOLIDATION.md P1); extending it means adding a named variant here and copy in every client, gated by the locale-completeness check.
+type JobProgressMessage struct {
+	union json.RawMessage
+}
 
 // JobQueuedEvent Event indicating a job has been queued
 type JobQueuedEvent struct {
@@ -4431,25 +4534,134 @@ type PostBusSubscribeJSONRequestBody = BusSubscribeRequest
 // PostResourcesMultipartRequestBody defines body for PostResources for multipart/form-data ContentType.
 type PostResourcesMultipartRequestBody PostResourcesMultipartBody
 
-// Getter for additional properties for Agent0. Returns the specified
+// Getter for additional properties for AgentOrganization. Returns the specified
 // element and whether it was found
-func (a Agent0) Get(fieldName string) (value interface{}, found bool) {
+func (a AgentOrganization) Get(fieldName string) (value interface{}, found bool) {
 	if a.AdditionalProperties != nil {
 		value, found = a.AdditionalProperties[fieldName]
 	}
 	return
 }
 
-// Setter for additional properties for Agent0
-func (a *Agent0) Set(fieldName string, value interface{}) {
+// Setter for additional properties for AgentOrganization
+func (a *AgentOrganization) Set(fieldName string, value interface{}) {
 	if a.AdditionalProperties == nil {
 		a.AdditionalProperties = make(map[string]interface{})
 	}
 	a.AdditionalProperties[fieldName] = value
 }
 
-// Override default JSON handling for Agent0 to handle AdditionalProperties
-func (a *Agent0) UnmarshalJSON(b []byte) error {
+// Override default JSON handling for AgentOrganization to handle AdditionalProperties
+func (a *AgentOrganization) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["@id"]; found {
+		err = json.Unmarshal(raw, &a.Id)
+		if err != nil {
+			return fmt.Errorf("error reading '@id': %w", err)
+		}
+		delete(object, "@id")
+	}
+
+	if raw, found := object["@type"]; found {
+		err = json.Unmarshal(raw, &a.Type)
+		if err != nil {
+			return fmt.Errorf("error reading '@type': %w", err)
+		}
+		delete(object, "@type")
+	}
+
+	if raw, found := object["homepage"]; found {
+		err = json.Unmarshal(raw, &a.Homepage)
+		if err != nil {
+			return fmt.Errorf("error reading 'homepage': %w", err)
+		}
+		delete(object, "homepage")
+	}
+
+	if raw, found := object["name"]; found {
+		err = json.Unmarshal(raw, &a.Name)
+		if err != nil {
+			return fmt.Errorf("error reading 'name': %w", err)
+		}
+		delete(object, "name")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for AgentOrganization to handle AdditionalProperties
+func (a AgentOrganization) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.Id != nil {
+		object["@id"], err = json.Marshal(a.Id)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '@id': %w", err)
+		}
+	}
+
+	object["@type"], err = json.Marshal(a.Type)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling '@type': %w", err)
+	}
+
+	if a.Homepage != nil {
+		object["homepage"], err = json.Marshal(a.Homepage)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'homepage': %w", err)
+		}
+	}
+
+	object["name"], err = json.Marshal(a.Name)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'name': %w", err)
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// Getter for additional properties for AgentPerson. Returns the specified
+// element and whether it was found
+func (a AgentPerson) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for AgentPerson
+func (a *AgentPerson) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for AgentPerson to handle AdditionalProperties
+func (a *AgentPerson) UnmarshalJSON(b []byte) error {
 	object := make(map[string]json.RawMessage)
 	err := json.Unmarshal(b, &object)
 	if err != nil {
@@ -4526,8 +4738,8 @@ func (a *Agent0) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// Override default JSON handling for Agent0 to handle AdditionalProperties
-func (a Agent0) MarshalJSON() ([]byte, error) {
+// Override default JSON handling for AgentPerson to handle AdditionalProperties
+func (a AgentPerson) MarshalJSON() ([]byte, error) {
 	var err error
 	object := make(map[string]json.RawMessage)
 
@@ -4585,134 +4797,25 @@ func (a Agent0) MarshalJSON() ([]byte, error) {
 	return json.Marshal(object)
 }
 
-// Getter for additional properties for Agent1. Returns the specified
+// Getter for additional properties for AgentSoftware. Returns the specified
 // element and whether it was found
-func (a Agent1) Get(fieldName string) (value interface{}, found bool) {
+func (a AgentSoftware) Get(fieldName string) (value interface{}, found bool) {
 	if a.AdditionalProperties != nil {
 		value, found = a.AdditionalProperties[fieldName]
 	}
 	return
 }
 
-// Setter for additional properties for Agent1
-func (a *Agent1) Set(fieldName string, value interface{}) {
+// Setter for additional properties for AgentSoftware
+func (a *AgentSoftware) Set(fieldName string, value interface{}) {
 	if a.AdditionalProperties == nil {
 		a.AdditionalProperties = make(map[string]interface{})
 	}
 	a.AdditionalProperties[fieldName] = value
 }
 
-// Override default JSON handling for Agent1 to handle AdditionalProperties
-func (a *Agent1) UnmarshalJSON(b []byte) error {
-	object := make(map[string]json.RawMessage)
-	err := json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["@id"]; found {
-		err = json.Unmarshal(raw, &a.Id)
-		if err != nil {
-			return fmt.Errorf("error reading '@id': %w", err)
-		}
-		delete(object, "@id")
-	}
-
-	if raw, found := object["@type"]; found {
-		err = json.Unmarshal(raw, &a.Type)
-		if err != nil {
-			return fmt.Errorf("error reading '@type': %w", err)
-		}
-		delete(object, "@type")
-	}
-
-	if raw, found := object["homepage"]; found {
-		err = json.Unmarshal(raw, &a.Homepage)
-		if err != nil {
-			return fmt.Errorf("error reading 'homepage': %w", err)
-		}
-		delete(object, "homepage")
-	}
-
-	if raw, found := object["name"]; found {
-		err = json.Unmarshal(raw, &a.Name)
-		if err != nil {
-			return fmt.Errorf("error reading 'name': %w", err)
-		}
-		delete(object, "name")
-	}
-
-	if len(object) != 0 {
-		a.AdditionalProperties = make(map[string]interface{})
-		for fieldName, fieldBuf := range object {
-			var fieldVal interface{}
-			err := json.Unmarshal(fieldBuf, &fieldVal)
-			if err != nil {
-				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
-			}
-			a.AdditionalProperties[fieldName] = fieldVal
-		}
-	}
-	return nil
-}
-
-// Override default JSON handling for Agent1 to handle AdditionalProperties
-func (a Agent1) MarshalJSON() ([]byte, error) {
-	var err error
-	object := make(map[string]json.RawMessage)
-
-	if a.Id != nil {
-		object["@id"], err = json.Marshal(a.Id)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling '@id': %w", err)
-		}
-	}
-
-	object["@type"], err = json.Marshal(a.Type)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling '@type': %w", err)
-	}
-
-	if a.Homepage != nil {
-		object["homepage"], err = json.Marshal(a.Homepage)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'homepage': %w", err)
-		}
-	}
-
-	object["name"], err = json.Marshal(a.Name)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'name': %w", err)
-	}
-
-	for fieldName, field := range a.AdditionalProperties {
-		object[fieldName], err = json.Marshal(field)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
-		}
-	}
-	return json.Marshal(object)
-}
-
-// Getter for additional properties for Agent2. Returns the specified
-// element and whether it was found
-func (a Agent2) Get(fieldName string) (value interface{}, found bool) {
-	if a.AdditionalProperties != nil {
-		value, found = a.AdditionalProperties[fieldName]
-	}
-	return
-}
-
-// Setter for additional properties for Agent2
-func (a *Agent2) Set(fieldName string, value interface{}) {
-	if a.AdditionalProperties == nil {
-		a.AdditionalProperties = make(map[string]interface{})
-	}
-	a.AdditionalProperties[fieldName] = value
-}
-
-// Override default JSON handling for Agent2 to handle AdditionalProperties
-func (a *Agent2) UnmarshalJSON(b []byte) error {
+// Override default JSON handling for AgentSoftware to handle AdditionalProperties
+func (a *AgentSoftware) UnmarshalJSON(b []byte) error {
 	object := make(map[string]json.RawMessage)
 	err := json.Unmarshal(b, &object)
 	if err != nil {
@@ -4781,8 +4884,8 @@ func (a *Agent2) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// Override default JSON handling for Agent2 to handle AdditionalProperties
-func (a Agent2) MarshalJSON() ([]byte, error) {
+// Override default JSON handling for AgentSoftware to handle AdditionalProperties
+func (a AgentSoftware) MarshalJSON() ([]byte, error) {
 	var err error
 	object := make(map[string]json.RawMessage)
 
@@ -6295,22 +6398,24 @@ func (a ScoredResourceIdentifier2) MarshalJSON() ([]byte, error) {
 	return json.Marshal(object)
 }
 
-// AsAgent0 returns the union data inside the Agent as a Agent0
-func (t Agent) AsAgent0() (Agent0, error) {
-	var body Agent0
+// AsAgentPerson returns the union data inside the Agent as a AgentPerson
+func (t Agent) AsAgentPerson() (AgentPerson, error) {
+	var body AgentPerson
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromAgent0 overwrites any union data inside the Agent as the provided Agent0
-func (t *Agent) FromAgent0(v Agent0) error {
+// FromAgentPerson overwrites any union data inside the Agent as the provided AgentPerson
+func (t *Agent) FromAgentPerson(v AgentPerson) error {
+	v.Type = "Person"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeAgent0 performs a merge with any union data inside the Agent, using the provided Agent0
-func (t *Agent) MergeAgent0(v Agent0) error {
+// MergeAgentPerson performs a merge with any union data inside the Agent, using the provided AgentPerson
+func (t *Agent) MergeAgentPerson(v AgentPerson) error {
+	v.Type = "Person"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -6321,22 +6426,24 @@ func (t *Agent) MergeAgent0(v Agent0) error {
 	return err
 }
 
-// AsAgent1 returns the union data inside the Agent as a Agent1
-func (t Agent) AsAgent1() (Agent1, error) {
-	var body Agent1
+// AsAgentOrganization returns the union data inside the Agent as a AgentOrganization
+func (t Agent) AsAgentOrganization() (AgentOrganization, error) {
+	var body AgentOrganization
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromAgent1 overwrites any union data inside the Agent as the provided Agent1
-func (t *Agent) FromAgent1(v Agent1) error {
+// FromAgentOrganization overwrites any union data inside the Agent as the provided AgentOrganization
+func (t *Agent) FromAgentOrganization(v AgentOrganization) error {
+	v.Type = "Organization"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeAgent1 performs a merge with any union data inside the Agent, using the provided Agent1
-func (t *Agent) MergeAgent1(v Agent1) error {
+// MergeAgentOrganization performs a merge with any union data inside the Agent, using the provided AgentOrganization
+func (t *Agent) MergeAgentOrganization(v AgentOrganization) error {
+	v.Type = "Organization"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -6347,22 +6454,24 @@ func (t *Agent) MergeAgent1(v Agent1) error {
 	return err
 }
 
-// AsAgent2 returns the union data inside the Agent as a Agent2
-func (t Agent) AsAgent2() (Agent2, error) {
-	var body Agent2
+// AsAgentSoftware returns the union data inside the Agent as a AgentSoftware
+func (t Agent) AsAgentSoftware() (AgentSoftware, error) {
+	var body AgentSoftware
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromAgent2 overwrites any union data inside the Agent as the provided Agent2
-func (t *Agent) FromAgent2(v Agent2) error {
+// FromAgentSoftware overwrites any union data inside the Agent as the provided AgentSoftware
+func (t *Agent) FromAgentSoftware(v AgentSoftware) error {
+	v.Type = "Software"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeAgent2 performs a merge with any union data inside the Agent, using the provided Agent2
-func (t *Agent) MergeAgent2(v Agent2) error {
+// MergeAgentSoftware performs a merge with any union data inside the Agent, using the provided AgentSoftware
+func (t *Agent) MergeAgentSoftware(v AgentSoftware) error {
+	v.Type = "Software"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -6371,6 +6480,31 @@ func (t *Agent) MergeAgent2(v Agent2) error {
 	merged, err := runtime.JSONMerge(t.union, b)
 	t.union = merged
 	return err
+}
+
+func (t Agent) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"@type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t Agent) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "Organization":
+		return t.AsAgentOrganization()
+	case "Person":
+		return t.AsAgentPerson()
+	case "Software":
+		return t.AsAgentSoftware()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
 }
 
 func (t Agent) MarshalJSON() ([]byte, error) {
@@ -7585,22 +7719,24 @@ func (t *GatheredContext_Focus) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsJobProgressMessage0 returns the union data inside the JobProgressMessage as a JobProgressMessage0
-func (t JobProgressMessage) AsJobProgressMessage0() (JobProgressMessage0, error) {
-	var body JobProgressMessage0
+// AsJobProgressLoading returns the union data inside the JobProgressMessage as a JobProgressLoading
+func (t JobProgressMessage) AsJobProgressLoading() (JobProgressLoading, error) {
+	var body JobProgressLoading
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromJobProgressMessage0 overwrites any union data inside the JobProgressMessage as the provided JobProgressMessage0
-func (t *JobProgressMessage) FromJobProgressMessage0(v JobProgressMessage0) error {
+// FromJobProgressLoading overwrites any union data inside the JobProgressMessage as the provided JobProgressLoading
+func (t *JobProgressMessage) FromJobProgressLoading(v JobProgressLoading) error {
+	v.Code = "loading"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeJobProgressMessage0 performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressMessage0
-func (t *JobProgressMessage) MergeJobProgressMessage0(v JobProgressMessage0) error {
+// MergeJobProgressLoading performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressLoading
+func (t *JobProgressMessage) MergeJobProgressLoading(v JobProgressLoading) error {
+	v.Code = "loading"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7611,22 +7747,24 @@ func (t *JobProgressMessage) MergeJobProgressMessage0(v JobProgressMessage0) err
 	return err
 }
 
-// AsJobProgressMessage1 returns the union data inside the JobProgressMessage as a JobProgressMessage1
-func (t JobProgressMessage) AsJobProgressMessage1() (JobProgressMessage1, error) {
-	var body JobProgressMessage1
+// AsJobProgressAnalyzing returns the union data inside the JobProgressMessage as a JobProgressAnalyzing
+func (t JobProgressMessage) AsJobProgressAnalyzing() (JobProgressAnalyzing, error) {
+	var body JobProgressAnalyzing
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromJobProgressMessage1 overwrites any union data inside the JobProgressMessage as the provided JobProgressMessage1
-func (t *JobProgressMessage) FromJobProgressMessage1(v JobProgressMessage1) error {
+// FromJobProgressAnalyzing overwrites any union data inside the JobProgressMessage as the provided JobProgressAnalyzing
+func (t *JobProgressMessage) FromJobProgressAnalyzing(v JobProgressAnalyzing) error {
+	v.Code = "analyzing"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeJobProgressMessage1 performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressMessage1
-func (t *JobProgressMessage) MergeJobProgressMessage1(v JobProgressMessage1) error {
+// MergeJobProgressAnalyzing performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressAnalyzing
+func (t *JobProgressMessage) MergeJobProgressAnalyzing(v JobProgressAnalyzing) error {
+	v.Code = "analyzing"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7637,22 +7775,24 @@ func (t *JobProgressMessage) MergeJobProgressMessage1(v JobProgressMessage1) err
 	return err
 }
 
-// AsJobProgressMessage2 returns the union data inside the JobProgressMessage as a JobProgressMessage2
-func (t JobProgressMessage) AsJobProgressMessage2() (JobProgressMessage2, error) {
-	var body JobProgressMessage2
+// AsJobProgressAnalyzingTags returns the union data inside the JobProgressMessage as a JobProgressAnalyzingTags
+func (t JobProgressMessage) AsJobProgressAnalyzingTags() (JobProgressAnalyzingTags, error) {
+	var body JobProgressAnalyzingTags
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromJobProgressMessage2 overwrites any union data inside the JobProgressMessage as the provided JobProgressMessage2
-func (t *JobProgressMessage) FromJobProgressMessage2(v JobProgressMessage2) error {
+// FromJobProgressAnalyzingTags overwrites any union data inside the JobProgressMessage as the provided JobProgressAnalyzingTags
+func (t *JobProgressMessage) FromJobProgressAnalyzingTags(v JobProgressAnalyzingTags) error {
+	v.Code = "analyzing-tags"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeJobProgressMessage2 performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressMessage2
-func (t *JobProgressMessage) MergeJobProgressMessage2(v JobProgressMessage2) error {
+// MergeJobProgressAnalyzingTags performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressAnalyzingTags
+func (t *JobProgressMessage) MergeJobProgressAnalyzingTags(v JobProgressAnalyzingTags) error {
+	v.Code = "analyzing-tags"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7663,22 +7803,24 @@ func (t *JobProgressMessage) MergeJobProgressMessage2(v JobProgressMessage2) err
 	return err
 }
 
-// AsJobProgressMessage3 returns the union data inside the JobProgressMessage as a JobProgressMessage3
-func (t JobProgressMessage) AsJobProgressMessage3() (JobProgressMessage3, error) {
-	var body JobProgressMessage3
+// AsJobProgressGeneratingResource returns the union data inside the JobProgressMessage as a JobProgressGeneratingResource
+func (t JobProgressMessage) AsJobProgressGeneratingResource() (JobProgressGeneratingResource, error) {
+	var body JobProgressGeneratingResource
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromJobProgressMessage3 overwrites any union data inside the JobProgressMessage as the provided JobProgressMessage3
-func (t *JobProgressMessage) FromJobProgressMessage3(v JobProgressMessage3) error {
+// FromJobProgressGeneratingResource overwrites any union data inside the JobProgressMessage as the provided JobProgressGeneratingResource
+func (t *JobProgressMessage) FromJobProgressGeneratingResource(v JobProgressGeneratingResource) error {
+	v.Code = "generating-resource"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeJobProgressMessage3 performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressMessage3
-func (t *JobProgressMessage) MergeJobProgressMessage3(v JobProgressMessage3) error {
+// MergeJobProgressGeneratingResource performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressGeneratingResource
+func (t *JobProgressMessage) MergeJobProgressGeneratingResource(v JobProgressGeneratingResource) error {
+	v.Code = "generating-resource"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7689,22 +7831,24 @@ func (t *JobProgressMessage) MergeJobProgressMessage3(v JobProgressMessage3) err
 	return err
 }
 
-// AsJobProgressMessage4 returns the union data inside the JobProgressMessage as a JobProgressMessage4
-func (t JobProgressMessage) AsJobProgressMessage4() (JobProgressMessage4, error) {
-	var body JobProgressMessage4
+// AsJobProgressCreatingResource returns the union data inside the JobProgressMessage as a JobProgressCreatingResource
+func (t JobProgressMessage) AsJobProgressCreatingResource() (JobProgressCreatingResource, error) {
+	var body JobProgressCreatingResource
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromJobProgressMessage4 overwrites any union data inside the JobProgressMessage as the provided JobProgressMessage4
-func (t *JobProgressMessage) FromJobProgressMessage4(v JobProgressMessage4) error {
+// FromJobProgressCreatingResource overwrites any union data inside the JobProgressMessage as the provided JobProgressCreatingResource
+func (t *JobProgressMessage) FromJobProgressCreatingResource(v JobProgressCreatingResource) error {
+	v.Code = "creating-resource"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeJobProgressMessage4 performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressMessage4
-func (t *JobProgressMessage) MergeJobProgressMessage4(v JobProgressMessage4) error {
+// MergeJobProgressCreatingResource performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressCreatingResource
+func (t *JobProgressMessage) MergeJobProgressCreatingResource(v JobProgressCreatingResource) error {
+	v.Code = "creating-resource"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7713,6 +7857,185 @@ func (t *JobProgressMessage) MergeJobProgressMessage4(v JobProgressMessage4) err
 	merged, err := runtime.JSONMerge(t.union, b)
 	t.union = merged
 	return err
+}
+
+// AsJobProgressCompleteGenerated returns the union data inside the JobProgressMessage as a JobProgressCompleteGenerated
+func (t JobProgressMessage) AsJobProgressCompleteGenerated() (JobProgressCompleteGenerated, error) {
+	var body JobProgressCompleteGenerated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobProgressCompleteGenerated overwrites any union data inside the JobProgressMessage as the provided JobProgressCompleteGenerated
+func (t *JobProgressMessage) FromJobProgressCompleteGenerated(v JobProgressCompleteGenerated) error {
+	v.Code = "complete-generated"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobProgressCompleteGenerated performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressCompleteGenerated
+func (t *JobProgressMessage) MergeJobProgressCompleteGenerated(v JobProgressCompleteGenerated) error {
+	v.Code = "complete-generated"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobProgressDetectingEntities returns the union data inside the JobProgressMessage as a JobProgressDetectingEntities
+func (t JobProgressMessage) AsJobProgressDetectingEntities() (JobProgressDetectingEntities, error) {
+	var body JobProgressDetectingEntities
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobProgressDetectingEntities overwrites any union data inside the JobProgressMessage as the provided JobProgressDetectingEntities
+func (t *JobProgressMessage) FromJobProgressDetectingEntities(v JobProgressDetectingEntities) error {
+	v.Code = "detecting-entities"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobProgressDetectingEntities performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressDetectingEntities
+func (t *JobProgressMessage) MergeJobProgressDetectingEntities(v JobProgressDetectingEntities) error {
+	v.Code = "detecting-entities"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobProgressCreatingAnnotations returns the union data inside the JobProgressMessage as a JobProgressCreatingAnnotations
+func (t JobProgressMessage) AsJobProgressCreatingAnnotations() (JobProgressCreatingAnnotations, error) {
+	var body JobProgressCreatingAnnotations
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobProgressCreatingAnnotations overwrites any union data inside the JobProgressMessage as the provided JobProgressCreatingAnnotations
+func (t *JobProgressMessage) FromJobProgressCreatingAnnotations(v JobProgressCreatingAnnotations) error {
+	v.Code = "creating-annotations"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobProgressCreatingAnnotations performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressCreatingAnnotations
+func (t *JobProgressMessage) MergeJobProgressCreatingAnnotations(v JobProgressCreatingAnnotations) error {
+	v.Code = "creating-annotations"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobProgressCreatingTagAnnotations returns the union data inside the JobProgressMessage as a JobProgressCreatingTagAnnotations
+func (t JobProgressMessage) AsJobProgressCreatingTagAnnotations() (JobProgressCreatingTagAnnotations, error) {
+	var body JobProgressCreatingTagAnnotations
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobProgressCreatingTagAnnotations overwrites any union data inside the JobProgressMessage as the provided JobProgressCreatingTagAnnotations
+func (t *JobProgressMessage) FromJobProgressCreatingTagAnnotations(v JobProgressCreatingTagAnnotations) error {
+	v.Code = "creating-tag-annotations"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobProgressCreatingTagAnnotations performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressCreatingTagAnnotations
+func (t *JobProgressMessage) MergeJobProgressCreatingTagAnnotations(v JobProgressCreatingTagAnnotations) error {
+	v.Code = "creating-tag-annotations"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobProgressCompleteCreated returns the union data inside the JobProgressMessage as a JobProgressCompleteCreated
+func (t JobProgressMessage) AsJobProgressCompleteCreated() (JobProgressCompleteCreated, error) {
+	var body JobProgressCompleteCreated
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobProgressCompleteCreated overwrites any union data inside the JobProgressMessage as the provided JobProgressCompleteCreated
+func (t *JobProgressMessage) FromJobProgressCompleteCreated(v JobProgressCompleteCreated) error {
+	v.Code = "complete-created"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobProgressCompleteCreated performs a merge with any union data inside the JobProgressMessage, using the provided JobProgressCompleteCreated
+func (t *JobProgressMessage) MergeJobProgressCompleteCreated(v JobProgressCompleteCreated) error {
+	v.Code = "complete-created"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t JobProgressMessage) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"code"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t JobProgressMessage) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "analyzing":
+		return t.AsJobProgressAnalyzing()
+	case "analyzing-tags":
+		return t.AsJobProgressAnalyzingTags()
+	case "complete-created":
+		return t.AsJobProgressCompleteCreated()
+	case "complete-generated":
+		return t.AsJobProgressCompleteGenerated()
+	case "creating-annotations":
+		return t.AsJobProgressCreatingAnnotations()
+	case "creating-resource":
+		return t.AsJobProgressCreatingResource()
+	case "creating-tag-annotations":
+		return t.AsJobProgressCreatingTagAnnotations()
+	case "detecting-entities":
+		return t.AsJobProgressDetectingEntities()
+	case "generating-resource":
+		return t.AsJobProgressGeneratingResource()
+	case "loading":
+		return t.AsJobProgressLoading()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
 }
 
 func (t JobProgressMessage) MarshalJSON() ([]byte, error) {

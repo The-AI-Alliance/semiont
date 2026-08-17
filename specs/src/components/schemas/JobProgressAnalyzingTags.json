@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "Analyzing the content against the tag schema.",
+  "properties": {
+    "code": {
+      "type": "string",
+      "enum": [
+        "analyzing-tags"
+      ]
+    }
+  },
+  "required": [
+    "code"
+  ]
+}

@@ -86,6 +86,7 @@ describe('createTestClient', () => {
 
 describe('inMemoryContent — anchored-text key model (PERSIST-ANCHORS)', () => {
   const OUTCOME = {
+    kind: 'extracted' as const,
     text: 'alpha beta',
     items: [{ start: 0, end: 5, page: 1, x: 72, y: 700, width: 28, height: 12 }],
     method: 'ocr' as const,

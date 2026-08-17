@@ -35,6 +35,7 @@ type Variables = {
 };
 
 const MAP: ExtractionOutcome = {
+  kind: 'extracted',
   text: 'alpha beta',
   items: [{ start: 0, end: 5, page: 1, x: 72, y: 700, width: 28, height: 12 }],
   method: 'ocr',
@@ -106,7 +107,11 @@ describe('PUT /anchored-text/:checksum', () => {
 
     expect((await put(app, { text: 'a', items: [] })).status).toBe(400);
     expect((await put(app, { text: 'a', items: [], method: 'divination' })).status).toBe(400);
-    expect((await put(app, { declined: 'sheer-boredom' })).status).toBe(400);
+    expect((await put(app, { kind: 'declined', declined: 'sheer-boredom' })).status).toBe(400);
+    // Kindless bodies of either branch: the wire union leads with its
+    // discriminant (WIRE-UNION-DISCRIMINANTS P5c), so absence is a 400.
+    expect((await put(app, { text: 'a', items: [], method: 'ocr' })).status).toBe(400);
+    expect((await put(app, { declined: 'no-text-layer' })).status).toBe(400);
     expect(write).not.toHaveBeenCalled();
   });
 
@@ -204,7 +209,7 @@ describe('PUT /anchored-text/:checksum', () => {
   it('stores a named decline — a cacheable outcome, not an error', async () => {
     const { app, write } = appAs('did:semiont:agent:smelter');
 
-    const decline: ExtractionOutcome = { declined: 'no-text-layer' };
+    const decline: ExtractionOutcome = { kind: 'declined', declined: 'no-text-layer' };
     expect((await put(app, decline)).status).toBe(204);
     expect(write).toHaveBeenCalledWith(CHECKSUM, decline);
   });
@@ -214,7 +219,7 @@ describe('PUT /anchored-text/:checksum', () => {
     // what stops the next reader paying for the same recognition pass.
     const { app, write } = appAs('did:semiont:agent:smelter');
 
-    const empty: ExtractionOutcome = { text: '', items: [], method: 'ocr' };
+    const empty: ExtractionOutcome = { kind: 'extracted', text: '', items: [], method: 'ocr' };
     expect((await put(app, empty)).status).toBe(204);
     expect(write).toHaveBeenCalledWith(CHECKSUM, empty);
   });
