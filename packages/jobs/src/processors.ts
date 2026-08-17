@@ -346,7 +346,7 @@ export async function processHighlightJob(
 
   return {
     annotations,
-    result: { highlightsFound: highlights.length, highlightsCreated: annotations.length },
+    result: { kind: 'highlight-annotation', highlightsFound: highlights.length, highlightsCreated: annotations.length },
   };
 }
 
@@ -412,7 +412,7 @@ export async function processCommentJob(
 
   return {
     annotations,
-    result: { commentsFound: comments.length, commentsCreated: annotations.length },
+    result: { kind: 'comment-annotation', commentsFound: comments.length, commentsCreated: annotations.length },
   };
 }
 
@@ -454,7 +454,7 @@ export async function processAssessmentJob(
 
   return {
     annotations,
-    result: { assessmentsFound: assessments.length, assessmentsCreated: annotations.length },
+    result: { kind: 'assessment-annotation', assessmentsFound: assessments.length, assessmentsCreated: annotations.length },
   };
 }
 
@@ -567,7 +567,7 @@ export async function processReferenceJob(
 
   return {
     annotations,
-    result: { totalFound, totalEmitted: annotations.length, errors },
+    result: { kind: 'reference-annotation', totalFound, totalEmitted: annotations.length, errors },
   };
 }
 
@@ -643,7 +643,7 @@ export async function processTagJob(
 
   return {
     annotations,
-    result: { tagsFound: tags.length, tagsCreated: annotations.length, byCategory },
+    result: { kind: 'tag-annotation', tagsFound: tags.length, tagsCreated: annotations.length, byCategory },
   };
 }
 
@@ -753,6 +753,7 @@ export async function processGenerationJob(
       format: outputMediaType,
       citations,
       result: {
+        kind: 'generation',
         resourceId: '' as ResourceId,
         resourceName: title,
       },
@@ -815,6 +816,7 @@ export async function processGenerationJob(
     format: outputMediaType,
     citations,
     result: {
+      kind: 'generation',
       resourceId: '' as ResourceId,
       resourceName: title,
     },

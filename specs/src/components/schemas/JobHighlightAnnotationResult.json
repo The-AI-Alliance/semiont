@@ -2,8 +2,23 @@
   "type": "object",
   "description": "Result of a completed highlight-annotation job.",
   "properties": {
-    "highlightsFound": { "type": "integer" },
-    "highlightsCreated": { "type": "integer" }
+    "kind": {
+      "type": "string",
+      "enum": [
+        "highlight-annotation"
+      ],
+      "description": "Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1)."
+    },
+    "highlightsFound": {
+      "type": "integer"
+    },
+    "highlightsCreated": {
+      "type": "integer"
+    }
   },
-  "required": ["highlightsFound", "highlightsCreated"]
+  "required": [
+    "kind",
+    "highlightsFound",
+    "highlightsCreated"
+  ]
 }

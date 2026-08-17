@@ -150,7 +150,7 @@ describe('processHighlightJob', () => {
     });
     // Highlights carry no body — motivation alone is the content per W3C.
     expect((result.annotations[0] as Record<string, unknown>).body).toBeUndefined();
-    expect(result.result).toEqual({ highlightsFound: 2, highlightsCreated: 2 });
+    expect(result.result).toEqual({ kind: 'highlight-annotation', highlightsFound: 2, highlightsCreated: 2 });
     // The run's own parameters ride every event, including the first and last.
     const echo = { requestParams: [{ label: 'density', value: '5' }] };
     expect(progress).toHaveBeenCalledWith(10, { code: 'loading' }, echo);
@@ -179,7 +179,7 @@ describe('processHighlightJob', () => {
     );
 
     expect(result.annotations).toHaveLength(2);
-    expect(result.result).toEqual({ highlightsFound: 2, highlightsCreated: 2 });
+    expect(result.result).toEqual({ kind: 'highlight-annotation', highlightsFound: 2, highlightsCreated: 2 });
     for (const ann of result.annotations) {
       const selectors = (ann as { target: { selector: Array<{ type: string }> } }).target.selector;
       expect(selectors.some((s) => s.type === 'FragmentSelector')).toBe(true);
@@ -213,7 +213,7 @@ describe('processCommentJob', () => {
     expect((result.annotations[0] as any).body).toEqual([
       { type: 'TextualBody', value: 'interesting point', purpose: 'commenting', format: 'text/plain', language: 'en' },
     ]);
-    expect(result.result).toEqual({ commentsFound: 1, commentsCreated: 1 });
+    expect(result.result).toEqual({ kind: 'comment-annotation', commentsFound: 1, commentsCreated: 1 });
   });
 });
 
@@ -244,7 +244,7 @@ describe('processAssessmentJob', () => {
     expect((result.annotations[0] as any).body).toEqual({
       type: 'TextualBody', value: 'dubious', purpose: 'assessing', format: 'text/plain', language: 'en',
     });
-    expect(result.result).toEqual({ assessmentsFound: 1, assessmentsCreated: 1 });
+    expect(result.result).toEqual({ kind: 'assessment-annotation', assessmentsFound: 1, assessmentsCreated: 1 });
   });
 });
 
@@ -277,7 +277,7 @@ describe('processReferenceJob', () => {
     expect((result.annotations[0] as any).body).toEqual([
       { type: 'TextualBody', value: 'Location', purpose: 'tagging', format: 'text/plain', language: 'en' },
     ]);
-    expect(result.result).toEqual({ totalFound: 2, totalEmitted: 2, errors: 0 });
+    expect(result.result).toEqual({ kind: 'reference-annotation', totalFound: 2, totalEmitted: 2, errors: 0 });
   });
 
   it('counts errors when reconciliation drops an entity (text not in source)', async () => {
@@ -298,7 +298,7 @@ describe('processReferenceJob', () => {
     );
 
     expect(result.annotations).toHaveLength(1);
-    expect(result.result).toEqual({ totalFound: 2, totalEmitted: 1, errors: 1 });
+    expect(result.result).toEqual({ kind: 'reference-annotation', totalFound: 2, totalEmitted: 1, errors: 1 });
   });
 
   it('returns zero counts when no entities are found', async () => {
@@ -314,7 +314,7 @@ describe('processReferenceJob', () => {
     );
 
     expect(result.annotations).toHaveLength(0);
-    expect(result.result).toEqual({ totalFound: 0, totalEmitted: 0, errors: 0 });
+    expect(result.result).toEqual({ kind: 'reference-annotation', totalFound: 0, totalEmitted: 0, errors: 0 });
   });
 });
 
@@ -352,6 +352,7 @@ describe('processTagJob', () => {
       ]);
     }
     expect(result.result).toEqual({
+      kind: 'tag-annotation',
       tagsFound: 3,
       tagsCreated: 3,
       byCategory: { catA: 2, catB: 1 },
@@ -1152,7 +1153,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
       LOGGER,
     );
 
-    expect(result.result).toEqual({ totalFound: 2, totalEmitted: 1, errors: 1 });
+    expect(result.result).toEqual({ kind: 'reference-annotation', totalFound: 2, totalEmitted: 1, errors: 1 });
     expect(result.annotations).toHaveLength(1);
     const ann = result.annotations[0] as any;
     const posSel = ann.target.selector.find((s: any) => s.type === 'TextPositionSelector');

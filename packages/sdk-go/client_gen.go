@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -433,6 +434,21 @@ func (e HealthResponseDatabase) Valid() bool {
 	}
 }
 
+// Defines values for JobAssessmentAnnotationResultKind.
+const (
+	JobAssessmentAnnotationResultKindAssessmentAnnotation JobAssessmentAnnotationResultKind = "assessment-annotation"
+)
+
+// Valid indicates whether the value is a known member of the JobAssessmentAnnotationResultKind enum.
+func (e JobAssessmentAnnotationResultKind) Valid() bool {
+	switch e {
+	case JobAssessmentAnnotationResultKindAssessmentAnnotation:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for JobCancelRequestJobType.
 const (
 	JobCancelRequestJobTypeAnnotation JobCancelRequestJobType = "annotation"
@@ -451,6 +467,21 @@ func (e JobCancelRequestJobType) Valid() bool {
 	}
 }
 
+// Defines values for JobCommentAnnotationResultKind.
+const (
+	CommentAnnotation JobCommentAnnotationResultKind = "comment-annotation"
+)
+
+// Valid indicates whether the value is a known member of the JobCommentAnnotationResultKind enum.
+func (e JobCommentAnnotationResultKind) Valid() bool {
+	switch e {
+	case CommentAnnotation:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for JobDeclinedResultDeclined.
 const (
 	True JobDeclinedResultDeclined = true
@@ -460,6 +491,21 @@ const (
 func (e JobDeclinedResultDeclined) Valid() bool {
 	switch e {
 	case True:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobDeclinedResultKind.
+const (
+	Declined JobDeclinedResultKind = "declined"
+)
+
+// Valid indicates whether the value is a known member of the JobDeclinedResultKind enum.
+func (e JobDeclinedResultKind) Valid() bool {
+	switch e {
+	case Declined:
 		return true
 	default:
 		return false
@@ -487,6 +533,36 @@ func (e JobDeclinedResultReason) Valid() bool {
 	case JobDeclinedResultReasonNoTextLayer:
 		return true
 	case JobDeclinedResultReasonTooLarge:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobGenerationResultKind.
+const (
+	JobGenerationResultKindGeneration JobGenerationResultKind = "generation"
+)
+
+// Valid indicates whether the value is a known member of the JobGenerationResultKind enum.
+func (e JobGenerationResultKind) Valid() bool {
+	switch e {
+	case JobGenerationResultKindGeneration:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobHighlightAnnotationResultKind.
+const (
+	HighlightAnnotation JobHighlightAnnotationResultKind = "highlight-annotation"
+)
+
+// Valid indicates whether the value is a known member of the JobHighlightAnnotationResultKind enum.
+func (e JobHighlightAnnotationResultKind) Valid() bool {
+	switch e {
+	case HighlightAnnotation:
 		return true
 	default:
 		return false
@@ -640,6 +716,21 @@ func (e JobProgressMessage3Kind) Valid() bool {
 	}
 }
 
+// Defines values for JobReferenceAnnotationResultKind.
+const (
+	ReferenceAnnotation JobReferenceAnnotationResultKind = "reference-annotation"
+)
+
+// Valid indicates whether the value is a known member of the JobReferenceAnnotationResultKind enum.
+func (e JobReferenceAnnotationResultKind) Valid() bool {
+	switch e {
+	case ReferenceAnnotation:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for JobStatusResponseStatus.
 const (
 	Cancelled JobStatusResponseStatus = "cancelled"
@@ -661,6 +752,21 @@ func (e JobStatusResponseStatus) Valid() bool {
 	case Pending:
 		return true
 	case Running:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobTagAnnotationResultKind.
+const (
+	TagAnnotation JobTagAnnotationResultKind = "tag-annotation"
+)
+
+// Valid indicates whether the value is a known member of the JobTagAnnotationResultKind enum.
+func (e JobTagAnnotationResultKind) Valid() bool {
+	switch e {
+	case TagAnnotation:
 		return true
 	default:
 		return false
@@ -2511,7 +2617,13 @@ type InferenceLimits struct {
 type JobAssessmentAnnotationResult struct {
 	AssessmentsCreated int `json:"assessmentsCreated"`
 	AssessmentsFound   int `json:"assessmentsFound"`
+
+	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+	Kind JobAssessmentAnnotationResultKind `json:"kind"`
 }
+
+// JobAssessmentAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+type JobAssessmentAnnotationResultKind string
 
 // JobCancelRequest Request to cancel a job
 type JobCancelRequest struct {
@@ -2533,7 +2645,13 @@ type JobClaimCommand struct {
 type JobCommentAnnotationResult struct {
 	CommentsCreated int `json:"commentsCreated"`
 	CommentsFound   int `json:"commentsFound"`
+
+	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+	Kind JobCommentAnnotationResultKind `json:"kind"`
 }
+
+// JobCommentAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+type JobCommentAnnotationResultKind string
 
 // JobCompleteCommand Command to mark a job as complete
 type JobCompleteCommand struct {
@@ -2548,7 +2666,7 @@ type JobCompleteCommand struct {
 	JobType    JobType `json:"jobType"`
 	ResourceId string  `json:"resourceId"`
 
-	// Result Discriminated union of all job result types.
+	// Result Discriminated union of all job result types — every member carries a single-valued `kind` (WIRE-UNION-DISCRIMINANTS D1/D2). Consumers switch on `kind`; generated clients get typed variants.
 	Result *JobResult `json:"result,omitempty"`
 }
 
@@ -2602,12 +2720,18 @@ type JobDeclinedResult struct {
 	// Declined Discriminant. Always true — a job that did its work reports one of the other result shapes.
 	Declined JobDeclinedResultDeclined `json:"declined"`
 
+	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+	Kind JobDeclinedResultKind `json:"kind"`
+
 	// Reason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed backend-side and was therefore English everywhere (ASSIST-PROGRESS-CONSOLIDATION P5).
 	Reason JobDeclinedResultReason `json:"reason"`
 }
 
 // JobDeclinedResultDeclined Discriminant. Always true — a job that did its work reports one of the other result shapes.
 type JobDeclinedResultDeclined bool
+
+// JobDeclinedResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+type JobDeclinedResultKind string
 
 // JobDeclinedResultReason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed backend-side and was therefore English everywhere (ASSIST-PROGRESS-CONSOLIDATION P5).
 type JobDeclinedResultReason string
@@ -2641,6 +2765,9 @@ type JobFailedPayload struct {
 
 // JobGenerationResult Result of a completed generation job. The worker creates the resource first (the yield:create round-trip returns the id), then emits job:complete carrying it — so resourceId is always present on the wire.
 type JobGenerationResult struct {
+	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+	Kind JobGenerationResultKind `json:"kind"`
+
 	// ResourceId ID of the generated resource, obtained by the worker from the create round-trip before job:complete is emitted
 	ResourceId string `json:"resourceId"`
 
@@ -2648,11 +2775,20 @@ type JobGenerationResult struct {
 	ResourceName string `json:"resourceName"`
 }
 
+// JobGenerationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+type JobGenerationResultKind string
+
 // JobHighlightAnnotationResult Result of a completed highlight-annotation job.
 type JobHighlightAnnotationResult struct {
 	HighlightsCreated int `json:"highlightsCreated"`
 	HighlightsFound   int `json:"highlightsFound"`
+
+	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+	Kind JobHighlightAnnotationResultKind `json:"kind"`
 }
+
+// JobHighlightAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+type JobHighlightAnnotationResultKind string
 
 // JobProgress Progress report from a running job. The required field is `percentage`; `message` carries the coded phase and the rest are optional job-shape fields. This is the single progress shape for every job type — annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Terminality is signalled on `job:complete` / `job:fail`, not here. The per-flow progress vocabularies (`processedEntityTypes`/`totalEntityTypes` for references, `processedCategories`/`totalCategories`/`currentCategory` for tags) were replaced by one `current`/`processed`/`total` triple (CLEAN-PROGRESS D2): both flows iterate a user-chosen list, so they report the same shape and the client stops guessing which flow it is drawing.
 type JobProgress struct {
@@ -2778,12 +2914,18 @@ type JobReferenceAnnotationResult struct {
 	// Errors Number of errors encountered
 	Errors int `json:"errors"`
 
+	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+	Kind JobReferenceAnnotationResultKind `json:"kind"`
+
 	// TotalEmitted Total annotations emitted
 	TotalEmitted int `json:"totalEmitted"`
 
 	// TotalFound Total entities found
 	TotalFound int `json:"totalFound"`
 }
+
+// JobReferenceAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+type JobReferenceAnnotationResultKind string
 
 // JobReportProgressCommand Command to report progress on a job
 type JobReportProgressCommand struct {
@@ -2803,7 +2945,7 @@ type JobReportProgressCommand struct {
 	ResourceId string       `json:"resourceId"`
 }
 
-// JobResult Discriminated union of all job result types.
+// JobResult Discriminated union of all job result types — every member carries a single-valued `kind` (WIRE-UNION-DISCRIMINANTS D1/D2). Consumers switch on `kind`; generated clients get typed variants.
 type JobResult struct {
 	union json.RawMessage
 }
@@ -2841,14 +2983,16 @@ type JobStatusRequest struct {
 
 // JobStatusResponse defines model for JobStatusResponse.
 type JobStatusResponse struct {
-	CompletedAt *string                 `json:"completedAt,omitempty"`
-	Created     string                  `json:"created"`
-	Error       *string                 `json:"error,omitempty"`
-	JobId       string                  `json:"jobId"`
-	Progress    interface{}             `json:"progress,omitempty"`
-	Result      interface{}             `json:"result,omitempty"`
-	StartedAt   *string                 `json:"startedAt,omitempty"`
-	Status      JobStatusResponseStatus `json:"status"`
+	CompletedAt *string     `json:"completedAt,omitempty"`
+	Created     string      `json:"created"`
+	Error       *string     `json:"error,omitempty"`
+	JobId       string      `json:"jobId"`
+	Progress    interface{} `json:"progress,omitempty"`
+
+	// Result Discriminated union of all job result types — every member carries a single-valued `kind` (WIRE-UNION-DISCRIMINANTS D1/D2). Consumers switch on `kind`; generated clients get typed variants.
+	Result    *JobResult              `json:"result,omitempty"`
+	StartedAt *string                 `json:"startedAt,omitempty"`
+	Status    JobStatusResponseStatus `json:"status"`
 
 	// Type Type of background job
 	Type   JobType `json:"type"`
@@ -2867,10 +3011,16 @@ type JobStatusResult struct {
 // JobTagAnnotationResult Result of a completed tag-annotation job.
 type JobTagAnnotationResult struct {
 	// ByCategory Count of tags created per category
-	ByCategory  map[string]int `json:"byCategory"`
-	TagsCreated int            `json:"tagsCreated"`
-	TagsFound   int            `json:"tagsFound"`
+	ByCategory map[string]int `json:"byCategory"`
+
+	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+	Kind        JobTagAnnotationResultKind `json:"kind"`
+	TagsCreated int                        `json:"tagsCreated"`
+	TagsFound   int                        `json:"tagsFound"`
 }
+
+// JobTagAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+type JobTagAnnotationResultKind string
 
 // JobType Type of background job
 type JobType string
@@ -7478,6 +7628,7 @@ func (t JobResult) AsJobGenerationResult() (JobGenerationResult, error) {
 
 // FromJobGenerationResult overwrites any union data inside the JobResult as the provided JobGenerationResult
 func (t *JobResult) FromJobGenerationResult(v JobGenerationResult) error {
+	v.Kind = "generation"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7485,6 +7636,7 @@ func (t *JobResult) FromJobGenerationResult(v JobGenerationResult) error {
 
 // MergeJobGenerationResult performs a merge with any union data inside the JobResult, using the provided JobGenerationResult
 func (t *JobResult) MergeJobGenerationResult(v JobGenerationResult) error {
+	v.Kind = "generation"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7504,6 +7656,7 @@ func (t JobResult) AsJobReferenceAnnotationResult() (JobReferenceAnnotationResul
 
 // FromJobReferenceAnnotationResult overwrites any union data inside the JobResult as the provided JobReferenceAnnotationResult
 func (t *JobResult) FromJobReferenceAnnotationResult(v JobReferenceAnnotationResult) error {
+	v.Kind = "reference-annotation"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7511,6 +7664,7 @@ func (t *JobResult) FromJobReferenceAnnotationResult(v JobReferenceAnnotationRes
 
 // MergeJobReferenceAnnotationResult performs a merge with any union data inside the JobResult, using the provided JobReferenceAnnotationResult
 func (t *JobResult) MergeJobReferenceAnnotationResult(v JobReferenceAnnotationResult) error {
+	v.Kind = "reference-annotation"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7530,6 +7684,7 @@ func (t JobResult) AsJobHighlightAnnotationResult() (JobHighlightAnnotationResul
 
 // FromJobHighlightAnnotationResult overwrites any union data inside the JobResult as the provided JobHighlightAnnotationResult
 func (t *JobResult) FromJobHighlightAnnotationResult(v JobHighlightAnnotationResult) error {
+	v.Kind = "highlight-annotation"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7537,6 +7692,7 @@ func (t *JobResult) FromJobHighlightAnnotationResult(v JobHighlightAnnotationRes
 
 // MergeJobHighlightAnnotationResult performs a merge with any union data inside the JobResult, using the provided JobHighlightAnnotationResult
 func (t *JobResult) MergeJobHighlightAnnotationResult(v JobHighlightAnnotationResult) error {
+	v.Kind = "highlight-annotation"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7556,6 +7712,7 @@ func (t JobResult) AsJobAssessmentAnnotationResult() (JobAssessmentAnnotationRes
 
 // FromJobAssessmentAnnotationResult overwrites any union data inside the JobResult as the provided JobAssessmentAnnotationResult
 func (t *JobResult) FromJobAssessmentAnnotationResult(v JobAssessmentAnnotationResult) error {
+	v.Kind = "assessment-annotation"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7563,6 +7720,7 @@ func (t *JobResult) FromJobAssessmentAnnotationResult(v JobAssessmentAnnotationR
 
 // MergeJobAssessmentAnnotationResult performs a merge with any union data inside the JobResult, using the provided JobAssessmentAnnotationResult
 func (t *JobResult) MergeJobAssessmentAnnotationResult(v JobAssessmentAnnotationResult) error {
+	v.Kind = "assessment-annotation"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7582,6 +7740,7 @@ func (t JobResult) AsJobCommentAnnotationResult() (JobCommentAnnotationResult, e
 
 // FromJobCommentAnnotationResult overwrites any union data inside the JobResult as the provided JobCommentAnnotationResult
 func (t *JobResult) FromJobCommentAnnotationResult(v JobCommentAnnotationResult) error {
+	v.Kind = "comment-annotation"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7589,6 +7748,7 @@ func (t *JobResult) FromJobCommentAnnotationResult(v JobCommentAnnotationResult)
 
 // MergeJobCommentAnnotationResult performs a merge with any union data inside the JobResult, using the provided JobCommentAnnotationResult
 func (t *JobResult) MergeJobCommentAnnotationResult(v JobCommentAnnotationResult) error {
+	v.Kind = "comment-annotation"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7608,6 +7768,7 @@ func (t JobResult) AsJobTagAnnotationResult() (JobTagAnnotationResult, error) {
 
 // FromJobTagAnnotationResult overwrites any union data inside the JobResult as the provided JobTagAnnotationResult
 func (t *JobResult) FromJobTagAnnotationResult(v JobTagAnnotationResult) error {
+	v.Kind = "tag-annotation"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7615,6 +7776,7 @@ func (t *JobResult) FromJobTagAnnotationResult(v JobTagAnnotationResult) error {
 
 // MergeJobTagAnnotationResult performs a merge with any union data inside the JobResult, using the provided JobTagAnnotationResult
 func (t *JobResult) MergeJobTagAnnotationResult(v JobTagAnnotationResult) error {
+	v.Kind = "tag-annotation"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7634,6 +7796,7 @@ func (t JobResult) AsJobDeclinedResult() (JobDeclinedResult, error) {
 
 // FromJobDeclinedResult overwrites any union data inside the JobResult as the provided JobDeclinedResult
 func (t *JobResult) FromJobDeclinedResult(v JobDeclinedResult) error {
+	v.Kind = "declined"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -7641,6 +7804,7 @@ func (t *JobResult) FromJobDeclinedResult(v JobDeclinedResult) error {
 
 // MergeJobDeclinedResult performs a merge with any union data inside the JobResult, using the provided JobDeclinedResult
 func (t *JobResult) MergeJobDeclinedResult(v JobDeclinedResult) error {
+	v.Kind = "declined"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -7649,6 +7813,39 @@ func (t *JobResult) MergeJobDeclinedResult(v JobDeclinedResult) error {
 	merged, err := runtime.JSONMerge(t.union, b)
 	t.union = merged
 	return err
+}
+
+func (t JobResult) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"kind"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t JobResult) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "assessment-annotation":
+		return t.AsJobAssessmentAnnotationResult()
+	case "comment-annotation":
+		return t.AsJobCommentAnnotationResult()
+	case "declined":
+		return t.AsJobDeclinedResult()
+	case "generation":
+		return t.AsJobGenerationResult()
+	case "highlight-annotation":
+		return t.AsJobHighlightAnnotationResult()
+	case "reference-annotation":
+		return t.AsJobReferenceAnnotationResult()
+	case "tag-annotation":
+		return t.AsJobTagAnnotationResult()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
 }
 
 func (t JobResult) MarshalJSON() ([]byte, error) {

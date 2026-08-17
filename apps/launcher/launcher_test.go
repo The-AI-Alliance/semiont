@@ -6496,7 +6496,7 @@ func TestYieldDelegateReportsJobFailure(t *testing.T) {
 func TestYieldDelegateReportsADecline(t *testing.T) {
 	s := busScenario(t,
 		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
-		`FAKERT_JOB_RESULT={"declined":true,"reason":"encrypted","message":"this PDF is password-protected"}`)
+		`FAKERT_JOB_RESULT={"kind":"declined","declined":true,"reason":"encrypted","message":"this PDF is password-protected"}`)
 	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived")
 	if code == 0 {
 		t.Fatalf("a declined job produced nothing; exit 0 tells a script to carry on\nstdout:\n%s", stdout)
@@ -6517,7 +6517,7 @@ func TestYieldDelegateReportsADecline(t *testing.T) {
 func TestYieldDelegateDeclineFailsUnderJSON(t *testing.T) {
 	s := busScenario(t,
 		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
-		`FAKERT_JOB_RESULT={"declined":true,"reason":"no-text-layer","message":"scanned pages, no recognizable text"}`)
+		`FAKERT_JOB_RESULT={"kind":"declined","declined":true,"reason":"no-text-layer","message":"scanned pages, no recognizable text"}`)
 	stdout, _, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived", "--json")
 	if code == 0 {
 		t.Fatalf("--json must not turn a decline into a success\nstdout:\n%s", stdout)

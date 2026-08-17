@@ -2,8 +2,23 @@
   "type": "object",
   "description": "Result of a completed comment-annotation job.",
   "properties": {
-    "commentsFound": { "type": "integer" },
-    "commentsCreated": { "type": "integer" }
+    "kind": {
+      "type": "string",
+      "enum": [
+        "comment-annotation"
+      ],
+      "description": "Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1)."
+    },
+    "commentsFound": {
+      "type": "integer"
+    },
+    "commentsCreated": {
+      "type": "integer"
+    }
   },
-  "required": ["commentsFound", "commentsCreated"]
+  "required": [
+    "kind",
+    "commentsFound",
+    "commentsCreated"
+  ]
 }

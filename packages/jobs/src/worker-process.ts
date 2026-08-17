@@ -271,6 +271,7 @@ async function handleJobInner(
       await emitEvent(session, 'job:complete', {
         ...lifecycleBase,
         result: {
+          kind: 'declined',
           declined: true,
           reason: source.declined,
         },
@@ -494,7 +495,7 @@ async function handleJobInner(
 
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
-      result: { resourceId: newResourceId, resourceName: genResult.title },
+      result: { kind: 'generation', resourceId: newResourceId, resourceName: genResult.title },
     });
     adapter.completeJob();
 

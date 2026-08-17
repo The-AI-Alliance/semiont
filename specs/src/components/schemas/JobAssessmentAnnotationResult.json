@@ -2,8 +2,23 @@
   "type": "object",
   "description": "Result of a completed assessment-annotation job.",
   "properties": {
-    "assessmentsFound": { "type": "integer" },
-    "assessmentsCreated": { "type": "integer" }
+    "kind": {
+      "type": "string",
+      "enum": [
+        "assessment-annotation"
+      ],
+      "description": "Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1)."
+    },
+    "assessmentsFound": {
+      "type": "integer"
+    },
+    "assessmentsCreated": {
+      "type": "integer"
+    }
   },
-  "required": ["assessmentsFound", "assessmentsCreated"]
+  "required": [
+    "kind",
+    "assessmentsFound",
+    "assessmentsCreated"
+  ]
 }
