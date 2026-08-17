@@ -213,7 +213,7 @@ describe('markAssist', () => {
         resourceId: 'res-iliad',
         jobId: 'job-1',
         jobType: 'highlight-annotation',
-        result: { highlightsFound: 3, highlightsCreated: 3 },
+        result: { kind: 'highlight-annotation', highlightsFound: 3, highlightsCreated: 3 },
       },
     };
     mark.assist.mockReturnValue(of(complete));
@@ -223,9 +223,9 @@ describe('markAssist', () => {
   });
 
   it.each([
-    ['comment-annotation' as const, { commentsFound: 4, commentsCreated: 4 }, 4],
-    ['assessment-annotation' as const, { assessmentsFound: 5, assessmentsCreated: 5 }, 5],
-    ['tag-annotation' as const, { tagsFound: 6, tagsCreated: 6, byCategory: { Topic: 6 } }, 6],
+    ['comment-annotation' as const, { kind: 'comment-annotation' as const, commentsFound: 4, commentsCreated: 4 }, 4],
+    ['assessment-annotation' as const, { kind: 'assessment-annotation' as const, assessmentsFound: 5, assessmentsCreated: 5 }, 5],
+    ['tag-annotation' as const, { kind: 'tag-annotation' as const, tagsFound: 6, tagsCreated: 6, byCategory: { Topic: 6 } }, 6],
   ])('reads the %s count', async (jobType, result, expected) => {
     const { client, mark } = createStub();
     const complete: MarkAssistEvent = {

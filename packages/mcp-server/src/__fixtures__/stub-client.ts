@@ -94,7 +94,7 @@ export const ASSIST_COMPLETE: MarkAssistEvent = {
     resourceId: 'res-iliad',
     jobId: 'job-1',
     jobType: 'reference-annotation',
-    result: { totalFound: 7, totalEmitted: 7, errors: 0 },
+    result: { kind: 'reference-annotation', totalFound: 7, totalEmitted: 7, errors: 0 },
   },
 };
 
