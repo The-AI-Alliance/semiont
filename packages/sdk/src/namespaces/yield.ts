@@ -12,6 +12,7 @@ import { resourceId as toResourceId } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest } from '@semiont/core';
 import { StreamObservable, UploadObservable } from '../awaitable';
+import { GenerationStallError, deriveStallDeadlineMs } from './generation-stall';
 import type {
   YieldNamespace as IYieldNamespace,
   CreateResourceInput,
@@ -137,7 +138,13 @@ export class YieldNamespace implements IYieldNamespace {
         + 'produced by gather.resource(...) or gather.annotation(...).',
       );
     }
-    return this.runGeneration(toResourceId(displayRid), { ...options, context });
+    // `stallDeadlineMs` is a CLIENT-only guard knob — stripped here so `params`
+    // stays exactly the WIRE's GenerationJobParams (GWC discipline: TS spreads
+    // bypass excess-property checks, so an unstripped field would silently
+    // ride `job:create`).
+    const { stallDeadlineMs, ...wireOptions } = options;
+    const stallMs = stallDeadlineMs ?? deriveStallDeadlineMs(options.maxTokens);
+    return this.runGeneration(toResourceId(displayRid), { ...wireOptions, context }, stallMs);
   }
 
   /**
@@ -150,15 +157,19 @@ export class YieldNamespace implements IYieldNamespace {
    * terminal `complete`.
    */
   /** `resourceId` is CLIENT-side display only (the poll-synthesized complete
-   *  event, D4) — it is deliberately NOT sent on the wire. */
+   *  event, D4) — it is deliberately NOT sent on the wire. `stallMs` is the
+   *  ONE stall guard (FLOW-LIFECYCLE-CONVERGENCE D1): it lives in this
+   *  producer so `await`, `.run()`, and the state unit's drive all share it. */
   private runGeneration(
     resourceId: ResourceId,
     params: GenerationJobParams,
+    stallMs: number,
   ): StreamObservable<YieldGenerationEvent> {
     return new StreamObservable<YieldGenerationEvent>((subscriber) => {
       let done = false;
       let pollTimer: ReturnType<typeof setTimeout> | null = null;
       let pollInterval: ReturnType<typeof setInterval> | null = null;
+      let stallTimer: ReturnType<typeof setTimeout> | null = null;
 
       // `job:report-progress`, `job:complete`, and `job:fail` reach us on the
       // always-on global bridge — the worker dual-emits the resource-broadcast
@@ -172,6 +183,7 @@ export class YieldNamespace implements IYieldNamespace {
         done = true;
         if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
         if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        if (stallTimer) { clearTimeout(stallTimer); stallTimer = null; }
       };
 
       const resetPollTimer = (jid: string) => {
@@ -225,11 +237,32 @@ export class YieldNamespace implements IYieldNamespace {
         filter((e) => e.jobId === activeJobId),
       );
 
+      // The ONE stall guard (FLOW-LIFECYCLE-CONVERGENCE D1): armed at
+      // subscribe, re-armed on every event, cleared by any terminal. Firing
+      // requests the server-side cancel — the queue kills pending jobs;
+      // there is no worker-kill channel, so a hung RUNNING job dies at its
+      // own pace — then errors the stream with the typed stall error.
+      const armStall = () => {
+        if (stallTimer) clearTimeout(stallTimer);
+        stallTimer = setTimeout(() => {
+          if (done) return;
+          const stalledJobId = activeJobId;
+          cleanup();
+          void busRequest(
+            this.transport, 'job:cancel-requested', { jobType: 'generation' },
+          ).catch(() => {});
+          // subscriber.error runs the producer teardown, which unsubscribes
+          // the three lifecycle subs — no manual unsubscribe needed here.
+          subscriber.error(new GenerationStallError(stallMs, stalledJobId));
+        }, stallMs);
+      };
+
       const progressSub = progress$
         .pipe(takeUntil(merge(complete$, fail$)))
         .subscribe((e) => {
           if (e.progress) subscriber.next({ kind: 'progress', data: e.progress });
           if (activeJobId) resetPollTimer(activeJobId);
+          armStall();
         });
 
       const completeSub = complete$.subscribe((e) => {
@@ -242,6 +275,8 @@ export class YieldNamespace implements IYieldNamespace {
         cleanup();
         subscriber.error(new Error(e.error));
       });
+
+      armStall();
 
       busRequest(
         this.transport,

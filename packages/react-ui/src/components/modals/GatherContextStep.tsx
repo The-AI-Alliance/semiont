@@ -190,7 +190,19 @@ export function GatherContextStep({
             )}
           </div>
 
-          {/* Full-width footer: resolution strategy (annotation-wizard callers only) */}
+          {/* Full-width footer: resolution strategy (annotation-wizard callers only).
+              The THIRD footer species — a CHOOSER — and the deliberate exception to
+              the WizardFooter grammar, which is one-retreat-plus-one-advance and
+              cannot express a fork. Its own grammar, pinned in WizardFooter.test:
+              • three mutually exclusive strategies, equal width (`--flex` is honest
+                here: these ARE peers — the same class the shared footer banned for
+                falsely making retreat a peer of advance);
+              • no dismissal (corner ✕/Esc, as everywhere);
+              • all gated on contextReady;
+              • the AI paths are primary, the manual path secondary — Compose's
+                demotion is the recorded convention, not drift;
+              • ellipses are component-owned and mark step-vs-act: Search…/Generate…
+                lead to another step; Compose acts immediately (navigates away). */}
           {focus && annotate && (
             <div className="semiont-gather__footer">
               <div className="semiont-gather__footer-label">{annotate.translations.resolutionStrategyLabel}</div>

@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { CollaboratorEntry } from '@semiont/core';
+import type { CollaboratorEntry, GatheredContext } from '@semiont/core';
+import type { ResourceGatherOptions } from '@semiont/sdk';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import { useResourceGather } from '../../hooks/useResourceGather';
 import { ConfigureGatherStep, type ResourceGatherConfig } from './ConfigureGatherStep';
 import { GatherContextStep } from './GatherContextStep';
 import { WizardFooter } from './WizardFooter';
@@ -70,6 +70,22 @@ export interface ResourceGenerateModalProps {
    * annotation wizard delegates generation to its parent.
    */
   onGenerateSubmit: (resourceId: string, config: GenerationConfig) => void;
+  /**
+   * Resource-gather state, verbatim from the SDK's gather unit slots
+   * (`gather.resourceContext$` / `resourceLoading$` / `resourceError$`) — the
+   * page reads the observables and threads them here, the same shape the
+   * reference wizard has always had (FLOW-LIFECYCLE-CONVERGENCE D3/A6). The
+   * modal renders this state; it never owns it.
+   */
+  gatherContext: GatheredContext | null;
+  gatherLoading: boolean;
+  gatherError: Error | null;
+  /**
+   * Run the gather — the page wires `gather.gatherResource(resourceId, …)`.
+   * No resourceId in the payload: the owner already holds it. `gatherResource`
+   * clears its slots at start, so no reset threading is needed.
+   */
+  onGather: (options: ResourceGatherOptions) => void;
   translations: ResourceGenerateModalTranslations;
 }
 
@@ -89,6 +105,10 @@ export function ResourceGenerateModal({
   gatherDefaults,
   entityTypeOptions = [],
   onGenerateSubmit,
+  gatherContext,
+  gatherLoading,
+  gatherError,
+  onGather,
   translations: t,
   generationAgent,
 }: ResourceGenerateModalProps) {
@@ -101,7 +121,6 @@ export function ResourceGenerateModal({
   const [generationDraft, setGenerationDraft] = useState<GenerationDraft>(freshDraft);
 
   const [step, setStep] = useState<Step>('configure-gather');
-  const { context, loading, error, gather, reset } = useResourceGather();
   // Supplied by the owner, which already tracks the list with its failure
   // state. Fetching it here could only model (value | not-yet), so a failed
   // load would render an empty exclusion picker as though the KB had no
@@ -119,21 +138,20 @@ export function ResourceGenerateModal({
       setStep('configure-gather');
       setExcludeEntityTypes([]);
       setGenerationDraft(freshDraft());
-      reset();
     }
     wasOpen.current = isOpen;
     // freshDraft reads defaultTitle/locale at call time; the effect keys on the
     // OPENING, not on their drift while open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, reset]);
+  }, [isOpen]);
 
   const handleGather = useCallback((config: ResourceGatherConfig) => {
     setStep('review');
-    void gather(resourceId, {
+    onGather({
       ...config,
       ...(excludeEntityTypes.length ? { excludeEntityTypes } : {}),
     });
-  }, [gather, resourceId, excludeEntityTypes]);
+  }, [onGather, excludeEntityTypes]);
 
   const handleGenerate = useCallback((config: GenerationConfig) => {
     onGenerateSubmit(resourceId, config);
@@ -215,9 +233,9 @@ export function ResourceGenerateModal({
                 {step === 'review' && (
                   <>
                     <GatherContextStep
-                      context={context}
-                      contextLoading={loading}
-                      contextError={error}
+                      context={gatherContext}
+                      contextLoading={gatherLoading}
+                      contextError={gatherError}
                       translations={{
                         loadingContext: t.loadingContext,
                         failedContext: t.failedContext,
@@ -233,16 +251,16 @@ export function ResourceGenerateModal({
                         label: t.next,
                         type: 'button',
                         onClick: () => setStep('configure-generation'),
-                        disabled: !context,
+                        disabled: !gatherContext,
                       }}
                     />
                   </>
                 )}
 
-                {step === 'configure-generation' && context && (
+                {step === 'configure-generation' && gatherContext && (
                   <ConfigureGenerationStep
                     {...(generationAgent ? { generationAgent } : {})}
-                    context={context}
+                    context={gatherContext}
                     config={generationDraft}
                     onConfigChange={setGenerationDraft}
                     onBack={() => setStep('review')}

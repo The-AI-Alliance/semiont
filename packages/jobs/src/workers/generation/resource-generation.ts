@@ -130,6 +130,12 @@ export async function generateResourceFromTopic(
           parts.push(`- ${label}: ${bodyItem.value}`);
         }
       }
+      // The wizard's Hint: supplements or replaces the selected text as the
+      // subject signal (GatheredContext.json focus.userHint). The matcher folds
+      // it into its search term the same way — the two consumers of one field.
+      if (focus.userHint) {
+        parts.push(`- User hint (steers what to generate): ${focus.userHint}`);
+      }
       annotationSection = `\n\nAnnotation context:\n${parts.join('\n')}`;
 
       if (focus.selected) {

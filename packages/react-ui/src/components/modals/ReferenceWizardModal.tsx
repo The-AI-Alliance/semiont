@@ -157,9 +157,9 @@ export function ReferenceWizardModal({
    * `focus.userHint` ("hint to supplement or replace the selected text for search and
    * generation"). So the hint was misplaced on every path, not just missing on one.
    *
-   * NOTE: no production code reads `focus.userHint` yet — this is correct plumbing
-   * for a field nothing consumes. Making the hint actually steer search or generation
-   * is a separate change (see WIZARD-NAVIGATION's execution log).
+   * Both consumers read it: the matcher folds it into its search term and its
+   * LLM-scoring passage (matcher.ts, since #911), and generation's prompt builder
+   * renders it in the annotation section (resource-generation.ts).
    */
   const contextWithHint = !context
     ? null

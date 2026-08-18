@@ -41,7 +41,6 @@ export * from './contexts/ThemeContext';
 // Note: useDebounce is already exported from ./hooks/useDebounce
 export { useDropdown, useLoadingState, useLocalStorage } from './hooks/useUI';
 export * from './hooks/useResourceContent';
-export * from './hooks/useResourceGather';
 export * from './hooks/useResourceLoader';
 export * from './hooks/useMediaToken';
 export * from './hooks/useCollaborators';

@@ -1,17 +1,40 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Observable, Subject } from 'rxjs';
+import type { GatheredContext } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { createGatherStateUnit } from '../gather-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
+import { resourceContextFor } from '../../../__tests__/fixtures/gathered-context';
 
 const RID = makeResourceId('res-1');
 const AID = makeAnnotationId('ann-1');
 const AID2 = makeAnnotationId('ann-2');
+const RESOURCE_CTX = resourceContextFor('res-1');
 
 function withGather(gatherFn: ReturnType<typeof vi.fn>): TestClient {
   return makeTestClient({ gather: { annotation: gatherFn } });
 }
+
+function withBothGathers(
+  annotationFn: ReturnType<typeof vi.fn>,
+  resourceFn: ReturnType<typeof vi.fn>,
+): TestClient {
+  return makeTestClient({ gather: { annotation: annotationFn, resource: resourceFn } });
+}
+
+function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void; reject: (e: unknown) => void } {
+  let resolve!: (v: T) => void;
+  let reject!: (e: unknown) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+/** Let a settled promise's `.then` chain inside the unit run. */
+const flushMicrotasks = async (): Promise<void> => {
+  await Promise.resolve();
+  await Promise.resolve();
+};
 
 describe('createGatherStateUnit', () => {
   let tc: TestClient;
@@ -198,14 +221,135 @@ describe('createGatherStateUnit', () => {
   });
 });
 
+// ── Resource gather (FLOW-LIFECYCLE-CONVERGENCE P2, D2/D2a) ────────────────
+// Separate slots: the two gathers can be live at once, and one BehaviorSubject
+// cannot represent both — one fact per observable.
+
+describe('GatherStateUnit — resource gather', () => {
+  let tc: TestClient;
+
+  afterEach(() => { tc?.bus.destroy(); });
+
+  it('initializes the resource slots empty', () => {
+    tc = withBothGathers(vi.fn(), vi.fn());
+    const unit = createGatherStateUnit(tc.client, RID);
+
+    const ctx: unknown[] = [];
+    const loading: boolean[] = [];
+    const err: unknown[] = [];
+    unit.resourceContext$.subscribe(v => ctx.push(v));
+    unit.resourceLoading$.subscribe(v => loading.push(v));
+    unit.resourceError$.subscribe(v => err.push(v));
+
+    expect(ctx).toEqual([null]);
+    expect(loading).toEqual([false]);
+    expect(err).toEqual([null]);
+    unit.dispose();
+  });
+
+  it('gatherResource flips resourceLoading$ and lands the context', async () => {
+    const d = deferred<GatheredContext>();
+    const resourceFn = vi.fn(() => d.promise);
+    tc = withBothGathers(vi.fn(), resourceFn);
+    const unit = createGatherStateUnit(tc.client, RID);
+
+    const loading: boolean[] = [];
+    const ctx: unknown[] = [];
+    unit.resourceLoading$.subscribe(v => loading.push(v));
+    unit.resourceContext$.subscribe(v => ctx.push(v));
+
+    unit.gatherResource(RID, { includeContent: true });
+    expect(loading).toEqual([false, true]);
+    expect(resourceFn).toHaveBeenCalledExactlyOnceWith(RID, { includeContent: true });
+
+    d.resolve(RESOURCE_CTX);
+    await flushMicrotasks();
+
+    expect(ctx[ctx.length - 1]).toBe(RESOURCE_CTX);
+    expect(loading[loading.length - 1]).toBe(false);
+    unit.dispose();
+  });
+
+  it('resourceError$ carries the failure; the context slot stays empty', async () => {
+    const d = deferred<GatheredContext>();
+    tc = withBothGathers(vi.fn(), vi.fn(() => d.promise));
+    const unit = createGatherStateUnit(tc.client, RID);
+
+    const err: unknown[] = [];
+    const ctx: unknown[] = [];
+    const loading: boolean[] = [];
+    unit.resourceError$.subscribe(v => err.push(v));
+    unit.resourceContext$.subscribe(v => ctx.push(v));
+    unit.resourceLoading$.subscribe(v => loading.push(v));
+
+    unit.gatherResource(RID);
+    d.reject(new Error('gather failed'));
+    await flushMicrotasks();
+
+    expect(err[err.length - 1]).toBeInstanceOf(Error);
+    expect((err[err.length - 1] as Error).message).toBe('gather failed');
+    expect(ctx[ctx.length - 1]).toBeNull();
+    expect(loading[loading.length - 1]).toBe(false);
+    unit.dispose();
+  });
+
+  it("concurrent annotation and resource gathers do not disturb each other's slots", async () => {
+    // Annotation gather in-flight (subject never responds) while the resource
+    // gather starts and finishes — the wizard-closed-mid-load / Generate-open
+    // case D2a exists for.
+    const annotationStream = new Subject();
+    const d = deferred<GatheredContext>();
+    tc = withBothGathers(vi.fn(() => annotationStream.asObservable()), vi.fn(() => d.promise));
+    const unit = createGatherStateUnit(tc.client, RID);
+
+    const annCtx: unknown[] = [];
+    const annLoading: boolean[] = [];
+    unit.context$.subscribe(v => annCtx.push(v));
+    unit.loading$.subscribe(v => annLoading.push(v));
+
+    tc.bus.get('gather:requested').next({ annotationId: AID as string } as never);
+    unit.gatherResource(RID);
+    d.resolve(RESOURCE_CTX);
+    await flushMicrotasks();
+
+    // The resource gather finished; the annotation slots are untouched:
+    // still loading, still contextless.
+    expect(annLoading[annLoading.length - 1]).toBe(true);
+    expect(annCtx[annCtx.length - 1]).toBeNull();
+    unit.dispose();
+  });
+
+  it('a resolution after dispose is inert', async () => {
+    const d = deferred<GatheredContext>();
+    tc = withBothGathers(vi.fn(), vi.fn(() => d.promise));
+    const unit = createGatherStateUnit(tc.client, RID);
+
+    const ctx: unknown[] = [];
+    unit.resourceContext$.subscribe(v => ctx.push(v));
+
+    unit.gatherResource(RID);
+    const emissionsAtDispose = ctx.length; // initial null + the clearing null
+    unit.dispose();
+    d.resolve(RESOURCE_CTX);
+    await flushMicrotasks();
+
+    // Nothing landed after dispose: no new emissions, no context anywhere.
+    expect(ctx.length).toBe(emissionsAtDispose);
+    expect(ctx.every((v) => v === null)).toBe(true);
+  });
+});
+
 describe('GatherStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
     assertStateUnitAxioms({
       setup: () => {
-        const tc = withGather(vi.fn());
+        const tc = withBothGathers(vi.fn(), vi.fn());
         return { unit: createGatherStateUnit(tc.client, RID), teardown: () => tc.bus.destroy() };
       },
-      surfaces: (u) => [u.context$, u.loading$, u.error$, u.annotationId$],
+      surfaces: (u) => [
+        u.context$, u.loading$, u.error$, u.annotationId$,
+        u.resourceContext$, u.resourceLoading$, u.resourceError$,
+      ],
     });
   });
 });

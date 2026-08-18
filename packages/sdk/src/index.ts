@@ -56,6 +56,13 @@ export { BindNamespace } from './namespaces/bind';
 export { GatherNamespace } from './namespaces/gather';
 export { MatchNamespace } from './namespaces/match';
 export { YieldNamespace } from './namespaces/yield';
+export {
+  GenerationStallError,
+  deriveStallDeadlineMs,
+  GENERATION_STALL_FLOOR_MS,
+  GENERATION_STALL_MS_PER_TOKEN,
+  GENERATION_STALL_ASSUMED_MAX_TOKENS,
+} from './namespaces/generation-stall';
 export { BeckonNamespace } from './namespaces/beckon';
 export { JobNamespace } from './namespaces/job';
 export { AuthNamespace } from './namespaces/auth';

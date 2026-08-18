@@ -114,6 +114,14 @@ export interface GenerationOptions {
   temperature?: number;
   maxTokens?: number;
   /**
+   * Per-call override for the generation stall guard's deadline
+   * (FLOW-LIFECYCLE-CONVERGENCE D1a). CLIENT-only: stripped before the wire.
+   * When unset, the deadline derives from `maxTokens` — see
+   * `deriveStallDeadlineMs`. On firing, the SDK cancels the job
+   * (`job:cancel-requested`) and errors with `GenerationStallError`.
+   */
+  stallDeadlineMs?: number;
+  /**
    * Media type of the generated resource (the role's output format). Defaults to
    * `text/markdown` at the worker, which validates it against its supported output
    * set and **fails the job** for anything it can't write — not a silent fallback.
