@@ -241,6 +241,11 @@ export function ResourceViewerPage({
   const gatherContext = useObservable(stateUnit?.gather.context$) ?? null;
   const gatherLoading = useObservable(stateUnit?.gather.loading$) ?? false;
   const gatherError = useObservable(stateUnit?.gather.error$) ?? null;
+  // Resource-gather slots (FLOW-LIFECYCLE-CONVERGENCE D2a: separate from the
+  // annotation slots above — the two gathers can be live at once).
+  const resourceGatherContext = useObservable(stateUnit?.gather.resourceContext$) ?? null;
+  const resourceGatherLoading = useObservable(stateUnit?.gather.resourceLoading$) ?? false;
+  const resourceGatherError = useObservable(stateUnit?.gather.resourceError$) ?? null;
   const wizardState = useObservable(stateUnit?.wizard$);
   const wizardOpen = wizardState?.open ?? false;
   const wizardAnnotationId = wizardState?.annotationId ?? null;
@@ -731,6 +736,10 @@ export function ResourceViewerPage({
         locale={locale}
         entityTypeOptions={allEntityTypes}
         onGenerateSubmit={handleResourceGenerateSubmit}
+        gatherContext={resourceGatherContext}
+        gatherLoading={resourceGatherLoading}
+        gatherError={resourceGatherError}
+        onGather={(options) => stateUnit?.gather.gatherResource(rUri, options)}
         translations={{
           gatherTitle: tg('gatherTitle'),
           reviewTitle: tg('reviewTitle'),

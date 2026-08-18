@@ -1,57 +1,27 @@
 /**
- * GENERATE-FROM-BUTTON P2/P4 — the resource-generate flow modal.
+ * GENERATE-FROM-BUTTON P2/P4 → FLOW-LIFECYCLE-CONVERGENCE P3 — the
+ * resource-generate flow modal.
  *
  * Drives the step machine: configure-gather → review → configure-generation.
- * `useResourceGather` is mocked so we control the gathered context and assert
- * how the step wires `gather()` (incl. the Phase-4 exclusion threading) and
- * `onGenerateSubmit`. `useSemiont` is mocked to feed the entity-type options.
+ * Gather state arrives as PROPS (the page reads `gather.resourceContext$` and
+ * friends off the state unit) and the gather itself is an `onGather` callback —
+ * the modal mocks no hook and reaches for no provider (FLC A6). Entity-type
+ * options are owner-supplied, so a failed load cannot surface as an empty
+ * vocabulary (see .plans/PANEL-FAILURE-STATES.md).
  */
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { BehaviorSubject, of } from 'rxjs';
 import type { GatheredContext } from '@semiont/core';
+import type { ResourceGatherOptions } from '@semiont/sdk';
 import type { GenerationConfig } from '../ConfigureGenerationStep';
+import { ResourceGenerateModal } from '../ResourceGenerateModal';
 
 const RESOURCE_CONTEXT = {
   focus: { kind: 'resource', resource: { id: 'res-1', name: 'My Resource' }, summary: 'A short summary' },
   graph: { nodes: [{ id: 'res-1', type: 'resource', label: 'My Resource' }], edges: [] },
   metadata: {},
 } as unknown as GatheredContext;
-
-// Mutable hook state + spies, shared with the hoisted vi.mock factory.
-const h = vi.hoisted(() => ({
-  gather: vi.fn(),
-  reset: vi.fn(),
-  state: { context: null as unknown, loading: false, error: null as Error | null },
-}));
-
-vi.mock('../../../hooks/useResourceGather', () => ({
-  useResourceGather: () => ({
-    context: h.state.context,
-    loading: h.state.loading,
-    error: h.state.error,
-    gather: h.gather,
-    reset: h.reset,
-  }),
-}));
-
-// The modal no longer fetches entity types; the owner supplies them, so a
-// failed load cannot surface as an empty vocabulary. The stable-observable
-// note below is kept because the client mock still backs other calls.
-// See .plans/PANEL-FAILURE-STATES.md
-// Stable observable instance — the modal calls `entityTypes()` inline in
-// render, so a fresh observable each call would re-subscribe every render and
-// loop. The real SDK returns a cached observable; mirror that here.
-const entityTypes$ = of<string[]>(['Person', 'Topic']);
-const mockClient = { browse: { entityTypes: () => entityTypes$ } };
-const activeSession$ = new BehaviorSubject<unknown>({ client: mockClient });
-vi.mock('../../../session/SemiontProvider', async () => {
-  const actual = await vi.importActual<typeof import('../../../session/SemiontProvider')>('../../../session/SemiontProvider');
-  return { ...actual, useSemiont: () => ({ activeSession$ }) };
-});
-
-import { ResourceGenerateModal } from '../ResourceGenerateModal';
 
 const T = {
   gatherTitle: 'Configure Gather',
@@ -88,6 +58,7 @@ const T = {
 
 let onClose: Mock<() => void>;
 let onGenerateSubmit: Mock<(resourceId: string, config: GenerationConfig) => void>;
+let onGather: Mock<(options: ResourceGatherOptions) => void>;
 
 function renderModal(props: Partial<React.ComponentProps<typeof ResourceGenerateModal>> = {}) {
   return render(
@@ -99,6 +70,10 @@ function renderModal(props: Partial<React.ComponentProps<typeof ResourceGenerate
       locale="en"
       entityTypeOptions={['Person', 'Topic']}
       onGenerateSubmit={onGenerateSubmit}
+      gatherContext={null}
+      gatherLoading={false}
+      gatherError={null}
+      onGather={onGather}
       translations={T}
       {...props}
     />,
@@ -110,8 +85,7 @@ describe('ResourceGenerateModal', () => {
     vi.clearAllMocks();
     onClose = vi.fn<() => void>();
     onGenerateSubmit = vi.fn<(resourceId: string, config: GenerationConfig) => void>();
-    h.state = { context: null, loading: false, error: null };
-    activeSession$.next({ client: mockClient });
+    onGather = vi.fn<(options: ResourceGatherOptions) => void>();
     // jsdom doesn't implement scrollIntoView; GatherContextStep may call it.
     Element.prototype.scrollIntoView = vi.fn();
   });
@@ -130,19 +104,22 @@ describe('ResourceGenerateModal', () => {
     expect(screen.getByRole('button', { name: 'Topic' })).toBeInTheDocument();
   });
 
-  it('submitting the gather step calls gather() and advances to review (exclusion omitted when none picked)', () => {
+  it('submitting the gather step emits onGather and advances to review (exclusion omitted when none picked)', () => {
+    // The modal no longer knows how to gather — it says WHAT to gather and the
+    // page wires the state unit (FLC D3). No resourceId in the payload: the
+    // owner already holds it.
     renderModal();
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
-    expect(h.gather).toHaveBeenCalledWith('res-1', { includeContent: true, includeSummary: true, depth: 2, maxResources: 10 });
+    expect(onGather).toHaveBeenCalledWith({ includeContent: true, includeSummary: true, depth: 2, maxResources: 10 });
     expect(screen.getByText('Review Context')).toBeInTheDocument(); // step title flipped
     expect(screen.getByRole('button', { name: /Next/ })).toBeDisabled(); // no context yet
   });
 
-  it('threads picked entity types into the gather call', () => {
+  it('threads picked entity types into the gather options', () => {
     renderModal();
     fireEvent.click(screen.getByRole('button', { name: 'Person' })); // select to exclude
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
-    expect(h.gather).toHaveBeenCalledWith('res-1', {
+    expect(onGather).toHaveBeenCalledWith({
       includeContent: true,
       includeSummary: true,
       depth: 2,
@@ -152,8 +129,7 @@ describe('ResourceGenerateModal', () => {
   });
 
   it('walks gather → review → configure-generation → emits onGenerateSubmit then closes', () => {
-    h.state.context = RESOURCE_CONTEXT; // gather already resolved
-    renderModal();
+    renderModal({ gatherContext: RESOURCE_CONTEXT }); // gather already resolved
 
     fireEvent.click(screen.getByRole('button', { name: /Gather/ })); // → review
     const next = screen.getByRole('button', { name: /Next/ });
@@ -176,9 +152,26 @@ describe('ResourceGenerateModal', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it('a loading gather shows its progress, an error shows its failure', () => {
+    // The props are the state unit's slots verbatim; the modal renders them
+    // without owning them (FLC A6).
+    const { rerender, baseElement } = renderModal({ gatherLoading: true });
+    fireEvent.click(screen.getByRole('button', { name: /Gather/ })); // → review
+    expect(baseElement.querySelector('.semiont-gather__loading')).not.toBeNull();
+
+    rerender(
+      <ResourceGenerateModal
+        isOpen onClose={onClose} resourceId="res-1" defaultTitle="Default Title"
+        locale="en" entityTypeOptions={['Person', 'Topic']} onGenerateSubmit={onGenerateSubmit}
+        gatherContext={null} gatherLoading={false} gatherError={new Error('boom')}
+        onGather={onGather} translations={T}
+      />,
+    );
+    expect(screen.getByText('Failed')).toBeInTheDocument();
+  });
+
   it('Back from configure-generation returns to review', () => {
-    h.state.context = RESOURCE_CONTEXT;
-    renderModal();
+    renderModal({ gatherContext: RESOURCE_CONTEXT });
     fireEvent.click(screen.getByRole('button', { name: /Gather/ })); // → review
     fireEvent.click(screen.getByRole('button', { name: /Next/ }));   // → configure-generation
     expect(screen.getByText('Configure Generation')).toBeInTheDocument();
@@ -205,19 +198,20 @@ describe('ResourceGenerateModal', () => {
     // a draft seeded only in the useState initializer holds whatever was there
     // at FIRST render, which for the real page was ''. Opening is the moment
     // that matters: the draft re-seeds then.
-    h.state.context = RESOURCE_CONTEXT;
     const { rerender } = render(
       <ResourceGenerateModal
         isOpen={false} onClose={onClose} resourceId="res-1" defaultTitle=""
         locale="en" entityTypeOptions={[]} onGenerateSubmit={onGenerateSubmit}
-        translations={T}
+        gatherContext={RESOURCE_CONTEXT} gatherLoading={false} gatherError={null}
+        onGather={onGather} translations={T}
       />,
     );
     rerender(
       <ResourceGenerateModal
         isOpen onClose={onClose} resourceId="res-1" defaultTitle="PB"
         locale="en" entityTypeOptions={[]} onGenerateSubmit={onGenerateSubmit}
-        translations={T}
+        gatherContext={RESOURCE_CONTEXT} gatherLoading={false} gatherError={null}
+        onGather={onGather} translations={T}
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: /Gather/ })); // → review
@@ -227,8 +221,7 @@ describe('ResourceGenerateModal', () => {
 
   it('every footer is the wizard footer — no dismissal, no flex (GFR A5)', () => {
     // The modal renders via a HeadlessUI portal, so query the whole document.
-    h.state.context = RESOURCE_CONTEXT;
-    const { baseElement } = renderModal();
+    const { baseElement } = renderModal({ gatherContext: RESOURCE_CONTEXT });
     const footerPins = () => {
       expect(baseElement.querySelector('.semiont-modal__actions--wizard')).not.toBeNull();
       expect(baseElement.querySelectorAll('.semiont-button--flex')).toHaveLength(0);

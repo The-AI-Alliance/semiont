@@ -42,6 +42,7 @@ export {
 export {
   createGatherStateUnit,
   type GatherStateUnit,
+  type ResourceGatherOptions,
 } from './flows/gather-state-unit';
 export {
   createMatchStateUnit,
