@@ -103,6 +103,16 @@ async function typeHint(text: string) {
 describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.userHint', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
+  it('the typed hint stays visible after stepping into configure-search (GEP P1c, D8)', async () => {
+    // The thing being steered must not vanish while you steer it.
+    const { baseElement } = renderWizard();
+    await typeHint('the ancient city');
+    await userEvent.click(screen.getByRole('button', { name: /Search…/ }));
+    const echo = baseElement.querySelector('.semiont-wizard__hint-echo');
+    expect(echo).not.toBeNull();
+    expect(echo!.textContent).toContain('the ancient city');
+  });
+
   it('compose carries the hint inside focus, not at the top level', async () => {
     const { onComposeNavigate } = renderWizard();
     await typeHint('the lake, not the myth');

@@ -101,6 +101,63 @@ describe('GatheredContext display — resource focus', () => {
     expect(container.textContent).toContain('Strategy');
   });
 
+  it('the quotation is contiguous prose — nothing interleaved, no monospace (GEP P1a, D6/D7)', () => {
+    // The live bug: chips injected between `text` and `after` rendered
+    // "Black Hawk [Person] [linking]'s band." — metadata interrupting the
+    // quotation it describes, mid-possessive.
+    const { container } = render(
+      <GatherContextStep
+        context={annotationContextWithTypes()}
+        contextLoading={false}
+        contextError={null}
+        annotate={annotate}
+        translations={t}
+      />,
+    );
+    const quote = container.querySelector('.semiont-gather__source-context');
+    expect(quote).not.toBeNull();
+    expect(quote!.textContent).toBe('a term b'); // before + text + after, verbatim
+    // D7: quoted document prose, not code.
+    expect(quote!.querySelector('[style*="monospace"]')).toBeNull();
+  });
+
+  it('metadata sits on the label row; the span WEARS its motivation (GEP P1b, D6)', () => {
+    const { container } = render(
+      <GatherContextStep
+        context={annotationContextWithTypes()}
+        contextLoading={false}
+        contextError={null}
+        annotate={annotate}
+        translations={t}
+      />,
+    );
+    const strip = container.querySelector('.semiont-gather__source-strip')!;
+
+    // Entity chips are tokens — they live on the label row, outside the quotation.
+    const chips = Array.from(strip.querySelectorAll('.semiont-chip'));
+    const topicChip = chips.find((c) => c.textContent === 'Topic');
+    expect(topicChip).toBeDefined();
+    expect(topicChip!.closest('.semiont-gather__source-context')).toBeNull();
+
+    // Motivation is WORN, never labeled: no chip says 'linking' —
+    expect(chips.filter((c) => c.textContent === 'linking')).toEqual([]);
+    // — the selected span carries the viewer's own class for the motivation
+    // (the registry's applied name; the motivation stylesheets declare it as a
+    // synonym of `semiont-motivation-reference`), with the hand-rolled inline
+    // highlight gone.
+    const span = strip.querySelector('.annotation-reference') as HTMLElement | null;
+    expect(span).not.toBeNull();
+    expect(span!.textContent).toBe('term');
+    expect(span!.style.backgroundColor).toBe('');
+
+    // Exactly ONE motivation-classed element: the context can place only the
+    // focal annotation, and the strip must not show more (D6 boundary).
+    const motivated = strip.querySelectorAll(
+      '.annotation-reference, .annotation-highlight, .annotation-comment, .annotation-assessment, .annotation-tag',
+    );
+    expect(motivated).toHaveLength(1);
+  });
+
   it('suggestedReferences render as a prose list, never chips (GFR A3)', () => {
     // The live values are full research prompts — sentences. The chip vocabulary
     // stays for tokens (entity types, categories, counts); a pill that wraps
@@ -151,4 +208,11 @@ function annotationContext(): GatheredContext {
     graph: { nodes: [], edges: [] },
     metadata: {},
   } as unknown as GatheredContext;
+}
+
+/** Same annotation focus, with anchor entity types — the GEP P1 chip fixtures. */
+function annotationContextWithTypes(): GatheredContext {
+  const ctx = annotationContext() as GatheredContext & { metadata: { entityTypes?: string[] } };
+  ctx.metadata = { entityTypes: ['Topic'] };
+  return ctx;
 }

@@ -16,6 +16,8 @@ export interface ConfigureSearchStepProps {
    * invites the press. The wizard owns it for the modal's lifetime instead.
    */
   config: SearchConfig;
+  /** Echo of the gather step's hint — the thing being steered stays visible (GEP D8). */
+  hintEcho?: { label: string; value: string };
   onConfigChange: (config: SearchConfig) => void;
   isSearching?: boolean;
   onBack: () => void;
@@ -32,6 +34,7 @@ export interface ConfigureSearchStepProps {
 
 export function ConfigureSearchStep({
   config,
+  hintEcho,
   onConfigChange,
   isSearching = false,
   onBack,
@@ -45,6 +48,11 @@ export function ConfigureSearchStep({
 
   return (
     <form onSubmit={handleSubmit} className="semiont-form">
+      {hintEcho && (
+        <p className="semiont-wizard__hint-echo">
+          {hintEcho.label}: {hintEcho.value}
+        </p>
+      )}
       {/* Max Results */}
       <div className="semiont-form__field">
         <label htmlFor="wizard-limit" className="semiont-form__label">

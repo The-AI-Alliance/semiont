@@ -289,6 +289,7 @@ export function ReferenceWizardModal({
                 {wizardStep.step === 'configure-generation' && context && (
                   <ConfigureGenerationStep
                     {...(generationAgent ? { generationAgent } : {})}
+                    {...(userHint ? { hintEcho: { label: t.userHintLabel, value: userHint } } : {})}
                     context={contextWithHint ?? context}
                     config={generationDraft}
                     onConfigChange={setGenerationDraft}
@@ -316,6 +317,7 @@ export function ReferenceWizardModal({
                 {wizardStep.step === 'configure-search' && (
                   <ConfigureSearchStep
                     config={searchConfig}
+                    {...(userHint ? { hintEcho: { label: t.userHintLabel, value: userHint } } : {})}
                     onConfigChange={setSearchConfig}
                     isSearching={isSearching}
                     onBack={handleBackToGather}

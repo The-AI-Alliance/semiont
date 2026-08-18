@@ -531,6 +531,14 @@
   padding-top: 0.25rem;
 }
 
+/* GEP D8: the gather step's hint stays visible while being steered by. */
+.semiont-wizard__hint-echo {
+  margin: 0 0 0.5rem;
+  font-size: var(--semiont-text-xs);
+  font-style: italic;
+  color: var(--semiont-text-secondary);
+}
+
 /* Suggested references are prose (D3) — sentences, listed, not chipped. */
 .semiont-gather__suggested {
   margin: 0.5rem 0 0;

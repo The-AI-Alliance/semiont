@@ -253,3 +253,26 @@ describe('ConfigureGenerationStep — the draft is the owner\'s', () => {
     expect(props.onGenerate.mock.calls[0]![0]).not.toHaveProperty('prompt');
   });
 });
+
+describe('ConfigureGenerationStep — the hint echo (GEP P1c, D8)', () => {
+  it('echoes a non-empty hint, and renders nothing without one', () => {
+    const { container, rerender } = render(
+      <ConfigureGenerationStep
+        context={context} config={DRAFT} onConfigChange={vi.fn()}
+        onBack={vi.fn()} onGenerate={vi.fn()} translations={translations}
+        hintEcho={{ label: 'Hint', value: 'the ancient city, not the modern province' }}
+      />,
+    );
+    const echo = container.querySelector('.semiont-wizard__hint-echo');
+    expect(echo).not.toBeNull();
+    expect(echo!.textContent).toContain('the ancient city, not the modern province');
+
+    rerender(
+      <ConfigureGenerationStep
+        context={context} config={DRAFT} onConfigChange={vi.fn()}
+        onBack={vi.fn()} onGenerate={vi.fn()} translations={translations}
+      />,
+    );
+    expect(container.querySelector('.semiont-wizard__hint-echo')).toBeNull();
+  });
+});

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import type { GatheredContext } from '@semiont/core';
 import { ContextSummary } from './ContextSummary';
 import type { ContextSummaryTranslations } from './ContextSummary';
+import { ANNOTATORS, annotatorKeyForMotivation } from '../../lib/annotation-registry';
 
 /**
  * The annotation-wizard resolution controls, as ONE optional group: a caller
@@ -50,6 +51,12 @@ export function GatherContextStep({
   const contextReady = !contextLoading && !contextError && !!context;
   const focus = context?.focus.kind === 'annotation' ? context.focus : null;
   const resourceFocus = context?.focus.kind === 'resource' ? context.focus : null;
+  // GEP D6: the focal span WEARS its motivation — the viewer's own registry
+  // class (the same one the document applies), never a copy or a chip.
+  const focalKey = focus?.annotation.motivation
+    ? annotatorKeyForMotivation(focus.annotation.motivation)
+    : undefined;
+  const focalMotivationClass = focalKey ? ANNOTATORS[focalKey].className : undefined;
   const highlightRef = useRef<HTMLSpanElement>(null);
 
   // Scroll the highlighted term into view when context loads
@@ -80,37 +87,36 @@ export function GatherContextStep({
 
       {context && (
         <>
-          {/* Full-width source context strip — annotation focus */}
+          {/* Full-width source context strip — annotation focus.
+              GEP P1 (D6/D7): the quotation is contiguous prose — anchor
+              metadata never interrupts it. Entity chips are tokens and live on
+              the label row; the motivation is never labeled, the focal span
+              WEARS it via the viewer's own registry class (same class the
+              document applies, themes included). Only annotations the context
+              can PLACE render here — today exactly `focus.annotation`. */}
           {focus?.selected && (
             <div className="semiont-gather__source-strip">
-              <label className="semiont-form__label" style={{ marginBottom: '0.375rem' }}>
-                {t.sourceContextLabel}{focus.sourceResource.name ? ` "${focus.sourceResource.name}"` : ''}
-              </label>
-              <div className={`semiont-gather__source-box${sourceExpanded ? ' semiont-gather__source-box--expanded' : ''}`}>
-                <div className="semiont-gather__source-context">
-                  <div style={{ fontSize: 'var(--semiont-text-sm)', fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: 'var(--semiont-text-secondary)' }}>
-                    {focus.selected.before && <span>{focus.selected.before}</span>}
-                    <span
-                      ref={highlightRef}
-                      style={{
-                        backgroundColor: 'var(--semiont-color-primary-100)',
-                        padding: '0 0.25rem',
-                        fontWeight: 600,
-                        color: 'var(--semiont-color-primary-900)',
-                      }}
-                    >
-                      {focus.selected.text}
-                    </span>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.375rem' }}>
+                <label className="semiont-form__label" style={{ marginBottom: 0 }}>
+                  {t.sourceContextLabel}{focus.sourceResource.name ? ` "${focus.sourceResource.name}"` : ''}
+                </label>
+                {(context.metadata?.entityTypes ?? []).length > 0 && (
+                  <span style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
                     {(context.metadata?.entityTypes ?? []).map(et => (
-                      <span key={et} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.375rem', fontWeight: 400, verticalAlign: 'middle', marginLeft: '0.25rem' }}>
+                      <span key={et} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.375rem', fontWeight: 400 }}>
                         {et}
                       </span>
                     ))}
-                    {focus.annotation.motivation && (
-                      <span className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.375rem', fontWeight: 400, verticalAlign: 'middle', marginLeft: '0.25rem' }}>
-                        {focus.annotation.motivation}
-                      </span>
-                    )}
+                  </span>
+                )}
+              </div>
+              <div className={`semiont-gather__source-box${sourceExpanded ? ' semiont-gather__source-box--expanded' : ''}`}>
+                <div className="semiont-gather__source-context">
+                  <div style={{ fontSize: 'var(--semiont-text-sm)', whiteSpace: 'pre-wrap', color: 'var(--semiont-text-secondary)' }}>
+                    {focus.selected.before && <span>{focus.selected.before}</span>}
+                    <span ref={highlightRef} {...(focalMotivationClass ? { className: focalMotivationClass } : {})}>
+                      {focus.selected.text}
+                    </span>
                     {focus.selected.after && <span>{focus.selected.after}</span>}
                   </div>
                 </div>
@@ -125,22 +131,30 @@ export function GatherContextStep({
             </div>
           )}
 
-          {/* Full-width source context strip — resource focus */}
+          {/* Full-width source context strip — resource focus. Same D6 rule as
+              the annotation strip: chips are metadata about the anchor and
+              live on the label row, never inside the prose. */}
           {resourceFocus && (
             <div className="semiont-gather__source-strip">
-              <label className="semiont-form__label" style={{ marginBottom: '0.375rem' }}>
-                {t.sourceContextLabel}{resourceFocus.resource.name ? ` "${resourceFocus.resource.name}"` : ''}
-              </label>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.375rem' }}>
+                <label className="semiont-form__label" style={{ marginBottom: 0 }}>
+                  {t.sourceContextLabel}{resourceFocus.resource.name ? ` "${resourceFocus.resource.name}"` : ''}
+                </label>
+                {(context.metadata?.entityTypes ?? []).length > 0 && (
+                  <span style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                    {(context.metadata?.entityTypes ?? []).map(et => (
+                      <span key={et} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.375rem', fontWeight: 400 }}>
+                        {et}
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </div>
               {(resourceFocus.summary || resourceFocus.content?.main) && (
                 <div className={`semiont-gather__source-box${sourceExpanded ? ' semiont-gather__source-box--expanded' : ''}`}>
                   <div className="semiont-gather__source-context">
                     <div style={{ fontSize: 'var(--semiont-text-sm)', whiteSpace: 'pre-wrap', color: 'var(--semiont-text-secondary)' }}>
                       {resourceFocus.summary ?? resourceFocus.content?.main}
-                      {(context.metadata?.entityTypes ?? []).map(et => (
-                        <span key={et} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.375rem', fontWeight: 400, verticalAlign: 'middle', marginLeft: '0.25rem' }}>
-                          {et}
-                        </span>
-                      ))}
                     </div>
                   </div>
                   <button
