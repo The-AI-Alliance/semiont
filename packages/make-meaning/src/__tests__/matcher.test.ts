@@ -68,15 +68,29 @@ function buildGraph(opts: {
     nodes.push({ id: c.resourceId, type: 'resource', label: c.resourceName, entityTypes: c.entityTypes });
     edges.push({ source: MAIN_ID, target: c.resourceId, type: 'related', bidirectional: c.bidirectional ?? false });
   }
+  // D12: a citation is its linking annotation — an embedded annotation node
+  // anchored by annotation-of → citing resource and cites → main.
+  const w3c = (id: string, source: string, motivation: 'linking' | 'commenting') => ({
+    '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+    type: 'Annotation' as const,
+    id,
+    motivation,
+    target: { source },
+  });
   for (const c of opts.citedByPresent ?? []) {
     nodes.push({ id: c.resourceId, type: 'resource', label: c.resourceName });
-    edges.push({ source: c.resourceId, target: MAIN_ID, type: 'citation' });
+    nodes.push({ id: `ann-cite-${c.resourceId}`, type: 'annotation', label: 'linking', annotation: w3c(`ann-cite-${c.resourceId}`, c.resourceId, 'linking') });
+    edges.push({ source: `ann-cite-${c.resourceId}`, target: c.resourceId, type: 'annotation-of' });
+    edges.push({ source: `ann-cite-${c.resourceId}`, target: MAIN_ID, type: 'cites' });
   }
   for (const id of opts.citedByMissing ?? []) {
-    edges.push({ source: id, target: MAIN_ID, type: 'citation' });
+    // no resource node for the citer: the derived label falls back to the raw id
+    nodes.push({ id: `ann-cite-${id}`, type: 'annotation', label: 'linking', annotation: w3c(`ann-cite-${id}`, id, 'linking') });
+    edges.push({ source: `ann-cite-${id}`, target: id, type: 'annotation-of' });
+    edges.push({ source: `ann-cite-${id}`, target: MAIN_ID, type: 'cites' });
   }
   for (const a of opts.siblingAnnotations ?? []) {
-    nodes.push({ id: a.id, type: 'annotation', label: a.id, entityTypes: a.entityTypes });
+    nodes.push({ id: a.id, type: 'annotation', label: a.id, entityTypes: a.entityTypes, annotation: w3c(a.id, MAIN_ID, 'commenting') });
     edges.push({ source: a.id, target: MAIN_ID, type: 'annotation-of' });
   }
   return { nodes, edges };

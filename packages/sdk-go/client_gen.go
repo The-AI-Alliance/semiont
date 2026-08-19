@@ -443,6 +443,36 @@ func (e GatheredContextFocus1Kind) Valid() bool {
 	}
 }
 
+// Defines values for GraphAnnotationNodeType.
+const (
+	GraphAnnotationNodeTypeAnnotation GraphAnnotationNodeType = "annotation"
+)
+
+// Valid indicates whether the value is a known member of the GraphAnnotationNodeType enum.
+func (e GraphAnnotationNodeType) Valid() bool {
+	switch e {
+	case GraphAnnotationNodeTypeAnnotation:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GraphResourceNodeType.
+const (
+	GraphResourceNodeTypeResource GraphResourceNodeType = "resource"
+)
+
+// Valid indicates whether the value is a known member of the GraphResourceNodeType enum.
+func (e GraphResourceNodeType) Valid() bool {
+	switch e {
+	case GraphResourceNodeTypeResource:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HealthResponseDatabase.
 const (
 	Connected    HealthResponseDatabase = "connected"
@@ -571,13 +601,13 @@ func (e JobDeclinedResultReason) Valid() bool {
 
 // Defines values for JobGenerationResultKind.
 const (
-	JobGenerationResultKindGeneration JobGenerationResultKind = "generation"
+	Generation JobGenerationResultKind = "generation"
 )
 
 // Valid indicates whether the value is a known member of the JobGenerationResultKind enum.
 func (e JobGenerationResultKind) Valid() bool {
 	switch e {
-	case JobGenerationResultKindGeneration:
+	case Generation:
 		return true
 	default:
 		return false
@@ -899,24 +929,6 @@ func (e JobType) Valid() bool {
 	case JobTypeReferenceAnnotation:
 		return true
 	case JobTypeTagAnnotation:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for KnowledgeGraphNodesType.
-const (
-	KnowledgeGraphNodesTypeAnnotation KnowledgeGraphNodesType = "annotation"
-	KnowledgeGraphNodesTypeResource   KnowledgeGraphNodesType = "resource"
-)
-
-// Valid indicates whether the value is a known member of the KnowledgeGraphNodesType enum.
-func (e KnowledgeGraphNodesType) Valid() bool {
-	switch e {
-	case KnowledgeGraphNodesTypeAnnotation:
-		return true
-	case KnowledgeGraphNodesTypeResource:
 		return true
 	default:
 		return false
@@ -2705,6 +2717,42 @@ type GoogleAuthRequest struct {
 	AccessToken string `json:"access_token"`
 }
 
+// GraphAnnotationNode An annotation's graph presence. The node IS the annotation, so the full W3C object is required — selectors and body included, which is what lets a client place context annotations without a second fetch. Citations ride here too: an inbound reference is its linking annotation, anchored by an `annotation-of` edge to the resource it lives on and a `cites` edge to the focal resource.
+type GraphAnnotationNode struct {
+	Annotation Annotation `json:"annotation"`
+
+	// EntityTypes Entity types carried by the annotation
+	EntityTypes *[]string `json:"entityTypes,omitempty"`
+
+	// Id The AnnotationId — the same value as annotation.id
+	Id string `json:"id"`
+
+	// Label The annotation's motivation, as a display label
+	Label    string                  `json:"label"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Type     GraphAnnotationNodeType `json:"type"`
+}
+
+// GraphAnnotationNodeType defines model for GraphAnnotationNode.Type.
+type GraphAnnotationNodeType string
+
+// GraphResourceNode A resource's presence in the gathered knowledge graph.
+type GraphResourceNode struct {
+	// EntityTypes Entity types on the resource
+	EntityTypes *[]string `json:"entityTypes,omitempty"`
+
+	// Id The resource's ResourceId
+	Id string `json:"id"`
+
+	// Label The resource's display name — its raw id when the resource's view was missing at build time
+	Label    string                  `json:"label"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	Type     GraphResourceNodeType   `json:"type"`
+}
+
+// GraphResourceNodeType defines model for GraphResourceNode.Type.
+type GraphResourceNodeType string
+
 // HealthResponse defines model for HealthResponse.
 type HealthResponse struct {
 	Database    HealthResponseDatabase `json:"database"`
@@ -3205,25 +3253,16 @@ type KnowledgeGraph struct {
 		Source        string                  `json:"source"`
 		Target        string                  `json:"target"`
 
-		// Type Edge kind (e.g. citation, annotation-of, sibling)
+		// Type Edge kind: `annotation-of` (an annotation → the resource it lives on), `cites` (a citing linking annotation → the focal resource), or a peer connection's own relationshipType (free-form; `link` when unnamed)
 		Type string `json:"type"`
 	} `json:"edges"`
-	Nodes []struct {
-		// EntityTypes Entity types on the node (resources) or carried by the annotation
-		EntityTypes *[]string `json:"entityTypes,omitempty"`
-
-		// Id Node identifier — a ResourceId or AnnotationId
-		Id       string                  `json:"id"`
-		Label    string                  `json:"label"`
-		Metadata *map[string]interface{} `json:"metadata,omitempty"`
-
-		// Type Whether this node is a resource or an annotation
-		Type KnowledgeGraphNodesType `json:"type"`
-	} `json:"nodes"`
+	Nodes []KnowledgeGraph_Nodes_Item `json:"nodes"`
 }
 
-// KnowledgeGraphNodesType Whether this node is a resource or an annotation
-type KnowledgeGraphNodesType string
+// KnowledgeGraph_Nodes_Item defines model for KnowledgeGraph.nodes.Item.
+type KnowledgeGraph_Nodes_Item struct {
+	union json.RawMessage
+}
 
 // ListResourcesResponse defines model for ListResourcesResponse.
 type ListResourcesResponse struct {
@@ -4081,6 +4120,9 @@ type SemanticMatch struct {
 
 	// ResourceId Source resource ID
 	ResourceId string `json:"resourceId"`
+
+	// ResourceName The source resource's display name, resolved from its view at gather time. Required: a match card must name its source, and corpus matches routinely come from outside the graph neighborhood, so there is no node to borrow a name from. A match whose source no longer resolves to a view is dropped by the producer rather than served nameless.
+	ResourceName string `json:"resourceName"`
 
 	// Score Cosine similarity score (0-1)
 	Score float32 `json:"score"`
@@ -8352,6 +8394,95 @@ func (t JobResult) MarshalJSON() ([]byte, error) {
 }
 
 func (t *JobResult) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsGraphResourceNode returns the union data inside the KnowledgeGraph_Nodes_Item as a GraphResourceNode
+func (t KnowledgeGraph_Nodes_Item) AsGraphResourceNode() (GraphResourceNode, error) {
+	var body GraphResourceNode
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGraphResourceNode overwrites any union data inside the KnowledgeGraph_Nodes_Item as the provided GraphResourceNode
+func (t *KnowledgeGraph_Nodes_Item) FromGraphResourceNode(v GraphResourceNode) error {
+	v.Type = "resource"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeGraphResourceNode performs a merge with any union data inside the KnowledgeGraph_Nodes_Item, using the provided GraphResourceNode
+func (t *KnowledgeGraph_Nodes_Item) MergeGraphResourceNode(v GraphResourceNode) error {
+	v.Type = "resource"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsGraphAnnotationNode returns the union data inside the KnowledgeGraph_Nodes_Item as a GraphAnnotationNode
+func (t KnowledgeGraph_Nodes_Item) AsGraphAnnotationNode() (GraphAnnotationNode, error) {
+	var body GraphAnnotationNode
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGraphAnnotationNode overwrites any union data inside the KnowledgeGraph_Nodes_Item as the provided GraphAnnotationNode
+func (t *KnowledgeGraph_Nodes_Item) FromGraphAnnotationNode(v GraphAnnotationNode) error {
+	v.Type = "annotation"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeGraphAnnotationNode performs a merge with any union data inside the KnowledgeGraph_Nodes_Item, using the provided GraphAnnotationNode
+func (t *KnowledgeGraph_Nodes_Item) MergeGraphAnnotationNode(v GraphAnnotationNode) error {
+	v.Type = "annotation"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t KnowledgeGraph_Nodes_Item) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t KnowledgeGraph_Nodes_Item) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "annotation":
+		return t.AsGraphAnnotationNode()
+	case "resource":
+		return t.AsGraphResourceNode()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t KnowledgeGraph_Nodes_Item) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *KnowledgeGraph_Nodes_Item) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

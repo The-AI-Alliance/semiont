@@ -263,18 +263,31 @@ Summary:`;
           filter: { excludeResourceId: resourceId },
         });
 
-        if (results.length > 0) {
-          semanticContext = {
-            similar: results.map((r: VectorSearchResult) => ({
-              text: r.text,
-              resourceId: r.resourceId,
-              annotationId: r.annotationId,
-              score: r.score,
-              entityTypes: r.entityTypes,
-              ...(r.machineRead ? { machineRead: true } : {}),
-            })),
-          };
-          logger?.debug('Semantic context found', { matches: results.length });
+        // Each match is named via its source's view (D9: resourceName is
+        // required). A source the views cannot resolve is dropped, never
+        // id-labeled: a passage from a vanished resource is not actionable
+        // fork evidence.
+        const similar: NonNullable<GatheredContext['semanticContext']>['similar'] = [];
+        for (const r of results as VectorSearchResult[]) {
+          const matchView = await kb.views.get(r.resourceId);
+          const resourceName = matchView?.resource?.name;
+          if (!resourceName) {
+            logger?.debug('Semantic match dropped — no view for source resource', { resourceId: String(r.resourceId) });
+            continue;
+          }
+          similar.push({
+            text: r.text,
+            resourceId: r.resourceId,
+            resourceName,
+            annotationId: r.annotationId,
+            score: r.score,
+            entityTypes: r.entityTypes,
+            ...(r.machineRead ? { machineRead: true } : {}),
+          });
+        }
+        if (similar.length > 0) {
+          semanticContext = { similar };
+          logger?.debug('Semantic context found', { matches: similar.length });
         }
       } catch (error) {
         logger?.warn('Semantic context search failed', { error });

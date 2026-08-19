@@ -498,21 +498,36 @@ describe('LLM Context', () => {
     ];
     const baseOpts = { depth: 1, maxResources: 5, includeContent: false, includeSummary: false };
 
-    function kbWithVectors(capture?: (opts: any) => void): KnowledgeBase {
+    // Views for the pool's sources — resourceName resolves through them (P3/D9),
+    // and a source with no view is dropped, never id-labeled.
+    const POOL_VIEWS: Record<string, any> = {
+      'r-answer': { resource: { '@id': 'r-answer', name: 'A Prior Answer' } },
+      'r-question': { resource: { '@id': 'r-question', name: 'A Prior Question' } },
+    };
+
+    function kbWithVectors(capture?: (opts: any) => void, extraPool: any[] = []): KnowledgeBase {
       return {
         ...kb,
+        views: { get: async (id: any) => POOL_VIEWS[String(id)] ?? kb.views.get(id) } as any,
         vectors: {
           searchByResource: vi.fn(async (_rid: any, opts: any) => {
             capture?.(opts);
             const exclude = new Set<string>(opts.filter?.excludeEntityTypes ?? []);
-            return pool.filter((p) => !p.entityTypes.some((t) => exclude.has(t)));
+            return [...pool, ...extraPool].filter((p) => !p.entityTypes.some((t: string) => exclude.has(t)));
           }),
         } as any,
       };
     }
 
-    it('populates semanticContext from searchByResource', async () => {
+    it('populates semanticContext from searchByResource, each match named via its view (P3/D9)', async () => {
       const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kbWithVectors(), mockClient, 15_000, mockLogger);
+      expect(ctx.semanticContext?.similar.map((s) => s.resourceId).sort()).toEqual(['r-answer', 'r-question']);
+      expect(ctx.semanticContext?.similar.map((s) => s.resourceName).sort()).toEqual(['A Prior Answer', 'A Prior Question']);
+    });
+
+    it('drops a match whose source resource has no view — no nameless cards (P3/D9)', async () => {
+      const ghost = { id: 'r-ghost#0', score: 0.95, resourceId: 'r-ghost', text: 'from a vanished resource', entityTypes: [] };
+      const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kbWithVectors(undefined, [ghost]), mockClient, 15_000, mockLogger);
       expect(ctx.semanticContext?.similar.map((s) => s.resourceId).sort()).toEqual(['r-answer', 'r-question']);
     });
 
@@ -561,6 +576,8 @@ describe('LLM Context', () => {
       const lagged: KnowledgeBase = {
         ...kb,
         smeltProgress: createSmeltProgress(progressBus),
+        // The hit's source must resolve to a named view (P3/D9) or the match drops.
+        views: { get: async (id: any) => (String(id) === 'r-sim' ? { resource: { '@id': 'r-sim', name: 'Similar Doc' } } : kb.views.get(id)) } as any,
         vectors: { searchByResource } as unknown as KnowledgeBase['vectors'],
       };
       return { lagged, searches: () => searchByResource.mock.calls.length };

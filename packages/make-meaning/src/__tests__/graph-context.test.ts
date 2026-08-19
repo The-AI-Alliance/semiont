@@ -195,21 +195,24 @@ describe('GraphContext', () => {
       expect(graph.nodes.every((n) => n.type === 'resource' || n.type === 'annotation')).toBe(true);
     });
 
-    it('emits a citation as an inbound edge so citedBy/count are derivable', async () => {
+    it('emits an inbound citation as its linking annotation: an embedded node anchored by annotation-of + cites (D12)', async () => {
+      const citing = { id: 'ann-cite', motivation: 'linking', target: { source: 'res-citing' }, body: [] };
       setup({
-        referencedBy: [{ id: 'ann-cite', target: { source: 'res-citing' }, body: [] }],
+        referencedBy: [citing],
         views: { 'res-citing': { resource: { '@id': 'res-citing', name: 'Citing Paper', entityTypes: [] } } },
       });
 
       const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb);
 
-      // citing resource is a node...
+      // citing resource is still a node...
       expect(graph.nodes.find((n) => n.id === 'res-citing')).toMatchObject({ type: 'resource', label: 'Citing Paper' });
-      // ...and the citation is an INBOUND edge (source = citing, target = main)
-      const citationEdges = graph.edges.filter((e) => e.type === 'citation');
-      expect(citationEdges).toEqual([{ source: 'res-citing', target: 'res-main', type: 'citation' }]);
-      // citedByCount = inbound citation edge count
-      expect(citationEdges.length).toBe(1);
+      // ...the linking annotation is the citation's graph presence, embedded whole (D11)...
+      expect(graph.nodes.find((n) => n.id === 'ann-cite')).toMatchObject({ type: 'annotation', label: 'linking', annotation: citing });
+      // ...anchored to its citing resource and to the focal resource
+      expect(graph.edges).toContainEqual({ source: 'ann-cite', target: 'res-citing', type: 'annotation-of' });
+      expect(graph.edges).toContainEqual({ source: 'ann-cite', target: 'res-main', type: 'cites' });
+      // the flattened resource→resource citation edge is GONE
+      expect(graph.edges.filter((e) => e.type === 'citation')).toEqual([]);
     });
 
     it('carries bidirectional as an edge property', async () => {
@@ -232,7 +235,10 @@ describe('GraphContext', () => {
 
       const graph = await GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb);
 
-      expect(graph.nodes.find((n) => n.id === 'ann-sib')).toMatchObject({ type: 'annotation' });
+      expect(graph.nodes.find((n) => n.id === 'ann-sib')).toMatchObject({
+        type: 'annotation',
+        annotation: { id: 'ann-sib', motivation: 'commenting' }, // embedded whole (D11)
+      });
       expect(graph.edges).toContainEqual({ source: 'ann-sib', target: 'res-main', type: 'annotation-of' });
     });
   });

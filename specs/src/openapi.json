@@ -459,6 +459,12 @@
       "InferenceLimits": {
         "$ref": "components/schemas/InferenceLimits.json"
       },
+      "GraphAnnotationNode": {
+        "$ref": "components/schemas/GraphAnnotationNode.json"
+      },
+      "GraphResourceNode": {
+        "$ref": "components/schemas/GraphResourceNode.json"
+      },
       "JobAssessmentAnnotationResult": {
         "$ref": "components/schemas/JobAssessmentAnnotationResult.json"
       },
