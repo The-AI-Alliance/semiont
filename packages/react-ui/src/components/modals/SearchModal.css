@@ -467,10 +467,11 @@
   max-width: 1100px;
 }
 
-/* Gather-context step: wider modal */
+/* Gather-context step. Width comes from `--wide` (GEP D2: the family's own
+   1100px precedent), applied alongside at both call sites — this class owns
+   only the gather-specific flex/height shape. */
 .semiont-search-modal__panel--gather {
-  max-width: min(90vw, 820px);
-  max-height: min(90vh, 680px);
+  max-height: min(92vh, 860px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -529,6 +530,161 @@
 .semiont-gather__source-strip {
   flex-shrink: 0;
   padding-top: 0.25rem;
+}
+
+/* GEP P2: the evidence panes — quiet lists under small-cap headers (D1/D3/D4). */
+.semiont-gather-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+  overflow-y: auto; /* a pane scrolls inside itself; the panel never grows */
+}
+
+.semiont-gather-pane__title {
+  font-size: var(--semiont-text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--semiont-text-tertiary);
+}
+
+.semiont-gather-pane__summary {
+  margin: 0;
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-primary);
+}
+
+.semiont-gather-pane__empty {
+  margin: 0;
+  font-size: var(--semiont-text-sm);
+  font-style: italic;
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-corpus__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.semiont-corpus__card {
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--semiont-border-primary);
+  border-radius: 0.375rem;
+}
+
+.semiont-corpus__card-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.semiont-corpus__source {
+  font-size: var(--semiont-text-sm);
+  font-weight: 500;
+  color: var(--semiont-text-primary);
+}
+
+.semiont-corpus__score {
+  margin-left: auto;
+  font-size: var(--semiont-text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--semiont-text-tertiary);
+}
+
+.semiont-corpus__snippet {
+  margin: 0.25rem 0 0;
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-corpus__receipt {
+  margin: 0;
+  font-size: var(--semiont-text-xs);
+  font-style: italic;
+  color: var(--semiont-text-tertiary);
+}
+
+/* GEP P4 (D3): the graph pane's body — a deterministic, hand-rolled SVG. */
+.semiont-graph {
+  width: 100%;
+  height: auto;
+  flex-shrink: 0;
+}
+
+.semiont-graph__node rect {
+  fill: var(--semiont-bg-secondary);
+  stroke: var(--semiont-border-primary);
+  stroke-width: 1;
+}
+
+.semiont-graph__node text {
+  font-size: 11px;
+  fill: var(--semiont-text-primary);
+}
+
+.semiont-graph__node--focal rect {
+  fill: var(--semiont-color-primary-100);
+  stroke: var(--semiont-color-primary-600);
+  stroke-width: 2;
+}
+
+.semiont-graph__node--annotation rect {
+  fill: var(--semiont-bg-primary);
+  stroke-dasharray: 4 3;
+}
+
+.semiont-graph__edge line {
+  stroke: var(--semiont-border-primary);
+  stroke-width: 1.5;
+}
+
+.semiont-graph__edge--cites line {
+  stroke: var(--semiont-color-primary-600);
+}
+
+.semiont-graph__edge--annotation-of line {
+  stroke-dasharray: 4 3;
+}
+
+[data-theme="dark"] .semiont-graph__node--focal rect {
+  fill: var(--semiont-color-primary-900);
+  stroke: var(--semiont-color-primary-400);
+}
+
+[data-theme="dark"] .semiont-graph__edge--cites line {
+  stroke: var(--semiont-color-primary-400);
+}
+
+.semiont-graph__cited-line {
+  margin: 0;
+  font-size: var(--semiont-text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--semiont-text-tertiary);
+}
+
+/* GEP D5: the hint on its own full-width row, input-then-act above the footer. */
+.semiont-gather__hint-row {
+  flex-shrink: 0;
+  padding-top: 0.5rem;
+}
+
+.semiont-gather__hint-effect {
+  font-weight: 400;
+  color: var(--semiont-text-tertiary);
+}
+
+/* GEP D8: the gather step's hint stays visible while being steered by. */
+.semiont-wizard__hint-echo {
+  margin: 0 0 0.5rem;
+  font-size: var(--semiont-text-xs);
+  font-style: italic;
+  color: var(--semiont-text-secondary);
 }
 
 /* Suggested references are prose (D3) — sentences, listed, not chipped. */

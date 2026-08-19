@@ -161,17 +161,32 @@ export class LLMContext {
     }
 
     if (matches.length > 0) {
-      semanticContext = {
-        similar: matches.map((m) => ({
+      // Named via the source's view (D9: resourceName required); a source with
+      // no view is dropped, never id-labeled.
+      const similar: NonNullable<GatheredContext['semanticContext']>['similar'] = [];
+      for (const m of matches) {
+        const matchView = await kb.views.get(m.resourceId);
+        const resourceName = matchView?.resource?.name;
+        if (!resourceName) {
+          logger?.debug('Semantic match dropped — no view for source resource', { resourceId: String(m.resourceId) });
+          continue;
+        }
+        similar.push({
           text: m.text,
           resourceId: m.resourceId,
+          resourceName,
           ...(m.annotationId ? { annotationId: m.annotationId } : {}),
           score: m.score,
           ...(m.entityTypes ? { entityTypes: m.entityTypes } : {}),
           ...(m.machineRead ? { machineRead: true } : {}),
-        })),
-        ...(excludeEntityTypes.length ? { excludedEntityTypes: excludeEntityTypes } : {}),
-      };
+        });
+      }
+      if (similar.length > 0) {
+        semanticContext = {
+          similar,
+          ...(excludeEntityTypes.length ? { excludedEntityTypes: excludeEntityTypes } : {}),
+        };
+      }
     }
 
     // Assemble the unified GatheredContext (focus.kind:'resource'). Related resources and

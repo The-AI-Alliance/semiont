@@ -16,8 +16,13 @@ export interface ConfigureSearchStepProps {
    * invites the press. The wizard owns it for the modal's lifetime instead.
    */
   config: SearchConfig;
+  /** Echo of the gather step's hint — the thing being steered stays visible (GEP D8). */
+  hintEcho?: { label: string; value: string };
   onConfigChange: (config: SearchConfig) => void;
   isSearching?: boolean;
+  /** A settled failure (emit refused, matcher error, timeout) — the spinner
+   *  must never outlive the request that fed it. */
+  searchError?: string | null;
   onBack: () => void;
   onSearch: (config: SearchConfig) => void;
   translations: {
@@ -27,13 +32,16 @@ export interface ConfigureSearchStepProps {
     back: string;
     search: string;
     searching: string;
+    searchFailed: string;
   };
 }
 
 export function ConfigureSearchStep({
   config,
+  hintEcho,
   onConfigChange,
   isSearching = false,
+  searchError = null,
   onBack,
   onSearch,
   translations: t,
@@ -45,6 +53,11 @@ export function ConfigureSearchStep({
 
   return (
     <form onSubmit={handleSubmit} className="semiont-form">
+      {hintEcho && (
+        <p className="semiont-wizard__hint-echo">
+          {hintEcho.label}: {hintEcho.value}
+        </p>
+      )}
       {/* Max Results */}
       <div className="semiont-form__field">
         <label htmlFor="wizard-limit" className="semiont-form__label">
@@ -77,6 +90,12 @@ export function ConfigureSearchStep({
           {t.semanticScoringHelp}
         </p>
       </div>
+
+      {searchError && (
+        <div role="alert" style={{ textAlign: 'center', padding: '0.5rem 0', color: 'var(--semiont-color-red-600)' }}>
+          {t.searchFailed}: {searchError}
+        </div>
+      )}
 
       <WizardFooter
         backLabel={t.back}

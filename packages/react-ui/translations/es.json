@@ -414,7 +414,14 @@
     "progressInProgress": "Generando…",
     "progressComplete": "¡Generación completa!",
     "progressFailed": "Generación fallida",
-    "maxLengthCeiling": "Limitado a {{maxOutputTokens}} tokens por {{model}}."
+    "maxLengthCeiling": "Limitado a {{maxOutputTokens}} tokens por {{model}}.",
+    "graphPaneTitle": "En el grafo",
+    "graphEmpty": "Aún sin enlaces.",
+    "corpusPaneTitle": "En el corpus",
+    "corpusEmpty": "Nada similar en el corpus.",
+    "excludedReceipt": "{{types}} excluidos de esta recuperación",
+    "machineRead": "OCR",
+    "score": "Puntuación"
   },
   "ReferenceWizard": {
     "gatherTitle": "Contexto Recopilado",
@@ -450,8 +457,16 @@
     "semanticScoring": "Puntuación Semántica",
     "semanticScoringHelp": "Usar IA para puntuar resultados por relevancia semántica",
     "searching": "Buscando...",
+    "searchFailed": "Error en la búsqueda",
     "search": "Buscar",
-    "maxLengthCeiling": "Limitado a {{maxOutputTokens}} tokens por {{model}}."
+    "maxLengthCeiling": "Limitado a {{maxOutputTokens}} tokens por {{model}}.",
+    "graphPaneTitle": "En el grafo",
+    "graphEmpty": "Aún sin enlaces — resolver esta referencia crea el primero.",
+    "corpusPaneTitle": "En el corpus",
+    "corpusEmpty": "Nada similar en el corpus — es poco probable que la búsqueda dé resultado.",
+    "excludedReceipt": "{{types}} excluidos de esta recuperación",
+    "machineRead": "OCR",
+    "userHintEffect": "guía la búsqueda y la generación"
   },
   "OutcomeToasts": {
     "createFailed": "No se pudo crear la anotación: {{detail}}",

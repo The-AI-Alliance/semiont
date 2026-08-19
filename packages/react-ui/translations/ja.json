@@ -414,7 +414,14 @@
     "progressInProgress": "生成中…",
     "progressComplete": "生成完了！",
     "progressFailed": "生成に失敗しました",
-    "maxLengthCeiling": "{{model}} により {{maxOutputTokens}} トークンに制限されています。"
+    "maxLengthCeiling": "{{model}} により {{maxOutputTokens}} トークンに制限されています。",
+    "graphPaneTitle": "グラフ内",
+    "graphEmpty": "まだリンクがありません。",
+    "corpusPaneTitle": "コーパス内",
+    "corpusEmpty": "コーパスに類似するものがありません。",
+    "excludedReceipt": "{{types}} はこのリコールから除外",
+    "machineRead": "OCR",
+    "score": "スコア"
   },
   "ReferenceWizard": {
     "gatherTitle": "収集済みコンテキスト",
@@ -450,8 +457,16 @@
     "semanticScoring": "意味的スコアリング",
     "semanticScoringHelp": "AIを使用して意味的関連性で結果をスコアリング",
     "searching": "検索中...",
+    "searchFailed": "検索に失敗しました",
     "search": "検索",
-    "maxLengthCeiling": "{{model}} により {{maxOutputTokens}} トークンに制限されています。"
+    "maxLengthCeiling": "{{model}} により {{maxOutputTokens}} トークンに制限されています。",
+    "graphPaneTitle": "グラフ内",
+    "graphEmpty": "まだリンクがありません — この参照を解決すると最初のリンクが作られます。",
+    "corpusPaneTitle": "コーパス内",
+    "corpusEmpty": "コーパスに類似するものがありません — 検索はヒットしない可能性が高いです。",
+    "excludedReceipt": "{{types}} はこのリコールから除外",
+    "machineRead": "OCR",
+    "userHintEffect": "検索と生成を導きます"
   },
   "OutcomeToasts": {
     "createFailed": "注釈を作成できませんでした: {{detail}}",

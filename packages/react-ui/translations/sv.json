@@ -414,7 +414,14 @@
     "progressInProgress": "Genererar…",
     "progressComplete": "Generering klar!",
     "progressFailed": "Generering misslyckades",
-    "maxLengthCeiling": "Begränsat till {{maxOutputTokens}} tokens av {{model}}."
+    "maxLengthCeiling": "Begränsat till {{maxOutputTokens}} tokens av {{model}}.",
+    "graphPaneTitle": "I grafen",
+    "graphEmpty": "Inga länkar ännu.",
+    "corpusPaneTitle": "I korpusen",
+    "corpusEmpty": "Inget liknande i korpusen.",
+    "excludedReceipt": "{{types}} uteslutna ur denna hämtning",
+    "machineRead": "OCR",
+    "score": "Poäng"
   },
   "ReferenceWizard": {
     "gatherTitle": "Samlad kontext",
@@ -450,8 +457,16 @@
     "semanticScoring": "Semantisk poängsättning",
     "semanticScoringHelp": "Använd AI för att poängsätta resultat efter semantisk relevans",
     "searching": "Söker...",
+    "searchFailed": "Sökningen misslyckades",
     "search": "Sök",
-    "maxLengthCeiling": "Begränsat till {{maxOutputTokens}} tokens av {{model}}."
+    "maxLengthCeiling": "Begränsat till {{maxOutputTokens}} tokens av {{model}}.",
+    "graphPaneTitle": "I grafen",
+    "graphEmpty": "Inga länkar ännu — att lösa denna referens skapar den första.",
+    "corpusPaneTitle": "I korpusen",
+    "corpusEmpty": "Inget liknande i korpusen — sökning lär inte ge träff.",
+    "excludedReceipt": "{{types}} uteslutna ur denna hämtning",
+    "machineRead": "OCR",
+    "userHintEffect": "styr sökning och generering"
   },
   "OutcomeToasts": {
     "createFailed": "Kunde inte skapa annoteringen: {{detail}}",

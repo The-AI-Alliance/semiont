@@ -37,7 +37,7 @@ const CONTEXT = {
   focus: {
     kind: 'annotation',
     annotation: { id: 'ann-1' },
-    sourceResource: { id: 'res-1', name: 'Scythian steppe' },
+    sourceResource: { '@id': 'res-1', name: 'Scythian steppe' },
     selected: { text: 'Caspian Sea' },
   },
   graph: { nodes: [], edges: [] },
@@ -48,7 +48,11 @@ const T = {
   gatherTitle: 'Gathered Context', configureGenerationTitle: 'Configure Generation',
   configureSearchTitle: 'Configure Search', searchResultsTitle: 'Search Results',
   sourceContextLabel: 'Source', connectionsLabel: 'Connections', citedByLabel: 'Cited by',
-  userHintLabel: 'Hint', userHintPlaceholder: 'Describe what this refers to…',
+  userHintLabel: 'Hint', userHintEffect: 'steers Search and Generate',
+  userHintPlaceholder: 'Describe what this refers to…',
+  graphPaneTitle: 'In the graph', graphEmpty: 'No links yet.',
+  corpusPaneTitle: 'In the corpus', corpusEmpty: 'Nothing similar.',
+  excludedReceipt: '{{types}} excluded', machineRead: 'OCR',
   loadingContext: 'Loading…', failedContext: 'Failed',
   search: 'Search', searching: 'Searching…', generate: 'Generate',
   compose: 'Compose', resolutionStrategyLabel: 'Resolution Strategy', back: 'Back',
@@ -59,6 +63,7 @@ const T = {
   creativityFocused: 'Focused', creativityCreative: 'Creative',
   maxLength: 'Max length', maxLengthHelp: '', maxLengthCeiling: 'Limited to {{maxOutputTokens}} by {{model}}.',
   maxResults: 'Max Results', semanticScoring: 'Semantic Scoring', semanticScoringHelp: '',
+  searchFailed: 'Search failed',
 };
 
 function renderWizard(over: Partial<React.ComponentProps<typeof ReferenceWizardModal>> = {}) {
@@ -103,6 +108,23 @@ async function typeHint(text: string) {
 describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.userHint', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
+  it('the gather panel carries the widened class (GEP P2, D2)', () => {
+    const { baseElement } = renderWizard();
+    const panel = baseElement.querySelector('.semiont-search-modal__panel--gather');
+    expect(panel).not.toBeNull();
+    expect(panel!.className).toContain('semiont-search-modal__panel--wide');
+  });
+
+  it('the typed hint stays visible after stepping into configure-search (GEP P1c, D8)', async () => {
+    // The thing being steered must not vanish while you steer it.
+    const { baseElement } = renderWizard();
+    await typeHint('the ancient city');
+    await userEvent.click(screen.getByRole('button', { name: /Search…/ }));
+    const echo = baseElement.querySelector('.semiont-wizard__hint-echo');
+    expect(echo).not.toBeNull();
+    expect(echo!.textContent).toContain('the ancient city');
+  });
+
   it('compose carries the hint inside focus, not at the top level', async () => {
     const { onComposeNavigate } = renderWizard();
     await typeHint('the lake, not the myth');
@@ -131,7 +153,7 @@ describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.use
   it('generation gets it too — the path that used to drop it silently', async () => {
     renderWizard();
     await typeHint('focus on hydrology');
-    await userEvent.click(screen.getByText(new RegExp(T.generate)));
+    await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
 
     // The step renders the context it was handed; the hint is visible in the
     // gathered-context panel it shows, which is only true if the ENRICHED
@@ -196,6 +218,59 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('a search failure over the bus settles the spinner and surfaces the error — no eternal "Searching…"', async () => {
+    // The measured hang (.plans/bugs/match-search-hangs-on-neo4j-datetime-annotations.md):
+    // /bus/emit 400s the request, the match machinery publishes
+    // match:search-failed — and the wizard listened only for results, so the
+    // failure fired into an empty room while the button spun forever.
+    const { client } = renderWizard();
+    await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
+    await userEvent.click(screen.getByRole('button', { name: T.search }));
+    expect(screen.getByRole('button', { name: T.searching })).toBeDisabled();
+
+    client.bus.get('match:search-failed').next({
+      correlationId: 'c-1',
+      referenceId: 'ann-1',
+      error: '/bus/emit 400: Bus emit validation failed',
+    } as never);
+
+    // Still on configure-search, failure visible, retry available.
+    expect(await screen.findByText(new RegExp(T.searchFailed))).toBeInTheDocument();
+    expect(screen.getByText(/Bus emit validation failed/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: T.search })).toBeEnabled();
+  });
+
+  it('a failure addressed to a different annotation changes nothing', async () => {
+    // Same scoping rule as results: a late failure from another annotation's
+    // run must not settle THIS spinner or paint an error that isn't ours.
+    const { client } = renderWizard();
+    await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
+    await userEvent.click(screen.getByRole('button', { name: T.search }));
+
+    client.bus.get('match:search-failed').next({
+      correlationId: 'c-2',
+      referenceId: 'someone-elses-annotation',
+      error: 'not ours',
+    } as never);
+
+    expect(screen.getByRole('button', { name: T.searching })).toBeDisabled();
+    expect(screen.queryByText(new RegExp(T.searchFailed))).not.toBeInTheDocument();
+  });
+
+  it('retrying after a failure clears the error while the new search runs', async () => {
+    const { client } = renderWizard();
+    await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
+    await userEvent.click(screen.getByRole('button', { name: T.search }));
+    client.bus.get('match:search-failed').next({
+      correlationId: 'c-1', referenceId: 'ann-1', error: 'boom',
+    } as never);
+    expect(await screen.findByText(new RegExp(T.searchFailed))).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: T.search }));
+    expect(screen.queryByText(new RegExp(T.searchFailed))).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: T.searching })).toBeDisabled();
+  });
+
   it('ignores results addressed to a different annotation', () => {
     // Two wizards can never be open at once, but one reply can outlive the
     // annotation it was asked for — a late answer must not hijack the step.
@@ -209,7 +284,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
 
   it('generation submits the step\'s config against this annotation, then closes', async () => {
     const { onGenerateSubmit, onClose } = renderWizard();
-    await userEvent.click(screen.getByText(new RegExp(T.generate)));
+    await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
     await userEvent.type(screen.getByLabelText(/Save location/i), 'generated/out.md');
     await userEvent.click(screen.getByRole('button', { name: T.generate }));
 
@@ -221,7 +296,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
 
   it('retreats from a configure step back to the gather step', async () => {
     renderWizard();
-    await userEvent.click(screen.getByText(new RegExp(T.generate)));
+    await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
     expect(screen.getByText(T.configureGenerationTitle)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Back/ }));
     expect(screen.getByText(T.gatherTitle)).toBeInTheDocument();

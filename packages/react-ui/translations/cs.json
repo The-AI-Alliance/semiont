@@ -414,7 +414,14 @@
     "progressInProgress": "Generování…",
     "progressComplete": "Generování dokončeno!",
     "progressFailed": "Generování selhalo",
-    "maxLengthCeiling": "Omezeno na {{maxOutputTokens}} tokenů modelem {{model}}."
+    "maxLengthCeiling": "Omezeno na {{maxOutputTokens}} tokenů modelem {{model}}.",
+    "graphPaneTitle": "V grafu",
+    "graphEmpty": "Zatím žádné odkazy.",
+    "corpusPaneTitle": "V korpusu",
+    "corpusEmpty": "V korpusu není nic podobného.",
+    "excludedReceipt": "{{types}} vyloučeno z tohoto vyhledání",
+    "machineRead": "OCR",
+    "score": "Skóre"
   },
   "ReferenceWizard": {
     "gatherTitle": "Shromážděný kontext",
@@ -450,8 +457,16 @@
     "semanticScoring": "Sémantické hodnocení",
     "semanticScoringHelp": "Použít AI k hodnocení výsledků podle sémantické relevance",
     "searching": "Vyhledávání...",
+    "searchFailed": "Vyhledávání selhalo",
     "search": "Hledat",
-    "maxLengthCeiling": "Omezeno na {{maxOutputTokens}} tokenů modelem {{model}}."
+    "maxLengthCeiling": "Omezeno na {{maxOutputTokens}} tokenů modelem {{model}}.",
+    "graphPaneTitle": "V grafu",
+    "graphEmpty": "Zatím žádné odkazy — vyřešením této reference vznikne první.",
+    "corpusPaneTitle": "V korpusu",
+    "corpusEmpty": "V korpusu není nic podobného — hledání pravděpodobně neuspěje.",
+    "excludedReceipt": "{{types}} vyloučeno z tohoto vyhledání",
+    "machineRead": "OCR",
+    "userHintEffect": "řídí hledání i generování"
   },
   "OutcomeToasts": {
     "createFailed": "Anotaci se nepodařilo vytvořit: {{detail}}",

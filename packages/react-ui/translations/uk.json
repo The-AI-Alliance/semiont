@@ -414,7 +414,14 @@
     "progressInProgress": "Генерування…",
     "progressComplete": "Генерацію завершено!",
     "progressFailed": "Генерація не вдалася",
-    "maxLengthCeiling": "Обмежено до {{maxOutputTokens}} токенів моделлю {{model}}."
+    "maxLengthCeiling": "Обмежено до {{maxOutputTokens}} токенів моделлю {{model}}.",
+    "graphPaneTitle": "У графі",
+    "graphEmpty": "Посилань ще немає.",
+    "corpusPaneTitle": "У корпусі",
+    "corpusEmpty": "Нічого схожого в корпусі.",
+    "excludedReceipt": "{{types}} виключено з цього відбору",
+    "machineRead": "OCR",
+    "score": "Оцінка"
   },
   "ReferenceWizard": {
     "gatherTitle": "Зібраний контекст",
@@ -450,8 +457,16 @@
     "semanticScoring": "Семантична оцінка",
     "semanticScoringHelp": "Використовувати ШІ для оцінки результатів за семантичною релевантністю",
     "searching": "Пошук...",
+    "searchFailed": "Пошук не вдався",
     "search": "Пошук",
-    "maxLengthCeiling": "Обмежено до {{maxOutputTokens}} токенів моделлю {{model}}."
+    "maxLengthCeiling": "Обмежено до {{maxOutputTokens}} токенів моделлю {{model}}.",
+    "graphPaneTitle": "У графі",
+    "graphEmpty": "Посилань ще немає — розв'язання цього посилання створить перше.",
+    "corpusPaneTitle": "У корпусі",
+    "corpusEmpty": "Нічого схожого в корпусі — пошук навряд чи щось знайде.",
+    "excludedReceipt": "{{types}} виключено з цього відбору",
+    "machineRead": "OCR",
+    "userHintEffect": "спрямовує пошук і генерацію"
   },
   "OutcomeToasts": {
     "createFailed": "Не вдалося створити анотацію: {{detail}}",

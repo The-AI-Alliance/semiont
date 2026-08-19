@@ -414,7 +414,14 @@
     "progressInProgress": "יוצר…",
     "progressComplete": "היצירה הושלמה!",
     "progressFailed": "היצירה נכשלה",
-    "maxLengthCeiling": "מוגבל ל-{{maxOutputTokens}} טוקנים על ידי {{model}}."
+    "maxLengthCeiling": "מוגבל ל-{{maxOutputTokens}} טוקנים על ידי {{model}}.",
+    "graphPaneTitle": "בגרף",
+    "graphEmpty": "אין קישורים עדיין.",
+    "corpusPaneTitle": "בקורפוס",
+    "corpusEmpty": "אין דבר דומה בקורפוס.",
+    "excludedReceipt": "{{types}} הוחרגו מהאחזור הזה",
+    "machineRead": "OCR",
+    "score": "ציון"
   },
   "ReferenceWizard": {
     "gatherTitle": "הקשר שנאסף",
@@ -450,8 +457,16 @@
     "semanticScoring": "דירוג סמנטי",
     "semanticScoringHelp": "שימוש ב-AI לדירוג תוצאות לפי רלוונטיות סמנטית",
     "searching": "מחפש...",
+    "searchFailed": "החיפוש נכשל",
     "search": "חיפוש",
-    "maxLengthCeiling": "מוגבל ל-{{maxOutputTokens}} טוקנים על ידי {{model}}."
+    "maxLengthCeiling": "מוגבל ל-{{maxOutputTokens}} טוקנים על ידי {{model}}.",
+    "graphPaneTitle": "בגרף",
+    "graphEmpty": "אין קישורים עדיין — פתרון ההפניה הזו יוצר את הראשון.",
+    "corpusPaneTitle": "בקורפוס",
+    "corpusEmpty": "אין דבר דומה בקורפוס — חיפוש כנראה לא יניב תוצאה.",
+    "excludedReceipt": "{{types}} הוחרגו מהאחזור הזה",
+    "machineRead": "OCR",
+    "userHintEffect": "מכוון את החיפוש והיצירה"
   },
   "OutcomeToasts": {
     "createFailed": "לא ניתן ליצור את ההערה: {{detail}}",

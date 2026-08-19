@@ -414,7 +414,14 @@
     "progressInProgress": "Genererer…",
     "progressComplete": "Generering fullført!",
     "progressFailed": "Generering mislyktes",
-    "maxLengthCeiling": "Begrenset til {{maxOutputTokens}} tokens av {{model}}."
+    "maxLengthCeiling": "Begrenset til {{maxOutputTokens}} tokens av {{model}}.",
+    "graphPaneTitle": "I grafen",
+    "graphEmpty": "Ingen lenker ennå.",
+    "corpusPaneTitle": "I korpuset",
+    "corpusEmpty": "Ingenting lignende i korpuset.",
+    "excludedReceipt": "{{types}} utelatt fra dette gjenfinnet",
+    "machineRead": "OCR",
+    "score": "Poengsum"
   },
   "ReferenceWizard": {
     "gatherTitle": "Samlet kontekst",
@@ -450,8 +457,16 @@
     "semanticScoring": "Semantisk skåring",
     "semanticScoringHelp": "Bruk AI til å score resultater etter semantisk relevans",
     "searching": "Søker...",
+    "searchFailed": "Søket mislyktes",
     "search": "Søk",
-    "maxLengthCeiling": "Begrenset til {{maxOutputTokens}} tokens av {{model}}."
+    "maxLengthCeiling": "Begrenset til {{maxOutputTokens}} tokens av {{model}}.",
+    "graphPaneTitle": "I grafen",
+    "graphEmpty": "Ingen lenker ennå — å løse denne referansen skaper den første.",
+    "corpusPaneTitle": "I korpuset",
+    "corpusEmpty": "Ingenting lignende i korpuset — søk vil neppe lykkes.",
+    "excludedReceipt": "{{types}} utelatt fra dette gjenfinnet",
+    "machineRead": "OCR",
+    "userHintEffect": "styrer søk og generering"
   },
   "OutcomeToasts": {
     "createFailed": "Kunne ikke opprette merknaden: {{detail}}",

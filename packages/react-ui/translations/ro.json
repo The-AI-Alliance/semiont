@@ -414,7 +414,14 @@
     "progressInProgress": "Se generează…",
     "progressComplete": "Generare completă!",
     "progressFailed": "Generarea a eșuat",
-    "maxLengthCeiling": "Limitat la {{maxOutputTokens}} tokenuri de {{model}}."
+    "maxLengthCeiling": "Limitat la {{maxOutputTokens}} tokenuri de {{model}}.",
+    "graphPaneTitle": "În graf",
+    "graphEmpty": "Încă fără legături.",
+    "corpusPaneTitle": "În corpus",
+    "corpusEmpty": "Nimic similar în corpus.",
+    "excludedReceipt": "{{types}} excluse din această regăsire",
+    "machineRead": "OCR",
+    "score": "Scor"
   },
   "ReferenceWizard": {
     "gatherTitle": "Context Colectat",
@@ -450,8 +457,16 @@
     "semanticScoring": "Evaluare Semantică",
     "semanticScoringHelp": "Folosiți AI pentru a evalua rezultatele după relevanța semantică",
     "searching": "Se caută...",
+    "searchFailed": "Căutarea a eșuat",
     "search": "Caută",
-    "maxLengthCeiling": "Limitat la {{maxOutputTokens}} tokenuri de {{model}}."
+    "maxLengthCeiling": "Limitat la {{maxOutputTokens}} tokenuri de {{model}}.",
+    "graphPaneTitle": "În graf",
+    "graphEmpty": "Încă fără legături — rezolvarea acestei referințe o creează pe prima.",
+    "corpusPaneTitle": "În corpus",
+    "corpusEmpty": "Nimic similar în corpus — căutarea are șanse mici să reușească.",
+    "excludedReceipt": "{{types}} excluse din această regăsire",
+    "machineRead": "OCR",
+    "userHintEffect": "ghidează căutarea și generarea"
   },
   "OutcomeToasts": {
     "createFailed": "Nu s-a putut crea adnotarea: {{detail}}",

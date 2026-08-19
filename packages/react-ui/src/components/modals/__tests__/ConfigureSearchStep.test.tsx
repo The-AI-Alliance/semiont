@@ -16,7 +16,7 @@ import { ConfigureSearchStep, type SearchConfig } from '../ConfigureSearchStep';
 const T = {
   maxResults: 'Max Results', semanticScoring: 'Semantic Scoring',
   semanticScoringHelp: 'Use AI to score results by semantic relevance',
-  back: 'Back', search: 'Search', searching: 'Searching…',
+  back: 'Back', search: 'Search', searching: 'Searching…', searchFailed: 'Search failed',
 };
 
 const CONFIG: SearchConfig = { limit: 10, useSemanticScoring: true };
@@ -48,6 +48,29 @@ describe('ConfigureSearchStep', () => {
     const { onConfigChange } = renderStep();
     await userEvent.click(screen.getByLabelText(new RegExp(T.semanticScoring)));
     expect(onConfigChange).toHaveBeenCalledWith({ limit: 10, useSemanticScoring: false });
+  });
+
+  it('echoes the hint being steered by, and stays silent without one (GEP P1c, D8)', () => {
+    // The thing the hint steers goes invisible behind the step transition —
+    // one quiet line keeps it visible and advertises that the hint did something.
+    const { container, rerender } = render(
+      <ConfigureSearchStep
+        config={CONFIG} onConfigChange={vi.fn()} onBack={vi.fn()} onSearch={vi.fn()}
+        translations={T}
+        hintEcho={{ label: 'Hint', value: 'the ancient city, not the modern province' }}
+      />,
+    );
+    const echo = container.querySelector('.semiont-wizard__hint-echo');
+    expect(echo).not.toBeNull();
+    expect(echo!.textContent).toContain('the ancient city, not the modern province');
+
+    rerender(
+      <ConfigureSearchStep
+        config={CONFIG} onConfigChange={vi.fn()} onBack={vi.fn()} onSearch={vi.fn()}
+        translations={T}
+      />,
+    );
+    expect(container.querySelector('.semiont-wizard__hint-echo')).toBeNull();
   });
 
   it('submits whatever the owner currently holds, not a default', async () => {

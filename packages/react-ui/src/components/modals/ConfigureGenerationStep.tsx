@@ -35,6 +35,8 @@ export interface GenerationConfig {
 
 export interface ConfigureGenerationStepProps {
   context: GatheredContext;
+  /** Echo of the gather step's hint — the thing being steered stays visible (GEP D8). */
+  hintEcho?: { label: string; value: string };
   /** Owned by the wizard so Back is lossless (WIZARD-NAVIGATION D3). */
   config: GenerationDraft;
   onConfigChange: (config: GenerationDraft) => void;
@@ -73,6 +75,7 @@ export interface ConfigureGenerationStepProps {
 
 export function ConfigureGenerationStep({
   context,
+  hintEcho,
   config,
   onConfigChange,
   onBack,
@@ -128,6 +131,11 @@ export function ConfigureGenerationStep({
 
   return (
     <form onSubmit={handleSubmit} className="semiont-form semiont-form--scrollable">
+      {hintEcho && (
+        <p className="semiont-wizard__hint-echo">
+          {hintEcho.label}: {hintEcho.value}
+        </p>
+      )}
       {/* Resource Title */}
       <div className="semiont-form__field">
         <label htmlFor="wizard-title" className="semiont-form__label">

@@ -9,6 +9,10 @@
       "type": "string",
       "description": "Source resource ID"
     },
+    "resourceName": {
+      "type": "string",
+      "description": "The source resource's display name, resolved from its view at gather time. Required: a match card must name its source, and corpus matches routinely come from outside the graph neighborhood, so there is no node to borrow a name from. A match whose source no longer resolves to a view is dropped by the producer rather than served nameless."
+    },
     "annotationId": {
       "type": "string",
       "description": "Source annotation ID, if the match is from an annotation"
@@ -19,13 +23,20 @@
     },
     "entityTypes": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "Entity types on the matched passage"
     },
     "machineRead": {
       "type": "boolean",
-      "description": "True when this passage's text was recognized from pixels (OCR of a scanned page) rather than read from the document. Absent means read directly — the common case — so the flag is only present where it changes how the text should be trusted. It travels with the passage because a consumer receives the chunk with no document attached and cannot recompute how the text was obtained."
+      "description": "True when this passage's text was recognized from pixels (OCR of a scanned page) rather than read from the document. Absent means read directly \u2014 the common case \u2014 so the flag is only present where it changes how the text should be trusted. It travels with the passage because a consumer receives the chunk with no document attached and cannot recompute how the text was obtained."
     }
   },
-  "required": ["text", "resourceId", "score"]
+  "required": [
+    "text",
+    "resourceId",
+    "resourceName",
+    "score"
+  ]
 }

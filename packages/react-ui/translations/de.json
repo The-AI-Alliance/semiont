@@ -414,7 +414,14 @@
     "progressInProgress": "Wird generiert…",
     "progressComplete": "Generierung abgeschlossen!",
     "progressFailed": "Generierung fehlgeschlagen",
-    "maxLengthCeiling": "Durch {{model}} auf {{maxOutputTokens}} Token begrenzt."
+    "maxLengthCeiling": "Durch {{model}} auf {{maxOutputTokens}} Token begrenzt.",
+    "graphPaneTitle": "Im Graphen",
+    "graphEmpty": "Noch keine Verknüpfungen.",
+    "corpusPaneTitle": "Im Korpus",
+    "corpusEmpty": "Nichts Ähnliches im Korpus.",
+    "excludedReceipt": "{{types}} aus diesem Abruf ausgeschlossen",
+    "machineRead": "OCR",
+    "score": "Bewertung"
   },
   "ReferenceWizard": {
     "gatherTitle": "Gesammelter Kontext",
@@ -450,8 +457,16 @@
     "semanticScoring": "Semantische Bewertung",
     "semanticScoringHelp": "KI zur Bewertung der Ergebnisse nach semantischer Relevanz verwenden",
     "searching": "Suche läuft...",
+    "searchFailed": "Suche fehlgeschlagen",
     "search": "Suchen",
-    "maxLengthCeiling": "Durch {{model}} auf {{maxOutputTokens}} Token begrenzt."
+    "maxLengthCeiling": "Durch {{model}} auf {{maxOutputTokens}} Token begrenzt.",
+    "graphPaneTitle": "Im Graphen",
+    "graphEmpty": "Noch keine Verknüpfungen — das Auflösen dieser Referenz erstellt die erste.",
+    "corpusPaneTitle": "Im Korpus",
+    "corpusEmpty": "Nichts Ähnliches im Korpus — die Suche wird kaum fündig.",
+    "excludedReceipt": "{{types}} aus diesem Abruf ausgeschlossen",
+    "machineRead": "OCR",
+    "userHintEffect": "steuert Suche und Generierung"
   },
   "OutcomeToasts": {
     "createFailed": "Anmerkung konnte nicht erstellt werden: {{detail}}",

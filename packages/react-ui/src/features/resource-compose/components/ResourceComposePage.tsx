@@ -296,7 +296,7 @@ export function ResourceComposePage({
   // Gathered-context panel — annotation-focus only for now.
   const composeFocus = gatheredContext?.focus.kind === 'annotation' ? gatheredContext.focus : null;
   const composeConnections = gatheredContext && composeFocus
-    ? deriveViews(gatheredContext.graph, String(composeFocus.sourceResource.id)).connections
+    ? deriveViews(gatheredContext.graph, composeFocus.sourceResource['@id']).connections
     : [];
 
   return (

@@ -108,6 +108,7 @@ describe('WizardFooter', () => {
 const SEARCH_T = {
   maxResults: 'Max Results', semanticScoring: 'Semantic Scoring',
   semanticScoringHelp: 'help', back: 'Back', search: 'Search', searching: 'Searching…',
+  searchFailed: 'Search failed',
 };
 
 const GEN_T = {
@@ -120,6 +121,7 @@ const GEN_T = {
 
 const CONTEXT_T = {
   sourceContextLabel: 'Source', connectionsLabel: 'Connections', citedByLabel: 'Cited by',
+  graphPaneTitle: 'In the graph', graphEmpty: 'No links yet.',
 };
 
 const GATHER_T = {
@@ -130,7 +132,7 @@ const GATHER_T = {
 const RESULTS_T = { noResults: 'None', score: 'Score', link: 'Link', back: 'Back', ...CONTEXT_T };
 
 const CONTEXT = {
-  focus: { kind: 'annotation', annotation: { id: 'a1' }, sourceResource: { id: 'r1', name: 'Src' } },
+  focus: { kind: 'annotation', annotation: { id: 'a1' }, sourceResource: { '@id': 'r1', name: 'Src' } },
   // `graph` is not optional in practice: ContextSummary hands it straight to
   // `deriveViews`, which dereferences `.nodes`.
   graph: { nodes: [], edges: [] },
@@ -212,10 +214,15 @@ describe('the resolution chooser (GatherContextStep) — the named exception', (
     onCompose: vi.fn(),
     translations: {
       search: 'Search', generate: 'Generate', compose: 'Compose',
-      resolutionStrategyLabel: 'Strategy', userHintLabel: 'Hint', userHintPlaceholder: '',
+      resolutionStrategyLabel: 'Strategy', userHintLabel: 'Hint',
+      userHintEffect: 'steers Search and Generate', userHintPlaceholder: '',
     },
   };
-  const DISPLAY_T = { loadingContext: 'Loading…', failedContext: 'Failed', ...CONTEXT_T };
+  const DISPLAY_T = {
+    loadingContext: 'Loading…', failedContext: 'Failed', ...CONTEXT_T,
+    corpusPaneTitle: 'In the corpus', corpusEmpty: 'Nothing similar.',
+    excludedReceipt: '{{types}} excluded', machineRead: 'OCR', score: 'Score',
+  };
 
   const chooserButtons = (container: HTMLElement) =>
     Array.from(container.querySelectorAll('.semiont-gather__actions button'));

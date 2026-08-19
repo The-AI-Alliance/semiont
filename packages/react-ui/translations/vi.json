@@ -414,7 +414,14 @@
     "progressInProgress": "Đang tạo sinh…",
     "progressComplete": "Tạo sinh hoàn tất!",
     "progressFailed": "Tạo sinh thất bại",
-    "maxLengthCeiling": "Giới hạn {{maxOutputTokens}} token bởi {{model}}."
+    "maxLengthCeiling": "Giới hạn {{maxOutputTokens}} token bởi {{model}}.",
+    "graphPaneTitle": "Trong đồ thị",
+    "graphEmpty": "Chưa có liên kết.",
+    "corpusPaneTitle": "Trong kho ngữ liệu",
+    "corpusEmpty": "Không có gì tương tự trong kho ngữ liệu.",
+    "excludedReceipt": "{{types}} bị loại khỏi lần truy hồi này",
+    "machineRead": "OCR",
+    "score": "Điểm"
   },
   "ReferenceWizard": {
     "gatherTitle": "Ngữ cảnh đã thu thập",
@@ -450,8 +457,16 @@
     "semanticScoring": "Chấm điểm Ngữ nghĩa",
     "semanticScoringHelp": "Sử dụng AI để chấm điểm kết quả theo mức độ liên quan ngữ nghĩa",
     "searching": "Đang tìm kiếm...",
+    "searchFailed": "Tìm kiếm thất bại",
     "search": "Tìm kiếm",
-    "maxLengthCeiling": "Giới hạn {{maxOutputTokens}} token bởi {{model}}."
+    "maxLengthCeiling": "Giới hạn {{maxOutputTokens}} token bởi {{model}}.",
+    "graphPaneTitle": "Trong đồ thị",
+    "graphEmpty": "Chưa có liên kết — giải quyết tham chiếu này sẽ tạo liên kết đầu tiên.",
+    "corpusPaneTitle": "Trong kho ngữ liệu",
+    "corpusEmpty": "Không có gì tương tự trong kho ngữ liệu — tìm kiếm khó có kết quả.",
+    "excludedReceipt": "{{types}} bị loại khỏi lần truy hồi này",
+    "machineRead": "OCR",
+    "userHintEffect": "dẫn hướng tìm kiếm và tạo sinh"
   },
   "OutcomeToasts": {
     "createFailed": "Không thể tạo chú thích: {{detail}}",

@@ -414,7 +414,14 @@
     "progressInProgress": "正在生成…",
     "progressComplete": "生成完成！",
     "progressFailed": "生成失败",
-    "maxLengthCeiling": "受 {{model}} 限制为 {{maxOutputTokens}} 个词元。"
+    "maxLengthCeiling": "受 {{model}} 限制为 {{maxOutputTokens}} 个词元。",
+    "graphPaneTitle": "图谱中",
+    "graphEmpty": "尚无链接。",
+    "corpusPaneTitle": "语料库中",
+    "corpusEmpty": "语料库中没有相似内容。",
+    "excludedReceipt": "{{types}} 已从本次召回中排除",
+    "machineRead": "OCR",
+    "score": "评分"
   },
   "ReferenceWizard": {
     "gatherTitle": "已收集的上下文",
@@ -450,8 +457,16 @@
     "semanticScoring": "语义评分",
     "semanticScoringHelp": "使用 AI 按语义相关性对结果进行评分",
     "searching": "搜索中...",
+    "searchFailed": "搜索失败",
     "search": "搜索",
-    "maxLengthCeiling": "受 {{model}} 限制为 {{maxOutputTokens}} 个词元。"
+    "maxLengthCeiling": "受 {{model}} 限制为 {{maxOutputTokens}} 个词元。",
+    "graphPaneTitle": "图谱中",
+    "graphEmpty": "尚无链接 — 解析此引用将创建第一个。",
+    "corpusPaneTitle": "语料库中",
+    "corpusEmpty": "语料库中没有相似内容 — 搜索不太可能命中。",
+    "excludedReceipt": "{{types}} 已从本次召回中排除",
+    "machineRead": "OCR",
+    "userHintEffect": "引导搜索与生成"
   },
   "OutcomeToasts": {
     "createFailed": "无法创建批注：{{detail}}",

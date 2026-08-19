@@ -414,7 +414,14 @@
     "progressInProgress": "Παραγωγή…",
     "progressComplete": "Η παραγωγή ολοκληρώθηκε!",
     "progressFailed": "Η παραγωγή απέτυχε",
-    "maxLengthCeiling": "Περιορισμένο σε {{maxOutputTokens}} tokens από το {{model}}."
+    "maxLengthCeiling": "Περιορισμένο σε {{maxOutputTokens}} tokens από το {{model}}.",
+    "graphPaneTitle": "Στον γράφο",
+    "graphEmpty": "Καμία σύνδεση ακόμη.",
+    "corpusPaneTitle": "Στο σώμα κειμένων",
+    "corpusEmpty": "Τίποτα παρόμοιο στο σώμα κειμένων.",
+    "excludedReceipt": "{{types}} εξαιρέθηκαν από αυτήν την ανάκληση",
+    "machineRead": "OCR",
+    "score": "Βαθμολογία"
   },
   "ReferenceWizard": {
     "gatherTitle": "Συλλεγμένο Πλαίσιο",
@@ -450,8 +457,16 @@
     "semanticScoring": "Σημασιολογική Βαθμολόγηση",
     "semanticScoringHelp": "Χρήση AI για βαθμολόγηση αποτελεσμάτων κατά σημασιολογική συνάφεια",
     "searching": "Αναζήτηση...",
+    "searchFailed": "Η αναζήτηση απέτυχε",
     "search": "Αναζήτηση",
-    "maxLengthCeiling": "Περιορισμένο σε {{maxOutputTokens}} tokens από το {{model}}."
+    "maxLengthCeiling": "Περιορισμένο σε {{maxOutputTokens}} tokens από το {{model}}.",
+    "graphPaneTitle": "Στον γράφο",
+    "graphEmpty": "Καμία σύνδεση ακόμη — η επίλυση αυτής της αναφοράς δημιουργεί την πρώτη.",
+    "corpusPaneTitle": "Στο σώμα κειμένων",
+    "corpusEmpty": "Τίποτα παρόμοιο στο σώμα κειμένων — η αναζήτηση μάλλον δεν θα αποδώσει.",
+    "excludedReceipt": "{{types}} εξαιρέθηκαν από αυτήν την ανάκληση",
+    "machineRead": "OCR",
+    "userHintEffect": "κατευθύνει την αναζήτηση και τη δημιουργία"
   },
   "OutcomeToasts": {
     "createFailed": "Δεν ήταν δυνατή η δημιουργία του σχολιασμού: {{detail}}",

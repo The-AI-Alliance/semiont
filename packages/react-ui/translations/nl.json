@@ -414,7 +414,14 @@
     "progressInProgress": "Genereren…",
     "progressComplete": "Generatie voltooid!",
     "progressFailed": "Generatie mislukt",
-    "maxLengthCeiling": "Beperkt tot {{maxOutputTokens}} tokens door {{model}}."
+    "maxLengthCeiling": "Beperkt tot {{maxOutputTokens}} tokens door {{model}}.",
+    "graphPaneTitle": "In de graaf",
+    "graphEmpty": "Nog geen koppelingen.",
+    "corpusPaneTitle": "In het corpus",
+    "corpusEmpty": "Niets vergelijkbaars in het corpus.",
+    "excludedReceipt": "{{types}} uitgesloten van deze zoekronde",
+    "machineRead": "OCR",
+    "score": "Score"
   },
   "ReferenceWizard": {
     "gatherTitle": "Verzamelde context",
@@ -450,8 +457,16 @@
     "semanticScoring": "Semantische beoordeling",
     "semanticScoringHelp": "Gebruik AI om resultaten te beoordelen op semantische relevantie",
     "searching": "Zoeken...",
+    "searchFailed": "Zoeken mislukt",
     "search": "Zoeken",
-    "maxLengthCeiling": "Beperkt tot {{maxOutputTokens}} tokens door {{model}}."
+    "maxLengthCeiling": "Beperkt tot {{maxOutputTokens}} tokens door {{model}}.",
+    "graphPaneTitle": "In de graaf",
+    "graphEmpty": "Nog geen koppelingen — deze referentie oplossen maakt de eerste.",
+    "corpusPaneTitle": "In het corpus",
+    "corpusEmpty": "Niets vergelijkbaars in het corpus — zoeken levert waarschijnlijk niets op.",
+    "excludedReceipt": "{{types}} uitgesloten van deze zoekronde",
+    "machineRead": "OCR",
+    "userHintEffect": "stuurt zoeken en genereren"
   },
   "OutcomeToasts": {
     "createFailed": "Kon de annotatie niet maken: {{detail}}",

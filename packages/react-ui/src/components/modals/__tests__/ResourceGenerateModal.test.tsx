@@ -18,7 +18,7 @@ import type { GenerationConfig } from '../ConfigureGenerationStep';
 import { ResourceGenerateModal } from '../ResourceGenerateModal';
 
 const RESOURCE_CONTEXT = {
-  focus: { kind: 'resource', resource: { id: 'res-1', name: 'My Resource' }, summary: 'A short summary' },
+  focus: { kind: 'resource', resource: { '@id': 'res-1', name: 'My Resource' }, summary: 'A short summary' },
   graph: { nodes: [{ id: 'res-1', type: 'resource', label: 'My Resource' }], edges: [] },
   metadata: {},
 } as unknown as GatheredContext;
@@ -41,6 +41,13 @@ const T = {
   sourceContextLabel: 'Resource',
   connectionsLabel: 'Connections',
   citedByLabel: 'Cited by',
+  graphPaneTitle: 'In the graph',
+  graphEmpty: 'No links yet.',
+  corpusPaneTitle: 'In the corpus',
+  corpusEmpty: 'Nothing similar in the corpus.',
+  excludedReceipt: '{{types}} excluded from this recall',
+  machineRead: 'OCR',
+  score: 'Score',
   resourceTitle: 'New resource title',
   resourceTitlePlaceholder: 'Title…',
   additionalInstructions: 'Additional Instructions',
@@ -217,6 +224,13 @@ describe('ResourceGenerateModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /Gather/ })); // → review
     fireEvent.click(screen.getByRole('button', { name: /Next/ }));   // → configure-generation
     expect(screen.getByLabelText('New resource title')).toHaveValue('PB');
+  });
+
+  it('the panel carries the widened class (GEP P2, D2)', () => {
+    const { baseElement } = renderModal();
+    const panel = baseElement.querySelector('.semiont-search-modal__panel--gather');
+    expect(panel).not.toBeNull();
+    expect(panel!.className).toContain('semiont-search-modal__panel--wide');
   });
 
   it('every footer is the wizard footer — no dismissal, no flex (GFR A5)', () => {

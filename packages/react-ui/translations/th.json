@@ -414,7 +414,14 @@
     "progressInProgress": "กำลังสร้าง…",
     "progressComplete": "การสร้างเสร็จสมบูรณ์!",
     "progressFailed": "การสร้างล้มเหลว",
-    "maxLengthCeiling": "จำกัดที่ {{maxOutputTokens}} โทเค็นโดย {{model}}"
+    "maxLengthCeiling": "จำกัดที่ {{maxOutputTokens}} โทเค็นโดย {{model}}",
+    "graphPaneTitle": "ในกราฟ",
+    "graphEmpty": "ยังไม่มีลิงก์",
+    "corpusPaneTitle": "ในคลังข้อความ",
+    "corpusEmpty": "ไม่มีสิ่งที่คล้ายกันในคลังข้อความ",
+    "excludedReceipt": "{{types}} ถูกยกเว้นจากการเรียกคืนนี้",
+    "machineRead": "OCR",
+    "score": "คะแนน"
   },
   "ReferenceWizard": {
     "gatherTitle": "บริบทที่รวบรวมแล้ว",
@@ -450,8 +457,16 @@
     "semanticScoring": "การให้คะแนนเชิงความหมาย",
     "semanticScoringHelp": "ใช้ AI เพื่อให้คะแนนผลลัพธ์ตามความเกี่ยวข้องเชิงความหมาย",
     "searching": "กำลังค้นหา...",
+    "searchFailed": "การค้นหาล้มเหลว",
     "search": "ค้นหา",
-    "maxLengthCeiling": "จำกัดที่ {{maxOutputTokens}} โทเค็นโดย {{model}}"
+    "maxLengthCeiling": "จำกัดที่ {{maxOutputTokens}} โทเค็นโดย {{model}}",
+    "graphPaneTitle": "ในกราฟ",
+    "graphEmpty": "ยังไม่มีลิงก์ — การแก้ไขการอ้างอิงนี้จะสร้างลิงก์แรก",
+    "corpusPaneTitle": "ในคลังข้อความ",
+    "corpusEmpty": "ไม่มีสิ่งที่คล้ายกันในคลังข้อความ — การค้นหาไม่น่าจะได้ผล",
+    "excludedReceipt": "{{types}} ถูกยกเว้นจากการเรียกคืนนี้",
+    "machineRead": "OCR",
+    "userHintEffect": "กำกับการค้นหาและการสร้าง"
   },
   "OutcomeToasts": {
     "createFailed": "สร้างคำอธิบายประกอบไม่สำเร็จ: {{detail}}",

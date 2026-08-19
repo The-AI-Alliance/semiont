@@ -30,6 +30,13 @@ export interface ResourceGenerateModalTranslations {
   sourceContextLabel: string;
   connectionsLabel: string;
   citedByLabel: string;
+  graphPaneTitle: string;
+  graphEmpty: string;
+  corpusPaneTitle: string;
+  corpusEmpty: string;
+  excludedReceipt: string;
+  machineRead: string;
+  score: string;
   // ConfigureGenerationStep
   resourceTitle: string;
   resourceTitlePlaceholder: string;
@@ -184,7 +191,7 @@ export function ResourceGenerateModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <DialogPanel className="semiont-search-modal__panel semiont-search-modal__panel--with-border semiont-search-modal__panel--gather">
+              <DialogPanel className="semiont-search-modal__panel semiont-search-modal__panel--with-border semiont-search-modal__panel--gather semiont-search-modal__panel--wide">
                 <div className="semiont-search-modal__header">
                   <DialogTitle className="semiont-search-modal__title">{stepTitle}</DialogTitle>
                   <button onClick={onClose} className="semiont-search-modal__close-button" aria-label="Close">
@@ -242,6 +249,13 @@ export function ResourceGenerateModal({
                         sourceContextLabel: t.sourceContextLabel,
                         connectionsLabel: t.connectionsLabel,
                         citedByLabel: t.citedByLabel,
+                        graphPaneTitle: t.graphPaneTitle,
+                        graphEmpty: t.graphEmpty,
+                        corpusPaneTitle: t.corpusPaneTitle,
+                        corpusEmpty: t.corpusEmpty,
+                        excludedReceipt: t.excludedReceipt,
+                        machineRead: t.machineRead,
+                        score: t.score,
                       }}
                     />
                     <WizardFooter

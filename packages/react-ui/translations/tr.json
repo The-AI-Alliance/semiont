@@ -414,7 +414,14 @@
     "progressInProgress": "Oluşturuluyor…",
     "progressComplete": "Oluşturma tamamlandı!",
     "progressFailed": "Oluşturma başarısız oldu",
-    "maxLengthCeiling": "{{model}} tarafından {{maxOutputTokens}} belirteçle sınırlı."
+    "maxLengthCeiling": "{{model}} tarafından {{maxOutputTokens}} belirteçle sınırlı.",
+    "graphPaneTitle": "Grafta",
+    "graphEmpty": "Henüz bağlantı yok.",
+    "corpusPaneTitle": "Derlemde",
+    "corpusEmpty": "Derlemde benzer bir şey yok.",
+    "excludedReceipt": "{{types}} bu getirimden hariç tutuldu",
+    "machineRead": "OCR",
+    "score": "Puan"
   },
   "ReferenceWizard": {
     "gatherTitle": "Toplanan Bağlam",
@@ -450,8 +457,16 @@
     "semanticScoring": "Anlamsal Puanlama",
     "semanticScoringHelp": "Sonuçları anlamsal alaka düzeyine göre puanlamak için yapay zeka kullanın",
     "searching": "Aranıyor...",
+    "searchFailed": "Arama başarısız oldu",
     "search": "Ara",
-    "maxLengthCeiling": "{{model}} tarafından {{maxOutputTokens}} belirteçle sınırlı."
+    "maxLengthCeiling": "{{model}} tarafından {{maxOutputTokens}} belirteçle sınırlı.",
+    "graphPaneTitle": "Grafta",
+    "graphEmpty": "Henüz bağlantı yok — bu referansı çözmek ilkini oluşturur.",
+    "corpusPaneTitle": "Derlemde",
+    "corpusEmpty": "Derlemde benzer bir şey yok — aramanın sonuç vermesi olası değil.",
+    "excludedReceipt": "{{types}} bu getirimden hariç tutuldu",
+    "machineRead": "OCR",
+    "userHintEffect": "aramayı ve üretimi yönlendirir"
   },
   "OutcomeToasts": {
     "createFailed": "Açıklama oluşturulamadı: {{detail}}",

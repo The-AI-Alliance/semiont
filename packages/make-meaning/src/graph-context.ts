@@ -192,21 +192,34 @@ export class GraphContext {
       edges.push({ source: mainId, target: peerId, type: conn.relationshipType || 'link', bidirectional: conn.bidirectional });
     }
 
-    // Inbound citations → citing-resource nodes + `citation` edges (citing → main)
+    // Inbound citations: the linking annotation IS the citation's graph
+    // presence (D12) — an annotation node embedding the full W3C object,
+    // anchored by `annotation-of` → its citing resource and `cites` → the
+    // focal resource. Every citing annotation is emitted; the citedBy view
+    // dedupes per citing resource in `deriveViews`. The citing resource stays
+    // a node (added once), labeled by its raw id when its view is missing —
+    // a real reference event is kept either way (Option A).
     const citedSeen = new Set<string>();
     for (const ann of referencedBy) {
       const source = getTargetSource(ann.target);
-      if (!source || source === String(resourceId) || citedSeen.has(source)) continue;
-      citedSeen.add(source);
-      const view = await kb.views.get(createResourceId(source));
-      addResourceNode(source, view?.resource?.name ?? source, view?.resource ? getResourceEntityTypes(view.resource) : []);
-      edges.push({ source, target: mainId, type: 'citation' });
+      if (!source || source === String(resourceId) || !ann.id || seen.has(ann.id)) continue;
+      if (!citedSeen.has(source)) {
+        citedSeen.add(source);
+        const view = await kb.views.get(createResourceId(source));
+        addResourceNode(source, view?.resource?.name ?? source, view?.resource ? getResourceEntityTypes(view.resource) : []);
+      }
+      nodes.push({ id: ann.id, type: 'annotation', label: ann.motivation ?? 'annotation', entityTypes: getEntityTypes(ann), annotation: ann });
+      seen.add(ann.id);
+      edges.push({ source: ann.id, target: source, type: 'annotation-of' });
+      edges.push({ source: ann.id, target: mainId, type: 'cites' });
     }
 
-    // Annotations on this resource → annotation nodes + `annotation-of` edges
+    // Annotations on this resource → annotation nodes + `annotation-of` edges.
+    // Embedded whole (D11): the node is the annotation, selectors and body
+    // included, so a client can place it without a second fetch.
     for (const ann of annotations) {
       if (!ann.id || seen.has(ann.id)) continue;
-      nodes.push({ id: ann.id, type: 'annotation', label: ann.motivation ?? 'annotation', entityTypes: getEntityTypes(ann) });
+      nodes.push({ id: ann.id, type: 'annotation', label: ann.motivation ?? 'annotation', entityTypes: getEntityTypes(ann), annotation: ann });
       seen.add(ann.id);
       edges.push({ source: ann.id, target: mainId, type: 'annotation-of' });
     }

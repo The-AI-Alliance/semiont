@@ -58,7 +58,14 @@ export interface ReferenceWizardModalProps {
     sourceContextLabel: string;
     connectionsLabel: string;
     citedByLabel: string;
+    graphPaneTitle: string;
+    graphEmpty: string;
+    corpusPaneTitle: string;
+    corpusEmpty: string;
+    excludedReceipt: string;
+    machineRead: string;
     userHintLabel: string;
+    userHintEffect: string;
     userHintPlaceholder: string;
     loadingContext: string;
     failedContext: string;
@@ -86,6 +93,7 @@ export interface ReferenceWizardModalProps {
     maxResults: string;
     semanticScoring: string;
     semanticScoringHelp: string;
+    searchFailed: string;
   };
 }
 
@@ -117,6 +125,7 @@ export function ReferenceWizardModal({
     temperature: 0.7, maxTokensText: '500',
   });
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [userHint, setUserHint] = useState('');
 
   // Reset to gather step when modal opens
@@ -129,6 +138,7 @@ export function ReferenceWizardModal({
         temperature: 0.7, maxTokensText: '500',
       });
       setIsSearching(false);
+      setSearchError(null);
       setUserHint('');
     }
   }, [isOpen]);
@@ -139,6 +149,17 @@ export function ReferenceWizardModal({
     if (annotationId && event.referenceId === annotationId) {
       setIsSearching(false);
       setWizardStep({ step: 'search-results', results: event.response as ScoredResult[] });
+    }
+  });
+
+  // …and to failures, same scoping. A refused emit (/bus/emit 4xx), a matcher
+  // error, and the match unit's timeout all land here — without this
+  // subscription every one of them left the button on "Searching…" forever.
+  useEventSubscription('match:search-failed', (event) => {
+    if (!isOpen) return;
+    if (annotationId && event.referenceId === annotationId) {
+      setIsSearching(false);
+      setSearchError(event.error);
     }
   });
 
@@ -184,6 +205,7 @@ export function ReferenceWizardModal({
   const handleSearchSubmit = useCallback((config: SearchConfig) => {
     if (!annotationId || !contextWithHint || !resourceId) return;
     setIsSearching(true);
+    setSearchError(null);
     session?.client.match.requestSearch({
       correlationId: uuidV4(),
       resourceId,
@@ -242,7 +264,7 @@ export function ReferenceWizardModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <DialogPanel className={`semiont-search-modal__panel semiont-search-modal__panel--with-border${wizardStep.step === 'search-results' ? ' semiont-search-modal__panel--wide' : ''}${wizardStep.step === 'gather' ? ' semiont-search-modal__panel--gather' : ''}`}>
+              <DialogPanel className={`semiont-search-modal__panel semiont-search-modal__panel--with-border${wizardStep.step === 'search-results' ? ' semiont-search-modal__panel--wide' : ''}${wizardStep.step === 'gather' ? ' semiont-search-modal__panel--gather semiont-search-modal__panel--wide' : ''}`}>
                 <div className="semiont-search-modal__header">
                   <DialogTitle className="semiont-search-modal__title">
                     {stepTitle}
@@ -273,6 +295,7 @@ export function ReferenceWizardModal({
                         compose: t.compose,
                         resolutionStrategyLabel: t.resolutionStrategyLabel,
                         userHintLabel: t.userHintLabel,
+                        userHintEffect: t.userHintEffect,
                         userHintPlaceholder: t.userHintPlaceholder,
                       },
                     }}
@@ -282,6 +305,13 @@ export function ReferenceWizardModal({
                       sourceContextLabel: t.sourceContextLabel,
                       connectionsLabel: t.connectionsLabel,
                       citedByLabel: t.citedByLabel,
+                      graphPaneTitle: t.graphPaneTitle,
+                      graphEmpty: t.graphEmpty,
+                      corpusPaneTitle: t.corpusPaneTitle,
+                      corpusEmpty: t.corpusEmpty,
+                      excludedReceipt: t.excludedReceipt,
+                      machineRead: t.machineRead,
+                      score: t.score,
                     }}
                   />
                 )}
@@ -289,6 +319,7 @@ export function ReferenceWizardModal({
                 {wizardStep.step === 'configure-generation' && context && (
                   <ConfigureGenerationStep
                     {...(generationAgent ? { generationAgent } : {})}
+                    {...(userHint ? { hintEcho: { label: t.userHintLabel, value: userHint } } : {})}
                     context={contextWithHint ?? context}
                     config={generationDraft}
                     onConfigChange={setGenerationDraft}
@@ -316,8 +347,10 @@ export function ReferenceWizardModal({
                 {wizardStep.step === 'configure-search' && (
                   <ConfigureSearchStep
                     config={searchConfig}
+                    {...(userHint ? { hintEcho: { label: t.userHintLabel, value: userHint } } : {})}
                     onConfigChange={setSearchConfig}
                     isSearching={isSearching}
+                    searchError={searchError}
                     onBack={handleBackToGather}
                     onSearch={handleSearchSubmit}
                     translations={{
@@ -327,6 +360,7 @@ export function ReferenceWizardModal({
                       back: t.back,
                       search: t.search,
                       searching: t.searching,
+                      searchFailed: t.searchFailed,
                     }}
                   />
                 )}
@@ -345,6 +379,8 @@ export function ReferenceWizardModal({
                       sourceContextLabel: t.sourceContextLabel,
                       connectionsLabel: t.connectionsLabel,
                       citedByLabel: t.citedByLabel,
+                      graphPaneTitle: t.graphPaneTitle,
+                      graphEmpty: t.graphEmpty,
                     }}
                   />
                 )}

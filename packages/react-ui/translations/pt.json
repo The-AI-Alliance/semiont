@@ -414,7 +414,14 @@
     "progressInProgress": "Gerando…",
     "progressComplete": "Geração concluída!",
     "progressFailed": "A geração falhou",
-    "maxLengthCeiling": "Limitado a {{maxOutputTokens}} tokens por {{model}}."
+    "maxLengthCeiling": "Limitado a {{maxOutputTokens}} tokens por {{model}}.",
+    "graphPaneTitle": "No grafo",
+    "graphEmpty": "Ainda sem ligações.",
+    "corpusPaneTitle": "No corpus",
+    "corpusEmpty": "Nada semelhante no corpus.",
+    "excludedReceipt": "{{types}} excluídos desta recuperação",
+    "machineRead": "OCR",
+    "score": "Pontuação"
   },
   "ReferenceWizard": {
     "gatherTitle": "Contexto Coletado",
@@ -450,8 +457,16 @@
     "semanticScoring": "Pontuação Semântica",
     "semanticScoringHelp": "Usar IA para pontuar resultados por relevância semântica",
     "searching": "Pesquisando...",
+    "searchFailed": "Falha na pesquisa",
     "search": "Pesquisar",
-    "maxLengthCeiling": "Limitado a {{maxOutputTokens}} tokens por {{model}}."
+    "maxLengthCeiling": "Limitado a {{maxOutputTokens}} tokens por {{model}}.",
+    "graphPaneTitle": "No grafo",
+    "graphEmpty": "Ainda sem ligações — resolver esta referência cria a primeira.",
+    "corpusPaneTitle": "No corpus",
+    "corpusEmpty": "Nada semelhante no corpus — a busca dificilmente terá resultado.",
+    "excludedReceipt": "{{types}} excluídos desta recuperação",
+    "machineRead": "OCR",
+    "userHintEffect": "orienta a busca e a geração"
   },
   "OutcomeToasts": {
     "createFailed": "Não foi possível criar a anotação: {{detail}}",

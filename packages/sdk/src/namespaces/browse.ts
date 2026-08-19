@@ -491,7 +491,9 @@ export class BrowseNamespace implements IBrowseNamespace {
     // arrival — however the user got here — so a remote listener (the tour
     // guide's `semiont listen`) can branch on it. Deliberately a different
     // channel from the imperative `browse:resource-open` (GUIDED-TOUR D6).
-    void this.transport.emit('browse:resource-viewed', { resourceId });
+    // Best-effort: a refused/failed emit (transport rejects on non-2xx and on
+    // network failure) must not surface as an unhandled rejection.
+    this.transport.emit('browse:resource-viewed', { resourceId }).catch(() => {});
   }
 
   // ── Cache-mutation API (used by the bus-event subscribers below and by

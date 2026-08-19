@@ -61,11 +61,18 @@ describe('GatheredContext — unified shape (P1)', () => {
     expect(ctx.metadata?.entityTypeFrequencies?.Person).toBe(3);
   });
 
-  it('KnowledgeGraph nodes use the resource|annotation enum and optional metadata', () => {
+  it('KnowledgeGraph nodes are the discriminated resource|annotation union (D12)', () => {
     const g: KnowledgeGraph = {
       nodes: [
         { id: 'r-1', type: 'resource', label: 'R' },
-        { id: 'a-1', type: 'annotation', label: 'A', entityTypes: ['Person'] },
+        {
+          id: 'a-1', type: 'annotation', label: 'A', entityTypes: ['Person'],
+          annotation: {
+            '@context': 'http://www.w3.org/ns/anno.jsonld',
+            type: 'Annotation', id: 'a-1', motivation: 'commenting',
+            target: { source: 'r-1' },
+          },
+        },
       ],
       edges: [{ source: 'a-1', target: 'r-1', type: 'annotation-of', bidirectional: false }],
     };

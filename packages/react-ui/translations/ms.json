@@ -414,7 +414,14 @@
     "progressInProgress": "Menjana…",
     "progressComplete": "Penjanaan selesai!",
     "progressFailed": "Penjanaan gagal",
-    "maxLengthCeiling": "Dihadkan kepada {{maxOutputTokens}} token oleh {{model}}."
+    "maxLengthCeiling": "Dihadkan kepada {{maxOutputTokens}} token oleh {{model}}.",
+    "graphPaneTitle": "Dalam graf",
+    "graphEmpty": "Belum ada pautan.",
+    "corpusPaneTitle": "Dalam korpus",
+    "corpusEmpty": "Tiada yang serupa dalam korpus.",
+    "excludedReceipt": "{{types}} dikecualikan daripada dapatan ini",
+    "machineRead": "OCR",
+    "score": "Skor"
   },
   "ReferenceWizard": {
     "gatherTitle": "Konteks Dikumpul",
@@ -450,8 +457,16 @@
     "semanticScoring": "Pemarkahan Semantik",
     "semanticScoringHelp": "Gunakan AI untuk menilai hasil mengikut kerelevanan semantik",
     "searching": "Mencari...",
+    "searchFailed": "Carian gagal",
     "search": "Cari",
-    "maxLengthCeiling": "Dihadkan kepada {{maxOutputTokens}} token oleh {{model}}."
+    "maxLengthCeiling": "Dihadkan kepada {{maxOutputTokens}} token oleh {{model}}.",
+    "graphPaneTitle": "Dalam graf",
+    "graphEmpty": "Belum ada pautan — menyelesaikan rujukan ini mencipta yang pertama.",
+    "corpusPaneTitle": "Dalam korpus",
+    "corpusEmpty": "Tiada yang serupa dalam korpus — carian mungkin tidak berhasil.",
+    "excludedReceipt": "{{types}} dikecualikan daripada dapatan ini",
+    "machineRead": "OCR",
+    "userHintEffect": "memandu carian dan penjanaan"
   },
   "OutcomeToasts": {
     "createFailed": "Tidak dapat mencipta anotasi: {{detail}}",

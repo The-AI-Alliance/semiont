@@ -414,7 +414,14 @@
     "progressInProgress": "جارٍ التوليد…",
     "progressComplete": "اكتمل التوليد!",
     "progressFailed": "فشل التوليد",
-    "maxLengthCeiling": "محدود بـ {{maxOutputTokens}} رمزًا بواسطة {{model}}."
+    "maxLengthCeiling": "محدود بـ {{maxOutputTokens}} رمزًا بواسطة {{model}}.",
+    "graphPaneTitle": "في الرسم البياني",
+    "graphEmpty": "لا روابط بعد.",
+    "corpusPaneTitle": "في المتن",
+    "corpusEmpty": "لا شيء مشابه في المتن.",
+    "excludedReceipt": "استُبعد {{types}} من هذا الاسترجاع",
+    "machineRead": "OCR",
+    "score": "درجة"
   },
   "ReferenceWizard": {
     "gatherTitle": "السياق المُجمَّع",
@@ -450,8 +457,16 @@
     "semanticScoring": "التقييم الدلالي",
     "semanticScoringHelp": "استخدام الذكاء الاصطناعي لتقييم النتائج حسب الصلة الدلالية",
     "searching": "جاري البحث...",
+    "searchFailed": "فشل البحث",
     "search": "بحث",
-    "maxLengthCeiling": "محدود بـ {{maxOutputTokens}} رمزًا بواسطة {{model}}."
+    "maxLengthCeiling": "محدود بـ {{maxOutputTokens}} رمزًا بواسطة {{model}}.",
+    "graphPaneTitle": "في الرسم البياني",
+    "graphEmpty": "لا روابط بعد — حلّ هذه الإشارة ينشئ أول رابط.",
+    "corpusPaneTitle": "في المتن",
+    "corpusEmpty": "لا شيء مشابه في المتن — البحث غير مرجّح أن ينجح.",
+    "excludedReceipt": "استُبعد {{types}} من هذا الاسترجاع",
+    "machineRead": "OCR",
+    "userHintEffect": "يوجّه البحث والتوليد"
   },
   "OutcomeToasts": {
     "createFailed": "تعذّر إنشاء التعليق التوضيحي: {{detail}}",
