@@ -457,6 +457,7 @@
     "semanticScoring": "অর্থগত স্কোরিং",
     "semanticScoringHelp": "অর্থগত প্রাসঙ্গিকতা অনুযায়ী ফলাফল স্কোর করতে AI ব্যবহার করুন",
     "searching": "অনুসন্ধান করা হচ্ছে...",
+    "searchFailed": "অনুসন্ধান ব্যর্থ হয়েছে",
     "search": "অনুসন্ধান",
     "maxLengthCeiling": "{{model}} দ্বারা {{maxOutputTokens}} টোকেনে সীমিত।",
     "graphPaneTitle": "গ্রাফে",

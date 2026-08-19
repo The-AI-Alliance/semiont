@@ -457,6 +457,7 @@
     "semanticScoring": "의미 기반 점수",
     "semanticScoringHelp": "AI를 사용하여 의미적 관련성에 따라 결과 점수 부여",
     "searching": "검색 중...",
+    "searchFailed": "검색 실패",
     "search": "검색",
     "maxLengthCeiling": "{{model}}에 의해 {{maxOutputTokens}} 토큰으로 제한됩니다.",
     "graphPaneTitle": "그래프에서",

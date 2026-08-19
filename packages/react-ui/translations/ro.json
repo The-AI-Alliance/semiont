@@ -457,6 +457,7 @@
     "semanticScoring": "Evaluare Semantică",
     "semanticScoringHelp": "Folosiți AI pentru a evalua rezultatele după relevanța semantică",
     "searching": "Se caută...",
+    "searchFailed": "Căutarea a eșuat",
     "search": "Caută",
     "maxLengthCeiling": "Limitat la {{maxOutputTokens}} tokenuri de {{model}}.",
     "graphPaneTitle": "În graf",

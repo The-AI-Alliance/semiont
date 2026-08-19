@@ -457,6 +457,7 @@
     "semanticScoring": "Sémantické hodnocení",
     "semanticScoringHelp": "Použít AI k hodnocení výsledků podle sémantické relevance",
     "searching": "Vyhledávání...",
+    "searchFailed": "Vyhledávání selhalo",
     "search": "Hledat",
     "maxLengthCeiling": "Omezeno na {{maxOutputTokens}} tokenů modelem {{model}}.",
     "graphPaneTitle": "V grafu",

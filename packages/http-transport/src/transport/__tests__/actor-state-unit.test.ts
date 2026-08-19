@@ -143,6 +143,32 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
+  it('emit REJECTS on a non-2xx response — a refused emit must not read as success', async () => {
+    // The backend 400s an emit that fails request validation (e.g. a
+    // MatchSearchRequest whose embedded annotations are malformed —
+    // .plans/bugs/match-search-hangs-on-neo4j-datetime-annotations.md).
+    // Resolving `-1` here swallows the refusal: the busRequest caller keeps
+    // waiting for a reply that can never come. bus-request.ts's contract
+    // ("An emit rejection (e.g. /bus/emit 4xx) propagates to the caller")
+    // requires the transport to reject.
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      text: async () => '{"error":"Bus emit validation failed"}',
+    });
+
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: [],
+    });
+
+    await expect(stateUnit.emit('match:search-requested', { correlationId: 'c-1' }))
+      .rejects.toThrow(/400.*Bus emit validation failed/);
+
+    stateUnit.dispose();
+  });
+
   it('emit includes scope only when explicitly passed', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true });
     mockFetch.mockResolvedValueOnce({ ok: true });

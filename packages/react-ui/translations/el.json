@@ -457,6 +457,7 @@
     "semanticScoring": "Σημασιολογική Βαθμολόγηση",
     "semanticScoringHelp": "Χρήση AI για βαθμολόγηση αποτελεσμάτων κατά σημασιολογική συνάφεια",
     "searching": "Αναζήτηση...",
+    "searchFailed": "Η αναζήτηση απέτυχε",
     "search": "Αναζήτηση",
     "maxLengthCeiling": "Περιορισμένο σε {{maxOutputTokens}} tokens από το {{model}}.",
     "graphPaneTitle": "Στον γράφο",

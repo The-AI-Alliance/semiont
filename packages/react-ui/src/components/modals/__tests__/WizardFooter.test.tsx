@@ -108,6 +108,7 @@ describe('WizardFooter', () => {
 const SEARCH_T = {
   maxResults: 'Max Results', semanticScoring: 'Semantic Scoring',
   semanticScoringHelp: 'help', back: 'Back', search: 'Search', searching: 'Searching…',
+  searchFailed: 'Search failed',
 };
 
 const GEN_T = {

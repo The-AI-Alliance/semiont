@@ -457,6 +457,7 @@
     "semanticScoring": "Semantisk scoring",
     "semanticScoringHelp": "Brug AI til at score resultater efter semantisk relevans",
     "searching": "Søger...",
+    "searchFailed": "Søgningen mislykkedes",
     "search": "Søg",
     "maxLengthCeiling": "Begrænset til {{maxOutputTokens}} tokens af {{model}}.",
     "graphPaneTitle": "I grafen",

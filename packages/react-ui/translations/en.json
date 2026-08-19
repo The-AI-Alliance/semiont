@@ -457,6 +457,7 @@
     "semanticScoring": "Semantic Scoring",
     "semanticScoringHelp": "Use AI to score results by semantic relevance",
     "searching": "Searching...",
+    "searchFailed": "Search failed",
     "search": "Search",
     "maxLengthCeiling": "Limited to {{maxOutputTokens}} tokens by {{model}}.",
     "graphPaneTitle": "In the graph",

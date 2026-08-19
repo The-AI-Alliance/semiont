@@ -457,6 +457,7 @@
     "semanticScoring": "Semantische beoordeling",
     "semanticScoringHelp": "Gebruik AI om resultaten te beoordelen op semantische relevantie",
     "searching": "Zoeken...",
+    "searchFailed": "Zoeken mislukt",
     "search": "Zoeken",
     "maxLengthCeiling": "Beperkt tot {{maxOutputTokens}} tokens door {{model}}.",
     "graphPaneTitle": "In de graaf",

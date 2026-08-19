@@ -728,6 +728,7 @@ export function ResourceViewerPage({
           maxResults: tw('maxResults'),
           semanticScoring: tw('semanticScoring'),
           semanticScoringHelp: tw('semanticScoringHelp'),
+          searchFailed: tw('searchFailed'),
         }}
       />
 

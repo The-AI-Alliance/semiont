@@ -457,6 +457,7 @@
     "semanticScoring": "अर्थगत स्कोरिंग",
     "semanticScoringHelp": "अर्थगत प्रासंगिकता के अनुसार परिणामों को स्कोर करने के लिए AI का उपयोग करें",
     "searching": "खोज रहे हैं...",
+    "searchFailed": "खोज विफल रही",
     "search": "खोजें",
     "maxLengthCeiling": "{{model}} द्वारा {{maxOutputTokens}} टोकन तक सीमित।",
     "graphPaneTitle": "ग्राफ़ में",

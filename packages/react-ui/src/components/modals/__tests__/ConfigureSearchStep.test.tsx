@@ -16,7 +16,7 @@ import { ConfigureSearchStep, type SearchConfig } from '../ConfigureSearchStep';
 const T = {
   maxResults: 'Max Results', semanticScoring: 'Semantic Scoring',
   semanticScoringHelp: 'Use AI to score results by semantic relevance',
-  back: 'Back', search: 'Search', searching: 'Searching…',
+  back: 'Back', search: 'Search', searching: 'Searching…', searchFailed: 'Search failed',
 };
 
 const CONFIG: SearchConfig = { limit: 10, useSemanticScoring: true };

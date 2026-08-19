@@ -457,6 +457,7 @@
     "semanticScoring": "Semantische Bewertung",
     "semanticScoringHelp": "KI zur Bewertung der Ergebnisse nach semantischer Relevanz verwenden",
     "searching": "Suche läuft...",
+    "searchFailed": "Suche fehlgeschlagen",
     "search": "Suchen",
     "maxLengthCeiling": "Durch {{model}} auf {{maxOutputTokens}} Token begrenzt.",
     "graphPaneTitle": "Im Graphen",

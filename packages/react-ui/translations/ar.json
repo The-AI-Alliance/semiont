@@ -457,6 +457,7 @@
     "semanticScoring": "التقييم الدلالي",
     "semanticScoringHelp": "استخدام الذكاء الاصطناعي لتقييم النتائج حسب الصلة الدلالية",
     "searching": "جاري البحث...",
+    "searchFailed": "فشل البحث",
     "search": "بحث",
     "maxLengthCeiling": "محدود بـ {{maxOutputTokens}} رمزًا بواسطة {{model}}.",
     "graphPaneTitle": "في الرسم البياني",

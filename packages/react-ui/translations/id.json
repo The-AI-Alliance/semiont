@@ -457,6 +457,7 @@
     "semanticScoring": "Penilaian Semantik",
     "semanticScoringHelp": "Gunakan AI untuk menilai hasil berdasarkan relevansi semantik",
     "searching": "Mencari...",
+    "searchFailed": "Pencarian gagal",
     "search": "Cari",
     "maxLengthCeiling": "Dibatasi hingga {{maxOutputTokens}} token oleh {{model}}.",
     "graphPaneTitle": "Di graf",

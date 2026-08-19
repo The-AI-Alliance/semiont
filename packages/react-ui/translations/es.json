@@ -457,6 +457,7 @@
     "semanticScoring": "Puntuación Semántica",
     "semanticScoringHelp": "Usar IA para puntuar resultados por relevancia semántica",
     "searching": "Buscando...",
+    "searchFailed": "Error en la búsqueda",
     "search": "Buscar",
     "maxLengthCeiling": "Limitado a {{maxOutputTokens}} tokens por {{model}}.",
     "graphPaneTitle": "En el grafo",

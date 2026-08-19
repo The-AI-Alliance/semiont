@@ -457,6 +457,7 @@
     "semanticScoring": "意味的スコアリング",
     "semanticScoringHelp": "AIを使用して意味的関連性で結果をスコアリング",
     "searching": "検索中...",
+    "searchFailed": "検索に失敗しました",
     "search": "検索",
     "maxLengthCeiling": "{{model}} により {{maxOutputTokens}} トークンに制限されています。",
     "graphPaneTitle": "グラフ内",

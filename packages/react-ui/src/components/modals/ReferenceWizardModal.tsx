@@ -93,6 +93,7 @@ export interface ReferenceWizardModalProps {
     maxResults: string;
     semanticScoring: string;
     semanticScoringHelp: string;
+    searchFailed: string;
   };
 }
 
@@ -124,6 +125,7 @@ export function ReferenceWizardModal({
     temperature: 0.7, maxTokensText: '500',
   });
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [userHint, setUserHint] = useState('');
 
   // Reset to gather step when modal opens
@@ -136,6 +138,7 @@ export function ReferenceWizardModal({
         temperature: 0.7, maxTokensText: '500',
       });
       setIsSearching(false);
+      setSearchError(null);
       setUserHint('');
     }
   }, [isOpen]);
@@ -146,6 +149,17 @@ export function ReferenceWizardModal({
     if (annotationId && event.referenceId === annotationId) {
       setIsSearching(false);
       setWizardStep({ step: 'search-results', results: event.response as ScoredResult[] });
+    }
+  });
+
+  // …and to failures, same scoping. A refused emit (/bus/emit 4xx), a matcher
+  // error, and the match unit's timeout all land here — without this
+  // subscription every one of them left the button on "Searching…" forever.
+  useEventSubscription('match:search-failed', (event) => {
+    if (!isOpen) return;
+    if (annotationId && event.referenceId === annotationId) {
+      setIsSearching(false);
+      setSearchError(event.error);
     }
   });
 
@@ -191,6 +205,7 @@ export function ReferenceWizardModal({
   const handleSearchSubmit = useCallback((config: SearchConfig) => {
     if (!annotationId || !contextWithHint || !resourceId) return;
     setIsSearching(true);
+    setSearchError(null);
     session?.client.match.requestSearch({
       correlationId: uuidV4(),
       resourceId,
@@ -335,6 +350,7 @@ export function ReferenceWizardModal({
                     {...(userHint ? { hintEcho: { label: t.userHintLabel, value: userHint } } : {})}
                     onConfigChange={setSearchConfig}
                     isSearching={isSearching}
+                    searchError={searchError}
                     onBack={handleBackToGather}
                     onSearch={handleSearchSubmit}
                     translations={{
@@ -344,6 +360,7 @@ export function ReferenceWizardModal({
                       back: t.back,
                       search: t.search,
                       searching: t.searching,
+                      searchFailed: t.searchFailed,
                     }}
                   />
                 )}

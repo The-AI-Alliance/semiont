@@ -457,6 +457,7 @@
     "semanticScoring": "Chấm điểm Ngữ nghĩa",
     "semanticScoringHelp": "Sử dụng AI để chấm điểm kết quả theo mức độ liên quan ngữ nghĩa",
     "searching": "Đang tìm kiếm...",
+    "searchFailed": "Tìm kiếm thất bại",
     "search": "Tìm kiếm",
     "maxLengthCeiling": "Giới hạn {{maxOutputTokens}} token bởi {{model}}.",
     "graphPaneTitle": "Trong đồ thị",

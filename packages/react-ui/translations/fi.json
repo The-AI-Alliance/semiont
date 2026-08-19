@@ -457,6 +457,7 @@
     "semanticScoring": "Semanttinen pisteytys",
     "semanticScoringHelp": "Käytä tekoälyä tulosten pisteyttämiseen semanttisen relevanssin mukaan",
     "searching": "Haetaan...",
+    "searchFailed": "Haku epäonnistui",
     "search": "Hae",
     "maxLengthCeiling": "Rajoitettu {{maxOutputTokens}} tokeniin mallilla {{model}}.",
     "graphPaneTitle": "Graafissa",

@@ -1,6 +1,6 @@
 'use client';
 
-import { deriveViews, type GatheredContext } from '@semiont/core';
+import { deriveViews, getExactText, getTargetSelector, type GatheredContext } from '@semiont/core';
 
 export interface ContextSummaryTranslations {
   sourceContextLabel: string;
@@ -52,10 +52,15 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
   const rank = (types: string[]) => [...types].sort((a, b) => (freq[a] ?? 0) - (freq[b] ?? 0));
 
   const firstBodyValue = (body: unknown): string | undefined => {
-    const item = Array.isArray(body) ? body[0] : body;
-    return item && typeof item === 'object' && 'value' in item
-      ? (item as { value?: string }).value
-      : undefined;
+    // Tagging-purpose bodies are the entity-type tag — already shown via
+    // entityTypes, so skip them rather than repeat the type in the hover.
+    for (const item of Array.isArray(body) ? body : [body]) {
+      if (item && typeof item === 'object' && 'value' in item
+        && (item as { purpose?: string }).purpose !== 'tagging') {
+        return (item as { value?: string }).value;
+      }
+    }
+    return undefined;
   };
 
   // ── Deterministic layered layout (D3): citers | focal + siblings | peers ──
@@ -105,14 +110,19 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
 
   siblings.forEach((s, i) => {
     // Discriminated: type === 'annotation' guarantees the embedded W3C
-    // annotation (P3/D11) — motivation and body feed the hover.
+    // annotation (P3/D11). The node's identity is the text it wraps — a
+    // column of motivation labels is uninterpretable; motivation shows as
+    // the node's styling and hover instead.
     const ann = s.type === 'annotation' ? s.annotation : undefined;
+    const quote = ann ? getExactText(getTargetSelector(ann.target)) : '';
     const motivation = ann?.motivation ?? s.label;
     const body = ann ? firstBodyValue(ann.body) : undefined;
     const types = rank(s.entityTypes ?? []);
-    const hover = [motivation, body, types.length ? types.join(', ') : undefined]
+    // Hover leads with the full quote — the drawn label truncates (like the
+    // resource nodes, whose hover carries the full name).
+    const hover = [quote, motivation, body, types.length ? types.join(', ') : undefined]
       .filter(Boolean).join('\n');
-    const node: DrawnNode = { id: s.id, label: s.label, kind: 'annotation',
+    const node: DrawnNode = { id: s.id, label: quote || s.label, kind: 'annotation',
       hover, x: COL_X[1]!, y: TOP + (i + 1) * ROW };
     drawn.push(node);
     drawnEdges.push({ key: `annof-${s.id}`, kind: 'annotation-of', hover: 'annotation-of',

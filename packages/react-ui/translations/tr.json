@@ -457,6 +457,7 @@
     "semanticScoring": "Anlamsal Puanlama",
     "semanticScoringHelp": "Sonuçları anlamsal alaka düzeyine göre puanlamak için yapay zeka kullanın",
     "searching": "Aranıyor...",
+    "searchFailed": "Arama başarısız oldu",
     "search": "Ara",
     "maxLengthCeiling": "{{model}} tarafından {{maxOutputTokens}} belirteçle sınırlı.",
     "graphPaneTitle": "Grafta",

@@ -63,6 +63,7 @@ const T = {
   creativityFocused: 'Focused', creativityCreative: 'Creative',
   maxLength: 'Max length', maxLengthHelp: '', maxLengthCeiling: 'Limited to {{maxOutputTokens}} by {{model}}.',
   maxResults: 'Max Results', semanticScoring: 'Semantic Scoring', semanticScoringHelp: '',
+  searchFailed: 'Search failed',
 };
 
 function renderWizard(over: Partial<React.ComponentProps<typeof ReferenceWizardModal>> = {}) {
@@ -215,6 +216,59 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
 
     expect(onLinkResource).toHaveBeenCalledWith('ann-1', 'res-9');
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('a search failure over the bus settles the spinner and surfaces the error — no eternal "Searching…"', async () => {
+    // The measured hang (.plans/bugs/match-search-hangs-on-neo4j-datetime-annotations.md):
+    // /bus/emit 400s the request, the match machinery publishes
+    // match:search-failed — and the wizard listened only for results, so the
+    // failure fired into an empty room while the button spun forever.
+    const { client } = renderWizard();
+    await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
+    await userEvent.click(screen.getByRole('button', { name: T.search }));
+    expect(screen.getByRole('button', { name: T.searching })).toBeDisabled();
+
+    client.bus.get('match:search-failed').next({
+      correlationId: 'c-1',
+      referenceId: 'ann-1',
+      error: '/bus/emit 400: Bus emit validation failed',
+    } as never);
+
+    // Still on configure-search, failure visible, retry available.
+    expect(await screen.findByText(new RegExp(T.searchFailed))).toBeInTheDocument();
+    expect(screen.getByText(/Bus emit validation failed/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: T.search })).toBeEnabled();
+  });
+
+  it('a failure addressed to a different annotation changes nothing', async () => {
+    // Same scoping rule as results: a late failure from another annotation's
+    // run must not settle THIS spinner or paint an error that isn't ours.
+    const { client } = renderWizard();
+    await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
+    await userEvent.click(screen.getByRole('button', { name: T.search }));
+
+    client.bus.get('match:search-failed').next({
+      correlationId: 'c-2',
+      referenceId: 'someone-elses-annotation',
+      error: 'not ours',
+    } as never);
+
+    expect(screen.getByRole('button', { name: T.searching })).toBeDisabled();
+    expect(screen.queryByText(new RegExp(T.searchFailed))).not.toBeInTheDocument();
+  });
+
+  it('retrying after a failure clears the error while the new search runs', async () => {
+    const { client } = renderWizard();
+    await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
+    await userEvent.click(screen.getByRole('button', { name: T.search }));
+    client.bus.get('match:search-failed').next({
+      correlationId: 'c-1', referenceId: 'ann-1', error: 'boom',
+    } as never);
+    expect(await screen.findByText(new RegExp(T.searchFailed))).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: T.search }));
+    expect(screen.queryByText(new RegExp(T.searchFailed))).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: T.searching })).toBeDisabled();
   });
 
   it('ignores results addressed to a different annotation', () => {

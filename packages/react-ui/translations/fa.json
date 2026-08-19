@@ -457,6 +457,7 @@
     "semanticScoring": "امتیازدهی معنایی",
     "semanticScoringHelp": "استفاده از هوش مصنوعی برای امتیازدهی نتایج بر اساس ارتباط معنایی",
     "searching": "در حال جستجو...",
+    "searchFailed": "جستجو ناموفق بود",
     "search": "جستجو",
     "maxLengthCeiling": "محدود به {{maxOutputTokens}} توکن توسط {{model}}.",
     "graphPaneTitle": "در گراف",

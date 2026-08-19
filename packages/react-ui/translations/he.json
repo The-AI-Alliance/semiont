@@ -457,6 +457,7 @@
     "semanticScoring": "דירוג סמנטי",
     "semanticScoringHelp": "שימוש ב-AI לדירוג תוצאות לפי רלוונטיות סמנטית",
     "searching": "מחפש...",
+    "searchFailed": "החיפוש נכשל",
     "search": "חיפוש",
     "maxLengthCeiling": "מוגבל ל-{{maxOutputTokens}} טוקנים על ידי {{model}}.",
     "graphPaneTitle": "בגרף",

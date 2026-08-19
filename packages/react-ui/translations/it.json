@@ -457,6 +457,7 @@
     "semanticScoring": "Valutazione Semantica",
     "semanticScoringHelp": "Usa l'IA per valutare i risultati in base alla rilevanza semantica",
     "searching": "Ricerca in corso...",
+    "searchFailed": "Ricerca non riuscita",
     "search": "Cerca",
     "maxLengthCeiling": "Limitato a {{maxOutputTokens}} token da {{model}}.",
     "graphPaneTitle": "Nel grafo",

@@ -457,6 +457,7 @@
     "semanticScoring": "การให้คะแนนเชิงความหมาย",
     "semanticScoringHelp": "ใช้ AI เพื่อให้คะแนนผลลัพธ์ตามความเกี่ยวข้องเชิงความหมาย",
     "searching": "กำลังค้นหา...",
+    "searchFailed": "การค้นหาล้มเหลว",
     "search": "ค้นหา",
     "maxLengthCeiling": "จำกัดที่ {{maxOutputTokens}} โทเค็นโดย {{model}}",
     "graphPaneTitle": "ในกราฟ",

@@ -310,7 +310,15 @@ describe('GatheredContext display — resource focus', () => {
           { id: 'ann-c', type: 'annotation', label: 'linking',
             annotation: { id: 'ann-c', motivation: 'linking' } },
           { id: 'ann-s', type: 'annotation', label: 'commenting', entityTypes: ['Person'],
-            annotation: { id: 'ann-s', motivation: 'commenting', body: [{ type: 'TextualBody', value: 'a sibling note' }] } },
+            annotation: { id: 'ann-s', motivation: 'commenting',
+              target: { source: 'res-1', selector: [
+                { type: 'TextPositionSelector', start: 5, end: 22 },
+                { type: 'TextQuoteSelector', exact: 'the disputed span' },
+              ] },
+              body: [
+                { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
+                { type: 'TextualBody', value: 'a sibling note' },
+              ] } },
         ],
         edges: [
           { source: 'res-1', target: 'res-2', type: 'related', bidirectional: true },
@@ -349,14 +357,21 @@ describe('GatheredContext display — resource focus', () => {
     expect(focal[0]!.textContent).toContain('My Resource');
   });
 
-  it('siblings debut here — with motivation and body in hover-text (P4, D11)', () => {
+  it('siblings are labeled by their quoted text — motivation and note stay in hover (P4, D11)', () => {
+    // A node that just says "linking" is uninterpretable; the annotation's
+    // identity is the text it wraps (TextQuoteSelector.exact, on the embedded
+    // W3C annotation). Motivation is conveyed by the node's styling and hover.
     const { container } = renderViz();
     const sibling = container.querySelector('[data-node-id="ann-s"]');
     expect(sibling).not.toBeNull();
+    expect(sibling!.querySelector('text')!.textContent).toBe('the disputed span');
     const title = sibling!.querySelector('title');
     expect(title).not.toBeNull();
     expect(title!.textContent).toContain('commenting');
     expect(title!.textContent).toContain('a sibling note');
+    // The tagging-purpose body is the entity-type tag — hover lists the type
+    // ONCE (from entityTypes), not again as a body value.
+    expect(title!.textContent!.match(/Person/g)).toHaveLength(1);
     // Peer hover carries its entity types.
     expect(container.querySelector('[data-node-id="res-2"] title')!.textContent).toContain('Topic');
   });

@@ -532,6 +532,19 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         headers,
         body: JSON.stringify(body),
       });
+      // A refused emit (validation 400, auth 401…) must REJECT — busRequest's
+      // contract detaches its doomed reply and propagates this to the caller.
+      // Resolving a sentinel here instead leaves that caller waiting for a
+      // reply the backend will never send.
+      if (!res.ok) {
+        let detail = '';
+        try {
+          detail = (await res.text()).slice(0, 500);
+        } catch {
+          // status alone
+        }
+        throw new Error(`/bus/emit ${res.status}${detail ? `: ${detail}` : ''}`);
+      }
       // `-1` = count unknown (older backend / unreadable body) — never let a
       // parse failure read as an empty room. Same sentinel as the Go client.
       try {
