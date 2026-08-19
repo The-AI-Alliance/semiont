@@ -414,7 +414,14 @@
     "progressInProgress": "Genererer…",
     "progressComplete": "Generering færdig!",
     "progressFailed": "Generering mislykkedes",
-    "maxLengthCeiling": "Begrænset til {{maxOutputTokens}} tokens af {{model}}."
+    "maxLengthCeiling": "Begrænset til {{maxOutputTokens}} tokens af {{model}}.",
+    "graphPaneTitle": "I grafen",
+    "graphEmpty": "Ingen links endnu.",
+    "corpusPaneTitle": "I korpusset",
+    "corpusEmpty": "Intet lignende i korpusset.",
+    "excludedReceipt": "{{types}} udeladt fra denne søgning",
+    "machineRead": "OCR",
+    "score": "Score"
   },
   "ReferenceWizard": {
     "gatherTitle": "Indsamlet kontekst",
@@ -451,7 +458,14 @@
     "semanticScoringHelp": "Brug AI til at score resultater efter semantisk relevans",
     "searching": "Søger...",
     "search": "Søg",
-    "maxLengthCeiling": "Begrænset til {{maxOutputTokens}} tokens af {{model}}."
+    "maxLengthCeiling": "Begrænset til {{maxOutputTokens}} tokens af {{model}}.",
+    "graphPaneTitle": "I grafen",
+    "graphEmpty": "Ingen links endnu — at løse denne reference skaber det første.",
+    "corpusPaneTitle": "I korpusset",
+    "corpusEmpty": "Intet lignende i korpusset — søgning vil næppe lykkes.",
+    "excludedReceipt": "{{types}} udeladt fra denne søgning",
+    "machineRead": "OCR",
+    "userHintEffect": "styrer søgning og generering"
   },
   "OutcomeToasts": {
     "createFailed": "Kunne ikke oprette annotationen: {{detail}}",

@@ -414,7 +414,14 @@
     "progressInProgress": "Generoidaan…",
     "progressComplete": "Generointi valmis!",
     "progressFailed": "Generointi epäonnistui",
-    "maxLengthCeiling": "Rajoitettu {{maxOutputTokens}} tokeniin mallilla {{model}}."
+    "maxLengthCeiling": "Rajoitettu {{maxOutputTokens}} tokeniin mallilla {{model}}.",
+    "graphPaneTitle": "Graafissa",
+    "graphEmpty": "Ei vielä linkkejä.",
+    "corpusPaneTitle": "Korpuksessa",
+    "corpusEmpty": "Korpuksessa ei ole mitään samankaltaista.",
+    "excludedReceipt": "{{types}} jätetty pois tästä hausta",
+    "machineRead": "OCR",
+    "score": "Pisteet"
   },
   "ReferenceWizard": {
     "gatherTitle": "Kerätty konteksti",
@@ -451,7 +458,14 @@
     "semanticScoringHelp": "Käytä tekoälyä tulosten pisteyttämiseen semanttisen relevanssin mukaan",
     "searching": "Haetaan...",
     "search": "Hae",
-    "maxLengthCeiling": "Rajoitettu {{maxOutputTokens}} tokeniin mallilla {{model}}."
+    "maxLengthCeiling": "Rajoitettu {{maxOutputTokens}} tokeniin mallilla {{model}}.",
+    "graphPaneTitle": "Graafissa",
+    "graphEmpty": "Ei vielä linkkejä — tämän viitteen ratkaiseminen luo ensimmäisen.",
+    "corpusPaneTitle": "Korpuksessa",
+    "corpusEmpty": "Korpuksessa ei ole mitään samankaltaista — haku tuskin tuottaa tulosta.",
+    "excludedReceipt": "{{types}} jätetty pois tästä hausta",
+    "machineRead": "OCR",
+    "userHintEffect": "ohjaa hakua ja generointia"
   },
   "OutcomeToasts": {
     "createFailed": "Merkinnän luonti epäonnistui: {{detail}}",

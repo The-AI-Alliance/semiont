@@ -414,7 +414,14 @@
     "progressInProgress": "Menghasilkan…",
     "progressComplete": "Generasi selesai!",
     "progressFailed": "Generasi gagal",
-    "maxLengthCeiling": "Dibatasi hingga {{maxOutputTokens}} token oleh {{model}}."
+    "maxLengthCeiling": "Dibatasi hingga {{maxOutputTokens}} token oleh {{model}}.",
+    "graphPaneTitle": "Di graf",
+    "graphEmpty": "Belum ada tautan.",
+    "corpusPaneTitle": "Di korpus",
+    "corpusEmpty": "Tidak ada yang serupa di korpus.",
+    "excludedReceipt": "{{types}} dikecualikan dari pengambilan ini",
+    "machineRead": "OCR",
+    "score": "Skor"
   },
   "ReferenceWizard": {
     "gatherTitle": "Konteks Terkumpul",
@@ -451,7 +458,14 @@
     "semanticScoringHelp": "Gunakan AI untuk menilai hasil berdasarkan relevansi semantik",
     "searching": "Mencari...",
     "search": "Cari",
-    "maxLengthCeiling": "Dibatasi hingga {{maxOutputTokens}} token oleh {{model}}."
+    "maxLengthCeiling": "Dibatasi hingga {{maxOutputTokens}} token oleh {{model}}.",
+    "graphPaneTitle": "Di graf",
+    "graphEmpty": "Belum ada tautan — menyelesaikan referensi ini membuat yang pertama.",
+    "corpusPaneTitle": "Di korpus",
+    "corpusEmpty": "Tidak ada yang serupa di korpus — pencarian kemungkinan tidak membuahkan hasil.",
+    "excludedReceipt": "{{types}} dikecualikan dari pengambilan ini",
+    "machineRead": "OCR",
+    "userHintEffect": "mengarahkan pencarian dan pembuatan"
   },
   "OutcomeToasts": {
     "createFailed": "Tidak dapat membuat anotasi: {{detail}}",

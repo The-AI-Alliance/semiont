@@ -219,6 +219,13 @@ describe('ResourceGenerateModal', () => {
     expect(screen.getByLabelText('New resource title')).toHaveValue('PB');
   });
 
+  it('the panel carries the widened class (GEP P2, D2)', () => {
+    const { baseElement } = renderModal();
+    const panel = baseElement.querySelector('.semiont-search-modal__panel--gather');
+    expect(panel).not.toBeNull();
+    expect(panel!.className).toContain('semiont-search-modal__panel--wide');
+  });
+
   it('every footer is the wizard footer — no dismissal, no flex (GFR A5)', () => {
     // The modal renders via a HeadlessUI portal, so query the whole document.
     const { baseElement } = renderModal({ gatherContext: RESOURCE_CONTEXT });

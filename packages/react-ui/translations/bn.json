@@ -414,7 +414,14 @@
     "progressInProgress": "তৈরি হচ্ছে…",
     "progressComplete": "তৈরি সম্পূর্ণ!",
     "progressFailed": "তৈরি ব্যর্থ",
-    "maxLengthCeiling": "{{model}} দ্বারা {{maxOutputTokens}} টোকেনে সীমিত।"
+    "maxLengthCeiling": "{{model}} দ্বারা {{maxOutputTokens}} টোকেনে সীমিত।",
+    "graphPaneTitle": "গ্রাফে",
+    "graphEmpty": "এখনও কোনো লিংক নেই।",
+    "corpusPaneTitle": "কর্পাসে",
+    "corpusEmpty": "কর্পাসে অনুরূপ কিছু নেই।",
+    "excludedReceipt": "{{types}} এই রিকল থেকে বাদ",
+    "machineRead": "OCR",
+    "score": "স্কোর"
   },
   "ReferenceWizard": {
     "gatherTitle": "সংগৃহীত প্রসঙ্গ",
@@ -451,7 +458,14 @@
     "semanticScoringHelp": "অর্থগত প্রাসঙ্গিকতা অনুযায়ী ফলাফল স্কোর করতে AI ব্যবহার করুন",
     "searching": "অনুসন্ধান করা হচ্ছে...",
     "search": "অনুসন্ধান",
-    "maxLengthCeiling": "{{model}} দ্বারা {{maxOutputTokens}} টোকেনে সীমিত।"
+    "maxLengthCeiling": "{{model}} দ্বারা {{maxOutputTokens}} টোকেনে সীমিত।",
+    "graphPaneTitle": "গ্রাফে",
+    "graphEmpty": "এখনও কোনো লিংক নেই — এই রেফারেন্স সমাধান করলে প্রথমটি তৈরি হবে।",
+    "corpusPaneTitle": "কর্পাসে",
+    "corpusEmpty": "কর্পাসে অনুরূপ কিছু নেই — অনুসন্ধানে ফল মেলার সম্ভাবনা কম।",
+    "excludedReceipt": "{{types}} এই রিকল থেকে বাদ",
+    "machineRead": "OCR",
+    "userHintEffect": "অনুসন্ধান ও জেনারেট পরিচালনা করে"
   },
   "OutcomeToasts": {
     "createFailed": "টীকা তৈরি করা যায়নি: {{detail}}",

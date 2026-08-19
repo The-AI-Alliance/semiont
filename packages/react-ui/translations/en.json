@@ -414,7 +414,14 @@
     "progressInProgress": "Generating…",
     "progressComplete": "Generation complete!",
     "progressFailed": "Generation failed",
-    "maxLengthCeiling": "Limited to {{maxOutputTokens}} tokens by {{model}}."
+    "maxLengthCeiling": "Limited to {{maxOutputTokens}} tokens by {{model}}.",
+    "graphPaneTitle": "In the graph",
+    "graphEmpty": "No links yet.",
+    "corpusPaneTitle": "In the corpus",
+    "corpusEmpty": "Nothing similar in the corpus.",
+    "excludedReceipt": "{{types}} excluded from this recall",
+    "machineRead": "OCR",
+    "score": "Score"
   },
   "ReferenceWizard": {
     "gatherTitle": "Gathered Context",
@@ -451,7 +458,14 @@
     "semanticScoringHelp": "Use AI to score results by semantic relevance",
     "searching": "Searching...",
     "search": "Search",
-    "maxLengthCeiling": "Limited to {{maxOutputTokens}} tokens by {{model}}."
+    "maxLengthCeiling": "Limited to {{maxOutputTokens}} tokens by {{model}}.",
+    "graphPaneTitle": "In the graph",
+    "graphEmpty": "No links yet — resolving this reference creates the first.",
+    "corpusPaneTitle": "In the corpus",
+    "corpusEmpty": "Nothing similar in the corpus — Search is unlikely to land.",
+    "excludedReceipt": "{{types}} excluded from this recall",
+    "machineRead": "OCR",
+    "userHintEffect": "steers Search and Generate"
   },
   "OutcomeToasts": {
     "createFailed": "Couldn’t create the annotation: {{detail}}",

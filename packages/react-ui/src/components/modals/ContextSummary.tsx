@@ -6,6 +6,10 @@ export interface ContextSummaryTranslations {
   sourceContextLabel: string;
   connectionsLabel: string;
   citedByLabel: string;
+  /** GEP P2: the graph pane's chrome travels with this component (D10). */
+  graphPaneTitle: string;
+  /** Strategy-relevant empty state — emptiness is evidence (GEP D1). */
+  graphEmpty: string;
 }
 
 export interface ContextSummaryProps {
@@ -28,8 +32,21 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
     focalAnnotationId,
   );
 
+  // GEP P2: this component IS the graph pane — chrome included, so every
+  // consumer (the gather step, the search-results sidebar) inherits it (D10).
+  // Emptiness is evidence (D1): both views empty renders the strategy-relevant
+  // empty state, never a blank column. The pane BODY here is the interim list
+  // form relocated as-is; P4 replaces it with the SVG (deliberately no new
+  // list features — no siblings until then).
   return (
-    <>
+    <div className="semiont-gather-pane semiont-gather-pane--graph">
+      <div className="semiont-gather-pane__title">{t.graphPaneTitle}</div>
+      {context.inferredRelationshipSummary && (
+        <p className="semiont-gather-pane__summary">{context.inferredRelationshipSummary}</p>
+      )}
+      {(connections.length === 0 && citedByCount === 0) && (
+        <p className="semiont-gather-pane__empty">{t.graphEmpty}</p>
+      )}
       {(connections.length > 0 || citedByCount > 0) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
@@ -95,6 +112,6 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
 
         </div>
       )}
-    </>
+    </div>
   );
 }

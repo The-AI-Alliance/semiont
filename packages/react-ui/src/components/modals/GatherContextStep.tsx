@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import type { GatheredContext } from '@semiont/core';
 import { ContextSummary } from './ContextSummary';
 import type { ContextSummaryTranslations } from './ContextSummary';
+import { CorpusPane } from './CorpusPane';
+import type { CorpusPaneTranslations } from './CorpusPane';
 import { ANNOTATORS, annotatorKeyForMotivation } from '../../lib/annotation-registry';
 
 /**
@@ -24,6 +26,8 @@ export interface GatherContextStepAnnotate {
     compose: string;
     resolutionStrategyLabel: string;
     userHintLabel: string;
+    /** The label states its effect — "steers Search and Generate" (GEP D5). */
+    userHintEffect: string;
     userHintPlaceholder: string;
   };
 }
@@ -37,7 +41,7 @@ export interface GatherContextStepProps {
   translations: {
     loadingContext: string;
     failedContext: string;
-  } & ContextSummaryTranslations;
+  } & ContextSummaryTranslations & CorpusPaneTranslations;
 }
 
 export function GatherContextStep({
@@ -178,31 +182,38 @@ export function GatherContextStep({
             </div>
           )}
 
-          {/* Two-column body */}
+          {/* The evidence panes (GEP D1): curated knowledge beside latent
+              knowledge — the fork reads off them. Both render for every
+              caller; emptiness is evidence, never blankness. */}
           <div className="semiont-gather__body">
-            {/* Left: context summary (graph views) */}
             <div className="semiont-gather__left">
               <ContextSummary context={context} translations={t} />
             </div>
-
-            {/* Right: hint textarea (annotation-wizard callers only) */}
-            {focus && annotate && (
-              <div className="semiont-gather__right">
-                <div className="semiont-form__field">
-                  <label className="semiont-form__label">
-                    {annotate.translations.userHintLabel}
-                  </label>
-                  <textarea
-                    value={annotate.userHint}
-                    onChange={(e) => annotate.onUserHintChange(e.target.value)}
-                    placeholder={annotate.translations.userHintPlaceholder}
-                    className="semiont-search-modal__search-input semiont-gather__hint-textarea"
-                    style={{ resize: 'vertical', fontFamily: 'inherit' }}
-                  />
-                </div>
-              </div>
-            )}
+            <div className="semiont-gather__right">
+              <CorpusPane semanticContext={context.semanticContext} translations={t} />
+            </div>
           </div>
+
+          {/* Hint: full width, input-then-act adjacency above the footer
+              (GEP D5). The label states its effect. Typing does NOT re-run
+              recall — the panes are the at-gather evidence. */}
+          {focus && annotate && (
+            <div className="semiont-gather__hint-row">
+              <div className="semiont-form__field">
+                <label className="semiont-form__label">
+                  {annotate.translations.userHintLabel}
+                  <span className="semiont-gather__hint-effect"> — {annotate.translations.userHintEffect}</span>
+                </label>
+                <textarea
+                  value={annotate.userHint}
+                  onChange={(e) => annotate.onUserHintChange(e.target.value)}
+                  placeholder={annotate.translations.userHintPlaceholder}
+                  className="semiont-search-modal__search-input semiont-gather__hint-textarea"
+                  style={{ resize: 'vertical', fontFamily: 'inherit' }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Full-width footer: resolution strategy (annotation-wizard callers only).
               The THIRD footer species — a CHOOSER — and the deliberate exception to

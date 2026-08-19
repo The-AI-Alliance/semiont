@@ -414,7 +414,14 @@
     "progressInProgress": "Génération…",
     "progressComplete": "Génération terminée !",
     "progressFailed": "La génération a échoué",
-    "maxLengthCeiling": "Limité à {{maxOutputTokens}} jetons par {{model}}."
+    "maxLengthCeiling": "Limité à {{maxOutputTokens}} jetons par {{model}}.",
+    "graphPaneTitle": "Dans le graphe",
+    "graphEmpty": "Aucun lien pour l'instant.",
+    "corpusPaneTitle": "Dans le corpus",
+    "corpusEmpty": "Rien de similaire dans le corpus.",
+    "excludedReceipt": "{{types}} exclus de cette recherche",
+    "machineRead": "OCR",
+    "score": "Score"
   },
   "ReferenceWizard": {
     "gatherTitle": "Contexte collecté",
@@ -451,7 +458,14 @@
     "semanticScoringHelp": "Utiliser l'IA pour évaluer les résultats par pertinence sémantique",
     "searching": "Recherche en cours...",
     "search": "Rechercher",
-    "maxLengthCeiling": "Limité à {{maxOutputTokens}} jetons par {{model}}."
+    "maxLengthCeiling": "Limité à {{maxOutputTokens}} jetons par {{model}}.",
+    "graphPaneTitle": "Dans le graphe",
+    "graphEmpty": "Aucun lien pour l'instant — résoudre cette référence crée le premier.",
+    "corpusPaneTitle": "Dans le corpus",
+    "corpusEmpty": "Rien de similaire dans le corpus — la recherche a peu de chances d'aboutir.",
+    "excludedReceipt": "{{types}} exclus de cette recherche",
+    "machineRead": "OCR",
+    "userHintEffect": "guide la recherche et la génération"
   },
   "OutcomeToasts": {
     "createFailed": "Impossible de créer l’annotation : {{detail}}",

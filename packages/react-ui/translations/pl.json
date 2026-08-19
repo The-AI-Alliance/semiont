@@ -414,7 +414,14 @@
     "progressInProgress": "Generowanie…",
     "progressComplete": "Generowanie zakończone!",
     "progressFailed": "Generowanie nie powiodło się",
-    "maxLengthCeiling": "Ograniczone do {{maxOutputTokens}} tokenów przez {{model}}."
+    "maxLengthCeiling": "Ograniczone do {{maxOutputTokens}} tokenów przez {{model}}.",
+    "graphPaneTitle": "W grafie",
+    "graphEmpty": "Brak powiązań.",
+    "corpusPaneTitle": "W korpusie",
+    "corpusEmpty": "Nic podobnego w korpusie.",
+    "excludedReceipt": "{{types}} wykluczono z tego pobrania",
+    "machineRead": "OCR",
+    "score": "Wynik"
   },
   "ReferenceWizard": {
     "gatherTitle": "Zebrany kontekst",
@@ -451,7 +458,14 @@
     "semanticScoringHelp": "Użyj AI do oceny wyników według semantycznego dopasowania",
     "searching": "Wyszukiwanie...",
     "search": "Szukaj",
-    "maxLengthCeiling": "Ograniczone do {{maxOutputTokens}} tokenów przez {{model}}."
+    "maxLengthCeiling": "Ograniczone do {{maxOutputTokens}} tokenów przez {{model}}.",
+    "graphPaneTitle": "W grafie",
+    "graphEmpty": "Brak powiązań — rozwiązanie tego odniesienia utworzy pierwsze.",
+    "corpusPaneTitle": "W korpusie",
+    "corpusEmpty": "Nic podobnego w korpusie — wyszukiwanie raczej nic nie da.",
+    "excludedReceipt": "{{types}} wykluczono z tego pobrania",
+    "machineRead": "OCR",
+    "userHintEffect": "kieruje wyszukiwaniem i generowaniem"
   },
   "OutcomeToasts": {
     "createFailed": "Nie udało się utworzyć adnotacji: {{detail}}",

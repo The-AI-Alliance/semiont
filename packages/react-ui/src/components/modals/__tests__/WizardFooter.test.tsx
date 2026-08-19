@@ -120,6 +120,7 @@ const GEN_T = {
 
 const CONTEXT_T = {
   sourceContextLabel: 'Source', connectionsLabel: 'Connections', citedByLabel: 'Cited by',
+  graphPaneTitle: 'In the graph', graphEmpty: 'No links yet.',
 };
 
 const GATHER_T = {
@@ -215,7 +216,11 @@ describe('the resolution chooser (GatherContextStep) — the named exception', (
       resolutionStrategyLabel: 'Strategy', userHintLabel: 'Hint', userHintPlaceholder: '',
     },
   };
-  const DISPLAY_T = { loadingContext: 'Loading…', failedContext: 'Failed', ...CONTEXT_T };
+  const DISPLAY_T = {
+    loadingContext: 'Loading…', failedContext: 'Failed', ...CONTEXT_T,
+    corpusPaneTitle: 'In the corpus', corpusEmpty: 'Nothing similar.',
+    excludedReceipt: '{{types}} excluded', machineRead: 'OCR', score: 'Score',
+  };
 
   const chooserButtons = (container: HTMLElement) =>
     Array.from(container.querySelectorAll('.semiont-gather__actions button'));

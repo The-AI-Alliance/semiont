@@ -58,7 +58,14 @@ export interface ReferenceWizardModalProps {
     sourceContextLabel: string;
     connectionsLabel: string;
     citedByLabel: string;
+    graphPaneTitle: string;
+    graphEmpty: string;
+    corpusPaneTitle: string;
+    corpusEmpty: string;
+    excludedReceipt: string;
+    machineRead: string;
     userHintLabel: string;
+    userHintEffect: string;
     userHintPlaceholder: string;
     loadingContext: string;
     failedContext: string;
@@ -242,7 +249,7 @@ export function ReferenceWizardModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <DialogPanel className={`semiont-search-modal__panel semiont-search-modal__panel--with-border${wizardStep.step === 'search-results' ? ' semiont-search-modal__panel--wide' : ''}${wizardStep.step === 'gather' ? ' semiont-search-modal__panel--gather' : ''}`}>
+              <DialogPanel className={`semiont-search-modal__panel semiont-search-modal__panel--with-border${wizardStep.step === 'search-results' ? ' semiont-search-modal__panel--wide' : ''}${wizardStep.step === 'gather' ? ' semiont-search-modal__panel--gather semiont-search-modal__panel--wide' : ''}`}>
                 <div className="semiont-search-modal__header">
                   <DialogTitle className="semiont-search-modal__title">
                     {stepTitle}
@@ -273,6 +280,7 @@ export function ReferenceWizardModal({
                         compose: t.compose,
                         resolutionStrategyLabel: t.resolutionStrategyLabel,
                         userHintLabel: t.userHintLabel,
+                        userHintEffect: t.userHintEffect,
                         userHintPlaceholder: t.userHintPlaceholder,
                       },
                     }}
@@ -282,6 +290,13 @@ export function ReferenceWizardModal({
                       sourceContextLabel: t.sourceContextLabel,
                       connectionsLabel: t.connectionsLabel,
                       citedByLabel: t.citedByLabel,
+                      graphPaneTitle: t.graphPaneTitle,
+                      graphEmpty: t.graphEmpty,
+                      corpusPaneTitle: t.corpusPaneTitle,
+                      corpusEmpty: t.corpusEmpty,
+                      excludedReceipt: t.excludedReceipt,
+                      machineRead: t.machineRead,
+                      score: t.score,
                     }}
                   />
                 )}
@@ -347,6 +362,8 @@ export function ReferenceWizardModal({
                       sourceContextLabel: t.sourceContextLabel,
                       connectionsLabel: t.connectionsLabel,
                       citedByLabel: t.citedByLabel,
+                      graphPaneTitle: t.graphPaneTitle,
+                      graphEmpty: t.graphEmpty,
                     }}
                   />
                 )}

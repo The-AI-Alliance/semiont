@@ -17,7 +17,30 @@ const t = {
   sourceContextLabel: 'Source',
   connectionsLabel: 'Connections',
   citedByLabel: 'Cited by',
+  graphPaneTitle: 'In the graph',
+  graphEmpty: 'No links yet — resolving this reference creates the first.',
+  corpusPaneTitle: 'In the corpus',
+  corpusEmpty: 'Nothing similar in the corpus.',
+  excludedReceipt: '{{types}} excluded from this recall',
+  machineRead: 'OCR',
+  score: 'Score',
 };
+
+/** Post-P3 wire shape: resourceName required, entityTypes/machineRead optional. */
+const MATCHES = [
+  { text: 'a middling passage', resourceId: 'r-mid', resourceName: 'Middling Doc', score: 0.55 },
+  { text: 'the best passage', resourceId: 'r-best', resourceName: 'Best Doc', score: 0.91,
+    entityTypes: ['Battle'], machineRead: true },
+  { text: 'a weak passage', resourceId: 'r-weak', resourceName: 'Weak Doc', score: 0.12 },
+];
+
+function withSemantic(ctx: GatheredContext, over: Record<string, unknown> = {}): GatheredContext {
+  return {
+    ...(ctx as object),
+    semanticContext: { similar: MATCHES, excludedEntityTypes: ['Question'], ...over },
+    inferredRelationshipSummary: 'Cedar County sits inside the Black Hawk Purchase.',
+  } as unknown as GatheredContext;
+}
 
 /** The annotation-wizard controls travel as ONE optional group (GFR D2). */
 const annotate = {
@@ -178,6 +201,94 @@ describe('GatheredContext display — resource focus', () => {
     const chipTexts = Array.from(container.querySelectorAll('.semiont-chip')).map((el) => el.textContent);
     expect(chipTexts).toContain('Topic');
     expect(chipTexts).not.toContain('Suggested Topic');
+  });
+
+  // ── GEP P2 — the evidence panes ─────────────────────────────────────────────
+
+  it('the graph pane shows its title and the inferred summary as prose header (P2)', () => {
+    const { container } = render(
+      <GatherContextStep
+        context={withSemantic(resourceContext())}
+        contextLoading={false} contextError={null} translations={t}
+      />,
+    );
+    const pane = container.querySelector('.semiont-gather-pane--graph');
+    expect(pane).not.toBeNull();
+    expect(pane!.textContent).toContain('In the graph');
+    expect(pane!.textContent).toContain('Cedar County sits inside the Black Hawk Purchase.');
+  });
+
+  it('the corpus pane ranks match cards by descending score, named and marked (P2, D4)', () => {
+    const { container } = render(
+      <GatherContextStep
+        context={withSemantic(resourceContext())}
+        contextLoading={false} contextError={null} translations={t}
+      />,
+    );
+    const cards = Array.from(container.querySelectorAll('.semiont-corpus__card'));
+    expect(cards).toHaveLength(3);
+    // Descending by score, whatever order the wire delivered.
+    expect(cards.map((c) => c.querySelector('.semiont-corpus__source')!.textContent))
+      .toEqual(['Best Doc', 'Middling Doc', 'Weak Doc']);
+    // The card names its source (D9's required field), shows the snippet, and
+    // formats the 0–1 cosine to two places (logged deviation — the search step's
+    // raw render is a different scale).
+    expect(cards[0]!.textContent).toContain('the best passage');
+    expect(cards[0]!.textContent).toContain('0.91');
+    // Match-level entityTypes are tokens — chips on the card.
+    expect(cards[0]!.querySelector('.semiont-chip')!.textContent).toBe('Battle');
+    // machineRead is a trust marker that appears ONLY when the flag travels.
+    expect(cards[0]!.textContent).toContain('OCR');
+    expect(cards[1]!.textContent).not.toContain('OCR');
+  });
+
+  it('the exclusion receipt renders when present, and only then (P2, D4)', () => {
+    const { container, rerender } = render(
+      <GatherContextStep
+        context={withSemantic(resourceContext())}
+        contextLoading={false} contextError={null} translations={t}
+      />,
+    );
+    expect(container.querySelector('.semiont-corpus__receipt')!.textContent)
+      .toContain('Question excluded from this recall');
+
+    rerender(
+      <GatherContextStep
+        context={withSemantic(resourceContext(), { excludedEntityTypes: [] })}
+        contextLoading={false} contextError={null} translations={t}
+      />,
+    );
+    expect(container.querySelector('.semiont-corpus__receipt')).toBeNull();
+  });
+
+  it('emptiness is evidence: each pane renders its empty-state copy (P2, D1)', () => {
+    // resourceContext() has no semanticContext and a graph whose views resolve
+    // to a connection — so build a truly empty context for both panes.
+    const empty = {
+      ...(resourceContext() as object),
+      graph: { nodes: [], edges: [] },
+    } as unknown as GatheredContext;
+    const { container } = render(
+      <GatherContextStep context={empty} contextLoading={false} contextError={null} translations={t} />,
+    );
+    expect(container.querySelector('.semiont-gather-pane--graph')!.textContent)
+      .toContain('No links yet');
+    expect(container.querySelector('.semiont-gather-pane--corpus')!.textContent)
+      .toContain('Nothing similar in the corpus.');
+  });
+
+  it('the hint sits OUTSIDE the pane grid, full width above the footer (P2, D5)', () => {
+    const { container } = render(
+      <GatherContextStep
+        context={annotationContext()}
+        contextLoading={false} contextError={null}
+        annotate={annotate} translations={t}
+      />,
+    );
+    const textarea = container.querySelector('.semiont-gather__hint-textarea');
+    expect(textarea).not.toBeNull();
+    expect(textarea!.closest('.semiont-gather__body')).toBeNull(); // out of the grid
+    expect(container.querySelector('.semiont-gather__hint-row')).not.toBeNull();
   });
 
   it('an annotation focus WITHOUT the annotate group renders display-only (GFR A2)', () => {

@@ -48,7 +48,11 @@ const T = {
   gatherTitle: 'Gathered Context', configureGenerationTitle: 'Configure Generation',
   configureSearchTitle: 'Configure Search', searchResultsTitle: 'Search Results',
   sourceContextLabel: 'Source', connectionsLabel: 'Connections', citedByLabel: 'Cited by',
-  userHintLabel: 'Hint', userHintPlaceholder: 'Describe what this refers to…',
+  userHintLabel: 'Hint', userHintEffect: 'steers Search and Generate',
+  userHintPlaceholder: 'Describe what this refers to…',
+  graphPaneTitle: 'In the graph', graphEmpty: 'No links yet.',
+  corpusPaneTitle: 'In the corpus', corpusEmpty: 'Nothing similar.',
+  excludedReceipt: '{{types}} excluded', machineRead: 'OCR',
   loadingContext: 'Loading…', failedContext: 'Failed',
   search: 'Search', searching: 'Searching…', generate: 'Generate',
   compose: 'Compose', resolutionStrategyLabel: 'Resolution Strategy', back: 'Back',
@@ -103,6 +107,13 @@ async function typeHint(text: string) {
 describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.userHint', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
+  it('the gather panel carries the widened class (GEP P2, D2)', () => {
+    const { baseElement } = renderWizard();
+    const panel = baseElement.querySelector('.semiont-search-modal__panel--gather');
+    expect(panel).not.toBeNull();
+    expect(panel!.className).toContain('semiont-search-modal__panel--wide');
+  });
+
   it('the typed hint stays visible after stepping into configure-search (GEP P1c, D8)', async () => {
     // The thing being steered must not vanish while you steer it.
     const { baseElement } = renderWizard();
@@ -141,7 +152,7 @@ describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.use
   it('generation gets it too — the path that used to drop it silently', async () => {
     renderWizard();
     await typeHint('focus on hydrology');
-    await userEvent.click(screen.getByText(new RegExp(T.generate)));
+    await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
 
     // The step renders the context it was handed; the hint is visible in the
     // gathered-context panel it shows, which is only true if the ENRICHED
@@ -219,7 +230,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
 
   it('generation submits the step\'s config against this annotation, then closes', async () => {
     const { onGenerateSubmit, onClose } = renderWizard();
-    await userEvent.click(screen.getByText(new RegExp(T.generate)));
+    await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
     await userEvent.type(screen.getByLabelText(/Save location/i), 'generated/out.md');
     await userEvent.click(screen.getByRole('button', { name: T.generate }));
 
@@ -231,7 +242,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
 
   it('retreats from a configure step back to the gather step', async () => {
     renderWizard();
-    await userEvent.click(screen.getByText(new RegExp(T.generate)));
+    await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
     expect(screen.getByText(T.configureGenerationTitle)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Back/ }));
     expect(screen.getByText(T.gatherTitle)).toBeInTheDocument();

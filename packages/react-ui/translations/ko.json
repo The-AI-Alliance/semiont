@@ -414,7 +414,14 @@
     "progressInProgress": "생성 중…",
     "progressComplete": "생성 완료!",
     "progressFailed": "생성 실패",
-    "maxLengthCeiling": "{{model}}에 의해 {{maxOutputTokens}} 토큰으로 제한됩니다."
+    "maxLengthCeiling": "{{model}}에 의해 {{maxOutputTokens}} 토큰으로 제한됩니다.",
+    "graphPaneTitle": "그래프에서",
+    "graphEmpty": "아직 링크가 없습니다.",
+    "corpusPaneTitle": "코퍼스에서",
+    "corpusEmpty": "코퍼스에 유사한 항목이 없습니다.",
+    "excludedReceipt": "{{types}} 이 리콜에서 제외됨",
+    "machineRead": "OCR",
+    "score": "점수"
   },
   "ReferenceWizard": {
     "gatherTitle": "수집된 컨텍스트",
@@ -451,7 +458,14 @@
     "semanticScoringHelp": "AI를 사용하여 의미적 관련성에 따라 결과 점수 부여",
     "searching": "검색 중...",
     "search": "검색",
-    "maxLengthCeiling": "{{model}}에 의해 {{maxOutputTokens}} 토큰으로 제한됩니다."
+    "maxLengthCeiling": "{{model}}에 의해 {{maxOutputTokens}} 토큰으로 제한됩니다.",
+    "graphPaneTitle": "그래프에서",
+    "graphEmpty": "아직 링크가 없습니다 — 이 참조를 해결하면 첫 링크가 생깁니다.",
+    "corpusPaneTitle": "코퍼스에서",
+    "corpusEmpty": "코퍼스에 유사한 항목이 없습니다 — 검색이 성과를 내기 어렵습니다.",
+    "excludedReceipt": "{{types}} 이 리콜에서 제외됨",
+    "machineRead": "OCR",
+    "userHintEffect": "검색과 생성을 이끕니다"
   },
   "OutcomeToasts": {
     "createFailed": "주석을 만들지 못했습니다: {{detail}}",
