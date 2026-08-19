@@ -24,7 +24,7 @@ const CONTEXT = {
   focus: {
     kind: 'annotation',
     annotation: { id: 'a1' },
-    sourceResource: { id: 'r1', name: 'Src' },
+    sourceResource: { '@id': 'r1', name: 'Src' },
   },
   graph: { nodes: [], edges: [] },
   // The corpus data is PRESENT in the context — the pin is that this step

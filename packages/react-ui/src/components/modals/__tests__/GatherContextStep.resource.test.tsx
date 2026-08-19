@@ -55,6 +55,7 @@ const annotate = {
     compose: 'Compose',
     resolutionStrategyLabel: 'Strategy',
     userHintLabel: 'Hint',
+    userHintEffect: 'steers Search and Generate',
     userHintPlaceholder: 'hint…',
   },
 };
@@ -63,7 +64,7 @@ function resourceContext(): GatheredContext {
   return {
     focus: {
       kind: 'resource',
-      resource: { id: 'res-1', name: 'My Resource' },
+      resource: { '@id': 'res-1', name: 'My Resource' },
       summary: 'A short summary',
       suggestedReferences: ['Suggested Topic'],
       content: { main: 'main content' },
@@ -291,6 +292,89 @@ describe('GatheredContext display — resource focus', () => {
     expect(container.querySelector('.semiont-gather__hint-row')).not.toBeNull();
   });
 
+  // ── GEP P4 — the graph pane's body is an actual graph ───────────────────────
+  // Post-P3 topology: a citation is its linking ANNOTATION (annotation-of → the
+  // citing resource, cites → the focal one); siblings are annotations ON the
+  // focal resource. The viz draws the derived neighborhood: focal + peers +
+  // citers + siblings; the citation's intermediary annotation collapses into
+  // its edge.
+
+  function vizContext(): GatheredContext {
+    return {
+      ...(resourceContext() as object),
+      graph: {
+        nodes: [
+          { id: 'res-1', type: 'resource', label: 'My Resource' },
+          { id: 'res-2', type: 'resource', label: 'Peer Doc', entityTypes: ['Topic'] },
+          { id: 'res-3', type: 'resource', label: 'Citing Doc' },
+          { id: 'ann-c', type: 'annotation', label: 'linking',
+            annotation: { id: 'ann-c', motivation: 'linking' } },
+          { id: 'ann-s', type: 'annotation', label: 'commenting', entityTypes: ['Person'],
+            annotation: { id: 'ann-s', motivation: 'commenting', body: [{ type: 'TextualBody', value: 'a sibling note' }] } },
+        ],
+        edges: [
+          { source: 'res-1', target: 'res-2', type: 'related', bidirectional: true },
+          { source: 'ann-c', target: 'res-3', type: 'annotation-of' },
+          { source: 'ann-c', target: 'res-1', type: 'cites' },
+          { source: 'ann-s', target: 'res-1', type: 'annotation-of' },
+        ],
+      },
+    } as unknown as GatheredContext;
+  }
+
+  function renderViz() {
+    return render(
+      <GatherContextStep
+        context={vizContext()} contextLoading={false} contextError={null} translations={t}
+      />,
+    );
+  }
+
+  it('draws the neighborhood as SVG — the interim lists are gone (P4, D3)', () => {
+    const { container } = renderViz();
+    const pane = container.querySelector('.semiont-gather-pane--graph')!;
+    expect(pane.querySelector('svg')).not.toBeNull();
+    // focal + peer + citer + sibling; the citing annotation collapses into its edge
+    expect(pane.querySelectorAll('.semiont-graph__node')).toHaveLength(4);
+    expect(pane.querySelectorAll('.semiont-graph__edge')).toHaveLength(3);
+    expect(pane.querySelector('ul')).toBeNull(); // replaced, not joined
+    // cited-by count stays visible WITHOUT hover
+    expect(pane.textContent).toContain('Cited by (1)');
+  });
+
+  it('the focal node is visually distinct, and there is exactly one (P4)', () => {
+    const { container } = renderViz();
+    const focal = container.querySelectorAll('.semiont-graph__node--focal');
+    expect(focal).toHaveLength(1);
+    expect(focal[0]!.textContent).toContain('My Resource');
+  });
+
+  it('siblings debut here — with motivation and body in hover-text (P4, D11)', () => {
+    const { container } = renderViz();
+    const sibling = container.querySelector('[data-node-id="ann-s"]');
+    expect(sibling).not.toBeNull();
+    const title = sibling!.querySelector('title');
+    expect(title).not.toBeNull();
+    expect(title!.textContent).toContain('commenting');
+    expect(title!.textContent).toContain('a sibling note');
+    // Peer hover carries its entity types.
+    expect(container.querySelector('[data-node-id="res-2"] title')!.textContent).toContain('Topic');
+  });
+
+  it('layout is deterministic — same context, same positions (P4, D3)', () => {
+    const positions = () => {
+      const { container, unmount } = renderViz();
+      const snap = Array.from(container.querySelectorAll('.semiont-graph__node rect'))
+        .map((r) => `${r.closest('[data-node-id]')!.getAttribute('data-node-id')}@${r.getAttribute('x')},${r.getAttribute('y')}`)
+        .join('|');
+      unmount();
+      return snap;
+    };
+    const first = positions();
+    expect(first.length).toBeGreaterThan(0);
+    expect(positions()).toBe(first);
+  });
+
   it('an annotation focus WITHOUT the annotate group renders display-only (GFR A2)', () => {
     // The resolution controls belong to the caller that can serve them. A
     // display-only caller must never get a hint textarea wired to nothing —
@@ -313,7 +397,7 @@ function annotationContext(): GatheredContext {
     focus: {
       kind: 'annotation',
       annotation: { id: 'anno-1', motivation: 'linking' },
-      sourceResource: { id: 'res-1', name: 'Host' },
+      sourceResource: { '@id': 'res-1', name: 'Host' },
       selected: { before: 'a ', text: 'term', after: ' b' },
     },
     graph: { nodes: [], edges: [] },

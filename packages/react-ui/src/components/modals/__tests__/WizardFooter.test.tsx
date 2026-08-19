@@ -131,7 +131,7 @@ const GATHER_T = {
 const RESULTS_T = { noResults: 'None', score: 'Score', link: 'Link', back: 'Back', ...CONTEXT_T };
 
 const CONTEXT = {
-  focus: { kind: 'annotation', annotation: { id: 'a1' }, sourceResource: { id: 'r1', name: 'Src' } },
+  focus: { kind: 'annotation', annotation: { id: 'a1' }, sourceResource: { '@id': 'r1', name: 'Src' } },
   // `graph` is not optional in practice: ContextSummary hands it straight to
   // `deriveViews`, which dereferences `.nodes`.
   graph: { nodes: [], edges: [] },
@@ -213,7 +213,8 @@ describe('the resolution chooser (GatherContextStep) — the named exception', (
     onCompose: vi.fn(),
     translations: {
       search: 'Search', generate: 'Generate', compose: 'Compose',
-      resolutionStrategyLabel: 'Strategy', userHintLabel: 'Hint', userHintPlaceholder: '',
+      resolutionStrategyLabel: 'Strategy', userHintLabel: 'Hint',
+      userHintEffect: 'steers Search and Generate', userHintPlaceholder: '',
     },
   };
   const DISPLAY_T = {

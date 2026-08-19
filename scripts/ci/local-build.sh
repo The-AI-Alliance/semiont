@@ -515,6 +515,11 @@ GOPROXY_CACHED='file:///go/pkg/mod/cache/download,https://proxy.golang.org,direc
 # not established, and one that sends the reader to regenerate a file that was
 # never stale. Ignorance is not a finding.
 DRIFT_RC=0
+# Output is tee'd, not just streamed: the exit-3 handler below reads it to tell a
+# CORRUPT MODULE CACHE from a network failure, and the two have opposite remedies.
+# `set -o pipefail` (line 2) is what makes `$?` the container's code rather than
+# tee's — without it this silently reports success on every failure.
+DRIFT_LOG=$(mktemp "${TMPDIR:-/tmp}/semiont-drift.XXXXXX")
 $RT run --rm \
   -v "$REPO_ROOT":/workspace \
   -v "$GOCACHE_DIR":/root/.cache/go-build \
@@ -526,11 +531,13 @@ $RT run --rm \
            -generate types,client,skip-prune -package semiont \
            -o /tmp/client_gen.check.go specs/openapi.json || exit 3
          diff -q /tmp/client_gen.check.go packages/sdk-go/client_gen.go >/dev/null || exit 4' \
+  2>&1 | tee "$DRIFT_LOG" \
   || DRIFT_RC=$?
 
 case "$DRIFT_RC" in
   0)
     ok "packages/sdk-go matches the spec"
+    rm -f "$DRIFT_LOG"
     ;;
   4)
     fail "packages/sdk-go/client_gen.go is STALE — the OpenAPI spec changed without regenerating the Go client."
@@ -546,9 +553,35 @@ case "$DRIFT_RC" in
     fail "The sdk-go drift gate could not RUN (the generator exited $DRIFT_RC; its output is above)."
     echo ""
     echo -e "  This says nothing about whether the Go client is stale — the check never got"
-    echo -e "  far enough to compare. A failed module fetch (${BOLD}proxy.golang.org${RESET}) is the usual"
-    echo -e "  cause; retry once the network is back, and the pinned generator will be cached"
-    echo -e "  in ${BOLD}${GOMODCACHE_DIR}${RESET} for subsequent offline runs."
+    echo -e "  far enough to compare."
+    echo ""
+    # Two causes, opposite remedies. Telling someone to wait for the network when
+    # the module cache is corrupt makes them wait for a network that is already
+    # working, and the next run fails identically.
+    #
+    # The cache holds `cache/download` (module ZIPs — a valid proxy, and what
+    # GOPROXY_CACHED points at) beside the EXTRACTED trees. A run killed
+    # mid-extraction leaves a partial tree that no amount of network fixes; Go
+    # re-extracts from the downloads offline once the bad tree is gone.
+    if grep -qiE 'no such file or directory|no matching files found|pattern .*: .*matching|cannot find package' "$DRIFT_LOG"; then
+      echo -e "  ${BOLD}Cause: a corrupt Go module cache, not the network.${RESET} A previous run was"
+      echo -e "  interrupted mid-extraction and left a partial module tree."
+      echo ""
+      echo -e "  Purge the EXTRACTED trees and keep the downloads (no re-fetch, works offline):"
+      echo ""
+      echo -e "    ${BOLD}chmod -R u+w $GOMODCACHE_DIR${RESET}"
+      echo -e "    ${BOLD}find $GOMODCACHE_DIR -mindepth 1 -maxdepth 1 ! -name cache -exec rm -rf {} +${RESET}"
+      echo ""
+      echo -e "  ${DIM}Do NOT use \`go clean -modcache\` — it deletes cache/download too, costing a${RESET}"
+      echo -e "  ${DIM}~100 MB re-fetch of the 21-module oapi-codegen tree and reintroducing the${RESET}"
+      echo -e "  ${DIM}network dependency GOPROXY_CACHED exists to remove.${RESET}"
+    else
+      echo -e "  A failed module fetch (${BOLD}proxy.golang.org${RESET}) is the usual cause; retry once the"
+      echo -e "  network is back, and the pinned generator will be cached in"
+      echo -e "  ${BOLD}${GOMODCACHE_DIR}${RESET} for subsequent offline runs."
+    fi
+    echo ""
+    echo -e "  ${DIM}Generator output kept at: $DRIFT_LOG${RESET}"
     echo ""
     exit 1
     ;;

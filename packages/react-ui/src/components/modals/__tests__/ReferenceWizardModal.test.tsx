@@ -37,7 +37,7 @@ const CONTEXT = {
   focus: {
     kind: 'annotation',
     annotation: { id: 'ann-1' },
-    sourceResource: { id: 'res-1', name: 'Scythian steppe' },
+    sourceResource: { '@id': 'res-1', name: 'Scythian steppe' },
     selected: { text: 'Caspian Sea' },
   },
   graph: { nodes: [], edges: [] },
