@@ -474,7 +474,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         throw new Error(`Failed to create annotation: Resource ${targetSource} not found in graph database`);
       }
 
-      return this.parseAnnotationNode(result.records[0]!.get('a'), entityTypes);
+      return parseAnnotationNode(result.records[0]!.get('a'), entityTypes);
     } finally {
       await session.close();
     }
@@ -496,7 +496,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         return null;
       }
       this.logger?.debug('Annotation found', { id });
-      return this.parseAnnotationNode(
+      return parseAnnotationNode(
         result.records[0]!.get('a'),
         result.records[0]!.get('entityTypes')
       );
@@ -600,7 +600,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         this.logger?.debug('No body update for annotation', { id });
       }
 
-      return this.parseAnnotationNode(
+      return parseAnnotationNode(
         result.records[0]!.get('a'),
         result.records[0]!.get('entityTypes')
       );
@@ -649,7 +649,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       );
 
       const annotations = result.records.map(record =>
-        this.parseAnnotationNode(record.get('a'), record.get('entityTypes'))
+        parseAnnotationNode(record.get('a'), record.get('entityTypes'))
       );
 
       return { annotations, total: annotations.length };
@@ -671,7 +671,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       );
 
       return result.records.map(record =>
-        this.parseAnnotationNode(record.get('a'), record.get('entityTypes'))
+        parseAnnotationNode(record.get('a'), record.get('entityTypes'))
       );
     } finally {
       await session.close();
@@ -705,7 +705,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         throw new Error('Annotation not found');
       }
 
-      return this.parseAnnotationNode(
+      return parseAnnotationNode(
         result.records[0]!.get('a'),
         result.records[0]!.get('entityTypes')
       );
@@ -727,7 +727,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       );
 
       return result.records.map(record =>
-        this.parseAnnotationNode(record.get('a'), record.get('entityTypes'))
+        parseAnnotationNode(record.get('a'), record.get('entityTypes'))
       );
     } finally {
       await session.close();
@@ -757,7 +757,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       const result = await session.run(cypher, params);
 
       return result.records.map(record =>
-        this.parseAnnotationNode(record.get('a'), record.get('entityTypes'))
+        parseAnnotationNode(record.get('a'), record.get('entityTypes'))
       );
     } finally {
       await session.close();
@@ -776,7 +776,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       );
 
       return result.records.map(record =>
-        this.parseAnnotationNode(record.get('a'), record.get('entityTypes'))
+        parseAnnotationNode(record.get('a'), record.get('entityTypes'))
       );
     } finally {
       await session.close();
@@ -801,7 +801,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       this.logger?.debug('Found annotations', { count: result.records.length });
 
       return result.records.map(record =>
-        this.parseAnnotationNode(record.get('a'), record.get('entityTypes'))
+        parseAnnotationNode(record.get('a'), record.get('entityTypes'))
       );
     } finally {
       await session.close();
@@ -838,7 +838,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
             { id: annId }
           );
           if (annResult.records.length > 0) {
-            outgoing.push(this.parseAnnotationNode(
+            outgoing.push(parseAnnotationNode(
               annResult.records[0]!.get('a'),
               annResult.records[0]!.get('entityTypes')
             ));
@@ -857,7 +857,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
             { id: annId }
           );
           if (annResult.records.length > 0) {
-            incoming.push(this.parseAnnotationNode(
+            incoming.push(parseAnnotationNode(
               annResult.records[0]!.get('a'),
               annResult.records[0]!.get('entityTypes')
             ));
@@ -906,7 +906,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
             { ids: annotationIds }
           );
           selResult.records.forEach(rec => {
-            annotations.push(this.parseAnnotationNode(
+            annotations.push(parseAnnotationNode(
               rec.get('a'),
               rec.get('entityTypes')
             ));
@@ -1201,69 +1201,79 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     return resource;
   }
 
-  private parseAnnotationNode(node: any, entityTypes: string[] = []): Annotation {
-    const props = node.properties;
+}
 
-    // Validate required fields
-    if (!props.id) throw new Error('Annotation missing required field: id');
-    if (!props.resourceId) throw new Error(`Annotation ${props.id} missing required field: resourceId`);
-    // props.exact is optional - not all annotation types have selected text (e.g., image annotations)
-    if (!props.type) throw new Error(`Annotation ${props.id} missing required field: type`);
-    if (!props.selector) throw new Error(`Annotation ${props.id} missing required field: selector`);
-    if (!props.creator) throw new Error(`Annotation ${props.id} missing required field: creator`);
+/**
+ * Project a neo4j annotation node to the wire `Annotation`.
+ *
+ * Module-level (not a method) so the projection is unit-testable without a
+ * driver: `node` is untyped at this seam, which is exactly how a native
+ * neo4j DateTime once reached the wire as `created` unseen by tsc.
+ */
+export function parseAnnotationNode(node: any, entityTypes: string[] = []): Annotation {
+  const props = node.properties;
 
-    if (!props.motivation) throw new Error(`Annotation ${props.id} missing required field: motivation`);
+  // Validate required fields
+  if (!props.id) throw new Error('Annotation missing required field: id');
+  if (!props.resourceId) throw new Error(`Annotation ${props.id} missing required field: resourceId`);
+  // props.exact is optional - not all annotation types have selected text (e.g., image annotations)
+  if (!props.type) throw new Error(`Annotation ${props.id} missing required field: type`);
+  if (!props.selector) throw new Error(`Annotation ${props.id} missing required field: selector`);
+  if (!props.creator) throw new Error(`Annotation ${props.id} missing required field: creator`);
 
-    // Parse creator - always stored as JSON string in DB
-    const creator = JSON.parse(props.creator);
+  if (!props.motivation) throw new Error(`Annotation ${props.id} missing required field: motivation`);
 
-    // Reconstruct body array from entity tags and linking body
-    const bodyArray: Array<{type: 'TextualBody'; value: string; purpose: 'tagging'} | {type: 'SpecificResource'; source: string; purpose: 'linking'}> = [];
+  // Parse creator - always stored as JSON string in DB
+  const creator = JSON.parse(props.creator);
 
-    // Add entity tag bodies (TextualBody with purpose: "tagging")
-    for (const entityType of entityTypes) {
-      if (entityType) {  // Filter out nulls
-        bodyArray.push({
-          type: 'TextualBody' as const,
-          value: entityType,
-          purpose: 'tagging' as const,
-        });
-      }
-    }
+  // Reconstruct body array from entity tags and linking body
+  const bodyArray: Array<{type: 'TextualBody'; value: string; purpose: 'tagging'} | {type: 'SpecificResource'; source: string; purpose: 'linking'}> = [];
 
-    // Add linking body (SpecificResource) if annotation is resolved
-    if (props.source) {
+  // Add entity tag bodies (TextualBody with purpose: "tagging")
+  for (const entityType of entityTypes) {
+    if (entityType) {  // Filter out nulls
       bodyArray.push({
-        type: 'SpecificResource' as const,
-        source: props.source,
-        purpose: 'linking' as const,
+        type: 'TextualBody' as const,
+        value: entityType,
+        purpose: 'tagging' as const,
       });
     }
-
-    const annotation: Annotation = {
-      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-      'type': 'Annotation' as const,
-      id: props.id,
-      motivation: props.motivation,
-      target: {
-        source: props.resourceId,
-        selector: JSON.parse(props.selector),
-      },
-      body: bodyArray as Annotation['body'],
-      creator,
-      created: props.created, // ISO string from DB
-    };
-
-    // W3C Web Annotation modification tracking
-    if (props.modified) annotation.modified = props.modified.toString();
-    if (props.generator) {
-      try {
-        annotation.generator = JSON.parse(props.generator);
-      } catch (e) {
-        // Ignore parse errors
-      }
-    }
-
-    return annotation;
   }
+
+  // Add linking body (SpecificResource) if annotation is resolved
+  if (props.source) {
+    bodyArray.push({
+      type: 'SpecificResource' as const,
+      source: props.source,
+      purpose: 'linking' as const,
+    });
+  }
+
+  const annotation: Annotation = {
+    '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+    'type': 'Annotation' as const,
+    id: props.id,
+    motivation: props.motivation,
+    target: {
+      source: props.resourceId,
+      selector: JSON.parse(props.selector),
+    },
+    body: bodyArray as Annotation['body'],
+    creator,
+    // Stored as datetime($created), so the driver returns a native temporal —
+    // toString() is the ISO form (and the identity on rows already strings).
+    created: props.created.toString(),
+  };
+
+  // W3C Web Annotation modification tracking
+  if (props.modified) annotation.modified = props.modified.toString();
+  if (props.generator) {
+    try {
+      annotation.generator = JSON.parse(props.generator);
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }
+
+  return annotation;
 }
