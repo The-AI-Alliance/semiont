@@ -40,6 +40,7 @@ export interface ResourceGenerateModalTranslations {
   // ConfigureGenerationStep
   resourceTitle: string;
   resourceTitlePlaceholder: string;
+  saveLocation: string;
   additionalInstructions: string;
   additionalInstructionsPlaceholder: string;
   language: string;
@@ -303,6 +304,7 @@ export function ResourceGenerateModal({
                     translations={{
                       resourceTitle: t.resourceTitle,
                       resourceTitlePlaceholder: t.resourceTitlePlaceholder,
+                      saveLocation: t.saveLocation,
                       additionalInstructions: t.additionalInstructions,
                       additionalInstructionsPlaceholder: t.additionalInstructionsPlaceholder,
                       language: t.language,

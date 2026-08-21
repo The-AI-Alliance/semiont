@@ -15,7 +15,7 @@ type CreateAnnotationRequest = Omit<Annotation, 'id' | 'created' | 'modified' | 
 
 interface ResourceAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components
-  newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations
+  sparkleAnnotationIds: Set<string>; // Annotations currently sparkling (recently created or resolved)
 
   // Generic annotation creation (supports both text and image annotations)
   markAnnotation: (
@@ -26,7 +26,7 @@ interface ResourceAnnotationsContextType {
   ) => Promise<string | undefined>;
 
   // UI actions
-  clearNewAnnotationId: (id: AnnotationId) => void;
+  clearSparkle: (id: AnnotationId) => void;
   triggerSparkleAnimation: (annotationId: string) => void;
 }
 
@@ -34,7 +34,7 @@ const ResourceAnnotationsContext = createContext<ResourceAnnotationsContextType 
 
 export function ResourceAnnotationsProvider({ children }: { children: React.ReactNode }) {
   // UI state only - no data management
-  const [newAnnotationIds, setNewAnnotationIds] = useState<Set<string>>(new Set());
+  const [sparkleAnnotationIds, setSparkleAnnotationIds] = useState<Set<string>>(new Set());
 
   // Live region announcements
   const { announce } = useLiveRegion();
@@ -62,11 +62,11 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
 
       // Track this as a new annotation for sparkle animation
       if (result.annotationId) {
-        setNewAnnotationIds(prev => new Set(prev).add(result.annotationId));
+        setSparkleAnnotationIds(prev => new Set(prev).add(result.annotationId));
 
         // Clear the ID after animation completes (6 seconds for 3 iterations)
         setTimeout(() => {
-          setNewAnnotationIds(prev => {
+          setSparkleAnnotationIds(prev => {
             const next = new Set(prev);
             next.delete(result.annotationId);
             return next;
@@ -85,8 +85,8 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     }
   }, [semiont, announce]);
 
-  const clearNewAnnotationId = useCallback((id: AnnotationId) => {
-    setNewAnnotationIds(prev => {
+  const clearSparkle = useCallback((id: AnnotationId) => {
+    setSparkleAnnotationIds(prev => {
       const next = new Set(prev);
       next.delete(id);
       return next;
@@ -94,11 +94,11 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   }, []);
 
   const triggerSparkleAnimation = useCallback((annotationId: string) => {
-    setNewAnnotationIds(prev => new Set(prev).add(annotationId));
+    setSparkleAnnotationIds(prev => new Set(prev).add(annotationId));
 
     // Clear after animation
     setTimeout(() => {
-      setNewAnnotationIds(prev => {
+      setSparkleAnnotationIds(prev => {
         const next = new Set(prev);
         next.delete(annotationId);
         return next;
@@ -108,12 +108,12 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
 
   const contextValue = useMemo(
     () => ({
-      newAnnotationIds,
+      sparkleAnnotationIds,
       markAnnotation,
-      clearNewAnnotationId,
+      clearSparkle,
       triggerSparkleAnimation,
     }),
-    [newAnnotationIds, markAnnotation, clearNewAnnotationId, triggerSparkleAnimation]
+    [sparkleAnnotationIds, markAnnotation, clearSparkle, triggerSparkleAnimation]
   );
 
   return (

@@ -76,6 +76,8 @@ interface UnifiedAnnotationsPanelProps {
   entityTypesError?: Error | null;
   referencedByError?: Error | null;
   onRetryReferencedBy?: () => void;
+  /** Annotations currently sparkling (recently created or resolved) — RESOLUTION-SPARKLE D6. */
+  sparkleAnnotationIds?: Set<string>;
 
   // Resource context — threaded to every per-motivation panel, which stamps it
   // as `source` on mark:submit (multi-viewer routing).
@@ -328,6 +330,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 referencedByLoading={props.referencedByLoading}
                 referencedByError={props.referencedByError}
                 onRetryReferencedBy={props.onRetryReferencedBy}
+                sparkleAnnotationIds={props.sparkleAnnotationIds}
                 Link={props.Link}
                 routes={props.routes}
               />

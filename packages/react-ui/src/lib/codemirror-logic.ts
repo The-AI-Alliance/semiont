@@ -159,14 +159,14 @@ export function getAnnotationDecorationMeta(
  */
 export function computeAnnotationDecorations(
   segments: TextSegment[],
-  newAnnotationIds?: Set<string>
+  sparkleAnnotationIds?: Set<string>
 ): Array<{ start: number; end: number; meta: AnnotationDecorationMeta }> {
   return segments
     .filter(s => s.annotation)
     .sort((a, b) => a.start - b.start)
     .map(segment => {
       const annotation = segment.annotation!;
-      const isNew = newAnnotationIds?.has(annotation.id) || false;
+      const isNew = sparkleAnnotationIds?.has(annotation.id) || false;
       return {
         start: segment.start,
         end: segment.end,

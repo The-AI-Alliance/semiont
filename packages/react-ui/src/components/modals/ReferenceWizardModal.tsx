@@ -14,13 +14,17 @@ import { ConfigureSearchStep } from './ConfigureSearchStep';
 import type { SearchConfig } from './ConfigureSearchStep';
 import type { GenerationDraft } from './ConfigureGenerationStep';
 import { SearchResultsStep } from './SearchResultsStep';
+import { ComposeStep } from './ComposeStep';
+import type { ComposeDraft, ComposeParams } from './ComposeStep';
+import { useLineNumbers } from '../../contexts/LineNumbersContext';
 import type { ScoredResult } from './SearchResultsStep';
 
 type WizardStep =
   | { step: 'gather' }
   | { step: 'configure-search' }
   | { step: 'search-results'; results: ScoredResult[] }
-  | { step: 'configure-generation' };
+  | { step: 'configure-generation' }
+  | { step: 'compose' };
 
 export interface ReferenceWizardModalProps {
   /**
@@ -48,7 +52,16 @@ export interface ReferenceWizardModalProps {
   /** Callbacks */
   onGenerateSubmit: (referenceId: string, config: GenerationConfig) => void;
   onLinkResource: (referenceId: string, targetResourceId: string) => void;
-  onComposeNavigate: (context: GatheredContext, annotationId: string, resourceId: string, title: string, entityTypes: string[]) => void;
+  /**
+   * Create-and-link (COMPOSE-IN-MODAL): the host runs `yield.resource` then
+   * `bind.body` and settles the promise; rejection keeps the modal open with
+   * the compose footer re-enabled. Replaces the old navigate-to-page flow.
+   */
+  onComposeSubmit: (referenceId: string, params: ComposeParams) => Promise<void>;
+  /** Picker vocabulary for compose when the reference fixed no entity types. */
+  entityTypeOptions?: string[];
+  /** Editor hover delay for the compose step's CodeMirror. */
+  hoverDelayMs?: number;
   /** Translation strings */
   translations: {
     gatherTitle: string;
@@ -80,6 +93,7 @@ export interface ReferenceWizardModalProps {
     noResults: string;
     resourceTitle: string;
     resourceTitlePlaceholder: string;
+    saveLocation: string;
     additionalInstructions: string;
     additionalInstructionsPlaceholder: string;
     language: string;
@@ -94,6 +108,14 @@ export interface ReferenceWizardModalProps {
     semanticScoring: string;
     semanticScoringHelp: string;
     searchFailed: string;
+    composeTitle: string;
+    entityTypes: string;
+    contentLabel: string;
+    createAndLink: string;
+    creatingAndLinking: string;
+    discardDraftPrompt: string;
+    discardDraft: string;
+    keepEditing: string;
   };
 }
 
@@ -110,7 +132,9 @@ export function ReferenceWizardModal({
   contextError,
   onGenerateSubmit,
   onLinkResource,
-  onComposeNavigate,
+  onComposeSubmit,
+  entityTypeOptions = [],
+  hoverDelayMs = 300,
   translations: t,
   generationAgent,
 }: ReferenceWizardModalProps) {
@@ -127,6 +151,14 @@ export function ReferenceWizardModal({
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [userHint, setUserHint] = useState('');
+  const freshComposeDraft = (): ComposeDraft => ({
+    name: defaultTitle, storagePath: '', content: '', entityTypes: [], language: locale,
+  });
+  const [composeDraft, setComposeDraft] = useState<ComposeDraft>(freshComposeDraft);
+  const [showDiscardPrompt, setShowDiscardPrompt] = useState(false);
+  // The editor consumes the shared display setting; the step itself stays
+  // provider-free, so the wizard resolves it and passes it down.
+  const { showLineNumbers } = useLineNumbers();
 
   // Reset to gather step when modal opens
   useEffect(() => {
@@ -140,6 +172,8 @@ export function ReferenceWizardModal({
       setIsSearching(false);
       setSearchError(null);
       setUserHint('');
+      setComposeDraft(freshComposeDraft());
+      setShowDiscardPrompt(false);
     }
   }, [isOpen]);
 
@@ -193,10 +227,33 @@ export function ReferenceWizardModal({
   }, []);
 
   const handleCompose = useCallback(() => {
-    if (!contextWithHint || !annotationId || !resourceId) return;
-    onComposeNavigate(contextWithHint, annotationId, resourceId, defaultTitle, entityTypes);
+    if (!context || !annotationId || !resourceId) return;
+    setWizardStep({ step: 'compose' });
+  }, [context, annotationId, resourceId]);
+
+  const handleComposeSubmit = useCallback(async (params: ComposeParams) => {
+    if (!annotationId) return;
+    // Rejection propagates to ComposeStep (footer re-enables); the host
+    // surfaces the error. Success closes UNCONDITIONALLY — the dirty guard
+    // protects dismissal, not completion.
+    await onComposeSubmit(annotationId, params);
     onClose();
-  }, [contextWithHint, annotationId, resourceId, defaultTitle, entityTypes, onComposeNavigate, onClose]);
+  }, [annotationId, onComposeSubmit, onClose]);
+
+  // D4: a modal dies on ✕/Escape/backdrop; a non-empty compose draft must not
+  // die with it. Dismissal routes here; typed work raises an inline prompt.
+  const composeDirty = wizardStep.step === 'compose' && (
+    composeDraft.content.trim() !== '' ||
+    composeDraft.storagePath.trim() !== '' ||
+    composeDraft.name !== defaultTitle
+  );
+  const handleDismiss = useCallback(() => {
+    if (composeDirty) {
+      setShowDiscardPrompt(true);
+      return;
+    }
+    onClose();
+  }, [composeDirty, onClose]);
 
   const handleBackToGather = useCallback(() => {
     setWizardStep({ step: 'gather' });
@@ -261,6 +318,8 @@ export function ReferenceWizardModal({
   // Determine title based on step
   const stepTitle = wizardStep.step === 'gather'
     ? t.gatherTitle
+    : wizardStep.step === 'compose'
+      ? t.composeTitle
     : wizardStep.step === 'configure-generation'
       ? t.configureGenerationTitle
       : wizardStep.step === 'configure-search'
@@ -269,7 +328,7 @@ export function ReferenceWizardModal({
 
   return (
     <Transition appear show={isOpen}>
-      <Dialog as="div" className="semiont-search-modal" onClose={onClose}>
+      <Dialog as="div" className="semiont-search-modal" onClose={handleDismiss}>
         {/* Backdrop */}
         <TransitionChild
           enter="ease-out duration-200"
@@ -301,13 +360,33 @@ export function ReferenceWizardModal({
                     {stepTitle}
                   </DialogTitle>
                   <button
-                    onClick={onClose}
+                    onClick={handleDismiss}
                     className="semiont-search-modal__close-button"
                     aria-label="Close"
                   >
                     ✕
                   </button>
                 </div>
+
+                {showDiscardPrompt && (
+                  <div className="semiont-wizard__discard-prompt" role="alert">
+                    <span className="semiont-wizard__discard-prompt-text">{t.discardDraftPrompt}</span>
+                    <button
+                      type="button"
+                      className="semiont-button--danger"
+                      onClick={() => { setShowDiscardPrompt(false); onClose(); }}
+                    >
+                      {t.discardDraft}
+                    </button>
+                    <button
+                      type="button"
+                      className="semiont-button--secondary"
+                      onClick={() => setShowDiscardPrompt(false)}
+                    >
+                      {t.keepEditing}
+                    </button>
+                  </div>
+                )}
 
                 {wizardStep.step === 'gather' && (
                   <GatherContextStep
@@ -334,6 +413,39 @@ export function ReferenceWizardModal({
                   />
                 )}
 
+                {wizardStep.step === 'compose' && context && (
+                  <div className="semiont-wizard__step-scroll" ref={stepScrollRef}>
+                  <GatherContextStep
+                    context={context}
+                    contextLoading={contextLoading}
+                    contextError={contextError}
+                    chosenStrategy={{ label: t.resolutionStrategyLabel, value: `✍️ ${t.compose}` }}
+                    translations={displayTranslations}
+                  />
+                  <ComposeStep
+                    draft={composeDraft}
+                    onDraftChange={(patch) => setComposeDraft((d) => ({ ...d, ...patch }))}
+                    referenceEntityTypes={entityTypes}
+                    entityTypeOptions={entityTypeOptions}
+                    showLineNumbers={showLineNumbers}
+                    hoverDelayMs={hoverDelayMs}
+                    onBack={handleBackToGather}
+                    onCompose={handleComposeSubmit}
+                    translations={{
+                      resourceTitle: t.resourceTitle,
+                      resourceTitlePlaceholder: t.resourceTitlePlaceholder,
+                      saveLocation: t.saveLocation,
+                      entityTypes: t.entityTypes,
+                      language: t.language,
+                      contentLabel: t.contentLabel,
+                      back: t.back,
+                      createAndLink: t.createAndLink,
+                      creatingAndLinking: t.creatingAndLinking,
+                    }}
+                  />
+                  </div>
+                )}
+
                 {wizardStep.step === 'configure-generation' && context && (
                   <div className="semiont-wizard__step-scroll" ref={stepScrollRef}>
                   <GatherContextStep
@@ -354,6 +466,7 @@ export function ReferenceWizardModal({
                     translations={{
                       resourceTitle: t.resourceTitle,
                       resourceTitlePlaceholder: t.resourceTitlePlaceholder,
+                      saveLocation: t.saveLocation,
                       additionalInstructions: t.additionalInstructions,
                       additionalInstructionsPlaceholder: t.additionalInstructionsPlaceholder,
                       language: t.language,

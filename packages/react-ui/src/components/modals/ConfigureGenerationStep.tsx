@@ -45,6 +45,7 @@ export interface ConfigureGenerationStepProps {
   translations: {
     resourceTitle: string;
     resourceTitlePlaceholder: string;
+    saveLocation: string;
     additionalInstructions: string;
     additionalInstructionsPlaceholder: string;
     language: string;
@@ -158,7 +159,7 @@ export function ConfigureGenerationStep({
       {/* Storage URI */}
       <div className="semiont-form__field">
         <label htmlFor="wizard-storagePath" className="semiont-form__label">
-          Save location
+          {t.saveLocation}
         </label>
         <div className="semiont-input-addon">
           <span className="semiont-input-addon__prefix">file://</span>

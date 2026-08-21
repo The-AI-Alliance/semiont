@@ -37,7 +37,7 @@ interface Props {
   onTextSelect?: (exact: string, position: { start: number; end: number }) => void;
   onChange?: (content: string) => void;
   editable?: boolean;
-  newAnnotationIds?: Set<string>;
+  sparkleAnnotationIds?: Set<string>;
   hoveredAnnotationId?: string | null;
   scrollToAnnotationId?: string | null;
   sourceView?: boolean; // If true, show raw source (no markdown rendering)
@@ -52,7 +52,7 @@ interface Props {
 // Effect to update annotation decorations with segments and new IDs
 interface AnnotationUpdate {
   segments: TextSegment[];
-  newAnnotationIds?: Set<string>;
+  sparkleAnnotationIds?: Set<string>;
 }
 
 const updateAnnotationsEffect = StateEffect.define<AnnotationUpdate>();
@@ -70,10 +70,10 @@ const updateWidgetsEffect = StateEffect.define<WidgetUpdate>();
 // Build CodeMirror decorations from pure metadata
 function buildAnnotationDecorations(
   segments: TextSegment[],
-  newAnnotationIds?: Set<string>
+  sparkleAnnotationIds?: Set<string>
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-  const entries = computeAnnotationDecorations(segments, newAnnotationIds);
+  const entries = computeAnnotationDecorations(segments, sparkleAnnotationIds);
 
   for (const { start, end, meta } of entries) {
     const decoration = Decoration.mark({
@@ -103,7 +103,7 @@ function createAnnotationDecorationsField() {
 
       for (const effect of tr.effects) {
         if (effect.is(updateAnnotationsEffect)) {
-          decorations = buildAnnotationDecorations(effect.value.segments, effect.value.newAnnotationIds);
+          decorations = buildAnnotationDecorations(effect.value.segments, effect.value.sparkleAnnotationIds);
         }
       }
 
@@ -175,7 +175,7 @@ export function CodeMirrorRenderer({
   segments = [],
   onChange,
   editable = false,
-  newAnnotationIds,
+  sparkleAnnotationIds,
   hoveredAnnotationId,
   scrollToAnnotationId,
   sourceView = false,
@@ -410,9 +410,9 @@ export function CodeMirrorRenderer({
     if (!viewRef.current) return;
 
     viewRef.current.dispatch({
-      effects: updateAnnotationsEffect.of({ segments: convertedSegments, ...(newAnnotationIds && { newAnnotationIds }) })
+      effects: updateAnnotationsEffect.of({ segments: convertedSegments, ...(sparkleAnnotationIds && { sparkleAnnotationIds }) })
     });
-  }, [convertedSegments, newAnnotationIds]);
+  }, [convertedSegments, sparkleAnnotationIds]);
 
   // Update widgets when content, segments, or generatingReferenceId changes
   useEffect(() => {

@@ -19,7 +19,7 @@
  * settings.
  */
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import type { GatheredContext } from '@semiont/core';
@@ -57,17 +57,32 @@ const T = {
   search: 'Search', searching: 'Searching…', generate: 'Generate',
   compose: 'Compose', resolutionStrategyLabel: 'Resolution Strategy', back: 'Back',
   link: 'Link', score: 'Score', noResults: 'No results',
-  resourceTitle: 'Resource Title', resourceTitlePlaceholder: 'Title…',
+  resourceTitle: 'Resource Title', resourceTitlePlaceholder: 'Title…', saveLocation: 'Save location',
   additionalInstructions: 'Additional Instructions', additionalInstructionsPlaceholder: '…',
   language: 'Language', languageHelp: '', creativity: 'Creativity',
   creativityFocused: 'Focused', creativityCreative: 'Creative',
   maxLength: 'Max length', maxLengthHelp: '', maxLengthCeiling: 'Limited to {{maxOutputTokens}} by {{model}}.',
   maxResults: 'Max Results', semanticScoring: 'Semantic Scoring', semanticScoringHelp: '',
   searchFailed: 'Search failed',
+  composeTitle: 'Compose Resource', contentLabel: 'Content', entityTypes: 'Entity types',
+  createAndLink: 'Create & Link', creatingAndLinking: 'Creating…',
+  discardDraftPrompt: 'Discard this draft?', discardDraft: 'Discard', keepEditing: 'Keep editing',
 };
 
+// ComposeStep embeds the editor; same mock the page's own tests use.
+vi.mock('../../CodeMirrorRenderer', () => ({
+  CodeMirrorRenderer: ({ content, onChange, editable }: any) => (
+    <textarea
+      data-testid="code-editor"
+      value={content}
+      disabled={!editable}
+      onChange={(e) => onChange?.(e.target.value)}
+    />
+  ),
+}));
+
 function renderWizard(over: Partial<React.ComponentProps<typeof ReferenceWizardModal>> = {}) {
-  const onComposeNavigate = vi.fn();
+  const onComposeSubmit = vi.fn<(referenceId: string, params: unknown) => Promise<void>>().mockResolvedValue(undefined);
   const onGenerateSubmit = vi.fn();
   const onLinkResource = vi.fn();
   const onClose = vi.fn();
@@ -80,13 +95,14 @@ function renderWizard(over: Partial<React.ComponentProps<typeof ReferenceWizardM
       resourceId="res-1"
       defaultTitle="Caspian Sea"
       entityTypes={['Location']}
+      entityTypeOptions={['Person', 'Topic', 'Location']}
       locale="en"
       context={CONTEXT}
       contextLoading={false}
       contextError={null}
       onGenerateSubmit={onGenerateSubmit}
       onLinkResource={onLinkResource}
-      onComposeNavigate={onComposeNavigate}
+      onComposeSubmit={onComposeSubmit}
       translations={T}
       {...over}
     />,
@@ -97,7 +113,7 @@ function renderWizard(over: Partial<React.ComponentProps<typeof ReferenceWizardM
   const client = utils.session!.client;
   const searchSpy = vi.spyOn(client.match, 'requestSearch');
 
-  return { ...utils, client, searchSpy, onComposeNavigate, onGenerateSubmit, onLinkResource, onClose };
+  return { ...utils, client, searchSpy, onComposeSubmit, onGenerateSubmit, onLinkResource, onClose };
 }
 
 /** Type the hint into the gather step's textarea. */
@@ -125,17 +141,14 @@ describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.use
     expect(echo!.textContent).toContain('the ancient city');
   });
 
-  it('compose carries the hint inside focus, not at the top level', async () => {
-    const { onComposeNavigate } = renderWizard();
-    await typeHint('the lake, not the myth');
+  it('compose is a step now — choosing it navigates nowhere (COMPOSE-IN-MODAL D1)', async () => {
+    // The old flow stashed the context in sessionStorage and navigated to the
+    // compose page; both are gone. Choosing ✍️ Compose unfolds the compose
+    // form below the evidence like the other strategies.
+    renderWizard();
     await userEvent.click(screen.getByText(new RegExp(T.compose)));
-
-    expect(onComposeNavigate).toHaveBeenCalledTimes(1);
-    const context = onComposeNavigate.mock.calls[0]![0] as Record<string, unknown>;
-    expect((context.focus as Record<string, unknown>).userHint).toBe('the lake, not the myth');
-    // The shape the old code produced. `GatheredContext` has no top-level
-    // `userHint`, so anything reading the schema would never look here.
-    expect(context).not.toHaveProperty('userHint');
+    expect(screen.getByText(T.composeTitle)).toBeInTheDocument(); // step title
+    expect(screen.getByLabelText(T.resourceTitle)).toHaveValue('Caspian Sea'); // seeded draft
   });
 
   it('search sends the same enriched context over the wire', async () => {
@@ -161,13 +174,6 @@ describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.use
     expect(screen.getByText(T.configureGenerationTitle)).toBeInTheDocument();
   });
 
-  it('leaves the context untouched when no hint was typed', async () => {
-    const { onComposeNavigate } = renderWizard();
-    await userEvent.click(screen.getByText(new RegExp(T.compose)));
-
-    const context = onComposeNavigate.mock.calls[0]![0];
-    expect(context).toBe(CONTEXT); // same reference: nothing was rebuilt
-  });
 });
 
 describe('ReferenceWizardModal — the context stays in view on the strategy steps', () => {
@@ -253,6 +259,102 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
   });
 });
 
+describe('ReferenceWizardModal — compose is the fourth in-modal strategy (COMPOSE-IN-MODAL P2)', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  async function enterCompose() {
+    await userEvent.click(screen.getByText(new RegExp(T.compose)));
+  }
+
+  it('compose renders the evidence above the form, the strategy band collapsed to Compose', async () => {
+    const { baseElement } = renderWizard();
+    await enterCompose();
+
+    expect(baseElement.querySelector('.semiont-gather__source-box')).not.toBeNull();
+    expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();
+    const footer = baseElement.querySelector('.semiont-gather__footer');
+    expect(footer).not.toBeNull();
+    expect(footer!.textContent).toContain(T.resolutionStrategyLabel);
+    expect(footer!.textContent).toContain(`✍️ ${T.compose}`);
+    expect(footer!.querySelectorAll('button')).toHaveLength(0);
+    // ONE scroll pane holding display + form (same grammar as the others).
+    const scroll = baseElement.querySelector('.semiont-wizard__step-scroll');
+    expect(scroll).not.toBeNull();
+    expect(scroll!.querySelector('.semiont-gather__outer')).not.toBeNull();
+    expect(scroll!.querySelector('form.semiont-form')).not.toBeNull();
+  });
+
+  it('the draft survives Back and re-entry (WIZARD-NAVIGATION D3)', async () => {
+    renderWizard();
+    await enterCompose();
+    fireEvent.change(screen.getByTestId('code-editor'), { target: { value: 'A Sauk leader.' } });
+    await userEvent.click(screen.getByRole('button', { name: `◀ ${T.back}` }));
+    expect(screen.getByText(new RegExp(T.compose))).toBeInTheDocument(); // back on gather
+    await enterCompose();
+    expect(screen.getByTestId('code-editor')).toHaveValue('A Sauk leader.');
+  });
+
+  it('submit emits against the annotation with the reference-fixed entity types, then closes', async () => {
+    const { onComposeSubmit, onClose } = renderWizard();
+    await enterCompose();
+    fireEvent.change(screen.getByLabelText(T.saveLocation), { target: { value: 'people/caspian-sea.md' } });
+    fireEvent.change(screen.getByTestId('code-editor'), { target: { value: 'The lake.' } });
+    await userEvent.click(screen.getByRole('button', { name: T.createAndLink }));
+
+    await waitFor(() => expect(onComposeSubmit).toHaveBeenCalledTimes(1));
+    expect(onComposeSubmit).toHaveBeenCalledWith('ann-1', {
+      name: 'Caspian Sea',
+      storagePath: 'file://people/caspian-sea.md',
+      content: 'The lake.',
+      entityTypes: ['Location'],
+      language: 'en',
+    });
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
+  it('a rejected submit keeps the modal open with the footer re-enabled', async () => {
+    const onComposeSubmit = vi.fn<(referenceId: string, params: unknown) => Promise<void>>()
+      .mockRejectedValue(new Error('boom'));
+    const { onClose } = renderWizard({ onComposeSubmit });
+    await enterCompose();
+    fireEvent.change(screen.getByLabelText(T.saveLocation), { target: { value: 'people/x.md' } });
+    await userEvent.click(screen.getByRole('button', { name: T.createAndLink }));
+
+    await waitFor(() => expect(onComposeSubmit).toHaveBeenCalled());
+    expect(onClose).not.toHaveBeenCalled();
+    expect(await screen.findByRole('button', { name: T.createAndLink })).toBeEnabled();
+  });
+
+  // D4: a modal dies on ✕/Escape/backdrop; a non-empty draft must not die
+  // with it. The guard is an INLINE prompt — never window.confirm — and the
+  // footer stays dismissal-free (A4).
+  it('dismissing a dirty draft asks first; Keep editing stays, Discard closes', async () => {
+    const { onClose } = renderWizard();
+    await enterCompose();
+    fireEvent.change(screen.getByTestId('code-editor'), { target: { value: 'typed work' } });
+
+    await userEvent.click(screen.getByLabelText('Close'));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(T.discardDraftPrompt)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: T.keepEditing }));
+    expect(screen.queryByText(T.discardDraftPrompt)).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByLabelText('Close'));
+    await userEvent.click(screen.getByRole('button', { name: T.discardDraft }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('a clean draft dismisses without any prompt', async () => {
+    const { onClose } = renderWizard();
+    await enterCompose();
+    await userEvent.click(screen.getByLabelText('Close'));
+    expect(screen.queryByText(T.discardDraftPrompt)).not.toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () => {
   it('reopening resets the hint and the step', async () => {
     const { rerender } = renderWizard();
@@ -263,7 +365,8 @@ describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () =>
       isOpen: false, onClose: vi.fn(), annotationId: 'ann-1', resourceId: 'res-1',
       defaultTitle: 'Caspian Sea', entityTypes: ['Location'], locale: 'en',
       context: CONTEXT, contextLoading: false, contextError: null,
-      onGenerateSubmit: vi.fn(), onLinkResource: vi.fn(), onComposeNavigate: vi.fn(),
+      onGenerateSubmit: vi.fn(), onLinkResource: vi.fn(),
+      onComposeSubmit: vi.fn<(r: string, p: unknown) => Promise<void>>().mockResolvedValue(undefined),
       translations: T,
     };
     rerender(<ReferenceWizardModal {...props} />);
@@ -394,11 +497,11 @@ describe('ReferenceWizardModal — nothing fires without an annotation to resolv
   beforeEach(() => { vi.clearAllMocks(); });
 
   it('compose, search and generate all no-op', async () => {
-    const { onComposeNavigate, onGenerateSubmit, searchSpy, client } =
+    const { onGenerateSubmit, searchSpy, client } =
       renderWizard({ annotationId: null, resourceId: null });
 
     await userEvent.click(screen.getByText(new RegExp(T.compose)));
-    expect(onComposeNavigate).not.toHaveBeenCalled();
+    expect(screen.queryByText(T.composeTitle)).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
     await userEvent.click(screen.getByRole('button', { name: T.search }));

@@ -1,6 +1,6 @@
 import { BehaviorSubject, type Observable } from 'rxjs';
-import type { GatheredContext, AnnotationId, AccessToken, ResourceDescriptor, ResourceId } from '@semiont/core';
-import { isGatheredContext, resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
+import type { AccessToken, ResourceDescriptor, ResourceId } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
 import { createDisposer } from '@semiont/sdk';
 import type { StateUnit } from '@semiont/core';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
@@ -9,28 +9,16 @@ import type { SemiontSession } from '@semiont/sdk';
 import { decodeWithCharset, extensionForMediaType } from '@semiont/core';
 import type { UploadProgress } from '@semiont/sdk';
 
-export type ComposeMode = 'new' | 'clone' | 'reference';
+export type ComposeMode = 'new' | 'clone';
 
 export interface ComposeParams {
   mode?: string | undefined;
   token?: string | undefined;
-  annotationUri?: string | undefined;
-  sourceDocumentId?: string | undefined;
-  name?: string | undefined;
-  entityTypes?: string | undefined;
-  storedContext?: string | undefined;
 }
 
 export interface CloneData {
   sourceResource: ResourceDescriptor;
   sourceContent: string;
-}
-
-export interface ReferenceData {
-  annotationUri: string;
-  sourceDocumentId: string;
-  name: string;
-  entityTypes: string[];
 }
 
 export interface SaveResourceParams {
@@ -44,8 +32,6 @@ export interface SaveResourceParams {
   entityTypes?: string[];
   language: string;
   archiveOriginal?: boolean;
-  annotationUri?: string;
-  sourceDocumentId?: string;
 }
 
 export interface ComposePageStateUnit extends StateUnit {
@@ -53,8 +39,6 @@ export interface ComposePageStateUnit extends StateUnit {
   mode$: Observable<ComposeMode>;
   loading$: Observable<boolean>;
   cloneData$: Observable<CloneData | null>;
-  referenceData$: Observable<ReferenceData | null>;
-  gatheredContext$: Observable<GatheredContext | null>;
   entityTypes: ListState<string[]>;
   /**
    * Live upload-progress for the in-flight `save(...)` call. Emits the
@@ -78,43 +62,19 @@ export function createComposePageStateUnit(
   // (`useShellStateUnit`), not this unit — do NOT add it to the disposer (it's the
   // shared, app-scoped shell). See packages/sdk/docs/STATE-UNITS.md (composition rule).
 
-  const isReferenceMode = Boolean(params.annotationUri && params.sourceDocumentId && params.name);
   const isCloneMode = params.mode === 'clone' && Boolean(params.token);
-  const pageMode: ComposeMode = isCloneMode ? 'clone' : isReferenceMode ? 'reference' : 'new';
+  const pageMode: ComposeMode = isCloneMode ? 'clone' : 'new';
 
   const mode$ = new BehaviorSubject<ComposeMode>(pageMode);
   const loading$ = new BehaviorSubject<boolean>(true);
   const cloneData$ = new BehaviorSubject<CloneData | null>(null);
-  const referenceData$ = new BehaviorSubject<ReferenceData | null>(null);
-  const gatheredContext$ = new BehaviorSubject<GatheredContext | null>(null);
   const uploadProgress$ = new BehaviorSubject<UploadProgress | null>(null);
 
   const entityTypes = trackList<string[]>(() => client.browse.entityTypes(), []);
   disposer.add(entityTypes.dispose);
 
   // Initialize based on mode
-  if (isReferenceMode) {
-    const entityTypes = params.entityTypes ? params.entityTypes.split(',') : [];
-    referenceData$.next({
-      annotationUri: params.annotationUri!,
-      sourceDocumentId: params.sourceDocumentId!,
-      name: params.name!,
-      entityTypes,
-    });
-    if (params.storedContext) {
-      // The stash is the one place a `GatheredContext` arrives with its type
-      // history severed (sessionStorage → JSON.parse), so it is checked here and
-      // trusted everywhere after. A stale entry — a tab held open across a deploy
-      // — used to reach `deriveViews`, which maps `graph.nodes` during render and
-      // throws rather than degrading. A failed guard is treated as NO stash: the
-      // ordinary gather path runs, with the loading and error states it already has.
-      try {
-        const parsed: unknown = JSON.parse(params.storedContext);
-        if (isGatheredContext(parsed)) gatheredContext$.next(parsed);
-      } catch { /* ignore malformed */ }
-    }
-    loading$.next(false);
-  } else if (isCloneMode) {
+  if (isCloneMode) {
     void (async () => {
       try {
         const tokenResult = await client.yield.fromToken(params.token!);
@@ -184,14 +144,6 @@ export function createComposePageStateUnit(
       });
     });
 
-    if (saveParams.mode === 'reference' && saveParams.annotationUri && saveParams.sourceDocumentId) {
-      await client.bind.body(
-        makeResourceId(saveParams.sourceDocumentId),
-        makeAnnotationId(saveParams.annotationUri) as AnnotationId,
-        [{ op: 'add', item: { type: 'SpecificResource' as const, source: newResourceId, purpose: 'linking' as const } }],
-      );
-    }
-
     return newResourceId;
   };
 
@@ -200,8 +152,6 @@ export function createComposePageStateUnit(
     mode$: mode$.asObservable(),
     loading$: loading$.asObservable(),
     cloneData$: cloneData$.asObservable(),
-    referenceData$: referenceData$.asObservable(),
-    gatheredContext$: gatheredContext$.asObservable(),
     entityTypes: entityTypes.state,
     uploadProgress$: uploadProgress$.asObservable(),
     save,
@@ -209,8 +159,6 @@ export function createComposePageStateUnit(
       mode$.complete();
       loading$.complete();
       cloneData$.complete();
-      referenceData$.complete();
-      gatheredContext$.complete();
       uploadProgress$.complete();
       disposer.dispose();
     },

@@ -39,7 +39,7 @@ interface Props {
   /** Session for the shown resource — its client emits mark:* / mark.request; its bus feeds toolbar + beckon events. */
   session: SemiontSession | null;
   /** Recently-created annotation ids to sparkle (host-provided; was ResourceAnnotationsContext). */
-  newAnnotationIds?: Set<string>;
+  sparkleAnnotationIds?: Set<string>;
   /** The bar's Mode control reports the chosen mode here (the owner applies it). */
   onModeChange?: (mode: boolean) => void;
   /** Render the built-in bar (default). false → no bar; selection capture and drawing stay live. */
@@ -69,7 +69,7 @@ export function AnnotateView({
   hoverDelayMs = 150,
   annotateMode,
   session,
-  newAnnotationIds,
+  sparkleAnnotationIds,
   onModeChange,
   showToolbar = true,
   renderers,
@@ -267,7 +267,7 @@ export function AnnotateView({
           selectedMotivation={selectedMotivation}
           hoveredAnnotationId={hoveredAnnotationId}
           hoverDelayMs={hoverDelayMs}
-          newAnnotationIds={newAnnotationIds}
+          sparkleAnnotationIds={sparkleAnnotationIds}
           scrollToAnnotationId={scrollToAnnotationId}
           showLineNumbers={showLineNumbers}
           enableWidgets={enableWidgets}

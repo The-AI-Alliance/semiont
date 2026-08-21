@@ -50,7 +50,7 @@ interface Props {
   /** Inline display variant: auto-height, no inner scroll, no pane chrome (browse path). Default: fill-the-pane. */
   inline?: boolean;
   /** Recently-created annotation ids to sparkle (threaded to the browse/annotate subtree). */
-  newAnnotationIds?: Set<string>;
+  sparkleAnnotationIds?: Set<string>;
   generatingReferenceId?: string | null;
   showLineNumbers?: boolean;
   hoverDelayMs?: number;
@@ -116,7 +116,7 @@ export function ResourceViewer({
   onLinkClick,
   onReferenceHover,
   inline = false,
-  newAnnotationIds,
+  sparkleAnnotationIds,
   generatingReferenceId,
   showLineNumbers = false,
   hoverDelayMs,
@@ -356,7 +356,7 @@ export function ResourceViewer({
           onModeChange={changeAnnotateMode}
           showToolbar={showToolbar}
           session={session}
-          newAnnotationIds={newAnnotationIds}
+          sparkleAnnotationIds={sparkleAnnotationIds}
           {...(annotateRenderers && { renderers: annotateRenderers })}
         />
       ) : (
@@ -372,7 +372,7 @@ export function ResourceViewer({
           onClickActionChange={changeClickAction}
           showToolbar={showToolbar}
           session={session}
-          newAnnotationIds={newAnnotationIds}
+          sparkleAnnotationIds={sparkleAnnotationIds}
           onLinkClick={onLinkClick}
           onReferenceHover={onReferenceHover}
           inline={inline}

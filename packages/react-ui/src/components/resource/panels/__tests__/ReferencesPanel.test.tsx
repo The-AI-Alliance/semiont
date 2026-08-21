@@ -4,7 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { ReferencesPanel } from '../ReferencesPanel';
-import type { EventBus } from '@semiont/core';
+import type { Annotation, AnnotationId, EventBus } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 
@@ -116,6 +116,38 @@ describe('ReferencesPanel Component', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  // RESOLUTION-SPARKLE D6: the panel threads the host's sparkle set down to
+  // the entries — exactly the ids in the set glow, nothing else.
+  describe('Resolution sparkle threading', () => {
+    const linkingReference = (id: string): Annotation => ({
+      '@context': 'http://www.w3.org/ns/anno.jsonld',
+      id: id as AnnotationId,
+      type: 'Annotation',
+      motivation: 'linking',
+      created: '2026-08-21T12:00:00Z',
+      modified: '2026-08-21T12:00:00Z',
+      target: {
+        source: 'res-1',
+        selector: { type: 'TextQuoteSelector', exact: `text of ${id}` },
+      },
+      body: { type: 'SpecificResource', source: 'linked-doc', purpose: 'linking' },
+    });
+
+    it('sparkles exactly the entries named by sparkleAnnotationIds', () => {
+      const { container } = renderWithEventBus(
+        <ReferencesPanel
+          {...panelProps()}
+          annotations={[linkingReference('ann-dark'), linkingReference('ann-lit')]}
+          sparkleAnnotationIds={new Set(['ann-lit'])}
+        />,
+      );
+
+      const sparkling = container.querySelectorAll('.semiont-reference-icon.annotation-sparkle');
+      expect(sparkling).toHaveLength(1);
+      expect(sparkling[0]!.closest('.semiont-annotation-entry')).toHaveTextContent('text of ann-lit');
+    });
   });
 
   describe('Rendering', () => {
