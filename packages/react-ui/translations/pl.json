@@ -421,7 +421,8 @@
     "corpusEmpty": "Nie znaleziono podobnych fragmentów.",
     "excludedReceipt": "{{types}} wykluczono z tego pobrania",
     "machineRead": "OCR",
-    "score": "Wynik"
+    "score": "Wynik",
+    "saveLocation": "Lokalizacja zapisu"
   },
   "ReferenceWizard": {
     "gatherTitle": "Zebrany kontekst",
@@ -466,7 +467,16 @@
     "corpusEmpty": "Nie znaleziono podobnych fragmentów — wyszukiwanie raczej nic nie da.",
     "excludedReceipt": "{{types}} wykluczono z tego pobrania",
     "machineRead": "OCR",
-    "userHintEffect": "kieruje wyszukiwaniem i generowaniem"
+    "userHintEffect": "kieruje wyszukiwaniem i generowaniem",
+    "composeTitle": "Zredaguj zasób",
+    "saveLocation": "Lokalizacja zapisu",
+    "entityTypes": "Typy encji",
+    "contentLabel": "Treść",
+    "createAndLink": "Utwórz i połącz",
+    "creatingAndLinking": "Tworzenie i łączenie…",
+    "discardDraftPrompt": "Odrzucić ten szkic?",
+    "discardDraft": "Odrzuć",
+    "keepEditing": "Kontynuuj edycję"
   },
   "OutcomeToasts": {
     "createFailed": "Nie udało się utworzyć adnotacji: {{detail}}",

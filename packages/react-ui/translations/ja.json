@@ -421,7 +421,8 @@
     "corpusEmpty": "類似する箇所は見つかりませんでした。",
     "excludedReceipt": "{{types}} はこのリコールから除外",
     "machineRead": "OCR",
-    "score": "スコア"
+    "score": "スコア",
+    "saveLocation": "保存先"
   },
   "ReferenceWizard": {
     "gatherTitle": "収集済みコンテキスト",
@@ -466,7 +467,16 @@
     "corpusEmpty": "類似する箇所は見つかりませんでした — 検索で見つかる可能性は低いです。",
     "excludedReceipt": "{{types}} はこのリコールから除外",
     "machineRead": "OCR",
-    "userHintEffect": "検索と生成を導きます"
+    "userHintEffect": "検索と生成を導きます",
+    "composeTitle": "リソースを作成",
+    "saveLocation": "保存先",
+    "entityTypes": "エンティティタイプ",
+    "contentLabel": "内容",
+    "createAndLink": "作成してリンク",
+    "creatingAndLinking": "作成してリンク中…",
+    "discardDraftPrompt": "この下書きを破棄しますか？",
+    "discardDraft": "破棄",
+    "keepEditing": "編集を続ける"
   },
   "OutcomeToasts": {
     "createFailed": "注釈を作成できませんでした: {{detail}}",

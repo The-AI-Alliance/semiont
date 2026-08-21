@@ -421,7 +421,8 @@
     "corpusEmpty": "No se encontraron pasajes similares.",
     "excludedReceipt": "{{types}} excluidos de esta recuperación",
     "machineRead": "OCR",
-    "score": "Puntuación"
+    "score": "Puntuación",
+    "saveLocation": "Ubicación de guardado"
   },
   "ReferenceWizard": {
     "gatherTitle": "Contexto Recopilado",
@@ -466,7 +467,16 @@
     "corpusEmpty": "No se encontraron pasajes similares — es poco probable que la búsqueda dé resultado.",
     "excludedReceipt": "{{types}} excluidos de esta recuperación",
     "machineRead": "OCR",
-    "userHintEffect": "guía la búsqueda y la generación"
+    "userHintEffect": "guía la búsqueda y la generación",
+    "composeTitle": "Redactar recurso",
+    "saveLocation": "Ubicación de guardado",
+    "entityTypes": "Tipos de entidad",
+    "contentLabel": "Contenido",
+    "createAndLink": "Crear y vincular",
+    "creatingAndLinking": "Creando y vinculando…",
+    "discardDraftPrompt": "¿Descartar este borrador?",
+    "discardDraft": "Descartar",
+    "keepEditing": "Seguir editando"
   },
   "OutcomeToasts": {
     "createFailed": "No se pudo crear la anotación: {{detail}}",

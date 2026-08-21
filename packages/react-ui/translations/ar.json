@@ -421,7 +421,8 @@
     "corpusEmpty": "لم يُعثر على مقاطع مشابهة.",
     "excludedReceipt": "استُبعد {{types}} من هذا الاسترجاع",
     "machineRead": "OCR",
-    "score": "درجة"
+    "score": "درجة",
+    "saveLocation": "موقع الحفظ"
   },
   "ReferenceWizard": {
     "gatherTitle": "السياق المُجمَّع",
@@ -466,7 +467,16 @@
     "corpusEmpty": "لم يُعثر على مقاطع مشابهة — من غير المرجح أن يُجدي البحث.",
     "excludedReceipt": "استُبعد {{types}} من هذا الاسترجاع",
     "machineRead": "OCR",
-    "userHintEffect": "يوجّه البحث والتوليد"
+    "userHintEffect": "يوجّه البحث والتوليد",
+    "composeTitle": "تأليف مورد",
+    "saveLocation": "موقع الحفظ",
+    "entityTypes": "أنواع الكيانات",
+    "contentLabel": "المحتوى",
+    "createAndLink": "إنشاء وربط",
+    "creatingAndLinking": "جارٍ الإنشاء والربط…",
+    "discardDraftPrompt": "هل تريد تجاهل هذه المسودة؟",
+    "discardDraft": "تجاهل",
+    "keepEditing": "متابعة التحرير"
   },
   "OutcomeToasts": {
     "createFailed": "تعذّر إنشاء التعليق التوضيحي: {{detail}}",

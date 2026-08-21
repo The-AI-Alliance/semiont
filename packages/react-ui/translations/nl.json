@@ -421,7 +421,8 @@
     "corpusEmpty": "Geen vergelijkbare passages gevonden.",
     "excludedReceipt": "{{types}} uitgesloten van deze zoekronde",
     "machineRead": "OCR",
-    "score": "Score"
+    "score": "Score",
+    "saveLocation": "Opslaglocatie"
   },
   "ReferenceWizard": {
     "gatherTitle": "Verzamelde context",
@@ -466,7 +467,16 @@
     "corpusEmpty": "Geen vergelijkbare passages gevonden — zoeken levert waarschijnlijk niets op.",
     "excludedReceipt": "{{types}} uitgesloten van deze zoekronde",
     "machineRead": "OCR",
-    "userHintEffect": "stuurt zoeken en genereren"
+    "userHintEffect": "stuurt zoeken en genereren",
+    "composeTitle": "Bron opstellen",
+    "saveLocation": "Opslaglocatie",
+    "entityTypes": "Entiteitstypen",
+    "contentLabel": "Inhoud",
+    "createAndLink": "Maken & Koppelen",
+    "creatingAndLinking": "Bezig met maken & koppelen…",
+    "discardDraftPrompt": "Dit concept verwerpen?",
+    "discardDraft": "Verwerpen",
+    "keepEditing": "Doorgaan met bewerken"
   },
   "OutcomeToasts": {
     "createFailed": "Kon de annotatie niet maken: {{detail}}",

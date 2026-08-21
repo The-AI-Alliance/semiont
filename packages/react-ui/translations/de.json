@@ -421,7 +421,8 @@
     "corpusEmpty": "Keine ähnlichen Passagen gefunden.",
     "excludedReceipt": "{{types}} aus diesem Abruf ausgeschlossen",
     "machineRead": "OCR",
-    "score": "Bewertung"
+    "score": "Bewertung",
+    "saveLocation": "Speicherort"
   },
   "ReferenceWizard": {
     "gatherTitle": "Gesammelter Kontext",
@@ -466,7 +467,16 @@
     "corpusEmpty": "Keine ähnlichen Passagen gefunden — eine Suche wird kaum etwas finden.",
     "excludedReceipt": "{{types}} aus diesem Abruf ausgeschlossen",
     "machineRead": "OCR",
-    "userHintEffect": "steuert Suche und Generierung"
+    "userHintEffect": "steuert Suche und Generierung",
+    "composeTitle": "Ressource verfassen",
+    "saveLocation": "Speicherort",
+    "entityTypes": "Entitätstypen",
+    "contentLabel": "Inhalt",
+    "createAndLink": "Erstellen & Verknüpfen",
+    "creatingAndLinking": "Wird erstellt & verknüpft…",
+    "discardDraftPrompt": "Diesen Entwurf verwerfen?",
+    "discardDraft": "Verwerfen",
+    "keepEditing": "Weiter bearbeiten"
   },
   "OutcomeToasts": {
     "createFailed": "Anmerkung konnte nicht erstellt werden: {{detail}}",

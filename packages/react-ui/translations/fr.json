@@ -421,7 +421,8 @@
     "corpusEmpty": "Aucun passage similaire trouvé.",
     "excludedReceipt": "{{types}} exclus de cette recherche",
     "machineRead": "OCR",
-    "score": "Score"
+    "score": "Score",
+    "saveLocation": "Emplacement d'enregistrement"
   },
   "ReferenceWizard": {
     "gatherTitle": "Contexte collecté",
@@ -466,7 +467,16 @@
     "corpusEmpty": "Aucun passage similaire trouvé — la recherche a peu de chances d'aboutir.",
     "excludedReceipt": "{{types}} exclus de cette recherche",
     "machineRead": "OCR",
-    "userHintEffect": "guide la recherche et la génération"
+    "userHintEffect": "guide la recherche et la génération",
+    "composeTitle": "Rédiger une ressource",
+    "saveLocation": "Emplacement d'enregistrement",
+    "entityTypes": "Types d'entités",
+    "contentLabel": "Contenu",
+    "createAndLink": "Créer et lier",
+    "creatingAndLinking": "Création et liaison…",
+    "discardDraftPrompt": "Abandonner ce brouillon ?",
+    "discardDraft": "Abandonner",
+    "keepEditing": "Continuer la modification"
   },
   "OutcomeToasts": {
     "createFailed": "Impossible de créer l’annotation : {{detail}}",

@@ -421,7 +421,8 @@
     "corpusEmpty": "No similar passages found.",
     "excludedReceipt": "{{types}} excluded from this recall",
     "machineRead": "OCR",
-    "score": "Score"
+    "score": "Score",
+    "saveLocation": "Save location"
   },
   "ReferenceWizard": {
     "gatherTitle": "Gathered Context",
@@ -466,7 +467,16 @@
     "corpusEmpty": "No similar passages found — Search is unlikely to land.",
     "excludedReceipt": "{{types}} excluded from this recall",
     "machineRead": "OCR",
-    "userHintEffect": "steers Search and Generate"
+    "userHintEffect": "steers Search and Generate",
+    "composeTitle": "Compose Resource",
+    "saveLocation": "Save location",
+    "entityTypes": "Entity types",
+    "contentLabel": "Content",
+    "createAndLink": "Create & Link",
+    "creatingAndLinking": "Creating & linking…",
+    "discardDraftPrompt": "Discard this draft?",
+    "discardDraft": "Discard",
+    "keepEditing": "Keep editing"
   },
   "OutcomeToasts": {
     "createFailed": "Couldn’t create the annotation: {{detail}}",

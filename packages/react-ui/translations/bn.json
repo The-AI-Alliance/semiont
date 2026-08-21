@@ -421,7 +421,8 @@
     "corpusEmpty": "কোনও অনুরূপ অংশ পাওয়া যায়নি।",
     "excludedReceipt": "{{types}} এই রিকল থেকে বাদ",
     "machineRead": "OCR",
-    "score": "স্কোর"
+    "score": "স্কোর",
+    "saveLocation": "সংরক্ষণের অবস্থান"
   },
   "ReferenceWizard": {
     "gatherTitle": "সংগৃহীত প্রসঙ্গ",
@@ -466,7 +467,16 @@
     "corpusEmpty": "কোনও অনুরূপ অংশ পাওয়া যায়নি — অনুসন্ধানে ফল পাওয়ার সম্ভাবনা কম।",
     "excludedReceipt": "{{types}} এই রিকল থেকে বাদ",
     "machineRead": "OCR",
-    "userHintEffect": "অনুসন্ধান ও জেনারেট পরিচালনা করে"
+    "userHintEffect": "অনুসন্ধান ও জেনারেট পরিচালনা করে",
+    "composeTitle": "রিসোর্স রচনা",
+    "saveLocation": "সংরক্ষণের অবস্থান",
+    "entityTypes": "সত্তার ধরন",
+    "contentLabel": "বিষয়বস্তু",
+    "createAndLink": "তৈরি ও লিঙ্ক করুন",
+    "creatingAndLinking": "তৈরি ও লিঙ্ক করা হচ্ছে…",
+    "discardDraftPrompt": "এই খসড়াটি বাতিল করবেন?",
+    "discardDraft": "বাতিল করুন",
+    "keepEditing": "সম্পাদনা চালিয়ে যান"
   },
   "OutcomeToasts": {
     "createFailed": "টীকা তৈরি করা যায়নি: {{detail}}",

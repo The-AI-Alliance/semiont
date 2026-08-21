@@ -421,7 +421,8 @@
     "corpusEmpty": "未找到相似段落。",
     "excludedReceipt": "{{types}} 已从本次召回中排除",
     "machineRead": "OCR",
-    "score": "评分"
+    "score": "评分",
+    "saveLocation": "保存位置"
   },
   "ReferenceWizard": {
     "gatherTitle": "已收集的上下文",
@@ -466,7 +467,16 @@
     "corpusEmpty": "未找到相似段落 — 搜索不太可能有结果。",
     "excludedReceipt": "{{types}} 已从本次召回中排除",
     "machineRead": "OCR",
-    "userHintEffect": "引导搜索与生成"
+    "userHintEffect": "引导搜索与生成",
+    "composeTitle": "撰写资源",
+    "saveLocation": "保存位置",
+    "entityTypes": "实体类型",
+    "contentLabel": "内容",
+    "createAndLink": "创建并链接",
+    "creatingAndLinking": "正在创建并链接…",
+    "discardDraftPrompt": "放弃此草稿？",
+    "discardDraft": "放弃",
+    "keepEditing": "继续编辑"
   },
   "OutcomeToasts": {
     "createFailed": "无法创建批注：{{detail}}",

@@ -421,7 +421,8 @@
     "corpusEmpty": "Žádné podobné pasáže nenalezeny.",
     "excludedReceipt": "{{types}} vyloučeno z tohoto vyhledání",
     "machineRead": "OCR",
-    "score": "Skóre"
+    "score": "Skóre",
+    "saveLocation": "Umístění uložení"
   },
   "ReferenceWizard": {
     "gatherTitle": "Shromážděný kontext",
@@ -466,7 +467,16 @@
     "corpusEmpty": "Žádné podobné pasáže nenalezeny — hledání pravděpodobně neuspěje.",
     "excludedReceipt": "{{types}} vyloučeno z tohoto vyhledání",
     "machineRead": "OCR",
-    "userHintEffect": "řídí hledání i generování"
+    "userHintEffect": "řídí hledání i generování",
+    "composeTitle": "Sepsat zdroj",
+    "saveLocation": "Umístění uložení",
+    "entityTypes": "Typy entit",
+    "contentLabel": "Obsah",
+    "createAndLink": "Vytvořit a propojit",
+    "creatingAndLinking": "Vytváření a propojování…",
+    "discardDraftPrompt": "Zahodit tento koncept?",
+    "discardDraft": "Zahodit",
+    "keepEditing": "Pokračovat v úpravách"
   },
   "OutcomeToasts": {
     "createFailed": "Anotaci se nepodařilo vytvořit: {{detail}}",

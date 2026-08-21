@@ -421,7 +421,8 @@
     "corpusEmpty": "ไม่พบข้อความที่คล้ายกัน",
     "excludedReceipt": "{{types}} ถูกยกเว้นจากการเรียกคืนนี้",
     "machineRead": "OCR",
-    "score": "คะแนน"
+    "score": "คะแนน",
+    "saveLocation": "ตำแหน่งบันทึก"
   },
   "ReferenceWizard": {
     "gatherTitle": "บริบทที่รวบรวมแล้ว",
@@ -466,7 +467,16 @@
     "corpusEmpty": "ไม่พบข้อความที่คล้ายกัน — การค้นหาไม่น่าจะได้ผล",
     "excludedReceipt": "{{types}} ถูกยกเว้นจากการเรียกคืนนี้",
     "machineRead": "OCR",
-    "userHintEffect": "กำกับการค้นหาและการสร้าง"
+    "userHintEffect": "กำกับการค้นหาและการสร้าง",
+    "composeTitle": "เรียบเรียงทรัพยากร",
+    "saveLocation": "ตำแหน่งบันทึก",
+    "entityTypes": "ประเภทเอนทิตี",
+    "contentLabel": "เนื้อหา",
+    "createAndLink": "สร้างและเชื่อมโยง",
+    "creatingAndLinking": "กำลังสร้างและเชื่อมโยง…",
+    "discardDraftPrompt": "ละทิ้งฉบับร่างนี้หรือไม่",
+    "discardDraft": "ละทิ้ง",
+    "keepEditing": "แก้ไขต่อ"
   },
   "OutcomeToasts": {
     "createFailed": "สร้างคำอธิบายประกอบไม่สำเร็จ: {{detail}}",

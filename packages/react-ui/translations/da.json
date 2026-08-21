@@ -421,7 +421,8 @@
     "corpusEmpty": "Ingen lignende passager fundet.",
     "excludedReceipt": "{{types}} udeladt fra denne søgning",
     "machineRead": "OCR",
-    "score": "Score"
+    "score": "Score",
+    "saveLocation": "Placering"
   },
   "ReferenceWizard": {
     "gatherTitle": "Indsamlet kontekst",
@@ -466,7 +467,16 @@
     "corpusEmpty": "Ingen lignende passager fundet — søgning vil næppe give resultat.",
     "excludedReceipt": "{{types}} udeladt fra denne søgning",
     "machineRead": "OCR",
-    "userHintEffect": "styrer søgning og generering"
+    "userHintEffect": "styrer søgning og generering",
+    "composeTitle": "Skriv ressource",
+    "saveLocation": "Placering",
+    "entityTypes": "Enhedstyper",
+    "contentLabel": "Indhold",
+    "createAndLink": "Opret og forbind",
+    "creatingAndLinking": "Opretter og forbinder…",
+    "discardDraftPrompt": "Kassér denne kladde?",
+    "discardDraft": "Kassér",
+    "keepEditing": "Fortsæt redigering"
   },
   "OutcomeToasts": {
     "createFailed": "Kunne ikke oprette annotationen: {{detail}}",

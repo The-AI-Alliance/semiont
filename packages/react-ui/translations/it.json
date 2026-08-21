@@ -421,7 +421,8 @@
     "corpusEmpty": "Nessun passaggio simile trovato.",
     "excludedReceipt": "{{types}} esclusi da questo recupero",
     "machineRead": "OCR",
-    "score": "Punteggio"
+    "score": "Punteggio",
+    "saveLocation": "Percorso di salvataggio"
   },
   "ReferenceWizard": {
     "gatherTitle": "Contesto Raccolto",
@@ -466,7 +467,16 @@
     "corpusEmpty": "Nessun passaggio simile trovato — è improbabile che la ricerca dia risultati.",
     "excludedReceipt": "{{types}} esclusi da questo recupero",
     "machineRead": "OCR",
-    "userHintEffect": "guida ricerca e generazione"
+    "userHintEffect": "guida ricerca e generazione",
+    "composeTitle": "Componi risorsa",
+    "saveLocation": "Percorso di salvataggio",
+    "entityTypes": "Tipi di entità",
+    "contentLabel": "Contenuto",
+    "createAndLink": "Crea e collega",
+    "creatingAndLinking": "Creazione e collegamento…",
+    "discardDraftPrompt": "Eliminare questa bozza?",
+    "discardDraft": "Elimina",
+    "keepEditing": "Continua a modificare"
   },
   "OutcomeToasts": {
     "createFailed": "Impossibile creare l’annotazione: {{detail}}",

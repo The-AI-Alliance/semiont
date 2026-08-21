@@ -801,6 +801,24 @@
   }
 }
 
+/* D4 discard guard: inline prompt raised when dismissal would destroy a
+   non-empty compose draft. Never window.confirm; the footer stays
+   dismissal-free (A4) — this band owns the decision. */
+.semiont-wizard__discard-prompt {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--semiont-color-red-600);
+  border-radius: var(--semiont-radius-md);
+}
+
+.semiont-wizard__discard-prompt-text {
+  flex: 1;
+  font-weight: var(--semiont-font-semibold);
+}
+
 /* The strategy steps' single scroll pane: evidence + step content scroll
    TOGETHER inside the clipped gather panel. The hosts start it scrolled to
    the bottom on entry, so the step's own content shows in full and the

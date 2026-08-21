@@ -421,7 +421,8 @@
     "corpusEmpty": "Tidak ditemukan bagian serupa.",
     "excludedReceipt": "{{types}} dikecualikan dari pengambilan ini",
     "machineRead": "OCR",
-    "score": "Skor"
+    "score": "Skor",
+    "saveLocation": "Lokasi penyimpanan"
   },
   "ReferenceWizard": {
     "gatherTitle": "Konteks Terkumpul",
@@ -466,7 +467,16 @@
     "corpusEmpty": "Tidak ditemukan bagian serupa — pencarian kemungkinan tidak membuahkan hasil.",
     "excludedReceipt": "{{types}} dikecualikan dari pengambilan ini",
     "machineRead": "OCR",
-    "userHintEffect": "mengarahkan pencarian dan pembuatan"
+    "userHintEffect": "mengarahkan pencarian dan pembuatan",
+    "composeTitle": "Susun sumber daya",
+    "saveLocation": "Lokasi penyimpanan",
+    "entityTypes": "Jenis entitas",
+    "contentLabel": "Konten",
+    "createAndLink": "Buat & Tautkan",
+    "creatingAndLinking": "Membuat & menautkan…",
+    "discardDraftPrompt": "Buang draf ini?",
+    "discardDraft": "Buang",
+    "keepEditing": "Lanjutkan menyunting"
   },
   "OutcomeToasts": {
     "createFailed": "Tidak dapat membuat anotasi: {{detail}}",

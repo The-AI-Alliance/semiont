@@ -421,7 +421,8 @@
     "corpusEmpty": "Ingen lignende passasjer funnet.",
     "excludedReceipt": "{{types}} utelatt fra dette gjenfinnet",
     "machineRead": "OCR",
-    "score": "Poengsum"
+    "score": "Poengsum",
+    "saveLocation": "Lagringssted"
   },
   "ReferenceWizard": {
     "gatherTitle": "Samlet kontekst",
@@ -466,7 +467,16 @@
     "corpusEmpty": "Ingen lignende passasjer funnet — søk vil neppe gi resultater.",
     "excludedReceipt": "{{types}} utelatt fra dette gjenfinnet",
     "machineRead": "OCR",
-    "userHintEffect": "styrer søk og generering"
+    "userHintEffect": "styrer søk og generering",
+    "composeTitle": "Skriv ressurs",
+    "saveLocation": "Lagringssted",
+    "entityTypes": "Entitetstyper",
+    "contentLabel": "Innhold",
+    "createAndLink": "Opprett og koble",
+    "creatingAndLinking": "Oppretter og kobler…",
+    "discardDraftPrompt": "Forkaste dette utkastet?",
+    "discardDraft": "Forkast",
+    "keepEditing": "Fortsett å redigere"
   },
   "OutcomeToasts": {
     "createFailed": "Kunne ikke opprette merknaden: {{detail}}",

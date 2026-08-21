@@ -50,6 +50,7 @@ const T = {
   score: 'Score',
   resourceTitle: 'New resource title',
   resourceTitlePlaceholder: 'Title…',
+  saveLocation: 'Save location',
   additionalInstructions: 'Additional Instructions',
   additionalInstructionsPlaceholder: 'Optional…',
   language: 'Language',

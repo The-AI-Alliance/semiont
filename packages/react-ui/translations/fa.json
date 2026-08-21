@@ -421,7 +421,8 @@
     "corpusEmpty": "بخش مشابهی یافت نشد.",
     "excludedReceipt": "{{types}} از این بازیابی کنار گذاشته شد",
     "machineRead": "OCR",
-    "score": "امتیاز"
+    "score": "امتیاز",
+    "saveLocation": "محل ذخیره"
   },
   "ReferenceWizard": {
     "gatherTitle": "زمینه جمع‌آوری‌شده",
@@ -466,7 +467,16 @@
     "corpusEmpty": "بخش مشابهی یافت نشد — جستجو احتمالاً نتیجه‌ای نخواهد داشت.",
     "excludedReceipt": "{{types}} از این بازیابی کنار گذاشته شد",
     "machineRead": "OCR",
-    "userHintEffect": "جست‌وجو و تولید را هدایت می‌کند"
+    "userHintEffect": "جست‌وجو و تولید را هدایت می‌کند",
+    "composeTitle": "نگارش منبع",
+    "saveLocation": "محل ذخیره",
+    "entityTypes": "انواع موجودیت",
+    "contentLabel": "محتوا",
+    "createAndLink": "ایجاد و پیوند",
+    "creatingAndLinking": "در حال ایجاد و پیوند…",
+    "discardDraftPrompt": "این پیش‌نویس دور انداخته شود؟",
+    "discardDraft": "دور انداختن",
+    "keepEditing": "ادامه ویرایش"
   },
   "OutcomeToasts": {
     "createFailed": "ایجاد حاشیه‌نویسی ممکن نشد: {{detail}}",

@@ -421,7 +421,8 @@
     "corpusEmpty": "Nenhuma passagem semelhante encontrada.",
     "excludedReceipt": "{{types}} excluídos desta recuperação",
     "machineRead": "OCR",
-    "score": "Pontuação"
+    "score": "Pontuação",
+    "saveLocation": "Local de salvamento"
   },
   "ReferenceWizard": {
     "gatherTitle": "Contexto Coletado",
@@ -466,7 +467,16 @@
     "corpusEmpty": "Nenhuma passagem semelhante encontrada — é improvável que a pesquisa tenha êxito.",
     "excludedReceipt": "{{types}} excluídos desta recuperação",
     "machineRead": "OCR",
-    "userHintEffect": "orienta a busca e a geração"
+    "userHintEffect": "orienta a busca e a geração",
+    "composeTitle": "Redigir recurso",
+    "saveLocation": "Local de salvamento",
+    "entityTypes": "Tipos de entidade",
+    "contentLabel": "Conteúdo",
+    "createAndLink": "Criar e vincular",
+    "creatingAndLinking": "Criando e vinculando…",
+    "discardDraftPrompt": "Descartar este rascunho?",
+    "discardDraft": "Descartar",
+    "keepEditing": "Continuar editando"
   },
   "OutcomeToasts": {
     "createFailed": "Não foi possível criar a anotação: {{detail}}",

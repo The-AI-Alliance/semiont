@@ -112,7 +112,7 @@ const SEARCH_T = {
 };
 
 const GEN_T = {
-  resourceTitle: 'Title', resourceTitlePlaceholder: '', additionalInstructions: 'Instructions',
+  resourceTitle: 'Title', resourceTitlePlaceholder: '', saveLocation: 'Save location', additionalInstructions: 'Instructions',
   additionalInstructionsPlaceholder: '', language: 'Language', languageHelp: '',
   creativity: 'Creativity', creativityFocused: 'Focused', creativityCreative: 'Creative',
   maxLength: 'Max Length', maxLengthHelp: '', maxLengthCeiling: 'Limited to {{max}} by {{model}}.',

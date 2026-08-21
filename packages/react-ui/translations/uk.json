@@ -421,7 +421,8 @@
     "corpusEmpty": "Схожих фрагментів не знайдено.",
     "excludedReceipt": "{{types}} виключено з цього відбору",
     "machineRead": "OCR",
-    "score": "Оцінка"
+    "score": "Оцінка",
+    "saveLocation": "Розташування збереження"
   },
   "ReferenceWizard": {
     "gatherTitle": "Зібраний контекст",
@@ -466,7 +467,16 @@
     "corpusEmpty": "Схожих фрагментів не знайдено — пошук навряд чи щось дасть.",
     "excludedReceipt": "{{types}} виключено з цього відбору",
     "machineRead": "OCR",
-    "userHintEffect": "спрямовує пошук і генерацію"
+    "userHintEffect": "спрямовує пошук і генерацію",
+    "composeTitle": "Написати ресурс",
+    "saveLocation": "Розташування збереження",
+    "entityTypes": "Типи сутностей",
+    "contentLabel": "Вміст",
+    "createAndLink": "Створити й пов'язати",
+    "creatingAndLinking": "Створення й пов'язування…",
+    "discardDraftPrompt": "Відхилити цю чернетку?",
+    "discardDraft": "Відхилити",
+    "keepEditing": "Продовжити редагування"
   },
   "OutcomeToasts": {
     "createFailed": "Не вдалося створити анотацію: {{detail}}",

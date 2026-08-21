@@ -421,7 +421,8 @@
     "corpusEmpty": "Tiada petikan serupa ditemui.",
     "excludedReceipt": "{{types}} dikecualikan daripada dapatan ini",
     "machineRead": "OCR",
-    "score": "Skor"
+    "score": "Skor",
+    "saveLocation": "Lokasi simpanan"
   },
   "ReferenceWizard": {
     "gatherTitle": "Konteks Dikumpul",
@@ -466,7 +467,16 @@
     "corpusEmpty": "Tiada petikan serupa ditemui — carian berkemungkinan tidak berhasil.",
     "excludedReceipt": "{{types}} dikecualikan daripada dapatan ini",
     "machineRead": "OCR",
-    "userHintEffect": "memandu carian dan penjanaan"
+    "userHintEffect": "memandu carian dan penjanaan",
+    "composeTitle": "Karang sumber",
+    "saveLocation": "Lokasi simpanan",
+    "entityTypes": "Jenis entiti",
+    "contentLabel": "Kandungan",
+    "createAndLink": "Cipta & Paut",
+    "creatingAndLinking": "Mencipta & memaut…",
+    "discardDraftPrompt": "Buang draf ini?",
+    "discardDraft": "Buang",
+    "keepEditing": "Terus menyunting"
   },
   "OutcomeToasts": {
     "createFailed": "Tidak dapat mencipta anotasi: {{detail}}",

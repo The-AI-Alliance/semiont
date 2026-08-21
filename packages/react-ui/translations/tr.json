@@ -421,7 +421,8 @@
     "corpusEmpty": "Benzer pasaj bulunamadı.",
     "excludedReceipt": "{{types}} bu getirimden hariç tutuldu",
     "machineRead": "OCR",
-    "score": "Puan"
+    "score": "Puan",
+    "saveLocation": "Kayıt konumu"
   },
   "ReferenceWizard": {
     "gatherTitle": "Toplanan Bağlam",
@@ -466,7 +467,16 @@
     "corpusEmpty": "Benzer pasaj bulunamadı — aramanın sonuç vermesi pek olası değil.",
     "excludedReceipt": "{{types}} bu getirimden hariç tutuldu",
     "machineRead": "OCR",
-    "userHintEffect": "aramayı ve üretimi yönlendirir"
+    "userHintEffect": "aramayı ve üretimi yönlendirir",
+    "composeTitle": "Kaynak yaz",
+    "saveLocation": "Kayıt konumu",
+    "entityTypes": "Varlık türleri",
+    "contentLabel": "İçerik",
+    "createAndLink": "Oluştur ve Bağla",
+    "creatingAndLinking": "Oluşturuluyor ve bağlanıyor…",
+    "discardDraftPrompt": "Bu taslak silinsin mi?",
+    "discardDraft": "Sil",
+    "keepEditing": "Düzenlemeye devam et"
   },
   "OutcomeToasts": {
     "createFailed": "Açıklama oluşturulamadı: {{detail}}",

@@ -421,7 +421,8 @@
     "corpusEmpty": "Samankaltaisia kohtia ei löytynyt.",
     "excludedReceipt": "{{types}} jätetty pois tästä hausta",
     "machineRead": "OCR",
-    "score": "Pisteet"
+    "score": "Pisteet",
+    "saveLocation": "Tallennussijainti"
   },
   "ReferenceWizard": {
     "gatherTitle": "Kerätty konteksti",
@@ -466,7 +467,16 @@
     "corpusEmpty": "Samankaltaisia kohtia ei löytynyt — haku tuskin tuottaa tulosta.",
     "excludedReceipt": "{{types}} jätetty pois tästä hausta",
     "machineRead": "OCR",
-    "userHintEffect": "ohjaa hakua ja generointia"
+    "userHintEffect": "ohjaa hakua ja generointia",
+    "composeTitle": "Laadi resurssi",
+    "saveLocation": "Tallennussijainti",
+    "entityTypes": "Entiteettityypit",
+    "contentLabel": "Sisältö",
+    "createAndLink": "Luo ja linkitä",
+    "creatingAndLinking": "Luodaan ja linkitetään…",
+    "discardDraftPrompt": "Hylätäänkö tämä luonnos?",
+    "discardDraft": "Hylkää",
+    "keepEditing": "Jatka muokkausta"
   },
   "OutcomeToasts": {
     "createFailed": "Merkinnän luonti epäonnistui: {{detail}}",

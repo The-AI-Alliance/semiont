@@ -17,6 +17,7 @@ import { ConfigureGenerationStep } from '../ConfigureGenerationStep';
 const translations = {
   resourceTitle: 'Title',
   resourceTitlePlaceholder: 'Title…',
+  saveLocation: 'Save location',
   additionalInstructions: 'Instructions',
   additionalInstructionsPlaceholder: 'Instructions…',
   language: 'Language',

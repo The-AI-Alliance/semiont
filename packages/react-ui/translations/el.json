@@ -421,7 +421,8 @@
     "corpusEmpty": "Δεν βρέθηκαν παρόμοια αποσπάσματα.",
     "excludedReceipt": "{{types}} εξαιρέθηκαν από αυτήν την ανάκληση",
     "machineRead": "OCR",
-    "score": "Βαθμολογία"
+    "score": "Βαθμολογία",
+    "saveLocation": "Θέση αποθήκευσης"
   },
   "ReferenceWizard": {
     "gatherTitle": "Συλλεγμένο Πλαίσιο",
@@ -466,7 +467,16 @@
     "corpusEmpty": "Δεν βρέθηκαν παρόμοια αποσπάσματα — η αναζήτηση μάλλον δεν θα αποδώσει.",
     "excludedReceipt": "{{types}} εξαιρέθηκαν από αυτήν την ανάκληση",
     "machineRead": "OCR",
-    "userHintEffect": "κατευθύνει την αναζήτηση και τη δημιουργία"
+    "userHintEffect": "κατευθύνει την αναζήτηση και τη δημιουργία",
+    "composeTitle": "Σύνταξη πόρου",
+    "saveLocation": "Θέση αποθήκευσης",
+    "entityTypes": "Τύποι οντοτήτων",
+    "contentLabel": "Περιεχόμενο",
+    "createAndLink": "Δημιουργία & Σύνδεση",
+    "creatingAndLinking": "Δημιουργία & σύνδεση…",
+    "discardDraftPrompt": "Απόρριψη αυτού του προσχεδίου;",
+    "discardDraft": "Απόρριψη",
+    "keepEditing": "Συνέχεια επεξεργασίας"
   },
   "OutcomeToasts": {
     "createFailed": "Δεν ήταν δυνατή η δημιουργία του σχολιασμού: {{detail}}",

@@ -421,7 +421,8 @@
     "corpusEmpty": "Nu s-au găsit pasaje similare.",
     "excludedReceipt": "{{types}} excluse din această regăsire",
     "machineRead": "OCR",
-    "score": "Scor"
+    "score": "Scor",
+    "saveLocation": "Locația salvării"
   },
   "ReferenceWizard": {
     "gatherTitle": "Context Colectat",
@@ -466,7 +467,16 @@
     "corpusEmpty": "Nu s-au găsit pasaje similare — căutarea are șanse mici de reușită.",
     "excludedReceipt": "{{types}} excluse din această regăsire",
     "machineRead": "OCR",
-    "userHintEffect": "ghidează căutarea și generarea"
+    "userHintEffect": "ghidează căutarea și generarea",
+    "composeTitle": "Redactează resursa",
+    "saveLocation": "Locația salvării",
+    "entityTypes": "Tipuri de entități",
+    "contentLabel": "Conținut",
+    "createAndLink": "Creează și leagă",
+    "creatingAndLinking": "Se creează și se leagă…",
+    "discardDraftPrompt": "Renunți la această ciornă?",
+    "discardDraft": "Renunță",
+    "keepEditing": "Continuă editarea"
   },
   "OutcomeToasts": {
     "createFailed": "Nu s-a putut crea adnotarea: {{detail}}",
