@@ -199,6 +199,31 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
     expect(panel.className).toContain('semiont-search-modal__panel--wide');          // evidence needs the width
   });
 
+  it('search-results keeps the evidence and the collapsed band above the results', async () => {
+    // Same grammar as the configure steps — the results replace the FORM
+    // region, not the evidence. The step itself is pure results now (D10
+    // amended); the host stacks the full display above it.
+    const { client, baseElement } = renderWizard();
+    await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
+    await userEvent.click(screen.getByRole('button', { name: T.search }));
+    client.bus.get('match:search-results').next({
+      referenceId: 'ann-1',
+      response: [{ '@id': 'res-9', name: 'Caspian Sea', score: 54.2 }],
+    } as never);
+    expect(await screen.findByText(T.searchResultsTitle)).toBeInTheDocument();
+
+    expect(baseElement.querySelector('.semiont-gather__source-box')).not.toBeNull(); // quotation strip
+    expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();                  // graph pane
+    expect(screen.getByText(T.corpusPaneTitle)).toBeInTheDocument();                 // full display, not the redux
+    const footer = baseElement.querySelector('.semiont-gather__footer');
+    expect(footer).not.toBeNull();
+    expect(footer!.textContent).toContain(`🔍 ${T.search}`);
+    expect(footer!.querySelectorAll('button')).toHaveLength(0);
+    expect(screen.getByRole('button', { name: `🔗 ${T.link}` })).toBeInTheDocument(); // the results
+    const panel = baseElement.querySelector('.semiont-search-modal__panel')!;
+    expect(panel.className).toContain('semiont-search-modal__panel--gather');
+  });
+
   it('configure-generation renders the evidence above the form, the strategy band collapsed to Generate', async () => {
     const { baseElement } = renderWizard();
     await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));

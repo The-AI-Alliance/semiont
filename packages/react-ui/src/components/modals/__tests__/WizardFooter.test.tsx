@@ -157,7 +157,6 @@ describe('every step footer follows the grammar (A1, A2)', () => {
   it('SearchResultsStep — footer is retreat only; Link lives on the rows', () => {
     const { container } = render(
       <SearchResultsStep
-        context={CONTEXT}
         results={[{ id: 'r1', name: 'Black Sea', score: 54.22 } as never]}
         onBack={vi.fn()}
         onLink={vi.fn()}

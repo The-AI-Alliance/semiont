@@ -282,10 +282,9 @@ export function ReferenceWizardModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              {/* Every step shows evidence now, so every step is wide; the
-                  gather layout (flex column, capped height) applies wherever
-                  the full display renders — all but search-results. */}
-              <DialogPanel className={`semiont-search-modal__panel semiont-search-modal__panel--with-border semiont-search-modal__panel--wide${wizardStep.step !== 'search-results' ? ' semiont-search-modal__panel--gather' : ''}`}>
+              {/* Every step shows the evidence display now, so every step is
+                  wide and gets the gather layout (flex column, capped height). */}
+              <DialogPanel className="semiont-search-modal__panel semiont-search-modal__panel--with-border semiont-search-modal__panel--gather semiont-search-modal__panel--wide">
                 <div className="semiont-search-modal__header">
                   <DialogTitle className="semiont-search-modal__title">
                     {stepTitle}
@@ -392,9 +391,16 @@ export function ReferenceWizardModal({
                 )}
 
                 {wizardStep.step === 'search-results' && context && (
+                  <>
+                  <GatherContextStep
+                    context={context}
+                    contextLoading={contextLoading}
+                    contextError={contextError}
+                    chosenStrategy={{ label: t.resolutionStrategyLabel, value: `🔍 ${t.search}` }}
+                    translations={displayTranslations}
+                  />
                   <SearchResultsStep
                     results={wizardStep.results}
-                    context={context}
                     onLink={handleLink}
                     onBack={handleBackToGather}
                     translations={{
@@ -402,13 +408,9 @@ export function ReferenceWizardModal({
                       link: t.link,
                       back: t.back,
                       score: t.score,
-                      sourceContextLabel: t.sourceContextLabel,
-                      connectionsLabel: t.connectionsLabel,
-                      citedByLabel: t.citedByLabel,
-                      graphPaneTitle: t.graphPaneTitle,
-                      graphEmpty: t.graphEmpty,
                     }}
                   />
+                  </>
                 )}
               </DialogPanel>
             </TransitionChild>
