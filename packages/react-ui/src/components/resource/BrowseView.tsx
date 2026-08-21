@@ -35,7 +35,7 @@ interface Props {
   /** Session for the shown resource — emits browse:click / beckon:hover; its bus feeds beckon events. */
   session: SemiontSession | null;
   /** Recently-created annotation ids to sparkle (host-provided; was ResourceAnnotationsContext). */
-  newAnnotationIds?: Set<string>;
+  sparkleAnnotationIds?: Set<string>;
   /** Override the read-only media renderers (render mode → renderer); merged over the defaults. */
   renderers?: BrowseMediaRenderers;
   /** A content link (`<a href>` in the rendered content) was clicked. The viewer preventDefaults and
@@ -87,7 +87,7 @@ export const BrowseView = memo(function BrowseView({
   annotateMode,
   hoverDelayMs = 150,
   session,
-  newAnnotationIds,
+  sparkleAnnotationIds,
   renderers,
   onLinkClick,
   onReferenceHover,
@@ -227,11 +227,11 @@ export const BrowseView = memo(function BrowseView({
     };
 
     // Apply animation classes to new annotations
-    if (newAnnotationIds) {
+    if (sparkleAnnotationIds) {
       const annotationSpans = container.querySelectorAll('[data-annotation-id]');
       annotationSpans.forEach((span) => {
         const annotationId = span.getAttribute('data-annotation-id');
-        if (annotationId && newAnnotationIds.has(annotationId)) {
+        if (annotationId && sparkleAnnotationIds.has(annotationId)) {
           span.classList.add('annotation-sparkle');
         }
       });
@@ -248,7 +248,7 @@ export const BrowseView = memo(function BrowseView({
       cleanupHover();
       referentSub?.unsubscribe(); // in-flight referent load dies with the effect
     };
-  }, [content, allAnnotations, newAnnotationIds, hoverDelayMs, session, onReferenceHover]);
+  }, [content, allAnnotations, sparkleAnnotationIds, hoverDelayMs, session, onReferenceHover]);
 
   // Helper to scroll annotation into view with pulse effect
   const scrollToAnnotation = useCallback((annotationId: string | null, removePulse = false) => {

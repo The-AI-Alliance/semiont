@@ -119,6 +119,7 @@ export interface ResourceViewerPageProps {
  * @subscribes yield:clone - Clone the current resource
  * @subscribes beckon:sparkle - Trigger sparkle animation
  * @subscribes mark:added - Annotation was created (sparkle)
+ * @subscribes mark:body-updated - Reference resolved via a linking-add operation (sparkle, both loci)
  * @subscribes browse:resource-open - Open a resource in the viewer (local links + the launcher's tour verbs)
  * @subscribes browse:entity-type-clicked - Navigate filtered by entity type
  *
@@ -175,7 +176,7 @@ export function ResourceViewerPage({
   const { theme } = useTheme();
   const { showLineNumbers } = useLineNumbers();
   const { hoverDelayMs } = useHoverDelay();
-  const { triggerSparkleAnimation, clearNewAnnotationId, newAnnotationIds } = useResourceAnnotations();
+  const { triggerSparkleAnimation, clearSparkle, sparkleAnnotationIds } = useResourceAnnotations();
 
   // Render mode chooses the content path: 'text' decodes inline; 'image'
   // and 'pdf' go through the media-token (binary) path. 'none'/registry-miss
@@ -260,7 +261,7 @@ export function ResourceViewerPage({
   }, [stateUnit]);
 
   const handleWizardGenerateSubmit = useCallback((referenceId: string, config: GenerationConfig) => {
-    clearNewAnnotationId(annotationId(referenceId));
+    clearSparkle(annotationId(referenceId));
     stateUnit?.yield.generate(config.context, {
       title: config.title,
       storageUri: config.storagePath,
@@ -273,7 +274,7 @@ export function ResourceViewerPage({
       temperature: config.temperature,
       maxTokens: config.maxTokens,
     });
-  }, [stateUnit, clearNewAnnotationId, resource]);
+  }, [stateUnit, clearSparkle, resource]);
 
   // Resource-generate flow (GENERATE-FROM-BUTTON): drive the SAME yield progress$
   // the annotation path uses so the full `AssistProgress` widget shows — NOT a
@@ -413,6 +414,19 @@ export function ResourceViewerPage({
     triggerSparkleAnimation(stored.payload.annotation.id);
   }, [triggerSparkleAnimation]);
 
+  // RESOLUTION-SPARKLE D2: a reference resolving — Compose, Search → Link, a
+  // Generate job landing, or a remote collaborator — is a body update whose
+  // operations add a linking SpecificResource. Exactly that sparkles; an unlink
+  // (remove) or an entity-tag body change stays dark.
+  const handleAnnotationBodyUpdated = useCallback((stored: EventMap['mark:body-updated']) => {
+    const resolves = stored.payload.operations.some(
+      (op) => op.op === 'add' && op.item.type === 'SpecificResource' && op.item.purpose === 'linking',
+    );
+    if (resolves) {
+      triggerSparkleAnimation(stored.payload.annotationId);
+    }
+  }, [triggerSparkleAnimation]);
+
   const handleResourceOpen = useCallback(({ resourceId }: { resourceId: string }) => {
     if (routes.resourceDetail) {
       const path = routes.resourceDetail(resourceId);
@@ -442,6 +456,7 @@ export function ResourceViewerPage({
     'yield:clone': handleResourceClone,
     'beckon:sparkle': handleAnnotationSparkle,
     'mark:added': handleAnnotationAdded,
+    'mark:body-updated': handleAnnotationBodyUpdated,
     'browse:resource-open': handleResourceOpen,
     'browse:entity-type-clicked': handleEntityTypeClicked,
   });
@@ -550,7 +565,7 @@ export function ResourceViewerPage({
                   onSelectionMotivationChange={toolbarPrefs.setSelectionMotivation}
                   shape={toolbarPrefs.shape}
                   onShapeChange={toolbarPrefs.setShape}
-                  newAnnotationIds={newAnnotationIds}
+                  sparkleAnnotationIds={sparkleAnnotationIds}
                   generatingReferenceId={generationProgress?.annotationId ?? null}
                   showLineNumbers={showLineNumbers}
                   hoverDelayMs={hoverDelayMs}
@@ -600,6 +615,7 @@ export function ResourceViewerPage({
                 onRetryAnnotations={stateUnit?.annotations.retry}
                 entityTypesError={entityTypesError}
                 generatingReferenceId={generationProgress?.annotationId ?? null}
+                sparkleAnnotationIds={sparkleAnnotationIds}
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
                 referencedByError={referencedByError}

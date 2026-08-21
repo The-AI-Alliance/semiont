@@ -51,7 +51,7 @@ export interface AnnotateMediaRendererProps {
   // Text-path extras. Optional on the shared interface: a custom image or PDF
   // renderer simply ignores them, the same way `MediaRendererProps.session` is
   // documented to be ignorable.
-  newAnnotationIds?: Set<string>;
+  sparkleAnnotationIds?: Set<string>;
   scrollToAnnotationId?: string | null;
   showLineNumbers?: boolean;
   enableWidgets?: boolean;
@@ -66,7 +66,7 @@ export function TextAnnotateRenderer({
   content,
   annotations,
   session,
-  newAnnotationIds,
+  sparkleAnnotationIds,
   hoveredAnnotationId,
   scrollToAnnotationId,
   showLineNumbers = false,
@@ -84,7 +84,7 @@ export function TextAnnotateRenderer({
       content={content}
       segments={segments}
       editable={false}
-      newAnnotationIds={newAnnotationIds}
+      sparkleAnnotationIds={sparkleAnnotationIds}
       {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
       {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
       sourceView={true}

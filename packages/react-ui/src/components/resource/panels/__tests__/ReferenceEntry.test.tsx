@@ -94,6 +94,24 @@ describe('ReferenceEntry', () => {
     mockGetEntityTypes.mockReturnValue([]);
   });
 
+  // RESOLUTION-SPARKLE D6: a just-resolved reference announces itself on the
+  // panel entry's icon with the same `.annotation-sparkle` glow the document
+  // span uses. The host decides WHEN (membership in the sparkle set); the
+  // entry only renders the boolean.
+  describe('Resolution sparkle', () => {
+    it('carries the sparkle animation on the icon when sparkle is set', () => {
+      const { container } = renderEntry({ sparkle: true });
+
+      expect(container.querySelector('.semiont-reference-icon')).toHaveClass('annotation-sparkle');
+    });
+
+    it('does not sparkle by default', () => {
+      const { container } = renderEntry();
+
+      expect(container.querySelector('.semiont-reference-icon')).not.toHaveClass('annotation-sparkle');
+    });
+  });
+
   describe('Rendering', () => {
     it('should render the selected text in quotes', () => {
       renderEntry();

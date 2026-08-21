@@ -1,7 +1,7 @@
 /**
  * EMBEDDABLE-RESOURCE-VIEWER step 1a — BrowseView renders provider-free.
  *
- * BrowseView takes its `session` + `newAnnotationIds` as props (not
+ * BrowseView takes its `session` + `sparkleAnnotationIds` as props (not
  * `useSemiont()` / `useResourceAnnotations()`), and subscribes to session-scoped
  * beckon events via `session.subscribe`. `AnnotateToolbar` is mocked here — its
  * own provider decoupling is step 1b — so this spec isolates BrowseView's body.
