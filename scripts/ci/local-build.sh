@@ -575,6 +575,13 @@ case "$DRIFT_RC" in
       echo -e "  ${DIM}Do NOT use \`go clean -modcache\` — it deletes cache/download too, costing a${RESET}"
       echo -e "  ${DIM}~100 MB re-fetch of the 21-module oapi-codegen tree and reintroducing the${RESET}"
       echo -e "  ${DIM}network dependency GOPROXY_CACHED exists to remove.${RESET}"
+      echo ""
+      # GOPROXY_CACHED is itself a file:// proxy, so a COLD cache with the network
+      # also down produces this same wording. The purge is safe either way (Go
+      # re-extracts from the downloads), but it will not help that case.
+      echo -e "  ${DIM}If the purge changes nothing, the cache was cold rather than corrupt —${RESET}"
+      echo -e "  ${DIM}the file:// proxy reports the same error for a missing module. Treat it${RESET}"
+      echo -e "  ${DIM}as the network case below.${RESET}"
     else
       echo -e "  A failed module fetch (${BOLD}proxy.golang.org${RESET}) is the usual cause; retry once the"
       echo -e "  network is back, and the pinned generator will be cached in"
