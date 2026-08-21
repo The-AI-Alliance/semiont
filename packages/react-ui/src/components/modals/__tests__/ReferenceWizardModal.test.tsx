@@ -355,6 +355,65 @@ describe('ReferenceWizardModal — compose is the fourth in-modal strategy (COMP
   });
 });
 
+// GATHER-AT-THE-TOP P1: the dirty guard widens. D4 — dirtiness is
+// step-independent (typed work guards dismissal wherever the user currently
+// is); D5 — typed text only (title beyond seed, save location, instructions,
+// content). The generation draft gets the same protection compose has.
+describe('ReferenceWizardModal — the dirty guard widens (GATHER-AT-THE-TOP D4/D5)', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('a typed generation draft guards dismissal', async () => {
+    const { onClose } = renderWizard();
+    await userEvent.click(screen.getByRole('button', { name: /Generate…/ }));
+    fireEvent.change(screen.getByLabelText(T.saveLocation), { target: { value: 'people/x.md' } });
+
+    await userEvent.click(screen.getByLabelText('Close'));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(T.discardDraftPrompt)).toBeInTheDocument();
+  });
+
+  it('a defaultTitle drifting while open does not fake a dirty draft', async () => {
+    // The wizard's defaultTitle derives from observable state and can re-emit
+    // while the modal is open. The baseline moves, the user has typed nothing —
+    // dirtiness compares against what was SEEDED, not the live prop.
+    const { rerender, onClose, onComposeSubmit, onGenerateSubmit, onLinkResource } = renderWizard();
+    rerender(
+      <ReferenceWizardModal
+        isOpen
+        onClose={onClose}
+        annotationId="ann-1"
+        resourceId="res-1"
+        defaultTitle="Caspian Sea (moved)"
+        entityTypes={['Location']}
+        entityTypeOptions={['Person', 'Topic', 'Location']}
+        locale="en"
+        context={CONTEXT}
+        contextLoading={false}
+        contextError={null}
+        onGenerateSubmit={onGenerateSubmit}
+        onLinkResource={onLinkResource}
+        onComposeSubmit={onComposeSubmit}
+        translations={T}
+      />,
+    );
+
+    await userEvent.click(screen.getByLabelText('Close'));
+    expect(screen.queryByText(T.discardDraftPrompt)).not.toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('a compose draft still guards after stepping Back to the evidence — D4 kills the step gate', async () => {
+    const { onClose } = renderWizard();
+    await userEvent.click(screen.getByText(new RegExp(T.compose)));
+    fireEvent.change(screen.getByTestId('code-editor'), { target: { value: 'typed work' } });
+    await userEvent.click(screen.getByRole('button', { name: new RegExp(T.back) }));
+
+    await userEvent.click(screen.getByLabelText('Close'));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(T.discardDraftPrompt)).toBeInTheDocument();
+  });
+});
+
 describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () => {
   it('reopening resets the hint and the step', async () => {
     const { rerender } = renderWizard();

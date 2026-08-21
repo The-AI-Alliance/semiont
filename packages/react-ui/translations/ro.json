@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "Configurare Colectare",
-    "reviewTitle": "Revizuire Context",
     "configureTitle": "Configurare Generare",
-    "next": "Următorul",
-    "back": "Înapoi",
     "gatherIntro": "Alege ce să incluzi în contextul colectat.",
     "includeContent": "Include conținutul resursei",
     "includeSummary": "Include rezumatul",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} excluse din această regăsire",
     "machineRead": "OCR",
     "score": "Scor",
-    "saveLocation": "Locația salvării"
+    "saveLocation": "Locația salvării",
+    "discardDraftPrompt": "Renunți la această ciornă?",
+    "discardDraft": "Renunță",
+    "keepEditing": "Continuă editarea"
   },
   "ReferenceWizard": {
     "gatherTitle": "Context Colectat",

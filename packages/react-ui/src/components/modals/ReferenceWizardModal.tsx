@@ -16,6 +16,7 @@ import type { GenerationDraft } from './ConfigureGenerationStep';
 import { SearchResultsStep } from './SearchResultsStep';
 import { ComposeStep } from './ComposeStep';
 import type { ComposeDraft, ComposeParams } from './ComposeStep';
+import { DiscardPrompt } from './DiscardPrompt';
 import { useLineNumbers } from '../../contexts/LineNumbersContext';
 import type { ScoredResult } from './SearchResultsStep';
 
@@ -160,9 +161,16 @@ export function ReferenceWizardModal({
   // provider-free, so the wizard resolves it and passes it down.
   const { showLineNumbers } = useLineNumbers();
 
+  // The dirty baseline is what was SEEDED, not the live prop: defaultTitle
+  // derives from observable wizard state and can re-emit while the modal is
+  // open; an untouched draft must not read as dirty because the baseline
+  // moved under it.
+  const seededTitle = useRef(defaultTitle);
+
   // Reset to gather step when modal opens
   useEffect(() => {
     if (isOpen) {
+      seededTitle.current = defaultTitle;
       setWizardStep({ step: 'gather' });
       setSearchConfig({ limit: 10, useSemanticScoring: true });
       setGenerationDraft({
@@ -240,20 +248,24 @@ export function ReferenceWizardModal({
     onClose();
   }, [annotationId, onComposeSubmit, onClose]);
 
-  // D4: a modal dies on ✕/Escape/backdrop; a non-empty compose draft must not
-  // die with it. Dismissal routes here; typed work raises an inline prompt.
-  const composeDirty = wizardStep.step === 'compose' && (
+  // D4 (widened by GATHER-AT-THE-TOP): a modal dies on ✕/Escape/backdrop, but
+  // typed work must not die with it — WHEREVER the user currently is (drafts
+  // survive stepping away, so the guard must too). Typed text only (D5):
+  // seeded titles, toggles, and sliders never nag.
+  const draftDirty =
     composeDraft.content.trim() !== '' ||
     composeDraft.storagePath.trim() !== '' ||
-    composeDraft.name !== defaultTitle
-  );
+    composeDraft.name !== seededTitle.current ||
+    generationDraft.title !== seededTitle.current ||
+    generationDraft.storagePath.trim() !== '' ||
+    generationDraft.prompt.trim() !== '';
   const handleDismiss = useCallback(() => {
-    if (composeDirty) {
+    if (draftDirty) {
       setShowDiscardPrompt(true);
       return;
     }
     onClose();
-  }, [composeDirty, onClose]);
+  }, [draftDirty, onClose]);
 
   const handleBackToGather = useCallback(() => {
     setWizardStep({ step: 'gather' });
@@ -369,23 +381,13 @@ export function ReferenceWizardModal({
                 </div>
 
                 {showDiscardPrompt && (
-                  <div className="semiont-wizard__discard-prompt" role="alert">
-                    <span className="semiont-wizard__discard-prompt-text">{t.discardDraftPrompt}</span>
-                    <button
-                      type="button"
-                      className="semiont-button--danger"
-                      onClick={() => { setShowDiscardPrompt(false); onClose(); }}
-                    >
-                      {t.discardDraft}
-                    </button>
-                    <button
-                      type="button"
-                      className="semiont-button--secondary"
-                      onClick={() => setShowDiscardPrompt(false)}
-                    >
-                      {t.keepEditing}
-                    </button>
-                  </div>
+                  <DiscardPrompt
+                    prompt={t.discardDraftPrompt}
+                    discardLabel={t.discardDraft}
+                    keepLabel={t.keepEditing}
+                    onDiscard={() => { setShowDiscardPrompt(false); onClose(); }}
+                    onKeepEditing={() => setShowDiscardPrompt(false)}
+                  />
                 )}
 
                 {wizardStep.step === 'gather' && (

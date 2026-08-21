@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "수집 구성",
-    "reviewTitle": "컨텍스트 검토",
     "configureTitle": "생성 구성",
-    "next": "다음",
-    "back": "뒤로",
     "gatherIntro": "수집된 컨텍스트에 포함할 내용을 선택하세요.",
     "includeContent": "리소스 콘텐츠 포함",
     "includeSummary": "요약 포함",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} 이 리콜에서 제외됨",
     "machineRead": "OCR",
     "score": "점수",
-    "saveLocation": "저장 위치"
+    "saveLocation": "저장 위치",
+    "discardDraftPrompt": "이 초안을 삭제할까요?",
+    "discardDraft": "삭제",
+    "keepEditing": "계속 편집"
   },
   "ReferenceWizard": {
     "gatherTitle": "수집된 컨텍스트",

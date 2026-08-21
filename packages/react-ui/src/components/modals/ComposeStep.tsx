@@ -88,6 +88,10 @@ export function ComposeStep({
         entityTypes: fixedTypes ? referenceEntityTypes : draft.entityTypes,
         language: draft.language,
       });
+    } catch {
+      // The rejection's job ends here: it kept the wizard's close from
+      // running and the host already surfaced the failure. Letting it
+      // escape a React event handler is an unhandled rejection.
     } finally {
       setIsCreating(false);
     }

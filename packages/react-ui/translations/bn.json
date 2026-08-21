@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "সংগ্রহ কনফিগার করুন",
-    "reviewTitle": "প্রসঙ্গ পর্যালোচনা করুন",
     "configureTitle": "জেনারেশন কনফিগার করুন",
-    "next": "পরবর্তী",
-    "back": "পিছনে",
     "gatherIntro": "সংগৃহীত প্রসঙ্গে কী অন্তর্ভুক্ত করবেন তা বেছে নিন।",
     "includeContent": "সম্পদের বিষয়বস্তু অন্তর্ভুক্ত করুন",
     "includeSummary": "সারসংক্ষেপ অন্তর্ভুক্ত করুন",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} এই রিকল থেকে বাদ",
     "machineRead": "OCR",
     "score": "স্কোর",
-    "saveLocation": "সংরক্ষণের অবস্থান"
+    "saveLocation": "সংরক্ষণের অবস্থান",
+    "discardDraftPrompt": "এই খসড়াটি বাতিল করবেন?",
+    "discardDraft": "বাতিল করুন",
+    "keepEditing": "সম্পাদনা চালিয়ে যান"
   },
   "ReferenceWizard": {
     "gatherTitle": "সংগৃহীত প্রসঙ্গ",

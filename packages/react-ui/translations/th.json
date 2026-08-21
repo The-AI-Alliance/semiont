@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "กำหนดค่าการรวบรวม",
-    "reviewTitle": "ตรวจสอบบริบท",
     "configureTitle": "กำหนดค่าการสร้าง",
-    "next": "ถัดไป",
-    "back": "กลับ",
     "gatherIntro": "เลือกสิ่งที่จะรวมไว้ในบริบทที่รวบรวม",
     "includeContent": "รวมเนื้อหาทรัพยากร",
     "includeSummary": "รวมบทสรุป",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} ถูกยกเว้นจากการเรียกคืนนี้",
     "machineRead": "OCR",
     "score": "คะแนน",
-    "saveLocation": "ตำแหน่งบันทึก"
+    "saveLocation": "ตำแหน่งบันทึก",
+    "discardDraftPrompt": "ละทิ้งฉบับร่างนี้หรือไม่",
+    "discardDraft": "ละทิ้ง",
+    "keepEditing": "แก้ไขต่อ"
   },
   "ReferenceWizard": {
     "gatherTitle": "บริบทที่รวบรวมแล้ว",

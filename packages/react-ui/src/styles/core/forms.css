@@ -232,12 +232,6 @@
    are now defined in /styles/core/ as they are fundamental UI elements.
    See: core/textareas.css, core/selects.css, core/checkboxes.css */
 
-/* Scrollable form body — keeps form within viewport height */
-.semiont-form--scrollable {
-  overflow-y: auto;
-  max-height: 70vh;
-  padding-right: 0.25rem;
-}
 
 /* Inline row — lays out multiple fields side by side */
 .semiont-form__inline-row {

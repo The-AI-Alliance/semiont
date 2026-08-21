@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "تكوين الجمع",
-    "reviewTitle": "مراجعة السياق",
     "configureTitle": "تكوين التوليد",
-    "next": "التالي",
-    "back": "رجوع",
     "gatherIntro": "اختر ما تريد تضمينه في السياق المُجمَّع.",
     "includeContent": "تضمين محتوى المورد",
     "includeSummary": "تضمين الملخص",
@@ -422,7 +418,10 @@
     "excludedReceipt": "استُبعد {{types}} من هذا الاسترجاع",
     "machineRead": "OCR",
     "score": "درجة",
-    "saveLocation": "موقع الحفظ"
+    "saveLocation": "موقع الحفظ",
+    "discardDraftPrompt": "هل تريد تجاهل هذه المسودة؟",
+    "discardDraft": "تجاهل",
+    "keepEditing": "متابعة التحرير"
   },
   "ReferenceWizard": {
     "gatherTitle": "السياق المُجمَّع",

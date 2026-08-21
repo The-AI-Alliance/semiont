@@ -40,7 +40,8 @@ export interface ConfigureGenerationStepProps {
   /** Owned by the wizard so Back is lossless (WIZARD-NAVIGATION D3). */
   config: GenerationDraft;
   onConfigChange: (config: GenerationDraft) => void;
-  onBack: () => void;
+  /** Absent in a single-stack host (GATHER-AT-THE-TOP D6) — the footer then renders no retreat. */
+  onBack?: () => void;
   onGenerate: (config: GenerationConfig) => void;
   translations: {
     resourceTitle: string;
@@ -61,7 +62,7 @@ export interface ConfigureGenerationStepProps {
      * and `{{model}}`.
      */
     maxLengthCeiling: string;
-    back: string;
+    back?: string;
     generate: string;
   };
   /**
@@ -269,8 +270,7 @@ export function ConfigureGenerationStep({
       </div>
 
       <WizardFooter
-        backLabel={t.back}
-        onBack={onBack}
+        {...(onBack && t.back ? { backLabel: t.back, onBack } : {})}
         primary={{ label: t.generate, type: 'submit' }}
       />
     </form>

@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "הגדרת איסוף",
-    "reviewTitle": "סקירת הקשר",
     "configureTitle": "הגדרת יצירה",
-    "next": "הבא",
-    "back": "חזרה",
     "gatherIntro": "בחרו מה לכלול בהקשר הנאסף.",
     "includeContent": "כלול את תוכן המשאב",
     "includeSummary": "כלול סיכום",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} הוחרגו מהאחזור הזה",
     "machineRead": "OCR",
     "score": "ציון",
-    "saveLocation": "מיקום שמירה"
+    "saveLocation": "מיקום שמירה",
+    "discardDraftPrompt": "לבטל את הטיוטה הזו?",
+    "discardDraft": "לבטל",
+    "keepEditing": "להמשיך לערוך"
   },
   "ReferenceWizard": {
     "gatherTitle": "הקשר שנאסף",

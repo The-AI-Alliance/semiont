@@ -43,7 +43,7 @@ export function ConfigureGatherStep({ defaults, onGather, translations: t, child
   };
 
   return (
-    <form onSubmit={handleSubmit} className="semiont-form semiont-form--scrollable">
+    <form onSubmit={handleSubmit} className="semiont-form">
       <p className="semiont-form__helper-text">{t.intro}</p>
 
       <div className="semiont-form__checkbox-field">

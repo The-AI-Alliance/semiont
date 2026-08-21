@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "Konfigurovat shromáždění",
-    "reviewTitle": "Zkontrolovat kontext",
     "configureTitle": "Konfigurovat generování",
-    "next": "Další",
-    "back": "Zpět",
     "gatherIntro": "Vyberte, co zahrnout do shromážděného kontextu.",
     "includeContent": "Zahrnout obsah zdroje",
     "includeSummary": "Zahrnout souhrn",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} vyloučeno z tohoto vyhledání",
     "machineRead": "OCR",
     "score": "Skóre",
-    "saveLocation": "Umístění uložení"
+    "saveLocation": "Umístění uložení",
+    "discardDraftPrompt": "Zahodit tento koncept?",
+    "discardDraft": "Zahodit",
+    "keepEditing": "Pokračovat v úpravách"
   },
   "ReferenceWizard": {
     "gatherTitle": "Shromážděný kontext",

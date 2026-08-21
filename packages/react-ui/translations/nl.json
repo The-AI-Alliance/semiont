@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "Verzamelen configureren",
-    "reviewTitle": "Context controleren",
     "configureTitle": "Generatie configureren",
-    "next": "Volgende",
-    "back": "Terug",
     "gatherIntro": "Kies wat je wilt opnemen in de verzamelde context.",
     "includeContent": "Broninhoud opnemen",
     "includeSummary": "Samenvatting opnemen",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} uitgesloten van deze zoekronde",
     "machineRead": "OCR",
     "score": "Score",
-    "saveLocation": "Opslaglocatie"
+    "saveLocation": "Opslaglocatie",
+    "discardDraftPrompt": "Dit concept verwerpen?",
+    "discardDraft": "Verwerpen",
+    "keepEditing": "Doorgaan met bewerken"
   },
   "ReferenceWizard": {
     "gatherTitle": "Verzamelde context",

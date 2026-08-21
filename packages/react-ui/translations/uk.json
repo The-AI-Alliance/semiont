@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "Налаштувати збір",
-    "reviewTitle": "Переглянути контекст",
     "configureTitle": "Налаштувати генерацію",
-    "next": "Далі",
-    "back": "Назад",
     "gatherIntro": "Виберіть, що включити до зібраного контексту.",
     "includeContent": "Включити вміст ресурсу",
     "includeSummary": "Включити підсумок",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} виключено з цього відбору",
     "machineRead": "OCR",
     "score": "Оцінка",
-    "saveLocation": "Розташування збереження"
+    "saveLocation": "Розташування збереження",
+    "discardDraftPrompt": "Відхилити цю чернетку?",
+    "discardDraft": "Відхилити",
+    "keepEditing": "Продовжити редагування"
   },
   "ReferenceWizard": {
     "gatherTitle": "Зібраний контекст",
