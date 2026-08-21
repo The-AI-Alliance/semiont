@@ -170,6 +170,39 @@ describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.use
   });
 });
 
+describe('ReferenceWizardModal — the context stays in view on the strategy steps', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  // Choosing Generate or Search unfolds that strategy's form BELOW the
+  // evidence — it must not navigate away from it. The gather step stays the
+  // decision surface (chooser footer, hint textarea); the strategy steps get
+  // the display-only rendering (GFR A2): no chooser, no second hint textarea.
+  it('configure-search renders the evidence above the form', async () => {
+    const { baseElement } = renderWizard();
+    await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
+
+    expect(baseElement.querySelector('.semiont-gather__source-box')).not.toBeNull(); // quotation strip
+    expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();                  // graph pane
+    expect(screen.getByText(T.maxResults)).toBeInTheDocument();                      // the form, below
+    expect(baseElement.querySelector('.semiont-gather__footer')).toBeNull();         // chooser stays on gather
+    expect(screen.queryByPlaceholderText(T.userHintPlaceholder)).not.toBeInTheDocument();
+    const panel = baseElement.querySelector('.semiont-search-modal__panel')!;
+    expect(panel.className).toContain('semiont-search-modal__panel--wide');          // evidence needs the width
+  });
+
+  it('configure-generation renders the evidence above the form', async () => {
+    const { baseElement } = renderWizard();
+    await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
+
+    expect(baseElement.querySelector('.semiont-gather__source-box')).not.toBeNull();
+    expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();
+    expect(screen.getByText(T.resourceTitle)).toBeInTheDocument();
+    expect(baseElement.querySelector('.semiont-gather__footer')).toBeNull();
+    const panel = baseElement.querySelector('.semiont-search-modal__panel')!;
+    expect(panel.className).toContain('semiont-search-modal__panel--wide');
+  });
+});
+
 describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () => {
   it('reopening resets the hint and the step', async () => {
     const { rerender } = renderWizard();

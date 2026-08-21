@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "מחיקת כל הנתונים",
     "deleteConfirmDescription": "פעולה זו תמחק לצמיתות את כל הנתונים שלכם כולל עוגיות, העדפות ומידע סשן. לא ניתן לבטל פעולה זו והדף ייטען מחדש."
   },
-  "SearchResources": {
-    "title": "חיפוש משאבים",
-    "placeholder": "חיפוש משאבים...",
-    "searching": "מחפש...",
-    "noResults": "לא נמצאו משאבים",
-    "close": "סגור"
-  },
   "Search": {
     "placeholder": "חיפוש משאבים וישויות...",
     "searching": "מחפש...",

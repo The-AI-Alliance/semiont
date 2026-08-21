@@ -6,11 +6,6 @@
   z-index: 1000;
 }
 
-/* Resource search modal variant (higher z-index) */
-.semiont-search-modal--resource {
-  z-index: 1001;
-}
-
 /* Backdrop */
 .semiont-search-modal__backdrop {
   position: fixed;
@@ -369,12 +364,7 @@
   outline-color: var(--semiont-color-primary-400);
 }
 
-/* Search form */
-.semiont-search-modal__search-form {
-  margin-bottom: 1rem;
-}
-
-/* Search input (for ResourceSearchModal) */
+/* Search input */
 .semiont-search-modal__search-input {
   width: 100%;
   padding: 0.5rem 0.75rem;
@@ -396,70 +386,6 @@
 
 [data-theme="dark"] .semiont-search-modal__search-input:focus-visible {
   outline-color: var(--semiont-color-primary-400);
-}
-
-/* Resource list */
-.semiont-search-modal__resource-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-/* Resource item */
-.semiont-search-modal__resource-item {
-  padding: 0.75rem;
-  border: 1px solid var(--semiont-color-gray-200);
-  border-radius: 0.5rem;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.semiont-search-modal__resource-item:hover {
-  background-color: var(--semiont-color-gray-50);
-}
-
-[data-theme="dark"] .semiont-search-modal__resource-item {
-  border-color: var(--semiont-color-gray-700);
-}
-
-[data-theme="dark"] .semiont-search-modal__resource-item:hover {
-  background-color: rgba(55, 65, 81, 0.5);
-}
-
-/* Resource name */
-.semiont-search-modal__resource-name {
-  font-weight: 500;
-  color: var(--semiont-color-gray-900);
-  margin-bottom: 0.25rem;
-}
-
-[data-theme="dark"] .semiont-search-modal__resource-name {
-  color: var(--semiont-color-white);
-}
-
-/* Resource description */
-.semiont-search-modal__resource-description {
-  font-size: 0.875rem;
-  color: var(--semiont-color-gray-600);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-[data-theme="dark"] .semiont-search-modal__resource-description {
-  color: var(--semiont-color-gray-400);
-}
-
-/* Resource media type */
-.semiont-search-modal__resource-media-type {
-  font-size: 0.875rem;
-  font-style: italic;
-  color: var(--semiont-color-gray-500);
-}
-
-[data-theme="dark"] .semiont-search-modal__resource-media-type {
-  color: var(--semiont-color-gray-500);
 }
 
 /* Wide panel variant for two-pane layouts */

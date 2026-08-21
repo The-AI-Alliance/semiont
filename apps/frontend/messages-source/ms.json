@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "Padam Semua Data",
     "deleteConfirmDescription": "Ini akan memadam secara kekal semua data anda termasuk kuki, keutamaan dan maklumat sesi. Tindakan ini tidak boleh dibatalkan dan akan memuat semula halaman."
   },
-  "SearchResources": {
-    "title": "Cari Sumber",
-    "placeholder": "Cari sumber...",
-    "searching": "Mencari...",
-    "noResults": "Tiada sumber ditemui",
-    "close": "Tutup"
-  },
   "Search": {
     "placeholder": "Cari sumber dan entiti...",
     "searching": "Mencari...",

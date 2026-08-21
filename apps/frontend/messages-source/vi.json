@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "Xóa tất cả dữ liệu",
     "deleteConfirmDescription": "Thao tác này sẽ xóa vĩnh viễn tất cả dữ liệu của bạn bao gồm cookie, tùy chọn và thông tin phiên. Hành động này không thể hoàn tác và sẽ tải lại trang."
   },
-  "SearchResources": {
-    "title": "Tìm kiếm tài nguyên",
-    "placeholder": "Tìm kiếm tài nguyên...",
-    "searching": "Đang tìm kiếm...",
-    "noResults": "Không tìm thấy tài nguyên nào",
-    "close": "Đóng"
-  },
   "Search": {
     "placeholder": "Tìm kiếm tài nguyên và thực thể...",
     "searching": "Đang tìm kiếm...",

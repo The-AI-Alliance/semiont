@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "Hapus Semua Data",
     "deleteConfirmDescription": "Ini akan menghapus secara permanen semua data Anda termasuk cookie, preferensi, dan informasi sesi. Tindakan ini tidak dapat dibatalkan dan akan memuat ulang halaman."
   },
-  "SearchResources": {
-    "title": "Cari Sumber Daya",
-    "placeholder": "Cari sumber daya...",
-    "searching": "Mencari...",
-    "noResults": "Tidak ada sumber daya ditemukan",
-    "close": "Tutup"
-  },
   "Search": {
     "placeholder": "Cari sumber daya dan entitas...",
     "searching": "Mencari...",

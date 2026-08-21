@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "Poista kaikki tiedot",
     "deleteConfirmDescription": "Tämä poistaa pysyvästi kaikki tietosi, mukaan lukien evästeet, asetukset ja istuntotiedot. Tätä toimintoa ei voi kumota ja sivu ladataan uudelleen."
   },
-  "SearchResources": {
-    "title": "Hae resursseja",
-    "placeholder": "Hae resursseja...",
-    "searching": "Haetaan...",
-    "noResults": "Resursseja ei löytynyt",
-    "close": "Sulje"
-  },
   "Search": {
     "placeholder": "Hae resursseja ja entiteettejä...",
     "searching": "Haetaan...",

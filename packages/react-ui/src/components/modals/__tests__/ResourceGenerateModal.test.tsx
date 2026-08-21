@@ -226,6 +226,20 @@ describe('ResourceGenerateModal', () => {
     expect(screen.getByLabelText('New resource title')).toHaveValue('PB');
   });
 
+  it('configure-generation keeps the gathered context in view above the form', () => {
+    // Review stays the look-at-it step; stepping onward must not hide what the
+    // generation will be grounded in. The context renders display-only above
+    // the form (same GatherContextStep the review step uses).
+    const { baseElement } = renderModal({ gatherContext: RESOURCE_CONTEXT });
+    fireEvent.click(screen.getByRole('button', { name: /Gather/ })); // → review
+    fireEvent.click(screen.getByRole('button', { name: /Next/ }));   // → configure-generation
+
+    expect(screen.getByText('Configure Generation')).toBeInTheDocument();
+    expect(screen.getByText('In the graph')).toBeInTheDocument();          // graph pane still up
+    expect(baseElement.querySelector('.semiont-gather__outer')).not.toBeNull(); // the display shell
+    expect(screen.getByLabelText('New resource title')).toBeInTheDocument();   // the form, below
+  });
+
   it('the panel carries the widened class (GEP P2, D2)', () => {
     const { baseElement } = renderModal();
     const panel = baseElement.querySelector('.semiont-search-modal__panel--gather');

@@ -229,6 +229,24 @@ export function ReferenceWizardModal({
     onClose();
   }, [annotationId, onLinkResource, onClose]);
 
+  // The evidence display's translations — shared by the gather step and the
+  // strategy steps, which keep the context in view (display-only, GFR A2)
+  // above their forms rather than navigating away from it.
+  const displayTranslations = {
+    loadingContext: t.loadingContext,
+    failedContext: t.failedContext,
+    sourceContextLabel: t.sourceContextLabel,
+    connectionsLabel: t.connectionsLabel,
+    citedByLabel: t.citedByLabel,
+    graphPaneTitle: t.graphPaneTitle,
+    graphEmpty: t.graphEmpty,
+    corpusPaneTitle: t.corpusPaneTitle,
+    corpusEmpty: t.corpusEmpty,
+    excludedReceipt: t.excludedReceipt,
+    machineRead: t.machineRead,
+    score: t.score,
+  };
+
   // Determine title based on step
   const stepTitle = wizardStep.step === 'gather'
     ? t.gatherTitle
@@ -264,7 +282,10 @@ export function ReferenceWizardModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <DialogPanel className={`semiont-search-modal__panel semiont-search-modal__panel--with-border${wizardStep.step === 'search-results' ? ' semiont-search-modal__panel--wide' : ''}${wizardStep.step === 'gather' ? ' semiont-search-modal__panel--gather semiont-search-modal__panel--wide' : ''}`}>
+              {/* Every step shows evidence now, so every step is wide; the
+                  gather layout (flex column, capped height) applies wherever
+                  the full display renders — all but search-results. */}
+              <DialogPanel className={`semiont-search-modal__panel semiont-search-modal__panel--with-border semiont-search-modal__panel--wide${wizardStep.step !== 'search-results' ? ' semiont-search-modal__panel--gather' : ''}`}>
                 <div className="semiont-search-modal__header">
                   <DialogTitle className="semiont-search-modal__title">
                     {stepTitle}
@@ -299,24 +320,18 @@ export function ReferenceWizardModal({
                         userHintPlaceholder: t.userHintPlaceholder,
                       },
                     }}
-                    translations={{
-                      loadingContext: t.loadingContext,
-                      failedContext: t.failedContext,
-                      sourceContextLabel: t.sourceContextLabel,
-                      connectionsLabel: t.connectionsLabel,
-                      citedByLabel: t.citedByLabel,
-                      graphPaneTitle: t.graphPaneTitle,
-                      graphEmpty: t.graphEmpty,
-                      corpusPaneTitle: t.corpusPaneTitle,
-                      corpusEmpty: t.corpusEmpty,
-                      excludedReceipt: t.excludedReceipt,
-                      machineRead: t.machineRead,
-                      score: t.score,
-                    }}
+                    translations={displayTranslations}
                   />
                 )}
 
                 {wizardStep.step === 'configure-generation' && context && (
+                  <>
+                  <GatherContextStep
+                    context={context}
+                    contextLoading={contextLoading}
+                    contextError={contextError}
+                    translations={displayTranslations}
+                  />
                   <ConfigureGenerationStep
                     {...(generationAgent ? { generationAgent } : {})}
                     {...(userHint ? { hintEcho: { label: t.userHintLabel, value: userHint } } : {})}
@@ -342,9 +357,17 @@ export function ReferenceWizardModal({
                       generate: t.generate,
                     }}
                   />
+                  </>
                 )}
 
                 {wizardStep.step === 'configure-search' && (
+                  <>
+                  <GatherContextStep
+                    context={context}
+                    contextLoading={contextLoading}
+                    contextError={contextError}
+                    translations={displayTranslations}
+                  />
                   <ConfigureSearchStep
                     config={searchConfig}
                     {...(userHint ? { hintEcho: { label: t.userHintLabel, value: userHint } } : {})}
@@ -363,6 +386,7 @@ export function ReferenceWizardModal({
                       searchFailed: t.searchFailed,
                     }}
                   />
+                  </>
                 )}
 
                 {wizardStep.step === 'search-results' && context && (

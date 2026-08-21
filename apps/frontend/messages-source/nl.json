@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "Alle gegevens verwijderen",
     "deleteConfirmDescription": "Dit zal permanent al je gegevens verwijderen, inclusief cookies, voorkeuren en sessie-informatie. Deze actie kan niet ongedaan worden gemaakt en de pagina wordt opnieuw geladen."
   },
-  "SearchResources": {
-    "title": "Bronnen zoeken",
-    "placeholder": "Zoek naar bronnen...",
-    "searching": "Zoeken...",
-    "noResults": "Geen bronnen gevonden",
-    "close": "Sluiten"
-  },
   "Search": {
     "placeholder": "Zoek naar bronnen en entiteiten...",
     "searching": "Zoeken...",
