@@ -148,12 +148,18 @@ export function ResourceGenerateModal({
   // name existed (GFR A4). Guarded to the false→true transition so a name
   // arriving mid-flow cannot clobber what the user has typed.
   const wasOpen = useRef(false);
+  // The dirty baseline is what was SEEDED, not the live prop: defaultTitle
+  // can move while the modal is open (the source resource's name loads
+  // asynchronously), and an untouched draft must not read as dirty because
+  // the baseline moved under it.
+  const seededTitle = useRef(defaultTitle);
   useEffect(() => {
     if (isOpen && !wasOpen.current) {
       setGatherFired(false);
       setExcludeEntityTypes([]);
       setGenerationDraft(freshDraft());
       setShowDiscardPrompt(false);
+      seededTitle.current = defaultTitle;
     }
     wasOpen.current = isOpen;
     // freshDraft reads defaultTitle/locale at call time; the effect keys on the
@@ -179,7 +185,7 @@ export function ResourceGenerateModal({
   // nag. Generate's completion path above bypasses this — the guard protects
   // dismissal, not completion.
   const draftDirty =
-    generationDraft.title !== defaultTitle ||
+    generationDraft.title !== seededTitle.current ||
     generationDraft.storagePath.trim() !== '' ||
     generationDraft.prompt.trim() !== '';
   const handleDismiss = useCallback(() => {

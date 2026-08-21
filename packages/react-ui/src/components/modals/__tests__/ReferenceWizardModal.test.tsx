@@ -372,6 +372,36 @@ describe('ReferenceWizardModal — the dirty guard widens (GATHER-AT-THE-TOP D4/
     expect(screen.getByText(T.discardDraftPrompt)).toBeInTheDocument();
   });
 
+  it('a defaultTitle drifting while open does not fake a dirty draft', async () => {
+    // The wizard's defaultTitle derives from observable state and can re-emit
+    // while the modal is open. The baseline moves, the user has typed nothing —
+    // dirtiness compares against what was SEEDED, not the live prop.
+    const { rerender, onClose, onComposeSubmit, onGenerateSubmit, onLinkResource } = renderWizard();
+    rerender(
+      <ReferenceWizardModal
+        isOpen
+        onClose={onClose}
+        annotationId="ann-1"
+        resourceId="res-1"
+        defaultTitle="Caspian Sea (moved)"
+        entityTypes={['Location']}
+        entityTypeOptions={['Person', 'Topic', 'Location']}
+        locale="en"
+        context={CONTEXT}
+        contextLoading={false}
+        contextError={null}
+        onGenerateSubmit={onGenerateSubmit}
+        onLinkResource={onLinkResource}
+        onComposeSubmit={onComposeSubmit}
+        translations={T}
+      />,
+    );
+
+    await userEvent.click(screen.getByLabelText('Close'));
+    expect(screen.queryByText(T.discardDraftPrompt)).not.toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('a compose draft still guards after stepping Back to the evidence — D4 kills the step gate', async () => {
     const { onClose } = renderWizard();
     await userEvent.click(screen.getByText(new RegExp(T.compose)));

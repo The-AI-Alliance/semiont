@@ -161,9 +161,16 @@ export function ReferenceWizardModal({
   // provider-free, so the wizard resolves it and passes it down.
   const { showLineNumbers } = useLineNumbers();
 
+  // The dirty baseline is what was SEEDED, not the live prop: defaultTitle
+  // derives from observable wizard state and can re-emit while the modal is
+  // open; an untouched draft must not read as dirty because the baseline
+  // moved under it.
+  const seededTitle = useRef(defaultTitle);
+
   // Reset to gather step when modal opens
   useEffect(() => {
     if (isOpen) {
+      seededTitle.current = defaultTitle;
       setWizardStep({ step: 'gather' });
       setSearchConfig({ limit: 10, useSemanticScoring: true });
       setGenerationDraft({
@@ -248,8 +255,8 @@ export function ReferenceWizardModal({
   const draftDirty =
     composeDraft.content.trim() !== '' ||
     composeDraft.storagePath.trim() !== '' ||
-    composeDraft.name !== defaultTitle ||
-    generationDraft.title !== defaultTitle ||
+    composeDraft.name !== seededTitle.current ||
+    generationDraft.title !== seededTitle.current ||
     generationDraft.storagePath.trim() !== '' ||
     generationDraft.prompt.trim() !== '';
   const handleDismiss = useCallback(() => {

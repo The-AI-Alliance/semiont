@@ -307,6 +307,26 @@ describe('ResourceGenerateModal — dismissal guards typed work (GATHER-AT-THE-T
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('a defaultTitle arriving mid-flow does not fake a dirty draft', () => {
+    // The source resource's name loads asynchronously: the baseline moves
+    // while the modal is open, the user has typed nothing. Dirtiness compares
+    // against what was SEEDED, not the live prop.
+    const { rerender } = renderModal({ defaultTitle: '', gatherContext: RESOURCE_CONTEXT });
+    fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
+    rerender(
+      <ResourceGenerateModal
+        isOpen onClose={onClose} resourceId="res-1" defaultTitle="Loaded Name"
+        locale="en" entityTypeOptions={['Person', 'Topic']} onGenerateSubmit={onGenerateSubmit}
+        gatherContext={RESOURCE_CONTEXT} gatherLoading={false} gatherError={null}
+        onGather={onGather} translations={T}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText('Close'));
+    expect(screen.queryByText(T.discardDraftPrompt)).not.toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('non-text state alone never nags — exclusions and depth are cheap to redo (D5)', () => {
     renderModal();
     fireEvent.click(screen.getByRole('button', { name: 'Person' })); // pick an exclusion
