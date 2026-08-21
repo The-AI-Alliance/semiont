@@ -861,6 +861,39 @@ export function PdfAnnotationCanvas({
 
   const stripRef = useRef<HTMLDivElement>(null);
 
+  // The strip's CSS scrollport ceiling is 100vh — right when the nearest
+  // scroller is the window, a lie inside an inner-scrolled panel: the sticky
+  // strip then extends below the panel's clip, and `nearest` (below) considers
+  // a tick in that hidden band already in view, so the active page vanished
+  // whenever it crossed the strip's bottom (never the top, whose edges
+  // coincide). Size the scrollport to the scroller that actually clips it;
+  // with no such scroller the CSS ceiling stands.
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (pageLayout !== 'scroll' || !strip) return;
+    let scroller: HTMLElement | null = strip.parentElement;
+    while (scroller) {
+      const overflowY = getComputedStyle(scroller).overflowY;
+      if (overflowY === 'auto' || overflowY === 'scroll') break;
+      scroller = scroller.parentElement;
+    }
+    if (!scroller) return;
+    const clip = scroller;
+    const size = () => { strip.style.maxHeight = `${clip.clientHeight}px`; };
+    size();
+    let observer: ResizeObserver | null = null;
+    try {
+      observer = new ResizeObserver(size);
+      observer.observe(clip);
+    } catch {
+      window.addEventListener('resize', size);
+    }
+    return () => {
+      if (observer) observer.disconnect();
+      else window.removeEventListener('resize', size);
+    };
+  }, [pageLayout, numPages, pageShape]);
+
   useEffect(() => {
     // `nearest` so following the reader never yanks the strip around; it
     // scrolls only when the current rectangle would otherwise leave view.

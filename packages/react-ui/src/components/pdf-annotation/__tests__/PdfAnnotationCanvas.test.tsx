@@ -892,6 +892,40 @@ describe('PdfAnnotationCanvas', () => {
       });
     });
 
+    test('the strip sizes its scrollport to the panel that clips it — not the window', async () => {
+      // The strip is sticky with a CSS ceiling of 100vh — right when the
+      // nearest scroller is the window, a lie inside an inner-scrolled panel:
+      // there the strip's scrollport extends below the panel's clip, and
+      // `scrollIntoView({block:'nearest'})` considers a tick in that hidden
+      // band already in view — the active page vanished when it crossed the
+      // strip's bottom (never the top, whose edges coincide). Measured live:
+      // strip scrollport 126→846 vs panel 126→639. The fix sizes the
+      // scrollport to the scroller that actually clips it.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+
+      const scroller = document.createElement('div');
+      scroller.style.overflowY = 'auto';
+      Object.defineProperty(scroller, 'clientHeight', { value: 513, configurable: true });
+      document.body.appendChild(scroller);
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />,
+        { container: scroller },
+      );
+      await waitFor(() => {
+        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
+      });
+      io.fire([1]);
+
+      const strip = document.querySelector('.semiont-pdf-annotation-canvas__strip') as HTMLElement;
+      await waitFor(() => expect(strip.style.maxHeight).toBe('513px'));
+    });
+
     test('clicking a strip rectangle jumps to that page', async () => {
       const io = stubIntersectionObserver();
       scannedDoc();
