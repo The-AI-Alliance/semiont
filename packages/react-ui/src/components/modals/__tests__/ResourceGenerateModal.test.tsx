@@ -238,6 +238,15 @@ describe('ResourceGenerateModal', () => {
     expect(screen.getByText('In the graph')).toBeInTheDocument();          // graph pane still up
     expect(baseElement.querySelector('.semiont-gather__outer')).not.toBeNull(); // the display shell
     expect(screen.getByLabelText('New resource title')).toBeInTheDocument();   // the form, below
+
+    // ONE scroll pane: evidence + parameters together; no independently
+    // scrollable form squeezing the parameters out of view.
+    const scroll = baseElement.querySelector('.semiont-wizard__step-scroll');
+    expect(scroll).not.toBeNull();
+    expect(scroll!.querySelector('.semiont-gather__outer')).not.toBeNull();
+    const form = scroll!.querySelector('form.semiont-form');
+    expect(form).not.toBeNull();
+    expect(form!.className).not.toContain('semiont-form--scrollable');
   });
 
   it('the panel carries the widened class (GEP P2, D2)', () => {

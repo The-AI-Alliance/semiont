@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import type { GatheredContext, CollaboratorEntry } from '@semiont/core';
 import { uuidV4 } from '@semiont/core';
@@ -202,6 +202,17 @@ export function ReferenceWizardModal({
     setWizardStep({ step: 'gather' });
   }, []);
 
+  // The strategy steps stack evidence + step content in ONE scroll pane. On
+  // entry, start at the BOTTOM: the step's own content (form, results) shows
+  // in full, the evidence tucks up under the modal top, reachable by
+  // scrolling up. jsdom has no layout (scrollHeight 0), so this is a no-op
+  // in tests — the same posture as the viewer's guarded scrolls.
+  const stepScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = stepScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [wizardStep.step]);
+
   const handleSearchSubmit = useCallback((config: SearchConfig) => {
     if (!annotationId || !contextWithHint || !resourceId) return;
     setIsSearching(true);
@@ -324,7 +335,7 @@ export function ReferenceWizardModal({
                 )}
 
                 {wizardStep.step === 'configure-generation' && context && (
-                  <>
+                  <div className="semiont-wizard__step-scroll" ref={stepScrollRef}>
                   <GatherContextStep
                     context={context}
                     contextLoading={contextLoading}
@@ -357,11 +368,11 @@ export function ReferenceWizardModal({
                       generate: t.generate,
                     }}
                   />
-                  </>
+                  </div>
                 )}
 
                 {wizardStep.step === 'configure-search' && (
-                  <>
+                  <div className="semiont-wizard__step-scroll" ref={stepScrollRef}>
                   <GatherContextStep
                     context={context}
                     contextLoading={contextLoading}
@@ -387,11 +398,11 @@ export function ReferenceWizardModal({
                       searchFailed: t.searchFailed,
                     }}
                   />
-                  </>
+                  </div>
                 )}
 
                 {wizardStep.step === 'search-results' && context && (
-                  <>
+                  <div className="semiont-wizard__step-scroll" ref={stepScrollRef}>
                   <GatherContextStep
                     context={context}
                     contextLoading={contextLoading}
@@ -410,7 +421,7 @@ export function ReferenceWizardModal({
                       score: t.score,
                     }}
                   />
-                  </>
+                  </div>
                 )}
               </DialogPanel>
             </TransitionChild>

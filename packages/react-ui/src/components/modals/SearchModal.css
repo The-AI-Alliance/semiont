@@ -801,10 +801,34 @@
   }
 }
 
-/* The results list — pure rows below the evidence display (D10 amended);
-   scrolls on its own so the evidence above keeps its place. */
-.semiont-search-results {
+/* The strategy steps' single scroll pane: evidence + step content scroll
+   TOGETHER inside the clipped gather panel. The hosts start it scrolled to
+   the bottom on entry, so the step's own content shows in full and the
+   evidence tucks up under the modal top. */
+.semiont-wizard__step-scroll {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Inside the single pane the display flows at natural height — the gather
+   step's clip-and-scroll flex (outer/body/panes each scrolling internally)
+   would otherwise compress the evidence AND nest scrollbars. One scrollbar
+   governs the whole step. */
+.semiont-wizard__step-scroll .semiont-gather__outer,
+.semiont-wizard__step-scroll .semiont-gather__body {
+  flex: none;
+  min-height: auto;
+  overflow: visible;
+}
+
+.semiont-wizard__step-scroll .semiont-gather__left,
+.semiont-wizard__step-scroll .semiont-gather__right,
+.semiont-wizard__step-scroll .semiont-gather-pane {
+  min-height: auto;
+  overflow-y: visible;
 }
 
 /* Narrow screens */

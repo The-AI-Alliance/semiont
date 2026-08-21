@@ -167,6 +167,15 @@ export function ResourceGenerateModal({
 
   const stepTitle = step === 'configure-gather' ? t.gatherTitle : step === 'review' ? t.reviewTitle : t.configureTitle;
 
+  // Configure-generation stacks evidence + form in ONE scroll pane; enter at
+  // the BOTTOM so the parameters show in full, the evidence tucked up under
+  // the modal top. jsdom has no layout (scrollHeight 0) — no-op in tests.
+  const stepScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = stepScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [step]);
+
   // Shared by review and configure-generation: stepping onward must not hide
   // what the generation will be grounded in — the context stays in view above
   // the form.
@@ -277,7 +286,7 @@ export function ResourceGenerateModal({
                 )}
 
                 {step === 'configure-generation' && gatherContext && (
-                  <>
+                  <div className="semiont-wizard__step-scroll" ref={stepScrollRef}>
                   <GatherContextStep
                     context={gatherContext}
                     contextLoading={gatherLoading}
@@ -308,7 +317,7 @@ export function ResourceGenerateModal({
                       generate: t.generate,
                     }}
                   />
-                  </>
+                  </div>
                 )}
               </DialogPanel>
             </TransitionChild>

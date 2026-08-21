@@ -239,6 +239,17 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
     expect(screen.queryByText(new RegExp(`^🔍 ${T.search}…`))).not.toBeInTheDocument();
     const panel = baseElement.querySelector('.semiont-search-modal__panel')!;
     expect(panel.className).toContain('semiont-search-modal__panel--wide');
+
+    // ONE scroll pane for the whole step: evidence and parameters scroll
+    // together, the form in full at the bottom, the evidence tucking up under
+    // the modal top. An independently-scrollable form inside the stack is what
+    // squeezed the parameters out of view.
+    const scroll = baseElement.querySelector('.semiont-wizard__step-scroll');
+    expect(scroll).not.toBeNull();
+    expect(scroll!.querySelector('.semiont-gather__outer')).not.toBeNull();
+    const form = scroll!.querySelector('form.semiont-form');
+    expect(form).not.toBeNull();
+    expect(form!.className).not.toContain('semiont-form--scrollable');
   });
 });
 
