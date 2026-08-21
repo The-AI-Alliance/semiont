@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "Configurar Recopilación",
-    "reviewTitle": "Revisar Contexto",
     "configureTitle": "Configurar Generación",
-    "next": "Siguiente",
-    "back": "Atrás",
     "gatherIntro": "Elija qué incluir en el contexto recopilado.",
     "includeContent": "Incluir contenido del recurso",
     "includeSummary": "Incluir resumen",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} excluidos de esta recuperación",
     "machineRead": "OCR",
     "score": "Puntuación",
-    "saveLocation": "Ubicación de guardado"
+    "saveLocation": "Ubicación de guardado",
+    "discardDraftPrompt": "¿Descartar este borrador?",
+    "discardDraft": "Descartar",
+    "keepEditing": "Seguir editando"
   },
   "ReferenceWizard": {
     "gatherTitle": "Contexto Recopilado",

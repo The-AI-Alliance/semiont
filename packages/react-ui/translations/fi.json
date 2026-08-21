@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "Määritä keruu",
-    "reviewTitle": "Tarkista konteksti",
     "configureTitle": "Määritä generointi",
-    "next": "Seuraava",
-    "back": "Takaisin",
     "gatherIntro": "Valitse, mitä sisällytetään kerättyyn kontekstiin.",
     "includeContent": "Sisällytä resurssin sisältö",
     "includeSummary": "Sisällytä yhteenveto",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} jätetty pois tästä hausta",
     "machineRead": "OCR",
     "score": "Pisteet",
-    "saveLocation": "Tallennussijainti"
+    "saveLocation": "Tallennussijainti",
+    "discardDraftPrompt": "Hylätäänkö tämä luonnos?",
+    "discardDraft": "Hylkää",
+    "keepEditing": "Jatka muokkausta"
   },
   "ReferenceWizard": {
     "gatherTitle": "Kerätty konteksti",

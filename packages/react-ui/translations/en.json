@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "Configure Gather",
-    "reviewTitle": "Review Context",
     "configureTitle": "Configure Generation",
-    "next": "Next",
-    "back": "Back",
     "gatherIntro": "Choose what to include in the gathered context.",
     "includeContent": "Include resource content",
     "includeSummary": "Include summary",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} excluded from this recall",
     "machineRead": "OCR",
     "score": "Score",
-    "saveLocation": "Save location"
+    "saveLocation": "Save location",
+    "discardDraftPrompt": "Discard this draft?",
+    "discardDraft": "Discard",
+    "keepEditing": "Keep editing"
   },
   "ReferenceWizard": {
     "gatherTitle": "Gathered Context",

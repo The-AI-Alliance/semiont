@@ -355,6 +355,35 @@ describe('ReferenceWizardModal — compose is the fourth in-modal strategy (COMP
   });
 });
 
+// GATHER-AT-THE-TOP P1: the dirty guard widens. D4 — dirtiness is
+// step-independent (typed work guards dismissal wherever the user currently
+// is); D5 — typed text only (title beyond seed, save location, instructions,
+// content). The generation draft gets the same protection compose has.
+describe('ReferenceWizardModal — the dirty guard widens (GATHER-AT-THE-TOP D4/D5)', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('a typed generation draft guards dismissal', async () => {
+    const { onClose } = renderWizard();
+    await userEvent.click(screen.getByRole('button', { name: /Generate…/ }));
+    fireEvent.change(screen.getByLabelText(T.saveLocation), { target: { value: 'people/x.md' } });
+
+    await userEvent.click(screen.getByLabelText('Close'));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(T.discardDraftPrompt)).toBeInTheDocument();
+  });
+
+  it('a compose draft still guards after stepping Back to the evidence — D4 kills the step gate', async () => {
+    const { onClose } = renderWizard();
+    await userEvent.click(screen.getByText(new RegExp(T.compose)));
+    fireEvent.change(screen.getByTestId('code-editor'), { target: { value: 'typed work' } });
+    await userEvent.click(screen.getByRole('button', { name: new RegExp(T.back) }));
+
+    await userEvent.click(screen.getByLabelText('Close'));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(T.discardDraftPrompt)).toBeInTheDocument();
+  });
+});
+
 describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () => {
   it('reopening resets the hint and the step', async () => {
     const { rerender } = renderWizard();

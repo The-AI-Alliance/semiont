@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "Ρύθμιση Συλλογής",
-    "reviewTitle": "Επισκόπηση Πλαισίου",
     "configureTitle": "Ρύθμιση Παραγωγής",
-    "next": "Επόμενο",
-    "back": "Πίσω",
     "gatherIntro": "Επιλέξτε τι θα συμπεριληφθεί στο συλλεγμένο πλαίσιο.",
     "includeContent": "Συμπερίληψη περιεχομένου πόρου",
     "includeSummary": "Συμπερίληψη περίληψης",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} εξαιρέθηκαν από αυτήν την ανάκληση",
     "machineRead": "OCR",
     "score": "Βαθμολογία",
-    "saveLocation": "Θέση αποθήκευσης"
+    "saveLocation": "Θέση αποθήκευσης",
+    "discardDraftPrompt": "Απόρριψη αυτού του προσχεδίου;",
+    "discardDraft": "Απόρριψη",
+    "keepEditing": "Συνέχεια επεξεργασίας"
   },
   "ReferenceWizard": {
     "gatherTitle": "Συλλεγμένο Πλαίσιο",

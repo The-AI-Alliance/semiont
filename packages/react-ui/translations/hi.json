@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "एकत्रण कॉन्फ़िगर करें",
-    "reviewTitle": "संदर्भ समीक्षा करें",
     "configureTitle": "जनरेशन कॉन्फ़िगर करें",
-    "next": "अगला",
-    "back": "वापस",
     "gatherIntro": "चुनें कि एकत्रित संदर्भ में क्या शामिल करना है।",
     "includeContent": "संसाधन सामग्री शामिल करें",
     "includeSummary": "सारांश शामिल करें",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} इस रिकॉल से बाहर",
     "machineRead": "OCR",
     "score": "स्कोर",
-    "saveLocation": "सहेजने का स्थान"
+    "saveLocation": "सहेजने का स्थान",
+    "discardDraftPrompt": "क्या यह ड्राफ़्ट हटाएँ?",
+    "discardDraft": "हटाएँ",
+    "keepEditing": "संपादन जारी रखें"
   },
   "ReferenceWizard": {
     "gatherTitle": "एकत्रित संदर्भ",

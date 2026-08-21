@@ -794,11 +794,7 @@ export function ResourceViewerPage({
         gatherError={resourceGatherError}
         onGather={(options) => stateUnit?.gather.gatherResource(rUri, options)}
         translations={{
-          gatherTitle: tg('gatherTitle'),
-          reviewTitle: tg('reviewTitle'),
           configureTitle: tg('configureTitle'),
-          next: tg('next'),
-          back: tg('back'),
           gatherIntro: tg('gatherIntro'),
           includeContent: tg('includeContent'),
           includeSummary: tg('includeSummary'),
@@ -832,6 +828,9 @@ export function ResourceViewerPage({
           maxLengthHelp: tg('maxLengthHelp'),
           maxLengthCeiling: tg('maxLengthCeiling'),
           generate: tg('generate'),
+          discardDraftPrompt: tg('discardDraftPrompt'),
+          discardDraft: tg('discardDraft'),
+          keepEditing: tg('keepEditing'),
         }}
       />
     </div>

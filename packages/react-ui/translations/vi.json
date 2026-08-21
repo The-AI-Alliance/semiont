@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "Cấu hình Thu thập",
-    "reviewTitle": "Xem lại Ngữ cảnh",
     "configureTitle": "Cấu hình Tạo sinh",
-    "next": "Tiếp theo",
-    "back": "Quay lại",
     "gatherIntro": "Chọn nội dung để đưa vào ngữ cảnh đã thu thập.",
     "includeContent": "Bao gồm nội dung tài nguyên",
     "includeSummary": "Bao gồm tóm tắt",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} bị loại khỏi lần truy hồi này",
     "machineRead": "OCR",
     "score": "Điểm",
-    "saveLocation": "Vị trí lưu"
+    "saveLocation": "Vị trí lưu",
+    "discardDraftPrompt": "Bỏ bản nháp này?",
+    "discardDraft": "Bỏ",
+    "keepEditing": "Tiếp tục chỉnh sửa"
   },
   "ReferenceWizard": {
     "gatherTitle": "Ngữ cảnh đã thu thập",

@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "Konfigurasi Pengumpulan",
-    "reviewTitle": "Semak Konteks",
     "configureTitle": "Konfigurasi Penjanaan",
-    "next": "Seterusnya",
-    "back": "Kembali",
     "gatherIntro": "Pilih perkara yang hendak disertakan dalam konteks yang dikumpul.",
     "includeContent": "Sertakan kandungan sumber",
     "includeSummary": "Sertakan ringkasan",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} dikecualikan daripada dapatan ini",
     "machineRead": "OCR",
     "score": "Skor",
-    "saveLocation": "Lokasi simpanan"
+    "saveLocation": "Lokasi simpanan",
+    "discardDraftPrompt": "Buang draf ini?",
+    "discardDraft": "Buang",
+    "keepEditing": "Terus menyunting"
   },
   "ReferenceWizard": {
     "gatherTitle": "Konteks Dikumpul",

@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "Konfigurera insamling",
-    "reviewTitle": "Granska kontext",
     "configureTitle": "Konfigurera generering",
-    "next": "Nästa",
-    "back": "Tillbaka",
     "gatherIntro": "Välj vad som ska inkluderas i den insamlade kontexten.",
     "includeContent": "Inkludera resursinnehåll",
     "includeSummary": "Inkludera sammanfattning",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} uteslutna ur denna hämtning",
     "machineRead": "OCR",
     "score": "Poäng",
-    "saveLocation": "Sparplats"
+    "saveLocation": "Sparplats",
+    "discardDraftPrompt": "Kasta detta utkast?",
+    "discardDraft": "Kasta",
+    "keepEditing": "Fortsätt redigera"
   },
   "ReferenceWizard": {
     "gatherTitle": "Samlad kontext",

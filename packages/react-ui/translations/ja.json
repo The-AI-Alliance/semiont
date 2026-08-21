@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "収集の設定",
-    "reviewTitle": "コンテキストの確認",
     "configureTitle": "生成の設定",
-    "next": "次へ",
-    "back": "戻る",
     "gatherIntro": "収集するコンテキストに含める内容を選択してください。",
     "includeContent": "リソースのコンテンツを含める",
     "includeSummary": "要約を含める",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} はこのリコールから除外",
     "machineRead": "OCR",
     "score": "スコア",
-    "saveLocation": "保存先"
+    "saveLocation": "保存先",
+    "discardDraftPrompt": "この下書きを破棄しますか？",
+    "discardDraft": "破棄",
+    "keepEditing": "編集を続ける"
   },
   "ReferenceWizard": {
     "gatherTitle": "収集済みコンテキスト",

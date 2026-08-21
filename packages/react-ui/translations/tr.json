@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "Toplamayı Yapılandır",
-    "reviewTitle": "Bağlamı Gözden Geçir",
     "configureTitle": "Oluşturmayı Yapılandır",
-    "next": "İleri",
-    "back": "Geri",
     "gatherIntro": "Toplanan bağlama nelerin dahil edileceğini seçin.",
     "includeContent": "Kaynak içeriğini dahil et",
     "includeSummary": "Özeti dahil et",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} bu getirimden hariç tutuldu",
     "machineRead": "OCR",
     "score": "Puan",
-    "saveLocation": "Kayıt konumu"
+    "saveLocation": "Kayıt konumu",
+    "discardDraftPrompt": "Bu taslak silinsin mi?",
+    "discardDraft": "Sil",
+    "keepEditing": "Düzenlemeye devam et"
   },
   "ReferenceWizard": {
     "gatherTitle": "Toplanan Bağlam",

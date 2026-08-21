@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "پیکربندی جمع‌آوری",
-    "reviewTitle": "بازبینی زمینه",
     "configureTitle": "پیکربندی تولید",
-    "next": "بعدی",
-    "back": "بازگشت",
     "gatherIntro": "آنچه را که باید در زمینه جمع‌آوری‌شده گنجانده شود انتخاب کنید.",
     "includeContent": "شامل محتوای منبع",
     "includeSummary": "شامل خلاصه",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} از این بازیابی کنار گذاشته شد",
     "machineRead": "OCR",
     "score": "امتیاز",
-    "saveLocation": "محل ذخیره"
+    "saveLocation": "محل ذخیره",
+    "discardDraftPrompt": "این پیش‌نویس دور انداخته شود؟",
+    "discardDraft": "دور انداختن",
+    "keepEditing": "ادامه ویرایش"
   },
   "ReferenceWizard": {
     "gatherTitle": "زمینه جمع‌آوری‌شده",

@@ -380,11 +380,7 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "gatherTitle": "Konfigurer innsamling",
-    "reviewTitle": "Gjennomgå kontekst",
     "configureTitle": "Konfigurer generering",
-    "next": "Neste",
-    "back": "Tilbake",
     "gatherIntro": "Velg hva som skal inkluderes i den samlede konteksten.",
     "includeContent": "Inkluder ressursinnhold",
     "includeSummary": "Inkluder sammendrag",
@@ -422,7 +418,10 @@
     "excludedReceipt": "{{types}} utelatt fra dette gjenfinnet",
     "machineRead": "OCR",
     "score": "Poengsum",
-    "saveLocation": "Lagringssted"
+    "saveLocation": "Lagringssted",
+    "discardDraftPrompt": "Forkaste dette utkastet?",
+    "discardDraft": "Forkast",
+    "keepEditing": "Fortsett å redigere"
   },
   "ReferenceWizard": {
     "gatherTitle": "Samlet kontekst",
