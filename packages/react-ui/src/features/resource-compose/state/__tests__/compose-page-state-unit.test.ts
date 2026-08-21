@@ -64,80 +64,6 @@ describe('createComposePageStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('detects reference mode from params', async () => {
-    const stateUnit = createComposePageStateUnit(sessionOf(mockClient()), mockBrowse(), {
-      annotationUri: 'ann-1',
-      sourceDocumentId: 'doc-1',
-      name: 'Reference Doc',
-      entityTypes: 'Person,Place',
-    });
-
-    const mode = await firstValueFrom(stateUnit.mode$);
-    expect(mode).toBe('reference');
-
-    const ref = await firstValueFrom(stateUnit.referenceData$.pipe(filter((r) => r !== null)));
-    expect(ref!.annotationUri).toBe('ann-1');
-    expect(ref!.entityTypes).toEqual(['Person', 'Place']);
-
-    stateUnit.dispose();
-  });
-
-  it('parses storedContext in reference mode', async () => {
-    // A real `GatheredContext` shape. The old fixture here was
-    // `{ annotation, sourceContext }` — not a context at all — and it round-tripped
-    // because nothing checked. That is the hole the guard closes.
-    const context = {
-      focus: { kind: 'annotation', annotation: { id: 'ann-1' }, sourceResource: { id: 'doc-1' } },
-      graph: { nodes: [], edges: [] },
-      metadata: {},
-    };
-    const stateUnit = createComposePageStateUnit(sessionOf(mockClient()), mockBrowse(), {
-      annotationUri: 'ann-1',
-      sourceDocumentId: 'doc-1',
-      name: 'Ref',
-      storedContext: JSON.stringify(context),
-    });
-
-    const gathered = await firstValueFrom(stateUnit.gatheredContext$.pipe(filter((g) => g !== null)));
-    expect(gathered).toEqual(context);
-
-    stateUnit.dispose();
-  });
-
-  it('ignores a stash that parses but is not a GatheredContext', async () => {
-    // The realistic case: an entry written by an older build, read back after a
-    // deploy. It used to sail through and reach `deriveViews`, which maps
-    // `graph.nodes` during render and throws instead of degrading.
-    const stateUnit = createComposePageStateUnit(sessionOf(mockClient()), mockBrowse(), {
-      annotationUri: 'ann-1',
-      sourceDocumentId: 'doc-1',
-      name: 'Ref',
-      storedContext: JSON.stringify({ annotation: { id: 'ann-1' }, sourceContext: 'text' }),
-    });
-
-    // Treated as NO stash: the ordinary gather path owns the outcome from here.
-    expect(await firstValueFrom(stateUnit.gatheredContext$)).toBeNull();
-
-    stateUnit.dispose();
-  });
-
-  it('ignores malformed storedContext', async () => {
-    const stateUnit = createComposePageStateUnit(sessionOf(mockClient()), mockBrowse(), {
-      annotationUri: 'ann-1',
-      sourceDocumentId: 'doc-1',
-      name: 'Ref',
-      storedContext: 'not-json{{{',
-    });
-
-    const loading = await firstValueFrom(stateUnit.loading$.pipe(filter((l) => !l)));
-    expect(loading).toBe(false);
-
-    const gathered = await firstValueFrom(stateUnit.gatheredContext$);
-    expect(gathered).toBeNull();
-
-    stateUnit.dispose();
-  });
-
   it('exposes entity types', async () => {
     const stateUnit = createComposePageStateUnit(sessionOf(mockClient()), mockBrowse(), {});
 
@@ -162,31 +88,6 @@ describe('createComposePageStateUnit', () => {
 
     expect(id).toBe('new-3');
     expect(resource).toHaveBeenCalledOnce();
-
-    stateUnit.dispose();
-  });
-
-  it('save in reference mode calls yield.resource then bind.body', async () => {
-    const resource = mockUpload('new-4');
-    const body = vi.fn().mockResolvedValue(undefined);
-    const stateUnit = createComposePageStateUnit(sessionOf(mockClient({ resource, body })), mockBrowse(), {
-      annotationUri: 'ann-1',
-      sourceDocumentId: 'doc-1',
-      name: 'Ref',
-    });
-
-    const id = await stateUnit.save({
-      mode: 'reference',
-      name: 'Ref Doc',
-      storageUri: '/docs/ref.md',
-      content: 'content',
-      language: 'en',
-      annotationUri: 'ann-1',
-      sourceDocumentId: 'doc-1',
-    });
-
-    expect(id).toBe('new-4');
-    expect(body).toHaveBeenCalledOnce();
 
     stateUnit.dispose();
   });
@@ -220,7 +121,7 @@ describe('ComposePageStateUnit — StateUnit axioms', () => {
         const browse = disposeProbe();
         return { unit: createComposePageStateUnit(sessionOf(mockClient()), browse as unknown as ShellStateUnit, {}), passedIn: [browse] };
       },
-      surfaces: (u) => [u.mode$, u.loading$, u.cloneData$, u.referenceData$, u.gatheredContext$, u.uploadProgress$],
+      surfaces: (u) => [u.mode$, u.loading$, u.cloneData$, u.uploadProgress$],
     });
   });
 });

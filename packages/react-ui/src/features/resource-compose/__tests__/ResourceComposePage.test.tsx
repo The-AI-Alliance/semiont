@@ -28,10 +28,7 @@ vi.mock('../../../components/CodeMirrorRenderer', () => ({
 const createMockTranslations = () => ({
   title: 'Compose Resource',
   titleEditClone: 'Edit Cloned Resource',
-  titleCompleteReference: 'Complete Reference',
   subtitleClone: 'Editing a cloned resource',
-  subtitleReference: 'Creating a new resource for reference',
-  linkedNoticePrefix: 'This resource will be linked',
   resourceName: 'Resource Name',
   resourceNamePlaceholder: 'Enter resource name',
   entityTypes: 'Entity Types',
@@ -53,9 +50,7 @@ const createMockTranslations = () => ({
   cancel: 'Cancel',
   saving: 'Saving...',
   creating: 'Creating...',
-  creatingAndLinking: 'Creating and linking...',
   saveClonedResource: 'Save Cloned Resource',
-  createAndLinkResource: 'Create and Link Resource',
   createResource: 'Create Resource',
 });
 
@@ -206,66 +201,6 @@ describe('ResourceComposePage', () => {
       expect(screen.queryByText('Write Content')).not.toBeInTheDocument();
     });
   });
-
-  describe('Reference Completion Mode', () => {
-    it('shows reference completion title', () => {
-      const props = createMockProps({
-        mode: 'reference',
-        referenceData: {
-          annotationUri: 'http://localhost:8080/annotations/ref-1',
-          sourceDocumentId: 'doc-1',
-          name: 'Referenced Resource',
-          entityTypes: ['Document'],
-        },
-      });
-      renderWithProviders(<ResourceComposePage {...props} />);
-
-      expect(screen.getByText('Complete Reference')).toBeInTheDocument();
-      expect(screen.getByText('Creating a new resource for reference')).toBeInTheDocument();
-      expect(screen.getByText('This resource will be linked')).toBeInTheDocument();
-    });
-
-    it('initializes with reference data', () => {
-      const props = createMockProps({
-        mode: 'reference',
-        referenceData: {
-          annotationUri: 'http://localhost:8080/annotations/ref-1',
-          sourceDocumentId: 'doc-1',
-          name: 'Referenced Resource',
-          entityTypes: ['Document', 'Article'],
-        },
-      });
-      renderWithProviders(<ResourceComposePage {...props} />);
-
-      const nameInput = screen.getByLabelText('Resource Name') as HTMLInputElement;
-      expect(nameInput.value).toBe('Referenced Resource');
-
-      expect(screen.getByText('Document')).toBeInTheDocument();
-      expect(screen.getByText('Article')).toBeInTheDocument();
-    });
-
-    it('shows entity types as read-only when provided', () => {
-      const props = createMockProps({
-        mode: 'reference',
-        referenceData: {
-          annotationUri: 'http://localhost:8080/annotations/ref-1',
-          sourceDocumentId: 'doc-1',
-          name: 'Referenced Resource',
-          entityTypes: ['Document'],
-        },
-      });
-      renderWithProviders(<ResourceComposePage {...props} />);
-
-      // Should show read-only entity types
-      expect(screen.getByText('Document')).toBeInTheDocument();
-
-      // Should not show selectable buttons
-      expect(screen.queryByRole('button', { name: /Document entity type/ })).not.toBeInTheDocument();
-    });
-  });
-
-  // Entity Type Selection tests removed - functionality not present in current component
-  // The component only displays entity types in reference mode, doesn't have selection buttons
 
   describe('Content Input Method', () => {
     it('defaults to write mode', () => {

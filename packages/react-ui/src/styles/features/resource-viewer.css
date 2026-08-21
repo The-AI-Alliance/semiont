@@ -620,28 +620,6 @@
   font-size: 1rem;
 }
 
-.semiont-page__reference-notice {
-  background-color: var(--semiont-color-blue-50);
-  border: 1px solid var(--semiont-color-blue-200);
-  border-radius: var(--semiont-radius-md);
-  padding: 0.75rem 1rem;
-  margin-top: 1rem;
-}
-
-[data-theme="dark"] .semiont-page__reference-notice {
-  background-color: rgba(59, 130, 246, 0.1);
-  border-color: var(--semiont-color-blue-800);
-}
-
-.semiont-page__reference-notice-text {
-  color: var(--semiont-color-blue-700);
-  font-size: 0.875rem;
-}
-
-[data-theme="dark"] .semiont-page__reference-notice-text {
-  color: var(--semiont-color-blue-300);
-}
-
 /* Image Annotation Canvas */
 .semiont-svg-drawing-canvas {
   position: relative;
