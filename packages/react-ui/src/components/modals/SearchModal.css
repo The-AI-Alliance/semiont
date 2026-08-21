@@ -689,6 +689,17 @@
   margin-bottom: 0.5rem;
 }
 
+/* The chosen strategy on a strategy step — the chooser band collapsed to its
+   selection: a passive echo, styled as the standing choice, never a control. */
+.semiont-gather__chosen-strategy {
+  font-weight: var(--semiont-font-semibold);
+  color: var(--semiont-color-primary-600);
+}
+
+[data-theme="dark"] .semiont-gather__chosen-strategy {
+  color: var(--semiont-color-primary-400);
+}
+
 .semiont-gather__actions {
   display: flex;
   flex-flow: row nowrap;

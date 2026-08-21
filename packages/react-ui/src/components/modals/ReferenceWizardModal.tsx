@@ -330,6 +330,7 @@ export function ReferenceWizardModal({
                     context={context}
                     contextLoading={contextLoading}
                     contextError={contextError}
+                    chosenStrategy={{ label: t.resolutionStrategyLabel, value: `✨ ${t.generate}` }}
                     translations={displayTranslations}
                   />
                   <ConfigureGenerationStep
@@ -366,6 +367,7 @@ export function ReferenceWizardModal({
                     context={context}
                     contextLoading={contextLoading}
                     contextError={contextError}
+                    chosenStrategy={{ label: t.resolutionStrategyLabel, value: `🔍 ${t.search}` }}
                     translations={displayTranslations}
                   />
                   <ConfigureSearchStep

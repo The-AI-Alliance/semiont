@@ -175,29 +175,43 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
 
   // Choosing Generate or Search unfolds that strategy's form BELOW the
   // evidence — it must not navigate away from it. The gather step stays the
-  // decision surface (chooser footer, hint textarea); the strategy steps get
-  // the display-only rendering (GFR A2): no chooser, no second hint textarea.
-  it('configure-search renders the evidence above the form', async () => {
+  // decision surface (chooser footer, hint textarea); the strategy steps keep
+  // the RESOLUTION STRATEGY band for continuity, collapsed from three choices
+  // to the chosen one — a passive echo, not a second chooser: the OTHER
+  // strategies' buttons are gone, and there is no second hint textarea.
+  it('configure-search renders the evidence above the form, the strategy band collapsed to Search', async () => {
     const { baseElement } = renderWizard();
     await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
 
     expect(baseElement.querySelector('.semiont-gather__source-box')).not.toBeNull(); // quotation strip
     expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();                  // graph pane
     expect(screen.getByText(T.maxResults)).toBeInTheDocument();                      // the form, below
-    expect(baseElement.querySelector('.semiont-gather__footer')).toBeNull();         // chooser stays on gather
+    // The band survives the step: header + the chosen strategy, nothing clickable.
+    const footer = baseElement.querySelector('.semiont-gather__footer');
+    expect(footer).not.toBeNull();
+    expect(footer!.textContent).toContain(T.resolutionStrategyLabel);
+    expect(footer!.textContent).toContain(`🔍 ${T.search}`);
+    expect(footer!.querySelectorAll('button')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: `✨ ${T.generate}…` })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: `✍️ ${T.compose}` })).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText(T.userHintPlaceholder)).not.toBeInTheDocument();
     const panel = baseElement.querySelector('.semiont-search-modal__panel')!;
     expect(panel.className).toContain('semiont-search-modal__panel--wide');          // evidence needs the width
   });
 
-  it('configure-generation renders the evidence above the form', async () => {
+  it('configure-generation renders the evidence above the form, the strategy band collapsed to Generate', async () => {
     const { baseElement } = renderWizard();
     await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
 
     expect(baseElement.querySelector('.semiont-gather__source-box')).not.toBeNull();
     expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();
     expect(screen.getByText(T.resourceTitle)).toBeInTheDocument();
-    expect(baseElement.querySelector('.semiont-gather__footer')).toBeNull();
+    const footer = baseElement.querySelector('.semiont-gather__footer');
+    expect(footer).not.toBeNull();
+    expect(footer!.textContent).toContain(T.resolutionStrategyLabel);
+    expect(footer!.textContent).toContain(`✨ ${T.generate}`);
+    expect(footer!.querySelectorAll('button')).toHaveLength(0);
+    expect(screen.queryByText(new RegExp(`^🔍 ${T.search}…`))).not.toBeInTheDocument();
     const panel = baseElement.querySelector('.semiont-search-modal__panel')!;
     expect(panel.className).toContain('semiont-search-modal__panel--wide');
   });
