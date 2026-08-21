@@ -170,6 +170,89 @@ describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.use
   });
 });
 
+describe('ReferenceWizardModal — the context stays in view on the strategy steps', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  // Choosing Generate or Search unfolds that strategy's form BELOW the
+  // evidence — it must not navigate away from it. The gather step stays the
+  // decision surface (chooser footer, hint textarea); the strategy steps keep
+  // the RESOLUTION STRATEGY band for continuity, collapsed from three choices
+  // to the chosen one — a passive echo, not a second chooser: the OTHER
+  // strategies' buttons are gone, and there is no second hint textarea.
+  it('configure-search renders the evidence above the form, the strategy band collapsed to Search', async () => {
+    const { baseElement } = renderWizard();
+    await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
+
+    expect(baseElement.querySelector('.semiont-gather__source-box')).not.toBeNull(); // quotation strip
+    expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();                  // graph pane
+    expect(screen.getByText(T.maxResults)).toBeInTheDocument();                      // the form, below
+    // The band survives the step: header + the chosen strategy, nothing clickable.
+    const footer = baseElement.querySelector('.semiont-gather__footer');
+    expect(footer).not.toBeNull();
+    expect(footer!.textContent).toContain(T.resolutionStrategyLabel);
+    expect(footer!.textContent).toContain(`🔍 ${T.search}`);
+    expect(footer!.querySelectorAll('button')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: `✨ ${T.generate}…` })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: `✍️ ${T.compose}` })).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(T.userHintPlaceholder)).not.toBeInTheDocument();
+    const panel = baseElement.querySelector('.semiont-search-modal__panel')!;
+    expect(panel.className).toContain('semiont-search-modal__panel--wide');          // evidence needs the width
+  });
+
+  it('search-results keeps the evidence and the collapsed band above the results', async () => {
+    // Same grammar as the configure steps — the results replace the FORM
+    // region, not the evidence. The step itself is pure results now (D10
+    // amended); the host stacks the full display above it.
+    const { client, baseElement } = renderWizard();
+    await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
+    await userEvent.click(screen.getByRole('button', { name: T.search }));
+    client.bus.get('match:search-results').next({
+      referenceId: 'ann-1',
+      response: [{ '@id': 'res-9', name: 'Caspian Sea', score: 54.2 }],
+    } as never);
+    expect(await screen.findByText(T.searchResultsTitle)).toBeInTheDocument();
+
+    expect(baseElement.querySelector('.semiont-gather__source-box')).not.toBeNull(); // quotation strip
+    expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();                  // graph pane
+    expect(screen.getByText(T.corpusPaneTitle)).toBeInTheDocument();                 // full display, not the redux
+    const footer = baseElement.querySelector('.semiont-gather__footer');
+    expect(footer).not.toBeNull();
+    expect(footer!.textContent).toContain(`🔍 ${T.search}`);
+    expect(footer!.querySelectorAll('button')).toHaveLength(0);
+    expect(screen.getByRole('button', { name: `🔗 ${T.link}` })).toBeInTheDocument(); // the results
+    const panel = baseElement.querySelector('.semiont-search-modal__panel')!;
+    expect(panel.className).toContain('semiont-search-modal__panel--gather');
+  });
+
+  it('configure-generation renders the evidence above the form, the strategy band collapsed to Generate', async () => {
+    const { baseElement } = renderWizard();
+    await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
+
+    expect(baseElement.querySelector('.semiont-gather__source-box')).not.toBeNull();
+    expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();
+    expect(screen.getByText(T.resourceTitle)).toBeInTheDocument();
+    const footer = baseElement.querySelector('.semiont-gather__footer');
+    expect(footer).not.toBeNull();
+    expect(footer!.textContent).toContain(T.resolutionStrategyLabel);
+    expect(footer!.textContent).toContain(`✨ ${T.generate}`);
+    expect(footer!.querySelectorAll('button')).toHaveLength(0);
+    expect(screen.queryByText(new RegExp(`^🔍 ${T.search}…`))).not.toBeInTheDocument();
+    const panel = baseElement.querySelector('.semiont-search-modal__panel')!;
+    expect(panel.className).toContain('semiont-search-modal__panel--wide');
+
+    // ONE scroll pane for the whole step: evidence and parameters scroll
+    // together, the form in full at the bottom, the evidence tucking up under
+    // the modal top. An independently-scrollable form inside the stack is what
+    // squeezed the parameters out of view.
+    const scroll = baseElement.querySelector('.semiont-wizard__step-scroll');
+    expect(scroll).not.toBeNull();
+    expect(scroll!.querySelector('.semiont-gather__outer')).not.toBeNull();
+    const form = scroll!.querySelector('form.semiont-form');
+    expect(form).not.toBeNull();
+    expect(form!.className).not.toContain('semiont-form--scrollable');
+  });
+});
+
 describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () => {
   it('reopening resets the hint and the step', async () => {
     const { rerender } = renderWizard();

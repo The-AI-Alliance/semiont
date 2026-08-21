@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "Usuń wszystkie dane",
     "deleteConfirmDescription": "Spowoduje to trwałe usunięcie wszystkich Twoich danych, w tym plików cookie, preferencji i informacji o sesji. Tej akcji nie można cofnąć i strona zostanie przeładowana."
   },
-  "SearchResources": {
-    "title": "Szukaj zasobów",
-    "placeholder": "Szukaj zasobów...",
-    "searching": "Wyszukiwanie...",
-    "noResults": "Nie znaleziono zasobów",
-    "close": "Zamknij"
-  },
   "Search": {
     "placeholder": "Szukaj zasobów i encji...",
     "searching": "Wyszukiwanie...",

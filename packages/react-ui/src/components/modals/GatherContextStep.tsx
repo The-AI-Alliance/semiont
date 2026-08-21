@@ -38,6 +38,13 @@ export interface GatherContextStepProps {
   contextError: Error | null;
   /** Omit for a display-only (e.g. resource-focus) render. */
   annotate?: GatherContextStepAnnotate;
+  /**
+   * Display-only callers on a STRATEGY step (the chooser already clicked):
+   * keep the RESOLUTION STRATEGY band for continuity, collapsed from three
+   * choices to the chosen one — a passive echo, never a second chooser.
+   * Ignored when `annotate` is present (the live chooser owns the band).
+   */
+  chosenStrategy?: { label: string; value: string };
   translations: {
     loadingContext: string;
     failedContext: string;
@@ -49,6 +56,7 @@ export function GatherContextStep({
   contextLoading,
   contextError,
   annotate,
+  chosenStrategy,
   translations: t,
 }: GatherContextStepProps) {
   const [sourceExpanded, setSourceExpanded] = useState(false);
@@ -256,6 +264,14 @@ export function GatherContextStep({
                 >
                   ✍️ {annotate.translations.compose}
                 </button>
+              </div>
+            </div>
+          )}
+          {!annotate && chosenStrategy && (
+            <div className="semiont-gather__footer">
+              <div className="semiont-gather__footer-label">{chosenStrategy.label}</div>
+              <div className="semiont-gather__actions">
+                <span className="semiont-gather__chosen-strategy">{chosenStrategy.value}</span>
               </div>
             </div>
           )}

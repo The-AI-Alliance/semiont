@@ -167,6 +167,33 @@ export function ResourceGenerateModal({
 
   const stepTitle = step === 'configure-gather' ? t.gatherTitle : step === 'review' ? t.reviewTitle : t.configureTitle;
 
+  // Configure-generation stacks evidence + form in ONE scroll pane; enter at
+  // the BOTTOM so the parameters show in full, the evidence tucked up under
+  // the modal top. jsdom has no layout (scrollHeight 0) — no-op in tests.
+  const stepScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = stepScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [step]);
+
+  // Shared by review and configure-generation: stepping onward must not hide
+  // what the generation will be grounded in — the context stays in view above
+  // the form.
+  const displayTranslations = {
+    loadingContext: t.loadingContext,
+    failedContext: t.failedContext,
+    sourceContextLabel: t.sourceContextLabel,
+    connectionsLabel: t.connectionsLabel,
+    citedByLabel: t.citedByLabel,
+    graphPaneTitle: t.graphPaneTitle,
+    graphEmpty: t.graphEmpty,
+    corpusPaneTitle: t.corpusPaneTitle,
+    corpusEmpty: t.corpusEmpty,
+    excludedReceipt: t.excludedReceipt,
+    machineRead: t.machineRead,
+    score: t.score,
+  };
+
   return (
     <Transition appear show={isOpen}>
       <Dialog as="div" className="semiont-search-modal" onClose={onClose}>
@@ -243,20 +270,7 @@ export function ResourceGenerateModal({
                       context={gatherContext}
                       contextLoading={gatherLoading}
                       contextError={gatherError}
-                      translations={{
-                        loadingContext: t.loadingContext,
-                        failedContext: t.failedContext,
-                        sourceContextLabel: t.sourceContextLabel,
-                        connectionsLabel: t.connectionsLabel,
-                        citedByLabel: t.citedByLabel,
-                        graphPaneTitle: t.graphPaneTitle,
-                        graphEmpty: t.graphEmpty,
-                        corpusPaneTitle: t.corpusPaneTitle,
-                        corpusEmpty: t.corpusEmpty,
-                        excludedReceipt: t.excludedReceipt,
-                        machineRead: t.machineRead,
-                        score: t.score,
-                      }}
+                      translations={displayTranslations}
                     />
                     <WizardFooter
                       backLabel={t.back}
@@ -272,6 +286,13 @@ export function ResourceGenerateModal({
                 )}
 
                 {step === 'configure-generation' && gatherContext && (
+                  <div className="semiont-wizard__step-scroll" ref={stepScrollRef}>
+                  <GatherContextStep
+                    context={gatherContext}
+                    contextLoading={gatherLoading}
+                    contextError={gatherError}
+                    translations={displayTranslations}
+                  />
                   <ConfigureGenerationStep
                     {...(generationAgent ? { generationAgent } : {})}
                     context={gatherContext}
@@ -296,6 +317,7 @@ export function ResourceGenerateModal({
                       generate: t.generate,
                     }}
                   />
+                  </div>
                 )}
               </DialogPanel>
             </TransitionChild>

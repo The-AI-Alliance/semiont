@@ -130,7 +130,10 @@ export function ConfigureGenerationStep({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="semiont-form semiont-form--scrollable">
+    // No --scrollable: this form renders below the evidence display inside the
+    // host's single step-scroll pane — an independent scroll region here is
+    // what squeezed the parameters out of view (the measured failure).
+    <form onSubmit={handleSubmit} className="semiont-form">
       {hintEcho && (
         <p className="semiont-wizard__hint-echo">
           {hintEcho.label}: {hintEcho.value}

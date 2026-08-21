@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "Radera all data",
     "deleteConfirmDescription": "Detta kommer permanent att radera all din data inklusive cookies, inställningar och sessionsinformation. Denna åtgärd kan inte ångras och kommer att ladda om sidan."
   },
-  "SearchResources": {
-    "title": "Sök resurser",
-    "placeholder": "Sök efter resurser...",
-    "searching": "Söker...",
-    "noResults": "Inga resurser hittades",
-    "close": "Stäng"
-  },
   "Search": {
     "placeholder": "Sök efter resurser och entiteter...",
     "searching": "Söker...",

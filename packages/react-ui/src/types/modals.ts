@@ -1,5 +1,3 @@
-import { ComponentType, ReactNode } from 'react';
-
 /**
  * Base modal props that all modals share
  */
@@ -10,16 +8,6 @@ export interface BaseModalProps {
   onClose: () => void;
   /** Optional CSS class name */
   className?: string;
-}
-
-/**
- * Props for modals that need translation support
- */
-export interface TranslatableModalProps {
-  /** Translation function for getting localized strings */
-  t: (key: string, values?: Record<string, any>) => string;
-  /** Current locale code */
-  locale?: string;
 }
 
 /**
@@ -46,37 +34,3 @@ export interface SearchModalProps extends BaseModalProps, NavigableModalProps {
   };
 }
 
-/**
- * Resource search modal props
- */
-export interface ResourceSearchModalProps extends BaseModalProps {
-  /** Callback when a resource is selected */
-  onSelect: (resourceId: string) => void;
-  /** Initial search term */
-  searchTerm?: string;
-  /** Optional translation support */
-  translations?: {
-    title?: string;
-    placeholder?: string;
-    searching?: string;
-    noResults?: string;
-  };
-}
-
-/**
- * Modal provider props for dependency injection
- */
-export interface ModalProviderProps {
-  /** Dialog component (e.g., from @headlessui/react) */
-  DialogComponent: ComponentType<any>;
-  /** Dialog panel component */
-  DialogPanelComponent: ComponentType<any>;
-  /** Dialog title component */
-  DialogTitleComponent?: ComponentType<any>;
-  /** Transition component */
-  TransitionComponent: ComponentType<any>;
-  /** Transition child component */
-  TransitionChildComponent: ComponentType<any>;
-  /** Children to render */
-  children: ReactNode;
-}

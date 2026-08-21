@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "Supprimer toutes les données",
     "deleteConfirmDescription": "Cela supprimera définitivement toutes vos données, y compris les cookies, les préférences et les informations de session. Cette action est irréversible et rechargera la page."
   },
-  "SearchResources": {
-    "title": "Rechercher des ressources",
-    "placeholder": "Rechercher des ressources...",
-    "searching": "Recherche en cours...",
-    "noResults": "Aucune ressource trouvée",
-    "close": "Fermer"
-  },
   "Search": {
     "placeholder": "Rechercher des ressources et des entités...",
     "searching": "Recherche en cours...",

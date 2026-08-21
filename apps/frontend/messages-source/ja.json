@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "すべてのデータを削除",
     "deleteConfirmDescription": "Cookie、設定、セッション情報を含むすべてのデータが完全に削除されます。この操作は元に戻せず、ページがリロードされます。"
   },
-  "SearchResources": {
-    "title": "リソースを検索",
-    "placeholder": "リソースを検索...",
-    "searching": "検索中...",
-    "noResults": "リソースが見つかりません",
-    "close": "閉じる"
-  },
   "Search": {
     "placeholder": "リソースとエンティティを検索...",
     "searching": "検索中...",

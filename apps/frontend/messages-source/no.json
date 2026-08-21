@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "Slett alle data",
     "deleteConfirmDescription": "Dette vil permanent slette alle dataene dine, inkludert informasjonskapsler, preferanser og øktinformasjon. Denne handlingen kan ikke angres og vil laste siden på nytt."
   },
-  "SearchResources": {
-    "title": "Søk i ressurser",
-    "placeholder": "Søk etter ressurser...",
-    "searching": "Søker...",
-    "noResults": "Ingen ressurser funnet",
-    "close": "Lukk"
-  },
   "Search": {
     "placeholder": "Søk etter ressurser og entiteter...",
     "searching": "Søker...",

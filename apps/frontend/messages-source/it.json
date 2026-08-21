@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "Elimina Tutti i Dati",
     "deleteConfirmDescription": "Questo eliminerà permanentemente tutti i tuoi dati inclusi cookie, preferenze e informazioni di sessione. Questa azione non può essere annullata e la pagina verrà ricaricata."
   },
-  "SearchResources": {
-    "title": "Cerca Risorse",
-    "placeholder": "Cerca risorse...",
-    "searching": "Ricerca in corso...",
-    "noResults": "Nessuna risorsa trovata",
-    "close": "Chiudi"
-  },
   "Search": {
     "placeholder": "Cerca risorse ed entità...",
     "searching": "Ricerca in corso...",

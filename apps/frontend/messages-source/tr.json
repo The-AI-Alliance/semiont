@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "Tüm Verileri Sil",
     "deleteConfirmDescription": "Bu işlem, çerezler, tercihler ve oturum bilgileri dahil tüm verilerinizi kalıcı olarak silecektir. Bu işlem geri alınamaz ve sayfa yeniden yüklenecektir."
   },
-  "SearchResources": {
-    "title": "Kaynak Ara",
-    "placeholder": "Kaynak ara...",
-    "searching": "Aranıyor...",
-    "noResults": "Kaynak bulunamadı",
-    "close": "Kapat"
-  },
   "Search": {
     "placeholder": "Kaynak ve varlıkları ara...",
     "searching": "Aranıyor...",

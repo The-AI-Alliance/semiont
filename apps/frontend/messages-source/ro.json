@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "Șterge toate datele",
     "deleteConfirmDescription": "Aceasta va șterge permanent toate datele dvs., inclusiv cookie-urile, preferințele și informațiile de sesiune. Această acțiune nu poate fi anulată și va reîncărca pagina."
   },
-  "SearchResources": {
-    "title": "Caută resurse",
-    "placeholder": "Caută resurse...",
-    "searching": "Se caută...",
-    "noResults": "Nicio resursă găsită",
-    "close": "Închide"
-  },
   "Search": {
     "placeholder": "Caută resurse și entități...",
     "searching": "Se caută...",

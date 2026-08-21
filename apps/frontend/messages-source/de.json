@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "Alle Daten löschen",
     "deleteConfirmDescription": "Dadurch werden alle Ihre Daten einschließlich Cookies, Einstellungen und Sitzungsinformationen dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden und die Seite wird neu geladen."
   },
-  "SearchResources": {
-    "title": "Ressourcen suchen",
-    "placeholder": "Nach Ressourcen suchen...",
-    "searching": "Suche läuft...",
-    "noResults": "Keine Ressourcen gefunden",
-    "close": "Schließen"
-  },
   "Search": {
     "placeholder": "Nach Ressourcen und Entitäten suchen...",
     "searching": "Suche läuft...",

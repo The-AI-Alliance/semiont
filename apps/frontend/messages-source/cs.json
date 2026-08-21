@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "Smazat všechna data",
     "deleteConfirmDescription": "Tímto trvale smažete všechna vaše data včetně cookies, předvoleb a informací o relaci. Tuto akci nelze vrátit zpět a stránka bude znovu načtena."
   },
-  "SearchResources": {
-    "title": "Hledat zdroje",
-    "placeholder": "Hledat zdroje...",
-    "searching": "Hledání...",
-    "noResults": "Žádné zdroje nenalezeny",
-    "close": "Zavřít"
-  },
   "Search": {
     "placeholder": "Hledat zdroje a entity...",
     "searching": "Hledání...",

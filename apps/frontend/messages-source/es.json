@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "Eliminar Todos los Datos",
     "deleteConfirmDescription": "Esto eliminará permanentemente todos tus datos, incluidas cookies, preferencias e información de sesión. Esta acción no se puede deshacer y recargará la página."
   },
-  "SearchResources": {
-    "title": "Buscar recursos",
-    "placeholder": "Buscar recursos...",
-    "searching": "Buscando...",
-    "noResults": "No se encontraron recursos",
-    "close": "Cerrar"
-  },
   "Search": {
     "placeholder": "Buscar recursos y entidades...",
     "searching": "Buscando...",

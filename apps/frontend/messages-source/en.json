@@ -596,13 +596,6 @@
     "deleteConfirmTitle": "Delete All Data",
     "deleteConfirmDescription": "This will permanently delete all your data including cookies, preferences, and session information. This action cannot be undone and will reload the page."
   },
-  "SearchResources": {
-    "title": "Search Resources",
-    "placeholder": "Search for resources...",
-    "searching": "Searching...",
-    "noResults": "No resources found",
-    "close": "Close"
-  },
   "Search": {
     "placeholder": "Search for resources and entities...",
     "searching": "Searching...",

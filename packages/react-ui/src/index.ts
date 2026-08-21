@@ -151,11 +151,7 @@ export type {
 export * from './components/modals/ReferenceWizardModal';
 export * from './components/modals/ResourceGenerateModal';
 export * from './components/modals/SearchModal';
-export * from './components/modals/ResourceSearchModal';
-export type {
-  SearchModalProps,
-  ResourceSearchModalProps,
-} from './types/modals';
+export type { SearchModalProps } from './types/modals';
 
 // Components - Layout
 export * from './components/layout/SkipLinks';

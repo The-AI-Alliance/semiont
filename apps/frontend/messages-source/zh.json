@@ -527,13 +527,6 @@
     "deleteConfirmTitle": "删除所有数据",
     "deleteConfirmDescription": "这将永久删除您的所有数据，包括 Cookie、偏好设置和会话信息。此操作无法撤消，页面将重新加载。"
   },
-  "SearchResources": {
-    "title": "搜索资源",
-    "placeholder": "搜索资源...",
-    "searching": "搜索中...",
-    "noResults": "未找到资源",
-    "close": "关闭"
-  },
   "Search": {
     "placeholder": "搜索资源和实体...",
     "searching": "搜索中...",

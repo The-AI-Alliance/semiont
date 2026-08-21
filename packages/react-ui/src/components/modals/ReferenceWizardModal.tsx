@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import type { GatheredContext, CollaboratorEntry } from '@semiont/core';
 import { uuidV4 } from '@semiont/core';
@@ -202,6 +202,17 @@ export function ReferenceWizardModal({
     setWizardStep({ step: 'gather' });
   }, []);
 
+  // The strategy steps stack evidence + step content in ONE scroll pane. On
+  // entry, start at the BOTTOM: the step's own content (form, results) shows
+  // in full, the evidence tucks up under the modal top, reachable by
+  // scrolling up. jsdom has no layout (scrollHeight 0), so this is a no-op
+  // in tests — the same posture as the viewer's guarded scrolls.
+  const stepScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = stepScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [wizardStep.step]);
+
   const handleSearchSubmit = useCallback((config: SearchConfig) => {
     if (!annotationId || !contextWithHint || !resourceId) return;
     setIsSearching(true);
@@ -228,6 +239,24 @@ export function ReferenceWizardModal({
     onLinkResource(annotationId, targetResourceId);
     onClose();
   }, [annotationId, onLinkResource, onClose]);
+
+  // The evidence display's translations — shared by the gather step and the
+  // strategy steps, which keep the context in view (display-only, GFR A2)
+  // above their forms rather than navigating away from it.
+  const displayTranslations = {
+    loadingContext: t.loadingContext,
+    failedContext: t.failedContext,
+    sourceContextLabel: t.sourceContextLabel,
+    connectionsLabel: t.connectionsLabel,
+    citedByLabel: t.citedByLabel,
+    graphPaneTitle: t.graphPaneTitle,
+    graphEmpty: t.graphEmpty,
+    corpusPaneTitle: t.corpusPaneTitle,
+    corpusEmpty: t.corpusEmpty,
+    excludedReceipt: t.excludedReceipt,
+    machineRead: t.machineRead,
+    score: t.score,
+  };
 
   // Determine title based on step
   const stepTitle = wizardStep.step === 'gather'
@@ -264,7 +293,9 @@ export function ReferenceWizardModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <DialogPanel className={`semiont-search-modal__panel semiont-search-modal__panel--with-border${wizardStep.step === 'search-results' ? ' semiont-search-modal__panel--wide' : ''}${wizardStep.step === 'gather' ? ' semiont-search-modal__panel--gather semiont-search-modal__panel--wide' : ''}`}>
+              {/* Every step shows the evidence display now, so every step is
+                  wide and gets the gather layout (flex column, capped height). */}
+              <DialogPanel className="semiont-search-modal__panel semiont-search-modal__panel--with-border semiont-search-modal__panel--gather semiont-search-modal__panel--wide">
                 <div className="semiont-search-modal__header">
                   <DialogTitle className="semiont-search-modal__title">
                     {stepTitle}
@@ -299,24 +330,19 @@ export function ReferenceWizardModal({
                         userHintPlaceholder: t.userHintPlaceholder,
                       },
                     }}
-                    translations={{
-                      loadingContext: t.loadingContext,
-                      failedContext: t.failedContext,
-                      sourceContextLabel: t.sourceContextLabel,
-                      connectionsLabel: t.connectionsLabel,
-                      citedByLabel: t.citedByLabel,
-                      graphPaneTitle: t.graphPaneTitle,
-                      graphEmpty: t.graphEmpty,
-                      corpusPaneTitle: t.corpusPaneTitle,
-                      corpusEmpty: t.corpusEmpty,
-                      excludedReceipt: t.excludedReceipt,
-                      machineRead: t.machineRead,
-                      score: t.score,
-                    }}
+                    translations={displayTranslations}
                   />
                 )}
 
                 {wizardStep.step === 'configure-generation' && context && (
+                  <div className="semiont-wizard__step-scroll" ref={stepScrollRef}>
+                  <GatherContextStep
+                    context={context}
+                    contextLoading={contextLoading}
+                    contextError={contextError}
+                    chosenStrategy={{ label: t.resolutionStrategyLabel, value: `✨ ${t.generate}` }}
+                    translations={displayTranslations}
+                  />
                   <ConfigureGenerationStep
                     {...(generationAgent ? { generationAgent } : {})}
                     {...(userHint ? { hintEcho: { label: t.userHintLabel, value: userHint } } : {})}
@@ -342,9 +368,18 @@ export function ReferenceWizardModal({
                       generate: t.generate,
                     }}
                   />
+                  </div>
                 )}
 
                 {wizardStep.step === 'configure-search' && (
+                  <div className="semiont-wizard__step-scroll" ref={stepScrollRef}>
+                  <GatherContextStep
+                    context={context}
+                    contextLoading={contextLoading}
+                    contextError={contextError}
+                    chosenStrategy={{ label: t.resolutionStrategyLabel, value: `🔍 ${t.search}` }}
+                    translations={displayTranslations}
+                  />
                   <ConfigureSearchStep
                     config={searchConfig}
                     {...(userHint ? { hintEcho: { label: t.userHintLabel, value: userHint } } : {})}
@@ -363,12 +398,20 @@ export function ReferenceWizardModal({
                       searchFailed: t.searchFailed,
                     }}
                   />
+                  </div>
                 )}
 
                 {wizardStep.step === 'search-results' && context && (
+                  <div className="semiont-wizard__step-scroll" ref={stepScrollRef}>
+                  <GatherContextStep
+                    context={context}
+                    contextLoading={contextLoading}
+                    contextError={contextError}
+                    chosenStrategy={{ label: t.resolutionStrategyLabel, value: `🔍 ${t.search}` }}
+                    translations={displayTranslations}
+                  />
                   <SearchResultsStep
                     results={wizardStep.results}
-                    context={context}
                     onLink={handleLink}
                     onBack={handleBackToGather}
                     translations={{
@@ -376,13 +419,9 @@ export function ReferenceWizardModal({
                       link: t.link,
                       back: t.back,
                       score: t.score,
-                      sourceContextLabel: t.sourceContextLabel,
-                      connectionsLabel: t.connectionsLabel,
-                      citedByLabel: t.citedByLabel,
-                      graphPaneTitle: t.graphPaneTitle,
-                      graphEmpty: t.graphEmpty,
                     }}
                   />
+                  </div>
                 )}
               </DialogPanel>
             </TransitionChild>
