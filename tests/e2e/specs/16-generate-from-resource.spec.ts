@@ -45,15 +45,8 @@ test.describe('generate from resource', () => {
     await page.locator('button[data-panel="info"]').click();
     const infoPanel = page.locator('.semiont-resource-info-panel');
     await expect(infoPanel).toBeVisible({ timeout: 10_000 });
-    // `/generate/i` alone is AMBIGUOUS as of GENERATE-FROM-RESOURCE P2, which
-    // re-sited this control into an `AssistShell`. The shell adds a collapsible
-    // SECTION HEADER — `<button aria-expanded>Generate ›</button>` — so the
-    // regex matched two buttons and strict mode rejected the locator outright
-    // (measured 2026-08-22; the control itself was fine).
-    //
-    // Discriminate on the ✨ prefix: it is literal in `ResourceInfoPanel`
-    // (`✨ {t('generate')}`) while the word is translated, so it is the more
-    // stable half of the name — and the section header has no emoji.
+    // The AssistShell adds a collapsible "Generate ›" section header, so match
+    // the ✨ prefix — literal in ResourceInfoPanel, unlike the translated word.
     const generateBtn = infoPanel.getByRole('button', { name: /✨.*generate/i });
     const cloneBtn = infoPanel.getByRole('button', { name: /clone/i });
     await expect(generateBtn).toBeVisible();
@@ -71,20 +64,11 @@ test.describe('generate from resource', () => {
     // Generate button still in the background DOM).
     const modal = page.locator('.semiont-search-modal__panel--gather');
     await expect(modal).toBeVisible({ timeout: 10_000 });
-    // NO step-title assertion here. GATHER-AT-THE-TOP D7 collapsed the three
-    // per-step titles into ONE modal title and deleted the orphan keys ×29, so
-    // `Configure Gather` / `Review Context` / `Configure Generation` no longer
-    // exist anywhere in the product. This spec asserted all three and went red
-    // on the first (measured 2026-08-22). Structure is asserted below instead —
-    // it survives copy changes, which is the whole reason those strings went.
     await expect(modal.locator('.semiont-wizard__step-scroll')).toBeVisible();
 
     // ── [P4] Exclude an entity type from recall (threaded as excludeEntityTypes) ──
-    // #1211 renamed AND INVERTED this control. It was `.semiont-form__entity-type-button`
-    // with `data-selected='true'` meaning "excluded"; it is now a recall chip where
-    // every type is IN recall until crossed off, so the SAME act flips
-    // `data-included` true → false. Porting the old assertion verbatim would have
-    // asserted the opposite of the intent while still passing.
+    // Inverted UI: every type is IN recall until crossed off, so clicking
+    // EXCLUDES it — data-included flips true → false.
     const recallChips = modal.locator('.semiont-form__recall-chip');
     await expect(recallChips.first()).toBeVisible({ timeout: 10_000 });
     const firstChip = recallChips.first();
@@ -101,29 +85,22 @@ test.describe('generate from resource', () => {
     await modal.getByRole('button', { name: /gather/i }).click();
     await bus.expectRequestResponse('gather:resource-requested', 'gather:resource-complete', 60_000);
 
-    // The spent controls fold into a receipt (D1: re-gathering is scroll-up →
-    // tweak → Gather, not a step back). Its presence is gated on `gatherFired`,
-    // so it is the structural proof that the gather actually ran — no copy.
+    // The spent controls fold into a receipt, gated on `gatherFired`.
     const receipt = modal.locator('.semiont-gather-receipt');
     await expect(receipt).toBeVisible({ timeout: 30_000 });
 
-    // `ConfigureGenerationStep` mounts only under `gatherFired && gatherContext`,
-    // so the params appearing IS "the GatheredContext arrived and the kind-aware
-    // evidence rendered" — exactly the guarantee the deleted `Next`-enables-when-
-    // `!context` assertion carried, re-expressed against the composite stack.
+    // ConfigureGenerationStep mounts only under `gatherFired && gatherContext`,
+    // so the params appearing means the GatheredContext arrived.
     const titleInput = modal.locator('#wizard-title');
     await expect(titleInput).toBeAttached({ timeout: 30_000 });
 
-    // The fold itself: gather at the TOP, generation params at the BOTTOM of one
-    // scroll pane. This is the structural claim GATHER-AT-THE-TOP makes, and the
-    // one thing no copy assertion could ever have caught.
+    // The fold: gather at the top, generation params at the bottom.
     const receiptBox = await receipt.boundingBox();
     const paramsBox = await titleInput.boundingBox();
     if (!receiptBox || !paramsBox) throw new Error('receipt/params has no bounding box');
     expect(receiptBox.y, 'gather receipt sits above the generation params').toBeLessThan(paramsBox.y);
 
-    // NOTE: no Back button to assert — D6 removed it; in a single stack there is
-    // nothing to go back to. If a Back reappears here, that is a regression of D6.
+    // No Back in a single stack (D6).
     await expect(modal.getByRole('button', { name: /^back$/i })).toHaveCount(0);
 
     // ConfigureGenerationStep is an HTML `<form>` with two `required` fields —
@@ -132,9 +109,6 @@ test.describe('generate from resource', () => {
     // the browser block submission (no `onGenerate`, no job) — exactly as spec 09
     // documents. Fill both (unique per-run title so successive runs don't pile up
     // same-named derived resources at the top of Discover).
-    // `titleInput` is already declared above — it doubles as the gate proving the
-    // GatheredContext arrived (ConfigureGenerationStep mounts only under
-    // `gatherFired && gatherContext`), so it is attached by the time we get here.
     const runId = Date.now();
     await titleInput.fill(`e2e-spec-16-${runId}`);
     await modal.locator('#wizard-storagePath').fill(`generated/e2e-16-${runId}.md`);
