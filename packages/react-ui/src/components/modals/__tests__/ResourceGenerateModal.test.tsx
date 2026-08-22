@@ -34,7 +34,7 @@ const T = {
   gatherDepth: 'Depth',
   gatherMaxResources: 'Max resources',
   gatherButton: 'Gather',
-  excludeLabel: 'Exclude from recall',
+  recallLabel: 'Included in recall — deselect to exclude',
   loadingContext: 'Gathering…',
   failedContext: 'Failed',
   sourceContextLabel: 'Resource',
@@ -166,9 +166,9 @@ describe('ResourceGenerateModal', () => {
     expect(screen.getByTitle(T.editGather).textContent).toContain(`${T.gatherDepth} 3`);
   });
 
-  it('threads picked entity types into the gather options', () => {
+  it('threads crossed-off entity types into the gather options as the exclude list', () => {
     renderModal();
-    fireEvent.click(screen.getByRole('button', { name: 'Person' })); // select to exclude
+    fireEvent.click(screen.getByRole('button', { name: 'Person' })); // cross off the recall
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
     expect(onGather).toHaveBeenCalledWith({
       includeContent: true,
@@ -177,6 +177,27 @@ describe('ResourceGenerateModal', () => {
       maxResources: 10,
       excludeEntityTypes: ['Person'],
     });
+  });
+
+  it('every entity type starts INCLUDED — deselecting is what excludes (recall chips)', () => {
+    // The SDK's wire is an exclude list, but the natural posture is
+    // "everything is in the recall until you say otherwise": chips render
+    // included by default and a click crosses one off.
+    renderModal();
+    expect(screen.getByText(T.recallLabel)).toBeInTheDocument();
+    const person = screen.getByRole('button', { name: 'Person' });
+    const topic = screen.getByRole('button', { name: 'Topic' });
+    expect(person).toHaveAttribute('aria-pressed', 'true');
+    expect(person).toHaveAttribute('data-included', 'true');
+    expect(person.className).toContain('semiont-form__recall-chip');
+
+    fireEvent.click(person);
+    expect(person).toHaveAttribute('aria-pressed', 'false');
+    expect(person).toHaveAttribute('data-included', 'false');
+    expect(topic).toHaveAttribute('aria-pressed', 'true'); // the rest stay in
+
+    fireEvent.click(person); // back in — the toggle round-trips
+    expect(person).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('params render beneath the evidence once context arrives; Generate emits and closes', () => {
@@ -364,7 +385,7 @@ describe('ResourceGenerateModal — dismissal guards typed work (GATHER-AT-THE-T
 
   it('non-text state alone never nags — exclusions and depth are cheap to redo (D5)', () => {
     renderModal();
-    fireEvent.click(screen.getByRole('button', { name: 'Person' })); // pick an exclusion
+    fireEvent.click(screen.getByRole('button', { name: 'Person' })); // cross off the recall
 
     fireEvent.click(screen.getByLabelText('Close'));
     expect(screen.queryByText(T.discardDraftPrompt)).not.toBeInTheDocument();

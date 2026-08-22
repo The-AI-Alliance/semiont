@@ -384,7 +384,7 @@
     "gatherMaxResources": "Enimmäisresurssit",
     "gatherButton": "Kerää",
     "editGather": "Muuta keräysasetuksia",
-    "excludeLabel": "Jätä pois haetuista",
+    "recallLabel": "Mukana haussa — poista valinta jättääksesi pois",
     "loadingContext": "Kerätään kontekstia...",
     "failedContext": "Kontekstin kerääminen epäonnistui",
     "sourceContextLabel": "Resurssi",

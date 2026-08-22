@@ -384,7 +384,7 @@
     "gatherMaxResources": "Ressources maximum",
     "gatherButton": "Collecter",
     "editGather": "Modifier les paramètres de collecte",
-    "excludeLabel": "Exclure du rappel",
+    "recallLabel": "Inclus dans le rappel — désélectionnez pour exclure",
     "loadingContext": "Collecte du contexte...",
     "failedContext": "Échec de la collecte du contexte",
     "sourceContextLabel": "Ressource",

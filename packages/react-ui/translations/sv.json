@@ -384,7 +384,7 @@
     "gatherMaxResources": "Max resurser",
     "gatherButton": "Samla",
     "editGather": "Ändra insamlingsinställningar",
-    "excludeLabel": "Uteslut från återkallning",
+    "recallLabel": "Ingår i återkallningen — avmarkera för att utesluta",
     "loadingContext": "Samlar kontext...",
     "failedContext": "Misslyckades med att samla kontext",
     "sourceContextLabel": "Resurs",

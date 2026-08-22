@@ -384,7 +384,7 @@
     "gatherMaxResources": "Maks. ressourcer",
     "gatherButton": "Indsaml",
     "editGather": "Skift indsamlingsindstillinger",
-    "excludeLabel": "Udeluk fra genkaldelse",
+    "recallLabel": "Inkluderet i genkaldelsen — fravælg for at udelukke",
     "loadingContext": "Indsamler kontekst...",
     "failedContext": "Kunne ikke indsamle kontekst",
     "sourceContextLabel": "Ressource",

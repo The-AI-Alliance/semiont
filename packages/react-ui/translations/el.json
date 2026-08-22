@@ -384,7 +384,7 @@
     "gatherMaxResources": "Μέγιστοι πόροι",
     "gatherButton": "Συλλογή",
     "editGather": "Αλλαγή ρυθμίσεων συλλογής",
-    "excludeLabel": "Εξαίρεση από την ανάκληση",
+    "recallLabel": "Περιλαμβάνονται στην ανάκληση — αποεπιλέξτε για εξαίρεση",
     "loadingContext": "Συλλογή πλαισίου...",
     "failedContext": "Αποτυχία συλλογής πλαισίου",
     "sourceContextLabel": "Πόρος",

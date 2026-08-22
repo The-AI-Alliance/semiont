@@ -384,7 +384,7 @@
     "gatherMaxResources": "最大リソース数",
     "gatherButton": "収集",
     "editGather": "収集設定を変更",
-    "excludeLabel": "リコールから除外",
+    "recallLabel": "リコールに含まれます — 除外するには選択を解除",
     "loadingContext": "コンテキストを収集中...",
     "failedContext": "コンテキストの収集に失敗しました",
     "sourceContextLabel": "リソース",

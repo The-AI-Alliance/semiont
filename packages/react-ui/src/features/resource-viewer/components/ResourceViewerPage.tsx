@@ -813,7 +813,7 @@ export function ResourceViewerPage({
           gatherMaxResources: tg('gatherMaxResources'),
           gatherButton: tg('gatherButton'),
           editGather: tg('editGather'),
-          excludeLabel: tg('excludeLabel'),
+          recallLabel: tg('recallLabel'),
           loadingContext: tg('loadingContext'),
           failedContext: tg('failedContext'),
           sourceContextLabel: tg('sourceContextLabel'),

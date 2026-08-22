@@ -384,7 +384,7 @@
     "gatherMaxResources": "الحد الأقصى للموارد",
     "gatherButton": "جمع",
     "editGather": "تغيير إعدادات الجمع",
-    "excludeLabel": "استبعاد من الاسترجاع",
+    "recallLabel": "مضمَّن في الاسترجاع — ألغِ التحديد للاستبعاد",
     "loadingContext": "جارٍ جمع السياق...",
     "failedContext": "فشل في جمع السياق",
     "sourceContextLabel": "المورد",

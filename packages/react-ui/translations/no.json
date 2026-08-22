@@ -384,7 +384,7 @@
     "gatherMaxResources": "Maks. ressurser",
     "gatherButton": "Samle",
     "editGather": "Endre innsamlingsinnstillinger",
-    "excludeLabel": "Ekskluder fra gjenfinning",
+    "recallLabel": "Inkludert i gjenfinningen — velg bort for å ekskludere",
     "loadingContext": "Samler kontekst...",
     "failedContext": "Kunne ikke samle kontekst",
     "sourceContextLabel": "Ressurs",

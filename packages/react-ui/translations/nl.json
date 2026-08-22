@@ -384,7 +384,7 @@
     "gatherMaxResources": "Maximale bronnen",
     "gatherButton": "Verzamelen",
     "editGather": "Verzamelinstellingen wijzigen",
-    "excludeLabel": "Uitsluiten van ophalen",
+    "recallLabel": "Opgenomen in het ophalen — deselecteer om uit te sluiten",
     "loadingContext": "Context wordt verzameld...",
     "failedContext": "Context verzamelen mislukt",
     "sourceContextLabel": "Bron",

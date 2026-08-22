@@ -384,7 +384,7 @@
     "gatherMaxResources": "Sumber Daya Maksimum",
     "gatherButton": "Kumpulkan",
     "editGather": "Ubah pengaturan pengumpulan",
-    "excludeLabel": "Kecualikan dari pemanggilan",
+    "recallLabel": "Termasuk dalam pemanggilan — batalkan pilihan untuk mengecualikan",
     "loadingContext": "Mengumpulkan konteks...",
     "failedContext": "Gagal mengumpulkan konteks",
     "sourceContextLabel": "Sumber Daya",

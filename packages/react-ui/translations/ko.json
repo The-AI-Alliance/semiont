@@ -384,7 +384,7 @@
     "gatherMaxResources": "최대 리소스 수",
     "gatherButton": "수집",
     "editGather": "수집 설정 변경",
-    "excludeLabel": "재호출에서 제외",
+    "recallLabel": "재호출에 포함됨 — 제외하려면 선택 해제",
     "loadingContext": "컨텍스트 수집 중...",
     "failedContext": "컨텍스트 수집 실패",
     "sourceContextLabel": "리소스",

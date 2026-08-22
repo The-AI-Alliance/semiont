@@ -384,7 +384,7 @@
     "gatherMaxResources": "حداکثر منابع",
     "gatherButton": "جمع‌آوری",
     "editGather": "تغییر تنظیمات گردآوری",
-    "excludeLabel": "حذف از فراخوانی",
+    "recallLabel": "شامل در فراخوانی — برای حذف از انتخاب خارج کنید",
     "loadingContext": "در حال جمع‌آوری زمینه...",
     "failedContext": "جمع‌آوری زمینه ناموفق بود",
     "sourceContextLabel": "منبع",

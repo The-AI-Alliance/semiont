@@ -384,7 +384,7 @@
     "gatherMaxResources": "Sumber Maksimum",
     "gatherButton": "Kumpul",
     "editGather": "Tukar tetapan kumpulan",
-    "excludeLabel": "Kecualikan daripada imbasan",
+    "recallLabel": "Termasuk dalam imbasan — nyahpilih untuk mengecualikan",
     "loadingContext": "Mengumpul konteks...",
     "failedContext": "Gagal mengumpul konteks",
     "sourceContextLabel": "Sumber",

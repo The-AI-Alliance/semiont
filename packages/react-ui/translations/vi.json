@@ -384,7 +384,7 @@
     "gatherMaxResources": "Tài nguyên Tối đa",
     "gatherButton": "Thu thập",
     "editGather": "Thay đổi cài đặt thu thập",
-    "excludeLabel": "Loại trừ khỏi truy hồi",
+    "recallLabel": "Bao gồm trong truy hồi — bỏ chọn để loại trừ",
     "loadingContext": "Đang thu thập ngữ cảnh...",
     "failedContext": "Không thể thu thập ngữ cảnh",
     "sourceContextLabel": "Tài nguyên",

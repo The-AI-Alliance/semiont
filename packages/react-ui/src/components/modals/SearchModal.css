@@ -634,6 +634,47 @@
   stroke: var(--semiont-color-primary-400);
 }
 
+/* Recall chips: the exclusion picker inverted — every entity type starts
+   INCLUDED, wearing the app's token look (the semiont-tag tint), and a click
+   crosses one off the recall: outline, tertiary text, struck through. The
+   wire still carries the exclude list; only the presentation inverted. */
+.semiont-form__recall-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.semiont-form__recall-chip {
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--semiont-radius-full);
+  font-size: var(--semiont-text-sm);
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: var(--semiont-color-primary-100);
+  color: var(--semiont-color-primary-700);
+}
+
+[data-theme="dark"] .semiont-form__recall-chip {
+  background: var(--semiont-color-primary-900);
+  color: var(--semiont-color-primary-300);
+}
+
+.semiont-form__recall-chip[data-included="false"] {
+  background: none;
+  border-color: var(--semiont-border-primary);
+  color: var(--semiont-text-tertiary);
+  text-decoration: line-through;
+}
+
+.semiont-form__recall-chip:hover {
+  opacity: 0.85;
+}
+
+.semiont-form__recall-chip:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 1px;
+}
+
 /* Post-gather receipt: the spent controls' compact echo — what THIS gather
    asked for, and the way back to the full form. Same vocabulary as the
    corpus pane's exclusion receipt and the wizard's strategy band: a choice

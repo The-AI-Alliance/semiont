@@ -19,7 +19,8 @@ export interface ResourceGenerateModalTranslations {
   gatherDepth: string;
   gatherMaxResources: string;
   gatherButton: string;
-  excludeLabel: string;
+  /** Labels the recall chips: every type included until deselected. */
+  recallLabel: string;
   /** Affordance on the post-gather receipt row (title/tooltip). */
   editGather: string;
   // GatherContextStep display
@@ -315,17 +316,21 @@ export function ResourceGenerateModal({
                   >
                     {entityTypeOptions.length > 0 && (
                       <div className="semiont-form__field semiont-form__entity-types">
-                        <label className="semiont-form__label">{t.excludeLabel}</label>
-                        <div className="semiont-form__entity-type-buttons">
+                        <label className="semiont-form__label">{t.recallLabel}</label>
+                        {/* Recall chips — the exclude wire, inverted for the
+                            UI: every type is IN the recall until crossed off,
+                            so the state is still the exclude list and a chip
+                            is included when absent from it. */}
+                        <div className="semiont-form__recall-chips">
                           {entityTypeOptions.map((et) => {
-                            const isSelected = excludeEntityTypes.includes(et);
+                            const isIncluded = !excludeEntityTypes.includes(et);
                             return (
                               <button
                                 key={et}
                                 type="button"
-                                className="semiont-form__entity-type-button"
-                                data-selected={isSelected}
-                                aria-pressed={isSelected}
+                                className="semiont-form__recall-chip"
+                                data-included={isIncluded}
+                                aria-pressed={isIncluded}
                                 onClick={() => setExcludeEntityTypes(prev => prev.includes(et) ? prev.filter(x => x !== et) : [...prev, et])}
                               >
                                 {et}

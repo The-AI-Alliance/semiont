@@ -384,7 +384,7 @@
     "gatherMaxResources": "Maksymalna liczba zasobów",
     "gatherButton": "Zbierz",
     "editGather": "Zmień ustawienia zbierania",
-    "excludeLabel": "Wyklucz z przywoływania",
+    "recallLabel": "Uwzględnione w przywoływaniu — odznacz, aby wykluczyć",
     "loadingContext": "Zbieranie kontekstu...",
     "failedContext": "Nie udało się zebrać kontekstu",
     "sourceContextLabel": "Zasób",

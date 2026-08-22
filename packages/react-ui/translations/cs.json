@@ -384,7 +384,7 @@
     "gatherMaxResources": "Maximální počet zdrojů",
     "gatherButton": "Shromáždit",
     "editGather": "Změnit nastavení shromažďování",
-    "excludeLabel": "Vyloučit z vyvolání",
+    "recallLabel": "Zahrnuto ve vyvolání — zrušením výběru vyloučíte",
     "loadingContext": "Shromažďování kontextu...",
     "failedContext": "Nepodařilo se shromáždit kontext",
     "sourceContextLabel": "Zdroj",

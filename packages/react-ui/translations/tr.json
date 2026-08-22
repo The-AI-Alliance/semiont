@@ -384,7 +384,7 @@
     "gatherMaxResources": "Maksimum Kaynak",
     "gatherButton": "Topla",
     "editGather": "Toplama ayarlarını değiştir",
-    "excludeLabel": "Geri çağırmadan hariç tut",
+    "recallLabel": "Geri çağırmaya dahil — hariç tutmak için seçimi kaldırın",
     "loadingContext": "Bağlam toplanıyor...",
     "failedContext": "Bağlam toplanamadı",
     "sourceContextLabel": "Kaynak",

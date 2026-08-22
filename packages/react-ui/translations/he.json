@@ -384,7 +384,7 @@
     "gatherMaxResources": "משאבים מרביים",
     "gatherButton": "אסוף",
     "editGather": "שינוי הגדרות האיסוף",
-    "excludeLabel": "החרג מהאחזור",
+    "recallLabel": "כלול באחזור — בטל בחירה כדי להחריג",
     "loadingContext": "אוסף הקשר...",
     "failedContext": "איסוף ההקשר נכשל",
     "sourceContextLabel": "משאב",

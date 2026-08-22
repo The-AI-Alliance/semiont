@@ -384,7 +384,7 @@
     "gatherMaxResources": "ทรัพยากรสูงสุด",
     "gatherButton": "รวบรวม",
     "editGather": "เปลี่ยนการตั้งค่าการรวบรวม",
-    "excludeLabel": "ยกเว้นจากการเรียกคืน",
+    "recallLabel": "รวมอยู่ในการเรียกคืน — ยกเลิกการเลือกเพื่อยกเว้น",
     "loadingContext": "กำลังรวบรวมบริบท...",
     "failedContext": "ไม่สามารถรวบรวมบริบทได้",
     "sourceContextLabel": "ทรัพยากร",

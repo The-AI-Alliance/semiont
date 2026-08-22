@@ -384,7 +384,7 @@
     "gatherMaxResources": "Максимум ресурсів",
     "gatherButton": "Зібрати",
     "editGather": "Змінити налаштування збору",
-    "excludeLabel": "Виключити з відкликання",
+    "recallLabel": "Включено у відкликання — зніміть вибір, щоб виключити",
     "loadingContext": "Збирається контекст...",
     "failedContext": "Не вдалося зібрати контекст",
     "sourceContextLabel": "Ресурс",
