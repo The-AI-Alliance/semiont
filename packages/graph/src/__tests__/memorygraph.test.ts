@@ -590,7 +590,9 @@ describe('MemoryGraphDatabase Implementation', () => {
       await db.createResource(resource1);
       await db.createResource(resource2);
 
-      await db.createAnnotation(createTestReference(resource1['@id'])); // No entity types
+      // A reference with no entity tags at all — the default fixture carries
+      // one, which is why this case used to pass for the wrong reason.
+      await db.createAnnotation(createTestReference(resource1['@id'], { body: [] }));
       await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2['@id'], ['Person']));
 
       const stats = await db.getStats();

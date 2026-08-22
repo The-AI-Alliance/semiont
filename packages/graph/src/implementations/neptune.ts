@@ -6,7 +6,15 @@ import { assertMutableResourceUpdate } from '../interface';
 import { queryResources } from '../resource-query';
 import { getEntityTypes } from '@semiont/ontology';
 import type { Logger } from '@semiont/core';
-import { annotationId as makeAnnotationId } from '@semiont/core';
+import {
+  buildAnnotation,
+  decodeAnnotation,
+  encodeAnnotation,
+  encodeSelector,
+  motivationForCategory,
+  storedAnnotationType,
+  type AnnotationProperties,
+} from '../annotation-codec';
 import type {
   AnnotationCategory,
   GraphConnection,
@@ -19,7 +27,7 @@ import type {
   AnnotationId,
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
-import { getBodySource, getExactText, getTargetSource, getTargetSelector, getPrimaryRepresentation, getResourceId } from '@semiont/core';
+import { getBodySource, getTargetSource, getPrimaryRepresentation, getResourceId } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
 
@@ -101,91 +109,33 @@ function vertexToResource(vertex: any): ResourceDescriptor {
   return resource;
 }
 
-// Helper function to convert Neptune vertex to Annotation
-function vertexToAnnotation(vertex: any, entityTypes: string[] = []): Annotation {
-  const props = vertex.properties || vertex;
+/**
+ * Convert a Neptune vertex to an Annotation.
+ *
+ * Exported so the cross-store conformance suite can run this store's decode
+ * path with no live Neptune: everything past the flattening below is the
+ * shared codec's.
+ */
+export function vertexToAnnotation(vertex: any, entityTypes: string[] = []): Annotation {
+  return decodeAnnotation(normalizeProperties(vertex.properties || vertex), entityTypes);
+}
 
-  // Handle different property formats from Neptune
-  const getValue = (key: string, required: boolean = false) => {
-    const prop = props[key];
-    if (!prop) {
-      if (required) {
-        throw new Error(`Annotation ${vertex.id || 'unknown'} missing required field: ${key}`);
-      }
-      return undefined;
-    }
-    if (Array.isArray(prop) && prop.length > 0) {
-      return prop[0].value !== undefined ? prop[0].value : prop[0];
-    }
-    if (typeof prop === 'object' && 'value' in prop) return prop.value;
-    return prop;
-  };
-
-  // Get required fields
-  const id = getValue('id', true);
-  const resourceId = getValue('resourceId', true);
-  const selectorRaw = getValue('selector', true);
-  const creatorRaw = getValue('creator', true);
-  const createdRaw = getValue('created', true);
-
-  // Derive motivation from type if not present (backward compatibility)
-  const motivation = getValue('motivation') || 'linking';
-
-  // Parse creator - always stored as JSON string in DB
-  const creator = JSON.parse(creatorRaw);
-
-  // Reconstruct body array from entity tags and linking body
-  const bodyArray: Array<{type: 'TextualBody'; value: string; purpose: 'tagging'} | {type: 'SpecificResource'; source: string; purpose: 'linking'}> = [];
-
-  // Add entity tag bodies (TextualBody with purpose: "tagging")
-  for (const entityType of entityTypes) {
-    if (entityType) {
-      bodyArray.push({
-        type: 'TextualBody' as const,
-        value: entityType,
-        purpose: 'tagging' as const,
-      });
-    }
+/** Neptune returns each property in one of several shapes depending on the traversal. */
+function normalizeProperties(props: any): AnnotationProperties {
+  const normalized: AnnotationProperties = {};
+  for (const [key, raw] of Object.entries(props ?? {})) {
+    const value = unwrap(raw);
+    if (value === undefined || value === null) continue;
+    normalized[key] = typeof value === 'string' ? value : String(value);
   }
+  return normalized;
+}
 
-  // Add linking body (SpecificResource) if annotation is resolved
-  const bodySource = getValue('source');
-  if (bodySource) {
-    bodyArray.push({
-      type: 'SpecificResource' as const,
-      source: bodySource,
-      purpose: 'linking' as const,
-    });
-  }
-
-  const annotation: Annotation = {
-    '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-    'type': 'Annotation' as const,
-    id,
-    motivation,
-    target: {
-      source: resourceId,
-      selector: JSON.parse(selectorRaw),
-    },
-    body: bodyArray,
-    creator,
-    created: createdRaw, // ISO string from DB
-  };
-
-  // W3C Web Annotation modification tracking
-  const modified = getValue('modified');
-  if (modified) annotation.modified = modified;
-
-  const generatorJson = getValue('generator');
-  if (generatorJson) {
-    try {
-      annotation.generator = JSON.parse(generatorJson);
-    } catch (e) {
-      // Ignore parse errors
-    }
-  }
-
-  return annotation;
+function unwrap(prop: any): any {
+  if (prop === undefined || prop === null) return undefined;
+  if (Array.isArray(prop)) return prop.length > 0 ? unwrap(prop[0]) : undefined;
+  if (typeof prop === 'object' && 'value' in prop) return prop.value;
+  return prop;
 }
 
 
@@ -481,41 +431,18 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     // The caller's id is the system of record's — never mint a fresh one
     // (the event-log id is what deletes and lookups arrive under).
-    const id = input.id;
-
-    // Only linking motivation with SpecificResource or empty array (stub)
-    const annotation: Annotation = {
-      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-      'type': 'Annotation' as const,
-      id: makeAnnotationId(id),
-      motivation: input.motivation,
-      target: input.target,
-      body: input.body,
-      creator: input.creator,
-      created: new Date().toISOString(),
-    };
-
-    // Extract values for Gremlin query
-    const targetSource = getTargetSource(input.target);
-    const targetSelector = getTargetSelector(input.target);
-    const bodySource = getBodySource(input.body);
+    const annotation = buildAnnotation(input, new Date().toISOString());
+    const props = encodeAnnotation(annotation);
+    const targetSource = props.resourceId!;
+    const bodySource = props.source;
     const entityTypes = getEntityTypes(input);
 
     try {
-      // Create Annotation vertex
-      const vertex = this.g.addV('Annotation')
-        .property('id', annotation.id)
-        .property('resourceId', targetSource) // Store full URI
-        .property('text', targetSelector ? getExactText(targetSelector) : '')
-        .property('selector', JSON.stringify(targetSelector || {}))
-        .property('type', 'SpecificResource')
-        .property('motivation', annotation.motivation)
-        .property('creator', JSON.stringify(annotation.creator))
-        .property('created', annotation.created);
-
-      // Add optional source property for resolved references
-      if (bodySource) {
-        vertex.property('source', bodySource);
+      // Create Annotation vertex — every property comes from the codec, so
+      // a source-only target contributes no `selector` property at all.
+      let vertex = this.g.addV('Annotation');
+      for (const [key, value] of Object.entries(props)) {
+        vertex = vertex.property(key, value);
       }
 
       const newVertex = await vertex.next();
@@ -601,7 +528,9 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       // Update target properties
       if (updates.target !== undefined && typeof updates.target !== 'string') {
         if (updates.target.selector !== undefined) {
-          traversal = traversal.property('text', getExactText(updates.target.selector));
+          for (const [key, value] of Object.entries(encodeSelector(updates.target.selector))) {
+            traversal = traversal.property(key, value);
+          }
         }
       }
 
@@ -702,8 +631,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       }
 
       if (filter.type) {
-        const w3cType = filter.type === 'highlight' ? 'TextualBody' : 'SpecificResource';
-        traversal = traversal.has('type', w3cType);
+        traversal = traversal.has('type', storedAnnotationType(motivationForCategory(filter.type)));
       }
 
       const results = await traversal.elementMap().toList();

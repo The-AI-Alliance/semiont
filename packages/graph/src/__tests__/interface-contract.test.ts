@@ -460,7 +460,9 @@ describe('GraphDatabase Interface Contract', () => {
 
       expect(annotation.id).toBeDefined();
       expect(annotation.motivation).toBe('highlighting');
-      expect(annotation.creator).toBe(input.creator);
+      // Equality, not identity: every store serializes the creator, so none
+      // of them can hand back the caller's own object.
+      expect(annotation.creator).toEqual(input.creator);
     });
 
     it('createAnnotation() should create with linking motivation', async () => {
@@ -717,7 +719,9 @@ describe('GraphDatabase Interface Contract', () => {
       await db.createResource(resource2);
 
       await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2['@id'], ['Person']));
-      await db.createAnnotation(createTestReference(resource1['@id'])); // No entity types
+      // A reference with no entity tags at all — the default fixture carries
+      // one, which is why this case used to pass for the wrong reason.
+      await db.createAnnotation(createTestReference(resource1['@id'], { body: [] }));
 
       const entityRefs = await db.getEntityReferences(resourceId(resource1['@id']));
 
