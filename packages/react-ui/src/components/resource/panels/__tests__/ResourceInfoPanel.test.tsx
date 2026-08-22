@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import type { EventBus } from '@semiont/core';
+import { BehaviorSubject } from 'rxjs';
+import type { EventBus, ResourceDescriptor } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
-import type { SemiontClient, SemiontSession } from '@semiont/sdk';
+import type { CacheObservable, CacheState, SemiontClient, SemiontSession } from '@semiont/sdk';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 
@@ -461,7 +462,9 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.getByText('Alice, Bob')).toBeInTheDocument();
     });
 
-    it('should render wasDerivedFrom when provided', () => {
+    it('should render wasDerivedFrom when provided — the id is the unresolved fallback', () => {
+      // The factory client's fetch fails in jsdom (no server), so the
+      // descriptor never resolves and the raw id stays as the honest label.
       renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
@@ -490,6 +493,34 @@ describe('ResourceInfoPanel Component', () => {
 
       fireEvent.click(screen.getByText('urn:semiont:resource:abc123'));
       expect(openSpy).toHaveBeenCalledTimes(1);
+      expect(String(openSpy.mock.calls[0]![0])).toBe('urn:semiont:resource:abc123');
+    });
+
+    it('resolves the derived-from id to its resource NAME; clicks still navigate by id', () => {
+      // The id is wire identity, not presentation. Once `browse.resource`
+      // serves the source's descriptor, the link wears its name — the raw
+      // hash only survives while the descriptor is unresolved (pin below).
+      const { SemiontWrapper, session, client } = createTestSemiontWrapper();
+      vi.spyOn(client.browse, 'resource').mockReturnValue(
+        new BehaviorSubject<CacheState<ResourceDescriptor>>({
+          status: 'ready',
+          value: { '@id': 'urn:semiont:resource:abc123', name: 'Source Doc' } as ResourceDescriptor,
+        }) as unknown as CacheObservable<ResourceDescriptor>,
+      );
+      const openSpy = vi.spyOn(client.browse, 'openResource');
+      render(
+        <ResourceInfoPanel
+          {...defaultProps}
+          session={session}
+          wasDerivedFrom="urn:semiont:resource:abc123"
+        />,
+        { wrapper: ({ children }) => <SemiontWrapper>{children}</SemiontWrapper> },
+      );
+
+      expect(screen.getByText('Source Doc')).toBeInTheDocument();
+      expect(screen.queryByText('urn:semiont:resource:abc123')).toBeNull();
+
+      fireEvent.click(screen.getByText('Source Doc'));
       expect(String(openSpy.mock.calls[0]![0])).toBe('urn:semiont:resource:abc123');
     });
 
