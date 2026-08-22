@@ -13,7 +13,13 @@
 import { describe, it, expect } from 'vitest';
 import { annotationId, resourceId } from '@semiont/core';
 import type { Annotation, CreateAnnotationInternal } from '@semiont/core';
-import { buildAnnotation, encodeAnnotation, type AnnotationProperties } from '../annotation-codec';
+import {
+  buildAnnotation,
+  encodeAnnotation,
+  motivationForCategory,
+  storedAnnotationType,
+  type AnnotationProperties,
+} from '../annotation-codec';
 import { parseAnnotationNode } from '../implementations/neo4j';
 import { vertexToAnnotation as neptuneVertexToAnnotation } from '../implementations/neptune';
 import { vertexToAnnotation as janusVertexToAnnotation } from '../implementations/janusgraph';
@@ -168,6 +174,56 @@ describe('encode — absence is stored as absence (D4)', () => {
     );
     expect(encodeAnnotation(highlight).type).toBe('TextualBody');
     expect(encodeAnnotation(sourceOnly).type).toBe('SpecificResource');
+  });
+});
+
+describe('encode — the fields a store cannot invent for itself', () => {
+  const base = buildAnnotation(
+    {
+      id: annotationId('ann-4'),
+      motivation: 'linking',
+      target: { source: 'res-1' },
+      creator: CREATOR,
+    } as CreateAnnotationInternal,
+    CREATED
+  );
+
+  it('refuses an annotation whose target has no source', () => {
+    expect(() => encodeAnnotation({ ...base, target: { source: '' } })).toThrow(/no target source/);
+  });
+
+  it('refuses an annotation with no created timestamp rather than stamping one', () => {
+    const { created, ...withoutCreated } = base;
+    expect(() => encodeAnnotation(withoutCreated as Annotation)).toThrow(/no created timestamp/);
+  });
+
+  it('carries modified and generator across the round trip, in every store', () => {
+    const provenance: Annotation = {
+      ...base,
+      modified: '2026-08-22T09:00:00.000Z',
+      generator: { '@type': 'Software', name: 'semiont' },
+    };
+    const props = encodeAnnotation(provenance);
+    for (const store of STORES) expect(store.decode(props)).toEqual(provenance);
+  });
+
+  it('survives a generator that no longer parses, rather than failing the whole read', () => {
+    const props = { ...encodeAnnotation(base), generator: '{ not json' };
+    for (const store of STORES) {
+      const decoded = store.decode(props);
+      expect(decoded.generator).toBeUndefined();
+      expect(decoded.id).toBe('ann-4');
+    }
+  });
+});
+
+describe('the category a caller filters by maps to one motivation, in one place', () => {
+  it.each([
+    ['highlight', 'highlighting', 'TextualBody'],
+    ['reference', 'linking', 'SpecificResource'],
+  ] as const)('%s → %s → stored type %s', (category, motivation, storedType) => {
+    expect(motivationForCategory(category)).toBe(motivation);
+    expect(storedAnnotationType(motivationForCategory(category))).toBe(storedType);
   });
 });
 
