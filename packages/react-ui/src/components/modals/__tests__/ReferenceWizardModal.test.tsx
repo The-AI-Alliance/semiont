@@ -414,6 +414,25 @@ describe('ReferenceWizardModal — the dirty guard widens (GATHER-AT-THE-TOP D4/
   });
 });
 
+// The gather-loading state is not a blank modal: the annotation's exact text
+// and entity types are wizard props — known before any wire round-trip — and
+// the pane headers are static. Render them immediately with skeleton bars so
+// the loading screen is the loaded screen minus the data.
+describe('ReferenceWizardModal — the gather skeleton', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('while gathering, the known annotation facts and pane skeletons render immediately', () => {
+    const { baseElement } = renderWizard({ context: null, contextLoading: true });
+
+    expect(screen.getByText(/"Caspian Sea"/)).toBeInTheDocument();      // quoted exact text
+    expect(screen.getByText('Location')).toBeInTheDocument();           // entity chip
+    expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();     // pane headers in place
+    expect(screen.getByText(T.corpusPaneTitle)).toBeInTheDocument();
+    expect(screen.getByText(T.loadingContext)).toBeInTheDocument();     // still says loading
+    expect(baseElement.querySelectorAll('.semiont-gather__skeleton-bar').length).toBeGreaterThan(0);
+  });
+});
+
 describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () => {
   it('reopening resets the hint and the step', async () => {
     const { rerender } = renderWizard();

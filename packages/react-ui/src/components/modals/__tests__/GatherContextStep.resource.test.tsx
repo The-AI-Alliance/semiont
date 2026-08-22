@@ -92,6 +92,17 @@ describe('GatheredContext display — resource focus', () => {
     expect(container.textContent).toContain('Related Resource'); // peer connection from deriveViews
   });
 
+  it('loading without a pending preview stays the plain dots — the resource-gather path', () => {
+    // The composite Generate modal has its controls visible above the loading
+    // zone; only the annotation wizard passes `pending` (its known facts).
+    const { queryByText, getByText } = render(
+      <GatherContextStep context={null} contextLoading contextError={null} translations={t} />,
+    );
+    expect(getByText(t.loadingContext)).toBeInTheDocument();
+    expect(queryByText(t.graphPaneTitle)).toBeNull();
+    expect(queryByText(t.corpusPaneTitle)).toBeNull();
+  });
+
   it('GatherContextStep shows the resource strip and hides the annotation-only footer', () => {
     const { container } = render(
       <GatherContextStep

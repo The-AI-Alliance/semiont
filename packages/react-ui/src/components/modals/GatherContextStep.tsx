@@ -36,6 +36,15 @@ export interface GatherContextStepProps {
   context: GatheredContext | null;
   contextLoading: boolean;
   contextError: Error | null;
+  /**
+   * What the host already knows about the annotation BEFORE the gather
+   * answers — its exact text and entity types are wizard props, no wire
+   * round-trip needed. When present, the loading state renders them with
+   * skeleton panes so the loading screen is the loaded screen minus the
+   * data, not a blank modal with dots. Omit (the resource-gather path) for
+   * the plain loading block.
+   */
+  pending?: { exact: string; entityTypes: string[] };
   /** Omit for a display-only (e.g. resource-focus) render. */
   annotate?: GatherContextStepAnnotate;
   /**
@@ -55,6 +64,7 @@ export function GatherContextStep({
   context,
   contextLoading,
   contextError,
+  pending,
   annotate,
   chosenStrategy,
   translations: t,
@@ -80,8 +90,50 @@ export function GatherContextStep({
 
   return (
     <div className="semiont-gather__outer">
-      {/* Loading / error states */}
-      {contextLoading && (
+      {/* Loading / error states. With a `pending` preview the loading screen
+          is the loaded screen minus the data: the annotation's own facts and
+          the pane headers hold the layout while skeleton bars stand in for
+          what the gather will fill. */}
+      {contextLoading && pending && (
+        <div className="semiont-gather__skeleton" role="status">
+          <div className="semiont-gather__skeleton-header">
+            {/* Straight quotes — the same presentation the panel entries use. */}
+            <span className="semiont-gather__skeleton-exact">"{pending.exact}"</span>
+            {pending.entityTypes.length > 0 && (
+              <span style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                {pending.entityTypes.map(et => (
+                  <span key={et} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.375rem', fontWeight: 400 }}>
+                    {et}
+                  </span>
+                ))}
+              </span>
+            )}
+          </div>
+          <div className="semiont-gather__skeleton-panes">
+            <div className="semiont-gather__skeleton-pane">
+              <div className="semiont-gather-pane__title">{t.graphPaneTitle}</div>
+              <div className="semiont-gather__skeleton-bar" />
+              <div className="semiont-gather__skeleton-bar" />
+              <div className="semiont-gather__skeleton-bar semiont-gather__skeleton-bar--short" />
+            </div>
+            <div className="semiont-gather__skeleton-pane">
+              <div className="semiont-gather-pane__title">{t.corpusPaneTitle}</div>
+              <div className="semiont-gather__skeleton-bar" />
+              <div className="semiont-gather__skeleton-bar" />
+              <div className="semiont-gather__skeleton-bar semiont-gather__skeleton-bar--short" />
+            </div>
+          </div>
+          <div className="semiont-gather__loading">
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <span className="semiont-gather__loading-dot" />
+              <span className="semiont-gather__loading-dot" />
+              <span className="semiont-gather__loading-dot" />
+            </div>
+            <span className="semiont-gather__loading-text">{t.loadingContext}</span>
+          </div>
+        </div>
+      )}
+      {contextLoading && !pending && (
         <div className="semiont-gather__loading">
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <span className="semiont-gather__loading-dot" />

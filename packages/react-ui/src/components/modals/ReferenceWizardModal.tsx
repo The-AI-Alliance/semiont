@@ -395,6 +395,7 @@ export function ReferenceWizardModal({
                     context={context}
                     contextLoading={contextLoading}
                     contextError={contextError}
+                    pending={{ exact: defaultTitle, entityTypes }}
                     annotate={{
                       userHint,
                       onUserHintChange: setUserHint,

@@ -424,6 +424,60 @@
   padding: 2rem 0;
 }
 
+/* The gather skeleton: the loading screen is the loaded screen minus the
+   data — known annotation facts up top, pane headers in place, shimmer bars
+   where the gather's answers will land. */
+.semiont-gather__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  flex: 1;
+}
+
+.semiont-gather__skeleton-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.semiont-gather__skeleton-exact {
+  font-weight: var(--semiont-font-medium);
+  color: var(--semiont-text-primary);
+}
+
+.semiont-gather__skeleton-panes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.semiont-gather__skeleton-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.semiont-gather__skeleton-bar {
+  height: 0.875rem;
+  border-radius: 0.25rem;
+  background: var(--semiont-color-gray-200);
+  animation: semiont-skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.semiont-gather__skeleton-bar--short {
+  width: 60%;
+}
+
+[data-theme="dark"] .semiont-gather__skeleton-bar {
+  background: var(--semiont-color-gray-700);
+}
+
+@keyframes semiont-skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
 .semiont-gather__loading-text {
   font-size: 1.125rem;
   color: var(--semiont-text-secondary);
