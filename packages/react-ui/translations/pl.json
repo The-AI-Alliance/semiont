@@ -246,7 +246,7 @@
     "noIncomingReferences": "Brak referencji przychodzących",
     "stub": "Referencja zastępcza (niepołączona)",
     "resolved": "Referencja rozwiązana (połączona)",
-    "derived": "Zasób pochodny",
+    "derived": "Pochodny",
     "open": "Otwórz",
     "unlink": "Odłącz",
     "resolve": "Rozwiąż referencję",
