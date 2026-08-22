@@ -61,8 +61,14 @@
   gap: 0.5rem;
 }
 
+/* Inline-flex with a gap so the control never touches its text — the gap on
+   the FIELD wrapper only helps when the input is a sibling; several forms
+   nest the input inside the label, where only this reaches. */
 .semiont-form__checkbox-label,
 .semiont-form__radio-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 0.875rem;
   color: var(--semiont-text-primary);
 }
@@ -272,7 +278,15 @@
 }
 
 /* Narrow modifier — fixed compact width for short numeric inputs */
+/* Sized by content with a floor, not a fixed box: a fixed 5.5rem wrapped
+   labels like "Max resources" onto two lines, which stretched that column
+   and knocked the row's inputs out of alignment. */
 .semiont-form__field--narrow {
-  width: 5.5rem;
+  width: auto;
+  min-width: 5.5rem;
   flex-shrink: 0;
+}
+
+.semiont-form__field--inline > .semiont-form__label {
+  white-space: nowrap;
 }
