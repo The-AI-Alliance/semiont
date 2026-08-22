@@ -639,7 +639,7 @@ export function ResourceViewerPage({
                 scrollToAnnotationId={scrollToAnnotationId}
                 hoveredAnnotationId={hoveredAnnotationId}
                 onScrollCompleted={onScrollCompleted}
-                initialTab={panelInitialTab?.tab as any}
+                initialTab={panelInitialTab?.tab}
                 initialTabGeneration={panelInitialTab?.generation}
                 Link={Link}
                 routes={routes}
