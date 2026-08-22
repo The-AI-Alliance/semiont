@@ -174,28 +174,38 @@
 }
 
 /* D8: the finished run's artifact, offered as a link. */
+/* The finished run's artifact — the ended frame's primary affordance
+   (GENERATION-ARRIVAL P1, D3's fallback): a button-shaped invitation to open
+   what was made, not an underlined footnote beside the bar. */
 .semiont-assist-progress__outcome {
-  align-self: flex-start;
-  padding: 0;
-  border: none;
-  background: none;
+  align-self: stretch;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--semiont-color-primary-300);
+  border-radius: 0.5rem;
+  background: var(--semiont-color-primary-50);
   cursor: pointer;
   font-size: var(--semiont-text-sm);
-  color: var(--semiont-color-primary-600);
-  text-decoration: underline;
+  font-weight: var(--semiont-font-medium);
+  color: var(--semiont-color-primary-700);
   text-align: left;
 }
 
 .semiont-assist-progress__outcome:hover {
-  color: var(--semiont-color-primary-700);
+  border-color: var(--semiont-color-primary-400);
+  background: var(--semiont-color-primary-100);
+  color: var(--semiont-color-primary-800);
 }
 
 [data-theme="dark"] .semiont-assist-progress__outcome {
-  color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-700);
+  background: var(--semiont-color-primary-900);
+  color: var(--semiont-color-primary-300);
 }
 
 [data-theme="dark"] .semiont-assist-progress__outcome:hover {
-  color: var(--semiont-color-primary-300);
+  border-color: var(--semiont-color-primary-600);
+  background: var(--semiont-color-primary-800);
+  color: var(--semiont-color-primary-200);
 }
 
 .semiont-assist-progress__params {

@@ -216,7 +216,22 @@ describe('createYieldStateUnit', () => {
     progressSubject.next(completeEvent(GEN_RESULT));
     progressSubject.complete();
 
-    expect(out.at(-1)).toEqual({ resourceId: 'res-new-1', resourceName: 'Summary of PB' });
+    expect(out.at(-1)).toEqual({ resourceId: 'res-new-1', resourceName: 'Summary of PB', truncated: false });
+    stateUnit.dispose();
+  });
+
+  it('outcome$ carries the truncated bit — the terminal frame derives its sentence from the OUTCOME, not the racing final progress frame (GENERATION-ARRIVAL D5)', () => {
+    const progressSubject = new Subject<YieldGenerationEvent>();
+    tc = withYield(vi.fn(() => progressSubject.asObservable()));
+    const stateUnit = createYieldStateUnit(tc.client, 'en');
+    const out: unknown[] = [];
+    stateUnit.outcome$.subscribe(v => out.push(v));
+
+    stateUnit.generate(CTX_RES, { title: 'T', storageUri: 's' });
+    progressSubject.next(completeEvent({ ...GEN_RESULT, truncated: true }));
+    progressSubject.complete();
+
+    expect(out.at(-1)).toEqual({ resourceId: 'res-new-1', resourceName: 'Summary of PB', truncated: true });
     stateUnit.dispose();
   });
 

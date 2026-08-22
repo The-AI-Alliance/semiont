@@ -221,6 +221,13 @@ export function ResourceInfoPanel({
                 label: generationOutcome.resourceName,
                 onOpen: () => session?.client.browse.openResource(generationOutcome.resourceId),
               },
+              // The terminal sentence derives from the OUTCOME, not the final
+              // progress frame — whose fire-and-forget emit can lose the race
+              // with job:complete and leave "creating…" beside a ✅
+              // (GENERATION-ARRIVAL D4/D5).
+              endedMessage: generationOutcome.truncated
+                ? ta('codeCompleteGeneratedTruncated')
+                : ta('codeCompleteGenerated'),
             } : {}),
             translations: assistProgressTranslations(ta),
           }}
