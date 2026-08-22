@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "Generierung konfigurieren",
     "gatherIntro": "Wählen Sie aus, was in den gesammelten Kontext aufgenommen werden soll.",
     "includeContent": "Ressourceninhalt einschließen",
     "includeSummary": "Zusammenfassung einschließen",
@@ -413,13 +412,10 @@
     "saveLocation": "Speicherort",
     "discardDraftPrompt": "Diesen Entwurf verwerfen?",
     "discardDraft": "Verwerfen",
-    "keepEditing": "Weiter bearbeiten"
+    "keepEditing": "Weiter bearbeiten",
+    "title": "Aus dieser Ressource generieren"
   },
   "ReferenceWizard": {
-    "gatherTitle": "Gesammelter Kontext",
-    "configureGenerationTitle": "Generierung konfigurieren",
-    "configureSearchTitle": "Suche konfigurieren",
-    "searchResultsTitle": "Suchergebnisse",
     "sourceContextLabel": "Annotationskontext in der Ressource",
     "connectionsLabel": "Peer-Annotationen",
     "citedByLabel": "Ressource zitiert von",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} aus diesem Abruf ausgeschlossen",
     "machineRead": "OCR",
     "userHintEffect": "steuert Suche und Generierung",
-    "composeTitle": "Ressource verfassen",
     "saveLocation": "Speicherort",
     "entityTypes": "Entitätstypen",
     "contentLabel": "Inhalt",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "Wird erstellt & verknüpft…",
     "discardDraftPrompt": "Diesen Entwurf verwerfen?",
     "discardDraft": "Verwerfen",
-    "keepEditing": "Weiter bearbeiten"
+    "keepEditing": "Weiter bearbeiten",
+    "resolveTitle": "Referenz auflösen"
   },
   "OutcomeToasts": {
     "createFailed": "Anmerkung konnte nicht erstellt werden: {{detail}}",

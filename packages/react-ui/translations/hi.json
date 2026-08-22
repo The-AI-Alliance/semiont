@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "जनरेशन कॉन्फ़िगर करें",
     "gatherIntro": "चुनें कि एकत्रित संदर्भ में क्या शामिल करना है।",
     "includeContent": "संसाधन सामग्री शामिल करें",
     "includeSummary": "सारांश शामिल करें",
@@ -413,13 +412,10 @@
     "saveLocation": "सहेजने का स्थान",
     "discardDraftPrompt": "क्या यह ड्राफ़्ट हटाएँ?",
     "discardDraft": "हटाएँ",
-    "keepEditing": "संपादन जारी रखें"
+    "keepEditing": "संपादन जारी रखें",
+    "title": "इस संसाधन से जनरेट करें"
   },
   "ReferenceWizard": {
-    "gatherTitle": "एकत्रित संदर्भ",
-    "configureGenerationTitle": "जनरेशन कॉन्फ़िगर करें",
-    "configureSearchTitle": "खोज कॉन्फ़िगर करें",
-    "searchResultsTitle": "खोज परिणाम",
     "sourceContextLabel": "संसाधन में एनोटेशन संदर्भ",
     "connectionsLabel": "पीयर एनोटेशन",
     "citedByLabel": "संसाधन द्वारा उद्धृत",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} इस रिकॉल से बाहर",
     "machineRead": "OCR",
     "userHintEffect": "खोज और जनरेशन को दिशा देता है",
-    "composeTitle": "संसाधन रचें",
     "saveLocation": "सहेजने का स्थान",
     "entityTypes": "इकाई प्रकार",
     "contentLabel": "सामग्री",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "बनाया और लिंक किया जा रहा है…",
     "discardDraftPrompt": "क्या यह ड्राफ़्ट हटाएँ?",
     "discardDraft": "हटाएँ",
-    "keepEditing": "संपादन जारी रखें"
+    "keepEditing": "संपादन जारी रखें",
+    "resolveTitle": "संदर्भ हल करें"
   },
   "OutcomeToasts": {
     "createFailed": "एनोटेशन नहीं बनाया जा सका: {{detail}}",

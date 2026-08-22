@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "Konfigurasi Generasi",
     "gatherIntro": "Pilih apa yang akan disertakan dalam konteks yang dikumpulkan.",
     "includeContent": "Sertakan konten sumber daya",
     "includeSummary": "Sertakan ringkasan",
@@ -413,13 +412,10 @@
     "saveLocation": "Lokasi penyimpanan",
     "discardDraftPrompt": "Buang draf ini?",
     "discardDraft": "Buang",
-    "keepEditing": "Lanjutkan menyunting"
+    "keepEditing": "Lanjutkan menyunting",
+    "title": "Hasilkan dari sumber ini"
   },
   "ReferenceWizard": {
-    "gatherTitle": "Konteks Terkumpul",
-    "configureGenerationTitle": "Konfigurasi Generasi",
-    "configureSearchTitle": "Konfigurasi pencarian",
-    "searchResultsTitle": "Hasil pencarian",
     "sourceContextLabel": "Konteks anotasi dalam sumber daya",
     "connectionsLabel": "Anotasi sejawat",
     "citedByLabel": "Sumber daya dikutip oleh",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} dikecualikan dari pengambilan ini",
     "machineRead": "OCR",
     "userHintEffect": "mengarahkan pencarian dan pembuatan",
-    "composeTitle": "Susun sumber daya",
     "saveLocation": "Lokasi penyimpanan",
     "entityTypes": "Jenis entitas",
     "contentLabel": "Konten",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "Membuat & menautkan…",
     "discardDraftPrompt": "Buang draf ini?",
     "discardDraft": "Buang",
-    "keepEditing": "Lanjutkan menyunting"
+    "keepEditing": "Lanjutkan menyunting",
+    "resolveTitle": "Selesaikan referensi"
   },
   "OutcomeToasts": {
     "createFailed": "Tidak dapat membuat anotasi: {{detail}}",

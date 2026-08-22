@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "Configurare Generare",
     "gatherIntro": "Alege ce să incluzi în contextul colectat.",
     "includeContent": "Include conținutul resursei",
     "includeSummary": "Include rezumatul",
@@ -413,13 +412,10 @@
     "saveLocation": "Locația salvării",
     "discardDraftPrompt": "Renunți la această ciornă?",
     "discardDraft": "Renunță",
-    "keepEditing": "Continuă editarea"
+    "keepEditing": "Continuă editarea",
+    "title": "Generează din această resursă"
   },
   "ReferenceWizard": {
-    "gatherTitle": "Context Colectat",
-    "configureGenerationTitle": "Configurare Generare",
-    "configureSearchTitle": "Configurare căutare",
-    "searchResultsTitle": "Rezultatele căutării",
     "sourceContextLabel": "Contextul adnotării în resursă",
     "connectionsLabel": "Adnotări similare",
     "citedByLabel": "Resursă citată de",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} excluse din această regăsire",
     "machineRead": "OCR",
     "userHintEffect": "ghidează căutarea și generarea",
-    "composeTitle": "Redactează resursa",
     "saveLocation": "Locația salvării",
     "entityTypes": "Tipuri de entități",
     "contentLabel": "Conținut",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "Se creează și se leagă…",
     "discardDraftPrompt": "Renunți la această ciornă?",
     "discardDraft": "Renunță",
-    "keepEditing": "Continuă editarea"
+    "keepEditing": "Continuă editarea",
+    "resolveTitle": "Rezolvă referința"
   },
   "OutcomeToasts": {
     "createFailed": "Nu s-a putut crea adnotarea: {{detail}}",

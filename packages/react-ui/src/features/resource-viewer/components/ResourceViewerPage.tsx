@@ -736,10 +736,7 @@ export function ResourceViewerPage({
         entityTypeOptions={allEntityTypes}
         hoverDelayMs={hoverDelayMs}
         translations={{
-          gatherTitle: tw('gatherTitle'),
-          configureGenerationTitle: tw('configureGenerationTitle'),
-          configureSearchTitle: tw('configureSearchTitle'),
-          searchResultsTitle: tw('searchResultsTitle'),
+          resolveTitle: tw('resolveTitle'),
           sourceContextLabel: tw('sourceContextLabel'),
           connectionsLabel: tw('connectionsLabel'),
           citedByLabel: tw('citedByLabel'),
@@ -780,7 +777,6 @@ export function ResourceViewerPage({
           semanticScoring: tw('semanticScoring'),
           semanticScoringHelp: tw('semanticScoringHelp'),
           searchFailed: tw('searchFailed'),
-          composeTitle: tw('composeTitle'),
           entityTypes: tw('entityTypes'),
           contentLabel: tw('contentLabel'),
           createAndLink: tw('createAndLink'),
@@ -808,7 +804,7 @@ export function ResourceViewerPage({
         gatherError={resourceGatherError}
         onGather={(options) => stateUnit?.gather.gatherResource(rUri, options)}
         translations={{
-          configureTitle: tg('configureTitle'),
+          title: tg('title'),
           gatherIntro: tg('gatherIntro'),
           includeContent: tg('includeContent'),
           includeSummary: tg('includeSummary'),

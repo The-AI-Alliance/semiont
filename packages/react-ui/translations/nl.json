@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "Generatie configureren",
     "gatherIntro": "Kies wat je wilt opnemen in de verzamelde context.",
     "includeContent": "Broninhoud opnemen",
     "includeSummary": "Samenvatting opnemen",
@@ -413,13 +412,10 @@
     "saveLocation": "Opslaglocatie",
     "discardDraftPrompt": "Dit concept verwerpen?",
     "discardDraft": "Verwerpen",
-    "keepEditing": "Doorgaan met bewerken"
+    "keepEditing": "Doorgaan met bewerken",
+    "title": "Genereren vanuit deze bron"
   },
   "ReferenceWizard": {
-    "gatherTitle": "Verzamelde context",
-    "configureGenerationTitle": "Generatie configureren",
-    "configureSearchTitle": "Zoeken configureren",
-    "searchResultsTitle": "Zoekresultaten",
     "sourceContextLabel": "Annotatiecontext in resource",
     "connectionsLabel": "Peer-annotaties",
     "citedByLabel": "Resource geciteerd door",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} uitgesloten van deze zoekronde",
     "machineRead": "OCR",
     "userHintEffect": "stuurt zoeken en genereren",
-    "composeTitle": "Bron opstellen",
     "saveLocation": "Opslaglocatie",
     "entityTypes": "Entiteitstypen",
     "contentLabel": "Inhoud",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "Bezig met maken & koppelen…",
     "discardDraftPrompt": "Dit concept verwerpen?",
     "discardDraft": "Verwerpen",
-    "keepEditing": "Doorgaan met bewerken"
+    "keepEditing": "Doorgaan met bewerken",
+    "resolveTitle": "Referentie oplossen"
   },
   "OutcomeToasts": {
     "createFailed": "Kon de annotatie niet maken: {{detail}}",

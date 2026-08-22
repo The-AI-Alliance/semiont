@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "配置生成",
     "gatherIntro": "选择要包含在收集的上下文中的内容。",
     "includeContent": "包含资源内容",
     "includeSummary": "包含摘要",
@@ -413,13 +412,10 @@
     "saveLocation": "保存位置",
     "discardDraftPrompt": "放弃此草稿？",
     "discardDraft": "放弃",
-    "keepEditing": "继续编辑"
+    "keepEditing": "继续编辑",
+    "title": "从此资源生成"
   },
   "ReferenceWizard": {
-    "gatherTitle": "已收集的上下文",
-    "configureGenerationTitle": "配置生成",
-    "configureSearchTitle": "配置搜索",
-    "searchResultsTitle": "搜索结果",
     "sourceContextLabel": "资源中的注释上下文",
     "connectionsLabel": "对等注释",
     "citedByLabel": "资源被引用",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} 已从本次召回中排除",
     "machineRead": "OCR",
     "userHintEffect": "引导搜索与生成",
-    "composeTitle": "撰写资源",
     "saveLocation": "保存位置",
     "entityTypes": "实体类型",
     "contentLabel": "内容",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "正在创建并链接…",
     "discardDraftPrompt": "放弃此草稿？",
     "discardDraft": "放弃",
-    "keepEditing": "继续编辑"
+    "keepEditing": "继续编辑",
+    "resolveTitle": "解析引用"
   },
   "OutcomeToasts": {
     "createFailed": "无法创建批注：{{detail}}",

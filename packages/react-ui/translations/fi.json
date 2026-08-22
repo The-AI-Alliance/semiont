@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "Määritä generointi",
     "gatherIntro": "Valitse, mitä sisällytetään kerättyyn kontekstiin.",
     "includeContent": "Sisällytä resurssin sisältö",
     "includeSummary": "Sisällytä yhteenveto",
@@ -413,13 +412,10 @@
     "saveLocation": "Tallennussijainti",
     "discardDraftPrompt": "Hylätäänkö tämä luonnos?",
     "discardDraft": "Hylkää",
-    "keepEditing": "Jatka muokkausta"
+    "keepEditing": "Jatka muokkausta",
+    "title": "Luo tästä resurssista"
   },
   "ReferenceWizard": {
-    "gatherTitle": "Kerätty konteksti",
-    "configureGenerationTitle": "Määritä generointi",
-    "configureSearchTitle": "Määritä haku",
-    "searchResultsTitle": "Hakutulokset",
     "sourceContextLabel": "Merkinnän konteksti resurssissa",
     "connectionsLabel": "Vertaismerkinnät",
     "citedByLabel": "Resurssia viittaa",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} jätetty pois tästä hausta",
     "machineRead": "OCR",
     "userHintEffect": "ohjaa hakua ja generointia",
-    "composeTitle": "Laadi resurssi",
     "saveLocation": "Tallennussijainti",
     "entityTypes": "Entiteettityypit",
     "contentLabel": "Sisältö",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "Luodaan ja linkitetään…",
     "discardDraftPrompt": "Hylätäänkö tämä luonnos?",
     "discardDraft": "Hylkää",
-    "keepEditing": "Jatka muokkausta"
+    "keepEditing": "Jatka muokkausta",
+    "resolveTitle": "Ratkaise viittaus"
   },
   "OutcomeToasts": {
     "createFailed": "Merkinnän luonti epäonnistui: {{detail}}",

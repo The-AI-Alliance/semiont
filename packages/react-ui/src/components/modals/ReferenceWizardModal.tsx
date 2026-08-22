@@ -71,10 +71,9 @@ export interface ReferenceWizardModalProps {
   hoverDelayMs?: number;
   /** Translation strings */
   translations: {
-    gatherTitle: string;
-    configureGenerationTitle: string;
-    configureSearchTitle: string;
-    searchResultsTitle: string;
+    /** The ONE title, all steps — the flow is resolving a reference; the
+        strategy band below says where in it you are. */
+    resolveTitle: string;
     sourceContextLabel: string;
     connectionsLabel: string;
     citedByLabel: string;
@@ -115,7 +114,6 @@ export interface ReferenceWizardModalProps {
     semanticScoring: string;
     semanticScoringHelp: string;
     searchFailed: string;
-    composeTitle: string;
     entityTypes: string;
     contentLabel: string;
     createAndLink: string;
@@ -334,16 +332,6 @@ export function ReferenceWizardModal({
     score: t.score,
   };
 
-  // Determine title based on step
-  const stepTitle = wizardStep.step === 'gather'
-    ? t.gatherTitle
-    : wizardStep.step === 'compose'
-      ? t.composeTitle
-    : wizardStep.step === 'configure-generation'
-      ? t.configureGenerationTitle
-      : wizardStep.step === 'configure-search'
-        ? t.configureSearchTitle
-        : t.searchResultsTitle;
 
   return (
     <Transition appear show={isOpen}>
@@ -376,7 +364,7 @@ export function ReferenceWizardModal({
               <DialogPanel className="semiont-search-modal__panel semiont-search-modal__panel--with-border semiont-search-modal__panel--gather semiont-search-modal__panel--wide">
                 <div className="semiont-search-modal__header">
                   <DialogTitle className="semiont-search-modal__title">
-                    {stepTitle}
+                    {t.resolveTitle}
                   </DialogTitle>
                   <button
                     onClick={handleDismiss}

@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "Konfigurer generering",
     "gatherIntro": "Velg hva som skal inkluderes i den samlede konteksten.",
     "includeContent": "Inkluder ressursinnhold",
     "includeSummary": "Inkluder sammendrag",
@@ -413,13 +412,10 @@
     "saveLocation": "Lagringssted",
     "discardDraftPrompt": "Forkaste dette utkastet?",
     "discardDraft": "Forkast",
-    "keepEditing": "Fortsett å redigere"
+    "keepEditing": "Fortsett å redigere",
+    "title": "Generer fra denne ressursen"
   },
   "ReferenceWizard": {
-    "gatherTitle": "Samlet kontekst",
-    "configureGenerationTitle": "Konfigurer generering",
-    "configureSearchTitle": "Konfigurer søk",
-    "searchResultsTitle": "Søkeresultater",
     "sourceContextLabel": "Annoteringskontekst i ressurs",
     "connectionsLabel": "Peer-annoteringer",
     "citedByLabel": "Ressurs sitert av",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} utelatt fra dette gjenfinnet",
     "machineRead": "OCR",
     "userHintEffect": "styrer søk og generering",
-    "composeTitle": "Skriv ressurs",
     "saveLocation": "Lagringssted",
     "entityTypes": "Entitetstyper",
     "contentLabel": "Innhold",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "Oppretter og kobler…",
     "discardDraftPrompt": "Forkaste dette utkastet?",
     "discardDraft": "Forkast",
-    "keepEditing": "Fortsett å redigere"
+    "keepEditing": "Fortsett å redigere",
+    "resolveTitle": "Løs referanse"
   },
   "OutcomeToasts": {
     "createFailed": "Kunne ikke opprette merknaden: {{detail}}",

@@ -45,8 +45,7 @@ const CONTEXT = {
 } as unknown as GatheredContext;
 
 const T = {
-  gatherTitle: 'Gathered Context', configureGenerationTitle: 'Configure Generation',
-  configureSearchTitle: 'Configure Search', searchResultsTitle: 'Search Results',
+  resolveTitle: 'Resolve Reference',
   sourceContextLabel: 'Source', connectionsLabel: 'Connections', citedByLabel: 'Cited by',
   userHintLabel: 'Hint', userHintEffect: 'steers Search and Generate',
   userHintPlaceholder: 'Describe what this refers to…',
@@ -64,7 +63,7 @@ const T = {
   maxLength: 'Max length', maxLengthHelp: '', maxLengthCeiling: 'Limited to {{maxOutputTokens}} by {{model}}.',
   maxResults: 'Max Results', semanticScoring: 'Semantic Scoring', semanticScoringHelp: '',
   searchFailed: 'Search failed',
-  composeTitle: 'Compose Resource', contentLabel: 'Content', entityTypes: 'Entity types',
+  contentLabel: 'Content', entityTypes: 'Entity types',
   createAndLink: 'Create & Link', creatingAndLinking: 'Creating…',
   discardDraftPrompt: 'Discard this draft?', discardDraft: 'Discard', keepEditing: 'Keep editing',
 };
@@ -147,7 +146,8 @@ describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.use
     // form below the evidence like the other strategies.
     renderWizard();
     await userEvent.click(screen.getByText(new RegExp(T.compose)));
-    expect(screen.getByText(T.composeTitle)).toBeInTheDocument(); // step title
+    expect(screen.getByRole('button', { name: T.createAndLink })).toBeInTheDocument(); // the compose form is open
+    expect(screen.getByText(T.resolveTitle)).toBeInTheDocument(); // ONE title, every step
     expect(screen.getByLabelText(T.resourceTitle)).toHaveValue('Caspian Sea'); // seeded draft
   });
 
@@ -171,7 +171,7 @@ describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.use
     // The step renders the context it was handed; the hint is visible in the
     // gathered-context panel it shows, which is only true if the ENRICHED
     // object was passed down rather than the raw prop.
-    expect(screen.getByText(T.configureGenerationTitle)).toBeInTheDocument();
+    expect(screen.getByLabelText(T.resourceTitle)).toBeInTheDocument();
   });
 
 });
@@ -216,7 +216,7 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
       referenceId: 'ann-1',
       response: [{ '@id': 'res-9', name: 'Caspian Sea', score: 54.2 }],
     } as never);
-    expect(await screen.findByText(T.searchResultsTitle)).toBeInTheDocument();
+    await screen.findByRole('button', { name: new RegExp(T.link) }); // results are up
 
     expect(baseElement.querySelector('.semiont-gather__source-box')).not.toBeNull(); // quotation strip
     expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();                  // graph pane
@@ -486,7 +486,7 @@ describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () =>
 
     // Back is lossless WITHIN a run (D3); a new run inherits nothing.
     expect(screen.getByPlaceholderText(T.userHintPlaceholder)).toHaveValue('');
-    expect(screen.getByText(T.gatherTitle)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `🔍 ${T.search}…` })).toBeInTheDocument(); // back on the gather step
   });
 });
 
@@ -509,8 +509,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
       response: [{ '@id': 'res-9', name: 'Caspian Sea', score: 54.2 }],
     } as never);
 
-    expect(await screen.findByText(T.searchResultsTitle)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: new RegExp(T.link) }));
+    await userEvent.click(await screen.findByRole('button', { name: new RegExp(T.link) }));
 
     expect(onLinkResource).toHaveBeenCalledWith('ann-1', 'res-9');
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -577,7 +576,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
       referenceId: 'someone-elses-annotation',
       response: [{ '@id': 'res-9', name: 'Caspian Sea' }],
     } as never);
-    expect(screen.getByText(T.gatherTitle)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `🔍 ${T.search}…` })).toBeInTheDocument(); // still the gather step
   });
 
   it('generation submits the step\'s config against this annotation, then closes', async () => {
@@ -595,9 +594,9 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
   it('retreats from a configure step back to the gather step', async () => {
     renderWizard();
     await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
-    expect(screen.getByText(T.configureGenerationTitle)).toBeInTheDocument();
+    expect(screen.getByLabelText(T.resourceTitle)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Back/ }));
-    expect(screen.getByText(T.gatherTitle)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `🔍 ${T.search}…` })).toBeInTheDocument();
   });
 });
 
@@ -613,7 +612,7 @@ describe('ReferenceWizardModal — nothing fires without an annotation to resolv
       renderWizard({ annotationId: null, resourceId: null });
 
     await userEvent.click(screen.getByText(new RegExp(T.compose)));
-    expect(screen.queryByText(T.composeTitle)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: T.createAndLink })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
     await userEvent.click(screen.getByRole('button', { name: T.search }));
@@ -623,7 +622,7 @@ describe('ReferenceWizardModal — nothing fires without an annotation to resolv
     client.bus.get('match:search-results').next({
       referenceId: 'ann-1', response: [{ '@id': 'res-9', name: 'X' }],
     } as never);
-    expect(screen.queryByText(T.searchResultsTitle)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: new RegExp(T.link) })).not.toBeInTheDocument();
     expect(onGenerateSubmit).not.toHaveBeenCalled();
   });
 });

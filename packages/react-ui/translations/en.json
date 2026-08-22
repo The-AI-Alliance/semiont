@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "Configure Generation",
     "gatherIntro": "Choose what to include in the gathered context.",
     "includeContent": "Include resource content",
     "includeSummary": "Include summary",
@@ -413,13 +412,10 @@
     "saveLocation": "Save location",
     "discardDraftPrompt": "Discard this draft?",
     "discardDraft": "Discard",
-    "keepEditing": "Keep editing"
+    "keepEditing": "Keep editing",
+    "title": "Generate from this Resource"
   },
   "ReferenceWizard": {
-    "gatherTitle": "Gathered Context",
-    "configureGenerationTitle": "Configure Generation",
-    "configureSearchTitle": "Configure Search",
-    "searchResultsTitle": "Search Results",
     "sourceContextLabel": "Annotation context in resource",
     "connectionsLabel": "Peer Annotations",
     "citedByLabel": "Resource Cited By",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} excluded from this recall",
     "machineRead": "OCR",
     "userHintEffect": "steers Search and Generate",
-    "composeTitle": "Compose Resource",
     "saveLocation": "Save location",
     "entityTypes": "Entity types",
     "contentLabel": "Content",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "Creating & linking…",
     "discardDraftPrompt": "Discard this draft?",
     "discardDraft": "Discard",
-    "keepEditing": "Keep editing"
+    "keepEditing": "Keep editing",
+    "resolveTitle": "Resolve Reference"
   },
   "OutcomeToasts": {
     "createFailed": "Couldn’t create the annotation: {{detail}}",

@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "Konfigurovat generování",
     "gatherIntro": "Vyberte, co zahrnout do shromážděného kontextu.",
     "includeContent": "Zahrnout obsah zdroje",
     "includeSummary": "Zahrnout souhrn",
@@ -413,13 +412,10 @@
     "saveLocation": "Umístění uložení",
     "discardDraftPrompt": "Zahodit tento koncept?",
     "discardDraft": "Zahodit",
-    "keepEditing": "Pokračovat v úpravách"
+    "keepEditing": "Pokračovat v úpravách",
+    "title": "Generovat z tohoto zdroje"
   },
   "ReferenceWizard": {
-    "gatherTitle": "Shromážděný kontext",
-    "configureGenerationTitle": "Konfigurovat generování",
-    "configureSearchTitle": "Konfigurovat hledání",
-    "searchResultsTitle": "Výsledky hledání",
     "sourceContextLabel": "Kontext anotace v prostředku",
     "connectionsLabel": "Partnerské anotace",
     "citedByLabel": "Prostředek citován",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} vyloučeno z tohoto vyhledání",
     "machineRead": "OCR",
     "userHintEffect": "řídí hledání i generování",
-    "composeTitle": "Sepsat zdroj",
     "saveLocation": "Umístění uložení",
     "entityTypes": "Typy entit",
     "contentLabel": "Obsah",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "Vytváření a propojování…",
     "discardDraftPrompt": "Zahodit tento koncept?",
     "discardDraft": "Zahodit",
-    "keepEditing": "Pokračovat v úpravách"
+    "keepEditing": "Pokračovat v úpravách",
+    "resolveTitle": "Vyřešit odkaz"
   },
   "OutcomeToasts": {
     "createFailed": "Anotaci se nepodařilo vytvořit: {{detail}}",

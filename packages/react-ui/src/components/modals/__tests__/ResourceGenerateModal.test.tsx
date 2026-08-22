@@ -27,7 +27,7 @@ const RESOURCE_CONTEXT = {
 } as unknown as GatheredContext;
 
 const T = {
-  configureTitle: 'Configure Generation',
+  title: 'Generate from this Resource',
   gatherIntro: 'Choose what to include.',
   includeContent: 'Include content',
   includeSummary: 'Include summary',
@@ -102,7 +102,7 @@ describe('ResourceGenerateModal', () => {
 
   it('renders nothing when closed', () => {
     renderModal({ isOpen: false });
-    expect(screen.queryByText(T.configureTitle)).not.toBeInTheDocument();
+    expect(screen.queryByText(T.title)).not.toBeInTheDocument();
   });
 
   it('opens with the gather controls at the top and nothing below them yet', () => {
@@ -110,7 +110,7 @@ describe('ResourceGenerateModal', () => {
     // even with a context PROP already present, nothing renders below the
     // controls until THIS run's gather fires.
     const { baseElement } = renderModal({ gatherContext: RESOURCE_CONTEXT });
-    expect(screen.getByText(T.configureTitle)).toBeInTheDocument(); // the one modal title
+    expect(screen.getByText(T.title)).toBeInTheDocument(); // the one modal title
     expect(screen.getByText(T.gatherIntro)).toBeInTheDocument();
     expect(screen.getByLabelText(T.includeContent)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Person' })).toBeInTheDocument();

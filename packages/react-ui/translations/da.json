@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "Konfigurer generering",
     "gatherIntro": "Vælg hvad der skal inkluderes i den indsamlede kontekst.",
     "includeContent": "Inkluder ressourceindhold",
     "includeSummary": "Inkluder resumé",
@@ -413,13 +412,10 @@
     "saveLocation": "Placering",
     "discardDraftPrompt": "Kassér denne kladde?",
     "discardDraft": "Kassér",
-    "keepEditing": "Fortsæt redigering"
+    "keepEditing": "Fortsæt redigering",
+    "title": "Generér fra denne ressource"
   },
   "ReferenceWizard": {
-    "gatherTitle": "Indsamlet kontekst",
-    "configureGenerationTitle": "Konfigurer generering",
-    "configureSearchTitle": "Konfigurer søgning",
-    "searchResultsTitle": "Søgeresultater",
     "sourceContextLabel": "Annoteringskontekst i ressource",
     "connectionsLabel": "Peer-annoteringer",
     "citedByLabel": "Ressource citeret af",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} udeladt fra denne søgning",
     "machineRead": "OCR",
     "userHintEffect": "styrer søgning og generering",
-    "composeTitle": "Skriv ressource",
     "saveLocation": "Placering",
     "entityTypes": "Enhedstyper",
     "contentLabel": "Indhold",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "Opretter og forbinder…",
     "discardDraftPrompt": "Kassér denne kladde?",
     "discardDraft": "Kassér",
-    "keepEditing": "Fortsæt redigering"
+    "keepEditing": "Fortsæt redigering",
+    "resolveTitle": "Løs reference"
   },
   "OutcomeToasts": {
     "createFailed": "Kunne ikke oprette annotationen: {{detail}}",

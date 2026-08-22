@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "กำหนดค่าการสร้าง",
     "gatherIntro": "เลือกสิ่งที่จะรวมไว้ในบริบทที่รวบรวม",
     "includeContent": "รวมเนื้อหาทรัพยากร",
     "includeSummary": "รวมบทสรุป",
@@ -413,13 +412,10 @@
     "saveLocation": "ตำแหน่งบันทึก",
     "discardDraftPrompt": "ละทิ้งฉบับร่างนี้หรือไม่",
     "discardDraft": "ละทิ้ง",
-    "keepEditing": "แก้ไขต่อ"
+    "keepEditing": "แก้ไขต่อ",
+    "title": "สร้างจากทรัพยากรนี้"
   },
   "ReferenceWizard": {
-    "gatherTitle": "บริบทที่รวบรวมแล้ว",
-    "configureGenerationTitle": "กำหนดค่าการสร้าง",
-    "configureSearchTitle": "กำหนดค่าการค้นหา",
-    "searchResultsTitle": "ผลการค้นหา",
     "sourceContextLabel": "บริบทคำอธิบายประกอบในทรัพยากร",
     "connectionsLabel": "คำอธิบายประกอบของเพื่อนร่วมงาน",
     "citedByLabel": "ทรัพยากรอ้างอิงโดย",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} ถูกยกเว้นจากการเรียกคืนนี้",
     "machineRead": "OCR",
     "userHintEffect": "กำกับการค้นหาและการสร้าง",
-    "composeTitle": "เรียบเรียงทรัพยากร",
     "saveLocation": "ตำแหน่งบันทึก",
     "entityTypes": "ประเภทเอนทิตี",
     "contentLabel": "เนื้อหา",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "กำลังสร้างและเชื่อมโยง…",
     "discardDraftPrompt": "ละทิ้งฉบับร่างนี้หรือไม่",
     "discardDraft": "ละทิ้ง",
-    "keepEditing": "แก้ไขต่อ"
+    "keepEditing": "แก้ไขต่อ",
+    "resolveTitle": "แก้ไขการอ้างอิง"
   },
   "OutcomeToasts": {
     "createFailed": "สร้างคำอธิบายประกอบไม่สำเร็จ: {{detail}}",

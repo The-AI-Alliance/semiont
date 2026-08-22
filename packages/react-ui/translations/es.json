@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "Configurar Generación",
     "gatherIntro": "Elija qué incluir en el contexto recopilado.",
     "includeContent": "Incluir contenido del recurso",
     "includeSummary": "Incluir resumen",
@@ -413,13 +412,10 @@
     "saveLocation": "Ubicación de guardado",
     "discardDraftPrompt": "¿Descartar este borrador?",
     "discardDraft": "Descartar",
-    "keepEditing": "Seguir editando"
+    "keepEditing": "Seguir editando",
+    "title": "Generar desde este recurso"
   },
   "ReferenceWizard": {
-    "gatherTitle": "Contexto Recopilado",
-    "configureGenerationTitle": "Configurar Generación",
-    "configureSearchTitle": "Configurar búsqueda",
-    "searchResultsTitle": "Resultados de búsqueda",
     "sourceContextLabel": "Contexto de la anotación en el recurso",
     "connectionsLabel": "Anotaciones de pares",
     "citedByLabel": "Recurso citado por",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} excluidos de esta recuperación",
     "machineRead": "OCR",
     "userHintEffect": "guía la búsqueda y la generación",
-    "composeTitle": "Redactar recurso",
     "saveLocation": "Ubicación de guardado",
     "entityTypes": "Tipos de entidad",
     "contentLabel": "Contenido",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "Creando y vinculando…",
     "discardDraftPrompt": "¿Descartar este borrador?",
     "discardDraft": "Descartar",
-    "keepEditing": "Seguir editando"
+    "keepEditing": "Seguir editando",
+    "resolveTitle": "Resolver referencia"
   },
   "OutcomeToasts": {
     "createFailed": "No se pudo crear la anotación: {{detail}}",

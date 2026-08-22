@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "生成の設定",
     "gatherIntro": "収集するコンテキストに含める内容を選択してください。",
     "includeContent": "リソースのコンテンツを含める",
     "includeSummary": "要約を含める",
@@ -413,13 +412,10 @@
     "saveLocation": "保存先",
     "discardDraftPrompt": "この下書きを破棄しますか？",
     "discardDraft": "破棄",
-    "keepEditing": "編集を続ける"
+    "keepEditing": "編集を続ける",
+    "title": "このリソースから生成"
   },
   "ReferenceWizard": {
-    "gatherTitle": "収集済みコンテキスト",
-    "configureGenerationTitle": "生成の設定",
-    "configureSearchTitle": "検索の設定",
-    "searchResultsTitle": "検索結果",
     "sourceContextLabel": "リソース内のアノテーションコンテキスト",
     "connectionsLabel": "ピアアノテーション",
     "citedByLabel": "リソースの引用元",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} はこのリコールから除外",
     "machineRead": "OCR",
     "userHintEffect": "検索と生成を導きます",
-    "composeTitle": "リソースを作成",
     "saveLocation": "保存先",
     "entityTypes": "エンティティタイプ",
     "contentLabel": "内容",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "作成してリンク中…",
     "discardDraftPrompt": "この下書きを破棄しますか？",
     "discardDraft": "破棄",
-    "keepEditing": "編集を続ける"
+    "keepEditing": "編集を続ける",
+    "resolveTitle": "参照を解決"
   },
   "OutcomeToasts": {
     "createFailed": "注釈を作成できませんでした: {{detail}}",

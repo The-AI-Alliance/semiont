@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "Ρύθμιση Παραγωγής",
     "gatherIntro": "Επιλέξτε τι θα συμπεριληφθεί στο συλλεγμένο πλαίσιο.",
     "includeContent": "Συμπερίληψη περιεχομένου πόρου",
     "includeSummary": "Συμπερίληψη περίληψης",
@@ -413,13 +412,10 @@
     "saveLocation": "Θέση αποθήκευσης",
     "discardDraftPrompt": "Απόρριψη αυτού του προσχεδίου;",
     "discardDraft": "Απόρριψη",
-    "keepEditing": "Συνέχεια επεξεργασίας"
+    "keepEditing": "Συνέχεια επεξεργασίας",
+    "title": "Δημιουργία από αυτόν τον πόρο"
   },
   "ReferenceWizard": {
-    "gatherTitle": "Συλλεγμένο Πλαίσιο",
-    "configureGenerationTitle": "Ρύθμιση Παραγωγής",
-    "configureSearchTitle": "Ρύθμιση αναζήτησης",
-    "searchResultsTitle": "Αποτελέσματα αναζήτησης",
     "sourceContextLabel": "Πλαίσιο σχολιασμού στον πόρο",
     "connectionsLabel": "Ομότιμοι σχολιασμοί",
     "citedByLabel": "Πόρος αναφέρεται από",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} εξαιρέθηκαν από αυτήν την ανάκληση",
     "machineRead": "OCR",
     "userHintEffect": "κατευθύνει την αναζήτηση και τη δημιουργία",
-    "composeTitle": "Σύνταξη πόρου",
     "saveLocation": "Θέση αποθήκευσης",
     "entityTypes": "Τύποι οντοτήτων",
     "contentLabel": "Περιεχόμενο",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "Δημιουργία & σύνδεση…",
     "discardDraftPrompt": "Απόρριψη αυτού του προσχεδίου;",
     "discardDraft": "Απόρριψη",
-    "keepEditing": "Συνέχεια επεξεργασίας"
+    "keepEditing": "Συνέχεια επεξεργασίας",
+    "resolveTitle": "Επίλυση αναφοράς"
   },
   "OutcomeToasts": {
     "createFailed": "Δεν ήταν δυνατή η δημιουργία του σχολιασμού: {{detail}}",

@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "تكوين التوليد",
     "gatherIntro": "اختر ما تريد تضمينه في السياق المُجمَّع.",
     "includeContent": "تضمين محتوى المورد",
     "includeSummary": "تضمين الملخص",
@@ -413,13 +412,10 @@
     "saveLocation": "موقع الحفظ",
     "discardDraftPrompt": "هل تريد تجاهل هذه المسودة؟",
     "discardDraft": "تجاهل",
-    "keepEditing": "متابعة التحرير"
+    "keepEditing": "متابعة التحرير",
+    "title": "إنشاء من هذا المورد"
   },
   "ReferenceWizard": {
-    "gatherTitle": "السياق المُجمَّع",
-    "configureGenerationTitle": "تكوين التوليد",
-    "configureSearchTitle": "إعدادات البحث",
-    "searchResultsTitle": "نتائج البحث",
     "sourceContextLabel": "سياق التعليق التوضيحي في المورد",
     "connectionsLabel": "التعليقات التوضيحية للأقران",
     "citedByLabel": "المورد مُستشهد به من قِبل",
@@ -459,7 +455,6 @@
     "excludedReceipt": "استُبعد {{types}} من هذا الاسترجاع",
     "machineRead": "OCR",
     "userHintEffect": "يوجّه البحث والتوليد",
-    "composeTitle": "تأليف مورد",
     "saveLocation": "موقع الحفظ",
     "entityTypes": "أنواع الكيانات",
     "contentLabel": "المحتوى",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "جارٍ الإنشاء والربط…",
     "discardDraftPrompt": "هل تريد تجاهل هذه المسودة؟",
     "discardDraft": "تجاهل",
-    "keepEditing": "متابعة التحرير"
+    "keepEditing": "متابعة التحرير",
+    "resolveTitle": "حل المرجع"
   },
   "OutcomeToasts": {
     "createFailed": "تعذّر إنشاء التعليق التوضيحي: {{detail}}",

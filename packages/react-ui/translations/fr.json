@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "Configurer la génération",
     "gatherIntro": "Choisissez ce qu'il faut inclure dans le contexte collecté.",
     "includeContent": "Inclure le contenu de la ressource",
     "includeSummary": "Inclure le résumé",
@@ -413,13 +412,10 @@
     "saveLocation": "Emplacement d'enregistrement",
     "discardDraftPrompt": "Abandonner ce brouillon ?",
     "discardDraft": "Abandonner",
-    "keepEditing": "Continuer la modification"
+    "keepEditing": "Continuer la modification",
+    "title": "Générer à partir de cette ressource"
   },
   "ReferenceWizard": {
-    "gatherTitle": "Contexte collecté",
-    "configureGenerationTitle": "Configurer la génération",
-    "configureSearchTitle": "Configurer la recherche",
-    "searchResultsTitle": "Résultats de recherche",
     "sourceContextLabel": "Contexte de l'annotation dans la ressource",
     "connectionsLabel": "Annotations associées",
     "citedByLabel": "Ressource citée par",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} exclus de cette recherche",
     "machineRead": "OCR",
     "userHintEffect": "guide la recherche et la génération",
-    "composeTitle": "Rédiger une ressource",
     "saveLocation": "Emplacement d'enregistrement",
     "entityTypes": "Types d'entités",
     "contentLabel": "Contenu",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "Création et liaison…",
     "discardDraftPrompt": "Abandonner ce brouillon ?",
     "discardDraft": "Abandonner",
-    "keepEditing": "Continuer la modification"
+    "keepEditing": "Continuer la modification",
+    "resolveTitle": "Résoudre la référence"
   },
   "OutcomeToasts": {
     "createFailed": "Impossible de créer l’annotation : {{detail}}",

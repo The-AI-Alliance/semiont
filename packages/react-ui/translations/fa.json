@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "پیکربندی تولید",
     "gatherIntro": "آنچه را که باید در زمینه جمع‌آوری‌شده گنجانده شود انتخاب کنید.",
     "includeContent": "شامل محتوای منبع",
     "includeSummary": "شامل خلاصه",
@@ -413,13 +412,10 @@
     "saveLocation": "محل ذخیره",
     "discardDraftPrompt": "این پیش‌نویس دور انداخته شود؟",
     "discardDraft": "دور انداختن",
-    "keepEditing": "ادامه ویرایش"
+    "keepEditing": "ادامه ویرایش",
+    "title": "تولید از این منبع"
   },
   "ReferenceWizard": {
-    "gatherTitle": "زمینه جمع‌آوری‌شده",
-    "configureGenerationTitle": "پیکربندی تولید",
-    "configureSearchTitle": "پیکربندی جستجو",
-    "searchResultsTitle": "نتایج جستجو",
     "sourceContextLabel": "زمینه حاشیه‌نویسی در منبع",
     "connectionsLabel": "حاشیه‌نویسی‌های همتا",
     "citedByLabel": "منبع ارجاع شده توسط",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} از این بازیابی کنار گذاشته شد",
     "machineRead": "OCR",
     "userHintEffect": "جست‌وجو و تولید را هدایت می‌کند",
-    "composeTitle": "نگارش منبع",
     "saveLocation": "محل ذخیره",
     "entityTypes": "انواع موجودیت",
     "contentLabel": "محتوا",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "در حال ایجاد و پیوند…",
     "discardDraftPrompt": "این پیش‌نویس دور انداخته شود؟",
     "discardDraft": "دور انداختن",
-    "keepEditing": "ادامه ویرایش"
+    "keepEditing": "ادامه ویرایش",
+    "resolveTitle": "حل ارجاع"
   },
   "OutcomeToasts": {
     "createFailed": "ایجاد حاشیه‌نویسی ممکن نشد: {{detail}}",

@@ -10,8 +10,8 @@ import { GatherContextStep } from './GatherContextStep';
 import { ConfigureGenerationStep, type GenerationConfig, type GenerationDraft } from './ConfigureGenerationStep';
 
 export interface ResourceGenerateModalTranslations {
-  // The one modal title (GATHER-AT-THE-TOP D7)
-  configureTitle: string;
+  /** The ONE modal title — names the flow, not a step. */
+  title: string;
   // ConfigureGatherStep
   gatherIntro: string;
   includeContent: string;
@@ -247,7 +247,7 @@ export function ResourceGenerateModal({
             >
               <DialogPanel className="semiont-search-modal__panel semiont-search-modal__panel--with-border semiont-search-modal__panel--gather semiont-search-modal__panel--wide">
                 <div className="semiont-search-modal__header">
-                  <DialogTitle className="semiont-search-modal__title">{t.configureTitle}</DialogTitle>
+                  <DialogTitle className="semiont-search-modal__title">{t.title}</DialogTitle>
                   <button onClick={handleDismiss} className="semiont-search-modal__close-button" aria-label="Close">
                     ✕
                   </button>

@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "Налаштувати генерацію",
     "gatherIntro": "Виберіть, що включити до зібраного контексту.",
     "includeContent": "Включити вміст ресурсу",
     "includeSummary": "Включити підсумок",
@@ -413,13 +412,10 @@
     "saveLocation": "Розташування збереження",
     "discardDraftPrompt": "Відхилити цю чернетку?",
     "discardDraft": "Відхилити",
-    "keepEditing": "Продовжити редагування"
+    "keepEditing": "Продовжити редагування",
+    "title": "Згенерувати з цього ресурсу"
   },
   "ReferenceWizard": {
-    "gatherTitle": "Зібраний контекст",
-    "configureGenerationTitle": "Налаштувати генерацію",
-    "configureSearchTitle": "Налаштувати пошук",
-    "searchResultsTitle": "Результати пошуку",
     "sourceContextLabel": "Контекст анотації в ресурсі",
     "connectionsLabel": "Однорівневі анотації",
     "citedByLabel": "Ресурс цитується",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} виключено з цього відбору",
     "machineRead": "OCR",
     "userHintEffect": "спрямовує пошук і генерацію",
-    "composeTitle": "Написати ресурс",
     "saveLocation": "Розташування збереження",
     "entityTypes": "Типи сутностей",
     "contentLabel": "Вміст",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "Створення й пов'язування…",
     "discardDraftPrompt": "Відхилити цю чернетку?",
     "discardDraft": "Відхилити",
-    "keepEditing": "Продовжити редагування"
+    "keepEditing": "Продовжити редагування",
+    "resolveTitle": "Розв'язати посилання"
   },
   "OutcomeToasts": {
     "createFailed": "Не вдалося створити анотацію: {{detail}}",

@@ -377,7 +377,6 @@
   },
   "AnnotateView": {},
   "ResourceGenerate": {
-    "configureTitle": "জেনারেশন কনফিগার করুন",
     "gatherIntro": "সংগৃহীত প্রসঙ্গে কী অন্তর্ভুক্ত করবেন তা বেছে নিন।",
     "includeContent": "সম্পদের বিষয়বস্তু অন্তর্ভুক্ত করুন",
     "includeSummary": "সারসংক্ষেপ অন্তর্ভুক্ত করুন",
@@ -413,13 +412,10 @@
     "saveLocation": "সংরক্ষণের অবস্থান",
     "discardDraftPrompt": "এই খসড়াটি বাতিল করবেন?",
     "discardDraft": "বাতিল করুন",
-    "keepEditing": "সম্পাদনা চালিয়ে যান"
+    "keepEditing": "সম্পাদনা চালিয়ে যান",
+    "title": "এই রিসোর্স থেকে তৈরি করুন"
   },
   "ReferenceWizard": {
-    "gatherTitle": "সংগৃহীত প্রসঙ্গ",
-    "configureGenerationTitle": "জেনারেশন কনফিগার করুন",
-    "configureSearchTitle": "অনুসন্ধান কনফিগার করুন",
-    "searchResultsTitle": "অনুসন্ধান ফলাফল",
     "sourceContextLabel": "সম্পদে টীকার প্রসঙ্গ",
     "connectionsLabel": "সমকক্ষ টীকাসমূহ",
     "citedByLabel": "সম্পদ উদ্ধৃতকারী",
@@ -459,7 +455,6 @@
     "excludedReceipt": "{{types}} এই রিকল থেকে বাদ",
     "machineRead": "OCR",
     "userHintEffect": "অনুসন্ধান ও জেনারেট পরিচালনা করে",
-    "composeTitle": "রিসোর্স রচনা",
     "saveLocation": "সংরক্ষণের অবস্থান",
     "entityTypes": "সত্তার ধরন",
     "contentLabel": "বিষয়বস্তু",
@@ -467,7 +462,8 @@
     "creatingAndLinking": "তৈরি ও লিঙ্ক করা হচ্ছে…",
     "discardDraftPrompt": "এই খসড়াটি বাতিল করবেন?",
     "discardDraft": "বাতিল করুন",
-    "keepEditing": "সম্পাদনা চালিয়ে যান"
+    "keepEditing": "সম্পাদনা চালিয়ে যান",
+    "resolveTitle": "রেফারেন্স সমাধান"
   },
   "OutcomeToasts": {
     "createFailed": "টীকা তৈরি করা যায়নি: {{detail}}",
