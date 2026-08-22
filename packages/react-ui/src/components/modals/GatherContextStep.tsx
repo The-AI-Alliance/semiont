@@ -44,7 +44,7 @@ export interface GatherContextStepProps {
    * data, not a blank modal with dots. Omit (the resource-gather path) for
    * the plain loading block.
    */
-  pending?: { exact: string; entityTypes: string[] };
+  pending?: { exact: string; entityTypes: string[]; resourceName?: string };
   /** Omit for a display-only (e.g. resource-focus) render. */
   annotate?: GatherContextStepAnnotate;
   /**
@@ -88,6 +88,59 @@ export function GatherContextStep({
     }
   }, [context]);
 
+  // Shared by the loaded view and the loading skeleton (the Hint is wizard
+  // state — safely typed while the gather runs — and the chooser's buttons
+  // already gate on contextReady). One JSX, two hosts: never two copies.
+  const hintRow = annotate && (
+    <div className="semiont-gather__hint-row">
+      <div className="semiont-form__field">
+        <label className="semiont-form__label">
+          {annotate.translations.userHintLabel}
+          <span className="semiont-gather__hint-effect"> — {annotate.translations.userHintEffect}</span>
+        </label>
+        <textarea
+          value={annotate.userHint}
+          onChange={(e) => annotate.onUserHintChange(e.target.value)}
+          placeholder={annotate.translations.userHintPlaceholder}
+          className="semiont-search-modal__search-input semiont-gather__hint-textarea"
+          style={{ resize: 'vertical', fontFamily: 'inherit' }}
+        />
+      </div>
+    </div>
+  );
+
+  const strategyFooter = annotate && (
+    <div className="semiont-gather__footer">
+      <div className="semiont-gather__footer-label">{annotate.translations.resolutionStrategyLabel}</div>
+      <div className="semiont-gather__actions">
+        <button
+          type="button"
+          onClick={annotate.onBind}
+          disabled={!contextReady}
+          className="semiont-button--primary semiont-button--flex"
+        >
+          🔍 {annotate.translations.search}…
+        </button>
+        <button
+          type="button"
+          onClick={annotate.onGenerate}
+          disabled={!contextReady}
+          className="semiont-button--primary semiont-button--flex"
+        >
+          ✨ {annotate.translations.generate}…
+        </button>
+        <button
+          type="button"
+          onClick={annotate.onCompose}
+          disabled={!contextReady}
+          className="semiont-button--secondary semiont-button--flex"
+        >
+          ✍️ {annotate.translations.compose}
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="semiont-gather__outer">
       {/* Loading / error states. With a `pending` preview the loading screen
@@ -96,6 +149,11 @@ export function GatherContextStep({
           what the gather will fill. */}
       {contextLoading && pending && (
         <div className="semiont-gather__skeleton" role="status">
+          {pending.resourceName && (
+            <div className="semiont-gather__skeleton-source">
+              {t.sourceContextLabel}{` "${pending.resourceName}"`}
+            </div>
+          )}
           <div className="semiont-gather__skeleton-header">
             {/* Straight quotes — the same presentation the panel entries use. */}
             <span className="semiont-gather__skeleton-exact">"{pending.exact}"</span>
@@ -131,6 +189,8 @@ export function GatherContextStep({
             </div>
             <span className="semiont-gather__loading-text">{t.loadingContext}</span>
           </div>
+          {hintRow}
+          {strategyFooter}
         </div>
       )}
       {contextLoading && !pending && (
@@ -257,23 +317,7 @@ export function GatherContextStep({
           {/* Hint: full width, input-then-act adjacency above the footer
               (GEP D5). The label states its effect. Typing does NOT re-run
               recall — the panes are the at-gather evidence. */}
-          {focus && annotate && (
-            <div className="semiont-gather__hint-row">
-              <div className="semiont-form__field">
-                <label className="semiont-form__label">
-                  {annotate.translations.userHintLabel}
-                  <span className="semiont-gather__hint-effect"> — {annotate.translations.userHintEffect}</span>
-                </label>
-                <textarea
-                  value={annotate.userHint}
-                  onChange={(e) => annotate.onUserHintChange(e.target.value)}
-                  placeholder={annotate.translations.userHintPlaceholder}
-                  className="semiont-search-modal__search-input semiont-gather__hint-textarea"
-                  style={{ resize: 'vertical', fontFamily: 'inherit' }}
-                />
-              </div>
-            </div>
-          )}
+          {focus && hintRow}
 
           {/* Full-width footer: resolution strategy (annotation-wizard callers only).
               The THIRD footer species — a CHOOSER — and the deliberate exception to
@@ -288,37 +332,7 @@ export function GatherContextStep({
                 demotion is the recorded convention, not drift;
               • ellipses are component-owned and mark step-vs-act: Search…/Generate…
                 lead to another step; Compose acts immediately (navigates away). */}
-          {focus && annotate && (
-            <div className="semiont-gather__footer">
-              <div className="semiont-gather__footer-label">{annotate.translations.resolutionStrategyLabel}</div>
-              <div className="semiont-gather__actions">
-                <button
-                  type="button"
-                  onClick={annotate.onBind}
-                  disabled={!contextReady}
-                  className="semiont-button--primary semiont-button--flex"
-                >
-                  🔍 {annotate.translations.search}…
-                </button>
-                <button
-                  type="button"
-                  onClick={annotate.onGenerate}
-                  disabled={!contextReady}
-                  className="semiont-button--primary semiont-button--flex"
-                >
-                  ✨ {annotate.translations.generate}…
-                </button>
-                <button
-                  type="button"
-                  onClick={annotate.onCompose}
-                  disabled={!contextReady}
-                  className="semiont-button--secondary semiont-button--flex"
-                >
-                  ✍️ {annotate.translations.compose}
-                </button>
-              </div>
-            </div>
-          )}
+          {focus && strategyFooter}
           {!annotate && chosenStrategy && (
             <div className="semiont-gather__footer">
               <div className="semiont-gather__footer-label">{chosenStrategy.label}</div>

@@ -434,6 +434,11 @@
   flex: 1;
 }
 
+.semiont-gather__skeleton-source {
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-secondary);
+}
+
 .semiont-gather__skeleton-header {
   display: flex;
   align-items: center;

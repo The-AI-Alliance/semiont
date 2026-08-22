@@ -725,6 +725,7 @@ export function ResourceViewerPage({
         resourceId={wizardResourceId}
         defaultTitle={wizardDefaultTitle}
         entityTypes={wizardEntityTypes}
+        resourceName={resource.name}
         locale={locale}
         context={gatherContext}
         contextLoading={gatherLoading}

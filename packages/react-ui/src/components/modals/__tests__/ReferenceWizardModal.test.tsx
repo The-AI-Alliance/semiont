@@ -431,6 +431,36 @@ describe('ReferenceWizardModal — the gather skeleton', () => {
     expect(screen.getByText(T.loadingContext)).toBeInTheDocument();     // still says loading
     expect(baseElement.querySelectorAll('.semiont-gather__skeleton-bar').length).toBeGreaterThan(0);
   });
+
+  it('the source line, Hint, and strategy chooser render during loading — buttons grayed until context lands', () => {
+    // The resource name is a page fact (the wizard opens FROM the source
+    // resource); the Hint is wizard state, safely typed while the gather
+    // runs; the chooser's buttons already gate on contextReady.
+    renderWizard({ context: null, contextLoading: true, resourceName: 'Cedar County, Iowa' });
+
+    expect(screen.getByText(/Source "Cedar County, Iowa"/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(T.userHintPlaceholder)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Search…/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Generate…/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: new RegExp(T.compose) })).toBeDisabled();
+  });
+
+  it('a hint typed during the gather survives context arrival', () => {
+    const { rerender, onClose, onComposeSubmit, onGenerateSubmit, onLinkResource } = renderWizard({ context: null, contextLoading: true });
+    fireEvent.change(screen.getByPlaceholderText(T.userHintPlaceholder), { target: { value: 'early steer' } });
+
+    rerender(
+      <ReferenceWizardModal
+        isOpen onClose={onClose} annotationId="ann-1" resourceId="res-1"
+        defaultTitle="Caspian Sea" entityTypes={['Location']}
+        entityTypeOptions={['Person', 'Topic', 'Location']} locale="en"
+        context={CONTEXT} contextLoading={false} contextError={null}
+        onGenerateSubmit={onGenerateSubmit} onLinkResource={onLinkResource}
+        onComposeSubmit={onComposeSubmit} translations={T}
+      />,
+    );
+    expect(screen.getByPlaceholderText(T.userHintPlaceholder)).toHaveValue('early steer');
+  });
 });
 
 describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () => {

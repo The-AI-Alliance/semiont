@@ -44,6 +44,12 @@ export interface ReferenceWizardModalProps {
   defaultTitle: string;
   /** Entity types from the annotation */
   entityTypes: string[];
+  /**
+   * The source resource's display name — a page fact (the wizard opens FROM
+   * that resource), shown in the gather skeleton's source line before the
+   * gathered context can say it itself.
+   */
+  resourceName?: string;
   /** Current locale for generation defaults */
   locale: string;
   /** Gathered context state */
@@ -127,6 +133,7 @@ export function ReferenceWizardModal({
   resourceId,
   defaultTitle,
   entityTypes,
+  resourceName,
   locale,
   context,
   contextLoading,
@@ -395,7 +402,7 @@ export function ReferenceWizardModal({
                     context={context}
                     contextLoading={contextLoading}
                     contextError={contextError}
-                    pending={{ exact: defaultTitle, entityTypes }}
+                    pending={{ exact: defaultTitle, entityTypes, ...(resourceName ? { resourceName } : {}) }}
                     annotate={{
                       userHint,
                       onUserHintChange: setUserHint,
