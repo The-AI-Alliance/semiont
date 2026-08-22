@@ -242,6 +242,13 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
     expect(footer!.textContent).toContain(T.resolutionStrategyLabel);
     expect(footer!.textContent).toContain(`✨ ${T.generate}`);
     expect(footer!.querySelectorAll('button')).toHaveLength(0);
+    // The echo is a receipt LINE, not a control row: label and value share
+    // the --echo band, and the chooser's button-row wrapper is gone — the
+    // value must never sit where controls sit (it wore a control's costume:
+    // inherited base size + link blue).
+    expect(footer!.className).toContain('semiont-gather__footer--echo');
+    expect(footer!.querySelector('.semiont-gather__actions')).toBeNull();
+    expect(footer!.querySelector('.semiont-gather__chosen-strategy')).not.toBeNull();
     expect(screen.queryByText(new RegExp(`^🔍 ${T.search}…`))).not.toBeInTheDocument();
     const panel = baseElement.querySelector('.semiont-search-modal__panel')!;
     expect(panel.className).toContain('semiont-search-modal__panel--wide');

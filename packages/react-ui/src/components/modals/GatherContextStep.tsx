@@ -338,11 +338,9 @@ export function GatherContextStep({
                 lead to another step; Compose acts immediately (navigates away). */}
           {focus && strategyFooter}
           {!annotate && chosenStrategy && (
-            <div className="semiont-gather__footer">
+            <div className="semiont-gather__footer semiont-gather__footer--echo">
               <div className="semiont-gather__footer-label">{chosenStrategy.label}</div>
-              <div className="semiont-gather__actions">
-                <span className="semiont-gather__chosen-strategy">{chosenStrategy.value}</span>
-              </div>
+              <span className="semiont-gather__chosen-strategy">{chosenStrategy.value}</span>
             </div>
           )}
         </>

@@ -754,14 +754,23 @@
 }
 
 /* The chosen strategy on a strategy step — the chooser band collapsed to its
-   selection: a passive echo, styled as the standing choice, never a control. */
-.semiont-gather__chosen-strategy {
-  font-weight: var(--semiont-font-semibold);
-  color: var(--semiont-color-primary-600);
+   selection: a passive echo on the label's own line (--echo). Sized like the
+   form's text and in the TEXT color: blue is reserved for controls, and this
+   is never a control — the emoji carries the strategy's identity. */
+.semiont-gather__footer--echo {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
 }
 
-[data-theme="dark"] .semiont-gather__chosen-strategy {
-  color: var(--semiont-color-primary-400);
+.semiont-gather__footer--echo .semiont-gather__footer-label {
+  margin-bottom: 0;
+}
+
+.semiont-gather__chosen-strategy {
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-semibold);
+  color: var(--semiont-text-primary);
 }
 
 .semiont-gather__actions {
