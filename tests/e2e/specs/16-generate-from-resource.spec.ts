@@ -6,11 +6,10 @@ import { test, expect } from '../fixtures/auth';
  *
  * Flow (ResourceViewerPage → ResourceInfoPanel → ResourceGenerateModal):
  *   Resource Info panel → **Generate** button (above Clone)
- *     → modal opens on `configure-gather`
+ *     → modal opens as one composite stack (GATHER-AT-THE-TOP #1211)
  *     → [P4] exclude an entity type from recall
  *     → Gather → real `gather:resource-requested`→`-complete` round-trip
- *     → `review` step renders the resource `GatheredContext` (kind-aware GatherContextStep)
- *     → Next → `configure-generation`
+ *     → evidence unfolds below; generation params mount under it
  *     → Generate → `yield.fromContext` (resource focus) runs the `generation` job → new derived resource.
  *
  * Covers the seams unit tests can't reach under the #900 native-binding skew:
