@@ -634,13 +634,6 @@
   stroke: var(--semiont-color-primary-400);
 }
 
-.semiont-graph__cited-line {
-  margin: 0;
-  font-size: var(--semiont-text-xs);
-  font-variant-numeric: tabular-nums;
-  color: var(--semiont-text-tertiary);
-}
-
 /* GEP D5: the hint on its own full-width row, input-then-act above the footer. */
 .semiont-gather__hint-row {
   flex-shrink: 0;

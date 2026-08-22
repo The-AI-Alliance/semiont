@@ -357,8 +357,6 @@ describe('GatheredContext display — resource focus', () => {
     expect(pane.querySelectorAll('.semiont-graph__node')).toHaveLength(4);
     expect(pane.querySelectorAll('.semiont-graph__edge')).toHaveLength(3);
     expect(pane.querySelector('ul')).toBeNull(); // replaced, not joined
-    // cited-by count stays visible WITHOUT hover
-    expect(pane.textContent).toContain('Cited by (1)');
   });
 
   it('the focal node is visually distinct, and there is exactly one (P4)', () => {
@@ -399,6 +397,79 @@ describe('GatheredContext display — resource focus', () => {
     const first = positions();
     expect(first.length).toBeGreaterThan(0);
     expect(positions()).toBe(first);
+  });
+
+  // ── Graph geometry — compaction + wrap, everything draws (no-clipping) ─────
+  // The layout adapts to what's populated: absent citer/peer layers free their
+  // columns for the sibling band to wrap into, and the viewBox shrinks to the
+  // columns actually used. Nothing is ever capped or hidden — overflow rides
+  // the wizard pane's scroll.
+
+  /** Focal resource + N sibling annotations, no citers, no peers. */
+  function middleOnlyContext(siblingCount: number): GatheredContext {
+    return {
+      ...(resourceContext() as object),
+      graph: {
+        nodes: [
+          { id: 'res-1', type: 'resource', label: 'My Resource' },
+          ...Array.from({ length: siblingCount }, (_, i) => ({
+            id: `ann-${i}`, type: 'annotation', label: 'commenting',
+            annotation: { id: `ann-${i}`, motivation: 'commenting',
+              target: { source: 'res-1', selector: [
+                { type: 'TextQuoteSelector', exact: `span ${i}` },
+              ] },
+              body: [] },
+          })),
+        ],
+        edges: Array.from({ length: siblingCount }, (_, i) => ({
+          source: `ann-${i}`, target: 'res-1', type: 'annotation-of',
+        })),
+      },
+    } as unknown as GatheredContext;
+  }
+
+  describe('graph geometry adapts to the populated layers', () => {
+    it('a lone sibling collapses to one natural-size column — no dead thirds', () => {
+      const { container } = render(<ContextSummary context={middleOnlyContext(1)} translations={t} />);
+      const svg = container.querySelector('svg')!;
+      // One 180-wide column + margins; two rows (focal above, sibling below).
+      expect(svg.getAttribute('viewBox')).toBe('0 0 196 120');
+      // Natural-size cap: 1 viewBox unit never exceeds 1px, so a narrow graph
+      // renders small instead of stretching to fill the pane.
+      expect((svg as SVGElement).style.maxWidth).toBe('196px');
+    });
+
+    it('siblings wrap into the freed columns instead of chaining (5 → 3-across grid)', () => {
+      const { container } = render(<ContextSummary context={middleOnlyContext(5)} translations={t} />);
+      const svg = container.querySelector('svg')!;
+      // Three columns, three rows (focal + two sibling rows) — not six rows.
+      expect(svg.getAttribute('viewBox')).toBe('0 0 628 172');
+      const rects = Array.from(container.querySelectorAll('.semiont-graph__node--annotation rect'));
+      expect(new Set(rects.map((r) => r.getAttribute('x')))).toEqual(new Set(['8', '224', '440']));
+      expect(Math.max(...rects.map((r) => Number(r.getAttribute('y'))))).toBe(112); // row 2
+    });
+
+    it('wrap compacts, never clips — every sibling and edge still draws', () => {
+      const { container } = render(<ContextSummary context={middleOnlyContext(11)} translations={t} />);
+      expect(container.querySelectorAll('.semiont-graph__node--annotation')).toHaveLength(11);
+      expect(container.querySelectorAll('.semiont-graph__edge--annotation-of')).toHaveLength(11);
+    });
+
+    it('a fully populated graph keeps the three-layer full-width shape', () => {
+      // vizContext has citers AND peers — no freed columns, the middle band
+      // stays a single column and the chain is the correct rendering.
+      const { container } = renderViz();
+      const svg = container.querySelector('svg')!;
+      expect(svg.getAttribute('viewBox')!.startsWith('0 0 628 ')).toBe(true);
+    });
+
+    it('the floating cited-line caption is gone — the drawn citer nodes ARE the count', () => {
+      const { container } = renderViz();
+      const pane = container.querySelector('.semiont-gather-pane--graph')!;
+      expect(container.querySelector('[data-node-id="res-3"]')).not.toBeNull(); // citer drawn
+      expect(pane.querySelector('.semiont-graph__cited-line')).toBeNull();
+      expect(pane.textContent).not.toContain('Cited by (1)');
+    });
   });
 
   it('an annotation focus WITHOUT the annotate group renders display-only (GFR A2)', () => {

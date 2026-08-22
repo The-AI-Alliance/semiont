@@ -28,7 +28,7 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
   const focalAnnotationId = context.focus.kind === 'annotation'
     ? context.focus.annotation.id
     : undefined;
-  const { connections, citedBy, citedByCount } = deriveViews(
+  const { connections, citedBy } = deriveViews(
     context.graph,
     mainResourceId,
     focalAnnotationId,
@@ -65,11 +65,16 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
 
   // ── Deterministic layered layout (D3): citers | focal + siblings | peers ──
   // Positions derive from array order alone — no physics, no randomness.
+  // Geometry adapts to what's populated (no-clipping principle): an absent
+  // citer/peer layer frees its column for the sibling band to wrap into, and
+  // the viewBox shrinks to the columns actually used. Everything always draws
+  // — overflow rides the wizard pane's scroll, never a cap.
   const NODE_W = 180;
   const NODE_H = 34;
   const ROW = 52;
   const TOP = 8;
-  const COL_X = [8, 224, 440];
+  const COL_PITCH = 216;
+  const colX = (col: number) => 8 + col * COL_PITCH;
 
   type DrawnNode = {
     id: string; label: string; kind: 'focal' | 'resource' | 'annotation';
@@ -86,12 +91,22 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
   const drawn: DrawnNode[] = [];
   const drawnEdges: DrawnEdge[] = [];
 
-  const focal: DrawnNode = { id: mainResourceId, label: focalLabel, kind: 'focal', hover: focalLabel, x: COL_X[1]!, y: TOP };
+  // The sibling band wraps across the columns absent layers free (3 total).
+  const hasCiters = citedBy.length > 0;
+  const hasPeers = connections.length > 0;
+  const bandCols = Math.max(1, Math.min(
+    3 - (hasCiters ? 1 : 0) - (hasPeers ? 1 : 0),
+    siblings.length,
+  ));
+  const bandCol0 = hasCiters ? 1 : 0;
+  const numCols = (hasCiters ? 1 : 0) + bandCols + (hasPeers ? 1 : 0);
+
+  const focal: DrawnNode = { id: mainResourceId, label: focalLabel, kind: 'focal', hover: focalLabel, x: colX(bandCol0), y: TOP };
   drawn.push(focal);
 
   citedBy.forEach((c, i) => {
     const node: DrawnNode = { id: c.resourceId, label: c.resourceName, kind: 'resource',
-      hover: `${c.resourceName}\n${t.citedByLabel}`, x: COL_X[0]!, y: TOP + i * ROW };
+      hover: `${c.resourceName}\n${t.citedByLabel}`, x: colX(0), y: TOP + i * ROW };
     drawn.push(node);
     drawnEdges.push({ key: `cites-${c.resourceId}`, kind: 'cites', hover: 'cites',
       x1: node.x + NODE_W, y1: node.y + NODE_H / 2, x2: focal.x, y2: focal.y + NODE_H / 2 });
@@ -101,8 +116,10 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
     const types = rank(c.entityTypes);
     const node: DrawnNode = { id: c.resourceId, label: c.resourceName, kind: 'resource',
       hover: types.length ? `${c.resourceName}\n${types.join(', ')}` : c.resourceName,
-      x: COL_X[2]!, y: TOP + i * ROW };
+      x: colX(bandCol0 + bandCols), y: TOP + i * ROW };
     drawn.push(node);
+    // With a multi-column band the line crosses the band's row 0, which only
+    // ever holds the focal node in the band's FIRST column — so it stays clear.
     drawnEdges.push({ key: `peer-${c.resourceId}`, kind: 'peer',
       hover: c.bidirectional ? `${t.connectionsLabel} · mutual` : t.connectionsLabel,
       x1: focal.x + NODE_W, y1: focal.y + NODE_H / 2, x2: node.x, y2: node.y + NODE_H / 2 });
@@ -123,16 +140,17 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
     const hover = [quote, motivation, body, types.length ? types.join(', ') : undefined]
       .filter(Boolean).join('\n');
     const node: DrawnNode = { id: s.id, label: quote || s.label, kind: 'annotation',
-      hover, x: COL_X[1]!, y: TOP + (i + 1) * ROW };
+      hover, x: colX(bandCol0 + (i % bandCols)), y: TOP + (1 + Math.floor(i / bandCols)) * ROW };
     drawn.push(node);
     drawnEdges.push({ key: `annof-${s.id}`, kind: 'annotation-of', hover: 'annotation-of',
       x1: focal.x + NODE_W / 2, y1: focal.y + NODE_H, x2: node.x + NODE_W / 2, y2: node.y });
   });
 
-  const rows = Math.max(citedBy.length, 1 + siblings.length, connections.length);
+  const rows = Math.max(citedBy.length, 1 + Math.ceil(siblings.length / bandCols), connections.length);
+  const width = numCols * COL_PITCH - 20;
   const height = TOP + rows * ROW + 8;
   const truncate = (s: string) => (s.length > 22 ? `${s.slice(0, 21)}…` : s);
-  const hasBody = connections.length > 0 || citedByCount > 0 || siblings.length > 0;
+  const hasBody = connections.length > 0 || citedBy.length > 0 || siblings.length > 0;
 
   // GEP P4: this component IS the graph pane, and its body IS a graph — a
   // hand-rolled deterministic SVG (D3: no physics, no library, no pan-zoom;
@@ -148,10 +166,12 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
         <p className="semiont-gather-pane__empty">{t.graphEmpty}</p>
       )}
       {hasBody && (
-        <>
           <svg
             className="semiont-graph"
-            viewBox={`0 0 628 ${height}`}
+            viewBox={`0 0 ${width} ${height}`}
+            // Natural-size cap: 1 viewBox unit never exceeds 1px, so a compact
+            // graph renders small instead of stretching to fill the pane.
+            style={{ maxWidth: `${width}px` }}
             role="img"
             aria-label={t.graphPaneTitle}
           >
@@ -173,10 +193,6 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
               </g>
             ))}
           </svg>
-          {citedByCount > 0 && (
-            <p className="semiont-graph__cited-line">← {t.citedByLabel} ({citedByCount})</p>
-          )}
-        </>
       )}
     </div>
   );
