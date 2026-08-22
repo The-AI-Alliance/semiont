@@ -18,19 +18,15 @@ import { test, expect } from '../fixtures/auth';
  * (gather + generation) make this slow — hence the long timeout.
  *
  * Selectors are label-independent where it matters: the Info panel opens via the
- * Toolbar's `button[data-panel="info"]`; the exclusion chips are
- * `.semiont-form__entity-type-button`; progress is asserted on the bus
+ * Toolbar's `button[data-panel="info"]`; the recall chips are
+ * `.semiont-form__recall-chip`; progress is asserted on the bus
  * (i18n-independent). The few accessible-name selectors use the `ResourceGenerate`
  * / `ResourceInfoPanel` en.json labels — now only **Generate** and **Gather**.
- *
- * The flow is ONE composite stack as of GATHER-AT-THE-TOP (#1211): gather
- * controls (top) → evidence → generation params (bottom). There is no review
- * step, no Next, and no per-step titles, so progress is asserted structurally.
  *
  * Requires: the seeded KB has the default entity types (for the P4 exclusion).
  */
 test.describe('generate from resource', () => {
-  test('Generate button → gather round-trips → review → generation yields a derived resource', async ({ signedInPage: page, bus }) => {
+  test('Generate button → gather round-trips → generation yields a derived resource', async ({ signedInPage: page, bus }) => {
     test.setTimeout(180_000);
 
     // Open the first resource.
