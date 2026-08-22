@@ -154,7 +154,11 @@ export function ReferenceEntry({
           )}
           {!selectedText && (
             <div className="semiont-annotation-entry__meta">
-              {annotationType}
+              {/* A resource-level annotation with a resolved, named target is
+                  a derivation (the shape generation mints — the vocabulary
+                  deliberately has no 'deriving' purpose): qualify the link
+                  line below instead of showing the generic type label. */}
+              {!selector && resolvedDocumentName ? t('derived') : annotationType}
             </div>
           )}
           {resolvedDocumentName && (

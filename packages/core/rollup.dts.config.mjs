@@ -72,8 +72,36 @@ function selfExternal({ ownShards, redirects = {} }) {
   };
 }
 
+/**
+ * The generated validators ship AS a `.d.cts` in `src/`, and tsc does not copy
+ * declaration inputs into `dist-types/` — so the openapi entry's one relative
+ * import has nothing to resolve there. Point it at the generated declaration
+ * itself; its own `components` import falls through to `selfExternal`, which
+ * externalizes it to `@semiont/core` rather than inlining all of `types.ts`.
+ */
+function resolveGeneratedValidators() {
+  return {
+    name: 'dts-generated-validators',
+    resolveId(source) {
+      if (source.endsWith('generated/openapi-validators.cjs')) {
+        return resolve(__dirname, 'src/generated/openapi-validators.d.cts');
+      }
+      return null;
+    },
+  };
+}
+
 const entries = [
   { input: 'dist-types/index.d.ts', file: 'dist/index.d.ts' },
+  // `@semiont/core/openapi` — the generated validators' declarations. Its own
+  // shard is the generated `.d.ts`, which types each validator against
+  // `components['schemas'][…]` from the same bundle.
+  {
+    input: 'dist-types/openapi.d.ts',
+    file: 'dist/openapi.d.ts',
+    selfExternal: { ownShards: new Set(['openapi']) },
+    prePlugins: [resolveGeneratedValidators()],
+  },
   { input: 'dist-types/config/node-config-loader.d.ts', file: 'dist/config/node-config-loader.d.ts' },
   {
     input: 'dist-types/testing.d.ts',
@@ -90,9 +118,9 @@ const entries = [
   },
 ];
 
-export default entries.map(({ input, file, selfExternal: cfg }) => ({
+export default entries.map(({ input, file, selfExternal: cfg, prePlugins = [] }) => ({
   input,
   output: { file, format: 'es' },
-  plugins: cfg ? [selfExternal(cfg), dts()] : [dts()],
+  plugins: [...prePlugins, ...(cfg ? [selfExternal(cfg)] : []), dts()],
   external: isExternal,
 }));

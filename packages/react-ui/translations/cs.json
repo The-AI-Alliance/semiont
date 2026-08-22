@@ -246,6 +246,7 @@
     "noIncomingReferences": "Žádné příchozí reference",
     "stub": "Neúplná reference (nepropojená)",
     "resolved": "Vyřešená reference (propojená)",
+    "derived": "Odvozeno",
     "open": "Otevřít",
     "unlink": "Odpojit",
     "resolve": "Vyřešit referenci",

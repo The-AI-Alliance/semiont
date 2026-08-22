@@ -246,6 +246,7 @@
     "noIncomingReferences": "Ei saapuvia viitteitä",
     "stub": "Tynkäviite (ei linkitetty)",
     "resolved": "Ratkaistu viite (linkitetty)",
+    "derived": "Johdettu",
     "open": "Avaa",
     "unlink": "Poista linkki",
     "resolve": "Ratkaise viite",

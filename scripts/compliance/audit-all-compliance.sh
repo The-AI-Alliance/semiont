@@ -45,6 +45,12 @@ echo ""
 echo "🕸️  Checking Weaver invariants (no event-store/fs, standalone-only, single mark/signal writer, channel↔fold sync)..."
 bash "$COMPLIANCE_DIR/audit-weaver-invariants.sh"
 echo ""
+# One annotation codec for all four graph stores (GRAPH-ANNOTATION-CODEC A1/A5)
+echo "🗺️  Checking the graph annotation codec (single envelope, no manufactured values)..."
+bash "$COMPLIANCE_DIR/audit-graph-annotation-codec.sh"
+bash "$COMPLIANCE_DIR/audit-spec-validator.sh"
+echo ""
+
 # SDK doc snippets compile against dist (SAFE-DOCS; post-build — FAILS if dist is
 # missing, since a gate that silently skips proves nothing; run build:packages first)
 echo "📚 Checking sdk doc snippets..."

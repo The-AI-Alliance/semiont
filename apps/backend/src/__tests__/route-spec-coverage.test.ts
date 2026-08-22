@@ -1067,7 +1067,7 @@ describe('Spec Contract Hygiene', () => {
 // Every spec operation declaring a JSON request body promises a
 // contract: the handler only ever receives payloads matching the
 // declared schema. The way the backend delivers on that promise
-// today is `validateRequestBody('<SchemaName>')` middleware. A spec
+// today is `validateRequestBody(validators.<SchemaName>)` middleware. A spec
 // entry claiming a schema, with no matching middleware call in
 // source, is a spec that lies about its contract.
 //
@@ -1100,7 +1100,9 @@ describe('Request-Body Validation', () => {
       }
     }
 
-    // Recursively scan backend source for `validateRequestBody('Name')` calls.
+    // Recursively scan backend source for `validateRequestBody(validators.Name)`
+    // calls — the validators are generated from the spec, so the name in source
+    // is the schema name by construction rather than by a matching string.
     const srcDir = path.join(process.cwd(), 'src');
     const validatedSchemas = new Set<string>();
     async function walk(dir: string): Promise<void> {
@@ -1112,7 +1114,7 @@ describe('Request-Body Validation', () => {
           await walk(full);
         } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx'))) {
           const content = await fs.readFile(full, 'utf-8');
-          for (const m of content.matchAll(/validateRequestBody\s*\(\s*['"]([A-Za-z0-9_]+)['"]\s*\)/g)) {
+          for (const m of content.matchAll(/validateRequestBody\s*\(\s*validators\.([A-Za-z0-9_]+)\s*\)/g)) {
             validatedSchemas.add(m[1]!);
           }
         }

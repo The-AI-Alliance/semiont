@@ -16,9 +16,11 @@ import type {
   ResourceId,
   AnnotationId,
 } from '@semiont/core';
-import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource, getResourceId, getPrimaryRepresentation, getResourceEntityTypes } from '@semiont/core';
+import { getEntityTypes } from '@semiont/ontology';
+import { buildAnnotation, decodeAnnotation, encodeAnnotation } from '../annotation-codec';
 import type { ResourceDescriptor } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
 
@@ -112,17 +114,15 @@ export class MemoryGraphDatabase implements GraphDatabase {
     // (the event-log id is what deletes and lookups arrive under).
     const id = input.id;
 
-    // Only linking motivation with SpecificResource or empty array (stub)
-    const annotation: Annotation = {
-      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-      'type': 'Annotation' as const,
-      id: makeAnnotationId(id),
-      motivation: input.motivation,
-      target: input.target,
-      body: input.body,
-      creator: input.creator,
-      created: new Date().toISOString(),
-    };
+    // Nothing here needs serializing — but this store is the reference the
+    // interface-contract suite runs against, and a reference that cannot
+    // exhibit what the real stores exhibit is why four codec divergences
+    // survived. So the annotation round-trips through the codec: what a Map
+    // hands back is exactly what Cypher and Gremlin hand back.
+    const annotation = decodeAnnotation(
+      encodeAnnotation(buildAnnotation(input, new Date().toISOString())),
+      getEntityTypes(input)
+    );
 
     this.annotations.set(id, annotation);
     this.logger?.debug('Created annotation', {
@@ -212,17 +212,10 @@ export class MemoryGraphDatabase implements GraphDatabase {
   async getEntityReferences(resourceId: ResourceId, entityTypes?: string[]): Promise<Annotation[]> {
     const resourceIdStr = String(resourceId);
     let refs = Array.from(this.annotations.values())
-      .filter(sel => {
-        if (getTargetSource(sel.target) !== resourceIdStr) return false;
-        const bodyEntityTypes = (sel.body as any)?.entityTypes;
-        return Array.isArray(bodyEntityTypes) && bodyEntityTypes.length > 0;
-      });
+      .filter(sel => getTargetSource(sel.target) === resourceIdStr && getEntityTypes(sel).length > 0);
 
     if (entityTypes && entityTypes.length > 0) {
-      refs = refs.filter(sel => {
-        const bodyEntityTypes = (sel.body as any)?.entityTypes || [];
-        return bodyEntityTypes.some((type: string) => entityTypes.includes(type));
-      });
+      refs = refs.filter(sel => getEntityTypes(sel).some(type => entityTypes.includes(type)));
     }
 
     return refs;
@@ -354,10 +347,9 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const highlightCount = annotations.filter(a => a.motivation === 'highlighting').length;
     const referenceCount = annotations.filter(a => a.motivation === 'linking').length;
     // Extract entity types from annotation body
-    const entityReferenceCount = annotations.filter(a => {
-      const bodyEntityTypes = (a.body as any)?.entityTypes;
-      return a.motivation === 'linking' && Array.isArray(bodyEntityTypes) && bodyEntityTypes.length > 0;
-    }).length;
+    const entityReferenceCount = annotations.filter(
+      a => a.motivation === 'linking' && getEntityTypes(a).length > 0
+    ).length;
     
     return {
       resourceCount: this.resources.size,

@@ -246,6 +246,7 @@
     "noIncomingReferences": "Ingen innkommende referanser",
     "stub": "Stubreferanse (ikke koblet)",
     "resolved": "Løst referanse (koblet)",
+    "derived": "Avledet",
     "open": "Åpne",
     "unlink": "Fjern kobling",
     "resolve": "Løs referanse",
