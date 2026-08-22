@@ -24,20 +24,9 @@ import { test, expect } from '../fixtures/auth';
  * (i18n-independent). The few accessible-name selectors use the `ResourceGenerate`
  * / `ResourceInfoPanel` en.json labels — now only **Generate** and **Gather**.
  *
- * REWRITTEN 2026-08-22 for GATHER-AT-THE-TOP (#1211), which folded the flow from
- * three step-pages into one composite stack:
- *
- *     was:  [Configure gather] --Gather--> [Review evidence] --Next--> [Params]
- *     now:  gather controls (top) → evidence → generation params (bottom)
- *
- * Four assertions died with it and are NOT to be reinstated: the three per-step
- * titles (D7 deleted those keys ×29 — the strings do not exist in the product),
- * and `Next` (D1 dissolved the review step, whose only action it was). They are
- * replaced by structural gates — `.semiont-gather-receipt` and the mount of
- * `#wizard-title` — which assert the same guarantees without naming copy.
- *
- * This spec was NOT updated when #1211 landed and went red on the next full run.
- * If the flow changes shape again, that is the failure to expect.
+ * The flow is ONE composite stack as of GATHER-AT-THE-TOP (#1211): gather
+ * controls (top) → evidence → generation params (bottom). There is no review
+ * step, no Next, and no per-step titles, so progress is asserted structurally.
  *
  * Requires: the seeded KB has the default entity types (for the P4 exclusion).
  */

@@ -49,21 +49,9 @@ const MAP = {
 
 const resourceIdFromUrl = (page: Page) => page.url().split('/').pop()!.split('?')[0];
 
-/**
- * Read the STORED annotations for a resource the way any client would.
- *
- * This replaces a `bearerToken(page)` helper that scanned every localStorage
- * key for the first value matching a JWT *shape* and used it as a bearer.
- * It was guessing, and the guess was never right: the app puts NO token in
- * localStorage — every `setItem` in react-ui is a UI preference (theme, panel
- * widths, `assist-section-expanded-*`), and the sdk uses sessionStorage only
- * for cache persistence. So the helper returned either some unrelated
- * dot-separated string or `''`, and `Bearer ` produced a 401.
- *
- * That made this assertion a lottery on `Object.keys(localStorage)` order,
- * which is why `:100` passed and `:127` failed in the SAME file on
- * 2026-08-22 — not a token expiring. It had been latent since it was written.
- */
+/** Read the STORED annotations the way any client would — a separate signed-in
+ *  client, so a pass proves the quote persisted rather than that the browser
+ *  still holds it. */
 async function storedAnnotations(resourceId: string) {
   const client = await SemiontClient.signInHttp({
     baseUrl: BACKEND_URL,
@@ -164,16 +152,9 @@ test.describe('scanned PDF annotations quote the server-derived map', () => {
     // carries a quote built from a map the browser could not have read. A
     // panel renders `getExactText` off this; the selector is the thing that
     // has to be right.
-    // Read it back through the SDK, as any client would — a separate signed-in
-    // client, so this proves the quote PERSISTED rather than that the browser
-    // still holds it in memory.
     const stored = await storedAnnotations(resourceIdFromUrl(page));
     expect(stored.length, 'the drawn rectangle persisted an annotation').toBeGreaterThan(0);
 
-    // Structural, not a substring of serialized JSON-LD: `Annotation.selector`
-    // is the typed union, so assert the TextQuoteSelector member carries the
-    // quote. The old raw-text assertion (`"TextQuoteSelector","exact":"…"`)
-    // pinned key ORDER in the serializer, which nothing promises.
     const quotes = stored.flatMap((a) => {
       const sel = (a.target as { selector?: unknown }).selector;
       const all = Array.isArray(sel) ? sel : sel ? [sel] : [];
