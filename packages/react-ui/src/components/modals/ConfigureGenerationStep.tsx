@@ -211,7 +211,7 @@ export function ConfigureGenerationStep({
           </select>
         </div>
 
-        <div className="semiont-form__field semiont-form__field--inline semiont-form__field--grow">
+        <div className="semiont-form__field semiont-form__field--inline semiont-form__field--slider">
           <label htmlFor="wizard-temperature" className="semiont-form__label">
             {t.creativity} ({temperature.toFixed(1)})
           </label>
@@ -255,19 +255,23 @@ export function ConfigureGenerationStep({
             }}
             className="semiont-input"
           />
-          <p className="semiont-form__help">
-            {generationAgent?.limits
-              ? t.maxLengthCeiling
-                  .replace('{{maxOutputTokens}}', String(ceiling))
-                  .replace(
-                    '{{model}}',
-                    (generationAgent.agent as { model?: string; name?: string }).model
-                      ?? generationAgent.agent.name,
-                  )
-              : t.maxLengthHelp}
-          </p>
         </div>
       </div>
+
+      {/* The bound, as a full sentence — which is why it lives UNDER the row,
+          never inside the 5.5rem Max Length column: a sentence in that box
+          wraps one word per line and its height taxes the whole flex row. */}
+      <p className="semiont-form__help semiont-form__help--row">
+        {generationAgent?.limits
+          ? t.maxLengthCeiling
+              .replace('{{maxOutputTokens}}', String(ceiling))
+              .replace(
+                '{{model}}',
+                (generationAgent.agent as { model?: string; name?: string }).model
+                  ?? generationAgent.agent.name,
+              )
+          : t.maxLengthHelp}
+      </p>
 
       <WizardFooter
         {...(onBack && t.back ? { backLabel: t.back, onBack } : {})}

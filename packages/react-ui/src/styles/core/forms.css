@@ -97,6 +97,13 @@
   color: var(--semiont-text-secondary);
 }
 
+/* A help sentence scoped to a whole inline row rather than one column —
+   full width under the row, so its height never stretches the row's flex
+   siblings. */
+.semiont-form__help--row {
+  margin-top: 0.5rem;
+}
+
 /* Fieldset and legend */
 .semiont-form__fieldset {
   border: 1px solid var(--semiont-color-gray-200);
@@ -247,9 +254,12 @@
 }
 
 /* Grow modifier — field takes remaining space */
-.semiont-form__field--grow {
+/* A slider column: flexible, but a 0-to-1 range gains nothing past ~26rem —
+   uncapped it stretches into a band and drags the row's other columns apart. */
+.semiont-form__field--slider {
   flex: 1;
   min-width: 0;
+  max-width: 26rem;
 }
 
 /* Narrow modifier — fixed compact width for short numeric inputs */
