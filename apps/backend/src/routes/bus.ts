@@ -15,9 +15,9 @@ import {
   withSpan,
   withTraceparent,
 } from '@semiont/observability';
-import { validateSchema } from '../utils/openapi-validator';
 import { getLogger } from '../logger';
 import type { startMakeMeaning } from '@semiont/make-meaning';
+import { validators, formatErrors } from '@semiont/core/openapi';
 
 type AuthMiddleware = (c: Context, next: Next) => Promise<Response | void>;
 type MakeMeaning = Awaited<ReturnType<typeof startMakeMeaning>>;
@@ -536,8 +536,12 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     }
     const schemaName = CHANNEL_SCHEMAS[channel as keyof typeof CHANNEL_SCHEMAS];
     if (schemaName) {
-      const { valid, errorMessage } = validateSchema(schemaName, payload);
-      if (!valid) {
+      const validate = validators[schemaName as keyof typeof validators];
+      // A registry naming a schema the spec does not carry is drift, not a bad
+      // request — say so instead of waving the payload through unchecked.
+      if (!validate) throw new Error(`No generated validator for schema "${schemaName}" (channel ${channel})`);
+      if (!validate(payload)) {
+        const errorMessage = formatErrors(validate.errors);
         getBusLogger().warn('Bus emit validation failed', { channel, scope, schemaName, errorMessage });
         throw new HTTPException(400, { message: `Invalid payload for ${channel}: ${errorMessage}` });
       }

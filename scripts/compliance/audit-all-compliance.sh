@@ -48,6 +48,7 @@ echo ""
 # One annotation codec for all four graph stores (GRAPH-ANNOTATION-CODEC A1/A5)
 echo "🗺️  Checking the graph annotation codec (single envelope, no manufactured values)..."
 bash "$COMPLIANCE_DIR/audit-graph-annotation-codec.sh"
+bash "$COMPLIANCE_DIR/audit-spec-validator.sh"
 echo ""
 
 # SDK doc snippets compile against dist (SAFE-DOCS; post-build — FAILS if dist is

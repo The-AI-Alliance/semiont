@@ -15,10 +15,19 @@ export default defineConfig({
   entry: [
     'src/index.ts',
     'src/config/node-config-loader.ts',
+    // `@semiont/core/openapi` — generated spec validators (~1.3 MB). A subpath
+    // precisely so it never enters `.`, which every browser consumer imports.
+    'src/openapi.ts',
     'src/testing.ts',
     'src/testing/axioms.ts',
   ],
   external: ['fast-check'],
+  // The generated validators (`src/openapi.ts` → `generated/openapi-validators.cjs`)
+  // reference ajv's format table and ucs2length via `require()` — Ajv emits those
+  // for scope values regardless of its `code.esm` setting. Left external, esbuild
+  // turns them into a dynamic-require shim that throws at runtime in ESM output;
+  // inlined, they bundle statically. Only the openapi entry pulls them in.
+  noExternal: ['ajv-formats', 'ajv'],
   format: ['esm'],
   dts: false,
   clean: true,

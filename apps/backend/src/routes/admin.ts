@@ -15,6 +15,7 @@ import { DatabaseConnection } from '../db';
 import { User } from '@prisma/client';
 import { validateRequestBody } from '../middleware/validate-openapi';
 import type { components } from '@semiont/core';
+import { validators } from '@semiont/core/openapi';
 
 type UpdateUserRequest = components['schemas']['UpdateUserRequest'];
 type UpdateUserResponse = components['schemas']['UpdateUserResponse'];
@@ -137,7 +138,7 @@ adminRouter.get('/api/admin/users/stats', async (c) => {
  * Requires authentication + admin role
  */
 adminRouter.patch('/api/admin/users/:id',
-  validateRequestBody('UpdateUserRequest'),
+  validateRequestBody(validators.UpdateUserRequest),
   async (c) => {
     const { id } = c.req.param();
     const body = c.get('validatedBody') as UpdateUserRequest;
