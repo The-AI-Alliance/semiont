@@ -99,9 +99,11 @@
 
 /* A help sentence scoped to a whole inline row rather than one column —
    full width under the row, so its height never stretches the row's flex
-   siblings. */
+   siblings. Right-aligned: the row's `--end` column is what it describes,
+   and the sentence should end beneath that cell. */
 .semiont-form__help--row {
   margin-top: 0.5rem;
+  text-align: right;
 }
 
 /* Fieldset and legend */
@@ -260,6 +262,13 @@
   flex: 1;
   min-width: 0;
   max-width: 26rem;
+}
+
+/* Pushed to the row's end — pairs with a right-aligned `__help--row`
+   footnote below, so the sentence ends under the cell it describes instead
+   of floating at the far left with a void to its right. */
+.semiont-form__field--end {
+  margin-left: auto;
 }
 
 /* Narrow modifier — fixed compact width for short numeric inputs */

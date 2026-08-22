@@ -231,7 +231,7 @@ export function ConfigureGenerationStep({
           </div>
         </div>
 
-        <div className="semiont-form__field semiont-form__field--inline semiont-form__field--narrow">
+        <div className="semiont-form__field semiont-form__field--inline semiont-form__field--narrow semiont-form__field--end">
           <label htmlFor="wizard-maxTokens" className="semiont-form__label">
             {t.maxLength}
           </label>
