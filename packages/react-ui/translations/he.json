@@ -246,6 +246,7 @@
     "noIncomingReferences": "אין הפניות נכנסות",
     "stub": "הפניה חלקית (לא מקושרת)",
     "resolved": "הפניה מקושרת",
+    "derived": "נגזר",
     "open": "פתיחה",
     "unlink": "ניתוק",
     "resolve": "פתרון הפניה",

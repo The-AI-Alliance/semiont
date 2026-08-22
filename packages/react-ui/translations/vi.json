@@ -246,6 +246,7 @@
     "noIncomingReferences": "Không có tham chiếu đến",
     "stub": "Tham chiếu sơ khai (chưa liên kết)",
     "resolved": "Tham chiếu đã phân giải (đã liên kết)",
+    "derived": "Phái sinh",
     "open": "Mở",
     "unlink": "Hủy liên kết",
     "resolve": "Giải quyết tham chiếu",

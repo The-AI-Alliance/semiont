@@ -246,6 +246,7 @@
     "noIncomingReferences": "Nessun riferimento in entrata",
     "stub": "Riferimento provvisorio (non collegato)",
     "resolved": "Riferimento risolto (collegato)",
+    "derived": "Derivato",
     "open": "Apri",
     "unlink": "Scollega",
     "resolve": "Risolvere riferimento",

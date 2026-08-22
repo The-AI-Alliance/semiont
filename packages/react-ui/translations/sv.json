@@ -246,6 +246,7 @@
     "noIncomingReferences": "Inga inkommande referenser",
     "stub": "Stubreferens (ej länkad)",
     "resolved": "Löst referens (länkad)",
+    "derived": "Härledd",
     "open": "Öppna",
     "unlink": "Ta bort länk",
     "resolve": "Lös referens",
