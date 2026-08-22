@@ -503,11 +503,12 @@ export class Weaver {
     // Content depth (W9-deep): membership equality is blind to a body
     // mutated in place — a corrupted graph doc with the right id reconciled
     // as clean. Compare bodies canonically against the view's truth.
+    const bodyKey = (a: { body?: unknown }) => Weaver.canonicalJson(a.body ?? []);
     const viewById = new Map(annotations.map((a) => [String(a.id), a]));
     for (const graphAnnotation of graphAnnotations) {
       const viewAnnotation = viewById.get(String(graphAnnotation.id));
       if (!viewAnnotation) continue; // set equality established above
-      if (Weaver.canonicalJson(graphAnnotation.body) !== Weaver.canonicalJson(viewAnnotation.body)) {
+      if (bodyKey(graphAnnotation) !== bodyKey(viewAnnotation)) {
         return 'annotation-body-mismatch';
       }
     }
