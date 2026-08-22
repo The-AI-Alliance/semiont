@@ -421,15 +421,19 @@ describe('ReferenceWizardModal — the dirty guard widens (GATHER-AT-THE-TOP D4/
 describe('ReferenceWizardModal — the gather skeleton', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
-  it('while gathering, the known annotation facts and pane skeletons render immediately', () => {
+  it('while gathering, the known annotation facts and per-cell animations render immediately', () => {
     const { baseElement } = renderWizard({ context: null, contextLoading: true });
 
     expect(screen.getByText(/"Caspian Sea"/)).toBeInTheDocument();      // quoted exact text
     expect(screen.getByText('Location')).toBeInTheDocument();           // entity chip
     expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();     // pane headers in place
     expect(screen.getByText(T.corpusPaneTitle)).toBeInTheDocument();
-    expect(screen.getByText(T.loadingContext)).toBeInTheDocument();     // still says loading
-    expect(baseElement.querySelectorAll('.semiont-gather__skeleton-bar').length).toBeGreaterThan(0);
+    // One dots animation PER zone — source excerpt, Neighborhood, Similar
+    // passages — each where its content will land; no central block, no bars.
+    expect(baseElement.querySelectorAll('.semiont-gather__skeleton-dots')).toHaveLength(3);
+    expect(baseElement.querySelectorAll('.semiont-gather__skeleton-bar')).toHaveLength(0);
+    // The sentence survives for screen readers only.
+    expect(screen.getByText(T.loadingContext)).toHaveClass('semiont-sr-only');
   });
 
   it('the source line, Hint, and strategy chooser render during loading — buttons grayed until context lands', () => {

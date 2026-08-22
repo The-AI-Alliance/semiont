@@ -145,15 +145,23 @@ export function GatherContextStep({
     <div className="semiont-gather__outer">
       {/* Loading / error states. With a `pending` preview the loading screen
           is the loaded screen minus the data: the annotation's own facts and
-          the pane headers hold the layout while skeleton bars stand in for
-          what the gather will fill. */}
+          the pane headers hold the layout, and one small dots animation sits
+          in EACH zone — source excerpt, Neighborhood, Similar passages —
+          exactly where its content will land. No central block, no dead
+          space; the sentence survives for screen readers. */}
       {contextLoading && pending && (
         <div className="semiont-gather__skeleton" role="status">
+          <span className="semiont-sr-only">{t.loadingContext}</span>
           {pending.resourceName && (
             <div className="semiont-gather__skeleton-source">
               {t.sourceContextLabel}{` "${pending.resourceName}"`}
             </div>
           )}
+          <div className="semiont-gather__skeleton-dots" aria-hidden="true">
+            <span className="semiont-gather__loading-dot" />
+            <span className="semiont-gather__loading-dot" />
+            <span className="semiont-gather__loading-dot" />
+          </div>
           <div className="semiont-gather__skeleton-header">
             {/* Straight quotes — the same presentation the panel entries use. */}
             <span className="semiont-gather__skeleton-exact">"{pending.exact}"</span>
@@ -170,24 +178,20 @@ export function GatherContextStep({
           <div className="semiont-gather__skeleton-panes">
             <div className="semiont-gather__skeleton-pane">
               <div className="semiont-gather-pane__title">{t.graphPaneTitle}</div>
-              <div className="semiont-gather__skeleton-bar" />
-              <div className="semiont-gather__skeleton-bar" />
-              <div className="semiont-gather__skeleton-bar semiont-gather__skeleton-bar--short" />
+              <div className="semiont-gather__skeleton-dots" aria-hidden="true">
+                <span className="semiont-gather__loading-dot" />
+                <span className="semiont-gather__loading-dot" />
+                <span className="semiont-gather__loading-dot" />
+              </div>
             </div>
             <div className="semiont-gather__skeleton-pane">
               <div className="semiont-gather-pane__title">{t.corpusPaneTitle}</div>
-              <div className="semiont-gather__skeleton-bar" />
-              <div className="semiont-gather__skeleton-bar" />
-              <div className="semiont-gather__skeleton-bar semiont-gather__skeleton-bar--short" />
+              <div className="semiont-gather__skeleton-dots" aria-hidden="true">
+                <span className="semiont-gather__loading-dot" />
+                <span className="semiont-gather__loading-dot" />
+                <span className="semiont-gather__loading-dot" />
+              </div>
             </div>
-          </div>
-          <div className="semiont-gather__loading">
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <span className="semiont-gather__loading-dot" />
-              <span className="semiont-gather__loading-dot" />
-              <span className="semiont-gather__loading-dot" />
-            </div>
-            <span className="semiont-gather__loading-text">{t.loadingContext}</span>
           </div>
           {hintRow}
           {strategyFooter}

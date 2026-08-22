@@ -90,9 +90,44 @@ if [[ -n "$START_FROM" ]]; then
   fi
 elif [[ -n "$PACKAGES" ]]; then
   IFS=',' read -ra TARGETS <<< "$PACKAGES"
+  # Validate, exactly as --start-from above does. Without this an unmatched
+  # name — a typo, or the SCOPED form `@semiont/react-ui` when this script
+  # wants the bare `react-ui` — silently selects nothing: both build sections
+  # run empty, "BUILD COMPLETE ✓" prints, publish pushes the PREVIOUS dist,
+  # and the resulting image is stale in a way that only shows up as "my change
+  # isn't in there". Measured 2026-08-21: a full 60s cycle produced an image
+  # containing none of the intended work.
+  UNKNOWN=()
+  for t in "${TARGETS[@]}"; do
+    MATCHED=false
+    for pkg in "${ALL[@]}"; do
+      [[ "$t" == "$pkg" ]] && MATCHED=true && break
+    done
+    [[ "$MATCHED" == "true" ]] || UNKNOWN+=("$t")
+  done
+  if (( ${#UNKNOWN[@]} > 0 )); then
+    echo -e "${RED}Unknown package(s): ${UNKNOWN[*]}${RESET}" >&2
+    echo "" >&2
+    echo "Valid packages: ${ALL[*]}" >&2
+    echo "" >&2
+    for u in "${UNKNOWN[@]}"; do
+      if [[ "$u" == @semiont/* ]]; then
+        echo "  '$u' looks scoped — this flag takes BARE names: '${u#@semiont/}'" >&2
+      fi
+    done
+    echo "" >&2
+    echo "  --package builds ONLY what you name (no dependency closure)." >&2
+    echo "  To build a package and everything downstream of it, use:" >&2
+    echo "    --start-from <name>" >&2
+    exit 1
+  fi
 else
   TARGETS=("${ALL[@]}")
 fi
+
+# Announce the selection. An empty or unexpected list is then visible HERE,
+# at the top, rather than inferred from two silent section headers later.
+echo -e "${BOLD:-}Building ${#TARGETS[@]} package(s):${RESET} ${TARGETS[*]}"
 
 should_build() {
   local name="$1"

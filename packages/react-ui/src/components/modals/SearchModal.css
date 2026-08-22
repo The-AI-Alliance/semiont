@@ -463,24 +463,12 @@
   gap: 0.5rem;
 }
 
-.semiont-gather__skeleton-bar {
-  height: 0.875rem;
-  border-radius: 0.25rem;
-  background: var(--semiont-color-gray-200);
-  animation: semiont-skeleton-pulse 1.5s ease-in-out infinite;
-}
-
-.semiont-gather__skeleton-bar--short {
-  width: 60%;
-}
-
-[data-theme="dark"] .semiont-gather__skeleton-bar {
-  background: var(--semiont-color-gray-700);
-}
-
-@keyframes semiont-skeleton-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
+/* One small dots animation per zone, sitting exactly where that zone's
+   content will land. Reuses the loading-dot spans (same animation). */
+.semiont-gather__skeleton-dots {
+  display: flex;
+  gap: 0.375rem;
+  padding: 0.375rem 0;
 }
 
 .semiont-gather__loading-text {
