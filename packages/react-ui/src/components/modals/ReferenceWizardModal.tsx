@@ -44,6 +44,12 @@ export interface ReferenceWizardModalProps {
   defaultTitle: string;
   /** Entity types from the annotation */
   entityTypes: string[];
+  /**
+   * The source resource's display name — a page fact (the wizard opens FROM
+   * that resource), shown in the gather skeleton's source line before the
+   * gathered context can say it itself.
+   */
+  resourceName?: string;
   /** Current locale for generation defaults */
   locale: string;
   /** Gathered context state */
@@ -65,15 +71,15 @@ export interface ReferenceWizardModalProps {
   hoverDelayMs?: number;
   /** Translation strings */
   translations: {
-    gatherTitle: string;
-    configureGenerationTitle: string;
-    configureSearchTitle: string;
-    searchResultsTitle: string;
+    /** The ONE title, all steps — the flow is resolving a reference; the
+        strategy band below says where in it you are. */
+    resolveTitle: string;
     sourceContextLabel: string;
     connectionsLabel: string;
     citedByLabel: string;
     graphPaneTitle: string;
     graphEmpty: string;
+    resourceLinkLabel: string;
     corpusPaneTitle: string;
     corpusEmpty: string;
     excludedReceipt: string;
@@ -109,7 +115,6 @@ export interface ReferenceWizardModalProps {
     semanticScoring: string;
     semanticScoringHelp: string;
     searchFailed: string;
-    composeTitle: string;
     entityTypes: string;
     contentLabel: string;
     createAndLink: string;
@@ -127,6 +132,7 @@ export function ReferenceWizardModal({
   resourceId,
   defaultTitle,
   entityTypes,
+  resourceName,
   locale,
   context,
   contextLoading,
@@ -320,6 +326,7 @@ export function ReferenceWizardModal({
     citedByLabel: t.citedByLabel,
     graphPaneTitle: t.graphPaneTitle,
     graphEmpty: t.graphEmpty,
+    resourceLinkLabel: t.resourceLinkLabel,
     corpusPaneTitle: t.corpusPaneTitle,
     corpusEmpty: t.corpusEmpty,
     excludedReceipt: t.excludedReceipt,
@@ -327,16 +334,6 @@ export function ReferenceWizardModal({
     score: t.score,
   };
 
-  // Determine title based on step
-  const stepTitle = wizardStep.step === 'gather'
-    ? t.gatherTitle
-    : wizardStep.step === 'compose'
-      ? t.composeTitle
-    : wizardStep.step === 'configure-generation'
-      ? t.configureGenerationTitle
-      : wizardStep.step === 'configure-search'
-        ? t.configureSearchTitle
-        : t.searchResultsTitle;
 
   return (
     <Transition appear show={isOpen}>
@@ -369,7 +366,7 @@ export function ReferenceWizardModal({
               <DialogPanel className="semiont-search-modal__panel semiont-search-modal__panel--with-border semiont-search-modal__panel--gather semiont-search-modal__panel--wide">
                 <div className="semiont-search-modal__header">
                   <DialogTitle className="semiont-search-modal__title">
-                    {stepTitle}
+                    {t.resolveTitle}
                   </DialogTitle>
                   <button
                     onClick={handleDismiss}
@@ -395,6 +392,7 @@ export function ReferenceWizardModal({
                     context={context}
                     contextLoading={contextLoading}
                     contextError={contextError}
+                    pending={{ exact: defaultTitle, entityTypes, ...(resourceName ? { resourceName } : {}) }}
                     annotate={{
                       userHint,
                       onUserHintChange: setUserHint,

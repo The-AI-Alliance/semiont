@@ -725,6 +725,7 @@ export function ResourceViewerPage({
         resourceId={wizardResourceId}
         defaultTitle={wizardDefaultTitle}
         entityTypes={wizardEntityTypes}
+        resourceName={resource.name}
         locale={locale}
         context={gatherContext}
         contextLoading={gatherLoading}
@@ -735,10 +736,7 @@ export function ResourceViewerPage({
         entityTypeOptions={allEntityTypes}
         hoverDelayMs={hoverDelayMs}
         translations={{
-          gatherTitle: tw('gatherTitle'),
-          configureGenerationTitle: tw('configureGenerationTitle'),
-          configureSearchTitle: tw('configureSearchTitle'),
-          searchResultsTitle: tw('searchResultsTitle'),
+          resolveTitle: tw('resolveTitle'),
           sourceContextLabel: tw('sourceContextLabel'),
           connectionsLabel: tw('connectionsLabel'),
           citedByLabel: tw('citedByLabel'),
@@ -747,6 +745,7 @@ export function ResourceViewerPage({
           userHintPlaceholder: tw('userHintPlaceholder'),
           graphPaneTitle: tw('graphPaneTitle'),
           graphEmpty: tw('graphEmpty'),
+          resourceLinkLabel: tw('resourceLinkLabel'),
           corpusPaneTitle: tw('corpusPaneTitle'),
           corpusEmpty: tw('corpusEmpty'),
           excludedReceipt: tw('excludedReceipt'),
@@ -779,7 +778,6 @@ export function ResourceViewerPage({
           semanticScoring: tw('semanticScoring'),
           semanticScoringHelp: tw('semanticScoringHelp'),
           searchFailed: tw('searchFailed'),
-          composeTitle: tw('composeTitle'),
           entityTypes: tw('entityTypes'),
           contentLabel: tw('contentLabel'),
           createAndLink: tw('createAndLink'),
@@ -807,14 +805,15 @@ export function ResourceViewerPage({
         gatherError={resourceGatherError}
         onGather={(options) => stateUnit?.gather.gatherResource(rUri, options)}
         translations={{
-          configureTitle: tg('configureTitle'),
+          title: tg('title'),
           gatherIntro: tg('gatherIntro'),
           includeContent: tg('includeContent'),
           includeSummary: tg('includeSummary'),
           gatherDepth: tg('gatherDepth'),
           gatherMaxResources: tg('gatherMaxResources'),
           gatherButton: tg('gatherButton'),
-          excludeLabel: tg('excludeLabel'),
+          editGather: tg('editGather'),
+          recallLabel: tg('recallLabel'),
           loadingContext: tg('loadingContext'),
           failedContext: tg('failedContext'),
           sourceContextLabel: tg('sourceContextLabel'),
@@ -822,6 +821,7 @@ export function ResourceViewerPage({
           citedByLabel: tg('citedByLabel'),
           graphPaneTitle: tg('graphPaneTitle'),
           graphEmpty: tg('graphEmpty'),
+          resourceLinkLabel: tg('resourceLinkLabel'),
           corpusPaneTitle: tg('corpusPaneTitle'),
           corpusEmpty: tg('corpusEmpty'),
           excludedReceipt: tg('excludedReceipt'),

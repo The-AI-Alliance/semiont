@@ -10,8 +10,8 @@ import { GatherContextStep } from './GatherContextStep';
 import { ConfigureGenerationStep, type GenerationConfig, type GenerationDraft } from './ConfigureGenerationStep';
 
 export interface ResourceGenerateModalTranslations {
-  // The one modal title (GATHER-AT-THE-TOP D7)
-  configureTitle: string;
+  /** The ONE modal title — names the flow, not a step. */
+  title: string;
   // ConfigureGatherStep
   gatherIntro: string;
   includeContent: string;
@@ -19,7 +19,10 @@ export interface ResourceGenerateModalTranslations {
   gatherDepth: string;
   gatherMaxResources: string;
   gatherButton: string;
-  excludeLabel: string;
+  /** Labels the recall chips: every type included until deselected. */
+  recallLabel: string;
+  /** Affordance on the post-gather receipt row (title/tooltip). */
+  editGather: string;
   // GatherContextStep display
   loadingContext: string;
   failedContext: string;
@@ -28,6 +31,7 @@ export interface ResourceGenerateModalTranslations {
   citedByLabel: string;
   graphPaneTitle: string;
   graphEmpty: string;
+  resourceLinkLabel: string;
   corpusPaneTitle: string;
   corpusEmpty: string;
   excludedReceipt: string;
@@ -133,6 +137,11 @@ export function ResourceGenerateModal({
   // opens, so a context prop can be stale at open time. Nothing renders below
   // the controls until the user fires a gather in this run.
   const [gatherFired, setGatherFired] = useState(false);
+  // The fired snapshot feeds the receipt: what THIS gather actually asked
+  // for, exclusions included — not the form's live state, which the user can
+  // edit without re-firing.
+  const [lastGather, setLastGather] = useState<(ResourceGatherConfig & { excludeEntityTypes: string[] }) | null>(null);
+  const [editingGather, setEditingGather] = useState(false);
   const [showDiscardPrompt, setShowDiscardPrompt] = useState(false);
   // Supplied by the owner, which already tracks the list with its failure
   // state. Fetching it here could only model (value | not-yet), so a failed
@@ -154,6 +163,8 @@ export function ResourceGenerateModal({
   useEffect(() => {
     if (isOpen && !wasOpen.current) {
       setGatherFired(false);
+      setLastGather(null);
+      setEditingGather(false);
       setExcludeEntityTypes([]);
       setGenerationDraft(freshDraft());
       setShowDiscardPrompt(false);
@@ -167,6 +178,8 @@ export function ResourceGenerateModal({
 
   const handleGather = useCallback((config: ResourceGatherConfig) => {
     setGatherFired(true);
+    setLastGather({ ...config, excludeEntityTypes });
+    setEditingGather(false);
     onGather({
       ...config,
       ...(excludeEntityTypes.length ? { excludeEntityTypes } : {}),
@@ -214,6 +227,7 @@ export function ResourceGenerateModal({
     citedByLabel: t.citedByLabel,
     graphPaneTitle: t.graphPaneTitle,
     graphEmpty: t.graphEmpty,
+    resourceLinkLabel: t.resourceLinkLabel,
     corpusPaneTitle: t.corpusPaneTitle,
     corpusEmpty: t.corpusEmpty,
     excludedReceipt: t.excludedReceipt,
@@ -247,7 +261,7 @@ export function ResourceGenerateModal({
             >
               <DialogPanel className="semiont-search-modal__panel semiont-search-modal__panel--with-border semiont-search-modal__panel--gather semiont-search-modal__panel--wide">
                 <div className="semiont-search-modal__header">
-                  <DialogTitle className="semiont-search-modal__title">{t.configureTitle}</DialogTitle>
+                  <DialogTitle className="semiont-search-modal__title">{t.title}</DialogTitle>
                   <button onClick={handleDismiss} className="semiont-search-modal__close-button" aria-label="Close">
                     ✕
                   </button>
@@ -264,6 +278,31 @@ export function ResourceGenerateModal({
                 )}
 
                 <div className="semiont-wizard__step-scroll" ref={stepScrollRef}>
+                  {/* Once fired, the spent controls fold into a receipt of
+                      what THIS gather asked for — the evidence leads the
+                      pane, the parameters stay visible and revisable. The
+                      form below is HIDDEN, not unmounted, so its values
+                      survive for the expand path. */}
+                  {gatherFired && !editingGather && lastGather && (
+                    <button
+                      type="button"
+                      className="semiont-gather-receipt"
+                      title={t.editGather}
+                      onClick={() => setEditingGather(true)}
+                    >
+                      {[
+                        `${t.gatherDepth} ${lastGather.depth}`,
+                        `${t.gatherMaxResources} ${lastGather.maxResources}`,
+                        ...(lastGather.includeContent ? [t.includeContent] : []),
+                        ...(lastGather.includeSummary ? [t.includeSummary] : []),
+                        ...(lastGather.excludeEntityTypes.length
+                          ? [t.excludedReceipt.replace('{{types}}', lastGather.excludeEntityTypes.join(', '))]
+                          : []),
+                      ].join(' · ')}
+                      <span aria-hidden="true"> ✎</span>
+                    </button>
+                  )}
+                  <div hidden={gatherFired && !editingGather}>
                   <ConfigureGatherStep
                     onGather={handleGather}
                     translations={{
@@ -277,17 +316,21 @@ export function ResourceGenerateModal({
                   >
                     {entityTypeOptions.length > 0 && (
                       <div className="semiont-form__field semiont-form__entity-types">
-                        <label className="semiont-form__label">{t.excludeLabel}</label>
-                        <div className="semiont-form__entity-type-buttons">
+                        <label className="semiont-form__label">{t.recallLabel}</label>
+                        {/* Recall chips — the exclude wire, inverted for the
+                            UI: every type is IN the recall until crossed off,
+                            so the state is still the exclude list and a chip
+                            is included when absent from it. */}
+                        <div className="semiont-form__recall-chips">
                           {entityTypeOptions.map((et) => {
-                            const isSelected = excludeEntityTypes.includes(et);
+                            const isIncluded = !excludeEntityTypes.includes(et);
                             return (
                               <button
                                 key={et}
                                 type="button"
-                                className="semiont-form__entity-type-button"
-                                data-selected={isSelected}
-                                aria-pressed={isSelected}
+                                className="semiont-form__recall-chip"
+                                data-included={isIncluded}
+                                aria-pressed={isIncluded}
                                 onClick={() => setExcludeEntityTypes(prev => prev.includes(et) ? prev.filter(x => x !== et) : [...prev, et])}
                               >
                                 {et}
@@ -298,6 +341,7 @@ export function ResourceGenerateModal({
                       </div>
                     )}
                   </ConfigureGatherStep>
+                  </div>
 
                   {gatherFired && (
                     <GatherContextStep

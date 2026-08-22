@@ -45,12 +45,11 @@ const CONTEXT = {
 } as unknown as GatheredContext;
 
 const T = {
-  gatherTitle: 'Gathered Context', configureGenerationTitle: 'Configure Generation',
-  configureSearchTitle: 'Configure Search', searchResultsTitle: 'Search Results',
+  resolveTitle: 'Resolve Reference',
   sourceContextLabel: 'Source', connectionsLabel: 'Connections', citedByLabel: 'Cited by',
   userHintLabel: 'Hint', userHintEffect: 'steers Search and Generate',
   userHintPlaceholder: 'Describe what this refers to…',
-  graphPaneTitle: 'In the graph', graphEmpty: 'No links yet.',
+  graphPaneTitle: 'In the graph', graphEmpty: 'No links yet.', resourceLinkLabel: 'Resource link',
   corpusPaneTitle: 'In the corpus', corpusEmpty: 'Nothing similar.',
   excludedReceipt: '{{types}} excluded', machineRead: 'OCR',
   loadingContext: 'Loading…', failedContext: 'Failed',
@@ -64,7 +63,7 @@ const T = {
   maxLength: 'Max length', maxLengthHelp: '', maxLengthCeiling: 'Limited to {{maxOutputTokens}} by {{model}}.',
   maxResults: 'Max Results', semanticScoring: 'Semantic Scoring', semanticScoringHelp: '',
   searchFailed: 'Search failed',
-  composeTitle: 'Compose Resource', contentLabel: 'Content', entityTypes: 'Entity types',
+  contentLabel: 'Content', entityTypes: 'Entity types',
   createAndLink: 'Create & Link', creatingAndLinking: 'Creating…',
   discardDraftPrompt: 'Discard this draft?', discardDraft: 'Discard', keepEditing: 'Keep editing',
 };
@@ -147,7 +146,8 @@ describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.use
     // form below the evidence like the other strategies.
     renderWizard();
     await userEvent.click(screen.getByText(new RegExp(T.compose)));
-    expect(screen.getByText(T.composeTitle)).toBeInTheDocument(); // step title
+    expect(screen.getByRole('button', { name: T.createAndLink })).toBeInTheDocument(); // the compose form is open
+    expect(screen.getByText(T.resolveTitle)).toBeInTheDocument(); // ONE title, every step
     expect(screen.getByLabelText(T.resourceTitle)).toHaveValue('Caspian Sea'); // seeded draft
   });
 
@@ -171,7 +171,7 @@ describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.use
     // The step renders the context it was handed; the hint is visible in the
     // gathered-context panel it shows, which is only true if the ENRICHED
     // object was passed down rather than the raw prop.
-    expect(screen.getByText(T.configureGenerationTitle)).toBeInTheDocument();
+    expect(screen.getByLabelText(T.resourceTitle)).toBeInTheDocument();
   });
 
 });
@@ -216,7 +216,7 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
       referenceId: 'ann-1',
       response: [{ '@id': 'res-9', name: 'Caspian Sea', score: 54.2 }],
     } as never);
-    expect(await screen.findByText(T.searchResultsTitle)).toBeInTheDocument();
+    await screen.findByRole('button', { name: new RegExp(T.link) }); // results are up
 
     expect(baseElement.querySelector('.semiont-gather__source-box')).not.toBeNull(); // quotation strip
     expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();                  // graph pane
@@ -242,6 +242,13 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
     expect(footer!.textContent).toContain(T.resolutionStrategyLabel);
     expect(footer!.textContent).toContain(`✨ ${T.generate}`);
     expect(footer!.querySelectorAll('button')).toHaveLength(0);
+    // The echo is a receipt LINE, not a control row: label and value share
+    // the --echo band, and the chooser's button-row wrapper is gone — the
+    // value must never sit where controls sit (it wore a control's costume:
+    // inherited base size + link blue).
+    expect(footer!.className).toContain('semiont-gather__footer--echo');
+    expect(footer!.querySelector('.semiont-gather__actions')).toBeNull();
+    expect(footer!.querySelector('.semiont-gather__chosen-strategy')).not.toBeNull();
     expect(screen.queryByText(new RegExp(`^🔍 ${T.search}…`))).not.toBeInTheDocument();
     const panel = baseElement.querySelector('.semiont-search-modal__panel')!;
     expect(panel.className).toContain('semiont-search-modal__panel--wide');
@@ -414,6 +421,59 @@ describe('ReferenceWizardModal — the dirty guard widens (GATHER-AT-THE-TOP D4/
   });
 });
 
+// The gather-loading state is not a blank modal: the annotation's exact text
+// and entity types are wizard props — known before any wire round-trip — and
+// the pane headers are static. Render them immediately with skeleton bars so
+// the loading screen is the loaded screen minus the data.
+describe('ReferenceWizardModal — the gather skeleton', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('while gathering, the known annotation facts and per-cell animations render immediately', () => {
+    const { baseElement } = renderWizard({ context: null, contextLoading: true });
+
+    expect(screen.getByText(/"Caspian Sea"/)).toBeInTheDocument();      // quoted exact text
+    expect(screen.getByText('Location')).toBeInTheDocument();           // entity chip
+    expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();     // pane headers in place
+    expect(screen.getByText(T.corpusPaneTitle)).toBeInTheDocument();
+    // One dots animation PER zone — source excerpt, Neighborhood, Similar
+    // passages — each where its content will land; no central block, no bars.
+    expect(baseElement.querySelectorAll('.semiont-gather__skeleton-dots')).toHaveLength(3);
+    expect(baseElement.querySelectorAll('.semiont-gather__skeleton-bar')).toHaveLength(0);
+    // The sentence survives for screen readers only.
+    expect(screen.getByText(T.loadingContext)).toHaveClass('semiont-sr-only');
+  });
+
+  it('the source line, Hint, and strategy chooser render during loading — buttons grayed until context lands', () => {
+    // The resource name is a page fact (the wizard opens FROM the source
+    // resource); the Hint is wizard state, safely typed while the gather
+    // runs; the chooser's buttons already gate on contextReady.
+    renderWizard({ context: null, contextLoading: true, resourceName: 'Cedar County, Iowa' });
+
+    expect(screen.getByText(/Source "Cedar County, Iowa"/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(T.userHintPlaceholder)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Search…/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Generate…/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: new RegExp(T.compose) })).toBeDisabled();
+  });
+
+  it('a hint typed during the gather survives context arrival', () => {
+    const { rerender, onClose, onComposeSubmit, onGenerateSubmit, onLinkResource } = renderWizard({ context: null, contextLoading: true });
+    fireEvent.change(screen.getByPlaceholderText(T.userHintPlaceholder), { target: { value: 'early steer' } });
+
+    rerender(
+      <ReferenceWizardModal
+        isOpen onClose={onClose} annotationId="ann-1" resourceId="res-1"
+        defaultTitle="Caspian Sea" entityTypes={['Location']}
+        entityTypeOptions={['Person', 'Topic', 'Location']} locale="en"
+        context={CONTEXT} contextLoading={false} contextError={null}
+        onGenerateSubmit={onGenerateSubmit} onLinkResource={onLinkResource}
+        onComposeSubmit={onComposeSubmit} translations={T}
+      />,
+    );
+    expect(screen.getByPlaceholderText(T.userHintPlaceholder)).toHaveValue('early steer');
+  });
+});
+
 describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () => {
   it('reopening resets the hint and the step', async () => {
     const { rerender } = renderWizard();
@@ -433,7 +493,7 @@ describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () =>
 
     // Back is lossless WITHIN a run (D3); a new run inherits nothing.
     expect(screen.getByPlaceholderText(T.userHintPlaceholder)).toHaveValue('');
-    expect(screen.getByText(T.gatherTitle)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `🔍 ${T.search}…` })).toBeInTheDocument(); // back on the gather step
   });
 });
 
@@ -456,8 +516,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
       response: [{ '@id': 'res-9', name: 'Caspian Sea', score: 54.2 }],
     } as never);
 
-    expect(await screen.findByText(T.searchResultsTitle)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: new RegExp(T.link) }));
+    await userEvent.click(await screen.findByRole('button', { name: new RegExp(T.link) }));
 
     expect(onLinkResource).toHaveBeenCalledWith('ann-1', 'res-9');
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -524,7 +583,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
       referenceId: 'someone-elses-annotation',
       response: [{ '@id': 'res-9', name: 'Caspian Sea' }],
     } as never);
-    expect(screen.getByText(T.gatherTitle)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `🔍 ${T.search}…` })).toBeInTheDocument(); // still the gather step
   });
 
   it('generation submits the step\'s config against this annotation, then closes', async () => {
@@ -542,9 +601,9 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
   it('retreats from a configure step back to the gather step', async () => {
     renderWizard();
     await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
-    expect(screen.getByText(T.configureGenerationTitle)).toBeInTheDocument();
+    expect(screen.getByLabelText(T.resourceTitle)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Back/ }));
-    expect(screen.getByText(T.gatherTitle)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `🔍 ${T.search}…` })).toBeInTheDocument();
   });
 });
 
@@ -560,7 +619,7 @@ describe('ReferenceWizardModal — nothing fires without an annotation to resolv
       renderWizard({ annotationId: null, resourceId: null });
 
     await userEvent.click(screen.getByText(new RegExp(T.compose)));
-    expect(screen.queryByText(T.composeTitle)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: T.createAndLink })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
     await userEvent.click(screen.getByRole('button', { name: T.search }));
@@ -570,7 +629,7 @@ describe('ReferenceWizardModal — nothing fires without an annotation to resolv
     client.bus.get('match:search-results').next({
       referenceId: 'ann-1', response: [{ '@id': 'res-9', name: 'X' }],
     } as never);
-    expect(screen.queryByText(T.searchResultsTitle)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: new RegExp(T.link) })).not.toBeInTheDocument();
     expect(onGenerateSubmit).not.toHaveBeenCalled();
   });
 });

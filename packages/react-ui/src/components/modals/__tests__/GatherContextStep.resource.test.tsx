@@ -19,6 +19,7 @@ const t = {
   citedByLabel: 'Cited by',
   graphPaneTitle: 'In the graph',
   graphEmpty: 'No links yet — resolving this reference creates the first.',
+  resourceLinkLabel: 'Resource link',
   corpusPaneTitle: 'In the corpus',
   corpusEmpty: 'Nothing similar in the corpus.',
   excludedReceipt: '{{types}} excluded from this recall',
@@ -90,6 +91,17 @@ describe('GatheredContext display — resource focus', () => {
   it('ContextSummary renders graph views (connections) for a resource focus', () => {
     const { container } = render(<ContextSummary context={resourceContext()} translations={t} />);
     expect(container.textContent).toContain('Related Resource'); // peer connection from deriveViews
+  });
+
+  it('loading without a pending preview stays the plain dots — the resource-gather path', () => {
+    // The composite Generate modal has its controls visible above the loading
+    // zone; only the annotation wizard passes `pending` (its known facts).
+    const { queryByText, getByText } = render(
+      <GatherContextStep context={null} contextLoading contextError={null} translations={t} />,
+    );
+    expect(getByText(t.loadingContext)).toBeInTheDocument();
+    expect(queryByText(t.graphPaneTitle)).toBeNull();
+    expect(queryByText(t.corpusPaneTitle)).toBeNull();
   });
 
   it('GatherContextStep shows the resource strip and hides the annotation-only footer', () => {
@@ -346,8 +358,6 @@ describe('GatheredContext display — resource focus', () => {
     expect(pane.querySelectorAll('.semiont-graph__node')).toHaveLength(4);
     expect(pane.querySelectorAll('.semiont-graph__edge')).toHaveLength(3);
     expect(pane.querySelector('ul')).toBeNull(); // replaced, not joined
-    // cited-by count stays visible WITHOUT hover
-    expect(pane.textContent).toContain('Cited by (1)');
   });
 
   it('the focal node is visually distinct, and there is exactly one (P4)', () => {
@@ -376,6 +386,40 @@ describe('GatheredContext display — resource focus', () => {
     expect(container.querySelector('[data-node-id="res-2"] title')!.textContent).toContain('Topic');
   });
 
+  /** A resource-level provenance annotation: target has no selector (nothing
+   *  to quote); the body's SpecificResource names what it links to. */
+  function provenanceContext(bodySource: string): GatheredContext {
+    return {
+      ...(resourceContext() as object),
+      graph: {
+        nodes: [
+          { id: 'res-1', type: 'resource', label: 'My Resource' },
+          { id: 'res-9', type: 'resource', label: 'Generated Doc' },
+          { id: 'ann-p', type: 'annotation', label: 'linking',
+            annotation: { id: 'ann-p', motivation: 'linking',
+              target: { source: 'res-1' },
+              body: [{ type: 'SpecificResource', source: bodySource, purpose: 'linking' }] } },
+        ],
+        edges: [{ source: 'ann-p', target: 'res-1', type: 'annotation-of' }],
+      },
+    } as unknown as GatheredContext;
+  }
+
+  it('a resource-level linking annotation is labeled by what it links to, not its motivation', () => {
+    const { container } = render(<ContextSummary context={provenanceContext('res-9')} translations={t} />);
+    const node = container.querySelector('[data-node-id="ann-p"]')!;
+    expect(node.querySelector('text')!.textContent).toBe('→ Generated Doc');
+    // Hover carries the full linked name; the motivation stays hover-only.
+    expect(node.querySelector('title')!.textContent).toContain('Generated Doc');
+    expect(node.querySelector('title')!.textContent).toContain('linking');
+  });
+
+  it('an unresolvable link target falls back to the translated label — never raw vocabulary', () => {
+    const { container } = render(<ContextSummary context={provenanceContext('res-404')} translations={t} />);
+    const node = container.querySelector('[data-node-id="ann-p"]')!;
+    expect(node.querySelector('text')!.textContent).toBe('Resource link');
+  });
+
   it('layout is deterministic — same context, same positions (P4, D3)', () => {
     const positions = () => {
       const { container, unmount } = renderViz();
@@ -388,6 +432,79 @@ describe('GatheredContext display — resource focus', () => {
     const first = positions();
     expect(first.length).toBeGreaterThan(0);
     expect(positions()).toBe(first);
+  });
+
+  // ── Graph geometry — compaction + wrap, everything draws (no-clipping) ─────
+  // The layout adapts to what's populated: absent citer/peer layers free their
+  // columns for the sibling band to wrap into, and the viewBox shrinks to the
+  // columns actually used. Nothing is ever capped or hidden — overflow rides
+  // the wizard pane's scroll.
+
+  /** Focal resource + N sibling annotations, no citers, no peers. */
+  function middleOnlyContext(siblingCount: number): GatheredContext {
+    return {
+      ...(resourceContext() as object),
+      graph: {
+        nodes: [
+          { id: 'res-1', type: 'resource', label: 'My Resource' },
+          ...Array.from({ length: siblingCount }, (_, i) => ({
+            id: `ann-${i}`, type: 'annotation', label: 'commenting',
+            annotation: { id: `ann-${i}`, motivation: 'commenting',
+              target: { source: 'res-1', selector: [
+                { type: 'TextQuoteSelector', exact: `span ${i}` },
+              ] },
+              body: [] },
+          })),
+        ],
+        edges: Array.from({ length: siblingCount }, (_, i) => ({
+          source: `ann-${i}`, target: 'res-1', type: 'annotation-of',
+        })),
+      },
+    } as unknown as GatheredContext;
+  }
+
+  describe('graph geometry adapts to the populated layers', () => {
+    it('a lone sibling collapses to one natural-size column — no dead thirds', () => {
+      const { container } = render(<ContextSummary context={middleOnlyContext(1)} translations={t} />);
+      const svg = container.querySelector('svg')!;
+      // One 180-wide column + margins; two rows (focal above, sibling below).
+      expect(svg.getAttribute('viewBox')).toBe('0 0 196 120');
+      // Natural-size cap: 1 viewBox unit never exceeds 1px, so a narrow graph
+      // renders small instead of stretching to fill the pane.
+      expect((svg as SVGElement).style.maxWidth).toBe('196px');
+    });
+
+    it('siblings wrap into the freed columns instead of chaining (5 → 3-across grid)', () => {
+      const { container } = render(<ContextSummary context={middleOnlyContext(5)} translations={t} />);
+      const svg = container.querySelector('svg')!;
+      // Three columns, three rows (focal + two sibling rows) — not six rows.
+      expect(svg.getAttribute('viewBox')).toBe('0 0 628 172');
+      const rects = Array.from(container.querySelectorAll('.semiont-graph__node--annotation rect'));
+      expect(new Set(rects.map((r) => r.getAttribute('x')))).toEqual(new Set(['8', '224', '440']));
+      expect(Math.max(...rects.map((r) => Number(r.getAttribute('y'))))).toBe(112); // row 2
+    });
+
+    it('wrap compacts, never clips — every sibling and edge still draws', () => {
+      const { container } = render(<ContextSummary context={middleOnlyContext(11)} translations={t} />);
+      expect(container.querySelectorAll('.semiont-graph__node--annotation')).toHaveLength(11);
+      expect(container.querySelectorAll('.semiont-graph__edge--annotation-of')).toHaveLength(11);
+    });
+
+    it('a fully populated graph keeps the three-layer full-width shape', () => {
+      // vizContext has citers AND peers — no freed columns, the middle band
+      // stays a single column and the chain is the correct rendering.
+      const { container } = renderViz();
+      const svg = container.querySelector('svg')!;
+      expect(svg.getAttribute('viewBox')!.startsWith('0 0 628 ')).toBe(true);
+    });
+
+    it('the floating cited-line caption is gone — the drawn citer nodes ARE the count', () => {
+      const { container } = renderViz();
+      const pane = container.querySelector('.semiont-gather-pane--graph')!;
+      expect(container.querySelector('[data-node-id="res-3"]')).not.toBeNull(); // citer drawn
+      expect(pane.querySelector('.semiont-graph__cited-line')).toBeNull();
+      expect(pane.textContent).not.toContain('Cited by (1)');
+    });
   });
 
   it('an annotation focus WITHOUT the annotate group renders display-only (GFR A2)', () => {

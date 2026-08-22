@@ -27,21 +27,21 @@ const RESOURCE_CONTEXT = {
 } as unknown as GatheredContext;
 
 const T = {
-  configureTitle: 'Configure Generation',
+  title: 'Generate from this Resource',
   gatherIntro: 'Choose what to include.',
   includeContent: 'Include content',
   includeSummary: 'Include summary',
   gatherDepth: 'Depth',
   gatherMaxResources: 'Max resources',
   gatherButton: 'Gather',
-  excludeLabel: 'Exclude from recall',
+  recallLabel: 'Included in recall — deselect to exclude',
   loadingContext: 'Gathering…',
   failedContext: 'Failed',
   sourceContextLabel: 'Resource',
   connectionsLabel: 'Connections',
   citedByLabel: 'Cited by',
   graphPaneTitle: 'In the graph',
-  graphEmpty: 'No links yet.',
+  graphEmpty: 'No links yet.', resourceLinkLabel: 'Resource link',
   corpusPaneTitle: 'In the corpus',
   corpusEmpty: 'Nothing similar in the corpus.',
   excludedReceipt: '{{types}} excluded from this recall',
@@ -64,6 +64,7 @@ const T = {
   discardDraftPrompt: 'Discard this draft?',
   discardDraft: 'Discard',
   keepEditing: 'Keep editing',
+  editGather: 'Change gather settings',
 };
 
 let onClose: Mock<() => void>;
@@ -102,7 +103,7 @@ describe('ResourceGenerateModal', () => {
 
   it('renders nothing when closed', () => {
     renderModal({ isOpen: false });
-    expect(screen.queryByText(T.configureTitle)).not.toBeInTheDocument();
+    expect(screen.queryByText(T.title)).not.toBeInTheDocument();
   });
 
   it('opens with the gather controls at the top and nothing below them yet', () => {
@@ -110,7 +111,7 @@ describe('ResourceGenerateModal', () => {
     // even with a context PROP already present, nothing renders below the
     // controls until THIS run's gather fires.
     const { baseElement } = renderModal({ gatherContext: RESOURCE_CONTEXT });
-    expect(screen.getByText(T.configureTitle)).toBeInTheDocument(); // the one modal title
+    expect(screen.getByText(T.title)).toBeInTheDocument(); // the one modal title
     expect(screen.getByText(T.gatherIntro)).toBeInTheDocument();
     expect(screen.getByLabelText(T.includeContent)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Person' })).toBeInTheDocument();
@@ -120,7 +121,7 @@ describe('ResourceGenerateModal', () => {
     expect(screen.queryByLabelText(T.resourceTitle)).not.toBeInTheDocument();
   });
 
-  it('Gather emits onGather and the evidence zone appears in place (exclusion omitted when none picked)', () => {
+  it('Gather emits onGather; the spent controls collapse to a receipt of what fired', () => {
     // The modal no longer knows how to gather — it says WHAT to gather and the
     // page wires the state unit (FLC D3). No resourceId in the payload: the
     // owner already holds it.
@@ -128,13 +129,46 @@ describe('ResourceGenerateModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
     expect(onGather).toHaveBeenCalledWith({ includeContent: true, includeSummary: true, depth: 2, maxResources: 10 });
     expect(baseElement.querySelector('.semiont-gather__loading')).not.toBeNull();
-    // The controls stay put above the evidence — no page flip.
-    expect(screen.getByText(T.gatherIntro)).toBeInTheDocument();
+    // The form's job is done: it folds into a one-line receipt of what THIS
+    // gather asked for, and the evidence leads the pane. The form stays
+    // mounted (hidden) so its values survive for the expand path.
+    const receipt = screen.getByTitle(T.editGather);
+    expect(receipt.textContent).toContain(`${T.gatherDepth} 2`);
+    expect(receipt.textContent).toContain(`${T.gatherMaxResources} 10`);
+    expect(receipt.textContent).toContain(T.includeContent);
+    expect(screen.getByText(T.gatherIntro)).not.toBeVisible();
   });
 
-  it('threads picked entity types into the gather options', () => {
+  it('the receipt names the exclusions of THIS recall', () => {
     renderModal();
-    fireEvent.click(screen.getByRole('button', { name: 'Person' })); // select to exclude
+    fireEvent.click(screen.getByRole('button', { name: 'Person' }));
+    fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
+    expect(screen.getByTitle(T.editGather).textContent)
+      .toContain('Person excluded from this recall');
+  });
+
+  it('the receipt expands back to the form — values preserved — and re-gather collapses again', () => {
+    renderModal({ gatherContext: RESOURCE_CONTEXT });
+    fireEvent.change(screen.getByLabelText(T.gatherDepth), { target: { value: '4' } });
+    fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
+    expect(screen.getByTitle(T.editGather).textContent).toContain(`${T.gatherDepth} 4`);
+
+    fireEvent.click(screen.getByTitle(T.editGather));
+    const depthInput = screen.getByLabelText(T.gatherDepth);
+    expect(depthInput).toBeVisible();
+    expect(depthInput).toHaveValue(4); // not re-initialized — the form never unmounted
+    expect(screen.queryByTitle(T.editGather)).not.toBeInTheDocument();
+
+    fireEvent.change(depthInput, { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
+    expect(onGather).toHaveBeenCalledTimes(2);
+    expect(onGather).toHaveBeenLastCalledWith(expect.objectContaining({ depth: 3 }));
+    expect(screen.getByTitle(T.editGather).textContent).toContain(`${T.gatherDepth} 3`);
+  });
+
+  it('threads crossed-off entity types into the gather options as the exclude list', () => {
+    renderModal();
+    fireEvent.click(screen.getByRole('button', { name: 'Person' })); // cross off the recall
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
     expect(onGather).toHaveBeenCalledWith({
       includeContent: true,
@@ -143,6 +177,27 @@ describe('ResourceGenerateModal', () => {
       maxResources: 10,
       excludeEntityTypes: ['Person'],
     });
+  });
+
+  it('every entity type starts INCLUDED — deselecting is what excludes (recall chips)', () => {
+    // The SDK's wire is an exclude list, but the natural posture is
+    // "everything is in the recall until you say otherwise": chips render
+    // included by default and a click crosses one off.
+    renderModal();
+    expect(screen.getByText(T.recallLabel)).toBeInTheDocument();
+    const person = screen.getByRole('button', { name: 'Person' });
+    const topic = screen.getByRole('button', { name: 'Topic' });
+    expect(person).toHaveAttribute('aria-pressed', 'true');
+    expect(person).toHaveAttribute('data-included', 'true');
+    expect(person.className).toContain('semiont-form__recall-chip');
+
+    fireEvent.click(person);
+    expect(person).toHaveAttribute('aria-pressed', 'false');
+    expect(person).toHaveAttribute('data-included', 'false');
+    expect(topic).toHaveAttribute('aria-pressed', 'true'); // the rest stay in
+
+    fireEvent.click(person); // back in — the toggle round-trips
+    expect(person).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('params render beneath the evidence once context arrives; Generate emits and closes', () => {
@@ -187,6 +242,7 @@ describe('ResourceGenerateModal', () => {
   it('re-Gather refreshes the evidence in place — the stack stays', () => {
     renderModal({ gatherContext: RESOURCE_CONTEXT });
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
+    fireEvent.click(screen.getByTitle(T.editGather)); // expand the receipt
     fireEvent.click(screen.getByRole('button', { name: /Gather/ })); // tweak-and-regather
     expect(onGather).toHaveBeenCalledTimes(2);
     expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();
@@ -329,7 +385,7 @@ describe('ResourceGenerateModal — dismissal guards typed work (GATHER-AT-THE-T
 
   it('non-text state alone never nags — exclusions and depth are cheap to redo (D5)', () => {
     renderModal();
-    fireEvent.click(screen.getByRole('button', { name: 'Person' })); // pick an exclusion
+    fireEvent.click(screen.getByRole('button', { name: 'Person' })); // cross off the recall
 
     fireEvent.click(screen.getByLabelText('Close'));
     expect(screen.queryByText(T.discardDraftPrompt)).not.toBeInTheDocument();
