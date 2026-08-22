@@ -19,6 +19,7 @@ const t = {
   citedByLabel: 'Cited by',
   graphPaneTitle: 'In the graph',
   graphEmpty: 'No links yet — resolving this reference creates the first.',
+  resourceLinkLabel: 'Resource link',
   corpusPaneTitle: 'In the corpus',
   corpusEmpty: 'Nothing similar in the corpus.',
   excludedReceipt: '{{types}} excluded from this recall',
@@ -383,6 +384,40 @@ describe('GatheredContext display — resource focus', () => {
     expect(title!.textContent!.match(/Person/g)).toHaveLength(1);
     // Peer hover carries its entity types.
     expect(container.querySelector('[data-node-id="res-2"] title')!.textContent).toContain('Topic');
+  });
+
+  /** A resource-level provenance annotation: target has no selector (nothing
+   *  to quote); the body's SpecificResource names what it links to. */
+  function provenanceContext(bodySource: string): GatheredContext {
+    return {
+      ...(resourceContext() as object),
+      graph: {
+        nodes: [
+          { id: 'res-1', type: 'resource', label: 'My Resource' },
+          { id: 'res-9', type: 'resource', label: 'Generated Doc' },
+          { id: 'ann-p', type: 'annotation', label: 'linking',
+            annotation: { id: 'ann-p', motivation: 'linking',
+              target: { source: 'res-1' },
+              body: [{ type: 'SpecificResource', source: bodySource, purpose: 'linking' }] } },
+        ],
+        edges: [{ source: 'ann-p', target: 'res-1', type: 'annotation-of' }],
+      },
+    } as unknown as GatheredContext;
+  }
+
+  it('a resource-level linking annotation is labeled by what it links to, not its motivation', () => {
+    const { container } = render(<ContextSummary context={provenanceContext('res-9')} translations={t} />);
+    const node = container.querySelector('[data-node-id="ann-p"]')!;
+    expect(node.querySelector('text')!.textContent).toBe('→ Generated Doc');
+    // Hover carries the full linked name; the motivation stays hover-only.
+    expect(node.querySelector('title')!.textContent).toContain('Generated Doc');
+    expect(node.querySelector('title')!.textContent).toContain('linking');
+  });
+
+  it('an unresolvable link target falls back to the translated label — never raw vocabulary', () => {
+    const { container } = render(<ContextSummary context={provenanceContext('res-404')} translations={t} />);
+    const node = container.querySelector('[data-node-id="ann-p"]')!;
+    expect(node.querySelector('text')!.textContent).toBe('Resource link');
   });
 
   it('layout is deterministic — same context, same positions (P4, D3)', () => {

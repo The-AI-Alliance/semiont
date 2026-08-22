@@ -28,6 +28,7 @@ export interface ResourceGenerateModalTranslations {
   citedByLabel: string;
   graphPaneTitle: string;
   graphEmpty: string;
+  resourceLinkLabel: string;
   corpusPaneTitle: string;
   corpusEmpty: string;
   excludedReceipt: string;
@@ -214,6 +215,7 @@ export function ResourceGenerateModal({
     citedByLabel: t.citedByLabel,
     graphPaneTitle: t.graphPaneTitle,
     graphEmpty: t.graphEmpty,
+    resourceLinkLabel: t.resourceLinkLabel,
     corpusPaneTitle: t.corpusPaneTitle,
     corpusEmpty: t.corpusEmpty,
     excludedReceipt: t.excludedReceipt,

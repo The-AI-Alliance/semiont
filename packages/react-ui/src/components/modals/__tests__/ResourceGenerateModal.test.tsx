@@ -41,7 +41,7 @@ const T = {
   connectionsLabel: 'Connections',
   citedByLabel: 'Cited by',
   graphPaneTitle: 'In the graph',
-  graphEmpty: 'No links yet.',
+  graphEmpty: 'No links yet.', resourceLinkLabel: 'Resource link',
   corpusPaneTitle: 'In the corpus',
   corpusEmpty: 'Nothing similar in the corpus.',
   excludedReceipt: '{{types}} excluded from this recall',

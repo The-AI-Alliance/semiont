@@ -1,6 +1,6 @@
 'use client';
 
-import { deriveViews, getExactText, getTargetSelector, type GatheredContext } from '@semiont/core';
+import { deriveViews, getBodySource, getExactText, getTargetSelector, type GatheredContext } from '@semiont/core';
 
 export interface ContextSummaryTranslations {
   sourceContextLabel: string;
@@ -10,6 +10,8 @@ export interface ContextSummaryTranslations {
   graphPaneTitle: string;
   /** Strategy-relevant empty state — emptiness is evidence (GEP D1). */
   graphEmpty: string;
+  /** Resource-level linking annotation whose target the graph can't name. */
+  resourceLinkLabel: string;
 }
 
 export interface ContextSummaryProps {
@@ -135,11 +137,25 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
     const motivation = ann?.motivation ?? s.label;
     const body = ann ? firstBodyValue(ann.body) : undefined;
     const types = rank(s.entityTypes ?? []);
-    // Hover leads with the full quote — the drawn label truncates (like the
-    // resource nodes, whose hover carries the full name).
-    const hover = [quote, motivation, body, types.length ? types.join(', ') : undefined]
-      .filter(Boolean).join('\n');
-    const node: DrawnNode = { id: s.id, label: quote || s.label, kind: 'annotation',
+    // A resource-level annotation has no selector — nothing to quote — but is
+    // ABOUT a target resource: label it by what it links to. Raw motivation
+    // ("linking") is internal vocabulary and stays hover-only.
+    const linkTarget = !quote && ann ? getBodySource(ann.body) : null;
+    const linkedName = linkTarget
+      ? context.graph.nodes.find((n) => n.id === linkTarget)?.label
+      : undefined;
+    const label = quote
+      || (linkedName ? `→ ${linkedName}` : undefined)
+      || (linkTarget ? t.resourceLinkLabel : undefined)
+      || body
+      || s.label;
+    // Hover leads with the full label — the drawn one truncates (like the
+    // resource nodes, whose hover carries the full name). Deduped: a label
+    // that fell through to the body or motivation must not repeat below it.
+    const hover = Array.from(new Set(
+      [label, motivation, body, types.length ? types.join(', ') : undefined].filter(Boolean),
+    )).join('\n');
+    const node: DrawnNode = { id: s.id, label, kind: 'annotation',
       hover, x: colX(bandCol0 + (i % bandCols)), y: TOP + (1 + Math.floor(i / bandCols)) * ROW };
     drawn.push(node);
     drawnEdges.push({ key: `annof-${s.id}`, kind: 'annotation-of', hover: 'annotation-of',

@@ -49,7 +49,7 @@ const T = {
   sourceContextLabel: 'Source', connectionsLabel: 'Connections', citedByLabel: 'Cited by',
   userHintLabel: 'Hint', userHintEffect: 'steers Search and Generate',
   userHintPlaceholder: 'Describe what this refers to…',
-  graphPaneTitle: 'In the graph', graphEmpty: 'No links yet.',
+  graphPaneTitle: 'In the graph', graphEmpty: 'No links yet.', resourceLinkLabel: 'Resource link',
   corpusPaneTitle: 'In the corpus', corpusEmpty: 'Nothing similar.',
   excludedReceipt: '{{types}} excluded', machineRead: 'OCR',
   loadingContext: 'Loading…', failedContext: 'Failed',

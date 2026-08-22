@@ -121,7 +121,7 @@ const GEN_T = {
 
 const CONTEXT_T = {
   sourceContextLabel: 'Source', connectionsLabel: 'Connections', citedByLabel: 'Cited by',
-  graphPaneTitle: 'In the graph', graphEmpty: 'No links yet.',
+  graphPaneTitle: 'In the graph', graphEmpty: 'No links yet.', resourceLinkLabel: 'Resource link',
 };
 
 const GATHER_T = {
