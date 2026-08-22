@@ -308,3 +308,42 @@ describe('AssistProgress — P3 consolidation', () => {
     expect(screen.getByTestId(PARAMS)).toBeInTheDocument();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GENERATION-ARRIVAL P1 — the honest ended frame. The producer's terminal
+// 100% frame races job:complete and can lose (its emit is a fire-and-forget
+// heartbeat); terminality is the OWNER's fact (D7), so the ended rendering
+// stops trusting the last payload: full bar, and the owner's terminal
+// sentence when it supplies one.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('AssistProgress — the honest ended frame (GENERATION-ARRIVAL P1)', () => {
+  it('A1: an ended frame renders a FULL bar whatever the last payload said', () => {
+    const { container } = render(
+      <AssistProgress ended progress={detecting({ percentage: 95 })} dataType="generation" translations={T3()} />,
+    );
+    const fill = container.querySelector('.semiont-progress-bar__fill') as HTMLElement;
+    expect(fill.style.width).toBe('100%');
+  });
+
+  it('a live frame keeps the payload percentage', () => {
+    const { container } = render(
+      <AssistProgress ended={false} progress={detecting({ percentage: 95 })} dataType="generation" translations={T3()} />,
+    );
+    const fill = container.querySelector('.semiont-progress-bar__fill') as HTMLElement;
+    expect(fill.style.width).toBe('95%');
+  });
+
+  it('endedMessage replaces the stale payload copy once ended', () => {
+    render(
+      <AssistProgress ended endedMessage="tr.ended" progress={detecting({ percentage: 95 })} dataType="generation" translations={T3()} />,
+    );
+    expect(screen.getByTestId(STATUS).textContent).toBe('tr.ended');
+  });
+
+  it('endedMessage is inert while the run is live', () => {
+    render(
+      <AssistProgress ended={false} endedMessage="tr.ended" progress={detecting()} dataType="generation" translations={T3()} />,
+    );
+    expect(screen.getByTestId(STATUS).textContent).toBe('tr.code(detecting-entities)');
+  });
+});

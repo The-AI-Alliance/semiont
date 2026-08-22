@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import type { EventBus } from '@semiont/core';
+import { BehaviorSubject } from 'rxjs';
+import type { EventBus, ResourceDescriptor } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
-import type { SemiontClient, SemiontSession } from '@semiont/sdk';
+import type { CacheObservable, CacheState, SemiontClient, SemiontSession } from '@semiont/sdk';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 
@@ -337,6 +338,7 @@ describe('ResourceInfoPanel Component', () => {
           generationOutcome={{
             resourceId: makeResourceId('urn:semiont:resource:new1'),
             resourceName: 'Summary of PB',
+            truncated: false,
           }}
           onDismissProgress={onDismissProgress} />
       );
@@ -370,6 +372,37 @@ describe('ResourceInfoPanel Component', () => {
         .toContain('codeCompleteGenerated');
       expect(screen.getByTestId('semiont-assist-status').textContent)
         .not.toContain('Truncated');
+    });
+
+    it('the ended frame speaks completion even when the final progress frame lost the race (GENERATION-ARRIVAL D4/D5)', () => {
+      // The screenshot case: last frame is the 95% "creating" payload, the
+      // terminal 100% frame never arrived — but the outcome did. The sentence
+      // derives from the OUTCOME, not the racing frame.
+      renderWithEventBus(
+        <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
+          isGenerating={false}
+          generationProgress={{ percentage: 95, message: { code: 'creating-resource' } }}
+          generationOutcome={{
+            resourceId: makeResourceId('urn:semiont:resource:new1'),
+            resourceName: 'Summary of PB',
+            truncated: false,
+          }} />
+      );
+      expect(screen.getByTestId('semiont-assist-status').textContent).toBe('codeCompleteGenerated');
+    });
+
+    it('a truncated outcome says so — the bit rides the outcome, not the racing frame (D5)', () => {
+      renderWithEventBus(
+        <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
+          isGenerating={false}
+          generationProgress={{ percentage: 95, message: { code: 'creating-resource' } }}
+          generationOutcome={{
+            resourceId: makeResourceId('urn:semiont:resource:new1'),
+            resourceName: 'Summary of PB',
+            truncated: true,
+          }} />
+      );
+      expect(screen.getByTestId('semiont-assist-status').textContent).toBe('codeCompleteGeneratedTruncated');
     });
 
     it('no outcome, no link: the ended frame renders without one until job:complete arrives', () => {
@@ -429,7 +462,9 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.getByText('Alice, Bob')).toBeInTheDocument();
     });
 
-    it('should render wasDerivedFrom when provided', () => {
+    it('should render wasDerivedFrom when provided — the id is the unresolved fallback', () => {
+      // The factory client's fetch fails in jsdom (no server), so the
+      // descriptor never resolves and the raw id stays as the honest label.
       renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
@@ -458,6 +493,34 @@ describe('ResourceInfoPanel Component', () => {
 
       fireEvent.click(screen.getByText('urn:semiont:resource:abc123'));
       expect(openSpy).toHaveBeenCalledTimes(1);
+      expect(String(openSpy.mock.calls[0]![0])).toBe('urn:semiont:resource:abc123');
+    });
+
+    it('resolves the derived-from id to its resource NAME; clicks still navigate by id', () => {
+      // The id is wire identity, not presentation. Once `browse.resource`
+      // serves the source's descriptor, the link wears its name — the raw
+      // hash only survives while the descriptor is unresolved (pin below).
+      const { SemiontWrapper, session, client } = createTestSemiontWrapper();
+      vi.spyOn(client.browse, 'resource').mockReturnValue(
+        new BehaviorSubject<CacheState<ResourceDescriptor>>({
+          status: 'ready',
+          value: { '@id': 'urn:semiont:resource:abc123', name: 'Source Doc' } as ResourceDescriptor,
+        }) as unknown as CacheObservable<ResourceDescriptor>,
+      );
+      const openSpy = vi.spyOn(client.browse, 'openResource');
+      render(
+        <ResourceInfoPanel
+          {...defaultProps}
+          session={session}
+          wasDerivedFrom="urn:semiont:resource:abc123"
+        />,
+        { wrapper: ({ children }) => <SemiontWrapper>{children}</SemiontWrapper> },
+      );
+
+      expect(screen.getByText('Source Doc')).toBeInTheDocument();
+      expect(screen.queryByText('urn:semiont:resource:abc123')).toBeNull();
+
+      fireEvent.click(screen.getByText('Source Doc'));
       expect(String(openSpy.mock.calls[0]![0])).toBe('urn:semiont:resource:abc123');
     });
 

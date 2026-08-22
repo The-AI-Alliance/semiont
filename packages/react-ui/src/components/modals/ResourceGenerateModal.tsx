@@ -5,17 +5,13 @@ import type { CollaboratorEntry, GatheredContext } from '@semiont/core';
 import type { ResourceGatherOptions } from '@semiont/sdk';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { ConfigureGatherStep, type ResourceGatherConfig } from './ConfigureGatherStep';
+import { DiscardPrompt } from './DiscardPrompt';
 import { GatherContextStep } from './GatherContextStep';
-import { WizardFooter } from './WizardFooter';
 import { ConfigureGenerationStep, type GenerationConfig, type GenerationDraft } from './ConfigureGenerationStep';
 
 export interface ResourceGenerateModalTranslations {
-  // Step titles + nav
-  gatherTitle: string;
-  reviewTitle: string;
-  configureTitle: string;
-  next: string;
-  back: string;
+  /** The ONE modal title — names the flow, not a step. */
+  title: string;
   // ConfigureGatherStep
   gatherIntro: string;
   includeContent: string;
@@ -23,7 +19,10 @@ export interface ResourceGenerateModalTranslations {
   gatherDepth: string;
   gatherMaxResources: string;
   gatherButton: string;
-  excludeLabel: string;
+  /** Labels the recall chips: every type included until deselected. */
+  recallLabel: string;
+  /** Affordance on the post-gather receipt row (title/tooltip). */
+  editGather: string;
   // GatherContextStep display
   loadingContext: string;
   failedContext: string;
@@ -32,6 +31,7 @@ export interface ResourceGenerateModalTranslations {
   citedByLabel: string;
   graphPaneTitle: string;
   graphEmpty: string;
+  resourceLinkLabel: string;
   corpusPaneTitle: string;
   corpusEmpty: string;
   excludedReceipt: string;
@@ -40,6 +40,7 @@ export interface ResourceGenerateModalTranslations {
   // ConfigureGenerationStep
   resourceTitle: string;
   resourceTitlePlaceholder: string;
+  saveLocation: string;
   additionalInstructions: string;
   additionalInstructionsPlaceholder: string;
   language: string;
@@ -51,6 +52,10 @@ export interface ResourceGenerateModalTranslations {
   maxLengthHelp: string;
   maxLengthCeiling: string;
   generate: string;
+  // DiscardPrompt (GATHER-AT-THE-TOP P1)
+  discardDraftPrompt: string;
+  discardDraft: string;
+  keepEditing: string;
 }
 
 export interface ResourceGenerateModalProps {
@@ -65,7 +70,6 @@ export interface ResourceGenerateModalProps {
   resourceId: string;
   defaultTitle: string;
   locale: string;
-  gatherDefaults?: Partial<ResourceGatherConfig>;
   /**
    * Entity types offered in the exclusion picker. Owner-supplied so the
    * modal cannot present a failed load as an empty vocabulary.
@@ -96,12 +100,15 @@ export interface ResourceGenerateModalProps {
   translations: ResourceGenerateModalTranslations;
 }
 
-type Step = 'configure-gather' | 'review' | 'configure-generation';
-
 /**
- * Resource-generate flow (GENERATE-FROM-BUTTON): configure gather options →
- * `gather.resource` → review the gathered `GatheredContext` → configure
- * generation → emit. Reuses the kind-aware `GatherContextStep` for the review.
+ * Resource-generate flow (GENERATE-FROM-BUTTON, folded by GATHER-AT-THE-TOP):
+ * one composite stack in a single scroll pane — the gather controls at the
+ * top, the gathered `GatheredContext` below them once gather fires, and the
+ * generation params beneath the evidence once context arrives. Re-gathering
+ * is scroll-up → tweak → Gather; `gatherResource` clears its slots at start,
+ * so the evidence refreshes in place. [gather zone] → [evidence] → [act
+ * zone]: the same grammar the resolve wizard expresses, whose gather zone
+ * happens to be automatic and whose act zone has a strategy choice.
  */
 export function ResourceGenerateModal({
   isOpen,
@@ -109,7 +116,6 @@ export function ResourceGenerateModal({
   resourceId,
   defaultTitle,
   locale,
-  gatherDefaults,
   entityTypeOptions = [],
   onGenerateSubmit,
   gatherContext,
@@ -127,7 +133,16 @@ export function ResourceGenerateModal({
   });
   const [generationDraft, setGenerationDraft] = useState<GenerationDraft>(freshDraft);
 
-  const [step, setStep] = useState<Step>('configure-gather');
+  // "Has THIS run gathered yet?" — the page's gather slots survive across
+  // opens, so a context prop can be stale at open time. Nothing renders below
+  // the controls until the user fires a gather in this run.
+  const [gatherFired, setGatherFired] = useState(false);
+  // The fired snapshot feeds the receipt: what THIS gather actually asked
+  // for, exclusions included — not the form's live state, which the user can
+  // edit without re-firing.
+  const [lastGather, setLastGather] = useState<(ResourceGatherConfig & { excludeEntityTypes: string[] }) | null>(null);
+  const [editingGather, setEditingGather] = useState(false);
+  const [showDiscardPrompt, setShowDiscardPrompt] = useState(false);
   // Supplied by the owner, which already tracks the list with its failure
   // state. Fetching it here could only model (value | not-yet), so a failed
   // load would render an empty exclusion picker as though the KB had no
@@ -140,11 +155,20 @@ export function ResourceGenerateModal({
   // name existed (GFR A4). Guarded to the false→true transition so a name
   // arriving mid-flow cannot clobber what the user has typed.
   const wasOpen = useRef(false);
+  // The dirty baseline is what was SEEDED, not the live prop: defaultTitle
+  // can move while the modal is open (the source resource's name loads
+  // asynchronously), and an untouched draft must not read as dirty because
+  // the baseline moved under it.
+  const seededTitle = useRef(defaultTitle);
   useEffect(() => {
     if (isOpen && !wasOpen.current) {
-      setStep('configure-gather');
+      setGatherFired(false);
+      setLastGather(null);
+      setEditingGather(false);
       setExcludeEntityTypes([]);
       setGenerationDraft(freshDraft());
+      setShowDiscardPrompt(false);
+      seededTitle.current = defaultTitle;
     }
     wasOpen.current = isOpen;
     // freshDraft reads defaultTitle/locale at call time; the effect keys on the
@@ -153,7 +177,9 @@ export function ResourceGenerateModal({
   }, [isOpen]);
 
   const handleGather = useCallback((config: ResourceGatherConfig) => {
-    setStep('review');
+    setGatherFired(true);
+    setLastGather({ ...config, excludeEntityTypes });
+    setEditingGather(false);
     onGather({
       ...config,
       ...(excludeEntityTypes.length ? { excludeEntityTypes } : {}),
@@ -165,20 +191,34 @@ export function ResourceGenerateModal({
     onClose();
   }, [onGenerateSubmit, resourceId, onClose]);
 
-  const stepTitle = step === 'configure-gather' ? t.gatherTitle : step === 'review' ? t.reviewTitle : t.configureTitle;
+  // D4/D5 (GATHER-AT-THE-TOP P1): typed text must not die with a dismissed
+  // modal. Toggles, depth, and exclusion picks are cheap to redo and never
+  // nag. Generate's completion path above bypasses this — the guard protects
+  // dismissal, not completion.
+  const draftDirty =
+    generationDraft.title !== seededTitle.current ||
+    generationDraft.storagePath.trim() !== '' ||
+    generationDraft.prompt.trim() !== '';
+  const handleDismiss = useCallback(() => {
+    if (draftDirty) {
+      setShowDiscardPrompt(true);
+      return;
+    }
+    onClose();
+  }, [draftDirty, onClose]);
 
-  // Configure-generation stacks evidence + form in ONE scroll pane; enter at
-  // the BOTTOM so the parameters show in full, the evidence tucked up under
-  // the modal top. jsdom has no layout (scrollHeight 0) — no-op in tests.
+  // The whole stack is ONE scroll pane; when the params zone appears (context
+  // arrival — including each re-gather), enter at the BOTTOM so the
+  // parameters show in full, the evidence and controls tucked up under the
+  // modal top. jsdom has no layout (scrollHeight 0) — no-op in tests.
   const stepScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = stepScrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [step]);
+    if (el && gatherContext) el.scrollTop = el.scrollHeight;
+  }, [gatherContext]);
 
-  // Shared by review and configure-generation: stepping onward must not hide
-  // what the generation will be grounded in — the context stays in view above
-  // the form.
+  // The evidence zone: what the generation will be grounded in stays in view
+  // above the form.
   const displayTranslations = {
     loadingContext: t.loadingContext,
     failedContext: t.failedContext,
@@ -187,6 +227,7 @@ export function ResourceGenerateModal({
     citedByLabel: t.citedByLabel,
     graphPaneTitle: t.graphPaneTitle,
     graphEmpty: t.graphEmpty,
+    resourceLinkLabel: t.resourceLinkLabel,
     corpusPaneTitle: t.corpusPaneTitle,
     corpusEmpty: t.corpusEmpty,
     excludedReceipt: t.excludedReceipt,
@@ -196,7 +237,7 @@ export function ResourceGenerateModal({
 
   return (
     <Transition appear show={isOpen}>
-      <Dialog as="div" className="semiont-search-modal" onClose={onClose}>
+      <Dialog as="div" className="semiont-search-modal" onClose={handleDismiss}>
         <TransitionChild
           enter="ease-out duration-200"
           enterFrom="opacity-0"
@@ -220,15 +261,49 @@ export function ResourceGenerateModal({
             >
               <DialogPanel className="semiont-search-modal__panel semiont-search-modal__panel--with-border semiont-search-modal__panel--gather semiont-search-modal__panel--wide">
                 <div className="semiont-search-modal__header">
-                  <DialogTitle className="semiont-search-modal__title">{stepTitle}</DialogTitle>
-                  <button onClick={onClose} className="semiont-search-modal__close-button" aria-label="Close">
+                  <DialogTitle className="semiont-search-modal__title">{t.title}</DialogTitle>
+                  <button onClick={handleDismiss} className="semiont-search-modal__close-button" aria-label="Close">
                     ✕
                   </button>
                 </div>
 
-                {step === 'configure-gather' && (
+                {showDiscardPrompt && (
+                  <DiscardPrompt
+                    prompt={t.discardDraftPrompt}
+                    discardLabel={t.discardDraft}
+                    keepLabel={t.keepEditing}
+                    onDiscard={() => { setShowDiscardPrompt(false); onClose(); }}
+                    onKeepEditing={() => setShowDiscardPrompt(false)}
+                  />
+                )}
+
+                <div className="semiont-wizard__step-scroll" ref={stepScrollRef}>
+                  {/* Once fired, the spent controls fold into a receipt of
+                      what THIS gather asked for — the evidence leads the
+                      pane, the parameters stay visible and revisable. The
+                      form below is HIDDEN, not unmounted, so its values
+                      survive for the expand path. */}
+                  {gatherFired && !editingGather && lastGather && (
+                    <button
+                      type="button"
+                      className="semiont-gather-receipt"
+                      title={t.editGather}
+                      onClick={() => setEditingGather(true)}
+                    >
+                      {[
+                        `${t.gatherDepth} ${lastGather.depth}`,
+                        `${t.gatherMaxResources} ${lastGather.maxResources}`,
+                        ...(lastGather.includeContent ? [t.includeContent] : []),
+                        ...(lastGather.includeSummary ? [t.includeSummary] : []),
+                        ...(lastGather.excludeEntityTypes.length
+                          ? [t.excludedReceipt.replace('{{types}}', lastGather.excludeEntityTypes.join(', '))]
+                          : []),
+                      ].join(' · ')}
+                      <span aria-hidden="true"> ✎</span>
+                    </button>
+                  )}
+                  <div hidden={gatherFired && !editingGather}>
                   <ConfigureGatherStep
-                    defaults={gatherDefaults}
                     onGather={handleGather}
                     translations={{
                       intro: t.gatherIntro,
@@ -241,17 +316,21 @@ export function ResourceGenerateModal({
                   >
                     {entityTypeOptions.length > 0 && (
                       <div className="semiont-form__field semiont-form__entity-types">
-                        <label className="semiont-form__label">{t.excludeLabel}</label>
-                        <div className="semiont-form__entity-type-buttons">
+                        <label className="semiont-form__label">{t.recallLabel}</label>
+                        {/* Recall chips — the exclude wire, inverted for the
+                            UI: every type is IN the recall until crossed off,
+                            so the state is still the exclude list and a chip
+                            is included when absent from it. */}
+                        <div className="semiont-form__recall-chips">
                           {entityTypeOptions.map((et) => {
-                            const isSelected = excludeEntityTypes.includes(et);
+                            const isIncluded = !excludeEntityTypes.includes(et);
                             return (
                               <button
                                 key={et}
                                 type="button"
-                                className="semiont-form__entity-type-button"
-                                data-selected={isSelected}
-                                aria-pressed={isSelected}
+                                className="semiont-form__recall-chip"
+                                data-included={isIncluded}
+                                aria-pressed={isIncluded}
                                 onClick={() => setExcludeEntityTypes(prev => prev.includes(et) ? prev.filter(x => x !== et) : [...prev, et])}
                               >
                                 {et}
@@ -262,63 +341,43 @@ export function ResourceGenerateModal({
                       </div>
                     )}
                   </ConfigureGatherStep>
-                )}
+                  </div>
 
-                {step === 'review' && (
-                  <>
+                  {gatherFired && (
                     <GatherContextStep
                       context={gatherContext}
                       contextLoading={gatherLoading}
                       contextError={gatherError}
                       translations={displayTranslations}
                     />
-                    <WizardFooter
-                      backLabel={t.back}
-                      onBack={() => setStep('configure-gather')}
-                      primary={{
-                        label: t.next,
-                        type: 'button',
-                        onClick: () => setStep('configure-generation'),
-                        disabled: !gatherContext,
+                  )}
+
+                  {gatherFired && gatherContext && (
+                    <ConfigureGenerationStep
+                      {...(generationAgent ? { generationAgent } : {})}
+                      context={gatherContext}
+                      config={generationDraft}
+                      onConfigChange={setGenerationDraft}
+                      onGenerate={handleGenerate}
+                      translations={{
+                        resourceTitle: t.resourceTitle,
+                        resourceTitlePlaceholder: t.resourceTitlePlaceholder,
+                        saveLocation: t.saveLocation,
+                        additionalInstructions: t.additionalInstructions,
+                        additionalInstructionsPlaceholder: t.additionalInstructionsPlaceholder,
+                        language: t.language,
+                        languageHelp: t.languageHelp,
+                        creativity: t.creativity,
+                        creativityFocused: t.creativityFocused,
+                        creativityCreative: t.creativityCreative,
+                        maxLength: t.maxLength,
+                        maxLengthHelp: t.maxLengthHelp,
+                        maxLengthCeiling: t.maxLengthCeiling,
+                        generate: t.generate,
                       }}
                     />
-                  </>
-                )}
-
-                {step === 'configure-generation' && gatherContext && (
-                  <div className="semiont-wizard__step-scroll" ref={stepScrollRef}>
-                  <GatherContextStep
-                    context={gatherContext}
-                    contextLoading={gatherLoading}
-                    contextError={gatherError}
-                    translations={displayTranslations}
-                  />
-                  <ConfigureGenerationStep
-                    {...(generationAgent ? { generationAgent } : {})}
-                    context={gatherContext}
-                    config={generationDraft}
-                    onConfigChange={setGenerationDraft}
-                    onBack={() => setStep('review')}
-                    onGenerate={handleGenerate}
-                    translations={{
-                      resourceTitle: t.resourceTitle,
-                      resourceTitlePlaceholder: t.resourceTitlePlaceholder,
-                      additionalInstructions: t.additionalInstructions,
-                      additionalInstructionsPlaceholder: t.additionalInstructionsPlaceholder,
-                      language: t.language,
-                      languageHelp: t.languageHelp,
-                      creativity: t.creativity,
-                      creativityFocused: t.creativityFocused,
-                      creativityCreative: t.creativityCreative,
-                      maxLength: t.maxLength,
-                      maxLengthHelp: t.maxLengthHelp,
-                      maxLengthCeiling: t.maxLengthCeiling,
-                      back: t.back,
-                      generate: t.generate,
-                    }}
-                  />
-                  </div>
-                )}
+                  )}
+                </div>
               </DialogPanel>
             </TransitionChild>
           </div>

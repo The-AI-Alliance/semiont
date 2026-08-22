@@ -11,7 +11,6 @@ export interface ResourceGatherConfig {
 }
 
 export interface ConfigureGatherStepProps {
-  defaults?: Partial<ResourceGatherConfig>;
   onGather: (config: ResourceGatherConfig) => void;
   translations: {
     intro: string;
@@ -31,11 +30,11 @@ export interface ConfigureGatherStepProps {
  * multi-select (Phase 4). Dismissal is the modal's corner ✕/Esc/backdrop
  * (WIZARD-NAVIGATION D1), so the footer carries the advance alone.
  */
-export function ConfigureGatherStep({ defaults, onGather, translations: t, children }: ConfigureGatherStepProps) {
-  const [includeContent, setIncludeContent] = useState(defaults?.includeContent ?? true);
-  const [includeSummary, setIncludeSummary] = useState(defaults?.includeSummary ?? true);
-  const [depth, setDepth] = useState(defaults?.depth ?? 2);
-  const [maxResources, setMaxResources] = useState(defaults?.maxResources ?? 10);
+export function ConfigureGatherStep({ onGather, translations: t, children }: ConfigureGatherStepProps) {
+  const [includeContent, setIncludeContent] = useState(true);
+  const [includeSummary, setIncludeSummary] = useState(true);
+  const [depth, setDepth] = useState(2);
+  const [maxResources, setMaxResources] = useState(10);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +42,7 @@ export function ConfigureGatherStep({ defaults, onGather, translations: t, child
   };
 
   return (
-    <form onSubmit={handleSubmit} className="semiont-form semiont-form--scrollable">
+    <form onSubmit={handleSubmit} className="semiont-form">
       <p className="semiont-form__helper-text">{t.intro}</p>
 
       <div className="semiont-form__checkbox-field">

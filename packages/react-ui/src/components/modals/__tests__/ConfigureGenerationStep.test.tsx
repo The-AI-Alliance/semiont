@@ -17,6 +17,7 @@ import { ConfigureGenerationStep } from '../ConfigureGenerationStep';
 const translations = {
   resourceTitle: 'Title',
   resourceTitlePlaceholder: 'Title…',
+  saveLocation: 'Save location',
   additionalInstructions: 'Instructions',
   additionalInstructionsPlaceholder: 'Instructions…',
   language: 'Language',
@@ -94,6 +95,17 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
 
     expect(input().max).toBe('64000');
     expect(screen.getByText(/Limited to 64000 tokens by claude-sonnet-5\./)).toBeInTheDocument();
+  });
+
+  it('the ceiling sentence is a row-level footnote, never a column child', () => {
+    // A full sentence inside the 5.5rem Max Length column wraps one word per
+    // line and its height taxes the whole flex row — the void under the other
+    // controls IS this caption. It renders full-width under the row instead.
+    renderStep(agentWithCeiling(64_000));
+
+    const help = screen.getByText(/Limited to 64000 tokens/);
+    expect(help).toHaveClass('semiont-form__help--row');
+    expect(help.closest('.semiont-form__field--narrow')).toBeNull();
   });
 
   it('will not commit a value above the ceiling', () => {

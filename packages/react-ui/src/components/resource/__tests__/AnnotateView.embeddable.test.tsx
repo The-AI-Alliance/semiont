@@ -1,7 +1,7 @@
 /**
  * EMBEDDABLE-RESOURCE-VIEWER step 1b — AnnotateView + AnnotateToolbar provider-free.
  *
- * AnnotateView takes `session` + `newAnnotationIds` as props; the REAL
+ * AnnotateView takes `session` + `sparkleAnnotationIds` as props; the REAL
  * AnnotateToolbar (not mocked — its decoupling is the crux of 1b) takes `session`
  * as a prop. CodeMirrorRenderer is mocked (heavy; already prop-based).
  *

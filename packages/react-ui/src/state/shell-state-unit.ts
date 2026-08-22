@@ -11,7 +11,7 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import type { SemiontBrowser } from '@semiont/sdk';
 import type { StateUnit } from '@semiont/core';
-import { annotatorKeyForMotivation } from '../lib/annotation-registry';
+import { annotatorKeyForMotivation, type AnnotatorKey } from '../lib/annotation-registry';
 
 export type ToolbarPanelType = 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld' | 'knowledge-base';
 
@@ -21,7 +21,7 @@ export const RESOURCE_PANELS: readonly ToolbarPanelType[] = ['history', 'info', 
 export interface ShellStateUnit extends StateUnit {
   activePanel$: Observable<ToolbarPanelType | null>;
   scrollToAnnotationId$: Observable<string | null>;
-  panelInitialTab$: Observable<{ tab: string; generation: number } | null>;
+  panelInitialTab$: Observable<{ tab: AnnotatorKey; generation: number } | null>;
   openPanel(panel: string): void;
   closePanel(): void;
   togglePanel(panel: string): void;
@@ -37,7 +37,7 @@ export function createShellStateUnit(browser: SemiontBrowser, options?: ShellSta
   const subs: Subscription[] = [];
   const activePanel$ = new BehaviorSubject<ToolbarPanelType | null>(options?.initialPanel ?? null);
   const scrollToAnnotationId$ = new BehaviorSubject<string | null>(null);
-  const panelInitialTab$ = new BehaviorSubject<{ tab: string; generation: number } | null>(null);
+  const panelInitialTab$ = new BehaviorSubject<{ tab: AnnotatorKey; generation: number } | null>(null);
   // Per-instance monotonic tab-generation counter. Was module-scoped — shared across
   // every ShellStateUnit, an X3 instance-isolation leak; closure-scoped here.
   let tabGenerationCounter = 0;

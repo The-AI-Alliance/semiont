@@ -83,6 +83,8 @@ interface Props {
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
   hoveredAnnotationId?: string | null;
+  /** Annotations currently sparkling (recently created or resolved) — entries in the set glow their icon (RESOLUTION-SPARKLE D6). */
+  sparkleAnnotationIds?: Set<string>;
 
   /** User UI locale — stamped on the unresolved-reference body's `language` field. */
   locale?: string;
@@ -119,6 +121,7 @@ export function ReferencesPanel({
   scrollToAnnotationId,
   onScrollCompleted,
   hoveredAnnotationId,
+  sparkleAnnotationIds,
   locale,
   sourceLanguage,
 }: Props) {
@@ -483,6 +486,7 @@ export function ReferencesPanel({
                   onOpenResource={onOpenResource}
                   annotateMode={annotateMode}
                   isGenerating={reference.id === generatingReferenceId}
+                  sparkle={sparkleAnnotationIds?.has(reference.id) ?? false}
                   ref={(el) => setEntryRef(reference.id, el)}
                 />
               ))

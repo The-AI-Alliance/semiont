@@ -27,6 +27,8 @@ interface ReferenceEntryProps {
   onOpenResource?: (resourceId: string) => void;
   annotateMode?: boolean;
   isGenerating?: boolean;
+  /** The reference just got attention-worthy (created or resolved) — glow the icon (RESOLUTION-SPARKLE D6). */
+  sparkle?: boolean;
   ref?: Ref<HTMLDivElement>;
 }
 
@@ -38,6 +40,7 @@ export function ReferenceEntry({
   onOpenResource,
   annotateMode = true,
   isGenerating = false,
+  sparkle = false,
   ref,
 }: ReferenceEntryProps) {
   const t = useTranslations('ReferencesPanel');
@@ -125,7 +128,7 @@ export function ReferenceEntry({
       <div className="semiont-annotation-entry__header">
         <div className="semiont-reference-icon-group">
           <button
-            className={`semiont-reference-icon${iconIsClickable ? ' semiont-reference-icon--clickable' : ''}`}
+            className={`semiont-reference-icon${iconIsClickable ? ' semiont-reference-icon--clickable' : ''}${sparkle ? ' annotation-sparkle' : ''}`}
             title={isResolved ? t('open') : annotateMode ? t('resolve') : t('stub')}
             onClick={iconIsClickable ? handleIconClick : undefined}
             data-generating={!isResolved && isGenerating ? 'true' : 'false'}

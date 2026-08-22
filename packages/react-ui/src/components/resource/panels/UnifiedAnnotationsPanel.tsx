@@ -6,7 +6,7 @@ import type { components, Selector } from '@semiont/core';
 type JobProgress = components['schemas']['JobProgress'];
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import type { SemiontSession } from '@semiont/sdk';
-import { annotatorKeyForMotivation, type Annotator } from '../../../lib/annotation-registry';
+import { annotatorKeyForMotivation, type Annotator, type AnnotatorKey } from '../../../lib/annotation-registry';
 import { StatisticsPanel } from './StatisticsPanel';
 import { HighlightPanel } from './HighlightPanel';
 import { ReferencesPanel } from './ReferencesPanel';
@@ -17,7 +17,9 @@ import './UnifiedAnnotationsPanel.css';
 
 import type { Annotation } from '@semiont/core';
 type Motivation = components['schemas']['Motivation'];
-type TabKey = 'statistics' | 'reference' | 'highlight' | 'assessment' | 'comment' | 'tag';
+// Derived from the annotator registry (the single motivation↔annotator
+// source) — a hand-written union here could drift from it.
+type TabKey = 'statistics' | AnnotatorKey;
 
 // Unified pending annotation type
 interface PendingAnnotation {
@@ -76,6 +78,8 @@ interface UnifiedAnnotationsPanelProps {
   entityTypesError?: Error | null;
   referencedByError?: Error | null;
   onRetryReferencedBy?: () => void;
+  /** Annotations currently sparkling (recently created or resolved) — RESOLUTION-SPARKLE D6. */
+  sparkleAnnotationIds?: Set<string>;
 
   // Resource context — threaded to every per-motivation panel, which stamps it
   // as `source` on mark:submit (multi-viewer routing).
@@ -328,6 +332,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 referencedByLoading={props.referencedByLoading}
                 referencedByError={props.referencedByError}
                 onRetryReferencedBy={props.onRetryReferencedBy}
+                sparkleAnnotationIds={props.sparkleAnnotationIds}
                 Link={props.Link}
                 routes={props.routes}
               />

@@ -40,11 +40,13 @@ export interface ConfigureGenerationStepProps {
   /** Owned by the wizard so Back is lossless (WIZARD-NAVIGATION D3). */
   config: GenerationDraft;
   onConfigChange: (config: GenerationDraft) => void;
-  onBack: () => void;
+  /** Absent in a single-stack host (GATHER-AT-THE-TOP D6) — the footer then renders no retreat. */
+  onBack?: () => void;
   onGenerate: (config: GenerationConfig) => void;
   translations: {
     resourceTitle: string;
     resourceTitlePlaceholder: string;
+    saveLocation: string;
     additionalInstructions: string;
     additionalInstructionsPlaceholder: string;
     language: string;
@@ -60,7 +62,7 @@ export interface ConfigureGenerationStepProps {
      * and `{{model}}`.
      */
     maxLengthCeiling: string;
-    back: string;
+    back?: string;
     generate: string;
   };
   /**
@@ -158,7 +160,7 @@ export function ConfigureGenerationStep({
       {/* Storage URI */}
       <div className="semiont-form__field">
         <label htmlFor="wizard-storagePath" className="semiont-form__label">
-          Save location
+          {t.saveLocation}
         </label>
         <div className="semiont-input-addon">
           <span className="semiont-input-addon__prefix">file://</span>
@@ -209,7 +211,7 @@ export function ConfigureGenerationStep({
           </select>
         </div>
 
-        <div className="semiont-form__field semiont-form__field--inline semiont-form__field--grow">
+        <div className="semiont-form__field semiont-form__field--inline semiont-form__field--slider">
           <label htmlFor="wizard-temperature" className="semiont-form__label">
             {t.creativity} ({temperature.toFixed(1)})
           </label>
@@ -229,7 +231,7 @@ export function ConfigureGenerationStep({
           </div>
         </div>
 
-        <div className="semiont-form__field semiont-form__field--inline semiont-form__field--narrow">
+        <div className="semiont-form__field semiont-form__field--inline semiont-form__field--narrow semiont-form__field--end">
           <label htmlFor="wizard-maxTokens" className="semiont-form__label">
             {t.maxLength}
           </label>
@@ -253,23 +255,26 @@ export function ConfigureGenerationStep({
             }}
             className="semiont-input"
           />
-          <p className="semiont-form__help">
-            {generationAgent?.limits
-              ? t.maxLengthCeiling
-                  .replace('{{maxOutputTokens}}', String(ceiling))
-                  .replace(
-                    '{{model}}',
-                    (generationAgent.agent as { model?: string; name?: string }).model
-                      ?? generationAgent.agent.name,
-                  )
-              : t.maxLengthHelp}
-          </p>
         </div>
       </div>
 
+      {/* The bound, as a full sentence — which is why it lives UNDER the row,
+          never inside the 5.5rem Max Length column: a sentence in that box
+          wraps one word per line and its height taxes the whole flex row. */}
+      <p className="semiont-form__help semiont-form__help--row">
+        {generationAgent?.limits
+          ? t.maxLengthCeiling
+              .replace('{{maxOutputTokens}}', String(ceiling))
+              .replace(
+                '{{model}}',
+                (generationAgent.agent as { model?: string; name?: string }).model
+                  ?? generationAgent.agent.name,
+              )
+          : t.maxLengthHelp}
+      </p>
+
       <WizardFooter
-        backLabel={t.back}
-        onBack={onBack}
+        {...(onBack && t.back ? { backLabel: t.back, onBack } : {})}
         primary={{ label: t.generate, type: 'submit' }}
       />
     </form>

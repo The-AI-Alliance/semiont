@@ -19,7 +19,7 @@
  * settings.
  */
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import type { GatheredContext } from '@semiont/core';
@@ -45,29 +45,43 @@ const CONTEXT = {
 } as unknown as GatheredContext;
 
 const T = {
-  gatherTitle: 'Gathered Context', configureGenerationTitle: 'Configure Generation',
-  configureSearchTitle: 'Configure Search', searchResultsTitle: 'Search Results',
+  resolveTitle: 'Resolve Reference',
   sourceContextLabel: 'Source', connectionsLabel: 'Connections', citedByLabel: 'Cited by',
   userHintLabel: 'Hint', userHintEffect: 'steers Search and Generate',
   userHintPlaceholder: 'Describe what this refers to…',
-  graphPaneTitle: 'In the graph', graphEmpty: 'No links yet.',
+  graphPaneTitle: 'In the graph', graphEmpty: 'No links yet.', resourceLinkLabel: 'Resource link',
   corpusPaneTitle: 'In the corpus', corpusEmpty: 'Nothing similar.',
   excludedReceipt: '{{types}} excluded', machineRead: 'OCR',
   loadingContext: 'Loading…', failedContext: 'Failed',
   search: 'Search', searching: 'Searching…', generate: 'Generate',
   compose: 'Compose', resolutionStrategyLabel: 'Resolution Strategy', back: 'Back',
   link: 'Link', score: 'Score', noResults: 'No results',
-  resourceTitle: 'Resource Title', resourceTitlePlaceholder: 'Title…',
+  resourceTitle: 'Resource Title', resourceTitlePlaceholder: 'Title…', saveLocation: 'Save location',
   additionalInstructions: 'Additional Instructions', additionalInstructionsPlaceholder: '…',
   language: 'Language', languageHelp: '', creativity: 'Creativity',
   creativityFocused: 'Focused', creativityCreative: 'Creative',
   maxLength: 'Max length', maxLengthHelp: '', maxLengthCeiling: 'Limited to {{maxOutputTokens}} by {{model}}.',
   maxResults: 'Max Results', semanticScoring: 'Semantic Scoring', semanticScoringHelp: '',
   searchFailed: 'Search failed',
+  contentLabel: 'Content', entityTypes: 'Entity types',
+  createAndLink: 'Create & Link', creatingAndLinking: 'Creating…',
+  discardDraftPrompt: 'Discard this draft?', discardDraft: 'Discard', keepEditing: 'Keep editing',
 };
 
+// ComposeStep embeds the editor; same mock the page's own tests use.
+vi.mock('../../CodeMirrorRenderer', () => ({
+  CodeMirrorRenderer: ({ content, onChange, editable }: any) => (
+    <textarea
+      data-testid="code-editor"
+      value={content}
+      disabled={!editable}
+      onChange={(e) => onChange?.(e.target.value)}
+    />
+  ),
+}));
+
 function renderWizard(over: Partial<React.ComponentProps<typeof ReferenceWizardModal>> = {}) {
-  const onComposeNavigate = vi.fn();
+  const onComposeSubmit = vi.fn<(referenceId: string, params: unknown) => Promise<void>>().mockResolvedValue(undefined);
   const onGenerateSubmit = vi.fn();
   const onLinkResource = vi.fn();
   const onClose = vi.fn();
@@ -80,13 +94,14 @@ function renderWizard(over: Partial<React.ComponentProps<typeof ReferenceWizardM
       resourceId="res-1"
       defaultTitle="Caspian Sea"
       entityTypes={['Location']}
+      entityTypeOptions={['Person', 'Topic', 'Location']}
       locale="en"
       context={CONTEXT}
       contextLoading={false}
       contextError={null}
       onGenerateSubmit={onGenerateSubmit}
       onLinkResource={onLinkResource}
-      onComposeNavigate={onComposeNavigate}
+      onComposeSubmit={onComposeSubmit}
       translations={T}
       {...over}
     />,
@@ -97,7 +112,7 @@ function renderWizard(over: Partial<React.ComponentProps<typeof ReferenceWizardM
   const client = utils.session!.client;
   const searchSpy = vi.spyOn(client.match, 'requestSearch');
 
-  return { ...utils, client, searchSpy, onComposeNavigate, onGenerateSubmit, onLinkResource, onClose };
+  return { ...utils, client, searchSpy, onComposeSubmit, onGenerateSubmit, onLinkResource, onClose };
 }
 
 /** Type the hint into the gather step's textarea. */
@@ -125,17 +140,15 @@ describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.use
     expect(echo!.textContent).toContain('the ancient city');
   });
 
-  it('compose carries the hint inside focus, not at the top level', async () => {
-    const { onComposeNavigate } = renderWizard();
-    await typeHint('the lake, not the myth');
+  it('compose is a step now — choosing it navigates nowhere (COMPOSE-IN-MODAL D1)', async () => {
+    // The old flow stashed the context in sessionStorage and navigated to the
+    // compose page; both are gone. Choosing ✍️ Compose unfolds the compose
+    // form below the evidence like the other strategies.
+    renderWizard();
     await userEvent.click(screen.getByText(new RegExp(T.compose)));
-
-    expect(onComposeNavigate).toHaveBeenCalledTimes(1);
-    const context = onComposeNavigate.mock.calls[0]![0] as Record<string, unknown>;
-    expect((context.focus as Record<string, unknown>).userHint).toBe('the lake, not the myth');
-    // The shape the old code produced. `GatheredContext` has no top-level
-    // `userHint`, so anything reading the schema would never look here.
-    expect(context).not.toHaveProperty('userHint');
+    expect(screen.getByRole('button', { name: T.createAndLink })).toBeInTheDocument(); // the compose form is open
+    expect(screen.getByText(T.resolveTitle)).toBeInTheDocument(); // ONE title, every step
+    expect(screen.getByLabelText(T.resourceTitle)).toHaveValue('Caspian Sea'); // seeded draft
   });
 
   it('search sends the same enriched context over the wire', async () => {
@@ -158,16 +171,9 @@ describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.use
     // The step renders the context it was handed; the hint is visible in the
     // gathered-context panel it shows, which is only true if the ENRICHED
     // object was passed down rather than the raw prop.
-    expect(screen.getByText(T.configureGenerationTitle)).toBeInTheDocument();
+    expect(screen.getByLabelText(T.resourceTitle)).toBeInTheDocument();
   });
 
-  it('leaves the context untouched when no hint was typed', async () => {
-    const { onComposeNavigate } = renderWizard();
-    await userEvent.click(screen.getByText(new RegExp(T.compose)));
-
-    const context = onComposeNavigate.mock.calls[0]![0];
-    expect(context).toBe(CONTEXT); // same reference: nothing was rebuilt
-  });
 });
 
 describe('ReferenceWizardModal — the context stays in view on the strategy steps', () => {
@@ -210,7 +216,7 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
       referenceId: 'ann-1',
       response: [{ '@id': 'res-9', name: 'Caspian Sea', score: 54.2 }],
     } as never);
-    expect(await screen.findByText(T.searchResultsTitle)).toBeInTheDocument();
+    await screen.findByRole('button', { name: new RegExp(T.link) }); // results are up
 
     expect(baseElement.querySelector('.semiont-gather__source-box')).not.toBeNull(); // quotation strip
     expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();                  // graph pane
@@ -236,6 +242,13 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
     expect(footer!.textContent).toContain(T.resolutionStrategyLabel);
     expect(footer!.textContent).toContain(`✨ ${T.generate}`);
     expect(footer!.querySelectorAll('button')).toHaveLength(0);
+    // The echo is a receipt LINE, not a control row: label and value share
+    // the --echo band, and the chooser's button-row wrapper is gone — the
+    // value must never sit where controls sit (it wore a control's costume:
+    // inherited base size + link blue).
+    expect(footer!.className).toContain('semiont-gather__footer--echo');
+    expect(footer!.querySelector('.semiont-gather__actions')).toBeNull();
+    expect(footer!.querySelector('.semiont-gather__chosen-strategy')).not.toBeNull();
     expect(screen.queryByText(new RegExp(`^🔍 ${T.search}…`))).not.toBeInTheDocument();
     const panel = baseElement.querySelector('.semiont-search-modal__panel')!;
     expect(panel.className).toContain('semiont-search-modal__panel--wide');
@@ -253,6 +266,214 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
   });
 });
 
+describe('ReferenceWizardModal — compose is the fourth in-modal strategy (COMPOSE-IN-MODAL P2)', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  async function enterCompose() {
+    await userEvent.click(screen.getByText(new RegExp(T.compose)));
+  }
+
+  it('compose renders the evidence above the form, the strategy band collapsed to Compose', async () => {
+    const { baseElement } = renderWizard();
+    await enterCompose();
+
+    expect(baseElement.querySelector('.semiont-gather__source-box')).not.toBeNull();
+    expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();
+    const footer = baseElement.querySelector('.semiont-gather__footer');
+    expect(footer).not.toBeNull();
+    expect(footer!.textContent).toContain(T.resolutionStrategyLabel);
+    expect(footer!.textContent).toContain(`✍️ ${T.compose}`);
+    expect(footer!.querySelectorAll('button')).toHaveLength(0);
+    // ONE scroll pane holding display + form (same grammar as the others).
+    const scroll = baseElement.querySelector('.semiont-wizard__step-scroll');
+    expect(scroll).not.toBeNull();
+    expect(scroll!.querySelector('.semiont-gather__outer')).not.toBeNull();
+    expect(scroll!.querySelector('form.semiont-form')).not.toBeNull();
+  });
+
+  it('the draft survives Back and re-entry (WIZARD-NAVIGATION D3)', async () => {
+    renderWizard();
+    await enterCompose();
+    fireEvent.change(screen.getByTestId('code-editor'), { target: { value: 'A Sauk leader.' } });
+    await userEvent.click(screen.getByRole('button', { name: `◀ ${T.back}` }));
+    expect(screen.getByText(new RegExp(T.compose))).toBeInTheDocument(); // back on gather
+    await enterCompose();
+    expect(screen.getByTestId('code-editor')).toHaveValue('A Sauk leader.');
+  });
+
+  it('submit emits against the annotation with the reference-fixed entity types, then closes', async () => {
+    const { onComposeSubmit, onClose } = renderWizard();
+    await enterCompose();
+    fireEvent.change(screen.getByLabelText(T.saveLocation), { target: { value: 'people/caspian-sea.md' } });
+    fireEvent.change(screen.getByTestId('code-editor'), { target: { value: 'The lake.' } });
+    await userEvent.click(screen.getByRole('button', { name: T.createAndLink }));
+
+    await waitFor(() => expect(onComposeSubmit).toHaveBeenCalledTimes(1));
+    expect(onComposeSubmit).toHaveBeenCalledWith('ann-1', {
+      name: 'Caspian Sea',
+      storagePath: 'file://people/caspian-sea.md',
+      content: 'The lake.',
+      entityTypes: ['Location'],
+      language: 'en',
+    });
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
+  it('a rejected submit keeps the modal open with the footer re-enabled', async () => {
+    const onComposeSubmit = vi.fn<(referenceId: string, params: unknown) => Promise<void>>()
+      .mockRejectedValue(new Error('boom'));
+    const { onClose } = renderWizard({ onComposeSubmit });
+    await enterCompose();
+    fireEvent.change(screen.getByLabelText(T.saveLocation), { target: { value: 'people/x.md' } });
+    await userEvent.click(screen.getByRole('button', { name: T.createAndLink }));
+
+    await waitFor(() => expect(onComposeSubmit).toHaveBeenCalled());
+    expect(onClose).not.toHaveBeenCalled();
+    expect(await screen.findByRole('button', { name: T.createAndLink })).toBeEnabled();
+  });
+
+  // D4: a modal dies on ✕/Escape/backdrop; a non-empty draft must not die
+  // with it. The guard is an INLINE prompt — never window.confirm — and the
+  // footer stays dismissal-free (A4).
+  it('dismissing a dirty draft asks first; Keep editing stays, Discard closes', async () => {
+    const { onClose } = renderWizard();
+    await enterCompose();
+    fireEvent.change(screen.getByTestId('code-editor'), { target: { value: 'typed work' } });
+
+    await userEvent.click(screen.getByLabelText('Close'));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(T.discardDraftPrompt)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: T.keepEditing }));
+    expect(screen.queryByText(T.discardDraftPrompt)).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByLabelText('Close'));
+    await userEvent.click(screen.getByRole('button', { name: T.discardDraft }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('a clean draft dismisses without any prompt', async () => {
+    const { onClose } = renderWizard();
+    await enterCompose();
+    await userEvent.click(screen.getByLabelText('Close'));
+    expect(screen.queryByText(T.discardDraftPrompt)).not.toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+// GATHER-AT-THE-TOP P1: the dirty guard widens. D4 — dirtiness is
+// step-independent (typed work guards dismissal wherever the user currently
+// is); D5 — typed text only (title beyond seed, save location, instructions,
+// content). The generation draft gets the same protection compose has.
+describe('ReferenceWizardModal — the dirty guard widens (GATHER-AT-THE-TOP D4/D5)', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('a typed generation draft guards dismissal', async () => {
+    const { onClose } = renderWizard();
+    await userEvent.click(screen.getByRole('button', { name: /Generate…/ }));
+    fireEvent.change(screen.getByLabelText(T.saveLocation), { target: { value: 'people/x.md' } });
+
+    await userEvent.click(screen.getByLabelText('Close'));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(T.discardDraftPrompt)).toBeInTheDocument();
+  });
+
+  it('a defaultTitle drifting while open does not fake a dirty draft', async () => {
+    // The wizard's defaultTitle derives from observable state and can re-emit
+    // while the modal is open. The baseline moves, the user has typed nothing —
+    // dirtiness compares against what was SEEDED, not the live prop.
+    const { rerender, onClose, onComposeSubmit, onGenerateSubmit, onLinkResource } = renderWizard();
+    rerender(
+      <ReferenceWizardModal
+        isOpen
+        onClose={onClose}
+        annotationId="ann-1"
+        resourceId="res-1"
+        defaultTitle="Caspian Sea (moved)"
+        entityTypes={['Location']}
+        entityTypeOptions={['Person', 'Topic', 'Location']}
+        locale="en"
+        context={CONTEXT}
+        contextLoading={false}
+        contextError={null}
+        onGenerateSubmit={onGenerateSubmit}
+        onLinkResource={onLinkResource}
+        onComposeSubmit={onComposeSubmit}
+        translations={T}
+      />,
+    );
+
+    await userEvent.click(screen.getByLabelText('Close'));
+    expect(screen.queryByText(T.discardDraftPrompt)).not.toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('a compose draft still guards after stepping Back to the evidence — D4 kills the step gate', async () => {
+    const { onClose } = renderWizard();
+    await userEvent.click(screen.getByText(new RegExp(T.compose)));
+    fireEvent.change(screen.getByTestId('code-editor'), { target: { value: 'typed work' } });
+    await userEvent.click(screen.getByRole('button', { name: new RegExp(T.back) }));
+
+    await userEvent.click(screen.getByLabelText('Close'));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(T.discardDraftPrompt)).toBeInTheDocument();
+  });
+});
+
+// The gather-loading state is not a blank modal: the annotation's exact text
+// and entity types are wizard props — known before any wire round-trip — and
+// the pane headers are static. Render them immediately with skeleton bars so
+// the loading screen is the loaded screen minus the data.
+describe('ReferenceWizardModal — the gather skeleton', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('while gathering, the known annotation facts and per-cell animations render immediately', () => {
+    const { baseElement } = renderWizard({ context: null, contextLoading: true });
+
+    expect(screen.getByText(/"Caspian Sea"/)).toBeInTheDocument();      // quoted exact text
+    expect(screen.getByText('Location')).toBeInTheDocument();           // entity chip
+    expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();     // pane headers in place
+    expect(screen.getByText(T.corpusPaneTitle)).toBeInTheDocument();
+    // One dots animation PER zone — source excerpt, Neighborhood, Similar
+    // passages — each where its content will land; no central block, no bars.
+    expect(baseElement.querySelectorAll('.semiont-gather__skeleton-dots')).toHaveLength(3);
+    expect(baseElement.querySelectorAll('.semiont-gather__skeleton-bar')).toHaveLength(0);
+    // The sentence survives for screen readers only.
+    expect(screen.getByText(T.loadingContext)).toHaveClass('semiont-sr-only');
+  });
+
+  it('the source line, Hint, and strategy chooser render during loading — buttons grayed until context lands', () => {
+    // The resource name is a page fact (the wizard opens FROM the source
+    // resource); the Hint is wizard state, safely typed while the gather
+    // runs; the chooser's buttons already gate on contextReady.
+    renderWizard({ context: null, contextLoading: true, resourceName: 'Cedar County, Iowa' });
+
+    expect(screen.getByText(/Source "Cedar County, Iowa"/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(T.userHintPlaceholder)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Search…/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Generate…/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: new RegExp(T.compose) })).toBeDisabled();
+  });
+
+  it('a hint typed during the gather survives context arrival', () => {
+    const { rerender, onClose, onComposeSubmit, onGenerateSubmit, onLinkResource } = renderWizard({ context: null, contextLoading: true });
+    fireEvent.change(screen.getByPlaceholderText(T.userHintPlaceholder), { target: { value: 'early steer' } });
+
+    rerender(
+      <ReferenceWizardModal
+        isOpen onClose={onClose} annotationId="ann-1" resourceId="res-1"
+        defaultTitle="Caspian Sea" entityTypes={['Location']}
+        entityTypeOptions={['Person', 'Topic', 'Location']} locale="en"
+        context={CONTEXT} contextLoading={false} contextError={null}
+        onGenerateSubmit={onGenerateSubmit} onLinkResource={onLinkResource}
+        onComposeSubmit={onComposeSubmit} translations={T}
+      />,
+    );
+    expect(screen.getByPlaceholderText(T.userHintPlaceholder)).toHaveValue('early steer');
+  });
+});
+
 describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () => {
   it('reopening resets the hint and the step', async () => {
     const { rerender } = renderWizard();
@@ -263,7 +484,8 @@ describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () =>
       isOpen: false, onClose: vi.fn(), annotationId: 'ann-1', resourceId: 'res-1',
       defaultTitle: 'Caspian Sea', entityTypes: ['Location'], locale: 'en',
       context: CONTEXT, contextLoading: false, contextError: null,
-      onGenerateSubmit: vi.fn(), onLinkResource: vi.fn(), onComposeNavigate: vi.fn(),
+      onGenerateSubmit: vi.fn(), onLinkResource: vi.fn(),
+      onComposeSubmit: vi.fn<(r: string, p: unknown) => Promise<void>>().mockResolvedValue(undefined),
       translations: T,
     };
     rerender(<ReferenceWizardModal {...props} />);
@@ -271,7 +493,7 @@ describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () =>
 
     // Back is lossless WITHIN a run (D3); a new run inherits nothing.
     expect(screen.getByPlaceholderText(T.userHintPlaceholder)).toHaveValue('');
-    expect(screen.getByText(T.gatherTitle)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `🔍 ${T.search}…` })).toBeInTheDocument(); // back on the gather step
   });
 });
 
@@ -294,8 +516,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
       response: [{ '@id': 'res-9', name: 'Caspian Sea', score: 54.2 }],
     } as never);
 
-    expect(await screen.findByText(T.searchResultsTitle)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: new RegExp(T.link) }));
+    await userEvent.click(await screen.findByRole('button', { name: new RegExp(T.link) }));
 
     expect(onLinkResource).toHaveBeenCalledWith('ann-1', 'res-9');
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -362,7 +583,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
       referenceId: 'someone-elses-annotation',
       response: [{ '@id': 'res-9', name: 'Caspian Sea' }],
     } as never);
-    expect(screen.getByText(T.gatherTitle)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `🔍 ${T.search}…` })).toBeInTheDocument(); // still the gather step
   });
 
   it('generation submits the step\'s config against this annotation, then closes', async () => {
@@ -380,9 +601,9 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
   it('retreats from a configure step back to the gather step', async () => {
     renderWizard();
     await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
-    expect(screen.getByText(T.configureGenerationTitle)).toBeInTheDocument();
+    expect(screen.getByLabelText(T.resourceTitle)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Back/ }));
-    expect(screen.getByText(T.gatherTitle)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `🔍 ${T.search}…` })).toBeInTheDocument();
   });
 });
 
@@ -394,11 +615,11 @@ describe('ReferenceWizardModal — nothing fires without an annotation to resolv
   beforeEach(() => { vi.clearAllMocks(); });
 
   it('compose, search and generate all no-op', async () => {
-    const { onComposeNavigate, onGenerateSubmit, searchSpy, client } =
+    const { onGenerateSubmit, searchSpy, client } =
       renderWizard({ annotationId: null, resourceId: null });
 
     await userEvent.click(screen.getByText(new RegExp(T.compose)));
-    expect(onComposeNavigate).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: T.createAndLink })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
     await userEvent.click(screen.getByRole('button', { name: T.search }));
@@ -408,7 +629,7 @@ describe('ReferenceWizardModal — nothing fires without an annotation to resolv
     client.bus.get('match:search-results').next({
       referenceId: 'ann-1', response: [{ '@id': 'res-9', name: 'X' }],
     } as never);
-    expect(screen.queryByText(T.searchResultsTitle)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: new RegExp(T.link) })).not.toBeInTheDocument();
     expect(onGenerateSubmit).not.toHaveBeenCalled();
   });
 });

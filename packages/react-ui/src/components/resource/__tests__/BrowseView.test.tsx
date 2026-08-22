@@ -8,7 +8,7 @@ import { createTestSemiontWrapper } from '../../../test-utils';
 
 import type { Annotation, AnnotationId } from '@semiont/core';
 
-// BrowseView takes its `session` + `newAnnotationIds` as props now (step 1a) — no
+// BrowseView takes its `session` + `sparkleAnnotationIds` as props now (step 1a) — no
 // ResourceAnnotationsContext / SemiontProvider reach-in. `makeSession` (below)
 // wraps the fake client so browse:click / beckon:hover land on the bus the
 // trackers listen on, and session.subscribe registers beckon:* on that bus.
@@ -125,14 +125,14 @@ function makeSession(client: SemiontClient): SemiontSession {
 
 const renderWithProviders = (
   component: React.ReactElement<React.ComponentProps<typeof BrowseView>>,
-  options: { newAnnotationIds?: Set<string> } = {}
+  options: { sparkleAnnotationIds?: Set<string> } = {}
 ) => {
   const { SemiontWrapper, client } = createTestSemiontWrapper();
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <SemiontWrapper>{children}</SemiontWrapper>
   );
   return render(
-    React.cloneElement(component, { session: makeSession(client), newAnnotationIds: options.newAnnotationIds }),
+    React.cloneElement(component, { session: makeSession(client), sparkleAnnotationIds: options.sparkleAnnotationIds }),
     { wrapper: Wrapper },
   );
 };
@@ -140,7 +140,7 @@ const renderWithProviders = (
 const renderWithEventTracking = (
   component: React.ReactElement<React.ComponentProps<typeof BrowseView>>,
   tracker: ReturnType<typeof createEventTracker>,
-  options: { newAnnotationIds?: Set<string> } = {}
+  options: { sparkleAnnotationIds?: Set<string> } = {}
 ) => {
   const { SemiontWrapper, eventBus, client } = createTestSemiontWrapper();
   tracker._attach(eventBus);
@@ -148,7 +148,7 @@ const renderWithEventTracking = (
     <SemiontWrapper>{children}</SemiontWrapper>
   );
   return render(
-    React.cloneElement(component, { session: makeSession(client), newAnnotationIds: options.newAnnotationIds }),
+    React.cloneElement(component, { session: makeSession(client), sparkleAnnotationIds: options.sparkleAnnotationIds }),
     { wrapper: Wrapper },
   );
 };
@@ -545,7 +545,7 @@ describe('BrowseView Component', () => {
 
   describe('Annotation Animation Classes', () => {
     it('should apply sparkle class to new annotations', () => {
-      const newAnnotationIds = new Set(['new-annotation-1']);
+      const sparkleAnnotationIds = new Set(['new-annotation-1']);
 
       const annotations = {
         ...defaultProps.annotations,
@@ -553,12 +553,12 @@ describe('BrowseView Component', () => {
       };
 
       renderWithProviders(<BrowseView {...defaultProps} annotations={annotations} />, {
-        newAnnotationIds
+        sparkleAnnotationIds
       });
 
-      // Verify the newAnnotationIds set contains the expected annotation
+      // Verify the sparkleAnnotationIds set contains the expected annotation
       // In the actual component, this triggers the sparkle class application
-      expect(newAnnotationIds.has('new-annotation-1')).toBe(true);
+      expect(sparkleAnnotationIds.has('new-annotation-1')).toBe(true);
     });
   });
 

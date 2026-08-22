@@ -79,10 +79,6 @@
   }
 }
 
-.semiont-form__entity-types-display {
-  margin-top: 0.5rem;
-}
-
 .semiont-form__entity-type-tags {
   display: flex;
   flex-wrap: wrap;

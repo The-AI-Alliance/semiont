@@ -7,10 +7,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useResourceViewedReport } from '../hooks/useResourceViewedReport';
-import type { components, ResourceDescriptor, ResourceId, GatheredContext, EventMap } from '@semiont/core';
+import type { components, ResourceDescriptor, ResourceId, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import { annotationId } from '@semiont/core';
-import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, capabilitiesOf } from '@semiont/core';
+import type { ComposeParams } from '../../../components/modals/ComposeStep';
+import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, capabilitiesOf, extensionForMediaType } from '@semiont/core';
 import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
 import { AnnotationHistory } from '@semiont/react-ui';
@@ -29,6 +30,7 @@ import { useCollaborators } from '../../../hooks/useCollaborators';
 import { mediaUrl } from '../../../lib/media-url';
 import { useToast } from '../../../components/Toast';
 import { useOutcomeToasts } from '../../../hooks/useOutcomeToasts';
+import { useGenerationArrival } from '../../../hooks/useGenerationArrival';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLineNumbers } from '../../../contexts/LineNumbersContext';
 import { useHoverDelay } from '../../../hooks/useHoverDelay';
@@ -118,6 +120,7 @@ export interface ResourceViewerPageProps {
  * @subscribes yield:clone - Clone the current resource
  * @subscribes beckon:sparkle - Trigger sparkle animation
  * @subscribes mark:added - Annotation was created (sparkle)
+ * @subscribes mark:body-updated - Reference resolved via a linking-add operation (sparkle, both loci)
  * @subscribes browse:resource-open - Open a resource in the viewer (local links + the launcher's tour verbs)
  * @subscribes browse:entity-type-clicked - Navigate filtered by entity type
  *
@@ -174,7 +177,7 @@ export function ResourceViewerPage({
   const { theme } = useTheme();
   const { showLineNumbers } = useLineNumbers();
   const { hoverDelayMs } = useHoverDelay();
-  const { triggerSparkleAnimation, clearNewAnnotationId, newAnnotationIds } = useResourceAnnotations();
+  const { triggerSparkleAnimation, clearSparkle, sparkleAnnotationIds } = useResourceAnnotations();
 
   // Render mode chooses the content path: 'text' decodes inline; 'image'
   // and 'pdf' go through the media-token (binary) path. 'none'/registry-miss
@@ -238,6 +241,18 @@ export function ResourceViewerPage({
   const generationProgress = useObservable(stateUnit?.yield.progress$) ?? null;
   const isGenerating = useObservable(stateUnit?.yield.isGenerating$) ?? false;
   const generationOutcome = useObservable(stateUnit?.yield.outcome$) ?? null;
+
+  // GENERATION-ARRIVAL P2: a completion witnessed on this page reveals the
+  // derivation edge the worker minted — the annotations panel opens on
+  // References, scrolls to the provenance reference, and its sparkle is
+  // re-armed (the mark:added glow burned its window unseen). Never navigates
+  // (A2); a held outcome on remount stays quiet (D6, inside the hook).
+  const handleGenerationArrival = useCallback((annId: string) => {
+    browser.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: annId, motivation: 'linking' });
+    triggerSparkleAnimation(annId);
+  }, [browser, triggerSparkleAnimation]);
+  useGenerationArrival(generationOutcome, annotations, handleGenerationArrival);
+
   const gatherContext = useObservable(stateUnit?.gather.context$) ?? null;
   const gatherLoading = useObservable(stateUnit?.gather.loading$) ?? false;
   const gatherError = useObservable(stateUnit?.gather.error$) ?? null;
@@ -259,7 +274,7 @@ export function ResourceViewerPage({
   }, [stateUnit]);
 
   const handleWizardGenerateSubmit = useCallback((referenceId: string, config: GenerationConfig) => {
-    clearNewAnnotationId(annotationId(referenceId));
+    clearSparkle(annotationId(referenceId));
     stateUnit?.yield.generate(config.context, {
       title: config.title,
       storageUri: config.storagePath,
@@ -272,7 +287,7 @@ export function ResourceViewerPage({
       temperature: config.temperature,
       maxTokens: config.maxTokens,
     });
-  }, [stateUnit, clearNewAnnotationId, resource]);
+  }, [stateUnit, clearSparkle, resource]);
 
   // Resource-generate flow (GENERATE-FROM-BUTTON): drive the SAME yield progress$
   // the annotation path uses so the full `AssistProgress` widget shows — NOT a
@@ -304,26 +319,43 @@ export function ResourceViewerPage({
     }
   }, [rUri, semiont, showSuccess, showError]);
 
-  const handleWizardComposeNavigate = useCallback((
-    context: GatheredContext,
-    annId: string,
-    resId: string,
-    title: string,
-    entTypes: string[],
-  ) => {
-    // Store context in sessionStorage for the compose page
-    sessionStorage.setItem(`gather-context:${annId}`, JSON.stringify(context));
-    const params = new URLSearchParams({
-      annotationUri: annId,
-      sourceDocumentId: resId,
-      name: title,
-      entityTypes: entTypes.join(','),
-    });
-    browser.emit('nav:push', {
-      path: `/know/compose?${params.toString()}`,
-      reason: 'compose-from-wizard',
-    });
-  }, [browser]);
+  // COMPOSE-IN-MODAL P3: create-and-link, in place. The old flow stashed the
+  // context in sessionStorage and navigated to the compose page; the modal
+  // already holds the context, so the side-channel dies with the mode.
+  // Text-only by design — uploads stay on the standalone compose page.
+  const handleWizardComposeSubmit = useCallback(async (referenceId: string, params: ComposeParams) => {
+    if (!semiont) throw new Error('No active session');
+    try {
+      const format = 'text/markdown';
+      const file = new File(
+        [new Blob([params.content], { type: format })],
+        params.name + extensionForMediaType(format),
+        { type: format },
+      );
+      const newResourceId = await new Promise<ResourceId>((resolve, reject) => {
+        semiont.yield.resource({
+          name: params.name,
+          file,
+          format,
+          entityTypes: params.entityTypes,
+          language: params.language,
+          storageUri: params.storagePath,
+        }).subscribe({
+          next: (event) => { if (event.phase === 'finished') resolve(event.resourceId); },
+          error: reject,
+        });
+      });
+      await semiont.bind.body(
+        rUri,
+        annotationId(referenceId),
+        [{ op: 'add', item: { type: 'SpecificResource' as const, source: newResourceId, purpose: 'linking' as const } }],
+      );
+      showSuccess('Reference successfully linked to the new resource');
+    } catch (error) {
+      showError(`Failed to compose resource: ${error instanceof Error ? error.message : String(error)}`);
+      throw error; // ComposeStep re-enables its footer on rejection
+    }
+  }, [semiont, rUri, showSuccess, showError]);
 
   // Add resource to open tabs when it loads, and record it as this KB's
   // last-viewed for the /know landing route to resume from. Both are per-KB
@@ -395,6 +427,19 @@ export function ResourceViewerPage({
     triggerSparkleAnimation(stored.payload.annotation.id);
   }, [triggerSparkleAnimation]);
 
+  // RESOLUTION-SPARKLE D2: a reference resolving — Compose, Search → Link, a
+  // Generate job landing, or a remote collaborator — is a body update whose
+  // operations add a linking SpecificResource. Exactly that sparkles; an unlink
+  // (remove) or an entity-tag body change stays dark.
+  const handleAnnotationBodyUpdated = useCallback((stored: EventMap['mark:body-updated']) => {
+    const resolves = stored.payload.operations.some(
+      (op) => op.op === 'add' && op.item.type === 'SpecificResource' && op.item.purpose === 'linking',
+    );
+    if (resolves) {
+      triggerSparkleAnimation(stored.payload.annotationId);
+    }
+  }, [triggerSparkleAnimation]);
+
   const handleResourceOpen = useCallback(({ resourceId }: { resourceId: string }) => {
     if (routes.resourceDetail) {
       const path = routes.resourceDetail(resourceId);
@@ -424,6 +469,7 @@ export function ResourceViewerPage({
     'yield:clone': handleResourceClone,
     'beckon:sparkle': handleAnnotationSparkle,
     'mark:added': handleAnnotationAdded,
+    'mark:body-updated': handleAnnotationBodyUpdated,
     'browse:resource-open': handleResourceOpen,
     'browse:entity-type-clicked': handleEntityTypeClicked,
   });
@@ -532,7 +578,7 @@ export function ResourceViewerPage({
                   onSelectionMotivationChange={toolbarPrefs.setSelectionMotivation}
                   shape={toolbarPrefs.shape}
                   onShapeChange={toolbarPrefs.setShape}
-                  newAnnotationIds={newAnnotationIds}
+                  sparkleAnnotationIds={sparkleAnnotationIds}
                   generatingReferenceId={generationProgress?.annotationId ?? null}
                   showLineNumbers={showLineNumbers}
                   hoverDelayMs={hoverDelayMs}
@@ -582,6 +628,7 @@ export function ResourceViewerPage({
                 onRetryAnnotations={stateUnit?.annotations.retry}
                 entityTypesError={entityTypesError}
                 generatingReferenceId={generationProgress?.annotationId ?? null}
+                sparkleAnnotationIds={sparkleAnnotationIds}
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
                 referencedByError={referencedByError}
@@ -592,7 +639,7 @@ export function ResourceViewerPage({
                 scrollToAnnotationId={scrollToAnnotationId}
                 hoveredAnnotationId={hoveredAnnotationId}
                 onScrollCompleted={onScrollCompleted}
-                initialTab={panelInitialTab?.tab as any}
+                initialTab={panelInitialTab?.tab}
                 initialTabGeneration={panelInitialTab?.generation}
                 Link={Link}
                 routes={routes}
@@ -678,18 +725,18 @@ export function ResourceViewerPage({
         resourceId={wizardResourceId}
         defaultTitle={wizardDefaultTitle}
         entityTypes={wizardEntityTypes}
+        resourceName={resource.name}
         locale={locale}
         context={gatherContext}
         contextLoading={gatherLoading}
         contextError={gatherError}
         onGenerateSubmit={handleWizardGenerateSubmit}
         onLinkResource={handleWizardLinkResource}
-        onComposeNavigate={handleWizardComposeNavigate}
+        onComposeSubmit={handleWizardComposeSubmit}
+        entityTypeOptions={allEntityTypes}
+        hoverDelayMs={hoverDelayMs}
         translations={{
-          gatherTitle: tw('gatherTitle'),
-          configureGenerationTitle: tw('configureGenerationTitle'),
-          configureSearchTitle: tw('configureSearchTitle'),
-          searchResultsTitle: tw('searchResultsTitle'),
+          resolveTitle: tw('resolveTitle'),
           sourceContextLabel: tw('sourceContextLabel'),
           connectionsLabel: tw('connectionsLabel'),
           citedByLabel: tw('citedByLabel'),
@@ -698,6 +745,7 @@ export function ResourceViewerPage({
           userHintPlaceholder: tw('userHintPlaceholder'),
           graphPaneTitle: tw('graphPaneTitle'),
           graphEmpty: tw('graphEmpty'),
+          resourceLinkLabel: tw('resourceLinkLabel'),
           corpusPaneTitle: tw('corpusPaneTitle'),
           corpusEmpty: tw('corpusEmpty'),
           excludedReceipt: tw('excludedReceipt'),
@@ -715,6 +763,7 @@ export function ResourceViewerPage({
           noResults: tw('noResults'),
           resourceTitle: tw('resourceTitle'),
           resourceTitlePlaceholder: tw('resourceTitlePlaceholder'),
+          saveLocation: tw('saveLocation'),
           additionalInstructions: tw('additionalInstructions'),
           additionalInstructionsPlaceholder: tw('additionalInstructionsPlaceholder'),
           language: tw('language'),
@@ -729,6 +778,13 @@ export function ResourceViewerPage({
           semanticScoring: tw('semanticScoring'),
           semanticScoringHelp: tw('semanticScoringHelp'),
           searchFailed: tw('searchFailed'),
+          entityTypes: tw('entityTypes'),
+          contentLabel: tw('contentLabel'),
+          createAndLink: tw('createAndLink'),
+          creatingAndLinking: tw('creatingAndLinking'),
+          discardDraftPrompt: tw('discardDraftPrompt'),
+          discardDraft: tw('discardDraft'),
+          keepEditing: tw('keepEditing'),
         }}
       />
 
@@ -749,18 +805,15 @@ export function ResourceViewerPage({
         gatherError={resourceGatherError}
         onGather={(options) => stateUnit?.gather.gatherResource(rUri, options)}
         translations={{
-          gatherTitle: tg('gatherTitle'),
-          reviewTitle: tg('reviewTitle'),
-          configureTitle: tg('configureTitle'),
-          next: tg('next'),
-          back: tg('back'),
+          title: tg('title'),
           gatherIntro: tg('gatherIntro'),
           includeContent: tg('includeContent'),
           includeSummary: tg('includeSummary'),
           gatherDepth: tg('gatherDepth'),
           gatherMaxResources: tg('gatherMaxResources'),
           gatherButton: tg('gatherButton'),
-          excludeLabel: tg('excludeLabel'),
+          editGather: tg('editGather'),
+          recallLabel: tg('recallLabel'),
           loadingContext: tg('loadingContext'),
           failedContext: tg('failedContext'),
           sourceContextLabel: tg('sourceContextLabel'),
@@ -768,6 +821,7 @@ export function ResourceViewerPage({
           citedByLabel: tg('citedByLabel'),
           graphPaneTitle: tg('graphPaneTitle'),
           graphEmpty: tg('graphEmpty'),
+          resourceLinkLabel: tg('resourceLinkLabel'),
           corpusPaneTitle: tg('corpusPaneTitle'),
           corpusEmpty: tg('corpusEmpty'),
           excludedReceipt: tg('excludedReceipt'),
@@ -775,6 +829,7 @@ export function ResourceViewerPage({
           score: tg('score'),
           resourceTitle: tg('resourceTitle'),
           resourceTitlePlaceholder: tg('resourceTitlePlaceholder'),
+          saveLocation: tg('saveLocation'),
           additionalInstructions: tg('additionalInstructions'),
           additionalInstructionsPlaceholder: tg('additionalInstructionsPlaceholder'),
           language: tg('language'),
@@ -786,6 +841,9 @@ export function ResourceViewerPage({
           maxLengthHelp: tg('maxLengthHelp'),
           maxLengthCeiling: tg('maxLengthCeiling'),
           generate: tg('generate'),
+          discardDraftPrompt: tg('discardDraftPrompt'),
+          discardDraft: tg('discardDraft'),
+          keepEditing: tg('keepEditing'),
         }}
       />
     </div>

@@ -241,7 +241,7 @@ export { createMatchStateUnit, type MatchStateUnit } from '@semiont/sdk';
 // non-web UI shape.
 export { createShellStateUnit, type ShellStateUnit, type ShellStateUnitOptions, type ToolbarPanelType, COMMON_PANELS, RESOURCE_PANELS } from './state/shell-state-unit';
 export { createSessionStateUnit, type SessionStateUnit } from './state/session-state-unit';
-export { createComposePageStateUnit, type ComposePageStateUnit, type ComposeParams, type ComposeMode, type CloneData, type ReferenceData, type SaveResourceParams } from './features/resource-compose/state/compose-page-state-unit';
+export { createComposePageStateUnit, type ComposePageStateUnit, type ComposeParams, type ComposeMode, type CloneData, type SaveResourceParams } from './features/resource-compose/state/compose-page-state-unit';
 export { createResourceViewerPageStateUnit, type ResourceViewerPageStateUnit, type WizardState, type AnnotationGroups } from './features/resource-viewer/state/resource-viewer-page-state-unit';
 export { createResourceLoaderStateUnit, type ResourceLoaderStateUnit } from './features/resource-viewer/state/resource-loader-state-unit';
 export { createAdminUsersStateUnit, type AdminUsersStateUnit } from './features/admin-users/state/admin-users-state-unit';

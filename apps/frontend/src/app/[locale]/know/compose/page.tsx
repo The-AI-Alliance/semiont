@@ -36,7 +36,7 @@ function ComposeResourceContent() {
   // "Loading" = a KB is selected but the session hasn't finished constructing
   // yet, so we don't know if auth succeeded.
   const authLoading = activeKbId != null && session == null;
-  const { showError, showSuccess } = useToast();
+  const { showError } = useToast();
 
   useEffect(() => {
     if (authLoading) return;
@@ -45,32 +45,15 @@ function ComposeResourceContent() {
 
   const browseStateUnit = useShellStateUnit();
 
-  const contextKey = searchParams?.get('annotationUri')
-    ? `gather-context:${searchParams.get('annotationUri')}`
-    : null;
-  const storedContext = contextKey && typeof sessionStorage !== 'undefined'
-    ? sessionStorage.getItem(contextKey) ?? undefined
-    : undefined;
-  if (contextKey && storedContext && typeof sessionStorage !== 'undefined') {
-    sessionStorage.removeItem(contextKey);
-  }
-
   const stateUnit = useSessionStateUnit(session ?? undefined, (s) => createComposePageStateUnit(s, browseStateUnit, {
     mode: searchParams?.get('mode') ?? undefined,
     token: searchParams?.get('token') ?? undefined,
-    annotationUri: searchParams?.get('annotationUri') ?? undefined,
-    sourceDocumentId: searchParams?.get('sourceDocumentId') ?? undefined,
-    name: searchParams?.get('name') ?? undefined,
-    entityTypes: searchParams?.get('entityTypes') ?? undefined,
-    storedContext,
   }, authToken ?? undefined));
 
   const activePanel = useObservable(stateUnit?.browse.activePanel$) ?? null;
   const pageMode = useObservable(stateUnit?.mode$) ?? 'new';
   const isLoading = useObservable(stateUnit?.loading$) ?? true;
   const cloneData = useObservable(stateUnit?.cloneData$) ?? null;
-  const referenceData = useObservable(stateUnit?.referenceData$) ?? null;
-  const gatheredContext = useObservable(stateUnit?.gatheredContext$) ?? null;
   const availableEntityTypes = useObservable(stateUnit?.entityTypes.value$) ?? [];
   const uploadProgress = useObservable(stateUnit?.uploadProgress$) ?? null;
 
@@ -81,9 +64,6 @@ function ComposeResourceContent() {
     if (!stateUnit) return;
     try {
       const newResourceId = await stateUnit.save(params);
-      if (params.mode === 'reference' && params.annotationUri) {
-        showSuccess('Reference successfully linked to the new resource');
-      }
       router.push(`/know/resource/${encodeURIComponent(newResourceId)}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to save resource. Please try again.';
@@ -102,8 +82,6 @@ function ComposeResourceContent() {
     <ResourceComposePage
       mode={pageMode}
       cloneData={cloneData}
-      referenceData={referenceData}
-      gatheredContext={gatheredContext}
       availableEntityTypes={availableEntityTypes}
       initialLocale={locale}
       theme={resolvedTheme}
@@ -115,10 +93,7 @@ function ComposeResourceContent() {
       translations={{
         title: t('title'),
         titleEditClone: t('titleEditClone'),
-        titleCompleteReference: t('titleCompleteReference'),
         subtitleClone: t('subtitleClone'),
-        subtitleReference: t('subtitleReference'),
-        linkedNoticePrefix: t('linkedNoticePrefix'),
         resourceName: t('resourceName'),
         resourceNamePlaceholder: t('resourceNamePlaceholder'),
         entityTypes: t('entityTypes'),
@@ -140,9 +115,7 @@ function ComposeResourceContent() {
         cancel: t('cancel'),
         saving: t('saving'),
         creating: t('creating'),
-        creatingAndLinking: t('creatingAndLinking'),
         saveClonedResource: t('saveClonedResource'),
-        createAndLinkResource: t('createAndLinkResource'),
         createResource: t('createResource'),
       }}
       ToolbarPanels={ToolbarPanels}

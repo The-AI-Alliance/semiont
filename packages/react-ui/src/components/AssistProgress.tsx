@@ -65,6 +65,15 @@ export interface AssistProgressProps {
    */
   outcome?: { label: string; onOpen: () => void } | undefined;
   /**
+   * The owner's terminal sentence, rendered in place of the payload message
+   * once `ended` (GENERATION-ARRIVAL P1). The producer's final frame is a
+   * fire-and-forget emit that can lose the race with `job:complete`, so an
+   * ended frame must not trust the last payload to describe the ending —
+   * the owner, which signalled `ended`, supplies the words too. Inert while
+   * the run is live.
+   */
+  endedMessage?: string;
+  /**
    * The run has ENDED. The owner's fact, not the payload's
    * (ASSIST-PROGRESS-CONSOLIDATION D7): terminality is signalled on
    * `job:complete` / `job:fail`, which `AssistShell` already observes via
@@ -104,6 +113,7 @@ export function AssistProgress({
   dataType,
   ended,
   outcome,
+  endedMessage,
   onCancel,
   onDismiss,
   translations: tr,
@@ -163,7 +173,9 @@ export function AssistProgress({
           {ended ? '✅' : '✨'}
         </span>
         <span data-testid="semiont-assist-status">
-          {progress.message ? tr.message(progress.message) : tr.inProgress}
+          {ended && endedMessage
+            ? endedMessage
+            : progress.message ? tr.message(progress.message) : tr.inProgress}
         </span>
       </div>
 
@@ -186,11 +198,13 @@ export function AssistProgress({
         </button>
       )}
 
+      {/* An ended run is 100% done by definition — the last payload's number
+          is a mid-run fact and must not survive the ending (A1). */}
       <div className="semiont-progress-bar" data-testid="semiont-assist-bar">
         <div
           className="semiont-progress-bar__fill"
           data-type={dataType}
-          style={{ width: `${progress.percentage}%` }}
+          style={{ width: `${ended ? 100 : progress.percentage}%` }}
         />
       </div>
 

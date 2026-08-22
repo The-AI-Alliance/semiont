@@ -17,6 +17,14 @@ type JobProgress = components['schemas']['JobProgress'];
 export interface YieldOutcome {
   resourceId: ResourceId;
   resourceName: string;
+  /**
+   * The run stopped at the maxTokens ceiling — the artifact is cut off, not
+   * complete. Mirrors `JobGenerationResult.truncated` so the terminal frame
+   * derives its sentence from the OUTCOME rather than the final progress
+   * frame, whose fire-and-forget emit can lose the race with `job:complete`
+   * (GENERATION-ARRIVAL D5).
+   */
+  truncated: boolean;
 }
 
 export interface GenerateDocumentOptions {
@@ -88,6 +96,7 @@ export function createYieldStateUnit(
           outcome$.next({
             resourceId: makeResourceId(e.data.result.resourceId),
             resourceName: e.data.result.resourceName,
+            truncated: e.data.result.truncated,
           });
         }
       },

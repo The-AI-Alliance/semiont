@@ -1,9 +1,10 @@
 'use client';
 
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { SemiontSession, YieldOutcome } from '@semiont/sdk';
+import { readyValue, type SemiontSession, type YieldOutcome } from '@semiont/sdk';
 import { formatLocaleDisplay } from '@semiont/core';
 import { resourceId as makeResourceId, type components } from '@semiont/core';
+import { useObservable } from '../../../hooks/useObservable';
 import { renderAgentLabel } from './agent-label';
 import { AssistShell } from './AssistShell';
 import { assistProgressTranslations } from '../../../lib/assist-progress-copy';
@@ -171,13 +172,7 @@ export function ResourceInfoPanel({
                 <span className="semiont-resource-info-panel__label">{t('derivedFrom')}</span>
                 <span className="semiont-resource-info-panel__value">
                   {(Array.isArray(wasDerivedFrom) ? wasDerivedFrom : [wasDerivedFrom]).map((id, i) => (
-                    <button
-                      key={id}
-                      className="semiont-resource-info-panel__link"
-                      onClick={() => session?.client.browse.openResource(makeResourceId(id))}
-                    >
-                      {i > 0 && ', '}{id}
-                    </button>
+                    <DerivedFromLink key={id} session={session} id={id} first={i === 0} />
                   ))}
                 </span>
               </div>
@@ -221,6 +216,13 @@ export function ResourceInfoPanel({
                 label: generationOutcome.resourceName,
                 onOpen: () => session?.client.browse.openResource(generationOutcome.resourceId),
               },
+              // The terminal sentence derives from the OUTCOME, not the final
+              // progress frame — whose fire-and-forget emit can lose the race
+              // with job:complete and leave "creating…" beside a ✅
+              // (GENERATION-ARRIVAL D4/D5).
+              endedMessage: generationOutcome.truncated
+                ? ta('codeCompleteGeneratedTruncated')
+                : ta('codeCompleteGenerated'),
             } : {}),
             translations: assistProgressTranslations(ta),
           }}
@@ -282,5 +284,32 @@ export function ResourceInfoPanel({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * One derived-from entry: linked by id (wire identity), labeled by the source
+ * resource's NAME once `browse.resource` serves its descriptor. The raw id is
+ * the honest label until then — and stays if the descriptor never resolves
+ * (deleted source, no session). Own component because the id list maps in a
+ * loop and the subscription is a hook.
+ */
+function DerivedFromLink({ session, id, first }: {
+  session: SemiontSession | null;
+  id: string;
+  first: boolean;
+}) {
+  // `browse.resource` is stable per id (cache + scope wrappers memoize), so
+  // subscribing straight off the render read is safe; `failed` is an emission,
+  // never a stream error, so `readyValue` covers every unresolved state.
+  const descriptor = useObservable(session ? session.client.browse.resource(makeResourceId(id)) : null);
+  const name = descriptor ? readyValue(descriptor)?.name : undefined;
+  return (
+    <button
+      className="semiont-resource-info-panel__link"
+      onClick={() => session?.client.browse.openResource(makeResourceId(id))}
+    >
+      {!first && ', '}{name ?? id}
+    </button>
   );
 }

@@ -2,15 +2,15 @@
  * ResourceComposePage Component
  *
  * Pure React component for creating and editing resources.
- * Supports three modes: new resource, clone, and reference completion.
+ * Supports two modes: new resource and clone. (Reference completion moved
+ * into the resolve wizard — COMPOSE-IN-MODAL.)
  * All dependencies passed as props - no Next.js hooks!
  */
 
 import React, { useState, useEffect } from 'react';
-import { deriveViews, type GatheredContext } from '@semiont/core';
 import { capabilitiesOf, AUTHORABLE_MEDIA_TYPES, MEDIA_TYPES, mediaTypeForExtension, isSupportedMediaType, LOCALES } from '@semiont/core';
 import type { UploadProgress } from '@semiont/sdk';
-import { type CloneData, type ReferenceData } from '../state/compose-page-state-unit';
+import { type CloneData } from '../state/compose-page-state-unit';
 import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state-unit';
 import { buttonStyles } from '../../../lib/button-styles';
 import { CodeMirrorRenderer } from '../../../components/CodeMirrorRenderer';
@@ -42,10 +42,8 @@ function detectUploadMediaType(file: File): string {
 }
 
 export interface ResourceComposePageProps {
-  mode: 'new' | 'clone' | 'reference';
+  mode: 'new' | 'clone';
   cloneData?: CloneData | null;
-  referenceData?: ReferenceData | null;
-  gatheredContext?: GatheredContext | null;
 
   // Available options
   availableEntityTypes: string[];
@@ -74,10 +72,7 @@ export interface ResourceComposePageProps {
   translations: {
     title: string;
     titleEditClone: string;
-    titleCompleteReference: string;
     subtitleClone: string;
-    subtitleReference: string;
-    linkedNoticePrefix: string;
     resourceName: string;
     resourceNamePlaceholder: string;
     entityTypes: string;
@@ -99,9 +94,7 @@ export interface ResourceComposePageProps {
     cancel: string;
     saving: string;
     creating: string;
-    creatingAndLinking: string;
     saveClonedResource: string;
-    createAndLinkResource: string;
     createResource: string;
   };
 
@@ -111,7 +104,7 @@ export interface ResourceComposePageProps {
 }
 
 export interface SaveResourceParams {
-  mode: 'new' | 'clone' | 'reference';
+  mode: 'new' | 'clone';
   name: string;
   storageUri: string;
   content?: string;
@@ -121,15 +114,11 @@ export interface SaveResourceParams {
   entityTypes?: string[];
   language: string;
   archiveOriginal?: boolean;
-  annotationUri?: string;
-  sourceDocumentId?: string;
 }
 
 export function ResourceComposePage({
   mode,
   cloneData,
-  referenceData,
-  gatheredContext,
   availableEntityTypes,
   initialLocale,
   theme,
@@ -184,13 +173,8 @@ export function ResourceComposePage({
     if (mode === 'clone' && cloneData) {
       setNewResourceName(cloneData.sourceResource.name);
       setNewResourceContent(cloneData.sourceContent);
-    } else if (mode === 'reference' && referenceData) {
-      setNewResourceName(referenceData.name);
-      if (referenceData.entityTypes.length > 0) {
-        setSelectedEntityTypes(referenceData.entityTypes);
-      }
     }
-  }, [mode, cloneData, referenceData]);
+  }, [mode, cloneData]);
 
   // Handle file upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -266,20 +250,12 @@ export function ResourceComposePage({
       if (mode === 'clone') {
         params.archiveOriginal = archiveOriginal;
       }
-      if (referenceData?.annotationUri) {
-        params.annotationUri = referenceData.annotationUri;
-      }
-      if (referenceData?.sourceDocumentId) {
-        params.sourceDocumentId = referenceData.sourceDocumentId;
-      }
 
       await onSaveResource(params);
 
       // Announce success based on mode
       const successMessage = mode === 'clone'
         ? 'Resource cloned successfully'
-        : mode === 'reference'
-        ? 'Reference completed successfully'
         : 'Resource created successfully';
       announceFormSuccess(successMessage);
     } catch (error) {
@@ -291,13 +267,6 @@ export function ResourceComposePage({
   };
 
   const isClone = mode === 'clone';
-  const isReferenceCompletion = mode === 'reference';
-
-  // Gathered-context panel — annotation-focus only for now.
-  const composeFocus = gatheredContext?.focus.kind === 'annotation' ? gatheredContext.focus : null;
-  const composeConnections = gatheredContext && composeFocus
-    ? deriveViews(gatheredContext.graph, composeFocus.sourceResource['@id']).connections
-    : [];
 
   return (
     <div className={`semiont-page${activePanel && COMMON_PANELS.includes(activePanel as ToolbarPanelType) ? ' semiont-page--panel-open' : ''}`}>
@@ -306,72 +275,14 @@ export function ResourceComposePage({
         {/* Page Title */}
         <div className="semiont-page__header">
           <h1 className="semiont-page__title">
-            {isClone ? t.titleEditClone : isReferenceCompletion ? t.titleCompleteReference : t.title}
+            {isClone ? t.titleEditClone : t.title}
           </h1>
-          {(isClone || isReferenceCompletion) && (
+          {isClone && (
             <p className="semiont-page__subtitle">
-              {isClone ? t.subtitleClone : t.subtitleReference}
+              {t.subtitleClone}
             </p>
           )}
-          {isReferenceCompletion && (
-            <div className="semiont-page__reference-notice">
-              <p className="semiont-page__reference-notice-text">
-                {t.linkedNoticePrefix}
-              </p>
-            </div>
-          )}
         </div>
-
-        {/* Gathered Context Panel (from wizard) */}
-        {gatheredContext && (
-          <div className="semiont-form__field" style={{
-            marginBottom: '1.5rem',
-            padding: '1rem',
-            backgroundColor: 'var(--semiont-bg-secondary)',
-            borderRadius: 'var(--semiont-radius-md)',
-            border: '1px solid var(--semiont-border-primary)',
-          }}>
-            <h3 className="semiont-form__label" style={{ marginBottom: '0.75rem' }}>Gathered Context</h3>
-            {composeFocus?.selected && (
-              <div style={{
-                padding: '0.75rem',
-                backgroundColor: 'var(--semiont-bg-primary)',
-                borderRadius: 'var(--semiont-radius-md)',
-                border: '1px solid var(--semiont-border-primary)',
-                maxHeight: '150px',
-                overflowY: 'auto',
-                marginBottom: '0.5rem',
-              }}>
-                <div style={{ fontSize: 'var(--semiont-text-sm)', fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: 'var(--semiont-text-secondary)' }}>
-                  {composeFocus.selected.before && <span>{composeFocus.selected.before}</span>}
-                  <span style={{
-                    backgroundColor: 'var(--semiont-color-primary-100)',
-                    padding: '0 0.25rem',
-                    fontWeight: 600,
-                    color: 'var(--semiont-color-primary-900)',
-                  }}>
-                    {composeFocus.selected.text}
-                  </span>
-                  {composeFocus.selected.after && <span>{composeFocus.selected.after}</span>}
-                </div>
-              </div>
-            )}
-            {composeConnections.length > 0 && (
-              <div style={{
-                padding: '0.5rem 0',
-                fontSize: 'var(--semiont-text-sm)',
-                color: 'var(--semiont-text-secondary)',
-              }}>
-                <span style={{ fontSize: 'var(--semiont-text-xs)', fontWeight: 500, marginRight: '0.5rem' }}>Connections:</span>
-                {composeConnections.map(conn => (
-                  <span key={conn.resourceId} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.5rem', marginRight: '0.25rem' }}>
-                    {conn.resourceName}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Create Form */}
         <div className="semiont-form">
@@ -416,7 +327,7 @@ export function ResourceComposePage({
           </div>
 
           {/* Entity Types Selection */}
-          {(!isReferenceCompletion || selectedEntityTypes.length === 0) && (
+          {(
             <div className="semiont-form__field semiont-form__entity-types">
               <div className="semiont-form__label">
                 {t.entityTypes}
@@ -462,30 +373,6 @@ export function ResourceComposePage({
             </div>
           )}
 
-          {/* Entity Types Display for reference completion */}
-          {isReferenceCompletion && selectedEntityTypes.length > 0 && (
-            <div className="semiont-form__field semiont-form__entity-types-display" role="region" aria-labelledby="selected-entity-types-label">
-              <h3 id="selected-entity-types-label" className="semiont-form__label">
-                {t.entityTypes}
-              </h3>
-              <div className="semiont-form__entity-type-tags" role="list">
-                {selectedEntityTypes.map((type) => (
-                  <span
-                    key={type}
-                    role="listitem"
-                    className="semiont-form__entity-type-tag"
-                    aria-label={`Entity type: ${type}`}
-                  >
-                    {type}
-                  </span>
-                ))}
-              </div>
-              <p className="semiont-form__helper-text" id="reference-entity-types-description">
-                These entity types were selected when creating the reference
-              </p>
-            </div>
-          )}
-
           {/* Language Selector */}
           <div className="semiont-form__field">
             <label htmlFor="language-select" className="semiont-form__label">
@@ -512,7 +399,7 @@ export function ResourceComposePage({
           <div className="semiont-compose-grid__content">
 
           {/* Content Source Toggle - only show for new resources */}
-          {!isClone && !isReferenceCompletion && (
+          {!isClone && (
             <div className="semiont-form__field">
               <label className="semiont-form__label">
                 {t.contentSource}
@@ -554,7 +441,7 @@ export function ResourceComposePage({
           )}
 
           {/* Upload File Section */}
-          {!isClone && !isReferenceCompletion && inputMethod === 'upload' && (
+          {!isClone && inputMethod === 'upload' && (
             <div className="semiont-form__upload-section">
               <div>
                 <div className="semiont-form__upload-container">
@@ -631,10 +518,10 @@ export function ResourceComposePage({
           )}
 
           {/* Write Content Section */}
-          {(isClone || isReferenceCompletion || inputMethod === 'write') && (
+          {(isClone || inputMethod === 'write') && (
             <div className="semiont-form__write-section">
               {/* Format Selector - only for manual entry, not clones */}
-              {!isClone && !isReferenceCompletion && (
+              {!isClone && (
                 <div className="semiont-form__field">
                   <label htmlFor="format-select" className="semiont-form__label">
                     {t.format}
@@ -673,7 +560,7 @@ export function ResourceComposePage({
               </div>
 
               {/* Encoding Selector - only for manual text entry */}
-              {!isClone && !isReferenceCompletion && (
+              {!isClone && (
                 <div className="semiont-form__field">
                   <label htmlFor="charset-select" className="semiont-form__label">
                     {t.encoding}
@@ -731,8 +618,8 @@ export function ResourceComposePage({
               className={buttonStyles.primary.base}
             >
               {isCreating
-                ? (isClone ? t.saving : isReferenceCompletion ? t.creatingAndLinking : t.creating)
-                : (isClone ? t.saveClonedResource : isReferenceCompletion ? t.createAndLinkResource : t.createResource)}
+                ? (isClone ? t.saving : t.creating)
+                : (isClone ? t.saveClonedResource : t.createResource)}
             </button>
           </div>
 

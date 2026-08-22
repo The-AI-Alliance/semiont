@@ -14,7 +14,8 @@ import { ToastProvider } from '../../../components/Toast';
 import { ThemeProvider } from '../../../contexts/ThemeContext';
 import { LineNumbersProvider } from '../../../contexts/LineNumbersContext';
 import { createTestSemiontWrapper } from '../../../test-utils';
-import type { ResourceId } from '@semiont/core';
+import type { BodyOperation, EventMap, ResourceId, UserId } from '@semiont/core';
+import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 
 // jsdom doesn't implement window.matchMedia — mock it for useTheme
 Object.defineProperty(window, 'matchMedia', {
@@ -102,24 +103,22 @@ useDebouncedCallback: (fn: any) => fn,
       announceResourceLoaded: vi.fn(),
     }),
     useEventSubscriptions: vi.fn(),
-    useResourceAnnotations: () => ({
-      clearNewAnnotationId: vi.fn(),
-      newAnnotationIds: new Set(),
-      markAnnotation: vi.fn(),
-      deleteAnnotation: vi.fn(),
-      triggerSparkleAnimation: vi.fn(),
-    }),
+    useResourceAnnotations: () => sparkleContext,
   };
 });
 
+// Shared, assertable spies — the page's sparkle wiring is pinned against
+// these (a per-call `vi.fn()` object would be unobservable from the tests).
+const sparkleContext = vi.hoisted(() => ({
+  clearSparkle: vi.fn(),
+  sparkleAnnotationIds: new Set<string>(),
+  markAnnotation: vi.fn(),
+  deleteAnnotation: vi.fn(),
+  triggerSparkleAnimation: vi.fn(),
+}));
+
 vi.mock('../../../contexts/ResourceAnnotationsContext', () => ({
-  useResourceAnnotations: () => ({
-    clearNewAnnotationId: vi.fn(),
-    newAnnotationIds: new Set(),
-    markAnnotation: vi.fn(),
-    deleteAnnotation: vi.fn(),
-    triggerSparkleAnimation: vi.fn(),
-  }),
+  useResourceAnnotations: () => sparkleContext,
   ResourceAnnotationsProvider: ({ children }: any) => children,
 }));
 
@@ -203,6 +202,63 @@ describe('ResourceViewerPage — outcome toasts reach the user', () => {
     expect(outcomeToastsCalls).not.toHaveLength(0);
     // Must be the resource's identity — `undefined` here silences every toast.
     expect(outcomeToastsCalls[0]).toBe('test-123');
+  });
+});
+
+// RESOLUTION-SPARKLE D2: a reference resolving — from ANY strategy, local or
+// remote — arrives as mark:body-updated with a linking-add operation, and the
+// page turns exactly that into a sparkle. The harness mocks
+// useEventSubscriptions, so the pin drives the captured handler directly.
+describe('ResourceViewerPage — resolution sparkles', () => {
+  const bodyUpdated = (operations: BodyOperation[]): EventMap['mark:body-updated'] => ({
+    id: 'evt-1',
+    timestamp: '2026-08-21T12:00:00Z',
+    resourceId: makeResourceId('test-123'),
+    userId: 'did:web:example.com:users:alice' as UserId,
+    version: 1,
+    type: 'mark:body-updated',
+    payload: { annotationId: makeAnnotationId('ann-7'), operations },
+    metadata: { sequenceNumber: 1 },
+  });
+
+  const renderAndGetHandler = () => {
+    mockUseEventSubscriptions.mockClear();
+    sparkleContext.triggerSparkleAnimation.mockClear();
+    renderWithProviders(<ResourceViewerPage {...createMockProps()} />);
+    const map = mockUseEventSubscriptions.mock.calls.at(-1)?.[0] as
+      Record<string, (event: EventMap['mark:body-updated']) => void>;
+    return map['mark:body-updated'];
+  };
+
+  it('an operation adding a linking SpecificResource sparkles the annotation', () => {
+    const handler = renderAndGetHandler();
+    expect(handler).toBeDefined();
+
+    handler!(bodyUpdated([
+      { op: 'add', item: { type: 'SpecificResource', source: 'res-target', purpose: 'linking' } },
+    ]));
+
+    expect(sparkleContext.triggerSparkleAnimation).toHaveBeenCalledWith('ann-7');
+  });
+
+  it('unlink (remove-only operations) stays dark — A2', () => {
+    const handler = renderAndGetHandler();
+
+    handler?.(bodyUpdated([
+      { op: 'remove', item: { type: 'SpecificResource', source: 'res-target', purpose: 'linking' } },
+    ]));
+
+    expect(sparkleContext.triggerSparkleAnimation).not.toHaveBeenCalled();
+  });
+
+  it('a TextualBody add stays dark', () => {
+    const handler = renderAndGetHandler();
+
+    handler?.(bodyUpdated([
+      { op: 'add', item: { type: 'TextualBody', value: 'Person', purpose: 'tagging' } },
+    ]));
+
+    expect(sparkleContext.triggerSparkleAnimation).not.toHaveBeenCalled();
   });
 });
 

@@ -424,6 +424,53 @@
   padding: 2rem 0;
 }
 
+/* The gather skeleton: the loading screen is the loaded screen minus the
+   data — known annotation facts up top, pane headers in place, shimmer bars
+   where the gather's answers will land. */
+.semiont-gather__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  flex: 1;
+}
+
+.semiont-gather__skeleton-source {
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-gather__skeleton-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.semiont-gather__skeleton-exact {
+  font-weight: var(--semiont-font-medium);
+  color: var(--semiont-text-primary);
+}
+
+.semiont-gather__skeleton-panes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.semiont-gather__skeleton-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* One small dots animation per zone, sitting exactly where that zone's
+   content will land. Reuses the loading-dot spans (same animation). */
+.semiont-gather__skeleton-dots {
+  display: flex;
+  gap: 0.375rem;
+  padding: 0.375rem 0;
+}
+
 .semiont-gather__loading-text {
   font-size: 1.125rem;
   color: var(--semiont-text-secondary);
@@ -587,11 +634,69 @@
   stroke: var(--semiont-color-primary-400);
 }
 
-.semiont-graph__cited-line {
-  margin: 0;
-  font-size: var(--semiont-text-xs);
-  font-variant-numeric: tabular-nums;
+/* Recall chips: the exclusion picker inverted — every entity type starts
+   INCLUDED, wearing the app's token look (the semiont-tag tint), and a click
+   crosses one off the recall: outline, tertiary text, struck through. The
+   wire still carries the exclude list; only the presentation inverted. */
+.semiont-form__recall-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.semiont-form__recall-chip {
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--semiont-radius-full);
+  font-size: var(--semiont-text-sm);
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: var(--semiont-color-primary-100);
+  color: var(--semiont-color-primary-700);
+}
+
+[data-theme="dark"] .semiont-form__recall-chip {
+  background: var(--semiont-color-primary-900);
+  color: var(--semiont-color-primary-300);
+}
+
+.semiont-form__recall-chip[data-included="false"] {
+  background: none;
+  border-color: var(--semiont-border-primary);
   color: var(--semiont-text-tertiary);
+  text-decoration: line-through;
+}
+
+.semiont-form__recall-chip:hover {
+  opacity: 0.85;
+}
+
+.semiont-form__recall-chip:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 1px;
+}
+
+/* Post-gather receipt: the spent controls' compact echo — what THIS gather
+   asked for, and the way back to the full form. Same vocabulary as the
+   corpus pane's exclusion receipt and the wizard's strategy band: a choice
+   made upstream, echoed compactly. Dashed like the graph's annotation
+   nodes — a stand-in for something expandable. */
+.semiont-gather-receipt {
+  display: block;
+  width: 100%;
+  flex-shrink: 0;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-secondary);
+  background: none;
+  border: 1px dashed var(--semiont-border-primary);
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+
+.semiont-gather-receipt:hover {
+  color: var(--semiont-text-primary);
+  border-color: var(--semiont-color-primary-600);
 }
 
 /* GEP D5: the hint on its own full-width row, input-then-act above the footer. */
@@ -690,14 +795,23 @@
 }
 
 /* The chosen strategy on a strategy step — the chooser band collapsed to its
-   selection: a passive echo, styled as the standing choice, never a control. */
-.semiont-gather__chosen-strategy {
-  font-weight: var(--semiont-font-semibold);
-  color: var(--semiont-color-primary-600);
+   selection: a passive echo on the label's own line (--echo). Sized like the
+   form's text and in the TEXT color: blue is reserved for controls, and this
+   is never a control — the emoji carries the strategy's identity. */
+.semiont-gather__footer--echo {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
 }
 
-[data-theme="dark"] .semiont-gather__chosen-strategy {
-  color: var(--semiont-color-primary-400);
+.semiont-gather__footer--echo .semiont-gather__footer-label {
+  margin-bottom: 0;
+}
+
+.semiont-gather__chosen-strategy {
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-semibold);
+  color: var(--semiont-text-primary);
 }
 
 .semiont-gather__actions {
@@ -799,6 +913,24 @@
   .semiont-gather__actions {
     flex-flow: row wrap;
   }
+}
+
+/* D4 discard guard: inline prompt raised when dismissal would destroy a
+   non-empty compose draft. Never window.confirm; the footer stays
+   dismissal-free (A4) — this band owns the decision. */
+.semiont-wizard__discard-prompt {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--semiont-color-red-600);
+  border-radius: var(--semiont-radius-md);
+}
+
+.semiont-wizard__discard-prompt-text {
+  flex: 1;
+  font-weight: var(--semiont-font-semibold);
 }
 
 /* The strategy steps' single scroll pane: evidence + step content scroll
