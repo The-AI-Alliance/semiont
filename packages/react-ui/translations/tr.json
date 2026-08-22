@@ -246,6 +246,7 @@
     "noIncomingReferences": "Gelen referans yok",
     "stub": "Taslak referans (bağlı değil)",
     "resolved": "Çözümlenmiş referans (bağlı)",
+    "derived": "Türetilmiş",
     "open": "Aç",
     "unlink": "Bağlantıyı Kaldır",
     "resolve": "Referansı çöz",

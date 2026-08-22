@@ -246,6 +246,7 @@
     "noIncomingReferences": "无传入引用",
     "stub": "存根引用（未链接）",
     "resolved": "已解析引用（已链接）",
+    "derived": "派生",
     "open": "打开",
     "unlink": "取消链接",
     "resolve": "解析引用",

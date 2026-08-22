@@ -246,6 +246,7 @@
     "noIncomingReferences": "Sin referencias entrantes",
     "stub": "Referencia pendiente (sin vincular)",
     "resolved": "Referencia resuelta (vinculada)",
+    "derived": "Derivado",
     "open": "Abrir",
     "unlink": "Desvincular",
     "resolve": "Resolver referencia",

@@ -246,6 +246,7 @@
     "noIncomingReferences": "受信リファレンスはありません",
     "stub": "スタブリファレンス（未リンク）",
     "resolved": "解決済みリファレンス（リンク済み）",
+    "derived": "派生",
     "open": "開く",
     "unlink": "リンク解除",
     "resolve": "参照を解決",

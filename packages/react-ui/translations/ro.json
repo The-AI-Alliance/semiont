@@ -246,6 +246,7 @@
     "noIncomingReferences": "Nicio referință de intrare",
     "stub": "Referință provizorie (nelegată)",
     "resolved": "Referință rezolvată (legată)",
+    "derived": "Derivat",
     "open": "Deschide",
     "unlink": "Deconectează",
     "resolve": "Rezolvă referința",

@@ -246,6 +246,7 @@
     "noIncomingReferences": "Tiada rujukan masuk",
     "stub": "Rujukan stub (tidak dipautkan)",
     "resolved": "Rujukan diselesaikan (dipautkan)",
+    "derived": "Terbitan",
     "open": "Buka",
     "unlink": "Nyahpaut",
     "resolve": "Selesaikan rujukan",

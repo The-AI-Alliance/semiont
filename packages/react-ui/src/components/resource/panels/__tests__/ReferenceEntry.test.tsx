@@ -190,6 +190,29 @@ describe('ReferenceEntry', () => {
 
       expect(screen.getByText(/My Linked Document/)).toBeInTheDocument();
     });
+
+    it('a resource-level derivation headlines Derived, never the generic type label', () => {
+      // The provenance edge minted by resource-focus generation: no selector
+      // (nothing to quote), resolved body naming the derived resource. The
+      // generic "Annotation" label said nothing — the qualifier says what
+      // the entry IS; the link line below says what it points at. Inference
+      // is from shape (the wire vocabulary deliberately has no 'deriving'
+      // purpose); the unresolved case keeps the plain type label.
+      mockGetAnnotationExactText.mockReturnValue('');
+      mockIsBodyResolved.mockReturnValue(true);
+      mockGetBodySource.mockReturnValue('gen-doc');
+
+      const provenanceRef = {
+        ...createMockReference({ target: { source: 'resource-1' } }),
+        _resolvedDocumentName: 'generated from Cedar County, Iowa',
+      };
+
+      renderEntry({ reference: provenanceRef as Annotation });
+
+      expect(screen.getByText('ReferencesPanel.derived')).toBeInTheDocument();
+      expect(screen.queryByText('Annotation')).not.toBeInTheDocument();
+      expect(screen.getByText(/generated from Cedar County, Iowa/)).toBeInTheDocument();
+    });
   });
 
   describe('Entity types', () => {

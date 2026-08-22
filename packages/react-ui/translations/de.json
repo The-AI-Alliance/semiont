@@ -246,6 +246,7 @@
     "noIncomingReferences": "Keine eingehenden Referenzen",
     "stub": "Platzhalter-Referenz (nicht verknüpft)",
     "resolved": "Aufgelöste Referenz (verknüpft)",
+    "derived": "Abgeleitet",
     "open": "Öffnen",
     "unlink": "Trennen",
     "resolve": "Referenz auflösen",
