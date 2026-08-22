@@ -66,7 +66,6 @@ export interface ResourceGenerateModalProps {
   resourceId: string;
   defaultTitle: string;
   locale: string;
-  gatherDefaults?: Partial<ResourceGatherConfig>;
   /**
    * Entity types offered in the exclusion picker. Owner-supplied so the
    * modal cannot present a failed load as an empty vocabulary.
@@ -113,7 +112,6 @@ export function ResourceGenerateModal({
   resourceId,
   defaultTitle,
   locale,
-  gatherDefaults,
   entityTypeOptions = [],
   onGenerateSubmit,
   gatherContext,
@@ -267,7 +265,6 @@ export function ResourceGenerateModal({
 
                 <div className="semiont-wizard__step-scroll" ref={stepScrollRef}>
                   <ConfigureGatherStep
-                    defaults={gatherDefaults}
                     onGather={handleGather}
                     translations={{
                       intro: t.gatherIntro,

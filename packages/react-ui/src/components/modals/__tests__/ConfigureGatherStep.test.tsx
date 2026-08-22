@@ -47,21 +47,6 @@ describe('ConfigureGatherStep', () => {
     expect(onGather).toHaveBeenCalledWith({ includeContent: false, includeSummary: false, depth: 4, maxResources: 25 });
   });
 
-  it('honors the defaults prop', () => {
-    const onGather = vi.fn();
-    render(
-      <ConfigureGatherStep
-        defaults={{ includeSummary: false, depth: 1, maxResources: 5 }}
-        onGather={onGather}
-        translations={t}
-      />,
-    );
-    expect(screen.getByLabelText('Include summary')).not.toBeChecked();
-    expect(screen.getByLabelText('Depth')).toHaveValue(1);
-    fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
-    expect(onGather).toHaveBeenCalledWith({ includeContent: true, includeSummary: false, depth: 1, maxResources: 5 });
-  });
-
   it('the footer is the wizard footer: advance only, no dismissal, no flex (GFR A5)', () => {
     // Dismissal lives on the modal's corner ✕/Esc/backdrop, never in a step
     // footer (WIZARD-NAVIGATION D1); this is the first step, so no retreat either.

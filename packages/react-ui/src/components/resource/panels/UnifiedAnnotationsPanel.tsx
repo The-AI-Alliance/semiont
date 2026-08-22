@@ -6,7 +6,7 @@ import type { components, Selector } from '@semiont/core';
 type JobProgress = components['schemas']['JobProgress'];
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import type { SemiontSession } from '@semiont/sdk';
-import { annotatorKeyForMotivation, type Annotator } from '../../../lib/annotation-registry';
+import { annotatorKeyForMotivation, type Annotator, type AnnotatorKey } from '../../../lib/annotation-registry';
 import { StatisticsPanel } from './StatisticsPanel';
 import { HighlightPanel } from './HighlightPanel';
 import { ReferencesPanel } from './ReferencesPanel';
@@ -17,7 +17,9 @@ import './UnifiedAnnotationsPanel.css';
 
 import type { Annotation } from '@semiont/core';
 type Motivation = components['schemas']['Motivation'];
-type TabKey = 'statistics' | 'reference' | 'highlight' | 'assessment' | 'comment' | 'tag';
+// Derived from the annotator registry (the single motivation↔annotator
+// source) — a hand-written union here could drift from it.
+type TabKey = 'statistics' | AnnotatorKey;
 
 // Unified pending annotation type
 interface PendingAnnotation {
