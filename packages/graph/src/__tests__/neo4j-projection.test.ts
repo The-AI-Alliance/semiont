@@ -50,13 +50,16 @@ describe('parseAnnotationNode — temporals leave as ISO strings, never driver o
 });
 
 describe('parseAnnotationNode — the rest of the projection contract', () => {
+  // `type` and `selector` are deliberately absent from this list: the stored
+  // `type` never reaches the wire annotation, and a source-only target has no
+  // selector at all. Requiring either one is what made the store manufacture
+  // a `'{}'` to satisfy itself. See .plans/GRAPH-ANNOTATION-CODEC.md.
   it.each([
     ['id', 'Annotation missing required field: id'],
     ['resourceId', 'missing required field: resourceId'],
-    ['type', 'missing required field: type'],
-    ['selector', 'missing required field: selector'],
     ['creator', 'missing required field: creator'],
     ['motivation', 'missing required field: motivation'],
+    ['created', 'missing required field: created'],
   ])('refuses a node missing %s, naming the field', (field, message) => {
     const n = node('2026-01-01T00:00:00Z');
     delete (n.properties as Record<string, unknown>)[field];

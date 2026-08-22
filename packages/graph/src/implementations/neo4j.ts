@@ -6,7 +6,6 @@ import { GraphDatabase } from '../interface';
 import { assertMutableResourceUpdate } from '../interface';
 import { searchTerms } from '../resource-query';
 import type { Logger } from '@semiont/core';
-import { annotationId as makeAnnotationId } from '@semiont/core';
 import type {
   AnnotationCategory,
   GraphConnection,
@@ -19,8 +18,16 @@ import type {
   AnnotationId,
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
-import { getExactText, getBodySource, getTargetSource, getTargetSelector, getPrimaryRepresentation } from '@semiont/core';
+import { getPrimaryRepresentation } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
+import {
+  buildAnnotation,
+  decodeAnnotation,
+  encodeAnnotation,
+  motivationForCategory,
+  storedAnnotationType,
+  type AnnotationProperties,
+} from '../annotation-codec';
 
 import type { ResourceDescriptor } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
@@ -382,93 +389,49 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     const session = this.getSession();
     try {
-      const id = input.id;
+      const annotation = buildAnnotation(input, new Date().toISOString());
+      const props = encodeAnnotation(annotation);
+      const targetSource = props.resourceId!;
+      const bodySource = props.source;
 
-      const annotation: Annotation = {
-        '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-        'type': 'Annotation' as const,
-        id: makeAnnotationId(id),
-        motivation: input.motivation,
-        target: input.target,
-        body: input.body,
-        creator: input.creator,
-        created: new Date().toISOString(),
-      };
-
-      // Extract values for Cypher query
-      const targetSource = getTargetSource(input.target);
-      const targetSelector = getTargetSelector(input.target);
-      const bodySource = getBodySource(input.body);
-
-      // Extract entity types from TextualBody bodies with purpose: "tagging"
+      // Entity tags are edges, not properties, so they travel beside the bag.
       const entityTypes = getEntityTypes(input);
 
       // Convert motivation to label (e.g., "linking" -> "Linking")
       const motivationLabel = motivationToLabel(annotation.motivation);
 
-      // Create the annotation node and relationships
-      let cypher: string;
-      if (bodySource) {
-        // Resolved reference with target resource
-        // Add motivation as both a property and a label for efficient querying
-        cypher = `MATCH (from:Resource {id: $fromId})
-           MATCH (to:Resource {id: $toId})
-           CREATE (a:Annotation:${motivationLabel} {
-             id: $id,
-             resourceId: $resourceId,
-             exact: $exact,
-             selector: $selector,
-             type: $type,
-             motivation: $motivation,
-             creator: $creator,
-             created: datetime($created),
-             source: $source
-           })
+      // The codec's property bag is applied verbatim; `created` is then
+      // re-set as a native temporal, which is the one property this store
+      // stores in a type of its own.
+      const cypher = bodySource
+        ? `MATCH (from:Resource {id: $targetSource})
+           MATCH (to:Resource {id: $bodySource})
+           CREATE (a:Annotation:${motivationLabel})
+           SET a = $props, a.created = datetime($created)
            CREATE (a)-[:BELONGS_TO]->(from)
            CREATE (a)-[:REFERENCES]->(to)
            FOREACH (entityType IN $entityTypes |
              MERGE (et:EntityType {name: entityType})
              CREATE (a)-[:TAGGED_AS]->(et)
            )
-           RETURN a`;
-      } else {
-        // Stub reference (unresolved)
-        // Add motivation as both a property and a label for efficient querying
-        cypher = `MATCH (d:Resource {id: $resourceId})
-           CREATE (a:Annotation:${motivationLabel} {
-             id: $id,
-             resourceId: $resourceId,
-             exact: $exact,
-             selector: $selector,
-             type: $type,
-             motivation: $motivation,
-             creator: $creator,
-             created: datetime($created)
-           })
+           RETURN a`
+        : `MATCH (d:Resource {id: $targetSource})
+           CREATE (a:Annotation:${motivationLabel})
+           SET a = $props, a.created = datetime($created)
            CREATE (a)-[:BELONGS_TO]->(d)
            FOREACH (entityType IN $entityTypes |
              MERGE (et:EntityType {name: entityType})
              CREATE (a)-[:TAGGED_AS]->(et)
            )
            RETURN a`;
-      }
 
-      const params: any = {
-        id,
-        resourceId: targetSource, // Store full URI
-        fromId: targetSource, // Store full URI
-        toId: bodySource || null, // Store full URI
-        exact: targetSelector ? getExactText(targetSelector) : '',
-        selector: JSON.stringify(targetSelector || {}),
-        type: 'SpecificResource',
-        motivation: annotation.motivation,
-        creator: JSON.stringify(annotation.creator),
+      const result = await session.run(cypher, {
+        props,
         created: annotation.created,
+        targetSource,
+        bodySource: bodySource ?? null,
         entityTypes,
-        source: bodySource || null,
-      };
-
-      const result = await session.run(cypher, params);
+      });
 
       if (result.records.length === 0) {
         throw new Error(`Failed to create annotation: Resource ${targetSource} not found in graph database`);
@@ -515,9 +478,9 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       Object.entries(updates).forEach(([key, value]) => {
         if (key !== 'id' && key !== 'updatedAt') {
           setClauses.push(`a.${key} = $${key}`);
-          if (key === 'selector' || key === 'metadata' || key === 'body') {
+          if (key === 'body') {
             params[key] = JSON.stringify(value);
-          } else if (key === 'created' || key === 'resolvedAt') {
+          } else if (key === 'created') {
             params[key] = value ? new Date(value as any).toISOString() : null;
           } else {
             params[key] = value;
@@ -633,9 +596,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       }
 
       if (filter.type) {
-        const w3cType = filter.type === 'highlight' ? 'TextualBody' : 'SpecificResource';
         conditions.push('a.type = $type');
-        params.type = w3cType;
+        params.type = storedAnnotationType(motivationForCategory(filter.type));
       }
 
       const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
@@ -1211,69 +1173,22 @@ export class Neo4jGraphDatabase implements GraphDatabase {
  * neo4j DateTime once reached the wire as `created` unseen by tsc.
  */
 export function parseAnnotationNode(node: any, entityTypes: string[] = []): Annotation {
-  const props = node.properties;
+  return decodeAnnotation(normalizeProperties(node.properties), entityTypes);
+}
 
-  // Validate required fields
-  if (!props.id) throw new Error('Annotation missing required field: id');
-  if (!props.resourceId) throw new Error(`Annotation ${props.id} missing required field: resourceId`);
-  // props.exact is optional - not all annotation types have selected text (e.g., image annotations)
-  if (!props.type) throw new Error(`Annotation ${props.id} missing required field: type`);
-  if (!props.selector) throw new Error(`Annotation ${props.id} missing required field: selector`);
-  if (!props.creator) throw new Error(`Annotation ${props.id} missing required field: creator`);
-
-  if (!props.motivation) throw new Error(`Annotation ${props.id} missing required field: motivation`);
-
-  // Parse creator - always stored as JSON string in DB
-  const creator = JSON.parse(props.creator);
-
-  // Reconstruct body array from entity tags and linking body
-  const bodyArray: Array<{type: 'TextualBody'; value: string; purpose: 'tagging'} | {type: 'SpecificResource'; source: string; purpose: 'linking'}> = [];
-
-  // Add entity tag bodies (TextualBody with purpose: "tagging")
-  for (const entityType of entityTypes) {
-    if (entityType) {  // Filter out nulls
-      bodyArray.push({
-        type: 'TextualBody' as const,
-        value: entityType,
-        purpose: 'tagging' as const,
-      });
-    }
+/**
+ * Flatten a node's properties to the strings the codec reads.
+ *
+ * `created` is stored as `datetime($created)`, so the driver hands back a
+ * native temporal object whose `toString()` is the ISO form — the coercion
+ * that has to happen before the codec sees a value it is entitled to treat
+ * as a string. This seam is untyped, so only a test can see it slip.
+ */
+function normalizeProperties(props: any): AnnotationProperties {
+  const normalized: AnnotationProperties = {};
+  for (const [key, value] of Object.entries(props ?? {})) {
+    if (value === null || value === undefined) continue;
+    normalized[key] = typeof value === 'string' ? value : String(value);
   }
-
-  // Add linking body (SpecificResource) if annotation is resolved
-  if (props.source) {
-    bodyArray.push({
-      type: 'SpecificResource' as const,
-      source: props.source,
-      purpose: 'linking' as const,
-    });
-  }
-
-  const annotation: Annotation = {
-    '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-    'type': 'Annotation' as const,
-    id: props.id,
-    motivation: props.motivation,
-    target: {
-      source: props.resourceId,
-      selector: JSON.parse(props.selector),
-    },
-    body: bodyArray as Annotation['body'],
-    creator,
-    // Stored as datetime($created), so the driver returns a native temporal —
-    // toString() is the ISO form (and the identity on rows already strings).
-    created: props.created.toString(),
-  };
-
-  // W3C Web Annotation modification tracking
-  if (props.modified) annotation.modified = props.modified.toString();
-  if (props.generator) {
-    try {
-      annotation.generator = JSON.parse(props.generator);
-    } catch (e) {
-      // Ignore parse errors
-    }
-  }
-
-  return annotation;
+  return normalized;
 }

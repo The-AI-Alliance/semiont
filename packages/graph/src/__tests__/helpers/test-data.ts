@@ -112,12 +112,13 @@ export function createTestEntityReference(
         suffix: '',
       },
     },
-    body: {
-      type: 'SpecificResource',
-      source: sourceResourceId,
-      purpose: 'linking',
-      entityTypes,
-    } as any,
+    // Entity types are tagging bodies beside the linking one — no store has
+    // ever persisted an `entityTypes` property on a SpecificResource, which
+    // is why this fixture needed a cast to compile.
+    body: [
+      ...entityTypes.map(value => ({ type: 'TextualBody' as const, value, purpose: 'tagging' as const })),
+      { type: 'SpecificResource' as const, source: sourceResourceId, purpose: 'linking' as const },
+    ],
     creator: {
       '@type': 'Person' as const,
       name: `User ${uuidv4()}`,

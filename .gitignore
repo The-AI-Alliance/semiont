@@ -77,6 +77,7 @@ temp/
 # Generated types and copied specs (NOT the source OpenAPI spec!)
 packages/core/openapi.json
 packages/core/src/types.ts
+packages/core/src/generated/
 packages/core/src/config/config.types.ts
 
 # Generated OpenAPI bundle (source is specs/src/)

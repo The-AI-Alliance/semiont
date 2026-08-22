@@ -5,8 +5,8 @@ import { GraphDatabase } from '../interface';
 import { assertMutableResourceUpdate } from '../interface';
 import { queryResources } from '../resource-query';
 import type { Logger } from '@semiont/core';
-import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
-import { getBodySource, getPrimaryRepresentation, getResourceId, getExactText } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
+import { getBodySource, getPrimaryRepresentation, getResourceId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import type {
   AnnotationCategory,
@@ -20,9 +20,44 @@ import type {
   AnnotationId,
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  buildAnnotation,
+  decodeAnnotation,
+  encodeAnnotation,
+  encodeSelector,
+  motivationForCategory,
+  storedAnnotationType,
+  type AnnotationProperties,
+} from '../annotation-codec';
 
 import type { ResourceDescriptor } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
+
+/** Helper to get property value from Gremlin vertex properties */
+function getPropertyValue(props: any, key: string): any {
+  if (!props[key]) return undefined;
+  const prop = Array.isArray(props[key]) ? props[key][0] : props[key];
+  return prop?.value || prop;
+}
+
+/**
+ * Convert a JanusGraph vertex to an Annotation.
+ *
+ * Module-level so the cross-store conformance suite can run this store's
+ * decode path with no live JanusGraph: everything past the flattening is the
+ * shared codec's. This is where a missing selector used to become `'{}'` and
+ * a missing motivation used to become `'linking'`.
+ */
+export function vertexToAnnotation(vertex: any, entityTypes: string[] = []): Annotation {
+  const props = vertex.properties || {};
+  const normalized: AnnotationProperties = {};
+  for (const key of Object.keys(props)) {
+    const value = getPropertyValue(props, key);
+    if (value === undefined || value === null) continue;
+    normalized[key] = typeof value === 'string' ? value : String(value);
+  }
+  return decodeAnnotation(normalized, entityTypes);
+}
 
 export class JanusGraphDatabase implements GraphDatabase {
   private connected: boolean = false;
@@ -102,12 +137,12 @@ export class JanusGraphDatabase implements GraphDatabase {
   // Helper function to convert vertex to Resource
   private vertexToResource(vertex: any): ResourceDescriptor {
     const props = vertex.properties || {};
-    const id = this.getPropertyValue(props, 'id');
+    const id = getPropertyValue(props, 'id');
 
     // Validate required fields
-    const creatorRaw = this.getPropertyValue(props, 'creator');
-    const contentChecksum = this.getPropertyValue(props, 'contentChecksum');
-    const mediaType = this.getPropertyValue(props, 'contentType');
+    const creatorRaw = getPropertyValue(props, 'creator');
+    const contentChecksum = getPropertyValue(props, 'contentChecksum');
+    const mediaType = getPropertyValue(props, 'contentType');
 
     if (!creatorRaw) throw new Error(`Resource ${id} missing required field: creator`);
     if (!contentChecksum) throw new Error(`Resource ${id} missing required field: contentChecksum`);
@@ -118,21 +153,21 @@ export class JanusGraphDatabase implements GraphDatabase {
     const resource: ResourceDescriptor = {
       '@context': 'https://schema.org/',
       '@id': id,
-      name: this.getPropertyValue(props, 'name'),
-      entityTypes: JSON.parse(this.getPropertyValue(props, 'entityTypes') || '[]'),
+      name: getPropertyValue(props, 'name'),
+      entityTypes: JSON.parse(getPropertyValue(props, 'entityTypes') || '[]'),
       representations: [{
         mediaType,
         checksum: contentChecksum,
         rel: 'original',
       }],
-      archived: this.getPropertyValue(props, 'archived') === 'true',
-      dateCreated: this.getPropertyValue(props, 'created'),
+      archived: getPropertyValue(props, 'archived') === 'true',
+      dateCreated: getPropertyValue(props, 'created'),
       wasAttributedTo: creator,
     };
 
-    const sourceAnnotationId = this.getPropertyValue(props, 'sourceAnnotationId');
-    const sourceResourceId = this.getPropertyValue(props, 'sourceResourceId');
-    const storageUri = this.getPropertyValue(props, 'storageUri');
+    const sourceAnnotationId = getPropertyValue(props, 'sourceAnnotationId');
+    const sourceResourceId = getPropertyValue(props, 'sourceResourceId');
+    const storageUri = getPropertyValue(props, 'storageUri');
 
     if (sourceAnnotationId) resource.sourceAnnotationId = sourceAnnotationId;
     if (sourceResourceId) resource.sourceResourceId = sourceResourceId;
@@ -141,19 +176,12 @@ export class JanusGraphDatabase implements GraphDatabase {
     return resource;
   }
   
-  // Helper to get property value from Gremlin vertex properties
-  private getPropertyValue(props: any, key: string): any {
-    if (!props[key]) return undefined;
-    const prop = Array.isArray(props[key]) ? props[key][0] : props[key];
-    return prop?.value || prop;
-  }
-
   // Helper method to fetch annotations with their entity types
   private async fetchAnnotationsWithEntityTypes(annotationVertices: any[]): Promise<Annotation[]> {
     const annotations: Annotation[] = [];
 
     for (const vertex of annotationVertices) {
-      const id = this.getPropertyValue(vertex.properties || {}, 'id');
+      const id = getPropertyValue(vertex.properties || {}, 'id');
 
       // Fetch entity types for this annotation
       const entityTypeVertices = await this.g!
@@ -164,81 +192,15 @@ export class JanusGraphDatabase implements GraphDatabase {
         .toList();
 
       const entityTypes = entityTypeVertices.map((v: any) =>
-        this.getPropertyValue(v.properties || {}, 'name')
+        getPropertyValue(v.properties || {}, 'name')
       ).filter(Boolean);
 
-      annotations.push(this.vertexToAnnotation(vertex, entityTypes));
+      annotations.push(vertexToAnnotation(vertex, entityTypes));
     }
 
     return annotations;
   }
 
-  // Helper function to convert vertex to Annotation
-  private vertexToAnnotation(vertex: any, entityTypes: string[] = []): Annotation {
-    const props = vertex.properties || {};
-
-    // Derive motivation from type if not present (backward compatibility)
-    const motivation = this.getPropertyValue(props, 'motivation') || 'linking';
-
-    // Parse creator - always stored as JSON string in DB
-    const creatorJson = this.getPropertyValue(props, 'creator');
-    const creator = JSON.parse(creatorJson);
-
-    // Reconstruct body array from entity tags and linking body
-    const bodyArray: Array<{type: 'TextualBody'; value: string; purpose: 'tagging'} | {type: 'SpecificResource'; source: string; purpose: 'linking'}> = [];
-
-    // Add entity tag bodies (TextualBody with purpose: "tagging")
-    for (const entityType of entityTypes) {
-      if (entityType) {
-        bodyArray.push({
-          type: 'TextualBody' as const,
-          value: entityType,
-          purpose: 'tagging' as const,
-        });
-      }
-    }
-
-    // Add linking body (SpecificResource) if annotation is resolved
-    const bodySource = this.getPropertyValue(props, 'source');
-    if (bodySource) {
-      bodyArray.push({
-        type: 'SpecificResource' as const,
-        source: bodySource,
-        purpose: 'linking' as const,
-      });
-    }
-
-    const annotation: Annotation = {
-      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-      'type': 'Annotation' as const,
-      id: this.getPropertyValue(props, 'id'),
-      motivation,
-      target: {
-        source: this.getPropertyValue(props, 'resourceId'),
-        selector: JSON.parse(this.getPropertyValue(props, 'selector') || '{}'),
-      },
-      body: bodyArray,
-      creator,
-      created: this.getPropertyValue(props, 'created'), // ISO string from DB
-    };
-
-    // W3C Web Annotation modification tracking
-    const modified = this.getPropertyValue(props, 'modified');
-    if (modified) {
-      annotation.modified = modified;
-    }
-
-    const generatorJson = this.getPropertyValue(props, 'generator');
-    if (generatorJson) {
-      try {
-        annotation.generator = JSON.parse(generatorJson);
-      } catch (e) {
-        // Ignore parse errors
-      }
-    }
-
-    return annotation;
-  }
 
   async createResource(resource: ResourceDescriptor): Promise<ResourceDescriptor> {
     const id = getResourceId(resource);
@@ -336,53 +298,17 @@ export class JanusGraphDatabase implements GraphDatabase {
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     // The caller's id is the system of record's — never mint a fresh one
     // (the event-log id is what deletes and lookups arrive under).
-    const id = input.id;
-
-    // Only linking motivation with SpecificResource or empty array (stub)
-    const motivation = input.motivation;
-
-    const annotation: Annotation = {
-      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-      'type': 'Annotation' as const,
-      id: makeAnnotationId(id),
-      motivation,
-      target: input.target,
-      body: input.body,
-      creator: input.creator,
-      created: new Date().toISOString(),
-    };
-
-    // Extract source from body using helper
-    const bodySource = getBodySource(input.body);
+    const annotation = buildAnnotation(input, new Date().toISOString());
+    const props = encodeAnnotation(annotation);
+    const targetSource = props.resourceId!;
+    const bodySource = props.source;
     const entityTypes = getEntityTypes(input);
-    // Body is optional per the Annotation schema (highlighting
-    // annotations carry none). When absent we record 'None' in the
-    // graph vertex so queries can distinguish "highlight" from
-    // "reference without resolved link" cleanly.
-    const bodyType = input.body === undefined
-      ? 'None'
-      : Array.isArray(input.body)
-        ? 'SpecificResource'
-        : input.body.type;
 
-    // Extract target source and selector
-    const targetSource = typeof input.target === 'string' ? input.target : input.target.source;
-    const targetSelector = typeof input.target === 'string' ? undefined : input.target.selector;
-
-    // Create annotation vertex
-    const vertex = this.g!
-      .addV('Annotation')
-      .property('id', id)
-      .property('resourceId', targetSource) // Store full URI
-      .property('text', targetSelector ? getExactText(targetSelector) : '')
-      .property('selector', JSON.stringify(targetSelector || {}))
-      .property('type', bodyType)
-      .property('motivation', motivation)
-      .property('creator', JSON.stringify(input.creator))
-      .property('created', annotation.created);
-
-    if (bodySource) {
-      vertex.property('source', bodySource);
+    // Create annotation vertex — every property comes from the codec, so a
+    // source-only target contributes no `selector` property at all.
+    let vertex = this.g!.addV('Annotation');
+    for (const [key, value] of Object.entries(props)) {
+      vertex = vertex.property(key, value);
     }
 
     const annVertex = await vertex.next();
@@ -430,7 +356,7 @@ export class JanusGraphDatabase implements GraphDatabase {
         .next();
     }
 
-    this.logger?.info('Created annotation in JanusGraph', { id });
+    this.logger?.info('Created annotation in JanusGraph', { id: annotation.id });
     return annotation;
   }
   
@@ -453,10 +379,10 @@ export class JanusGraphDatabase implements GraphDatabase {
       .toList();
 
     const entityTypes = entityTypeVertices.map((v: any) =>
-      this.getPropertyValue(v.properties || {}, 'name')
+      getPropertyValue(v.properties || {}, 'name')
     ).filter(Boolean);
 
-    return this.vertexToAnnotation(vertices[0] as any, entityTypes);
+    return vertexToAnnotation(vertices[0] as any, entityTypes);
   }
   
   async updateAnnotation(id: AnnotationId, updates: Partial<Annotation>): Promise<Annotation> {
@@ -467,8 +393,9 @@ export class JanusGraphDatabase implements GraphDatabase {
     // Update target properties
     if (updates.target !== undefined && typeof updates.target !== 'string') {
       if (updates.target.selector !== undefined) {
-        await traversalQuery.property('text', getExactText(updates.target.selector)).next();
-        await traversalQuery.property('selector', JSON.stringify(updates.target.selector)).next();
+        for (const [key, value] of Object.entries(encodeSelector(updates.target.selector))) {
+          await traversalQuery.property(key, value).next();
+        }
       }
     }
 
@@ -561,8 +488,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     }
 
     if (filter.type) {
-      const w3cType = filter.type === 'highlight' ? 'TextualBody' : 'SpecificResource';
-      traversalQuery = traversalQuery.has('type', w3cType);
+      traversalQuery = traversalQuery.has('type', storedAnnotationType(motivationForCategory(filter.type)));
     }
 
     const vertices = await traversalQuery.toList();
@@ -862,8 +788,8 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     for (const vertex of collections) {
       const props = (vertex as any).properties || {};
-      const type = this.getPropertyValue(props, 'type');
-      const tagsJson = this.getPropertyValue(props, 'tags');
+      const type = getPropertyValue(props, 'type');
+      const tagsJson = getPropertyValue(props, 'tags');
       const tags = tagsJson ? JSON.parse(tagsJson) : [];
 
       if (type === 'entity-types') {

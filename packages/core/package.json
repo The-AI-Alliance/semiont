@@ -25,6 +25,11 @@
       "types": "./dist/testing/axioms.d.ts",
       "import": "./dist/testing/axioms.js",
       "default": "./dist/testing/axioms.js"
+    },
+    "./openapi": {
+      "types": "./dist/openapi.d.ts",
+      "import": "./dist/openapi.js",
+      "default": "./dist/openapi.js"
     }
   },
   "engines": {
@@ -48,14 +53,15 @@
     "copy-spec": "cp ../../specs/openapi.json openapi.json",
     "generate:openapi": "npm run bundle-spec && npm run copy-spec && openapi-typescript openapi.json -o src/types.ts",
     "generate:types": "tsx scripts/generate-types.ts",
-    "prebuild": "npm run generate:openapi && npm run generate:types",
+    "prebuild": "npm run generate:openapi && npm run generate:types && npm run generate:validators",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",
     "watch": "tsup --watch",
-    "clean": "rm -rf dist *.tsbuildinfo src/types.ts openapi.json",
+    "clean": "rm -rf dist *.tsbuildinfo src/types.ts src/generated openapi.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "generate:validators": "node ../../scripts/spec/generate-validators.mjs"
   },
   "keywords": [
     "types",

@@ -21,6 +21,7 @@ import type { components } from '@semiont/core';
 import { userId as makeUserId, googleCredential, email as makeEmail, agentToDid } from '@semiont/core';
 import { getLogger } from '../logger';
 import { createSafeLogContext } from '../utils/log-sanitizer';
+import { validators } from '@semiont/core/openapi';
 
 // Lazy initialization to avoid calling getLogger() at module load time
 const getRouteLogger = () => getLogger().child({ component: 'auth' });
@@ -47,7 +48,7 @@ export const authRouter = new Hono<{ Variables: { user: User; validatedBody: unk
  * Response type: AuthResponse from OpenAPI spec
  */
 authRouter.post('/api/tokens/password',
-  validateRequestBody('PasswordAuthRequest'),
+  validateRequestBody(validators.PasswordAuthRequest),
   async (c) => {
     try {
       const body = c.get('validatedBody') as PasswordAuthRequest;
@@ -172,7 +173,7 @@ authRouter.post('/api/tokens/password',
  * Response type: AuthResponse from OpenAPI spec
  */
 authRouter.post('/api/tokens/google',
-  validateRequestBody('GoogleAuthRequest'),
+  validateRequestBody(validators.GoogleAuthRequest),
   async (c) => {
     try {
       const body = c.get('validatedBody') as GoogleAuthRequest;
@@ -227,7 +228,7 @@ authRouter.post('/api/tokens/google',
  * Response type: TokenRefreshResponse from OpenAPI spec
  */
 authRouter.post('/api/tokens/refresh',
-  validateRequestBody('TokenRefreshRequest'),
+  validateRequestBody(validators.TokenRefreshRequest),
   async (c) => {
     getRouteLogger().debug('Refresh endpoint hit');
     const body = c.get('validatedBody') as TokenRefreshRequest;
