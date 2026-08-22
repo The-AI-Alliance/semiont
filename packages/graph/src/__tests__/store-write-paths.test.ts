@@ -15,7 +15,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { annotationId } from '@semiont/core';
-import type { CreateAnnotationInternal } from '@semiont/core';
+import type { Annotation, AnnotationId, CreateAnnotationInternal } from '@semiont/core';
 import { Neo4jGraphDatabase } from '../implementations/neo4j';
 import { NeptuneGraphDatabase } from '../implementations/neptune';
 import { JanusGraphDatabase } from '../implementations/janusgraph';
@@ -45,7 +45,7 @@ const HIGHLIGHT: CreateAnnotationInternal = {
 // driver would, `created` included: as a native temporal, not a string.
 // ---------------------------------------------------------------------------
 
-type Recorded = { cypher: string; props: Record<string, string> };
+type Recorded = { cypher: string; params: Record<string, unknown>; props: Record<string, string> };
 
 function neo4jStore(): { db: Neo4jGraphDatabase; recorded: Recorded[] } {
   const recorded: Recorded[] = [];
@@ -53,8 +53,13 @@ function neo4jStore(): { db: Neo4jGraphDatabase; recorded: Recorded[] } {
 
   const session = {
     run: async (cypher: string, params: Record<string, unknown>) => {
-      const props = { ...(params.props as Record<string, string>) };
-      recorded.push({ cypher, props });
+      const props = { ...(params.props as Record<string, string> | undefined) };
+      recorded.push({ cypher, params, props });
+
+      // Only a write carries a property bag; a read gets an empty result, which
+      // is enough to see the query it asked for.
+      if (!params.props) return { records: [] };
+
       // `SET a.created = datetime($created)` — what comes back out is a
       // temporal object whose toString() is the ISO form.
       const stored = { ...props, created: { toString: () => props.created } };
@@ -99,6 +104,19 @@ describe('neo4j write path', () => {
     expect(written.body).toEqual([{ type: 'SpecificResource', source: 'res-2', purpose: 'linking' }]);
   });
 
+  it('filters highlights on the value it actually wrote for one', async () => {
+    const { db, recorded } = neo4jStore();
+    await db.createAnnotation(HIGHLIGHT);
+    await db.listAnnotations({ type: 'highlight' });
+
+    // The bug this closes: every store's filter asked for 'TextualBody' while
+    // every store wrote 'SpecificResource', so the highlight filter matched
+    // nothing. Both sides read the same derivation now.
+    const query = recorded[1]!;
+    expect(query.cypher).toContain('a.type = $type');
+    expect(query.params.type).toBe(recorded[0]!.props.type);
+  });
+
   it('fails loudly when the resource the annotation belongs to is not in the graph', async () => {
     const db = new Neo4jGraphDatabase({ database: 'neo4j' });
     const session = { run: async () => ({ records: [] }), close: async () => {} };
@@ -120,39 +138,56 @@ interface Chain {
   [method: string]: (...args: unknown[]) => unknown;
 }
 
-function gremlinRecorder(): { g: Chain; written: Record<string, string> } {
+function gremlinRecorder(): { g: Chain; written: Record<string, string>; filtered: Record<string, string> } {
   const written: Record<string, string> = {};
+  const filtered: Record<string, string> = {};
+  // The recorder is a tiny store: what it hands back is what was written to
+  // it, in the `[{value}]` shape the Gremlin drivers use.
+  const vertex = () => ({
+    properties: Object.fromEntries(Object.entries(written).map(([k, v]) => [k, [{ value: v }]])),
+  });
   const handler: ProxyHandler<object> = {
     get(_target, method) {
-      if (method === 'next') return async () => ({ value: 'v1' });
-      if (method === 'toList') return async () => [];
+      if (method === 'next') return async () => ({ value: vertex() });
+      if (method === 'toList') return async () => (Object.keys(written).length > 0 ? [vertex()] : []);
       return (...args: unknown[]) => {
         if (method === 'property') written[String(args[0])] = String(args[1]);
+        if (method === 'has' && args.length === 2) filtered[String(args[0])] = String(args[1]);
         return chain;
       };
     },
   };
   const chain = new Proxy({}, handler) as unknown as Chain;
-  return { g: chain, written };
+  return { g: chain, written, filtered };
 }
 
-const GREMLIN_STORES: Array<[string, () => { db: { createAnnotation(i: CreateAnnotationInternal): Promise<unknown> }; written: Record<string, string> }]> = [
+interface GremlinStore {
+  db: {
+    createAnnotation(input: CreateAnnotationInternal): Promise<unknown>;
+    listAnnotations(filter: { type?: 'highlight' | 'reference' }): Promise<unknown>;
+    updateAnnotation(id: AnnotationId, updates: Partial<Annotation>): Promise<unknown>;
+  };
+  written: Record<string, string>;
+  filtered: Record<string, string>;
+}
+
+const GREMLIN_STORES: Array<[string, () => GremlinStore]> = [
   [
     'neptune',
     () => {
-      const { g, written } = gremlinRecorder();
+      const { g, written, filtered } = gremlinRecorder();
       const db = new NeptuneGraphDatabase({});
       Object.assign(db, { g, connected: true });
-      return { db, written };
+      return { db, written, filtered };
     },
   ],
   [
     'janusgraph',
     () => {
-      const { g, written } = gremlinRecorder();
+      const { g, written, filtered } = gremlinRecorder();
       const db = new JanusGraphDatabase({});
       Object.assign(db, { g, connected: true });
-      return { db, written };
+      return { db, written, filtered };
     },
   ],
 ];
@@ -179,5 +214,26 @@ describe.each(GREMLIN_STORES)('%s write path', (_name, makeStore) => {
     expect(written.motivation).toBe('highlighting');
     expect(written.resourceId).toBe('res-1');
     expect(written.id).toBe('ann-highlight');
+  });
+
+  it('filters highlights on the value it actually wrote for one', async () => {
+    const write = makeStore();
+    await write.db.createAnnotation(HIGHLIGHT);
+
+    const read = makeStore();
+    await read.db.listAnnotations({ type: 'highlight' });
+
+    expect(read.filtered.type).toBe(write.written.type);
+  });
+
+  it('persists BOTH properties of a selector update — neptune used to write only the quoted text', async () => {
+    const { db, written } = makeStore();
+    await db.createAnnotation(SOURCE_ONLY);
+
+    const moved = { type: 'TextQuoteSelector' as const, exact: 'Cedar County', prefix: '', suffix: '' };
+    await db.updateAnnotation(annotationId('ann-source-only'), { target: { source: 'res-1', selector: moved } });
+
+    expect(written.selector).toBe(JSON.stringify(moved));
+    expect(written.exact).toBe('Cedar County');
   });
 });

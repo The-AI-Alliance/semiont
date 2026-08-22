@@ -197,6 +197,22 @@ describe('encode — the fields a store cannot invent for itself', () => {
     expect(() => encodeAnnotation(withoutCreated as Annotation)).toThrow(/no created timestamp/);
   });
 
+  it('writes a selector but no exact when the selector quotes nothing', () => {
+    const positional = buildAnnotation(
+      {
+        id: annotationId('ann-5'),
+        motivation: 'highlighting',
+        target: { source: 'res-1', selector: { type: 'TextPositionSelector', start: 10, end: 20 } },
+        creator: CREATOR,
+      } as CreateAnnotationInternal,
+      CREATED
+    );
+    const props = encodeAnnotation(positional);
+    expect(props.selector).toBe(JSON.stringify({ type: 'TextPositionSelector', start: 10, end: 20 }));
+    expect('exact' in props).toBe(false);
+    for (const store of STORES) expect(store.decode(props)).toEqual(positional);
+  });
+
   it('carries modified and generator across the round trip, in every store', () => {
     const provenance: Annotation = {
       ...base,
@@ -224,6 +240,44 @@ describe('the category a caller filters by maps to one motivation, in one place'
   ] as const)('%s → %s → stored type %s', (category, motivation, storedType) => {
     expect(motivationForCategory(category)).toBe(motivation);
     expect(storedAnnotationType(motivationForCategory(category))).toBe(storedType);
+  });
+});
+
+describe('each store flattens its own driver shapes before the codec sees them (D3)', () => {
+  const bag = { ...RESOURCE_LEVEL };
+
+  it('neo4j: a null property is dropped, and a non-string is stringified', () => {
+    const ann = parseAnnotationNode({
+      properties: { ...bag, source: null, modified: { toString: () => '2026-08-22T00:00:00Z' } },
+    });
+    expect(ann.body).toBeUndefined(); // a null source is no source
+    expect(ann.modified).toBe('2026-08-22T00:00:00Z');
+  });
+
+  it('neptune: unwraps [{value}], bare values, and empty lists alike', () => {
+    const ann = neptuneVertexToAnnotation({
+      properties: {
+        id: [{ value: 'ann-1' }],
+        resourceId: 'res-1', // bare, as elementMap() returns it
+        motivation: { value: 'linking' },
+        creator: [{ value: JSON.stringify(CREATOR) }],
+        created: [{ value: CREATED }],
+        source: [], // an empty property list is not a source
+        modified: null,
+      },
+    });
+    expect(ann.id).toBe('ann-1');
+    expect(ann.target).toEqual({ source: 'res-1' });
+    expect(ann.body).toBeUndefined();
+    expect(ann.modified).toBeUndefined();
+  });
+
+  it('janusgraph: a property missing from the bag is absent, not undefined-valued', () => {
+    const ann = janusVertexToAnnotation({
+      properties: Object.fromEntries(Object.entries(bag).map(([k, v]) => [k, [{ value: v }]])),
+    });
+    expect('modified' in ann).toBe(false);
+    expect('generator' in ann).toBe(false);
   });
 });
 
