@@ -812,6 +812,7 @@ export function ResourceViewerPage({
           gatherDepth: tg('gatherDepth'),
           gatherMaxResources: tg('gatherMaxResources'),
           gatherButton: tg('gatherButton'),
+          editGather: tg('editGather'),
           excludeLabel: tg('excludeLabel'),
           loadingContext: tg('loadingContext'),
           failedContext: tg('failedContext'),

@@ -64,6 +64,7 @@ const T = {
   discardDraftPrompt: 'Discard this draft?',
   discardDraft: 'Discard',
   keepEditing: 'Keep editing',
+  editGather: 'Change gather settings',
 };
 
 let onClose: Mock<() => void>;
@@ -120,7 +121,7 @@ describe('ResourceGenerateModal', () => {
     expect(screen.queryByLabelText(T.resourceTitle)).not.toBeInTheDocument();
   });
 
-  it('Gather emits onGather and the evidence zone appears in place (exclusion omitted when none picked)', () => {
+  it('Gather emits onGather; the spent controls collapse to a receipt of what fired', () => {
     // The modal no longer knows how to gather — it says WHAT to gather and the
     // page wires the state unit (FLC D3). No resourceId in the payload: the
     // owner already holds it.
@@ -128,8 +129,41 @@ describe('ResourceGenerateModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
     expect(onGather).toHaveBeenCalledWith({ includeContent: true, includeSummary: true, depth: 2, maxResources: 10 });
     expect(baseElement.querySelector('.semiont-gather__loading')).not.toBeNull();
-    // The controls stay put above the evidence — no page flip.
-    expect(screen.getByText(T.gatherIntro)).toBeInTheDocument();
+    // The form's job is done: it folds into a one-line receipt of what THIS
+    // gather asked for, and the evidence leads the pane. The form stays
+    // mounted (hidden) so its values survive for the expand path.
+    const receipt = screen.getByTitle(T.editGather);
+    expect(receipt.textContent).toContain(`${T.gatherDepth} 2`);
+    expect(receipt.textContent).toContain(`${T.gatherMaxResources} 10`);
+    expect(receipt.textContent).toContain(T.includeContent);
+    expect(screen.getByText(T.gatherIntro)).not.toBeVisible();
+  });
+
+  it('the receipt names the exclusions of THIS recall', () => {
+    renderModal();
+    fireEvent.click(screen.getByRole('button', { name: 'Person' }));
+    fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
+    expect(screen.getByTitle(T.editGather).textContent)
+      .toContain('Person excluded from this recall');
+  });
+
+  it('the receipt expands back to the form — values preserved — and re-gather collapses again', () => {
+    renderModal({ gatherContext: RESOURCE_CONTEXT });
+    fireEvent.change(screen.getByLabelText(T.gatherDepth), { target: { value: '4' } });
+    fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
+    expect(screen.getByTitle(T.editGather).textContent).toContain(`${T.gatherDepth} 4`);
+
+    fireEvent.click(screen.getByTitle(T.editGather));
+    const depthInput = screen.getByLabelText(T.gatherDepth);
+    expect(depthInput).toBeVisible();
+    expect(depthInput).toHaveValue(4); // not re-initialized — the form never unmounted
+    expect(screen.queryByTitle(T.editGather)).not.toBeInTheDocument();
+
+    fireEvent.change(depthInput, { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
+    expect(onGather).toHaveBeenCalledTimes(2);
+    expect(onGather).toHaveBeenLastCalledWith(expect.objectContaining({ depth: 3 }));
+    expect(screen.getByTitle(T.editGather).textContent).toContain(`${T.gatherDepth} 3`);
   });
 
   it('threads picked entity types into the gather options', () => {
@@ -187,6 +221,7 @@ describe('ResourceGenerateModal', () => {
   it('re-Gather refreshes the evidence in place — the stack stays', () => {
     renderModal({ gatherContext: RESOURCE_CONTEXT });
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
+    fireEvent.click(screen.getByTitle(T.editGather)); // expand the receipt
     fireEvent.click(screen.getByRole('button', { name: /Gather/ })); // tweak-and-regather
     expect(onGather).toHaveBeenCalledTimes(2);
     expect(screen.getByText(T.graphPaneTitle)).toBeInTheDocument();

@@ -383,6 +383,7 @@
     "gatherDepth": "Diepte",
     "gatherMaxResources": "Maximale bronnen",
     "gatherButton": "Verzamelen",
+    "editGather": "Verzamelinstellingen wijzigen",
     "excludeLabel": "Uitsluiten van ophalen",
     "loadingContext": "Context wordt verzameld...",
     "failedContext": "Context verzamelen mislukt",

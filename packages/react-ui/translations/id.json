@@ -383,6 +383,7 @@
     "gatherDepth": "Kedalaman",
     "gatherMaxResources": "Sumber Daya Maksimum",
     "gatherButton": "Kumpulkan",
+    "editGather": "Ubah pengaturan pengumpulan",
     "excludeLabel": "Kecualikan dari pemanggilan",
     "loadingContext": "Mengumpulkan konteks...",
     "failedContext": "Gagal mengumpulkan konteks",

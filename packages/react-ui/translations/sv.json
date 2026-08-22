@@ -383,6 +383,7 @@
     "gatherDepth": "Djup",
     "gatherMaxResources": "Max resurser",
     "gatherButton": "Samla",
+    "editGather": "Ändra insamlingsinställningar",
     "excludeLabel": "Uteslut från återkallning",
     "loadingContext": "Samlar kontext...",
     "failedContext": "Misslyckades med att samla kontext",

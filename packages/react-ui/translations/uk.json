@@ -383,6 +383,7 @@
     "gatherDepth": "Глибина",
     "gatherMaxResources": "Максимум ресурсів",
     "gatherButton": "Зібрати",
+    "editGather": "Змінити налаштування збору",
     "excludeLabel": "Виключити з відкликання",
     "loadingContext": "Збирається контекст...",
     "failedContext": "Не вдалося зібрати контекст",

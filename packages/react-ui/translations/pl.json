@@ -383,6 +383,7 @@
     "gatherDepth": "Głębokość",
     "gatherMaxResources": "Maksymalna liczba zasobów",
     "gatherButton": "Zbierz",
+    "editGather": "Zmień ustawienia zbierania",
     "excludeLabel": "Wyklucz z przywoływania",
     "loadingContext": "Zbieranie kontekstu...",
     "failedContext": "Nie udało się zebrać kontekstu",

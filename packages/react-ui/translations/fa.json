@@ -383,6 +383,7 @@
     "gatherDepth": "عمق",
     "gatherMaxResources": "حداکثر منابع",
     "gatherButton": "جمع‌آوری",
+    "editGather": "تغییر تنظیمات گردآوری",
     "excludeLabel": "حذف از فراخوانی",
     "loadingContext": "در حال جمع‌آوری زمینه...",
     "failedContext": "جمع‌آوری زمینه ناموفق بود",

@@ -383,6 +383,7 @@
     "gatherDepth": "गहराई",
     "gatherMaxResources": "अधिकतम संसाधन",
     "gatherButton": "एकत्र करें",
+    "editGather": "संग्रह सेटिंग बदलें",
     "excludeLabel": "रिकॉल से बाहर रखें",
     "loadingContext": "संदर्भ एकत्र हो रहा है...",
     "failedContext": "संदर्भ एकत्र करने में विफल",

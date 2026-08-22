@@ -383,6 +383,7 @@
     "gatherDepth": "ความลึก",
     "gatherMaxResources": "ทรัพยากรสูงสุด",
     "gatherButton": "รวบรวม",
+    "editGather": "เปลี่ยนการตั้งค่าการรวบรวม",
     "excludeLabel": "ยกเว้นจากการเรียกคืน",
     "loadingContext": "กำลังรวบรวมบริบท...",
     "failedContext": "ไม่สามารถรวบรวมบริบทได้",

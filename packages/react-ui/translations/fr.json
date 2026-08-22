@@ -383,6 +383,7 @@
     "gatherDepth": "Profondeur",
     "gatherMaxResources": "Ressources maximum",
     "gatherButton": "Collecter",
+    "editGather": "Modifier les paramètres de collecte",
     "excludeLabel": "Exclure du rappel",
     "loadingContext": "Collecte du contexte...",
     "failedContext": "Échec de la collecte du contexte",

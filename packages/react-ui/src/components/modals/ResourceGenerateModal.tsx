@@ -20,6 +20,8 @@ export interface ResourceGenerateModalTranslations {
   gatherMaxResources: string;
   gatherButton: string;
   excludeLabel: string;
+  /** Affordance on the post-gather receipt row (title/tooltip). */
+  editGather: string;
   // GatherContextStep display
   loadingContext: string;
   failedContext: string;
@@ -134,6 +136,11 @@ export function ResourceGenerateModal({
   // opens, so a context prop can be stale at open time. Nothing renders below
   // the controls until the user fires a gather in this run.
   const [gatherFired, setGatherFired] = useState(false);
+  // The fired snapshot feeds the receipt: what THIS gather actually asked
+  // for, exclusions included — not the form's live state, which the user can
+  // edit without re-firing.
+  const [lastGather, setLastGather] = useState<(ResourceGatherConfig & { excludeEntityTypes: string[] }) | null>(null);
+  const [editingGather, setEditingGather] = useState(false);
   const [showDiscardPrompt, setShowDiscardPrompt] = useState(false);
   // Supplied by the owner, which already tracks the list with its failure
   // state. Fetching it here could only model (value | not-yet), so a failed
@@ -155,6 +162,8 @@ export function ResourceGenerateModal({
   useEffect(() => {
     if (isOpen && !wasOpen.current) {
       setGatherFired(false);
+      setLastGather(null);
+      setEditingGather(false);
       setExcludeEntityTypes([]);
       setGenerationDraft(freshDraft());
       setShowDiscardPrompt(false);
@@ -168,6 +177,8 @@ export function ResourceGenerateModal({
 
   const handleGather = useCallback((config: ResourceGatherConfig) => {
     setGatherFired(true);
+    setLastGather({ ...config, excludeEntityTypes });
+    setEditingGather(false);
     onGather({
       ...config,
       ...(excludeEntityTypes.length ? { excludeEntityTypes } : {}),
@@ -266,6 +277,31 @@ export function ResourceGenerateModal({
                 )}
 
                 <div className="semiont-wizard__step-scroll" ref={stepScrollRef}>
+                  {/* Once fired, the spent controls fold into a receipt of
+                      what THIS gather asked for — the evidence leads the
+                      pane, the parameters stay visible and revisable. The
+                      form below is HIDDEN, not unmounted, so its values
+                      survive for the expand path. */}
+                  {gatherFired && !editingGather && lastGather && (
+                    <button
+                      type="button"
+                      className="semiont-gather-receipt"
+                      title={t.editGather}
+                      onClick={() => setEditingGather(true)}
+                    >
+                      {[
+                        `${t.gatherDepth} ${lastGather.depth}`,
+                        `${t.gatherMaxResources} ${lastGather.maxResources}`,
+                        ...(lastGather.includeContent ? [t.includeContent] : []),
+                        ...(lastGather.includeSummary ? [t.includeSummary] : []),
+                        ...(lastGather.excludeEntityTypes.length
+                          ? [t.excludedReceipt.replace('{{types}}', lastGather.excludeEntityTypes.join(', '))]
+                          : []),
+                      ].join(' · ')}
+                      <span aria-hidden="true"> ✎</span>
+                    </button>
+                  )}
+                  <div hidden={gatherFired && !editingGather}>
                   <ConfigureGatherStep
                     onGather={handleGather}
                     translations={{
@@ -300,6 +336,7 @@ export function ResourceGenerateModal({
                       </div>
                     )}
                   </ConfigureGatherStep>
+                  </div>
 
                   {gatherFired && (
                     <GatherContextStep

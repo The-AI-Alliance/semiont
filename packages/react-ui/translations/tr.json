@@ -383,6 +383,7 @@
     "gatherDepth": "Derinlik",
     "gatherMaxResources": "Maksimum Kaynak",
     "gatherButton": "Topla",
+    "editGather": "Toplama ayarlarını değiştir",
     "excludeLabel": "Geri çağırmadan hariç tut",
     "loadingContext": "Bağlam toplanıyor...",
     "failedContext": "Bağlam toplanamadı",

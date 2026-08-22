@@ -383,6 +383,7 @@
     "gatherDepth": "Adâncime",
     "gatherMaxResources": "Resurse Maxime",
     "gatherButton": "Colectează",
+    "editGather": "Modificați setările de colectare",
     "excludeLabel": "Exclude din recuperare",
     "loadingContext": "Se colectează contextul...",
     "failedContext": "Colectarea contextului a eșuat",

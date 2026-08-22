@@ -634,6 +634,30 @@
   stroke: var(--semiont-color-primary-400);
 }
 
+/* Post-gather receipt: the spent controls' compact echo — what THIS gather
+   asked for, and the way back to the full form. Same vocabulary as the
+   corpus pane's exclusion receipt and the wizard's strategy band: a choice
+   made upstream, echoed compactly. Dashed like the graph's annotation
+   nodes — a stand-in for something expandable. */
+.semiont-gather-receipt {
+  display: block;
+  width: 100%;
+  flex-shrink: 0;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-secondary);
+  background: none;
+  border: 1px dashed var(--semiont-border-primary);
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+
+.semiont-gather-receipt:hover {
+  color: var(--semiont-text-primary);
+  border-color: var(--semiont-color-primary-600);
+}
+
 /* GEP D5: the hint on its own full-width row, input-then-act above the footer. */
 .semiont-gather__hint-row {
   flex-shrink: 0;

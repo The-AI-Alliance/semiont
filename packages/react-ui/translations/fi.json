@@ -383,6 +383,7 @@
     "gatherDepth": "Syvyys",
     "gatherMaxResources": "Enimmäisresurssit",
     "gatherButton": "Kerää",
+    "editGather": "Muuta keräysasetuksia",
     "excludeLabel": "Jätä pois haetuista",
     "loadingContext": "Kerätään kontekstia...",
     "failedContext": "Kontekstin kerääminen epäonnistui",

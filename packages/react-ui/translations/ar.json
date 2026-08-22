@@ -383,6 +383,7 @@
     "gatherDepth": "العمق",
     "gatherMaxResources": "الحد الأقصى للموارد",
     "gatherButton": "جمع",
+    "editGather": "تغيير إعدادات الجمع",
     "excludeLabel": "استبعاد من الاسترجاع",
     "loadingContext": "جارٍ جمع السياق...",
     "failedContext": "فشل في جمع السياق",

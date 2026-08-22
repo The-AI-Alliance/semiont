@@ -383,6 +383,7 @@
     "gatherDepth": "עומק",
     "gatherMaxResources": "משאבים מרביים",
     "gatherButton": "אסוף",
+    "editGather": "שינוי הגדרות האיסוף",
     "excludeLabel": "החרג מהאחזור",
     "loadingContext": "אוסף הקשר...",
     "failedContext": "איסוף ההקשר נכשל",

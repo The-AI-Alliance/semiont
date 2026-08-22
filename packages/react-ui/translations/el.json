@@ -383,6 +383,7 @@
     "gatherDepth": "Βάθος",
     "gatherMaxResources": "Μέγιστοι πόροι",
     "gatherButton": "Συλλογή",
+    "editGather": "Αλλαγή ρυθμίσεων συλλογής",
     "excludeLabel": "Εξαίρεση από την ανάκληση",
     "loadingContext": "Συλλογή πλαισίου...",
     "failedContext": "Αποτυχία συλλογής πλαισίου",

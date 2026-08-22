@@ -383,6 +383,7 @@
     "gatherDepth": "深度",
     "gatherMaxResources": "最大资源数",
     "gatherButton": "收集",
+    "editGather": "更改收集设置",
     "excludeLabel": "从召回中排除",
     "loadingContext": "正在收集上下文...",
     "failedContext": "收集上下文失败",

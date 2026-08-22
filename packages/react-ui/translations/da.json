@@ -383,6 +383,7 @@
     "gatherDepth": "Dybde",
     "gatherMaxResources": "Maks. ressourcer",
     "gatherButton": "Indsaml",
+    "editGather": "Skift indsamlingsindstillinger",
     "excludeLabel": "Udeluk fra genkaldelse",
     "loadingContext": "Indsamler kontekst...",
     "failedContext": "Kunne ikke indsamle kontekst",
