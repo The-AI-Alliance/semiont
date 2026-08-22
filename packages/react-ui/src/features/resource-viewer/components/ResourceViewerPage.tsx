@@ -30,6 +30,7 @@ import { useCollaborators } from '../../../hooks/useCollaborators';
 import { mediaUrl } from '../../../lib/media-url';
 import { useToast } from '../../../components/Toast';
 import { useOutcomeToasts } from '../../../hooks/useOutcomeToasts';
+import { useGenerationArrival } from '../../../hooks/useGenerationArrival';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLineNumbers } from '../../../contexts/LineNumbersContext';
 import { useHoverDelay } from '../../../hooks/useHoverDelay';
@@ -240,6 +241,18 @@ export function ResourceViewerPage({
   const generationProgress = useObservable(stateUnit?.yield.progress$) ?? null;
   const isGenerating = useObservable(stateUnit?.yield.isGenerating$) ?? false;
   const generationOutcome = useObservable(stateUnit?.yield.outcome$) ?? null;
+
+  // GENERATION-ARRIVAL P2: a completion witnessed on this page reveals the
+  // derivation edge the worker minted — the annotations panel opens on
+  // References, scrolls to the provenance reference, and its sparkle is
+  // re-armed (the mark:added glow burned its window unseen). Never navigates
+  // (A2); a held outcome on remount stays quiet (D6, inside the hook).
+  const handleGenerationArrival = useCallback((annId: string) => {
+    browser.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: annId, motivation: 'linking' });
+    triggerSparkleAnimation(annId);
+  }, [browser, triggerSparkleAnimation]);
+  useGenerationArrival(generationOutcome, annotations, handleGenerationArrival);
+
   const gatherContext = useObservable(stateUnit?.gather.context$) ?? null;
   const gatherLoading = useObservable(stateUnit?.gather.loading$) ?? false;
   const gatherError = useObservable(stateUnit?.gather.error$) ?? null;

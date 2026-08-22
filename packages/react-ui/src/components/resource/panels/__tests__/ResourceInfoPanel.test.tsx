@@ -337,6 +337,7 @@ describe('ResourceInfoPanel Component', () => {
           generationOutcome={{
             resourceId: makeResourceId('urn:semiont:resource:new1'),
             resourceName: 'Summary of PB',
+            truncated: false,
           }}
           onDismissProgress={onDismissProgress} />
       );
@@ -370,6 +371,37 @@ describe('ResourceInfoPanel Component', () => {
         .toContain('codeCompleteGenerated');
       expect(screen.getByTestId('semiont-assist-status').textContent)
         .not.toContain('Truncated');
+    });
+
+    it('the ended frame speaks completion even when the final progress frame lost the race (GENERATION-ARRIVAL D4/D5)', () => {
+      // The screenshot case: last frame is the 95% "creating" payload, the
+      // terminal 100% frame never arrived — but the outcome did. The sentence
+      // derives from the OUTCOME, not the racing frame.
+      renderWithEventBus(
+        <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
+          isGenerating={false}
+          generationProgress={{ percentage: 95, message: { code: 'creating-resource' } }}
+          generationOutcome={{
+            resourceId: makeResourceId('urn:semiont:resource:new1'),
+            resourceName: 'Summary of PB',
+            truncated: false,
+          }} />
+      );
+      expect(screen.getByTestId('semiont-assist-status').textContent).toBe('codeCompleteGenerated');
+    });
+
+    it('a truncated outcome says so — the bit rides the outcome, not the racing frame (D5)', () => {
+      renderWithEventBus(
+        <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
+          isGenerating={false}
+          generationProgress={{ percentage: 95, message: { code: 'creating-resource' } }}
+          generationOutcome={{
+            resourceId: makeResourceId('urn:semiont:resource:new1'),
+            resourceName: 'Summary of PB',
+            truncated: true,
+          }} />
+      );
+      expect(screen.getByTestId('semiont-assist-status').textContent).toBe('codeCompleteGeneratedTruncated');
     });
 
     it('no outcome, no link: the ended frame renders without one until job:complete arrives', () => {
