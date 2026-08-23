@@ -47,45 +47,40 @@ RUN cd /home/semiont/.local/share/semiont/node_modules/@semiont/backend && \
     npx prisma generate --schema=prisma/schema.prisma && \
     test -d /home/semiont/.local/share/semiont/node_modules/.prisma/client
 
-# SELF-RETIRING PATCHES — when this step FAILS the build, DELETE the entry it
-# names (and the whole block once no entries remain).
+# SELF-RETIRING PATCHES — when this step FAILS, DELETE the entry it names.
 #
-# The backend keeps npm at runtime, so npm's own bundled tree ships in the image
-# and faces the Trivy gate. npm 12.0.2 — the newest published — still bundles
-# vulnerable copies of the packages below, and no npm release carries the fixes,
-# so there is no version to bump to. We replace the bundled copies in place,
-# exactly as the (now-retired) undici patch once did:
+# Each package below has a fix that nothing reachable resolves to: npm bundles its
+# own copies, and prisma pins its transitives exactly. The guard fails the build
+# once a tree provides the fix, so a patch can never silently downgrade a newer copy.
 #
-#   brace-expansion 5.0.9 — GHSA-mh99-v99m-4gvg (CVE-2026-14257, HIGH: DoS via
-#     unbounded expansion length, fixed 5.0.8) and GHSA-rgw5-rvv9-x895 (HIGH: DoS
-#     via unbounded intermediate arrays, fixed 5.0.9). The wanted version tracks
-#     the newest fix, not the first — 5.0.8 is itself vulnerable to the second.
-#   ip-address 10.3.1 — CVE-2026-69192 (HIGH). Reaches the image only through
-#     npm's own socks proxy support; nothing in the app tree depends on it.
-#
-# Each entry carries its own guard, and that is what makes leaving them here safe:
-# the build FAILS the moment npm bundles a version >= the wanted one, so a patch
-# can never silently downgrade npm's newer copy and re-introduce a vulnerability.
-# It announces its own obsolescence instead of rotting unnoticed.
+#   brace-expansion 5.0.9  CVE-2026-14257 + GHSA-rgw5-rvv9-x895 (5.0.8 fixes only the first)
+#   ip-address      10.3.1  CVE-2026-69192
+#   tar             7.5.21  CVE-2026-73566
+#   deepmerge-ts    8.0.0   CVE-2026-40345. Major bump, and unprunable —
+#                           @prisma/config imports it directly.
 RUN set -eu; \
-    patch_npm_dep() { \
-      PKG="$1"; WANT="$2"; \
-      for p in $(find /usr/local/lib/node_modules/npm -type d -path "*/node_modules/$PKG"); do \
+    patch_dep() { \
+      ROOT="$1"; PKG="$2"; WANT="$3"; \
+      for p in $(find "$ROOT" -type d -path "*/node_modules/$PKG"); do \
         HAVE=$(node -pe "require('$p/package.json').version"); \
         if node -e 'const c=(a,b)=>{a=a.split(".").map(Number);b=b.split(".").map(Number);for(let i=0;i<3;i++){const d=(a[i]||0)-(b[i]||0);if(d)return d}return 0};process.exit(c(process.argv[1],process.argv[2])>=0?0:1)' "$HAVE" "$WANT"; then \
-          echo "npm now bundles $PKG $HAVE (>= $WANT) at $p."; \
+          echo "$ROOT now provides $PKG $HAVE (>= $WANT) at $p."; \
           echo "DELETE the $PKG entry from the self-retiring patch block in apps/backend/Dockerfile."; \
           return 1; \
         fi; \
       done; \
       npm pack "$PKG@$WANT" --pack-destination /tmp >/dev/null; \
       tar -xzf "/tmp/$PKG-$WANT.tgz" -C /tmp; \
-      find /usr/local/lib/node_modules/npm -type d -path "*/node_modules/$PKG" \
+      find "$ROOT" -type d -path "*/node_modules/$PKG" \
         -exec sh -c 'rm -rf "$1" && cp -a /tmp/package "$1"' _ {} \;; \
       rm -rf "/tmp/$PKG-$WANT.tgz" /tmp/package; \
     }; \
-    patch_npm_dep brace-expansion 5.0.9; \
-    patch_npm_dep ip-address 10.3.1
+    NPM_TREE=/usr/local/lib/node_modules/npm; \
+    APP_TREE=/home/semiont/.local/share/semiont; \
+    patch_dep "$NPM_TREE" brace-expansion 5.0.9; \
+    patch_dep "$NPM_TREE" ip-address 10.3.1; \
+    patch_dep "$NPM_TREE" tar 7.5.21; \
+    patch_dep "$APP_TREE" deepmerge-ts 8.0.0
 
 # Stage 2: runtime — node + git + npm. Unlike the other service images, the
 # backend KEEPS npm because the CMD shells out to `npx prisma migrate deploy`
