@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/auth';
 import type { Page } from '@playwright/test';
-import { BACKEND_URL } from '../playwright.config';
+import { SemiontClient, resourceId as ridBrand } from '@semiont/sdk';
+import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 
 import { openResourceByName } from '../fixtures/discover';
 /**
@@ -48,15 +49,20 @@ const MAP = {
 
 const resourceIdFromUrl = (page: Page) => page.url().split('/').pop()!.split('?')[0];
 
-/** The signed-in session's bearer, wherever the app parked it. */
-async function bearerToken(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    for (const key of Object.keys(localStorage)) {
-      const match = (localStorage.getItem(key) ?? '').match(/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/);
-      if (match) return match[0];
-    }
-    return '';
+/** Read the STORED annotations the way any client would — a separate signed-in
+ *  client, so a pass proves the quote persisted rather than that the browser
+ *  still holds it. */
+async function storedAnnotations(resourceId: string) {
+  const client = await SemiontClient.signInHttp({
+    baseUrl: BACKEND_URL,
+    email: E2E_EMAIL,
+    password: E2E_PASSWORD,
   });
+  try {
+    return await client.browse.annotations(ridBrand(resourceId)).fresh();
+  } finally {
+    client.dispose();
+  }
 }
 
 /** PDF points -> canvas pixels for a 792pt-tall page rendered 1:1. */
@@ -146,11 +152,21 @@ test.describe('scanned PDF annotations quote the server-derived map', () => {
     // carries a quote built from a map the browser could not have read. A
     // panel renders `getExactText` off this; the selector is the thing that
     // has to be right.
-    const stored = await page.request.get(`${BACKEND_URL}/resources/${resourceIdFromUrl(page)}/jsonld`, {
-      headers: { Authorization: `Bearer ${await bearerToken(page)}` },
+    const stored = await storedAnnotations(resourceIdFromUrl(page));
+    expect(stored.length, 'the drawn rectangle persisted an annotation').toBeGreaterThan(0);
+
+    const quotes = stored.flatMap((a) => {
+      const sel = (a.target as { selector?: unknown }).selector;
+      const all = Array.isArray(sel) ? sel : sel ? [sel] : [];
+      return all
+        .filter((s): s is { type: string; exact: string } =>
+          typeof s === 'object' && s !== null && (s as { type?: string }).type === 'TextQuoteSelector')
+        .map((s) => s.exact);
     });
-    expect(stored.status()).toBe(200);
-    expect(await stored.text()).toContain(`"TextQuoteSelector","exact":"${QUOTE}"`);
+    expect(
+      quotes,
+      'a TextQuoteSelector quoting the SERVER-derived map — text the browser never had',
+    ).toContain(QUOTE);
 
     // And the same text reaches the reader. The annotations panel is already
     // open in annotate mode — clicking the toolbar button would CLOSE it.

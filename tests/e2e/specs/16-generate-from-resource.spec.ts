@@ -6,11 +6,10 @@ import { test, expect } from '../fixtures/auth';
  *
  * Flow (ResourceViewerPage → ResourceInfoPanel → ResourceGenerateModal):
  *   Resource Info panel → **Generate** button (above Clone)
- *     → modal opens on `configure-gather`
+ *     → modal opens as one composite stack (GATHER-AT-THE-TOP #1211)
  *     → [P4] exclude an entity type from recall
  *     → Gather → real `gather:resource-requested`→`-complete` round-trip
- *     → `review` step renders the resource `GatheredContext` (kind-aware GatherContextStep)
- *     → Next → `configure-generation`
+ *     → evidence unfolds below; generation params mount under it
  *     → Generate → `yield.fromContext` (resource focus) runs the `generation` job → new derived resource.
  *
  * Covers the seams unit tests can't reach under the #900 native-binding skew:
@@ -19,16 +18,15 @@ import { test, expect } from '../fixtures/auth';
  * (gather + generation) make this slow — hence the long timeout.
  *
  * Selectors are label-independent where it matters: the Info panel opens via the
- * Toolbar's `button[data-panel="info"]`; the exclusion chips are
- * `.semiont-form__entity-type-button`; step transitions are asserted on the bus
+ * Toolbar's `button[data-panel="info"]`; the recall chips are
+ * `.semiont-form__recall-chip`; progress is asserted on the bus
  * (i18n-independent). The few accessible-name selectors use the `ResourceGenerate`
- * / `ResourceInfoPanel` en.json labels (Generate, Gather, Next, Configure Gather,
- * Review Context, Configure Generation).
+ * / `ResourceInfoPanel` en.json labels — now only **Generate** and **Gather**.
  *
  * Requires: the seeded KB has the default entity types (for the P4 exclusion).
  */
 test.describe('generate from resource', () => {
-  test('Generate button → gather round-trips → review → generation yields a derived resource', async ({ signedInPage: page, bus }) => {
+  test('Generate button → gather round-trips → generation yields a derived resource', async ({ signedInPage: page, bus }) => {
     test.setTimeout(180_000);
 
     // Open the first resource.
@@ -42,7 +40,9 @@ test.describe('generate from resource', () => {
     await page.locator('button[data-panel="info"]').click();
     const infoPanel = page.locator('.semiont-resource-info-panel');
     await expect(infoPanel).toBeVisible({ timeout: 10_000 });
-    const generateBtn = infoPanel.getByRole('button', { name: /generate/i });
+    // The AssistShell adds a collapsible "Generate ›" section header, so match
+    // the ✨ prefix — literal in ResourceInfoPanel, unlike the translated word.
+    const generateBtn = infoPanel.getByRole('button', { name: /✨.*generate/i });
     const cloneBtn = infoPanel.getByRole('button', { name: /clone/i });
     await expect(generateBtn).toBeVisible();
     await expect(cloneBtn).toBeVisible();
@@ -51,7 +51,7 @@ test.describe('generate from resource', () => {
     if (!genBox || !cloneBox) throw new Error('Generate/Clone button has no bounding box');
     expect(genBox.y, 'Generate renders above Clone').toBeLessThan(cloneBox.y);
 
-    // ── Click Generate → modal opens on the configure-gather step ──
+    // ── Click Generate → the modal opens as ONE composite stack ──
     await generateBtn.click();
     // Scope to the visible panel, not the headlessui Dialog wrapper: the
     // role="dialog" element is a zero-box positioning wrapper Playwright treats
@@ -59,34 +59,44 @@ test.describe('generate from resource', () => {
     // Generate button still in the background DOM).
     const modal = page.locator('.semiont-search-modal__panel--gather');
     await expect(modal).toBeVisible({ timeout: 10_000 });
-    await expect(modal).toContainText('Configure Gather');
+    await expect(modal.locator('.semiont-wizard__step-scroll')).toBeVisible();
 
     // ── [P4] Exclude an entity type from recall (threaded as excludeEntityTypes) ──
-    const excludeChips = modal.locator('.semiont-form__entity-type-button');
-    await expect(excludeChips.first()).toBeVisible({ timeout: 10_000 });
-    const firstChip = excludeChips.first();
+    // Inverted UI: every type is IN recall until crossed off, so clicking
+    // EXCLUDES it — data-included flips true → false.
+    const recallChips = modal.locator('.semiont-form__recall-chip');
+    await expect(recallChips.first()).toBeVisible({ timeout: 10_000 });
+    const firstChip = recallChips.first();
+    await expect(firstChip).toHaveAttribute('data-included', 'true');
     await firstChip.click();
-    await expect(firstChip).toHaveAttribute('data-selected', 'true');
+    await expect(firstChip, 'clicking a recall chip EXCLUDES that type').toHaveAttribute('data-included', 'false');
     // (The selected type rides into the `gather` call as excludeEntityTypes; the
     //  recall-omission effect is LLM-output-dependent, so we assert the threading
     //  via the UI selection + the gather round-trip below, not the recall contents.)
 
     bus.clear();
 
-    // ── Gather → real gather.resource round-trips, review step renders the context ──
+    // ── Gather → real gather.resource round-trips, evidence unfolds in place ──
     await modal.getByRole('button', { name: /gather/i }).click();
     await bus.expectRequestResponse('gather:resource-requested', 'gather:resource-complete', 60_000);
 
-    // review step: title flips + Next enables only once the GatheredContext is in
-    // (the modal disables Next while `!context`), so an enabled Next == the
-    // kind-aware GatherContextStep rendered the resource context.
-    await expect(modal).toContainText('Review Context');
-    const nextBtn = modal.getByRole('button', { name: /^next/i });
-    await expect(nextBtn).toBeEnabled({ timeout: 30_000 });
+    // The spent controls fold into a receipt, gated on `gatherFired`.
+    const receipt = modal.locator('.semiont-gather-receipt');
+    await expect(receipt).toBeVisible({ timeout: 30_000 });
 
-    // ── Advance to configure-generation ──
-    await nextBtn.click();
-    await expect(modal).toContainText('Configure Generation');
+    // ConfigureGenerationStep mounts only under `gatherFired && gatherContext`,
+    // so the params appearing means the GatheredContext arrived.
+    const titleInput = modal.locator('#wizard-title');
+    await expect(titleInput).toBeAttached({ timeout: 30_000 });
+
+    // The fold: gather at the top, generation params at the bottom.
+    const receiptBox = await receipt.boundingBox();
+    const paramsBox = await titleInput.boundingBox();
+    if (!receiptBox || !paramsBox) throw new Error('receipt/params has no bounding box');
+    expect(receiptBox.y, 'gather receipt sits above the generation params').toBeLessThan(paramsBox.y);
+
+    // No Back in a single stack (D6).
+    await expect(modal.getByRole('button', { name: /^back$/i })).toHaveCount(0);
 
     // ConfigureGenerationStep is an HTML `<form>` with two `required` fields —
     // `#wizard-title` (pre-filled) and `#wizard-storagePath` (EMPTY by default).
@@ -95,8 +105,6 @@ test.describe('generate from resource', () => {
     // documents. Fill both (unique per-run title so successive runs don't pile up
     // same-named derived resources at the top of Discover).
     const runId = Date.now();
-    const titleInput = modal.locator('#wizard-title');
-    await expect(titleInput).toBeAttached({ timeout: 5_000 });
     await titleInput.fill(`e2e-spec-16-${runId}`);
     await modal.locator('#wizard-storagePath').fill(`generated/e2e-16-${runId}.md`);
 

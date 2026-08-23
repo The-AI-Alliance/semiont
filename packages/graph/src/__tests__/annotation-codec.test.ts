@@ -272,9 +272,9 @@ describe('each store flattens its own driver shapes before the codec sees them (
     expect(ann.modified).toBeUndefined();
   });
 
-  it('janusgraph: a property missing from the bag is absent, not undefined-valued', () => {
+  it('janusgraph: an empty property list is absent, not undefined-valued', () => {
     const ann = janusVertexToAnnotation({
-      properties: Object.fromEntries(Object.entries(bag).map(([k, v]) => [k, [{ value: v }]])),
+      properties: { ...Object.fromEntries(Object.entries(bag).map(([k, v]) => [k, [{ value: v }]])), modified: [] },
     });
     expect('modified' in ann).toBe(false);
     expect('generator' in ann).toBe(false);

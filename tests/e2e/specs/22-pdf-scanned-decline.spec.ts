@@ -111,8 +111,9 @@ test.describe('assisted detection on an unreadable scanned PDF', () => {
 
     // (2) the user is told why, as INFO. The bus log records only a payload
     // prefix, so the *reason* is asserted where it actually reaches a
-    // human — the toast text `DECLINE_MESSAGES['no-text-layer']` produces.
-    await expect(page.getByText(/scan whose text could not be recognized/i))
+    // human — the toast from `decline_no-text-layer` (en.json). Matched loosely:
+    // the copy uses a curly apostrophe in "couldn’t", which is not worth pinning.
+    await expect(page.getByText(/scan whose text.*recognized/i))
       .toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/annotation complete/i)).toBeHidden();
 
