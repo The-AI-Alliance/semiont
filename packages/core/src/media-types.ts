@@ -13,10 +13,15 @@
  *                   embedding, never mojibake)
  * - `authorable`  — offered in the compose editor's format dropdown
  * - `uploadable`  — big tent: true for every registry member
+ * - `generatable` — the generation worker can produce it as a yield artifact
  *
  * Capabilities are orthogonal strategies, not a ladder: images render but
  * yield no text; PDFs yield text but aren't authorable. A "tier" is a
  * derived reading, not a stored fact.
+ *
+ * Questions ANSWERABLE from those rows get a helper, never a row of their own —
+ * `isAnnotatable` reads `anchoring`, and a second stored field would be a fact
+ * that can contradict the one it was derived from.
  *
  * Import-leniency invariant: restore/import preserves archive mediaTypes
  * verbatim, so "every stored mediaType is registry-valid" holds only for
@@ -243,6 +248,23 @@ export function textExtractionOf(format: string): TextExtraction {
   const caps = capabilitiesOf(format);
   if (caps) return caps.extractText;
   return baseMediaType(format).startsWith('text/') ? 'decode' : 'none';
+}
+
+/**
+ * WHETHER a type can carry annotations — `anchoring` remains the authority on
+ * HOW. Derived rather than stored: a parallel `annotatable` row field would be
+ * two facts that can disagree, with nothing to adjudicate
+ * `{ annotatable: true, anchoring: 'none' }`.
+ *
+ * Strict on a registry miss, where `textExtractionOf` above is lenient. The
+ * asymmetry is deliberate. Extracting the wrong bytes costs one bad vector,
+ * and refusing to extract costs a resource nobody can find, so extraction
+ * guesses; an annotation is a durable write against a coordinate model the
+ * system does not have for an unknown type, so it refuses.
+ */
+export function isAnnotatable(format: string): boolean {
+  const caps = capabilitiesOf(format);
+  return caps !== undefined && caps.anchoring !== 'none';
 }
 
 const REGISTRY_KEYS = Object.keys(MEDIA_TYPES) as SupportedMediaType[];

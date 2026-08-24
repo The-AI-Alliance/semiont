@@ -18,12 +18,13 @@ export type SelectorType = 'fragment' | 'svg' | 'text';
  * This set is the host-facing CONTRACT for "which shapes can this medium
  * draw" — gate shape UI on it directly.
  *
- * PDF: only rectangles (FragmentSelector with RFC 3778 viewrect).
- * Images: all shapes (SvgSelector supports rect, circle, polygon).
- * Everything else — including text media and absent/unknown types — supports
- * NONE: those anchor by character offsets (TextPositionSelector /
- * TextQuoteSelector), and no selector can carry a shape. Mirrors
- * `getSelectorType`'s 'text' fallback.
+ * The registry's anchoring model decides, never the type name: a spatially
+ * anchored medium draws what its renderer can carry — rectangles only for
+ * PDF (FragmentSelector, RFC 3778 viewrect; circle and polygon would need an
+ * SvgSelector, which loses page context), all three for images (SvgSelector).
+ * Everything else draws nothing — text media anchor by character offsets and
+ * no selector there can carry a shape, and storage-tier rows are not
+ * annotated at all.
  *
  * @param mediaType - MIME type of the resource (e.g., 'application/pdf', 'image/png')
  * @returns Array of supported shape types for annotation
@@ -34,19 +35,16 @@ export function getSupportedShapes(mediaType: string | undefined | null): ShapeT
     return [];
   }
 
-  // PDF only supports rectangles via FragmentSelector (RFC 3778)
-  // Circle and polygon would require SvgSelector, which loses page context
-  if (capabilitiesOf(mediaType)?.render === 'pdf') {
-    return ['rectangle'];
+  const caps = capabilitiesOf(mediaType);
+  if (caps?.anchoring === 'spatial') {
+    if (caps.render === 'pdf') return ['rectangle'];
+    if (caps.render === 'image') return ['rectangle', 'circle', 'polygon'];
   }
 
-  // Images support all shapes via SvgSelector
-  if (mediaType.startsWith('image/')) {
-    return ['rectangle', 'circle', 'polygon'];
-  }
-
-  // Text (and everything else) anchors by character offsets — there is no
-  // selector to carry a shape, so the medium supports none.
+  // Everything else: text anchoring (no selector carries a shape), storage-tier
+  // rows, and registry misses. Stated as a positive whitelist with a catch-all
+  // ON PURPOSE — the negative form (`caps?.anchoring !== 'none'`) answers true
+  // on a miss, and an unregistered type must not be handed drawing tools.
   return [];
 }
 
@@ -65,7 +63,17 @@ export function isShapeSupported(
 }
 
 /**
- * Get the selector type used for a given media type
+ * Get the selector type used for a given media type.
+ *
+ * Keyed off the registry's anchoring model, in step with
+ * `getSupportedShapes`: spatial + PDF render → FragmentSelector (RFC 3778),
+ * spatial + image render → SvgSelector.
+ *
+ * Everything else answers 'text' — text media because they genuinely anchor
+ * by character offset, storage-tier rows and registry misses because
+ * `SelectorType` has no "not annotatable" member. That catch-all is harmless
+ * rather than a claim: `getSupportedShapes` offers those types no shapes, and
+ * the write path refuses them outright (MEDIA-CAPABILITY-DISPATCH D6).
  *
  * @param mediaType - MIME type of the resource
  * @returns Selector type (fragment, svg, or text)
@@ -75,17 +83,12 @@ export function getSelectorType(mediaType: string | undefined | null): SelectorT
     return 'text'; // Default fallback
   }
 
-  // PDF uses FragmentSelector (RFC 3778)
-  if (capabilitiesOf(mediaType)?.render === 'pdf') {
-    return 'fragment';
+  const caps = capabilitiesOf(mediaType);
+  if (caps?.anchoring === 'spatial') {
+    if (caps.render === 'pdf') return 'fragment';
+    if (caps.render === 'image') return 'svg';
   }
 
-  // Images use SvgSelector
-  if (mediaType.startsWith('image/')) {
-    return 'svg';
-  }
-
-  // Text and other formats use TextPositionSelector/TextQuoteSelector
   return 'text';
 }
 
