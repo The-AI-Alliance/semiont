@@ -32,7 +32,7 @@ import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourc
 
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
-import { deriveStorageUri, extractPdfTextLayer, type AnchoredTextStore } from '@semiont/content';
+import { extractPdfTextLayer, type AnchoredTextStore } from '@semiont/content';
 import { prepareDetection } from './workers/detection/prepare-detection';
 import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
 import {
@@ -397,13 +397,13 @@ async function handleJobInner(
     // id is derived from the context's focus (the wire no longer carries it).
     const genReferenceId = referenceIdOf(job);
 
-    // The Save location the user typed is AUTHORITATIVE (GENERATION-OUTPUT-
-    // FORMAT D6). Deriving unconditionally meant the artifact landed at
-    // file://<title-slug><ext> and renaming the title MOVED THE FILE. The
-    // derivation stays as the fallback for an empty uri — the guard above
-    // requires the field, so absence never reaches here — which is the shape
-    // `make-meaning/exchange/replay.ts` already uses for archived events.
-    const storageUri = job.params.storageUri || deriveStorageUri(genResult.title, genResult.format);
+    // The Save location the user typed is AUTHORITATIVE and there is no
+    // fallback (GENERATION-OUTPUT-FORMAT D6/D9). Deriving unconditionally
+    // meant the artifact landed at file://<title-slug><ext> and renaming the
+    // title MOVED THE FILE; a `||` fallback would now only hide a caller that
+    // forgot. The guard above rejects an absent OR empty uri, so by here it
+    // is a real location.
+    const storageUri = job.params.storageUri;
 
     // Faithful and incurious (D7): the worker writes the requested bytes to
     // the requested URI and does NOT police the pair — a mismatch is a

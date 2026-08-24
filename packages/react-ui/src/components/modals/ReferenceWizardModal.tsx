@@ -42,6 +42,8 @@ export interface ReferenceWizardModalProps {
   resourceId: string | null;
   /** Default title (selected text) */
   defaultTitle: string;
+  /** Folder of the source resource, so new files land beside it (D11). */
+  defaultFolder?: string;
   /** Entity types from the annotation */
   entityTypes: string[];
   /**
@@ -133,6 +135,7 @@ export function ReferenceWizardModal({
   annotationId,
   resourceId,
   defaultTitle,
+  defaultFolder,
   entityTypes,
   resourceName,
   locale,
@@ -423,6 +426,7 @@ export function ReferenceWizardModal({
                   <ComposeStep
                     draft={composeDraft}
                     onDraftChange={(patch) => setComposeDraft((d) => ({ ...d, ...patch }))}
+                    defaultFolder={defaultFolder}
                     referenceEntityTypes={entityTypes}
                     entityTypeOptions={entityTypeOptions}
                     showLineNumbers={showLineNumbers}
@@ -459,6 +463,7 @@ export function ReferenceWizardModal({
                     context={contextWithHint ?? context}
                     config={generationDraft}
                     onConfigChange={setGenerationDraft}
+                    defaultFolder={defaultFolder}
                     onBack={handleBackToGather}
                     onGenerate={handleGenerateSubmit}
                     translations={{

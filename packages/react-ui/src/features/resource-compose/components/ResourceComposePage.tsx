@@ -8,7 +8,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { capabilitiesOf, AUTHORABLE_MEDIA_TYPES, MEDIA_TYPES, mediaTypeForExtension, isSupportedMediaType, LOCALES } from '@semiont/core';
+import { capabilitiesOf, AUTHORABLE_MEDIA_TYPES, MEDIA_TYPES, mediaTypeForExtension, isSupportedMediaType, LOCALES, folderOf, proposeStoragePath } from '@semiont/core';
+import type { SupportedMediaType } from '@semiont/core';
 import type { UploadProgress } from '@semiont/sdk';
 import { type CloneData } from '../state/compose-page-state-unit';
 import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state-unit';
@@ -168,6 +169,20 @@ export function ResourceComposePage({
   // Archive original checkbox (for clones only)
   const [archiveOriginal, setArchiveOriginal] = useState(true);
 
+  // D11 — the Save location starts filled and follows the title until the user
+  // takes it over; `pathTouched` is derived, so clearing restores the proposal.
+  // A clone proposes beside its source; a new resource proposes at the root.
+  const composeFormat: SupportedMediaType =
+    isSupportedMediaType(selectedFormat) ? selectedFormat : 'text/markdown';
+  const pathTouched = storagePath !== '';
+  const effectivePath = pathTouched
+    ? storagePath
+    : proposeStoragePath(
+        mode === 'clone' && cloneData ? folderOf(cloneData.sourceResource.storageUri) : '',
+        newResourceName,
+        composeFormat,
+      );
+
   // Initialize form data based on mode
   useEffect(() => {
     if (mode === 'clone' && cloneData) {
@@ -234,7 +249,7 @@ export function ResourceComposePage({
       const params: SaveResourceParams = {
         mode,
         name: newResourceName,
-        storageUri: `file://${storagePath}`,
+        storageUri: `file://${effectivePath}`,
         content: newResourceContent,
         format: uploadedFile ? fileMimeType : selectedFormat,
         entityTypes: selectedEntityTypes,
@@ -316,7 +331,7 @@ export function ResourceComposePage({
               <input
                 id="storagePath"
                 type="text"
-                value={storagePath}
+                value={effectivePath}
                 onChange={(e) => setStoragePath(e.target.value)}
                 placeholder="docs/my-resource.md"
                 required

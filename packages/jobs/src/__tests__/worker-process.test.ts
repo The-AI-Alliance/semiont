@@ -381,12 +381,12 @@ describe('handleJob orchestration', () => {
       expect(uris).toEqual(['file://research/notes.md', 'file://research/notes.md']);
     });
 
-    it('derivation survives as the FALLBACK — an empty uri still lands somewhere sensible', async () => {
-      // `isGenerationJobParams` (worker-process.ts:376) requires storageUri to
-      // be a string, so an ABSENT uri never reaches this line — it fails the
-      // guard first. An EMPTY one passes the guard, and that is the reachable
-      // hole the fallback covers. `deriveStorageUri` stays the fallback, never
-      // the policy (the `replay.ts:179` shape).
+    it('an EMPTY storageUri fails the job and writes nothing — there is no fallback (D9)', async () => {
+      // FLIPPED from P0, deliberately (GENERATION-OUTPUT-FORMAT D9, user
+      // 2026-08-24). P0 shipped `params.storageUri || deriveStorageUri(…)`,
+      // which was defensible while nothing filled the field. Now the form
+      // always proposes a path, so a fallback could only hide a caller that
+      // forgot. `required` means non-empty, enforced by the guard.
       vi.mocked(processGenerationJob).mockResolvedValue({
         content: new TextEncoder().encode('body'),
         title: 'My Document',
@@ -396,9 +396,13 @@ describe('handleJob orchestration', () => {
       });
       const h = makeFakeSessionAndAdapter();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { storageUri: '' }));
+      await expect(
+        handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { storageUri: '' })),
+      ).rejects.toThrow(/GenerationJobParams/);
 
-      expect(h.yieldResourceCalls[0]!.storageUri).toBe('file://my-document.md');
+      // "Fails" must mean NOTHING WAS WRITTEN — not merely that an error
+      // surfaced after a resource already existed at a guessed path.
+      expect(h.yieldResourceCalls).toHaveLength(0);
     });
 
     it('WARNS but does NOT refuse when the uri extension and the format disagree (D7)', async () => {

@@ -60,12 +60,13 @@ const agentWithCeiling = (maxOutputTokens: number): CollaboratorEntry =>
  * than the bare component: a `vi.fn()` for `onConfigChange` would swallow every edit
  * and quietly turn each assertion below into a test of nothing.
  */
-function Harness({ generationAgent }: { generationAgent?: CollaboratorEntry }) {
+function Harness({ generationAgent, defaultFolder }: { generationAgent?: CollaboratorEntry; defaultFolder?: string }) {
   const [draft, setDraft] = useState(DRAFT);
   return (
     <ConfigureGenerationStep
       config={draft}
       onConfigChange={setDraft}
+      {...(defaultFolder !== undefined ? { defaultFolder } : {})}
       context={context}
       onBack={vi.fn()}
       onGenerate={onGenerateSpy}
@@ -77,9 +78,14 @@ function Harness({ generationAgent }: { generationAgent?: CollaboratorEntry }) {
 
 let onGenerateSpy = vi.fn();
 
-function renderStep(generationAgent?: CollaboratorEntry) {
+function renderStep(generationAgent?: CollaboratorEntry, defaultFolder?: string) {
   onGenerateSpy = vi.fn();
-  const utils = render(<Harness {...(generationAgent ? { generationAgent } : {})} />);
+  const utils = render(
+    <Harness
+      {...(generationAgent ? { generationAgent } : {})}
+      {...(defaultFolder !== undefined ? { defaultFolder } : {})}
+    />,
+  );
   const input = () => screen.getByLabelText('Max length') as HTMLInputElement;
   return { ...utils, input, props: { onGenerate: onGenerateSpy } };
 }
@@ -385,5 +391,63 @@ describe('ConfigureGenerationStep — the hint echo (GEP P1c, D8)', () => {
       />,
     );
     expect(container.querySelector('.semiont-wizard__hint-echo')).toBeNull();
+  });
+});
+
+describe('the Save location proposes a path and stops following once touched (D11)', () => {
+  const path = () => screen.getByLabelText('Save location') as HTMLInputElement;
+  const title = () => screen.getByLabelText('Title') as HTMLInputElement;
+
+  it('opens PRE-FILLED beside the source, named for the title', () => {
+    renderStep(undefined, 'research');
+    expect(path().value).toBe('research/untitled.md');
+  });
+
+  it('proposes a bare filename when the source has no folder', () => {
+    renderStep(undefined, '');
+    expect(path().value).toBe('untitled.md');
+  });
+
+  it('FOLLOWS the title while untouched', () => {
+    renderStep(undefined, 'research');
+    fireEvent.change(title(), { target: { value: 'A New Name' } });
+    expect(path().value).toBe('research/a-new-name.md');
+  });
+
+  it('FOLLOWS the format while untouched — extension included', () => {
+    renderStep(undefined, 'research');
+    fireEvent.change(screen.getByLabelText('Format'), { target: { value: 'application/pdf' } });
+    expect(path().value).toBe('research/untitled.pdf');
+  });
+
+  it('STOPS following once the path is edited — the title then moves freely', () => {
+    renderStep(undefined, 'research');
+    fireEvent.change(path(), { target: { value: 'elsewhere/mine.md' } });
+    fireEvent.change(title(), { target: { value: 'A New Name' } });
+    expect(path().value).toBe('elsewhere/mine.md');
+  });
+
+  it('CLEARING the field un-touches it, restoring the proposal', () => {
+    renderStep(undefined, 'research');
+    fireEvent.change(path(), { target: { value: 'elsewhere/mine.md' } });
+    fireEvent.change(path(), { target: { value: '' } });
+    expect(path().value).toBe('research/untitled.md');
+  });
+
+  it('submits the PROPOSED path when the user never touched it', () => {
+    const { props } = renderStep(undefined, 'research');
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
+    expect(props.onGenerate).toHaveBeenCalledWith(
+      expect.objectContaining({ storageUri: 'file://research/untitled.md' }),
+    );
+  });
+
+  it('a proposed path never trips the D7 mismatch refusal — it carries the right extension', () => {
+    const { props } = renderStep(undefined, 'research');
+    fireEvent.change(screen.getByLabelText('Format'), { target: { value: 'application/pdf' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
+    expect(props.onGenerate).toHaveBeenCalledWith(
+      expect.objectContaining({ storageUri: 'file://research/untitled.pdf' }),
+    );
   });
 });

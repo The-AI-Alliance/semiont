@@ -1,18 +1,20 @@
 {
   "type": "object",
-  "description": "Params bag for `job:create` with `jobType: 'generation'` \u2014 exactly the shape yield.fromContext(context, options) takes: options + the gathered context. The job's ids are DERIVED from context.focus at the dispatcher (resource focus \u2192 focus.resource; annotation focus \u2192 focus.sourceResource, with the worker auto-binding to focus.annotation); a caller-supplied referenceId is rejected. Carried inside JobCreateCommand.params; this schema is the generation shape's contract, including its requiredness.",
+  "description": "Params bag for `job:create` with `jobType: 'generation'` — exactly the shape yield.fromContext(context, options) takes: options + the gathered context. The job's ids are DERIVED from context.focus at the dispatcher (resource focus → focus.resource; annotation focus → focus.sourceResource, with the worker auto-binding to focus.annotation); a caller-supplied referenceId is rejected. Carried inside JobCreateCommand.params; this schema is the generation shape's contract, including its requiredness.",
   "properties": {
     "title": {
       "type": "string",
-      "description": "Title of the generated resource."
+      "description": "Title of the generated resource. Non-empty: the dispatcher and worker both reject an empty title via isGenerationJobParams. NOTE minLength is documentation here — JobCreateCommand.params is additionalProperties:true, so /bus/emit's generated validator never sees this field (GENERATION-OUTPUT-FORMAT D9b).",
+      "minLength": 1
     },
     "storageUri": {
       "type": "string",
-      "description": "Storage URI for the generated resource's content."
+      "description": "Storage URI for the generated resource's content — AUTHORITATIVE: the worker writes exactly here and never derives a location from the title. Non-empty, and there is no fallback; the dispatcher and worker both reject an empty value via isGenerationJobParams. NOTE minLength is documentation here — JobCreateCommand.params is additionalProperties:true, so /bus/emit's generated validator never sees this field (GENERATION-OUTPUT-FORMAT D6/D9).",
+      "minLength": 1
     },
     "context": {
       "$ref": "./GatheredContext.json",
-      "description": "The gathered context that grounds the generation. Its `focus` names the anchor: the DISPATCHER derives the job's resourceId from it (resource focus \u2192 focus.resource; annotation focus \u2192 focus.sourceResource, with the worker auto-binding to focus.annotation) and REJECTS a caller-supplied id \u2014 the context is authoritative. Under `cite`, the ids its embedding carries are the only valid citation targets."
+      "description": "The gathered context that grounds the generation. Its `focus` names the anchor: the DISPATCHER derives the job's resourceId from it (resource focus → focus.resource; annotation focus → focus.sourceResource, with the worker auto-binding to focus.annotation) and REJECTS a caller-supplied id — the context is authoritative. Under `cite`, the ids its embedding carries are the only valid citation targets."
     },
     "prompt": {
       "type": "string",
@@ -27,11 +29,11 @@
     },
     "language": {
       "type": "string",
-      "description": "Annotation/resource body locale \u2014 language the generated resource is written in (typically the user's UI locale). BCP-47."
+      "description": "Annotation/resource body locale — language the generated resource is written in (typically the user's UI locale). BCP-47."
     },
     "sourceLanguage": {
       "type": "string",
-      "description": "Source-resource locale \u2014 language of the resource being referenced, used in the prompt so the LLM understands embedded source-context snippets when source \u2260 target language. BCP-47."
+      "description": "Source-resource locale — language of the resource being referenced, used in the prompt so the LLM understands embedded source-context snippets when source ≠ target language. BCP-47."
     },
     "temperature": {
       "type": "number",
@@ -43,15 +45,15 @@
     },
     "outputMediaType": {
       "$ref": "./SupportedMediaType.json",
-      "description": "Requested media type of the generated resource's content. Default `text/markdown` at the worker, which validates it against its supported output set and FAILS the job for anything it can't write \u2014 not a silent fallback."
+      "description": "Requested media type of the generated resource's content. Default `text/markdown` at the worker, which validates it against its supported output set and FAILS the job for anything it can't write — not a silent fallback."
     },
     "task": {
       "type": "string",
-      "description": "What the model is asked to produce \u2014 the prompt's framing verb. Canonical values ('resource', 'answer', 'summary') map to the worker's tested framings; any other string is used VERBATIM as the framing instruction (loud degrade: the worker warns, never silently falls back). Unset \u21d2 'resource' (article framing)."
+      "description": "What the model is asked to produce — the prompt's framing verb. Canonical values ('resource', 'answer', 'summary') map to the worker's tested framings; any other string is used VERBATIM as the framing instruction (loud degrade: the worker warns, never silently falls back). Unset ⇒ 'resource' (article framing)."
     },
     "structure": {
       "type": "string",
-      "description": "How the output is internally segmented \u2014 shape for text-bearing media, subordinate to `outputMediaType` (never its peer). Canonical values: 'prose' (flowing paragraphs), 'sections' (titled sections + title), 'chat' (speaker-labeled turns); any other string becomes a freeform \"organize as: \u2026\" directive (loud degrade). Unset \u21d2 NO structure directive at all \u2014 the task framing and the model determine shape."
+      "description": "How the output is internally segmented — shape for text-bearing media, subordinate to `outputMediaType` (never its peer). Canonical values: 'prose' (flowing paragraphs), 'sections' (titled sections + title), 'chat' (speaker-labeled turns); any other string becomes a freeform \"organize as: …\" directive (loud degrade). Unset ⇒ NO structure directive at all — the task framing and the model determine shape."
     },
     "cite": {
       "type": "boolean",

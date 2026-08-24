@@ -13,11 +13,10 @@
 import type { Readable } from 'node:stream';
 import { awaitReply } from './await-reply';
 import type { Logger, ResourceId, UserId } from '@semiont/core';
-import { EventBus, annotationId as annotationIdFactory, resourceId as makeResourceId, baseMediaType, isSupportedMediaType, busRequest } from '@semiont/core';
+import { EventBus, annotationId as annotationIdFactory, resourceId as makeResourceId, baseMediaType, isSupportedMediaType, busRequest, deriveStorageUri } from '@semiont/core';
 import { asBusRequestPrimitive } from '../bus-request-local';
 import type { components } from '@semiont/core';
 import type { WorkingTreeStore } from '@semiont/content';
-import { deriveStorageUri } from '@semiont/content';
 import { readTarGz } from './tar';
 import {
   LINKED_DATA_FORMAT,

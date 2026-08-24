@@ -16,7 +16,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SemiontProject } from '@semiont/core/node';
-import { EventBus, type Logger, type SupportedMediaType, userId, resourceId as makeResourceId } from '@semiont/core';
+import { EventBus, type Logger, type SupportedMediaType, userId, resourceId as makeResourceId, deriveStorageUri } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, AnnotationOperations, type MakeMeaningConfig } from '../..';
 import { Weaver, type WeaverTiming } from '../../weaver';
 
@@ -28,7 +28,6 @@ import { createWeaverActorStateUnit, type WeaverActorStateUnit } from '../../wea
 import { workerBusOverEventBus } from '../../worker-bus-local';
 import { asBusRequestPrimitive } from '../../bus-request-local';
 import { FileWeaverCheckpoint } from '../../weaver-checkpoint';
-import { deriveStorageUri } from '@semiont/content';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';

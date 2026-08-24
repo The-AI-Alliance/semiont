@@ -16,9 +16,8 @@
 import { Subscription, from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import type { EventMap, Logger, ResourceId } from '@semiont/core';
-import { type EventBus, cloneToken as makeCloneToken, type CloneToken, type SupportedMediaType, resourceId, userId as makeUserId } from '@semiont/core';
+import { type EventBus, cloneToken as makeCloneToken, type CloneToken, type SupportedMediaType, resourceId, userId as makeUserId, deriveStorageUri } from '@semiont/core';
 import { getPrimaryRepresentation, getResourceEntityTypes, baseMediaType, isSupportedMediaType, capabilitiesOf } from '@semiont/core';
-import { deriveStorageUri } from '@semiont/content';
 import { ResourceContext } from './resource-context';
 import { ResourceOperations } from './resource-operations';
 import type { KnowledgeBase } from './knowledge-base';

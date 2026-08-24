@@ -4,7 +4,7 @@ import React, { useEffect } from 'react';
 import { WizardFooter } from './WizardFooter';
 import type { CollaboratorEntry, GatheredContext, SupportedMediaType } from '@semiont/core';
 import type { GenerationOptions } from '@semiont/sdk';
-import { LOCALES, GENERATABLE_MEDIA_TYPES, capabilitiesOf } from '@semiont/core';
+import { LOCALES, GENERATABLE_MEDIA_TYPES, capabilitiesOf, proposeStoragePath } from '@semiont/core';
 
 /**
  * Bounds for the max-length control when no ceiling is known. These are the
@@ -103,6 +103,12 @@ export interface ConfigureGenerationStepProps {
   /** Absent in a single-stack host (GATHER-AT-THE-TOP D6) — the footer then renders no retreat. */
   onBack?: () => void;
   onGenerate: (config: GenerationConfig) => void;
+  /**
+   * Folder of the resource being generated FROM, so the artifact lands beside
+   * its source (D11). The page derives it; this component stays
+   * presentational, exactly as it already receives the default title.
+   */
+  defaultFolder?: string;
   translations: {
     resourceTitle: string;
     resourceTitlePlaceholder: string;
@@ -151,6 +157,7 @@ export function ConfigureGenerationStep({
   onConfigChange,
   onBack,
   onGenerate,
+  defaultFolder = '',
   translations: t,
   generationAgent,
 }: ConfigureGenerationStepProps) {
@@ -162,14 +169,24 @@ export function ConfigureGenerationStep({
   const { title, storagePath, prompt, language, temperature, maxTokensText, outputMediaType } = config;
   const set = (patch: Partial<GenerationDraft>) => onConfigChange({ ...config, ...patch });
 
+  // D11 — the Save location starts filled and FOLLOWS the title and format
+  // until the user takes it over. `pathTouched` is DERIVED rather than stored:
+  // it is exactly "the field holds the user's own text", which makes clearing
+  // the field un-touch it for free, keeps it reset-on-open and Back-safe
+  // because `storagePath` already is, and leaves no second field to desync.
+  const pathTouched = storagePath !== '';
+  const proposedPath = proposeStoragePath(defaultFolder, title, outputMediaType);
+  const effectivePath = pathTouched ? storagePath : proposedPath;
+
   // D7 — the GUI is where a format/extension mismatch is caught, because it is
   // where the person who can fix it is standing. An EMPTY path is not a
   // mismatch: the field is `required`, so emptiness is already refused, and
-  // telling an untouched form it is wrong is not a welcome.
+  // telling an untouched form it is wrong is not a welcome. Under D11 a
+  // PROPOSED path always matches, so this now fires only on hand-edits.
   const requiredExtension = extensionFor(outputMediaType);
   const extensionMismatch =
-    storagePath !== '' &&
-    !storagePath.toLowerCase().endsWith(requiredExtension.toLowerCase());
+    effectivePath !== '' &&
+    !effectivePath.toLowerCase().endsWith(requiredExtension.toLowerCase());
 
   const ceiling = generationAgent?.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS_CEILING;
 
@@ -201,7 +218,7 @@ export function ConfigureGenerationStep({
     const trimmedPrompt = prompt.trim();
     onGenerate({
       title,
-      storageUri: `file://${storagePath}`,
+      storageUri: `file://${effectivePath}`,
       ...(trimmedPrompt ? { prompt: trimmedPrompt } : {}),
       language,
       temperature,
@@ -247,7 +264,7 @@ export function ConfigureGenerationStep({
           <input
             id="wizard-storagePath"
             type="text"
-            value={storagePath}
+            value={effectivePath}
             onChange={(e) => set({ storagePath: e.target.value })}
             required
             aria-invalid={extensionMismatch}

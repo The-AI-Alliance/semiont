@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { LOCALES } from '@semiont/core';
+import { LOCALES, proposeStoragePath } from '@semiont/core';
 import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
 import { WizardFooter } from './WizardFooter';
 
@@ -37,6 +37,12 @@ export interface ComposeParams {
 export interface ComposeStepProps {
   draft: ComposeDraft;
   onDraftChange: (patch: Partial<ComposeDraft>) => void;
+  /**
+   * Folder of the resource being composed FROM, so the new file lands beside
+   * its source (D11). Compose is always `text/markdown`, so the proposal's
+   * extension is fixed.
+   */
+  defaultFolder?: string;
   /** Entity types fixed when the reference was created — read-only tags when
    *  non-empty (D6): they are not this step's to change. */
   referenceEntityTypes: string[];
@@ -65,6 +71,7 @@ export interface ComposeStepProps {
 export function ComposeStep({
   draft,
   onDraftChange,
+  defaultFolder = '',
   referenceEntityTypes,
   entityTypeOptions,
   showLineNumbers,
@@ -73,17 +80,25 @@ export function ComposeStep({
   onCompose,
   translations: t,
 }: ComposeStepProps) {
+  // D11 — the Save location starts filled and follows the title until the
+  // user takes it over; `pathTouched` is derived (see ConfigureGenerationStep),
+  // so clearing the field restores the proposal. Compose writes markdown.
+  const pathTouched = draft.storagePath !== '';
+  const effectivePath = pathTouched
+    ? draft.storagePath
+    : proposeStoragePath(defaultFolder, draft.name, 'text/markdown');
+
   const [isCreating, setIsCreating] = useState(false);
   const fixedTypes = referenceEntityTypes.length > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!draft.name.trim() || !draft.storagePath.trim()) return;
+    if (!draft.name.trim() || !effectivePath.trim()) return;
     setIsCreating(true);
     try {
       await onCompose({
         name: draft.name,
-        storagePath: `file://${draft.storagePath}`,
+        storagePath: `file://${effectivePath}`,
         content: draft.content,
         entityTypes: fixedTypes ? referenceEntityTypes : draft.entityTypes,
         language: draft.language,
@@ -126,7 +141,7 @@ export function ComposeStep({
           <input
             id="compose-storagePath"
             type="text"
-            value={draft.storagePath}
+            value={effectivePath}
             onChange={(e) => onDraftChange({ storagePath: e.target.value })}
             placeholder="people/my-resource.md"
             required

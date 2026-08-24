@@ -591,7 +591,13 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
   it('generation submits the step\'s config against this annotation, then closes', async () => {
     const { onGenerateSubmit, onClose } = renderWizard();
     await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
-    await userEvent.type(screen.getByLabelText(/Save location/i), 'generated/out.md');
+    // The field arrives PRE-FILLED with the proposal now (D11). Overriding it
+    // is select-all-then-type, which the DOM delivers as ONE change carrying
+    // the replacement — `clear()` then `type()` would instead empty the field
+    // (restoring the proposal, by design) and append to it.
+    fireEvent.change(screen.getByLabelText(/Save location/i), {
+      target: { value: 'generated/out.md' },
+    });
     await userEvent.click(screen.getByRole('button', { name: T.generate }));
 
     expect(onGenerateSubmit).toHaveBeenCalledTimes(1);

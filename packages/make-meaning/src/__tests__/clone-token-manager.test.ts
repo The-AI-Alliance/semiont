@@ -11,15 +11,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { firstValueFrom, race, timeout, filter, map } from 'rxjs';
 import { SemiontProject } from '@semiont/core/node';
-import {
-  EventBus,
-  type Logger,
-  type SupportedMediaType,
-  userId,
-  resourceId as makeResourceId,
-  getPrimaryRepresentation,
-} from '@semiont/core';
-import { deriveStorageUri } from '@semiont/content';
+import { EventBus, type Logger, type SupportedMediaType, userId, resourceId as makeResourceId, getPrimaryRepresentation, deriveStorageUri } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';

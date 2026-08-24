@@ -71,6 +71,8 @@ export interface ResourceGenerateModalProps {
   onClose: () => void;
   resourceId: string;
   defaultTitle: string;
+  /** Folder of the source resource, so the artifact lands beside it (D11). */
+  defaultFolder?: string;
   locale: string;
   /**
    * Entity types offered in the exclusion picker. Owner-supplied so the
@@ -117,6 +119,7 @@ export function ResourceGenerateModal({
   onClose,
   resourceId,
   defaultTitle,
+  defaultFolder,
   locale,
   entityTypeOptions = [],
   onGenerateSubmit,
@@ -357,6 +360,7 @@ export function ResourceGenerateModal({
                       context={gatherContext}
                       config={generationDraft}
                       onConfigChange={setGenerationDraft}
+                      defaultFolder={defaultFolder}
                       onGenerate={handleGenerate}
                       translations={{
                         resourceTitle: t.resourceTitle,

@@ -9,7 +9,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useResourceViewedReport } from '../hooks/useResourceViewedReport';
 import type { components, ResourceDescriptor, ResourceId, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
-import { annotationId } from '@semiont/core';
+import { annotationId, folderOf } from '@semiont/core';
 import type { ComposeParams } from '../../../components/modals/ComposeStep';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, capabilitiesOf, extensionForMediaType } from '@semiont/core';
 import { ANNOTATORS } from '@semiont/react-ui';
@@ -709,6 +709,7 @@ export function ResourceViewerPage({
         annotationId={wizardAnnotationId}
         resourceId={wizardResourceId}
         defaultTitle={wizardDefaultTitle}
+        defaultFolder={folderOf(resource.storageUri)}
         entityTypes={wizardEntityTypes}
         resourceName={resource.name}
         locale={locale}
@@ -784,6 +785,7 @@ export function ResourceViewerPage({
         // Seed the proposed title from the source resource's name (GFR D4/A4);
         // the field stays editable and required.
         defaultTitle={resource.name}
+        defaultFolder={folderOf(resource.storageUri)}
         locale={locale}
         entityTypeOptions={allEntityTypes}
         onGenerateSubmit={handleResourceGenerateSubmit}
