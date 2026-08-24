@@ -13,7 +13,7 @@
  * browser-safe.
  */
 
-import { MEDIA_TYPES, capabilitiesOf, type SupportedMediaType } from './media-types';
+import { MEDIA_TYPES, type SupportedMediaType } from './media-types';
 
 /**
  * The FILENAME a resource's content takes: slug + the registry's extension.
@@ -74,6 +74,6 @@ export function proposeStoragePath(
   format: SupportedMediaType,
 ): string {
   const name = storageFileName(title, format);
-  if (name === (capabilitiesOf(format)?.extension ?? '')) return '';
+  if (name === MEDIA_TYPES[format].extension) return '';
   return folder ? `${folder}/${name}` : name;
 }
