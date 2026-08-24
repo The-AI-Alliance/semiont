@@ -310,6 +310,7 @@ export {
   extensionForMediaType,
   mediaTypeForExtension,
   textExtractionOf,
+  isAnnotatable,
   AUTHORABLE_MEDIA_TYPES,
   EMBEDDABLE_MEDIA_TYPES,
   GENERATABLE_MEDIA_TYPES,

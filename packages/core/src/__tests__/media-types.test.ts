@@ -15,6 +15,7 @@ import {
   extensionForMediaType,
   mediaTypeForExtension,
   textExtractionOf,
+  isAnnotatable,
   AUTHORABLE_MEDIA_TYPES,
   EMBEDDABLE_MEDIA_TYPES,
   GENERATABLE_MEDIA_TYPES,
@@ -43,6 +44,37 @@ describe('media-types registry', () => {
       for (const [type, caps] of rows) {
         if (caps.authorable) {
           expect(caps.render, type).toBe('text');
+        }
+      }
+    });
+
+    // The capability implications (MEDIA-CAPABILITY-DISPATCH D4). All three
+    // hold today — they are regression pins on a row edit, not discoveries.
+    // Deliberately absent: the converse, `render !== 'none' → annotatable`.
+    // It holds today too, and pinning it would make AnnotateView's
+    // gate-on-renderability accidentally correct BY RULE; leaving it open
+    // keeps renderable-but-unannotatable a reachable row edit.
+
+    it('never offers composing into something that cannot be annotated', () => {
+      for (const [type, caps] of rows) {
+        if (caps.authorable) {
+          expect(isAnnotatable(type), type).toBe(true);
+        }
+      }
+    });
+
+    it('never generates something that cannot be annotated', () => {
+      for (const [type, caps] of rows) {
+        if (caps.generatable) {
+          expect(isAnnotatable(type), type).toBe(true);
+        }
+      }
+    });
+
+    it('never anchors into something the UI cannot display', () => {
+      for (const [type, caps] of rows) {
+        if (caps.anchoring !== 'none') {
+          expect(caps.render, type).not.toBe('none');
         }
       }
     });
@@ -118,6 +150,48 @@ describe('media-types registry', () => {
       expect(MEDIA_TYPES['application/zip'].anchoring).toBe('none');
       expect(MEDIA_TYPES['image/gif'].anchoring).toBe('none');
       expect(MEDIA_TYPES['text/csv'].anchoring).toBe('none');
+    });
+  });
+
+  describe('annotatable capability (MEDIA-CAPABILITY-DISPATCH P1)', () => {
+    // WHETHER a type can carry annotations. `anchoring` stays the authority on
+    // HOW — derived, never a row field, because two facts that can disagree
+    // have nothing to adjudicate them (D1).
+    it('admits exactly the seven anchoring-bearing rows', () => {
+      expect(Object.keys(MEDIA_TYPES).filter(isAnnotatable)).toEqual([
+        'text/markdown',
+        'text/plain',
+        'text/html',
+        'application/json',
+        'image/png',
+        'image/jpeg',
+        'application/pdf',
+      ]);
+    });
+
+    it('leaves the storage tier out, top-level type notwithstanding', () => {
+      expect(isAnnotatable('image/gif')).toBe(false);
+      expect(isAnnotatable('text/csv')).toBe(false);
+      expect(isAnnotatable('application/zip')).toBe(false);
+      expect(isAnnotatable('video/mp4')).toBe(false);
+    });
+
+    it('tolerates parameters and case, like every other registry read', () => {
+      expect(isAnnotatable('text/markdown; charset=utf-8')).toBe(true);
+      expect(isAnnotatable('IMAGE/PNG')).toBe(true);
+    });
+
+    it('answers false on a registry miss — strict where extraction is lenient (D2)', () => {
+      expect(isAnnotatable('application/x-proprietary')).toBe(false);
+      expect(isAnnotatable('')).toBe(false);
+
+      // The asymmetry with textExtractionOf is deliberate, not an oversight.
+      // Extracting the wrong bytes costs one bad vector and refusing to
+      // extract costs a resource nobody can find, so extraction guesses. An
+      // annotation is a durable write against a coordinate model the system
+      // does not have for an unknown type, so it refuses.
+      expect(textExtractionOf('text/x-obscure-notation')).toBe('decode');
+      expect(isAnnotatable('text/x-obscure-notation')).toBe(false);
     });
   });
 
