@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/auth';
 import type { Page } from '@playwright/test';
 import { SemiontClient, resourceId as ridBrand } from '@semiont/sdk';
+import type { components } from '@semiont/core';
 import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 
 import { openResourceByName } from '../fixtures/discover';
@@ -36,9 +37,19 @@ const ANCHORED_TEXT = '**/anchored-text';
 
 /** The seeded scan is 612x792pt; a map placed here sits on the upper-left. */
 const QUOTE = 'recovered from the pixels';
-const MAP = {
+
+// Typed against the wire schema so fixture drift fails typecheck, not a live
+// run: an untyped version silently stopped matching when the wire gained
+// `kind`, and the canvas discards anything not `kind: 'extracted'`.
+const MAP: components['schemas']['ExtractedText'] = {
+  kind: 'extracted',
+  method: 'ocr',
   text: QUOTE,
-  items: QUOTE.split(' ').reduce<{ items: unknown[]; x: number; at: number }>((acc, word) => {
+  items: QUOTE.split(' ').reduce<{
+    items: components['schemas']['PdfTextItem'][];
+    x: number;
+    at: number;
+  }>((acc, word) => {
     acc.items.push({
       start: acc.at, end: acc.at + word.length,
       page: 1, x: acc.x, y: 700, width: word.length * 7, height: 12,
