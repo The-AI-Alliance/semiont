@@ -33,7 +33,7 @@
     "@semiont/core": "*"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.11",
     "rollup": "^4.62.3",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",

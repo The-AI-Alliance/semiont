@@ -33,7 +33,7 @@
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.11",
     "pdf-lib": "^1.17.1",
     "rollup": "^4.62.3",
     "rollup-plugin-dts": "^6.4.1",

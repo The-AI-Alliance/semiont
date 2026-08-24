@@ -74,7 +74,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.11",
     "@vitest/ui": "^4.1.10",
     "axe-core": "^4.12.1",
     "cross-env": "^10.1.0",
