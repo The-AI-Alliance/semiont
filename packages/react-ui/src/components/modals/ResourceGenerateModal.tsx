@@ -7,7 +7,7 @@ import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@
 import { ConfigureGatherStep, type ResourceGatherConfig } from './ConfigureGatherStep';
 import { DiscardPrompt } from './DiscardPrompt';
 import { GatherContextStep } from './GatherContextStep';
-import { ConfigureGenerationStep, type GenerationConfig, type GenerationDraft } from './ConfigureGenerationStep';
+import { ConfigureGenerationStep, freshGenerationDraft, type GenerationConfig, type GenerationDraft } from './ConfigureGenerationStep';
 
 export interface ResourceGenerateModalTranslations {
   /** The ONE modal title — names the flow, not a step. */
@@ -51,6 +51,8 @@ export interface ResourceGenerateModalTranslations {
   maxLength: string;
   maxLengthHelp: string;
   maxLengthCeiling: string;
+  outputFormat: string;
+  formatExtensionMismatch: string;
   generate: string;
   // DiscardPrompt (GATHER-AT-THE-TOP P1)
   discardDraftPrompt: string;
@@ -127,10 +129,7 @@ export function ResourceGenerateModal({
 }: ResourceGenerateModalProps) {
   // Same draft ownership as the wizard (WIZARD-NAVIGATION D3): the step is
   // controlled, so stepping back through this modal keeps what was typed.
-  const freshDraft = (): GenerationDraft => ({
-    title: defaultTitle, storagePath: '', prompt: '', language: locale,
-    temperature: 0.7, maxTokensText: '500',
-  });
+  const freshDraft = (): GenerationDraft => freshGenerationDraft(defaultTitle, locale);
   const [generationDraft, setGenerationDraft] = useState<GenerationDraft>(freshDraft);
 
   // "Has THIS run gathered yet?" — the page's gather slots survive across
@@ -373,6 +372,8 @@ export function ResourceGenerateModal({
                         maxLength: t.maxLength,
                         maxLengthHelp: t.maxLengthHelp,
                         maxLengthCeiling: t.maxLengthCeiling,
+                        outputFormat: t.outputFormat,
+                        formatExtensionMismatch: t.formatExtensionMismatch,
                         generate: t.generate,
                       }}
                     />

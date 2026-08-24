@@ -60,6 +60,8 @@ const T = {
   maxLength: 'Max Length',
   maxLengthHelp: 'Max help',
   maxLengthCeiling: 'Limited to {{maxOutputTokens}} tokens by {{model}}.',
+  outputFormat: 'Format',
+  formatExtensionMismatch: 'Save location must end in {{extension}} to match the selected format.',
   generate: 'Generate',
   discardDraftPrompt: 'Discard this draft?',
   discardDraft: 'Discard',
@@ -214,11 +216,32 @@ describe('ResourceGenerateModal', () => {
       'res-1',
       expect.objectContaining({
         title: 'Generated Doc',
-        storagePath: 'file://generated/out.md',
+        // D8: the submitted payload names this what it IS — a full storage
+        // URI, built here by prefixing `file://`. It was called `storagePath`
+        // while holding a URI, which is why the page handlers had to rename
+        // it field-by-field on the way out.
+        storageUri: 'file://generated/out.md',
+        // D2: the default is sent, not inherited from the worker.
+        outputMediaType: 'text/markdown',
         context: RESOURCE_CONTEXT,
       }),
     );
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('a chosen output format survives the host to onGenerateSubmit', () => {
+    renderModal({ gatherContext: RESOURCE_CONTEXT });
+    fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
+
+    fireEvent.change(screen.getByLabelText(T.resourceTitle), { target: { value: 'Generated Doc' } });
+    fireEvent.change(screen.getByLabelText(T.saveLocation), { target: { value: 'generated/out.pdf' } });
+    fireEvent.change(screen.getByLabelText(T.outputFormat), { target: { value: 'application/pdf' } });
+    fireEvent.click(screen.getByRole('button', { name: /Generate/ }));
+
+    expect(onGenerateSubmit).toHaveBeenCalledWith(
+      'res-1',
+      expect.objectContaining({ outputMediaType: 'application/pdf', storageUri: 'file://generated/out.pdf' }),
+    );
   });
 
   it('a failed gather shows its failure in place', () => {

@@ -14,7 +14,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { WizardFooter } from '../WizardFooter';
 import { ConfigureSearchStep } from '../ConfigureSearchStep';
-import { ConfigureGenerationStep } from '../ConfigureGenerationStep';
+import { ConfigureGenerationStep, freshGenerationDraft } from '../ConfigureGenerationStep';
 import { SearchResultsStep } from '../SearchResultsStep';
 import { ConfigureGatherStep } from '../ConfigureGatherStep';
 import { GatherContextStep } from '../GatherContextStep';
@@ -116,6 +116,7 @@ const GEN_T = {
   additionalInstructionsPlaceholder: '', language: 'Language', languageHelp: '',
   creativity: 'Creativity', creativityFocused: 'Focused', creativityCreative: 'Creative',
   maxLength: 'Max Length', maxLengthHelp: '', maxLengthCeiling: 'Limited to {{max}} by {{model}}.',
+  outputFormat: 'Format', formatExtensionMismatch: 'Must end in {{extension}}.',
   back: 'Back', generate: 'Generate',
 };
 
@@ -173,10 +174,7 @@ describe('every step footer follows the grammar (A1, A2)', () => {
     const { container } = render(
       <ConfigureGenerationStep
         context={CONTEXT}
-        config={{
-          title: 'Caspian Sea', storagePath: '', prompt: '', language: 'en',
-          temperature: 0.7, maxTokensText: '500',
-        }}
+        config={freshGenerationDraft('Caspian Sea', 'en')}
         onConfigChange={vi.fn()}
         onBack={vi.fn()}
         onGenerate={vi.fn()}
