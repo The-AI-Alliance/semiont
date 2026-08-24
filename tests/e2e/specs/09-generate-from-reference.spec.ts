@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/auth';
 import { openResourceByName } from '../fixtures/discover';
+import { expectGeneratedAt } from '../fixtures/generated';
 
 /**
  * Smoke test: the generate-from-unresolved-reference flow runs end-to-end
@@ -174,12 +175,14 @@ test.describe('generate from unresolved reference', () => {
     // Plus optional prompt / language / temperature / maxTokens.
 
     const runId = Date.now();
+    const title = `e2e-spec-09-${runId}`;
+    const storagePath = `generated/e2e-${runId}.md`;
     const titleInput = wizard.locator('#wizard-title');
     await expect(titleInput).toBeAttached({ timeout: 5_000 });
-    await titleInput.fill(`e2e-spec-09-${runId}`);
+    await titleInput.fill(title);
 
     const storagePathInput = wizard.locator('#wizard-storagePath');
-    await storagePathInput.fill(`generated/e2e-${runId}.md`);
+    await storagePathInput.fill(storagePath);
 
     // Submit. The button label is "✨ Generate" on this step.
     await wizard.getByRole('button', { name: /generate/i }).last().click();
@@ -233,5 +236,12 @@ test.describe('generate from unresolved reference', () => {
       // eslint-disable-next-line no-console
       console.warn('[spec 09] job:complete arrived but mark:body-updated did not — possible Stower projection bug');
     }
+
+    // ── D6: the artifact landed where the form said ────────────────────────
+    // Not a soft assertion. `wizard-storagePath` is filled above only because
+    // the form refuses to submit without it — which means a worker that
+    // ignored the value (as it did before GENERATION-OUTPUT-FORMAT P0) would
+    // pass every other assertion in this file.
+    await expectGeneratedAt(title, storagePath, 'text/markdown');
   });
 });
