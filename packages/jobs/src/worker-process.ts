@@ -28,11 +28,11 @@ import {
 } from './types';
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
-import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, findClaimSpan, type EventMap } from '@semiont/core';
+import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, findClaimSpan, capabilitiesOf, type EventMap } from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
-import { deriveStorageUri, extractPdfTextLayer, type AnchoredTextStore } from '@semiont/content';
+import { extractPdfTextLayer, type AnchoredTextStore } from '@semiont/content';
 import { prepareDetection } from './workers/detection/prepare-detection';
 import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
 import {
@@ -396,7 +396,27 @@ async function handleJobInner(
     // Annotation-focus generation auto-binds to the triggering reference; the
     // id is derived from the context's focus (the wire no longer carries it).
     const genReferenceId = referenceIdOf(job);
-    const storageUri = deriveStorageUri(genResult.title, genResult.format);
+
+    // The Save location the user typed is AUTHORITATIVE and there is no
+    // fallback (GENERATION-OUTPUT-FORMAT D6/D9). Deriving unconditionally
+    // meant the artifact landed at file://<title-slug><ext> and renaming the
+    // title MOVED THE FILE; a `||` fallback would now only hide a caller that
+    // forgot. The guard above rejects an absent OR empty uri, so by here it
+    // is a real location.
+    const storageUri = job.params.storageUri;
+
+    // Faithful and incurious (D7): the worker writes the requested bytes to
+    // the requested URI and does NOT police the pair — a mismatch is a
+    // user-intent question the form answers earlier and better, so refusing
+    // here would turn a typo into a job failure discovered minutes later.
+    // Deliberately NOT the `outputMediaType` precedent, which guards an
+    // invariant only the worker can check.
+    const expectedExtension = capabilitiesOf(genResult.format)?.extension;
+    if (expectedExtension && !storageUri.toLowerCase().endsWith(expectedExtension)) {
+      config.logger.warn('Storage URI extension does not match the generated format — writing it as requested', {
+        jobId, storageUri, format: genResult.format, expectedExtension,
+      });
+    }
 
     const { resourceId: newResourceId } = await session.client.yield.resource({
       name: genResult.title,

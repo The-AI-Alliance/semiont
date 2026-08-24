@@ -86,9 +86,15 @@ export function isGenerationJobParams(
   value: unknown,
 ): value is import('./payload-types').GenerationJobParams {
   if (!isObject(value)) return false;
+  // Non-empty, not merely present (GENERATION-OUTPUT-FORMAT D9/D9b): the
+  // worker has no fallback, so `storageUri: ''` would write to a bare
+  // `file://` and `title: ''` would name the resource nothing. This guard is
+  // the ONLY runtime enforcement — `JobCreateCommand.params` is
+  // `additionalProperties: true`, so /bus/emit's generated validator never
+  // sees these fields.
   return (
-    typeof value.title === 'string'
-    && typeof value.storageUri === 'string'
+    typeof value.title === 'string' && value.title.length > 0
+    && typeof value.storageUri === 'string' && value.storageUri.length > 0
     && isObject(value.context)
   );
 }

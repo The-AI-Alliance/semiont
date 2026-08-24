@@ -2612,7 +2612,7 @@ type GenerationJobParams struct {
 	// SourceLanguage Source-resource locale — language of the resource being referenced, used in the prompt so the LLM understands embedded source-context snippets when source ≠ target language. BCP-47.
 	SourceLanguage *string `json:"sourceLanguage,omitempty"`
 
-	// StorageUri Storage URI for the generated resource's content.
+	// StorageUri Storage URI for the generated resource's content — AUTHORITATIVE: the worker writes exactly here and never derives a location from the title. Non-empty, and there is no fallback; the dispatcher and worker both reject an empty value via isGenerationJobParams. NOTE minLength is documentation here — JobCreateCommand.params is additionalProperties:true, so /bus/emit's generated validator never sees this field (GENERATION-OUTPUT-FORMAT D6/D9).
 	StorageUri string `json:"storageUri"`
 
 	// Structure How the output is internally segmented — shape for text-bearing media, subordinate to `outputMediaType` (never its peer). Canonical values: 'prose' (flowing paragraphs), 'sections' (titled sections + title), 'chat' (speaker-labeled turns); any other string becomes a freeform "organize as: …" directive (loud degrade). Unset ⇒ NO structure directive at all — the task framing and the model determine shape.
@@ -2624,7 +2624,7 @@ type GenerationJobParams struct {
 	// Temperature Sampling temperature forwarded to the model.
 	Temperature *float32 `json:"temperature,omitempty"`
 
-	// Title Title of the generated resource.
+	// Title Title of the generated resource. Non-empty: the dispatcher and worker both reject an empty title via isGenerationJobParams. NOTE minLength is documentation here — JobCreateCommand.params is additionalProperties:true, so /bus/emit's generated validator never sees this field (GENERATION-OUTPUT-FORMAT D9b).
 	Title string `json:"title"`
 }
 

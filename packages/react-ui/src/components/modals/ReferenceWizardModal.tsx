@@ -8,7 +8,7 @@ import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';
 import { useEventSubscription } from '../../contexts/useEventSubscription';
 import { GatherContextStep } from './GatherContextStep';
-import { ConfigureGenerationStep } from './ConfigureGenerationStep';
+import { ConfigureGenerationStep, freshGenerationDraft } from './ConfigureGenerationStep';
 import type { GenerationConfig } from './ConfigureGenerationStep';
 import { ConfigureSearchStep } from './ConfigureSearchStep';
 import type { SearchConfig } from './ConfigureSearchStep';
@@ -42,6 +42,8 @@ export interface ReferenceWizardModalProps {
   resourceId: string | null;
   /** Default title (selected text) */
   defaultTitle: string;
+  /** Folder of the source resource, so new files land beside it (D11). */
+  defaultFolder?: string;
   /** Entity types from the annotation */
   entityTypes: string[];
   /**
@@ -111,6 +113,8 @@ export interface ReferenceWizardModalProps {
     maxLength: string;
     maxLengthHelp: string;
     maxLengthCeiling: string;
+    outputFormat: string;
+    formatExtensionMismatch: string;
     maxResults: string;
     semanticScoring: string;
     semanticScoringHelp: string;
@@ -131,6 +135,7 @@ export function ReferenceWizardModal({
   annotationId,
   resourceId,
   defaultTitle,
+  defaultFolder,
   entityTypes,
   resourceName,
   locale,
@@ -151,10 +156,9 @@ export function ReferenceWizardModal({
   // back unmounts a step; if the step owned its values, Back would silently discard
   // everything typed — which is exactly what it used to do.
   const [searchConfig, setSearchConfig] = useState<SearchConfig>({ limit: 10, useSemanticScoring: true });
-  const [generationDraft, setGenerationDraft] = useState<GenerationDraft>({
-    title: defaultTitle, storagePath: '', prompt: '', language: locale,
-    temperature: 0.7, maxTokensText: '500',
-  });
+  const [generationDraft, setGenerationDraft] = useState<GenerationDraft>(
+    () => freshGenerationDraft(defaultTitle, locale),
+  );
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [userHint, setUserHint] = useState('');
@@ -179,10 +183,7 @@ export function ReferenceWizardModal({
       seededTitle.current = defaultTitle;
       setWizardStep({ step: 'gather' });
       setSearchConfig({ limit: 10, useSemanticScoring: true });
-      setGenerationDraft({
-        title: defaultTitle, storagePath: '', prompt: '', language: locale,
-        temperature: 0.7, maxTokensText: '500',
-      });
+      setGenerationDraft(freshGenerationDraft(defaultTitle, locale));
       setIsSearching(false);
       setSearchError(null);
       setUserHint('');
@@ -425,6 +426,7 @@ export function ReferenceWizardModal({
                   <ComposeStep
                     draft={composeDraft}
                     onDraftChange={(patch) => setComposeDraft((d) => ({ ...d, ...patch }))}
+                    defaultFolder={defaultFolder}
                     referenceEntityTypes={entityTypes}
                     entityTypeOptions={entityTypeOptions}
                     showLineNumbers={showLineNumbers}
@@ -461,6 +463,7 @@ export function ReferenceWizardModal({
                     context={contextWithHint ?? context}
                     config={generationDraft}
                     onConfigChange={setGenerationDraft}
+                    defaultFolder={defaultFolder}
                     onBack={handleBackToGather}
                     onGenerate={handleGenerateSubmit}
                     translations={{
@@ -477,6 +480,8 @@ export function ReferenceWizardModal({
                       maxLength: t.maxLength,
                       maxLengthHelp: t.maxLengthHelp,
                       maxLengthCeiling: t.maxLengthCeiling,
+                      outputFormat: t.outputFormat,
+                      formatExtensionMismatch: t.formatExtensionMismatch,
                       back: t.back,
                       generate: t.generate,
                     }}

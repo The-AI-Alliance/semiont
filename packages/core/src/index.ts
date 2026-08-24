@@ -345,6 +345,7 @@ export type { ChunkingConfig } from './chunking';
 export type { StateUnit } from './state-unit';
 
 // Utility functions
+export * from './storage-uri';
 export * from './type-guards';
 export * from './errors';
 export * from './did-utils';

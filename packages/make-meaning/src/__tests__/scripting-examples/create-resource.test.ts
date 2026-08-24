@@ -16,9 +16,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SemiontProject } from '@semiont/core/node';
-import { EventBus, type Logger, type SupportedMediaType, userId } from '@semiont/core';
+import { EventBus, type Logger, type SupportedMediaType, userId, deriveStorageUri } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, type MakeMeaningConfig } from '../..';
-import { deriveStorageUri } from '@semiont/content';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';

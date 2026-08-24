@@ -12,11 +12,10 @@
 
 import { awaitReply } from './await-reply';
 import type { Logger, StoredEvent, PersistedEvent, ResourceId, AnnotationId } from '@semiont/core';
-import { EventBus, baseMediaType, isSupportedMediaType, busRequest } from '@semiont/core';
+import { EventBus, baseMediaType, isSupportedMediaType, busRequest, deriveStorageUri } from '@semiont/core';
 import { asBusRequestPrimitive } from '../bus-request-local';
 import type { components } from '@semiont/core';
 import type { WorkingTreeStore } from '@semiont/content';
-import { deriveStorageUri } from '@semiont/content';
 import type { EventStore } from '@semiont/event-sourcing';
 
 type ContentFormat = components['schemas']['ContentFormat'];

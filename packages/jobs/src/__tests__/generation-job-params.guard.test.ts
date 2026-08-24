@@ -69,6 +69,14 @@ describe('isGenerationJobParams (the worker-side boundary guard)', () => {
     expect(isGenerationJobParams(noContext)).toBe(false);
   });
 
+  it('rejects an EMPTY storageUri or title — required means non-empty (D9/D9b)', () => {
+    // The boundary the worker actually depends on. Without this, deleting the
+    // worker's `||` fallback (D9) would write to a bare `file://` — trading a
+    // silent substitution for a silent corruption.
+    expect(isGenerationJobParams({ ...VALID, storageUri: '' })).toBe(false);
+    expect(isGenerationJobParams({ ...VALID, title: '' })).toBe(false);
+  });
+
   it('rejects non-objects outright', () => {
     expect(isGenerationJobParams(null)).toBe(false);
     expect(isGenerationJobParams('generation')).toBe(false);

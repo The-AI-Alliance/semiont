@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/auth';
+import { expectGeneratedAt } from '../fixtures/generated';
 
 /**
  * Smoke test — GENERATE-FROM-BUTTON.md Phase 5 (the REQUIRED e2e coverage):
@@ -105,8 +106,10 @@ test.describe('generate from resource', () => {
     // documents. Fill both (unique per-run title so successive runs don't pile up
     // same-named derived resources at the top of Discover).
     const runId = Date.now();
-    await titleInput.fill(`e2e-spec-16-${runId}`);
-    await modal.locator('#wizard-storagePath').fill(`generated/e2e-16-${runId}.md`);
+    const title = `e2e-spec-16-${runId}`;
+    const storagePath = `generated/e2e-16-${runId}.md`;
+    await titleInput.fill(title);
+    await modal.locator('#wizard-storagePath').fill(storagePath);
 
     bus.clear();
 
@@ -124,5 +127,11 @@ test.describe('generate from resource', () => {
       bus.waitForRecv('job:fail', { timeout: 120_000 }).then((e) => ({ kind: 'fail' as const, entry: e })),
     ]);
     expect(outcome.kind, 'generation produced job:complete (a new derived resource), not job:fail').toBe('complete');
+
+    // ── D6: the artifact landed where the form said ────────────────────────
+    // `job:complete` only proves the worker finished. Until GENERATION-OUTPUT-
+    // FORMAT P0, the worker read the title and DISCARDED storageUri — a
+    // regression this test would have passed straight through.
+    await expectGeneratedAt(title, storagePath, 'text/markdown');
   });
 });

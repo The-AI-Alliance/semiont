@@ -228,7 +228,7 @@ export * from './hooks/useHoverEmitter';
 // second import line.
 export { createBeckonStateUnit, type BeckonStateUnit, createHoverHandlers, type HoverHandlers, HOVER_DELAY_MS } from '@semiont/sdk';
 export { createMarkStateUnit, type MarkStateUnit, type PendingAnnotation } from '@semiont/sdk';
-export { createYieldStateUnit, type YieldStateUnit, type GenerateDocumentOptions } from '@semiont/sdk';
+export { createYieldStateUnit, type YieldStateUnit, type GenerationOptions } from '@semiont/sdk';
 export { createGatherStateUnit, type GatherStateUnit } from '@semiont/sdk';
 export { createMatchStateUnit, type MatchStateUnit } from '@semiont/sdk';
 // The job-claim worker adapter (`createJobClaimAdapter`) lives in

@@ -914,18 +914,37 @@ func removeStagedConfigs() {
 	}
 }
 
-// requirePortFree fails when a TCP port is already held, naming the
-// offending process(es). By this point every semiont-* container has been
-// swept under every installed runtime, so a holder is provably foreign —
-// the launcher never signals it; killing it is the user's call, per
-// incident. lsof -ti prints one PID per line when several processes hold a
-// port (parent+child servers, SO_REUSEPORT), so everything here iterates
-// over all of them.
+// listenersOn returns the PIDs LISTENING on a TCP port. Several is normal
+// (parent+child servers, SO_REUSEPORT), so callers iterate.
+//
+// Both flags are load-bearing. Without `-sTCP:LISTEN`, lsof also matches CLOSED
+// outbound sockets, so a browser that once talked to a since-stopped backend
+// makes the port read as held. And `-t` is absent because macOS lsof prints
+// nothing when `-t` meets `-s`: the terse form would report every port free.
+func listenersOn(port int) []string {
+	out, err := capture("lsof", "-nP", fmt.Sprintf("-iTCP:%d", port), "-sTCP:LISTEN")
+	if err != nil || out == "" {
+		return nil
+	}
+	var pids []string
+	seen := map[string]bool{}
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 || fields[1] == "PID" {
+			continue
+		}
+		if !seen[fields[1]] {
+			seen[fields[1]] = true
+			pids = append(pids, fields[1])
+		}
+	}
+	return pids
+}
+
 // portHeld reports whether anything holds the port, without judging it. The
 // judging (and the message) is requirePortFree's job.
 func portHeld(port int) bool {
-	out, err := capture("lsof", "-ti", fmt.Sprintf(":%d", port))
-	return err == nil && out != ""
+	return len(listenersOn(port)) > 0
 }
 
 // portSettleBudget bounds settlePorts. Generous, because it is only ever spent
@@ -962,12 +981,15 @@ func settlePorts(ports ...int) {
 	}
 }
 
+// requirePortFree fails when a TCP port is already held, naming the offending
+// process(es). By this point every semiont-* container has been swept under
+// every installed runtime, so a holder is provably foreign — the launcher never
+// signals it; killing it is the user's call, per incident.
 func requirePortFree(u *ui, port int, service string) bool {
-	out, err := capture("lsof", "-ti", fmt.Sprintf(":%d", port))
-	if err != nil || out == "" {
+	pids := listenersOn(port)
+	if len(pids) == 0 {
 		return true
 	}
-	pids := strings.Fields(out)
 	u.fail("Port %d (needed for %s) is held by %s.", port, service, describeProcs(pids))
 	fmt.Fprintln(os.Stderr, "  This is not a Semiont container. Stop it and re-run (e.g. kill "+strings.Join(pids, " ")+").")
 	return false

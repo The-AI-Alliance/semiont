@@ -9,7 +9,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useResourceViewedReport } from '../hooks/useResourceViewedReport';
 import type { components, ResourceDescriptor, ResourceId, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
-import { annotationId } from '@semiont/core';
+import { annotationId, folderOf } from '@semiont/core';
 import type { ComposeParams } from '../../../components/modals/ComposeStep';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, capabilitiesOf, extensionForMediaType } from '@semiont/core';
 import { ANNOTATORS } from '@semiont/react-ui';
@@ -47,6 +47,7 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizardModal';
 import { ResourceGenerateModal } from '../../../components/modals/ResourceGenerateModal';
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
+import { toGenerationOptions } from '../generation-options';
 
 type SemiontResource = ResourceDescriptor;
 
@@ -275,18 +276,10 @@ export function ResourceViewerPage({
 
   const handleWizardGenerateSubmit = useCallback((referenceId: string, config: GenerationConfig) => {
     clearSparkle(annotationId(referenceId));
-    stateUnit?.yield.generate(config.context, {
-      title: config.title,
-      storageUri: config.storagePath,
-      prompt: config.prompt,
-      language: config.language,
-      // The source resource is the one the user is viewing — fed into the
-      // prompt so the LLM understands the embedded context (selected
-      // passage, surrounding text) regardless of UI/target language.
-      sourceLanguage: getLanguage(resource),
-      temperature: config.temperature,
-      maxTokens: config.maxTokens,
-    });
+    // D8: forwarded by spread in ONE place, so a knob added to the form is
+    // never dropped on the way to the wire. `sourceLanguage` is the viewed
+    // resource's language — a page fact the form cannot know.
+    stateUnit?.yield.generate(config.context, toGenerationOptions(config, getLanguage(resource)));
   }, [stateUnit, clearSparkle, resource]);
 
   // Resource-generate flow (GENERATE-FROM-BUTTON): drive the SAME yield progress$
@@ -294,15 +287,7 @@ export function ResourceViewerPage({
   // toast. Both paths are one `generate(context, options)` now: the context's
   // focus.kind (resource here, annotation above) decides the shape.
   const handleResourceGenerateSubmit = useCallback((_resourceId: string, config: GenerationConfig) => {
-    stateUnit?.yield.generate(config.context, {
-      title: config.title,
-      storageUri: config.storagePath,
-      ...(config.prompt ? { prompt: config.prompt } : {}),
-      language: config.language,
-      sourceLanguage: getLanguage(resource),
-      temperature: config.temperature,
-      maxTokens: config.maxTokens,
-    });
+    stateUnit?.yield.generate(config.context, toGenerationOptions(config, getLanguage(resource)));
   }, [stateUnit, resource]);
 
   const handleWizardLinkResource = useCallback(async (referenceId: string, targetResourceId: string) => {
@@ -724,6 +709,7 @@ export function ResourceViewerPage({
         annotationId={wizardAnnotationId}
         resourceId={wizardResourceId}
         defaultTitle={wizardDefaultTitle}
+        defaultFolder={folderOf(resource.storageUri)}
         entityTypes={wizardEntityTypes}
         resourceName={resource.name}
         locale={locale}
@@ -774,6 +760,8 @@ export function ResourceViewerPage({
           maxLength: tw('maxLength'),
           maxLengthHelp: tw('maxLengthHelp'),
           maxLengthCeiling: tw('maxLengthCeiling'),
+          outputFormat: tw('outputFormat'),
+          formatExtensionMismatch: tw('formatExtensionMismatch'),
           maxResults: tw('maxResults'),
           semanticScoring: tw('semanticScoring'),
           semanticScoringHelp: tw('semanticScoringHelp'),
@@ -797,6 +785,7 @@ export function ResourceViewerPage({
         // Seed the proposed title from the source resource's name (GFR D4/A4);
         // the field stays editable and required.
         defaultTitle={resource.name}
+        defaultFolder={folderOf(resource.storageUri)}
         locale={locale}
         entityTypeOptions={allEntityTypes}
         onGenerateSubmit={handleResourceGenerateSubmit}
@@ -840,6 +829,8 @@ export function ResourceViewerPage({
           maxLength: tg('maxLength'),
           maxLengthHelp: tg('maxLengthHelp'),
           maxLengthCeiling: tg('maxLengthCeiling'),
+          outputFormat: tg('outputFormat'),
+          formatExtensionMismatch: tg('formatExtensionMismatch'),
           generate: tg('generate'),
           discardDraftPrompt: tg('discardDraftPrompt'),
           discardDraft: tg('discardDraft'),

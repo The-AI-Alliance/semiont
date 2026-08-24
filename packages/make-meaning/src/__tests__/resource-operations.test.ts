@@ -12,12 +12,11 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ResourceOperations } from '../resource-operations';
 import { type SemiontProject } from '@semiont/core/node';
-import { userId, EventBus, type Logger, type GraphServiceConfig } from '@semiont/core';
+import { userId, EventBus, type Logger, type GraphServiceConfig, deriveStorageUri } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { Stower } from '../stower';
 import { createKnowledgeBase } from '../knowledge-base';
 import { getGraphDatabase } from '@semiont/graph';
-import { deriveStorageUri } from '@semiont/content';
 import type { KnowledgeBase } from '../knowledge-base';
 import { createTestProject } from './helpers/test-project';
 import { createVectorStore } from '@semiont/vectors';

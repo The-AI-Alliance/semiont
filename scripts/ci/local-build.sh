@@ -563,7 +563,16 @@ case "$DRIFT_RC" in
     # GOPROXY_CACHED points at) beside the EXTRACTED trees. A run killed
     # mid-extraction leaves a partial tree that no amount of network fixes; Go
     # re-extracts from the downloads offline once the bad tree is gone.
-    if grep -qiE 'no such file or directory|no matching files found|pattern .*: .*matching|cannot find package' "$DRIFT_LOG"; then
+    # `cannot embed` / `no embeddable files` is the shape a TRUNCATED extraction
+    # produces, and it was missing here until it cost a diagnosis (2026-08-24).
+    # Go has two embed failures and they read nothing alike: a pattern matching
+    # nothing says "no matching files found", while a directory that survived
+    # with its subdirectories but none of its files says "cannot embed directory
+    # X: contains no embeddable files". The second is precisely the corrupt-cache
+    # signature — the tree is THERE, so Go trusts it and never re-extracts, and
+    # every retry fails identically. Matching only the first sent the reader to
+    # the network branch below to wait out a network that was already working.
+    if grep -qiE 'no such file or directory|no matching files found|cannot embed|no embeddable files|pattern .*: .*matching|cannot find package' "$DRIFT_LOG"; then
       echo -e "  ${BOLD}Cause: a corrupt Go module cache, not the network.${RESET} A previous run was"
       echo -e "  interrupted mid-extraction and left a partial module tree."
       echo ""
@@ -571,6 +580,12 @@ case "$DRIFT_RC" in
       echo ""
       echo -e "    ${BOLD}chmod -R u+w $GOMODCACHE_DIR${RESET}"
       echo -e "    ${BOLD}find $GOMODCACHE_DIR -mindepth 1 -maxdepth 1 ! -name cache -exec rm -rf {} +${RESET}"
+      echo ""
+      # Everything else in this repo runs in a container, so the reflex is to run
+      # this there too. It fails: rm returns "Permission denied" on the virtiofs
+      # mount even as root, and the tree survives looking untouched.
+      echo -e "  ${DIM}Run those on the HOST, not in a container — rm fails with Permission${RESET}"
+      echo -e "  ${DIM}denied through the mount, even as root, and leaves the cache corrupt.${RESET}"
       echo ""
       echo -e "  ${DIM}Do NOT use \`go clean -modcache\` — it deletes cache/download too, costing a${RESET}"
       echo -e "  ${DIM}~100 MB re-fetch of the 21-module oapi-codegen tree and reintroducing the${RESET}"

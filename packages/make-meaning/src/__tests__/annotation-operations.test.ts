@@ -16,13 +16,12 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { AnnotationOperations } from '../annotation-operations';
 import { ResourceOperations } from '../resource-operations';
-import { resourceId, userId, EventBus, type Logger, type SupportedMediaType } from '@semiont/core';
+import { resourceId, userId, EventBus, type Logger, type SupportedMediaType, deriveStorageUri } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from '../knowledge-base';
 import { Stower } from '../stower';
 import { getGraphDatabase } from '@semiont/graph';
-import { deriveStorageUri } from '@semiont/content';
 import type { GraphServiceConfig } from '@semiont/core';
 import { createTestProject } from './helpers/test-project';
 

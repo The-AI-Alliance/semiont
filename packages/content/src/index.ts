@@ -11,9 +11,6 @@ export {
   type StoredResource,
 } from './working-tree-store';
 
-// Storage URI derivation (extensions come from @semiont/core's media-type registry)
-export { deriveStorageUri } from './storage-uri';
-
 // Checksum utilities
 export {
   calculateChecksum,

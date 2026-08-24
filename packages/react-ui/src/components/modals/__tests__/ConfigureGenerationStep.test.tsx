@@ -12,7 +12,9 @@ import { useState } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { CollaboratorEntry, GatheredContext } from '@semiont/core';
-import { ConfigureGenerationStep } from '../ConfigureGenerationStep';
+import { GENERATABLE_MEDIA_TYPES, capabilitiesOf } from '@semiont/core';
+import { ConfigureGenerationStep, freshGenerationDraft } from '../ConfigureGenerationStep';
+import type { GenerationDraft } from '../ConfigureGenerationStep';
 
 const translations = {
   resourceTitle: 'Title',
@@ -29,6 +31,8 @@ const translations = {
   maxLengthHelp: 'How long the generated resource may be.',
   // Named model + ceiling, so the bound is legible rather than mysterious (D6).
   maxLengthCeiling: 'Limited to {{maxOutputTokens}} tokens by {{model}}.',
+  outputFormat: 'Format',
+  formatExtensionMismatch: 'Save location must end in {{extension}} to match the selected format.',
   back: 'Back',
   generate: 'Generate',
 };
@@ -36,10 +40,7 @@ const translations = {
 const context = { resources: [], annotations: [] } as unknown as GatheredContext;
 
 /** The wizard's initial draft (WIZARD-NAVIGATION D3). */
-const DRAFT = {
-  title: 'Untitled', storagePath: '', prompt: '', language: 'en',
-  temperature: 0.7, maxTokensText: '500',
-};
+const DRAFT: GenerationDraft = freshGenerationDraft('Untitled', 'en');
 
 const agentWithCeiling = (maxOutputTokens: number): CollaboratorEntry =>
   ({
@@ -59,12 +60,13 @@ const agentWithCeiling = (maxOutputTokens: number): CollaboratorEntry =>
  * than the bare component: a `vi.fn()` for `onConfigChange` would swallow every edit
  * and quietly turn each assertion below into a test of nothing.
  */
-function Harness({ generationAgent }: { generationAgent?: CollaboratorEntry }) {
+function Harness({ generationAgent, defaultFolder }: { generationAgent?: CollaboratorEntry; defaultFolder?: string }) {
   const [draft, setDraft] = useState(DRAFT);
   return (
     <ConfigureGenerationStep
       config={draft}
       onConfigChange={setDraft}
+      {...(defaultFolder !== undefined ? { defaultFolder } : {})}
       context={context}
       onBack={vi.fn()}
       onGenerate={onGenerateSpy}
@@ -76,9 +78,14 @@ function Harness({ generationAgent }: { generationAgent?: CollaboratorEntry }) {
 
 let onGenerateSpy = vi.fn();
 
-function renderStep(generationAgent?: CollaboratorEntry) {
+function renderStep(generationAgent?: CollaboratorEntry, defaultFolder?: string) {
   onGenerateSpy = vi.fn();
-  const utils = render(<Harness {...(generationAgent ? { generationAgent } : {})} />);
+  const utils = render(
+    <Harness
+      {...(generationAgent ? { generationAgent } : {})}
+      {...(defaultFolder !== undefined ? { defaultFolder } : {})}
+    />,
+  );
   const input = () => screen.getByLabelText('Max length') as HTMLInputElement;
   return { ...utils, input, props: { onGenerate: onGenerateSpy } };
 }
@@ -266,6 +273,104 @@ describe('ConfigureGenerationStep — the draft is the owner\'s', () => {
   });
 });
 
+// ── GENERATION-OUTPUT-FORMAT P2 — the output format is a choice ─────────────
+// The wire, the worker and the registry have carried three generatable types
+// the whole time; only the control was missing.
+
+describe('ConfigureGenerationStep — the output format (D1, D2)', () => {
+  const formatSelect = () => screen.getByLabelText(translations.outputFormat) as HTMLSelectElement;
+
+  it('offers exactly the registry-generatable types, in registry order, by their registry labels', () => {
+    // DERIVED from GENERATABLE_MEDIA_TYPES, never a literal list: promoting a
+    // fourth row must light it up here for free, and a hand-written array
+    // would silently lie the moment the registry moves.
+    renderStep();
+    const options = Array.from(formatSelect().options);
+    expect(options.map((o) => o.value)).toEqual([...GENERATABLE_MEDIA_TYPES]);
+    expect(options.map((o) => o.textContent)).toEqual(
+      GENERATABLE_MEDIA_TYPES.map((t) => capabilitiesOf(t)!.label),
+    );
+  });
+
+  it('defaults to markdown, and SENDS what it shows (D2)', () => {
+    // The worker already defaults to markdown when the key is absent, so an
+    // unsent field would produce the right artifact by accident. The point is
+    // that the displayed value is the transmitted one.
+    const { props } = renderStep();
+    expect(formatSelect().value).toBe('text/markdown');
+    fillRequired();
+    fireEvent.click(screen.getByText(new RegExp(translations.generate)));
+    expect(props.onGenerate.mock.calls[0]![0]).toMatchObject({ outputMediaType: 'text/markdown' });
+  });
+
+  it('carries a chosen format into the submitted config', () => {
+    const { props } = renderStep();
+    fireEvent.change(screen.getByLabelText('Save location'), { target: { value: 'generated/out.pdf' } });
+    fireEvent.change(formatSelect(), { target: { value: 'application/pdf' } });
+    fireEvent.click(screen.getByText(new RegExp(translations.generate)));
+    expect(props.onGenerate.mock.calls[0]![0]).toMatchObject({ outputMediaType: 'application/pdf' });
+  });
+});
+
+describe('ConfigureGenerationStep — the GUI refuses a format/extension mismatch (D7)', () => {
+  const formatSelect = () => screen.getByLabelText(translations.outputFormat) as HTMLSelectElement;
+  const generateButton = () => screen.getByText(new RegExp(translations.generate)).closest('button')!;
+
+  it('blocks submission and explains, naming the extension the format expects', () => {
+    // D7: the worker is faithful and incurious — it will write a PDF to a .md
+    // path and only log it — so this form is the ONLY refusal in the chain.
+    const { props } = renderStep();
+    fireEvent.change(screen.getByLabelText('Save location'), { target: { value: 'generated/out.md' } });
+    fireEvent.change(formatSelect(), { target: { value: 'application/pdf' } });
+
+    expect(generateButton()).toBeDisabled();
+    expect(screen.getByText(/must end in \.pdf/)).toBeInTheDocument();
+    fireEvent.click(generateButton());
+    expect(props.onGenerate).not.toHaveBeenCalled();
+  });
+
+  it('clears when EITHER control is corrected', () => {
+    const { props } = renderStep();
+    fireEvent.change(screen.getByLabelText('Save location'), { target: { value: 'generated/out.md' } });
+    fireEvent.change(formatSelect(), { target: { value: 'application/pdf' } });
+    expect(generateButton()).toBeDisabled();
+
+    // Fix the path…
+    fireEvent.change(screen.getByLabelText('Save location'), { target: { value: 'generated/out.pdf' } });
+    expect(generateButton()).not.toBeDisabled();
+    expect(screen.queryByText(/must end in/)).toBeNull();
+
+    // …or, from a fresh mismatch, fix the format instead.
+    fireEvent.change(formatSelect(), { target: { value: 'text/plain' } });
+    expect(generateButton()).toBeDisabled();
+    fireEvent.change(formatSelect(), { target: { value: 'application/pdf' } });
+    expect(generateButton()).not.toBeDisabled();
+
+    fireEvent.click(generateButton());
+    expect(props.onGenerate).toHaveBeenCalledTimes(1);
+  });
+
+  it('never greets an untouched form with a refusal — the default state is coherent', () => {
+    // markdown + the placeholder's `.md` shape: a user who has typed nothing
+    // must not be told they are wrong.
+    renderStep();
+    expect(screen.queryByText(/must end in/)).toBeNull();
+    fillRequired(); // generated/out.md, markdown selected
+    expect(generateButton()).not.toBeDisabled();
+  });
+
+  it('refuses an extensionless path, and accepts a differently-cased one', () => {
+    // Open question 2, both edges: the rule is "ends with the registry
+    // extension", so no extension fails it; case is not a real mismatch.
+    renderStep();
+    fireEvent.change(screen.getByLabelText('Save location'), { target: { value: 'generated/notes' } });
+    expect(generateButton()).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText('Save location'), { target: { value: 'generated/NOTES.MD' } });
+    expect(generateButton()).not.toBeDisabled();
+  });
+});
+
 describe('ConfigureGenerationStep — the hint echo (GEP P1c, D8)', () => {
   it('echoes a non-empty hint, and renders nothing without one', () => {
     const { container, rerender } = render(
@@ -286,5 +391,63 @@ describe('ConfigureGenerationStep — the hint echo (GEP P1c, D8)', () => {
       />,
     );
     expect(container.querySelector('.semiont-wizard__hint-echo')).toBeNull();
+  });
+});
+
+describe('the Save location proposes a path and stops following once touched (D11)', () => {
+  const path = () => screen.getByLabelText('Save location') as HTMLInputElement;
+  const title = () => screen.getByLabelText('Title') as HTMLInputElement;
+
+  it('opens PRE-FILLED beside the source, named for the title', () => {
+    renderStep(undefined, 'research');
+    expect(path().value).toBe('research/untitled.md');
+  });
+
+  it('proposes a bare filename when the source has no folder', () => {
+    renderStep(undefined, '');
+    expect(path().value).toBe('untitled.md');
+  });
+
+  it('FOLLOWS the title while untouched', () => {
+    renderStep(undefined, 'research');
+    fireEvent.change(title(), { target: { value: 'A New Name' } });
+    expect(path().value).toBe('research/a-new-name.md');
+  });
+
+  it('FOLLOWS the format while untouched — extension included', () => {
+    renderStep(undefined, 'research');
+    fireEvent.change(screen.getByLabelText('Format'), { target: { value: 'application/pdf' } });
+    expect(path().value).toBe('research/untitled.pdf');
+  });
+
+  it('STOPS following once the path is edited — the title then moves freely', () => {
+    renderStep(undefined, 'research');
+    fireEvent.change(path(), { target: { value: 'elsewhere/mine.md' } });
+    fireEvent.change(title(), { target: { value: 'A New Name' } });
+    expect(path().value).toBe('elsewhere/mine.md');
+  });
+
+  it('CLEARING the field un-touches it, restoring the proposal', () => {
+    renderStep(undefined, 'research');
+    fireEvent.change(path(), { target: { value: 'elsewhere/mine.md' } });
+    fireEvent.change(path(), { target: { value: '' } });
+    expect(path().value).toBe('research/untitled.md');
+  });
+
+  it('submits the PROPOSED path when the user never touched it', () => {
+    const { props } = renderStep(undefined, 'research');
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
+    expect(props.onGenerate).toHaveBeenCalledWith(
+      expect.objectContaining({ storageUri: 'file://research/untitled.md' }),
+    );
+  });
+
+  it('a proposed path never trips the D7 mismatch refusal — it carries the right extension', () => {
+    const { props } = renderStep(undefined, 'research');
+    fireEvent.change(screen.getByLabelText('Format'), { target: { value: 'application/pdf' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
+    expect(props.onGenerate).toHaveBeenCalledWith(
+      expect.objectContaining({ storageUri: 'file://research/untitled.pdf' }),
+    );
   });
 });

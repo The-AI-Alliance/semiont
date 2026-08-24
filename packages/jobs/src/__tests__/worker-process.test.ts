@@ -337,6 +337,129 @@ describe('handleJob orchestration', () => {
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
 
+    // ── The Save location is authoritative (GENERATION-OUTPUT-FORMAT D6/P0) ──
+    // The form requires it, every layer carries it, and the worker used to
+    // derive its own from the title instead — so the artifact landed at
+    // file://<title-slug><ext> and RENAMING THE TITLE MOVED THE FILE.
+
+    it('uploads to the storageUri the caller asked for, not a title-derived one', async () => {
+      vi.mocked(processGenerationJob).mockResolvedValue({
+        content: new TextEncoder().encode('body'),
+        title: 'A Long Descriptive Title',
+        format: 'text/markdown',
+        citations: [],
+        result: {} as never,
+      });
+      const h = makeFakeSessionAndAdapter();
+
+      await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', {
+        storageUri: 'file://research/notes.md',
+      }));
+
+      expect(h.yieldResourceCalls[0]!.storageUri).toBe('file://research/notes.md');
+    });
+
+    it('the title does not move the file — two titles, one requested uri', async () => {
+      // The defect this closes, stated as an invariant: where the bytes land
+      // is the user's decision, not a function of what they called the thing.
+      const uris: Array<string | undefined> = [];
+      for (const title of ['First Title', 'Totally Different Title']) {
+        vi.mocked(processGenerationJob).mockResolvedValue({
+          content: new TextEncoder().encode('body'),
+          title,
+          format: 'text/markdown',
+          citations: [],
+          result: {} as never,
+        });
+        const h = makeFakeSessionAndAdapter();
+        await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', {
+          storageUri: 'file://research/notes.md',
+        }));
+        uris.push(h.yieldResourceCalls[0]!.storageUri);
+      }
+
+      expect(uris).toEqual(['file://research/notes.md', 'file://research/notes.md']);
+    });
+
+    it('an EMPTY storageUri fails the job and writes nothing — there is no fallback (D9)', async () => {
+      // FLIPPED from P0, deliberately (GENERATION-OUTPUT-FORMAT D9, user
+      // 2026-08-24). P0 shipped `params.storageUri || deriveStorageUri(…)`,
+      // which was defensible while nothing filled the field. Now the form
+      // always proposes a path, so a fallback could only hide a caller that
+      // forgot. `required` means non-empty, enforced by the guard.
+      vi.mocked(processGenerationJob).mockResolvedValue({
+        content: new TextEncoder().encode('body'),
+        title: 'My Document',
+        format: 'text/markdown',
+        citations: [],
+        result: {} as never,
+      });
+      const h = makeFakeSessionAndAdapter();
+
+      await expect(
+        handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { storageUri: '' })),
+      ).rejects.toThrow(/GenerationJobParams/);
+
+      // "Fails" must mean NOTHING WAS WRITTEN — not merely that an error
+      // surfaced after a resource already existed at a guessed path.
+      expect(h.yieldResourceCalls).toHaveLength(0);
+    });
+
+    it('WARNS but does NOT refuse when the uri extension and the format disagree (D7)', async () => {
+      // D7: validation belongs where the person who can fix it is standing —
+      // the GUI refuses a mismatch; the worker is faithful and incurious. It
+      // writes the requested bytes to the requested URI and says the pair
+      // looks odd. Pinned explicitly because the `outputMediaType` gate a few
+      // lines up (processors.ts) refuses, and a later reader will be tempted
+      // to make this one refuse to match.
+      vi.mocked(processGenerationJob).mockResolvedValue({
+        content: new TextEncoder().encode('%PDF-1.7'),
+        title: 'Report',
+        format: 'application/pdf',
+        citations: [],
+        result: {} as never,
+      });
+      const h = makeFakeSessionAndAdapter();
+      const config = makeConfig(h.session);
+
+      await handleJob(h.adapter, config, makeJob('generation', {
+        storageUri: 'file://research/notes.md',
+        outputMediaType: 'application/pdf',
+      }));
+
+      // Faithful: the requested URI is honored verbatim, and the job succeeds.
+      expect(h.yieldResourceCalls[0]!.storageUri).toBe('file://research/notes.md');
+      expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
+      expect(h.adapterCalls.filter(c => c.method === 'failJob')).toHaveLength(0);
+
+      // Loud: the warning names both halves of the disagreement.
+      const warns = vi.mocked(config.logger.warn).mock.calls;
+      const mismatch = warns.find(([msg]) => typeof msg === 'string' && /extension/i.test(msg));
+      expect(mismatch, 'a format/extension mismatch is logged').toBeDefined();
+      expect(JSON.stringify(mismatch![1])).toContain('application/pdf');
+      expect(JSON.stringify(mismatch![1])).toContain('file://research/notes.md');
+    });
+
+    it('does not warn when the extension matches, case-insensitively', async () => {
+      vi.mocked(processGenerationJob).mockResolvedValue({
+        content: new TextEncoder().encode('%PDF-1.7'),
+        title: 'Report',
+        format: 'application/pdf',
+        citations: [],
+        result: {} as never,
+      });
+      const h = makeFakeSessionAndAdapter();
+      const config = makeConfig(h.session);
+
+      await handleJob(h.adapter, config, makeJob('generation', {
+        storageUri: 'file://research/NOTES.PDF',
+        outputMediaType: 'application/pdf',
+      }));
+
+      const warns = vi.mocked(config.logger.warn).mock.calls;
+      expect(warns.find(([msg]) => typeof msg === 'string' && /extension/i.test(msg))).toBeUndefined();
+    });
+
     it('fails a generation job loudly when params do not satisfy the wire contract', async () => {
       // The guard is the trust boundary for params that crossed the wire as
       // untyped JSON — a trio-less bag must throw HERE, named, not surface as

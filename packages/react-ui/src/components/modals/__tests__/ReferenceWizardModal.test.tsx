@@ -61,6 +61,8 @@ const T = {
   language: 'Language', languageHelp: '', creativity: 'Creativity',
   creativityFocused: 'Focused', creativityCreative: 'Creative',
   maxLength: 'Max length', maxLengthHelp: '', maxLengthCeiling: 'Limited to {{maxOutputTokens}} by {{model}}.',
+  outputFormat: 'Format',
+  formatExtensionMismatch: 'Save location must end in {{extension}} to match the selected format.',
   maxResults: 'Max Results', semanticScoring: 'Semantic Scoring', semanticScoringHelp: '',
   searchFailed: 'Search failed',
   contentLabel: 'Content', entityTypes: 'Entity types',
@@ -589,13 +591,35 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
   it('generation submits the step\'s config against this annotation, then closes', async () => {
     const { onGenerateSubmit, onClose } = renderWizard();
     await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
-    await userEvent.type(screen.getByLabelText(/Save location/i), 'generated/out.md');
+    // The field arrives PRE-FILLED with the proposal now (D11). Overriding it
+    // is select-all-then-type, which the DOM delivers as ONE change carrying
+    // the replacement — `clear()` then `type()` would instead empty the field
+    // (restoring the proposal, by design) and append to it.
+    fireEvent.change(screen.getByLabelText(/Save location/i), {
+      target: { value: 'generated/out.md' },
+    });
     await userEvent.click(screen.getByRole('button', { name: T.generate }));
 
     expect(onGenerateSubmit).toHaveBeenCalledTimes(1);
     expect(onGenerateSubmit.mock.calls[0]![0]).toBe('ann-1');
     expect(onGenerateSubmit.mock.calls[0]![1].title).toBe('Caspian Sea');
+    // D8/D2: the payload names the URI what it is, and carries the default
+    // format explicitly rather than leaving the worker to assume it.
+    expect(onGenerateSubmit.mock.calls[0]![1]).toMatchObject({
+      storageUri: 'file://generated/out.md',
+      outputMediaType: 'text/markdown',
+    });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('the annotation flow can choose a format too — one control, both hosts (D4)', async () => {
+    const { onGenerateSubmit } = renderWizard();
+    await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
+    await userEvent.type(screen.getByLabelText(/Save location/i), 'generated/out.pdf');
+    fireEvent.change(screen.getByLabelText(T.outputFormat), { target: { value: 'application/pdf' } });
+    await userEvent.click(screen.getByRole('button', { name: T.generate }));
+
+    expect(onGenerateSubmit.mock.calls[0]![1]).toMatchObject({ outputMediaType: 'application/pdf' });
   });
 
   it('retreats from a configure step back to the gather step', async () => {

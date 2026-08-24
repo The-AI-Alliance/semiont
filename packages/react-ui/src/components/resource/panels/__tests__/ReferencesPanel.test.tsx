@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { ReferencesPanel } from '../ReferencesPanel';
@@ -20,7 +20,7 @@ function createEventTracker() {
     events,
     clear: () => { events.length = 0; },
     _attach(eventBus: EventBus) {
-      const panelEvents = ['mark:assist-request'] as const;
+      const panelEvents = ['mark:assist-request', 'mark:submit'] as const;
       panelEvents.forEach((eventName) => {
         eventBus.get(eventName).subscribe((payload: any) => {
           events.push({ event: eventName, payload });
@@ -66,6 +66,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       includeDescriptiveReferences: 'Include descriptive references',
       descriptiveReferencesTooltip: 'Also find phrases like \'the CEO\', \'the tech giant\', \'the physicist\' (in addition to names)',
       cancel: 'Cancel',
+      createReference: 'Create Reference',
       annotating: 'Annotating...',
       // CLEAN-PROGRESS D3: the widget's own strings come from the
       // AssistProgress namespace now, not from this panel's.
@@ -176,6 +177,54 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(<ReferencesPanel {...panelProps()} />);
 
       expect(screen.getByTitle('Annotate')).toBeInTheDocument();
+    });
+  });
+
+  // Entity types are optional on a reference, but `MarkSubmitEvent.body` is
+  // `minItems: 1` — so "no types selected" must OMIT body, not send `[]`.
+  // Sending `[]` 400s at /bus/emit, and `mark.submit` is fire-and-forget, so
+  // the failure is silent: the button looks inert. Found live 2026-08-24.
+  describe('Create Reference payload', () => {
+    const pendingLinking = {
+      motivation: 'linking' as const,
+      selector: { type: 'TextQuoteSelector' as const, exact: 'thylakoid' },
+    };
+
+    const submitPayloads = (tracker: ReturnType<typeof createEventTracker>) =>
+      tracker.events.filter(e => e.event === 'mark:submit').map(e => e.payload);
+
+    // The panel's own entity-type chips, not AssistSection's identically
+    // labelled ones.
+    const renderPrompt = (tracker: ReturnType<typeof createEventTracker>) => {
+      const { container } = renderWithEventBus(
+        <ReferencesPanel {...panelProps()} pendingAnnotation={pendingLinking} />,
+        tracker,
+      );
+      return within(container.querySelector('.semiont-annotation-prompt') as HTMLElement);
+    };
+
+    it('omits body entirely when no entity type is selected', async () => {
+      const tracker = createEventTracker();
+      const prompt = renderPrompt(tracker);
+
+      await userEvent.click(prompt.getByRole('button', { name: /create reference/i }));
+
+      const [payload] = submitPayloads(tracker);
+      expect(payload).toBeDefined();
+      expect(payload).not.toHaveProperty('body');
+    });
+
+    it('sends a one-item body when an entity type is selected', async () => {
+      const tracker = createEventTracker();
+      const prompt = renderPrompt(tracker);
+
+      await userEvent.click(prompt.getByRole('button', { name: 'Person' }));
+      await userEvent.click(prompt.getByRole('button', { name: /create reference/i }));
+
+      const [payload] = submitPayloads(tracker);
+      expect(payload.body).toEqual([
+        { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
+      ]);
     });
   });
 

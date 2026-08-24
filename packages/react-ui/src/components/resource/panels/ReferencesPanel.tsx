@@ -279,7 +279,11 @@ export function ReferencesPanel({
         source: resourceId,
         motivation: 'linking',
         selector: pendingAnnotation.selector,
-        body: entityType ? [{ type: 'TextualBody', value: entityType, purpose: 'tagging' }] : [],
+        // Entity types are optional, and MarkSubmitEvent.body is minItems:1 —
+        // an empty array is a 400, not an empty annotation.
+        ...(entityType
+          ? { body: [{ type: 'TextualBody' as const, value: entityType, purpose: 'tagging' as const }] }
+          : {}),
       });
       setPendingEntityTypes([]);
     }

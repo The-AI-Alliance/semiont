@@ -1,5 +1,5 @@
 git -C <kb-root> rev-parse --show-toplevel
 container run --rm busybox:1.38.0 sh -c ip route | awk '/default/{print $3}'
 container list -a
-lsof -ti :7474
+lsof -nP -iTCP:7474 -sTCP:LISTEN
 ps -p 12345 -o comm=

@@ -224,6 +224,16 @@ describe('isGenerationJobParams', () => {
     expect(isGenerationJobParams({ ...VALID, storageUri: undefined })).toBe(false);
     expect(isGenerationJobParams({ ...VALID, context: 42 })).toBe(false);
   });
+
+  it('required means NON-EMPTY — an empty string is not a home or a name (D9/D9b)', () => {
+    // The worker has no fallback: an empty storageUri would write to a bare
+    // `file://`, and an empty title would name the resource nothing. Both are
+    // silent corruption, so the guard is where they stop — it is the only
+    // runtime enforcement, since job:create params are never validated at the
+    // wire (JobCreateCommand.params is additionalProperties: true).
+    expect(isGenerationJobParams({ ...VALID, storageUri: '' })).toBe(false);
+    expect(isGenerationJobParams({ ...VALID, title: '' })).toBe(false);
+  });
 });
 
 describe('isGatheredContext', () => {
