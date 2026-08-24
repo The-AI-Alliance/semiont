@@ -30,7 +30,7 @@
     "@semiont/core": "*",
     "@semiont/http-transport": "*",
     "@semiont/ontology": "*",
-    "uuid": "^14.0.0"
+    "uuid": "^14.0.2"
   },
   "peerDependencies": {
     "gremlin": "^3.7.4",

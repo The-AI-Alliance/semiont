@@ -60,6 +60,6 @@
     "@semiont/core": "*",
     "@semiont/http-transport": "*",
     "nanoid": "^6.0.0",
-    "uuid": "^14.0.0"
+    "uuid": "^14.0.2"
   }
 }
