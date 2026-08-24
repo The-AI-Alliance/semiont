@@ -33,12 +33,12 @@
     "@semiont/core": "*"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.8",
-    "rollup": "^4.62.3",
+    "@vitest/coverage-v8": "^4.1.11",
+    "rollup": "^4.62.5",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "files": [
     "dist",

@@ -30,7 +30,7 @@
     "@semiont/core": "*",
     "@semiont/http-transport": "*",
     "@semiont/ontology": "*",
-    "uuid": "^14.0.0"
+    "uuid": "^14.0.2"
   },
   "peerDependencies": {
     "gremlin": "^3.7.4",
@@ -49,13 +49,13 @@
   },
   "devDependencies": {
     "@types/gremlin": "^3.6.7",
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.11",
     "neo4j-driver": "^6.2.0",
-    "rollup": "^4.62.3",
+    "rollup": "^4.62.5",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.0.1",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "publishConfig": {
     "access": "public"
