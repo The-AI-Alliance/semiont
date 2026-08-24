@@ -41,9 +41,10 @@ async function createAnnotationAndAwait(
   request: CreateAnnotationRequest,
   uid: ReturnType<typeof userId>,
   eventBus: EventBus,
+  kb: KnowledgeBase,
 ) {
   const creator = { '@type': 'Person' as const, '@id': 'did:web:test.local:users:test-user', name: 'Test User' };
-  const result = await AnnotationOperations.createAnnotation(request, uid, creator, eventBus);
+  const result = await AnnotationOperations.createAnnotation(request, uid, creator, eventBus, kb);
   const expectedId = result.annotation.id;
   await firstValueFrom(eventBus.get('mark:added').pipe(
     filter((e) => e.payload?.annotation?.id === expectedId),
@@ -131,7 +132,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-      );
+        kb);
 
       expect(result.annotation.motivation).toBe('linking');
       // target persisted verbatim — selector-less (RESOURCE-LEVEL-ANCHOR P2)
@@ -161,7 +162,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-      );
+        kb);
 
       expect(result.annotation).toBeDefined();
       expect(result.annotation.motivation).toBe('highlighting');
@@ -192,7 +193,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-      );
+        kb);
 
       expect(result.annotation.motivation).toBe('commenting');
       expect(result.annotation.body).toMatchObject({
@@ -223,7 +224,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-      );
+        kb);
 
       expect(result.annotation.motivation).toBe('assessing');
     });
@@ -257,7 +258,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-      );
+        kb);
 
       expect(result.annotation.motivation).toBe('tagging');
       expect(Array.isArray(result.annotation.body)).toBe(true);
@@ -285,7 +286,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-      );
+        kb);
 
       expect(result.annotation.motivation).toBe('linking');
     });
@@ -312,7 +313,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-      );
+        kb);
 
       // Verify W3C annotation structure
       expect(result.annotation['@context']).toBe('http://www.w3.org/ns/anno.jsonld');
@@ -347,7 +348,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-      );
+        kb);
 
       // Check event was emitted
       const events = await testEventStore.log.getEvents(resourceId(testResourceId));
@@ -388,7 +389,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-      );
+        kb);
 
       expect(result.annotation.id).toBeDefined();
       expect(typeof result.annotation.id).toBe('string');
@@ -417,7 +418,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-      );
+        kb);
 
       const target = result.annotation.target;
       if (typeof target !== 'string' && 'selector' in target) {
@@ -458,7 +459,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-      );
+        kb);
 
       const target = result.annotation.target;
       if (typeof target !== 'string' && 'selector' in target) {
@@ -494,7 +495,7 @@ describe('AnnotationOperations', () => {
           userId('user-1'),
           creator,
           eventBus,
-        )
+          kb)
       ).rejects.toThrow('motivation is required');
     });
   });
@@ -525,7 +526,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-      );
+        kb);
 
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
 
@@ -589,7 +590,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-      );
+        kb);
 
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
 
@@ -647,7 +648,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-      );
+        kb);
 
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
 
@@ -709,7 +710,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-      );
+        kb);
 
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
 
@@ -791,7 +792,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-      );
+        kb);
 
       const annotationIdStr = createResult.annotation.id;
 

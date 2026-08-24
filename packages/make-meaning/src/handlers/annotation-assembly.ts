@@ -1,5 +1,7 @@
 import { resourceId, didToAgent, assembleAnnotation } from '@semiont/core';
 import type { EventBus, Logger, components } from '@semiont/core';
+import type { KnowledgeBase } from '../knowledge-base.js';
+import { assertAnnotatableTarget } from '../annotation-operations.js';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 
@@ -18,12 +20,24 @@ type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
  *
  * This is a deferred-ack pattern: the result event attests that Stower has
  * persisted the annotation, not merely that the command was well-formed.
+ *
+ * ## The annotatability gate (MEDIA-CAPABILITY-DISPATCH D6)
+ *
+ * This is the ONLY write path that checks — deliberately. Every GUI and SDK
+ * caller travels `mark:create-request`; import and replay emit `mark:create`
+ * directly and so never reach here. That topology IS the leniency: restore
+ * keeps working on any stored type without a flag, a bypass parameter, or an
+ * "import mode". Moving this check down to Stower's convergence point would
+ * force exactly that switch.
  */
-export function registerAnnotationAssemblyHandler(eventBus: EventBus, parentLogger: Logger): void {
+export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: KnowledgeBase, parentLogger: Logger): void {
   const logger = parentLogger.child({ component: 'annotation-assembly' });
   const inflight = new Map<string, { annotationId: string }>();
 
   eventBus.get('mark:create-request').subscribe((command) => {
+    // Async because the gate reads the target's view; the try/catch below
+    // covers the whole body, so nothing escapes as an unhandled rejection.
+    void (async () => {
     const { correlationId, resourceId: resId, request, _userId } = command as Record<string, unknown>;
     const cid = correlationId as string | undefined;
 
@@ -34,6 +48,10 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, parentLogg
       if (!cid) {
         throw new Error('correlationId is required on mark:create-request');
       }
+
+      // Refuse BEFORE assembling — an annotation is a durable write against a
+      // coordinate model the system does not have for this type.
+      await assertAnnotatableTarget(kb, resId as string);
 
       const agent = didToAgent(_userId);
       const { annotation } = assembleAnnotation(request as CreateAnnotationRequest, agent);
@@ -61,6 +79,7 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, parentLogg
         message: (error as Error).message,
       });
     }
+    })();
   });
 
   eventBus.get('mark:added').subscribe((event) => {

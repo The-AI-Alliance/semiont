@@ -39,7 +39,7 @@ export function registerBusHandlers(
   project: SemiontProject,
   logger: Logger,
 ): void {
-  registerAnnotationAssemblyHandler(eventBus, logger);
+  registerAnnotationAssemblyHandler(eventBus, knowledgeSystem.kb, logger);
   registerAnnotationLookupHandlers(eventBus, knowledgeSystem.kb, knowledgeSystem.gatherer, logger);
   registerBindUpdateBodyHandler(eventBus, logger);
   registerJobCommandHandlers(eventBus, jobQueue, project, logger);

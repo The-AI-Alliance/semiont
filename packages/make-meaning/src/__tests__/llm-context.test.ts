@@ -206,7 +206,7 @@ describe('LLM Context', () => {
         userId('user-1'),
         creator,
         eventBus,
-      );
+        kb);
       await created$;
 
       // The unified context sources annotations from the graph projection; this test's kb wires no

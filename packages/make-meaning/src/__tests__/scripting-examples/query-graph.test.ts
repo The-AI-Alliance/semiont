@@ -211,7 +211,7 @@ describe('Scripting Example: Query Graph Database', () => {
       userId('test-script'),
       creator,
       eventBus,
-    );
+      makeMeaning.knowledgeSystem.kb);
 
     // EVENTUAL CONSISTENCY: Wait for GraphConsumer to process events and update graph
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -303,7 +303,7 @@ describe('Scripting Example: Query Graph Database', () => {
         userId('test-script'),
         creator,
         eventBus,
-      );
+        makeMeaning.knowledgeSystem.kb);
     }
 
     // EVENTUAL CONSISTENCY: Wait for GraphConsumer to process events and update graph

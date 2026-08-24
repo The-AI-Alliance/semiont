@@ -16,7 +16,7 @@ import type {
   UserId,
   Logger,
 } from '@semiont/core';
-import { EventBus, annotationId, resourceId as makeResourceId, assembleAnnotation, applyBodyOperations } from '@semiont/core';
+import { EventBus, annotationId, resourceId as makeResourceId, assembleAnnotation, applyBodyOperations, isAnnotatable, getPrimaryRepresentation } from '@semiont/core';
 import { AnnotationContext } from './annotation-context';
 import type { KnowledgeBase } from './knowledge-base';
 
@@ -24,6 +24,29 @@ type Agent = components['schemas']['Agent'];
 import type { Annotation } from '@semiont/core';
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
+
+/**
+ * Refuse a write whose target cannot carry a coordinate (MEDIA-CAPABILITY-DISPATCH
+ * D6/D8). Exported so the `mark:create-request` handler and this class share ONE
+ * implementation rather than each deciding it — the registry stays the single
+ * fact, and this is the single refusal built on it.
+ *
+ * Two populations land here: a registry row that declines (storage tier) and a
+ * type the registry has never seen (import leniency keeps those in the KB, and
+ * `textExtractionOf` is lenient for `text/*`, so they embed and turn up in
+ * search). The wording states what cannot be done rather than making a
+ * vocabulary claim the registry is not entitled to make about a miss.
+ *
+ * NOT applied to import or replay: those emit `mark:create` directly and never
+ * reach either caller. That topology is D6's leniency — no flag, no bypass.
+ */
+export async function assertAnnotatableTarget(kb: KnowledgeBase, target: string): Promise<void> {
+  const view = await kb.views.get(makeResourceId(target));
+  const mediaType = getPrimaryRepresentation(view?.resource)?.mediaType;
+  if (!mediaType || !isAnnotatable(mediaType)) {
+    throw new Error(`"${mediaType ?? 'unknown'}" cannot be annotated`);
+  }
+}
 
 export interface CreateAnnotationResult {
   annotation: Annotation;
@@ -42,7 +65,12 @@ export class AnnotationOperations {
     userId: UserId,
     creator: Agent,
     eventBus: EventBus,
+    kb: KnowledgeBase,
   ): Promise<CreateAnnotationResult> {
+    // This facade reaches `mark:create` directly, so without this it would be a
+    // published way around the handler's gate (MEDIA-CAPABILITY-DISPATCH D6).
+    await assertAnnotatableTarget(kb, request.target.source);
+
     const { annotation } = assembleAnnotation(request, creator);
     const resId = makeResourceId(request.target.source);
 
