@@ -78,6 +78,47 @@ describe('createYieldStateUnit', () => {
     stateUnit.dispose();
   });
 
+  // GENERATION-OUTPUT-FORMAT P1: the unit's options ARE the namespace's
+  // (`GenerationOptions`), so every knob the wire carries reaches
+  // `fromContext` untouched — no per-field restatement to fall behind.
+
+  it('forwards outputMediaType — and every other generation knob — untouched', () => {
+    const fromContextFn = vi.fn(() => new Observable(() => {}));
+    tc = withYield(fromContextFn);
+    const stateUnit = createYieldStateUnit(tc.client, 'en');
+
+    stateUnit.generate(CTX_RES, {
+      title: 'Test',
+      storageUri: 'store://t',
+      outputMediaType: 'application/pdf',
+      entityTypes: ['Concept'],
+      task: 'summary',
+    });
+
+    expect(fromContextFn).toHaveBeenCalledWith(
+      CTX_RES,
+      expect.objectContaining({
+        outputMediaType: 'application/pdf',
+        entityTypes: ['Concept'],
+        task: 'summary',
+      }),
+    );
+    stateUnit.dispose();
+  });
+
+  it('omitting a knob sends no key at all — the worker default governs, not a UI-manufactured one', () => {
+    const fromContextFn = vi.fn((_context: unknown, _options: unknown) => new Observable(() => {}));
+    tc = withYield(fromContextFn);
+    const stateUnit = createYieldStateUnit(tc.client, 'en');
+
+    stateUnit.generate(CTX_RES, { title: 'Test', storageUri: 'store://t' });
+
+    const options = fromContextFn.mock.calls[0]![1];
+    expect(options).toHaveProperty('title', 'Test'); // we grabbed the right argument
+    expect(options).not.toHaveProperty('outputMediaType');
+    stateUnit.dispose();
+  });
+
   it('resource-focus contexts ride the same path — one generate, no second method', () => {
     const fromContextFn = vi.fn(() => new Observable(() => {}));
     tc = withYield(fromContextFn);

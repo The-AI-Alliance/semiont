@@ -4,7 +4,7 @@ import { resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
 import type { StreamObservable } from '../../awaitable';
-import type { YieldGenerationEvent } from '../../namespaces/types';
+import type { GenerationOptions, YieldGenerationEvent } from '../../namespaces/types';
 
 type JobProgress = components['schemas']['JobProgress'];
 
@@ -27,18 +27,6 @@ export interface YieldOutcome {
   truncated: boolean;
 }
 
-export interface GenerateDocumentOptions {
-  title: string;
-  storageUri: string;
-  prompt?: string;
-  /** Body locale — language the generated resource is written in. Falls back to the state unit's UI locale when unset. */
-  language?: string;
-  /** Source-resource locale — language of the resource the annotation lives on. Forwarded to the prompt for context-snippet awareness. BCP-47. */
-  sourceLanguage?: string;
-  temperature?: number;
-  maxTokens?: number;
-}
-
 export interface YieldStateUnit extends StateUnit {
   isGenerating$: Observable<boolean>;
   progress$: Observable<JobProgress | null>;
@@ -53,8 +41,14 @@ export interface YieldStateUnit extends StateUnit {
    * Grounded generation — the context's `focus.kind` decides the shape
    * (annotation focus auto-binds; resource focus mints provenance). Ids are
    * derived from the focus; see `client.yield.fromContext`.
+   *
+   * Options are the namespace's own `GenerationOptions`, not a restatement:
+   * every knob the wire carries (format, entity types, task, structure,
+   * citations, the stall deadline) reaches `fromContext` untouched. The one
+   * behavior this adds is the locale fallback — `language` unset means the
+   * unit's UI locale, never the model's guess.
    */
-  generate(context: GatheredContext, options: GenerateDocumentOptions): void;
+  generate(context: GatheredContext, options: GenerationOptions): void;
   /** Clear a finished (or abandoned) progress display. Wired to the widget's Close. */
   dismissProgress(): void;
 }
@@ -115,7 +109,7 @@ export function createYieldStateUnit(
     subs.push(genSub);
   };
 
-  const generate = (context: GatheredContext, options: GenerateDocumentOptions): void => {
+  const generate = (context: GatheredContext, options: GenerationOptions): void => {
     // A new run's frame must not carry the previous run's link.
     outcome$.next(null);
     drive(client.yield.fromContext(
