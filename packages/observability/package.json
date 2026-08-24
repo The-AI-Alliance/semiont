@@ -55,11 +55,11 @@
   "author": "Semiont Team",
   "license": "Apache-2.0",
   "devDependencies": {
-    "rollup": "^4.62.3",
+    "rollup": "^4.62.5",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",

@@ -49,13 +49,13 @@
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.11",
     "fast-check": "^4.9.0",
-    "rollup": "^4.62.3",
+    "rollup": "^4.62.5",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "keywords": [
     "semiont",
