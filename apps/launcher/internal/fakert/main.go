@@ -555,17 +555,25 @@ func ghCodespace(args []string, joined string) {
 	}
 }
 
+// printLsof imitates real lsof's long form; the launcher reads the PID from
+// column 2.
+func printLsof(port string, pids ...string) {
+	fmt.Println("COMMAND   PID USER   FD   TYPE DEVICE SIZE/OFF NODE NAME")
+	for _, p := range pids {
+		fmt.Printf("fake %8s oss   41u  IPv4 0x0  0t0  TCP *:%s (LISTEN)\n", p, port)
+	}
+}
+
 func lsof(args []string) {
-	// The launcher calls `lsof -ti :<port>`.
-	if len(args) != 2 || args[0] != "-ti" || !strings.HasPrefix(args[1], ":") {
+	// `lsof -nP -iTCP:<port> -sTCP:LISTEN` — listenersOn in start.go says why the
+	// state filter is there and `-t` is not.
+	if len(args) != 3 || args[0] != "-nP" || !strings.HasPrefix(args[1], "-iTCP:") || args[2] != "-sTCP:LISTEN" {
 		fmt.Fprintf(os.Stderr, "fakert lsof: unscripted args %v\n", args)
 		os.Exit(64)
 	}
-	port := strings.TrimPrefix(args[1], ":")
+	port := strings.TrimPrefix(args[1], "-iTCP:")
 	if pids := os.Getenv("FAKERT_LSOF_" + port); pids != "" {
-		for _, p := range strings.Fields(pids) {
-			fmt.Println(p)
-		}
+		printLsof(port, strings.Fields(pids)...)
 		return
 	}
 	// FIDELITY: with nothing scripted, answer for REAL. A port something is
@@ -582,7 +590,7 @@ func lsof(args []string) {
 		_ = ln.Close()
 		os.Exit(1) // bindable ⇒ nothing holds it; real lsof exits 1
 	}
-	fmt.Println(os.Getpid()) // a pid, as real lsof prints
+	printLsof(port, strconv.Itoa(os.Getpid()))
 }
 
 // opCmd fakes the 1Password CLI: the launcher calls `op read op://<path>`.

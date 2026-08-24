@@ -50,7 +50,7 @@ func allocateKBPort(ss *stackSet, repo string) int {
 		if used[port] {
 			continue
 		}
-		if out, err := capture("lsof", "-ti", fmt.Sprintf(":%d", port)); err == nil && out != "" {
+		if len(listenersOn(port)) > 0 {
 			continue
 		}
 		return port

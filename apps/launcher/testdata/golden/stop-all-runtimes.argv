@@ -52,8 +52,8 @@ podman stop semiont-neo4j
 podman rm semiont-neo4j
 podman stop semiont-jaeger
 podman rm semiont-jaeger
-lsof -ti :9090
-lsof -ti :9091
-lsof -ti :9092
-lsof -ti :16686
-lsof -ti :4318
+lsof -nP -iTCP:9090 -sTCP:LISTEN
+lsof -nP -iTCP:9091 -sTCP:LISTEN
+lsof -nP -iTCP:9092 -sTCP:LISTEN
+lsof -nP -iTCP:16686 -sTCP:LISTEN
+lsof -nP -iTCP:4318 -sTCP:LISTEN

@@ -450,7 +450,7 @@ func verifyPortsReleased(u *ui, ports []int) {
 	for {
 		held = held[:0]
 		for _, p := range ports {
-			if out, err := capture("lsof", "-ti", fmt.Sprintf(":%d", p)); err == nil && out != "" {
+			if len(listenersOn(p)) > 0 {
 				held = append(held, p)
 			}
 		}
@@ -464,9 +464,8 @@ func verifyPortsReleased(u *ui, ports []int) {
 		return
 	}
 	for _, p := range held {
-		out, _ := capture("lsof", "-ti", fmt.Sprintf(":%d", p))
 		u.warn("Port %d is still held by %s — not a Semiont container; the next start will fail on it.",
-			p, describeProcs(strings.Fields(out)))
+			p, describeProcs(listenersOn(p)))
 	}
 }
 
