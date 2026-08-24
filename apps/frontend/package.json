@@ -85,7 +85,7 @@
     "postcss": "^8.5.25",
     "tailwindcss": "^4.2.1",
     "typescript": "^6.0.2",
-    "vite": "^8.1.5",
+    "vite": "^8.2.2",
     "vitest": "^4.1.10"
   },
   "msw": {
