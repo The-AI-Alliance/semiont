@@ -29,7 +29,7 @@ RUN chown semiont:nodejs /app
 USER semiont
 
 COPY --from=installer --chown=semiont:nodejs /app /app
-COPY LICENSE apps/frontend/NOTICE /app/
+COPY LICENSE apps/browser/NOTICE /app/
 
 ENV NODE_ENV=production
 ENV PORT=3000

@@ -27,7 +27,7 @@ We also welcome contributions that bring Semiont to new user interfaces and inte
 - **Desktop applications** (Electron, Tauri)
 - **IDE integrations** (VS Code, IntelliJ)
 
-See [apps/frontend/docs/FUTURE.md](apps/frontend/docs/FUTURE.md) for architectural guidance on building alternative frontends that share the core API client and authentication infrastructure.
+See [apps/browser/docs/FUTURE.md](apps/browser/docs/FUTURE.md) for architectural guidance on building alternative frontends that share the core API client and authentication infrastructure.
 
 ## 📋 Table of Contents
 
@@ -318,7 +318,7 @@ npm test
 **Run service-specific tests:**
 ```bash
 cd apps/backend && npm test     # Backend tests (Jest)
-cd apps/frontend && npm test    # Frontend tests (Vitest)
+cd apps/browser && npm test    # Frontend tests (Vitest)
 ```
 
 ### Test Requirements for PRs
@@ -347,7 +347,7 @@ Update docs when you:
 
 - **System-wide**: `docs/` - Architecture, deployment, testing
 - **Backend**: `apps/backend/docs/` - Backend-specific guides
-- **Frontend**: `apps/frontend/docs/` - Frontend-specific guides
+- **Frontend**: `apps/browser/docs/` - Frontend-specific guides
 - **Launcher**: `apps/launcher/README.md` - The host-installed `semiont` command
 - **Platforms**: `docs/system/platforms/` - Platform-specific deployment
 

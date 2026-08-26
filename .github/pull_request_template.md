@@ -17,7 +17,7 @@ Brief description of the changes in this PR.
 
 ## Areas Changed
 
-- [ ] Frontend (`apps/frontend`)
+- [ ] Frontend (`apps/browser`)
 - [ ] Backend (`apps/backend`)
 - [ ] Launcher (`apps/launcher`)
 - [ ] HTTP Transport (`packages/http-transport`)
@@ -80,7 +80,7 @@ Please run and paste results:
 ### Frontend Security Tests
 
 ```bash
-cd apps/frontend && npm run test:security
+cd apps/browser && npm run test:security
 # Paste results here
 ```
 

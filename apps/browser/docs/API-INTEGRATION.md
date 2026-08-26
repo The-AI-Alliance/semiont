@@ -13,7 +13,7 @@ that maintains framework independence:
 
 ```
 ┌─────────────────────────────────────┐
-│         apps/frontend               │
+│         apps/browser               │
 │         (Vite + React Router v7)    │
 │                                     │
 │  • Auth + session wiring            │
@@ -88,7 +88,7 @@ function useClient() {
 ```
 
 The app mounts the provider once at the root (see
-`apps/frontend/src/app/providers.tsx`):
+`apps/browser/src/app/providers.tsx`):
 
 ```tsx
 <TranslationProvider …>
@@ -135,7 +135,7 @@ and the two auth-failure modals; the modals read the active session's signals
 (`activeSignals$`):
 
 ```tsx
-// apps/frontend/src/contexts/AuthShell.tsx
+// apps/browser/src/contexts/AuthShell.tsx
 import {
   ProtectedErrorBoundary,
   SessionExpiredModal,

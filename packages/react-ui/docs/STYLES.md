@@ -21,7 +21,7 @@ Three gates enforce it, so this is a build failure rather than a convention:
   and markdown classes)
 
 **Hosts are unconstrained.** The policy binds this package, not the app
-consuming it — `apps/frontend` uses Tailwind. A host adopts the styles by
+consuming it — `apps/browser` uses Tailwind. A host adopts the styles by
 importing `@semiont/react-ui/styles`, or takes only the tokens from
 `@semiont/react-ui/styles/variables.css`, or bridges through
 `@semiont/react-ui/integrations/css-modules` or

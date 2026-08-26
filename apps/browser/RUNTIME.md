@@ -19,7 +19,7 @@ Edit `.env.local` to configure:
 ## Source Code
 
 The frontend source code is located at:
-/Users/pingel/git_repos/github.com/The-AI-Alliance/semiont/apps/frontend
+/Users/pingel/git_repos/github.com/The-AI-Alliance/semiont/apps/browser
 
 ## Commands
 

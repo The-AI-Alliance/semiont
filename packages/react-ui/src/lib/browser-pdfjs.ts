@@ -11,7 +11,7 @@
  * The worker can't be resolved inside this tsup-built library (Vite's `?url`
  * lives in the app), so the host hands us the worker URL via `setPdfWorkerSrc`
  * once at startup; it is applied to `GlobalWorkerOptions` when pdf.js loads.
- * See `apps/frontend/src/main.tsx`.
+ * See `apps/browser/src/main.tsx`.
  */
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 

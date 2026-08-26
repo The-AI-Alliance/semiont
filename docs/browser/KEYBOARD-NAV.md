@@ -1,6 +1,6 @@
 # Keyboard Navigation
 
-Every interaction in the Semiont Browser is reachable from the keyboard. This page is the shortcut reference; for the implementation patterns behind it, see [apps/frontend/docs/KEYBOARD-NAV.md](../../apps/frontend/docs/KEYBOARD-NAV.md).
+Every interaction in the Semiont Browser is reachable from the keyboard. This page is the shortcut reference; for the implementation patterns behind it, see [apps/browser/docs/KEYBOARD-NAV.md](../../apps/browser/docs/KEYBOARD-NAV.md).
 
 Press **`?`** at any time to bring up an in-app shortcut help modal.
 
@@ -42,4 +42,4 @@ Press **`?`** at any time to bring up an in-app shortcut help modal.
 ## See also
 
 - **[ACCESSIBILITY.md](ACCESSIBILITY.md)** — the broader WCAG 2.1 AA capability claim (screen-reader support, focus indicators, reduced motion, etc.).
-- **[apps/frontend/docs/KEYBOARD-NAV.md](../../apps/frontend/docs/KEYBOARD-NAV.md)** — implementation: the `useKeyboardShortcuts` hook, `useRovingTabIndex`, focus-management patterns, testing strategy.
+- **[apps/browser/docs/KEYBOARD-NAV.md](../../apps/browser/docs/KEYBOARD-NAV.md)** — implementation: the `useKeyboardShortcuts` hook, `useRovingTabIndex`, focus-management patterns, testing strategy.

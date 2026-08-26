@@ -85,7 +85,7 @@ The frontend leverages **@semiont/react-ui**, a comprehensive framework-agnostic
 @semiont/react-ui uses a two-layer provider model — global (every page) and protected (only routes that require auth):
 
 ```tsx
-// Global layer — auth-independent (apps/frontend/src/app/providers.tsx)
+// Global layer — auth-independent (apps/browser/src/app/providers.tsx)
 <TranslationProvider translationManager={i18nextManager}>
   <SemiontProvider>            {/* the SemiontBrowser singleton: sessions, KBs, the client */}
     {/* Toast, LiveRegion, KeyboardShortcuts, Theme, then the app */}
@@ -208,7 +208,7 @@ High-churn entity data and browser-persistent application state are managed as o
 
 These update automatically when backend domain events arrive through the bus gateway (`mark:added`, `yield:updated`, etc.) — no manual cache-invalidation calls needed. Components subscribe via `useObservable(semiont.browse.annotations(resourceId))`. See [`@semiont/sdk` Usage.md](../../../packages/sdk/docs/Usage.md) for the full verb namespace API.
 
-**Application state stores** (live in `apps/frontend/src/stores/`, browser-coupled):
+**Application state stores** (live in `apps/browser/src/stores/`, browser-coupled):
 
 | Store | What it holds |
 |---|---|
@@ -373,7 +373,7 @@ The provider tree has two distinct layers:
 ### Root layer (always present)
 
 ```tsx
-// apps/frontend/src/app/providers.tsx
+// apps/browser/src/app/providers.tsx
 <TranslationProvider>          // @semiont/react-ui — i18n
   <SemiontProvider>            // @semiont/react-ui — the SemiontBrowser singleton (sessions, KBs, the per-KB SemiontClient + app-scoped event bus)
     <ToastProvider>            // @semiont/react-ui — toast notifications
@@ -387,7 +387,7 @@ The provider tree has two distinct layers:
 ### Auth shell (mounted in protected layouts only)
 
 ```tsx
-// apps/frontend/src/contexts/AuthShell.tsx — no provider; the SemiontBrowser
+// apps/browser/src/contexts/AuthShell.tsx — no provider; the SemiontBrowser
 // singleton (mounted at the app root) already holds all session state.
 <ProtectedErrorBoundary>            // catches render-time crashes inside the protected tree
   <SessionExpiredModal />           // reads sessionExpiredAt$ from the active session's signals
@@ -399,10 +399,10 @@ The provider tree has two distinct layers:
 
 | Route            | Mounted in                                          |
 |------------------|-----------------------------------------------------|
-| `/know/*`        | `apps/frontend/src/app/[locale]/know/layout.tsx`    |
-| `/admin/*`       | `apps/frontend/src/app/[locale]/admin/layout.tsx`   |
-| `/moderate/*`    | `apps/frontend/src/app/[locale]/moderate/layout.tsx`|
-| `/auth/welcome`  | `apps/frontend/src/App.tsx` (route element)         |
+| `/know/*`        | `apps/browser/src/app/[locale]/know/layout.tsx`    |
+| `/admin/*`       | `apps/browser/src/app/[locale]/admin/layout.tsx`   |
+| `/moderate/*`    | `apps/browser/src/app/[locale]/moderate/layout.tsx`|
+| `/auth/welcome`  | `apps/browser/src/App.tsx` (route element)         |
 
 ### Why the split
 
@@ -415,7 +415,7 @@ See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSIO
 ## Directory Structure
 
 ```
-apps/frontend/src/
+apps/browser/src/
 ├── App.tsx                # React Router v7 route tree
 ├── main.tsx               # Entry point
 ├── app/[locale]/          # Locale-prefixed page components
@@ -485,7 +485,7 @@ packages/react-ui/src/      # Reusable React components library
 ```
 
 **Key Separation:**
-- `apps/frontend/src` - Vite SPA pages and app-specific implementations
+- `apps/browser/src` - Vite SPA pages and app-specific implementations
 - `packages/react-ui/src` - Framework-agnostic components and interfaces
 
 **Note**: Authentication components (SignInForm, SignUpForm, AuthErrorDisplay) are framework-agnostic and live in `packages/react-ui/src/features/auth/`; the post-auth WelcomePage lives in `packages/react-ui/src/features/auth-welcome/`. The frontend provides React Router-specific wrappers that handle routing, translations, and auth state.

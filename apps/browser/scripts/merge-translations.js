@@ -5,10 +5,10 @@
  *
  * This script reads translations from:
  * - packages/react-ui/translations/*.json (react-ui component translations)
- * - apps/frontend/messages-source/*.json (frontend-specific translations)
+ * - apps/browser/messages-source/*.json (frontend-specific translations)
  *
  * And merges them into:
- * - apps/frontend/messages/*.json (generated merged output)
+ * - apps/browser/messages/*.json (generated merged output)
  *
  * The messages/ directory is gitignored since it contains generated content.
  */

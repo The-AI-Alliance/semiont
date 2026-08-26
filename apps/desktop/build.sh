@@ -5,7 +5,7 @@ set -euo pipefail
 # No Rust or Tauri CLI required on the host.
 #
 # This script:
-#   1. Builds the frontend SPA (apps/frontend/dist/)
+#   1. Builds the frontend SPA (apps/browser/dist/)
 #   2. Compiles the Tauri desktop shell
 #   3. Produces a .dmg (macOS) in apps/desktop/src-tauri/target/release/bundle/
 #
@@ -42,7 +42,7 @@ $RT run --rm \
   -m 8g \
   -e NODE_OPTIONS="--max-old-space-size=4096" \
   node:24-alpine \
-  sh -c "apk add --no-cache bash git > /dev/null && npm install --include=optional && npm run build -w semiont-frontend"
+  sh -c "apk add --no-cache bash git > /dev/null && npm install --include=optional && npm run build -w semiont-browser"
 
 # --- Ensure builder image exists ---
 

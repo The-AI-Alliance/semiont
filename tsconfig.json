@@ -57,7 +57,6 @@
     "**/node_modules",
     "**/dist",
     "**/examples",
-    "apps/frontend",
-    "apps/frontend/.next"
+    "apps/browser"
   ]
 }

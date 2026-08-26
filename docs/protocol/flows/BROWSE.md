@@ -6,7 +6,7 @@
 - [Beckon Flow](./BECKON.md) - Hover/focus/sparkle coordination (attention precedes navigation)
 - [Bind Flow](./BIND.md) - Reference resolution triggers navigation to linked resources
 - [Event-Bus Protocol](../EVENT-BUS.md) - Channel naming, bridging, SSE streaming
-- [Frontend Annotations](../../../apps/frontend/docs/ANNOTATIONS.md) - Annotation click and panel interaction
+- [Frontend Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - Annotation click and panel interaction
 - [React UI Events](../../../packages/react-ui/docs/EVENTS.md) - Event bus architecture
 - [Launcher README](../../../apps/launcher/README.md) - `semiont browse`, including `--browser`
 
@@ -148,10 +148,10 @@ Panel types:
 - **Arrival report**: [packages/react-ui/src/features/resource-viewer/hooks/useResourceViewedReport.ts](../../../packages/react-ui/src/features/resource-viewer/hooks/useResourceViewedReport.ts)
 - **`browse:resource-open` → `nav:push` translation**: [packages/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx](../../../packages/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx)
 - **Toolbar (emitter)**: [packages/react-ui/src/components/Toolbar.tsx](../../../packages/react-ui/src/components/Toolbar.tsx)
-- **Panel container**: [apps/frontend/src/components/toolbar/ToolbarPanels.tsx](../../../apps/frontend/src/components/toolbar/ToolbarPanels.tsx)
+- **Panel container**: [apps/browser/src/components/toolbar/ToolbarPanels.tsx](../../../apps/browser/src/components/toolbar/ToolbarPanels.tsx)
 - **Sidebar navigation**: [packages/react-ui/src/components/navigation/CollapsibleResourceNavigation.tsx](../../../packages/react-ui/src/components/navigation/CollapsibleResourceNavigation.tsx)
 - **Observable router / external navigation**: [packages/react-ui/src/hooks/useObservableBrowse.tsx](../../../packages/react-ui/src/hooks/useObservableBrowse.tsx)
-- **Navigation handler (subscriber)**: [apps/frontend/src/components/knowledge/NavigationHandler.tsx](../../../apps/frontend/src/components/knowledge/NavigationHandler.tsx)
+- **Navigation handler (subscriber)**: [apps/browser/src/components/knowledge/NavigationHandler.tsx](../../../apps/browser/src/components/knowledge/NavigationHandler.tsx)
 - **Launcher verb**: [apps/launcher/internal/launcher/browse.go](../../../apps/launcher/internal/launcher/browse.go) — `semiont browse`, including `--browser`
 - **Bridged set**: [packages/core/src/bridged-channels.ts](../../../packages/core/src/bridged-channels.ts) — `BRIDGED_BROADCASTS` (hand-listed) plus the derived operation replies
 - **Event definitions** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `BROWSE FLOW` section

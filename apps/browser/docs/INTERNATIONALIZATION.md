@@ -16,13 +16,13 @@ The frontend uses **i18next** + **react-i18next** for internationalization.
 ```
 packages/react-ui/translations/{locale}.json   ← component-level strings
        +
-apps/frontend/messages-source/{locale}.json   ← app-level strings
+apps/browser/messages-source/{locale}.json   ← app-level strings
        │
        │  scripts/merge-translations.js
        │  deepMerge(reactUI, frontend)  — frontend wins on collision
        ▼
-apps/frontend/messages/{locale}.json           ← read by vitest mock at test time
-apps/frontend/public/messages/{locale}.json    ← served at /messages/{locale}.json at runtime
+apps/browser/messages/{locale}.json           ← read by vitest mock at test time
+apps/browser/public/messages/{locale}.json    ← served at /messages/{locale}.json at runtime
 ```
 
 The `messages/` and `public/messages/` directories are **generated** — never edit them directly. Edit the source files instead.
@@ -76,18 +76,18 @@ Translation file (`messages-source/en.json`):
 ## Translation File Organization
 
 **Source files (edit these):**
-- `apps/frontend/messages-source/{locale}.json` — app-specific keys (Admin, CookiePreferences, UserPanel, etc.)
+- `apps/browser/messages-source/{locale}.json` — app-specific keys (Admin, CookiePreferences, UserPanel, etc.)
 - `packages/react-ui/translations/{locale}.json` — react-ui component keys (BrowseView, ResourceViewer, etc.)
 
 **Generated files (do not edit):**
-- `apps/frontend/messages/{locale}.json`
-- `apps/frontend/public/messages/{locale}.json`
+- `apps/browser/messages/{locale}.json`
+- `apps/browser/public/messages/{locale}.json`
 
 ## Adding a New Language
 
 1. Add translation file for the frontend:
    ```bash
-   cp apps/frontend/messages-source/en.json apps/frontend/messages-source/fr.json
+   cp apps/browser/messages-source/en.json apps/browser/messages-source/fr.json
    # Translate all values in fr.json
    ```
 
@@ -105,7 +105,7 @@ Translation file (`messages-source/en.json`):
 
 4. Run the merge:
    ```bash
-   node apps/frontend/scripts/merge-translations.js
+   node apps/browser/scripts/merge-translations.js
    ```
 
 ## Parameter Interpolation

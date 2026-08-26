@@ -2,7 +2,7 @@
 
 **Scope**: This document defines the architecture patterns enforced in:
 - `packages/react-ui` - Shared React UI components and hooks
-- `apps/frontend` - Next.js frontend application
+- `apps/browser` - Next.js frontend application
 
 These rules are enforced via automated compliance auditing (see [../README.md](../README.md)).
 
@@ -241,7 +241,7 @@ These patterns are enforced via automated AST analysis:
 cd packages/react-ui && ./scripts/generate-compliance-report.sh
 
 # Frontend
-cd apps/frontend && ./scripts/generate-compliance-report.sh
+cd apps/browser && ./scripts/generate-compliance-report.sh
 ```
 
 **Current Status** (as of 2026-02-17):

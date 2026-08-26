@@ -78,7 +78,7 @@
       "publish": true
     },
     "semiont-frontend": {
-      "dir": "apps/frontend",
+      "dir": "apps/browser",
       "stage": ".npm-stage/frontend",
       "version": "0.5.29",
       "publish": true

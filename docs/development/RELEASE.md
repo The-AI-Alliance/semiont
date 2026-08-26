@@ -291,7 +291,7 @@ shipped a `@hono/node-server` *major* behind source, and had dropped
 `@semiont/observability` entirely even though the built backend imports it at
 startup).
 
-The **frontend** is deliberately different: `apps/frontend/package.publish.json`
+The **frontend** is deliberately different: `apps/browser/package.publish.json`
 declares **no** runtime dependencies and nothing derives them, because the
 published frontend is a pre-built Vite bundle — its deps are compiled into
 `dist/`, not resolved by npm at install time.

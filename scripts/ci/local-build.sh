@@ -178,7 +178,7 @@ image_dockerfile() {
     worker)   echo "packages/jobs/Dockerfile" ;;
     smelter)  echo "packages/make-meaning/Dockerfile.smelter" ;;
     weaver)   echo "packages/make-meaning/Dockerfile.weaver" ;;
-    frontend) echo "apps/frontend/Dockerfile" ;;
+    frontend) echo "apps/browser/Dockerfile" ;;
     *) return 1 ;;
   esac
 }

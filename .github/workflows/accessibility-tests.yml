@@ -107,7 +107,7 @@ jobs:
       - name: Run accessibility tests
         id: a11y-tests
         run: |
-          cd apps/frontend
+          cd apps/browser
           # Run all tests including accessibility tests
           SEMIONT_ROOT=../.. npm test -- --reporter=verbose
         continue-on-error: false
@@ -117,7 +117,7 @@ jobs:
       - name: Generate accessibility report
         if: always()
         run: |
-          cd apps/frontend
+          cd apps/browser
           SEMIONT_ROOT=../.. npm run test:coverage -- --reporter=json --outputFile=a11y-report.json
         continue-on-error: true
 
@@ -126,7 +126,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: frontend-a11y-results
-          path: apps/frontend/a11y-report.json
+          path: apps/browser/a11y-report.json
           retention-days: 30
 
       - name: Comment PR with results
@@ -169,7 +169,7 @@ jobs:
 
       - name: Build frontend
         run: |
-          cd apps/frontend
+          cd apps/browser
           npm run build
 
       - name: Install Lighthouse CI
@@ -177,7 +177,7 @@ jobs:
 
       - name: Run Lighthouse CI
         run: |
-          cd apps/frontend
+          cd apps/browser
           lhci autorun
         continue-on-error: true
         env:
@@ -188,12 +188,12 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: lighthouse-results
-          path: apps/frontend/.lighthouseci
+          path: apps/browser/.lighthouseci
           retention-days: 30
 
       - name: Check accessibility score threshold
         run: |
-          cd apps/frontend
+          cd apps/browser
           # Extract accessibility score from Lighthouse results
           SCORE=$(cat .lighthouseci/lhr-*.json | jq '.categories.accessibility.score * 100' | head -1)
           echo "Accessibility score: $SCORE"
@@ -215,7 +215,7 @@ jobs:
             const path = require('path');
 
             // Find the latest Lighthouse report
-            const lighthouseDir = 'apps/frontend/.lighthouseci';
+            const lighthouseDir = 'apps/browser/.lighthouseci';
             const files = fs.readdirSync(lighthouseDir);
             const lhrFile = files.find(f => f.startsWith('lhr-') && f.endsWith('.json'));
 

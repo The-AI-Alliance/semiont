@@ -847,7 +847,7 @@ Anything inside `@semiont/*` is published to a local Verdaccio and consumed via 
 | Change in | Rebuild | Restart |
 |---|---|---|
 | `packages/react-ui`, `packages/http-transport`, `packages/core`, `packages/sdk` | `./scripts/ci/local-build.sh` | frontend container |
-| `apps/frontend` only | `./scripts/ci/local-build.sh` | frontend container |
+| `apps/browser` only | `./scripts/ci/local-build.sh` | frontend container |
 | `packages/make-meaning`, `event-sourcing`, anything backend-side | `./scripts/ci/local-build.sh` (rebuilds the `:local` images) | the stack: `SEMIONT_VERSION=local semiont start` |
 | `apps/backend` | `./scripts/ci/local-build.sh` | the stack: `SEMIONT_VERSION=local semiont start` |
 
@@ -954,7 +954,7 @@ npm run test:coverage       # Everything, with coverage
 npm run test:watch          # Watch mode
 ```
 
-Frontend (`apps/frontend/`):
+Frontend (`apps/browser/`):
 
 ```bash
 npm test                    # Everything
@@ -1074,7 +1074,7 @@ what passes. It runs on every push and pull request, on Node 24, with these jobs
 
 | Job | What it covers |
 |---|---|
-| `test-frontend` | `npm run typecheck` + `npm test` for `apps/frontend` |
+| `test-frontend` | `npm run typecheck` + `npm test` for `apps/browser` |
 | `test-backend` | typecheck, `npm test`, and `npm run test:integration` for `apps/backend`, against a `postgres:15` service container |
 | `test-comprehensive` | frontend and backend suites again, backend integration included, against a `postgres:15` service container |
 | `validate-config` | `npm ci --include=optional` + `npm run build:packages` |
@@ -1098,7 +1098,7 @@ everything — CI runs the full matrix.
 ## Related Documentation
 
 ### Application Testing Documentation
-- [Frontend Testing](../../apps/frontend/README.md#testing) - Frontend-specific testing setup, scripts, and philosophy
+- [Frontend Testing](../../apps/browser/README.md#testing) - Frontend-specific testing setup, scripts, and philosophy
 - [Backend Testing](../../apps/backend/README.md#testing) - Backend API testing and integration tests
 
 ### End-to-End Testing
@@ -1112,7 +1112,7 @@ everything — CI runs the full matrix.
 
 ### Component Testing
 - [Annotation Rendering Principles](../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Property-based testing for annotation renderer
-- [Frontend Architecture](../../apps/frontend/docs/ARCHITECTURE.md) - Component structure and testing strategy
+- [Frontend Architecture](../../apps/browser/docs/ARCHITECTURE.md) - Component structure and testing strategy
 
 ### W3C Compliance Testing
 - [W3C-WEB-ANNOTATION.md](../protocol/W3C-WEB-ANNOTATION.md) - W3C Web Annotation compliance and testing

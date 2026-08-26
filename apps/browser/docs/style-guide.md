@@ -12,7 +12,7 @@ The Semiont frontend uses a hybrid CSS architecture that combines:
 All React UI components from `@semiont/react-ui` come with semantic CSS classes following BEM methodology. These styles are automatically imported in `globals.css`:
 
 ```css
-/* apps/frontend/src/app/globals.css */
+/* apps/browser/src/app/globals.css */
 @import '@semiont/react-ui/styles';
 ```
 

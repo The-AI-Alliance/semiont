@@ -52,4 +52,4 @@ The container-image flow at the top of this page is the fastest path. **[LOCAL.m
 - **[ACCESSIBILITY.md](ACCESSIBILITY.md)** — WCAG 2.1 Level AA capability claim, screen reader support, accessibility testing.
 - **[KEYBOARD-NAV.md](KEYBOARD-NAV.md)** — keyboard shortcuts and the navigation model.
 
-For frontend implementation details (architecture, component library, integration patterns) see **[apps/frontend/docs/](../../apps/frontend/docs/)** — that folder is contributor-facing.
+For frontend implementation details (architecture, component library, integration patterns) see **[apps/browser/docs/](../../apps/browser/docs/)** — that folder is contributor-facing.

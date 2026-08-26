@@ -21,7 +21,7 @@ Comprehensive guide to testing the Semiont frontend and how it integrates with t
 Testing in the Semiont frontend is split between two packages following the component library factorization:
 
 - **@semiont/react-ui**: Tests framework-agnostic components and business logic
-- **apps/frontend**: Tests Next.js specific integrations and page wrappers
+- **apps/browser**: Tests Next.js specific integrations and page wrappers
 
 **Key Principles**:
 1. **Type Safety First** - TypeScript provides compile-time validation
@@ -34,7 +34,7 @@ Testing in the Semiont frontend is split between two packages following the comp
 
 ```
 ┌─────────────────────────────────────┐
-│         apps/frontend               │
+│         apps/browser               │
 │         Test Coverage:              │
 │                                     │
 │  • App shell, routing, providers    │
@@ -65,14 +65,14 @@ Testing in the Semiont frontend is split between two packages following the comp
 - Provider logic
 - UI components (Button, Card, ResourceViewer, etc.)
 
-**In apps/frontend** (Vite SPA specific):
+**In apps/browser** (Vite SPA specific):
 - App shell, routing, and provider composition (`providers.tsx`, `AuthShell`)
 - Integration flows across pages (e.g. the sign-up flow)
 - App-specific components (Home, About, CookieBanner, etc.)
 
 ## Running Tests
 
-Run these from `apps/frontend/`:
+Run these from `apps/browser/`:
 
 ```bash
 npm test                    # Everything
@@ -91,7 +91,7 @@ npm run build               # Typechecks as a prebuild step
 
 Every script sets `SEMIONT_ROOT` itself — you do not need to export it. (The frontend
 tests read no environment config, so there is no environment to select.) To run one of
-them from the repo root instead, use `npm run test:unit --workspace=apps/frontend`.
+them from the repo root instead, use `npm run test:unit --workspace=apps/browser`.
 
 There is no `semiont test` command: the `semiont` launcher runs knowledge bases,
 not this monorepo's test suite.
@@ -455,7 +455,7 @@ The codebase follows the **Humble Object Pattern** for React components, with bu
 - No framework-specific hooks (Next.js)
 - Thoroughly tested in the react-ui package
 
-**Page Wrapper** (in `apps/frontend/app/`):
+**Page Wrapper** (in `apps/browser/app/`):
 - Implements provider interfaces for Next.js
 - Calls Next.js hooks (`useRouter`, `useSearchParams`, etc.)
 - Wraps components from @semiont/react-ui
@@ -532,7 +532,7 @@ it('renders resource title', async () => {
 **Frontend wrapper tests** (minimal, if needed):
 
 ```typescript
-// apps/frontend/app/[locale]/resources/[id]/__tests__/page.test.tsx
+// apps/browser/app/[locale]/resources/[id]/__tests__/page.test.tsx
 // Usually not needed - wrapper is too thin
 // If testing is required, mock @semiont/react-ui components
 
@@ -607,7 +607,7 @@ it('renders page', () => {
 - Hooks: `useObservable`, `useResourceContent`, `useMediaToken`, `useToast`, etc.
 - Utilities: Validation, annotation registry
 
-**apps/frontend:**
+**apps/browser:**
 - App shell & routing: providers, AuthShell, route guards
 - Integration tests: Multi-step user flows (e.g. sign-up)
 - App-specific components: Home, About, Privacy, CookieBanner
@@ -629,7 +629,7 @@ packages/react-ui/src/features/auth/__tests__/SignUpForm.test.tsx
 **Testing frontend integration:**
 ```bash
 # Run frontend tests
-cd apps/frontend
+cd apps/browser
 npm test
 
 # Example test locations

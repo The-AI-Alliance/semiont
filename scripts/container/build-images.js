@@ -132,7 +132,7 @@ async function buildFrontend(runtime) {
     '--build-arg', `NEXT_PUBLIC_APP_VERSION=${appVersion}`
   ];
 
-  await buildImage('frontend', 'apps/frontend/Dockerfile', '.', buildArgs, runtime);
+  await buildImage('frontend', 'apps/browser/Dockerfile', '.', buildArgs, runtime);
 }
 
 async function showImages(runtime) {

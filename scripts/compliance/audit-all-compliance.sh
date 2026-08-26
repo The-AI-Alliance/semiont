@@ -18,7 +18,7 @@ echo ""
 # EventBus/SSE architecture check (detects legacy callback patterns)
 echo "🔌 Checking EventBus/SSE architecture..."
 npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/packages/react-ui/src" || echo "⚠️  EventBus/SSE violations found in react-ui"
-npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/apps/frontend/src" || echo "⚠️  EventBus/SSE violations found in frontend"
+npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/apps/browser/src" || echo "⚠️  EventBus/SSE violations found in frontend"
 npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/packages/mcp-server/src" || echo "⚠️  EventBus/SSE violations found in mcp-server"
 echo ""
 
@@ -69,13 +69,13 @@ npm run audit:compliance:tests
 echo ""
 
 # Frontend source code
-echo "📦 Auditing apps/frontend source..."
-cd "$REPO_ROOT/apps/frontend"
+echo "📦 Auditing apps/browser source..."
+cd "$REPO_ROOT/apps/browser"
 npm run audit:compliance
 echo ""
 
 # Frontend tests
-echo "🧪 Auditing apps/frontend tests..."
+echo "🧪 Auditing apps/browser tests..."
 npm run audit:compliance:tests
 echo ""
 

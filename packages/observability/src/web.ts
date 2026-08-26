@@ -1,6 +1,6 @@
 /**
  * Web SDK initialization. Call once at the SPA bootstrap (e.g.
- * `apps/frontend/src/main.tsx`).
+ * `apps/browser/src/main.tsx`).
  *
  * Configuration for the browser doesn't read env vars; the SPA passes
  * config explicitly. CORS-allowed OTLP endpoints only — operators

@@ -118,7 +118,7 @@ automatically.
 The mock lives in the frontend's own dev server, not in the launcher:
 
 ```bash
-cd apps/frontend && npm run dev:mock
+cd apps/browser && npm run dev:mock
 ```
 
 ### Fresh start (reset the database)

@@ -49,11 +49,11 @@ static-file server with no backend config and no config mount — the SPA
 connects to knowledge bases from the *browser* at runtime (the multi-KB
 session model; see [HUMAN-UI.md](../HUMAN-UI.md)).
 
-**Documentation:** [apps/frontend/README.md](../../../apps/frontend/README.md)
+**Documentation:** [apps/browser/README.md](../../../apps/browser/README.md)
 
-**Source:** [apps/frontend/](../../../apps/frontend/)
+**Source:** [apps/browser/](../../../apps/browser/)
 
-**Dockerfile:** [apps/frontend/Dockerfile](../../../apps/frontend/Dockerfile)
+**Dockerfile:** [apps/browser/Dockerfile](../../../apps/browser/Dockerfile)
 
 **Workflow:** [.github/workflows/publish-frontend.yml](../../../.github/workflows/publish-frontend.yml)
 

@@ -128,10 +128,10 @@ updates:
       prefix: "actions"
       include: "scope"
 
-  # Frontend Docker base image (apps/frontend/Dockerfile) — docker is not
+  # Frontend Docker base image (apps/browser/Dockerfile) — docker is not
   # workspace-aware, so each Dockerfile keeps its own entry.
   - package-ecosystem: "docker"
-    directory: "/apps/frontend"
+    directory: "/apps/browser"
     schedule:
       interval: "weekly"
       day: "monday"

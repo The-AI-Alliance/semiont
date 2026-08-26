@@ -160,7 +160,7 @@ from the app's connection panel, exactly as in the other scenarios.
 
 ## Building Custom Images
 
-The image is built from [`apps/frontend/Dockerfile`](../Dockerfile) in the Semiont
+The image is built from [`apps/browser/Dockerfile`](../Dockerfile) in the Semiont
 repo. It installs the **published `@semiont/frontend` npm package** — it does not
 build from source — so the only build arguments are the package version and the
 npm registry. The image takes no site-specific configuration: the bundle is
@@ -172,7 +172,7 @@ in the app.
 docker build \
   --build-arg SEMIONT_FRONTEND_VERSION=0.5.12 \
   -t semiont-frontend:custom \
-  -f apps/frontend/Dockerfile .
+  -f apps/browser/Dockerfile .
 ```
 
 Official images are published (multi-arch, Trivy-scanned, SBOM + provenance
@@ -188,7 +188,7 @@ docker buildx build \
   --platform linux/amd64,linux/arm64 \
   --build-arg SEMIONT_FRONTEND_VERSION=0.5.12 \
   -t semiont-frontend:multiarch \
-  -f apps/frontend/Dockerfile .
+  -f apps/browser/Dockerfile .
 ```
 
 ## Environment Variable Reference

@@ -45,7 +45,7 @@ execute.
 ### Two development modes
 
 **Against a stack, iterating on this package** — start the stack, then run the
-Vite dev server from `apps/frontend` with `npm run dev` and point it at the
+Vite dev server from `apps/browser` with `npm run dev` and point it at the
 running backend on `:4000`. Fast HMR against real data; the stack's own frontend
 container keeps serving the built SPA on `:3000` independently.
 
@@ -91,7 +91,7 @@ semiont start
 ```bash
 semiont start
 # Then run the frontend from source against it:
-cd apps/frontend && npm run dev
+cd apps/browser && npm run dev
 # The stack's backend serves real data while Vite serves the SPA with HMR
 ```
 

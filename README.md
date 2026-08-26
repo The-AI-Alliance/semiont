@@ -100,7 +100,7 @@ Built on the SDK: **[@semiont/react-ui](packages/react-ui/README.md)** embeds th
 
 - **[Development docs](docs/development/README.md)** — codebase layout, build status badges, Codespaces shortcut, where to read next.
 - **[System architecture](docs/system/README.md)** — actor model, knowledge system, container topology, package architecture.
-- **[Frontend development](apps/frontend/docs/DEVELOPMENT.md)** — running the Browser from source against a stack.
+- **[Frontend development](apps/browser/docs/DEVELOPMENT.md)** — running the Browser from source against a stack.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — branch/PR workflow, commit conventions, platform-contribution playbook.
 
 ## 📜 License

@@ -3,7 +3,7 @@
 **Purpose**: Coordinate which resource or annotation has the user's attention. Hover, click, and navigation signals synchronize the document view, annotation panels, and visual effects so that humans and AI agents can direct focus to specific content.
 
 **Related Documentation**:
-- [Frontend Annotations](../../../apps/frontend/docs/ANNOTATIONS.md) - UI patterns and component architecture
+- [Frontend Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - UI patterns and component architecture
 - [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Document view and overlay rendering
 - [React UI Events](../../../packages/react-ui/docs/EVENTS.md) - Event bus architecture
 - [Keyboard Navigation](../../browser/KEYBOARD-NAV.md) - Keyboard-driven attention

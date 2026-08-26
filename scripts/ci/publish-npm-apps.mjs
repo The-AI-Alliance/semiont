@@ -130,7 +130,7 @@ function stageBackend(version) {
 function stageFrontend(version) {
   log('\n=== Staging @semiont/frontend ===\n');
 
-  const frontendDir = resolve(rootDir, 'apps/frontend');
+  const frontendDir = resolve(rootDir, 'apps/browser');
   const stageDir = resolve(STAGE_DIR, 'frontend');
 
   if (DRY_RUN) {
@@ -143,7 +143,7 @@ function stageFrontend(version) {
   // Verify built artifacts exist
   const distIndex = resolve(frontendDir, 'dist/index.html');
   if (!existsSync(distIndex)) {
-    throw new Error(`Frontend not built: ${distIndex} not found. Run 'npm run build' in apps/frontend first.`);
+    throw new Error(`Frontend not built: ${distIndex} not found. Run 'npm run build' in apps/browser first.`);
   }
 
   const serverJs = resolve(frontendDir, 'server.js');

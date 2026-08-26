@@ -6,7 +6,7 @@
 - [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Complete W3C specification implementation
 - [W3C Selectors](../W3C-SELECTORS.md) - TextPositionSelector and TextQuoteSelector details
 - [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) - Event store, view storage, graph database flow
-- [Frontend Annotations](../../../apps/frontend/docs/ANNOTATIONS.md) - UI patterns and component architecture
+- [Frontend Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - UI patterns and component architecture
 - [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Position accuracy and CRLF handling
 - [@semiont/make-meaning](../../../packages/make-meaning/README.md) - Detection API and job workers
 - [Make-Meaning Job Workers](../../../packages/make-meaning/docs/job-workers.md) - Worker implementation details
@@ -764,5 +764,5 @@ Detection has no dedicated REST endpoints. `mark.assist(...)` emits a `job:creat
 - [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Complete W3C implementation
 - [W3C Selectors](../W3C-SELECTORS.md) - Dual selector strategy
 - [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) - Event store architecture
-- [Frontend Annotations](../../../apps/frontend/docs/ANNOTATIONS.md) - UI patterns and components
+- [Frontend Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - UI patterns and components
 - [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - CRLF position handling

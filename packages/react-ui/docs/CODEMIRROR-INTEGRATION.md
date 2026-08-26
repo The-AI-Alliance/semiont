@@ -162,7 +162,7 @@ AnnotateView provides:
 
 ## Testing
 
-- `apps/frontend/src/components/__tests__/CodeMirrorRenderer.test.tsx` — CRLF position conversion, segment building
+- `apps/browser/src/components/__tests__/CodeMirrorRenderer.test.tsx` — CRLF position conversion, segment building
 - `packages/core/src/__tests__/anchor-annotation.test.ts` — render-time anchoring strategies and confidence (verbatim-only)
 - `packages/react-ui/src/lib/__tests__/text-segmentation.test.ts` — strategy/confidence threading, low-confidence class, once-per-annotation warning
 - `packages/react-ui/src/components/resource/__tests__/BrowseView.test.tsx` — event delegation integration

@@ -423,7 +423,7 @@ Response: 200 with updated resource
 3. UI uses PATCH for Archive button
 4. More RESTful for soft-delete semantics
 
-**Frontend implementation**: [apps/frontend/src/app/[locale]/know/resource/[id]/page.tsx:222-236](../../../apps/frontend/src/app/[locale]/know/resource/[id]/page.tsx#L222-L236)
+**Frontend implementation**: [apps/browser/src/app/[locale]/know/resource/[id]/page.tsx:222-236](../../../apps/browser/src/app/[locale]/know/resource/[id]/page.tsx#L222-L236)
 
 ```typescript
 const handleArchive = useCallback(async () => {

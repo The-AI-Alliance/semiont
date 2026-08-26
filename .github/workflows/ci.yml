@@ -31,7 +31,7 @@ jobs:
       - name: Run frontend type check
         run: |
           echo "Running frontend TypeScript type check..."
-          cd apps/frontend
+          cd apps/browser
           npm run typecheck
         env:
           CI: true
@@ -40,7 +40,7 @@ jobs:
       - name: Run frontend tests
         run: |
           echo "Running frontend unit tests..."
-          cd apps/frontend
+          cd apps/browser
           npm test
         env:
           CI: true
@@ -179,7 +179,7 @@ jobs:
         run: |
           echo "Running comprehensive test suite..."
           # Run tests for each package
-          cd apps/frontend && npm test && cd ../..
+          cd apps/browser && npm test && cd ../..
           cd apps/backend && npm test && npm run test:integration && cd ../..
 
           echo "All tests completed successfully"

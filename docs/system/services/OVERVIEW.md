@@ -8,7 +8,7 @@ Five services run Semiont code. Each is a published container image; see [Contai
 
 | Service | Port | What runs | Bundled package | Docs |
 |---|---|---|---|---|
-| **frontend** | 3000 | Static server for the Semiont Browser SPA | `semiont-frontend` | [README](../../../apps/frontend/README.md) |
+| **frontend** | 3000 | Static server for the Semiont Browser SPA | `semiont-frontend` | [README](../../../apps/browser/README.md) |
 | **backend** | 4000 | API server + unified bus gateway; Stower, Browser, Gatherer, Matcher | `semiont-backend` | [README](../../../apps/backend/README.md) |
 | **worker** | 9090 | Annotation/generation worker pool | `@semiont/jobs` | [API](../../../packages/jobs/docs/API.md) |
 | **smelter** | 9091 | Embedding/vector pipeline actor | `@semiont/make-meaning` | [Package](../../../packages/make-meaning/) |

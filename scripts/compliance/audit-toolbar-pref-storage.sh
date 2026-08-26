@@ -22,7 +22,7 @@ PATTERN="semiont-toolbar-click|semiont-toolbar-selection|semiont-toolbar-shape|l
 
 VIOLATIONS=$(grep -rEn "$PATTERN" \
   "$REPO_ROOT/packages/react-ui/src" \
-  "$REPO_ROOT/apps/frontend/src" \
+  "$REPO_ROOT/apps/browser/src" \
   --include='*.ts' --include='*.tsx' 2>/dev/null \
   | grep -v "hooks/useToolbarPrefs.ts" \
   | grep -v "lib/media-shapes.ts" \

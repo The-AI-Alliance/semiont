@@ -28,7 +28,7 @@ So the "full rebuild" flow depends on what changed:
 | Change in | Rebuild | Restart |
 |---|---|---|
 | `packages/react-ui`, `packages/http-transport`, `packages/core` | `local-build.sh` | frontend |
-| `apps/frontend` only | `local-build.sh` | frontend |
+| `apps/browser` only | `local-build.sh` | frontend |
 | `packages/make-meaning`, `packages/event-sourcing`, etc. — anything the backend imports | `local-build.sh` (rebuilds the `:local` images) | the stack: `SEMIONT_VERSION=local semiont start` |
 | `apps/backend` | `local-build.sh` | the stack: `SEMIONT_VERSION=local semiont start` |
 

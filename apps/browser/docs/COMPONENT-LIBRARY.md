@@ -14,7 +14,7 @@ composes the library.
 
 ```
 ┌─────────────────────────────────────┐
-│         apps/frontend               │
+│         apps/browser               │
 │    (Vite + React Router v7)         │
 │                                     │
 │  • Routing & pages                  │
@@ -62,7 +62,7 @@ composes the library.
 - `createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBindStateUnit`, `createBeckonStateUnit`, `createShellStateUnit`
 - Resource-page composition: `createResourceViewerPageStateUnit`
 
-### What Stays in `apps/frontend`
+### What Stays in `apps/browser`
 
 #### Routing and app shell
 - Vite + React Router v7 routes
@@ -89,7 +89,7 @@ wrapper layer to maintain.
 ### The Provider Stack
 
 Global providers are mounted once at the app root
-(`apps/frontend/src/app/providers.tsx`). The `SemiontBrowser` singleton
+(`apps/browser/src/app/providers.tsx`). The `SemiontBrowser` singleton
 behind `SemiontProvider` carries all session state, so there is **no**
 per-layout auth/client provider:
 
@@ -180,7 +180,7 @@ override component-internal styling.
 1. **Framework independence** — `@semiont/react-ui` works with any React framework (Vite, Next.js, etc.). Nothing in the library imports framework-specific modules.
 2. **Consistent design system** — shared components and tokens across apps.
 3. **Testing split** — components + flow VMs tested in isolation in react-ui; app tests focus on composition.
-4. **Clear dependency direction** — `apps/frontend` depends on `@semiont/react-ui`, never the reverse.
+4. **Clear dependency direction** — `apps/browser` depends on `@semiont/react-ui`, never the reverse.
 5. **Observable-first** — dynamic state is modeled as RxJS Observables end-to-end, so consumers can compose and transform without framework coupling.
 
 ## Development Workflow
@@ -194,7 +194,7 @@ When developing features that span both packages:
 cd packages/react-ui && npm run dev
 
 # Run frontend
-cd apps/frontend && npm run dev
+cd apps/browser && npm run dev
 ```
 
 ### Adding components
@@ -202,7 +202,7 @@ cd apps/frontend && npm run dev
 Decide where the component lives:
 
 - **Framework-agnostic UI, reusable outside the frontend** → `@semiont/react-ui`.
-- **App-specific (routing, auth wiring, feature composition)** → `apps/frontend`.
+- **App-specific (routing, auth wiring, feature composition)** → `apps/browser`.
 
 For library components:
 
@@ -211,13 +211,13 @@ For library components:
 3. Add tests in `packages/react-ui/src/components/__tests__/`
 4. Add styles in `packages/react-ui/src/styles/`
 
-For frontend components: create in `apps/frontend/src/`, compose
+For frontend components: create in `apps/browser/src/`, compose
 library components as needed, use framework-specific APIs directly.
 
 ### Testing strategy
 
 - Unit tests for library components + hooks live in `packages/react-ui`.
-- Integration tests (provider stack, page-level behavior) live in `apps/frontend`.
+- Integration tests (provider stack, page-level behavior) live in `apps/browser`.
 - E2E tests live at the repo root.
 
 ## Platform-Agnostic Components

@@ -38,8 +38,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const CSS_ROOTS = ['packages/react-ui/src', 'apps/frontend/src'];
-const MARKUP_ROOTS = ['packages/react-ui/src', 'apps/frontend/src', 'apps/desktop/src'];
+const CSS_ROOTS = ['packages/react-ui/src', 'apps/browser/src'];
+const MARKUP_ROOTS = ['packages/react-ui/src', 'apps/browser/src', 'apps/desktop/src'];
 
 /** Classes whose consumer is outside this repo's markup, with the reason. */
 const ALLOWLIST = new Map([

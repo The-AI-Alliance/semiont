@@ -15,7 +15,7 @@ echo ""
 
 # Find all files using event bus
 echo "Finding files using event bus..."
-EVENT_BUS_FILES=$(find apps/frontend/src packages/react-ui/src -name "*.tsx" -o -name "*.ts" | \
+EVENT_BUS_FILES=$(find apps/browser/src packages/react-ui/src -name "*.tsx" -o -name "*.ts" | \
   xargs grep -l "eventBus\.on\|useEventBus()\|useNavigationEvents()\|useMakeMeaningEvents()\|useGlobalSettingsEvents()" 2>/dev/null | \
   grep -v __tests__ | \
   grep -v node_modules | \

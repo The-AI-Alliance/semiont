@@ -17,14 +17,14 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 violations=0
 
 if grep -rn "useResourceGather" \
-    "$REPO_ROOT/packages/react-ui/src" "$REPO_ROOT/apps/frontend/src" \
+    "$REPO_ROOT/packages/react-ui/src" "$REPO_ROOT/apps/browser/src" \
     --include='*.ts' --include='*.tsx' 2>/dev/null; then
   echo "❌ useResourceGather reappeared (deleted in FLOW-LIFECYCLE-CONVERGENCE P3)"
   violations=1
 fi
 
 if grep -rn "useState<GatheredContext" \
-    "$REPO_ROOT/packages/react-ui/src" "$REPO_ROOT/apps/frontend/src" \
+    "$REPO_ROOT/packages/react-ui/src" "$REPO_ROOT/apps/browser/src" \
     --include='*.ts' --include='*.tsx' 2>/dev/null; then
   echo "❌ a component holds GatheredContext in useState — gather state lives in the SDK's units"
   violations=1

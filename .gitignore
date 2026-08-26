@@ -20,7 +20,7 @@ pnpm-debug.log*
 packages/*/dist/
 dist/
 build/
-apps/frontend/public
+apps/browser/public
 
 # Testing
 coverage/
@@ -105,3 +105,6 @@ FRONTEND-COMPLIANCE.md
 # NOT a source artifact: the images vendor it at build time (OCR is core and
 # must never CDN-fetch in production; SMELTER-MEDIA-TYPES decision 8).
 *.traineddata
+
+# Backups written beside .env.local by tooling
+.env*.backup*

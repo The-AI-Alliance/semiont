@@ -106,7 +106,7 @@ The library is framework-independent, accepting framework-specific implementatio
 
 The browser supports multiple languages through a hybrid approach:
 
-- **Browser-specific translations**: `apps/frontend/messages-source/*.json` (source of truth)
+- **Browser-specific translations**: `apps/browser/messages-source/*.json` (source of truth)
 - **Component translations**: `packages/react-ui/translations/*.json` (source of truth)
 - **Generated output**: `scripts/merge-translations.js` merges both into `messages/` and `public/messages/` before every build/test/dev run
 - **Dynamic loading**: Non-English locales are loaded on-demand via `i18next-http-backend`
@@ -209,7 +209,7 @@ Some operations run asynchronously via background job workers:
 
 ## Common Commands
 
-From `apps/frontend/`:
+From `apps/browser/`:
 
 ```bash
 # Development

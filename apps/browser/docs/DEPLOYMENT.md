@@ -9,7 +9,7 @@ How the Semiont frontend is shipped and run.
 ## What ships
 
 `ghcr.io/the-ai-alliance/semiont-frontend`, built by CI from
-[apps/frontend/Dockerfile](../Dockerfile) and tagged per release plus `latest`. The container serves
+[apps/browser/Dockerfile](../Dockerfile) and tagged per release plus `latest`. The container serves
 on **port 3000** and its entrypoint is a plain `node node_modules/@semiont/frontend/server.js` — no
 CLI involved.
 

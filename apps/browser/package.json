@@ -1,5 +1,5 @@
 {
-  "name": "semiont-frontend",
+  "name": "semiont-browser",
   "version": "0.5.29",
   "engines": {
     "node": ">=24.0.0"
@@ -90,7 +90,7 @@
   },
   "msw": {
     "workerDirectory": [
-      "apps/frontend/public"
+      "apps/browser/public"
     ]
   }
 }

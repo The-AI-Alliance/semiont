@@ -107,7 +107,7 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           echo "::group::Frontend Compliance Audit"
-          cd apps/frontend
+          cd apps/browser
           ./scripts/generate-compliance-report.sh
           echo "::endgroup::"
 

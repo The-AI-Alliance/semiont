@@ -21,7 +21,7 @@ cd packages/react-ui
 
 ### Frontend Application
 ```bash
-cd apps/frontend
+cd apps/browser
 ./scripts/generate-compliance-report.sh
 # Outputs: FRONTEND-COMPLIANCE.md
 ```
@@ -39,7 +39,7 @@ scripts/compliance/          # Shared core scripts (workspace-agnostic)
 packages/react-ui/scripts/   # React-UI thin wrapper
 └── generate-compliance-report.sh
 
-apps/frontend/scripts/       # Frontend thin wrapper
+apps/browser/scripts/       # Frontend thin wrapper
 └── generate-compliance-report.sh
 ```
 
@@ -253,7 +253,7 @@ jobs:
       # Audit Frontend
       - name: Frontend Compliance
         run: |
-          cd apps/frontend
+          cd apps/browser
           ./scripts/generate-compliance-report.sh
           if grep -q "Failing (❌): [1-9]" ../../FRONTEND-COMPLIANCE.md; then
             echo "::error::Frontend compliance violations detected"
