@@ -54,7 +54,7 @@ const startUsage = `Usage: semiont start [options]
 
 Start a local Semiont stack — graph (Neo4j), vectors (Qdrant), inference
 (Ollama), database (PostgreSQL), the Semiont backend, worker, smelter, weaver, and
-the frontend (http://localhost:3000) — all in containers.
+the Browser (http://localhost:3000) — all in containers.
 
 Options:
   --config <name>       Semiontconfig to use (default: this KB's recorded
@@ -746,15 +746,15 @@ func sidecarArgs(svc, mem string, port int, stage, addr, secret, version string,
 	return append(a, image(svc, version))
 }
 
-// frontendArgs: the browser publishes on the chosen host port (default
+// browserArgs: the Browser publishes on the chosen host port (default
 // 3000; the SPA server always listens on 3000 inside). The ONLY port a flag
 // may move — it's absent from the config and nothing in the stack dials it.
-func frontendArgs(version string, port int) []string {
+func browserArgs(version string, port int) []string {
 	a := []string{"run", "-d", "--name", "semiont-frontend", // no --rm: see providedRunArgs
 		"--memory", "1G", "--publish", fmt.Sprintf("%d:3000", port)}
 	// The Browser's KB-discovery view (BROWSER-KB-DISCOVERY.md lane 1): a
 	// read-only DIRECTORY mount (Apple container cannot single-file mount).
-	// Inert until the frontend image serves /discovery — a dormant feature
+	// Inert until the Browser image serves /discovery — a dormant feature
 	// whose activation record is the plan.
 	if dir := stateDir(); dir != "" {
 		a = append(a, "-v", filepath.Join(dir, "discovery")+":/discovery:ro")
@@ -762,7 +762,7 @@ func frontendArgs(version string, port int) []string {
 	return append(a, image("frontend", version))
 }
 
-// browserPort: the frontend's host port — --port, else 3000.
+// browserPort: the Browser's host port — --port, else 3000.
 func browserPort(opts startOptions) int {
 	if opts.port != 0 {
 		return opts.port

@@ -3044,7 +3044,7 @@ func TestMultiStackCodespaces(t *testing.T) {
 	mustContain(t, "stack.json", string(b), "codespace:"+csRepo)
 }
 
-func TestFrontendPort(t *testing.T) {
+func TestBrowserPort(t *testing.T) {
 	// --port moves the browser (the one flag-movable port): publish
 	// <p>:3000, warn about frontendURL-configured backends, record the
 	// moved endpoint so status and stop follow it.
@@ -4360,7 +4360,7 @@ func TestStartServiceGraph(t *testing.T) {
 	}
 }
 
-func TestStartServiceFrontendNoClone(t *testing.T) {
+func TestStartServiceBrowserNoClone(t *testing.T) {
 	// "Just the browser": --service targets that never touch the repo run
 	// without a KB clone (the main README's no-clone use case).
 	s := newScenario(t, "container")
@@ -5224,7 +5224,7 @@ func TestStatusBilling(t *testing.T) {
 func TestDiscoveryFileTracksStacks(t *testing.T) {
 	// BROWSER-KB-DISCOVERY lane 1: the export view rides every stack
 	// mutation — local start, codespace start, delete — and is endpoints
-	// only, never a secret. The frontend mounts its directory read-only.
+	// only, never a secret. The Browser mounts its directory read-only.
 	s := newCodespaceScenario(t)
 	disc := func() string {
 		b, _ := os.ReadFile(filepath.Join(s.home, ".local", "state", "semiont", "discovery", "kbs.json"))
@@ -5238,8 +5238,8 @@ func TestDiscoveryFileTracksStacks(t *testing.T) {
 		`"host": "localhost"`, `"port": 4000`, `"placement": "local"`,
 		`"did": "did:web:example.github.io:test-kb"`, `"siteName": "Test Knowledge Base"`,
 		`"managedBy": "semiont-launcher"`)
-	// The frontend mounts the directory, read-only.
-	mustContain(t, "frontend mount", s.argv(t), "-v <home>/.local/state/semiont/discovery:/discovery:ro")
+	// The Browser mounts the directory, read-only.
+	mustContain(t, "browser mount", s.argv(t), "-v <home>/.local/state/semiont/discovery:/discovery:ro")
 
 	// Codespace start adds its forward (local holds 4000 → allocated 4001).
 	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {

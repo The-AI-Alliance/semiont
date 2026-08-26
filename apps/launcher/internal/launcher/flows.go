@@ -28,7 +28,7 @@ var depRoleTitles = map[string]string{
 
 // flowFullStart is THE full-start sequence: preflight → ports → staging →
 // pulls → traces → graph → vectors → inference → embedding → database →
-// backend → sidecars → frontend.
+// backend → sidecars → Browser.
 //
 // embedding follows inference deliberately: an ollama-typed embedding is
 // served BY the Ollama inference just brought up, so probing it any earlier
@@ -187,13 +187,13 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 			// #1064; the same reason stop.go always rm's).
 			x.stopRm("semiont-frontend")
 			x.settle(port)
-			if !x.portCheck(portNeed{port, "Frontend"}) {
+			if !x.portCheck(portNeed{port, "Browser"}) {
 				return 1
 			}
 			if version != "local" && !x.pull(desired) {
 				return 1
 			}
-			args := frontendArgs(version, port)
+			args := browserArgs(version, port)
 			id, ok := x.runDetached(args)
 			if !ok {
 				x.say(sayFail, "Browser failed to start.")
@@ -649,7 +649,7 @@ func servicePortNeeds(svc string, plan *launchPlan, opts startOptions) []portNee
 	ports := roles[svc].ports
 	switch {
 	case svc == "frontend" && opts.port != 0:
-		ports = []portNeed{{opts.port, "Frontend"}}
+		ports = []portNeed{{opts.port, "Browser"}}
 	case svc == "backend" && plan != nil:
 		ports = []portNeed{{plan.BackendPort, "Backend"}}
 	case plan != nil:

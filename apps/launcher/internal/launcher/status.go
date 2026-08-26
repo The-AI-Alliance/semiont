@@ -247,7 +247,7 @@ func Status(args []string) int {
 // Endpoint is an ORIGIN and never a path. That line is the whole of
 // BROWSER-HANDOFF D6/O1: the launcher publishes the container's host port and
 // records the endpoint, so `http://localhost:3000` is its own fact —
-// `/know/resource/<id>` is the frontend's, and mirroring it here would drift
+// `/know/resource/<id>` is the Browser's, and mirroring it here would drift
 // silently the day the route moves. If you find yourself adding a route to a
 // Go file, that decision was reopened without saying so.
 type browserProbe struct {
