@@ -3758,38 +3758,6 @@ func TestStopTwiceIsHonest(t *testing.T) {
 	}
 }
 
-func TestStopSchema1Compat(t *testing.T) {
-	// A schema-1 stack.json (hostReuse flag, no provided field) still steers
-	// stop: host-reused inference is skipped, launcher containers stop by ID.
-	s := newScenario(t, "container", "docker")
-	v1 := `{"schema":1,"runtime":"container","services":{
-	  "backend":{"container":"semiont-backend","id":"fid-semiont-backend","startedAt":"2026-07-18T00:00:00Z"},
-	  "inference":{"container":"semiont-ollama","hostReuse":true,"startedAt":"2026-07-18T00:00:00Z"}}}`
-	p := statePathFor(s.home)
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(p, []byte(v1), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	stdout, _, code := s.run(t, "stop")
-	if code != 0 {
-		t.Fatalf("stop: exit %d\n%s", code, stdout)
-	}
-	argv := s.argv(t)
-	mustContain(t, "argv", argv, "container stop fid-semiont-backend")
-	// hostReuse steers the RECORDED runtime's targeted teardown: the host
-	// process is never stopped there. The stray name-sweep under docker
-	// legitimately includes semiont-ollama — a stray container there is not
-	// the host process — but must never use the record's runtime-specific IDs.
-	if strings.Contains(argv, "container stop semiont-ollama") {
-		t.Errorf("schema-1 hostReuse not honored:\n%s", argv)
-	}
-	if strings.Contains(argv, "docker stop fid-") {
-		t.Errorf("stray sweep used the recorded runtime's IDs:\n%s", argv)
-	}
-}
-
 // writeStackState plants a schema-2 stack.json for the scenario.
 func writeStackState(t *testing.T, s *scenario, runtime string) {
 	t.Helper()

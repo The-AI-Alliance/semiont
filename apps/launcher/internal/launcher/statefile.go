@@ -49,9 +49,8 @@ type serviceState struct {
 	// secrets). Availability means "as of that start" — status refreshes it
 	// live only when the key happens to be in its environment.
 	RemoteModels map[string]remoteModelMeta `json:"remoteModels,omitempty"`
-	Endpoint     string                     `json:"endpoint,omitempty"`  // health probe: http(s) URL or tcp:<host>:<port>
-	Runtime      string                     `json:"runtime,omitempty"`   // browser record only: the runtime that runs it (stack services get theirs from the stack)
-	HostReuse    bool                       `json:"hostReuse,omitempty"` // schema 1 (read-compat only; no longer written)
+	Endpoint     string                     `json:"endpoint,omitempty"` // health probe: http(s) URL or tcp:<host>:<port>
+	Runtime      string                     `json:"runtime,omitempty"`  // browser record only: the runtime that runs it (stack services get theirs from the stack)
 	StartedAt    time.Time                  `json:"startedAt"`
 }
 
@@ -124,8 +123,8 @@ func stackKey(st *stackState) string {
 }
 
 // loadStackSet returns every recorded stack (never nil; empty when no file).
-// Schema 1/2 single-stack files migrate in memory — the next save writes
-// schema 3.
+// Schema 2 single-stack files migrate in memory — the next save writes
+// schema 3. Schema 1 is no longer read (see below).
 func loadStackSet() *stackSet {
 	ss := &stackSet{Schema: 3, Stacks: map[string]*stackState{}}
 	p := statePath()
@@ -151,21 +150,20 @@ func loadStackSet() *stackSet {
 		}
 		return ss
 	}
-	// Legacy single-stack file (schema 1/2).
+	// Legacy single-stack file (schema 2).
+	//
+	// Schema 1 is NOT read. It predates `provided`, marking host reuse with a
+	// `hostReuse` bool that no longer exists on the struct, so a schema-1
+	// record would load with every service unclassified — and an unclassified
+	// entry is worse than no record at all: teardown would treat a host
+	// process as launcher-owned. No record falls back to the name sweep, which
+	// is correct for a machine this old.
+	if probe.Schema < 2 {
+		return ss
+	}
 	var st stackState
 	if json.Unmarshal(b, &st) != nil || st.Services == nil {
 		return ss
-	}
-	if probe.Schema < 2 { // schema 1: hostReuse was the only non-launcher marker
-		for role, e := range st.Services {
-			if e.Provided == "" {
-				e.Provided = providedLauncher
-				if e.HostReuse {
-					e.Provided = providedHost
-				}
-				st.Services[role] = e
-			}
-		}
 	}
 	ss.Stacks[stackKey(&st)] = &st
 	return ss
