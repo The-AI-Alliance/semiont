@@ -123,7 +123,20 @@ settleTimeoutMs = 45000
     expect((config._metadata as any)?.gather).toEqual({ settleTimeoutMs: 45_000 });
   });
 
-  it('maps browser section to EnvironmentConfig.services.browser', () => {
+  // FRONTEND-IS-THE-BROWSER P5 (D5): `[browser]` left the config model. The
+  // Browser is machine-level — one Browser serves many KBs — so a KB has no
+  // knowledge of, and no effect on, its port or publicURL. The launcher never
+  // mounts a KB's config into the Browser container, which made the loader's
+  // `port ?? 3000` a lie by omission: `port = 3100` got no error and no effect.
+  //
+  // Both spellings stay INERT rather than refused. The fleet's committed
+  // configs carry them, and a section that configures nothing cannot be
+  // misconfigured — so there is nothing left to map forward or reject.
+  //
+  // Asserted over the emitted keys, not the type: `ServicesConfig` carries an
+  // open `[k: string]: unknown`, so `config.services.browser` keeps compiling
+  // after the member is deleted. Only a runtime check can see the difference.
+  it('loads a config carrying [browser] and emits no browser service', () => {
     const toml = `${MINIMAL_TOML}
 [environments.local.browser]
 platform = "container"
@@ -131,15 +144,10 @@ port = 3000
 `;
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
 
-    expect((config.services as any)?.browser?.port).toBe(3000);
+    expect(Object.keys(config.services)).not.toContain('browser');
   });
 
-  it('accepts a legacy [frontend] section and maps it to browser', () => {
-    // FRONTEND-IS-THE-BROWSER: `[frontend]` was renamed to `[browser]`, and the
-    // loader ACCEPTS the old spelling on purpose (user, 2026-08-26) so the KB
-    // fleet's committed configs keep working. Docs teach `[browser]` only.
-    // Merely ignoring the old section would be the bad outcome: the emit is
-    // guarded, so the Browser would come up unconfigured on defaults silently.
+  it('loads a config carrying the older [frontend] spelling just as inertly', () => {
     const toml = `${MINIMAL_TOML}
 [environments.local.frontend]
 platform = "container"
@@ -147,23 +155,8 @@ port = 3000
 `;
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
 
-    expect((config.services as any)?.browser?.port).toBe(3000);
-  });
-
-  it('prefers [browser] over a leftover [frontend] when both are present', () => {
-    // A migrated config is authoritative over a stale section beside it.
-    const toml = `${MINIMAL_TOML}
-[environments.local.frontend]
-platform = "container"
-port = 3999
-
-[environments.local.browser]
-platform = "container"
-port = 3000
-`;
-    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
-
-    expect((config.services as any)?.browser?.port).toBe(3000);
+    expect(Object.keys(config.services)).not.toContain('browser');
+    expect(Object.keys(config.services)).not.toContain('frontend');
   });
 
   it('always sets _metadata.search.semanticFloor, defaulting to 0.6 when absent', () => {

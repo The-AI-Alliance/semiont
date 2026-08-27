@@ -137,11 +137,6 @@ interface EnvironmentSection {
     publicURL?: string;
     frontendURL?: string;
   };
-  browser?: {
-    platform?: string;
-    port?: number;
-    publicURL?: string;
-  };
   site?: {
     domain?: string;
     siteName?: string;
@@ -460,24 +455,6 @@ export function loadTomlConfig(
     topLevelActors['matcher'] = { inference: { type: makeMeaningSection.actors.matcher.inference.type, model: makeMeaningSection.actors.matcher.inference.model } };
   }
 
-  // `[frontend]` was renamed to `[browser]`. This ACCEPTS the old spelling and
-  // maps it forward — a deliberate, temporary exception to the house rule
-  // against compatibility layers (user, 2026-08-26): the KB fleet's committed
-  // configs still say `[frontend]`, and refusing here would break every one of
-  // them at once for a rename that is otherwise invisible to them.
-  //
-  // Accepting is safe only because it is EXPLICIT. The emit below is guarded by
-  // `if (browser)`, so merely ignoring a stale section would bring the Browser
-  // up unconfigured on defaults with nothing said — which is the failure this
-  // mapping exists to prevent, not a reason to refuse.
-  //
-  // `[browser]` wins if both are present: a config that has been migrated is
-  // authoritative over a leftover section beside it. Docs say `[browser]` only.
-  const legacyFrontend = (resolved as Record<string, unknown>)['frontend'] as
-    | EnvironmentSection['browser']
-    | undefined;
-  const browser = resolved.browser ?? legacyFrontend;
-
   // Semantic search is always available, so a config must NAME both a vector
   // store and an embedding provider — nothing is defaulted, and absence
   // refuses the load with a config-actionable message (MANDATORY-EMBEDDING
@@ -523,14 +500,10 @@ export function loadTomlConfig(
     };
   }
 
-  if (browser) {
-    services.browser = {
-      platform: { type: requirePlatform(browser.platform, 'browser') },
-      port: browser.port ?? 3000,
-      siteName: site?.siteName ?? 'Semiont',
-      publicURL: browser.publicURL,
-    };
-  }
+  // No browser service is emitted. The Browser is machine-level — one Browser
+  // serves many KBs — so a KB neither knows nor affects its port or publicURL
+  // (FRONTEND-IS-THE-BROWSER D5). `[browser]` and the older `[frontend]` are
+  // inert unknown sections: tolerated, never read, never refused.
 
   if (resolved.graph) {
     services.graph = {
