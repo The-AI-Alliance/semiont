@@ -208,10 +208,18 @@ func exportRemote(u *ui, repo, output string, force, withGit bool) int {
 	cmd.Stdout = f
 	cmd.Stderr = os.Stderr
 	runErr := cmd.Run()
-	f.Close()
-	if runErr != nil {
+	// Checked for the same reason the local writer's closes are: this handle
+	// received the remote tar stream, so a failed flush means a truncated
+	// archive. A ✓ over a corrupt backup is the failure this verb exists to
+	// avoid. The ssh error wins if both fail — it explains more.
+	closeErr := f.Close()
+	if runErr != nil || closeErr != nil {
 		os.Remove(output)
-		u.fail("export over ssh failed: %v", runErr)
+		if runErr != nil {
+			u.fail("export over ssh failed: %v", runErr)
+		} else {
+			u.fail("could not finish writing %s: %v", output, closeErr)
+		}
 		return 1
 	}
 	fi, _ := os.Stat(output)
@@ -228,16 +236,27 @@ func exportRemote(u *ui, repo, output string, force, withGit bool) int {
 //
 // Entries are SORTED, so the same tree produces the same archive — a property
 // worth having for something people diff, checksum and store.
-func writeArchive(root, out string, id *kbIdentity, withGit bool) (int, int64, error) {
+func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, total int64, err error) {
 	f, err := os.Create(out)
 	if err != nil {
 		return 0, 0, err
 	}
-	defer f.Close()
 	gz := gzip.NewWriter(f)
-	defer gz.Close()
 	tw := tar.NewWriter(gz)
-	defer tw.Close()
+	// Every Close here WRITES: the tar footer, then the gzip trailer, then the
+	// file's own flush. Dropping those errors — as a bare `defer x.Close()`
+	// does — means a full disk produces a ✓ and a corrupt archive, discovered
+	// by whoever needed the backup. LIFO order is required and is what defer
+	// gives; the first failure wins unless the body already failed.
+	// (Copilot flagged the same class on the import side; this is where it
+	// mattered more.)
+	defer func() {
+		for _, c := range []io.Closer{tw, gz, f} {
+			if cerr := c.Close(); cerr != nil && err == nil {
+				err = cerr
+			}
+		}
+	}()
 
 	var paths []string
 	err = filepath.Walk(root, func(p string, fi os.FileInfo, err error) error {
@@ -280,8 +299,6 @@ func writeArchive(root, out string, id *kbIdentity, withGit bool) (int, int64, e
 	}
 	sort.Strings(paths)
 
-	var total int64
-	count := 0
 	for _, rel := range paths {
 		abs := filepath.Join(root, rel)
 		fi, lerr := os.Lstat(abs)

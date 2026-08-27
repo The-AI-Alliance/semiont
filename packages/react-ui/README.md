@@ -220,7 +220,7 @@ See [docs/SESSION.md](docs/SESSION.md) for details.
 
 ### Page state machines
 
-`@semiont/react-ui` houses the framework-neutral state machinery for the Semiont web frontend's specific pages and shell. These are RxJS-based factories (no React inside; pure observables and async functions) but they're shaped around the web frontend's page taxonomy, so they belong with the components that render them rather than in `@semiont/sdk`:
+`@semiont/react-ui` houses the framework-neutral state machinery for the Semiont Browser's specific pages and shell. These are RxJS-based factories (no React inside; pure observables and async functions) but they're shaped around the Browser's page taxonomy, so they belong with the components that render them rather than in `@semiont/sdk`:
 
 - **Shell** — `createShellStateUnit` (toolbar panel state with `'knowledge-base' | 'common' | 'resource'` taxonomy), `createSessionStateUnit` (session-scoped logout)
 - **Pages** — `createComposePageStateUnit`, `createResourceViewerPageStateUnit`, `createResourceLoaderStateUnit`

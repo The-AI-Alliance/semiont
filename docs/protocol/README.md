@@ -97,5 +97,5 @@ For product framing and getting a knowledge base running, see the **[project REA
 - **[TRANSPORT-CONTRACT.md](TRANSPORT-CONTRACT.md)** — abstract `ITransport` guarantees every transport must honor
 - **[TRANSPORT-HTTP.md](TRANSPORT-HTTP.md)** — HTTP+SSE wire format
 - **[RBAC.md](RBAC.md)** — roles and permissions
-- **[EXCHANGE.md](EXCHANGE.md)** — import/export and interchange
+- **[EXCHANGE.md](EXCHANGE.md)** — the retired Linked Data interchange format (backup and restore are launcher verbs; see [BACKUP.md](../system/administration/BACKUP.md))
 - **[W3C-WEB-ANNOTATION.md](W3C-WEB-ANNOTATION.md)** + **[W3C-SELECTORS.md](W3C-SELECTORS.md)** — standards compliance

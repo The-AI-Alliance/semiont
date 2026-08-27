@@ -9,7 +9,7 @@
  *
  *   ITransport          — bus primitives + lifecycle. Universal: every
  *                         concrete transport implements this.
- *   IBackendOperations  — auth, admin, exchange, system endpoints.
+ *   IBackendOperations  — auth, admin, and system endpoints.
  *                         HTTP-shaped today; an in-process transport may
  *                         implement none, some, or a different set.
  *                         Optional on `SemiontClient` — passed only when
@@ -197,7 +197,7 @@ export interface ITransport {
 // ── IBackendOperations ──────────────────────────────────────────────────
 
 /**
- * Auth, admin, exchange, and system endpoints. HTTP-shaped today —
+ * Auth, admin, and system endpoints. HTTP-shaped today —
  * `HttpTransport` implements both this and `ITransport`; the
  * `SemiontClient` constructor takes a `IBackendOperations` argument
  * separately from the bus transport so non-HTTP transports

@@ -232,11 +232,17 @@ func extractArchive(archive, root string) (int, error) {
 			if err != nil {
 				return 0, err
 			}
-			if _, err := io.Copy(out, tr); err != nil {
-				out.Close()
-				return 0, err
+			if _, cerr := io.Copy(out, tr); cerr != nil {
+				_ = out.Close() // already failing; the copy error is the useful one
+				return 0, cerr
 			}
-			out.Close()
+			// Checked, not dropped: Close FLUSHES, so a failure here means the
+			// restored file is TRUNCATED. Reporting success would hand back a
+			// KB with a short event log and no indication — the exact failure
+			// a restore exists to prevent. (Copilot.)
+			if cerr := out.Close(); cerr != nil {
+				return 0, fmt.Errorf("writing %s: %w", h.Name, cerr)
+			}
 		default:
 			continue // devices, fifos and sockets are not KB content
 		}

@@ -1,122 +1,88 @@
 # Backup and Restore
 
-This guide covers how to create full backups of a Semiont knowledge base and restore them. Backups are lossless — they capture the complete event history and all content, allowing exact reconstruction of the knowledge base.
+Back up a Semiont knowledge base and restore it with the `semiont` launcher. Backups are
+lossless — the complete event history and all content — and neither direction needs a running
+stack, because both are file operations.
 
 **Related guides**: [Configuration](./CONFIGURATION.md) | [Deployment](./DEPLOYMENT.md) | [Maintenance](./MAINTENANCE.md)
 
-## Overview
+## There is no archive format
 
-Semiont also supports a separate [Linked Data exchange format](../../protocol/EXCHANGE.md) for standards-based data sharing. This document covers the **Full Backup** format used for disaster recovery and migration.
+The archive is the KB directory itself, as a plain `.tar.gz`. No manifest, no format version, no
+schema — nothing is transformed, so there is nothing to specify:
 
-## Availability
-
-**There is no backup or restore surface today.** The admin API routes, their SDK calls and the
-GUI page were removed in EXPORT-VIA-LAUNCHER P1–P2, and the TypeScript importer and exporter in
-P3. Backup becomes a `semiont` launcher operation reading the working tree directly; that verb is
-not built yet. The archive format below is the specification it implements.
-
-## Backup Archive Format
-
-A full backup is a gzip-compressed POSIX tar archive with the following structure:
-
-```
-semiont-backup-{timestamp}.tar.gz
-├── .semiont/
-│   ├── manifest.jsonl
-│   └── events/
-│       ├── __system__.jsonl
-│       ├── {resourceId}.jsonl
-│       └── ...
-├── {checksum}.md
-├── {checksum}.pdf
-└── ...
+```bash
+tar -xzf kb.tar.gz            # a working KB directory
+cat .semiont/events/*.jsonl   # the history, one JSON object per line
 ```
 
-### Manifest (`manifest.jsonl`)
+That is the design, not an omission (EXPORT-VIA-LAUNCHER D4). The content is already files at
+their natural paths and the event log is already JSONL; inventing a representation for data that
+has a good one on disk is what the retired exchange format did. tar.gz rather than a git bundle
+for the same reason — a format needing git would mean "your data is yours, if you have git", and
+tar is on every machine.
 
-The manifest is a JSONL file. The first line is the header; subsequent lines are per-stream summaries.
+A restore is `tar -xzf` plus registering the root. Any tool that reads tar can read your KB.
 
-**Header** (first line):
+## Backing up
 
-```json
-{
-  "format": "semiont-backup",
-  "version": 1,
-  "exportedAt": "2026-03-15T12:00:00.000Z",
-  "sourceUrl": "https://semiont.example.com",
-  "stats": {
-    "streams": 5,
-    "events": 142,
-    "blobs": 12,
-    "contentBytes": 45678
-  }
-}
+```bash
+semiont export
 ```
 
-**Stream summaries** (subsequent lines):
+Writes the KB's **durable** state: content files and the event log. Nothing derived — projections,
+jobs, anchored text and the databases all rebuild from the log, and they live outside the KB root
+anyway.
 
-```json
-{"stream": "__system__", "eventCount": 9}
-{"stream": "4feadd89-...", "eventCount": 12}
+| Option | Effect |
+|---|---|
+| `--root <path\|name>` | KB to export (default: the root containing the cwd) |
+| `--repo <owner/name>` | Export a codespace-hosted KB over ssh |
+| `-o, --output <file>` | Archive path (default: `<kb-name>.tar.gz`) |
+| `--with-git` | Include `.git` |
+| `--force` | Overwrite an existing archive |
+
+**On `--with-git`.** Off by default: the event log is the system of record and a restore without
+`.git` is complete. Turn it on when the archive needs to *attest* rather than merely restore — for
+a git-synced KB the commits are the log's tamper-evidence and `.git/config` records where the KB
+came from. Restorable and attestable are different properties, and only you know which this
+archive is for.
+
+**`.semiont/export.json`** is written into the archive as an advisory marker, so a file found on a
+drive years later can say what it is. Nothing reads it back for correctness — the moment a restore
+depended on it, it would be a format contract by the back door.
+
+## Restoring
+
+```bash
+semiont import <archive.tar.gz>
 ```
 
-Each stream summary records the stream's event count, so a reader can check the manifest against the actual stream contents.
+Untars the archive, checks the result is a KB, and registers the root. It replays nothing, so
+there is no import mode, no vocabulary gate to escape, and no progress phases — the restored files
+*are* the knowledge base.
 
-### Event Streams (`.semiont/events/`)
+Guards, all of which refuse rather than repair:
 
-Each file is a JSONL stream of `StoredEvent` objects. Events are stored in their original order.
+- **A non-empty root is refused.** Two event logs interleaved in one directory is the only
+  irreversible mistake available here.
+- **An archive with no `.semiont/` is named as not-a-KB**, rather than failing confusingly at the
+  next start.
+- **Entries with `..` or absolute paths are refused outright.** An archive from `semiont export`
+  cannot contain one, so its presence means the archive is corrupt or crafted.
 
-- `__system__.jsonl` — System-level events (e.g., `frame:entity-type-added`)
-- `{resourceId}.jsonl` — Per-resource events (e.g., `yield:created`, `mark:added`, `mark:body-updated`, `mark:archived`)
+## What is not backed up
 
-### Content Blobs (root level)
+PostgreSQL holds user accounts only. Backing it up is not backing up the knowledge base, and
+backing up the knowledge base does not preserve accounts. See [DATABASE.md](./DATABASE.md).
 
-Content-addressed files stored at the archive root: `{checksum}.{ext}` (e.g., `519d39ca.md`, `a1b2c3d4.pdf`). The checksum and media type are extracted from `yield:created` event payloads. The file extension is derived from the content's MIME type.
+## History
 
-## Integrity
+Backup and restore were once admin API routes with a GUI, and the archive was a bespoke format
+with a manifest, a format version and validators. The routes, the SDK calls and the page were
+removed in EXPORT-VIA-LAUNCHER P1–P2 and the TypeScript reader/writer in P3; the launcher verbs
+replaced them in P4–P5. The old format is gone and no archive of it exists — there were no users.
 
-Backup archives carry no per-event integrity metadata. During restore, the importer validates the manifest (presence, format, version) and warns about event streams that are listed in the manifest but missing from the archive; restore proceeds regardless. There is no offline archive-validation command — the manifest's per-stream event counts and blob count are the material for one, but nothing ships that reads them.
-
-Integrity of the live event log is provided by git at the commit level: when `gitSync` is enabled, every append stages the event log file, and once committed, git's object hashes make tampering evident. See [Storage Layout](../../../packages/event-sourcing/docs/STORAGE-LAYOUT.md) for details.
-
-## What Is Included
-
-- Complete event history (all streams, all events)
-- Content blobs (all content-addressed files)
-- System events (entity types, tag schemas)
-- Resource lifecycle (creation, archival, unarchival)
-- Annotation lifecycle (creation, body updates, deletion)
-- Entity tag assignments
-
-## What Is Excluded
-
-- **Materialized views** — Rebuilt automatically from events during restore
-- **Graph database** — Rebuilt from events by the Weaver after restore
-- **Job queue state** — Transient; jobs re-run as needed
-- **User database** — Managed separately in PostgreSQL
-- **Application configuration** — Stored in environment config files, not in the knowledge base
-
-## Restore Architecture
-
-Restore does not write directly to storage. Instead, it replays events through the same pipeline used during normal operation:
-
-```
-Archive → Importer → EventBus → Stower → EventStore + Views
-```
-
-This ensures all derived state (materialized views, search indices) rebuilds correctly. Events are replayed sequentially with backpressure — each command event waits for its result before the next is emitted. A 30-second timeout applies per event.
-
-The replay handles these event types:
-
-| Event | Replay Action |
-|-------|---------------|
-| `frame:entity-type-added` | `frame:add-entity-type` → await `frame:entity-type-added` |
-| `yield:created` | Resolve content blob, `yield:create` → await `yield:created` |
-| `mark:added` | `mark:create` → await `mark:created` |
-| `mark:body-updated` | `mark:update-body` → await `mark:body-updated` |
-| `mark:removed` | `mark:delete` → await `mark:deleted` |
-| `mark:archived` | `mark:archive` |
-| `mark:unarchived` | `mark:unarchive` |
-| `mark:entity-tag-added/removed` | `mark:update-entity-types` |
-| Job events | Skipped (transient) |
-| Representation events | Skipped (content stored via `yield:created`) |
+**Consequence worth knowing:** export requires access to the working tree, so it is a
+local-operator capability. A KB you reach only over the network cannot be exported by you through
+the app; `--repo` covers the codespace case over ssh.
