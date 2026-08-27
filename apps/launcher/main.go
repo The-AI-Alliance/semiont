@@ -40,6 +40,7 @@ Commands:
   stop      Stop the stack across all installed runtimes
   clean     Remove a root's persistent stack state (PostgreSQL/Qdrant/Neo4j)
   export    Write a KB's durable state to a .tar.gz (no stack needed)
+  import    Restore a KB from an export archive into a new root
   about     What Semiont is, project links, and detected runtimes
   version   Print the launcher version
 
@@ -97,6 +98,8 @@ func main() {
 		code = launcher.Clean(rest)
 	case "export":
 		code = launcher.Export(rest)
+	case "import":
+		code = launcher.Import(rest)
 	case "about":
 		code = launcher.About(rest)
 	case "version", "--version":
