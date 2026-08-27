@@ -18,7 +18,7 @@ Full per-platform notes live in [Local network access](../system/LOCAL-SEMIONT.m
 The published image is signed with [Cosign](https://docs.sigstore.dev/cosign/overview/) build-provenance and SBOM attestations. To verify before running:
 
 ```bash
-cosign verify ghcr.io/the-ai-alliance/semiont-frontend:latest \
+cosign verify ghcr.io/the-ai-alliance/semiont-browser:latest \
   --certificate-identity-regexp 'https://github.com/The-AI-Alliance/semiont/.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
@@ -52,4 +52,4 @@ The container-image flow at the top of this page is the fastest path. **[LOCAL.m
 - **[ACCESSIBILITY.md](ACCESSIBILITY.md)** — WCAG 2.1 Level AA capability claim, screen reader support, accessibility testing.
 - **[KEYBOARD-NAV.md](KEYBOARD-NAV.md)** — keyboard shortcuts and the navigation model.
 
-For frontend implementation details (architecture, component library, integration patterns) see **[apps/frontend/docs/](../../apps/frontend/docs/)** — that folder is contributor-facing.
+For Browser implementation details (architecture, component library, integration patterns) see **[apps/browser/docs/](../../apps/browser/docs/)** — that folder is contributor-facing.

@@ -6,7 +6,7 @@
 - [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Complete W3C specification implementation
 - [W3C Selectors](../W3C-SELECTORS.md) - TextPositionSelector and TextQuoteSelector details
 - [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) - Event store, view storage, graph database flow
-- [Frontend Annotations](../../../apps/frontend/docs/ANNOTATIONS.md) - UI patterns and component architecture
+- [Browser Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - UI patterns and component architecture
 - [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Position accuracy and CRLF handling
 - [@semiont/make-meaning](../../../packages/make-meaning/README.md) - Detection API and job workers
 - [Make-Meaning Job Workers](../../../packages/make-meaning/docs/job-workers.md) - Worker implementation details
@@ -21,7 +21,7 @@ Semiont creates W3C-compliant annotations through two complementary paths: **man
 1. **W3C Web Annotation Data Model** - Standards-compliant annotation structure with dual selectors
 2. **AI Inference** - LLM-powered text analysis with configurable prompts and user instructions
 3. **Backend Event Architecture** - Event Store → View Storage → Graph Database flow with <50ms latency
-4. **Frontend UI** - Real-time progress display with SSE streaming and visual feedback
+4. **Browser UI** - Real-time progress display with SSE streaming and visual feedback
 
 **Supported Formats**: Currently available for text-based formats (`text/plain`, `text/markdown`). Support for images and PDFs is planned for future releases
 
@@ -231,7 +231,7 @@ See [W3C-SELECTORS.md](../W3C-SELECTORS.md) for complete selector documentation.
 
 ### Fuzzy Anchoring Implementation
 
-Frontend uses fuzzy anchoring ([CODEMIRROR-INTEGRATION.md](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md)) to handle:
+Browser uses fuzzy anchoring ([CODEMIRROR-INTEGRATION.md](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md)) to handle:
 - Documents edited after annotation creation
 - Character position shifts from insertions/deletions
 - Line ending normalization (CRLF → LF)
@@ -436,7 +436,7 @@ return parsed.filter((h: any) =>
 2. LLM provides prefix/suffix context (32 chars each)
 3. Reference detection validates and corrects positions before creating annotations
 4. Fuzzy anchoring finds correct position even if LLM positions wrong
-5. Frontend validates and corrects positions during rendering
+5. Browser validates and corrects positions during rendering
 
 ---
 
@@ -447,7 +447,7 @@ return parsed.filter((h: any) =>
 ```
 User clicks ✨ button or selects entity types
     ↓
-Frontend → client.mark.assist(rId, motivation, options) emits job:create
+Browser → client.mark.assist(rId, motivation, options) emits job:create
           via /bus/emit with jobType derived from motivation
           (highlight-annotation | assessment-annotation | comment-annotation |
            tag-annotation | reference-annotation)
@@ -464,7 +464,7 @@ job:report-progress / job:complete / job:fail — via /bus/emit
 Worker also emits mark:create per annotation; Stower persists and
 EventStore publishes enriched mark:added events
     ↓
-Every connected frontend receives events on /bus/subscribe;
+Every connected Browser receives events on /bus/subscribe;
 BrowseNamespace invalidates caches; UI updates in real-time (<50ms)
 ```
 
@@ -525,7 +525,7 @@ Detection events flow through the bus gateway's single SSE connection,
 enabling real-time UI updates for every connected participant:
 
 **Progress Updates**: Workers emit `job:report-progress` on the
-EventBus. The frontend's `SemiontClient` subscribes to these events
+EventBus. The Browser's `SemiontClient` subscribes to these events
 via `/bus/subscribe` and filters by `jobId`; `mark.assist()` surfaces
 them through an Observable.
 
@@ -533,7 +533,7 @@ them through an Observable.
 1. Stower persists to the Event Store.
 2. The EventStore enrichment callback attaches the post-materialization
    annotation to the published event.
-3. Every connected frontend receives the enriched `mark:added` via the
+3. Every connected Browser receives the enriched `mark:added` via the
    bus subscription.
 4. BrowseNamespace updates its cached Observable in place — no HTTP
    refetch needed.
@@ -568,9 +568,9 @@ Neptune/In-Memory graph: (Document)-[:HAS_ANNOTATION]->(Annotation)
 
 **Job Failures**:
 - Worker logs detailed error to backend console
-- Generic error message sent to frontend ("Detection failed. Please try again later.")
+- Generic error message sent to Browser ("Detection failed. Please try again later.")
 - Job status preserved in queue for debugging
-- Frontend shows user-friendly error toast
+- Browser shows user-friendly error toast
 
 **Client Disconnection**:
 - Job continues running even if client disconnects
@@ -584,7 +584,7 @@ Neptune/In-Memory graph: (Document)-[:HAS_ANNOTATION]->(Annotation)
 
 ---
 
-## 4. Frontend Implementation
+## 4. Browser Implementation
 
 ### Detection UI Components
 
@@ -686,7 +686,7 @@ subscription.unsubscribe();
 
 After detection completes:
 
-1. Frontend refetches annotations from backend (Materialized Views)
+1. Browser refetches annotations from backend (Materialized Views)
 2. Annotations converted to TextSegments with positions
 3. CRLF → LF position conversion applied ([CODEMIRROR-INTEGRATION.md](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md))
 4. Visual feedback (sparkle animation for new annotations)
@@ -752,7 +752,7 @@ Detection has no dedicated REST endpoints. `mark.assist(...)` emits a `job:creat
 - [packages/make-meaning/src/handlers/job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts) - `job:create` / `job:claim` handlers
 - [apps/backend/src/routes/bus.ts](../../../apps/backend/src/routes/bus.ts) - Bus gateway (`/bus/emit`, `/bus/subscribe`)
 
-### Frontend
+### Browser
 
 - [packages/react-ui/src/components/resource/panels/AssistSection.tsx](../../../packages/react-ui/src/components/resource/panels/AssistSection.tsx) - Shared assist UI for highlights/assessments/comments (with tone selector)
 - [packages/react-ui/src/components/resource/panels/CommentsPanel.tsx](../../../packages/react-ui/src/components/resource/panels/CommentsPanel.tsx) - Comments panel with detection UI
@@ -764,5 +764,5 @@ Detection has no dedicated REST endpoints. `mark.assist(...)` emits a `job:creat
 - [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Complete W3C implementation
 - [W3C Selectors](../W3C-SELECTORS.md) - Dual selector strategy
 - [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) - Event store architecture
-- [Frontend Annotations](../../../apps/frontend/docs/ANNOTATIONS.md) - UI patterns and components
+- [Browser Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - UI patterns and components
 - [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - CRLF position handling

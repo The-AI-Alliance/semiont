@@ -3,7 +3,7 @@
 One standalone contract: the schema for `<stateDir>/discovery/kbs.json`,
 which the semiont launcher (Go, `apps/launcher`) regenerates on every stack
 mutation and consumers read from disk (Node) or fetch same-origin via the
-frontend's static server (browsers).
+Browser's static server (web browsers).
 
 ## Why this lives outside `components/schemas/`
 
@@ -34,7 +34,7 @@ language.
 
 ## Mount point (contract of record)
 
-The frontend container serves this document from the container-internal
+The Browser container serves this document from the container-internal
 directory **`/discovery`** — the launcher mounts `<stateDir>/discovery`
 there read-only, and the static server's production default reads from it.
 This path is part of the contract: it exists as a literal on both sides of a

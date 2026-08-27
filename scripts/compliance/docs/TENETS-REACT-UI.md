@@ -2,7 +2,7 @@
 
 **Scope**: This document defines the architecture patterns enforced in:
 - `packages/react-ui` - Shared React UI components and hooks
-- `apps/frontend` - Next.js frontend application
+- `apps/browser` - Next.js Browser application
 
 These rules are enforced via automated compliance auditing (see [../README.md](../README.md)).
 
@@ -240,13 +240,13 @@ These patterns are enforced via automated AST analysis:
 # React-UI
 cd packages/react-ui && ./scripts/generate-compliance-report.sh
 
-# Frontend
-cd apps/frontend && ./scripts/generate-compliance-report.sh
+# Browser
+cd apps/browser && ./scripts/generate-compliance-report.sh
 ```
 
 **Current Status** (as of 2026-02-17):
 - React-UI: 100% compliant (318 symbols, 0 violations, 0 warnings)
-- Frontend: 100% compliant (89 symbols, 0 violations)
+- Browser: 100% compliant (89 symbols, 0 violations)
 
 ---
 
@@ -267,7 +267,7 @@ cd apps/frontend && ./scripts/generate-compliance-report.sh
 - Built automated compliance tooling
 
 **Result**:
-- Zero architecture violations across 407 total symbols (318 react-ui + 89 frontend)
+- Zero architecture violations across 407 total symbols (318 react-ui + 89 browser)
 - Render-props container pattern fully removed; replaced by direct hook calls
 - Clean, predictable React hooks patterns
 - Automated enforcement prevents regressions

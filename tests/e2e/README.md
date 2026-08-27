@@ -1,6 +1,6 @@
 # End-to-End Smoke Tests
 
-Real-browser Playwright tests that drive the frontend against a locally
+Real-browser Playwright tests that drive the Browser against a locally
 running backend. Intended to catch cross-layer regressions (SSE timing,
 React lifecycle, bus round-trips) that unit and component tests can't.
 
@@ -18,7 +18,7 @@ container run --rm \
   -w /workspace/tests/e2e \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
-  -e E2E_FRONTEND_URL=http://192.168.64.1:3000 \
+  -e E2E_BROWSER_URL=http://192.168.64.1:3000 \
   -e E2E_BACKEND_URL=http://192.168.64.1:4000 \
   -e CI=1 \
   "mcr.microsoft.com/playwright:v$PW-noble" \
@@ -30,7 +30,7 @@ container run --rm \
 > [Container networking](#container-networking-reaching-the-host) for why.
 >
 > An earlier version of this quickstart said to run
-> `container ls | grep semiont-` and paste the frontend/backend container IPs
+> `container ls | grep semiont-` and paste the Browser/backend container IPs
 > here. That is wrong twice over, and both failures cost a full run each
 > (measured 2026-08-07):
 >
@@ -82,7 +82,7 @@ dependencies for everyone else. The lockfile is tracked and is the authority.
 
 ## Container networking: reaching the host
 
-The suite runs in a Playwright **container**, but the frontend and backend
+The suite runs in a Playwright **container**, but the Browser and backend
 are published on the **host**. A containerized browser **can't use
 `localhost`** — inside the container that resolves to the container itself,
 not the host. And pinning a container's bridge IP is fragile: container IPs
@@ -100,7 +100,7 @@ restarts**.
 > notes that tell you to set `services.backend.corsOrigin` and rebuild,
 > that config field no longer exists.
 
-Run the suite against the gateway for **both** URLs, with the frontend
+Run the suite against the gateway for **both** URLs, with the Browser
 published on host port 3000 (`-p 3000:3000`; the backend already publishes
 `4000`). No IP-grabbing needed — the gateway doesn't change between runs:
 
@@ -110,7 +110,7 @@ container run --rm \
   -w /workspace/tests/e2e \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
-  -e E2E_FRONTEND_URL=http://192.168.64.1:3000 \
+  -e E2E_BROWSER_URL=http://192.168.64.1:3000 \
   -e E2E_BACKEND_URL=http://192.168.64.1:4000 \
   -e CI=1 \
   "mcr.microsoft.com/playwright:v$PW-noble" \
@@ -122,7 +122,7 @@ container run --rm \
 - [Running tests](docs/running.md) — invocation, single spec, headed,
   `--repeat-each`, host vs. container.
 - [Containers and rebuild flow](docs/containers.md) — Apple container
-  CLI, Verdaccio, rebuilding backend/frontend after code changes, IP
+  CLI, Verdaccio, rebuilding backend/Browser after code changes, IP
   refresh, Playwright image tag.
 - [Writing tests](docs/writing.md) — spec template, fixture ordering,
   protocol-level assertions, seed assumptions, selector conventions.
@@ -195,7 +195,7 @@ that exactly matches the current branch's source:
 
 ```sh
 # 1. Build all @semiont/* packages, publish to local Verdaccio,
-#    build the semiont-frontend image.
+#    build the semiont-browser image.
 ./scripts/ci/local-build.sh
 
 # 2. From the KB project (typically ../semiont-template-kb), bring up
@@ -232,7 +232,7 @@ for inspecting cross-service traces while debugging an e2e failure
   `SEMIONT_VERSION=local semiont start`. Without the rebuild + restart,
   you'll run yesterday's images with today's source.
 - **SPA tracing is not currently wired.** Backend / worker / smelter
-  produce traces; the frontend SPA does not. End-to-end traces
+  produce traces; the Browser SPA does not. End-to-end traces
   therefore start at `bus.dispatch:*` (server-side EMIT receive)
   rather than the SPA's `bus.emit:*`. To enable SPA tracing in a
   future iteration, you'd need `VITE_OTEL_OTLP_ENDPOINT` threaded

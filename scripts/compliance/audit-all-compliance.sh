@@ -2,7 +2,7 @@
 set -e
 
 # Run compliance audits for all workspaces
-# Generates REACT-UI-COMPLIANCE.md and FRONTEND-COMPLIANCE.md
+# Generates REACT-UI-COMPLIANCE.md and BROWSER-COMPLIANCE.md
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COMPLIANCE_DIR="$REPO_ROOT/scripts/compliance"
@@ -18,7 +18,7 @@ echo ""
 # EventBus/SSE architecture check (detects legacy callback patterns)
 echo "🔌 Checking EventBus/SSE architecture..."
 npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/packages/react-ui/src" || echo "⚠️  EventBus/SSE violations found in react-ui"
-npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/apps/frontend/src" || echo "⚠️  EventBus/SSE violations found in frontend"
+npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/apps/browser/src" || echo "⚠️  EventBus/SSE violations found in browser"
 npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/packages/mcp-server/src" || echo "⚠️  EventBus/SSE violations found in mcp-server"
 echo ""
 
@@ -68,14 +68,14 @@ echo "🧪 Auditing packages/react-ui tests..."
 npm run audit:compliance:tests
 echo ""
 
-# Frontend source code
-echo "📦 Auditing apps/frontend source..."
-cd "$REPO_ROOT/apps/frontend"
+# Browser source code
+echo "📦 Auditing apps/browser source..."
+cd "$REPO_ROOT/apps/browser"
 npm run audit:compliance
 echo ""
 
-# Frontend tests
-echo "🧪 Auditing apps/frontend tests..."
+# Browser tests
+echo "🧪 Auditing apps/browser tests..."
 npm run audit:compliance:tests
 echo ""
 
@@ -85,8 +85,8 @@ echo ""
 echo "Reports generated:"
 echo "  - $REPO_ROOT/REACT-UI-COMPLIANCE.md"
 echo "  - $REPO_ROOT/REACT-UI-TESTS-COMPLIANCE.md"
-echo "  - $REPO_ROOT/FRONTEND-COMPLIANCE.md"
-echo "  - $REPO_ROOT/FRONTEND-TESTS-COMPLIANCE.md"
+echo "  - $REPO_ROOT/BROWSER-COMPLIANCE.md"
+echo "  - $REPO_ROOT/BROWSER-TESTS-COMPLIANCE.md"
 echo ""
 
 # Show combined summary
@@ -102,16 +102,16 @@ echo "React-UI Tests:"
 grep -A 8 "## Summary" "$REPO_ROOT/REACT-UI-TESTS-COMPLIANCE.md" | grep -E "Total|Passing|Failing|Bypassed|compliance rate" || echo "(Report not found)"
 
 echo ""
-echo "Frontend Source Code:"
-grep -A 8 "## Summary" "$REPO_ROOT/FRONTEND-COMPLIANCE.md" | grep -E "Total|Passing|Warnings|Failing|Bypassed|compliance rate" || echo "(Report not found)"
+echo "Browser Source Code:"
+grep -A 8 "## Summary" "$REPO_ROOT/BROWSER-COMPLIANCE.md" | grep -E "Total|Passing|Warnings|Failing|Bypassed|compliance rate" || echo "(Report not found)"
 
 echo ""
-echo "Frontend Tests:"
-grep -A 8 "## Summary" "$REPO_ROOT/FRONTEND-TESTS-COMPLIANCE.md" | grep -E "Total|Passing|Failing|Bypassed|compliance rate" || echo "(Report not found)"
+echo "Browser Tests:"
+grep -A 8 "## Summary" "$REPO_ROOT/BROWSER-TESTS-COMPLIANCE.md" | grep -E "Total|Passing|Failing|Bypassed|compliance rate" || echo "(Report not found)"
 
 echo ""
 echo "View full reports:"
 echo "  cat REACT-UI-COMPLIANCE.md"
 echo "  cat REACT-UI-TESTS-COMPLIANCE.md"
-echo "  cat FRONTEND-COMPLIANCE.md"
-echo "  cat FRONTEND-TESTS-COMPLIANCE.md"
+echo "  cat BROWSER-COMPLIANCE.md"
+echo "  cat BROWSER-TESTS-COMPLIANCE.md"

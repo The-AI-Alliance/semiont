@@ -359,7 +359,7 @@ if (require.main === module) {
   const repoRoot = path.resolve(__dirname, '../..');
   const dirs = [
     path.join(repoRoot, 'packages/react-ui/src'),
-    path.join(repoRoot, 'apps/frontend/src'),
+    path.join(repoRoot, 'apps/browser/src'),
   ];
 
   auditor.analyzeDirectories(dirs);

@@ -22,8 +22,8 @@ Follow the Semiont service logs, one [svc]-prefixed stream per service.
 Ctrl+C stops *following* — it does not stop the stack (that's semiont stop).
 
 By default follows the five Semiont services (backend, worker, smelter,
-weaver, frontend). With --service <name>, follow any ONE service including
-the infrastructure roles: backend, worker, smelter, weaver, frontend,
+weaver, browser). With --service <name>, follow any ONE service including
+the infrastructure roles: backend, worker, smelter, weaver, browser,
 database, graph, vectors, inference, or traces.
 
 The runtime and container identities come from the recorded stack state when
@@ -31,7 +31,7 @@ present (--runtime overrides); otherwise the stack is discovered by
 name-scan.
 `
 
-var logServices = []string{"backend", "worker", "smelter", "weaver", "frontend"}
+var logServices = []string{"backend", "worker", "smelter", "weaver", "browser"}
 
 // Logs implements `semiont logs` — the port of the fleet's logs.sh.
 func Logs(args []string) int {

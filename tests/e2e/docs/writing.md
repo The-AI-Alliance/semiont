@@ -26,13 +26,13 @@ test.describe('short description', () => {
 
 The `signedInPage` fixture (in [`fixtures/auth.ts`](../fixtures/auth.ts))
 leaves the page on `/en/know/discover` with a live authenticated
-session. The `bus` fixture enables and captures the frontend's
+session. The `bus` fixture enables and captures the Browser's
 [wire-level bus log](bus-logging.md).
 
 ## Fixture ordering matters
 
 The `bus` fixture's `addInitScript` must run **before** `page.goto` —
-the init script flips the `__SEMIONT_BUS_LOG__` flag that the frontend
+the init script flips the `__SEMIONT_BUS_LOG__` flag that the Browser
 reads at startup. That ordering is guaranteed when you:
 
 - Destructure `bus` in the test params, **or**

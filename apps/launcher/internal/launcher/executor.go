@@ -530,15 +530,15 @@ func (x *liveExec) dumpLogs(container, svc string) {
 	fmt.Fprintf(os.Stderr, "  Full logs:  semiont logs --service %s\n", svc)
 }
 
-// browserCurrent: is semiont-frontend RUNNING on an image identical to the
+// browserCurrent: is semiont-browser RUNNING on an image identical to the
 // one this start would run? Identity, not tag order: the running container's
 // image reference must match the desired ref, and when both sides expose an
 // image ID those must match too (a moved :latest). Reference match without
 // obtainable IDs KEEPS the browser (restart-on-doubt would negate the
 // feature on runtimes that expose no ID through inspect) — the explicit
-// refresh is `semiont start --service frontend`.
+// refresh is `semiont start --service browser`.
 func (x *liveExec) browserCurrent(desired string) bool {
-	out, err := capture(x.rt, "inspect", "semiont-frontend")
+	out, err := capture(x.rt, "inspect", "semiont-browser")
 	if err != nil || out == "" {
 		return false
 	}
@@ -578,7 +578,7 @@ func (x *liveExec) browserRecord() *serviceState {
 
 func (x *liveExec) recordBrowser(id, img, version string, port int) {
 	saveBrowser(&serviceState{
-		Container: "semiont-frontend", ID: id, Image: img, Provided: providedLauncher,
+		Container: "semiont-browser", ID: id, Image: img, Provided: providedLauncher,
 		Runtime: x.rt, Endpoint: fmt.Sprintf("http://localhost:%d", port),
 		StartedAt: time.Now().UTC(),
 	})

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Build all Semiont packages, publish to a local Verdaccio registry, and build
-# the service/frontend container images against it, tagged
+# the service/browser container images against it, tagged
 # ghcr.io/the-ai-alliance/semiont-<svc>:local (consumed by `semiont start` /
 # compose via SEMIONT_VERSION=local; never pushed). Also builds the semiont
 # launcher itself (apps/launcher/dist/semiont, a host binary) so one run
@@ -118,7 +118,7 @@ SKIP_BUILD=false
 IMAGES_ONLY=false
 PACKAGES=""
 START_FROM=""
-IMAGES="backend worker smelter weaver frontend"
+IMAGES="backend worker smelter weaver browser"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
@@ -145,7 +145,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --start-from <pkg> Skip packages before this one in the build order"
       echo "  --skip-build       Skip build, publish only (reuse previous artifacts)"
       echo "  --image <list>     Comma-separated images to build (default:"
-      echo "                     backend,worker,smelter,weaver,frontend)"
+      echo "                     backend,worker,smelter,weaver,browser)"
       echo "  --images-only      Build ONLY container images, against the Verdaccio a"
       echo "                     previous run left running. Skips the npm build+publish,"
       echo "                     the drift gates and the launcher. Pair with --image to"
@@ -162,7 +162,7 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "Build order:"
       echo "  http-transport, ontology, core, content, event-sourcing, graph, inference,"
-      echo "  jobs, make-meaning, react-ui, backend, frontend"
+      echo "  jobs, make-meaning, react-ui, backend, browser"
       exit 0
       ;;
     *) fail "Unknown argument: $1" >&2; exit 1 ;;
@@ -170,7 +170,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Map an image name to its Dockerfile (the same production Dockerfiles that
-# publish-frontend.yml / publish-service-images.yml build — the only delta for
+# publish-browser.yml / publish-service-images.yml build — the only delta for
 # a local image is the registry the packages are installed from).
 image_dockerfile() {
   case "$1" in
@@ -178,14 +178,14 @@ image_dockerfile() {
     worker)   echo "packages/jobs/Dockerfile" ;;
     smelter)  echo "packages/make-meaning/Dockerfile.smelter" ;;
     weaver)   echo "packages/make-meaning/Dockerfile.weaver" ;;
-    frontend) echo "apps/frontend/Dockerfile" ;;
+    browser) echo "apps/browser/Dockerfile" ;;
     *) return 1 ;;
   esac
 }
 
 for img in $IMAGES; do
   if ! image_dockerfile "$img" >/dev/null; then
-    fail "Unknown image: $img (expected backend, worker, smelter, weaver, or frontend)"
+    fail "Unknown image: $img (expected backend, worker, smelter, weaver, or browser)"
     exit 1
   fi
 done
@@ -676,8 +676,8 @@ echo ""
 echo -e "  (semiont start skips the registry pull for ${DIM}local${RESET} and runs these images.)"
 echo ""
 
-echo -e "${BOLD}Or run a single image, e.g. the frontend:${RESET}"
-echo -e "  $RT run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:local"
+echo -e "${BOLD}Or run a single image, e.g. the browser:${RESET}"
+echo -e "  $RT run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-browser:local"
 echo ""
 
 echo -e "${DIM}Stop Verdaccio when done:${RESET}  $RT stop $VERDACCIO_NAME"

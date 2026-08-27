@@ -14,7 +14,7 @@ Core types and domain logic for the Semiont semantic knowledge platform. This pa
 
 - ✅ **Backend** (`apps/backend`) - Server implementation, imports types from core
 - ✅ **Packages** - Other monorepo packages that need OpenAPI types, the EventBus, or the transport contract
-- ✅ **Frontend / Browser** - Types and pure utilities (the main barrel is browser-safe)
+- ✅ **Browser / Browser** - Types and pure utilities (the main barrel is browser-safe)
 
 ## Who Should Use `@semiont/core/node` Instead
 
@@ -341,7 +341,7 @@ Apache-2.0
 - [`@semiont/sdk`](../sdk/) - The Semiont SDK (`SemiontClient`) - use this for application development
 - [`@semiont/http-transport`](../http-transport/) - HTTP implementations of core's transport contract
 - [`@semiont/backend`](../../apps/backend/) - Backend API server
-- [`@semiont/frontend`](../../apps/frontend/) - Web application
+- [`@semiont/browser`](../../apps/browser/) - Web application
 
 ## Learn More
 

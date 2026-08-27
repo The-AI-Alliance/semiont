@@ -53,11 +53,11 @@ For containerized builds: just a container runtime (Apple Container, Docker, or 
 
 ### Development
 
-Start the frontend dev server in one terminal, then the desktop shell in another:
+Start the Browser dev server in one terminal, then the desktop shell in another:
 
 ```bash
 # Terminal 1: frontend
-cd apps/frontend && npm run dev
+cd apps/browser && npm run dev
 
 # Terminal 2: desktop
 cd apps/desktop && cargo tauri dev
@@ -77,7 +77,7 @@ apps/desktop/build.sh
 #### Local (Rust required)
 
 ```bash
-cd apps/frontend && npm run build
+cd apps/browser && npm run build
 cd apps/desktop && cargo tauri build
 ```
 
@@ -85,7 +85,7 @@ Output: `src-tauri/target/release/bundle/dmg/Semiont_x.y.z_aarch64.dmg`
 
 ## Architecture
 
-The desktop app is a thin native shell around `apps/frontend/dist/`. No browser
+The desktop app is a thin native shell around `apps/browser/dist/`. No browser
 code lives here — this directory only contains the Tauri configuration, Rust entry
 point, and build scripts.
 

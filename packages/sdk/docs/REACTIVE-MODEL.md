@@ -192,7 +192,7 @@ const done = await semiont.mark.assist(rId, 'linking', {}).run((event) => {
 - `beckon.hover`, `beckon.sparkle` (both local fan-out only)
 - `job.cancelRequest`
 
-These produce no return value at the call site — observation happens on the bus side via `session.subscribe(channel, handler)` or `client.bus.get(channel)`. A frontend state unit emits `mark.changeShape('rectangle')`; a different participant subscribed to `mark:shape-changed` reacts.
+These produce no return value at the call site — observation happens on the bus side via `session.subscribe(channel, handler)` or `client.bus.get(channel)`. A Browser state unit emits `mark.changeShape('rectangle')`; a different participant subscribed to `mark:shape-changed` reacts.
 
 **Wire drives** (return `Promise<number>`; emit over the transport at every other participant):
 

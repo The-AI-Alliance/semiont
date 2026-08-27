@@ -18,6 +18,11 @@ const MINIMAL_TOML = `
 platform = "posix"
 port = 3001
 publicURL = "http://localhost:3001"
+# Deliberately left after FRONTEND-IS-THE-BROWSER P6: frontendURL was declared
+# on the backend section and read by nothing, so it was deleted rather than
+# renamed. Keeping it here means every test below also pins that an unknown KEY
+# inside a known section stays inert, the way the [browser] and [frontend]
+# tests pin it for a whole section.
 frontendURL = "http://localhost:3000"
 
 [environments.local.make-meaning.graph]
@@ -121,6 +126,42 @@ settleTimeoutMs = 45000
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
 
     expect((config._metadata as any)?.gather).toEqual({ settleTimeoutMs: 45_000 });
+  });
+
+  // FRONTEND-IS-THE-BROWSER P5 (D5): `[browser]` left the config model. The
+  // Browser is machine-level — one Browser serves many KBs — so a KB has no
+  // knowledge of, and no effect on, its port or publicURL. The launcher never
+  // mounts a KB's config into the Browser container, which made the loader's
+  // `port ?? 3000` a lie by omission: `port = 3100` got no error and no effect.
+  //
+  // Both spellings stay INERT rather than refused. The fleet's committed
+  // configs carry them, and a section that configures nothing cannot be
+  // misconfigured — so there is nothing left to map forward or reject.
+  //
+  // Asserted over the emitted keys, not the type: `ServicesConfig` carries an
+  // open `[k: string]: unknown`, so `config.services.browser` keeps compiling
+  // after the member is deleted. Only a runtime check can see the difference.
+  it('loads a config carrying [browser] and emits no browser service', () => {
+    const toml = `${MINIMAL_TOML}
+[environments.local.browser]
+platform = "container"
+port = 3000
+`;
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+
+    expect(Object.keys(config.services)).not.toContain('browser');
+  });
+
+  it('loads a config carrying the older [frontend] spelling just as inertly', () => {
+    const toml = `${MINIMAL_TOML}
+[environments.local.frontend]
+platform = "container"
+port = 3000
+`;
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+
+    expect(Object.keys(config.services)).not.toContain('browser');
+    expect(Object.keys(config.services)).not.toContain('frontend');
   });
 
   it('always sets _metadata.search.semanticFloor, defaulting to 0.6 when absent', () => {

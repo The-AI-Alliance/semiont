@@ -4,7 +4,7 @@ run-name: "Service Images @ ${{ inputs.version }}${{ inputs.dry_run && ' (dry-ru
 
 # Builds and publishes the four backend-side service images
 # (backend · worker · smelter · weaver) from the published @semiont/* packages,
-# mirroring publish-frontend.yml's verify-npm → scan → multi-arch push → SBOM →
+# mirroring publish-browser.yml's verify-npm → scan → multi-arch push → SBOM →
 # attest spine, with an added license-policy gate. Config is runtime (bind-mount);
 # the images ship config-free.
 

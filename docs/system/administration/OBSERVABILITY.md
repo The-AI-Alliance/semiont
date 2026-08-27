@@ -82,7 +82,7 @@ without configuring a collector.
 For local dev without a collector, set `OTEL_CONSOLE_EXPORTER=true`
 to print spans + metrics to stderr.
 
-### Frontend (SPA)
+### Browser (SPA)
 
 Build-time env, read by Vite. Set when building the SPA:
 
@@ -204,7 +204,7 @@ through the same OTLP endpoint. No extra config required — the
 
 | Metric                       | Type             | Attributes                                              | Where                                         |
 |------------------------------|------------------|---------------------------------------------------------|-----------------------------------------------|
-| `semiont.bus.emit`           | counter          | `bus.channel`, `bus.scope`                              | Every transport `emit` (frontend, in-process, server) |
+| `semiont.bus.emit`           | counter          | `bus.channel`, `bus.scope`                              | Every transport `emit` (Browser, in-process, server) |
 | `semiont.handler.duration`   | histogram        | `actor`, `bus.channel`                                  | Every actor handler (Stower / Gatherer / Matcher / Browser / Smelter) |
 | `semiont.job.outcome`        | counter          | `job.type`, `job.outcome` (`completed` / `failed`)      | Worker `handleJob`                       |
 | `semiont.job.duration`       | histogram        | `job.type`, `job.outcome`                               | Worker `handleJob`                            |
@@ -254,7 +254,7 @@ When no SDK is initialized (or no span is active), the helper returns
   `count()` method on the `VectorStore` interface implemented across
   all backends (Qdrant, in-memory). Not urgent; deferred until
   capacity-planning needs surface.
-- **Frontend uses `XMLHttpRequest` / `fetch` directly** for the
+- **Browser uses `XMLHttpRequest` / `fetch` directly** for the
   transport's underlying calls. Auto-instrumenting these is
   intentionally not enabled — the transport-call spans we emit name
   the operation semantically (`bus.emit:mark:create`) instead of by

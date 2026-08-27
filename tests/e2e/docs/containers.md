@@ -1,6 +1,6 @@
 # Containers and rebuild flow
 
-The e2e harness drives the frontend **container**, which talks to the
+The e2e harness drives the Browser **container**, which talks to the
 backend **container**. All five Semiont images bundle `@semiont/*`
 packages — a change to a package isn't visible to the tests until the
 images are rebuilt and the stack is restarted from them. This doc walks
@@ -10,7 +10,7 @@ through that lifecycle.
 
 | Container | What's inside | Where it comes from |
 |---|---|---|
-| `semiont-frontend` | Vite-built SPA served on `:3000` | published image, or `:local` via `scripts/ci/local-build.sh` |
+| `semiont-browser` | Vite-built SPA served on `:3000` | published image, or `:local` via `scripts/ci/local-build.sh` |
 | `semiont-backend` | `@semiont/backend` on `:4000` | published image, or `:local` via `scripts/ci/local-build.sh` |
 | `semiont-worker`, `semiont-smelter`, `semiont-weaver` | Background workers / pipeline actors | published images, or `:local` via `scripts/ci/local-build.sh` |
 | plus: `semiont-neo4j`, `semiont-qdrant`, `semiont-ollama`, `semiont-postgres` | Storage + inference | started by `semiont start` |
@@ -27,8 +27,8 @@ So the "full rebuild" flow depends on what changed:
 
 | Change in | Rebuild | Restart |
 |---|---|---|
-| `packages/react-ui`, `packages/http-transport`, `packages/core` | `local-build.sh` | frontend |
-| `apps/frontend` only | `local-build.sh` | frontend |
+| `packages/react-ui`, `packages/http-transport`, `packages/core` | `local-build.sh` | browser |
+| `apps/browser` only | `local-build.sh` | browser |
 | `packages/make-meaning`, `packages/event-sourcing`, etc. — anything the backend imports | `local-build.sh` (rebuilds the `:local` images) | the stack: `SEMIONT_VERSION=local semiont start` |
 | `apps/backend` | `local-build.sh` | the stack: `SEMIONT_VERSION=local semiont start` |
 
@@ -57,7 +57,7 @@ services at once with `[svc]` prefixes.)
 Apple's container runtime assigns a **fresh bridge IP** on every
 `container run` and every `container start`. The `192.168.64.x` value
 from your last session is stale the moment either the backend or
-frontend restarts, even if you didn't rebuild.
+Browser restarts, even if you didn't rebuild.
 
 Symptom: every request in your first test times out because the
 browser is dialing a dead address.

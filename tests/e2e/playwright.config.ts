@@ -21,10 +21,10 @@ function requireEnv(name: string): string {
   return value;
 }
 
-// Frontend the tests drive. Default matches the local container exposure.
-export const FRONTEND_URL = process.env.E2E_FRONTEND_URL ?? 'http://localhost:3000';
+// The Browser the tests drive. Default matches the local container exposure.
+export const BROWSER_URL = process.env.E2E_BROWSER_URL ?? 'http://localhost:3000';
 
-// Backend the frontend points at. Separate from FRONTEND_URL because the
+// Backend the Browser points at. Separate from BROWSER_URL because the
 // sign-in form asks for host/port/protocol explicitly.
 export const BACKEND_URL = process.env.E2E_BACKEND_URL ?? 'http://localhost:4000';
 
@@ -47,7 +47,7 @@ export default defineConfig({
   // production caller. See `scripts/seed.ts`.
   globalSetup: require.resolve('./scripts/seed.ts'),
   use: {
-    baseURL: FRONTEND_URL,
+    baseURL: BROWSER_URL,
     trace: 'retain-on-failure',
     video: 'retain-on-failure',
     screenshot: 'only-on-failure',

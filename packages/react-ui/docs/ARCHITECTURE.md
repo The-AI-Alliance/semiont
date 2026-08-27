@@ -797,7 +797,7 @@ Not breaking:
    { "exports": { "./styles": "./src/styles/index.css" } }
    ```
 
-5. **Frontend processes everything:**
+5. **Browser processes everything:**
    - Imports `@semiont/react-ui/styles`
    - PostCSS with `postcss-import` resolves all `@import` statements
    - Bundles into single CSS file
@@ -805,7 +805,7 @@ Not breaking:
 ### CSS Build System
 
 - **react-ui:** tsup builds TypeScript only (no CSS bundling)
-- **Frontend:** Next.js PostCSS processes CSS with `postcss-import`
+- **Browser:** Next.js PostCSS processes CSS with `postcss-import`
 - **Key insight:** `import './Component.css'` in TypeScript is a type hint - doesn't bundle anything
 
 ### CSS Quality Standards

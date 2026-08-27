@@ -1,0 +1,26 @@
+{
+  "name": "@semiont/browser",
+  "version": "0.5.29",
+  "description": "Semiont Browser - pre-built Vite SPA with static file server",
+  "main": "server.js",
+  "bin": {
+    "semiont-browser": "server.js"
+  },
+  "files": [
+    "server.js",
+    "dist"
+  ],
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {},
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/The-AI-Alliance/semiont.git",
+    "directory": "apps/browser"
+  },
+  "license": "Apache-2.0"
+}

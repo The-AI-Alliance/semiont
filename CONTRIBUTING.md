@@ -18,7 +18,7 @@ Thank you for your interest in contributing to Semiont! This document provides g
 
 See [Platform Development Guide](#adding-new-platform-support) for implementation details.
 
-**Alternative frontend implementations:**
+**Alternative Browser implementations:**
 
 We also welcome contributions that bring Semiont to new user interfaces and integration points:
 
@@ -27,7 +27,7 @@ We also welcome contributions that bring Semiont to new user interfaces and inte
 - **Desktop applications** (Electron, Tauri)
 - **IDE integrations** (VS Code, IntelliJ)
 
-See [apps/frontend/docs/FUTURE.md](apps/frontend/docs/FUTURE.md) for architectural guidance on building alternative frontends that share the core API client and authentication infrastructure.
+See [apps/browser/docs/FUTURE.md](apps/browser/docs/FUTURE.md) for architectural guidance on building alternative Browsers that share the core API client and authentication infrastructure.
 
 ## 📋 Table of Contents
 
@@ -156,9 +156,9 @@ git checkout -b docs/improve-api-reference
 # Run all tests
 npm test
 
-# Run specific service tests
-npm run test:backend
-npm run test:frontend
+# Run one workspace's tests
+npm test -w @semiont/backend
+npm test -w semiont-browser
 
 # Type check
 npm run typecheck
@@ -199,7 +199,7 @@ Then create a Pull Request from your fork to `The-AI-Alliance/semiont:main` on G
 
 ## 🌍 Deployment Targets
 
-Semiont ships as container images (`semiont-backend`, `semiont-frontend`, `semiont-worker`,
+Semiont ships as container images (`semiont-backend`, `semiont-browser`, `semiont-worker`,
 `semiont-smelter`, `semiont-weaver`) plus the infrastructure containers a stack needs. There is no
 per-platform plugin system: the old `(platform × serviceType × command)` handler matrix has been
 removed.
@@ -305,7 +305,7 @@ All contributions should include appropriate tests. We have comprehensive testin
 
 ### Testing Documentation
 
-- **[System Testing Guide](docs/development/TESTING.md)** - Overall testing strategy, Vitest, MSW v2, frontend testing
+- **[System Testing Guide](docs/development/TESTING.md)** - Overall testing strategy, Vitest, MSW v2, Browser testing
 - **[Backend Testing Guide](apps/backend/docs/TESTING.md)** - Jest, unit tests, Prisma database tests
 
 ### Quick Start
@@ -318,7 +318,7 @@ npm test
 **Run service-specific tests:**
 ```bash
 cd apps/backend && npm test     # Backend tests (Jest)
-cd apps/frontend && npm test    # Frontend tests (Vitest)
+cd apps/browser && npm test    # Browser tests (Vitest)
 ```
 
 ### Test Requirements for PRs
@@ -347,7 +347,7 @@ Update docs when you:
 
 - **System-wide**: `docs/` - Architecture, deployment, testing
 - **Backend**: `apps/backend/docs/` - Backend-specific guides
-- **Frontend**: `apps/frontend/docs/` - Frontend-specific guides
+- **Browser**: `apps/browser/docs/` - Browser-specific guides
 - **Launcher**: `apps/launcher/README.md` - The host-installed `semiont` command
 - **Platforms**: `docs/system/platforms/` - Platform-specific deployment
 

@@ -7,10 +7,10 @@ Deployable applications for the Semiont platform.
 | Package | Version | Source | Description |
 | ------- | ------- | ------ | ----------- |
 | [@semiont/backend](https://www.npmjs.com/package/@semiont/backend) | [![npm](https://img.shields.io/npm/v/@semiont/backend)](https://www.npmjs.com/package/@semiont/backend) | [backend](./backend/) | Hono API server + event-bus gateway |
-| [@semiont/frontend](https://www.npmjs.com/package/@semiont/frontend) | [![npm](https://img.shields.io/npm/v/@semiont/frontend)](https://www.npmjs.com/package/@semiont/frontend) | [frontend](./frontend/) | Vite + React SPA (the Semiont Browser) |
+| [@semiont/browser](https://www.npmjs.com/package/@semiont/browser) | [![npm](https://img.shields.io/npm/v/@semiont/browser)](https://www.npmjs.com/package/@semiont/browser) | [browser](./browser/) | Vite + React SPA — the Semiont Browser |
 
-The backend and frontend also ship as published, attested container images
-(`ghcr.io/the-ai-alliance/semiont-{backend,frontend}`) that bundle these
+The backend and Browser also ship as published, attested container images
+(`ghcr.io/the-ai-alliance/semiont-{backend,browser}`) that bundle these
 packages — see [Container Images](../docs/system/administration/IMAGES.md).
 
 ## Host-installed binaries

@@ -16,8 +16,8 @@
  * Scope is BOTH translation sets, because the repo has two with different
  * owners and it is easy to update one and forget the other:
  *   • packages/react-ui/translations   — react-ui component copy
- *   • apps/frontend/messages-source    — host-specific copy
- * (`apps/frontend/messages/` is generated from these and gitignored; it is
+ *   • apps/browser/messages-source    — host-specific copy
+ * (`apps/browser/messages/` is generated from these and gitignored; it is
  * deliberately NOT checked — checking build output would just restate this.)
  *
  * WHY THIS IS GENERAL AND NOT PER-FEATURE. An earlier version of this gate
@@ -33,7 +33,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '../..');
 const SETS = [
   { label: 'packages/react-ui/translations', dir: path.join(ROOT, 'packages/react-ui/translations') },
-  { label: 'apps/frontend/messages-source', dir: path.join(ROOT, 'apps/frontend/messages-source') },
+  { label: 'apps/browser/messages-source', dir: path.join(ROOT, 'apps/browser/messages-source') },
 ];
 
 /** Flattened dotted key paths, so a nested namespace is compared structurally. */

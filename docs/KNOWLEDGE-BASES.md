@@ -23,7 +23,7 @@ semiont useradd --email admin@example.com --admin   # prompts for the password
 `semiont logs` follows the stack, `semiont status` health-checks it, and
 `semiont stop` tears it down — except the browser, which is the machine-level
 viewer of every KB rather than a stack member: every start ensures it, stop
-leaves it running, and `semiont stop --service frontend` is the explicit
+leaves it running, and `semiont stop --service browser` is the explicit
 off-switch. Its Knowledge Bases panel discovers launcher-managed stacks
 automatically.
 
@@ -34,7 +34,7 @@ and prints the admin credentials generated inside it:
 
 ```bash
 semiont start --runtime codespace --repo The-AI-Alliance/semiont-template-kb
-semiont start --service frontend    # the browser runs locally
+semiont start --service browser    # the browser runs locally
 ```
 
 Only the KB is forwarded, each stack on its own local port, so one local

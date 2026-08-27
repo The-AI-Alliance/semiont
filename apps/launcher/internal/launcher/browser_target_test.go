@@ -76,9 +76,9 @@ func recordBrowserFixture(t *testing.T, b *serviceState) {
 // fallback, status printed "absent" beside a ✓.
 func TestBrowserTargetFallsBackToTheStableNameForAStaleID(t *testing.T) {
 	shim := t.TempDir()
-	// A docker that knows only `semiont-frontend`, so a lookup by the stale
+	// A docker that knows only `semiont-browser`, so a lookup by the stale
 	// recorded ID fails exactly as the real one would.
-	script := "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = semiont-frontend ] && { echo running; exit 0; }; done\nexit 1\n"
+	script := "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = semiont-browser ] && { echo running; exit 0; }; done\nexit 1\n"
 	if err := os.WriteFile(filepath.Join(shim, "docker"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestBrowserTargetFallsBackToTheStableNameForAStaleID(t *testing.T) {
 		t.Errorf("Running = false for an endpoint that answers")
 	}
 	if p.State != "running" {
-		t.Errorf("State = %q, want %q from the semiont-frontend fallback", p.State, "running")
+		t.Errorf("State = %q, want %q from the semiont-browser fallback", p.State, "running")
 	}
 }
 
@@ -173,7 +173,7 @@ func TestBrowseBrowserRefusesWhenNoOneIsWatching(t *testing.T) {
 			// the user to a refused connection. Name the commands instead.
 			name:    "no Browser at all",
 			origin:  deadOrigin,
-			want:    []string{"Nobody saw res-42", "No Browser is running", "--launch", "semiont start --service frontend"},
+			want:    []string{"Nobody saw res-42", "No Browser is running", "--launch", "semiont start --service browser"},
 			notWant: []string{"log in"},
 		},
 	} {
@@ -224,7 +224,7 @@ func TestBrowseBrowserNamesAContainerThatIsNotAnswering(t *testing.T) {
 		}
 	})
 	mustContainAll(t, "stale container", out+errOut,
-		"container is exited", "semiont start --service frontend")
+		"container is exited", "semiont start --service browser")
 }
 
 // A count of -1 means the server did not tell us. That is not an empty room,

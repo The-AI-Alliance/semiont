@@ -24,7 +24,7 @@ semiont start
 ```
 
 **That's it!** Your complete development environment is running:
-- **Frontend**: http://localhost:3000
+- **Browser**: http://localhost:3000
 - **Backend**: http://localhost:4000
 - **Database**: PostgreSQL in Docker container
 
@@ -58,14 +58,14 @@ semiont status              # Check service health
 # Service-specific commands
 semiont start --service database  # Start PostgreSQL container
 semiont start --service backend   # Start backend (auto-starts database if needed)
-semiont start --service frontend  # Start frontend only
+semiont start --service browser  # Start the Browser only
 semiont stop --service backend    # Stop backend service
 semiont start --service backend   # Restart backend, leaving the rest of the stack up
 ```
 
 ## Why Use Semiont CLI?
 
-- **🔄 Smart Dependencies**: Frontend auto-starts backend, backend auto-starts database
+- **🔄 Smart Dependencies**: The Browser auto-starts backend, backend auto-starts database
 - **📦 Consistent Environment**: Everyone gets identical PostgreSQL setup
 - **⚡ Zero Configuration**: No manual database setup, connection strings, or environment variables
 - **🧹 Easy Reset**: Corrupted data? `--reset` gives you a fresh start
@@ -93,7 +93,7 @@ Typical workflow:
 semiont start
 
 # Your services are now running! Develop normally...
-# Frontend: http://localhost:3000
+# Browser: http://localhost:3000
 # Backend: http://localhost:4000
 # Database: Managed automatically
 
@@ -108,17 +108,17 @@ semiont start --service backend    # Rebuild-free restart of just the backend
 semiont start --service database   # Just PostgreSQL
 ```
 
-`--service` takes one name: `backend`, `worker`, `smelter`, `weaver`, `frontend`,
-`database`, `graph`, `vectors`, `inference`, or `traces`. The rest of the stack is
+`--service` takes one name: `backend`, `worker`, `smelter`, `weaver`, `browser`,
+`database`, `graph`, `vectors`, `inference`, `embedding`, or `traces`. The rest of the stack is
 left untouched, and a restarted service rejoins the running stack's worker secret
 automatically.
 
-### Frontend against a mock API
+### Browser against a mock API
 
-The mock lives in the frontend's own dev server, not in the launcher:
+The mock lives in the Browser's own dev server, not in the launcher:
 
 ```bash
-cd apps/frontend && npm run dev:mock
+cd apps/browser && npm run dev:mock
 ```
 
 ### Fresh start (reset the database)
@@ -287,8 +287,6 @@ JWT_SECRET="local-development-secret-min-32-characters-long"
 GOOGLE_CLIENT_ID="your-google-client-id"
 GOOGLE_CLIENT_SECRET="your-google-client-secret"
 
-# Frontend URL
-FRONTEND_URL="http://localhost:3000"
 ```
 
 ## Testing API Endpoints

@@ -152,9 +152,9 @@ func Status(args []string) int {
 			return 1
 		}
 	}
-	// --service frontend asks about the Browser — machine-level, outside
+	// --service browser asks about the Browser — machine-level, outside
 	// every stack, so it bypasses the stack table entirely.
-	if service == "frontend" && repoFlag == "" {
+	if service == "browser" && repoFlag == "" {
 		healthy := printBrowser(u, loadStackSet())
 		if healthy {
 			return 0
@@ -247,7 +247,7 @@ func Status(args []string) int {
 // Endpoint is an ORIGIN and never a path. That line is the whole of
 // BROWSER-HANDOFF D6/O1: the launcher publishes the container's host port and
 // records the endpoint, so `http://localhost:3000` is its own fact —
-// `/know/resource/<id>` is the frontend's, and mirroring it here would drift
+// `/know/resource/<id>` is the Browser's, and mirroring it here would drift
 // silently the day the route moves. If you find yourself adding a route to a
 // Go file, that decision was reopened without saying so.
 type browserProbe struct {
@@ -265,7 +265,7 @@ type browserProbe struct {
 func browserTarget(ss *stackSet, override string) browserProbe {
 	b := ss.Browser
 	p := browserProbe{Endpoint: "http://localhost:3000"}
-	handle := "semiont-frontend"
+	handle := "semiont-browser"
 	if b != nil {
 		if b.Endpoint != "" {
 			p.Endpoint = b.Endpoint
@@ -285,10 +285,10 @@ func browserTarget(ss *stackSet, override string) browserProbe {
 		rts = []string{b.Runtime}
 	}
 	p.State, _ = containerState(rts, handle)
-	if p.State == "" && handle != "semiont-frontend" {
+	if p.State == "" && handle != "semiont-browser" {
 		// A stale recorded ID must not contradict a live endpoint ("absent"
 		// beside ✓): the stable name is the fallback truth (Copilot review).
-		p.State, _ = containerState(rts, "semiont-frontend")
+		p.State, _ = containerState(rts, "semiont-browser")
 	}
 	return p
 }
@@ -316,12 +316,12 @@ func printBrowser(u *ui, ss *stackSet) (healthy bool) {
 			tag := b.Image[i+1:]
 			detail = "images " + tag + " · " + detail
 			if st := ss.Stacks["local"]; st != nil && st.Version != "" && st.Version != tag {
-				detail += " · STACK RUNS " + st.Version + " — refresh: semiont start --service frontend"
+				detail += " · STACK RUNS " + st.Version + " — refresh: semiont start --service browser"
 			}
 		}
 	}
 	if !healthy && p.State == "" {
-		fmt.Printf("  %s %-12s %s\n", mark, word, u.dim("any semiont start brings it up (or: semiont start --service frontend)"))
+		fmt.Printf("  %s %-12s %s\n", mark, word, u.dim("any semiont start brings it up (or: semiont start --service browser)"))
 		return healthy
 	}
 	fmt.Printf("  %s %-12s %s  %s\n", mark, word, p.Endpoint, u.dim("("+detail+")"))

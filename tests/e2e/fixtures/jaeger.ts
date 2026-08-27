@@ -2,7 +2,7 @@
  * Jaeger evidence capture for e2e tests.
  *
  * Companion to the `bus` fixture. Where `bus` captures `[bus OP]` lines
- * from the frontend's console (Tier 1 grep timeline), this fixture
+ * from the browser's console (Tier 1 grep timeline), this fixture
  * pulls the corresponding **distributed spans** from Jaeger (Tier 2)
  * and attaches them to the Playwright report — so a failing test's
  * artifact bundle includes the cross-process trace tree.
@@ -15,15 +15,15 @@
  *   - `JAEGER_QUERY_URL`  — Jaeger UI/Query base URL.
  *                           Default: `http://192.168.64.16:16686`
  *   - `JAEGER_SERVICES`   — Comma-separated services to query.
- *                           Default: `semiont-backend,semiont-worker,semiont-smelter,semiont-frontend`
+ *                           Default: `semiont-backend,semiont-worker,semiont-smelter,semiont-browser`
  *   - `JAEGER_ATTACH`     — `failure` (default), `always`, or `off`.
  *                           Controls when the fixture attaches spans
  *                           to the Playwright report.
  *
  * Limitations:
- *   - Frontend doesn't currently emit OTel spans by default — the
+ *   - Browser doesn't currently emit OTel spans by default — the
  *     captured trace prefixes are mostly backend-originated. The
- *     fixture still queries the frontend service in case it's added
+ *     fixture still queries the browser service in case it's added
  *     later.
  *   - Trace-id prefixes have a small chance of collision (8 hex = 32
  *     bits, so within a single test window collisions are unlikely
@@ -40,7 +40,7 @@ const JAEGER_QUERY_URL = process.env.JAEGER_QUERY_URL ?? 'http://192.168.64.16:1
 
 const JAEGER_SERVICES = (
   process.env.JAEGER_SERVICES ??
-  'semiont-backend,semiont-worker,semiont-smelter,semiont-frontend'
+  'semiont-backend,semiont-worker,semiont-smelter,semiont-browser'
 ).split(',').map((s) => s.trim()).filter(Boolean);
 
 type AttachMode = 'failure' | 'always' | 'off';
@@ -116,16 +116,16 @@ function filterByPrefix(traces: JaegerTrace[], prefixes: Set<string>): JaegerTra
 /**
  * Build the per-test evidence package: traces from every configured
  * service in the test's time window, with prefix-matching to the bus
- * log when the frontend exports OTel spans.
+ * log when the browser exports OTel spans.
  *
  * Two captures, ordered by relevance:
  *
  *   - **matched** — traces whose ID prefix-matches a `[bus … trace=…]`
- *     line the frontend emitted. Tightest correlation; empty when the
- *     frontend doesn't have an OTel SDK initialized.
+ *     line the browser emitted. Tightest correlation; empty when the
+ *     browser doesn't have an OTel SDK initialized.
  *   - **window** — every trace from every service that overlapped the
  *     test's time window. Always populated (when Jaeger has data).
- *     Useful when the frontend isn't OTel-instrumented and we still
+ *     Useful when the browser isn't OTel-instrumented and we still
  *     want the cross-service span tree for the test.
  */
 async function gatherEvidence(
@@ -221,7 +221,7 @@ export async function attachJaegerEvidence(
 
   // Prefer matched (tightest correlation) when available; fall back to
   // the full time-window capture so the developer always gets a usable
-  // span tree even when the frontend isn't OTel-instrumented.
+  // span tree even when the browser isn't OTel-instrumented.
   const traces = evidence.matched.length > 0 ? evidence.matched : evidence.window;
   if (traces.length === 0) return;
 

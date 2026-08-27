@@ -7,7 +7,7 @@
  * Usage:
  *   npm run container:build              # Build all images
  *   npm run container:build backend      # Build backend only
- *   npm run container:build frontend     # Build frontend only
+ *   npm run container:build browser     # Build browser only
  * 
  * Legacy aliases:
  *   npm run docker:build                 # Same as container:build
@@ -119,8 +119,8 @@ async function buildBackend(runtime) {
   await buildImage('backend', 'apps/backend/Dockerfile', '.', [], runtime);
 }
 
-async function buildFrontend(runtime) {
-  log('yellow', 'Building frontend...');
+async function buildBrowser(runtime) {
+  log('yellow', 'Building browser...');
 
   // Use environment variables or defaults
   // Note: NEXT_PUBLIC_API_URL removed - Envoy handles routing at runtime
@@ -132,7 +132,7 @@ async function buildFrontend(runtime) {
     '--build-arg', `NEXT_PUBLIC_APP_VERSION=${appVersion}`
   ];
 
-  await buildImage('frontend', 'apps/frontend/Dockerfile', '.', buildArgs, runtime);
+  await buildImage('browser', 'apps/browser/Dockerfile', '.', buildArgs, runtime);
 }
 
 async function showImages(runtime) {
@@ -164,17 +164,17 @@ async function main() {
       case 'all':
         console.log('Building all services...');
         await buildBackend(runtime);
-        await buildFrontend(runtime);
+        await buildBrowser(runtime);
         break;
       case 'backend':
         await buildBackend(runtime);
         break;
-      case 'frontend':
-        await buildFrontend(runtime);
+      case 'browser':
+        await buildBrowser(runtime);
         break;
       default:
         log('red', `Unknown service: ${service}`);
-        console.log('Usage: npm run container:build [all|backend|frontend]');
+        console.log('Usage: npm run container:build [all|backend|browser]');
         process.exit(1);
     }
     

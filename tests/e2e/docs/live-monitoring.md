@@ -155,7 +155,7 @@ got console errors." Steps:
 
 ## Limitations
 
-- **Frontend not in the snapshot's container list.** The static
+- **Browser not in the snapshot's container list.** The static
   server's stdout is mostly unstructured and not timestamped, so the
   snapshot's per-line-timestamp filter doesn't apply. For frontend
   errors, watch the browser DevTools console (or add `bus.entries`

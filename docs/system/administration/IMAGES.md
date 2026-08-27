@@ -8,7 +8,7 @@ this repository.
 This repo publishes **5 container images** to GitHub Container Registry
 (ghcr.io):
 
-- **semiont-frontend** — Vite + React SPA (the Semiont Browser), served as a
+- **semiont-browser** — Vite + React SPA (the Semiont Browser), served as a
   static container.
 - **semiont-backend** — the API server + unified bus gateway.
 - **semiont-worker** — the annotation/generation worker pool.
@@ -31,9 +31,9 @@ unified versioning scheme managed through [`version.json`](../../../version.json
 
 ---
 
-## semiont-frontend
+## semiont-browser
 
-[![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-frontend)
+[![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-browser)
 
 **Description:** Vite + React single-page app (the Semiont Browser),
 served from a Node static-file server. Multi-platform: `linux/amd64`,
@@ -41,7 +41,7 @@ served from a Node static-file server. Multi-platform: `linux/amd64`,
 
 **Pull image:**
 ```bash
-docker pull ghcr.io/the-ai-alliance/semiont-frontend:latest
+docker pull ghcr.io/the-ai-alliance/semiont-browser:latest
 ```
 
 **Environment variables:** `PORT` only (default `3000`). The container is a
@@ -49,13 +49,13 @@ static-file server with no backend config and no config mount — the SPA
 connects to knowledge bases from the *browser* at runtime (the multi-KB
 session model; see [HUMAN-UI.md](../HUMAN-UI.md)).
 
-**Documentation:** [apps/frontend/README.md](../../../apps/frontend/README.md)
+**Documentation:** [apps/browser/README.md](../../../apps/browser/README.md)
 
-**Source:** [apps/frontend/](../../../apps/frontend/)
+**Source:** [apps/browser/](../../../apps/browser/)
 
-**Dockerfile:** [apps/frontend/Dockerfile](../../../apps/frontend/Dockerfile)
+**Dockerfile:** [apps/browser/Dockerfile](../../../apps/browser/Dockerfile)
 
-**Workflow:** [.github/workflows/publish-frontend.yml](../../../.github/workflows/publish-frontend.yml)
+**Workflow:** [.github/workflows/publish-browser.yml](../../../.github/workflows/publish-browser.yml)
 
 ---
 
@@ -67,7 +67,7 @@ The four backend-side services are published as runtime images that
 **bundle the published `@semiont/*` npm packages** at the requested version —
 the publish workflow refuses to build until the matching packages exist on
 npm (`npm view` gate), so an image version always equals the npm version it
-carries. All four run `node:24-alpine` (the frontend runs `node:26-alpine`).
+carries. All four run `node:24-alpine` (the Browser runs `node:26-alpine`).
 
 | Image | What runs | Bundled packages | Port | Dockerfile |
 |---|---|---|---|---|
@@ -110,8 +110,8 @@ or more of the following tags:
 ### Publishing Process
 
 Two workflows publish the images, both triggered manually with the desired
-version: [`publish-frontend.yml`](../../../.github/workflows/publish-frontend.yml)
-(the frontend) and
+version: [`publish-browser.yml`](../../../.github/workflows/publish-browser.yml)
+(the Browser) and
 [`publish-service-images.yml`](../../../.github/workflows/publish-service-images.yml)
 (a matrix over backend, worker, smelter, weaver). Each run, per image:
 
@@ -129,7 +129,7 @@ version: [`publish-frontend.yml`](../../../.github/workflows/publish-frontend.ym
 ### Manual publishing
 
 ```bash
-gh workflow run publish-frontend.yml --field version=0.5.13
+gh workflow run publish-browser.yml --field version=0.5.13
 gh workflow run publish-service-images.yml --field version=0.5.13
 # common flags for either workflow:
 gh workflow run publish-service-images.yml --field version=0.5.13 --field dry_run=true
@@ -140,7 +140,7 @@ gh workflow run publish-service-images.yml --field version=0.5.13 --field tag_la
 
 ## Supply-Chain Verification
 
-Every image published to GHCR — the frontend and all four service
+Every image published to GHCR — the Browser and all four service
 images — carries two cryptographic attestations stored as OCI
 artifacts alongside the image:
 
@@ -163,7 +163,7 @@ Requires the [GitHub CLI](https://cli.github.com/). No keys to
 manage — verification uses Sigstore's transparency log.
 
 ```bash
-# <image> is any of: semiont-frontend, semiont-backend, semiont-worker,
+# <image> is any of: semiont-browser, semiont-backend, semiont-worker,
 # semiont-smelter, semiont-weaver
 gh attestation verify \
   oci://ghcr.io/the-ai-alliance/<image>:VERSION \

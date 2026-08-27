@@ -53,8 +53,8 @@ The `burstBuffer` operator passes the first event through immediately (zero late
 
 When creating a new resource and immediately linking it via annotation:
 
-1. Frontend creates new resource → `yield:created` event (Resource B)
-2. Frontend updates annotation → `mark:body-updated` event (Resource A)
+1. Browser creates new resource → `yield:created` event (Resource B)
+2. Browser updates annotation → `mark:body-updated` event (Resource A)
 3. Both events published via fire-and-forget
 4. Events process in parallel (different resources)
 
@@ -296,9 +296,9 @@ All three are awaited inside `createKnowledgeBase` before the HTTP server begins
 
 See [`@semiont/event-sourcing`'s STORAGE-LAYOUT.md](../../event-sourcing/docs/STORAGE-LAYOUT.md#ephemerality-and-rebuild) for the views-layer ephemerality model.
 
-## Frontend Consistency
+## Browser Consistency
 
-The frontend does not cache graph query results. `referencedBy` data is consumed as a live RxJS observable (`client.browse.referencedBy(resourceId)` in `packages/react-ui/src/features/resource-viewer/state/resource-viewer-page-state-unit.ts`), so views reflect the graph projection as it converges — no manual cache invalidation is needed when links are created.
+The Browser does not cache graph query results. `referencedBy` data is consumed as a live RxJS observable (`client.browse.referencedBy(resourceId)` in `packages/react-ui/src/features/resource-viewer/state/resource-viewer-page-state-unit.ts`), so views reflect the graph projection as it converges — no manual cache invalidation is needed when links are created.
 
 ## Best Practices
 

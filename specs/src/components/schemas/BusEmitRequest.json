@@ -13,9 +13,12 @@
     },
     "scope": {
       "type": "string",
-      "description": "Optional resource scope for broadcast channels (e.g. resourceId). Publishers only — frontends must never set this.",
+      "description": "Optional resource scope for broadcast channels (e.g. resourceId). Publishers only \u2014 clients must never set this.",
       "minLength": 1
     }
   },
-  "required": ["channel", "payload"]
+  "required": [
+    "channel",
+    "payload"
+  ]
 }

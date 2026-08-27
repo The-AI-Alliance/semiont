@@ -1,7 +1,7 @@
 # semiont launcher
 
 A host-installed CLI that runs a local Semiont stack — Neo4j, Qdrant, Ollama,
-PostgreSQL, the Semiont API server, worker, smelter, weaver, and the frontend —
+PostgreSQL, the Semiont API server, worker, smelter, weaver, and the Browser —
 by driving your container runtime (Apple `container`, Docker, or Podman)
 directly. It replaces the `.semiont/scripts/{start,logs,stop}.sh` trio that
 used to be synced into every KB repository.
@@ -69,15 +69,15 @@ semiont stop
   runtime exists — and none churns it: a running Browser is KEPT when its
   image matches what the start would run (image identity, not tag order),
   restarted when stale. A bare `semiont stop` leaves it running, announced;
-  `semiont stop --service frontend` is the explicit off-switch. Its record
+  `semiont stop --service browser` is the explicit off-switch. Its record
   lives beside the stacks (machine-level, with its runtime and image), its
   port is never among a stack's claims, and `status` opens with a BROWSER
   section — first because it sits architecturally above everything it views
   — showing its image tag so browser-vs-stack version skew is visible.
-- `semiont start --service frontend --port <n>` moves the Browser — the ONE
+- `semiont start --service browser --port <n>` moves the Browser — the ONE
   port a flag may move — and is also the explicit refresh (it always
-  restarts, bypassing keep-if-current). A non-3000 port warns that backends
-  configured with `frontendURL http://localhost:3000` may reject the origin.
+  restarts, bypassing keep-if-current). A non-3000 port warns that anything
+  holding `http://localhost:3000` literally will not follow it.
 - **`semiont secret` registers where config secrets come from** — pointers,
   never values. `semiont secret set ANTHROPIC_API_KEY` walks an interactive
   provider-then-path flow (or pass the source directly:
@@ -256,7 +256,7 @@ semiont stop
   generate from it — @semiont/core's types.ts via the OpenAPI pipeline, and
   this launcher's `discovery_types_gen.go` via go-jsonschema (go:generate in
   discovery.go) — so schema drift is a compile error, not a convention. The
-  frontend container mounts the directory read-only at `/discovery` — inert until the frontend image
+  Browser container mounts the directory read-only at `/discovery` — inert until the Browser image
   serves it (lane 2); an empty stack set writes an empty list, because an
   absent file is ambiguous.
 - `semiont stop` sweeps **every** installed runtime by default, so a stack
@@ -410,8 +410,8 @@ semiont stop
   machine's stack) falls back to the historical name sweep; the record is
   belief — `status` still verifies every claim against the runtime.
 - `start`, `stop`, and `status` take `--service <name>` to act on one service
-  (any of the ten, named by role: backend, worker, smelter, weaver, frontend,
-  database, graph, vectors, inference, traces — the concrete products PostgreSQL,
+  (named by role: backend, worker, smelter, weaver, browser,
+  database, graph, vectors, inference, embedding, traces — the concrete products PostgreSQL,
   Neo4j, Qdrant, Ollama, and Jaeger appear as detail alongside). A `--service` start rejoins the running stack's
   worker secret automatically (recovered from a running container's env via
   the runtime's inspect), auto-enables OTel iff Jaeger is up, and stages a
@@ -505,10 +505,10 @@ says which of three things is true:
 ✗ Nobody saw res-42 — nothing is subscribed to browse:resource-open.
   No Browser is running on this machine.
   Start it:  semiont browse res-42 --browser --launch
-  or:        semiont start --service frontend
+  or:        semiont start --service browser
 ```
 
-The two failures are independent — the Browser is the frontend *container*,
+The two failures are independent — the Browser is the Browser *container*,
 and what has to be watching it is a human's *web browser* — so the messages
 keep those words distinct. A container that exists but is not answering gets
 its own third sentence rather than being flattened into either.
@@ -519,14 +519,14 @@ to browse:click`, with `semiont browse --annotation ann-9 --browser --launch`.
 A retry line that named the wrong form would be worse than none.
 
 `--launch` starts the Browser when none is running, through the same
-`start --service frontend` that pulls, publishes the port and waits for health.
+`start --service browser` that pulls, publishes the port and waits for health.
 It starts a *container*: it cannot open a window or log anyone in, so it still
 reports that nobody is watching. Starting one is never implicit — a read verb's
 flag does not get to bring a container up as a side effect.
 
 The launcher names an **origin** and never a path. `http://localhost:3000` is
 its own fact — it publishes that port and records the endpoint — while
-`/know/resource/<id>` belongs to the frontend, and mirroring a route here would
+`/know/resource/<id>` belongs to the Browser, and mirroring a route here would
 break silently the day the route moves. `--browser-url` overrides the recorded
 origin (precedence: flag → record → `http://localhost:3000`).
 

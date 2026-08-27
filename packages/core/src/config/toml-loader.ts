@@ -135,12 +135,6 @@ interface EnvironmentSection {
     platform?: string;
     port?: number;
     publicURL?: string;
-    frontendURL?: string;
-  };
-  frontend?: {
-    platform?: string;
-    port?: number;
-    publicURL?: string;
   };
   site?: {
     domain?: string;
@@ -460,8 +454,6 @@ export function loadTomlConfig(
     topLevelActors['matcher'] = { inference: { type: makeMeaningSection.actors.matcher.inference.type, model: makeMeaningSection.actors.matcher.inference.model } };
   }
 
-  const frontend = resolved.frontend;
-
   // Semantic search is always available, so a config must NAME both a vector
   // store and an embedding provider — nothing is defaulted, and absence
   // refuses the load with a config-actionable message (MANDATORY-EMBEDDING
@@ -507,14 +499,10 @@ export function loadTomlConfig(
     };
   }
 
-  if (frontend) {
-    services.frontend = {
-      platform: { type: requirePlatform(frontend.platform, 'frontend') },
-      port: frontend.port ?? 3000,
-      siteName: site?.siteName ?? 'Semiont',
-      publicURL: frontend.publicURL,
-    };
-  }
+  // No browser service is emitted. The Browser is machine-level — one Browser
+  // serves many KBs — so a KB neither knows nor affects its port or publicURL
+  // (FRONTEND-IS-THE-BROWSER D5). `[browser]` and the older `[frontend]` are
+  // inert unknown sections: tolerated, never read, never refused.
 
   if (resolved.graph) {
     services.graph = {

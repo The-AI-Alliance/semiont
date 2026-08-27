@@ -44,7 +44,7 @@ You'll need a container runtime — [Apple Container](https://github.com/apple/c
 semiont start
 ```
 
-One command starts the whole stack: the launcher pulls the published Semiont images and the infrastructure containers, bind-mounts the KB's config, and brings everything up — **and ensures the Semiont browser is running at http://localhost:3000**. `semiont logs` follows the stack and `semiont stop` tears it down — the browser stays up (it's the machine-level viewer of every KB, not a stack member; `semiont stop --service frontend` closes it). `semiont start --help` lists the options (inference configs via `--config`, `--list-configs`, …).
+One command starts the whole stack: the launcher pulls the published Semiont images and the infrastructure containers, bind-mounts the KB's config, and brings everything up — **and ensures the Semiont browser is running at http://localhost:3000**. `semiont logs` follows the stack and `semiont stop` tears it down — the browser stays up (it's the machine-level viewer of every KB, not a stack member; `semiont stop --service browser` closes it). `semiont start --help` lists the options (inference configs via `--config`, `--list-configs`, …).
 
 ### 4. Connect
 
@@ -58,11 +58,11 @@ Then open **http://localhost:3000**. The Semiont browser's Knowledge Bases panel
 
 ![Connect to knowledge base](website/assets/images/connect-kb.png)
 
-**Just the browser?** To point a Semiont browser at an already-running or remote knowledge base, run the frontend on its own — no clone needed, from any directory (the launcher auto-detects your container runtime and pulls the published image):
+**Just the browser?** To point a Semiont browser at an already-running or remote knowledge base, run the Browser on its own — no clone needed, from any directory (the launcher auto-detects your container runtime and pulls the published image):
 
 ```bash
-semiont start --service frontend            # http://localhost:3000
-semiont start --service frontend --port 3001   # 3000 busy? move the browser
+semiont start --service browser            # http://localhost:3000
+semiont start --service browser --port 3001   # 3000 busy? move the browser
 ```
 
 For local-network access notes, supply-chain verification, and the native [desktop app](https://github.com/The-AI-Alliance/semiont/releases) alternative, see **[docs/browser/](docs/browser/README.md)**.
@@ -100,7 +100,7 @@ Built on the SDK: **[@semiont/react-ui](packages/react-ui/README.md)** embeds th
 
 - **[Development docs](docs/development/README.md)** — codebase layout, build status badges, Codespaces shortcut, where to read next.
 - **[System architecture](docs/system/README.md)** — actor model, knowledge system, container topology, package architecture.
-- **[Frontend development](apps/frontend/docs/DEVELOPMENT.md)** — running the Browser from source against a stack.
+- **[Browser development](apps/browser/docs/DEVELOPMENT.md)** — running the Browser from source against a stack.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — branch/PR workflow, commit conventions, platform-contribution playbook.
 
 ## 📜 License

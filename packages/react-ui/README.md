@@ -179,7 +179,7 @@ into any stack a host happens to use, and it is enforced, not merely intended:
 fail on a utility class or a non-`semiont-` selector.
 
 The rule binds the library, not its hosts. An app is free to use whatever it
-likes — `apps/frontend` uses Tailwind — and consumes this package by whichever
+likes — `apps/browser` uses Tailwind — and consumes this package by whichever
 route fits:
 
 | Host stack | Consume via |
@@ -391,4 +391,4 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md) in the repository root for full gui
 - [@semiont/sdk](../sdk) - `SemiontBrowser`, `SemiontClient`, the read-through cache, and the state machinery. Its [**Developer Guide**](../sdk/docs/DEVELOPER-GUIDE.md) covers end-to-end use, including embedding this package's `ResourceViewer`.
 - [@semiont/core](../core) - Shared API types (`components`) generated from the OpenAPI spec
 - [@semiont/http-transport](../http-transport) - HTTP transport (`HttpTransport`, `HttpContentTransport`, `APIError`)
-- [semiont-frontend](../../apps/frontend) - Reference Next.js implementation
+- [semiont-browser](../../apps/browser) - Reference Next.js implementation

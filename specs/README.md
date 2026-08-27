@@ -45,7 +45,7 @@ specs/openapi.json              (generated - gitignored)
         ↓
 @semiont/http-transport re-exports types (for convenience)
         ↓
-backend and frontend import from core
+backend and Browser import from core
 ```
 
 ## Working with the Spec

@@ -71,7 +71,7 @@ async function listImages(runtime) {
 async function cleanImages(runtime) {
   console.log(`Removing Semiont container images (${runtime})...`);
   
-  const images = ['semiont-backend:latest', 'semiont-frontend:latest'];
+  const images = ['semiont-backend:latest', 'semiont-browser:latest'];
   
   for (const image of images) {
     console.log(`Removing ${image}...`);

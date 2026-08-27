@@ -16,7 +16,7 @@ Five published service images (GitHub Container Registry, tagged per release plu
 | Image | Role | Port |
 |---|---|---|
 | `ghcr.io/the-ai-alliance/semiont-backend` | API, auth, event log, projections | 4000 |
-| `ghcr.io/the-ai-alliance/semiont-frontend` | Browser UI | 3000 |
+| `ghcr.io/the-ai-alliance/semiont-browser` | Browser UI | 3000 |
 | `ghcr.io/the-ai-alliance/semiont-worker` | Job / generation worker | 9090 |
 | `ghcr.io/the-ai-alliance/semiont-smelter` | Embedding / vector pipeline | 9091 |
 | `ghcr.io/the-ai-alliance/semiont-weaver` | Graph projection | 9092 |

@@ -26,7 +26,7 @@ const path = require('path');
 
 const ROOTS = process.argv.slice(2).length
   ? process.argv.slice(2)
-  : ['packages/react-ui/src', 'apps/frontend/src'];
+  : ['packages/react-ui/src', 'apps/browser/src'];
 
 /** Every .css under a root. */
 function cssFiles(dir, out = []) {

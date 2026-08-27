@@ -24,7 +24,7 @@ Five published service images, plus the infrastructure containers a stack needs
 | Image | Role | Port |
 |---|---|---|
 | `ghcr.io/the-ai-alliance/semiont-backend` | API, auth, event log, projections | 4000 |
-| `ghcr.io/the-ai-alliance/semiont-frontend` | Browser UI | 3000 |
+| `ghcr.io/the-ai-alliance/semiont-browser` | Browser UI | 3000 |
 | `ghcr.io/the-ai-alliance/semiont-worker` | Job / generation worker | 9090 |
 | `ghcr.io/the-ai-alliance/semiont-smelter` | Embedding / vector pipeline | 9091 |
 | `ghcr.io/the-ai-alliance/semiont-weaver` | Graph projection | 9092 |
@@ -84,7 +84,7 @@ solve:
   directory is the **system of record** and must survive container replacement.
 - **The KB working tree.** The backend bind-mounts the KB repo at `/kb`. On a multi-node scheduler
   that means a shared filesystem or a different content strategy.
-- **Ingress and TLS.** The frontend serves on 3000 and the backend on 4000; terminating TLS and
+- **Ingress and TLS.** The Browser serves on 3000 and the backend on 4000; terminating TLS and
   routing to them is platform work.
 - **Migrations.** The backend applies Prisma migrations at startup; no external migration step is
   required, but the database must be reachable before the backend becomes healthy.

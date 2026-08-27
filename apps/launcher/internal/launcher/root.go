@@ -179,7 +179,7 @@ func saveRoots(reg rootsRegistry) {
 
 // recordRuntimePref stores the machine-wide sticky runtime — callers pass it
 // only after a start SUCCEEDED with an explicit --runtime. Unlike the config
-// preference it needs no root: `--service frontend --runtime docker` is a
+// preference it needs no root: `--service browser --runtime docker` is a
 // legitimate rootless start and still expresses the choice.
 func recordRuntimePref(rt string) {
 	if rt == "codespace" { // placement, not preference: never sticky (billable VMs)

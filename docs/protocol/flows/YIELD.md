@@ -134,7 +134,7 @@ client.yield.fromContext(context, {
 ```
 User clicks "Generate" on reference annotation ❓
     ↓
-Frontend → client.yield.fromContext(...) emits job:create via /bus/emit
+Browser → client.yield.fromContext(...) emits job:create via /bus/emit
            (no ids on the wire — the dispatcher DERIVES the job's resourceId,
            and the reference to auto-bind, from params.context.focus, and
            REJECTS a caller-supplied id via job:create-failed)
@@ -153,7 +153,7 @@ on the unified job channels — client filters by jobId
 Stower auto-binds the source reference (sourceAnnotationId): emits mark:update-body
 → Stower persists → mark:body-updated
     ↓
-Every connected frontend receives the enriched mark:body-updated on /bus/subscribe
+Every connected Browser receives the enriched mark:body-updated on /bus/subscribe
     ↓
 BrowseNamespace updates the cached annotation in place
     ↓
@@ -513,7 +513,7 @@ whole check — this is how the SDK's `YieldStateUnit.outcome$` and react-ui's
 outcome toasts read it, and an unhandled member is a compile error, not a runtime
 surprise.
 
-## Frontend Implementation
+## Browser Implementation
 
 ### Generation UI
 
@@ -603,7 +603,7 @@ subscription.unsubscribe();  // cleanup
 
 Job lifecycle events (`job:report-progress`, `job:complete`,
 `job:fail`) and domain events (`mark:body-updated`) all flow through
-the same `/bus/subscribe` SSE connection. The frontend's
+the same `/bus/subscribe` SSE connection. The Browser's
 `YieldStateUnit` observes the `yield.fromContext()` stream — which
 filters lifecycle events by the generation's `jobId` — for the modal
 UI, while `BrowseNamespace` handles the domain event for cache
@@ -615,7 +615,7 @@ The `mark:body-updated` event flow:
 1. Stower's `yield:create` handler auto-binds the source reference, emitting
    `mark:update-body` → EventBus → Stower persists →
    EventStore publishes enriched `mark:body-updated` on scoped bus
-2. Frontend ActorStateUnit receives event, bridges to local EventBus
+2. Browser ActorStateUnit receives event, bridges to local EventBus
 3. `BrowseNamespace.updateAnnotationInPlace` writes the enriched
    annotation into the cached Observable
 4. UI re-renders with resolved reference (❓ → 🔗)
@@ -626,9 +626,9 @@ See [EVENT-BUS.md](../EVENT-BUS.md) for the bus protocol.
 
 **Generation Failures**:
 - Worker logs detailed error to backend console
-- Generic error sent to frontend: "Generation failed. Please try again."
+- Generic error sent to browser: "Generation failed. Please try again."
 - Job marked as `status: 'failed'` in queue
-- Frontend shows error toast with retry option
+- Browser shows error toast with retry option
 
 **Client Disconnection**:
 - Generation job continues running even if progress SSE disconnects
@@ -694,7 +694,7 @@ See [EVENT-BUS.md](../EVENT-BUS.md) for the bus protocol.
 - [apps/backend/src/routes/bus.ts](../../../apps/backend/src/routes/bus.ts) - Bus gateway (`/bus/emit`, `/bus/subscribe`)
 - [packages/make-meaning/src/handlers/job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts) - `job:create`/`job:claim` handlers
 
-### Frontend
+### Browser
 
 - [packages/react-ui/src/components/modals/ReferenceWizardModal.tsx](../../../packages/react-ui/src/components/modals/ReferenceWizardModal.tsx) - Reference-resolution wizard (Bind / Generate / Compose)
 - [packages/react-ui/src/components/modals/ConfigureGenerationStep.tsx](../../../packages/react-ui/src/components/modals/ConfigureGenerationStep.tsx) - Generation config form (title, prompt, language, creativity, max length)

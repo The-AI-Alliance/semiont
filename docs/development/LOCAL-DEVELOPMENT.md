@@ -64,14 +64,14 @@ Launcher verbs, run from the KB directory — see [apps/launcher](../../apps/lau
 ```bash
 semiont status                    # container state + per-service health
 semiont logs                      # follow service logs
-semiont stop --service frontend   # stop one service
+semiont stop --service browser   # stop one service
 ```
 
 ## Service ports
 
 | Service | Port | URL |
 |---------|------|-----|
-| Frontend | 3000 | http://localhost:3000 |
+| Browser | 3000 | http://localhost:3000 |
 | Backend | 4000 | http://localhost:4000 |
 | PostgreSQL | 5432 | postgresql://localhost:5432 |
 | Worker / Smelter / Weaver | 9090 / 9091 / 9092 | health endpoints |

@@ -34,7 +34,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Build
-        # Frontend memory note: with `VITE_OTEL_OTLP_ENDPOINT` set at
+        # Browser memory note: with `VITE_OTEL_OTLP_ENDPOINT` set at
         # build time the OTel web SDK is bundled into the SPA, and
         # vite's chunking step needs ~2GB of Node heap. Default
         # `ubuntu-latest` runners have ~7GB RAM and Node's default
@@ -85,7 +85,7 @@ jobs:
 
           # Pull the published-package list from version.json (the
           # workspace's single source of truth). Library packages live
-          # under `packages/`; both published apps (backend, frontend)
+          # under `packages/`; both published apps (backend, browser)
           # publish from `.npm-stage/` via the `stage` field.
           MANIFEST=$(node -e "
             const v = JSON.parse(require('fs').readFileSync('version.json', 'utf-8'));

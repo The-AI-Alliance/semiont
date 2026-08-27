@@ -133,7 +133,7 @@ particularly `semiont.job.queue.size` (worker fan-out trigger),
 | Service | Configuration | Monthly Cost |
 |---------|--------------|--------------|
 | RDS PostgreSQL | t3.micro, single-AZ, 20GB GP2 | $20 |
-| ECS Fargate | 2 tasks (frontend + backend), 256 CPU, 512MB each | $18 |
+| ECS Fargate | 2 tasks (Browser + backend), 256 CPU, 512MB each | $18 |
 | ALB | Standard configuration | $20 |
 | NAT Gateway | 2 AZs, minimal data transfer | $45 |
 | CloudFront | <1GB transfer, minimal requests | $5 |
@@ -269,7 +269,7 @@ particularly `semiont.job.queue.size` (worker fan-out trigger),
 
 **Request-Based Scaling:**
 
-- Frontend: >500 requests/minute per task
+- Browser: >500 requests/minute per task
 - Backend: >1000 API calls/minute per task
 - Scale in: <100 requests/minute per task
 
@@ -307,7 +307,7 @@ particularly `semiont.job.queue.size` (worker fan-out trigger),
 - Single-AZ RDS for development/testing
 - Reserved Instances for predictable workloads
 - Implement automated start/stop for non-production
-- Share EFS between frontend/backend services
+- Share EFS between browser/backend services
 
 **100-1,000 Users:**
 
@@ -352,7 +352,7 @@ particularly `semiont.job.queue.size` (worker fan-out trigger),
 
 ### Expected Performance by Scale
 
-| User Count | Frontend Load Time | API Response Time | Concurrent Users | Database Queries/sec |
+| User Count | Browser Load Time | API Response Time | Concurrent Users | Database Queries/sec |
 |------------|-------------------|-------------------|------------------|---------------------|
 | 10 | <1 second | <100ms | 5-10 | 10-20 |
 | 100 | <1 second | <150ms | 20-50 | 50-100 |
@@ -393,14 +393,14 @@ particularly `semiont.job.queue.size` (worker fan-out trigger),
 - Zero-downtime deployments for both services
 - Quick rollback capabilities
 - Suitable for 1,000+ users
-- Separate deployment for frontend/backend
+- Separate deployment for browser/backend
 
 ### Canary Deployments  
 
 - Gradual traffic shifting per service
 - Risk mitigation for large changes
 - Recommended for 10,000+ users
-- A/B testing for frontend features
+- A/B testing for Browser features
 
 ### Multi-Region Deployments
 
@@ -415,4 +415,4 @@ particularly `semiont.job.queue.size` (worker fan-out trigger),
 - Consider at 100,000+ user scale
 - GraphQL federation for API gateway
 
-This scaling guide should be reviewed quarterly and updated based on actual usage patterns, AWS service improvements, and framework updates for Next.js, Hono, and Prisma.
+This scaling guide should be reviewed quarterly and updated based on actual usage patterns, AWS service improvements, and framework updates for Vite, Hono, and Prisma.

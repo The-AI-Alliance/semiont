@@ -165,10 +165,10 @@ UI ended up right via a stale cache or a backfilled refetch.
 matching correlationId" fails the moment the wire protocol
 regresses, even if the UI eventually converges.
 
-Today's wire log covers the frontend-to-backend edge. An equivalent
+Today's wire log covers the Browser-to-backend edge. An equivalent
 instrumentation on the backend's own bus — gated behind the same
-flag — would extend a single trace from frontend EMIT through
-backend SSE-write to frontend RECV, eliminating the blind spot
+flag — would extend a single trace from Browser EMIT through
+backend SSE-write to Browser RECV, eliminating the blind spot
 where an event reaches `/bus/emit` but never produces a response
 (the shape of bug the SSE parser regression would have been
 detectable in seconds rather than hours, had it existed).

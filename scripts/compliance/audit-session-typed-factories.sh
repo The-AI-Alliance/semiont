@@ -25,7 +25,7 @@ cd "$REPO_ROOT"
 
 STATUS=0
 
-BANG=$(grep -rnE "use(Session)?StateUnit\(" packages/react-ui/src apps/frontend/src \
+BANG=$(grep -rnE "use(Session)?StateUnit\(" packages/react-ui/src apps/browser/src \
   --include='*.ts' --include='*.tsx' 2>/dev/null \
   | grep -v __tests__ \
   | grep -E "[A-Za-z_]+!(,|\.|\))" || true)
@@ -35,7 +35,7 @@ if [ -n "$BANG" ]; then
   STATUS=1
 fi
 
-PLAIN=$(grep -rnE "useStateUnit\(" packages/react-ui/src apps/frontend/src \
+PLAIN=$(grep -rnE "useStateUnit\(" packages/react-ui/src apps/browser/src \
   --include='*.ts' --include='*.tsx' 2>/dev/null \
   | grep -v __tests__ \
   | grep -v "useSessionStateUnit(" \

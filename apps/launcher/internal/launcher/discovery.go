@@ -16,7 +16,7 @@ package launcher
 
 //go:generate sh -c "cd ../../../.. && container run --rm -v $(pwd):/w -w /w golang:1.25 go run github.com/atombender/go-jsonschema@v0.23.1 -p launcher --tags json --struct-name-from-title --capitalization KB -o apps/launcher/internal/launcher/discovery_types_gen.go specs/src/discovery/DiscoveryDocument.json" <stateDir>/discovery/kbs.json is an
 // EXPORT VIEW regenerated on every stack mutation (saveStackSet is the single
-// writer), and the frontend container mounts the directory read-only at
+// writer), and the Browser container mounts the directory read-only at
 // /discovery. Never stack.json itself — that file is launcher-private (PIDs,
 // staging paths) — and never a secret or credential: endpoints only, login
 // stays the Browser's per-KB business.

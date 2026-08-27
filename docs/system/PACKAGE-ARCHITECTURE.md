@@ -1,6 +1,6 @@
 # Package Architecture
 
-Semiont is a monorepo. Workspace packages are organized in layers from low-level primitives to high-level application logic; consumers (`apps/backend`, `apps/frontend`) sit on top.
+Semiont is a monorepo. Workspace packages are organized in layers from low-level primitives to high-level application logic; consumers (`apps/backend`, `apps/browser`) sit on top.
 
 For the per-package descriptions and npm metadata, see **[../../packages/README.md](../../packages/README.md)** — alphabetized table with one-line descriptions of every published `@semiont/*` package.
 
@@ -10,7 +10,7 @@ For the per-package descriptions and npm metadata, see **[../../packages/README.
 graph BT
     %% Layer 5: Application Consumers
     backend["apps/backend<br/><i>Hono API server</i>"]
-    frontend["apps/frontend<br/><i>Vite + React SPA</i>"]
+    frontend["apps/browser<br/><i>Vite + React SPA</i>"]
 
     %% Layer 4: Application Logic
     meaning["@semiont/make-meaning<br/><b>startMakeMeaning()</b><br/><i>Infrastructure orchestrator</i><br/>EventStore, GraphDB, RepStore,<br/>InferenceClient, JobQueue, Workers"]
@@ -42,10 +42,10 @@ graph BT
     backend --> event
     backend --> obs
     backend --> core
-    frontend --> react
-    frontend --> sdk
-    frontend --> api
-    frontend --> obs
+    Browser --> react
+    Browser --> sdk
+    Browser --> api
+    Browser --> obs
 
     %% Application logic dependencies
     meaning --> event
@@ -109,7 +109,7 @@ graph BT
     class sdk,event,graph_pkg layer2
     class inference,jobs layer3
     class meaning,react,mcp layer4
-    class backend,frontend layer5
+    class backend,Browser layer5
 ```
 
 Edges in the graph reflect the actual `package.json` `dependencies` field for each workspace package.
@@ -118,7 +118,7 @@ Edges in the graph reflect the actual `package.json` `dependencies` field for ea
 
 1. **Single Orchestration Point.** `@semiont/make-meaning`'s `startMakeMeaning()` is the **infrastructure owner** — it initializes and manages the lifecycle of every subsystem (EventStore, GraphDB, RepStore, InferenceClient, JobQueue, Workers, GraphConsumer).
 
-2. **Strict API Boundary.** `apps/frontend` never imports backend packages directly. Its only `@semiont/*` imports are `@semiont/sdk`, `@semiont/http-transport`, `@semiont/react-ui`, and `@semiont/observability` — every interaction with the backend goes through the SDK over `HttpTransport`.
+2. **Strict API Boundary.** `apps/browser` never imports backend packages directly. Its only `@semiont/*` imports are `@semiont/sdk`, `@semiont/http-transport`, `@semiont/react-ui`, and `@semiont/observability` — every interaction with the backend goes through the SDK over `HttpTransport`.
 
 3. **Layered Dependencies.** Packages can only depend on packages in lower layers. No circular dependencies.
 

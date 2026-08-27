@@ -101,7 +101,7 @@ backend handler forwards to mark:update-body, persists mark:body-updated event,
 materializes view, replies bind:body-updated (correlationId-matched)
     |
 EventStore enrichment attaches post-materialization annotation,
-publishes on scoped EventBus → /bus/subscribe → frontend ActorStateUnit
+publishes on scoped EventBus → /bus/subscribe → Browser ActorStateUnit
     |
 BrowseNamespace.updateAnnotationInPlace writes the annotation into the cached Observable
     |

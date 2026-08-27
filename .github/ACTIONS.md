@@ -35,7 +35,7 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/admin/users  #
 
 ### Continuous Integration (`ci.yml`)
 **General testing and building workflow**:
-- Frontend: Tests, linting, type-checking, building
+- Browser: Tests, linting, type-checking, building
 - Backend: Tests, type-checking, building with PostgreSQL
 - CDK: Infrastructure tests and synthesis
 - Scripts: TypeScript compilation and validation
@@ -79,7 +79,7 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/admin/users  #
 # Runs on:
 - push: [main, develop]
 - pull_request: [main, develop]  
-- paths: apps/frontend/**, apps/backend/**
+- paths: apps/browser/**, apps/backend/**
 - workflow_dispatch: # Manual trigger
 ```
 
@@ -103,7 +103,7 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/admin/users  #
 ## 🛡️ Security Workflow Details
 
 ### Environment Setup
-Both frontend and backend security tests use:
+Both Browser and backend security tests use:
 - **Node.js 20**: Latest LTS version
 - **PostgreSQL 15**: Test database for backend
 - **Environment Variables**: Test credentials and configuration
@@ -111,7 +111,7 @@ Both frontend and backend security tests use:
 
 ### Test Environment Variables
 ```bash
-# Frontend
+# Browser
 SERVER_API_URL=http://localhost:3001
 NEXT_PUBLIC_SITE_NAME=Semiont Test
 NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=example.com
@@ -179,7 +179,7 @@ If security tests fail:
 ### For Developers
 1. **Run security tests locally** before pushing:
    ```bash
-   cd apps/frontend && npm run test:security
+   cd apps/browser && npm run test:security
    cd apps/backend && npm run test:security
    ```
 

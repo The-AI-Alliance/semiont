@@ -1,6 +1,6 @@
 # Testing Guide - Semiont
 
-This guide covers the testing strategy and implementation for the Semiont project, with a focus on the modern testing stack used in the frontend.
+This guide covers the testing strategy and implementation for the Semiont project, with a focus on the modern testing stack used in the Browser.
 
 ## Overview
 
@@ -46,10 +46,10 @@ Focus on security-critical functionality:
 - Admin access controls
 
 ### 🎭 **End-to-End Tests**
-Real-browser Playwright tests that drive the live frontend against a live backend and KB stack. Catch cross-layer regressions that unit and integration tests can't see:
+Real-browser Playwright tests that drive the live Browser against a live backend and KB stack. Catch cross-layer regressions that unit and integration tests can't see:
 - SSE timing and reconnect
 - React lifecycle ↔ event-bus interaction
-- Cross-package round-trips (frontend → backend → make-meaning → workers)
+- Cross-package round-trips (Browser → backend → make-meaning → workers)
 - Auth session rebuild after sign-out/sign-in
 - Persistence: annotation reload, view-state survival
 
@@ -92,7 +92,7 @@ Tests automatically use the appropriate environment based on their type:
   - Mocked database connections (`mockMode: true`)
   - No external service dependencies
   - Fast execution, ideal for TDD
-  - Used by default frontend tests and backend unit tests
+  - Used by default Browser tests and backend unit tests
 
 - **Integration Tests** (config: `integration.ts`):
   - Real PostgreSQL via Testcontainers (`useTestcontainers: true`)
@@ -181,7 +181,7 @@ if (configPath) {
 5. **Clean**: Temporary files are automatically cleaned up after tests
 6. **Transparent**: Config file paths are shown in test output for debugging
 
-## Frontend Testing Stack
+## Browser Testing Stack
 
 ### Core Technologies
 
@@ -306,7 +306,7 @@ afterEach(() => server.resetHandlers())
 // Disable API mocking after the tests are done
 afterAll(() => server.close())
 
-// Mock Next.js router
+// Mock the host's router
 vi.mock('next/navigation', () => ({
   useRouter() {
     return {
@@ -770,7 +770,7 @@ Two required, two with local-dev defaults:
 |---|---|---|
 | `E2E_EMAIL` | (required) | User to sign in as |
 | `E2E_PASSWORD` | (required) | Password for that user |
-| `E2E_FRONTEND_URL` | `http://localhost:3000` | Frontend the browser drives |
+| `E2E_BROWSER_URL` | `http://localhost:3000` | The Browser the tests drive |
 | `E2E_BACKEND_URL` | `http://localhost:4000` | Backend the sign-in form points at |
 
 The default seeded admin is `admin@example.com` / `password`. No fallback — the suite fails fast if `E2E_EMAIL`/`E2E_PASSWORD` aren't set, on purpose (no silent use of a default account).
@@ -780,7 +780,7 @@ The default seeded admin is `admin@example.com` / `password`. No fallback — th
 The recommended path on macOS is the official Playwright container, which can reach the dev stack's bridge IPs directly:
 
 ```sh
-# 1. Bring up the stack (frontend + backend + KB), once per session.
+# 1. Bring up the stack (Browser + backend + KB), once per session.
 #    See tests/e2e/README.md "Running against a freshly-built stack".
 
 # 2. Re-grab IPs every time anything restarts (Apple container reassigns them).
@@ -792,7 +792,7 @@ container run --rm \
   -w /workspace/tests/e2e \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
-  -e E2E_FRONTEND_URL=http://<frontend-ip>:3000 \
+  -e E2E_BROWSER_URL=http://<browser-ip>:3000 \
   -e E2E_BACKEND_URL=http://<backend-ip>:4000 \
   -e CI=1 \
   mcr.microsoft.com/playwright:v1.59.1-noble \
@@ -832,7 +832,7 @@ skips it.)
 Inner loop, in priority order:
 
 1. **Re-run the failing test with the bus log** under `--repeat-each 3` to separate flake from determinism.
-2. **Tail the backend** during the run: `container logs -f semiont-backend`. If the event never reaches the backend, it's a frontend emit/subscribe problem; if the backend logs the emit but no SSE write follows, it's a result-channel problem.
+2. **Tail the backend** during the run: `container logs -f semiont-backend`. If the event never reaches the backend, it's a Browser emit/subscribe problem; if the backend logs the emit but no SSE write follows, it's a result-channel problem.
 3. **Open the trace report** (`npm run show-report`). Each failed test has a DOM snapshot, a screenshot, a video, and a `trace.zip` for time-travel debugging in Playwright's trace viewer.
 4. **Pull `console.error` from the trace** without booting the viewer — see [`tests/e2e/docs/debugging.md`](../../tests/e2e/docs/debugging.md#pulling-a-js-error-from-a-trace) for the JSONL recipe.
 5. **Write a throwaway diagnostic spec** with the minimum flow and no assertions. If the diagnostic succeeds where the real test fails, the delta between them is the bug.
@@ -846,8 +846,8 @@ Anything inside `@semiont/*` is published to a local Verdaccio and consumed via 
 
 | Change in | Rebuild | Restart |
 |---|---|---|
-| `packages/react-ui`, `packages/http-transport`, `packages/core`, `packages/sdk` | `./scripts/ci/local-build.sh` | frontend container |
-| `apps/frontend` only | `./scripts/ci/local-build.sh` | frontend container |
+| `packages/react-ui`, `packages/http-transport`, `packages/core`, `packages/sdk` | `./scripts/ci/local-build.sh` | Browser container |
+| `apps/browser` only | `./scripts/ci/local-build.sh` | Browser container |
 | `packages/make-meaning`, `event-sourcing`, anything backend-side | `./scripts/ci/local-build.sh` (rebuilds the `:local` images) | the stack: `SEMIONT_VERSION=local semiont start` |
 | `apps/backend` | `./scripts/ci/local-build.sh` | the stack: `SEMIONT_VERSION=local semiont start` |
 
@@ -896,7 +896,7 @@ Full guide: [`tests/e2e/docs/writing.md`](../../tests/e2e/docs/writing.md).
 
 The ones that have cost real debugging time, captured so you don't re-discover them:
 
-- **`crypto.randomUUID` requires a secure context.** `localhost` and `127.0.0.1` count as secure; arbitrary `http://192.168.x.x` does not. The auth fixture polyfills it via `addInitScript`. The polyfill is also masking a latent product bug — any user hitting the frontend over HTTP from a non-localhost hostname hits the same issue.
+- **`crypto.randomUUID` requires a secure context.** `localhost` and `127.0.0.1` count as secure; arbitrary `http://192.168.x.x` does not. The auth fixture polyfills it via `addInitScript`. The polyfill is also masking a latent product bug — any user hitting the Browser over HTTP from a non-localhost hostname hits the same issue.
 - **Container IPs change on every restart.** Apple's container runtime reassigns bridge IPs on every `container run` and every `container start`. Re-grab both IPs before each test run.
 - **Stale browser tabs poison backend logs.** A lingering tab from an earlier dev session retries SSE with an expired token, flooding `container logs` with `401`s. Close the tab before debugging.
 - **Playwright image tag must match `@playwright/test`.** When `npm install` upgrades the package, pull the matching `mcr.microsoft.com/playwright:<version>-noble`.
@@ -954,7 +954,7 @@ npm run test:coverage       # Everything, with coverage
 npm run test:watch          # Watch mode
 ```
 
-Frontend (`apps/frontend/`):
+Browser (`apps/browser/`):
 
 ```bash
 npm test                    # Everything
@@ -1074,9 +1074,9 @@ what passes. It runs on every push and pull request, on Node 24, with these jobs
 
 | Job | What it covers |
 |---|---|
-| `test-frontend` | `npm run typecheck` + `npm test` for `apps/frontend` |
+| `test-browser` | `npm run typecheck` + `npm test` for `apps/browser` |
 | `test-backend` | typecheck, `npm test`, and `npm run test:integration` for `apps/backend`, against a `postgres:15` service container |
-| `test-comprehensive` | frontend and backend suites again, backend integration included, against a `postgres:15` service container |
+| `test-comprehensive` | Browser and backend suites again, backend integration included, against a `postgres:15` service container |
 | `validate-config` | `npm ci --include=optional` + `npm run build:packages` |
 | `check-phantom-deps` | imports not declared in the importing package's `package.json` |
 | `build-all` | every workspace builds, and `tsc --noEmit` across the monorepo |
@@ -1098,7 +1098,7 @@ everything — CI runs the full matrix.
 ## Related Documentation
 
 ### Application Testing Documentation
-- [Frontend Testing](../../apps/frontend/README.md#testing) - Frontend-specific testing setup, scripts, and philosophy
+- [Browser Testing](../../apps/browser/README.md#testing) - Browser-specific testing setup, scripts, and philosophy
 - [Backend Testing](../../apps/backend/README.md#testing) - Backend API testing and integration tests
 
 ### End-to-End Testing
@@ -1112,7 +1112,7 @@ everything — CI runs the full matrix.
 
 ### Component Testing
 - [Annotation Rendering Principles](../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Property-based testing for annotation renderer
-- [Frontend Architecture](../../apps/frontend/docs/ARCHITECTURE.md) - Component structure and testing strategy
+- [Browser Architecture](../../apps/browser/docs/ARCHITECTURE.md) - Component structure and testing strategy
 
 ### W3C Compliance Testing
 - [W3C-WEB-ANNOTATION.md](../protocol/W3C-WEB-ANNOTATION.md) - W3C Web Annotation compliance and testing

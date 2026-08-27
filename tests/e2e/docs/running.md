@@ -3,7 +3,7 @@
 ## Requirements
 
 - A running backend with a known user account.
-- A running frontend pointing at that backend.
+- A running Browser pointing at that backend.
 - Both reachable from the host where Playwright runs.
 
 Bringing the stack up is covered in
@@ -19,7 +19,7 @@ local-dev defaults.
 |---|---|---|
 | `E2E_EMAIL` | (required) | User to sign in as. |
 | `E2E_PASSWORD` | (required) | Password for that user. |
-| `E2E_FRONTEND_URL` | `http://localhost:3000` | Frontend the browser drives. |
+| `E2E_BROWSER_URL` | `http://localhost:3000` | The Browser the tests drive. |
 | `E2E_BACKEND_URL` | `http://localhost:4000` | Backend the sign-in form points at. |
 
 The default test user seeded by the backend is
@@ -56,7 +56,7 @@ container run --rm \
   -w /workspace/tests/e2e \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
-  -e E2E_FRONTEND_URL=http://192.168.64.1:3000 \
+  -e E2E_BROWSER_URL=http://192.168.64.1:3000 \
   -e E2E_BACKEND_URL=http://192.168.64.1:4000 \
   -e CI=1 \
   "mcr.microsoft.com/playwright:v$PW-noble" \

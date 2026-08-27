@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./apps/frontend
+        working-directory: ./apps/browser
 
     steps:
       - name: Checkout code
@@ -168,7 +168,7 @@ jobs:
         uses: codecov/codecov-action@v7.0.0
         if: always()
         with:
-          file: ./apps/frontend/coverage/lcov.info
+          file: ./apps/browser/coverage/lcov.info
           flags: frontend
           name: frontend-coverage
         continue-on-error: true

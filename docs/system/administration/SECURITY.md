@@ -148,7 +148,7 @@ full request trace, and the `bus.dispatch:*` server spans on
 
 ### Supply-Chain Integrity
 
-The published `semiont-frontend` container image is Trivy-scanned for
+The published `semiont-browser` container image is Trivy-scanned for
 HIGH/CRITICAL CVEs before push and signed with Sigstore-backed
 build-provenance + SBOM attestations stored as OCI artifacts in
 GHCR. Operators pulling the image should verify the attestations

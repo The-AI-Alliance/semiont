@@ -6,7 +6,7 @@ differently: it generates and keeps the backend's token-signing key, and it only
 
 ## The backend's JWT secret
 
-`JWT_SECRET` signs and validates bearer tokens. The frontend never sees it — it
+`JWT_SECRET` signs and validates bearer tokens. The Browser never sees it — it
 holds only the bearer token the backend returns. The backend refuses to start if
 it is unset or shorter than 32 characters.
 
