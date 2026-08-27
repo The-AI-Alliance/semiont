@@ -8,48 +8,12 @@ This guide covers how to create full backups of a Semiont knowledge base and res
 
 Semiont also supports a separate [Linked Data exchange format](../../protocol/EXCHANGE.md) for standards-based data sharing. This document covers the **Full Backup** format used for disaster recovery and migration.
 
-## GUI: Backup & Restore
+## Availability
 
-The Administration section includes a **Backup & Restore** page at `/admin/exchange`. This is available to users with the admin role.
-
-### Creating a Backup
-
-1. Navigate to **Administration → Backup & Restore**
-2. Click **Export Backup**
-3. The browser downloads a `.tar.gz` archive
-
-The archive contains the complete event history and all content-addressed blobs. It can fully reconstruct the knowledge base.
-
-### Restoring from a Backup
-
-1. Navigate to **Administration → Backup & Restore**
-2. Drop or select a `.tar.gz` backup archive
-3. Review the file preview (format and version are shown)
-4. Click **Restore** and confirm
-
-The restore process replays all events through the EventBus → Stower pipeline. Progress is reported in phases:
-
-- **Started** — Archive uploaded and parsed
-- **Complete** — Replay statistics shown (events replayed, resources created, annotations created, entity types added)
-
-If the archive is invalid or replay fails, an error phase is reported with the failure message.
-
-**Warning**: Restore adds data to the existing knowledge base. It does not wipe existing data first.
-
-## API
-
-Full backup and restore are backend operations, driven by the GUI above or called directly:
-
-- `POST /api/admin/exchange/backup` — download a full backup archive (admin)
-- `POST /api/admin/exchange/restore` — restore from an archive (admin)
-- `POST /api/moderate/exchange/export` / `/import` — the [Linked Data exchange format](../../protocol/EXCHANGE.md)
-
-The SDK wraps the first two as `backup()` and `restore()`; see
-[`@semiont/sdk`](../../../packages/sdk/README.md). The archive format below is what those endpoints
-produce and consume.
-
-There is no CLI at all any more — so no CLI path for backup,
-restore, export, or import.
+**There is no backup or restore surface today.** The admin API routes, their SDK calls and the
+GUI page were removed in EXPORT-VIA-LAUNCHER P1–P2, and the TypeScript importer and exporter in
+P3. Backup becomes a `semiont` launcher operation reading the working tree directly; that verb is
+not built yet. The archive format below is the specification it implements.
 
 ## Backup Archive Format
 

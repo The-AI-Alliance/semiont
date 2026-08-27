@@ -23,12 +23,17 @@ type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
  *
  * ## The annotatability gate (MEDIA-CAPABILITY-DISPATCH D6)
  *
- * This is the ONLY write path that checks — deliberately. Every GUI and SDK
- * caller travels `mark:create-request`; import and replay emit `mark:create`
- * directly and so never reach here. That topology IS the leniency: restore
- * keeps working on any stored type without a flag, a bypass parameter, or an
- * "import mode". Moving this check down to Stower's convergence point would
- * force exactly that switch.
+ * Every GUI and SDK caller travels `mark:create-request` and is checked here.
+ * The check is deliberately NOT on `mark:create`, which Stower consumes: that
+ * channel is the fact-writing path, and gating it would need a leniency flag
+ * for restore — the compatibility switch D6 was written to avoid.
+ *
+ * D6's original second emitter, the TypeScript import/replay path, was deleted
+ * by EXPORT-VIA-LAUNCHER P3 (2026-08-27), so nothing travels the ungated
+ * channel today. The separation is kept anyway, because restore returns in the
+ * launcher and its fact-writing seam is still an open decision (that plan's
+ * P5) — a restore that re-subjected historical facts to this gate would be the
+ * 2026-07-09 "events are facts, commands are requests" ruling undone.
  */
 export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: KnowledgeBase, parentLogger: Logger): void {
   const logger = parentLogger.child({ component: 'annotation-assembly' });

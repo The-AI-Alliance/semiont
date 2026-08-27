@@ -1,6 +1,13 @@
-# Linked Data Exchange
+# Linked Data Exchange Format
 
-This guide covers how to export and import knowledge base data as JSON-LD Linked Data. The linked data format captures the current state of resources, annotations, and content — it is designed for data sharing and interoperability rather than disaster recovery.
+This is the **format specification** for the JSON-LD Linked Data archive: the current state of
+resources, annotations and content, for data sharing and interoperability rather than disaster
+recovery.
+
+**There is no exchange surface today.** The API routes, the SDK calls and the Moderation GUI page
+were removed in EXPORT-VIA-LAUNCHER P1–P2, and the TypeScript reader/writer in P3 — exchange is a
+local-operator capability reached through the `semiont` launcher, which reads the working tree
+directly. The launcher verb is not built yet. This document is what it implements.
 
 **Related guides**: [Backup & Restore](../system/administration/BACKUP.md) | [System Documentation](../system/README.md)
 
@@ -14,44 +21,6 @@ Key characteristics:
 - **Lossy** — original resource IDs are not preserved on import (new IDs are assigned)
 - **Standards-based** — uses Schema.org, W3C Web Annotation, Dublin Core, and PROV-O vocabularies
 - **Content included** — all content blobs are bundled in the archive
-
-This format requires the **moderator** or **admin** role.
-
-## GUI: Export and Import
-
-The Moderation section includes a **Linked Data** page at `/moderate/linked-data`.
-
-### Exporting
-
-1. Navigate to **Moderation → Linked Data**
-2. Click **Export**
-3. The browser downloads a `.tar.gz` archive containing all resources and their content
-
-By default, archived resources are excluded from the export.
-
-### Importing
-
-1. Navigate to **Moderation → Linked Data**
-2. Drop or select a `.tar.gz` linked data archive
-3. Review the file preview
-4. Click **Import** and confirm
-
-The import creates new resources from the archive. Progress is reported in phases: entity types, resources, annotations, and completion.
-
-**Note**: Import adds data to the existing knowledge base. It does not replace or overwrite existing resources.
-
-## API: Export and Import
-
-Export and import are backend operations, driven by the GUI above or called directly (moderator
-role):
-
-- `POST /api/moderate/exchange/export` — export current state as JSON-LD
-- `POST /api/moderate/exchange/import` — import from a JSON-LD archive
-
-Imported resources carry the identity supplied by the request; absent one, the import defaults to
-`did:web:localhost:users:{system-user}`.
-
-There is **no** `export` / `import` command — exchange is an API concern, reached through `@semiont/sdk`.
 
 ## Archive Format
 

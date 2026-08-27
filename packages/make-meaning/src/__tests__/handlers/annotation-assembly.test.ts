@@ -4,9 +4,16 @@
  * Annotatability used to be a UI-only notion: the GUI decided what to offer and
  * nothing decided what to accept, so an SDK or API caller could annotate a ZIP.
  * The gate goes on `mark:create-request` — the bus command every GUI and SDK
- * caller travels — and NOT on `mark:create`, which import and replay emit
- * directly. That placement IS D6's leniency: restore stays lenient by topology,
- * with no flag and no bypass parameter.
+ * caller travels — and NOT on `mark:create`, the fact-writing channel Stower
+ * consumes.
+ *
+ * The last case below pins that separation. When it was written, the ungated
+ * channel had live users: the TypeScript import and replay path emitted
+ * `mark:create` directly. EXPORT-VIA-LAUNCHER P3 deleted those, so nothing
+ * travels it today — but restore returns in the launcher and its fact-writing
+ * seam is undecided (that plan's P5), so the pin still guards the thing that
+ * matters: gating `mark:create` would need a leniency flag for restore, which
+ * is the compatibility switch D6 exists to avoid.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -104,11 +111,13 @@ describe('mark:create-request refuses unannotatable targets (MEDIA-CAPABILITY-DI
     expect(outcome.message).toMatch(/cannot be annotated/);
   });
 
-  it('leaves import and replay alone — the gate is on the REQUEST channel', async () => {
-    // The regression pin for D6: import and replay emit `mark:create` directly
-    // and must keep working for storage-tier targets. This fires if a later
-    // session ever "tidies" the gate down into Stower's convergence point,
-    // which would need a leniency flag to undo.
+  it('leaves the fact-writing channel ungated — the gate is on the REQUEST channel', async () => {
+    // The regression pin for D6. A direct `mark:create` for a storage-tier
+    // target must produce no refusal. Fires if a later session "tidies" the
+    // gate down into Stower's convergence point, which would need a leniency
+    // flag to undo — and would silently re-subject restored history to a gate
+    // the 2026-07-09 "events are facts, commands are requests" ruling put it
+    // outside of.
     registerAnnotationAssemblyHandler(bus, kbServing('text/css'), silentLogger);
     const failures: unknown[] = [];
     bus.get('mark:create-failed').subscribe((e) => failures.push(e));
