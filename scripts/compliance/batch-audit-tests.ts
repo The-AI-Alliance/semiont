@@ -2,7 +2,8 @@
 /**
  * Batch audit test files for composition-based testing compliance
  *
- * Generates REACT-UI-TESTS-COMPLIANCE.md report
+ * Writes the test-compliance table to stdout; callers redirect it into
+ * .compliance/<WORKSPACE>-TESTS-COMPLIANCE.md (gitignored build output).
  */
 
 import * as fs from 'fs';

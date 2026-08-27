@@ -334,8 +334,6 @@
     "entityTagsDescription": "จัดการแท็กการจำแนกทรัพยากร",
     "tagSchemas": "โครงสร้างแท็ก",
     "tagSchemasDescription": "ดูกรอบการวิเคราะห์เชิงโครงสร้างสำหรับการติดแท็กอัตโนมัติ",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "ส่งออกและนำเข้าความรู้เป็น JSON-LD Linked Data",
     "redirecting": "กำลังเปลี่ยนเส้นทาง..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "การตั้งค่า OAuth",
     "oauthSettingsDescription": "ดูการกำหนดค่า OAuth",
     "devops": "DevOps",
-    "devopsDescription": "การตรวจสอบและจัดการระบบ",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "การตรวจสอบและจัดการระบบ"
   },
   "AdminUsers": {
     "title": "การจัดการผู้ใช้",
@@ -451,33 +447,6 @@
     "cliTitle": "Semiont CLI สำหรับการดำเนินการขั้นสูง",
     "cliDescription": "สำหรับการจัดการโครงสร้างพื้นฐาน การปรับใช้ และการตรวจสอบ ใช้ Semiont CLI:"
   },
-  "AdminExchange": {
-    "title": "สำรองข้อมูลและกู้คืน",
-    "subtitle": "สร้างข้อมูลสำรองของฐานความรู้ของคุณโดยไม่สูญเสียข้อมูล",
-    "exportTitle": "สำรองข้อมูล",
-    "exportDescription": "สร้างข้อมูลสำรองของฐานความรู้ของคุณโดยไม่สูญเสียข้อมูล",
-    "exportButton": "สร้างข้อมูลสำรอง",
-    "exporting": "กำลังสร้างข้อมูลสำรอง…",
-    "importTitle": "กู้คืน",
-    "importDescription": "กู้คืนจากไฟล์เก็บถาวรข้อมูลสำรอง",
-    "dropzoneLabel": "วางไฟล์ .tar.gz ที่นี่ หรือคลิกเพื่อเรียกดู",
-    "dropzoneActive": "วางไฟล์ที่นี่…",
-    "detectedFormat": "รูปแบบที่ตรวจพบ",
-    "statsPreview": "ตัวอย่าง",
-    "importButton": "กู้คืน",
-    "importing": "กำลังกู้คืน…",
-    "importConfirmTitle": "ยืนยันการกู้คืน",
-    "importConfirmMessage": "การกู้คืนจะเล่นเหตุการณ์ซ้ำในฐานความรู้ของคุณ การดำเนินการนี้ไม่สามารถเลิกทำได้ ต้องการดำเนินการต่อหรือไม่?",
-    "confirmImport": "ใช่ กู้คืน",
-    "cancelImport": "ยกเลิก",
-    "phaseStarted": "กำลังเริ่มกู้คืน…",
-    "phaseComplete": "กู้คืนเสร็จสมบูรณ์",
-    "phaseError": "การกู้คืนล้มเหลว",
-    "statsEventsReplayed": "เหตุการณ์ที่เล่นซ้ำ",
-    "statsResourcesCreated": "ทรัพยากรที่สร้าง",
-    "statsAnnotationsCreated": "คำอธิบายประกอบที่สร้าง",
-    "statsEntityTypesAdded": "ประเภทเอนทิตีที่เพิ่ม"
-  },
   "CookieBanner": {
     "saving": "กำลังบันทึก...",
     "customize": "ปรับแต่ง",
@@ -529,33 +498,6 @@
     "close": "เพื่อปิด",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "ส่งออกและนำเข้า",
-    "subtitle": "แลกเปลี่ยนความรู้ในรูปแบบ JSON-LD Linked Data",
-    "exportTitle": "ส่งออก",
-    "exportDescription": "ส่งออกฐานความรู้ของคุณเป็นไฟล์เก็บถาวร JSON-LD",
-    "exportButton": "ส่งออกเป็น JSON-LD",
-    "exporting": "กำลังส่งออก…",
-    "importTitle": "นำเข้า",
-    "importDescription": "นำเข้าทรัพยากรจากไฟล์เก็บถาวร JSON-LD",
-    "dropzoneLabel": "วางไฟล์ .tar.gz ที่นี่ หรือคลิกเพื่อเรียกดู",
-    "dropzoneActive": "วางไฟล์ที่นี่…",
-    "detectedFormat": "รูปแบบที่ตรวจพบ",
-    "statsPreview": "ตัวอย่าง",
-    "importButton": "นำเข้า",
-    "importing": "กำลังนำเข้า…",
-    "importConfirmTitle": "ยืนยันการนำเข้า",
-    "importConfirmMessage": "การดำเนินการนี้จะสร้างทรัพยากรใหม่ในฐานความรู้ของคุณ ต้องการดำเนินการต่อหรือไม่?",
-    "confirmImport": "ใช่ นำเข้า",
-    "cancelImport": "ยกเลิก",
-    "phaseStarted": "กำลังเริ่มนำเข้า…",
-    "phaseComplete": "นำเข้าเสร็จสมบูรณ์",
-    "phaseError": "การนำเข้าล้มเหลว",
-    "statsEventsReplayed": "เหตุการณ์ที่เล่นซ้ำ",
-    "statsResourcesCreated": "ทรัพยากรที่สร้าง",
-    "statsAnnotationsCreated": "คำอธิบายประกอบที่สร้าง",
-    "statsEntityTypesAdded": "ประเภทเอนทิตีที่เพิ่ม"
   },
   "KnowledgeBasePanel": {
     "title": "ฐานความรู้",

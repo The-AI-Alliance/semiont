@@ -334,8 +334,6 @@
     "entityTagsDescription": "リソース分類タグを管理",
     "tagSchemas": "タグスキーマ",
     "tagSchemasDescription": "自動タグ付けのための構造分析フレームワークを表示",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "JSON-LD Linked Dataとしてナレッジをエクスポート・インポート",
     "redirecting": "リダイレクト中..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "OAuth設定",
     "oauthSettingsDescription": "OAuth構成を表示",
     "devops": "DevOps",
-    "devopsDescription": "システム監視と管理",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "システム監視と管理"
   },
   "AdminUsers": {
     "title": "ユーザー管理",
@@ -451,33 +447,6 @@
     "cliTitle": "高度な操作のためのSemiont CLI",
     "cliDescription": "インフラストラクチャ管理、デプロイ、監視には、Semiont CLIをご利用ください："
   },
-  "AdminExchange": {
-    "title": "バックアップと復元",
-    "subtitle": "ナレッジベースのロスレスバックアップを作成します",
-    "exportTitle": "バックアップ",
-    "exportDescription": "ナレッジベースのロスレスバックアップを作成します。",
-    "exportButton": "バックアップを作成",
-    "exporting": "バックアップを作成中…",
-    "importTitle": "復元",
-    "importDescription": "バックアップアーカイブから復元します。",
-    "dropzoneLabel": ".tar.gzファイルをここにドロップするか、クリックして参照",
-    "dropzoneActive": "ここにファイルをドロップ…",
-    "detectedFormat": "検出されたフォーマット",
-    "statsPreview": "プレビュー",
-    "importButton": "復元",
-    "importing": "復元中…",
-    "importConfirmTitle": "復元の確認",
-    "importConfirmMessage": "復元するとナレッジベースにイベントがリプレイされます。この操作は元に戻せません。続行しますか？",
-    "confirmImport": "はい、復元",
-    "cancelImport": "キャンセル",
-    "phaseStarted": "復元開始中…",
-    "phaseComplete": "復元完了",
-    "phaseError": "復元失敗",
-    "statsEventsReplayed": "リプレイされたイベント",
-    "statsResourcesCreated": "作成されたリソース",
-    "statsAnnotationsCreated": "作成されたアノテーション",
-    "statsEntityTypesAdded": "追加されたエンティティタイプ"
-  },
   "CookieBanner": {
     "saving": "保存中...",
     "customize": "カスタマイズ",
@@ -529,33 +498,6 @@
     "close": "で閉じる",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "エクスポートとインポート",
-    "subtitle": "ナレッジをJSON-LDリンクトデータとして交換します",
-    "exportTitle": "エクスポート",
-    "exportDescription": "ナレッジベースをJSON-LDアーカイブとしてエクスポートします。",
-    "exportButton": "JSON-LDとしてエクスポート",
-    "exporting": "エクスポート中…",
-    "importTitle": "インポート",
-    "importDescription": "JSON-LDアーカイブからリソースをインポートします。",
-    "dropzoneLabel": ".tar.gzファイルをここにドロップするか、クリックして参照",
-    "dropzoneActive": "ここにファイルをドロップ…",
-    "detectedFormat": "検出されたフォーマット",
-    "statsPreview": "プレビュー",
-    "importButton": "インポート",
-    "importing": "インポート中…",
-    "importConfirmTitle": "インポートの確認",
-    "importConfirmMessage": "ナレッジベースに新しいリソースが作成されます。続行しますか？",
-    "confirmImport": "はい、インポート",
-    "cancelImport": "キャンセル",
-    "phaseStarted": "インポート開始中…",
-    "phaseComplete": "インポート完了",
-    "phaseError": "インポート失敗",
-    "statsEventsReplayed": "リプレイされたイベント",
-    "statsResourcesCreated": "作成されたリソース",
-    "statsAnnotationsCreated": "作成されたアノテーション",
-    "statsEntityTypesAdded": "追加されたエンティティタイプ"
   },
   "KnowledgeBasePanel": {
     "title": "ナレッジベース",

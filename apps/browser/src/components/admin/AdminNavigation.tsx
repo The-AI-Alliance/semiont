@@ -8,7 +8,6 @@ import {
   UsersIcon,
   ShieldCheckIcon,
   CommandLineIcon,
-  ArrowsRightLeftIcon,
   ChevronLeftIcon,
   Bars3Icon
 } from '@heroicons/react/24/outline';
@@ -53,12 +52,6 @@ export function AdminNavigation({ isCollapsed, toggleCollapsed, navigationMenu }
       href: '/admin/security',
       icon: ShieldCheckIcon,
       description: t('oauthSettingsDescription')
-    },
-    {
-      name: t('exchange'),
-      href: '/admin/exchange',
-      icon: ArrowsRightLeftIcon,
-      description: t('exchangeDescription')
     },
     {
       name: t('devops'),

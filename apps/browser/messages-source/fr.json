@@ -334,8 +334,6 @@
     "entityTagsDescription": "Gérer les étiquettes de classification des ressources",
     "tagSchemas": "Schémas d'étiquettes",
     "tagSchemasDescription": "Voir les cadres d'analyse structurelle pour l'étiquetage automatique",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "Exporter et importer des connaissances au format JSON-LD Linked Data",
     "redirecting": "Redirection..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "Paramètres OAuth",
     "oauthSettingsDescription": "Voir la configuration OAuth",
     "devops": "DevOps",
-    "devopsDescription": "Surveillance et gestion du système",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "Surveillance et gestion du système"
   },
   "AdminUsers": {
     "title": "Gestion des utilisateurs",
@@ -451,33 +447,6 @@
     "cliTitle": "CLI de Semiont pour les opérations avancées",
     "cliDescription": "Pour la gestion de l'infrastructure, les déploiements et la surveillance, utilisez le CLI de Semiont :"
   },
-  "AdminExchange": {
-    "title": "Sauvegarde et restauration",
-    "subtitle": "Créez des sauvegardes sans perte de votre base de connaissances",
-    "exportTitle": "Sauvegarde",
-    "exportDescription": "Créez une sauvegarde sans perte de votre base de connaissances.",
-    "exportButton": "Créer une sauvegarde",
-    "exporting": "Sauvegarde en cours…",
-    "importTitle": "Restauration",
-    "importDescription": "Restaurez à partir d'une archive de sauvegarde.",
-    "dropzoneLabel": "Déposez un fichier .tar.gz ici, ou cliquez pour parcourir",
-    "dropzoneActive": "Déposez le fichier ici…",
-    "detectedFormat": "Format détecté",
-    "statsPreview": "Aperçu",
-    "importButton": "Restaurer",
-    "importing": "Restauration en cours…",
-    "importConfirmTitle": "Confirmer la restauration",
-    "importConfirmMessage": "La restauration rejouera les événements dans votre base de connaissances. Cette action est irréversible. Continuer ?",
-    "confirmImport": "Oui, restaurer",
-    "cancelImport": "Annuler",
-    "phaseStarted": "Démarrage de la restauration…",
-    "phaseComplete": "Restauration terminée",
-    "phaseError": "Échec de la restauration",
-    "statsEventsReplayed": "Événements rejoués",
-    "statsResourcesCreated": "Ressources créées",
-    "statsAnnotationsCreated": "Annotations créées",
-    "statsEntityTypesAdded": "Types d'entités ajoutés"
-  },
   "CookieBanner": {
     "saving": "Enregistrement...",
     "customize": "Personnaliser",
@@ -529,33 +498,6 @@
     "close": "pour fermer",
     "enter": "Entrée",
     "esc": "Échap"
-  },
-  "ModerationLinkedData": {
-    "title": "Exporter et importer",
-    "subtitle": "Échangez des connaissances sous forme de données liées JSON-LD",
-    "exportTitle": "Exporter",
-    "exportDescription": "Exportez votre base de connaissances sous forme d'archive JSON-LD.",
-    "exportButton": "Exporter en JSON-LD",
-    "exporting": "Exportation en cours…",
-    "importTitle": "Importer",
-    "importDescription": "Importez des ressources à partir d'une archive JSON-LD.",
-    "dropzoneLabel": "Déposez un fichier .tar.gz ici, ou cliquez pour parcourir",
-    "dropzoneActive": "Déposez le fichier ici…",
-    "detectedFormat": "Format détecté",
-    "statsPreview": "Aperçu",
-    "importButton": "Importer",
-    "importing": "Importation en cours…",
-    "importConfirmTitle": "Confirmer l'importation",
-    "importConfirmMessage": "Cette action créera de nouvelles ressources dans votre base de connaissances. Continuer ?",
-    "confirmImport": "Oui, importer",
-    "cancelImport": "Annuler",
-    "phaseStarted": "Démarrage de l'importation…",
-    "phaseComplete": "Importation terminée",
-    "phaseError": "Échec de l'importation",
-    "statsEventsReplayed": "Événements rejoués",
-    "statsResourcesCreated": "Ressources créées",
-    "statsAnnotationsCreated": "Annotations créées",
-    "statsEntityTypesAdded": "Types d'entités ajoutés"
   },
   "KnowledgeBasePanel": {
     "title": "Bases de connaissances",

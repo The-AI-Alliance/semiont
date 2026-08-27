@@ -334,8 +334,6 @@
     "entityTagsDescription": "Administrer ressourceklassificeringstags",
     "tagSchemas": "Tagskemaer",
     "tagSchemasDescription": "Se strukturelle analyserammer for automatisk tagging",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "Eksportér og importér viden som JSON-LD Linked Data",
     "redirecting": "Omdirigerer..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "OAuth-indstillinger",
     "oauthSettingsDescription": "Se OAuth-konfiguration",
     "devops": "DevOps",
-    "devopsDescription": "Systemovervågning og -styring",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "Systemovervågning og -styring"
   },
   "AdminUsers": {
     "title": "Brugerstyring",
@@ -451,33 +447,6 @@
     "cliTitle": "Semiont CLI til avancerede operationer",
     "cliDescription": "Til infrastrukturstyring, implementeringer og overvågning, brug Semiont CLI:"
   },
-  "AdminExchange": {
-    "title": "Sikkerhedskopiering og gendannelse",
-    "subtitle": "Opret tabsfri sikkerhedskopier af din vidensbase",
-    "exportTitle": "Sikkerhedskopiering",
-    "exportDescription": "Opret en tabsfri sikkerhedskopi af din vidensbase.",
-    "exportButton": "Opret sikkerhedskopi",
-    "exporting": "Opretter sikkerhedskopi…",
-    "importTitle": "Gendannelse",
-    "importDescription": "Gendan fra et sikkerhedskopiarkiv.",
-    "dropzoneLabel": "Slip en .tar.gz-fil her, eller klik for at gennemse",
-    "dropzoneActive": "Slip filen her…",
-    "detectedFormat": "Registreret format",
-    "statsPreview": "Forhåndsvisning",
-    "importButton": "Gendan",
-    "importing": "Gendanner…",
-    "importConfirmTitle": "Bekræft gendannelse",
-    "importConfirmMessage": "Gendannelse vil genafspille hændelser i din vidensbase. Dette kan ikke fortrydes. Fortsæt?",
-    "confirmImport": "Ja, gendan",
-    "cancelImport": "Annuller",
-    "phaseStarted": "Starter gendannelse…",
-    "phaseComplete": "Gendannelse fuldført",
-    "phaseError": "Gendannelse mislykkedes",
-    "statsEventsReplayed": "Genafspillede hændelser",
-    "statsResourcesCreated": "Oprettede ressourcer",
-    "statsAnnotationsCreated": "Oprettede annoteringer",
-    "statsEntityTypesAdded": "Tilføjede entitetstyper"
-  },
   "CookieBanner": {
     "saving": "Gemmer...",
     "customize": "Tilpas",
@@ -529,33 +498,6 @@
     "close": "for at lukke",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "Eksport og import",
-    "subtitle": "Udveksl viden som JSON-LD Linked Data",
-    "exportTitle": "Eksport",
-    "exportDescription": "Eksporter din vidensbase som et JSON-LD-arkiv.",
-    "exportButton": "Eksporter som JSON-LD",
-    "exporting": "Eksporterer…",
-    "importTitle": "Import",
-    "importDescription": "Importer ressourcer fra et JSON-LD-arkiv.",
-    "dropzoneLabel": "Slip en .tar.gz-fil her, eller klik for at gennemse",
-    "dropzoneActive": "Slip filen her…",
-    "detectedFormat": "Registreret format",
-    "statsPreview": "Forhåndsvisning",
-    "importButton": "Importer",
-    "importing": "Importerer…",
-    "importConfirmTitle": "Bekræft import",
-    "importConfirmMessage": "Dette vil oprette nye ressourcer i din vidensbase. Fortsæt?",
-    "confirmImport": "Ja, importer",
-    "cancelImport": "Annuller",
-    "phaseStarted": "Starter import…",
-    "phaseComplete": "Import fuldført",
-    "phaseError": "Import mislykkedes",
-    "statsEventsReplayed": "Genafspillede hændelser",
-    "statsResourcesCreated": "Oprettede ressourcer",
-    "statsAnnotationsCreated": "Oprettede annoteringer",
-    "statsEntityTypesAdded": "Tilføjede entitetstyper"
   },
   "KnowledgeBasePanel": {
     "title": "Videnbaser",

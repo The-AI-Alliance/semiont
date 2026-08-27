@@ -334,8 +334,6 @@
     "entityTagsDescription": "Διαχείριση ετικετών ταξινόμησης πόρων",
     "tagSchemas": "Σχήματα Ετικετών",
     "tagSchemasDescription": "Προβολή πλαισίων δομικής ανάλυσης για αυτόματη ετικετοποίηση",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "Εξαγωγή και εισαγωγή γνώσης ως JSON-LD Linked Data",
     "redirecting": "Ανακατεύθυνση..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "Ρυθμίσεις OAuth",
     "oauthSettingsDescription": "Προβολή διαμόρφωσης OAuth",
     "devops": "DevOps",
-    "devopsDescription": "Παρακολούθηση και διαχείριση συστήματος",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "Παρακολούθηση και διαχείριση συστήματος"
   },
   "AdminUsers": {
     "title": "Διαχείριση Χρηστών",
@@ -451,33 +447,6 @@
     "cliTitle": "Semiont CLI για Προηγμένες Λειτουργίες",
     "cliDescription": "Για διαχείριση υποδομής, εγκαταστάσεις και παρακολούθηση, χρησιμοποιήστε το Semiont CLI:"
   },
-  "AdminExchange": {
-    "title": "Αντίγραφα ασφαλείας & Επαναφορά",
-    "subtitle": "Δημιουργήστε αντίγραφα ασφαλείας της βάσης γνώσεών σας χωρίς απώλειες",
-    "exportTitle": "Αντίγραφο ασφαλείας",
-    "exportDescription": "Δημιουργήστε ένα αντίγραφο ασφαλείας της βάσης γνώσεών σας χωρίς απώλειες.",
-    "exportButton": "Δημιουργία αντιγράφου ασφαλείας",
-    "exporting": "Γίνεται δημιουργία αντιγράφου ασφαλείας…",
-    "importTitle": "Επαναφορά",
-    "importDescription": "Επαναφέρετε από ένα αρχείο αντιγράφου ασφαλείας.",
-    "dropzoneLabel": "Αφήστε ένα αρχείο .tar.gz εδώ, ή κάντε κλικ για αναζήτηση",
-    "dropzoneActive": "Αφήστε το αρχείο εδώ…",
-    "detectedFormat": "Ανιχνευμένη μορφή",
-    "statsPreview": "Προεπισκόπηση",
-    "importButton": "Επαναφορά",
-    "importing": "Γίνεται επαναφορά…",
-    "importConfirmTitle": "Επιβεβαίωση επαναφοράς",
-    "importConfirmMessage": "Η επαναφορά θα αναπαραγάγει ξανά τα συμβάντα στη βάση γνώσεών σας. Αυτό δεν μπορεί να αναιρεθεί. Συνέχεια;",
-    "confirmImport": "Ναι, επαναφορά",
-    "cancelImport": "Ακύρωση",
-    "phaseStarted": "Έναρξη επαναφοράς…",
-    "phaseComplete": "Η επαναφορά ολοκληρώθηκε",
-    "phaseError": "Η επαναφορά απέτυχε",
-    "statsEventsReplayed": "Συμβάντα που αναπαράχθηκαν",
-    "statsResourcesCreated": "Πόροι που δημιουργήθηκαν",
-    "statsAnnotationsCreated": "Σχολιασμοί που δημιουργήθηκαν",
-    "statsEntityTypesAdded": "Τύποι οντοτήτων που προστέθηκαν"
-  },
   "CookieBanner": {
     "saving": "Αποθήκευση...",
     "customize": "Προσαρμογή",
@@ -529,33 +498,6 @@
     "close": "για κλείσιμο",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "Εξαγωγή & Εισαγωγή",
-    "subtitle": "Ανταλλάξτε γνώση ως διασυνδεδεμένα δεδομένα JSON-LD",
-    "exportTitle": "Εξαγωγή",
-    "exportDescription": "Εξαγάγετε τη βάση γνώσεών σας ως αρχείο JSON-LD.",
-    "exportButton": "Εξαγωγή ως JSON-LD",
-    "exporting": "Γίνεται εξαγωγή…",
-    "importTitle": "Εισαγωγή",
-    "importDescription": "Εισαγάγετε πόρους από αρχείο JSON-LD.",
-    "dropzoneLabel": "Αφήστε ένα αρχείο .tar.gz εδώ, ή κάντε κλικ για αναζήτηση",
-    "dropzoneActive": "Αφήστε το αρχείο εδώ…",
-    "detectedFormat": "Ανιχνευμένη μορφή",
-    "statsPreview": "Προεπισκόπηση",
-    "importButton": "Εισαγωγή",
-    "importing": "Γίνεται εισαγωγή…",
-    "importConfirmTitle": "Επιβεβαίωση εισαγωγής",
-    "importConfirmMessage": "Αυτό θα δημιουργήσει νέους πόρους στη βάση γνώσεών σας. Συνέχεια;",
-    "confirmImport": "Ναι, εισαγωγή",
-    "cancelImport": "Ακύρωση",
-    "phaseStarted": "Έναρξη εισαγωγής…",
-    "phaseComplete": "Η εισαγωγή ολοκληρώθηκε",
-    "phaseError": "Η εισαγωγή απέτυχε",
-    "statsEventsReplayed": "Συμβάντα που αναπαράχθηκαν",
-    "statsResourcesCreated": "Πόροι που δημιουργήθηκαν",
-    "statsAnnotationsCreated": "Σχολιασμοί που δημιουργήθηκαν",
-    "statsEntityTypesAdded": "Τύποι οντοτήτων που προστέθηκαν"
   },
   "KnowledgeBasePanel": {
     "title": "Βάσεις Γνώσης",

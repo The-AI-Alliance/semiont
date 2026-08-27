@@ -90,11 +90,11 @@ jobs:
 
           # Capture report summary
           echo "::group::React-UI Summary"
-          head -n 20 ../../REACT-UI-COMPLIANCE.md
+          head -n 20 ../../.compliance/REACT-UI-COMPLIANCE.md
           echo "::endgroup::"
 
           # Check for violations
-          if grep -q "Failing (❌): [1-9]" ../../REACT-UI-COMPLIANCE.md; then
+          if grep -q "Failing (❌): [1-9]" ../../.compliance/REACT-UI-COMPLIANCE.md; then
             echo "react_ui_violations=true" >> $GITHUB_OUTPUT
             echo "::error::React-UI has architecture violations"
           else
@@ -113,11 +113,11 @@ jobs:
 
           # Capture report summary
           echo "::group::Browser Summary"
-          head -n 20 ../../BROWSER-COMPLIANCE.md
+          head -n 20 ../../.compliance/BROWSER-COMPLIANCE.md
           echo "::endgroup::"
 
           # Check for violations
-          if grep -q "Failing (❌): [1-9]" ../../BROWSER-COMPLIANCE.md; then
+          if grep -q "Failing (❌): [1-9]" ../../.compliance/BROWSER-COMPLIANCE.md; then
             echo "browser_violations=true" >> $GITHUB_OUTPUT
             echo "::error::Browser has architecture violations"
           else
@@ -129,14 +129,14 @@ jobs:
         if: always()
         run: |
           echo "::group::Full React-UI Compliance Report"
-          cat REACT-UI-COMPLIANCE.md
+          cat .compliance/REACT-UI-COMPLIANCE.md
           echo "::endgroup::"
 
       - name: Display Full Browser Report
         if: always()
         run: |
           echo "::group::Full Browser Compliance Report"
-          cat BROWSER-COMPLIANCE.md
+          cat .compliance/BROWSER-COMPLIANCE.md
           echo "::endgroup::"
 
       - name: Upload React-UI Compliance Report
@@ -144,7 +144,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: react-ui-compliance-report
-          path: REACT-UI-COMPLIANCE.md
+          path: .compliance/REACT-UI-COMPLIANCE.md
           retention-days: 30
 
       - name: Upload Browser Compliance Report
@@ -152,7 +152,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: browser-compliance-report
-          path: BROWSER-COMPLIANCE.md
+          path: .compliance/BROWSER-COMPLIANCE.md
           retention-days: 30
 
       - name: Create Summary
@@ -164,13 +164,13 @@ jobs:
           # React-UI Summary
           echo "### React-UI Package" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          grep -A 10 "^## Summary" REACT-UI-COMPLIANCE.md >> $GITHUB_STEP_SUMMARY || echo "Report not generated" >> $GITHUB_STEP_SUMMARY
+          grep -A 10 "^## Summary" .compliance/REACT-UI-COMPLIANCE.md >> $GITHUB_STEP_SUMMARY || echo "Report not generated" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Browser Summary
           echo "### Browser Application" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          grep -A 10 "^## Summary" BROWSER-COMPLIANCE.md >> $GITHUB_STEP_SUMMARY || echo "Report not generated" >> $GITHUB_STEP_SUMMARY
+          grep -A 10 "^## Summary" .compliance/BROWSER-COMPLIANCE.md >> $GITHUB_STEP_SUMMARY || echo "Report not generated" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Overall Status

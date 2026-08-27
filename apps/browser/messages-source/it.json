@@ -334,8 +334,6 @@
     "entityTagsDescription": "Gestisci le etichette di classificazione delle risorse",
     "tagSchemas": "Schemi di Etichettatura",
     "tagSchemasDescription": "Visualizza i framework di analisi strutturale per l'etichettatura automatica",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "Esporta e importa conoscenze come JSON-LD Linked Data",
     "redirecting": "Reindirizzamento..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "Impostazioni OAuth",
     "oauthSettingsDescription": "Visualizza la configurazione OAuth",
     "devops": "DevOps",
-    "devopsDescription": "Monitoraggio e gestione del sistema",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "Monitoraggio e gestione del sistema"
   },
   "AdminUsers": {
     "title": "Gestione Utenti",
@@ -451,33 +447,6 @@
     "cliTitle": "CLI di Semiont per Operazioni Avanzate",
     "cliDescription": "Per la gestione dell'infrastruttura, i deploy e il monitoraggio, usa la CLI di Semiont:"
   },
-  "AdminExchange": {
-    "title": "Backup e ripristino",
-    "subtitle": "Crea backup senza perdita di dati della tua base di conoscenza",
-    "exportTitle": "Backup",
-    "exportDescription": "Crea un backup senza perdita di dati della tua base di conoscenza.",
-    "exportButton": "Crea backup",
-    "exporting": "Creazione del backup in corso…",
-    "importTitle": "Ripristino",
-    "importDescription": "Ripristina da un archivio di backup.",
-    "dropzoneLabel": "Trascina qui un file .tar.gz, oppure clicca per sfogliare",
-    "dropzoneActive": "Rilascia il file qui…",
-    "detectedFormat": "Formato rilevato",
-    "statsPreview": "Anteprima",
-    "importButton": "Ripristina",
-    "importing": "Ripristino in corso…",
-    "importConfirmTitle": "Conferma ripristino",
-    "importConfirmMessage": "Il ripristino riprodurrà nuovamente gli eventi nella tua base di conoscenza. Questa operazione non può essere annullata. Continuare?",
-    "confirmImport": "Sì, ripristina",
-    "cancelImport": "Annulla",
-    "phaseStarted": "Avvio ripristino…",
-    "phaseComplete": "Ripristino completato",
-    "phaseError": "Ripristino fallito",
-    "statsEventsReplayed": "Eventi riprodotti",
-    "statsResourcesCreated": "Risorse create",
-    "statsAnnotationsCreated": "Annotazioni create",
-    "statsEntityTypesAdded": "Tipi di entità aggiunti"
-  },
   "CookieBanner": {
     "saving": "Salvataggio...",
     "customize": "Personalizza",
@@ -529,33 +498,6 @@
     "close": "per chiudere",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "Esporta e importa",
-    "subtitle": "Scambia la conoscenza come Linked Data JSON-LD",
-    "exportTitle": "Esporta",
-    "exportDescription": "Esporta la tua base di conoscenza come archivio JSON-LD.",
-    "exportButton": "Esporta come JSON-LD",
-    "exporting": "Esportazione in corso…",
-    "importTitle": "Importa",
-    "importDescription": "Importa risorse da un archivio JSON-LD.",
-    "dropzoneLabel": "Trascina qui un file .tar.gz, oppure clicca per sfogliare",
-    "dropzoneActive": "Rilascia il file qui…",
-    "detectedFormat": "Formato rilevato",
-    "statsPreview": "Anteprima",
-    "importButton": "Importa",
-    "importing": "Importazione in corso…",
-    "importConfirmTitle": "Conferma importazione",
-    "importConfirmMessage": "Questa operazione creerà nuove risorse nella tua base di conoscenza. Continuare?",
-    "confirmImport": "Sì, importa",
-    "cancelImport": "Annulla",
-    "phaseStarted": "Avvio importazione…",
-    "phaseComplete": "Importazione completata",
-    "phaseError": "Importazione fallita",
-    "statsEventsReplayed": "Eventi riprodotti",
-    "statsResourcesCreated": "Risorse create",
-    "statsAnnotationsCreated": "Annotazioni create",
-    "statsEntityTypesAdded": "Tipi di entità aggiunti"
   },
   "KnowledgeBasePanel": {
     "title": "Basi di conoscenza",

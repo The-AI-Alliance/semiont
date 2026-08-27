@@ -63,7 +63,6 @@ vi.mock('@/app/[locale]/admin/layout', () => ({
 vi.mock('@/app/[locale]/admin/page', () => ({ default: () => <div data-testid="admin-index">Admin</div> }));
 vi.mock('@/app/[locale]/admin/users/client', () => ({ default: () => null }));
 vi.mock('@/app/[locale]/admin/security/client', () => ({ default: () => null }));
-vi.mock('@/app/[locale]/admin/exchange/client', () => ({ default: () => null }));
 vi.mock('@/app/[locale]/admin/devops/page', () => ({ default: () => null }));
 vi.mock('@/app/[locale]/moderate/layout', () => ({
   default: () => {
@@ -75,7 +74,6 @@ vi.mock('@/app/[locale]/moderate/page', () => ({ default: () => <div data-testid
 vi.mock('@/app/[locale]/moderate/recent/page', () => ({ default: () => null }));
 vi.mock('@/app/[locale]/moderate/entity-tags/page', () => ({ default: () => null }));
 vi.mock('@/app/[locale]/moderate/tag-schemas/page', () => ({ default: () => null }));
-vi.mock('@/app/[locale]/moderate/linked-data/client', () => ({ default: () => null }));
 vi.mock('@/app/[locale]/not-found', () => ({ default: () => <div data-testid="not-found">404</div> }));
 
 // i18n config used by App.tsx

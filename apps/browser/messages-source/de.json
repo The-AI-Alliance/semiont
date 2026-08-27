@@ -334,8 +334,6 @@
     "entityTagsDescription": "Klassifizierungs-Tags für Ressourcen verwalten",
     "tagSchemas": "Tag-Schemata",
     "tagSchemasDescription": "Strukturelle Analyseframeworks für automatisches Tagging anzeigen",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "Wissen als JSON-LD Linked Data exportieren und importieren",
     "redirecting": "Weiterleitung..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "OAuth-Einstellungen",
     "oauthSettingsDescription": "OAuth-Konfiguration anzeigen",
     "devops": "DevOps",
-    "devopsDescription": "Systemüberwachung und -verwaltung",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "Systemüberwachung und -verwaltung"
   },
   "AdminUsers": {
     "title": "Benutzerverwaltung",
@@ -451,33 +447,6 @@
     "cliTitle": "Semiont CLI für erweiterte Operationen",
     "cliDescription": "Für Infrastrukturverwaltung, Deployments und Überwachung verwenden Sie die Semiont CLI:"
   },
-  "AdminExchange": {
-    "title": "Sichern & Wiederherstellen",
-    "subtitle": "Erstellen Sie verlustfreie Sicherungen Ihrer Wissensbasis",
-    "exportTitle": "Sicherung",
-    "exportDescription": "Erstellen Sie eine verlustfreie Sicherung Ihrer Wissensbasis.",
-    "exportButton": "Sicherung erstellen",
-    "exporting": "Sicherung wird erstellt…",
-    "importTitle": "Wiederherstellung",
-    "importDescription": "Stellen Sie Ihre Wissensbasis aus einem Sicherungsarchiv wieder her.",
-    "dropzoneLabel": "Ziehen Sie eine .tar.gz-Datei hierher oder klicken Sie zum Durchsuchen",
-    "dropzoneActive": "Datei hier ablegen…",
-    "detectedFormat": "Erkanntes Format",
-    "statsPreview": "Vorschau",
-    "importButton": "Wiederherstellen",
-    "importing": "Wird wiederhergestellt…",
-    "importConfirmTitle": "Wiederherstellung bestätigen",
-    "importConfirmMessage": "Bei der Wiederherstellung werden Ereignisse in Ihrer Wissensbasis erneut abgespielt. Dies kann nicht rückgängig gemacht werden. Fortfahren?",
-    "confirmImport": "Ja, wiederherstellen",
-    "cancelImport": "Abbrechen",
-    "phaseStarted": "Wiederherstellung wird gestartet…",
-    "phaseComplete": "Wiederherstellung abgeschlossen",
-    "phaseError": "Wiederherstellung fehlgeschlagen",
-    "statsEventsReplayed": "Abgespielte Ereignisse",
-    "statsResourcesCreated": "Erstellte Ressourcen",
-    "statsAnnotationsCreated": "Erstellte Annotationen",
-    "statsEntityTypesAdded": "Hinzugefügte Entitätstypen"
-  },
   "CookieBanner": {
     "saving": "Wird gespeichert...",
     "customize": "Anpassen",
@@ -529,33 +498,6 @@
     "close": "zum Schließen",
     "enter": "Eingabe",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "Export & Import",
-    "subtitle": "Wissen als JSON-LD Linked Data austauschen",
-    "exportTitle": "Export",
-    "exportDescription": "Exportieren Sie Ihre Wissensbasis als JSON-LD-Archiv.",
-    "exportButton": "Als JSON-LD exportieren",
-    "exporting": "Wird exportiert…",
-    "importTitle": "Import",
-    "importDescription": "Importieren Sie Ressourcen aus einem JSON-LD-Archiv.",
-    "dropzoneLabel": "Ziehen Sie eine .tar.gz-Datei hierher oder klicken Sie zum Durchsuchen",
-    "dropzoneActive": "Datei hier ablegen…",
-    "detectedFormat": "Erkanntes Format",
-    "statsPreview": "Vorschau",
-    "importButton": "Importieren",
-    "importing": "Wird importiert…",
-    "importConfirmTitle": "Import bestätigen",
-    "importConfirmMessage": "Dadurch werden neue Ressourcen in Ihrer Wissensbasis erstellt. Fortfahren?",
-    "confirmImport": "Ja, importieren",
-    "cancelImport": "Abbrechen",
-    "phaseStarted": "Import wird gestartet…",
-    "phaseComplete": "Import abgeschlossen",
-    "phaseError": "Import fehlgeschlagen",
-    "statsEventsReplayed": "Abgespielte Ereignisse",
-    "statsResourcesCreated": "Erstellte Ressourcen",
-    "statsAnnotationsCreated": "Erstellte Annotationen",
-    "statsEntityTypesAdded": "Hinzugefügte Entitätstypen"
   },
   "KnowledgeBasePanel": {
     "title": "Wissensbasen",

@@ -334,8 +334,6 @@
     "entityTagsDescription": "Kaynak sınıflandırma etiketlerini yönetin",
     "tagSchemas": "Etiket Şemaları",
     "tagSchemasDescription": "Otomatik etiketleme için yapısal analiz çerçevelerini görüntüleyin",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "Bilgiyi JSON-LD Linked Data olarak dışa ve içe aktarın",
     "redirecting": "Yönlendiriliyor..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "OAuth Ayarları",
     "oauthSettingsDescription": "OAuth yapılandırmasını görüntüle",
     "devops": "DevOps",
-    "devopsDescription": "Sistem izleme ve yönetimi",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "Sistem izleme ve yönetimi"
   },
   "AdminUsers": {
     "title": "Kullanıcı Yönetimi",
@@ -451,33 +447,6 @@
     "cliTitle": "Gelişmiş İşlemler için Semiont CLI",
     "cliDescription": "Altyapı yönetimi, dağıtımlar ve izleme için Semiont CLI kullanın:"
   },
-  "AdminExchange": {
-    "title": "Yedekleme ve Geri Yükleme",
-    "subtitle": "Bilgi tabanınızın kayıpsız yedeklerini oluşturun",
-    "exportTitle": "Yedekleme",
-    "exportDescription": "Bilgi tabanınızın kayıpsız bir yedeğini oluşturun.",
-    "exportButton": "Yedek Oluştur",
-    "exporting": "Yedek oluşturuluyor…",
-    "importTitle": "Geri Yükleme",
-    "importDescription": "Bir yedek arşivinden geri yükleyin.",
-    "dropzoneLabel": "Buraya bir .tar.gz dosyası bırakın veya göz atmak için tıklayın",
-    "dropzoneActive": "Dosyayı buraya bırakın…",
-    "detectedFormat": "Algılanan biçim",
-    "statsPreview": "Önizleme",
-    "importButton": "Geri Yükle",
-    "importing": "Geri yükleniyor…",
-    "importConfirmTitle": "Geri Yüklemeyi Onayla",
-    "importConfirmMessage": "Geri yükleme, olayları bilgi tabanınızda yeniden oynatacaktır. Bu işlem geri alınamaz. Devam edilsin mi?",
-    "confirmImport": "Evet, geri yükle",
-    "cancelImport": "İptal",
-    "phaseStarted": "Geri yükleme başlatılıyor…",
-    "phaseComplete": "Geri yükleme tamamlandı",
-    "phaseError": "Geri yükleme başarısız",
-    "statsEventsReplayed": "Yeniden oynatılan olaylar",
-    "statsResourcesCreated": "Oluşturulan kaynaklar",
-    "statsAnnotationsCreated": "Oluşturulan açıklamalar",
-    "statsEntityTypesAdded": "Eklenen varlık türleri"
-  },
   "CookieBanner": {
     "saving": "Kaydediliyor...",
     "customize": "Özelleştir",
@@ -529,33 +498,6 @@
     "close": "kapatmak için",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "Dışa Aktar ve İçe Aktar",
-    "subtitle": "Bilgiyi JSON-LD Linked Data biçiminde aktarın",
-    "exportTitle": "Dışa Aktar",
-    "exportDescription": "Bilgi tabanınızı JSON-LD arşivi olarak dışa aktarın.",
-    "exportButton": "JSON-LD Olarak Dışa Aktar",
-    "exporting": "Dışa aktarılıyor…",
-    "importTitle": "İçe Aktar",
-    "importDescription": "Kaynakları bir JSON-LD arşivinden içe aktarın.",
-    "dropzoneLabel": "Buraya bir .tar.gz dosyası bırakın veya göz atmak için tıklayın",
-    "dropzoneActive": "Dosyayı buraya bırakın…",
-    "detectedFormat": "Algılanan biçim",
-    "statsPreview": "Önizleme",
-    "importButton": "İçe Aktar",
-    "importing": "İçe aktarılıyor…",
-    "importConfirmTitle": "İçe Aktarmayı Onayla",
-    "importConfirmMessage": "Bu işlem, bilgi tabanınızda yeni kaynaklar oluşturacaktır. Devam edilsin mi?",
-    "confirmImport": "Evet, içe aktar",
-    "cancelImport": "İptal",
-    "phaseStarted": "İçe aktarma başlatılıyor…",
-    "phaseComplete": "İçe aktarma tamamlandı",
-    "phaseError": "İçe aktarma başarısız",
-    "statsEventsReplayed": "Yeniden oynatılan olaylar",
-    "statsResourcesCreated": "Oluşturulan kaynaklar",
-    "statsAnnotationsCreated": "Oluşturulan açıklamalar",
-    "statsEntityTypesAdded": "Eklenen varlık türleri"
   },
   "KnowledgeBasePanel": {
     "title": "Bilgi Tabanları",

@@ -8,7 +8,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 SRC_DIR="$(cd "$SCRIPT_DIR/../src" && pwd)"
 SYMBOLS_FILE="$SCRIPT_DIR/symbols.json"
-REPORT_FILE="$REPO_ROOT/BROWSER-COMPLIANCE.md"
+REPORT_DIR="$REPO_ROOT/.compliance"
+mkdir -p "$REPORT_DIR"
+REPORT_FILE="$REPORT_DIR/BROWSER-COMPLIANCE.md"
 
 # Shared compliance scripts
 DISCOVER="$REPO_ROOT/scripts/compliance/discover-symbols.ts"

@@ -23,14 +23,12 @@ const AdminLayout = React.lazy(() => import('./app/[locale]/admin/layout'));
 const AdminPage = React.lazy(() => import('./app/[locale]/admin/page'));
 const AdminUsersPage = React.lazy(() => import('./app/[locale]/admin/users/client'));
 const AdminSecurityPage = React.lazy(() => import('./app/[locale]/admin/security/client'));
-const AdminExchangePage = React.lazy(() => import('./app/[locale]/admin/exchange/client'));
 const AdminDevOpsPage = React.lazy(() => import('./app/[locale]/admin/devops/page'));
 const ModerateLayout = React.lazy(() => import('./app/[locale]/moderate/layout'));
 const ModeratePage = React.lazy(() => import('./app/[locale]/moderate/page'));
 const ModerateRecentPage = React.lazy(() => import('./app/[locale]/moderate/recent/page'));
 const ModerateEntityTagsPage = React.lazy(() => import('./app/[locale]/moderate/entity-tags/page'));
 const ModerateTagSchemasPage = React.lazy(() => import('./app/[locale]/moderate/tag-schemas/page'));
-const ModerateLinkedDataPage = React.lazy(() => import('./app/[locale]/moderate/linked-data/client'));
 const NotFoundPage = React.lazy(() => import('./app/[locale]/not-found'));
 
 /**
@@ -129,7 +127,6 @@ export default function App() {
               <Route index element={<AdminPage />} />
               <Route path="users" element={<AdminUsersPage />} />
               <Route path="security" element={<AdminSecurityPage />} />
-              <Route path="exchange" element={<AdminExchangePage />} />
               <Route path="devops" element={<AdminDevOpsPage />} />
             </Route>
 
@@ -139,7 +136,6 @@ export default function App() {
               <Route path="recent" element={<ModerateRecentPage />} />
               <Route path="entity-tags" element={<ModerateEntityTagsPage />} />
               <Route path="tag-schemas" element={<ModerateTagSchemasPage />} />
-              <Route path="linked-data" element={<ModerateLinkedDataPage />} />
             </Route>
           </Route>
 

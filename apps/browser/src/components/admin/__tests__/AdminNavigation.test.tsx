@@ -20,9 +20,6 @@ vi.mock('@heroicons/react/24/outline', () => ({
   ShieldCheckIcon: ({ className }: { className?: string }) => (
     <svg data-testid="shield-check-icon" className={className} />
   ),
-  ArrowsRightLeftIcon: ({ className }: { className?: string }) => (
-    <svg data-testid="arrows-right-left-icon" className={className} />
-  ),
   CommandLineIcon: ({ className }: { className?: string }) => (
     <svg data-testid="command-line-icon" className={className} />
   ),
@@ -123,11 +120,11 @@ describe('AdminNavigation', () => {
   });
 
   describe('Navigation items configuration', () => {
-    it('should pass 4 navigation items to SimpleNavigation', () => {
+    it('should pass 3 navigation items to SimpleNavigation', () => {
       render(<AdminNavigation {...defaultProps} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
-      expect(call.items).toHaveLength(4);
+      expect(call.items).toHaveLength(3);
     });
 
     it('should configure Users navigation item correctly', () => {
@@ -162,27 +159,21 @@ describe('AdminNavigation', () => {
       expect(oauthItem.icon).toBeDefined();
     });
 
-    it('should configure Exchange navigation item correctly', () => {
+    it('offers no Exchange item — exchange left the API entirely', () => {
+      // EXPORT-VIA-LAUNCHER: backup/restore is a launcher operation with
+      // direct working-tree access, not an app affordance. No route, so no
+      // nav entry pointing at one.
       render(<AdminNavigation {...defaultProps} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
-      const exchangeItem = call.items[2];
-
-      expect(exchangeItem).toEqual(
-        expect.objectContaining({
-          name: 'Backup & Restore',
-          href: '/admin/exchange',
-          description: 'Back up and restore your knowledge base',
-        })
-      );
-      expect(exchangeItem.icon).toBeDefined();
+      expect(call.items.map((i: { href: string }) => i.href)).not.toContain('/admin/exchange');
     });
 
     it('should configure DevOps navigation item correctly', () => {
       render(<AdminNavigation {...defaultProps} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
-      const devopsItem = call.items[3];
+      const devopsItem = call.items[2];
 
       expect(devopsItem).toEqual(
         expect.objectContaining({

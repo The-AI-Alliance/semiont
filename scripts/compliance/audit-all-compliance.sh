@@ -2,7 +2,7 @@
 set -e
 
 # Run compliance audits for all workspaces
-# Generates REACT-UI-COMPLIANCE.md and BROWSER-COMPLIANCE.md
+# Reads the generated reports from .compliance/ (gitignored build output).
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COMPLIANCE_DIR="$REPO_ROOT/scripts/compliance"
@@ -83,10 +83,10 @@ echo ""
 echo "✅ All compliance audits complete!"
 echo ""
 echo "Reports generated:"
-echo "  - $REPO_ROOT/REACT-UI-COMPLIANCE.md"
-echo "  - $REPO_ROOT/REACT-UI-TESTS-COMPLIANCE.md"
-echo "  - $REPO_ROOT/BROWSER-COMPLIANCE.md"
-echo "  - $REPO_ROOT/BROWSER-TESTS-COMPLIANCE.md"
+echo "  - $REPO_ROOT/.compliance/REACT-UI-COMPLIANCE.md"
+echo "  - $REPO_ROOT/.compliance/REACT-UI-TESTS-COMPLIANCE.md"
+echo "  - $REPO_ROOT/.compliance/BROWSER-COMPLIANCE.md"
+echo "  - $REPO_ROOT/.compliance/BROWSER-TESTS-COMPLIANCE.md"
 echo ""
 
 # Show combined summary
@@ -95,23 +95,23 @@ echo "===================="
 
 echo ""
 echo "React-UI Source Code:"
-grep -A 8 "## Summary" "$REPO_ROOT/REACT-UI-COMPLIANCE.md" | grep -E "Total|Passing|Warnings|Failing|Bypassed|compliance rate" || echo "(Report not found)"
+grep -A 8 "## Summary" "$REPO_ROOT/.compliance/REACT-UI-COMPLIANCE.md" | grep -E "Total|Passing|Warnings|Failing|Bypassed|compliance rate" || echo "(Report not found)"
 
 echo ""
 echo "React-UI Tests:"
-grep -A 8 "## Summary" "$REPO_ROOT/REACT-UI-TESTS-COMPLIANCE.md" | grep -E "Total|Passing|Failing|Bypassed|compliance rate" || echo "(Report not found)"
+grep -A 8 "## Summary" "$REPO_ROOT/.compliance/REACT-UI-TESTS-COMPLIANCE.md" | grep -E "Total|Passing|Failing|Bypassed|compliance rate" || echo "(Report not found)"
 
 echo ""
 echo "Browser Source Code:"
-grep -A 8 "## Summary" "$REPO_ROOT/BROWSER-COMPLIANCE.md" | grep -E "Total|Passing|Warnings|Failing|Bypassed|compliance rate" || echo "(Report not found)"
+grep -A 8 "## Summary" "$REPO_ROOT/.compliance/BROWSER-COMPLIANCE.md" | grep -E "Total|Passing|Warnings|Failing|Bypassed|compliance rate" || echo "(Report not found)"
 
 echo ""
 echo "Browser Tests:"
-grep -A 8 "## Summary" "$REPO_ROOT/BROWSER-TESTS-COMPLIANCE.md" | grep -E "Total|Passing|Failing|Bypassed|compliance rate" || echo "(Report not found)"
+grep -A 8 "## Summary" "$REPO_ROOT/.compliance/BROWSER-TESTS-COMPLIANCE.md" | grep -E "Total|Passing|Failing|Bypassed|compliance rate" || echo "(Report not found)"
 
 echo ""
 echo "View full reports:"
-echo "  cat REACT-UI-COMPLIANCE.md"
-echo "  cat REACT-UI-TESTS-COMPLIANCE.md"
-echo "  cat BROWSER-COMPLIANCE.md"
-echo "  cat BROWSER-TESTS-COMPLIANCE.md"
+echo "  cat .compliance/REACT-UI-COMPLIANCE.md"
+echo "  cat .compliance/REACT-UI-TESTS-COMPLIANCE.md"
+echo "  cat .compliance/BROWSER-COMPLIANCE.md"
+echo "  cat .compliance/BROWSER-TESTS-COMPLIANCE.md"

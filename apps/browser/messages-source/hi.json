@@ -334,8 +334,6 @@
     "entityTagsDescription": "संसाधन वर्गीकरण टैग प्रबंधित करें",
     "tagSchemas": "टैग स्कीमा",
     "tagSchemasDescription": "स्वचालित टैगिंग के लिए संरचनात्मक विश्लेषण फ्रेमवर्क देखें",
-    "linkedData": "लिंक्ड डेटा",
-    "linkedDataDescription": "JSON-LD लिंक्ड डेटा के रूप में ज्ञान का निर्यात और आयात करें",
     "redirecting": "पुनर्निर्देशित हो रहा है..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "OAuth सेटिंग्स",
     "oauthSettingsDescription": "OAuth कॉन्फ़िगरेशन देखें",
     "devops": "DevOps",
-    "devopsDescription": "सिस्टम निगरानी और प्रबंधन",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "सिस्टम निगरानी और प्रबंधन"
   },
   "AdminUsers": {
     "title": "उपयोगकर्ता प्रबंधन",
@@ -451,33 +447,6 @@
     "cliTitle": "उन्नत संचालन के लिए Semiont CLI",
     "cliDescription": "अवसंरचना प्रबंधन, परिनियोजन, और निगरानी के लिए, Semiont CLI का उपयोग करें:"
   },
-  "AdminExchange": {
-    "title": "बैकअप और पुनर्स्थापना",
-    "subtitle": "अपने ज्ञान आधार के हानिरहित बैकअप बनाएं",
-    "exportTitle": "बैकअप",
-    "exportDescription": "अपने ज्ञान आधार का हानिरहित बैकअप बनाएं।",
-    "exportButton": "बैकअप बनाएं",
-    "exporting": "बैकअप बनाया जा रहा है…",
-    "importTitle": "पुनर्स्थापना",
-    "importDescription": "बैकअप संग्रह से पुनर्स्थापित करें।",
-    "dropzoneLabel": "यहाँ .tar.gz फ़ाइल छोड़ें, या ब्राउज़ करने के लिए क्लिक करें",
-    "dropzoneActive": "फ़ाइल यहाँ छोड़ें…",
-    "detectedFormat": "पहचाना गया प्रारूप",
-    "statsPreview": "पूर्वावलोकन",
-    "importButton": "पुनर्स्थापित करें",
-    "importing": "पुनर्स्थापित हो रहा है…",
-    "importConfirmTitle": "पुनर्स्थापना की पुष्टि करें",
-    "importConfirmMessage": "पुनर्स्थापना से आपके ज्ञान आधार में इवेंट पुनः चलाए जाएंगे। इसे पूर्ववत नहीं किया जा सकता। जारी रखें?",
-    "confirmImport": "हाँ, पुनर्स्थापित करें",
-    "cancelImport": "रद्द करें",
-    "phaseStarted": "पुनर्स्थापना शुरू हो रही है…",
-    "phaseComplete": "पुनर्स्थापना पूर्ण",
-    "phaseError": "पुनर्स्थापना विफल",
-    "statsEventsReplayed": "पुनः चलाए गए इवेंट",
-    "statsResourcesCreated": "बनाए गए संसाधन",
-    "statsAnnotationsCreated": "बनाए गए एनोटेशन",
-    "statsEntityTypesAdded": "जोड़े गए इकाई प्रकार"
-  },
   "CookieBanner": {
     "saving": "सहेजा जा रहा है...",
     "customize": "अनुकूलित करें",
@@ -529,33 +498,6 @@
     "close": "बंद करने के लिए",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "निर्यात और आयात",
-    "subtitle": "JSON-LD लिंक्ड डेटा के रूप में ज्ञान का आदान-प्रदान करें",
-    "exportTitle": "निर्यात",
-    "exportDescription": "अपने ज्ञान आधार को JSON-LD संग्रह के रूप में निर्यात करें।",
-    "exportButton": "JSON-LD के रूप में निर्यात करें",
-    "exporting": "निर्यात हो रहा है…",
-    "importTitle": "आयात",
-    "importDescription": "JSON-LD संग्रह से संसाधन आयात करें।",
-    "dropzoneLabel": "यहाँ .tar.gz फ़ाइल छोड़ें, या ब्राउज़ करने के लिए क्लिक करें",
-    "dropzoneActive": "फ़ाइल यहाँ छोड़ें…",
-    "detectedFormat": "पहचाना गया प्रारूप",
-    "statsPreview": "पूर्वावलोकन",
-    "importButton": "आयात करें",
-    "importing": "आयात हो रहा है…",
-    "importConfirmTitle": "आयात की पुष्टि करें",
-    "importConfirmMessage": "इससे आपके ज्ञान आधार में नए संसाधन बनेंगे। जारी रखें?",
-    "confirmImport": "हाँ, आयात करें",
-    "cancelImport": "रद्द करें",
-    "phaseStarted": "आयात शुरू हो रहा है…",
-    "phaseComplete": "आयात पूर्ण",
-    "phaseError": "आयात विफल",
-    "statsEventsReplayed": "पुनः चलाए गए इवेंट",
-    "statsResourcesCreated": "बनाए गए संसाधन",
-    "statsAnnotationsCreated": "बनाए गए एनोटेशन",
-    "statsEntityTypesAdded": "जोड़े गए इकाई प्रकार"
   },
   "KnowledgeBasePanel": {
     "title": "ज्ञान आधार",

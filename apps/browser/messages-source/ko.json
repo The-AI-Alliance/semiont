@@ -334,8 +334,6 @@
     "entityTagsDescription": "리소스 분류 태그 관리",
     "tagSchemas": "태그 스키마",
     "tagSchemasDescription": "자동 태깅을 위한 구조 분석 프레임워크 보기",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "JSON-LD Linked Data로 지식을 내보내기 및 가져오기",
     "redirecting": "리디렉션 중..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "OAuth 설정",
     "oauthSettingsDescription": "OAuth 구성 보기",
     "devops": "DevOps",
-    "devopsDescription": "시스템 모니터링 및 관리",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "시스템 모니터링 및 관리"
   },
   "AdminUsers": {
     "title": "사용자 관리",
@@ -451,33 +447,6 @@
     "cliTitle": "고급 작업을 위한 Semiont CLI",
     "cliDescription": "인프라 관리, 배포 및 모니터링에는 Semiont CLI를 사용하세요:"
   },
-  "AdminExchange": {
-    "title": "백업 및 복원",
-    "subtitle": "지식 베이스의 무손실 백업을 만듭니다",
-    "exportTitle": "백업",
-    "exportDescription": "지식 베이스의 무손실 백업을 만듭니다.",
-    "exportButton": "백업 생성",
-    "exporting": "백업 생성 중…",
-    "importTitle": "복원",
-    "importDescription": "백업 아카이브에서 복원합니다.",
-    "dropzoneLabel": ".tar.gz 파일을 여기에 놓거나 클릭하여 찾아보기",
-    "dropzoneActive": "여기에 파일을 놓으세요…",
-    "detectedFormat": "감지된 형식",
-    "statsPreview": "미리보기",
-    "importButton": "복원",
-    "importing": "복원하는 중…",
-    "importConfirmTitle": "복원 확인",
-    "importConfirmMessage": "복원하면 지식 베이스에 이벤트가 다시 재생됩니다. 이 작업은 취소할 수 없습니다. 계속하시겠습니까?",
-    "confirmImport": "예, 복원",
-    "cancelImport": "취소",
-    "phaseStarted": "복원 시작 중…",
-    "phaseComplete": "복원 완료",
-    "phaseError": "복원 실패",
-    "statsEventsReplayed": "재생된 이벤트",
-    "statsResourcesCreated": "생성된 리소스",
-    "statsAnnotationsCreated": "생성된 주석",
-    "statsEntityTypesAdded": "추가된 엔티티 유형"
-  },
   "CookieBanner": {
     "saving": "저장 중...",
     "customize": "맞춤 설정",
@@ -529,33 +498,6 @@
     "close": "닫기",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "내보내기 및 가져오기",
-    "subtitle": "지식을 JSON-LD 링크드 데이터로 교환합니다",
-    "exportTitle": "내보내기",
-    "exportDescription": "지식 베이스를 JSON-LD 아카이브로 내보냅니다.",
-    "exportButton": "JSON-LD로 내보내기",
-    "exporting": "내보내는 중…",
-    "importTitle": "가져오기",
-    "importDescription": "JSON-LD 아카이브에서 리소스를 가져옵니다.",
-    "dropzoneLabel": ".tar.gz 파일을 여기에 놓거나 클릭하여 찾아보기",
-    "dropzoneActive": "여기에 파일을 놓으세요…",
-    "detectedFormat": "감지된 형식",
-    "statsPreview": "미리보기",
-    "importButton": "가져오기",
-    "importing": "가져오는 중…",
-    "importConfirmTitle": "가져오기 확인",
-    "importConfirmMessage": "지식 베이스에 새 리소스가 생성됩니다. 계속하시겠습니까?",
-    "confirmImport": "예, 가져오기",
-    "cancelImport": "취소",
-    "phaseStarted": "가져오기 시작 중…",
-    "phaseComplete": "가져오기 완료",
-    "phaseError": "가져오기 실패",
-    "statsEventsReplayed": "재생된 이벤트",
-    "statsResourcesCreated": "생성된 리소스",
-    "statsAnnotationsCreated": "생성된 주석",
-    "statsEntityTypesAdded": "추가된 엔티티 유형"
   },
   "KnowledgeBasePanel": {
     "title": "지식 베이스",

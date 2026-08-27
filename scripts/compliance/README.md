@@ -16,14 +16,14 @@ This system provides zero-configuration compliance auditing that:
 ```bash
 cd packages/react-ui
 ./scripts/generate-compliance-report.sh
-# Outputs: REACT-UI-COMPLIANCE.md
+# Outputs: .compliance/REACT-UI-COMPLIANCE.md
 ```
 
 ### Browser Application
 ```bash
 cd apps/browser
 ./scripts/generate-compliance-report.sh
-# Outputs: BROWSER-COMPLIANCE.md
+# Outputs: .compliance/BROWSER-COMPLIANCE.md
 ```
 
 ## Architecture
@@ -145,7 +145,8 @@ AUDIT="$REPO_ROOT/scripts/compliance/batch-audit.ts"
 npx tsx "$DISCOVER" "$SRC_DIR" symbols.json
 
 # Audit and generate report
-npx tsx "$AUDIT" "$SRC_DIR" symbols.json > ../../REACT-UI-COMPLIANCE.md
+mkdir -p "$REPO_ROOT/.compliance"
+npx tsx "$AUDIT" "$SRC_DIR" symbols.json > "$REPO_ROOT/.compliance/REACT-UI-COMPLIANCE.md"
 ```
 
 ## Compliance Report Format
@@ -245,7 +246,7 @@ jobs:
         run: |
           cd packages/react-ui
           ./scripts/generate-compliance-report.sh
-          if grep -q "Failing (❌): [1-9]" ../../REACT-UI-COMPLIANCE.md; then
+          if grep -q "Failing (❌): [1-9]" ../../.compliance/REACT-UI-COMPLIANCE.md; then
             echo "::error::React-UI compliance violations detected"
             exit 1
           fi
@@ -255,7 +256,7 @@ jobs:
         run: |
           cd apps/browser
           ./scripts/generate-compliance-report.sh
-          if grep -q "Failing (❌): [1-9]" ../../BROWSER-COMPLIANCE.md; then
+          if grep -q "Failing (❌): [1-9]" ../../.compliance/BROWSER-COMPLIANCE.md; then
             echo "::error::Browser compliance violations detected"
             exit 1
           fi
@@ -285,7 +286,9 @@ set -e
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 SRC_DIR="$REPO_ROOT/apps/my-app/src"
 SYMBOLS_FILE="$REPO_ROOT/apps/my-app/scripts/symbols.json"
-REPORT_FILE="$REPO_ROOT/MY-APP-COMPLIANCE.md"
+REPORT_DIR="$REPO_ROOT/.compliance"
+mkdir -p "$REPORT_DIR"
+REPORT_FILE="$REPORT_DIR/MY-APP-COMPLIANCE.md"
 
 # Shared compliance scripts
 DISCOVER="$REPO_ROOT/scripts/compliance/discover-symbols.ts"
@@ -300,12 +303,15 @@ npx tsx "$AUDIT" "$SRC_DIR" "$SYMBOLS_FILE" > "$REPORT_FILE"
 echo "📊 Compliance report generated: $REPORT_FILE"
 ```
 
-2. Make executable and update `.gitignore`:
+2. Make executable, and ignore the symbols file:
 ```bash
 chmod +x apps/my-app/scripts/generate-compliance-report.sh
-echo "MY-APP-COMPLIANCE.md" >> .gitignore
 echo "apps/my-app/scripts/symbols.json" >> .gitignore
 ```
+
+**Do NOT add a `.gitignore` line for the report.** Reports go in `.compliance/`,
+which is already ignored as a directory — enumerating each output by hand is how
+two of the four reports ended up untracked-but-unignored at the repo root.
 
 ### Adding New Compliance Rules
 
@@ -338,7 +344,7 @@ echo "apps/my-app/scripts/symbols.json" >> .gitignore
 
 **Never update manually**:
 - ❌ `symbols.json` (auto-generated)
-- ❌ `*-COMPLIANCE.md` (auto-generated)
+- ❌ `.compliance/*-COMPLIANCE.md` (auto-generated, gitignored)
 
 **Update when adding new rules**:
 - ✅ `scripts/compliance/audit-dependency-arrays.ts` (detection logic)
