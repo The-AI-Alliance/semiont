@@ -2,9 +2,8 @@
  * AdminNamespace — administration. Backend ops only; no bus.
  */
 
-import type { UserDID, ProgressEvent, components, paths } from '@semiont/core';
-import type { BackendDownload, IBackendOperations } from '@semiont/core';
-import { StreamObservable } from '../awaitable';
+import type { UserDID, components, paths } from '@semiont/core';
+import type { IBackendOperations } from '@semiont/core';
 import type { AdminNamespace as IAdminNamespace, User, RequestContent, ResponseContent } from './types';
 
 type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
@@ -38,39 +37,4 @@ export class AdminNamespace implements IAdminNamespace {
   async status(): Promise<ResponseContent<paths['/api/status']['get']>> {
     return this.backend.getStatus();
   }
-
-  async backup(): Promise<BackendDownload> {
-    return this.backend.backupKnowledgeBase();
-  }
-
-  restore(file: File): StreamObservable<ProgressEvent> {
-    return wrapAsStream(this.backend.restoreKnowledgeBase(file));
-  }
-
-  async exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<BackendDownload> {
-    return this.backend.exportKnowledgeBase(params);
-  }
-
-  importKnowledgeBase(file: File): StreamObservable<ProgressEvent> {
-    return wrapAsStream(this.backend.importKnowledgeBase(file));
-  }
-}
-
-/**
- * Wrap a plain `Observable<ProgressEvent>` from `IBackendOperations` as
- * a `StreamObservable<ProgressEvent>` for the SDK surface — same RxJS
- * semantics, plus the awaitable PromiseLike that resolves to the last
- * emitted value.
- */
-function wrapAsStream(
-  source: import('rxjs').Observable<ProgressEvent>,
-): StreamObservable<ProgressEvent> {
-  return new StreamObservable<ProgressEvent>((subscriber) => {
-    const sub = source.subscribe({
-      next: (v) => subscriber.next(v),
-      error: (e) => subscriber.error(e),
-      complete: () => subscriber.complete(),
-    });
-    return () => sub.unsubscribe();
-  });
 }

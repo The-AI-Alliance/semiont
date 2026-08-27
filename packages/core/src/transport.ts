@@ -94,29 +94,6 @@ export type UpdateUserRequest = RequestContent<paths['/api/admin/users/{id}']['p
 export type UpdateUserResponse = ResponseContent<paths['/api/admin/users/{id}']['patch']>;
 export type ListUsersResponse = ResponseContent<paths['/api/admin/users']['get']>;
 
-export type ProgressEvent = {
-  phase: string;
-  message?: string;
-  result?: Record<string, unknown>;
-};
-export type ProgressCallback = (event: ProgressEvent) => void;
-
-/**
- * Stream-shaped return type for backend download operations
- * (`backupKnowledgeBase`, `exportKnowledgeBase`). Transport-neutral —
- * any implementation can produce a `ReadableStream<Uint8Array>` without
- * fabricating a fetch `Response`. HTTP wraps `response.body` and
- * `response.headers`; in-process implementations return their own stream.
- *
- * The same shape `IContentTransport.getBinaryStream` already uses for
- * binary downloads.
- */
-export interface BackendDownload {
-  stream: ReadableStream<Uint8Array>;
-  contentType: string;
-  filename?: string;
-}
-
 // ── ITransport ──────────────────────────────────────────────────────────
 
 export interface ITransport {
@@ -248,23 +225,6 @@ export interface IBackendOperations {
   getUserStats(): Promise<AdminUserStatsResponse>;
   updateUser(id: UserDID, data: UpdateUserRequest): Promise<UpdateUserResponse>;
   getOAuthConfig(): Promise<OAuthConfigResponse>;
-
-  // ── Exchange ──────────────────────────────────────────────────────────
-
-  backupKnowledgeBase(): Promise<BackendDownload>;
-  /**
-   * Stream of `ProgressEvent`s for a restore/import operation. The
-   * Observable emits each progress event in order and completes when
-   * the operation is done; the final event carries `phase: 'complete'`
-   * (or `'error'` / `'failed'` followed by an Observable error).
-   *
-   * The SDK wraps the contract's `Observable<ProgressEvent>` as a
-   * `StreamObservable<ProgressEvent>` so consumers can `await` for the
-   * final event or `.subscribe(...)` to render every step.
-   */
-  restoreKnowledgeBase(file: File): Observable<ProgressEvent>;
-  exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<BackendDownload>;
-  importKnowledgeBase(file: File): Observable<ProgressEvent>;
 
   // ── System ────────────────────────────────────────────────────────────
 

@@ -37,12 +37,10 @@ interface ITransport {
   readonly state$: Observable<ConnectionState>;
   readonly baseUrl: BaseUrl;
 
-  // Typed wire methods: auth, admin, exchange, system
+  // Typed wire methods: auth, admin, system
   authenticatePassword, authenticateGoogle, refreshAccessToken,
   logout, acceptTerms, getCurrentUser, getMediaToken,
   listUsers, getUserStats, updateUser, getOAuthConfig,
-  backupKnowledgeBase, restoreKnowledgeBase,
-  exportKnowledgeBase, importKnowledgeBase,
   healthCheck, getStatus
 }
 ```

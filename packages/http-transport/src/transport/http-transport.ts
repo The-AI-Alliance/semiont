@@ -35,7 +35,6 @@ import type { TransportErrorCode } from '@semiont/core';
 import { SpanKind, recordBusEmit, withSpan } from '@semiont/observability';
 import { createActorStateUnit, type ActorStateUnit } from './actor-state-unit';
 import type {
-  BackendDownload,
   ConnectionState,
   IBackendOperations,
   ITransport,
@@ -45,7 +44,6 @@ import type {
   UpdateUserRequest,
   UpdateUserResponse,
   ListUsersResponse,
-  ProgressEvent,
 } from '@semiont/core';
 import { BRIDGED_CHANNELS } from '@semiont/core';
 
@@ -65,23 +63,6 @@ export const RESOURCE_SCOPED_CHANNELS = [
   ...PERSISTED_EVENT_TYPES.filter((t) => !(BRIDGED_CHANNELS as readonly string[]).includes(t)),
   ...RESOURCE_BROADCAST_TYPES,
 ];
-
-/**
- * Convert a fetch `Response` to the transport-neutral `BackendDownload`
- * shape. ky throws on non-OK by default, so callers can rely on the
- * response being healthy by the time it gets here. `response.body`
- * is non-null for successful responses with content.
- */
-function responseToDownload(response: Response): BackendDownload {
-  const contentType = response.headers.get('Content-Type') ?? 'application/octet-stream';
-  const contentDisposition = response.headers.get('Content-Disposition');
-  const filename = contentDisposition?.match(/filename="(.+?)"/)?.[1];
-  return {
-    stream: response.body!,
-    contentType,
-    ...(filename ? { filename } : {}),
-  };
-}
 
 function classifyApiCode(status: number): TransportErrorCode {
   if (status === 400) return 'bad-request';
@@ -490,79 +471,6 @@ export class HttpTransport implements ITransport, IBackendOperations {
     return this.http.get(`${this.baseUrl}/api/admin/oauth/config`, {
       headers: this.authHeaders(),
     }).json();
-  }
-
-  // ── Exchange (backup/restore/export/import) ───────────────────────────
-
-  async backupKnowledgeBase(): Promise<BackendDownload> {
-    const response = await this.http.post(`${this.baseUrl}/api/admin/exchange/backup`, {
-      headers: this.authHeaders(),
-    });
-    return responseToDownload(response);
-  }
-
-  restoreKnowledgeBase(file: File): Observable<ProgressEvent> {
-    return this.sseProgressStream(`${this.baseUrl}/api/admin/exchange/restore`, file);
-  }
-
-  async exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<BackendDownload> {
-    const searchParams = params?.includeArchived ? new URLSearchParams({ includeArchived: 'true' }) : undefined;
-    const response = await this.http.post(`${this.baseUrl}/api/moderate/exchange/export`, {
-      headers: this.authHeaders(),
-      ...(searchParams ? { searchParams } : {}),
-    });
-    return responseToDownload(response);
-  }
-
-  importKnowledgeBase(file: File): Observable<ProgressEvent> {
-    return this.sseProgressStream(`${this.baseUrl}/api/moderate/exchange/import`, file);
-  }
-
-  /**
-   * POST a file to a server-sent-events endpoint and surface each `data:`
-   * frame as an Observable emission. Completes when the stream closes;
-   * errors if the request itself fails or the SSE stream is aborted.
-   * The returned Observable is cold — the POST happens on subscribe and
-   * is aborted via `AbortController` on unsubscribe.
-   */
-  private sseProgressStream(url: string, file: File): Observable<ProgressEvent> {
-    return new Observable<ProgressEvent>((subscriber) => {
-      const ctrl = new AbortController();
-      const formData = new FormData();
-      formData.append('file', file);
-
-      (async () => {
-        try {
-          const response = await this.http.post(url, {
-            body: formData,
-            headers: this.authHeaders(),
-            signal: ctrl.signal,
-          });
-          const reader = response.body!.getReader();
-          const decoder = new TextDecoder();
-          let buffer = '';
-
-          while (!subscriber.closed) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop()!;
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const event = JSON.parse(line.slice(6)) as ProgressEvent;
-                subscriber.next(event);
-              }
-            }
-          }
-          subscriber.complete();
-        } catch (err) {
-          if (!subscriber.closed) subscriber.error(err);
-        }
-      })();
-
-      return () => ctrl.abort();
-    });
   }
 
   // ── System status ─────────────────────────────────────────────────────

@@ -517,28 +517,6 @@ const stats = await semiont.admin!.userStats();
 await semiont.admin!.updateUser(userId, { isAdmin: true });
 const config = await semiont.admin!.oauthConfig();
 const health = await semiont.admin!.healthCheck();
-
-// Backup / export — return BackendDownload: { stream, contentType, filename? }.
-// The stream is a transport-neutral ReadableStream<Uint8Array>; wrap in
-// `new Response(stream)` to convert to a Blob for browser download.
-const backup = await semiont.admin!.backup();
-const blob = await new Response(backup.stream).blob();
-const link = document.createElement('a');
-link.href = URL.createObjectURL(blob);
-link.download = backup.filename ?? `kb-backup-${Date.now()}.tar.gz`;
-link.click();
-
-// Restore / import — StreamObservable<ProgressEvent>: subscribe for each
-// progress phase; await for the final event.
-semiont.admin!.restore(file).subscribe({
-  next: (event) => console.log(`${event.phase}: ${event.message ?? ''}`),
-  complete: () => console.log('Restore complete'),
-  error: (err) => console.error('Restore failed:', err.message),
-});
-
-// Import (alt-scope export/import follow the same shapes)
-await semiont.admin!.exportKnowledgeBase({ includeArchived: true });
-semiont.admin!.importKnowledgeBase(file).subscribe(/* ... */);
 ```
 
 ## Job

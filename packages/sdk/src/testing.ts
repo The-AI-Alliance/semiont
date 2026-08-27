@@ -19,7 +19,7 @@
  * fixtures are for testing the transport contract itself.
  */
 
-import { BehaviorSubject, throwError } from 'rxjs';
+import { BehaviorSubject } from 'rxjs';
 import type {
   AccessToken,
   ExtractionOutcome,
@@ -200,13 +200,7 @@ export function stubBackend(): IBackendOperations {
     getUserStats: notScripted('getUserStats'),
     updateUser: notScripted('updateUser'),
     getOAuthConfig: notScripted('getOAuthConfig'),
-    backupKnowledgeBase: notScripted('backupKnowledgeBase'),
     // Observable-returning ops error their stream, same loudness.
-    restoreKnowledgeBase: () =>
-      throwError(() => new Error('stubBackend: not scripted: restoreKnowledgeBase')),
-    exportKnowledgeBase: notScripted('exportKnowledgeBase'),
-    importKnowledgeBase: () =>
-      throwError(() => new Error('stubBackend: not scripted: importKnowledgeBase')),
     healthCheck: notScripted('healthCheck'),
     getStatus: notScripted('getStatus'),
   };
