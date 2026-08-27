@@ -334,8 +334,6 @@
     "entityTagsDescription": "Urus tag pengelasan sumber",
     "tagSchemas": "Skema Tag",
     "tagSchemasDescription": "Lihat rangka kerja analisis struktur untuk penandaan automatik",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "Eksport dan import pengetahuan sebagai JSON-LD Linked Data",
     "redirecting": "Mengalihkan..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "Tetapan OAuth",
     "oauthSettingsDescription": "Lihat konfigurasi OAuth",
     "devops": "DevOps",
-    "devopsDescription": "Pemantauan dan pengurusan sistem",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "Pemantauan dan pengurusan sistem"
   },
   "AdminUsers": {
     "title": "Pengurusan Pengguna",
@@ -451,33 +447,6 @@
     "cliTitle": "CLI Semiont untuk Operasi Lanjutan",
     "cliDescription": "Untuk pengurusan infrastruktur, penggunaan dan pemantauan, gunakan CLI Semiont:"
   },
-  "AdminExchange": {
-    "title": "Sandaran & Pemulihan",
-    "subtitle": "Cipta sandaran pangkalan pengetahuan anda tanpa kehilangan data",
-    "exportTitle": "Sandaran",
-    "exportDescription": "Cipta sandaran pangkalan pengetahuan anda tanpa kehilangan data.",
-    "exportButton": "Cipta Sandaran",
-    "exporting": "Mencipta sandaran…",
-    "importTitle": "Pemulihan",
-    "importDescription": "Pulihkan daripada arkib sandaran.",
-    "dropzoneLabel": "Letakkan fail .tar.gz di sini, atau klik untuk menyemak imbas",
-    "dropzoneActive": "Letakkan fail di sini…",
-    "detectedFormat": "Format dikesan",
-    "statsPreview": "Pratonton",
-    "importButton": "Pulihkan",
-    "importing": "Memulihkan…",
-    "importConfirmTitle": "Sahkan Pemulihan",
-    "importConfirmMessage": "Pemulihan akan memainkan semula peristiwa dalam pangkalan pengetahuan anda. Tindakan ini tidak boleh dibuat asal. Teruskan?",
-    "confirmImport": "Ya, Pulihkan",
-    "cancelImport": "Batal",
-    "phaseStarted": "Memulakan pemulihan…",
-    "phaseComplete": "Pemulihan selesai",
-    "phaseError": "Pemulihan gagal",
-    "statsEventsReplayed": "Peristiwa dimain semula",
-    "statsResourcesCreated": "Sumber dicipta",
-    "statsAnnotationsCreated": "Anotasi dicipta",
-    "statsEntityTypesAdded": "Jenis entiti ditambah"
-  },
   "CookieBanner": {
     "saving": "Menyimpan...",
     "customize": "Sesuaikan",
@@ -529,33 +498,6 @@
     "close": "untuk menutup",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "Eksport & Import",
-    "subtitle": "Tukar pengetahuan sebagai Linked Data JSON-LD",
-    "exportTitle": "Eksport",
-    "exportDescription": "Eksport pangkalan pengetahuan anda sebagai arkib JSON-LD.",
-    "exportButton": "Eksport sebagai JSON-LD",
-    "exporting": "Mengeksport…",
-    "importTitle": "Import",
-    "importDescription": "Import sumber daripada arkib JSON-LD.",
-    "dropzoneLabel": "Letakkan fail .tar.gz di sini, atau klik untuk menyemak imbas",
-    "dropzoneActive": "Letakkan fail di sini…",
-    "detectedFormat": "Format dikesan",
-    "statsPreview": "Pratonton",
-    "importButton": "Import",
-    "importing": "Mengimport…",
-    "importConfirmTitle": "Sahkan Import",
-    "importConfirmMessage": "Tindakan ini akan mencipta sumber baharu dalam pangkalan pengetahuan anda. Teruskan?",
-    "confirmImport": "Ya, Import",
-    "cancelImport": "Batal",
-    "phaseStarted": "Memulakan import…",
-    "phaseComplete": "Import selesai",
-    "phaseError": "Import gagal",
-    "statsEventsReplayed": "Peristiwa dimain semula",
-    "statsResourcesCreated": "Sumber dicipta",
-    "statsAnnotationsCreated": "Anotasi dicipta",
-    "statsEntityTypesAdded": "Jenis entiti ditambah"
   },
   "KnowledgeBasePanel": {
     "title": "Pangkalan Pengetahuan",

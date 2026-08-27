@@ -163,7 +163,6 @@ const done = await semiont.mark.assist(rId, 'linking', {}).run((event) => {
 - `gather.annotation`
 - `match.search`
 - `yield.fromContext`
-- `admin.restore`, `admin.importKnowledgeBase` — SSE-driven progress streams for backup-restore and knowledge-base import.
 
 **`UploadObservable`** (special-case bounded stream for binary upload; `then` resolves to `{ resourceId }`):
 

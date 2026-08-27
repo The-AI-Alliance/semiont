@@ -334,8 +334,6 @@
     "entityTagsDescription": "Administrer klassifiseringsmerker for ressurser",
     "tagSchemas": "Merkeskjemaer",
     "tagSchemasDescription": "Se strukturelle analyserammeverk for automatisk merking",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "Eksporter og importer kunnskap som JSON-LD Linked Data",
     "redirecting": "Omdirigerer..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "OAuth-innstillinger",
     "oauthSettingsDescription": "Se OAuth-konfigurasjon",
     "devops": "DevOps",
-    "devopsDescription": "Systemovervåking og -administrasjon",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "Systemovervåking og -administrasjon"
   },
   "AdminUsers": {
     "title": "Brukeradministrasjon",
@@ -451,33 +447,6 @@
     "cliTitle": "Semiont CLI for avanserte operasjoner",
     "cliDescription": "For infrastrukturadministrasjon, distribusjoner og overvåking, bruk Semiont CLI:"
   },
-  "AdminExchange": {
-    "title": "Sikkerhetskopiering og gjenoppretting",
-    "subtitle": "Opprett tapsfrie sikkerhetskopier av kunnskapsbasen din",
-    "exportTitle": "Sikkerhetskopiering",
-    "exportDescription": "Opprett en tapsfri sikkerhetskopi av kunnskapsbasen din.",
-    "exportButton": "Opprett sikkerhetskopi",
-    "exporting": "Oppretter sikkerhetskopi…",
-    "importTitle": "Gjenoppretting",
-    "importDescription": "Gjenopprett fra et sikkerhetskopiarkiv.",
-    "dropzoneLabel": "Slipp en .tar.gz-fil her, eller klikk for å bla",
-    "dropzoneActive": "Slipp filen her…",
-    "detectedFormat": "Oppdaget format",
-    "statsPreview": "Forhåndsvisning",
-    "importButton": "Gjenopprett",
-    "importing": "Gjenoppretter…",
-    "importConfirmTitle": "Bekreft gjenoppretting",
-    "importConfirmMessage": "Gjenoppretting vil spille av hendelser på nytt i kunnskapsbasen din. Dette kan ikke angres. Fortsette?",
-    "confirmImport": "Ja, gjenopprett",
-    "cancelImport": "Avbryt",
-    "phaseStarted": "Starter gjenoppretting…",
-    "phaseComplete": "Gjenoppretting fullført",
-    "phaseError": "Gjenoppretting mislyktes",
-    "statsEventsReplayed": "Avspilte hendelser",
-    "statsResourcesCreated": "Opprettede ressurser",
-    "statsAnnotationsCreated": "Opprettede annoteringer",
-    "statsEntityTypesAdded": "Tilføyde entitetstyper"
-  },
   "CookieBanner": {
     "saving": "Lagrer...",
     "customize": "Tilpass",
@@ -529,33 +498,6 @@
     "close": "for å lukke",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "Eksport og import",
-    "subtitle": "Utveksle kunnskap som JSON-LD Linked Data",
-    "exportTitle": "Eksport",
-    "exportDescription": "Eksporter kunnskapsbasen din som et JSON-LD-arkiv.",
-    "exportButton": "Eksporter som JSON-LD",
-    "exporting": "Eksporterer…",
-    "importTitle": "Import",
-    "importDescription": "Importer ressurser fra et JSON-LD-arkiv.",
-    "dropzoneLabel": "Slipp en .tar.gz-fil her, eller klikk for å bla",
-    "dropzoneActive": "Slipp filen her…",
-    "detectedFormat": "Oppdaget format",
-    "statsPreview": "Forhåndsvisning",
-    "importButton": "Importer",
-    "importing": "Importerer…",
-    "importConfirmTitle": "Bekreft import",
-    "importConfirmMessage": "Dette vil opprette nye ressurser i kunnskapsbasen din. Fortsette?",
-    "confirmImport": "Ja, importer",
-    "cancelImport": "Avbryt",
-    "phaseStarted": "Starter import…",
-    "phaseComplete": "Import fullført",
-    "phaseError": "Import mislyktes",
-    "statsEventsReplayed": "Avspilte hendelser",
-    "statsResourcesCreated": "Opprettede ressurser",
-    "statsAnnotationsCreated": "Opprettede annoteringer",
-    "statsEntityTypesAdded": "Tilføyde entitetstyper"
   },
   "KnowledgeBasePanel": {
     "title": "Kunnskapsbaser",

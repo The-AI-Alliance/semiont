@@ -49,10 +49,10 @@ images and bind-mounting the `.semiont/semiontconfig/{name}.toml` config of
 your choice (`--config`); `semiont logs` follows all services, `[svc]`-prefixed;
 `semiont status` health-checks them; `semiont stop` removes the stack (the
 browser survives as the machine-level viewer — `semiont stop --service
-frontend` closes it).
+browser` closes it).
 
 KB repos build no images: the Semiont services run from the published, attested
-`ghcr.io/the-ai-alliance/semiont-{backend,worker,smelter,weaver,frontend}` images
+`ghcr.io/the-ai-alliance/semiont-{backend,worker,smelter,weaver,browser}` images
 (version selected via `SEMIONT_VERSION`, default `latest`), with the KB's config
 bind-mounted at runtime.
 

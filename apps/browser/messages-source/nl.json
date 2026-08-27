@@ -334,8 +334,6 @@
     "entityTagsDescription": "Beheer bronclassificatielabels",
     "tagSchemas": "Labelschema's",
     "tagSchemasDescription": "Bekijk structurele analyseframeworks voor automatisch labelen",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "Kennis exporteren en importeren als JSON-LD Linked Data",
     "redirecting": "Doorsturen..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "OAuth-instellingen",
     "oauthSettingsDescription": "OAuth-configuratie bekijken",
     "devops": "DevOps",
-    "devopsDescription": "Systeemmonitoring en -beheer",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "Systeemmonitoring en -beheer"
   },
   "AdminUsers": {
     "title": "Gebruikersbeheer",
@@ -451,33 +447,6 @@
     "cliTitle": "Semiont CLI voor geavanceerde bewerkingen",
     "cliDescription": "Voor infrastructuurbeheer, implementaties en monitoring, gebruik de Semiont CLI:"
   },
-  "AdminExchange": {
-    "title": "Back-up & Herstel",
-    "subtitle": "Maak verliesvrije back-ups van uw kennisbank",
-    "exportTitle": "Back-up",
-    "exportDescription": "Maak een verliesvrije back-up van uw kennisbank.",
-    "exportButton": "Back-up maken",
-    "exporting": "Bezig met het maken van een back-up…",
-    "importTitle": "Herstel",
-    "importDescription": "Herstel vanuit een back-uparchief.",
-    "dropzoneLabel": "Sleep een .tar.gz-bestand hierheen, of klik om te bladeren",
-    "dropzoneActive": "Laat het bestand hier los…",
-    "detectedFormat": "Gedetecteerd formaat",
-    "statsPreview": "Voorbeeld",
-    "importButton": "Herstellen",
-    "importing": "Bezig met herstellen…",
-    "importConfirmTitle": "Herstel bevestigen",
-    "importConfirmMessage": "Bij het herstellen worden gebeurtenissen opnieuw afgespeeld in uw kennisbank. Dit kan niet ongedaan worden gemaakt. Doorgaan?",
-    "confirmImport": "Ja, herstellen",
-    "cancelImport": "Annuleren",
-    "phaseStarted": "Herstel wordt gestart…",
-    "phaseComplete": "Herstel voltooid",
-    "phaseError": "Herstel mislukt",
-    "statsEventsReplayed": "Opnieuw afgespeelde gebeurtenissen",
-    "statsResourcesCreated": "Aangemaakte bronnen",
-    "statsAnnotationsCreated": "Aangemaakte annotaties",
-    "statsEntityTypesAdded": "Toegevoegde entiteitstypen"
-  },
   "CookieBanner": {
     "saving": "Opslaan...",
     "customize": "Aanpassen",
@@ -529,33 +498,6 @@
     "close": "om te sluiten",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "Export & Import",
-    "subtitle": "Wissel kennis uit als JSON-LD Linked Data",
-    "exportTitle": "Exporteren",
-    "exportDescription": "Exporteer uw kennisbank als een JSON-LD-archief.",
-    "exportButton": "Exporteren als JSON-LD",
-    "exporting": "Bezig met exporteren…",
-    "importTitle": "Importeren",
-    "importDescription": "Importeer bronnen uit een JSON-LD-archief.",
-    "dropzoneLabel": "Sleep een .tar.gz-bestand hierheen, of klik om te bladeren",
-    "dropzoneActive": "Laat het bestand hier los…",
-    "detectedFormat": "Gedetecteerd formaat",
-    "statsPreview": "Voorbeeld",
-    "importButton": "Importeren",
-    "importing": "Bezig met importeren…",
-    "importConfirmTitle": "Import bevestigen",
-    "importConfirmMessage": "Hiermee worden nieuwe bronnen aangemaakt in uw kennisbank. Doorgaan?",
-    "confirmImport": "Ja, importeren",
-    "cancelImport": "Annuleren",
-    "phaseStarted": "Import wordt gestart…",
-    "phaseComplete": "Import voltooid",
-    "phaseError": "Import mislukt",
-    "statsEventsReplayed": "Opnieuw afgespeelde gebeurtenissen",
-    "statsResourcesCreated": "Aangemaakte bronnen",
-    "statsAnnotationsCreated": "Aangemaakte annotaties",
-    "statsEntityTypesAdded": "Toegevoegde entiteitstypen"
   },
   "KnowledgeBasePanel": {
     "title": "Kennisbases",

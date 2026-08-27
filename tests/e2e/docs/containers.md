@@ -63,7 +63,7 @@ Symptom: every request in your first test times out because the
 browser is dialing a dead address.
 
 ```sh
-container ls | grep -E 'semiont-(frontend|backend)'    # inspection only
+container ls | grep -E 'semiont-(browser|backend)'    # inspection only
 ```
 
 > Useful for *seeing* what is running. Do **not** feed these IPs to the e2e

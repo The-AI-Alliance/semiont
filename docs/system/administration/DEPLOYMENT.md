@@ -100,7 +100,7 @@ Independent of how you ran it:
 
 ```bash
 curl http://<backend-host>:4000/api/health     # backend health
-curl http://<frontend-host>:3000/              # UI reachable
+curl http://<browser-host>:3000/              # UI reachable
 ```
 
 `semiont status` reports per-service health for launcher-managed stacks. For log and trace plumbing

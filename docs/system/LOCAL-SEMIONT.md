@@ -23,7 +23,7 @@ echo password | semiont useradd --email admin@example.com --admin
 ```
 
 One command starts the whole stack — the five published Semiont images
-(backend, worker, smelter, weaver, frontend) pulled from
+(backend, worker, smelter, weaver, browser) pulled from
 `ghcr.io/the-ai-alliance/*` plus the infrastructure containers — with the
 KB's config bind-mounted at runtime. No npm required, and nothing is built
 locally: KB repos carry no Dockerfiles and no scripts. `semiont logs`

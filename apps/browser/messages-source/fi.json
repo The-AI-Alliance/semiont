@@ -334,8 +334,6 @@
     "entityTagsDescription": "Hallitse resurssien luokittelutunnisteita",
     "tagSchemas": "Tunnisteskeemat",
     "tagSchemasDescription": "Näytä rakenteelliset analyysikehykset automaattista tunnistamista varten",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "Vie ja tuo tietoa JSON-LD Linked Data -muodossa",
     "redirecting": "Ohjataan uudelleen..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "OAuth-asetukset",
     "oauthSettingsDescription": "Näytä OAuth-asetukset",
     "devops": "DevOps",
-    "devopsDescription": "Järjestelmän valvonta ja hallinta",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "Järjestelmän valvonta ja hallinta"
   },
   "AdminUsers": {
     "title": "Käyttäjähallinta",
@@ -451,33 +447,6 @@
     "cliTitle": "Semiont CLI edistyneisiin toimintoihin",
     "cliDescription": "Infrastruktuurin hallintaan, käyttöönottoihin ja valvontaan käytä Semiont CLI:tä:"
   },
-  "AdminExchange": {
-    "title": "Varmuuskopiointi ja palautus",
-    "subtitle": "Luo häviöttömiä varmuuskopioita tietopankistasi",
-    "exportTitle": "Varmuuskopiointi",
-    "exportDescription": "Luo häviötön varmuuskopio tietopankistasi.",
-    "exportButton": "Luo varmuuskopio",
-    "exporting": "Luodaan varmuuskopiota…",
-    "importTitle": "Palautus",
-    "importDescription": "Palauta varmuuskopioarkistosta.",
-    "dropzoneLabel": "Pudota .tar.gz-tiedosto tähän tai napsauta selataksesi",
-    "dropzoneActive": "Pudota tiedosto tähän…",
-    "detectedFormat": "Havaittu muoto",
-    "statsPreview": "Esikatselu",
-    "importButton": "Palauta",
-    "importing": "Palautetaan…",
-    "importConfirmTitle": "Vahvista palautus",
-    "importConfirmMessage": "Palautus toistaa tapahtumat uudelleen tietopankkiisi. Tätä ei voi kumota. Jatketaanko?",
-    "confirmImport": "Kyllä, palauta",
-    "cancelImport": "Peruuta",
-    "phaseStarted": "Aloitetaan palautusta…",
-    "phaseComplete": "Palautus valmis",
-    "phaseError": "Palautus epäonnistui",
-    "statsEventsReplayed": "Toistetut tapahtumat",
-    "statsResourcesCreated": "Luodut resurssit",
-    "statsAnnotationsCreated": "Luodut merkinnät",
-    "statsEntityTypesAdded": "Lisätyt entiteettityypit"
-  },
   "CookieBanner": {
     "saving": "Tallennetaan...",
     "customize": "Mukauta",
@@ -529,33 +498,6 @@
     "close": "sulje",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "Vienti ja tuonti",
-    "subtitle": "Siirrä tietoja JSON-LD-muotoisena linkitettynä datana",
-    "exportTitle": "Vienti",
-    "exportDescription": "Vie tietopankkisi JSON-LD-arkistona.",
-    "exportButton": "Vie JSON-LD-muodossa",
-    "exporting": "Viedään…",
-    "importTitle": "Tuonti",
-    "importDescription": "Tuo resursseja JSON-LD-arkistosta.",
-    "dropzoneLabel": "Pudota .tar.gz-tiedosto tähän tai napsauta selataksesi",
-    "dropzoneActive": "Pudota tiedosto tähän…",
-    "detectedFormat": "Havaittu muoto",
-    "statsPreview": "Esikatselu",
-    "importButton": "Tuo",
-    "importing": "Tuodaan…",
-    "importConfirmTitle": "Vahvista tuonti",
-    "importConfirmMessage": "Tämä luo uusia resursseja tietopankkiisi. Jatketaanko?",
-    "confirmImport": "Kyllä, tuo",
-    "cancelImport": "Peruuta",
-    "phaseStarted": "Aloitetaan tuontia…",
-    "phaseComplete": "Tuonti valmis",
-    "phaseError": "Tuonti epäonnistui",
-    "statsEventsReplayed": "Toistetut tapahtumat",
-    "statsResourcesCreated": "Luodut resurssit",
-    "statsAnnotationsCreated": "Luodut merkinnät",
-    "statsEntityTypesAdded": "Lisätyt entiteettityypit"
   },
   "KnowledgeBasePanel": {
     "title": "Tietopankit",

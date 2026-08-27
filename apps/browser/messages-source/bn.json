@@ -334,8 +334,6 @@
     "entityTagsDescription": "সম্পদ শ্রেণিবিভাগ ট্যাগ পরিচালনা করুন",
     "tagSchemas": "ট্যাগ স্কিমা",
     "tagSchemasDescription": "স্বয়ংক্রিয় ট্যাগিংয়ের জন্য কাঠামোগত বিশ্লেষণ ফ্রেমওয়ার্ক দেখুন",
-    "linkedData": "লিংকড ডেটা",
-    "linkedDataDescription": "JSON-LD লিংকড ডেটা হিসেবে জ্ঞান রপ্তানি ও আমদানি করুন",
     "redirecting": "পুনর্নির্দেশ হচ্ছে..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "OAuth সেটিংস",
     "oauthSettingsDescription": "OAuth কনফিগারেশন দেখুন",
     "devops": "DevOps",
-    "devopsDescription": "সিস্টেম পর্যবেক্ষণ এবং ব্যবস্থাপনা",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "সিস্টেম পর্যবেক্ষণ এবং ব্যবস্থাপনা"
   },
   "AdminUsers": {
     "title": "ব্যবহারকারী ব্যবস্থাপনা",
@@ -451,33 +447,6 @@
     "cliTitle": "উন্নত কার্যক্রমের জন্য Semiont CLI",
     "cliDescription": "অবকাঠামো ব্যবস্থাপনা, স্থাপনা এবং পর্যবেক্ষণের জন্য Semiont CLI ব্যবহার করুন:"
   },
-  "AdminExchange": {
-    "title": "ব্যাকআপ ও পুনরুদ্ধার",
-    "subtitle": "আপনার জ্ঞানভান্ডারের ক্ষতিহীন ব্যাকআপ তৈরি করুন",
-    "exportTitle": "ব্যাকআপ",
-    "exportDescription": "আপনার জ্ঞানভান্ডারের একটি ক্ষতিহীন ব্যাকআপ তৈরি করুন।",
-    "exportButton": "ব্যাকআপ তৈরি করুন",
-    "exporting": "ব্যাকআপ তৈরি হচ্ছে…",
-    "importTitle": "পুনরুদ্ধার",
-    "importDescription": "একটি ব্যাকআপ আর্কাইভ থেকে পুনরুদ্ধার করুন।",
-    "dropzoneLabel": "এখানে একটি .tar.gz ফাইল ড্রপ করুন, অথবা ব্রাউজ করতে ক্লিক করুন",
-    "dropzoneActive": "এখানে ফাইল ড্রপ করুন…",
-    "detectedFormat": "শনাক্তকৃত ফরম্যাট",
-    "statsPreview": "পূর্বরূপ",
-    "importButton": "পুনরুদ্ধার করুন",
-    "importing": "পুনরুদ্ধার হচ্ছে…",
-    "importConfirmTitle": "পুনরুদ্ধার নিশ্চিত করুন",
-    "importConfirmMessage": "পুনরুদ্ধার করলে আপনার জ্ঞানভান্ডারে ইভেন্টগুলি পুনরায় চালানো হবে। এটি পূর্বাবস্থায় ফেরানো যাবে না। চালিয়ে যেতে চান?",
-    "confirmImport": "হ্যাঁ, পুনরুদ্ধার করুন",
-    "cancelImport": "বাতিল",
-    "phaseStarted": "পুনরুদ্ধার শুরু হচ্ছে…",
-    "phaseComplete": "পুনরুদ্ধার সম্পন্ন",
-    "phaseError": "পুনরুদ্ধার ব্যর্থ",
-    "statsEventsReplayed": "পুনরায় চালানো ইভেন্ট",
-    "statsResourcesCreated": "তৈরি করা রিসোর্স",
-    "statsAnnotationsCreated": "তৈরি করা টীকা",
-    "statsEntityTypesAdded": "যোগ করা সত্তার ধরন"
-  },
   "CookieBanner": {
     "saving": "সংরক্ষণ হচ্ছে...",
     "customize": "কাস্টমাইজ করুন",
@@ -529,33 +498,6 @@
     "close": "বন্ধ করতে",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "রপ্তানি ও আমদানি",
-    "subtitle": "JSON-LD Linked Data হিসেবে জ্ঞান বিনিময় করুন",
-    "exportTitle": "রপ্তানি",
-    "exportDescription": "আপনার জ্ঞানভান্ডার একটি JSON-LD আর্কাইভ হিসেবে রপ্তানি করুন।",
-    "exportButton": "JSON-LD হিসেবে রপ্তানি",
-    "exporting": "রপ্তানি হচ্ছে…",
-    "importTitle": "আমদানি",
-    "importDescription": "একটি JSON-LD আর্কাইভ থেকে রিসোর্স আমদানি করুন।",
-    "dropzoneLabel": "এখানে একটি .tar.gz ফাইল ড্রপ করুন, অথবা ব্রাউজ করতে ক্লিক করুন",
-    "dropzoneActive": "এখানে ফাইল ড্রপ করুন…",
-    "detectedFormat": "শনাক্তকৃত ফরম্যাট",
-    "statsPreview": "পূর্বরূপ",
-    "importButton": "আমদানি",
-    "importing": "আমদানি হচ্ছে…",
-    "importConfirmTitle": "আমদানি নিশ্চিত করুন",
-    "importConfirmMessage": "এটি আপনার জ্ঞানভান্ডারে নতুন রিসোর্স তৈরি করবে। চালিয়ে যেতে চান?",
-    "confirmImport": "হ্যাঁ, আমদানি করুন",
-    "cancelImport": "বাতিল",
-    "phaseStarted": "আমদানি শুরু হচ্ছে…",
-    "phaseComplete": "আমদানি সম্পন্ন",
-    "phaseError": "আমদানি ব্যর্থ",
-    "statsEventsReplayed": "পুনরায় চালানো ইভেন্ট",
-    "statsResourcesCreated": "তৈরি করা রিসোর্স",
-    "statsAnnotationsCreated": "তৈরি করা টীকা",
-    "statsEntityTypesAdded": "যোগ করা সত্তার ধরন"
   },
   "KnowledgeBasePanel": {
     "title": "জ্ঞান ভাণ্ডার",

@@ -7,7 +7,9 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 SRC_DIR="$(cd "$SCRIPT_DIR/../src" && pwd)"
-REPORT_FILE="$REPO_ROOT/BROWSER-TESTS-COMPLIANCE.md"
+REPORT_DIR="$REPO_ROOT/.compliance"
+mkdir -p "$REPORT_DIR"
+REPORT_FILE="$REPORT_DIR/BROWSER-TESTS-COMPLIANCE.md"
 
 # Shared compliance script
 AUDIT_TESTS="$REPO_ROOT/scripts/compliance/batch-audit-tests.ts"

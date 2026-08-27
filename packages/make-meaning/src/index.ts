@@ -64,9 +64,6 @@ export {
   type SmelterEvent,
 } from './smelter-actor-state-unit';
 
-// Exchange (import/export)
-export * from './exchange';
-
 // Resource operations
 export { ResourceOperations } from './resource-operations';
 export type { CreateResourceInput } from './resource-operations';

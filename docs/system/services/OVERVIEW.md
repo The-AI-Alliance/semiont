@@ -65,7 +65,7 @@ semiont stop --service worker      # Stop one service
 semiont clean                      # Remove persistent state (PostgreSQL, Qdrant, Neo4j)
 ```
 
-`--service` takes one of `backend`, `worker`, `smelter`, `weaver`, `frontend`, `database`, `graph`, `vectors`, `inference`, or `traces`. Omitting it means the whole stack — there is no `--service all`. `semiont stop` deliberately leaves persistent state behind so the next `start` reuses it; `semiont clean` is the only thing that removes it.
+`--service` takes one of `backend`, `worker`, `smelter`, `weaver`, `browser`, `database`, `graph`, `vectors`, `inference`, or `traces`. Omitting it means the whole stack — there is no `--service all`. `semiont stop` deliberately leaves persistent state behind so the next `start` reuses it; `semiont clean` is the only thing that removes it.
 
 Run `semiont <command> --help` for a command's options and `semiont --help` for the full verb list.
 
@@ -149,7 +149,7 @@ graph LR
     DB[PostgreSQL] --> BE[Backend]
     GRAPH[Neo4j] --> BE
     VECTORS[Qdrant] --> BE
-    BE --> FE[Frontend]
+    BE --> FE[Browser]
     BE --> W[Worker]
     BE --> SM[Smelter]
     BE --> WV[Weaver]

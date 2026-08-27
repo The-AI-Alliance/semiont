@@ -334,8 +334,6 @@
     "entityTagsDescription": "Hantera klassificeringstaggar för resurser",
     "tagSchemas": "Taggscheman",
     "tagSchemasDescription": "Visa strukturella analysramverk för automatisk taggning",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "Exportera och importera kunskap som JSON-LD Linked Data",
     "redirecting": "Omdirigerar..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "OAuth-inställningar",
     "oauthSettingsDescription": "Visa OAuth-konfiguration",
     "devops": "DevOps",
-    "devopsDescription": "Systemövervakning och hantering",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "Systemövervakning och hantering"
   },
   "AdminUsers": {
     "title": "Användarhantering",
@@ -451,33 +447,6 @@
     "cliTitle": "Semiont CLI för avancerade operationer",
     "cliDescription": "För infrastrukturhantering, distributioner och övervakning, använd Semiont CLI:"
   },
-  "AdminExchange": {
-    "title": "Säkerhetskopiering och återställning",
-    "subtitle": "Skapa förlustfria säkerhetskopior av din kunskapsbas",
-    "exportTitle": "Säkerhetskopiering",
-    "exportDescription": "Skapa en förlustfri säkerhetskopia av din kunskapsbas.",
-    "exportButton": "Skapa säkerhetskopia",
-    "exporting": "Skapar säkerhetskopia…",
-    "importTitle": "Återställning",
-    "importDescription": "Återställ från ett säkerhetskopiearkiv.",
-    "dropzoneLabel": "Släpp en .tar.gz-fil här, eller klicka för att bläddra",
-    "dropzoneActive": "Släpp filen här…",
-    "detectedFormat": "Detekterat format",
-    "statsPreview": "Förhandsvisning",
-    "importButton": "Återställ",
-    "importing": "Återställer…",
-    "importConfirmTitle": "Bekräfta återställning",
-    "importConfirmMessage": "Återställningen kommer att spela upp händelser på nytt i din kunskapsbas. Detta kan inte ångras. Fortsätta?",
-    "confirmImport": "Ja, återställ",
-    "cancelImport": "Avbryt",
-    "phaseStarted": "Startar återställning…",
-    "phaseComplete": "Återställning klar",
-    "phaseError": "Återställning misslyckades",
-    "statsEventsReplayed": "Återuppspelade händelser",
-    "statsResourcesCreated": "Skapade resurser",
-    "statsAnnotationsCreated": "Skapade annoteringar",
-    "statsEntityTypesAdded": "Tillagda entitetstyper"
-  },
   "CookieBanner": {
     "saving": "Sparar...",
     "customize": "Anpassa",
@@ -529,33 +498,6 @@
     "close": "för att stänga",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "Export och import",
-    "subtitle": "Utbyt kunskap som JSON-LD Linked Data",
-    "exportTitle": "Export",
-    "exportDescription": "Exportera din kunskapsbas som ett JSON-LD-arkiv.",
-    "exportButton": "Exportera som JSON-LD",
-    "exporting": "Exporterar…",
-    "importTitle": "Import",
-    "importDescription": "Importera resurser från ett JSON-LD-arkiv.",
-    "dropzoneLabel": "Släpp en .tar.gz-fil här, eller klicka för att bläddra",
-    "dropzoneActive": "Släpp filen här…",
-    "detectedFormat": "Detekterat format",
-    "statsPreview": "Förhandsvisning",
-    "importButton": "Importera",
-    "importing": "Importerar…",
-    "importConfirmTitle": "Bekräfta import",
-    "importConfirmMessage": "Detta kommer att skapa nya resurser i din kunskapsbas. Fortsätta?",
-    "confirmImport": "Ja, importera",
-    "cancelImport": "Avbryt",
-    "phaseStarted": "Startar import…",
-    "phaseComplete": "Import klar",
-    "phaseError": "Import misslyckades",
-    "statsEventsReplayed": "Återuppspelade händelser",
-    "statsResourcesCreated": "Skapade resurser",
-    "statsAnnotationsCreated": "Skapade annoteringar",
-    "statsEntityTypesAdded": "Tillagda entitetstyper"
   },
   "KnowledgeBasePanel": {
     "title": "Kunskapsbaser",

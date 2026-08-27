@@ -35,14 +35,12 @@ import type { components, EventMap, paths } from '@semiont/core';
 import type {
   ResourceId,
   AnnotationId,
-  BackendDownload,
   BodyOperation,
   GraphConnection,
   JobId,
   Motivation,
   AnchorRect,
   GatheredContext,
-  ProgressEvent,
   TagSchema,
   CollaboratorEntry,
   UserDID,
@@ -557,14 +555,4 @@ export interface AdminNamespace {
   oauthConfig(): Promise<OAuthConfigResponse>;
   healthCheck(): Promise<ResponseContent<paths['/api/health']['get']>>;
   status(): Promise<ResponseContent<paths['/api/status']['get']>>;
-  backup(): Promise<BackendDownload>;
-  /**
-   * Restore from a backup archive. Returns a `StreamObservable` that
-   * emits each `ProgressEvent` as the operation runs (`'started'`,
-   * `'parsing'`, `'importing'`, ..., `'complete'`). Subscribers see
-   * every step; awaiters get the final event via the PromiseLike sugar.
-   */
-  restore(file: File): StreamObservable<ProgressEvent>;
-  exportKnowledgeBase(params?: { includeArchived?: boolean }): Promise<BackendDownload>;
-  importKnowledgeBase(file: File): StreamObservable<ProgressEvent>;
 }

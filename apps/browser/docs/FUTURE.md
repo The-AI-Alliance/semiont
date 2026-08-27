@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-10-25
 
-Ideas and architecture considerations for building alternative Browser clients for the Semiont platform, including mobile apps, browser extensions, and specialized integrations.
+Ideas and architecture considerations for building alternative frontend clients for the Semiont platform, including mobile apps, browser extensions, and specialized integrations.
 
 ## Table of Contents
 
@@ -276,7 +276,7 @@ function createWindow() {
     }
   });
 
-  // Load frontend
+  // Load the Browser
   win.loadFile('dist/index.html');
 }
 

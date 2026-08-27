@@ -334,8 +334,6 @@
     "entityTagsDescription": "Kelola tag klasifikasi sumber daya",
     "tagSchemas": "Skema Tag",
     "tagSchemasDescription": "Lihat kerangka analisis struktural untuk penandaan otomatis",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "Ekspor dan impor pengetahuan sebagai JSON-LD Linked Data",
     "redirecting": "Mengarahkan..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "Pengaturan OAuth",
     "oauthSettingsDescription": "Lihat konfigurasi OAuth",
     "devops": "DevOps",
-    "devopsDescription": "Pemantauan dan manajemen sistem",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "Pemantauan dan manajemen sistem"
   },
   "AdminUsers": {
     "title": "Manajemen Pengguna",
@@ -451,33 +447,6 @@
     "cliTitle": "Semiont CLI untuk Operasi Lanjutan",
     "cliDescription": "Untuk manajemen infrastruktur, penerapan, dan pemantauan, gunakan Semiont CLI:"
   },
-  "AdminExchange": {
-    "title": "Pencadangan & Pemulihan",
-    "subtitle": "Buat cadangan basis pengetahuan Anda tanpa kehilangan data",
-    "exportTitle": "Pencadangan",
-    "exportDescription": "Buat cadangan basis pengetahuan Anda tanpa kehilangan data.",
-    "exportButton": "Buat Cadangan",
-    "exporting": "Membuat cadangan…",
-    "importTitle": "Pemulihan",
-    "importDescription": "Pulihkan dari arsip cadangan.",
-    "dropzoneLabel": "Letakkan file .tar.gz di sini, atau klik untuk menelusuri",
-    "dropzoneActive": "Letakkan file di sini…",
-    "detectedFormat": "Format terdeteksi",
-    "statsPreview": "Pratinjau",
-    "importButton": "Pulihkan",
-    "importing": "Memulihkan…",
-    "importConfirmTitle": "Konfirmasi Pemulihan",
-    "importConfirmMessage": "Pemulihan akan memutar ulang peristiwa ke dalam basis pengetahuan Anda. Tindakan ini tidak dapat diurungkan. Lanjutkan?",
-    "confirmImport": "Ya, Pulihkan",
-    "cancelImport": "Batal",
-    "phaseStarted": "Memulai pemulihan…",
-    "phaseComplete": "Pemulihan selesai",
-    "phaseError": "Pemulihan gagal",
-    "statsEventsReplayed": "Peristiwa yang diputar ulang",
-    "statsResourcesCreated": "Sumber daya yang dibuat",
-    "statsAnnotationsCreated": "Anotasi yang dibuat",
-    "statsEntityTypesAdded": "Tipe entitas yang ditambahkan"
-  },
   "CookieBanner": {
     "saving": "Menyimpan...",
     "customize": "Sesuaikan",
@@ -529,33 +498,6 @@
     "close": "untuk menutup",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "Ekspor & Impor",
-    "subtitle": "Pertukaran pengetahuan sebagai Linked Data JSON-LD",
-    "exportTitle": "Ekspor",
-    "exportDescription": "Ekspor basis pengetahuan Anda sebagai arsip JSON-LD.",
-    "exportButton": "Ekspor sebagai JSON-LD",
-    "exporting": "Mengekspor…",
-    "importTitle": "Impor",
-    "importDescription": "Impor sumber daya dari arsip JSON-LD.",
-    "dropzoneLabel": "Letakkan file .tar.gz di sini, atau klik untuk menelusuri",
-    "dropzoneActive": "Letakkan file di sini…",
-    "detectedFormat": "Format terdeteksi",
-    "statsPreview": "Pratinjau",
-    "importButton": "Impor",
-    "importing": "Mengimpor…",
-    "importConfirmTitle": "Konfirmasi Impor",
-    "importConfirmMessage": "Tindakan ini akan membuat sumber daya baru di basis pengetahuan Anda. Lanjutkan?",
-    "confirmImport": "Ya, Impor",
-    "cancelImport": "Batal",
-    "phaseStarted": "Memulai impor…",
-    "phaseComplete": "Impor selesai",
-    "phaseError": "Impor gagal",
-    "statsEventsReplayed": "Peristiwa yang diputar ulang",
-    "statsResourcesCreated": "Sumber daya yang dibuat",
-    "statsAnnotationsCreated": "Anotasi yang dibuat",
-    "statsEntityTypesAdded": "Tipe entitas yang ditambahkan"
   },
   "KnowledgeBasePanel": {
     "title": "Basis Pengetahuan",

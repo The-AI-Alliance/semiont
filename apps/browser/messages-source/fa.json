@@ -334,8 +334,6 @@
     "entityTagsDescription": "مدیریت برچسب‌های طبقه‌بندی منابع",
     "tagSchemas": "طرح‌واره‌های برچسب",
     "tagSchemasDescription": "مشاهده چارچوب‌های تحلیل ساختاری برای برچسب‌گذاری خودکار",
-    "linkedData": "داده‌های پیوندی",
-    "linkedDataDescription": "صادرات و واردات دانش به‌صورت JSON-LD Linked Data",
     "redirecting": "در حال هدایت..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "تنظیمات OAuth",
     "oauthSettingsDescription": "مشاهده پیکربندی OAuth",
     "devops": "DevOps",
-    "devopsDescription": "نظارت و مدیریت سیستم",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "نظارت و مدیریت سیستم"
   },
   "AdminUsers": {
     "title": "مدیریت کاربران",
@@ -451,33 +447,6 @@
     "cliTitle": "CLI Semiont برای عملیات پیشرفته",
     "cliDescription": "برای مدیریت زیرساخت، استقرارها و نظارت، از CLI Semiont استفاده کنید:"
   },
-  "AdminExchange": {
-    "title": "پشتیبان‌گیری و بازیابی",
-    "subtitle": "از پایگاه دانش خود نسخه‌های پشتیبان بدون از دست رفتن داده تهیه کنید",
-    "exportTitle": "پشتیبان‌گیری",
-    "exportDescription": "یک نسخه پشتیبان بدون از دست رفتن داده از پایگاه دانش خود تهیه کنید.",
-    "exportButton": "تهیه نسخه پشتیبان",
-    "exporting": "در حال تهیه نسخه پشتیبان…",
-    "importTitle": "بازیابی",
-    "importDescription": "از یک آرشیو پشتیبان بازیابی کنید.",
-    "dropzoneLabel": "یک فایل .tar.gz را اینجا رها کنید، یا برای مرور کلیک کنید",
-    "dropzoneActive": "فایل را اینجا رها کنید…",
-    "detectedFormat": "قالب شناسایی شده",
-    "statsPreview": "پیش‌نمایش",
-    "importButton": "بازیابی",
-    "importing": "در حال بازیابی…",
-    "importConfirmTitle": "تأیید بازیابی",
-    "importConfirmMessage": "با بازیابی، رویدادها دوباره در پایگاه دانش شما بازپخش می‌شوند. این کار قابل بازگشت نیست. ادامه می‌دهید؟",
-    "confirmImport": "بله، بازیابی کن",
-    "cancelImport": "لغو",
-    "phaseStarted": "شروع بازیابی…",
-    "phaseComplete": "بازیابی کامل شد",
-    "phaseError": "بازیابی ناموفق بود",
-    "statsEventsReplayed": "رویدادهای بازپخش‌شده",
-    "statsResourcesCreated": "منابع ایجادشده",
-    "statsAnnotationsCreated": "حاشیه‌نویسی‌های ایجادشده",
-    "statsEntityTypesAdded": "انواع موجودیت افزوده‌شده"
-  },
   "CookieBanner": {
     "saving": "در حال ذخیره...",
     "customize": "سفارشی‌سازی",
@@ -529,33 +498,6 @@
     "close": "برای بستن",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "صادرات و واردات",
-    "subtitle": "تبادل دانش به‌صورت داده‌های پیوندی JSON-LD",
-    "exportTitle": "صادرات",
-    "exportDescription": "پایگاه دانش خود را به‌صورت یک آرشیو JSON-LD صادر کنید.",
-    "exportButton": "صادرات به‌صورت JSON-LD",
-    "exporting": "در حال صادرات…",
-    "importTitle": "واردات",
-    "importDescription": "منابع را از یک آرشیو JSON-LD وارد کنید.",
-    "dropzoneLabel": "یک فایل .tar.gz را اینجا رها کنید، یا برای مرور کلیک کنید",
-    "dropzoneActive": "فایل را اینجا رها کنید…",
-    "detectedFormat": "قالب شناسایی شده",
-    "statsPreview": "پیش‌نمایش",
-    "importButton": "واردات",
-    "importing": "در حال واردات…",
-    "importConfirmTitle": "تأیید واردات",
-    "importConfirmMessage": "با این کار منابع جدیدی در پایگاه دانش شما ایجاد می‌شود. ادامه می‌دهید؟",
-    "confirmImport": "بله، وارد کن",
-    "cancelImport": "لغو",
-    "phaseStarted": "شروع واردات…",
-    "phaseComplete": "واردات کامل شد",
-    "phaseError": "واردات ناموفق بود",
-    "statsEventsReplayed": "رویدادهای بازپخش‌شده",
-    "statsResourcesCreated": "منابع ایجادشده",
-    "statsAnnotationsCreated": "حاشیه‌نویسی‌های ایجادشده",
-    "statsEntityTypesAdded": "انواع موجودیت افزوده‌شده"
   },
   "KnowledgeBasePanel": {
     "title": "پایگاه‌های دانش",

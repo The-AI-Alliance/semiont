@@ -428,7 +428,6 @@ See [System Authentication Architecture](../../../docs/system/administration/AUT
 - [src/middleware/auth.ts](../src/middleware/auth.ts) - JWT validation middleware
 - [src/routes/resources/shared.ts](../src/routes/resources/shared.ts) - Resources router with auth
 - [src/routes/admin.ts](../src/routes/admin.ts) - Admin router with layered auth
-- [src/routes/exchange.ts](../src/routes/exchange.ts) - Exchange routes with admin and moderator middleware
 
 ---
 

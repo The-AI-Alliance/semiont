@@ -334,8 +334,6 @@
     "entityTagsDescription": "ניהול תגיות סיווג משאבים",
     "tagSchemas": "סכמות תגיות",
     "tagSchemasDescription": "צפייה במסגרות ניתוח מבניות לתיוג אוטומטי",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "ייצוא וייבוא ידע בפורמט JSON-LD Linked Data",
     "redirecting": "מפנה..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "הגדרות OAuth",
     "oauthSettingsDescription": "צפייה בהגדרות OAuth",
     "devops": "DevOps",
-    "devopsDescription": "ניטור וניהול מערכת",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "ניטור וניהול מערכת"
   },
   "AdminUsers": {
     "title": "ניהול משתמשים",
@@ -451,33 +447,6 @@
     "cliTitle": "CLI של Semiont לפעולות מתקדמות",
     "cliDescription": "לניהול תשתיות, פריסות וניטור, השתמשו ב-CLI של Semiont:"
   },
-  "AdminExchange": {
-    "title": "גיבוי ושחזור",
-    "subtitle": "צור גיבויים ללא אובדן נתונים של מאגר הידע שלך",
-    "exportTitle": "גיבוי",
-    "exportDescription": "צור גיבוי ללא אובדן נתונים של מאגר הידע שלך.",
-    "exportButton": "צור גיבוי",
-    "exporting": "יוצר גיבוי…",
-    "importTitle": "שחזור",
-    "importDescription": "שחזר מארכיון גיבוי.",
-    "dropzoneLabel": "שחרר קובץ .tar.gz כאן, או לחץ לעיון",
-    "dropzoneActive": "שחרר קובץ כאן…",
-    "detectedFormat": "פורמט שזוהה",
-    "statsPreview": "תצוגה מקדימה",
-    "importButton": "שחזר",
-    "importing": "משחזר…",
-    "importConfirmTitle": "אשר שחזור",
-    "importConfirmMessage": "השחזור יפעיל מחדש אירועים במאגר הידע שלך. לא ניתן לבטל פעולה זו. להמשיך?",
-    "confirmImport": "כן, שחזר",
-    "cancelImport": "ביטול",
-    "phaseStarted": "מתחיל שחזור…",
-    "phaseComplete": "השחזור הושלם",
-    "phaseError": "השחזור נכשל",
-    "statsEventsReplayed": "אירועים שהופעלו מחדש",
-    "statsResourcesCreated": "משאבים שנוצרו",
-    "statsAnnotationsCreated": "הערות שנוצרו",
-    "statsEntityTypesAdded": "סוגי ישויות שנוספו"
-  },
   "CookieBanner": {
     "saving": "שומר...",
     "customize": "התאמה אישית",
@@ -529,33 +498,6 @@
     "close": "לסגירה",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "ייצוא וייבוא",
-    "subtitle": "החלף ידע כ-Linked Data בפורמט JSON-LD",
-    "exportTitle": "ייצוא",
-    "exportDescription": "ייצא את מאגר הידע שלך כארכיון JSON-LD.",
-    "exportButton": "ייצא כ-JSON-LD",
-    "exporting": "מייצא…",
-    "importTitle": "ייבוא",
-    "importDescription": "ייבא משאבים מארכיון JSON-LD.",
-    "dropzoneLabel": "שחרר קובץ .tar.gz כאן, או לחץ לעיון",
-    "dropzoneActive": "שחרר קובץ כאן…",
-    "detectedFormat": "פורמט שזוהה",
-    "statsPreview": "תצוגה מקדימה",
-    "importButton": "ייבא",
-    "importing": "מייבא…",
-    "importConfirmTitle": "אשר ייבוא",
-    "importConfirmMessage": "פעולה זו תיצור משאבים חדשים במאגר הידע שלך. להמשיך?",
-    "confirmImport": "כן, ייבא",
-    "cancelImport": "ביטול",
-    "phaseStarted": "מתחיל ייבוא…",
-    "phaseComplete": "הייבוא הושלם",
-    "phaseError": "הייבוא נכשל",
-    "statsEventsReplayed": "אירועים שהופעלו מחדש",
-    "statsResourcesCreated": "משאבים שנוצרו",
-    "statsAnnotationsCreated": "הערות שנוצרו",
-    "statsEntityTypesAdded": "סוגי ישויות שנוספו"
   },
   "KnowledgeBasePanel": {
     "title": "בסיסי ידע",

@@ -334,8 +334,6 @@
     "entityTagsDescription": "Zarządzaj tagami klasyfikacji zasobów",
     "tagSchemas": "Schematy tagów",
     "tagSchemasDescription": "Przeglądaj frameworki analizy strukturalnej do automatycznego tagowania",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "Eksportuj i importuj wiedzę jako JSON-LD Linked Data",
     "redirecting": "Przekierowywanie..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "Ustawienia OAuth",
     "oauthSettingsDescription": "Wyświetl konfigurację OAuth",
     "devops": "DevOps",
-    "devopsDescription": "Monitoring i zarządzanie systemem",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "Monitoring i zarządzanie systemem"
   },
   "AdminUsers": {
     "title": "Zarządzanie użytkownikami",
@@ -451,33 +447,6 @@
     "cliTitle": "CLI Semiont dla zaawansowanych operacji",
     "cliDescription": "Do zarządzania infrastrukturą, wdrożeń i monitoringu używaj CLI Semiont:"
   },
-  "AdminExchange": {
-    "title": "Kopia zapasowa i przywracanie",
-    "subtitle": "Twórz bezstratne kopie zapasowe swojej bazy wiedzy",
-    "exportTitle": "Kopia zapasowa",
-    "exportDescription": "Utwórz bezstratną kopię zapasową swojej bazy wiedzy.",
-    "exportButton": "Utwórz kopię zapasową",
-    "exporting": "Tworzenie kopii zapasowej…",
-    "importTitle": "Przywracanie",
-    "importDescription": "Przywróć dane z archiwum kopii zapasowej.",
-    "dropzoneLabel": "Upuść plik .tar.gz tutaj lub kliknij, aby przeglądać",
-    "dropzoneActive": "Upuść plik tutaj…",
-    "detectedFormat": "Wykryty format",
-    "statsPreview": "Podgląd",
-    "importButton": "Przywróć",
-    "importing": "Przywracanie…",
-    "importConfirmTitle": "Potwierdź przywracanie",
-    "importConfirmMessage": "Przywracanie spowoduje ponowne odtworzenie zdarzeń w Twojej bazie wiedzy. Tej operacji nie można cofnąć. Kontynuować?",
-    "confirmImport": "Tak, przywróć",
-    "cancelImport": "Anuluj",
-    "phaseStarted": "Rozpoczynanie przywracania…",
-    "phaseComplete": "Przywracanie zakończone",
-    "phaseError": "Przywracanie nieudane",
-    "statsEventsReplayed": "Odtworzone zdarzenia",
-    "statsResourcesCreated": "Utworzone zasoby",
-    "statsAnnotationsCreated": "Utworzone adnotacje",
-    "statsEntityTypesAdded": "Dodane typy encji"
-  },
   "CookieBanner": {
     "saving": "Zapisywanie...",
     "customize": "Dostosuj",
@@ -529,33 +498,6 @@
     "close": "zamknij",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "Eksport i import",
-    "subtitle": "Wymieniaj wiedzę jako Linked Data w formacie JSON-LD",
-    "exportTitle": "Eksport",
-    "exportDescription": "Eksportuj bazę wiedzy jako archiwum JSON-LD.",
-    "exportButton": "Eksportuj jako JSON-LD",
-    "exporting": "Eksportowanie…",
-    "importTitle": "Import",
-    "importDescription": "Importuj zasoby z archiwum JSON-LD.",
-    "dropzoneLabel": "Upuść plik .tar.gz tutaj lub kliknij, aby przeglądać",
-    "dropzoneActive": "Upuść plik tutaj…",
-    "detectedFormat": "Wykryty format",
-    "statsPreview": "Podgląd",
-    "importButton": "Importuj",
-    "importing": "Importowanie…",
-    "importConfirmTitle": "Potwierdź import",
-    "importConfirmMessage": "Spowoduje to utworzenie nowych zasobów w Twojej bazie wiedzy. Kontynuować?",
-    "confirmImport": "Tak, importuj",
-    "cancelImport": "Anuluj",
-    "phaseStarted": "Rozpoczynanie importu…",
-    "phaseComplete": "Import zakończony",
-    "phaseError": "Import nieudany",
-    "statsEventsReplayed": "Odtworzone zdarzenia",
-    "statsResourcesCreated": "Utworzone zasoby",
-    "statsAnnotationsCreated": "Utworzone adnotacje",
-    "statsEntityTypesAdded": "Dodane typy encji"
   },
   "KnowledgeBasePanel": {
     "title": "Bazy wiedzy",

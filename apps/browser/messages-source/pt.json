@@ -334,8 +334,6 @@
     "entityTagsDescription": "Gerenciar tags de classificação de recursos",
     "tagSchemas": "Esquemas de Tags",
     "tagSchemasDescription": "Ver frameworks de análise estrutural para marcação automática",
-    "linkedData": "Linked Data",
-    "linkedDataDescription": "Exportar e importar conhecimento como JSON-LD Linked Data",
     "redirecting": "Redirecionando..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "Configurações OAuth",
     "oauthSettingsDescription": "Ver configuração OAuth",
     "devops": "DevOps",
-    "devopsDescription": "Monitoramento e gerenciamento do sistema",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "Monitoramento e gerenciamento do sistema"
   },
   "AdminUsers": {
     "title": "Gerenciamento de Usuários",
@@ -451,33 +447,6 @@
     "cliTitle": "CLI do Semiont para Operações Avançadas",
     "cliDescription": "Para gerenciamento de infraestrutura, implantações e monitoramento, use o CLI do Semiont:"
   },
-  "AdminExchange": {
-    "title": "Backup e restauração",
-    "subtitle": "Crie backups sem perdas da sua base de conhecimento",
-    "exportTitle": "Backup",
-    "exportDescription": "Crie um backup sem perdas da sua base de conhecimento.",
-    "exportButton": "Criar backup",
-    "exporting": "Criando backup…",
-    "importTitle": "Restauração",
-    "importDescription": "Restaure a partir de um arquivo de backup.",
-    "dropzoneLabel": "Solte um arquivo .tar.gz aqui, ou clique para navegar",
-    "dropzoneActive": "Solte o arquivo aqui…",
-    "detectedFormat": "Formato detectado",
-    "statsPreview": "Pré-visualização",
-    "importButton": "Restaurar",
-    "importing": "Restaurando…",
-    "importConfirmTitle": "Confirmar Restauração",
-    "importConfirmMessage": "A restauração reproduzirá novamente os eventos na sua base de conhecimento. Isso não pode ser desfeito. Continuar?",
-    "confirmImport": "Sim, restaurar",
-    "cancelImport": "Cancelar",
-    "phaseStarted": "Iniciando restauração…",
-    "phaseComplete": "Restauração concluída",
-    "phaseError": "Restauração falhou",
-    "statsEventsReplayed": "Eventos reproduzidos",
-    "statsResourcesCreated": "Recursos criados",
-    "statsAnnotationsCreated": "Anotações criadas",
-    "statsEntityTypesAdded": "Tipos de entidade adicionados"
-  },
   "CookieBanner": {
     "saving": "Salvando...",
     "customize": "Personalizar",
@@ -529,33 +498,6 @@
     "close": "para fechar",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "Exportar e importar",
-    "subtitle": "Troque conhecimento como dados conectados JSON-LD",
-    "exportTitle": "Exportar",
-    "exportDescription": "Exporte sua base de conhecimento como um arquivo JSON-LD.",
-    "exportButton": "Exportar como JSON-LD",
-    "exporting": "Exportando…",
-    "importTitle": "Importar",
-    "importDescription": "Importe recursos de um arquivo JSON-LD.",
-    "dropzoneLabel": "Solte um arquivo .tar.gz aqui, ou clique para navegar",
-    "dropzoneActive": "Solte o arquivo aqui…",
-    "detectedFormat": "Formato detectado",
-    "statsPreview": "Pré-visualização",
-    "importButton": "Importar",
-    "importing": "Importando…",
-    "importConfirmTitle": "Confirmar Importação",
-    "importConfirmMessage": "Isso criará novos recursos na sua base de conhecimento. Continuar?",
-    "confirmImport": "Sim, importar",
-    "cancelImport": "Cancelar",
-    "phaseStarted": "Iniciando importação…",
-    "phaseComplete": "Importação concluída",
-    "phaseError": "Importação falhou",
-    "statsEventsReplayed": "Eventos reproduzidos",
-    "statsResourcesCreated": "Recursos criados",
-    "statsAnnotationsCreated": "Anotações criadas",
-    "statsEntityTypesAdded": "Tipos de entidade adicionados"
   },
   "KnowledgeBasePanel": {
     "title": "Bases de conhecimento",

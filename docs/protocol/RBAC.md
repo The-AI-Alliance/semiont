@@ -8,7 +8,7 @@ Semiont authenticates all users via OAuth and enforces three privilege levels th
 |------|------|-------------|
 | **User** | *(default)* | Full read/write access to all resources, annotations, and entity types |
 | **Moderator** | `isModerator` | User capabilities + entity type management |
-| **Admin** | `isAdmin` | All capabilities + user management, exchange (backup/restore/export/import), system configuration |
+| **Admin** | `isAdmin` | All capabilities + user management, system configuration |
 
 ### What This Means in Practice
 
@@ -21,7 +21,7 @@ Semiont authenticates all users via OAuth and enforces three privilege levels th
 - **Public**: Health checks, API documentation, OAuth endpoints (no authentication required)
 - **Authenticated**: All resources, annotations, entity types, search, graph queries
 - **Moderator**: Entity type management (`/api/entity-types` mutations)
-- **Admin**: User management (`/api/admin/users`), exchange operations (`/api/admin/exchange/*`), system configuration
+- **Admin**: User management (`/api/admin/users`), system configuration
 
 ### What's NOT Implemented
 
@@ -81,7 +81,7 @@ Until content-level access control is implemented:
 Role checks are enforced via middleware on the backend:
 
 ```typescript
-// Admin middleware pattern (used in routes/exchange.ts, routes/admin.ts)
+// Admin middleware pattern (used in routes/admin.ts)
 const adminMiddleware = async (c, next) => {
   const user = c.get('user');
   if (!user || !user.isAdmin) {

@@ -4513,24 +4513,6 @@ type YieldUpdateOk struct {
 	} `json:"response"`
 }
 
-// PostApiAdminExchangeRestoreMultipartBody defines parameters for PostApiAdminExchangeRestore.
-type PostApiAdminExchangeRestoreMultipartBody struct {
-	// File Backup archive (.tar.gz)
-	File openapi_types.File `json:"file"`
-}
-
-// PostApiModerateExchangeExportParams defines parameters for PostApiModerateExchangeExport.
-type PostApiModerateExchangeExportParams struct {
-	// IncludeArchived Include archived resources in export
-	IncludeArchived *bool `form:"includeArchived,omitempty" json:"includeArchived,omitempty"`
-}
-
-// PostApiModerateExchangeImportMultipartBody defines parameters for PostApiModerateExchangeImport.
-type PostApiModerateExchangeImportMultipartBody struct {
-	// File JSON-LD archive (.tar.gz)
-	File openapi_types.File `json:"file"`
-}
-
 // PostApiTokensAgentJSONBody defines parameters for PostApiTokensAgent.
 type PostApiTokensAgentJSONBody struct {
 	// Model Model identifier (e.g. gemma2:27b, claude-3-5-sonnet)
@@ -4582,17 +4564,11 @@ type PostResourcesMultipartBody struct {
 // PutAnchoredTextChecksumJSONRequestBody defines body for PutAnchoredTextChecksum for application/json ContentType.
 type PutAnchoredTextChecksumJSONRequestBody = ExtractionOutcome
 
-// PostApiAdminExchangeRestoreMultipartRequestBody defines body for PostApiAdminExchangeRestore for multipart/form-data ContentType.
-type PostApiAdminExchangeRestoreMultipartRequestBody PostApiAdminExchangeRestoreMultipartBody
-
 // PatchApiAdminUsersIdJSONRequestBody defines body for PatchApiAdminUsersId for application/json ContentType.
 type PatchApiAdminUsersIdJSONRequestBody = UpdateUserRequest
 
 // PostApiCookiesConsentJSONRequestBody defines body for PostApiCookiesConsent for application/json ContentType.
 type PostApiCookiesConsentJSONRequestBody = CookieConsentRequest
-
-// PostApiModerateExchangeImportMultipartRequestBody defines body for PostApiModerateExchangeImport for multipart/form-data ContentType.
-type PostApiModerateExchangeImportMultipartRequestBody PostApiModerateExchangeImportMultipartBody
 
 // PostApiTokensAgentJSONRequestBody defines body for PostApiTokensAgent for application/json ContentType.
 type PostApiTokensAgentJSONRequestBody PostApiTokensAgentJSONBody
@@ -10909,12 +10885,6 @@ type ClientInterface interface {
 
 	PutAnchoredTextChecksum(ctx context.Context, checksum string, body PutAnchoredTextChecksumJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostApiAdminExchangeBackup request
-	PostApiAdminExchangeBackup(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostApiAdminExchangeRestoreWithBody request with any body
-	PostApiAdminExchangeRestoreWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetApiAdminOauthConfig request
 	GetApiAdminOauthConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -10945,12 +10915,6 @@ type ClientInterface interface {
 
 	// GetApiHealth request
 	GetApiHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostApiModerateExchangeExport request
-	PostApiModerateExchangeExport(ctx context.Context, params *PostApiModerateExchangeExportParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostApiModerateExchangeImportWithBody request with any body
-	PostApiModerateExchangeImportWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetApiResourcesId request
 	GetApiResourcesId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -11053,30 +11017,6 @@ func (c *Client) PutAnchoredTextChecksumWithBody(ctx context.Context, checksum s
 
 func (c *Client) PutAnchoredTextChecksum(ctx context.Context, checksum string, body PutAnchoredTextChecksumJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPutAnchoredTextChecksumRequest(c.Server, checksum, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiAdminExchangeBackup(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiAdminExchangeBackupRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiAdminExchangeRestoreWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiAdminExchangeRestoreRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -11209,30 +11149,6 @@ func (c *Client) GetApiCookiesExport(ctx context.Context, reqEditors ...RequestE
 
 func (c *Client) GetApiHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetApiHealthRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiModerateExchangeExport(ctx context.Context, params *PostApiModerateExchangeExportParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiModerateExchangeExportRequest(c.Server, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiModerateExchangeImportWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiModerateExchangeImportRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -11627,62 +11543,6 @@ func NewPutAnchoredTextChecksumRequestWithBody(server string, checksum string, c
 	return req, nil
 }
 
-// NewPostApiAdminExchangeBackupRequest generates requests for PostApiAdminExchangeBackup
-func NewPostApiAdminExchangeBackupRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/admin/exchange/backup")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewPostApiAdminExchangeRestoreRequestWithBody generates requests for PostApiAdminExchangeRestore with any type of body
-func NewPostApiAdminExchangeRestoreRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/admin/exchange/restore")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewGetApiAdminOauthConfigRequest generates requests for GetApiAdminOauthConfig
 func NewGetApiAdminOauthConfigRequest(server string) (*http.Request, error) {
 	var err error
@@ -11962,84 +11822,6 @@ func NewGetApiHealthRequest(server string) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	return req, nil
-}
-
-// NewPostApiModerateExchangeExportRequest generates requests for PostApiModerateExchangeExport
-func NewPostApiModerateExchangeExportRequest(server string, params *PostApiModerateExchangeExportParams) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/moderate/exchange/export")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.IncludeArchived != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "includeArchived", *params.IncludeArchived, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewPostApiModerateExchangeImportRequestWithBody generates requests for PostApiModerateExchangeImport with any type of body
-func NewPostApiModerateExchangeImportRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/moderate/exchange/import")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -12651,12 +12433,6 @@ type ClientWithResponsesInterface interface {
 
 	PutAnchoredTextChecksumWithResponse(ctx context.Context, checksum string, body PutAnchoredTextChecksumJSONRequestBody, reqEditors ...RequestEditorFn) (*PutAnchoredTextChecksumResponse, error)
 
-	// PostApiAdminExchangeBackupWithResponse request
-	PostApiAdminExchangeBackupWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostApiAdminExchangeBackupResponse, error)
-
-	// PostApiAdminExchangeRestoreWithBodyWithResponse request with any body
-	PostApiAdminExchangeRestoreWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAdminExchangeRestoreResponse, error)
-
 	// GetApiAdminOauthConfigWithResponse request
 	GetApiAdminOauthConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAdminOauthConfigResponse, error)
 
@@ -12687,12 +12463,6 @@ type ClientWithResponsesInterface interface {
 
 	// GetApiHealthWithResponse request
 	GetApiHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiHealthResponse, error)
-
-	// PostApiModerateExchangeExportWithResponse request
-	PostApiModerateExchangeExportWithResponse(ctx context.Context, params *PostApiModerateExchangeExportParams, reqEditors ...RequestEditorFn) (*PostApiModerateExchangeExportResponse, error)
-
-	// PostApiModerateExchangeImportWithBodyWithResponse request with any body
-	PostApiModerateExchangeImportWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiModerateExchangeImportResponse, error)
 
 	// GetApiResourcesIdWithResponse request
 	GetApiResourcesIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetApiResourcesIdResponse, error)
@@ -12822,53 +12592,6 @@ func (r PutAnchoredTextChecksumResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r PutAnchoredTextChecksumResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostApiAdminExchangeBackupResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiAdminExchangeBackupResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiAdminExchangeBackupResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostApiAdminExchangeRestoreResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiAdminExchangeRestoreResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiAdminExchangeRestoreResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -13085,53 +12808,6 @@ func (r GetApiHealthResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetApiHealthResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostApiModerateExchangeExportResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiModerateExchangeExportResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiModerateExchangeExportResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostApiModerateExchangeImportResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiModerateExchangeImportResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiModerateExchangeImportResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -13553,24 +13229,6 @@ func (c *ClientWithResponses) PutAnchoredTextChecksumWithResponse(ctx context.Co
 	return ParsePutAnchoredTextChecksumResponse(rsp)
 }
 
-// PostApiAdminExchangeBackupWithResponse request returning *PostApiAdminExchangeBackupResponse
-func (c *ClientWithResponses) PostApiAdminExchangeBackupWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostApiAdminExchangeBackupResponse, error) {
-	rsp, err := c.PostApiAdminExchangeBackup(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiAdminExchangeBackupResponse(rsp)
-}
-
-// PostApiAdminExchangeRestoreWithBodyWithResponse request with arbitrary body returning *PostApiAdminExchangeRestoreResponse
-func (c *ClientWithResponses) PostApiAdminExchangeRestoreWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAdminExchangeRestoreResponse, error) {
-	rsp, err := c.PostApiAdminExchangeRestoreWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiAdminExchangeRestoreResponse(rsp)
-}
-
 // GetApiAdminOauthConfigWithResponse request returning *GetApiAdminOauthConfigResponse
 func (c *ClientWithResponses) GetApiAdminOauthConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAdminOauthConfigResponse, error) {
 	rsp, err := c.GetApiAdminOauthConfig(ctx, reqEditors...)
@@ -13666,24 +13324,6 @@ func (c *ClientWithResponses) GetApiHealthWithResponse(ctx context.Context, reqE
 		return nil, err
 	}
 	return ParseGetApiHealthResponse(rsp)
-}
-
-// PostApiModerateExchangeExportWithResponse request returning *PostApiModerateExchangeExportResponse
-func (c *ClientWithResponses) PostApiModerateExchangeExportWithResponse(ctx context.Context, params *PostApiModerateExchangeExportParams, reqEditors ...RequestEditorFn) (*PostApiModerateExchangeExportResponse, error) {
-	rsp, err := c.PostApiModerateExchangeExport(ctx, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiModerateExchangeExportResponse(rsp)
-}
-
-// PostApiModerateExchangeImportWithBodyWithResponse request with arbitrary body returning *PostApiModerateExchangeImportResponse
-func (c *ClientWithResponses) PostApiModerateExchangeImportWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiModerateExchangeImportResponse, error) {
-	rsp, err := c.PostApiModerateExchangeImportWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiModerateExchangeImportResponse(rsp)
 }
 
 // GetApiResourcesIdWithResponse request returning *GetApiResourcesIdResponse
@@ -13974,79 +13614,6 @@ func ParsePutAnchoredTextChecksumResponse(rsp *http.Response) (*PutAnchoredTextC
 			return nil, err
 		}
 		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostApiAdminExchangeBackupResponse parses an HTTP response from a PostApiAdminExchangeBackupWithResponse call
-func ParsePostApiAdminExchangeBackupResponse(rsp *http.Response) (*PostApiAdminExchangeBackupResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiAdminExchangeBackupResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostApiAdminExchangeRestoreResponse parses an HTTP response from a PostApiAdminExchangeRestoreWithResponse call
-func ParsePostApiAdminExchangeRestoreResponse(rsp *http.Response) (*PostApiAdminExchangeRestoreResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiAdminExchangeRestoreResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest ErrorResponse
@@ -14414,79 +13981,6 @@ func ParseGetApiHealthResponse(rsp *http.Response) (*GetApiHealthResponse, error
 			return nil, err
 		}
 		response.JSON200 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostApiModerateExchangeExportResponse parses an HTTP response from a PostApiModerateExchangeExportWithResponse call
-func ParsePostApiModerateExchangeExportResponse(rsp *http.Response) (*PostApiModerateExchangeExportResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiModerateExchangeExportResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostApiModerateExchangeImportResponse parses an HTTP response from a PostApiModerateExchangeImportWithResponse call
-func ParsePostApiModerateExchangeImportResponse(rsp *http.Response) (*PostApiModerateExchangeImportResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiModerateExchangeImportResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
 
 	}
 

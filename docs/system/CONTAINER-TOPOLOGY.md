@@ -16,7 +16,7 @@ A local deployment runs four containers of Semiont code, five with the Browser, 
 graph TB
     UB["User's Web Browser<br/>(runs the SPA)"]
 
-    subgraph frontend_c ["semiont-browser"]
+    subgraph browser_c ["semiont-browser"]
         SPA["Static SPA server<br/>(serves the Semiont Browser)"]
     end
 

@@ -70,18 +70,6 @@ import { HttpContentTransport } from '../http-content-transport';
 const testBaseUrl = baseUrl('http://localhost:4000');
 const testResourceId = resourceId('test-resource-id');
 
-/** Build a `data: <json>\n\n` SSE-shaped ReadableStream for restore/import tests. */
-function encodeSseStream(events: Array<Record<string, unknown>>): ReadableStream<Uint8Array> {
-  const lines = events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join('');
-  const bytes = new TextEncoder().encode(lines);
-  return new ReadableStream({
-    start(controller) {
-      controller.enqueue(bytes);
-      controller.close();
-    },
-  });
-}
-
 describe('HttpTransport — HTTP wire shape', () => {
   let transport: HttpTransport;
   let content: HttpContentTransport;
@@ -210,84 +198,6 @@ describe('HttpTransport — HTTP wire shape', () => {
       } as never);
       await transport.getOAuthConfig();
       expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/admin/oauth/config`, { headers: {} });
-    });
-  });
-
-  describe('Exchange', () => {
-    test('backupKnowledgeBase posts to /api/admin/exchange/backup and returns a BackendDownload', async () => {
-      const response = new Response(new Blob(['backup-data']), {
-        headers: {
-          'Content-Type': 'application/x-tar',
-          'Content-Disposition': 'attachment; filename="backup.tar.gz"',
-        },
-      });
-      vi.mocked(mockKy.post).mockResolvedValue(response as never);
-      const result = await transport.backupKnowledgeBase();
-      expect(result.stream).toBe(response.body);
-      expect(result.contentType).toBe('application/x-tar');
-      expect(result.filename).toBe('backup.tar.gz');
-      expect(mockKy.post).toHaveBeenCalledWith(`${testBaseUrl}/api/admin/exchange/backup`, { headers: {} });
-    });
-
-    test('exportKnowledgeBase posts to /api/moderate/exchange/export with default params', async () => {
-      const response = new Response(new Blob(['export-data']), {
-        headers: { 'Content-Type': 'application/x-tar' },
-      });
-      vi.mocked(mockKy.post).mockResolvedValue(response as never);
-      const result = await transport.exportKnowledgeBase();
-      expect(result.stream).toBe(response.body);
-      expect(result.contentType).toBe('application/x-tar');
-      expect(mockKy.post).toHaveBeenCalledWith(
-        `${testBaseUrl}/api/moderate/exchange/export`,
-        { headers: {} },
-      );
-    });
-
-    test('exportKnowledgeBase forwards includeArchived as a search param', async () => {
-      const response = new Response(new Blob(['export-data']));
-      vi.mocked(mockKy.post).mockResolvedValue(response as never);
-      await transport.exportKnowledgeBase({ includeArchived: true });
-      const [, init] = vi.mocked(mockKy.post).mock.calls[0]!;
-      const sp = (init as { searchParams: URLSearchParams }).searchParams;
-      expect(sp.get('includeArchived')).toBe('true');
-    });
-
-    test('restoreKnowledgeBase posts multipart and emits each SSE event on the Observable', async () => {
-      const sseBody = encodeSseStream([
-        { phase: 'progress', message: '50%' },
-        { phase: 'complete', result: { restored: 3 } },
-      ]);
-      vi.mocked(mockKy.post).mockResolvedValue(new Response(sseBody) as never);
-
-      const file = new File(['x'], 'kb.tgz', { type: 'application/gzip' });
-      const obs = transport.restoreKnowledgeBase(file);
-      const { firstValueFrom, toArray } = await import('rxjs');
-      const collected = await firstValueFrom(obs.pipe(toArray()));
-
-      expect(mockKy.post).toHaveBeenCalledWith(
-        `${testBaseUrl}/api/admin/exchange/restore`,
-        expect.objectContaining({ body: expect.any(FormData), headers: {} }),
-      );
-      expect(collected).toEqual([
-        { phase: 'progress', message: '50%' },
-        { phase: 'complete', result: { restored: 3 } },
-      ]);
-    });
-
-    test('importKnowledgeBase posts multipart and completes after the final SSE event', async () => {
-      const sseBody = encodeSseStream([{ phase: 'complete', result: { imported: 5 } }]);
-      vi.mocked(mockKy.post).mockResolvedValue(new Response(sseBody) as never);
-
-      const file = new File(['y'], 'kb.tgz', { type: 'application/gzip' });
-      const obs = transport.importKnowledgeBase(file);
-      const { lastValueFrom } = await import('rxjs');
-      const last = await lastValueFrom(obs);
-
-      expect(mockKy.post).toHaveBeenCalledWith(
-        `${testBaseUrl}/api/moderate/exchange/import`,
-        expect.objectContaining({ body: expect.any(FormData), headers: {} }),
-      );
-      expect(last).toEqual({ phase: 'complete', result: { imported: 5 } });
     });
   });
 

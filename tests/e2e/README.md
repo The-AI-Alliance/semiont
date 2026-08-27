@@ -90,7 +90,7 @@ change on every restart.
 
 The robust target is the **host bridge gateway**, `192.168.64.1`: it's
 reachable from inside containers, routes to the host's *published* ports
-(`:3000`→frontend, `:4000`→backend), and its address is **stable across
+(`:3000`→browser, `:4000`→backend), and its address is **stable across
 restarts**.
 
 > **No CORS origin to configure.** The backend serves open CORS

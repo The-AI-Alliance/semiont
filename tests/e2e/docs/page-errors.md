@@ -11,7 +11,7 @@ on the wire.
 ## When it matters
 
 The other capture fixtures see *protocol* failures (a `mark:create-failed`
-event, a span with `status=ERROR`). They don't see *frontend* failures —
+event, a span with `status=ERROR`). They don't see *browser* failures —
 React render exceptions, RxJS Subject recursion, parsing errors in a
 component's effect, anything that doesn't reach the wire. The hover
 investigation that motivated this fixture (a `RangeError: Maximum

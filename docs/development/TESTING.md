@@ -784,7 +784,7 @@ The recommended path on macOS is the official Playwright container, which can re
 #    See tests/e2e/README.md "Running against a freshly-built stack".
 
 # 2. Re-grab IPs every time anything restarts (Apple container reassigns them).
-container ls | grep -E 'semiont-(frontend|backend)'
+container ls | grep -E 'semiont-(browser|backend)'
 
 # 3. Run the suite.
 container run --rm \
@@ -1020,7 +1020,7 @@ ryuk.disabled=true
 ### Coverage
 
 `npm run test:coverage` writes an HTML report to
-`apps/{frontend,backend}/coverage/index.html` alongside the console summary.
+`apps/{browser,backend}/coverage/index.html` alongside the console summary.
 
 ### End-to-end tests
 

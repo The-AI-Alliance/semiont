@@ -46,7 +46,7 @@ execute.
 
 **Against a stack, iterating on this package** — start the stack, then run the
 Vite dev server from `apps/browser` with `npm run dev` and point it at the
-running backend on `:4000`. Fast HMR against real data; the stack's own frontend
+running backend on `:4000`. Fast HMR against real data; the stack's own Browser
 container keeps serving the built SPA on `:3000` independently.
 
 **Against locally built images** — when your change needs to be exercised as the
@@ -364,7 +364,7 @@ Environment variables are configured automatically based on your environment con
 ```json
 {
   "services": {
-    "frontend": {
+    "browser": {
       "url": "https://staging.example.com",
       "port": 3000
     }

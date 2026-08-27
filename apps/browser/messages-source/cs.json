@@ -334,8 +334,6 @@
     "entityTagsDescription": "Správa klasifikačních štítků zdrojů",
     "tagSchemas": "Schémata štítků",
     "tagSchemasDescription": "Zobrazit rámce strukturální analýzy pro automatické značkování",
-    "linkedData": "Propojená data",
-    "linkedDataDescription": "Export a import znalostí ve formátu JSON-LD Linked Data",
     "redirecting": "Přesměrování..."
   },
   "ModerateRecent": {
@@ -373,9 +371,7 @@
     "oauthSettings": "Nastavení OAuth",
     "oauthSettingsDescription": "Zobrazit konfiguraci OAuth",
     "devops": "DevOps",
-    "devopsDescription": "Monitoring a správa systému",
-    "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base"
+    "devopsDescription": "Monitoring a správa systému"
   },
   "AdminUsers": {
     "title": "Správa uživatelů",
@@ -451,33 +447,6 @@
     "cliTitle": "Semiont CLI pro pokročilé operace",
     "cliDescription": "Pro správu infrastruktury, nasazení a monitoring použijte Semiont CLI:"
   },
-  "AdminExchange": {
-    "title": "Zálohování a obnovení",
-    "subtitle": "Vytvářejte bezeztrátové zálohy své znalostní báze",
-    "exportTitle": "Zálohování",
-    "exportDescription": "Vytvořte bezeztrátovou zálohu své znalostní báze.",
-    "exportButton": "Vytvořit zálohu",
-    "exporting": "Vytváření zálohy…",
-    "importTitle": "Obnovení",
-    "importDescription": "Obnovte data ze záložního archivu.",
-    "dropzoneLabel": "Přetáhněte sem soubor .tar.gz, nebo klikněte pro procházení",
-    "dropzoneActive": "Přetáhněte soubor sem…",
-    "detectedFormat": "Zjištěný formát",
-    "statsPreview": "Náhled",
-    "importButton": "Obnovit",
-    "importing": "Obnovování…",
-    "importConfirmTitle": "Potvrdit obnovení",
-    "importConfirmMessage": "Obnovením se ve vaší znalostní bázi znovu přehrají události. Tuto akci nelze vrátit zpět. Pokračovat?",
-    "confirmImport": "Ano, obnovit",
-    "cancelImport": "Zrušit",
-    "phaseStarted": "Zahajování obnovení…",
-    "phaseComplete": "Obnovení dokončeno",
-    "phaseError": "Obnovení selhalo",
-    "statsEventsReplayed": "Přehrané události",
-    "statsResourcesCreated": "Vytvořené zdroje",
-    "statsAnnotationsCreated": "Vytvořené anotace",
-    "statsEntityTypesAdded": "Přidané typy entit"
-  },
   "CookieBanner": {
     "saving": "Ukládání...",
     "customize": "Přizpůsobit",
@@ -529,33 +498,6 @@
     "close": "k zavření",
     "enter": "Enter",
     "esc": "Esc"
-  },
-  "ModerationLinkedData": {
-    "title": "Export a import",
-    "subtitle": "Vyměňujte znalosti jako propojená data ve formátu JSON-LD",
-    "exportTitle": "Export",
-    "exportDescription": "Exportujte svou znalostní bázi jako archiv JSON-LD.",
-    "exportButton": "Exportovat jako JSON-LD",
-    "exporting": "Exportování…",
-    "importTitle": "Import",
-    "importDescription": "Importujte zdroje z archivu JSON-LD.",
-    "dropzoneLabel": "Přetáhněte sem soubor .tar.gz, nebo klikněte pro procházení",
-    "dropzoneActive": "Přetáhněte soubor sem…",
-    "detectedFormat": "Zjištěný formát",
-    "statsPreview": "Náhled",
-    "importButton": "Importovat",
-    "importing": "Importování…",
-    "importConfirmTitle": "Potvrdit import",
-    "importConfirmMessage": "Tím se ve vaší znalostní bázi vytvoří nové zdroje. Pokračovat?",
-    "confirmImport": "Ano, importovat",
-    "cancelImport": "Zrušit",
-    "phaseStarted": "Zahajování importu…",
-    "phaseComplete": "Import dokončen",
-    "phaseError": "Import selhal",
-    "statsEventsReplayed": "Přehrané události",
-    "statsResourcesCreated": "Vytvořené zdroje",
-    "statsAnnotationsCreated": "Vytvořené anotace",
-    "statsEntityTypesAdded": "Přidané typy entit"
   },
   "KnowledgeBasePanel": {
     "title": "Znalostní báze",
