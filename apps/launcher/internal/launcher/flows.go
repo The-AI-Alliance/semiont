@@ -179,7 +179,14 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 		},
 		func() int {
 			if port != 3000 {
-				x.say(sayWarn, "Browser on port %d: backends configured with frontendURL http://localhost:3000 may reject this origin (OAuth redirects / CORS).", port)
+				// Not a CORS warning: the API is bearer-only with `cors({origin:'*'})`
+				// (backend index.ts, SDK-AUTH-CORS Phase 4), so no backend rejects this
+				// origin. It used to name `frontendURL`, a config key that was read by
+				// nothing and has since been deleted (FRONTEND-IS-THE-BROWSER P6).
+				// What IS true is that anything holding the default origin literally —
+				// an OAuth app registration, a bookmark, a pinned integration — keeps
+				// pointing at 3000.
+				x.say(sayWarn, "Browser on port %d instead of 3000: anything with http://localhost:3000 baked in (OAuth app registrations, saved links) will not follow it.", port)
 			}
 			// stop+rm, not stop: without --rm (kept for crash forensics) a
 			// stopped container HOLDS its name — the next run --name fails

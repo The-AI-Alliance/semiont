@@ -77,7 +77,6 @@ platform = "posix"
 [environments.local.backend]
 port = 4000
 publicURL = "http://localhost:4000"
-frontendURL = "http://localhost:3000"
 
 [environments.local.site]
 domain = "localhost"

@@ -3046,8 +3046,8 @@ func TestMultiStackCodespaces(t *testing.T) {
 
 func TestBrowserPort(t *testing.T) {
 	// --port moves the browser (the one flag-movable port): publish
-	// <p>:3000, warn about frontendURL-configured backends, record the
-	// moved endpoint so status and stop follow it.
+	// <p>:3000, warn that anything holding the default origin will not
+	// follow, record the moved endpoint so status and stop follow it.
 	s := newScenario(t, "container")
 	s.noGitRoot = true // "just the browser" needs no clone
 	stdout, stderr, code := s.run(t, "start", "--service", "browser", "--port", "3001")
@@ -3057,7 +3057,7 @@ func TestBrowserPort(t *testing.T) {
 	log, _ := os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log), "--publish 3001:3000")
 	mustContain(t, "stdout", stdout,
-		"Browser on port 3001", "may reject this origin",
+		"Browser on port 3001", "instead of 3000",
 		"🚀 browser is up")
 	b, _ := os.ReadFile(statePathFor(s.home))
 	mustContain(t, "stack.json", string(b), `"endpoint": "http://localhost:3001"`)
@@ -3075,7 +3075,7 @@ func TestBrowserPort(t *testing.T) {
 	if code != 0 {
 		t.Fatal("default-port browser failed")
 	}
-	if strings.Contains(stdout, "may reject this origin") {
+	if strings.Contains(stdout, "instead of 3000") {
 		t.Errorf("default port warned:\n%s", stdout)
 	}
 

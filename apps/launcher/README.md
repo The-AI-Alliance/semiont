@@ -76,8 +76,8 @@ semiont stop
   — showing its image tag so browser-vs-stack version skew is visible.
 - `semiont start --service browser --port <n>` moves the Browser — the ONE
   port a flag may move — and is also the explicit refresh (it always
-  restarts, bypassing keep-if-current). A non-3000 port warns that backends
-  configured with `frontendURL http://localhost:3000` may reject the origin.
+  restarts, bypassing keep-if-current). A non-3000 port warns that anything
+  holding `http://localhost:3000` literally will not follow it.
 - **`semiont secret` registers where config secrets come from** — pointers,
   never values. `semiont secret set ANTHROPIC_API_KEY` walks an interactive
   provider-then-path flow (or pass the source directly:
