@@ -4,6 +4,7 @@
 // Service (primary export)
 export { startMakeMeaning } from './service';
 export type { MakeMeaningService, MakeMeaningConfig } from './service';
+export { makeMeaningConfigFrom } from './config';
 
 // Knowledge System
 export type { KnowledgeSystem } from './knowledge-system';

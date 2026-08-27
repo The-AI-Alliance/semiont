@@ -35,7 +35,7 @@ export {
 
 
 // Query
-export { EventQuery } from './query/event-query';
+export { EventQuery, type EventReadStorage } from './query/event-query';
 
 // Views
 export { ViewMaterializer } from './views/view-materializer';

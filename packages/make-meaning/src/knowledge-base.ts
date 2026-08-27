@@ -19,7 +19,7 @@
  * via the EventBus gateway, embeds content, and writes to Qdrant directly.
  */
 
-import type { EventStore } from '@semiont/event-sourcing';
+import type { EventStore, EventReadStorage, ViewMaterializer } from '@semiont/event-sourcing';
 import { FilesystemViewStorage, type ViewStorage } from '@semiont/event-sourcing';
 import { WorkingTreeStore, createAnchoredTextStore, type AnchoredTextStore } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
@@ -40,6 +40,30 @@ export interface KnowledgeBase {
   smeltProgress: SmeltProgress;
   vectors:       VectorStore;
   projectionsDir: string;
+}
+
+/**
+ * Capability slices of the record (EXTRACT-ARCHIVIST P1).
+ *
+ * An Archivist actor takes the slice it actually uses, never the whole
+ * KnowledgeBase. Every slice is DERIVED from the owning type with Pick;
+ * a hand-restated shape here would be a mirror of a fact someone else owns.
+ */
+
+/** The lifecycle half of the working tree (GATEWAY.md D4a): the Archivist
+ *  accessions, moves, removes and resolves — it never serves bytes. */
+export type ContentLifecycle = Pick<WorkingTreeStore, 'register' | 'move' | 'remove' | 'resolveUri'>;
+
+/** The record's single write seam. `Stower` is the only appendEvent caller
+ *  anywhere in make-meaning or the gateway (post-#1252): single-owner by
+ *  construction. A second caller is a design smell, not a wiring chore. */
+export type EventAppends = Pick<EventStore, 'appendEvent'>;
+
+/** Read-only reach into the event store: the log for queries, the
+ *  materializer for on-demand view assembly (`assembleResourceGraph`). */
+export interface EventStoreReads {
+  log: { storage: EventReadStorage };
+  views: { materializer: Pick<ViewMaterializer, 'materialize'> };
 }
 
 export interface CreateKnowledgeBaseOptions {

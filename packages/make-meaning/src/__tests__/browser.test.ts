@@ -86,8 +86,7 @@ describe('Browser actor', () => {
     eventBus = new EventBus();
 
     browser = new Browser(
-      makeViews([]) as any,
-      mockKb,
+      { ...mockKb, views: makeViews([]) },
       eventBus,
       { root: PROJECT_ROOT } as any,
       emptyConfig,
@@ -237,8 +236,7 @@ describe('Browser actor', () => {
 
     const fileUri = `file://${PROJECT_ROOT}/intro.md`;
     browser = new Browser(
-      makeViews([{ storageUri: fileUri, resourceId: 'res:abc', entityTypes: ['Article'] }]) as any,
-      mockKb,
+      { ...mockKb, views: makeViews([{ storageUri: fileUri, resourceId: 'res:abc', entityTypes: ['Article'] }]) },
       eventBus,
       { root: PROJECT_ROOT } as any,
       emptyConfig,
@@ -360,7 +358,7 @@ describe('Browser actor', () => {
         graph: { getResourceReferencedBy: mockReferencedBy, getResource: mockGetResource },
         views: { get: mockViewGet },
       } as any;
-      browser = new Browser(makeViews([]) as any, kb, eventBus, { root: PROJECT_ROOT } as any, emptyConfig, passthroughDiscovery, createMockEmbeddingProvider(), mockLogger);
+      browser = new Browser(kb, eventBus, { root: PROJECT_ROOT } as any, emptyConfig, passthroughDiscovery, createMockEmbeddingProvider(), mockLogger);
       await browser.initialize();
     });
 
@@ -523,7 +521,7 @@ describe('Browser actor', () => {
       discovery?: { enrich(entries: CollaboratorEntry[]): Promise<CollaboratorEntry[]> },
     ) {
       const bus = new EventBus();
-      const b = new Browser(makeViews([]) as any, mockKb, bus, { root: PROJECT_ROOT } as any, config, discovery ?? passthroughDiscovery, createMockEmbeddingProvider(), mockLogger);
+      const b = new Browser(mockKb, bus, { root: PROJECT_ROOT } as any, config, discovery ?? passthroughDiscovery, createMockEmbeddingProvider(), mockLogger);
       await b.initialize();
       try {
         await fn(bus);

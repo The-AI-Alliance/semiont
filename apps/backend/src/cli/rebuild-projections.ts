@@ -10,11 +10,11 @@
  *   npm run rebuild-projections <resourceId> # Rebuild specific resource
  */
 
-import { startMakeMeaning } from '@semiont/make-meaning';
+import { startMakeMeaning, makeMeaningConfigFrom } from '@semiont/make-meaning';
 import { EventQuery } from '@semiont/event-sourcing';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 import { resourceId as makeResourceId, EventBus } from '@semiont/core';
-import { makeMeaningConfigFrom } from '../utils/config';
+
 import { initializeLogger, getLogger } from '../logger';
 
 async function rebuildProjections(rId?: string, environment?: string) {

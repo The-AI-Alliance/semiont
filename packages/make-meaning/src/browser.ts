@@ -30,7 +30,11 @@ import { withActorSpan } from '@semiont/observability';
 import { getExactText, getTargetSource, getTargetSelector, getBodySource } from '@semiont/core';
 import { EventQuery } from '@semiont/event-sourcing';
 import type { ViewStorage } from '@semiont/event-sourcing';
-import type { KnowledgeBase } from './knowledge-base';
+import type { GraphDatabase } from '@semiont/graph';
+import type { VectorStore } from '@semiont/vectors';
+import type { WorkingTreeStore, AnchoredTextStore } from '@semiont/content';
+import type { EventStoreReads } from './knowledge-base';
+import type { SmeltProgress } from './smelt-progress';
 import { readAnchoredText } from './read-anchored-text';
 import { resourceWithViewGrace } from './graph-read-grace';
 import { readEntityTypesProjection } from './views/entity-types-reader';
@@ -47,13 +51,42 @@ type DirectoryEntry = components['schemas']['DirectoryEntry'];
 type FileEntry      = components['schemas']['FileEntry'];
 type DirEntry       = components['schemas']['DirEntry'];
 
+/**
+ * Browser's measured surface of the record (EXTRACT-ARCHIVIST P1) — reads
+ * only, every member a derived slice of its owning type. What is absent is
+ * the point: no appendEvent, no content bytes beyond `retrieve`, no
+ * projectionsDir, no weaveProgress.
+ */
+export interface BrowserReads {
+  views: Pick<ViewStorage, 'get' | 'getAll' | 'exists'>;
+  eventStore: EventStoreReads;
+  graph: Pick<GraphDatabase, 'getResource' | 'getResourceReferencedBy' | 'listResources' | 'getEntityTypeStats'>;
+  vectors: Pick<VectorStore, 'searchResources' | 'searchAnnotations'>;
+  content: Pick<WorkingTreeStore, 'retrieve'>;
+  anchoredText: Pick<AnchoredTextStore, 'read'>;
+  smeltProgress: Pick<SmeltProgress, 'whenSettled'>;
+}
+
+/**
+ * The request channels Browser subscribes to — the Archivist's inbound wire
+ * roster for this actor (EXTRACT-ARCHIVIST P2a). Pinned to `initialize()`'s
+ * actual subscriptions by the census gate in archivist-decoupling.test.ts.
+ */
+export const BROWSER_CHANNELS = [
+  'browse:resource-requested', 'browse:anchored-text-requested',
+  'browse:resources-requested', 'browse:annotations-requested',
+  'browse:annotation-requested', 'browse:events-requested',
+  'browse:annotation-history-requested', 'browse:referenced-by-requested',
+  'browse:entity-types-requested', 'browse:tag-schemas-requested',
+  'browse:agents-requested', 'browse:directory-requested',
+] as const satisfies readonly (keyof EventMap)[];
+
 export class Browser {
   private subscriptions: Subscription[] = [];
   private readonly logger: Logger;
 
   constructor(
-    private views: ViewStorage,
-    private kb: KnowledgeBase,
+    private kb: BrowserReads,
     private eventBus: EventBus,
     private project: SemiontProject,
     private config: MakeMeaningConfig,
@@ -509,7 +542,7 @@ export class Browser {
 
     // Build a map of storageUri → ResourceView for all tracked resources
     // whose storageUri starts with the resolved directory prefix.
-    const allViews = await this.views.getAll();
+    const allViews = await this.kb.views.getAll();
     const prefix = `file://${resolved}`;
     const viewsByUri = new Map(
       allViews

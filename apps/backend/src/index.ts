@@ -22,8 +22,8 @@ import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
 import { SemiontProject } from '@semiont/core/node';
 import { type EnvironmentConfig, EventBus } from '@semiont/core';
-import { startMakeMeaning } from '@semiont/make-meaning';
-import { loadEnvironmentConfig, makeMeaningConfigFrom } from './utils/config';
+import { startMakeMeaning, makeMeaningConfigFrom } from '@semiont/make-meaning';
+import { loadEnvironmentConfig } from '@semiont/core/node';
 
 import { User } from '@prisma/client';
 

@@ -11,12 +11,15 @@
 import type { StoredEvent, EventQuery as EventQueryType, ResourceId } from '@semiont/core';
 import type { EventStorage } from '../storage/event-storage';
 
+/** The read slice of EventStorage that querying actually touches. */
+export type EventReadStorage = Pick<EventStorage, 'getAllEvents' | 'getEventFiles' | 'getLastEvent'>;
+
 /**
  * EventQuery handles all read operations for events
  * Uses EventStorage for file access, adds query filtering
  */
 export class EventQuery {
-  constructor(private eventStorage: EventStorage) {}
+  constructor(private eventStorage: EventReadStorage) {}
 
   /**
    * Query events with filters

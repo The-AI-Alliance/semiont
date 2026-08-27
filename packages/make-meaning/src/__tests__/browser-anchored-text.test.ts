@@ -45,12 +45,11 @@ const viewWithChecksum = {
 function browserOver(kb: Record<string, unknown>) {
   const eventBus = new EventBus();
   const browser = new Browser(
-    { get: async () => null } as never,
     kb as never,
     eventBus,
     { root: '/tmp' } as never,
     { services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } }, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } } as MakeMeaningConfig,
-    { enrich: async (entries) => entries },
+    { enrich: async (entries: never[]) => entries },
     createMockEmbeddingProvider(),
     mockLogger,
   );

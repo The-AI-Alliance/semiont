@@ -46,7 +46,7 @@ import type { ResourceId } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import { resolveStorageUri } from '@semiont/event-sourcing';
 import type { SemiontProject } from '@semiont/core/node';
-import type { KnowledgeBase } from './knowledge-base';
+import type { ContentLifecycle, EventAppends } from './knowledge-base';
 import { readEntityTypesProjection } from './views/entity-types-reader';
 import { validateEntityTypes, entityTypesNotRegisteredMessage } from './views/projection-validators';
 
@@ -55,12 +55,36 @@ export interface CreateResourceResult {
   resource: ResourceDescriptor;
 }
 
+/**
+ * The stores Stower writes through (EXTRACT-ARCHIVIST P1): the record's
+ * single write seam plus the content lifecycle — never bytes (GATEWAY.md
+ * D4a). Resource resolution for moves goes through `project.projectionsDir`.
+ */
+export interface StowerStores {
+  content: ContentLifecycle;
+  eventStore: EventAppends;
+}
+
+/**
+ * The command channels Stower subscribes to — the Archivist's inbound wire
+ * roster for this actor (EXTRACT-ARCHIVIST P2a). Pinned to `initialize()`'s
+ * actual subscriptions by the census gate in archivist-decoupling.test.ts:
+ * grow one, and the gate fails until the other moves with it.
+ */
+export const STOWER_CHANNELS = [
+  'yield:create', 'yield:update', 'yield:mv',
+  'mark:create', 'mark:delete', 'mark:update-body',
+  'frame:add-entity-type', 'frame:add-tag-schema',
+  'mark:archive', 'mark:unarchive', 'mark:update-entity-types',
+  'job:start', 'job:complete', 'job:fail',
+] as const satisfies readonly (keyof EventMap)[];
+
 export class Stower {
   private subscription: Subscription | null = null;
   private readonly logger: Logger;
 
   constructor(
-    private kb: KnowledgeBase,
+    private stores: StowerStores,
     private eventBus: EventBus,
     private project: SemiontProject,
     logger: Logger,
@@ -112,7 +136,7 @@ export class Stower {
 
       // Content is already on disk at storageUri (callers write before emitting).
       // Register verifies the file exists and validates the checksum.
-      const stored = await this.kb.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
+      const stored = await this.stores.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
       const checksum = stored.checksum;
       const byteSize = event.byteSize;
 
@@ -124,7 +148,7 @@ export class Stower {
           }
         : undefined;
 
-      await this.kb.eventStore.appendEvent({
+      await this.stores.eventStore.appendEvent({
         type: 'yield:created',
         resourceId: rId,
         userId: uid,
@@ -194,8 +218,8 @@ export class Stower {
     try {
       // Content is already on disk at storageUri (callers write before emitting).
       // register() verifies the file exists and validates the checksum.
-      await this.kb.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
-      await this.kb.eventStore.appendEvent({
+      await this.stores.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
+      await this.stores.eventStore.appendEvent({
         type: 'yield:updated',
         resourceId: resourceId(event.resourceId),
         userId: makeUserId(event._userId),
@@ -221,7 +245,7 @@ export class Stower {
   private async handleYieldMv(event: EventMap['yield:mv']): Promise<void> {
     let rId: ResourceId;
     try {
-      const resolved = await resolveStorageUri(this.kb.projectionsDir, event.fromUri);
+      const resolved = await resolveStorageUri(this.project.projectionsDir, event.fromUri);
       rId = resolved as ResourceId;
     } catch (error) {
       this.logger.error('Failed to resolve resource for move', { fromUri: event.fromUri, error });
@@ -236,8 +260,8 @@ export class Stower {
       throw new Error('yield:mv missing _userId (gateway injection)');
     }
     try {
-      await this.kb.content.move(event.fromUri, event.toUri, { noGit: event.noGit });
-      await this.kb.eventStore.appendEvent({
+      await this.stores.content.move(event.fromUri, event.toUri, { noGit: event.noGit });
+      await this.stores.eventStore.appendEvent({
         type: 'yield:moved',
         resourceId: rId,
         userId: makeUserId(event._userId),
@@ -262,7 +286,7 @@ export class Stower {
     }
     try {
       this.logger.debug('Stowing annotation', { annotationId: event.annotation.id });
-      await this.kb.eventStore.appendEvent(
+      await this.stores.eventStore.appendEvent(
         {
           type: 'mark:added',
           resourceId: resourceId(event.resourceId),
@@ -291,7 +315,7 @@ export class Stower {
       throw new Error('mark:delete missing resourceId');
     }
     try {
-      await this.kb.eventStore.appendEvent({
+      await this.stores.eventStore.appendEvent({
         type: 'mark:removed',
         resourceId: resourceId(event.resourceId),
         userId: makeUserId(event._userId),
@@ -313,7 +337,7 @@ export class Stower {
       throw new Error('mark:update-body missing _userId (gateway injection)');
     }
     try {
-      await this.kb.eventStore.appendEvent(
+      await this.stores.eventStore.appendEvent(
         {
           type: 'mark:body-updated',
           resourceId: resourceId(event.resourceId),
@@ -341,9 +365,9 @@ export class Stower {
     }
     try {
       if (event.storageUri) {
-        await this.kb.content.remove(event.storageUri, { keepFile: event.keepFile, noGit: event.noGit });
+        await this.stores.content.remove(event.storageUri, { keepFile: event.keepFile, noGit: event.noGit });
       }
-      await this.kb.eventStore.appendEvent({
+      await this.stores.eventStore.appendEvent({
         type: 'mark:archived',
         resourceId: resourceId(event.resourceId),
         userId: makeUserId(event._userId),
@@ -369,7 +393,7 @@ export class Stower {
     try {
       // If storageUri is provided, verify the file exists before emitting the event.
       if (event.storageUri) {
-        const absPath = this.kb.content.resolveUri(event.storageUri);
+        const absPath = this.stores.content.resolveUri(event.storageUri);
         try {
           await fs.access(absPath);
         } catch {
@@ -378,7 +402,7 @@ export class Stower {
           throw new Error(`Cannot unarchive: file not found at ${event.storageUri}`);
         }
       }
-      await this.kb.eventStore.appendEvent({
+      await this.stores.eventStore.appendEvent({
         type: 'mark:unarchived',
         resourceId: resourceId(event.resourceId),
         userId: makeUserId(event._userId),
@@ -400,7 +424,7 @@ export class Stower {
       throw new Error('frame:add-entity-type missing _userId (gateway injection)');
     }
     try {
-      await this.kb.eventStore.appendEvent({
+      await this.stores.eventStore.appendEvent({
         type: 'frame:entity-type-added',
         userId: makeUserId(event._userId),
         version: 1,
@@ -425,7 +449,7 @@ export class Stower {
       throw new Error('frame:add-tag-schema missing _userId (gateway injection)');
     }
     try {
-      await this.kb.eventStore.appendEvent({
+      await this.stores.eventStore.appendEvent({
         type: 'frame:tag-schema-added',
         userId: makeUserId(event._userId),
         version: 1,
@@ -467,7 +491,7 @@ export class Stower {
       }
 
       for (const entityType of added) {
-        await this.kb.eventStore.appendEvent({
+        await this.stores.eventStore.appendEvent({
           type: 'mark:entity-tag-added',
           resourceId: resourceId(event.resourceId),
           userId: uid,
@@ -477,7 +501,7 @@ export class Stower {
       }
 
       for (const entityType of removed) {
-        await this.kb.eventStore.appendEvent({
+        await this.stores.eventStore.appendEvent({
           type: 'mark:entity-tag-removed',
           resourceId: resourceId(event.resourceId),
           userId: uid,
@@ -502,7 +526,7 @@ export class Stower {
     if (!event._userId) {
       throw new Error('job:start missing _userId (gateway injection)');
     }
-    await this.kb.eventStore.appendEvent({
+    await this.stores.eventStore.appendEvent({
       type: 'job:started',
       resourceId: resourceId(event.resourceId),
       userId: makeUserId(event._userId),
@@ -519,7 +543,7 @@ export class Stower {
     if (!event._userId) {
       throw new Error('job:complete missing _userId (gateway injection)');
     }
-    await this.kb.eventStore.appendEvent({
+    await this.stores.eventStore.appendEvent({
       type: 'job:completed',
       resourceId: resourceId(event.resourceId),
       userId: makeUserId(event._userId),
@@ -537,7 +561,7 @@ export class Stower {
     if (!event._userId) {
       throw new Error('job:fail missing _userId (gateway injection)');
     }
-    await this.kb.eventStore.appendEvent({
+    await this.stores.eventStore.appendEvent({
       type: 'job:failed',
       resourceId: resourceId(event.resourceId),
       userId: makeUserId(event._userId),

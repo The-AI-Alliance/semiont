@@ -13,14 +13,38 @@
  * "Clone tokens produce new resources — that's yield."
  */
 
+import { promises as fs } from 'fs';
 import { Subscription, from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import type { EventMap, Logger, ResourceId } from '@semiont/core';
 import { type EventBus, cloneToken as makeCloneToken, type CloneToken, type SupportedMediaType, resourceId, userId as makeUserId, deriveStorageUri } from '@semiont/core';
 import { getPrimaryRepresentation, getResourceEntityTypes, baseMediaType, isSupportedMediaType, capabilitiesOf } from '@semiont/core';
+import type { ViewStorage } from '@semiont/event-sourcing';
+import type { WorkingTreeStore } from '@semiont/content';
 import { ResourceContext } from './resource-context';
 import { ResourceOperations } from './resource-operations';
-import type { KnowledgeBase } from './knowledge-base';
+
+/**
+ * What the clone workflow touches (EXTRACT-ARCHIVIST P1): resource metadata
+ * via views, and the working tree for the clone's own bytes. Existence
+ * checks resolve + stat — never a byte read to answer a boolean (GATEWAY.md
+ * D4a). `store` is scheduled to collapse into the gateway's create path
+ * (D4a, clone-token-manager `:211`); it stays only until that lands.
+ */
+export interface CloneTokenStores {
+  views: Pick<ViewStorage, 'get'>;
+  content: Pick<WorkingTreeStore, 'store' | 'resolveUri'>;
+}
+
+/**
+ * The command channels CloneTokenManager subscribes to — the Archivist's
+ * inbound wire roster for this actor (EXTRACT-ARCHIVIST P2a). Pinned to
+ * `initialize()`'s actual subscriptions by the census gate in
+ * archivist-decoupling.test.ts.
+ */
+export const CLONE_TOKEN_CHANNELS = [
+  'yield:clone-token-requested', 'yield:clone-resource-requested', 'yield:clone-create',
+] as const satisfies readonly (keyof EventMap)[];
 
 export class CloneTokenManager {
   private subscriptions: Subscription[] = [];
@@ -28,7 +52,7 @@ export class CloneTokenManager {
   private readonly tokens = new Map<CloneToken, { resourceId: ResourceId; expiresAt: Date }>();
 
   constructor(
-    private kb: KnowledgeBase,
+    private stores: CloneTokenStores,
     private eventBus: EventBus,
     logger: Logger,
   ) {
@@ -61,7 +85,7 @@ export class CloneTokenManager {
 
   private async handleGenerateToken(event: EventMap['yield:clone-token-requested']): Promise<void> {
     try {
-      const resource = await ResourceContext.getResourceMetadata(resourceId(event.resourceId), this.kb);
+      const resource = await ResourceContext.getResourceMetadata(resourceId(event.resourceId), this.stores);
       if (!resource) {
         this.eventBus.get('yield:clone-token-failed').next({
           correlationId: event.correlationId,
@@ -79,8 +103,9 @@ export class CloneTokenManager {
         return;
       }
 
+      // Existence check only: resolve + stat, never a byte read (D4a).
       try {
-        await this.kb.content.retrieve(resource.storageUri);
+        await fs.access(this.stores.content.resolveUri(resource.storageUri));
       } catch {
         this.eventBus.get('yield:clone-token-failed').next({
           correlationId: event.correlationId,
@@ -135,7 +160,7 @@ export class CloneTokenManager {
         return;
       }
 
-      const sourceResource = await ResourceContext.getResourceMetadata(tokenData.resourceId, this.kb);
+      const sourceResource = await ResourceContext.getResourceMetadata(tokenData.resourceId, this.stores);
       if (!sourceResource) {
         this.eventBus.get('yield:clone-resource-failed').next({
           correlationId: event.correlationId,
@@ -190,7 +215,7 @@ export class CloneTokenManager {
         return;
       }
 
-      const sourceDoc = await ResourceContext.getResourceMetadata(tokenData.resourceId, this.kb);
+      const sourceDoc = await ResourceContext.getResourceMetadata(tokenData.resourceId, this.stores);
       if (!sourceDoc) {
         this.eventBus.get('yield:clone-create-failed').next({
           correlationId: event.correlationId,
@@ -208,7 +233,7 @@ export class CloneTokenManager {
 
       // Write content to disk, then create via EventBus (no Buffer on bus)
       const resolvedUri = deriveStorageUri(event.name, format);
-      const stored = await this.kb.content.store(Buffer.from(event.content), resolvedUri);
+      const stored = await this.stores.content.store(Buffer.from(event.content), resolvedUri);
 
       const newResourceId = await ResourceOperations.createResource(
         {

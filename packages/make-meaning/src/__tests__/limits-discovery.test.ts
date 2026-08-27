@@ -147,8 +147,7 @@ describe('LimitsDiscovery (INFERENCE-LIMITS-EXPOSURE P2)', () => {
     });
     const bus = new EventBus();
     const browser = new Browser(
-      { getAll: async () => [] } as never,
-      { graph: {}, views: {} } as never,
+      { graph: {}, views: { getAll: async () => [] } } as never,
       bus,
       { root: '/tmp' } as never,
       CONFIG,

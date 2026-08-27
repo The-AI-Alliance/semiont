@@ -11,7 +11,7 @@
 import type { Annotation, ResourceDescriptor, ResourceId } from '@semiont/core';
 import { EventQuery } from '@semiont/event-sourcing';
 import { getEntityTypes } from '@semiont/ontology';
-import type { KnowledgeBase } from './knowledge-base';
+import type { EventStoreReads } from './knowledge-base';
 
 /**
  * `GetResourceResponse` with the domain-flavored (branded) documents the
@@ -26,7 +26,7 @@ export interface ResourceGraph {
 }
 
 export async function assembleResourceGraph(
-  kb: KnowledgeBase,
+  kb: { eventStore: EventStoreReads },
   resourceId: ResourceId,
 ): Promise<ResourceGraph | null> {
   // Materialize from the event store (matches the get-uri.ts JSON-LD path).

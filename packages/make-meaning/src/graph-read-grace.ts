@@ -20,7 +20,8 @@
  */
 
 import type { ResourceDescriptor, ResourceId } from '@semiont/core';
-import type { KnowledgeBase } from './knowledge-base.js';
+import type { ViewStorage } from '@semiont/event-sourcing';
+import type { GraphDatabase } from '@semiont/graph';
 
 export interface GracedResource {
   resource: ResourceDescriptor | null;
@@ -28,7 +29,7 @@ export interface GracedResource {
 }
 
 export async function resourceWithViewGrace(
-  kb: KnowledgeBase,
+  kb: { graph: Pick<GraphDatabase, 'getResource'>; views: Pick<ViewStorage, 'get'> },
   rid: ResourceId,
 ): Promise<GracedResource> {
   const fromGraph = await kb.graph.getResource(rid).catch(() => null);

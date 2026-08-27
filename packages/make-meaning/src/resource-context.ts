@@ -10,12 +10,22 @@
 
 import { getPrimaryRepresentation, decodeRepresentation, getResourceEntityTypes } from '@semiont/core';
 import type { Logger, ResourceId } from '@semiont/core';
-import { compareByRecencyThenId } from '@semiont/graph';
-import { mergeByResource, type EmbeddingProvider } from '@semiont/vectors';
-import type { KnowledgeBase } from './knowledge-base';
+import { compareByRecencyThenId, type GraphDatabase } from '@semiont/graph';
+import { mergeByResource, type EmbeddingProvider, type VectorStore } from '@semiont/vectors';
+import type { ViewStorage } from '@semiont/event-sourcing';
+import type { WorkingTreeStore } from '@semiont/content';
 import { resourceWithViewGrace } from './graph-read-grace';
 
 import type { ResourceDescriptor } from '@semiont/core';
+
+/** What the listing paths read (EXTRACT-ARCHIVIST P1): lexical search in
+ *  the graph, unsearched listings from views, the semantic fallback in the
+ *  vector index — plus `resourceWithViewGrace`'s graph-first hydration. */
+export interface ListResourcesReads {
+  views: Pick<ViewStorage, 'get' | 'getAll'>;
+  graph: Pick<GraphDatabase, 'listResources' | 'getResource'>;
+  vectors: Pick<VectorStore, 'searchResources'>;
+}
 
 export interface ListResourcesFilters {
   search?: string;
@@ -68,7 +78,7 @@ export class ResourceContext {
   /**
    * Get resource metadata from view storage
    */
-  static async getResourceMetadata(resourceId: ResourceId, kb: KnowledgeBase): Promise<ResourceDescriptor | null> {
+  static async getResourceMetadata(resourceId: ResourceId, kb: { views: Pick<ViewStorage, 'get'> }): Promise<ResourceDescriptor | null> {
     const view = await kb.views.get(resourceId);
     if (!view) {
       return null;
@@ -93,7 +103,7 @@ export class ResourceContext {
    */
   static async listResources(
     filters: ListResourcesFilters | undefined,
-    kb: KnowledgeBase,
+    kb: ListResourcesReads,
     semantic: SemanticFallbackDeps,
   ): Promise<ListResourcesResult> {
     const { search: rawSearch, archived, entityType, offset = 0, limit = 50 } = filters ?? {};
@@ -148,7 +158,7 @@ export class ResourceContext {
   private static async semanticFallback(
     search: string,
     limit: number,
-    kb: KnowledgeBase,
+    kb: ListResourcesReads,
     semantic: SemanticFallbackDeps,
   ): Promise<ListResourcesResult> {
     const empty: ListResourcesResult = { resources: [], total: 0, matchKind: 'lexical' };
@@ -194,7 +204,7 @@ export class ResourceContext {
    */
   static async addContentPreviews(
     resources: ResourceDescriptor[],
-    kb: KnowledgeBase
+    kb: { content: Pick<WorkingTreeStore, 'retrieve'> }
   ): Promise<Array<ResourceDescriptor & { content: string }>> {
     return Promise.all(
       resources.map(async (doc) => {
@@ -219,7 +229,7 @@ export class ResourceContext {
    */
   static async getResourceContent(
     resource: ResourceDescriptor,
-    kb: KnowledgeBase
+    kb: { content: Pick<WorkingTreeStore, 'retrieve'> }
   ): Promise<string | undefined> {
     if (resource.storageUri) {
       const contentBuffer = await kb.content.retrieve(resource.storageUri);
