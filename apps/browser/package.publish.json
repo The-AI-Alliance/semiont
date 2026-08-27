@@ -1,7 +1,7 @@
 {
   "name": "@semiont/browser",
   "version": "0.5.29",
-  "description": "Semiont frontend - pre-built Vite SPA with static file server",
+  "description": "Semiont Browser - pre-built Vite SPA with static file server",
   "main": "server.js",
   "bin": {
     "semiont-browser": "server.js"

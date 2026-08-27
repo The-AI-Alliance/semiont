@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-frontend:
-    name: Frontend Tests
+  test-browser:
+    name: Browser Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -28,18 +28,18 @@ jobs:
           npm ci --include=optional
           npm run build:packages
 
-      - name: Run frontend type check
+      - name: Run browser type check
         run: |
-          echo "Running frontend TypeScript type check..."
+          echo "Running browser TypeScript type check..."
           cd apps/browser
           npm run typecheck
         env:
           CI: true
           NODE_OPTIONS: "--max-old-space-size=4096"
 
-      - name: Run frontend tests
+      - name: Run browser tests
         run: |
-          echo "Running frontend unit tests..."
+          echo "Running browser unit tests..."
           cd apps/browser
           npm test
         env:
@@ -240,7 +240,7 @@ jobs:
   build-all:
     name: Build All Applications
     runs-on: ubuntu-latest
-    needs: [test-frontend, test-backend]
+    needs: [test-browser, test-backend]
 
     steps:
       - name: Checkout code

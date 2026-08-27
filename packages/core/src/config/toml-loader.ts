@@ -135,7 +135,6 @@ interface EnvironmentSection {
     platform?: string;
     port?: number;
     publicURL?: string;
-    frontendURL?: string;
   };
   site?: {
     domain?: string;

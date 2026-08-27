@@ -99,7 +99,7 @@ apps/*/scripts/*.d.ts.map
 # Compliance audit generated files
 **/scripts/symbols.json
 REACT-UI-COMPLIANCE.md
-FRONTEND-COMPLIANCE.md
+BROWSER-COMPLIANCE.md
 
 # tesseract.js language data — fetched at runtime into the working directory.
 # NOT a source artifact: the images vendor it at build time (OCR is core and

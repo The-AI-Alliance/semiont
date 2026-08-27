@@ -35,7 +35,7 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/admin/users  #
 
 ### Continuous Integration (`ci.yml`)
 **General testing and building workflow**:
-- Frontend: Tests, linting, type-checking, building
+- Browser: Tests, linting, type-checking, building
 - Backend: Tests, type-checking, building with PostgreSQL
 - CDK: Infrastructure tests and synthesis
 - Scripts: TypeScript compilation and validation

@@ -1,14 +1,14 @@
 #!/bin/bash
 set -e
 
-# Thin wrapper for frontend compliance reporting
+# Thin wrapper for Browser compliance reporting
 # Calls shared compliance scripts with workspace-specific paths
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 SRC_DIR="$(cd "$SCRIPT_DIR/../src" && pwd)"
 SYMBOLS_FILE="$SCRIPT_DIR/symbols.json"
-REPORT_FILE="$REPO_ROOT/FRONTEND-COMPLIANCE.md"
+REPORT_FILE="$REPO_ROOT/BROWSER-COMPLIANCE.md"
 
 # Shared compliance scripts
 DISCOVER="$REPO_ROOT/scripts/compliance/discover-symbols.ts"

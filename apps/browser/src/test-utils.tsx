@@ -1,8 +1,8 @@
 /**
- * Frontend-specific test utilities
+ * Browser-specific test utilities
  *
  * Provides renderWithProviders that wraps components with the providers a
- * frontend test typically needs.
+ * Browser test typically needs.
  */
 
 import React, { ReactElement } from 'react';
@@ -22,7 +22,7 @@ import type {
   TranslationManager,
 } from '@semiont/react-ui';
 
-export interface FrontendTestOptions extends TestProvidersOptions {
+export interface BrowserTestOptions extends TestProvidersOptions {
 }
 
 /**
@@ -30,7 +30,7 @@ export interface FrontendTestOptions extends TestProvidersOptions {
  */
 export function renderWithProviders(
   ui: ReactElement,
-  options?: FrontendTestOptions & Omit<RenderOptions, 'wrapper'>
+  options?: BrowserTestOptions & Omit<RenderOptions, 'wrapper'>
 ): RenderResult {
   const {
     translationManager = defaultMocks.translationManager,

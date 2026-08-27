@@ -267,7 +267,7 @@ cd apps/browser && ./scripts/generate-compliance-report.sh
 - Built automated compliance tooling
 
 **Result**:
-- Zero architecture violations across 407 total symbols (318 react-ui + 89 frontend)
+- Zero architecture violations across 407 total symbols (318 react-ui + 89 browser)
 - Render-props container pattern fully removed; replaced by direct hook calls
 - Clean, predictable React hooks patterns
 - Automated enforcement prevents regressions

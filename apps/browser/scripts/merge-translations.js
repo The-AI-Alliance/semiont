@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * Merge react-ui translations into frontend messages
+ * Merge react-ui translations into Browser messages
  *
  * This script reads translations from:
  * - packages/react-ui/translations/*.json (react-ui component translations)
- * - apps/browser/messages-source/*.json (frontend-specific translations)
+ * - apps/browser/messages-source/*.json (Browser-specific translations)
  *
  * And merges them into:
  * - apps/browser/messages/*.json (generated merged output)
@@ -17,10 +17,10 @@ const fs = require('fs');
 const path = require('path');
 
 const REACT_UI_TRANSLATIONS_DIR = path.resolve(__dirname, '../../../packages/react-ui/translations');
-const FRONTEND_MESSAGES_SOURCE_DIR = path.resolve(__dirname, '../messages-source');
-const FRONTEND_MESSAGES_OUTPUT_DIR = path.resolve(__dirname, '../messages');
+const BROWSER_MESSAGES_SOURCE_DIR = path.resolve(__dirname, '../messages-source');
+const BROWSER_MESSAGES_OUTPUT_DIR = path.resolve(__dirname, '../messages');
 // Public copy served by Vite at /messages/{locale}.json for i18next-http-backend
-const FRONTEND_MESSAGES_PUBLIC_DIR = path.resolve(__dirname, '../public/messages');
+const BROWSER_MESSAGES_PUBLIC_DIR = path.resolve(__dirname, '../public/messages');
 
 /**
  * Deep merge two objects, with source taking precedence
@@ -63,51 +63,51 @@ function getTranslationFiles(dir) {
  */
 function mergeTranslations() {
   // Ensure output directories exist
-  if (!fs.existsSync(FRONTEND_MESSAGES_OUTPUT_DIR)) {
-    fs.mkdirSync(FRONTEND_MESSAGES_OUTPUT_DIR, { recursive: true });
+  if (!fs.existsSync(BROWSER_MESSAGES_OUTPUT_DIR)) {
+    fs.mkdirSync(BROWSER_MESSAGES_OUTPUT_DIR, { recursive: true });
   }
-  if (!fs.existsSync(FRONTEND_MESSAGES_PUBLIC_DIR)) {
-    fs.mkdirSync(FRONTEND_MESSAGES_PUBLIC_DIR, { recursive: true });
+  if (!fs.existsSync(BROWSER_MESSAGES_PUBLIC_DIR)) {
+    fs.mkdirSync(BROWSER_MESSAGES_PUBLIC_DIR, { recursive: true });
   }
 
   // Get all react-ui translation files
   const reactUIFiles = getTranslationFiles(REACT_UI_TRANSLATIONS_DIR);
 
-  // Get all frontend source message files
-  const frontendFiles = getTranslationFiles(FRONTEND_MESSAGES_SOURCE_DIR);
+  // Get all Browser source message files
+  const browserFiles = getTranslationFiles(BROWSER_MESSAGES_SOURCE_DIR);
 
-  // Create a map of existing frontend source messages
-  const frontendMessages = new Map();
-  for (const file of frontendFiles) {
+  // Create a map of existing Browser source messages
+  const browserMessages = new Map();
+  for (const file of browserFiles) {
     const content = JSON.parse(fs.readFileSync(file.path, 'utf-8'));
-    frontendMessages.set(file.locale, content);
+    browserMessages.set(file.locale, content);
   }
 
   let mergedCount = 0;
   let createdCount = 0;
 
-  // Merge react-ui translations with frontend messages and write to output
+  // Merge react-ui translations with Browser messages and write to output
   for (const reactUIFile of reactUIFiles) {
     const reactUIContent = JSON.parse(fs.readFileSync(reactUIFile.path, 'utf-8'));
-    const outputPath = path.join(FRONTEND_MESSAGES_OUTPUT_DIR, `${reactUIFile.locale}.json`);
+    const outputPath = path.join(BROWSER_MESSAGES_OUTPUT_DIR, `${reactUIFile.locale}.json`);
 
-    if (frontendMessages.has(reactUIFile.locale)) {
-      // Merge with existing frontend source messages (frontend takes precedence)
-      const frontendContent = frontendMessages.get(reactUIFile.locale);
-      const merged = deepMerge(reactUIContent, frontendContent);
+    if (browserMessages.has(reactUIFile.locale)) {
+      // Merge with existing Browser source messages (Browser takes precedence)
+      const browserContent = browserMessages.get(reactUIFile.locale);
+      const merged = deepMerge(reactUIContent, browserContent);
 
       const content = JSON.stringify(merged, null, 2) + '\n';
       // Write merged content to output directory
       fs.writeFileSync(outputPath, content, 'utf-8');
       // Also write to public/messages/ for Vite / i18next-http-backend
-      fs.writeFileSync(path.join(FRONTEND_MESSAGES_PUBLIC_DIR, `${reactUIFile.locale}.json`), content, 'utf-8');
+      fs.writeFileSync(path.join(BROWSER_MESSAGES_PUBLIC_DIR, `${reactUIFile.locale}.json`), content, 'utf-8');
       mergedCount++;
     } else {
       const content = JSON.stringify(reactUIContent, null, 2) + '\n';
       // Create output file from react-ui translations only
       fs.writeFileSync(outputPath, content, 'utf-8');
       // Also write to public/messages/ for Vite / i18next-http-backend
-      fs.writeFileSync(path.join(FRONTEND_MESSAGES_PUBLIC_DIR, `${reactUIFile.locale}.json`), content, 'utf-8');
+      fs.writeFileSync(path.join(BROWSER_MESSAGES_PUBLIC_DIR, `${reactUIFile.locale}.json`), content, 'utf-8');
       createdCount++;
     }
   }

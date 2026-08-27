@@ -1074,7 +1074,7 @@ what passes. It runs on every push and pull request, on Node 24, with these jobs
 
 | Job | What it covers |
 |---|---|
-| `test-frontend` | `npm run typecheck` + `npm test` for `apps/browser` |
+| `test-browser` | `npm run typecheck` + `npm test` for `apps/browser` |
 | `test-backend` | typecheck, `npm test`, and `npm run test:integration` for `apps/backend`, against a `postgres:15` service container |
 | `test-comprehensive` | Browser and backend suites again, backend integration included, against a `postgres:15` service container |
 | `validate-config` | `npm ci --include=optional` + `npm run build:packages` |

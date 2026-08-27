@@ -3,7 +3,7 @@
 /**
  * Performance Monitoring Script
  * 
- * Comprehensive performance analysis and monitoring for the frontend application.
+ * Comprehensive performance analysis and monitoring for the Browser application.
  * Provides actionable insights and recommendations for optimization.
  */
 

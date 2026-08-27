@@ -1,6 +1,6 @@
-name: Publish Frontend Container Image
+name: Publish Browser Container Image
 
-run-name: "Frontend Image: @semiont/browser@${{ inputs.version }}"
+run-name: "Browser Image: @semiont/browser@${{ inputs.version }}"
 
 on:
   workflow_dispatch:
@@ -77,7 +77,7 @@ jobs:
           load: true
           tags: semiont-browser:scan
           build-args: |
-            SEMIONT_FRONTEND_VERSION=${{ inputs.version }}
+            SEMIONT_BROWSER_VERSION=${{ inputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -100,7 +100,7 @@ jobs:
           push: ${{ inputs.dry_run != 'true' }}
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |
-            SEMIONT_FRONTEND_VERSION=${{ inputs.version }}
+            SEMIONT_BROWSER_VERSION=${{ inputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -138,7 +138,7 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## Frontend Container Image" >> $GITHUB_STEP_SUMMARY
+          echo "## Browser Container Image" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**@semiont/browser version:** ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ steps.tags.outputs.sha }}" >> $GITHUB_STEP_SUMMARY

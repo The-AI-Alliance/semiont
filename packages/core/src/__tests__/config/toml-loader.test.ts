@@ -18,6 +18,11 @@ const MINIMAL_TOML = `
 platform = "posix"
 port = 3001
 publicURL = "http://localhost:3001"
+# Deliberately left after FRONTEND-IS-THE-BROWSER P6: frontendURL was declared
+# on the backend section and read by nothing, so it was deleted rather than
+# renamed. Keeping it here means every test below also pins that an unknown KEY
+# inside a known section stays inert, the way the [browser] and [frontend]
+# tests pin it for a whole section.
 frontendURL = "http://localhost:3000"
 
 [environments.local.make-meaning.graph]

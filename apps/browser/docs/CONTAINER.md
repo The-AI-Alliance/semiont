@@ -170,7 +170,7 @@ in the app.
 ```bash
 # From the semiont repo root: image pinned to a published package version
 docker build \
-  --build-arg SEMIONT_FRONTEND_VERSION=0.5.12 \
+  --build-arg SEMIONT_BROWSER_VERSION=0.5.12 \
   -t semiont-browser:custom \
   -f apps/browser/Dockerfile .
 ```
@@ -186,7 +186,7 @@ testing unpublished changes.
 # Build for multiple architectures
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  --build-arg SEMIONT_FRONTEND_VERSION=0.5.12 \
+  --build-arg SEMIONT_BROWSER_VERSION=0.5.12 \
   -t semiont-browser:multiarch \
   -f apps/browser/Dockerfile .
 ```
@@ -195,7 +195,7 @@ docker buildx build \
 
 | Variable | Type | Required | Example | Description |
 |----------|------|----------|---------|-------------|
-| `SEMIONT_FRONTEND_VERSION` | Build-time | No | `0.5.12` | `@semiont/browser` npm version to install (default `latest`) |
+| `SEMIONT_BROWSER_VERSION` | Build-time | No | `0.5.12` | `@semiont/browser` npm version to install (default `latest`) |
 | `NPM_REGISTRY` | Build-time | No | `https://registry.npmjs.org` | Registry to install from |
 | `PORT` | Runtime | No | `3000` | Port the static server listens on (default `3000`) |
 

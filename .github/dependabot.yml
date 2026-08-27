@@ -128,7 +128,7 @@ updates:
       prefix: "actions"
       include: "scope"
 
-  # Frontend Docker base image (apps/browser/Dockerfile) — docker is not
+  # Browser Docker base image (apps/browser/Dockerfile) — docker is not
   # workspace-aware, so each Dockerfile keeps its own entry.
   - package-ecosystem: "docker"
     directory: "/apps/browser"
@@ -141,10 +141,10 @@ updates:
       - "The-AI-Alliance/maintainers"
     labels:
       - "dependencies"
-      - "frontend"
+      - "browser"
       - "docker"
     commit-message:
-      prefix: "frontend-docker"
+      prefix: "browser-docker"
       include: "scope"
 
   # Desktop builder Docker base image (apps/desktop/Dockerfile.builder)

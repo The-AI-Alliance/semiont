@@ -1,13 +1,13 @@
 #!/bin/bash
 set -e
 
-# Thin wrapper for frontend test compliance reporting
+# Thin wrapper for Browser test compliance reporting
 # Calls shared compliance scripts with workspace-specific paths
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 SRC_DIR="$(cd "$SCRIPT_DIR/../src" && pwd)"
-REPORT_FILE="$REPO_ROOT/FRONTEND-TESTS-COMPLIANCE.md"
+REPORT_FILE="$REPO_ROOT/BROWSER-TESTS-COMPLIANCE.md"
 
 # Shared compliance script
 AUDIT_TESTS="$REPO_ROOT/scripts/compliance/batch-audit-tests.ts"

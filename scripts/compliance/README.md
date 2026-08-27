@@ -23,7 +23,7 @@ cd packages/react-ui
 ```bash
 cd apps/browser
 ./scripts/generate-compliance-report.sh
-# Outputs: FRONTEND-COMPLIANCE.md
+# Outputs: BROWSER-COMPLIANCE.md
 ```
 
 ## Architecture
@@ -250,12 +250,12 @@ jobs:
             exit 1
           fi
 
-      # Audit Frontend
+      # Audit Browser
       - name: Browser Compliance
         run: |
           cd apps/browser
           ./scripts/generate-compliance-report.sh
-          if grep -q "Failing (❌): [1-9]" ../../FRONTEND-COMPLIANCE.md; then
+          if grep -q "Failing (❌): [1-9]" ../../BROWSER-COMPLIANCE.md; then
             echo "::error::Browser compliance violations detected"
             exit 1
           fi

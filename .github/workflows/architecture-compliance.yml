@@ -102,27 +102,27 @@ jobs:
             echo "::notice::React-UI is compliant"
           fi
 
-      - name: Run Frontend Compliance Audit
-        id: frontend-audit
+      - name: Run Browser Compliance Audit
+        id: browser-audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
-          echo "::group::Frontend Compliance Audit"
+          echo "::group::Browser Compliance Audit"
           cd apps/browser
           ./scripts/generate-compliance-report.sh
           echo "::endgroup::"
 
           # Capture report summary
-          echo "::group::Frontend Summary"
-          head -n 20 ../../FRONTEND-COMPLIANCE.md
+          echo "::group::Browser Summary"
+          head -n 20 ../../BROWSER-COMPLIANCE.md
           echo "::endgroup::"
 
           # Check for violations
-          if grep -q "Failing (❌): [1-9]" ../../FRONTEND-COMPLIANCE.md; then
-            echo "frontend_violations=true" >> $GITHUB_OUTPUT
-            echo "::error::Frontend has architecture violations"
+          if grep -q "Failing (❌): [1-9]" ../../BROWSER-COMPLIANCE.md; then
+            echo "browser_violations=true" >> $GITHUB_OUTPUT
+            echo "::error::Browser has architecture violations"
           else
-            echo "frontend_violations=false" >> $GITHUB_OUTPUT
-            echo "::notice::Frontend is compliant"
+            echo "browser_violations=false" >> $GITHUB_OUTPUT
+            echo "::notice::Browser is compliant"
           fi
 
       - name: Display Full React-UI Report
@@ -132,11 +132,11 @@ jobs:
           cat REACT-UI-COMPLIANCE.md
           echo "::endgroup::"
 
-      - name: Display Full Frontend Report
+      - name: Display Full Browser Report
         if: always()
         run: |
-          echo "::group::Full Frontend Compliance Report"
-          cat FRONTEND-COMPLIANCE.md
+          echo "::group::Full Browser Compliance Report"
+          cat BROWSER-COMPLIANCE.md
           echo "::endgroup::"
 
       - name: Upload React-UI Compliance Report
@@ -147,12 +147,12 @@ jobs:
           path: REACT-UI-COMPLIANCE.md
           retention-days: 30
 
-      - name: Upload Frontend Compliance Report
+      - name: Upload Browser Compliance Report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: frontend-compliance-report
-          path: FRONTEND-COMPLIANCE.md
+          name: browser-compliance-report
+          path: BROWSER-COMPLIANCE.md
           retention-days: 30
 
       - name: Create Summary
@@ -167,16 +167,16 @@ jobs:
           grep -A 10 "^## Summary" REACT-UI-COMPLIANCE.md >> $GITHUB_STEP_SUMMARY || echo "Report not generated" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Frontend Summary
-          echo "### Frontend Application" >> $GITHUB_STEP_SUMMARY
+          # Browser Summary
+          echo "### Browser Application" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          grep -A 10 "^## Summary" FRONTEND-COMPLIANCE.md >> $GITHUB_STEP_SUMMARY || echo "Report not generated" >> $GITHUB_STEP_SUMMARY
+          grep -A 10 "^## Summary" BROWSER-COMPLIANCE.md >> $GITHUB_STEP_SUMMARY || echo "Report not generated" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Overall Status
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.react-ui-audit.outputs.react_ui_violations }}" = "true" ] || [ "${{ steps.frontend-audit.outputs.frontend_violations }}" = "true" ]; then
+          if [ "${{ steps.react-ui-audit.outputs.react_ui_violations }}" = "true" ] || [ "${{ steps.browser-audit.outputs.browser_violations }}" = "true" ]; then
             echo "❌ **FAILED**: Architecture violations detected" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "Please review the full reports above and fix all violations." >> $GITHUB_STEP_SUMMARY
@@ -187,7 +187,7 @@ jobs:
           fi
 
       - name: Fail on Violations
-        if: steps.react-ui-audit.outputs.react_ui_violations == 'true' || steps.frontend-audit.outputs.frontend_violations == 'true'
+        if: steps.react-ui-audit.outputs.react_ui_violations == 'true' || steps.browser-audit.outputs.browser_violations == 'true'
         run: |
           echo "❌ Architecture compliance check failed"
           echo ""
@@ -195,8 +195,8 @@ jobs:
           if [ "${{ steps.react-ui-audit.outputs.react_ui_violations }}" = "true" ]; then
             echo "  - React-UI package"
           fi
-          if [ "${{ steps.frontend-audit.outputs.frontend_violations }}" = "true" ]; then
-            echo "  - Frontend application"
+          if [ "${{ steps.browser-audit.outputs.browser_violations }}" = "true" ]; then
+            echo "  - Browser application"
           fi
           echo ""
           echo "See the full reports above for details on all violations."

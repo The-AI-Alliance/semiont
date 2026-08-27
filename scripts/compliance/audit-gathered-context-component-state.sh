@@ -8,7 +8,7 @@ set -euo pipefail
 #    GatheredContext in component-local useState — deleted (public-surface
 #    removal, first release after 0.5.28). It must not return under any name
 #    at the old one.
-# 2. No react-ui/frontend source holds a GatheredContext in useState — the
+# 2. No react-ui/browser source holds a GatheredContext in useState — the
 #    page reads the gather state unit's slots (`context$`/`resourceContext$`
 #    and friends) and threads props. A component that needs gathered context
 #    receives it; one that needs a gather calls the unit.

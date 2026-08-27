@@ -78,9 +78,9 @@ jobs:
               body: '⚠️ **Accessibility tests failed for @semiont/react-ui**\n\nPlease review the test results and fix accessibility violations before merging.'
             })
 
-  # Job 2: Automated axe-core testing for frontend
-  test-frontend-accessibility:
-    name: Frontend - axe-core Tests
+  # Job 2: Automated axe-core testing for browser
+  test-browser-accessibility:
+    name: Browser - axe-core Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -125,7 +125,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: frontend-a11y-results
+          name: browser-a11y-results
           path: apps/browser/a11y-report.json
           retention-days: 30
 
@@ -138,7 +138,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '⚠️ **Accessibility tests failed for frontend**\n\nPlease review the test results and fix accessibility violations before merging.'
+              body: '⚠️ **Accessibility tests failed for browser**\n\nPlease review the test results and fix accessibility violations before merging.'
             })
 
   # Job 3: Lighthouse CI accessibility audit
@@ -167,7 +167,7 @@ jobs:
           npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/react-ui
 
-      - name: Build frontend
+      - name: Build browser
         run: |
           cd apps/browser
           npm run build
@@ -245,7 +245,7 @@ jobs:
   accessibility-summary:
     name: Accessibility Summary
     runs-on: ubuntu-latest
-    needs: [test-react-ui-accessibility, test-frontend-accessibility, lighthouse-accessibility]
+    needs: [test-react-ui-accessibility, test-browser-accessibility, lighthouse-accessibility]
     if: always()
 
     steps:
@@ -266,11 +266,11 @@ jobs:
             echo "❌ **React UI (axe-core):** FAILED" >> $GITHUB_STEP_SUMMARY
           fi
 
-          # Frontend status
-          if [ "${{ needs.test-frontend-accessibility.result }}" == "success" ]; then
-            echo "✅ **Frontend (axe-core):** PASSED" >> $GITHUB_STEP_SUMMARY
+          # Browser status
+          if [ "${{ needs.test-browser-accessibility.result }}" == "success" ]; then
+            echo "✅ **Browser (axe-core):** PASSED" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ **Frontend (axe-core):** FAILED" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **Browser (axe-core):** FAILED" >> $GITHUB_STEP_SUMMARY
           fi
 
           # Lighthouse status
@@ -285,7 +285,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ needs.test-react-ui-accessibility.result }}" == "success" ] && \
-             [ "${{ needs.test-frontend-accessibility.result }}" == "success" ] && \
+             [ "${{ needs.test-browser-accessibility.result }}" == "success" ] && \
              [ "${{ needs.lighthouse-accessibility.result }}" == "success" ]; then
             echo "🎉 **All accessibility tests passed!**" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
@@ -304,7 +304,7 @@ jobs:
       - name: Fail workflow if any test failed
         if: |
           needs.test-react-ui-accessibility.result != 'success' ||
-          needs.test-frontend-accessibility.result != 'success' ||
+          needs.test-browser-accessibility.result != 'success' ||
           needs.lighthouse-accessibility.result != 'success'
         run: |
           echo "One or more accessibility tests failed"

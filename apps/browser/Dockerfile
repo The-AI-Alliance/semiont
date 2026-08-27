@@ -1,11 +1,11 @@
 # Stage 1: install (npm runs here, then is discarded).
 FROM node:26-alpine AS installer
 ARG NPM_REGISTRY=https://registry.npmjs.org
-ARG SEMIONT_FRONTEND_VERSION=latest
+ARG SEMIONT_BROWSER_VERSION=latest
 WORKDIR /app
 RUN npm config set registry $NPM_REGISTRY && \
     npm init -y && \
-    npm install @semiont/frontend@${SEMIONT_FRONTEND_VERSION} && \
+    npm install @semiont/browser@${SEMIONT_BROWSER_VERSION} && \
     npm cache clean --force
 
 # Stage 2: minimal runtime — node only, no npm. The runtime entrypoint is
