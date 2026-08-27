@@ -110,9 +110,7 @@ type stackSet struct {
 	Stacks    map[string]*stackState `json:"stacks"`
 	// Browser: the machine-level viewer, deliberately OUTSIDE every stack
 	// (BROWSER-LIFECYCLE.md): it serves any number of KBs, any start ensures
-	// it, and stopping a stack leaves it running. Optional and
-	// read-compatible; pre-separation records carrying a frontend service
-	// entry migrate on read.
+	// it, and stopping a stack leaves it running.
 	Browser *serviceState `json:"browser,omitempty"`
 }
 
@@ -149,7 +147,6 @@ func loadStackSet() *stackSet {
 		var full stackSet
 		if json.Unmarshal(b, &full) == nil && full.Stacks != nil {
 			full.Schema = 3
-			migrateBrowser(&full)
 			return &full
 		}
 		return ss
@@ -171,29 +168,7 @@ func loadStackSet() *stackSet {
 		}
 	}
 	ss.Stacks[stackKey(&st)] = &st
-	migrateBrowser(ss)
 	return ss
-}
-
-// migrateBrowser lifts a pre-separation frontend service entry out of the
-// local stack into the machine-level browser record. Idempotent; the next
-// save persists the lifted shape.
-func migrateBrowser(ss *stackSet) {
-	if ss.Browser != nil {
-		return
-	}
-	st := ss.Stacks["local"]
-	if st == nil {
-		return
-	}
-	// "frontend" is the ON-DISK key a pre-separation record carries, not the
-	// current role name — this reads history, so it does NOT move with the
-	// rename. A sweep that renamed it here would leave every old statefile
-	// unmigrated and say nothing.
-	if e, ok := st.Services["frontend"]; ok && e.Provided == providedLauncher {
-		ss.Browser = &e
-		delete(st.Services, "frontend")
-	}
 }
 
 // loadLocalState: the machine's one local stack record, or nil.
