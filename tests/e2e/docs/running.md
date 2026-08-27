@@ -30,7 +30,7 @@ seeded something else.
 
 The dev stack runs in Apple containers on the `192.168.64.0/24` bridge, with
 its ports published on the host. **Target the host bridge gateway,
-`192.168.64.1`** — it routes to every published port (`:3000` frontend,
+`192.168.64.1`** — it routes to every published port (`:3000` browser,
 `:4000` backend, `:9090` worker health) and is stable across restarts.
 
 **Do not use the containers' own IPs.** An earlier version of this page said

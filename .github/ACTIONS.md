@@ -7,7 +7,7 @@ This directory contains GitHub Actions workflows and automation configuration fo
 ### Security Tests (`security-tests.yml`)
 **Primary security testing workflow** that runs on every push and PR:
 
-**Frontend Security Testing**:
+**Browser Security Testing**:
 - ✅ Runs comprehensive security test suites
 - ✅ Builds and starts the application
 - ✅ Verifies admin routes return 200 (not 307 redirects)
@@ -24,7 +24,7 @@ This directory contains GitHub Actions workflows and automation configuration fo
 
 **Security Verification Checks**:
 ```bash
-# Frontend verification
+# Browser verification
 curl -I http://localhost:3000/admin  # Must return 200, not 307
 curl -s http://localhost:3000/admin | grep -i "admin\|dashboard"  # Must return empty
 
@@ -52,7 +52,7 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/admin/users  #
 ### Dependabot (`dependabot.yml`)
 **Automated dependency updates**:
 - Weekly dependency updates for all npm packages
-- Separate configurations for frontend, backend, CDK, scripts
+- Separate configurations for browser, backend, CDK, scripts
 - Security-focused updates with proper labeling
 - Automatic PR creation for dependency updates
 
@@ -126,7 +126,7 @@ GOOGLE_CLIENT_SECRET=test-client-secret
 ### Security Verification Commands
 The workflows run these security checks:
 
-**Frontend Admin Route Security**:
+**Browser Admin Route Security**:
 ```bash
 # Check status code (must be 200, not 307)
 status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/admin)

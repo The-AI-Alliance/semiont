@@ -157,7 +157,7 @@ got console errors." Steps:
 
 - **Browser not in the snapshot's container list.** The static
   server's stdout is mostly unstructured and not timestamped, so the
-  snapshot's per-line-timestamp filter doesn't apply. For frontend
+  snapshot's per-line-timestamp filter doesn't apply. For browser
   errors, watch the browser DevTools console (or add `bus.entries`
   capture via a Playwright spec).
 - **Live monitoring requires the dev stack to be up** ([`containers.md`](containers.md))

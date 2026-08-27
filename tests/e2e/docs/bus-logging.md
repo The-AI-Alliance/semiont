@@ -77,10 +77,10 @@ to the service's env list in a KB's `.semiont/compose/backend.yml`.
 With both flags on, opening a resource produces a contiguous timeline:
 
 ```
-[frontend] [bus EMIT] browse:resource-requested cid=a89a670a {resourceId, ...}
+[browser] [bus EMIT] browse:resource-requested cid=a89a670a {resourceId, ...}
 [backend]  [bus EMIT] browse:resource-requested cid=a89a670a {resourceId, _userId, ...}
 [backend]  [bus SSE]  browse:resource-result    cid=a89a670a {correlationId, response}
-[frontend] [bus RECV] browse:resource-result    cid=a89a670a {correlationId, response}
+[browser] [bus RECV] browse:resource-result    cid=a89a670a {correlationId, response}
 ```
 
 A worker generation that uploads new content adds a content pair:

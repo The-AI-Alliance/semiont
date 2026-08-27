@@ -20,7 +20,7 @@ semiont logs --service backend     # Follow one
 
 `semiont status --verbose` adds the launcher's own paths on this host — config, cache, log, state, staging, model cache — plus each root's persistent stack state and its disk consumption. Orphaned state is called out with the `clean` command that removes it.
 
-`semiont logs` follows the five Semiont services as `[svc]`-prefixed streams. With `--service`, it follows any one service including the infrastructure roles: `backend`, `worker`, `smelter`, `weaver`, `frontend`, `database`, `graph`, `vectors`, `inference`, `traces`. Ctrl-C stops *following* — it does not stop the stack.
+`semiont logs` follows the five Semiont services as `[svc]`-prefixed streams. With `--service`, it follows any one service including the infrastructure roles: `backend`, `worker`, `smelter`, `weaver`, `browser`, `database`, `graph`, `vectors`, `inference`, `traces`. Ctrl-C stops *following* — it does not stop the stack.
 
 Containers run without `--rm`, deliberately: a crashed container stays inspectable and its logs survive. If a service shows as `exited`, its logs are still there.
 

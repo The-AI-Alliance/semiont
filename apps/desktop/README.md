@@ -56,7 +56,7 @@ For containerized builds: just a container runtime (Apple Container, Docker, or 
 Start the Browser dev server in one terminal, then the desktop shell in another:
 
 ```bash
-# Terminal 1: frontend
+# Terminal 1: Browser
 cd apps/browser && npm run dev
 
 # Terminal 2: desktop

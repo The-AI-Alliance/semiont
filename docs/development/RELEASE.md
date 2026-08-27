@@ -83,7 +83,7 @@ gh run watch <run-id> --exit-status
 1. **Verifies version sync** across all `package.json` files
 2. **Creates and pushes a git tag** `v{version}` (skips if already exists)
 3. **Creates a GitHub Release** with auto-generated release notes from commits and merged PRs
-4. **Publishes npm packages** — all `@semiont/*` libraries, CLI, backend, and frontend
+4. **Publishes npm packages** — all `@semiont/*` libraries, CLI, backend, and Browser
 5. **Builds and publishes the desktop apps** — only when the **Build and
    publish desktop apps** box (`desktop=true`) is checked; chains the
    `publish-desktop.yml` workflow for macOS (Intel + Apple Silicon) and
@@ -249,7 +249,7 @@ Workspace packages depend on each other (`@semiont/*` / `semiont-*`). The rule:
 There is exactly **one** implementation of that rewrite —
 `scripts/ci/stamp-internal-deps.mjs` (`stampInternalDeps`) — used by both
 publish paths: `scripts/ci/stamp-versions.mjs` (invoked by `publish.sh`, for the
-in-place libs + cli) and `publish-npm-apps.mjs` (for the staged backend/frontend
+in-place libs + cli) and `publish-npm-apps.mjs` (for the staged backend/browser
 tarballs). `version-bump.sh` and `version:sync` only stamp the `version` field;
 they do **not** pin internal deps — those stay `"*"`.
 
@@ -291,7 +291,7 @@ shipped a `@hono/node-server` *major* behind source, and had dropped
 `@semiont/observability` entirely even though the built backend imports it at
 startup).
 
-The **frontend** is deliberately different: `apps/browser/package.publish.json`
+The **Browser** is deliberately different: `apps/browser/package.publish.json`
 declares **no** runtime dependencies and nothing derives them, because the
 published Browser is a pre-built Vite bundle — its deps are compiled into
 `dist/`, not resolved by npm at install time.

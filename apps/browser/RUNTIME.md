@@ -7,7 +7,7 @@ This directory contains runtime files for the Browser service.
 - `.env.local` - Environment configuration (git-ignored)
 - `logs/` - Application logs
 - `tmp/` - Temporary files
-- `frontend.pid` - Process ID when running
+- `browser.pid` - Process ID when running
 
 ## Configuration
 

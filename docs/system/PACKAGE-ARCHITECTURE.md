@@ -10,7 +10,7 @@ For the per-package descriptions and npm metadata, see **[../../packages/README.
 graph BT
     %% Layer 5: Application Consumers
     backend["apps/backend<br/><i>Hono API server</i>"]
-    frontend["apps/browser<br/><i>Vite + React SPA</i>"]
+    browser["apps/browser<br/><i>Vite + React SPA</i>"]
 
     %% Layer 4: Application Logic
     meaning["@semiont/make-meaning<br/><b>startMakeMeaning()</b><br/><i>Infrastructure orchestrator</i><br/>EventStore, GraphDB, RepStore,<br/>InferenceClient, JobQueue, Workers"]
