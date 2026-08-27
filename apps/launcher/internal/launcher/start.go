@@ -20,7 +20,7 @@ const (
 // preflightNames is the stop-then-rm sweep order at start; semiont-ollama is
 // deliberately absent — it is handled in the Ollama section, where a host
 // instance may make a container unnecessary.
-// semiont-frontend is deliberately ABSENT: the Browser is not a stack
+// semiont-browser is deliberately ABSENT: the Browser is not a stack
 // member (BROWSER-LIFECYCLE.md) — its keep-or-refresh lifecycle lives in
 // flowBrowser, and the preflight must not sweep a viewer the user keeps
 // open across stacks.
@@ -42,7 +42,7 @@ type startOptions struct {
 	ollamaCache  string // "", "host", or "volume"
 	service      string // start just this one service
 	root         string // --root: KB root by path or registered basename
-	port         int    // --port: browser port (--service frontend only; every other port is config-owned)
+	port         int    // --port: browser port (--service browser only; every other port is config-owned)
 	repo         string // --repo: owner/name (codespace placement only)
 	csName       string // --codespace: instance disambiguator (codespace placement only)
 	machine      string // --machine: VM class (codespace placement only)
@@ -67,10 +67,10 @@ Options:
                         SEMIONT_ROOT and cwd discovery.
   --service <name>      Start (restart) just this one service, leaving the rest
                         of the stack untouched: backend, worker, smelter, weaver,
-                        frontend, database, graph, vectors, inference, or traces.
+                        browser, database, graph, vectors, inference, or traces.
                         Rejoins a running stack's worker secret automatically;
                         OTel export is enabled iff traces (Jaeger) is up.
-  --port <n>            Browser port (--service frontend only; default 3000).
+  --port <n>            Browser port (--service browser only; default 3000).
                         The one port a flag may move — every other port
                         belongs to the KB's config
   --clean-ollama        Remove the Ollama model cache volume and exit
@@ -295,8 +295,8 @@ func Start(args []string) int {
 		u.fail("--repo/--codespace/--machine/--idle-timeout/--retention-period only apply to --runtime codespace.")
 		return 1
 	}
-	if opts.port != 0 && (opts.service != "frontend" || opts.runtime == "codespace") {
-		u.fail("--port only applies to --service frontend — every other port belongs to the KB's config (and a codespace forwards only its KB, on an allocated port).")
+	if opts.port != 0 && (opts.service != "browser" || opts.runtime == "codespace") {
+		u.fail("--port only applies to --service browser — every other port belongs to the KB's config (and a codespace forwards only its KB, on an allocated port).")
 		return 1
 	}
 
@@ -320,10 +320,10 @@ func Start(args []string) int {
 		case opts.ollamaCache != "" && opts.service != "inference":
 			u.fail("--ollama-cache only applies to --service inference.")
 			return 1
-		case opts.configSet && (opts.service == "frontend" || opts.service == "traces"):
+		case opts.configSet && (opts.service == "browser" || opts.service == "traces"):
 			u.fail("--config does not apply to --service %s (it reads no config).", opts.service)
 			return 1
-		case opts.root != "" && (opts.service == "frontend" || opts.service == "traces"):
+		case opts.root != "" && (opts.service == "browser" || opts.service == "traces"):
 			u.fail("--root only applies to services that read the KB config (--service %s does not).", opts.service)
 			return 1
 		}
@@ -334,7 +334,7 @@ func Start(args []string) int {
 	if !opts.dryRun {
 		u.stamp("semiont start")
 		// Materialize the Browser discovery view before anything mounts it:
-		// a --service frontend on a fresh machine would otherwise mount a
+		// a --service browser on a fresh machine would otherwise mount a
 		// directory nothing has created yet.
 		writeDiscovery(loadStackSet())
 	}
@@ -386,13 +386,13 @@ func Start(args []string) int {
 	// anywhere. Only flows that read the config need a root at all; only
 	// flows that mount /kb (full start, --service backend) must additionally
 	// be a git clone — the backend versions the event log via git. A
-	// --service target that touches neither (infra, frontend) runs from
+	// --service target that touches neither (infra, browser) runs from
 	// anywhere: "just the browser" needs no clone at all.
-	// Everything except frontend and traces is config-driven now: infra
+	// Everything except browser and traces is config-driven now: infra
 	// roles need the config to know their OBLIGATION (provided / external /
-	// host-process / absent), so they need the KB root too. frontend (absent
+	// host-process / absent), so they need the KB root too. browser (absent
 	// from the config) and traces (launcher-owned) keep the no-clone freedom.
-	configNeeded := opts.service == "" || (opts.service != "frontend" && opts.service != "traces")
+	configNeeded := opts.service == "" || (opts.service != "browser" && opts.service != "traces")
 	rootNeeded := configNeeded
 	root := ""
 	if rootNeeded {
@@ -649,7 +649,7 @@ func Start(args []string) int {
 	if !opts.dryRun {
 		var needs []portNeed
 		if opts.service != "" {
-			needs = servicePortNeeds(opts.service, plan, opts) // nil-plan-safe (frontend, traces)
+			needs = servicePortNeeds(opts.service, plan, opts) // nil-plan-safe (browser, traces)
 		} else {
 			needs = planPortChecks(plan, opts.observe) // full start always has a plan
 		}
@@ -750,7 +750,7 @@ func sidecarArgs(svc, mem string, port int, stage, addr, secret, version string,
 // 3000; the SPA server always listens on 3000 inside). The ONLY port a flag
 // may move — it's absent from the config and nothing in the stack dials it.
 func browserArgs(version string, port int) []string {
-	a := []string{"run", "-d", "--name", "semiont-frontend", // no --rm: see providedRunArgs
+	a := []string{"run", "-d", "--name", "semiont-browser", // no --rm: see providedRunArgs
 		"--memory", "1G", "--publish", fmt.Sprintf("%d:3000", port)}
 	// The Browser's KB-discovery view (BROWSER-KB-DISCOVERY.md lane 1): a
 	// read-only DIRECTORY mount (Apple container cannot single-file mount).
@@ -759,7 +759,7 @@ func browserArgs(version string, port int) []string {
 	if dir := stateDir(); dir != "" {
 		a = append(a, "-v", filepath.Join(dir, "discovery")+":/discovery:ro")
 	}
-	return append(a, image("frontend", version))
+	return append(a, image("browser", version))
 }
 
 // browserPort: the Browser's host port — --port, else 3000.
@@ -783,7 +783,7 @@ func pullArgs(rt, img string) []string {
 	return []string{"pull", img}
 }
 
-// frontend is absent: the Browser pulls its own image inside flowBrowser,
+// browser is absent: the Browser pulls its own image inside flowBrowser,
 // and only when actually (re)starting — a kept Browser costs no pull.
 var semiontServices = []string{"backend", "worker", "smelter", "weaver"}
 

@@ -43,12 +43,12 @@ var roles = map[string]roleSpec{
 	"worker":    {"", "semiont-worker", []portNeed{{9090, "Worker"}}},
 	"smelter":   {"", "semiont-smelter", []portNeed{{9091, "Smelter"}}},
 	"weaver":    {"", "semiont-weaver", []portNeed{{9092, "Weaver"}}},
-	// frontend: the Browser owns its port inside flowBrowser — an empty
+	// browser: the Browser owns its port inside flowBrowser — an empty
 	// ports list here keeps 3000 out of every stack-level claim and sweep.
-	"frontend": {"", "semiont-frontend", nil},
+	"browser": {"", "semiont-browser", nil},
 }
 
-const roleList = "backend, worker, smelter, weaver, frontend, database, graph, vectors, inference, embedding, or traces"
+const roleList = "backend, worker, smelter, weaver, browser, database, graph, vectors, inference, embedding, or traces"
 
 // roleByContainer inverts the roles table (container name → role).
 var roleByContainer = func() map[string]string {
@@ -228,12 +228,12 @@ func renderServicePlan(rt, version, root string, opts startOptions, userEnv []st
 }
 
 // serviceEndpoint: the health endpoint status should probe for a service the
-// launcher just (re)started. plan is nil only for frontend/traces (config-free).
+// launcher just (re)started. plan is nil only for browser/traces (config-free).
 func serviceEndpoint(svc string, plan *launchPlan) string {
 	switch svc {
 	case "traces":
 		return "http://localhost:16686"
-	case "frontend":
+	case "browser":
 		return "http://localhost:3000"
 	case "backend":
 		return fmt.Sprintf("http://localhost:%d/api/health", plan.BackendPort)

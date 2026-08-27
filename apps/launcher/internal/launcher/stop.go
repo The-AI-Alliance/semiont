@@ -20,7 +20,7 @@ With no --runtime, EVERY installed runtime is swept — stopping via the wrong
 runtime is a silent no-op that leaves the real stack running.
 
 With --service <name>, stop just that one service (backend, worker, smelter,
-weaver, frontend, database, graph, vectors, inference, or traces). The staged
+weaver, browser, database, graph, vectors, inference, or traces). The staged
 config copies are left in place — the rest of the stack is still mounting
 them.
 
@@ -39,10 +39,10 @@ targets a codespace stack, --runtime targets the local one.
 // stopNames sweeps all ten container names in REVERSE start order —
 // dependents before their dependencies, so nothing spends teardown alive
 // with its upstream already gone (start brings up jaeger → neo4j → qdrant →
-// ollama → postgres → backend → worker → smelter → weaver → frontend).
-// semiont-frontend is deliberately ABSENT: the Browser is not a stack
+// ollama → postgres → backend → worker → smelter → weaver → browser).
+// semiont-browser is deliberately ABSENT: the Browser is not a stack
 // member (BROWSER-LIFECYCLE.md) — a bare stop leaves the viewer running
-// (announced), and `stop --service frontend` is its explicit off-switch.
+// (announced), and `stop --service browser` is its explicit off-switch.
 var stopNames = []string{
 	"semiont-weaver", "semiont-smelter", "semiont-worker",
 	"semiont-backend", "semiont-postgres", "semiont-ollama", "semiont-qdrant",
@@ -93,10 +93,10 @@ func Stop(args []string) int {
 		}
 	}
 
-	// --service frontend targets the machine-level Browser, not a stack
+	// --service browser targets the machine-level Browser, not a stack
 	// member: stop its container (record ID preferred), clear its record,
 	// and never touch stack state.
-	if service == "frontend" && repo == "" {
+	if service == "browser" && repo == "" {
 		ssPre := loadStackSet()
 		b := ssPre.Browser
 		if b == nil {
@@ -107,9 +107,9 @@ func Stop(args []string) int {
 		// name still runs — an off-switch that doesn't switch off (Copilot
 		// review, PR #1064). Idempotent; the name pass is free when the ID
 		// already got it.
-		handles := []string{"semiont-frontend"}
+		handles := []string{"semiont-browser"}
 		if b != nil && b.ID != "" {
-			handles = []string{b.ID, "semiont-frontend"}
+			handles = []string{b.ID, "semiont-browser"}
 		}
 		if dryRun {
 			fmt.Println("# stop the Browser (machine-level; stacks untouched):")
@@ -426,7 +426,7 @@ func Stop(args []string) int {
 	// viewer, not a stack member. Say so, with the off-switch: silence here
 	// would read as a leak.
 	if b := loadStackSet().Browser; b != nil && b.Endpoint != "" && httpOK(b.Endpoint) {
-		fmt.Printf("Browser still running on %s %s\n", b.Endpoint, u.dim("(not a stack member; stop it with: semiont stop --service frontend)"))
+		fmt.Printf("Browser still running on %s %s\n", b.Endpoint, u.dim("(not a stack member; stop it with: semiont stop --service browser)"))
 	}
 	return 0
 }

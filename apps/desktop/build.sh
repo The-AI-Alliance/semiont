@@ -5,7 +5,7 @@ set -euo pipefail
 # No Rust or Tauri CLI required on the host.
 #
 # This script:
-#   1. Builds the frontend SPA (apps/browser/dist/)
+#   1. Builds the browser SPA (apps/browser/dist/)
 #   2. Compiles the Tauri desktop shell
 #   3. Produces a .dmg (macOS) in apps/desktop/src-tauri/target/release/bundle/
 #
@@ -32,10 +32,10 @@ if [[ -z "${RT:-}" ]]; then
 fi
 echo "Using container runtime: $RT"
 
-# --- Build frontend ---
+# --- Build browser ---
 
 echo ""
-echo "Building frontend SPA..."
+echo "Building browser SPA..."
 $RT run --rm \
   -v "$REPO_ROOT":/workspace \
   -w /workspace \

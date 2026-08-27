@@ -161,12 +161,12 @@ func flowFullStart(x executor, fc flowCtx) int {
 // Browser is kept when its image matches what this start would run, and
 // restarted when the image is stale (image identity, not tag order — tags
 // like :latest and :local are mutable) or when the restart is explicit
-// (--service frontend, the port mover).
+// (--service browser, the port mover).
 func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 	x.banner("Browser")
-	desired := image("frontend", version)
+	desired := image("browser", version)
 	x.note("browser: keep if running with image identity matching %s; else stop/rm + pull + run", desired)
-	x.note("(the Browser is not a stack member: stop leaves it running; semiont stop --service frontend stops it)")
+	x.note("(the Browser is not a stack member: stop leaves it running; semiont stop --service browser stops it)")
 	return x.either(func() bool { return !forceRestart && x.browserCurrent(desired) },
 		func() int {
 			endpoint := "http://localhost:3000"
@@ -174,7 +174,7 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 				endpoint = b.Endpoint
 			}
 			x.say(sayOK, "Browser already running on %s %s", endpoint,
-				x.dim("(current image — left alone; semiont stop --service frontend stops it)"))
+				x.dim("(current image — left alone; semiont stop --service browser stops it)"))
 			return 0
 		},
 		func() int {
@@ -185,7 +185,7 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 			// stopped container HOLDS its name — the next run --name fails
 			// with "already exists" on every runtime (Copilot review, PR
 			// #1064; the same reason stop.go always rm's).
-			x.stopRm("semiont-frontend")
+			x.stopRm("semiont-browser")
 			x.settle(port)
 			if !x.portCheck(portNeed{port, "Browser"}) {
 				return 1
@@ -201,7 +201,7 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 			}
 			d, ok := x.waitHTTP("Browser", fmt.Sprintf("http://localhost:%d", port), 30)
 			if !ok {
-				x.dumpLogs("semiont-frontend", "frontend")
+				x.dumpLogs("semiont-browser", "browser")
 				return 1
 			}
 			x.say(sayOK, "Browser on http://localhost:%d %s", port, x.dim("("+took(d)+")"))
@@ -510,11 +510,11 @@ func flowOneService(x executor, fc flowCtx) int {
 	}
 
 	x.banner("Restarting " + roleTitle(svc))
-	// frontend is handled entirely by flowBrowser (its own stop/port/pull) —
+	// browser is handled entirely by flowBrowser (its own stop/port/pull) —
 	// and its port must NEVER enter the STACK's recorded claims: stop
 	// verifies stack-port release while the Browser deliberately keeps
 	// running on its port.
-	if svc != "inference" && svc != "frontend" {
+	if svc != "inference" && svc != "browser" {
 		ports := servicePortNeeds(svc, fc.plan, fc.opts)
 		if x.stopRm(roles[svc].container) {
 			x.say(sayLog, "Removed prior %s container", svc)
@@ -535,7 +535,7 @@ func flowOneService(x executor, fc flowCtx) int {
 		x.say(sayLog, "Host address: %s", x.dim(addr))
 	}
 
-	if isConfigConsumer(svc) || svc == "frontend" {
+	if isConfigConsumer(svc) || svc == "browser" {
 		if fc.version == "local" {
 			x.note("SEMIONT_VERSION=local — using locally-built :local images (no pull)")
 		} else if !x.pull(image(svc, fc.version)) {
@@ -629,8 +629,8 @@ func flowOneService(x executor, fc flowCtx) int {
 				}
 			}
 		}
-	case "frontend":
-		// Explicit --service frontend is the one deliberate restart (and the
+	case "browser":
+		// Explicit --service browser is the one deliberate restart (and the
 		// port mover): forceRestart bypasses keep-if-current.
 		if code := flowBrowser(x, fc.version, browserPort(fc.opts), true); code != 0 {
 			return code
@@ -644,11 +644,11 @@ func flowOneService(x executor, fc flowCtx) int {
 
 // servicePortNeeds: one service's must-be-free ports. Claims follow the
 // plan for config-owned ports (dependency roles, backend); the static role
-// table covers only the launcher-fiat ports (sidecars, frontend, traces).
+// table covers only the launcher-fiat ports (sidecars, browser, traces).
 func servicePortNeeds(svc string, plan *launchPlan, opts startOptions) []portNeed {
 	ports := roles[svc].ports
 	switch {
-	case svc == "frontend" && opts.port != 0:
+	case svc == "browser" && opts.port != 0:
 		ports = []portNeed{{opts.port, "Browser"}}
 	case svc == "backend" && plan != nil:
 		ports = []portNeed{{plan.BackendPort, "Backend"}}

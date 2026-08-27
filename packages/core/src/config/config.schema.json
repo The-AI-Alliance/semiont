@@ -283,7 +283,7 @@
       ],
       "additionalProperties": false
     },
-    "FrontendServiceConfig": {
+    "BrowserServiceConfig": {
       "type": "object",
       "properties": {
         "platform": {
@@ -1093,8 +1093,8 @@
         "backend": {
           "$ref": "#/definitions/BackendServiceConfig"
         },
-        "frontend": {
-          "$ref": "#/definitions/FrontendServiceConfig"
+        "browser": {
+          "$ref": "#/definitions/BrowserServiceConfig"
         },
         "database": {
           "$ref": "#/definitions/DatabaseServiceConfig"

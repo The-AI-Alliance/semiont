@@ -295,7 +295,7 @@ type drive struct {
 // failure mode this exists to avoid (BROWSER-HANDOFF P2):
 //
 //	Browser up, nobody watching → the ORIGIN, and "open it and log in"
-//	Browser absent              → --launch, or start --service frontend
+//	Browser absent              → --launch, or start --service browser
 //	Browser there but not answering → say so; the same two fix-its apply
 //
 // The exit code is the point for a tour script: `beckon` exits 0 with no
@@ -328,12 +328,12 @@ func nobodySaw(u *ui, d drive, override string, launch bool) int {
 		fmt.Fprintf(os.Stderr, "  The Browser container is %s and is not answering on %s.\n", p.State, p.Endpoint)
 	}
 	fmt.Fprintf(os.Stderr, "  Start it:  %s --launch\n", d.retry)
-	fmt.Fprintln(os.Stderr, "  or:        semiont start --service frontend")
+	fmt.Fprintln(os.Stderr, "  or:        semiont start --service browser")
 	return 1
 }
 
 // launchBrowser is `--launch`: it starts the Browser through the existing
-// `semiont start --service frontend` rather than re-deriving the run. That
+// `semiont start --service browser` rather than re-deriving the run. That
 // path already pulls the image, publishes the port, records the endpoint and
 // WAITS for health (flowBrowser) — on a cold pull the container exists long
 // before it answers, and a message printed too early sends the user to an
@@ -350,7 +350,7 @@ func launchBrowser(u *ui, override string) (browserProbe, bool) {
 	if !ok {
 		return browserProbe{}, false
 	}
-	if code := Start([]string{"--service", "frontend", "--runtime", rt}); code != 0 {
+	if code := Start([]string{"--service", "browser", "--runtime", rt}); code != 0 {
 		u.fail("--launch could not start the Browser.")
 		return browserProbe{}, false
 	}

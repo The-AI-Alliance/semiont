@@ -295,7 +295,7 @@ func ollamaRunArgs(rp rolePlan, extra ...string) []string {
 // planPortChecks: the must-be-free ports, derived from the plan — only roles
 // the launcher actually provides claim ports. Order preserves the historical
 // check order (graph aux, graph, vectors, database, backend, sidecars,
-// frontend, traces-when-observing).
+// browser, traces-when-observing).
 func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 	var checks []portNeed
 	addRole := func(role string) {

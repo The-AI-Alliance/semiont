@@ -25,7 +25,7 @@ setPdfWorkerSrc(pdfWorkerUrl);
 const otlpEndpoint = import.meta.env['VITE_OTEL_OTLP_ENDPOINT'];
 if (otlpEndpoint) {
   void import('@semiont/observability/web').then(({ initObservabilityWeb }) => {
-    initObservabilityWeb({ serviceName: 'semiont-frontend', otlpEndpoint });
+    initObservabilityWeb({ serviceName: 'semiont-browser', otlpEndpoint });
   });
 }
 

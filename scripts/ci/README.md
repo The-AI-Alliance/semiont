@@ -9,8 +9,8 @@ No npm is required on the host for local builds.
 |--------|---------|
 | `build.sh` | Install deps + build packages and apps |
 | `publish.sh` | Version stamp + stage + publish to a registry |
-| `publish-npm-apps.mjs` | Stage backend/frontend into `.npm-stage/` for publishing |
-| `local-build.sh` | Host-side wrapper: start Verdaccio + build + publish in a container + build the `:local` service/frontend images, fanned out to every container engine on the machine |
+| `publish-npm-apps.mjs` | Stage backend/browser into `.npm-stage/` for publishing |
+| `local-build.sh` | Host-side wrapper: start Verdaccio + build + publish in a container + build the `:local` service/browser images, fanned out to every container engine on the machine |
 | `verdaccio.yaml` | Verdaccio config for local registry (proxies non-@semiont packages to npmjs.com) |
 
 ## GitHub Actions
@@ -34,7 +34,7 @@ who built — `CONTAINER_RUNTIME` picks the *build* engine only:
 
 ```bash
 # 1. Build all packages, publish to local Verdaccio, build all five images
-#    (backend, worker, smelter, weaver, frontend)
+#    (backend, worker, smelter, weaver, browser)
 ./scripts/ci/local-build.sh
 
 # 2. Run the full stack from your KB against the :local images
@@ -62,7 +62,7 @@ Options:
   --start-from <pkg> Skip packages before this one in the build order
   --skip-build       Skip build, publish only (reuse previous build artifacts)
   --image <list>     Comma-separated images to build
-                     (default: backend,worker,smelter,weaver,frontend)
+                     (default: backend,worker,smelter,weaver,browser)
 ```
 
 Package names for `--package`:
@@ -70,7 +70,7 @@ Package names for `--package`:
 | Libraries | Apps |
 |-----------|------|
 | http-transport, ontology, core, content | backend |
-| event-sourcing, graph, inference | frontend |
+| event-sourcing, graph, inference | browser |
 | jobs, make-meaning, react-ui | |
 
 The publish step always publishes all packages regardless of `--package`.

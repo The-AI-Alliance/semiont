@@ -1,8 +1,8 @@
-# @semiont/frontend
+# @semiont/browser
 
-[![npm version](https://img.shields.io/npm/v/@semiont/frontend.svg)](https://www.npmjs.com/package/@semiont/frontend)
-[![npm downloads](https://img.shields.io/npm/dm/@semiont/frontend.svg)](https://www.npmjs.com/package/@semiont/frontend)
-[![License](https://img.shields.io/npm/l/@semiont/frontend.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@semiont/browser.svg)](https://www.npmjs.com/package/@semiont/browser)
+[![npm downloads](https://img.shields.io/npm/dm/@semiont/browser.svg)](https://www.npmjs.com/package/@semiont/browser)
+[![License](https://img.shields.io/npm/l/@semiont/browser.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
 Pre-built Semiont frontend as a Vite SPA with a zero-dependency Node.js static file server. This package contains the compiled frontend application ready to run with Node.js.
 
@@ -18,18 +18,18 @@ cd /path/to/your-knowledge-base
 semiont start
 ```
 
-This package is what the `semiont-frontend` container image runs inside. To run just the browser
+This package is what the `semiont-browser` container image runs inside. To run just the browser
 against an already-running knowledge base, use the published image directly:
 
 ```bash
-docker run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
+docker run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-browser:latest
 ```
 
 ## Direct usage
 
 ```bash
-npm install @semiont/frontend
-PORT=3000 node node_modules/@semiont/frontend/server.js
+npm install @semiont/browser
+PORT=3000 node node_modules/@semiont/browser/server.js
 ```
 
 The SPA is backend-agnostic: it connects to knowledge bases chosen in the browser at runtime, so the

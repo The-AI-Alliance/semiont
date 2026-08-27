@@ -381,7 +381,7 @@ export {
 // Schema-generated configuration types
 export type {
   BackendServiceConfig,
-  FrontendServiceConfig,
+  BrowserServiceConfig,
   DatabaseServiceConfig,
   GraphServiceConfig,
   OllamaProviderConfig,

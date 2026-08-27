@@ -14,7 +14,7 @@ set -euo pipefail
 # `--package` / `--start-from` CLI args.
 #
 # Library packages (under `packages/`) are built first, in the order
-# version.json lists them; apps (`backend`, `frontend`) follow.
+# version.json lists them; apps (`backend`, `browser`) follow.
 # App staging (.npm-stage/) is the publish flow's job — see
 # scripts/ci/publish.sh, which runs publish-npm-apps.mjs itself.
 #

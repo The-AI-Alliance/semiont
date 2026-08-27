@@ -137,7 +137,7 @@ interface EnvironmentSection {
     publicURL?: string;
     frontendURL?: string;
   };
-  frontend?: {
+  browser?: {
     platform?: string;
     port?: number;
     publicURL?: string;
@@ -460,7 +460,18 @@ export function loadTomlConfig(
     topLevelActors['matcher'] = { inference: { type: makeMeaningSection.actors.matcher.inference.type, model: makeMeaningSection.actors.matcher.inference.model } };
   }
 
-  const frontend = resolved.frontend;
+  // `[frontend]` was renamed to `[browser]`. Refuse it rather than ignore it:
+  // the emit below is guarded by `if (browser)`, so a stale section would
+  // simply never produce a service block — the Browser would come up
+  // unconfigured on defaults with nothing said. This is NOT a compatibility
+  // shim; the old key is not accepted, it is reported.
+  if ((resolved as Record<string, unknown>)['frontend'] !== undefined) {
+    throw new Error(
+      `[environments.${resolvedEnvironment}] uses [frontend], which is now [browser] — rename the section. The launcher, the image and the container all say "browser" now, and a [frontend] section would be silently ignored.`,
+    );
+  }
+
+  const browser = resolved.browser;
 
   // Semantic search is always available, so a config must NAME both a vector
   // store and an embedding provider — nothing is defaulted, and absence
@@ -507,12 +518,12 @@ export function loadTomlConfig(
     };
   }
 
-  if (frontend) {
-    services.frontend = {
-      platform: { type: requirePlatform(frontend.platform, 'frontend') },
-      port: frontend.port ?? 3000,
+  if (browser) {
+    services.browser = {
+      platform: { type: requirePlatform(browser.platform, 'browser') },
+      port: browser.port ?? 3000,
       siteName: site?.siteName ?? 'Semiont',
-      publicURL: frontend.publicURL,
+      publicURL: browser.publicURL,
     };
   }
 

@@ -186,6 +186,10 @@ func migrateBrowser(ss *stackSet) {
 	if st == nil {
 		return
 	}
+	// "frontend" is the ON-DISK key a pre-separation record carries, not the
+	// current role name — this reads history, so it does NOT move with the
+	// rename. A sweep that renamed it here would leave every old statefile
+	// unmigrated and say nothing.
 	if e, ok := st.Services["frontend"]; ok && e.Provided == providedLauncher {
 		ss.Browser = &e
 		delete(st.Services, "frontend")
@@ -266,7 +270,7 @@ func saveBrowser(e *serviceState) {
 	saveStackSet(ss)
 }
 
-// clearBrowser forgets it (the targeted `stop --service frontend`).
+// clearBrowser forgets it (the targeted `stop --service browser`).
 func clearBrowser() {
 	ss := loadStackSet()
 	if ss.Browser == nil {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Stage backend and frontend apps for npm publishing.
+ * Stage backend and browser apps for npm publishing.
  *
  * Creates staging directories with pre-built artifacts and publish-ready
  * package.json files. The staged directories can then be published with
@@ -127,11 +127,11 @@ function stageBackend(version) {
   return stageDir;
 }
 
-function stageFrontend(version) {
-  log('\n=== Staging @semiont/frontend ===\n');
+function stageBrowser(version) {
+  log('\n=== Staging @semiont/browser ===\n');
 
-  const frontendDir = resolve(rootDir, 'apps/browser');
-  const stageDir = resolve(STAGE_DIR, 'frontend');
+  const browserDir = resolve(rootDir, 'apps/browser');
+  const stageDir = resolve(STAGE_DIR, 'browser');
 
   if (DRY_RUN) {
     log(`  Would stage to: ${stageDir}`);
@@ -141,14 +141,14 @@ function stageFrontend(version) {
   }
 
   // Verify built artifacts exist
-  const distIndex = resolve(frontendDir, 'dist/index.html');
+  const distIndex = resolve(browserDir, 'dist/index.html');
   if (!existsSync(distIndex)) {
-    throw new Error(`Frontend not built: ${distIndex} not found. Run 'npm run build' in apps/browser first.`);
+    throw new Error(`Browser not built: ${distIndex} not found. Run 'npm run build' in apps/browser first.`);
   }
 
-  const serverJs = resolve(frontendDir, 'server.js');
+  const serverJs = resolve(browserDir, 'server.js');
   if (!existsSync(serverJs)) {
-    throw new Error(`Frontend server.js not found at ${serverJs}`);
+    throw new Error(`Browser server.js not found at ${serverJs}`);
   }
 
   // Clean and create staging directory
@@ -156,22 +156,22 @@ function stageFrontend(version) {
   mkdirSync(stageDir, { recursive: true });
 
   // Copy Vite build output
-  execFileSync('cp', ['-r', resolve(frontendDir, 'dist'), resolve(stageDir, 'dist')]);
+  execFileSync('cp', ['-r', resolve(browserDir, 'dist'), resolve(stageDir, 'dist')]);
 
   // Copy static server script
   execFileSync('cp', [serverJs, resolve(stageDir, 'server.js')]);
 
   // Copy and update publish package.json
-  const publishPkg = JSON.parse(readFileSync(resolve(frontendDir, 'package.publish.json'), 'utf-8'));
+  const publishPkg = JSON.parse(readFileSync(resolve(browserDir, 'package.publish.json'), 'utf-8'));
   publishPkg.version = version;
   stampInternalDeps(publishPkg, version);
 
   writeFileSync(resolve(stageDir, 'package.json'), JSON.stringify(publishPkg, null, 2) + '\n');
 
   // Copy README for npm listing
-  execFileSync('cp', [resolve(frontendDir, 'README.npm.md'), resolve(stageDir, 'README.md')]);
+  execFileSync('cp', [resolve(browserDir, 'README.npm.md'), resolve(stageDir, 'README.md')]);
 
-  log(`  Staged @semiont/frontend@${version} to ${stageDir}`);
+  log(`  Staged @semiont/browser@${version} to ${stageDir}`);
   log(`  Files: dist/, server.js, package.json, README.md`);
 
   return stageDir;
@@ -183,9 +183,9 @@ log(`Version: ${version}`);
 if (DRY_RUN) log('(dry run)\n');
 
 const backendStage = stageBackend(version);
-const frontendStage = stageFrontend(version);
+const browserStage = stageBrowser(version);
 
 log('\n=== Staging complete ===\n');
 log('To publish:');
 log(`  cd ${backendStage} && npm publish --access public`);
-log(`  cd ${frontendStage} && npm publish --access public`);
+log(`  cd ${browserStage} && npm publish --access public`);

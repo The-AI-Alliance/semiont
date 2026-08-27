@@ -184,7 +184,7 @@ flags:
     carryforward: true
 
   # App flags (for future use)
-  frontend:
+  browser:
     paths:
       - apps/browser/**
     carryforward: true

@@ -323,7 +323,7 @@ func startCodespace(u *ui, opts startOptions) int {
 	if httpOK("http://localhost:3000") {
 		fmt.Printf("  Semiont Browser    %s %s\n", u.bold("http://localhost:3000"), u.dim("(discovery-synced — this KB appears in its panel)"))
 	} else {
-		fmt.Printf("  Semiont Browser    %s %s\n", u.bold("semiont start --service frontend"),
+		fmt.Printf("  Semiont Browser    %s %s\n", u.bold("semiont start --service browser"),
 			u.dim("(no local container runtime found — install one, or browse from another machine)"))
 	}
 	fmt.Println()

@@ -1467,7 +1467,7 @@ func TestStatusAllHealthy(t *testing.T) {
 	// Full stack running and healthy (Apple container JSON inspect path);
 	// Jaeger absent is fine — observability is optional, exit stays 0.
 	s := newScenario(t, "container")
-	for _, svc := range []string{"backend", "worker", "smelter", "weaver", "frontend", "neo4j", "qdrant", "postgres", "ollama"} {
+	for _, svc := range []string{"backend", "worker", "smelter", "weaver", "browser", "neo4j", "qdrant", "postgres", "ollama"} {
 		s.extraEnv = append(s.extraEnv, "FAKERT_STATE_"+svc+"=running")
 	}
 	serveHealth(t, 4000, 9090, 9091, 9092, 3000, 7474, 6333, 5432, 11434)
@@ -3050,7 +3050,7 @@ func TestBrowserPort(t *testing.T) {
 	// moved endpoint so status and stop follow it.
 	s := newScenario(t, "container")
 	s.noGitRoot = true // "just the browser" needs no clone
-	stdout, stderr, code := s.run(t, "start", "--service", "frontend", "--port", "3001")
+	stdout, stderr, code := s.run(t, "start", "--service", "browser", "--port", "3001")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
@@ -3058,12 +3058,12 @@ func TestBrowserPort(t *testing.T) {
 	mustContain(t, "argv log", string(log), "--publish 3001:3000")
 	mustContain(t, "stdout", stdout,
 		"Browser on port 3001", "may reject this origin",
-		"🚀 frontend is up")
+		"🚀 browser is up")
 	b, _ := os.ReadFile(statePathFor(s.home))
 	mustContain(t, "stack.json", string(b), `"endpoint": "http://localhost:3001"`)
 
 	// status probes the recorded endpoint, not the static 3000.
-	stdout, _, code = s.run(t, "status", "--service", "frontend")
+	stdout, _, code = s.run(t, "status", "--service", "browser")
 	if code != 0 {
 		t.Fatalf("status: exit %d\n%s", code, stdout)
 	}
@@ -3071,15 +3071,15 @@ func TestBrowserPort(t *testing.T) {
 
 	// Default port stays 3000, no warning.
 	s.killServes()
-	stdout, _, code = s.run(t, "start", "--service", "frontend")
+	stdout, _, code = s.run(t, "start", "--service", "browser")
 	if code != 0 {
-		t.Fatal("default-port frontend failed")
+		t.Fatal("default-port browser failed")
 	}
 	if strings.Contains(stdout, "may reject this origin") {
 		t.Errorf("default port warned:\n%s", stdout)
 	}
 
-	// Scoping: frontend-only, and never with codespace placement.
+	// Scoping: browser-only, and never with codespace placement.
 	for _, tc := range []struct{ args []string }{
 		{[]string{"start", "--port", "3001"}},
 		{[]string{"start", "--service", "worker", "--port", "3001"}},
@@ -3089,10 +3089,10 @@ func TestBrowserPort(t *testing.T) {
 			t.Errorf("%v: want exit 1, got %d", tc.args, code)
 		} else {
 			mustContain(t, fmt.Sprintf("stderr for %v", tc.args), stderr,
-				"--port only applies to --service frontend")
+				"--port only applies to --service browser")
 		}
 	}
-	if _, stderr, code := s.run(t, "start", "--service", "frontend", "--port", "notaport"); code != 1 {
+	if _, stderr, code := s.run(t, "start", "--service", "browser", "--port", "notaport"); code != 1 {
 		t.Error("bad port value should fail")
 	} else {
 		mustContain(t, "stderr", stderr, "Invalid --port")
@@ -3459,9 +3459,9 @@ func TestRootFlagErrors(t *testing.T) {
 		mustContain(t, "stderr for --root "+tc.arg, stderr, tc.want)
 	}
 	// Inapplicable service.
-	_, stderr, code := s.run(t, "start", "--service", "frontend", "--root", s.kb)
+	_, stderr, code := s.run(t, "start", "--service", "browser", "--root", s.kb)
 	if code != 1 {
-		t.Errorf("--root with frontend: want exit 1, got %d", code)
+		t.Errorf("--root with browser: want exit 1, got %d", code)
 	}
 	mustContain(t, "stderr", stderr, "--root only applies to services that read the KB config")
 }
@@ -3640,12 +3640,12 @@ func TestStackStateLifecycle(t *testing.T) {
 	if set.Schema != 3 || st.Runtime != "container" {
 		t.Errorf("schema/runtime: got %d/%q", set.Schema, st.Runtime)
 	}
-	// frontend is deliberately ABSENT from the stack's services: the Browser
+	// browser is deliberately ABSENT from the stack's services: the Browser
 	// is machine-level (BROWSER-LIFECYCLE.md), recorded under "browser".
-	if _, ok := st.Services["frontend"]; ok {
-		t.Error("frontend recorded as a stack service — the Browser is machine-level")
+	if _, ok := st.Services["browser"]; ok {
+		t.Error("browser recorded as a stack service — the Browser is machine-level")
 	}
-	if set.Browser == nil || set.Browser.ID != "fid-semiont-frontend" {
+	if set.Browser == nil || set.Browser.ID != "fid-semiont-browser" {
 		t.Errorf("browser record missing or wrong: %+v", set.Browser)
 	}
 	for _, role := range []string{"traces", "graph", "vectors", "inference", "database", "backend", "worker", "smelter", "weaver"} {
@@ -3716,7 +3716,7 @@ func TestStackStateLifecycle(t *testing.T) {
 		"container stop fid-semiont-backend",
 		"docker stop semiont-backend", "podman stop semiont-backend")
 	// The Browser survives a full stop — never in the sweep.
-	if strings.Contains(fullArgv, "semiont-frontend") {
+	if strings.Contains(fullArgv, "semiont-browser") {
 		t.Errorf("full stop touched the Browser:\n%s", fullArgv)
 	}
 	for _, bad := range []string{"docker stop fid-", "podman stop fid-"} {
@@ -4151,7 +4151,7 @@ func TestStartInjectsPersistentJWTSecret(t *testing.T) {
 
 	// Only the backend gets it: the sidecars authenticate via the worker
 	// secret + agent-token exchange and never sign anything.
-	for _, svc := range []string{"worker", "smelter", "weaver", "frontend"} {
+	for _, svc := range []string{"worker", "smelter", "weaver", "browser"} {
 		for _, line := range strings.Split(argv, "\n") {
 			if strings.Contains(line, "--name semiont-"+svc) && strings.Contains(line, "JWT_SECRET") {
 				t.Errorf("%s must not receive JWT_SECRET: %s", svc, line)
@@ -4319,7 +4319,7 @@ func TestStartServiceWorker(t *testing.T) {
 		"--env OTEL_EXPORTER_OTLP_ENDPOINT=http://",
 		"<config-stage>/worker.toml:/home/semiont/.semiontconfig:ro",
 	)
-	for _, absent := range []string{"run -d --name semiont-neo4j", "run -d --name semiont-backend", "semiont-frontend"} {
+	for _, absent := range []string{"run -d --name semiont-neo4j", "run -d --name semiont-backend", "semiont-browser"} {
 		if strings.Contains(argv, absent) {
 			t.Errorf("--service worker touched the wider stack: %q in argv", absent)
 		}
@@ -4365,11 +4365,11 @@ func TestStartServiceBrowserNoClone(t *testing.T) {
 	// without a KB clone (the main README's no-clone use case).
 	s := newScenario(t, "container")
 	s.noGitRoot = true
-	stdout, stderr, code := s.run(t, "start", "--service", "frontend")
+	stdout, stderr, code := s.run(t, "start", "--service", "browser")
 	if code != 0 {
 		t.Fatalf("want exit 0 outside a clone, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Restarting frontend", "🚀 frontend is up")
+	mustContain(t, "stdout", stdout, "Restarting browser", "🚀 browser is up")
 	// The git-clone invariant is scoped to /kb-mount flows: backend still
 	// requires a clone; a sidecar needs only the .semiont/ tree.
 	if _, stderr, code := s.run(t, "start", "--service", "backend"); code != 1 {
@@ -4410,7 +4410,7 @@ func TestStartServiceRejections(t *testing.T) {
 		want string
 	}{
 		{[]string{"start", "--service", "bogus"}, "Unknown --service 'bogus'"},
-		{[]string{"start", "--service", "frontend", "--config", "anthropic"}, "--config does not apply to --service frontend"},
+		{[]string{"start", "--service", "browser", "--config", "anthropic"}, "--config does not apply to --service browser"},
 		{[]string{"start", "--service", "worker", "--no-observe"}, "--no-observe does not apply to --service"},
 		{[]string{"start", "--service", "worker", "--ollama-cache", "host"}, "--ollama-cache only applies to --service inference."},
 		{[]string{"start", "--service", "worker", "--list-configs"}, "--list-configs cannot be combined with --service."},
@@ -5407,16 +5407,32 @@ func TestBrowserOutlivesTheStack(t *testing.T) {
 	// BROWSER-LIFECYCLE P2: the Browser is a machine-level viewer, not a
 	// stack member. Start ensures it; a second start with a current image
 	// KEEPS it; bare stop leaves it running (announced); a stale image is
-	// restarted; --service frontend is the explicit off-switch.
+	// restarted; --service browser is the explicit off-switch.
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	// The record is machine-level, not a stack service.
+	// The record is machine-level, not a stack service. Asserted on the
+	// PARSED shape, not a substring: before the rename the two could be told
+	// apart by name alone (machine-level "browser" vs the stack service
+	// "frontend"), and once both are "browser" a substring check cannot say
+	// WHERE it appeared — it would pass while the Browser sat in the wrong
+	// place, or contradict itself.
 	rec, _ := os.ReadFile(statePathFor(s.home))
-	mustContain(t, "stack.json", string(rec), `"browser"`)
-	if strings.Contains(string(rec), `"frontend"`) {
-		t.Errorf("frontend still recorded as a stack service:\n%s", rec)
+	var placement struct {
+		Browser *json.RawMessage `json:"browser"`
+		Stacks  map[string]struct {
+			Services map[string]json.RawMessage `json:"services"`
+		} `json:"stacks"`
+	}
+	if err := json.Unmarshal(rec, &placement); err != nil {
+		t.Fatalf("stack.json: %v", err)
+	}
+	if placement.Browser == nil {
+		t.Errorf("no machine-level browser record:\n%s", rec)
+	}
+	if _, wrong := placement.Stacks["local"].Services["browser"]; wrong {
+		t.Errorf("browser recorded as a stack service:\n%s", rec)
 	}
 	// The stack's port claims must NOT include the Browser's 3000 — stop
 	// verifies release of stack ports, and the Browser keeps running.
@@ -5444,8 +5460,8 @@ func TestBrowserOutlivesTheStack(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "stop stdout", stdout, "Browser still running", "semiont stop --service frontend")
-	if stopArgv := strings.TrimPrefix(string(s.mustLog(t)), string(preStop)); strings.Contains(stopArgv, "semiont-frontend") {
+	mustContain(t, "stop stdout", stdout, "Browser still running", "semiont stop --service browser")
+	if stopArgv := strings.TrimPrefix(string(s.mustLog(t)), string(preStop)); strings.Contains(stopArgv, "semiont-browser") {
 		t.Errorf("bare stop touched the Browser:\n%s", stopArgv)
 	}
 	rec, _ = os.ReadFile(statePathFor(s.home))
@@ -5454,8 +5470,8 @@ func TestBrowserOutlivesTheStack(t *testing.T) {
 	// Second start with the SAME image running: keep, don't churn. The fake
 	// runtime reports the reference the launcher would run.
 	s.extraEnv = append(s.extraEnv,
-		"FAKERT_STATE_frontend=running",
-		"FAKERT_IMAGE_frontend=ghcr.io/the-ai-alliance/semiont-frontend:latest")
+		"FAKERT_STATE_browser=running",
+		"FAKERT_IMAGE_browser=ghcr.io/the-ai-alliance/semiont-browser:latest")
 	before := s.mustLog(t)
 	stdout, stderr, code = s.run(t, "start")
 	if code != 0 {
@@ -5463,14 +5479,14 @@ func TestBrowserOutlivesTheStack(t *testing.T) {
 	}
 	fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
 	mustContain(t, "keep message", stdout+stderr, "Browser already running")
-	if strings.Contains(fresh, "run -d --name semiont-frontend") {
+	if strings.Contains(fresh, "run -d --name semiont-browser") {
 		t.Errorf("current Browser was churned:\n%s", fresh)
 	}
 
 	// Stale image (reference differs): restart.
 	for i, e := range s.extraEnv {
-		if strings.HasPrefix(e, "FAKERT_IMAGE_frontend=") {
-			s.extraEnv[i] = "FAKERT_IMAGE_frontend=ghcr.io/the-ai-alliance/semiont-frontend:old"
+		if strings.HasPrefix(e, "FAKERT_IMAGE_browser=") {
+			s.extraEnv[i] = "FAKERT_IMAGE_browser=ghcr.io/the-ai-alliance/semiont-browser:old"
 		}
 	}
 	if _, _, code := s.run(t, "stop", "--runtime", "container"); code != 0 {
@@ -5482,14 +5498,14 @@ func TestBrowserOutlivesTheStack(t *testing.T) {
 		t.Fatalf("stale-image start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
-	if !strings.Contains(fresh, "run -d --name semiont-frontend") {
+	if !strings.Contains(fresh, "run -d --name semiont-browser") {
 		t.Errorf("stale Browser was not restarted:\n%s", fresh)
 	}
 
 	// The explicit off-switch stops it and clears the record.
-	stdout, _, code = s.run(t, "stop", "--service", "frontend")
+	stdout, _, code = s.run(t, "stop", "--service", "browser")
 	if code != 0 {
-		t.Fatalf("stop --service frontend: exit %d", code)
+		t.Fatalf("stop --service browser: exit %d", code)
 	}
 	mustContain(t, "off-switch", stdout, "Browser stopped")
 	rec, _ = os.ReadFile(statePathFor(s.home))
@@ -6112,7 +6128,7 @@ func TestLogsDiscovery(t *testing.T) {
 	sort.Strings(follows)
 	want := []string{
 		"docker logs --follow semiont-backend",
-		"docker logs --follow semiont-frontend",
+		"docker logs --follow semiont-browser",
 		"docker logs --follow semiont-smelter",
 		"docker logs --follow semiont-weaver",
 		"docker logs --follow semiont-worker",
@@ -6122,13 +6138,13 @@ func TestLogsDiscovery(t *testing.T) {
 	}
 	// Streams: [svc]-prefixed, stderr kept in-stream (crash traces live there).
 	mustContain(t, "stdout", stdout,
-		"Following backend · worker · smelter · weaver · frontend",
+		"Following backend · worker · smelter · weaver · browser",
 		"[backend] backend out",
 		"[backend] backend err",
 		"[worker] worker out",
 		"[smelter] smelter err",
 		"[weaver] weaver out",
-		"[frontend] frontend err",
+		"[browser] browser err",
 	)
 }
 
