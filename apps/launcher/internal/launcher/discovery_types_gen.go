@@ -111,9 +111,9 @@ func (j *DiscoveredKB) UnmarshalJSON(value []byte) error {
 
 // The launcher's KB discovery document — the schema authority for
 // <stateDir>/discovery/kbs.json, which the semiont launcher (Go, apps/launcher)
-// regenerates on every stack mutation and the frontend container mounts read-only
+// regenerates on every stack mutation and the Browser container mounts read-only
 // at /discovery. NOT an API endpoint: a static document fetched same-origin by
-// browsers (via the frontend's static server) or read from disk by local Node
+// browsers (via the Browser's static server) or read from disk by local Node
 // consumers. An empty kbs list is meaningful ("the launcher manages nothing right
 // now") and distinct from an absent file. Design record:
 // .plans/BROWSER-KB-DISCOVERY.md.

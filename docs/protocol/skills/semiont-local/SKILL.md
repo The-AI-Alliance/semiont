@@ -54,7 +54,7 @@ Run `semiont <command> --help` for a command's options, and `semiont --help` for
 
 | Service | URL |
 |---------|-----|
-| Browser (frontend) | http://localhost:3000 |
+| Browser | http://localhost:3000 |
 | Backend API | http://localhost:4000 |
 
 ## Key file locations

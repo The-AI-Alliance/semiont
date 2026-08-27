@@ -460,18 +460,23 @@ export function loadTomlConfig(
     topLevelActors['matcher'] = { inference: { type: makeMeaningSection.actors.matcher.inference.type, model: makeMeaningSection.actors.matcher.inference.model } };
   }
 
-  // `[frontend]` was renamed to `[browser]`. Refuse it rather than ignore it:
-  // the emit below is guarded by `if (browser)`, so a stale section would
-  // simply never produce a service block — the Browser would come up
-  // unconfigured on defaults with nothing said. This is NOT a compatibility
-  // shim; the old key is not accepted, it is reported.
-  if ((resolved as Record<string, unknown>)['frontend'] !== undefined) {
-    throw new Error(
-      `[environments.${resolvedEnvironment}] uses [frontend], which is now [browser] — rename the section. The launcher, the image and the container all say "browser" now, and a [frontend] section would be silently ignored.`,
-    );
-  }
-
-  const browser = resolved.browser;
+  // `[frontend]` was renamed to `[browser]`. This ACCEPTS the old spelling and
+  // maps it forward — a deliberate, temporary exception to the house rule
+  // against compatibility layers (user, 2026-08-26): the KB fleet's committed
+  // configs still say `[frontend]`, and refusing here would break every one of
+  // them at once for a rename that is otherwise invisible to them.
+  //
+  // Accepting is safe only because it is EXPLICIT. The emit below is guarded by
+  // `if (browser)`, so merely ignoring a stale section would bring the Browser
+  // up unconfigured on defaults with nothing said — which is the failure this
+  // mapping exists to prevent, not a reason to refuse.
+  //
+  // `[browser]` wins if both are present: a config that has been migrated is
+  // authoritative over a leftover section beside it. Docs say `[browser]` only.
+  const legacyFrontend = (resolved as Record<string, unknown>)['frontend'] as
+    | EnvironmentSection['browser']
+    | undefined;
+  const browser = resolved.browser ?? legacyFrontend;
 
   // Semantic search is always available, so a config must NAME both a vector
   // store and an embedding provider — nothing is defaulted, and absence

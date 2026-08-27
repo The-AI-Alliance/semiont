@@ -37,7 +37,7 @@ graph TB
     class BUS1,BUS2,BUSN bus
 ```
 
-Human actors interact through the **Semiont Browser** — the `apps/browser` single-page app (Vite + React), packaged as the `ghcr.io/the-ai-alliance/semiont-frontend` container image. A user connects to one or more Knowledge Bases (each a separate backend); DOM interactions become bus commands through the same `/bus/emit` + `/bus/subscribe` endpoints every other Semiont actor uses. Because it's a static SPA, it can equivalently be served from any file server or CDN — the container is the deployment-ready packaging for the "download and run" path.
+Human actors interact through the **Semiont Browser** — the `apps/browser` single-page app (Vite + React), packaged as the `ghcr.io/the-ai-alliance/semiont-browser` container image. A user connects to one or more Knowledge Bases (each a separate backend); DOM interactions become bus commands through the same `/bus/emit` + `/bus/subscribe` endpoints every other Semiont actor uses. Because it's a static SPA, it can equivalently be served from any file server or CDN — the container is the deployment-ready packaging for the "download and run" path.
 
 For end-user-facing browser docs (running it locally, accessibility, keyboard shortcuts), see **[../browser/](../browser/)**.
 

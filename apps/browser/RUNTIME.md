@@ -1,6 +1,6 @@
-# Frontend Runtime Directory
+# Browser Runtime Directory
 
-This directory contains runtime files for the frontend service.
+This directory contains runtime files for the Browser service.
 
 ## Structure
 
@@ -18,12 +18,12 @@ Edit `.env.local` to configure:
 
 ## Source Code
 
-The frontend source code is located at:
+The Browser source code is located at:
 /Users/pingel/git_repos/github.com/The-AI-Alliance/semiont/apps/browser
 
 ## Commands
 
-- Start: `semiont start --service frontend --environment local`
+- Start: `semiont start --service browser --environment local`
 - Check: `semiont status`
-- Stop: `semiont stop --service frontend --environment local`
+- Stop: `semiont stop --service browser --environment local`
 - Logs: `tail -f logs/app.log`

@@ -1,8 +1,8 @@
-# Frontend Testing Guide
+# Browser Testing Guide
 
 **Last Updated**: 2026-01-12
 
-Comprehensive guide to testing the Semiont frontend and how it integrates with the @semiont/react-ui component library testing.
+Comprehensive guide to testing the Semiont Browser and how it integrates with the @semiont/react-ui component library testing.
 
 ## Table of Contents
 
@@ -18,10 +18,10 @@ Comprehensive guide to testing the Semiont frontend and how it integrates with t
 
 ## Overview
 
-Testing in the Semiont frontend is split between two packages following the component library factorization:
+Testing in the Semiont Browser is split between two packages following the component library factorization:
 
 - **@semiont/react-ui**: Tests framework-agnostic components and business logic
-- **apps/browser**: Tests Next.js specific integrations and page wrappers
+- **apps/browser**: Tests app-specific integrations and route wrappers
 
 **Key Principles**:
 1. **Type Safety First** - TypeScript provides compile-time validation
@@ -89,7 +89,7 @@ npm run typecheck:all       # Source + test tsconfigs
 npm run build               # Typechecks as a prebuild step
 ```
 
-Every script sets `SEMIONT_ROOT` itself — you do not need to export it. (The frontend
+Every script sets `SEMIONT_ROOT` itself — you do not need to export it. (The Browser
 tests read no environment config, so there is no environment to select.) To run one of
 them from the repo root instead, use `npm run test:unit --workspace=apps/browser`.
 
@@ -140,7 +140,7 @@ src/
 
 ### App Shell & Routing Tests
 
-The SPA has no server and no API routes; the non-component frontend tests
+The SPA has no server and no API routes; the non-component Browser tests
 cover the app shell, routing, and provider composition:
 
 ```
@@ -358,7 +358,7 @@ npm run analyze-bundle         # Bundle size regression detection
 
 ### Quality Assurance Approach
 
-The frontend relies on multiple layers of quality assurance:
+The Browser relies on multiple layers of quality assurance:
 
 1. **Strict TypeScript** - Catches errors at compile time
 2. **Unit Tests** - Critical business logic validation
@@ -445,19 +445,19 @@ npm run perf
 
 ### Overview
 
-The codebase follows the **Humble Object Pattern** for React components, with business logic components now living in @semiont/react-ui and thin wrappers in the frontend.
+The codebase follows the **Humble Object Pattern** for React components, with business logic components now living in @semiont/react-ui and thin wrappers in the Browser.
 
 ### Component Architecture with @semiont/react-ui
 
 **Pure Component** (in `@semiont/react-ui`):
 - Contains business logic and UI structure
 - All data passed as props or via providers
-- No framework-specific hooks (Next.js)
+- No framework-specific hooks (no router or app-shell dependencies)
 - Thoroughly tested in the react-ui package
 
-**Page Wrapper** (in `apps/browser/app/`):
-- Implements provider interfaces for Next.js
-- Calls Next.js hooks (`useRouter`, `useSearchParams`, etc.)
+**Route Wrapper** (in `apps/browser/src/`):
+- Implements provider interfaces for the app shell
+- Calls React Router hooks (`useNavigate`, `useSearchParams`, etc.)
 - Wraps components from @semiont/react-ui
 - So thin it rarely needs testing
 
@@ -529,7 +529,7 @@ it('renders resource title', async () => {
 });
 ```
 
-**Frontend wrapper tests** (minimal, if needed):
+**Browser wrapper tests** (minimal, if needed):
 
 ```typescript
 // apps/browser/app/[locale]/resources/[id]/__tests__/page.test.tsx
@@ -626,9 +626,9 @@ packages/react-ui/src/hooks/__tests__/useResourceContent.test.tsx
 packages/react-ui/src/features/auth/__tests__/SignUpForm.test.tsx
 ```
 
-**Testing frontend integration:**
+**Testing Browser integration:**
 ```bash
-# Run frontend tests
+# Run the Browser tests
 cd apps/browser
 npm test
 
@@ -637,7 +637,7 @@ src/app/[locale]/auth/__tests__/signup-flow.integration.test.tsx
 src/contexts/__tests__/AuthShell.integration.test.tsx
 ```
 
-**Key Testing Pattern**: Business logic lives in @semiont/react-ui and is thoroughly tested there. The frontend tests app-shell/routing/provider integration and app-specific components.
+**Key Testing Pattern**: Business logic lives in @semiont/react-ui and is thoroughly tested there. The Browser tests app-shell/routing/provider integration and app-specific components.
 
 ## Future Testing Enhancements
 
@@ -657,7 +657,7 @@ Planned improvements for higher test coverage:
 
 ### Development Guides
 - [Development Guide](./DEVELOPMENT.md) - Local development workflows
-- [Frontend Architecture](./ARCHITECTURE.md) - High-level system design
+- [Browser Architecture](./ARCHITECTURE.md) - High-level system design
 - [Contributing Guide](../../../CONTRIBUTING.md) - Contribution guidelines
 
 ### External Resources

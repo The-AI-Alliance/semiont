@@ -26,8 +26,8 @@ Every channel is `verb:action` or `verb:action-state`. The verb is one of the ei
 | `browse:` | `browse:resource-requested`, `browse:click` | Reads + UI navigation |
 | `beckon:` | `beckon:hover`, `beckon:focus`, `beckon:sparkle` | Attention coordination |
 | `job:` | `job:start`, `job:report-progress`, `job:complete` | Worker job lifecycle |
-| `panel:`, `tabs:`, `nav:`, `shell:` | `panel:toggle`, `nav:push` | App-shell UI events (frontend only) |
-| `settings:` | `settings:theme-changed`, `settings:locale-changed` | Frontend preferences |
+| `panel:`, `tabs:`, `nav:`, `shell:` | `panel:toggle`, `nav:push` | App-shell UI events (Browser only) |
+| `settings:` | `settings:theme-changed`, `settings:locale-changed` | Browser preferences |
 | `bus:`, `stream-`, `replay-` | `bus:resume-gap`, `stream-connected` | SSE infrastructure |
 
 State suffixes follow a small vocabulary:
@@ -256,7 +256,7 @@ Five operations, all logged at transport-contract choke points (not in the SDK's
 
 The full capture API and per-test fixture are in **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)**.
 
-A clean round-trip across the wire shows a contiguous EMIT → EMIT → SSE → RECV pattern. Missing lines diagnose with surgical precision: no backend `EMIT` means the request never reached the server (auth, CORS, network); no backend `SSE` means the handler never produced a result; no frontend `RECV` means the SSE bytes never parsed.
+A clean round-trip across the wire shows a contiguous EMIT → EMIT → SSE → RECV pattern. Missing lines diagnose with surgical precision: no backend `EMIT` means the request never reached the server (auth, CORS, network); no backend `SSE` means the handler never produced a result; no Browser `RECV` means the SSE bytes never parsed.
 
 ## How the SDK shapes the protocol
 

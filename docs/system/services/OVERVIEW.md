@@ -8,7 +8,7 @@ Five services run Semiont code. Each is a published container image; see [Contai
 
 | Service | Port | What runs | Bundled package | Docs |
 |---|---|---|---|---|
-| **frontend** | 3000 | Static server for the Semiont Browser SPA | `semiont-frontend` | [README](../../../apps/browser/README.md) |
+| **browser** | 3000 | Static server for the Semiont Browser SPA | `semiont-browser` | [README](../../../apps/browser/README.md) |
 | **backend** | 4000 | API server + unified bus gateway; Stower, Browser, Gatherer, Matcher | `semiont-backend` | [README](../../../apps/backend/README.md) |
 | **worker** | 9090 | Annotation/generation worker pool | `@semiont/jobs` | [API](../../../packages/jobs/docs/API.md) |
 | **smelter** | 9091 | Embedding/vector pipeline actor | `@semiont/make-meaning` | [Package](../../../packages/make-meaning/) |
@@ -159,7 +159,7 @@ graph LR
 
 ### Runtime dependencies
 
-- **Frontend** → nothing. It serves static assets; the SPA in the user's browser talks to the backend directly.
+- **Browser** → nothing. It serves static assets; the SPA in the user's browser talks to the backend directly.
 - **Backend** → PostgreSQL (users), event log, graph, vector store, inference
 - **Worker** → backend bus, inference
 - **Smelter** → backend bus, vector store, embeddings
@@ -190,7 +190,7 @@ See [Container Topology](../CONTAINER-TOPOLOGY.md) for the full picture.
 | inference / embedding | `http://localhost:11434/api/version` |
 | traces | `http://localhost:16686` |
 
-Every role but `traces` counts toward the exit status, so `semiont status` is usable as a gate in a script. The frontend has no probe — it is a static file server with nothing to be unhealthy about.
+Every role but `traces` counts toward the exit status, so `semiont status` is usable as a gate in a script. The Browser has no probe — it is a static file server with nothing to be unhealthy about.
 
 The backend's `/api/health` reports database reachability and the environment name; the rest are liveness.
 

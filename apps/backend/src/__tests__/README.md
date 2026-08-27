@@ -148,9 +148,9 @@ All admin endpoints properly protected:
 | **Token Manipulation** | Server-side validation only | ✅ |
 | **Edge Case Exploits** | Malformed data handling | ✅ |
 
-## Comparison with Frontend Security
+## Comparison with Browser Security
 
-| Aspect | Frontend (Fixed) | Backend (Already Secure) |
+| Aspect | Browser (Fixed) | Backend (Already Secure) |
 |--------|------------------|--------------------------|
 | **Issue** | 307 redirects with content leakage | Already returning proper 403 JSON |
 | **Fix** | Server-side auth wrapper | Already had proper middleware |

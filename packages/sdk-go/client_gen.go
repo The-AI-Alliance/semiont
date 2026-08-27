@@ -1995,7 +1995,7 @@ type BusEmitRequest struct {
 	// Payload Channel-specific payload, validated against CHANNEL_SCHEMAS
 	Payload map[string]interface{} `json:"payload"`
 
-	// Scope Optional resource scope for broadcast channels (e.g. resourceId). Publishers only — frontends must never set this.
+	// Scope Optional resource scope for broadcast channels (e.g. resourceId). Publishers only — clients must never set this.
 	Scope *string `json:"scope,omitempty"`
 }
 
@@ -2194,7 +2194,7 @@ type DiscoveredKB struct {
 // DiscoveredKBPlacement Where the stack actually runs. "local": containers on this machine. "codespace": a GitHub-hosted VM whose KB is port-forwarded here.
 type DiscoveredKBPlacement string
 
-// DiscoveryDocument The launcher's KB discovery document — the schema authority for <stateDir>/discovery/kbs.json, which the semiont launcher (Go, apps/launcher) regenerates on every stack mutation and the frontend container mounts read-only at /discovery. NOT an API endpoint: a static document fetched same-origin by browsers (via the frontend's static server) or read from disk by local Node consumers. An empty kbs list is meaningful ("the launcher manages nothing right now") and distinct from an absent file. Design record: .plans/BROWSER-KB-DISCOVERY.md.
+// DiscoveryDocument The launcher's KB discovery document — the schema authority for <stateDir>/discovery/kbs.json, which the semiont launcher (Go, apps/launcher) regenerates on every stack mutation and the Browser container mounts read-only at /discovery. NOT an API endpoint: a static document fetched same-origin by browsers (via the Browser's static server) or read from disk by local Node consumers. An empty kbs list is meaningful ("the launcher manages nothing right now") and distinct from an absent file. Design record: .plans/BROWSER-KB-DISCOVERY.md.
 type DiscoveryDocument struct {
 	// Kbs Every KB the launcher currently manages, local and forwarded
 	Kbs []DiscoveredKB `json:"kbs"`

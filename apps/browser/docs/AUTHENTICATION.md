@@ -1,10 +1,10 @@
-# Frontend Authentication Architecture
+# Browser Authentication Architecture
 
 ## Overview
 
 A user is always authenticated **against a specific Knowledge Base
 (KB)** — never globally. Switching KBs means switching sessions
-atomically. The frontend stores one JWT pair per KB in
+atomically. The Browser stores one JWT pair per KB in
 `localStorage` and validates on session construction via the backend's
 `GET /api/users/me` endpoint.
 
@@ -15,7 +15,7 @@ state is owned by a single `SemiontBrowser` singleton that lives in
 
 For the class-level story (observables, lifetimes, invariants), see
 [SESSION.md in `@semiont/react-ui`](../../../packages/react-ui/docs/SESSION.md).
-This doc covers the **frontend-app** concerns: where providers mount,
+This doc covers the **Browser-app** concerns: where providers mount,
 how route protection is expressed, how sign-in / sign-out flow, and
 how out-of-tree code signals the provider.
 
@@ -77,7 +77,7 @@ User-facing UI for adding / switching / signing out of KBs. Calls
 `browser.addKb(input)`, `browser.signIn(id, access, refresh)`, and
 `browser.signOut(id)`. Never writes to `localStorage` directly — all
 persistence goes through `SemiontBrowser`'s `SessionStorage` adapter
-(the frontend injects `WebBrowserStorage`).
+(the Browser injects `WebBrowserStorage`).
 
 ## Route protection pattern
 
@@ -131,7 +131,7 @@ false) is how the layout knows to render the unauth view with a
 
 ```
 1. User adds a KB via KnowledgeBasePanel
-   └── Frontend POSTs credentials directly to that KB's backend
+   └── The Browser POSTs credentials directly to that KB's backend
        └── Backend returns access + refresh JWTs
            └── Panel calls browser.addKb({...kb}) and browser.signIn(id, access, refresh)
                └── Browser stores tokens, activates the KB, constructs a SemiontSession
@@ -163,7 +163,7 @@ OAuth providers can be configured per KB on the backend. The flow:
 2. Browser redirects to the backend's OAuth endpoint for that KB.
 3. Backend handles the OAuth dance, issues a JWT, redirects back with
    the token in the URL fragment.
-4. Frontend parses the fragment, calls `browser.signIn(id, ...)` with
+4. The Browser parses the fragment, calls `browser.signIn(id, ...)` with
    the returned tokens.
 
 ## Cross-tree session signaling

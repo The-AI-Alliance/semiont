@@ -202,7 +202,7 @@ GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com   # for /api/tokens/g
 GOOGLE_CLIENT_SECRET=your-client-secret
 ```
 
-There are **no** `NEXTAUTH_*` variables — the frontend is a pure SPA with no auth server.
+There are **no** `NEXTAUTH_*` variables — the Browser is a pure SPA with no auth server.
 
 ### Secret management
 

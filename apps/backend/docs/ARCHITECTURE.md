@@ -255,7 +255,7 @@ The backend runs as two processes:
 
 1. **Knowledge System (KS)** -- the main process. Runs all KB actors (Stower, Browser, Gatherer, Matcher, Smelter), all stores, the RxJS EventBus, SSE streaming, the HTTP API, and the job queue.
 
-2. **Worker Pool** -- a separate process external. Runs the Generator and the five annotation detection workers. Workers do not share the in-process EventBus. Instead, they use `WorkerStateUnit` from `@semiont/http-transport` to connect to the KS over HTTP and SSE -- the same transport the frontend uses.
+2. **Worker Pool** -- a separate process external. Runs the Generator and the five annotation detection workers. Workers do not share the in-process EventBus. Instead, they use `WorkerStateUnit` from `@semiont/http-transport` to connect to the KS over HTTP and SSE -- the same transport the Browser uses.
 
 ### Worker Endpoints
 
@@ -271,7 +271,7 @@ The KS exposes three endpoints for worker communication:
 
 - CPU-heavy LLM inference and annotation detection run in a separate V8 isolate, keeping the KS event loop responsive to user requests.
 - Workers are stateless with respect to the KB. They receive job assignments, do inference, and emit events back. All durable state lives in the KS.
-- The worker pool can crash and restart without affecting the KS or connected frontend clients.
+- The worker pool can crash and restart without affecting the KS or connected Browser clients.
 
 ### Job Queue
 

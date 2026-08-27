@@ -560,7 +560,7 @@ surfaces without hand-typed hosts and ports.
 import { httpDiscovery, textDiscovery, subscribeDiscovery, parseDiscoveryDocument } from '@semiont/sdk';
 import type { DiscoveredKB } from '@semiont/core';
 
-// Browser, same origin as the Semiont frontend: poll + diff.
+// Browser, same origin as the Semiont Browser: poll + diff.
 const sub = subscribeDiscovery(httpDiscovery(), { intervalMs: 5_000 })
   .subscribe(({ state, added, updated, removed }) => {
     if (state.kind === 'absent') {
@@ -661,7 +661,7 @@ SEMIONT_BUS_LOG=1 <command>          # Node (backend, workers, smelter, CLI, MCP
 window.__SEMIONT_BUS_LOG__ = true;   # Browser (DevTools or e2e init)
 ```
 
-Cost when disabled: a single truthy check, zero allocations. Five op codes — `EMIT`, `RECV`, `SSE`, `PUT`, `GET` — cover every transport-level write and read. Failure modes are diagnosable from a missing line: backend `EMIT` missing → request never reached the server; backend `SSE` missing → handler emitted no result; frontend `RECV` missing → server wrote but bytes never parsed client-side. The full guide with the timeline format and e2e capture API is at [`tests/e2e/docs/bus-logging.md`](../../../tests/e2e/docs/bus-logging.md).
+Cost when disabled: a single truthy check, zero allocations. Five op codes — `EMIT`, `RECV`, `SSE`, `PUT`, `GET` — cover every transport-level write and read. Failure modes are diagnosable from a missing line: backend `EMIT` missing → request never reached the server; backend `SSE` missing → handler emitted no result; Browser `RECV` missing → server wrote but bytes never parsed client-side. The full guide with the timeline format and e2e capture API is at [`tests/e2e/docs/bus-logging.md`](../../../tests/e2e/docs/bus-logging.md).
 
 When OpenTelemetry is initialized (Tier 2), every bus-log line gets a `trace=<8hex>` suffix that correlates the grep timeline with the trace UI.
 

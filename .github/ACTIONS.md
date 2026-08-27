@@ -103,7 +103,7 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/admin/users  #
 ## 🛡️ Security Workflow Details
 
 ### Environment Setup
-Both frontend and backend security tests use:
+Both Browser and backend security tests use:
 - **Node.js 20**: Latest LTS version
 - **PostgreSQL 15**: Test database for backend
 - **Environment Variables**: Test credentials and configuration
@@ -111,7 +111,7 @@ Both frontend and backend security tests use:
 
 ### Test Environment Variables
 ```bash
-# Frontend
+# Browser
 SERVER_API_URL=http://localhost:3001
 NEXT_PUBLIC_SITE_NAME=Semiont Test
 NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=example.com

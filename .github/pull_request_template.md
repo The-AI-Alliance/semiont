@@ -17,7 +17,7 @@ Brief description of the changes in this PR.
 
 ## Areas Changed
 
-- [ ] Frontend (`apps/browser`)
+- [ ] Browser (`apps/browser`)
 - [ ] Backend (`apps/backend`)
 - [ ] Launcher (`apps/launcher`)
 - [ ] HTTP Transport (`packages/http-transport`)
@@ -43,7 +43,7 @@ Brief description of the changes in this PR.
 - [ ] Session data comes from secure sources (database, not client claims)
 - [ ] No hardcoded secrets or credentials
 
-### Admin Route Security (Frontend)
+### Admin Route Security (Browser)
 
 - [ ] Admin/moderate routes protected by middleware (proxy.ts)
 - [ ] No admin content rendered for unauthorized users
@@ -77,7 +77,7 @@ Brief description of the changes in this PR.
 
 Please run and paste results:
 
-### Frontend Security Tests
+### Browser Security Tests
 
 ```bash
 cd apps/browser && npm run test:security
@@ -110,7 +110,7 @@ curl -s http://localhost:3000/admin | grep -i "admin\|dashboard\|management"
 - [ ] No significant performance degradation
 - [ ] Database queries optimized
 - [ ] No N+1 query problems introduced
-- [ ] Bundle size impact considered (for frontend changes)
+- [ ] Bundle size impact considered (for Browser changes)
 
 ## Breaking Changes
 

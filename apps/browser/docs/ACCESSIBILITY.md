@@ -1,12 +1,12 @@
 # Accessibility — Implementation
 
-How the Semiont frontend implements [WCAG 2.1 Level AA](https://www.w3.org/WAI/WCAG21/quickref/) — patterns, primitives, and how to keep new code conformant.
+How the Semiont Browser implements [WCAG 2.1 Level AA](https://www.w3.org/WAI/WCAG21/quickref/) — patterns, primitives, and how to keep new code conformant.
 
 For the user-facing capability claim (what users see, how to verify it), see **[../../../docs/browser/ACCESSIBILITY.md](../../../docs/browser/ACCESSIBILITY.md)**. For the keyboard navigation architecture, see **[KEYBOARD-NAV.md](KEYBOARD-NAV.md)**.
 
 ## Compliance baseline
 
-The frontend meets WCAG 2.1 AA via:
+The Browser meets WCAG 2.1 AA via:
 
 - **Keyboard Accessible (2.1.1):** all interactive elements reachable and operable via keyboard.
 - **No Keyboard Trap (2.1.2):** standard navigation keys move in and out of every component (modals included).

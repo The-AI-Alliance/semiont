@@ -12,7 +12,7 @@
  *
  * The complete EventMap for the RxJS EventBus. Every channel name and
  * its payload type is defined here — domain events, commands, reads,
- * results, SSE stream payloads, and frontend UI events.
+ * results, SSE stream payloads, and Browser UI events.
  *
  * Identifier discipline: where a payload carries an annotation or
  * resource id, the TypeScript layer narrows the OpenAPI `string` to the
@@ -446,7 +446,7 @@ export type EventMap = {
   'smelt:rebuild-anchors-failed': { correlationId?: string; message: string };
 
   // ========================================================================
-  // SETTINGS (frontend-only)
+  // SETTINGS (Browser-only)
   // ========================================================================
 
   'settings:theme-changed': components['schemas']['SettingsThemeChangedEvent'];
@@ -731,7 +731,7 @@ export const CHANNEL_SCHEMAS = {
   'job:cancel-ok':                    null,
   'job:cancel-failed':                'CommandError',
 
-  // ── SETTINGS (frontend-only) ────────────────────────────────────
+  // ── SETTINGS (Browser-only) ────────────────────────────────────
   'settings:theme-changed':           'SettingsThemeChangedEvent',
   'settings:line-numbers-toggled':    null, // void
   'settings:locale-changed':          'SettingsLocaleChangedEvent',

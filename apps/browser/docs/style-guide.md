@@ -1,8 +1,8 @@
-# Semiont Frontend Style Guide
+# Semiont Browser Style Guide
 
 ## CSS Architecture Overview
 
-The Semiont frontend uses a hybrid CSS architecture that combines:
+The Semiont Browser uses a hybrid CSS architecture that combines:
 1. **Semantic CSS from @semiont/react-ui** - Framework-agnostic component styles with modular organization
 2. **Tailwind CSS** - For app-specific styling and utilities
 
@@ -31,7 +31,7 @@ This provides all component styles with the `semiont-` prefix:
 - And more...
 
 #### Tailwind Configuration
-The frontend app uses Tailwind for its own components and layout. The configuration excludes @semiont/react-ui from content scanning since it doesn't use Tailwind classes:
+The Browser app uses Tailwind for its own components and layout. The configuration excludes @semiont/react-ui from content scanning since it doesn't use Tailwind classes:
 
 ```typescript
 // tailwind.config.ts
@@ -63,9 +63,9 @@ import { Button, Card, Toolbar } from '@semiont/react-ui';
 
 Both systems support dark mode:
 - **@semiont/react-ui**: Uses `data-theme="dark"` attribute
-- **Frontend Tailwind**: Uses `class="dark"` on HTML element
+- **Browser Tailwind**: Uses `class="dark"` on HTML element
 
-The frontend handles this coordination automatically through the theme provider.
+The Browser handles this coordination automatically through the theme provider.
 
 ### Custom Styling Approach
 
@@ -81,7 +81,7 @@ If you need to customize a react-ui component, add additional classes without ov
 ```
 
 #### For App-Specific Components
-Use Tailwind utilities freely for components defined in the frontend app:
+Use Tailwind utilities freely for components defined in the Browser app:
 
 ```typescript
 // App-specific component using Tailwind
@@ -263,7 +263,7 @@ import { Card } from '@semiont/react-ui';
 
 ### App-Specific Styling with Tailwind
 
-For components specific to the frontend app, use Tailwind utilities:
+For components specific to the Browser app, use Tailwind utilities:
 
 #### Custom Button Styles
 We have three standard button styles defined in `/src/lib/button-styles.ts` for app-specific buttons:
@@ -563,7 +563,7 @@ className={clsx(
 
 ## File Organization
 
-### Frontend App Files
+### Browser App Files
 - `/src/lib/button-styles.ts` - App-specific button styles using Tailwind
 - `/src/lib/annotation-styles.ts` - Annotation and highlight styles
 - `/src/app/globals.css` - Global styles and @semiont/react-ui import

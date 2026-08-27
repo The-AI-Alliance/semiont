@@ -29,7 +29,7 @@ KB's config bind-mounted at runtime. No npm required, and nothing is built
 locally: KB repos carry no Dockerfiles and no scripts. `semiont logs`
 follows the services, `semiont status` health-checks them, `semiont stop`
 tears the stack down (the browser survives — it's machine-level, not a
-stack member; `semiont stop --service frontend` closes it), and
+stack member; `semiont stop --service browser` closes it), and
 `semiont start --dry-run` prints the exact runtime commands a real run
 would execute. See the
 [KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for
@@ -65,12 +65,12 @@ To see all available configs:
 semiont start --list-configs
 ```
 
-The stack includes the Semiont browser (the frontend container on port
+The stack includes the Semiont browser (the Browser container on port
 3000) — no second terminal needed. To run just a browser against an
 already-running KB, the published image works standalone:
 
 ```bash
-container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-frontend:latest
+container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-browser:latest
 ```
 
 Want to verify image provenance before running? See [Supply-chain verification](./administration/IMAGES.md#supply-chain-verification).

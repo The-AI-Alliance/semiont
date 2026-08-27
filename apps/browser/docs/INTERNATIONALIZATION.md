@@ -4,7 +4,7 @@
 
 ## Overview
 
-The frontend uses **i18next** + **react-i18next** for internationalization.
+The Browser uses **i18next** + **react-i18next** for internationalization.
 
 - **Translation files**: Merged from two sources before every build/test/dev run
 - **Locale routing**: React Router v7 with `/:locale/*` prefix
@@ -19,7 +19,7 @@ packages/react-ui/translations/{locale}.json   ← component-level strings
 apps/browser/messages-source/{locale}.json   ← app-level strings
        │
        │  scripts/merge-translations.js
-       │  deepMerge(reactUI, frontend)  — frontend wins on collision
+       │  deepMerge(reactUI, browser)  — browser wins on collision
        ▼
 apps/browser/messages/{locale}.json           ← read by vitest mock at test time
 apps/browser/public/messages/{locale}.json    ← served at /messages/{locale}.json at runtime
@@ -85,7 +85,7 @@ Translation file (`messages-source/en.json`):
 
 ## Adding a New Language
 
-1. Add translation file for the frontend:
+1. Add translation file for the Browser:
    ```bash
    cp apps/browser/messages-source/en.json apps/browser/messages-source/fr.json
    # Translate all values in fr.json

@@ -265,7 +265,7 @@ factory touches a raw `EventBus`.
 
 The Semiont launcher publishes an export view of every KB it manages
 (local stacks and codespace forwards) as a `DiscoveryDocument`, which the
-frontend image serves at `DISCOVERY_URL_PATH` (`@semiont/core`). The sdk
+Browser image serves at `DISCOVERY_URL_PATH` (`@semiont/core`). The sdk
 owns every consumer-side semantic — validation via the core type guards,
 the `version` compatibility gate, the **typed absent-vs-managed
 distinction** (`absent` = "no launcher detected"; `managed` with an empty

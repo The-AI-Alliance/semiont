@@ -50,7 +50,7 @@ their traffic shows up as the transport calls they make.
 
 ## Enable
 
-### Browser (frontend)
+### Browser
 
 Run-time toggle in DevTools or e2e init script:
 
@@ -96,7 +96,7 @@ Failure modes — each obvious from a missing line:
 |----------------|--------------------------------------------------------------------|
 | Backend `EMIT` | Client never reached the server (auth, CORS, network).             |
 | Backend `SSE`  | In-process handler never emitted a result, or no subscriber fired. |
-| Frontend `RECV`| Backend wrote to the SSE stream but bytes never parsed client-side.|
+| Browser `RECV`| Backend wrote to the SSE stream but bytes never parsed client-side.|
 | Backend `PUT`  | Client started an upload but the body never reached the server.    |
 
 ## E2E capture API

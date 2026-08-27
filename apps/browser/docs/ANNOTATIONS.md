@@ -4,13 +4,13 @@
 
 The Semiont annotation system enables users to mark up documents with highlights, comments, assessments, and references, creating a rich knowledge graph. Built on the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/), annotations are standards-compliant objects with motivations following the W3C specification.
 
-This document describes the frontend UI patterns, component architecture, user workflows, and the annotation registry system. For the complete W3C implementation across all backend components (API, Event Store, and Graph Database), see [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md).
+This document describes the Browser UI patterns, component architecture, user workflows, and the annotation registry system. For the complete W3C implementation across all backend components (API, Event Store, and Graph Database), see [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md).
 
 ## Supported Annotation Types
 
 The W3C Web Annotation Data Model defines 13 standard motivations (`assessing`, `bookmarking`, `classifying`, `commenting`, `describing`, `editing`, `highlighting`, `identifying`, `linking`, `moderating`, `questioning`, `replying`, `tagging`). The `@semiont/http-transport` package provides the complete type as `components['schemas']['Motivation']`.
 
-Currently, Semiont frontend **implements 4 of these motivations**:
+Currently, Semiont Browser **implements 4 of these motivations**:
 
 | W3C Motivation | Internal Type | Description | Visual Style |
 |----------------|---------------|-------------|--------------|
@@ -331,7 +331,7 @@ The registry is imported and used in `@semiont/react-ui` components:
 - [`@semiont/react-ui/src/components/resource/AnnotateView.tsx`](../../../packages/react-ui/src/components/resource/AnnotateView.tsx) - Annotate mode rendering
 - [`@semiont/react-ui/src/components/resource/ResourceViewer.tsx`](../../../packages/react-ui/src/components/resource/ResourceViewer.tsx) - Click handlers
 
-And in the frontend app:
+And in the Browser app:
 - [src/app/[locale]/know/resource/[id]/page.tsx](../src/app/%5Blocale%5D/know/resource/%5Bid%5D/page.tsx) - Annotation filtering and detection handlers
 
 ### Benefits
@@ -614,9 +614,9 @@ interface W3CAnnotation {
 }
 ```
 
-### Frontend-Specific Types
+### Browser-Specific Types
 
-The frontend uses a simplified `OverlayAnnotation` type for the DOM overlay:
+The Browser uses a simplified `OverlayAnnotation` type for the DOM overlay:
 
 ```typescript
 // src/lib/annotation-overlay.ts
@@ -647,7 +647,7 @@ The modular architecture ensures maintainability and extensibility, while the pr
 ### W3C Web Annotation Implementation
 - [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all components (UI, API, Event Store, Graph)
 
-### Frontend Documentation
+### Browser Documentation
 - [CODEMIRROR-INTEGRATION.md](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Document rendering and editor implementation
 - [ANNOTATION-RENDERING-PRINCIPLES.md](../../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
 - [RENDERING-ARCHITECTURE.md](../../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Document rendering pipeline

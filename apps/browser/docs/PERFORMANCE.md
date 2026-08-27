@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-10-25
 
-Complete guide to performance monitoring, bundle optimization, and best practices for the Semiont frontend.
+Complete guide to performance monitoring, bundle optimization, and best practices for the Semiont Browser.
 
 ## Table of Contents
 
@@ -35,39 +35,39 @@ npm run perf-monitor       # Custom performance monitoring
 
 ### 1. Code Splitting
 
-Automatic with Next.js App Router - pages and components are split into separate bundles.
+Automatic with Vite's Rollup build — route-level chunks fall out of React
+Router's lazy routes, and each dynamic `import()` becomes its own chunk.
 
 **Manual code splitting** for large components:
 ```typescript
-import dynamic from 'next/dynamic';
+import { lazy, Suspense } from 'react';
 
-const HeavyComponent = dynamic(() => import('@/components/HeavyComponent'), {
-  loading: () => <div>Loading...</div>,
-  ssr: false  // Skip server-side rendering if not needed
-});
+const HeavyComponent = lazy(() => import('./components/HeavyComponent'));
+
+<Suspense fallback={<div>Loading...</div>}>
+  <HeavyComponent />
+</Suspense>
 ```
 
 ### 2. Image Optimization
 
-Use Next.js `Image` component for automatic optimization:
-```typescript
-import Image from 'next/image';
-
-<Image
+There is no framework image component — the Browser is a static SPA, so
+optimization is the platform's, done at author time:
+```tsx
+<img
   src="/photo.jpg"
   width={500}
   height={300}
   alt="Description"
-  loading="lazy"  // Lazy load images
-  placeholder="blur"  // Show blur while loading
+  loading="lazy"      // native lazy loading
+  decoding="async"
 />
 ```
 
-**Benefits**:
-- Automatic WebP/AVIF conversion
-- Responsive images
-- Lazy loading
-- Blur placeholder
+**What that means in practice**: encode to WebP/AVIF when the asset is added
+(nothing converts at request time), give every `<img>` explicit `width`/`height`
+so layout does not shift, and use `srcset` where a responsive image is worth the
+bytes.
 
 ### 3. API Caching
 
@@ -108,7 +108,7 @@ const Chart = dynamic(() => import('@/components/Chart'), {
 ## Tools & Configuration
 
 ### Bundle Analysis
-- **@next/bundle-analyzer**: Visual bundle analysis
+- **rollup-plugin-visualizer**: Visual bundle analysis
 - **webpack-bundle-analyzer**: Detailed webpack bundle analysis
 - **Custom scripts**: Automated analysis and recommendations
 
@@ -117,7 +117,7 @@ const Chart = dynamic(() => import('@/components/Chart'), {
 - **Performance reports**: Historical tracking and analysis
 
 ### Configuration Files
-- `next.config.js`: Bundle optimization settings
+- `vite.config.ts`: Build and bundle optimization settings
 - `performance.config.js`: Performance thresholds and targets
 - `scripts/performance-monitor.js`: Custom monitoring logic
 
@@ -125,9 +125,9 @@ const Chart = dynamic(() => import('@/components/Chart'), {
 
 ### Implemented Optimizations
 1. **Code Splitting**: Automatic vendor and common chunk splitting
-2. **Image Optimization**: Next.js Image component with WebP/AVIF support
+2. **Image Optimization**: author-time WebP/AVIF encoding; native `loading="lazy"`
 3. **Tree Shaking**: Unused code elimination
-4. **Minification**: SWC-based minification
+4. **Minification**: esbuild-based minification (Vite default)
 5. **Compression**: Gzip/Brotli compression enabled
 6. **Font Optimization**: Automatic font optimization
 
@@ -256,17 +256,17 @@ ANALYZE=true npm run build
 
 ## Related Documentation
 
-### Frontend Guides
+### Browser Guides
 - [Development Guide](./DEVELOPMENT.md) - Local development workflows
 - [Testing Guide](./TESTING.md) - Test structure and running tests
 - [Deployment Guide](./DEPLOYMENT.md) - Publishing and deployment
 
 ### Architecture
-- [Frontend Architecture](./ARCHITECTURE.md) - High-level system design
+- [Browser Architecture](./ARCHITECTURE.md) - High-level system design
 - [Rendering Architecture](../../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Document rendering pipeline
 
 ### External Resources
-- [Next.js Performance](https://nextjs.org/docs/advanced-features/measuring-performance)
+- [Vite build optimizations](https://vite.dev/guide/build.html)
 - [Web Vitals](https://web.dev/vitals/)
 - [Bundle Analyzer](https://github.com/webpack-contrib/webpack-bundle-analyzer)
 

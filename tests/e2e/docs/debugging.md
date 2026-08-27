@@ -8,7 +8,7 @@ In order:
    Three runs tells you flaky vs. deterministic in under a minute. See
    [running.md](running.md).
 2. **Tail backend logs during the run**: `container logs -f semiont-backend`.
-   If the event never reaches the backend, it's a frontend-side
+   If the event never reaches the backend, it's a Browser-side
    emit/subscribe problem; if the backend logs the emit but no
    response comes back through SSE, it's a result-channel or SSE
    wiring problem.
@@ -77,7 +77,7 @@ got.
 
 ## Error-boundary symptom
 
-When the frontend crashes during initial render, the error boundary
+When the Browser crashes during initial render, the error boundary
 catches it and renders:
 
 ```
@@ -124,8 +124,8 @@ container logs -f semiont-backend
 Useful columns in the JSONL log lines:
 
 - `"component":"bus"` — every emit goes through `/bus/emit` and logs
-  a line. Absent ⇒ the frontend didn't reach the backend.
-- `"correlationId"` — match with the `cid=...` in the frontend's bus
+  a line. Absent ⇒ the Browser didn't reach the backend.
+- `"correlationId"` — match with the `cid=...` in the Browser's bus
   log to trace one request end-to-end.
 - `"message":"Incoming request"` / `"Outgoing response"` — HTTP-level
   entries.

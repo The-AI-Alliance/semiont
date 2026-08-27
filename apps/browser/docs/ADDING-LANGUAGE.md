@@ -274,7 +274,7 @@ describe('Language Support', () => {
    - Syntax-aware search
    - Format-specific filters
 
-### Frontend State Management
+### Browser State Management
 
 ```typescript
 interface DocumentState {

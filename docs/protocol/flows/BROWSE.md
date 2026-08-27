@@ -1,12 +1,12 @@
 # Browse Flow
 
-**Purpose**: Read the knowledge base, and route the acts of looking at it. Browse covers both halves: the request/reply operations that fetch resources, annotations, and history, and the intent signals that decide *what to look at next* — decoupling the components that choose a destination (toolbar buttons, annotation clicks, resolved-reference links, a tour guide at a terminal) from the components that perform the navigation (Next.js router, sidebar state, panel container). This separation lets react-ui remain framework-agnostic — the library emits intent; the host application fulfills it.
+**Purpose**: Read the knowledge base, and route the acts of looking at it. Browse covers both halves: the request/reply operations that fetch resources, annotations, and history, and the intent signals that decide *what to look at next* — decoupling the components that choose a destination (toolbar buttons, annotation clicks, resolved-reference links, a tour guide at a terminal) from the components that perform the navigation (the host's router, sidebar state, panel container). This separation lets react-ui remain framework-agnostic — the library emits intent; the host application fulfills it.
 
 **Related Documentation**:
 - [Beckon Flow](./BECKON.md) - Hover/focus/sparkle coordination (attention precedes navigation)
 - [Bind Flow](./BIND.md) - Reference resolution triggers navigation to linked resources
 - [Event-Bus Protocol](../EVENT-BUS.md) - Channel naming, bridging, SSE streaming
-- [Frontend Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - Annotation click and panel interaction
+- [Browser Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - Annotation click and panel interaction
 - [React UI Events](../../../packages/react-ui/docs/EVENTS.md) - Event bus architecture
 - [Launcher README](../../../apps/launcher/README.md) - `semiont browse`, including `--browser`
 
@@ -21,7 +21,7 @@ Four categories, distinguished by *who can hear them*:
 3. **Local UI signals** — `browse:entity-type-clicked`. Local-bus fan-out inside one browser session; never on the wire.
 4. **Host routing** — the `nav:*` channels. Framework-shaped, host-local, and deliberately never bridged.
 
-Browse is therefore **not** purely a frontend concern. Categories 1 and 2 cross the backend; only 3 and 4 stay in the page.
+Browse is therefore **not** purely a Browser concern. Categories 1 and 2 cross the backend; only 3 and 4 stay in the page.
 
 ## The bridge boundary: `nav:*` is host-local, `browse:*` may cross
 
@@ -31,7 +31,7 @@ This is the rule that decides which prefix a new channel gets, and it is worth s
 
 `ResourceViewerPage` is where the two meet: it subscribes to `browse:resource-open`, calls `routes.resourceDetail(resourceId)`, and emits `nav:push` with the result. That translation is the whole point of the split.
 
-Bridging `nav:push` instead would put Next.js paths and locale prefixes on the wire, and force every remote caller — the launcher, an agent — to know the frontend's route shapes. A future "just bridge `nav:push`, it's simpler" is a regression, not a shortcut.
+Bridging `nav:push` instead would put host route paths and locale prefixes on the wire, and force every remote caller — the launcher, an agent — to know the Browser's route shapes. A future "just bridge `nav:push`, it's simpler" is a regression, not a shortcut.
 
 Note that the payload distinction is real, not cosmetic: `browse:resource-open` carries `{resourceId}`, while `nav:push` carries `{path, reason?}`. Only one of those means anything to a caller outside the app.
 
@@ -105,7 +105,7 @@ Local-bus fan-out within a single page — never on the wire.
 
 ## Host routing (`nav:*`)
 
-Framework-shaped and host-local by rule. react-ui emits; the frontend's `NavigationHandler` performs.
+Framework-shaped and host-local by rule. react-ui emits; the Browser's `NavigationHandler` performs.
 
 | Event | Payload | Description |
 |-------|---------|-------------|
@@ -113,7 +113,7 @@ Framework-shaped and host-local by rule. react-ui emits; the frontend's `Navigat
 | `nav:external` | `{ url, resourceId?, cancelFallback }` | Navigate to an external URL |
 | `nav:link-clicked` | `{ href, label? }` | A tracked link was clicked (observability) |
 
-**`nav:push`** is emitted by `useObservableRouter` (a wrapper around Next.js `router.push` / `router.replace`), by `ResourceViewerPage` for clone-resource, reference-link and entity-type-filter navigation, and by `KnowledgeBasePanel` on KB switch. The `reason` field labels the cause — `'clone'`, `'reference-link'`, `'entity-type-filter'`, `'kb-switch'`.
+**`nav:push`** is emitted by `useObservableRouter` (a wrapper around whatever router the host supplies — the Browser's is React Router, behind a locale-aware `push`/`replace` abstraction), by `ResourceViewerPage` for clone-resource, reference-link and entity-type-filter navigation, and by `KnowledgeBasePanel` on KB switch. The `reason` field labels the cause — `'clone'`, `'reference-link'`, `'entity-type-filter'`, `'kb-switch'`.
 
 **`nav:external`** is emitted by `useObservableExternalNavigation` when a link points outside the app. The payload includes a `cancelFallback` callback — if the subscriber handles the navigation itself, it calls `cancelFallback()` to prevent the default `window.location` redirect. That callback is a live function reference, which is a second reason this channel cannot cross a transport.
 
@@ -124,7 +124,7 @@ Framework-shaped and host-local by rule. react-ui emits; the frontend's `Navigat
 react-ui is a framework-agnostic component library. It cannot import `next/navigation` or call `router.push()` directly. Instead:
 
 1. react-ui components emit navigation intent via the event bus
-2. The host application (Next.js frontend) subscribes and translates to framework-specific routing
+2. The host application (the Browser) subscribes and translates to framework-specific routing
 3. This decoupling lets the same components work in different host environments
 
 The bridge boundary above is the same idea carried one step further: a *domain* intent is portable enough to cross a network, while a *framework* intent is not portable past the host that owns the routes.

@@ -1,20 +1,20 @@
 # Jaeger evidence
 
 Companion to [`bus-logging.md`](./bus-logging.md). Where `bus` captures
-the frontend's grep-friendly `[bus OP]` lines (Tier 1), the `jaeger`
+the Browser's grep-friendly `[bus OP]` lines (Tier 1), the `jaeger`
 fixture pulls the **distributed spans** those events trigger across
-backend / worker / smelter / frontend (Tier 2) and attaches them to the
+backend / worker / smelter / Browser (Tier 2) and attaches them to the
 Playwright report on teardown.
 
 A failing test's artifact bundle ends up with the cross-process trace
 tree alongside its trace.zip, video, and screenshot — so the developer
-can correlate a frontend bus event with the matching backend span tree
+can correlate a Browser bus event with the matching backend span tree
 without manually fetching from the Jaeger UI.
 
 ## How it wires
 
 The `jaeger` fixture depends on `bus`. At test entry, the bus fixture
-flips `globalThis.__SEMIONT_BUS_LOG__ = true` so frontend `busLog()`
+flips `globalThis.__SEMIONT_BUS_LOG__ = true` so Browser `busLog()`
 calls write `console.debug` lines that include a `trace=<8hex>` suffix
 when an OTel SDK is initialized in the page (or when the line was
 emitted from a backend handler whose response carried the propagated
@@ -36,7 +36,7 @@ Three env vars, all optional:
 | Variable | Default | Purpose |
 |---|---|---|
 | `JAEGER_QUERY_URL` | `http://192.168.64.16:16686` | Jaeger UI/Query base URL. |
-| `JAEGER_SERVICES` | `semiont-backend,semiont-worker,semiont-smelter,semiont-frontend` | Comma-separated services to query. |
+| `JAEGER_SERVICES` | `semiont-backend,semiont-worker,semiont-smelter,semiont-browser` | Comma-separated services to query. |
 | `JAEGER_ATTACH` | `failure` | When to attach evidence — `failure` (default), `always`, or `off`. |
 
 The default `failure` mode means passing tests don't pay the per-test
@@ -70,9 +70,9 @@ On a failing test (or always with `JAEGER_ATTACH=always`):
 
 | Attachment | Contents |
 |---|---|
-| `jaeger-summary.json` | Test name, duration, services queried, trace-id prefixes the frontend saw, matched-trace count, window-trace count, list of unmatched prefixes (cases where the bus saw a trace prefix but no service returned a matching span — usually transient export delays). |
+| `jaeger-summary.json` | Test name, duration, services queried, trace-id prefixes the Browser saw, matched-trace count, window-trace count, list of unmatched prefixes (cases where the bus saw a trace prefix but no service returned a matching span — usually transient export delays). |
 | `jaeger-matched-traces.json` *(when prefixes match)* | Array of `{ service, traces: JaegerTrace[] }` objects with the full span JSON for each prefix-matched trace. |
-| `jaeger-window-traces.json` *(fallback when no prefixes match)* | Array of `{ service, traces: JaegerTrace[] }` for every trace in the test's time window across all configured services. Always populated when Jaeger has data — useful when the frontend isn't OTel-instrumented and we still want the cross-service span tree. |
+| `jaeger-window-traces.json` *(fallback when no prefixes match)* | Array of `{ service, traces: JaegerTrace[] }` for every trace in the test's time window across all configured services. Always populated when Jaeger has data — useful when the Browser isn't OTel-instrumented and we still want the cross-service span tree. |
 | `jaeger-trace-links.txt` | Newline-separated `${JAEGER_QUERY_URL}/trace/<id>` URLs. Click to open in the Jaeger UI. |
 
 ## Companion: container log slices
@@ -99,7 +99,7 @@ failing test's directory ends up with the full cross-process record.
 Defaults:
 
 - **Containers**: `semiont-backend,semiont-worker,semiont-smelter`. The
-  frontend container is omitted because its log format is mostly
+  Browser container is omitted because its log format is mostly
   unstructured stdout without timestamps. Override with
   `--containers <comma-list>`.
 - **Filtering**: lines whose JSON `timestamp` is in the test window.
@@ -118,9 +118,9 @@ container's runtime.
 
 ## Limitations
 
-- **Frontend doesn't currently emit OTel spans.** The captured prefixes
-  are mostly backend-originated; we still query the frontend service
-  in case a frontend SDK is added later.
+- **Browser doesn't currently emit OTel spans.** The captured prefixes
+  are mostly backend-originated; we still query the Browser service
+  in case a Browser SDK is added later.
 - **Trace-id prefixes are 8 hex (32 bits).** Within a single test's
   time window collisions are unlikely but not impossible. The fixture
   surfaces every trace that prefix-matches; false positives are cheap

@@ -39,7 +39,7 @@ semiont start
 ```
 
 **Your services are now running:**
-- **Frontend**: http://localhost:3000
+- **Browser**: http://localhost:3000
 - **Backend**: http://localhost:4000
 - **API Docs**: http://localhost:4000/api
 - **Database**: PostgreSQL in Docker container
@@ -225,7 +225,7 @@ See [Authentication Guide](./docs/AUTHENTICATION.md) for implementation details.
 
 Clean separation of concerns:
 - **Backend owns**: `/api/*` - all API endpoints, including the OAuth credential exchange and JWT minting (`POST /api/tokens/google`)
-- **Frontend**: the static Vite + React SPA - no server routes (#557 removed Next.js)
+- **Browser**: the static Vite + React SPA - no server routes (#557 removed Next.js)
 - **No routing conflicts** - simple ALB host/path rules
 
 Only `POST /bus/emit` and `GET /bus/subscribe` carry domain traffic; the rest of `/api/*` is auth, admin, media, exchange, and health. See the [Semiont Protocol](../../docs/protocol/README.md) for the bus surface and the [OpenAPI spec](../../specs/README.md) for endpoint schemas.
@@ -346,7 +346,7 @@ Features:
 - **Endpoint**: `/api/openapi.json` - Raw OpenAPI 3.0 spec (generated bundle)
 - **Source**: [../../specs/src/](../../specs/src/) - Hand-written specification files
 - **Spec-first approach** - Hand-written specification, backend validates against it
-- **Type generation** - Frontend types generated from spec via `openapi-typescript`
+- **Type generation** - Browser types generated from spec via `openapi-typescript`
 - **Validation** - Backend uses Ajv to validate requests against schemas
 
 ## Common Tasks

@@ -3,7 +3,7 @@
 **Purpose**: Coordinate which resource or annotation has the user's attention. Hover, click, and navigation signals synchronize the document view, annotation panels, and visual effects so that humans and AI agents can direct focus to specific content.
 
 **Related Documentation**:
-- [Frontend Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - UI patterns and component architecture
+- [Browser Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - UI patterns and component architecture
 - [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Document view and overlay rendering
 - [React UI Events](../../../packages/react-ui/docs/EVENTS.md) - Event bus architecture
 - [Keyboard Navigation](../../browser/KEYBOARD-NAV.md) - Keyboard-driven attention
@@ -12,13 +12,13 @@
 
 The Beckon flow directs user focus to specific annotations or regions of interest. The application uses visual cues — toast notifications, sparkle animations, scroll-to positioning, highlight state — to signal where attention is needed next. AI agents surface suggested follow-ups, confidence flags, and items requiring human review; human collaborators respond to these cues by prioritizing what to examine next.
 
-The Beckon flow is the coordination layer for user focus. When a human hovers over an annotation in the panel, the corresponding text lights up in the document — and vice versa. When an AI agent creates a new annotation, a sparkle animation draws the user's eye to it. All of this runs through a small set of events on the frontend event bus.
+The Beckon flow is the coordination layer for user focus. When a human hovers over an annotation in the panel, the corresponding text lights up in the document — and vice versa. When an AI agent creates a new annotation, a sparkle animation draws the user's eye to it. All of this runs through a small set of events on the Browser event bus.
 
-Beckoning is ephemeral — it produces no persistent state and coordinates transient focus signals only. Within a browser session, it is purely a frontend concern operating on the local event bus. Cross-participant beckoning (via `semiont beckon` from the launcher or another agent) flows through the unified bus gateway (`POST /bus/emit` + `GET /bus/subscribe`), but remains stateless: signals are delivered if the participant is connected and silently dropped if not — same semantics as all other beckon events. The [Browse flow](./BROWSE.md) handles the routing of clicks and panel state changes.
+Beckoning is ephemeral — it produces no persistent state and coordinates transient focus signals only. Within a browser session, it is purely a Browser concern operating on the local event bus. Cross-participant beckoning (via `semiont beckon` from the launcher or another agent) flows through the unified bus gateway (`POST /bus/emit` + `GET /bus/subscribe`), but remains stateless: signals are delivered if the participant is connected and silently dropped if not — same semantics as all other beckon events. The [Browse flow](./BROWSE.md) handles the routing of clicks and panel state changes.
 
 ## Using the SDK
 
-Attention is primarily a frontend concern — in-browser hover/click
+Attention is primarily a Browser concern — in-browser hover/click
 signals coordinate through the local event bus without touching the
 backend. The annotations that attention targets are fetched via the
 namespace API, and programmatic cross-participant beckoning goes

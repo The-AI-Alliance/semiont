@@ -69,7 +69,7 @@ that creates its own `page` context, re-attach the bus log there with
 
 Apple's container runtime assigns a fresh bridge IP on every
 `container run` and every `container start` — not just on rebuild.
-Re-grab both the frontend and backend IP before each test run. See
+Re-grab both the Browser and backend IP before each test run. See
 [containers.md § IP refresh](containers.md#ip-refresh).
 
 ## `SEMIONT_VERSION=local` is load-bearing

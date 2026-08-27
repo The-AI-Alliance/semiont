@@ -1,8 +1,8 @@
-# Future Frontend Implementations
+# Future Browser Implementations
 
 **Last Updated**: 2025-10-25
 
-Ideas and architecture considerations for building alternative frontend clients for the Semiont platform, including mobile apps, browser extensions, and specialized integrations.
+Ideas and architecture considerations for building alternative Browser clients for the Semiont platform, including mobile apps, browser extensions, and specialized integrations.
 
 ## Table of Contents
 
@@ -17,9 +17,9 @@ Ideas and architecture considerations for building alternative frontend clients 
 
 ## Overview
 
-The Semiont platform is designed with frontend flexibility in mind. The backend provides a comprehensive REST API following the W3C Web Annotation Data Model, enabling diverse client implementations while maintaining full interoperability.
+The Semiont platform is designed with Browser flexibility in mind. The backend provides a comprehensive REST API following the W3C Web Annotation Data Model, enabling diverse client implementations while maintaining full interoperability.
 
-**Current Frontend**: Next.js 14 web application (this repo)
+**Current Browser**: Vite + React Router v7 SPA (this repo)
 
 **Future Frontends**: Mobile apps, browser extensions, desktop apps, CLI tools, specialized integrations
 
@@ -110,7 +110,7 @@ val documents = client.documentsApi.listDocuments()
 
 **Key Advantages**:
 - **Reuse `@semiont/http-transport`** - no new client needed
-- Shared business logic with web frontend
+- Shared business logic with the Browser
 - TypeScript throughout
 - Faster development
 
@@ -249,13 +249,13 @@ document.addEventListener('mouseup', () => {
 
 **Architecture**:
 - **Framework**: Electron + React
-- **Renderer**: Reuse Next.js frontend components
+- **Renderer**: Reuse the Browser's React components
 - **Main Process**: Node.js backend access
 - **API Client**: `@semiont/http-transport`
 - **Storage**: SQLite for local cache
 
 **Key Advantages**:
-- **Reuse frontend components** from Next.js app
+- **Reuse Browser components** from the SPA
 - Full filesystem access
 - Native OS integration
 - Offline-first with background sync
@@ -283,7 +283,7 @@ function createWindow() {
 app.whenReady().then(createWindow);
 ```
 
-**Reuse Strategy**: Build Next.js app as static export, load in Electron.
+**Reuse Strategy**: Load the Browser's existing static build in Electron.
 
 ### Tauri App
 
@@ -292,7 +292,7 @@ app.whenReady().then(createWindow);
 **Architecture**:
 - **Framework**: Tauri + React
 - **Backend**: Rust (lightweight)
-- **Frontend**: Reuse Next.js components
+- **Browser**: Reuse the SPA's React components
 - **API Client**: `@semiont/http-transport`
 
 **Key Advantages**:
@@ -369,7 +369,7 @@ const annotation = {
 **Purpose**: Shared business logic, types, utilities
 
 **Reusable Across**:
-- Next.js web app
+- The Browser SPA
 - React Native mobile app
 - Electron desktop app
 - Browser extensions
@@ -531,8 +531,8 @@ Start simple, add features incrementally.
 
 ## Related Documentation
 
-### Frontend Documentation
-- [Frontend Architecture](./ARCHITECTURE.md) - Web app architecture
+### Browser Documentation
+- [Browser Architecture](./ARCHITECTURE.md) - Web app architecture
 - [API Integration](./API-INTEGRATION.md) - API client usage, W3C annotations
 - [Development Guide](./DEVELOPMENT.md) - Local development setup
 

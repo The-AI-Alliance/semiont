@@ -123,6 +123,49 @@ settleTimeoutMs = 45000
     expect((config._metadata as any)?.gather).toEqual({ settleTimeoutMs: 45_000 });
   });
 
+  it('maps browser section to EnvironmentConfig.services.browser', () => {
+    const toml = `${MINIMAL_TOML}
+[environments.local.browser]
+platform = "container"
+port = 3000
+`;
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+
+    expect((config.services as any)?.browser?.port).toBe(3000);
+  });
+
+  it('accepts a legacy [frontend] section and maps it to browser', () => {
+    // FRONTEND-IS-THE-BROWSER: `[frontend]` was renamed to `[browser]`, and the
+    // loader ACCEPTS the old spelling on purpose (user, 2026-08-26) so the KB
+    // fleet's committed configs keep working. Docs teach `[browser]` only.
+    // Merely ignoring the old section would be the bad outcome: the emit is
+    // guarded, so the Browser would come up unconfigured on defaults silently.
+    const toml = `${MINIMAL_TOML}
+[environments.local.frontend]
+platform = "container"
+port = 3000
+`;
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+
+    expect((config.services as any)?.browser?.port).toBe(3000);
+  });
+
+  it('prefers [browser] over a leftover [frontend] when both are present', () => {
+    // A migrated config is authoritative over a stale section beside it.
+    const toml = `${MINIMAL_TOML}
+[environments.local.frontend]
+platform = "container"
+port = 3999
+
+[environments.local.browser]
+platform = "container"
+port = 3000
+`;
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+
+    expect((config.services as any)?.browser?.port).toBe(3000);
+  });
+
   it('always sets _metadata.search.semanticFloor, defaulting to 0.6 when absent', () => {
     // SEMANTIC-FALLBACK decision #1: the loader is the ONE home of the
     // default — guess-now (0.6), tune-from-evidence-later; any KB overrides

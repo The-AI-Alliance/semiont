@@ -1,8 +1,8 @@
-# Frontend Development Guide
+# Browser Development Guide
 
 **Last Updated**: 2026-03-29
 
-Complete guide to local development workflows, common tasks, debugging, and troubleshooting for the Semiont frontend.
+Complete guide to local development workflows, common tasks, debugging, and troubleshooting for the Semiont Browser.
 
 ## Table of Contents
 
@@ -32,9 +32,9 @@ semiont status                    # Per-service container state + health probes
 semiont logs                      # Follow all services, [svc]-prefixed
 semiont stop                      # Tear the stack down
 
-# One service at a time (backend | frontend | worker | smelter | weaver | database)
+# One service at a time (backend | browser | worker | smelter | weaver | database)
 semiont start --service backend   # Start or restart just the backend
-semiont stop --service frontend   # Close the Browser (it survives a bare `stop`)
+semiont stop --service browser   # Close the Browser (it survives a bare `stop`)
 ```
 
 `semiont start --config <name>` picks which of the KB's
@@ -59,7 +59,7 @@ launcher pulls the published images and your changes are invisible.
 
 - **One command, whole stack** — five Semiont services plus PostgreSQL, Neo4j,
   Qdrant, and Ollama, wired together.
-- **No per-project install** — `@semiont/frontend` ships inside the frontend
+- **No per-project install** — `@semiont/browser` ships inside the Browser
   image; nothing to `npm install` per KB.
 - **Runtime flexibility** — Apple Container, Docker, or Podman, auto-detected
   (`--runtime` forces one).
@@ -77,7 +77,7 @@ semiont useradd --email admin@example.com --admin   # prompts for the password
 
 **Browser only** (point it at an existing KB):
 ```bash
-semiont start --service frontend
+semiont start --service browser
 # Serves the built SPA on :3000; connect it to any running backend
 ```
 
@@ -90,7 +90,7 @@ semiont start
 **Backend integration testing**:
 ```bash
 semiont start
-# Then run the frontend from source against it:
+# Then run the Browser from source against it:
 cd apps/browser && npm run dev
 # The stack's backend serves real data while Vite serves the SPA with HMR
 ```
@@ -489,7 +489,7 @@ Environment variables are configured automatically based on your environment con
 
 ## CSS and Styling Workflow
 
-The frontend uses a **hybrid CSS architecture** combining semantic CSS from @semiont/react-ui with Tailwind for app-specific styling.
+The Browser uses a **hybrid CSS architecture** combining semantic CSS from @semiont/react-ui with Tailwind for app-specific styling.
 
 ### When to Use Which System
 
@@ -514,7 +514,7 @@ import { Button, Card, Toolbar } from '@semiont/react-ui';
 - Managed dark mode support
 
 #### Use Tailwind for App-Specific Components
-For components unique to the frontend application:
+For components unique to the Browser application:
 
 ```tsx
 // App-specific layout component
@@ -587,7 +587,7 @@ For detailed styling guidelines, see the [Style Guide](./style-guide.md).
 - [Deployment](./DEPLOYMENT.md) - Publishing and deployment workflows
 
 ### Architecture
-- [Frontend Architecture](./ARCHITECTURE.md) - High-level system design
+- [Browser Architecture](./ARCHITECTURE.md) - High-level system design
 - [Rendering Architecture](../../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Document rendering pipeline
 - [Authentication](./AUTHENTICATION.md) - OAuth, JWT, session management
 

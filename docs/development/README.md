@@ -37,7 +37,7 @@ semiont/
 │   ├── openapi.json            # Generated bundle (gitignored, built by Redocly)
 │   └── docs/                   # API and W3C annotation documentation
 ├── apps/                       # Application packages
-│   ├── frontend/               # Vite + React frontend SPA
+│   ├── browser/               # Vite + React Browser SPA
 │   ├── backend/                # Hono backend API server
 │   ├── launcher/               # Go `semiont` launcher (brew-installed)
 │   └── desktop/                # Desktop app

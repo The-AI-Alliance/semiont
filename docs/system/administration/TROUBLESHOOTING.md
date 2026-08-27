@@ -48,7 +48,7 @@ container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma migrate st
 semiont status
 ```
 
-Read which service is unhealthy before anything else. The frontend has no health probe — it is a static file server — so a "frontend problem" is usually a backend problem seen through the browser.
+Read which service is unhealthy before anything else. The Browser has no health probe — it is a static file server — so a "Browser problem" is usually a backend problem seen through the browser.
 
 If the backend shows `exited`, the usual cause is that `prisma migrate deploy` failed at startup. The backend's `CMD` runs migrations *before* `exec node`, so a migration failure means the server never started:
 
@@ -115,7 +115,7 @@ For schema drift, migration state, and reset procedures, see the [Database Guide
 
 | Port | Role |
 |---|---|
-| 3000 | frontend |
+| 3000 | browser |
 | 4000 | backend |
 | 5432 | database (PostgreSQL) |
 | 6333 | vectors (Qdrant) |
@@ -135,7 +135,7 @@ semiont stop                    # Sweeps every installed runtime
 semiont stop --runtime docker   # Only if you mean exactly that one
 ```
 
-`--port` moves the browser port only (with `--service frontend`); every other port belongs to the KB's config.
+`--port` moves the browser port only (with `--service browser`); every other port belongs to the KB's config.
 
 ### Graph or vectors unavailable
 

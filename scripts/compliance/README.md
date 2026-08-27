@@ -19,7 +19,7 @@ cd packages/react-ui
 # Outputs: REACT-UI-COMPLIANCE.md
 ```
 
-### Frontend Application
+### Browser Application
 ```bash
 cd apps/browser
 ./scripts/generate-compliance-report.sh
@@ -39,7 +39,7 @@ scripts/compliance/          # Shared core scripts (workspace-agnostic)
 packages/react-ui/scripts/   # React-UI thin wrapper
 └── generate-compliance-report.sh
 
-apps/browser/scripts/       # Frontend thin wrapper
+apps/browser/scripts/       # Browser thin wrapper
 └── generate-compliance-report.sh
 ```
 
@@ -251,12 +251,12 @@ jobs:
           fi
 
       # Audit Frontend
-      - name: Frontend Compliance
+      - name: Browser Compliance
         run: |
           cd apps/browser
           ./scripts/generate-compliance-report.sh
           if grep -q "Failing (❌): [1-9]" ../../FRONTEND-COMPLIANCE.md; then
-            echo "::error::Frontend compliance violations detected"
+            echo "::error::Browser compliance violations detected"
             exit 1
           fi
 ```
@@ -265,7 +265,7 @@ jobs:
 
 Typical execution times (MacBook Pro M1):
 - React-UI (311 symbols): ~2.1 seconds
-- Frontend (90 symbols): ~1.5 seconds
+- Browser (90 symbols): ~1.5 seconds
 - **Total dual-workspace audit**: ~3.6 seconds
 
 Fast enough for:

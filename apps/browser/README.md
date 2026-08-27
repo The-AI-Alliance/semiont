@@ -1,4 +1,4 @@
-# Semiont Frontend
+# Semiont Browser
 
 A type-safe React SPA built with Vite + React Router, featuring W3C Web Annotation support, real-time document collaboration, and AI-powered annotation detection and generation.
 
@@ -18,10 +18,10 @@ The Semiont browser provides a rich annotation experience for building semantic 
 
 ## npm Package
 
-[![npm version](https://img.shields.io/npm/v/@semiont/frontend.svg)](https://www.npmjs.com/package/@semiont/frontend)
-[![npm downloads](https://img.shields.io/npm/dm/@semiont/frontend.svg)](https://www.npmjs.com/package/@semiont/frontend)
+[![npm version](https://img.shields.io/npm/v/@semiont/browser.svg)](https://www.npmjs.com/package/@semiont/browser)
+[![npm downloads](https://img.shields.io/npm/dm/@semiont/browser.svg)](https://www.npmjs.com/package/@semiont/browser)
 
-The frontend is published as `@semiont/frontend` on npm as a pre-built Vite SPA with a minimal Node.js static file server. It also ships as the `semiont-frontend` container image, which is how a stack actually serves it — the launcher runs that image, and `server.js` serves the pre-built SPA inside it.
+The Browser is published as `@semiont/browser` on npm as a pre-built Vite SPA with a minimal Node.js static file server. It also ships as the `semiont-browser` container image, which is how a stack actually serves it — the launcher runs that image, and `server.js` serves the pre-built SPA inside it.
 
 ## Quick Start
 
@@ -32,7 +32,7 @@ The frontend is published as `@semiont/frontend` on npm as a pre-built Vite SPA 
 semiont start
 
 # Your services are now running:
-# - Frontend: http://localhost:3000
+# - Browser: http://localhost:3000
 # - Backend: http://localhost:4000
 # - Database: PostgreSQL in Docker container
 ```
@@ -54,21 +54,21 @@ npm run dev:mock
 
 ## 🐳 Container Image
 
-[![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-frontend)
+[![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-browser)
 [![Accessibility Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml)
 [![WCAG 2.1 AA](https://img.shields.io/badge/WCAG-2.1%20AA-blue.svg)](https://www.w3.org/WAI/WCAG2AA-Conformance)
 
-Pull and run the published frontend container image:
+Pull and run the published Browser container image:
 
 ```bash
 # Pull latest development build
-docker pull ghcr.io/the-ai-alliance/semiont-frontend:dev
+docker pull ghcr.io/the-ai-alliance/semiont-browser:dev
 
-# Run frontend container
+# Run Browser container
 docker run -d \
   -p 3000:3000 \
-  --name semiont-frontend \
-  ghcr.io/the-ai-alliance/semiont-frontend:dev
+  --name semiont-browser \
+  ghcr.io/the-ai-alliance/semiont-browser:dev
 ```
 
 **Multi-platform Support:** linux/amd64, linux/arm64
@@ -86,7 +86,7 @@ docker run -d \
 - **Testing**: [Vitest](https://vitest.dev/) + React Testing Library + [MSW v2](https://mswjs.io/)
 - **Performance**: Bundle analysis
 
-**Full stack details**: [Frontend Architecture](./docs/ARCHITECTURE.md)
+**Full stack details**: [Browser Architecture](./docs/ARCHITECTURE.md)
 
 ### Component Library
 
@@ -181,7 +181,7 @@ Some operations run asynchronously via background job workers:
 - **[Deployment Guide](./docs/DEPLOYMENT.md)** - Publishing and deployment workflows
 
 ### Architecture & Design
-- **[Frontend Architecture](./docs/ARCHITECTURE.md)** - High-level system design, state management, routing
+- **[Browser Architecture](./docs/ARCHITECTURE.md)** - High-level system design, state management, routing
 - **[Rendering Architecture](../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md)** - Document rendering pipeline
 - **[API Integration](./docs/API-INTEGRATION.md)** - API client usage, async operations, W3C annotations
 
@@ -237,8 +237,8 @@ Running the whole stack is the launcher's job, not npm's:
 ```bash
 semiont start                       # Bring the stack up
 semiont status                      # Container state + per-service health
-semiont start --service frontend    # Restart just this service
-semiont logs --service frontend
+semiont start --service browser    # Restart just this service
+semiont logs --service browser
 ```
 
 **See**: [Development Guide](./docs/DEVELOPMENT.md) and

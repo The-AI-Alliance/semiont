@@ -4,7 +4,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/browser.svg)](https://www.npmjs.com/package/@semiont/browser)
 [![License](https://img.shields.io/npm/l/@semiont/browser.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-Pre-built Semiont frontend as a Vite SPA with a zero-dependency Node.js static file server. This package contains the compiled frontend application ready to run with Node.js.
+Pre-built Semiont Browser as a Vite SPA with a zero-dependency Node.js static file server. This package contains the compiled Browser application ready to run with Node.js.
 
 ## Running Semiont
 

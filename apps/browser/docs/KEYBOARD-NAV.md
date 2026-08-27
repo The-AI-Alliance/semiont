@@ -1,6 +1,6 @@
 # Keyboard Navigation — Implementation
 
-How keyboard navigation is implemented in the Semiont frontend. The end-user-facing shortcut reference lives at **[../../../docs/browser/KEYBOARD-NAV.md](../../../docs/browser/KEYBOARD-NAV.md)**; this page covers the patterns and primitives a contributor needs.
+How keyboard navigation is implemented in the Semiont Browser. The end-user-facing shortcut reference lives at **[../../../docs/browser/KEYBOARD-NAV.md](../../../docs/browser/KEYBOARD-NAV.md)**; this page covers the patterns and primitives a contributor needs.
 
 For the broader accessibility implementation guide, see **[ACCESSIBILITY.md](ACCESSIBILITY.md)**.
 

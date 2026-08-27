@@ -2,7 +2,7 @@
 
 > **What changed.** This doc used to describe a Next.js server-side *proxy route*
 > (`/api/resources/[id]`) and was named `RESOURCE-PROXY.md`. That route is **gone**
-> — the frontend is now a pure Vite + React SPA (#557) with **no server**, and auth
+> — the Browser is now a pure Vite + React SPA (#557) with **no server**, and auth
 > is **bearer-only** (#890). There is nothing to proxy through; the live mechanism
 > is the **`?token=` media token** documented below.
 
@@ -35,7 +35,7 @@ a hand-written `href` reads as correct right up until the click 401s.
 
 ## The solution: a short-lived, resource-scoped token on the URL
 
-The frontend mints a **media token** — a narrowed credential the browser *can*
+The Browser mints a **media token** — a narrowed credential the browser *can*
 carry, because it rides on the URL as a query parameter rather than in a header:
 
 ```typescript
@@ -127,7 +127,7 @@ The split is **display vs programmatic**, not text vs binary:
 ## Related documentation
 
 - [`@semiont/http-transport` MEDIA-TOKENS.md](../../../packages/http-transport/docs/MEDIA-TOKENS.md) — the canonical media-token spec (claims, threat model, OpenAPI)
-- [Frontend Authentication Architecture](./AUTHENTICATION.md) — the SPA's bearer-only session model
+- [Browser Authentication Architecture](./AUTHENTICATION.md) — the SPA's bearer-only session model
 - [Backend Authentication Guide](../../backend/docs/AUTHENTICATION.md) — JWT validation, including the `?token=` media path
 - [System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md) — end-to-end auth flows
 

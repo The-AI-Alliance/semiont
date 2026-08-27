@@ -8,16 +8,16 @@ Semiont publishes a release in these steps:
 1. **Release workflow** — tags the version, publishes all npm packages, and —
    when the **Build and publish desktop apps** box is checked — builds and
    publishes the desktop apps.
-2. **Publish Frontend Container Image** — a separate action that pushes the
-   `semiont-frontend` image to GHCR, run *after* the npm packages exist (it
+2. **Publish Browser Container Image** — a separate action that pushes the
+   `semiont-browser` image to GHCR, run *after* the npm packages exist (it
    verifies the version on npm first). See
-   [Step 1b](#step-1b-publish-the-frontend-container-image).
+   [Step 1b](#step-1b-publish-the-browser-container-image).
 3. **Publish Service Images** — a separate action
    ([`publish-service-images.yml`](../../.github/workflows/publish-service-images.yml))
    that pushes the four service images (`semiont-backend`, `-worker`,
    `-smelter`, `-weaver`) to GHCR. Also run *after* the npm packages exist —
    the images bundle the published `@semiont/*` packages at the release
-   version, gated by `npm view` per service. Same knobs as the frontend
+   version, gated by `npm view` per service. Same knobs as the Browser
    image (Trivy vuln + license gates, `dry_run`, `tag_latest`, provenance +
    SBOM attestations):
    ```bash
@@ -90,16 +90,16 @@ gh run watch <run-id> --exit-status
    Linux x64
 
 
-## Step 1b: Publish the Frontend Container Image
+## Step 1b: Publish the Browser Container Image
 
-The npm release does **not** publish the frontend container image — that is a
-separate **Publish Frontend Container Image** action (`publish-frontend.yml`).
+The npm release does **not** publish the Browser container image — that is a
+separate **Publish Browser Container Image** action (`publish-browser.yml`).
 Run it *after* the npm packages are live, because it verifies that
-`@semiont/frontend@<version>` exists on npm before building.
+`@semiont/browser@<version>` exists on npm before building.
 
 ### From the GitHub UI
 
-1. Go to **Actions** > **Publish Frontend Container Image**
+1. Go to **Actions** > **Publish Browser Container Image**
 2. Click **Run workflow**
 3. Set **version** to the released version (e.g. `0.5.6`)
 4. Check **Also tag as :latest** to move the `:latest` tag to this build
@@ -109,13 +109,13 @@ Run it *after* the npm packages are live, because it verifies that
 
 ```bash
 # Publish the image for 0.5.6 and also tag it :latest
-gh workflow run publish-frontend.yml --field version=0.5.6 --field tag_latest=true
+gh workflow run publish-browser.yml --field version=0.5.6 --field tag_latest=true
 ```
 
 This pushes to GHCR:
-- `ghcr.io/the-ai-alliance/semiont-frontend:<version>`
-- `ghcr.io/the-ai-alliance/semiont-frontend:sha-<commit>`
-- `ghcr.io/the-ai-alliance/semiont-frontend:latest` (only when `tag_latest=true`)
+- `ghcr.io/the-ai-alliance/semiont-browser:<version>`
+- `ghcr.io/the-ai-alliance/semiont-browser:sha-<commit>`
+- `ghcr.io/the-ai-alliance/semiont-browser:latest` (only when `tag_latest=true`)
 
 
 ## Step 1c: Publish the Launcher (Homebrew + binaries)
@@ -293,7 +293,7 @@ startup).
 
 The **frontend** is deliberately different: `apps/browser/package.publish.json`
 declares **no** runtime dependencies and nothing derives them, because the
-published frontend is a pre-built Vite bundle — its deps are compiled into
+published Browser is a pre-built Vite bundle — its deps are compiled into
 `dist/`, not resolved by npm at install time.
 
 ## Package manifest: `version.json`
@@ -321,7 +321,7 @@ Each entry in `version.json.packages` looks like:
 ```
 
 Optional `stage` field for apps that publish from a staging directory
-(currently `semiont-backend` and `semiont-frontend`):
+(currently `semiont-backend` and `semiont-browser`):
 
 ```json
 "semiont-backend": {
@@ -371,8 +371,8 @@ gh run list --workflow=release.yml --limit=1
 gh run watch <run-id> --exit-status
 
 # 5. After the npm packages are live, publish the container images
-#    (frontend + the four service images; the two workflows can run in parallel)
-gh workflow run publish-frontend.yml --field version=<version> --field tag_latest=true
+#    (Browser + the four service images; the two workflows can run in parallel)
+gh workflow run publish-browser.yml --field version=<version> --field tag_latest=true
 gh workflow run publish-service-images.yml --field version=<version> --field tag_latest=true
 
 # 5b. Publish the launcher — dispatched FROM THE TAG (no version input);
@@ -403,14 +403,14 @@ gh workflow run launcher-release.yml --ref v<version>
 ```bash
 npm install @semiont/core@latest
 npm install @semiont/backend@latest
-npm install @semiont/frontend@latest
+npm install @semiont/browser@latest
 ```
 
 **Development builds:**
 ```bash
 npm install @semiont/core@dev
 npm install @semiont/backend@dev
-npm install @semiont/frontend@dev
+npm install @semiont/browser@dev
 ```
 
 **View all versions:**
@@ -418,12 +418,12 @@ npm install @semiont/frontend@dev
 
 ### Container Images
 
-The frontend container image is published to GHCR by
-[Step 1b](#step-1b-publish-the-frontend-container-image), and the four
+The Browser container image is published to GHCR by
+[Step 1b](#step-1b-publish-the-browser-container-image), and the four
 service images by `publish-service-images.yml`:
 
 ```bash
-docker pull ghcr.io/the-ai-alliance/semiont-frontend:latest
+docker pull ghcr.io/the-ai-alliance/semiont-browser:latest
 docker pull ghcr.io/the-ai-alliance/semiont-backend:latest
 docker pull ghcr.io/the-ai-alliance/semiont-worker:latest
 docker pull ghcr.io/the-ai-alliance/semiont-smelter:latest
@@ -516,7 +516,7 @@ Hard-won checks from running this process:
   the registry for every published package, the desktop assets on the Release,
   and the image tags in the run log (the "Determine tags" step lists tags that
   were never pushed if a later gate fails).
-- **Image workflows run in parallel, after npm.** `publish-frontend.yml` and
+- **Image workflows run in parallel, after npm.** `publish-browser.yml` and
   `publish-service-images.yml` both gate on the npm version existing and take
   the version as an input — so they're unaffected by the next-cycle bump.
   `publish-desktop.yml` instead reads `version.json`: re-run desktop **before**
@@ -542,9 +542,9 @@ Before releasing:
 - [ ] Version in `version.json` is correct
 
 After releasing:
-- [ ] Verify npm packages published (including `@semiont/backend` and `@semiont/frontend`)
+- [ ] Verify npm packages published (including `@semiont/backend` and `@semiont/browser`)
 - [ ] If desktop was checked, verify the desktop artifacts on the GitHub Release
-- [ ] Publish the frontend container image ([Step 1b](#step-1b-publish-the-frontend-container-image)) and confirm the `:<version>` and `:latest` tags on GHCR
+- [ ] Publish the Browser container image ([Step 1b](#step-1b-publish-the-browser-container-image)) and confirm the `:<version>` and `:latest` tags on GHCR
 - [ ] Publish the four service images (`publish-service-images.yml`) and confirm `semiont-backend`, `semiont-worker`, `semiont-smelter`, and `semiont-weaver` carry `:<version>` and `:latest` on GHCR
 - [ ] Publish the launcher ([Step 1c](#step-1c-publish-the-launcher-homebrew--binaries), dispatched `--ref v<version>`) and confirm the four `semiont_<version>_*.tar.gz` archives on the GitHub Release and the updated formula in [`homebrew-semiont`](https://github.com/The-AI-Alliance/homebrew-semiont)
 - [ ] Test launcher installation: `brew install the-ai-alliance/semiont/semiont && semiont version` (upgrades: `brew upgrade semiont`). a long-deprecated npm package (no longer built from this repo) also installed a `semiont` bin — if `which semiont` does not resolve to the brew copy, that leftover is shadowing the launcher

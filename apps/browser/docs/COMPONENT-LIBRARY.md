@@ -2,10 +2,10 @@
 
 ## Overview
 
-The Semiont frontend leverages **`@semiont/react-ui`**, a framework-
-agnostic React component library extracted from the frontend to enable
+The Semiont Browser leverages **`@semiont/react-ui`**, a framework-
+agnostic React component library extracted from the Browser to enable
 reuse across different applications and frameworks. This document
-explains the package boundary, what lives where, and how the frontend
+explains the package boundary, what lives where, and how the Browser
 composes the library.
 
 ## Architecture
@@ -83,7 +83,7 @@ composes the library.
 
 ## Provider Composition
 
-The frontend mounts library providers directly — there is no app-side
+The Browser mounts library providers directly — there is no app-side
 wrapper layer to maintain.
 
 ### The Provider Stack
@@ -119,7 +119,7 @@ read the active session's signals):
 </AuthShell>
 ```
 
-The library owns provider implementations; the frontend owns the
+The library owns provider implementations; the Browser owns the
 decision about where to mount them. For the provider/session API reference
 (props, hooks, behavior), see
 [`packages/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md).
@@ -193,7 +193,7 @@ When developing features that span both packages:
 # Watch react-ui for changes
 cd packages/react-ui && npm run dev
 
-# Run frontend
+# Run the Browser
 cd apps/browser && npm run dev
 ```
 
@@ -201,7 +201,7 @@ cd apps/browser && npm run dev
 
 Decide where the component lives:
 
-- **Framework-agnostic UI, reusable outside the frontend** → `@semiont/react-ui`.
+- **Framework-agnostic UI, reusable outside the Browser** → `@semiont/react-ui`.
 - **App-specific (routing, auth wiring, feature composition)** → `apps/browser`.
 
 For library components:
@@ -211,7 +211,7 @@ For library components:
 3. Add tests in `packages/react-ui/src/components/__tests__/`
 4. Add styles in `packages/react-ui/src/styles/`
 
-For frontend components: create in `apps/browser/src/`, compose
+For Browser components: create in `apps/browser/src/`, compose
 library components as needed, use framework-specific APIs directly.
 
 ### Testing strategy
@@ -268,7 +268,7 @@ npm run build --workspace=@semiont/core --workspace=@semiont/http-transport
 2. **Extend, don't override** — add layout classes, not styling overrides.
 3. **Mount providers once** — at the layout level, not in components.
 4. **Prefer Observables for shared state** — the library uses RxJS for anything dynamic; stay on that rail.
-5. **Test at the right level** — unit in react-ui, integration in frontend.
+5. **Test at the right level** — unit in react-ui, integration in the Browser.
 
 ## Related Documentation
 
@@ -276,4 +276,4 @@ npm run build --workspace=@semiont/core --workspace=@semiont/http-transport
 - [`@semiont/react-ui` providers](../../../packages/react-ui/docs/SESSION.md)
 - [`@semiont/react-ui` architecture](../../../packages/react-ui/docs/ARCHITECTURE.md)
 - [API Integration](./API-INTEGRATION.md)
-- [Frontend Architecture](./ARCHITECTURE.md)
+- [Browser Architecture](./ARCHITECTURE.md)

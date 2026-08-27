@@ -3,12 +3,12 @@
 Backend testing guide focused on Vitest, HTTP contract testing, and backend-specific testing strategies.
 
 **Related Documentation:**
-- **[System Testing Guide](../../../docs/development/TESTING.md)** - **Read this first!** Complete testing strategy including Vitest, MSW v2, frontend testing, and test orchestration
+- **[System Testing Guide](../../../docs/development/TESTING.md)** - **Read this first!** Complete testing strategy including Vitest, MSW v2, Browser testing, and test orchestration
 - [Main README](../README.md) - Backend overview
 - [Development Guide](./DEVELOPMENT.md) - Local development setup
 - [Contributing Guide](../../../CONTRIBUTING.md) - Code style and patterns
 
-**Scope**: This document covers backend-specific testing using Vitest, HTTP contract testing, and API endpoint validation. For system-wide testing including frontend testing, see the [System Testing Guide](../../../docs/development/TESTING.md).
+**Scope**: This document covers backend-specific testing using Vitest, HTTP contract testing, and API endpoint validation. For system-wide testing including Browser testing, see the [System Testing Guide](../../../docs/development/TESTING.md).
 
 ## Backend Testing Philosophy
 
@@ -423,7 +423,7 @@ Response: 200 with updated resource
 3. UI uses PATCH for Archive button
 4. More RESTful for soft-delete semantics
 
-**Frontend implementation**: [apps/browser/src/app/[locale]/know/resource/[id]/page.tsx:222-236](../../../apps/browser/src/app/[locale]/know/resource/[id]/page.tsx#L222-L236)
+**Browser implementation**: [apps/browser/src/app/[locale]/know/resource/[id]/page.tsx:222-236](../../../apps/browser/src/app/[locale]/know/resource/[id]/page.tsx#L222-L236)
 
 ```typescript
 const handleArchive = useCallback(async () => {
@@ -571,7 +571,7 @@ npm run test:watch
 
 ## Related Documentation
 
-- **[System Testing Guide](../../../docs/development/TESTING.md)** - Complete testing strategy including frontend (Vitest, MSW v2, React Testing Library)
+- **[System Testing Guide](../../../docs/development/TESTING.md)** - Complete testing strategy including the Browser (Vitest, MSW v2, React Testing Library)
 - [Development Guide](./DEVELOPMENT.md) - Setting up test environment
 - [Contributing Guide](../../../CONTRIBUTING.md) - Testing requirements for PRs
 - [Semiont Protocol](../../../docs/protocol/README.md) - The eight verbs and the bus under test

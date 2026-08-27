@@ -1,6 +1,6 @@
 # API Integration Guide
 
-How the Semiont frontend integrates with the backend through the
+How the Semiont Browser integrates with the backend through the
 framework-agnostic `@semiont/react-ui` library, the `@semiont/sdk` client
 (`SemiontClient`, sessions, the namespace verb API), and the
 `@semiont/http-transport` wire adapter — including the provider model, bus
@@ -8,7 +8,7 @@ gateway transport, and W3C annotation model.
 
 ## Overview
 
-The frontend integrates with the backend through a layered architecture
+The Browser integrates with the backend through a layered architecture
 that maintains framework independence:
 
 ```
@@ -265,10 +265,10 @@ Two conceptual patterns:
 
 **Synchronous (request-response)** — commands that complete quickly on
 the backend handler: create annotation, delete annotation, browse
-queries. The frontend awaits a result event matched by correlationId.
+queries. The Browser awaits a result event matched by correlationId.
 
 **Asynchronous (job-based)** — operations that run minutes to hours:
-entity detection, resource generation. The frontend emits `job:create`,
+entity detection, resource generation. The Browser emits `job:create`,
 gets back `job:created` with a `jobId`, then listens for
 `job:report-progress` / `job:complete` / `mark:progress` events scoped to
 the resource.

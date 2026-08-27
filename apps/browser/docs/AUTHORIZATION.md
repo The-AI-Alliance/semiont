@@ -1,8 +1,8 @@
-# Frontend Authorization Architecture
+# Browser Authorization Architecture
 
 ## Overview
 
-The Semiont frontend implements a foundation for fine-grained access control with graceful 403 error handling and permission-aware UI components. While the current implementation is minimal, the architecture is designed to scale with future RBAC (Role-Based Access Control) requirements.
+The Semiont Browser implements a foundation for fine-grained access control with graceful 403 error handling and permission-aware UI components. While the current implementation is minimal, the architecture is designed to scale with future RBAC (Role-Based Access Control) requirements.
 
 ## Current State
 

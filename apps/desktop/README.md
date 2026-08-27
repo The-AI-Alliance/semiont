@@ -53,7 +53,7 @@ For containerized builds: just a container runtime (Apple Container, Docker, or 
 
 ### Development
 
-Start the frontend dev server in one terminal, then the desktop shell in another:
+Start the Browser dev server in one terminal, then the desktop shell in another:
 
 ```bash
 # Terminal 1: frontend

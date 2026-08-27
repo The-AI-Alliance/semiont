@@ -109,7 +109,7 @@ and you'll need DevTools to map them back.
 
 ## Coverage gap this closes
 
-Before this fixture, a class of frontend bugs was invisible to e2e:
+Before this fixture, a class of Browser bugs was invisible to e2e:
 
 - **Render exceptions** in components that an error boundary swallows.
 - **RxJS Subject feedback loops** — a subscriber that synchronously

@@ -15,7 +15,7 @@ OpenTelemetry-based tracing and metrics for [Semiont](https://github.com/The-AI-
 Semiont's observability is layered:
 
 - **Tier 1 — `busLog`** (in [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core)): a 5-op grep-friendly timeline at the `ITransport` contract layer (`EMIT`, `RECV`, `SSE`, `PUT`, `GET`). Always on, always free.
-- **Tier 2 — this package**: real OpenTelemetry traces + metrics, with W3C trace-context propagation across the bus's HTTP and SSE legs so a single user action produces one trace spanning frontend → backend → worker → smelter.
+- **Tier 2 — this package**: real OpenTelemetry traces + metrics, with W3C trace-context propagation across the bus's HTTP and SSE legs so a single user action produces one trace spanning Browser → backend → worker → smelter.
 - **Tier 3** — log correlation and dashboards.
 
 This package does not implement any platform domain logic; it provides the spanning helpers and metric recorders the rest of the codebase calls.
@@ -82,7 +82,7 @@ Reads `LOG_LEVEL` (default `info`) and `LOG_FORMAT` (`json` default, `simple` fo
 // SPA entry point (main.tsx)
 import { initObservabilityWeb } from '@semiont/observability/web';
 
-initObservabilityWeb({ serviceName: 'semiont-frontend' });
+initObservabilityWeb({ serviceName: 'semiont-browser' });
 ```
 
 Web init wires up the same universal API plus browser-appropriate context propagation. Spans created in the SPA propagate to the backend via the bus's `_trace` payload field.

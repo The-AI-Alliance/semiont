@@ -375,7 +375,7 @@ These are tracked but not yet implemented:
 
 ### Technical Documentation
 - [API Integration](../../apps/browser/docs/API-INTEGRATION.md) - API usage, async operations, W3C annotations
-- [Frontend Architecture](../../apps/browser/docs/ARCHITECTURE.md) - High-level system design
+- [Browser Architecture](../../apps/browser/docs/ARCHITECTURE.md) - High-level system design
 - [Rendering Architecture](../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Document rendering pipeline
 
 ### Development Guides

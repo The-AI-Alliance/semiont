@@ -234,7 +234,7 @@ reconnecting UI should treat the open state as terminal.
 The bus protocol (not the transport) classifies channels into three
 kinds. Every transport preserves the categorization:
 
-- **Command events** — frontend → backend handler. Arrive un-scoped.
+- **Command events** — Browser → backend handler. Arrive un-scoped.
   Example: `mark:create-request`, `job:create`.
 - **Correlation-ID responses** — handler → originating caller. Arrive
   un-scoped. Example: `mark:create-ok`, `job:status-result`.

@@ -1,6 +1,6 @@
-# Frontend Architecture
+# Browser Architecture
 
-This document describes the high-level architecture of the Semiont frontend application.
+This document describes the high-level architecture of the Semiont Browser application.
 
 ## Table of Contents
 
@@ -17,11 +17,11 @@ This document describes the high-level architecture of the Semiont frontend appl
 
 ## Overview
 
-The Semiont frontend is a Vite + React Router v7 SPA. The architecture emphasizes:
+The Semiont Browser is a Vite + React Router v7 SPA. The architecture emphasizes:
 
 - **Type Safety**: TypeScript throughout with strict mode enabled
 - **Server State Management**: RxJS observable caches on the SDK's verb-namespace client, invalidated automatically by backend domain events
-- **Authentication**: bearer-only — the SDK session holds the JWT in memory and sends `Authorization: Bearer`; no cookie, no frontend auth server
+- **Authentication**: bearer-only — the SDK session holds the JWT in memory and sends `Authorization: Bearer`; no cookie, no Browser-side auth server
 - **No Global Mutable State**: All state is managed through React hooks and contexts
 - **Fail-Fast Philosophy**: No default values - explicit configuration required
 
@@ -40,7 +40,7 @@ The Semiont frontend is a Vite + React Router v7 SPA. The architecture emphasize
 ### UI & Styling
 
 #### Hybrid CSS Architecture
-The frontend uses a hybrid CSS approach that combines:
+The Browser uses a hybrid CSS approach that combines:
 - **@semiont/react-ui** - Semantic CSS with BEM methodology for all UI components, organized into:
   - `core/` - Fundamental UI elements (buttons, toggles, sliders, badges, tags, indicators)
   - `components/` - Complex composed components (forms, modals, cards)
@@ -54,7 +54,7 @@ This architecture ensures:
 - Modular organization with clear separation (core elements vs. components vs. panels)
 - Centralized design tokens for consistency (panel tokens, color palettes)
 - W3C Web Annotation compliance with dedicated motivation styles
-- Flexibility for app-specific styling (frontend uses Tailwind)
+- Flexibility for app-specific styling (the Browser uses Tailwind)
 - Clear separation of concerns (component styles vs. layout utilities)
 
 #### UI Libraries
@@ -64,7 +64,7 @@ This architecture ensures:
 
 ### Component Library Architecture
 
-The frontend leverages **@semiont/react-ui**, a comprehensive framework-agnostic component library that provides:
+The Browser leverages **@semiont/react-ui**, a comprehensive framework-agnostic component library that provides:
 
 #### Core Components
 - **UI Components**: Button, Card, Toolbar, Toast, StatusDisplay
@@ -136,14 +136,14 @@ API calls go directly to backend (/api/*)
   - SSE streams
   - Browser sends `Authorization: Bearer <jwt>` based on the active KB's stored token
 
-- **`/*`** → Static frontend SPA (served by Envoy/nginx)
+- **`/*`** → Static Browser SPA (served by Envoy/nginx)
   - Vite-built static files
   - index.html for all non-asset paths (SPA routing)
 
 **Key Architecture Points:**
-- No frontend Node.js server process at runtime
-- Backend handles all OAuth callbacks and token issuance, returning JWTs the frontend stores per KB
-- Each KB has its own JWT in `localStorage` keyed by KB id; the frontend includes the active KB's token on outgoing API calls
+- No Browser-side Node.js server process at runtime
+- Backend handles all OAuth callbacks and token issuance, returning JWTs the Browser stores per KB
+- Each KB has its own JWT in `localStorage` keyed by KB id; the Browser includes the active KB's token on outgoing API calls
 
 ## Authentication Architecture
 
@@ -488,7 +488,7 @@ packages/react-ui/src/      # Reusable React components library
 - `apps/browser/src` - Vite SPA pages and app-specific implementations
 - `packages/react-ui/src` - Framework-agnostic components and interfaces
 
-**Note**: Authentication components (SignInForm, SignUpForm, AuthErrorDisplay) are framework-agnostic and live in `packages/react-ui/src/features/auth/`; the post-auth WelcomePage lives in `packages/react-ui/src/features/auth-welcome/`. The frontend provides React Router-specific wrappers that handle routing, translations, and auth state.
+**Note**: Authentication components (SignInForm, SignUpForm, AuthErrorDisplay) are framework-agnostic and live in `packages/react-ui/src/features/auth/`; the post-auth WelcomePage lives in `packages/react-ui/src/features/auth-welcome/`. The Browser provides React Router-specific wrappers that handle routing, translations, and auth state.
 
 See [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) for documentation on the reusable component library.
 
@@ -664,7 +664,7 @@ Annotation overlays and panel entries synchronize via hover events for all media
 - [`@semiont/react-ui/docs/ANNOTATIONS.md`](../../../packages/react-ui/docs/ANNOTATIONS.md) - Annotation system documentation
 - [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) - Complete library documentation
 
-### Frontend Documentation
+### Browser Documentation
 - [AUTHENTICATION.md](./AUTHENTICATION.md) - Authentication and authorization
 - [AUTHORIZATION.md](./AUTHORIZATION.md) - Permission model
 - [RENDERING-ARCHITECTURE.md](../../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Rendering pipeline and component hierarchy
@@ -679,12 +679,12 @@ Annotation overlays and panel entries synchronize via hover events for all media
 Two major refactors are complete:
 
 **MERGED-KB-SESSION** (Track 2 of AUTH-CLEANUP): Merged the previously-separate `KnowledgeBaseProvider`, `AuthProvider`, and `SessionProvider` into one library-side session model — now the `SemiontBrowser` singleton behind `SemiontProvider` in `@semiont/react-ui` (the interim `KnowledgeBaseSessionProvider` was itself later folded into it).
-- Frontend `AuthContext.tsx`, `KnowledgeBaseContext.tsx`, `useAuth.ts`, `useSessionManager.ts` are gone
+- Browser `AuthContext.tsx`, `KnowledgeBaseContext.tsx`, `useAuth.ts`, `useSessionManager.ts` are gone
 - Library `SessionContext.tsx`, `auth-events.ts`, and `dispatch401Error`/`dispatch403Error` are gone
 - Auth state via `useSemiont()` → `activeSession$` → `user$` from `@semiont/react-ui`
 - Cross-tree 401/403 signaling via the active session's `SessionSignals` (`notifySessionExpired` / `notifyPermissionDenied`)
 
-**NO-NEXTJS** (see `/NO-NEXTJS.md`): Replaced Next.js with Vite + React Router v7 + i18next.
+**NO-NEXTJS**: Replaced Next.js with Vite + React Router v7 + i18next.
 - `next build` → `vite build` (output: static files)
 - `next dev` → `vite --host`
 - `next-intl` → `i18next` + `react-i18next`
