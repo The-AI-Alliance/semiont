@@ -1,7 +1,6 @@
-import { test, expect, type BusLogCapture } from '../fixtures/auth';
-import type { Locator, Page } from '@playwright/test';
-import { openResourceByName } from '../fixtures/discover';
+import { test, expect } from '../fixtures/auth';
 import { expectGeneratedAt } from '../fixtures/generated';
+import { openConfigureStep, runGeneration } from '../fixtures/generate';
 
 /**
  * The Format dropdown decides what the worker writes — and where.
@@ -36,59 +35,6 @@ import { expectGeneratedAt } from '../fixtures/generated';
  * to tag it `@slow` — not to widen the timeout.
  */
 
-/**
- * A NAMED text seed, not Discover's first card. This file's own tests generate
- * resources, and every generated resource lands newest-first — so "first card"
- * would hand the second test whatever the first test just wrote, and eventually
- * a `.pdf`. Spec 09 documents this breakage twice over. Generating FROM a
- * resource consumes nothing, so both tests can share one seed.
- */
-const SOURCE = 'Photosynthesis Overview';
-
-/** Open the seed and drive its Generate modal to the configure step. */
-async function openConfigureStep(page: Page, bus: BusLogCapture): Promise<Locator> {
-  await openResourceByName(page, SOURCE);
-  await expect(page.getByText(/loading resource/i)).toBeHidden({ timeout: 30_000 });
-
-  await page.locator('button[data-panel="info"]').click();
-  const infoPanel = page.locator('.semiont-resource-info-panel');
-  await expect(infoPanel).toBeVisible({ timeout: 10_000 });
-  // ✨ is literal in ResourceInfoPanel; the word "Generate" is translated and
-  // also names the AssistShell section header. See spec 16.
-  await infoPanel.getByRole('button', { name: /✨.*generate/i }).click();
-
-  const modal = page.locator('.semiont-search-modal__panel--gather');
-  await expect(modal).toBeVisible({ timeout: 10_000 });
-
-  bus.clear();
-  await modal.getByRole('button', { name: /gather/i }).click();
-  await bus.expectRequestResponse('gather:resource-requested', 'gather:resource-complete', 60_000);
-
-  // ConfigureGenerationStep mounts only under `gatherFired && gatherContext`.
-  await expect(modal.locator('#wizard-title')).toBeAttached({ timeout: 30_000 });
-  return modal;
-}
-
-/** Submit and wait out the generation, failing loudly on `job:fail`. */
-async function runGeneration(modal: Locator, bus: BusLogCapture, timeout: number): Promise<void> {
-  bus.clear();
-  await modal.getByRole('button', { name: /generate/i }).last().click();
-
-  const { request } = await bus.expectRequestResponse('job:create', 'job:created', 30_000);
-  expect(request.cid, 'generation job:create must carry a correlationId').toBeTruthy();
-
-  const outcome = await Promise.race([
-    bus.waitForRecv('job:complete', { timeout }).then(() => 'complete' as const),
-    bus.waitForRecv('job:fail', { timeout }).then(() => 'fail' as const),
-  ]);
-  if (outcome === 'fail') {
-    throw new Error(
-      'Expected job:complete, got job:fail. Recent bus entries:\n' +
-        bus.entries.slice(-15).map((e) => `  [${e.op}] ${e.channel} ${e.raw}`).join('\n'),
-    );
-  }
-}
-
 test.describe('generate output format', () => {
   test('a mismatched extension is refused, and text/plain yields a text/plain resource at the typed path', async ({ signedInPage: page, bus }) => {
     test.setTimeout(180_000);
@@ -106,6 +52,14 @@ test.describe('generate output format', () => {
     // ── D7: PDF selected, `.md` typed → refused inline, action disabled ────
     // The message is i18n'd, so assert the element (`#wizard-format-mismatch`,
     // role=alert) and the aria wiring rather than its words.
+    //
+    // ORDER IS LOAD-BEARING. Since P4/D11 an untouched Save location is
+    // PROPOSED from the title + format, and a proposal always matches — the
+    // refusal is reachable only on a hand-edited path. Filling the path FIRST
+    // is what makes it hand-edited; select PDF first and the proposal would
+    // rewrite the extension to .pdf, no mismatch would exist, and every
+    // assertion below would silently test nothing. (Spec 27 pins the
+    // untouched-proposal behavior itself.)
     await pathInput.fill(`generated/e2e-26-${runId}.md`);
     await formatSelect.selectOption('application/pdf');
 
