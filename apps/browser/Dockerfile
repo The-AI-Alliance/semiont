@@ -3,10 +3,13 @@ FROM node:26-alpine AS installer
 ARG NPM_REGISTRY=https://registry.npmjs.org
 ARG SEMIONT_BROWSER_VERSION=latest
 WORKDIR /app
-RUN npm config set registry $NPM_REGISTRY && \
+# Cache mount, same shape and rationale as apps/backend/Dockerfile: persists
+# across --no-cache builds, never enters the image, republished @semiont/*
+# still fetch fresh. No `npm cache clean` — the cache never reaches a layer.
+RUN --mount=type=cache,target=/root/.npm \
+    npm config set registry $NPM_REGISTRY && \
     npm init -y && \
-    npm install @semiont/browser@${SEMIONT_BROWSER_VERSION} && \
-    npm cache clean --force
+    npm install @semiont/browser@${SEMIONT_BROWSER_VERSION}
 
 # Stage 2: minimal runtime — node only, no npm. The runtime entrypoint is
 # `node server.js`, so npm is build-only baggage. Removing it also drops

@@ -1,3 +1,5 @@
+docker stop semiont-archivist
+docker rm semiont-archivist
 docker stop semiont-weaver
 docker rm semiont-weaver
 docker stop semiont-smelter

@@ -15,8 +15,16 @@
  */
 
 import { getPrimaryRepresentation, resourceId as makeResourceId, type ExtractionOutcome } from '@semiont/core';
-import type { KnowledgeBase } from './knowledge-base';
-import { SmeltProgressTimeout } from './smelt-progress';
+import type { ViewStorage } from '@semiont/event-sourcing';
+import type { AnchoredTextStore } from '@semiont/content';
+import { SmeltProgressTimeout, type SmeltProgress } from './smelt-progress';
+
+/** The barrier-guarded read path's whole surface (EXTRACT-ARCHIVIST P1). */
+export interface AnchoredTextReads {
+  views: Pick<ViewStorage, 'get'>;
+  anchoredText: Pick<AnchoredTextStore, 'read'>;
+  smeltProgress: Pick<SmeltProgress, 'whenSettled'>;
+}
 
 /**
  * How long to wait for the Smelter to settle the content generation the caller
@@ -25,7 +33,7 @@ import { SmeltProgressTimeout } from './smelt-progress';
  */
 export const ANCHORED_TEXT_SETTLE_TIMEOUT_MS = 15_000;
 
-export async function readAnchoredText(kb: KnowledgeBase, resourceId: string): Promise<ExtractionOutcome | null> {
+export async function readAnchoredText(kb: AnchoredTextReads, resourceId: string): Promise<ExtractionOutcome | null> {
   // The `resourceId → checksum` index (PERSIST-ANCHORS P1b, decision A): the
   // store is keyed by content identity, the caller holds a mutable pointer,
   // and the index — a live view read — resolves the pointer first, on EVERY

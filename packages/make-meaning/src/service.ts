@@ -22,11 +22,11 @@ import { Matcher } from './matcher';
 import { Stower } from './stower';
 import { Browser } from './browser';
 import { createLimitsDiscovery } from './limits-discovery';
-import { eventAnnotationId, readAnnotationFromView } from './event-enrichment';
+import { wireEnrichment } from './event-enrichment';
 import { CloneTokenManager } from './clone-token-manager';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
-import { stopKnowledgeSystem, type KnowledgeSystem } from './knowledge-system';
-import { registerBusHandlers } from './handlers';
+import { stopKnowledgeSystem, type KnowledgeSystem, type GatewayKnowledgeSystem } from './knowledge-system';
+import { registerBusHandlers, registerGatewayBusHandlers } from './handlers';
 import type { Subscription } from 'rxjs';
 
 export type { MakeMeaningConfig } from './config';
@@ -134,13 +134,20 @@ export async function withStartupTimeout<T>(what: string, work: Promise<T>): Pro
   }
 }
 
-async function createKnowledgeSystemFromConfig(
+/**
+ * Connect the shared stores both composition roots need: graph, event store,
+ * vectors + embedding, and the KnowledgeBase bundle. Whether views REBUILD
+ * here is the root's call — the standalone root owns its record and rebuilds;
+ * the gateway root never does (D6: the Archivist owns rebuild + incremental,
+ * the gateway reads the shared stateDir).
+ */
+async function connectStores(
   project: SemiontProject,
   config: MakeMeaningConfig,
   eventBus: EventBus,
   logger: Logger,
-  skipRebuild?: boolean,
-): Promise<KnowledgeSystem> {
+  skipRebuild: boolean,
+) {
   const graphConfig = config.services!.graph!;
   // Each connect is announced before it is attempted: when one of them does
   // hang, the last line in the log names the culprit. Diagnosing the
@@ -203,13 +210,19 @@ async function createKnowledgeSystemFromConfig(
     skipRebuild,
   });
 
-  eventStore.setEnrichEvent(async (event, resourceId) => {
-    const annId = eventAnnotationId(event);
-    if (annId === null) return event;
-    const annotation = await readAnnotationFromView(kb, resourceId, annId);
-    if (annotation === null) return event;
-    return { ...event, annotation } as unknown as typeof event;
-  });
+  return { kb, eventStore, embeddingProvider };
+}
+
+async function createKnowledgeSystemFromConfig(
+  project: SemiontProject,
+  config: MakeMeaningConfig,
+  eventBus: EventBus,
+  logger: Logger,
+  skipRebuild?: boolean,
+): Promise<KnowledgeSystem> {
+  const { kb, eventStore, embeddingProvider } = await connectStores(project, config, eventBus, logger, skipRebuild ?? false);
+
+  wireEnrichment(eventStore, kb);
 
   const stower = new Stower(kb, eventBus, project, logger.child({ component: 'stower' }));
   await stower.initialize();
@@ -237,7 +250,7 @@ async function createKnowledgeSystemFromConfig(
   // roster (provider, model); its instances' internal caching is the only
   // storage (INFERENCE-LIMITS-EXPOSURE D1).
   const limitsDiscovery = createLimitsDiscovery(config, logger.child({ component: 'limits-discovery' }));
-  const browser = new Browser(kb.views, kb, eventBus, project, config, limitsDiscovery, embeddingProvider, logger.child({ component: 'browser' }));
+  const browser = new Browser(kb, eventBus, project, config, limitsDiscovery, embeddingProvider, logger.child({ component: 'browser' }));
   await browser.initialize();
 
   const cloneTokenManager = new CloneTokenManager(kb, eventBus, logger.child({ component: 'clone-token-manager' }));
@@ -249,13 +262,7 @@ async function createKnowledgeSystemFromConfig(
 
 // ─── Public entry point ───────────────────────────────────────────────────────
 
-export async function startMakeMeaning(
-  project: SemiontProject,
-  config: MakeMeaningConfig,
-  eventBus: EventBus,
-  logger: Logger,
-  options?: { skipRebuild?: boolean },
-): Promise<MakeMeaningService> {
+function assertMakeMeaningConfig(config: MakeMeaningConfig): void {
   if (!config.services?.graph) {
     throw new Error('services.graph is required for make-meaning service');
   }
@@ -277,6 +284,16 @@ export async function startMakeMeaning(
       `must nest inside the job-worker stall watchdog (${STALL_THRESHOLD_MS}ms) — lower settleTimeoutMs (A4)`,
     );
   }
+}
+
+export async function startMakeMeaning(
+  project: SemiontProject,
+  config: MakeMeaningConfig,
+  eventBus: EventBus,
+  logger: Logger,
+  options?: { skipRebuild?: boolean },
+): Promise<MakeMeaningService> {
+  assertMakeMeaningConfig(config);
 
   const skipRebuild = options?.skipRebuild ?? (process.env.SEMIONT_SKIP_REBUILD === 'true');
 
@@ -299,6 +316,83 @@ export async function startMakeMeaning(
       jobStatusSubscription.unsubscribe();
       await knowledgeSystem.stop();
       logger.info('Make-Meaning service stopped');
+    },
+  };
+}
+
+// ─── Gateway composition root (EXTRACT-ARCHIVIST P3) ─────────────────────────
+
+export interface GatewayMakeMeaningService {
+  knowledgeSystem: GatewayKnowledgeSystem;
+  jobQueue:        JobQueue;
+  project:         SemiontProject;
+  stop:            () => Promise<void>;
+}
+
+/**
+ * The gateway's composition root: everything startMakeMeaning builds EXCEPT
+ * the Archivist's actors and the machinery that rides the append path. The
+ * Archivist service (archivist-main) owns Stower/Browser/CloneTokenManager,
+ * enrichment, the entity-type bootstrap + warm, and the view rebuild; this
+ * root hosts the read/inference side that EXTRACT-LIBRARIAN will take next
+ * (Gatherer, Matcher, their handlers) plus the job queue, reading views from
+ * the shared stateDir (D6).
+ *
+ * Views are never rebuilt here — one rebuild owner, one writer (D4b).
+ */
+export async function startMakeMeaningGateway(
+  project: SemiontProject,
+  config: MakeMeaningConfig,
+  eventBus: EventBus,
+  logger: Logger,
+): Promise<GatewayMakeMeaningService> {
+  assertMakeMeaningConfig(config);
+
+  const { jobQueue, jobStatusSubscription } = await createJobQueue(project, eventBus, logger);
+  const { kb, embeddingProvider } = await connectStores(project, config, eventBus, logger, true);
+
+  const gatherer = new Gatherer(
+    kb, eventBus,
+    createInferenceClient(resolveActorInference(config, 'gatherer'), logger.child({ component: 'inference-client-gatherer' })),
+    config.gather.settleTimeoutMs,
+    logger.child({ component: 'gatherer' }),
+    embeddingProvider,
+  );
+  await gatherer.initialize();
+
+  const matcher = new Matcher(
+    kb, eventBus,
+    logger.child({ component: 'matcher' }),
+    createInferenceClient(resolveActorInference(config, 'matcher'), logger.child({ component: 'inference-client-matcher' })),
+    embeddingProvider,
+  );
+  await matcher.initialize();
+
+  const knowledgeSystem: GatewayKnowledgeSystem = {
+    kb,
+    gatherer,
+    matcher,
+    stop: async () => {
+      await matcher.stop();
+      await gatherer.stop();
+      kb.weaveProgress.dispose();
+      await kb.graph.disconnect();
+    },
+  };
+
+  // The gateway's handler subset: annotation-assembly is NOT here — it moved
+  // into the Archivist beside the Stower whose facts it consumes (D2 i).
+  registerGatewayBusHandlers(eventBus, kb, gatherer, jobQueue, project, logger);
+
+  return {
+    knowledgeSystem,
+    jobQueue,
+    project,
+    stop: async () => {
+      logger.info('Stopping gateway make-meaning');
+      jobStatusSubscription.unsubscribe();
+      await knowledgeSystem.stop();
+      logger.info('Gateway make-meaning stopped');
     },
   };
 }

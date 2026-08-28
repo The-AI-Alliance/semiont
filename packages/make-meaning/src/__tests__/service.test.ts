@@ -99,6 +99,20 @@ describe('Make-Meaning Service', () => {
     });
   });
 
+  describe('config refusals at startup', () => {
+    it('rejects a config naming no graph service', async () => {
+      // The other two service sections are required by the schema (P1 of
+      // MANDATORY-EMBEDDING), so the TOML loader turns those away before
+      // startup. `graph` is not, which is why this check is the one that has
+      // to live here — and why it must fail loudly rather than boot a service
+      // whose graph reads all throw on first use.
+      const badConfig = { ...config, services: { ...config.services, graph: undefined } } as MakeMeaningConfig;
+      await expect(startMakeMeaning(project, badConfig, eventBus, mockLogger)).rejects.toThrow(
+        /services\.graph is required/,
+      );
+    });
+  });
+
   describe('A4 nesting assertion (gather barrier budgets vs the worker stall watchdog)', () => {
     it('rejects a settle bound that cannot degrade before the stall watchdog fails fast', async () => {
       const { STALL_THRESHOLD_MS } = await import('@semiont/jobs');

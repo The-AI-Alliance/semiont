@@ -16,6 +16,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	toml "github.com/pelletier/go-toml/v2"
 )
 
 type executor interface {
@@ -28,9 +30,9 @@ type executor interface {
 	portCheck(p portNeed) bool    // singular wording in plan mode
 	recordPorts(ports []portNeed) // note claimed host ports in the belief record
 	hostOllamaReachable(addr string, port int) bool
-	stageAll(configFile string) (string, bool)           // per-service config copies; returns stage dir
-	stageOne(svc, configFile string) (string, bool)      // one service's fresh private copy
-	initStack(root, config, version, addr, stage string) // begin the belief record
+	stageAll(configFile, envName, addr string) (string, bool)      // per-service config copies; returns stage dir
+	stageOne(svc, configFile, envName, addr string) (string, bool) // one service's fresh private copy
+	initStack(root, config, version, addr, stage string)           // begin the belief record
 	pull(img string) bool
 	runDetached(args []string) (string, bool)                      // echo + run -d; returns runtime-reported id
 	waitHTTP(label, url string, seconds int) (time.Duration, bool) // wall-clock budget, not attempts
@@ -54,6 +56,7 @@ type executor interface {
 	verifyRemoteModels(role, base, key string, models []string) // record /v1/models metadata; warn on unlisted
 	ensureModels(base string, models []modelNeed)               // pull configured ollama models that are absent
 	stateMounts(role, image, root string) ([]string, bool)      // persistent-state run args; !ok = refuse (data written by another image)
+	stateMountsShared(role, root string) ([]string, bool)       // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
 	val(live, plan string) string                               // mode-scoped value (kb root, admin password)
 	rtName() string
 
@@ -261,7 +264,31 @@ func (x *liveExec) stageDir() (string, bool) {
 	return stage, true
 }
 
-func (x *liveExec) stageAll(configFile string) (string, bool) {
+// patchArchivistTopology appends [environments.<env>.archivist] — with the
+// LITERAL address the launcher computed — to a staged BACKEND config.
+// Deployment topology is the launcher's to know, never the KB config's to
+// declare: a ${VAR} here would demand that var of every config consumer,
+// which is how ARCHIVIST_HOST briefly existed. A hand-written section wins —
+// the operator is describing a topology the launcher cannot see. Invalid
+// TOML passes through untouched; the consumer's own loader owns that error.
+func patchArchivistTopology(cfg []byte, envName, addr string) []byte {
+	var doc map[string]any
+	if err := toml.Unmarshal(cfg, &doc); err != nil {
+		return cfg
+	}
+	if envs, ok := doc["environments"].(map[string]any); ok {
+		if env, ok := envs[envName].(map[string]any); ok {
+			if _, has := env["archivist"]; has {
+				return cfg
+			}
+		}
+	}
+	stanza := fmt.Sprintf("\n# Staged by the launcher: where THIS stack's archivist listens.\n[environments.%s.archivist]\nhost = %q\nport = %d\n",
+		envName, addr, roles["archivist"].ports[0].port)
+	return append(cfg, []byte(stanza)...)
+}
+
+func (x *liveExec) stageAll(configFile, envName, addr string) (string, bool) {
 	stage, ok := x.stageDir()
 	if !ok {
 		return "", false
@@ -271,8 +298,12 @@ func (x *liveExec) stageAll(configFile string) (string, bool) {
 		x.u.fail("Reading %s: %v", configFile, err)
 		return "", false
 	}
-	for _, svc := range []string{"backend", "worker", "smelter", "weaver"} {
-		if err := os.WriteFile(filepath.Join(stage, svc+".toml"), cfg, 0o644); err != nil {
+	for _, svc := range []string{"backend", "worker", "smelter", "weaver", "archivist"} {
+		out := cfg
+		if svc == "backend" {
+			out = patchArchivistTopology(cfg, envName, addr)
+		}
+		if err := os.WriteFile(filepath.Join(stage, svc+".toml"), out, 0o644); err != nil {
 			x.u.fail("Staging config for %s: %v", svc, err)
 			return "", false
 		}
@@ -280,7 +311,7 @@ func (x *liveExec) stageAll(configFile string) (string, bool) {
 	return stage, true
 }
 
-func (x *liveExec) stageOne(svc, configFile string) (string, bool) {
+func (x *liveExec) stageOne(svc, configFile, envName, addr string) (string, bool) {
 	stage, ok := x.stageDir()
 	if !ok {
 		return "", false
@@ -289,6 +320,9 @@ func (x *liveExec) stageOne(svc, configFile string) (string, bool) {
 	if err != nil {
 		x.u.fail("Reading %s: %v", configFile, err)
 		return "", false
+	}
+	if svc == "backend" {
+		cfg = patchArchivistTopology(cfg, envName, addr)
 	}
 	if err := os.WriteFile(filepath.Join(stage, svc+".toml"), cfg, 0o644); err != nil {
 		x.u.fail("Staging config for %s: %v", svc, err)
@@ -649,6 +683,33 @@ func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 	return args, true
 }
 
+// stateMountsShared: a role's state mounts for a container that is NOT the
+// stamp's owner. Until the Archivist cutover the BACKEND owns the
+// anchored-text stamp (it mounts via stateMounts and clears on image
+// change); the Archivist mounts the same store as a peer. Running the
+// stamped path here with the archivist image would flip the stamp on every
+// start and — anchored-text being a projection — CLEAR the store each
+// alternation, at ~2.9s/page of OCR to rebuild. Ownership flips only when
+// the BACKEND stops mounting this store — which is EXTRACT-LIBRARIAN's
+// cutover (the Gatherer reads anchored text gateway-side until then), NOT
+// the Archivist's. Corrected 2026-08-27; the first version of this comment
+// said "at cutover" and meant the wrong one.
+func (x *liveExec) stateMountsShared(role, root string) ([]string, bool) {
+	args := stateMountArgs(role, root)
+	if len(args) == 0 {
+		return nil, true
+	}
+	spec := stateStores[role]
+	sd := spec.storeDir(root)
+	for _, m := range spec.mounts {
+		if err := os.MkdirAll(filepath.Join(sd, m.sub), 0o755); err != nil {
+			x.u.fail("cannot create state dir %s: %v", filepath.Join(sd, m.sub), err)
+			return nil, false
+		}
+	}
+	return args, true
+}
+
 func (x *liveExec) val(live, _ string) string { return live }
 func (x *liveExec) rtName() string            { return x.rt }
 func (x *liveExec) dim(s string) string       { return x.u.dim(s) }
@@ -710,13 +771,17 @@ func (x *planExec) portChecks(ports []portNeed) bool {
 	return true
 }
 
-func (x *planExec) stageAll(string) (string, bool) {
-	x.c("stage per-service config copies under <config-stage>: backend.toml worker.toml smelter.toml weaver.toml")
+func (x *planExec) stageAll(_, envName, _ string) (string, bool) {
+	x.c("stage per-service config copies under <config-stage>: backend.toml worker.toml smelter.toml weaver.toml archivist.toml")
+	x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to backend.toml", envName)
 	return "<config-stage>", true
 }
 
-func (x *planExec) stageOne(svc, _ string) (string, bool) {
+func (x *planExec) stageOne(svc, _, envName, _ string) (string, bool) {
 	x.c("stage a fresh private config copy under <config-stage>: %s.toml", svc)
+	if svc == "backend" {
+		x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to backend.toml", envName)
+	}
 	return "<config-stage>", true
 }
 
@@ -850,6 +915,11 @@ func (x *planExec) stateMounts(role, _, root string) ([]string, bool) {
 			role, stateStores[role].storeDir(root))
 	}
 	return args, true
+}
+
+func (x *planExec) stateMountsShared(role, root string) ([]string, bool) {
+	x.c("mount %s state (shared; the stamp stays with its owning service)", role)
+	return stateMountArgs(role, root), true
 }
 
 func (x *planExec) val(_, plan string) string { return plan }

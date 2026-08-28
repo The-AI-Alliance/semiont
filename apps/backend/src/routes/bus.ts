@@ -3,7 +3,7 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import type { Context, Next } from 'hono';
-import type { EventBus, EventMap, StoredEvent } from '@semiont/core';
+import type { EventBus, EventMap, StoredEvent, EnvironmentConfig } from '@semiont/core';
 import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, resourceId as makeResourceId } from '@semiont/core';
 import type { Subscription } from 'rxjs';
 import {
@@ -16,13 +16,50 @@ import {
   withTraceparent,
 } from '@semiont/observability';
 import { getLogger } from '../logger';
-import type { startMakeMeaning } from '@semiont/make-meaning';
+import type { startMakeMeaningGateway } from '@semiont/make-meaning';
 import { validators, formatErrors } from '@semiont/core/openapi';
 
 type AuthMiddleware = (c: Context, next: Next) => Promise<Response | void>;
-type MakeMeaning = Awaited<ReturnType<typeof startMakeMeaning>>;
+type MakeMeaning = Awaited<ReturnType<typeof startMakeMeaningGateway>>;
 
 const getBusLogger = () => getLogger().child({ component: 'bus' });
+
+/**
+ * Fetch `Last-Event-ID` replay from the Archivist's D1 read path
+ * (EXTRACT-ARCHIVIST): one narrow call — the events for one resource from
+ * one sequence, inclusive. The gateway is this seam's ONLY customer; a
+ * second one is the signal to re-examine the design, never to widen it.
+ * Addressed as `host:port` like every internal service (the vectors
+ * precedent) — the Archivist is not public. Auth is the shared worker
+ * secret, the same deployment fact agent auth uses. A missing
+ * `services.archivist.host` throws — the caller's catch degrades to a
+ * scoped `bus:resume-gap`, which is the honest answer when the record
+ * cannot be reached.
+ */
+async function fetchArchivistReplay(
+  config: { services?: { archivist?: { host?: string; port?: number } } },
+  resourceId: string,
+  fromSequence: number,
+): Promise<StoredEvent[]> {
+  const host = config.services?.archivist?.host;
+  if (!host) {
+    throw new Error('services.archivist.host is not configured — cannot replay from the record');
+  }
+  const port = config.services?.archivist?.port ?? 9093;
+  const secret = process.env.SEMIONT_WORKER_SECRET;
+  if (!secret) {
+    throw new Error('SEMIONT_WORKER_SECRET is not set — cannot authenticate to the Archivist read path');
+  }
+  const res = await fetch(
+    `http://${host}:${port}/events/${encodeURIComponent(resourceId)}?fromSequence=${fromSequence}`,
+    { headers: { authorization: `Bearer ${secret}` } },
+  );
+  if (!res.ok) {
+    throw new Error(`Archivist replay read failed: ${res.status} ${res.statusText}`);
+  }
+  const { events } = await res.json() as { events: StoredEvent[] };
+  return events;
+}
 
 /**
  * SSE event id stamping.
@@ -206,7 +243,7 @@ function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSub
 }
 
 export function createBusRouter(authMiddleware: AuthMiddleware) {
-  const busRouter = new Hono<{ Variables: { user: User; principalDid: string; eventBus: EventBus; makeMeaning: MakeMeaning } }>();
+  const busRouter = new Hono<{ Variables: { user: User; principalDid: string; eventBus: EventBus; makeMeaning: MakeMeaning; config: EnvironmentConfig } }>();
 
   busRouter.use('/bus/*', authMiddleware);
 
@@ -224,7 +261,6 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     }
     const { global: channels, scoped, pendingReplies } = parsed;
     const eventBus = c.get('eventBus');
-    const makeMeaning = c.get('makeMeaning');
     // Read OUTSIDE the stream callback: `c` is the request context, and the
     // presence pair below must name the principal on this connection.
     const subscriberDid = c.get('principalDid') as string | undefined;
@@ -447,9 +483,10 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
           try {
             const rId = makeResourceId(entry.scope);
             const allowedTypes = new Set(entry.channels);
-            const events = await makeMeaning.knowledgeSystem.kb.eventStore.log.queryEvents(rId, {
-              fromSequence: parsed.sequence + 1,
-            });
+            // The record lives in the Archivist (EXTRACT-ARCHIVIST P3):
+            // replay reads the D1 sequence-ranged path, this seam's one
+            // customer. The +1 is ours — the path is inclusive.
+            const events = await fetchArchivistReplay(c.get('config'), String(rId), parsed.sequence + 1);
             const replayable: StoredEvent[] = events.filter((e) => allowedTypes.has(e.type as string));
 
             if (events.length > 0 && events[0]!.metadata.sequenceNumber > parsed.sequence + 1) {

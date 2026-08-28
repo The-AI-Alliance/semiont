@@ -43,9 +43,14 @@ vi.mock('../db', () => ({
 // Use a unique directory per worker thread to avoid race conditions
 const testDir = `/tmp/semiont-test-${process.pid}-${uuidv4()}`;
 
-// Mock config loader to provide in-memory config (no filesystem needed)
-vi.mock('../utils/config', () => ({
-  makeMeaningConfigFrom: vi.fn(() => ({ services: {}, actors: undefined, workers: undefined })),
+// Mock config LOADING to provide in-memory config (no filesystem needed) —
+// loadEnvironmentConfig moved to its owning package, @semiont/core/node
+// (EXTRACT-ARCHIVIST P2a); the mock spreads the real module so every other
+// export (SemiontProject, …) stays live. makeMeaningConfigFrom is NOT
+// mocked: the real mapping runs over this config, so `_metadata` carries
+// the gather/search sections the TOML loader would have set.
+vi.mock('@semiont/core/node', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@semiont/core/node')>()),
   loadEnvironmentConfig: vi.fn((_projectRoot: string, _env: string): EnvironmentConfig => ({
     services: {
       backend: {
@@ -84,6 +89,8 @@ vi.mock('../utils/config', () => ({
     _metadata: {
       environment: 'unit',
       projectRoot: testDir,
+      gather: { settleTimeoutMs: 15_000 },
+      search: { semanticFloor: 0.6 },
     },
   })),
 }));

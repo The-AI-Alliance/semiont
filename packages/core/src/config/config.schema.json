@@ -291,7 +291,10 @@
         },
         "type": {
           "type": "string",
-          "enum": ["qdrant", "memory"]
+          "enum": [
+            "qdrant",
+            "memory"
+          ]
         },
         "host": {
           "type": "string"
@@ -301,7 +304,9 @@
           "default": 6333
         }
       },
-      "required": ["type"],
+      "required": [
+        "type"
+      ],
       "additionalProperties": false
     },
     "EmbeddingServiceConfig": {
@@ -312,7 +317,10 @@
         },
         "type": {
           "type": "string",
-          "enum": ["voyage", "ollama"]
+          "enum": [
+            "voyage",
+            "ollama"
+          ]
         },
         "model": {
           "type": "string"
@@ -340,7 +348,10 @@
           }
         }
       },
-      "required": ["type", "model"],
+      "required": [
+        "type",
+        "model"
+      ],
       "additionalProperties": false
     },
     "DatabaseServiceConfig": {
@@ -764,7 +775,9 @@
       "properties": {
         "platform": {
           "type": "string",
-          "enum": ["external"]
+          "enum": [
+            "external"
+          ]
         },
         "endpoint": {
           "type": "string"
@@ -951,9 +964,15 @@
         },
         "embedding": {
           "$ref": "#/definitions/EmbeddingServiceConfig"
+        },
+        "archivist": {
+          "$ref": "#/definitions/ArchivistServiceConfig"
         }
       },
-      "required": ["vectors", "embedding"],
+      "required": [
+        "vectors",
+        "embedding"
+      ],
       "additionalProperties": true
     },
     "SiteConfig": {
@@ -1078,7 +1097,10 @@
               "type": "string"
             },
             "projectRoot": {
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [
@@ -1112,8 +1134,12 @@
               "inference": {
                 "type": "object",
                 "properties": {
-                  "type": { "type": "string" },
-                  "model": { "type": "string" }
+                  "type": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  }
                 },
                 "additionalProperties": true
               }
@@ -1129,8 +1155,12 @@
               "inference": {
                 "type": "object",
                 "properties": {
-                  "type": { "type": "string" },
-                  "model": { "type": "string" }
+                  "type": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  }
                 },
                 "additionalProperties": true
               }
@@ -1217,6 +1247,25 @@
         "site"
       ],
       "additionalProperties": false
+    },
+    "ArchivistServiceConfig": {
+      "type": "object",
+      "description": "The Archivist service \u2014 the out-of-process keeper of the record (EXTRACT-ARCHIVIST). Internal-only: the gateway dials host:port for the D1 sequence-ranged event read path; nothing public.",
+      "properties": {
+        "platform": {
+          "$ref": "#/definitions/ServicePlatformConfig"
+        },
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "image": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
     }
   }
 }

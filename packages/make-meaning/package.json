@@ -20,6 +20,10 @@
     "./weaver-main": {
       "types": "./dist/weaver-main.d.ts",
       "import": "./dist/weaver-main.js"
+    },
+    "./archivist-main": {
+      "types": "./dist/archivist-main.d.ts",
+      "import": "./dist/archivist-main.js"
     }
   },
   "files": [

@@ -23,7 +23,7 @@ import { makeMeaningMock } from '../helpers/make-meaning-mock';
 
 vi.mock('@semiont/make-meaning', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@semiont/make-meaning')>();
-  return { ...actual, startMakeMeaning: vi.fn().mockResolvedValue(makeMeaningMock()) };
+  return { ...actual, startMakeMeaningGateway: vi.fn().mockResolvedValue(makeMeaningMock()) };
 });
 
 import { app } from '../../index';

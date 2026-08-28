@@ -136,6 +136,10 @@ interface EnvironmentSection {
     port?: number;
     publicURL?: string;
   };
+  archivist?: {
+    host?: string;
+    port?: number;
+  };
   site?: {
     domain?: string;
     siteName?: string;
@@ -497,6 +501,21 @@ export function loadTomlConfig(
       port: backend.port ?? 4000,
       publicURL: backend.publicURL ?? `http://localhost:${backend.port ?? 4000}`,
     };
+  }
+
+  // The Archivist's D1 read path: the gateway replays SSE resumes from it
+  // (EXTRACT-ARCHIVIST P3). Internal host:port like vectors — never a
+  // publicURL; the Archivist is not public. Without this mapping the
+  // section parses and then VANISHES: fetchArchivistReplay reads
+  // services.archivist, finds nothing, and every resume silently degrades
+  // to a gap — the exact failure D1's gate exists to catch. (The cutover
+  // added the schema and the consumer; this mapping is the missing middle.)
+  if (resolved.archivist?.host) {
+    services.archivist = {
+      platform: { type: 'external' as PlatformType },
+      host: resolved.archivist.host,
+      port: resolved.archivist.port ?? 9093,
+    } as EnvironmentConfig['services']['archivist'];
   }
 
   // No browser service is emitted. The Browser is machine-level — one Browser

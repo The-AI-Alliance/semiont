@@ -53,6 +53,9 @@ jobs:
           - service: weaver
             dockerfile: packages/make-meaning/Dockerfile.weaver
             verify_packages: '@semiont/make-meaning'
+          - service: archivist
+            dockerfile: packages/make-meaning/Dockerfile.archivist
+            verify_packages: '@semiont/make-meaning'
 
     steps:
       - name: Checkout repository

@@ -45,6 +45,9 @@ type rolePlan struct {
 type launchPlan struct {
 	Roles       map[string]rolePlan
 	BackendPort int
+	// EnvName is the [defaults]-selected environment — staging needs it to
+	// address the section it appends (see patchArchivistTopology).
+	EnvName string
 	// OllamaModels: every model this config asks OLLAMA to serve — the
 	// ollama-typed actor/worker bindings plus an ollama embedding. Distinct
 	// from the per-role Models (which list what a role uses whoever serves
@@ -268,7 +271,7 @@ func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
 	// them; the runtime's `logs` answered "No such container"). Cleanup is
 	// already explicit at both ends: start's preflight and stop both
 	// stop+rm by name.
-	a := []string{"run", "-d", "--name", roles[role].container}
+	a := []string{"run", "-d", "--name", roles[role].container, "--memory", roles[role].mem}
 	for _, ap := range spec.auxPorts {
 		a = append(a, "-p", fmt.Sprintf("%d:%d", ap.port, ap.port))
 	}
@@ -286,7 +289,9 @@ func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
 // shape do not — roles[owner].container would be wrong for embedding.
 func ollamaRunArgs(rp rolePlan, extra ...string) []string {
 	spec := driverCatalog["inference"]["ollama"]
-	a := []string{"run", "-d", "--name", "semiont-ollama"} // no --rm: see providedRunArgs
+	// The ceiling is the INFERENCE role's whichever role owns the container
+	// (an all-remote embedding config still runs one Ollama).
+	a := []string{"run", "-d", "--name", "semiont-ollama", "--memory", roles["inference"].mem} // no --rm: see providedRunArgs
 	a = append(a, "-p", fmt.Sprintf("%d:%d", rp.Port, spec.defaultPort))
 	a = append(a, extra...)
 	return append(a, rp.Image)
@@ -315,6 +320,7 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 		portNeed{9090, "Worker"},
 		portNeed{9091, "Smelter"},
 		portNeed{9092, "Weaver"},
+		portNeed{9093, "Archivist"},
 		// No browser port here: the Browser is not a stack member — its
 		// port is checked inside flowBrowser, and only when (re)starting.
 	)
@@ -355,7 +361,7 @@ func parseHostPort(s string) (host string, port int) {
 
 // derivePlan maps the selected environment to per-role launch obligations.
 func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
-	plan := &launchPlan{Roles: map[string]rolePlan{}, BackendPort: 4000, OllamaModels: ollamaModels(env)}
+	plan := &launchPlan{Roles: map[string]rolePlan{}, BackendPort: 4000, EnvName: envName, OllamaModels: ollamaModels(env)}
 	if env.Backend != nil && env.Backend.Port != 0 {
 		plan.BackendPort = env.Backend.Port
 	}

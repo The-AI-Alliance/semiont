@@ -3,14 +3,14 @@ import { Hono } from 'hono';
 import { User } from '@prisma/client';
 import { authMiddleware } from '../../middleware/auth';
 import type { EventBus } from '@semiont/core';
-import type { startMakeMeaning } from '@semiont/make-meaning';
+import type { startMakeMeaningGateway } from '@semiont/make-meaning';
 
 // Shared router type
-export type ResourcesRouterType = Hono<{ Variables: { user: User; principalDid: string; agentDid?: string; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>;
+export type ResourcesRouterType = Hono<{ Variables: { user: User; principalDid: string; agentDid?: string; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaningGateway>> } }>;
 
 // Create a router with auth middleware pre-applied
 export function createResourceRouter(): ResourcesRouterType {
-  const router = new Hono<{ Variables: { user: User; principalDid: string; agentDid?: string; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>();
+  const router = new Hono<{ Variables: { user: User; principalDid: string; agentDid?: string; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaningGateway>> } }>();
   router.use('/api/resources/*', authMiddleware);
   router.use('/api/clone-tokens/*', authMiddleware);
   router.use('/resources/*', authMiddleware); // W3C URI endpoints also require auth

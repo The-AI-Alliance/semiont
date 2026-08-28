@@ -27,6 +27,7 @@ const (
 var preflightNames = []string{
 	"semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-postgres",
 	"semiont-backend", "semiont-worker", "semiont-smelter", "semiont-weaver",
+	"semiont-archivist",
 }
 
 type startOptions struct {
@@ -67,7 +68,8 @@ Options:
                         SEMIONT_ROOT and cwd discovery.
   --service <name>      Start (restart) just this one service, leaving the rest
                         of the stack untouched: backend, worker, smelter, weaver,
-                        browser, database, graph, vectors, inference, or traces.
+                        archivist, browser, database, graph, vectors, inference,
+                        or traces.
                         Rejoins a running stack's worker secret automatically;
                         OTel export is enabled iff traces (Jaeger) is up.
   --port <n>            Browser port (--service browser only; default 3000).
@@ -409,7 +411,11 @@ func Start(args []string) int {
 			fmt.Fprintln(os.Stderr, "  cd into a KB clone, or set SEMIONT_ROOT / pass --root.")
 			return 1
 		}
-		if opts.service == "" || opts.service == "backend" {
+		// The /kb-mount invariant: services that mount the clone require a
+		// real git clone. The Archivist most of all — it is the git
+		// single-writer (D4b), so handing it a non-clone would fail at the
+		// first `git add` rather than here, with a worse message.
+		if opts.service == "" || opts.service == "backend" || opts.service == "archivist" {
 			if !requireGitClone(u, root) {
 				return 1
 			}
@@ -692,6 +698,7 @@ func image(svc, version string) string {
 
 func tracesArgs() []string {
 	return []string{"run", "-d", "--name", "semiont-jaeger", // no --rm: see providedRunArgs
+		"--memory", roles["traces"].mem,
 		"-p", "16686:16686", "-p", "4318:4318", "jaegertracing/all-in-one:1.76.0"}
 }
 
@@ -710,7 +717,7 @@ const kbMountTarget = "/kb"
 
 func backendArgs(kbRoot, stage, addr, secret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-backend", // no --rm: see providedRunArgs
-		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", "8G",
+		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", roles["backend"].mem,
 		"--volume", kbRoot + ":" + kbMountTarget,
 		"--volume", stage + "/backend.toml:/home/semiont/.semiontconfig:ro"}
 	// Persistent state the backend itself owns (stateStores["backend"]).
@@ -722,6 +729,11 @@ func backendArgs(kbRoot, stage, addr, secret, jwt, version string, port int, use
 		"--env", "NEO4J_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "OLLAMA_HOST="+addr,
+		// XDG_STATE_HOME rides in argv, NOT as an image ENV like
+		// SEMIONT_ROOT: it is a standard override project.ts already
+		// honours, and the env and its mount live in this one builder —
+		// no cross-file pair for imagepaths_test to guard.
+		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_WORKER_SECRET="+secret,
 		"--env", "JWT_SECRET="+jwt)
 	return append(a, image("backend", version))
@@ -729,10 +741,10 @@ func backendArgs(kbRoot, stage, addr, secret, jwt, version string, port int, use
 
 // sidecarArgs covers the three make-meaning sidecars (worker / smelter /
 // weaver) — identical in shape, differing only in name, port, and memory.
-func sidecarArgs(svc, mem string, port int, stage, addr, secret, version string, userEnv, otel []string) []string {
+func sidecarArgs(svc string, port int, stage, addr, secret, version string, userEnv, otel []string) []string {
 	p := strconv.Itoa(port)
 	a := []string{"run", "-d", "--name", "semiont-" + svc, // no --rm: see providedRunArgs
-		"--memory", mem, "--publish", p + ":" + p,
+		"--memory", roles[svc].mem, "--publish", p + ":" + p,
 		"--volume", stage + "/" + svc + ".toml:/home/semiont/.semiontconfig:ro"}
 	a = append(a, userEnv...)
 	a = append(a, otel...)
@@ -742,6 +754,9 @@ func sidecarArgs(svc, mem string, port int, stage, addr, secret, version string,
 		"--env", "NEO4J_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "POSTGRES_HOST="+addr,
+		// Interpolation requirement only: loadEnvironmentConfig expands the
+		// WHOLE TOML eagerly, so every consumer needs every ${VAR} defined
+		// (the same reason the Archivist gets POSTGRES_HOST).
 		"--env", "SEMIONT_WORKER_SECRET="+secret)
 	return append(a, image(svc, version))
 }
@@ -749,9 +764,34 @@ func sidecarArgs(svc, mem string, port int, stage, addr, secret, version string,
 // browserArgs: the Browser publishes on the chosen host port (default
 // 3000; the SPA server always listens on 3000 inside). The ONLY port a flag
 // may move — it's absent from the config and nothing in the stack dials it.
+// archivistArgs: the Archivist owns the file-backed record, so its mount
+// shape is the BACKEND's minus the database — the KB root read-write (it is
+// the git single-writer, D4b), the anchored-text store, and a staged config
+// copy. Env is the sidecar set, which already carries every ${VAR} the
+// config interpolates. Deliberately NO JWT_SECRET: it signs nothing; agent
+// auth presents the worker secret (the same fact D1's read path relies on).
+func archivistArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []string, state ...string) []string {
+	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
+		"--memory", roles["archivist"].mem, "--publish", "9093:9093",
+		"--volume", kbRoot + ":" + kbMountTarget,
+		"--volume", stage + "/archivist.toml:/home/semiont/.semiontconfig:ro"}
+	a = append(a, state...)
+	a = append(a, userEnv...)
+	a = append(a, otel...)
+	a = append(a,
+		"--env", "BACKEND_HOST="+addr,
+		"--env", "OLLAMA_HOST="+addr,
+		"--env", "NEO4J_HOST="+addr,
+		"--env", "QDRANT_HOST="+addr,
+		"--env", "POSTGRES_HOST="+addr,
+		"--env", "XDG_STATE_HOME=/semiont-state",
+		"--env", "SEMIONT_WORKER_SECRET="+secret)
+	return append(a, image("archivist", version))
+}
+
 func browserArgs(version string, port int) []string {
 	a := []string{"run", "-d", "--name", "semiont-browser", // no --rm: see providedRunArgs
-		"--memory", "1G", "--publish", fmt.Sprintf("%d:3000", port)}
+		"--memory", roles["browser"].mem, "--publish", fmt.Sprintf("%d:3000", port)}
 	// The Browser's KB-discovery view (BROWSER-KB-DISCOVERY.md lane 1): a
 	// read-only DIRECTORY mount (Apple container cannot single-file mount).
 	// Inert until the Browser image serves /discovery — a dormant feature
@@ -785,18 +825,18 @@ func pullArgs(rt, img string) []string {
 
 // browser is absent: the Browser pulls its own image inside flowBrowser,
 // and only when actually (re)starting — a kept Browser costs no pull.
-var semiontServices = []string{"backend", "worker", "smelter", "weaver"}
+var semiontServices = []string{"backend", "worker", "smelter", "weaver", "archivist"}
 
 // sidecarSpecs: the three make-meaning sidecars, in start order.
 type sidecarSpec struct {
-	svc, label, mem, banner string
-	port                    int
+	svc, label, banner string
+	port               int
 }
 
 var sidecarSpecs = []sidecarSpec{
-	{"worker", "Worker pool", "2G", "Starting Worker Pool", 9090},
-	{"smelter", "Smelter", "2G", "Starting Smelter", 9091},
-	{"weaver", "Weaver", "3G", "Starting Weaver", 9092},
+	{"worker", "Worker pool", "Starting Worker Pool", 9090},
+	{"smelter", "Smelter", "Starting Smelter", 9091},
+	{"weaver", "Weaver", "Starting Weaver", 9092},
 }
 
 // --- The real run ---
@@ -805,6 +845,15 @@ var sidecarSpecs = []sidecarSpec{
 // live-only bookends (timing stamp, summary table).
 func runStart(u *ui, rt, version, root, configFile string, opts startOptions, userEnv []string, plan *launchPlan) int {
 	t0 := time.Now()
+	// The memory preflight is a LIVE-ONLY bookend, like the timing stamp:
+	// dry-run output must stay machine-independent (host RAM in a golden
+	// would churn per machine), and the per-container ceilings are already
+	// visible in every dry-run argv line.
+	if rt == "container" {
+		if w := memoryBudgetWarning(startCeilingsGB(plan, opts), hostMemGB()); w != "" {
+			u.warn("%s", w)
+		}
+	}
 	x := &liveExec{u: u, rt: rt, plan: plan}
 	if code := flowFullStart(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: configFile, userEnv: userEnv}); code != 0 {
 		return code

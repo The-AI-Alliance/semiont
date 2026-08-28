@@ -27,7 +27,11 @@ import { getEntityTypes } from '@semiont/ontology';
 import { ResourceContext } from './resource-context';
 import { GraphContext } from './graph-context';
 import type { WorkingTreeStore } from '@semiont/content';
+import type { ViewStorage } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from './knowledge-base';
+
+/** The view slice the annotation reads run on (EXTRACT-ARCHIVIST P1). */
+type ViewGet = { views: Pick<ViewStorage, 'get'> };
 
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
 type TextQuoteSelector = components['schemas']['TextQuoteSelector'];
@@ -324,7 +328,7 @@ Summary:`;
    * Get resource annotations from view storage (fast path)
    * Throws if view missing
    */
-  static async getResourceAnnotations(resourceId: ResourceId, kb: KnowledgeBase): Promise<ResourceAnnotations> {
+  static async getResourceAnnotations(resourceId: ResourceId, kb: ViewGet): Promise<ResourceAnnotations> {
     const view = await kb.views.get(resourceId);
 
     if (!view) {
@@ -338,7 +342,7 @@ Summary:`;
    * Get all annotations
    * @returns Array of all annotation objects
    */
-  static async getAllAnnotations(resourceId: ResourceId, kb: KnowledgeBase): Promise<Annotation[]> {
+  static async getAllAnnotations(resourceId: ResourceId, kb: ViewGet): Promise<Annotation[]> {
     const annotations = await this.getResourceAnnotations(resourceId, kb);
 
     // Enrich resolved references with document names
@@ -350,7 +354,7 @@ Summary:`;
    * Adds _resolvedDocumentName property to annotations that link to documents
    * @private
    */
-  private static async enrichResolvedReferences(annotations: Annotation[], kb: KnowledgeBase): Promise<Annotation[]> {
+  private static async enrichResolvedReferences(annotations: Annotation[], kb: ViewGet): Promise<Annotation[]> {
     // Extract unique resolved resource IDs from reference annotations
     const resolvedIds = new Set<string>();
     for (const ann of annotations) {
@@ -420,7 +424,7 @@ Summary:`;
    * Get resource stats (version info)
    * @returns Version and timestamp info for the annotations
    */
-  static async getResourceStats(resourceId: ResourceId, kb: KnowledgeBase): Promise<{
+  static async getResourceStats(resourceId: ResourceId, kb: ViewGet): Promise<{
     resourceId: ResourceId;
     version: number;
     updatedAt: string;
@@ -436,7 +440,7 @@ Summary:`;
   /**
    * Check if resource exists in view storage
    */
-  static async resourceExists(resourceId: ResourceId, kb: KnowledgeBase): Promise<boolean> {
+  static async resourceExists(resourceId: ResourceId, kb: { views: Pick<ViewStorage, 'exists'> }): Promise<boolean> {
     return kb.views.exists(resourceId);
   }
 
@@ -444,7 +448,7 @@ Summary:`;
    * Get a single annotation by ID
    * O(1) lookup using resource ID to access view storage
    */
-  static async getAnnotation(annotationId: AnnotationId, resourceId: ResourceId, kb: KnowledgeBase): Promise<Annotation | null> {
+  static async getAnnotation(annotationId: AnnotationId, resourceId: ResourceId, kb: ViewGet): Promise<Annotation | null> {
     const annotations = await this.getResourceAnnotations(resourceId, kb);
     return annotations.annotations.find((a: Annotation) => a.id === annotationId) || null;
   }
@@ -454,7 +458,7 @@ Summary:`;
    * @param filters - Optional filters like resourceId and type
    * @throws Error if resourceId not provided (cross-resource queries not supported in view storage)
    */
-  static async listAnnotations(filters: { resourceId?: ResourceId; type?: AnnotationCategory } | undefined, kb: KnowledgeBase): Promise<Annotation[]> {
+  static async listAnnotations(filters: { resourceId?: ResourceId; type?: AnnotationCategory } | undefined, kb: ViewGet): Promise<Annotation[]> {
     if (!filters?.resourceId) {
       throw new Error('resourceId is required for annotation listing - cross-resource queries not supported in view storage');
     }
@@ -471,7 +475,7 @@ Summary:`;
     resourceId: ResourceId,
     contextBefore: number,
     contextAfter: number,
-    kb: KnowledgeBase
+    kb: ViewGet & { content: Pick<WorkingTreeStore, 'retrieve'> }
   ): Promise<AnnotationContextResponse> {
     // Get annotation from view storage
     const annotation = await this.getAnnotation(annotationId, resourceId, kb);
@@ -516,7 +520,7 @@ Summary:`;
   static async generateAnnotationSummary(
     annotationId: AnnotationId,
     resourceId: ResourceId,
-    kb: KnowledgeBase,
+    kb: ViewGet & { content: Pick<WorkingTreeStore, 'retrieve'> },
     inferenceClient: InferenceClient,
   ): Promise<ContextualSummaryResponse> {
     // Get annotation from view storage
@@ -567,7 +571,7 @@ Summary:`;
    */
   private static async getResourceContent(
     resource: ResourceDescriptor,
-    content: WorkingTreeStore
+    content: Pick<WorkingTreeStore, 'retrieve'>
   ): Promise<string> {
     if (!resource.storageUri) {
       throw new Error('Resource content not found: no storageUri');

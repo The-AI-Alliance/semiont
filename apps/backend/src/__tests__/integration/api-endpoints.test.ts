@@ -12,8 +12,8 @@ import { fileURLToPath } from 'url';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig, EventBus } from '@semiont/core';
-import type { MakeMeaningService } from '@semiont/make-meaning';
-import { loadEnvironmentConfig } from '../../utils/config';
+import type { GatewayMakeMeaningService } from '@semiont/make-meaning';
+import { loadEnvironmentConfig } from '@semiont/core/node';
 import { JWTService } from '../../auth/jwt';
 
 // Read straight off disk rather than from the __SEMIONT_VERSION__ define, so a
@@ -30,7 +30,7 @@ type Variables = {
   user: User;
   config: EnvironmentConfig;
   eventBus: EventBus;
-  makeMeaning: MakeMeaningService;
+  makeMeaning: GatewayMakeMeaningService;
 };
 
 // Delay app import until after test setup to avoid Prisma validation errors

@@ -200,6 +200,19 @@ export function capabilitiesOf(format: string): MediaTypeCapabilities | undefine
 }
 
 /**
+ * The clone-format gate (MEDIA-TYPES.md Phase 5, moved here for
+ * EXTRACT-ARCHIVIST's clone wire-shape change): a clone opens in the
+ * compose editor, so authorable sources keep their base media type and
+ * everything else falls back to text/plain. Lives beside the registry it
+ * reads; the SDK applies it when deriving a clone upload's format and the
+ * CloneTokenManager's tests pin it.
+ */
+export function cloneFormat(sourceMediaType: string | undefined): SupportedMediaType {
+  const base = baseMediaType(sourceMediaType ?? 'text/plain');
+  return isSupportedMediaType(base) && capabilitiesOf(base)?.authorable ? base : 'text/plain';
+}
+
+/**
  * Lenient extension lookup for naming foreign/imported content: '.dat' on
  * registry miss. Exporters use this — a vocabulary change must never
  * refuse to name restored data.

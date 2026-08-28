@@ -75,7 +75,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 	x.say(sayOK, "Required ports are free")
 
-	stage, ok := x.stageAll(fc.configFile)
+	stage, ok := x.stageAll(fc.configFile, fc.plan.EnvName, addr)
 	if !ok {
 		return 1
 	}
@@ -139,6 +139,15 @@ func flowFullStart(x executor, fc flowCtx) int {
 	x.say(sayLog, "http://localhost:%d", fc.plan.BackendPort)
 	x.say(sayLog, "Worker secret: %s", x.dim("(generated)"))
 	if code := flowBackend(x, fc, addr, stage, secret, otel); code != 0 {
+		return code
+	}
+
+	// The Archivist boots BEFORE the sidecars: since the P3 cutover it
+	// answers their boot-time bus requests (the smelter's reconcile opens
+	// with browse:resources), and its /health only turns on after its bus
+	// pumps attach — so gating here closes the startup race a 3.5-second
+	// head start once lost a smelter to.
+	if code := flowArchivist(x, fc, addr, stage, secret, otel); code != 0 {
 		return code
 	}
 
@@ -459,6 +468,14 @@ func flowBackend(x executor, fc flowCtx, addr, stage, secret string, otel []stri
 	if !ok {
 		return 1
 	}
+	// The shared XDG state tree (EXTRACT-ARCHIVIST D6): the Archivist
+	// rebuilds the views in here; the gateway's Gatherer reads them. Shared,
+	// not stamped — the Archivist owns this store's stamp.
+	state, ok := x.stateMountsShared("state", fc.root)
+	if !ok {
+		return 1
+	}
+	extra = append(extra, state...)
 	bArgs := backendArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, jwt, fc.version, port, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
@@ -480,7 +497,7 @@ func flowBackend(x executor, fc flowCtx, addr, stage, secret string, otel []stri
 }
 
 func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage, secret string, otel []string) int {
-	args := sidecarArgs(sc.svc, sc.mem, sc.port, stage, addr, secret, fc.version, fc.userEnv, otel)
+	args := sidecarArgs(sc.svc, sc.port, stage, addr, secret, fc.version, fc.userEnv, otel)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "%s failed to start.", sc.label)
@@ -493,6 +510,42 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage, secret str
 	}
 	x.say(sayOK, "%s healthy (http://localhost:%d) %s", sc.label, sc.port, x.dim("("+took(d)+")"))
 	x.record(sc.svc, id, image(sc.svc, fc.version), providedLauncher, fmt.Sprintf("http://localhost:%d/health", sc.port), "")
+	return 0
+}
+
+// flowArchivist: the Archivist starts right after the backend and BEFORE
+// the sidecars — since the P3 cutover it is the ONLY holder of the record
+// (the gateway constructs no actors; this service owns event appends, the
+// projection rebuild, and the git index, D4b), so the sidecars' boot-time
+// bus requests are answered here and must find the pumps attached.
+func flowArchivist(x executor, fc flowCtx, addr, stage, secret string, otel []string) int {
+	x.banner("Starting Archivist")
+	// anchored-text stays SHARED (the backend owns that stamp until
+	// EXTRACT-LIBRARIAN moves the Gatherer); the XDG state tree is the
+	// inverse — the Archivist owns ITS stamp as the projection writer, and
+	// the gateway mounts it shared to read the views (D6).
+	extra, ok := x.stateMountsShared("anchored-text", fc.root)
+	if !ok {
+		return 1
+	}
+	state, ok := x.stateMounts("state", image("archivist", fc.version), fc.root)
+	if !ok {
+		return 1
+	}
+	extra = append(extra, state...)
+	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, fc.version, fc.userEnv, otel, extra...)
+	id, ok := x.runDetached(args)
+	if !ok {
+		x.say(sayFail, "Archivist failed to start.")
+		return 1
+	}
+	d, ok := x.waitHTTP("Archivist", "http://localhost:9093/health", 30)
+	if !ok {
+		x.dumpLogs("semiont-archivist", "archivist")
+		return 1
+	}
+	x.say(sayOK, "Archivist healthy (http://localhost:9093) %s", x.dim("("+took(d)+")"))
+	x.record("archivist", id, image("archivist", fc.version), providedLauncher, "http://localhost:9093/health", "")
 	return 0
 }
 
@@ -560,7 +613,7 @@ func flowOneService(x executor, fc flowCtx) int {
 		if secret, ok = x.recoverSecret(); !ok {
 			return 1
 		}
-		if stage, ok = x.stageOne(svc, fc.configFile); !ok {
+		if stage, ok = x.stageOne(svc, fc.configFile, fc.plan.EnvName, addr); !ok {
 			return 1
 		}
 	}
@@ -626,6 +679,10 @@ func flowOneService(x executor, fc flowCtx) int {
 		}
 	case "backend":
 		if code := flowBackend(x, fc, addr, stage, secret, otel); code != 0 {
+			return code
+		}
+	case "archivist":
+		if code := flowArchivist(x, fc, addr, stage, secret, otel); code != 0 {
 			return code
 		}
 	case "worker", "smelter", "weaver":

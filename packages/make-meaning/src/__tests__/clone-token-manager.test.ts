@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { firstValueFrom, race, timeout, filter, map } from 'rxjs';
 import { SemiontProject } from '@semiont/core/node';
-import { EventBus, type Logger, type SupportedMediaType, userId, resourceId as makeResourceId, getPrimaryRepresentation, deriveStorageUri } from '@semiont/core';
+import { EventBus, type Logger, type SupportedMediaType, userId, resourceId as makeResourceId, getPrimaryRepresentation, deriveStorageUri, cloneFormat } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -83,7 +83,7 @@ describe('CloneTokenManager format selection', () => {
   }
 
   /** Run the full clone flow against a source of the given format; return the clone's mediaType. */
-  async function cloneFormat(sourceFormat: SupportedMediaType, content: string): Promise<string | undefined> {
+  async function cloneMediaTypeOf(sourceFormat: SupportedMediaType, content: string): Promise<string | undefined> {
     const sourceId = await createSource(sourceFormat, content);
 
     const tokenCid = uuidv4();
@@ -119,11 +119,21 @@ describe('CloneTokenManager format selection', () => {
         ),
       ).pipe(timeout(5000)),
     );
+    // The gateway's half of the P3 wire shape: bytes are stored (noGit)
+    // BEFORE the command, which carries storage coordinates + the
+    // SDK-derived clone format — never content.
+    const kb = makeMeaning.knowledgeSystem.kb;
+    const format = cloneFormat(sourceFormat);
+    const cloneUri = deriveStorageUri(`clone-${fileCounter}`, format);
+    const stored = await kb.content.store(Buffer.from('edited clone content'), cloneUri, { noGit: true });
     eventBus.get('yield:clone-create').next({
       correlationId: createCid,
       token,
       name: `clone-${fileCounter}`,
-      content: 'edited clone content',
+      storageUri: stored.storageUri,
+      contentChecksum: stored.checksum,
+      byteSize: stored.byteSize,
+      format,
       _userId: 'ctm-test',
     });
     const cloneId = await created$;
@@ -135,14 +145,14 @@ describe('CloneTokenManager format selection', () => {
   }
 
   it('clones an authorable source with its own format (text/html)', async () => {
-    expect(await cloneFormat('text/html', '<p>source</p>')).toBe('text/html');
+    expect(await cloneMediaTypeOf('text/html', '<p>source</p>')).toBe('text/html');
   });
 
   it('falls back to text/plain for a registered but non-authorable source (application/json)', async () => {
-    expect(await cloneFormat('application/json', '{"source":true}')).toBe('text/plain');
+    expect(await cloneMediaTypeOf('application/json', '{"source":true}')).toBe('text/plain');
   });
 
   it('falls back to text/plain for a binary source (image/png)', async () => {
-    expect(await cloneFormat('image/png', 'not real png bytes')).toBe('text/plain');
+    expect(await cloneMediaTypeOf('image/png', 'not real png bytes')).toBe('text/plain');
   });
 });

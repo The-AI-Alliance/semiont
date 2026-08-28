@@ -660,9 +660,13 @@ func TestBackendDataPersistsAcrossStarts(t *testing.T) {
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("second start: exit %d\nstderr:\n%s", code, stderr)
 	}
+	// TWO mounts per boot since the Archivist joined the fleet: the backend
+	// (stamp owner) and the Archivist (shared reader) both mount the store.
+	// The invariant under test is unchanged — the mount survives across
+	// starts — the multiplier is just fleet size now.
 	mount := dir + "/anchored-text:/anchored-text"
-	if got := strings.Count(string(s.mustLog(t)), mount); got != 2 {
-		t.Errorf("backend state mount should appear in both boots (want 2, got %d)", got)
+	if got := strings.Count(string(s.mustLog(t)), mount); got != 4 {
+		t.Errorf("anchored-text mount should appear twice in both boots (want 4, got %d)", got)
 	}
 }
 
@@ -1341,7 +1345,7 @@ func TestStopSweepsAllRuntimes(t *testing.T) {
 	}
 	checkGolden(t, "stop-all-runtimes.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"Sweeping 9 container(s) across container, docker, podman",
+		"Sweeping 10 container(s) across container, docker, podman",
 		"container: none found",
 		"docker: none found",
 		"podman: none found",
@@ -1470,7 +1474,7 @@ func TestStatusAllHealthy(t *testing.T) {
 	for _, svc := range []string{"backend", "worker", "smelter", "weaver", "browser", "neo4j", "qdrant", "postgres", "ollama"} {
 		s.extraEnv = append(s.extraEnv, "FAKERT_STATE_"+svc+"=running")
 	}
-	serveHealth(t, 4000, 9090, 9091, 9092, 3000, 7474, 6333, 5432, 11434)
+	serveHealth(t, 4000, 9090, 9091, 9092, 9093, 3000, 7474, 6333, 5432, 11434)
 	stdout, stderr, code := s.run(t, "status")
 	if code != 0 {
 		t.Fatalf("want exit 0 with all core healthy, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -4345,6 +4349,37 @@ func TestStartServiceBrowserNoClone(t *testing.T) {
 	} else {
 		mustContain(t, "stderr", stderr, "must be a git clone")
 	}
+	// The Archivist mounts /kb as the git WRITER (D4b), so it inherits the
+	// same refusal — a non-clone would fail at its first `git add` instead.
+	if _, stderr, code := s.run(t, "start", "--service", "archivist"); code != 1 {
+		t.Errorf("archivist without git: want exit 1, got %d", code)
+	} else {
+		mustContain(t, "stderr", stderr, "must be a git clone")
+	}
+}
+
+// The Archivist restart path: teardown + port settle + staged config + run +
+// health gate, like any sidecar — but with the backend's mounts. The argv is
+// the pin: /kb read-write, archivist.toml, the shared anchored-text store,
+// and NO JWT_SECRET (it signs nothing).
+func TestStartServiceArchivist(t *testing.T) {
+	s := newScenario(t, "container")
+	stdout, stderr, code := s.run(t, "start", "--service", "archivist")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Restarting archivist", "Archivist healthy (http://localhost:9093)")
+	log := string(s.mustLog(t))
+	mustContain(t, "argv", log,
+		"--name semiont-archivist",
+		"--publish 9093:9093",
+		":/kb",
+		"archivist.toml:/home/semiont/.semiontconfig:ro",
+		"anchored-text:/anchored-text",
+		"--env SEMIONT_WORKER_SECRET=")
+	if strings.Contains(log, "JWT_SECRET") {
+		t.Errorf("the Archivist must not receive JWT_SECRET — it signs nothing:\n%s", log)
+	}
 }
 
 func TestStartServiceDryRunWorker(t *testing.T) {
@@ -6083,11 +6118,11 @@ func TestLogsDiscovery(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	// Discovery probes run in order; the five follows launch concurrently, so
+	// Discovery probes run in order; the six follows launch concurrently, so
 	// assert the probe prefix exactly and the follow set order-independently.
 	lines := strings.Split(strings.TrimRight(s.argv(t), "\n"), "\n")
-	if len(lines) != 7 {
-		t.Fatalf("want 7 invocations (2 probes + 5 follows), got %d:\n%s", len(lines), s.argv(t))
+	if len(lines) != 8 {
+		t.Fatalf("want 8 invocations (2 probes + 6 follows), got %d:\n%s", len(lines), s.argv(t))
 	}
 	if lines[0] != "container list" || lines[1] != "docker ps --format {{.Names}}" {
 		t.Errorf("wrong discovery probes:\n%s", s.argv(t))
@@ -6095,6 +6130,7 @@ func TestLogsDiscovery(t *testing.T) {
 	follows := append([]string{}, lines[2:]...)
 	sort.Strings(follows)
 	want := []string{
+		"docker logs --follow semiont-archivist",
 		"docker logs --follow semiont-backend",
 		"docker logs --follow semiont-browser",
 		"docker logs --follow semiont-smelter",
@@ -6106,7 +6142,7 @@ func TestLogsDiscovery(t *testing.T) {
 	}
 	// Streams: [svc]-prefixed, stderr kept in-stream (crash traces live there).
 	mustContain(t, "stdout", stdout,
-		"Following backend · worker · smelter · weaver · browser",
+		"Following backend · worker · smelter · weaver · archivist · browser",
 		"[backend] backend out",
 		"[backend] backend err",
 		"[worker] worker out",

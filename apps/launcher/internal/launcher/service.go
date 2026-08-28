@@ -26,29 +26,48 @@ type roleSpec struct {
 	product   string // concrete product behind an infra role; "" = a Semiont service
 	container string
 	ports     []portNeed // must-be-free ports (inference: owned by flowInference)
+	// mem is the container's memory CEILING (--memory), and it means
+	// different things per runtime: on Apple container it sizes the
+	// per-container VM (close to a commitment — the guest kernel and page
+	// cache grow into it), on docker/podman it is a cgroup cap inside one
+	// shared VM (caps are not reservations; their sum exceeding the VM is
+	// normal). It is set EXPLICITLY for every containered role because the
+	// silent default is the worst value on both sides: Apple container
+	// quietly gives 1G (a JVM graph or a loaded model dies in that), docker
+	// gives unlimited-within-the-VM (one runaway starves the stack). This
+	// table is the ONE home; every args builder and the memory preflight
+	// read it. Floors deliberately do not exist here — single-host runtimes
+	// have no real reservation, and the apps size themselves from the
+	// ceiling (node:24 cgroup-aware heap, Neo4j auto-config).
+	mem string
 }
 
 var roles = map[string]roleSpec{
-	"traces":    {"Jaeger", "semiont-jaeger", []portNeed{{16686, "Jaeger UI"}, {4318, "Jaeger OTLP"}}},
-	"graph":     {"Neo4j", "semiont-neo4j", []portNeed{{7474, "Neo4j HTTP"}, {7687, "Neo4j Bolt"}}},
-	"vectors":   {"Qdrant", "semiont-qdrant", []portNeed{{6333, "Qdrant"}}},
-	"inference": {"Ollama", "semiont-ollama", nil},
+	"traces": {"Jaeger", "semiont-jaeger", []portNeed{{16686, "Jaeger UI"}, {4318, "Jaeger OTLP"}}, "1G"},
+	// graph 2G: a JVM auto-sizing its heap from visible memory — the silent
+	// 1G VM default was the known-tight spot on Apple container.
+	"graph":   {"Neo4j", "semiont-neo4j", []portNeed{{7474, "Neo4j HTTP"}, {7687, "Neo4j Bolt"}}, "2G"},
+	"vectors": {"Qdrant", "semiont-qdrant", []portNeed{{6333, "Qdrant"}}, "2G"},
+	// inference 8G: a loaded small model (gemma-class) needs 4-5G; the
+	// silent 1G default cannot even load one.
+	"inference": {"Ollama", "semiont-ollama", nil, "8G"},
 	// embedding is a role with no container of its own: its platform is
 	// always "external" in practice — either the Ollama the inference role
 	// already provides, or a remote SaaS (Voyage). Like every external role
 	// it participates in status but supports no start/stop.
-	"embedding": {"", "", nil},
-	"database":  {"PostgreSQL", "semiont-postgres", []portNeed{{5432, "PostgreSQL"}}},
-	"backend":   {"", "semiont-backend", []portNeed{{4000, "Backend"}}},
-	"worker":    {"", "semiont-worker", []portNeed{{9090, "Worker"}}},
-	"smelter":   {"", "semiont-smelter", []portNeed{{9091, "Smelter"}}},
-	"weaver":    {"", "semiont-weaver", []portNeed{{9092, "Weaver"}}},
+	"embedding": {"", "", nil, ""},
+	"database":  {"PostgreSQL", "semiont-postgres", []portNeed{{5432, "PostgreSQL"}}, "1G"},
+	"backend":   {"", "semiont-backend", []portNeed{{4000, "Backend"}}, "8G"},
+	"worker":    {"", "semiont-worker", []portNeed{{9090, "Worker"}}, "2G"},
+	"smelter":   {"", "semiont-smelter", []portNeed{{9091, "Smelter"}}, "2G"},
+	"weaver":    {"", "semiont-weaver", []portNeed{{9092, "Weaver"}}, "3G"},
+	"archivist": {"", "semiont-archivist", []portNeed{{9093, "Archivist"}}, "2G"},
 	// browser: the Browser owns its port inside flowBrowser — an empty
 	// ports list here keeps 3000 out of every stack-level claim and sweep.
-	"browser": {"", "semiont-browser", nil},
+	"browser": {"", "semiont-browser", nil, "1G"},
 }
 
-const roleList = "backend, worker, smelter, weaver, browser, database, graph, vectors, inference, embedding, or traces"
+const roleList = "backend, worker, smelter, weaver, archivist, browser, database, graph, vectors, inference, embedding, or traces"
 
 // roleByContainer inverts the roles table (container name → role).
 var roleByContainer = func() map[string]string {
@@ -75,7 +94,7 @@ func roleTitle(role string) string {
 }
 
 func isConfigConsumer(svc string) bool {
-	return svc == "backend" || svc == "worker" || svc == "smelter" || svc == "weaver"
+	return svc == "backend" || svc == "worker" || svc == "smelter" || svc == "weaver" || svc == "archivist"
 }
 
 func serviceNeedsAddr(svc string) bool {
@@ -91,7 +110,7 @@ func serviceNeedsAddr(svc string) bool {
 // inspect-schema change) and must be loud, never silently degraded to a
 // generated secret.
 func recoverWorkerSecret(rt string) (secret, from, seen string) {
-	for _, c := range []string{"semiont-backend", "semiont-worker", "semiont-smelter", "semiont-weaver"} {
+	for _, c := range []string{"semiont-backend", "semiont-worker", "semiont-smelter", "semiont-weaver", "semiont-archivist"} {
 		out, err := capture(rt, "inspect", c)
 		if err != nil || out == "" {
 			continue

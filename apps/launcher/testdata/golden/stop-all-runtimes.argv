@@ -1,3 +1,5 @@
+container stop semiont-archivist
+container rm semiont-archivist
 container stop semiont-weaver
 container rm semiont-weaver
 container stop semiont-smelter
@@ -16,6 +18,8 @@ container stop semiont-neo4j
 container rm semiont-neo4j
 container stop semiont-jaeger
 container rm semiont-jaeger
+docker stop semiont-archivist
+docker rm semiont-archivist
 docker stop semiont-weaver
 docker rm semiont-weaver
 docker stop semiont-smelter
@@ -34,6 +38,8 @@ docker stop semiont-neo4j
 docker rm semiont-neo4j
 docker stop semiont-jaeger
 docker rm semiont-jaeger
+podman stop semiont-archivist
+podman rm semiont-archivist
 podman stop semiont-weaver
 podman rm semiont-weaver
 podman stop semiont-smelter

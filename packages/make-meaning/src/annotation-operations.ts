@@ -18,6 +18,7 @@ import type {
 } from '@semiont/core';
 import { EventBus, annotationId, resourceId as makeResourceId, assembleAnnotation, applyBodyOperations, isAnnotatable, getPrimaryRepresentation } from '@semiont/core';
 import { AnnotationContext } from './annotation-context';
+import type { ViewStorage } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from './knowledge-base';
 
 type Agent = components['schemas']['Agent'];
@@ -40,7 +41,7 @@ type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRe
  * NOT applied to import or replay: those emit `mark:create` directly and never
  * reach either caller. That topology is D6's leniency — no flag, no bypass.
  */
-export async function assertAnnotatableTarget(kb: KnowledgeBase, target: string): Promise<void> {
+export async function assertAnnotatableTarget(kb: { views: Pick<ViewStorage, 'get'> }, target: string): Promise<void> {
   const view = await kb.views.get(makeResourceId(target));
   const mediaType = getPrimaryRepresentation(view?.resource)?.mediaType;
   if (!mediaType || !isAnnotatable(mediaType)) {

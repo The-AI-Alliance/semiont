@@ -4403,15 +4403,20 @@ type WeaveRebuildCommand struct {
 	ResourceId *string `json:"resourceId,omitempty"`
 }
 
-// YieldCloneCreateCommand Bus command to create a cloned resource from a clone token.
+// YieldCloneCreateCommand Bus command to create a cloned resource from a clone token. Bytes are stored gateway-side BEFORE this command is emitted (GATEWAY.md D4a: the Archivist serves no bytes) — the command carries the storage coordinates, never content.
 type YieldCloneCreateCommand struct {
 	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *string `json:"_userId,omitempty"`
 	ArchiveOriginal  *bool   `json:"archiveOriginal,omitempty"`
-	Content          string  `json:"content"`
+	ByteSize         int     `json:"byteSize"`
+	ContentChecksum  string  `json:"contentChecksum"`
 	CorrelationId    string  `json:"correlationId"`
-	Name             string  `json:"name"`
-	Token            string  `json:"token"`
+
+	// Format Content format as a MIME type, optionally with parameters. The base type (everything before the first ';') MUST be a SupportedMediaType; parameters such as charset are preserved as metadata. Semantic validation happens in code at the create/yield boundary — there is deliberately no pattern here, the vocabulary lives in SupportedMediaType. Examples: text/plain, text/plain; charset=iso-8859-1, text/markdown; charset=windows-1252, image/png, application/pdf
+	Format     ContentFormat `json:"format"`
+	Name       string        `json:"name"`
+	StorageUri string        `json:"storageUri"`
+	Token      string        `json:"token"`
 }
 
 // YieldCloneCreated Success response after creating a cloned resource.

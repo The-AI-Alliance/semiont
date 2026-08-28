@@ -2,11 +2,12 @@
 // Transforms raw resources into meaningful, interconnected knowledge
 
 // Service (primary export)
-export { startMakeMeaning } from './service';
-export type { MakeMeaningService, MakeMeaningConfig } from './service';
+export { startMakeMeaning, startMakeMeaningGateway } from './service';
+export type { MakeMeaningService, GatewayMakeMeaningService, MakeMeaningConfig } from './service';
+export { makeMeaningConfigFrom } from './config';
 
 // Knowledge System
-export type { KnowledgeSystem } from './knowledge-system';
+export type { KnowledgeSystem, GatewayKnowledgeSystem } from './knowledge-system';
 export { stopKnowledgeSystem } from './knowledge-system';
 
 // Local transport (in-process ITransport / IContentTransport for the SemiontClient)

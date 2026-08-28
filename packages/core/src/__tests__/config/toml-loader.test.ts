@@ -265,6 +265,28 @@ ${SERVICES_LOCAL}`;
     expect(config.services?.backend?.port).toBe(5005);
   });
 
+  // EXTRACT-ARCHIVIST P3: the gateway replays SSE resumes from the Archivist
+  // at services.archivist.{host,port}. The mapping was the missing middle —
+  // the cutover added the schema and the consumer, and a section that parses
+  // but never reaches services means every resume silently degrades to a gap.
+  it('maps [archivist] to services.archivist with the 9093 default', () => {
+    const toml = `
+[environments.local.archivist]
+host = "192.168.64.1"
+${MINIMAL_TOML}`;
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+    expect(cfg.services.archivist).toEqual({
+      platform: { type: 'external' },
+      host: '192.168.64.1',
+      port: 9093,
+    });
+  });
+
+  it('emits no archivist service when the section is absent (resume degrades to gap, loudly)', () => {
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
+    expect(cfg.services.archivist).toBeUndefined();
+  });
+
   it('lets an explicit environment win over [defaults]', () => {
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(DEFAULTS_STAGING), {});
     expect(config._metadata?.environment).toBe('local');

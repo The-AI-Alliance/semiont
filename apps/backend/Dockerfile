@@ -21,11 +21,17 @@ ARG SEMIONT_VERSION=latest
 # the time of the pin. (brace-expansion 5.0.7 later drew its own CVEs — patched
 # below. npm 12.0.2 has since shipped, but it bundles the same three versions, so
 # moving the pin would not change what the Trivy gate sees.)
-RUN npm config set registry $NPM_REGISTRY && \
+# The npm cache is a BuildKit cache mount: it persists across builds (even
+# --no-cache ones — that flag skips layer reuse, not mounts) without entering
+# the image, so unchanged third-party tarballs stop re-downloading while
+# republished @semiont/* packages still fetch (new integrity = cache miss).
+# No `npm cache clean`: the cache never reaches a layer, so there is nothing
+# to slim — cleaning it would only re-download the world next build.
+RUN --mount=type=cache,target=/root/.npm \
+    npm config set registry $NPM_REGISTRY && \
     npm install -g npm@12.0.1 && \
     npm install @semiont/backend@${SEMIONT_VERSION} neo4j-driver @qdrant/js-client-rest \
-      --prefix /home/semiont/.local/share/semiont && \
-    npm cache clean --force
+      --prefix /home/semiont/.local/share/semiont
 
 # Generate the Prisma client. This is NOT optional: dist/index.js leaves
 # @prisma/client external, and `npm install` does not generate a client for a

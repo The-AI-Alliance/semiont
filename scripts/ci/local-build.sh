@@ -118,7 +118,7 @@ SKIP_BUILD=false
 IMAGES_ONLY=false
 PACKAGES=""
 START_FROM=""
-IMAGES="backend worker smelter weaver browser"
+IMAGES="backend worker smelter weaver archivist browser"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
@@ -145,7 +145,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --start-from <pkg> Skip packages before this one in the build order"
       echo "  --skip-build       Skip build, publish only (reuse previous artifacts)"
       echo "  --image <list>     Comma-separated images to build (default:"
-      echo "                     backend,worker,smelter,weaver,browser)"
+      echo "                     backend,worker,smelter,weaver,archivist,browser)"
       echo "  --images-only      Build ONLY container images, against the Verdaccio a"
       echo "                     previous run left running. Skips the npm build+publish,"
       echo "                     the drift gates and the launcher. Pair with --image to"
@@ -178,6 +178,7 @@ image_dockerfile() {
     worker)   echo "packages/jobs/Dockerfile" ;;
     smelter)  echo "packages/make-meaning/Dockerfile.smelter" ;;
     weaver)   echo "packages/make-meaning/Dockerfile.weaver" ;;
+    archivist) echo "packages/make-meaning/Dockerfile.archivist" ;;
     browser) echo "apps/browser/Dockerfile" ;;
     *) return 1 ;;
   esac
@@ -185,7 +186,7 @@ image_dockerfile() {
 
 for img in $IMAGES; do
   if ! image_dockerfile "$img" >/dev/null; then
-    fail "Unknown image: $img (expected backend, worker, smelter, weaver, or browser)"
+    fail "Unknown image: $img (expected backend, worker, smelter, weaver, archivist, or browser)"
     exit 1
   fi
 done
@@ -421,16 +422,48 @@ fanout_image() {
   done
 }
 
-for img in $IMAGES; do
-  DF=$(image_dockerfile "$img")
-  TAG="ghcr.io/the-ai-alliance/semiont-${img}:local"
-  step "Building ${TAG} from ${DF}..."
-  $RT build --no-cache --tag "$TAG" \
-    --build-arg NPM_REGISTRY="$BUILD_REGISTRY" \
-    --file "$REPO_ROOT/$DF" \
-    "$REPO_ROOT"
-  ok "$TAG built"
-  fanout_image "$TAG"
+# Three builds at a time: ~30s of EVERY build is fixed buildkit-shim latency
+# (10s "transferring" round-trips for byte-sized payloads), which overlapping
+# absorbs. Three, not six: the builder VM has 2G, and the default image order
+# splits the two npm-heavy builds (backend, browser) across batches. Build
+# output goes to a per-image log; a failure tails it and stops the run.
+# Fan-out happens after all builds, keeping the builder VM to itself.
+IMG_LIST=($IMAGES)
+i=0
+while [ $i -lt ${#IMG_LIST[@]} ]; do
+  PIDS=(); TAGS=(); LOGS=()
+  for j in 0 1 2; do
+    idx=$((i + j))
+    [ $idx -ge ${#IMG_LIST[@]} ] && break
+    img=${IMG_LIST[$idx]}
+    DF=$(image_dockerfile "$img")
+    TAG="ghcr.io/the-ai-alliance/semiont-${img}:local"
+    LOG=$(mktemp "${TMPDIR:-/tmp}/semiont-build-${img}.XXXXXX")
+    step "Building ${TAG} from ${DF}... ${DIM}(log: $LOG)${RESET}"
+    $RT build --no-cache --tag "$TAG" \
+      --build-arg NPM_REGISTRY="$BUILD_REGISTRY" \
+      --file "$REPO_ROOT/$DF" \
+      "$REPO_ROOT" > "$LOG" 2>&1 &
+    PIDS+=($!)
+    TAGS+=("$TAG")
+    LOGS+=("$LOG")
+  done
+  for j in "${!PIDS[@]}"; do
+    st=0
+    wait "${PIDS[$j]}" || st=$?
+    if [ "$st" -ne 0 ]; then
+      fail "${TAGS[$j]} build failed (exit $st) — last 40 lines of ${LOGS[$j]}:"
+      tail -40 "${LOGS[$j]}"
+      exit 1
+    fi
+    ok "${TAGS[$j]} built"
+    rm -f "${LOGS[$j]}"
+  done
+  i=$((i + 3))
+done
+
+for img in "${IMG_LIST[@]}"; do
+  fanout_image "ghcr.io/the-ai-alliance/semiont-${img}:local"
 done
 
 if [[ "$IMAGES_ONLY" == true ]]; then
