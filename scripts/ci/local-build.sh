@@ -422,16 +422,48 @@ fanout_image() {
   done
 }
 
-for img in $IMAGES; do
-  DF=$(image_dockerfile "$img")
-  TAG="ghcr.io/the-ai-alliance/semiont-${img}:local"
-  step "Building ${TAG} from ${DF}..."
-  $RT build --no-cache --tag "$TAG" \
-    --build-arg NPM_REGISTRY="$BUILD_REGISTRY" \
-    --file "$REPO_ROOT/$DF" \
-    "$REPO_ROOT"
-  ok "$TAG built"
-  fanout_image "$TAG"
+# Three builds at a time: ~30s of EVERY build is fixed buildkit-shim latency
+# (10s "transferring" round-trips for byte-sized payloads), which overlapping
+# absorbs. Three, not six: the builder VM has 2G, and the default image order
+# splits the two npm-heavy builds (backend, browser) across batches. Build
+# output goes to a per-image log; a failure tails it and stops the run.
+# Fan-out happens after all builds, keeping the builder VM to itself.
+IMG_LIST=($IMAGES)
+i=0
+while [ $i -lt ${#IMG_LIST[@]} ]; do
+  PIDS=(); TAGS=(); LOGS=()
+  for j in 0 1 2; do
+    idx=$((i + j))
+    [ $idx -ge ${#IMG_LIST[@]} ] && break
+    img=${IMG_LIST[$idx]}
+    DF=$(image_dockerfile "$img")
+    TAG="ghcr.io/the-ai-alliance/semiont-${img}:local"
+    LOG=$(mktemp "${TMPDIR:-/tmp}/semiont-build-${img}.XXXXXX")
+    step "Building ${TAG} from ${DF}... ${DIM}(log: $LOG)${RESET}"
+    $RT build --no-cache --tag "$TAG" \
+      --build-arg NPM_REGISTRY="$BUILD_REGISTRY" \
+      --file "$REPO_ROOT/$DF" \
+      "$REPO_ROOT" > "$LOG" 2>&1 &
+    PIDS+=($!)
+    TAGS+=("$TAG")
+    LOGS+=("$LOG")
+  done
+  for j in "${!PIDS[@]}"; do
+    st=0
+    wait "${PIDS[$j]}" || st=$?
+    if [ "$st" -ne 0 ]; then
+      fail "${TAGS[$j]} build failed (exit $st) — last 40 lines of ${LOGS[$j]}:"
+      tail -40 "${LOGS[$j]}"
+      exit 1
+    fi
+    ok "${TAGS[$j]} built"
+    rm -f "${LOGS[$j]}"
+  done
+  i=$((i + 3))
+done
+
+for img in "${IMG_LIST[@]}"; do
+  fanout_image "ghcr.io/the-ai-alliance/semiont-${img}:local"
 done
 
 if [[ "$IMAGES_ONLY" == true ]]; then
