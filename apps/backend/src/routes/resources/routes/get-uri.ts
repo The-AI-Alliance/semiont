@@ -263,9 +263,9 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     }
   });
 
-  // GET /resources/:id/jsonld — the JSON-LD description, via the bus
-  // gateway (Gatherer). Hono params don't span '/', so this cannot collide
-  // with the pipe route below.
+  // GET /resources/:id/jsonld — the JSON-LD description, via
+  // `browse:resource-requested`. Hono params don't span '/', so this cannot
+  // collide with the pipe route below.
   router.get('/resources/:id/jsonld', async (c) => {
     const { id } = c.req.param();
     const eventBus = c.get('eventBus');

@@ -1,8 +1,9 @@
 /**
  * EventBus Request-Response Helper
  *
- * Provides the correlationId-based request-response pattern for routes
- * that delegate to EventBus actors (Gatherer, Matcher, CloneTokenManager).
+ * Provides the correlationId-based request-response pattern for routes that
+ * delegate to bus actors, which run out-of-process; the route never knows
+ * where the answering actor lives.
  *
  * Pattern: emit request with correlationId → await success or failure event
  * matching that correlationId → return response or throw.

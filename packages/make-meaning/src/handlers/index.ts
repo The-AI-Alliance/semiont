@@ -16,14 +16,16 @@ import type { SemiontProject } from '@semiont/core/node';
 import type { JobQueue } from '@semiont/jobs';
 
 import type { KnowledgeSystem } from '../knowledge-system.js';
+import { workingTreeContentReads } from '../knowledge-base.js';
 import { registerAnnotationAssemblyHandler } from './annotation-assembly.js';
-import { registerAnnotationLookupHandlers } from './annotation-lookups.js';
+import { registerAnnotationContextHandler, registerGatherSummaryHandler } from './annotation-lookups.js';
 import { registerBindUpdateBodyHandler } from './bind-update-body.js';
 import { registerJobCommandHandlers } from './job-commands.js';
 
 export {
   registerAnnotationAssemblyHandler,
-  registerAnnotationLookupHandlers,
+  registerAnnotationContextHandler,
+  registerGatherSummaryHandler,
   registerBindUpdateBodyHandler,
   registerJobCommandHandlers,
 };
@@ -39,27 +41,40 @@ export function registerBusHandlers(
   project: SemiontProject,
   logger: Logger,
 ): void {
-  registerAnnotationAssemblyHandler(eventBus, knowledgeSystem.kb, logger);
-  registerAnnotationLookupHandlers(eventBus, knowledgeSystem.kb, knowledgeSystem.gatherer, logger);
+  const { kb } = knowledgeSystem;
+  registerAnnotationAssemblyHandler(eventBus, kb, logger);
+  registerAnnotationContextHandler(
+    eventBus,
+    { views: kb.views, content: workingTreeContentReads(kb.views, kb.content) },
+    logger,
+  );
+  registerGatherSummaryHandler(eventBus, knowledgeSystem.gatherer, logger);
   registerBindUpdateBodyHandler(eventBus, logger);
   registerJobCommandHandlers(eventBus, jobQueue, project, logger);
 }
 
 /**
- * The gateway's handler subset (EXTRACT-ARCHIVIST P3). Annotation-assembly
- * is deliberately ABSENT: it consumes the `mark:added` facts Stower produces,
- * so it registers in archivist-main beside that Stower (D2 i). Registering
- * it here too would double-emit `mark:create` and double-append.
+ * The gateway's handler subset (EXTRACT-ARCHIVIST P3, EXTRACT-LIBRARIAN P3).
+ * Annotation-assembly is deliberately ABSENT: it consumes the `mark:added`
+ * facts Stower produces, so it registers in archivist-main beside that
+ * Stower (D2 i) — registering it here too would double-emit `mark:create`
+ * and double-append. Gather-summary is likewise ABSENT: it calls the
+ * Gatherer, which lives in librarian-main; it registers there beside its
+ * actor. The annotation-context read stays here because it reads BYTES, and
+ * the gateway is the byte path (GATEWAY.md D4).
  */
 export function registerGatewayBusHandlers(
   eventBus: EventBus,
   kb: KnowledgeSystem['kb'],
-  gatherer: KnowledgeSystem['gatherer'],
   jobQueue: JobQueue,
   project: SemiontProject,
   logger: Logger,
 ): void {
-  registerAnnotationLookupHandlers(eventBus, kb, gatherer, logger);
+  registerAnnotationContextHandler(
+    eventBus,
+    { views: kb.views, content: workingTreeContentReads(kb.views, kb.content) },
+    logger,
+  );
   registerBindUpdateBodyHandler(eventBus, logger);
   registerJobCommandHandlers(eventBus, jobQueue, project, logger);
 }

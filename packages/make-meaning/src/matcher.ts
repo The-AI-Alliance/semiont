@@ -18,19 +18,43 @@ import { type EventBus, resourceId, errField, deriveViews } from '@semiont/core'
 import { getResourceId, getResourceEntityTypes } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import type { InferenceClient } from '@semiont/inference';
-import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
-import type { KnowledgeBase } from './knowledge-base';
+import type { EmbeddingProvider, VectorSearchResult, VectorStore } from '@semiont/vectors';
+import type { GraphDatabase } from '@semiont/graph';
+import type { ViewStorage } from '@semiont/event-sourcing';
 import { resourceWithViewGrace } from './graph-read-grace';
 
 /** The annotation branch of the unified GatheredContext — the only focus the matcher serves. */
 type AnnotationFocus = Extract<GatheredContext['focus'], { kind: 'annotation' }>;
+
+/**
+ * The Matcher's capability slice (EXTRACT-LIBRARIAN P1) — Pick-derived,
+ * never restated. `graph.getResource` + `views.get` are
+ * `resourceWithViewGrace`'s two halves: the view fallback is a
+ * filesystem-backed projection read, served to the standalone service by
+ * the shared stateDir mount (D6), and to in-process callers by the same
+ * `kb` object, which satisfies this slice structurally.
+ */
+export interface MatcherStores {
+  graph: Pick<GraphDatabase, 'listResources' | 'getResource'>;
+  views: Pick<ViewStorage, 'get'>;
+  vectors: Pick<VectorStore, 'searchResources'>;
+}
+
+/**
+ * The request channels Matcher subscribes to — the Librarian's inbound wire
+ * roster for this actor. Pinned to `initialize()`'s actual subscriptions by
+ * the census gate in librarian-decoupling.test.ts.
+ */
+export const MATCHER_CHANNELS = [
+  'match:search-requested',
+] as const satisfies readonly (keyof EventMap)[];
 
 export class Matcher {
   private subscriptions: Subscription[] = [];
   private readonly logger: Logger;
 
   constructor(
-    private kb: KnowledgeBase,
+    private stores: MatcherStores,
     private eventBus: EventBus,
     logger: Logger,
     private inferenceClient: InferenceClient,
@@ -138,9 +162,9 @@ export class Matcher {
     // this search", and multi-source retrieval absorbs a just-created
     // resource missing from one source for the Weaver's ~tens-of-ms lag.
     const [nameMatches, entityTypeMatches, semanticMatches] = await Promise.all([
-      this.kb.graph.listResources({ search: searchTerm, limit: 20 }).then(r => r.resources),
+      this.stores.graph.listResources({ search: searchTerm, limit: 20 }).then(r => r.resources),
       annotationEntityTypes.length > 0
-        ? this.kb.graph.listResources({ entityTypes: annotationEntityTypes, limit: 50 })
+        ? this.stores.graph.listResources({ entityTypes: annotationEntityTypes, limit: 50 })
             .then(r => r.resources)
         : Promise.resolve([]),
       // 4. Semantic match — vector similarity search (if vectors configured)
@@ -152,7 +176,7 @@ export class Matcher {
     // be dropped while the Weaver lags; retrying here would multiply across
     // the candidate loop, and the view already holds the descriptor.
     const neighborResolved = await Promise.all(
-      connections.map(conn => resourceWithViewGrace(this.kb, resourceId(conn.resourceId))),
+      connections.map(conn => resourceWithViewGrace(this.stores, resourceId(conn.resourceId))),
     );
     const laggedNeighbors = neighborResolved.filter(r => r.laggedBehindView).length;
     if (laggedNeighbors > 0) {
@@ -190,7 +214,7 @@ export class Matcher {
     let laggedSemantic = 0;
     for (const sm of semanticMatches) {
       semanticScores.set(sm.resourceId, sm.score);
-      const { resource, laggedBehindView } = await resourceWithViewGrace(this.kb, resourceId(sm.resourceId));
+      const { resource, laggedBehindView } = await resourceWithViewGrace(this.stores, resourceId(sm.resourceId));
       if (laggedBehindView) laggedSemantic++;
       if (resource) addCandidate(resource, 'semantic');
     }
@@ -436,7 +460,7 @@ For each candidate, output a line with the number and score, like:
 
     try {
       const embedding = await this.embeddingProvider.embed(searchTerm);
-      const results = await this.kb.vectors.searchResources(embedding, {
+      const results = await this.stores.vectors.searchResources(embedding, {
         limit: 40,
         scoreThreshold: 0.4,
       });

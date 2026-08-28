@@ -25,7 +25,8 @@ import { WorkingTreeStore, createAnchoredTextStore, type AnchoredTextStore } fro
 import type { GraphDatabase } from '@semiont/graph';
 import type { VectorStore } from '@semiont/vectors';
 import type { SemiontProject } from '@semiont/core/node';
-import type { EventBus, Logger } from '@semiont/core';
+import type { EventBus, IContentTransport, Logger } from '@semiont/core';
+import { getPrimaryRepresentation } from '@semiont/core';
 import { createWeaveProgress, type WeaveProgress } from './weave-progress.js';
 import { createSmeltProgress, type SmeltProgress } from './smelt-progress.js';
 
@@ -64,6 +65,44 @@ export type EventAppends = Pick<EventStore, 'appendEvent'>;
 export interface EventStoreReads {
   log: { storage: EventReadStorage };
   views: { materializer: Pick<ViewMaterializer, 'materialize'> };
+}
+
+/**
+ * The gather paths' byte read (EXTRACT-LIBRARIAN P3, D-CONTENT b) — DERIVED
+ * from the transport contract, never restated. Keyed by ResourceId because
+ * that is the transport's key: the standalone Librarian satisfies this with
+ * `HttpContentTransport` directly, and in-process roots wrap the working
+ * tree behind the same shape via `workingTreeContentReads`.
+ */
+export type ContentReads = Pick<IContentTransport, 'getBinary'>;
+
+/**
+ * In-process `ContentReads`: resolve the descriptor from the view, then read
+ * the working tree — the same stored bytes the HTTP face serves verbatim.
+ * `contentType` mirrors the transport contract (the stored representation's
+ * mediaType, with the transport's own octet-stream fallback); gather
+ * consumers decode via the descriptor and ignore it.
+ */
+export function workingTreeContentReads(
+  views: Pick<ViewStorage, 'get'>,
+  content: Pick<WorkingTreeStore, 'retrieve'>,
+): ContentReads {
+  return {
+    getBinary: async (resourceId) => {
+      const view = await views.get(resourceId);
+      const resource = view?.resource;
+      if (!resource?.storageUri) {
+        throw new Error(`Resource content not found: no storageUri for ${String(resourceId)}`);
+      }
+      const buf = await content.retrieve(resource.storageUri);
+      const data = new ArrayBuffer(buf.byteLength);
+      new Uint8Array(data).set(buf);
+      return {
+        data,
+        contentType: getPrimaryRepresentation(resource)?.mediaType ?? 'application/octet-stream',
+      };
+    },
+  };
 }
 
 export interface CreateKnowledgeBaseOptions {

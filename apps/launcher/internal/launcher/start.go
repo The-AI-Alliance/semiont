@@ -27,7 +27,7 @@ const (
 var preflightNames = []string{
 	"semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-postgres",
 	"semiont-backend", "semiont-worker", "semiont-smelter", "semiont-weaver",
-	"semiont-archivist",
+	"semiont-archivist", "semiont-librarian",
 }
 
 type startOptions struct {
@@ -68,8 +68,8 @@ Options:
                         SEMIONT_ROOT and cwd discovery.
   --service <name>      Start (restart) just this one service, leaving the rest
                         of the stack untouched: backend, worker, smelter, weaver,
-                        archivist, browser, database, graph, vectors, inference,
-                        or traces.
+                        archivist, librarian, browser, database, graph, vectors,
+                        inference, or traces.
                         Rejoins a running stack's worker secret automatically;
                         OTel export is enabled iff traces (Jaeger) is up.
   --port <n>            Browser port (--service browser only; default 3000).
@@ -789,6 +789,36 @@ func archivistArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []
 	return append(a, image("archivist", version))
 }
 
+// librarianArgs: the Librarian (Matcher — search and match) reads
+// everything and writes nothing durable, and its mounts say so: /kb
+// READ-ONLY (it is not the git writer; the clone invariant does not apply),
+// the shared state tree for views (D6 reader), the shared anchored-text dir
+// (unread until its P3, but the image declares the path and SemiontProject
+// requires it). Env is the eager-interpolation set — the ${VAR}s a
+// committed KB config may reference, same as the other sidecars. NOT
+// ARCHIVIST_HOST: no config interpolates that var (the archivist address
+// is a literal patchArchivistTopology stages into backend.toml only). NO
+// JWT_SECRET, and no LIBRARIAN_HOST exists anywhere: nothing dials this
+// service; it dials the gateway.
+func librarianArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []string, state ...string) []string {
+	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
+		"--memory", roles["librarian"].mem, "--publish", "9094:9094",
+		"--volume", kbRoot + ":" + kbMountTarget + ":ro",
+		"--volume", stage + "/librarian.toml:/home/semiont/.semiontconfig:ro"}
+	a = append(a, state...)
+	a = append(a, userEnv...)
+	a = append(a, otel...)
+	a = append(a,
+		"--env", "BACKEND_HOST="+addr,
+		"--env", "OLLAMA_HOST="+addr,
+		"--env", "NEO4J_HOST="+addr,
+		"--env", "QDRANT_HOST="+addr,
+		"--env", "POSTGRES_HOST="+addr,
+		"--env", "XDG_STATE_HOME=/semiont-state",
+		"--env", "SEMIONT_WORKER_SECRET="+secret)
+	return append(a, image("librarian", version))
+}
+
 func browserArgs(version string, port int) []string {
 	a := []string{"run", "-d", "--name", "semiont-browser", // no --rm: see providedRunArgs
 		"--memory", roles["browser"].mem, "--publish", fmt.Sprintf("%d:3000", port)}
@@ -825,7 +855,7 @@ func pullArgs(rt, img string) []string {
 
 // browser is absent: the Browser pulls its own image inside flowBrowser,
 // and only when actually (re)starting — a kept Browser costs no pull.
-var semiontServices = []string{"backend", "worker", "smelter", "weaver", "archivist"}
+var semiontServices = []string{"backend", "worker", "smelter", "weaver", "archivist", "librarian"}
 
 // sidecarSpecs: the three make-meaning sidecars, in start order.
 type sidecarSpec struct {

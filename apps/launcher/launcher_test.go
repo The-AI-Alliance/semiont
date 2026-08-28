@@ -660,13 +660,13 @@ func TestBackendDataPersistsAcrossStarts(t *testing.T) {
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("second start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	// TWO mounts per boot since the Archivist joined the fleet: the backend
-	// (stamp owner) and the Archivist (shared reader) both mount the store.
-	// The invariant under test is unchanged — the mount survives across
-	// starts — the multiplier is just fleet size now.
+	// THREE mounts per boot: the backend (stamp owner), the Archivist and
+	// the Librarian (shared readers) all mount the store. The invariant
+	// under test is unchanged — the mount survives across starts — the
+	// multiplier is just fleet size.
 	mount := dir + "/anchored-text:/anchored-text"
-	if got := strings.Count(string(s.mustLog(t)), mount); got != 4 {
-		t.Errorf("anchored-text mount should appear twice in both boots (want 4, got %d)", got)
+	if got := strings.Count(string(s.mustLog(t)), mount); got != 6 {
+		t.Errorf("anchored-text mount should appear thrice in both boots (want 6, got %d)", got)
 	}
 }
 
@@ -1345,7 +1345,7 @@ func TestStopSweepsAllRuntimes(t *testing.T) {
 	}
 	checkGolden(t, "stop-all-runtimes.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"Sweeping 10 container(s) across container, docker, podman",
+		"Sweeping 11 container(s) across container, docker, podman",
 		"container: none found",
 		"docker: none found",
 		"podman: none found",
@@ -1474,7 +1474,7 @@ func TestStatusAllHealthy(t *testing.T) {
 	for _, svc := range []string{"backend", "worker", "smelter", "weaver", "browser", "neo4j", "qdrant", "postgres", "ollama"} {
 		s.extraEnv = append(s.extraEnv, "FAKERT_STATE_"+svc+"=running")
 	}
-	serveHealth(t, 4000, 9090, 9091, 9092, 9093, 3000, 7474, 6333, 5432, 11434)
+	serveHealth(t, 4000, 9090, 9091, 9092, 9093, 9094, 3000, 7474, 6333, 5432, 11434)
 	stdout, stderr, code := s.run(t, "status")
 	if code != 0 {
 		t.Fatalf("want exit 0 with all core healthy, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -4356,6 +4356,37 @@ func TestStartServiceBrowserNoClone(t *testing.T) {
 	} else {
 		mustContain(t, "stderr", stderr, "must be a git clone")
 	}
+	// The Librarian mounts /kb READ-ONLY — not the git writer, so the clone
+	// invariant deliberately does NOT apply (EXTRACT-LIBRARIAN handoff).
+	if _, stderr, code := s.run(t, "start", "--service", "librarian"); code != 0 {
+		t.Errorf("librarian without git: want exit 0 (read-only mount), got %d\nstderr:\n%s", code, stderr)
+	}
+}
+
+// The Librarian restart path — the argv IS the contract: /kb read-only, the
+// shared state + anchored-text mounts, librarian.toml, 9094, and neither
+// JWT_SECRET (it signs nothing) nor LIBRARIAN_HOST (nothing dials it).
+func TestStartServiceLibrarian(t *testing.T) {
+	s := newScenario(t, "container")
+	stdout, stderr, code := s.run(t, "start", "--service", "librarian")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Restarting librarian", "Librarian healthy (http://localhost:9094)")
+	log := string(s.mustLog(t))
+	mustContain(t, "argv", log,
+		"--name semiont-librarian",
+		"--publish 9094:9094",
+		":/kb:ro",
+		"librarian.toml:/home/semiont/.semiontconfig:ro",
+		"state:/semiont-state",
+		"anchored-text:/anchored-text",
+		"--env SEMIONT_WORKER_SECRET=")
+	for _, banned := range []string{"JWT_SECRET", "LIBRARIAN_HOST"} {
+		if strings.Contains(log, banned) {
+			t.Errorf("the Librarian must not receive %s:\n%s", banned, log)
+		}
+	}
 }
 
 // The Archivist restart path: teardown + port settle + staged config + run +
@@ -6118,11 +6149,11 @@ func TestLogsDiscovery(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	// Discovery probes run in order; the six follows launch concurrently, so
+	// Discovery probes run in order; the seven follows launch concurrently, so
 	// assert the probe prefix exactly and the follow set order-independently.
 	lines := strings.Split(strings.TrimRight(s.argv(t), "\n"), "\n")
-	if len(lines) != 8 {
-		t.Fatalf("want 8 invocations (2 probes + 6 follows), got %d:\n%s", len(lines), s.argv(t))
+	if len(lines) != 9 {
+		t.Fatalf("want 9 invocations (2 probes + 7 follows), got %d:\n%s", len(lines), s.argv(t))
 	}
 	if lines[0] != "container list" || lines[1] != "docker ps --format {{.Names}}" {
 		t.Errorf("wrong discovery probes:\n%s", s.argv(t))
@@ -6133,6 +6164,7 @@ func TestLogsDiscovery(t *testing.T) {
 		"docker logs --follow semiont-archivist",
 		"docker logs --follow semiont-backend",
 		"docker logs --follow semiont-browser",
+		"docker logs --follow semiont-librarian",
 		"docker logs --follow semiont-smelter",
 		"docker logs --follow semiont-weaver",
 		"docker logs --follow semiont-worker",
@@ -6142,7 +6174,7 @@ func TestLogsDiscovery(t *testing.T) {
 	}
 	// Streams: [svc]-prefixed, stderr kept in-stream (crash traces live there).
 	mustContain(t, "stdout", stdout,
-		"Following backend · worker · smelter · weaver · archivist · browser",
+		"Following backend · worker · smelter · weaver · archivist · librarian · browser",
 		"[backend] backend out",
 		"[backend] backend err",
 		"[worker] worker out",

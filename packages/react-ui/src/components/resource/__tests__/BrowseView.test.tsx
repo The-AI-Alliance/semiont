@@ -39,11 +39,11 @@ vi.mock('remark-gfm', () => ({
   default: vi.fn(),
 }));
 
-// Mock annotation-overlay — DOM Range API is not available in jsdom
+// Mock annotation-overlay — these tests exercise BrowseView wiring, not the overlay
 vi.mock('../../../lib/annotation-overlay', () => ({
   buildSourceToRenderedMap: vi.fn(() => new Map()),
   buildTextNodeIndex: vi.fn(() => []),
-  resolveAnnotationRanges: vi.fn(() => new Map()),
+  resolveAnnotationSpans: vi.fn(() => []),
   applyHighlights: vi.fn(),
   clearHighlights: vi.fn(),
   toOverlayAnnotations: vi.fn(() => []),

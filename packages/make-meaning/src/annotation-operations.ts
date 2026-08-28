@@ -19,7 +19,6 @@ import type {
 import { EventBus, annotationId, resourceId as makeResourceId, assembleAnnotation, applyBodyOperations, isAnnotatable, getPrimaryRepresentation } from '@semiont/core';
 import { AnnotationContext } from './annotation-context';
 import type { ViewStorage } from '@semiont/event-sourcing';
-import type { KnowledgeBase } from './knowledge-base';
 
 type Agent = components['schemas']['Agent'];
 import type { Annotation } from '@semiont/core';
@@ -66,7 +65,7 @@ export class AnnotationOperations {
     userId: UserId,
     creator: Agent,
     eventBus: EventBus,
-    kb: KnowledgeBase,
+    kb: { views: Pick<ViewStorage, 'get'> },
   ): Promise<CreateAnnotationResult> {
     // This facade reaches `mark:create` directly, so without this it would be a
     // published way around the handler's gate (MEDIA-CAPABILITY-DISPATCH D6).
@@ -93,7 +92,7 @@ export class AnnotationOperations {
     request: UpdateAnnotationBodyRequest,
     userId: UserId,
     eventBus: EventBus,
-    kb: KnowledgeBase
+    kb: { views: Pick<ViewStorage, 'get'> }
   ): Promise<UpdateAnnotationBodyResult> {
     const resId = makeResourceId(request.resourceId);
     const annotation = await AnnotationContext.getAnnotation(
@@ -132,7 +131,7 @@ export class AnnotationOperations {
     resourceIdStr: string,
     userId: UserId,
     eventBus: EventBus,
-    kb: KnowledgeBase,
+    kb: { views: Pick<ViewStorage, 'get'> },
     logger?: Logger
   ): Promise<void> {
     const resId = makeResourceId(resourceIdStr);

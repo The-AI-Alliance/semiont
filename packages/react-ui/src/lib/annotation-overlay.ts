@@ -5,11 +5,23 @@
  * (which forces O(ASTnodes × annotations) work on every render), this module:
  *
  * 1. Builds a source→rendered offset map once after the markdown DOM paints
- * 2. Resolves W3C TextPositionSelector offsets to DOM Ranges via binary search
- * 3. Wraps matched ranges with <span> elements carrying data-annotation-* attributes
+ * 2. Resolves W3C TextPositionSelector offsets to rendered-text offset spans
+ * 3. Rebuilds each annotated text node ONCE, off-DOM, into segments wrapped by
+ *    <span> elements carrying data-annotation-* attributes
  *
  * Markdown renders once (cached by React.memo). Annotation changes only touch
  * the overlay spans — no markdown re-parse, no AST walk.
+ *
+ * The application step deliberately never uses live DOM Ranges. A previous
+ * implementation resolved every annotation to a Range up front and then wrapped
+ * them one `surroundContents` at a time. Each wrap is a DOM mutation, and DOM
+ * mutations re-target every OTHER still-live Range: overlapping annotations —
+ * the normal result of repeated annotation on the same passage — had their
+ * ranges collapsed or inflated by earlier wraps, painting whole paragraphs and
+ * fragmenting text nodes so hard that 36 annotations produced 2,554 wraps and
+ * a 10-second main-thread freeze (measured 2026-08-28, e2e specs 08/09).
+ * Working in offset space against the pristine text-node index makes overlap
+ * geometry exact, and costs one `replaceChild` per annotated text node.
  */
 
 import { getTextPositionSelector, getTargetSelector, getExactText, getBodySource } from '@semiont/core';
@@ -28,9 +40,16 @@ export interface OverlayAnnotation {
   source: string | null;
 }
 
-interface TextNodeEntry {
+export interface TextNodeEntry {
   node: Text;
   start: number; // cumulative rendered offset
+  end: number;
+}
+
+/** An annotation resolved to rendered-text offsets: `[start, end)`. */
+export interface ResolvedAnnotationSpan {
+  annotation: OverlayAnnotation;
+  start: number;
   end: number;
 }
 
@@ -82,8 +101,7 @@ export function buildSourceToRenderedMap(
 // ─── Text Node Index ─────────────────────────────────────────────────────────
 
 /**
- * Build a sorted array of text nodes with cumulative rendered offsets
- * for efficient offset→node lookups via binary search.
+ * Build a sorted array of text nodes with cumulative rendered offsets.
  *
  * Complexity: O(textNodes) — runs once per overlay application.
  */
@@ -102,149 +120,97 @@ export function buildTextNodeIndex(container: HTMLElement): TextNodeEntry[] {
   return entries;
 }
 
-/**
- * Binary search for the text node containing a rendered offset.
- *
- * Complexity: O(log(textNodes)) per lookup.
- */
-function findTextNode(
-  entries: TextNodeEntry[],
-  renderedOffset: number
-): { node: Text; localOffset: number } | null {
-  let lo = 0;
-  let hi = entries.length - 1;
-
-  while (lo <= hi) {
-    const mid = (lo + hi) >>> 1;
-    const entry = entries[mid]!;
-    if (renderedOffset < entry.start) {
-      hi = mid - 1;
-    } else if (renderedOffset >= entry.end) {
-      lo = mid + 1;
-    } else {
-      return { node: entry.node, localOffset: renderedOffset - entry.start };
-    }
-  }
-
-  return null;
-}
-
-// ─── Resolve Annotations to DOM Ranges ───────────────────────────────────────
+// ─── Resolve Annotations to Rendered Offset Spans ────────────────────────────
 
 /**
- * Resolve annotations to DOM Ranges using the cached offset map.
+ * Resolve annotations to rendered-text offset spans using the cached offset
+ * map. Annotations whose offsets don't map (content changed under them) are
+ * skipped, as are empty ones.
  *
- * Complexity: O(annotations × log(textNodes)).
+ * Complexity: O(annotations).
  */
-export function resolveAnnotationRanges(
+export function resolveAnnotationSpans(
   annotations: OverlayAnnotation[],
-  offsetMap: Map<number, number>,
-  textNodeIndex: TextNodeEntry[]
-): Map<string, { range: Range; annotation: OverlayAnnotation }> {
-  const ranges = new Map<string, { range: Range; annotation: OverlayAnnotation }>();
+  offsetMap: Map<number, number>
+): ResolvedAnnotationSpan[] {
+  const spans: ResolvedAnnotationSpan[] = [];
 
-  for (const ann of annotations) {
-    const renderedStart = offsetMap.get(ann.offset);
-    const renderedEnd = offsetMap.get(ann.offset + ann.length - 1);
-    if (renderedStart === undefined || renderedEnd === undefined) continue;
-
-    const startInfo = findTextNode(textNodeIndex, renderedStart);
-    const endInfo = findTextNode(textNodeIndex, renderedEnd + 1);
-    if (!startInfo || !endInfo) continue;
-
-    const range = document.createRange();
-    range.setStart(startInfo.node, startInfo.localOffset);
-    range.setEnd(endInfo.node, endInfo.localOffset);
-    ranges.set(ann.id, { range, annotation: ann });
+  for (const annotation of annotations) {
+    if (annotation.length <= 0) continue;
+    const start = offsetMap.get(annotation.offset);
+    const last = offsetMap.get(annotation.offset + annotation.length - 1);
+    if (start === undefined || last === undefined || last < start) continue;
+    spans.push({ annotation, start, end: last + 1 });
   }
 
-  return ranges;
+  return spans;
 }
 
 // ─── Apply / Clear Highlights ────────────────────────────────────────────────
 
 /**
- * Wrap annotation Ranges with styled <span> elements.
- * Handles cross-element ranges by splitting into per-text-node segments.
+ * Wrap annotated stretches of text with styled <span> elements.
+ *
+ * Each text node the spans touch is rebuilt off-DOM as a run of segments —
+ * one per distinct overlap region — and swapped in with a single
+ * `replaceChild`. A segment covered by several annotations gets nested spans,
+ * one per annotation; the later annotation in the input order ends up
+ * innermost, so `closest('[data-annotation-id]')` resolves to it (interactive
+ * types — references, comments, tags — are listed after plain highlights).
+ * An annotation cut by segment or node boundaries yields sibling spans
+ * sharing its data-annotation-id, as the Range-based predecessor also did.
+ *
+ * Complexity: O(textNodes × spans) comparisons, O(annotated nodes) mutations.
  */
 export function applyHighlights(
-  ranges: Map<string, { range: Range; annotation: OverlayAnnotation }>
+  spans: ResolvedAnnotationSpan[],
+  textNodeIndex: TextNodeEntry[]
 ): void {
-  for (const [id, { range, annotation }] of ranges) {
-    const className = `annotation-${annotation.type}`;
+  if (spans.length === 0) return;
 
-    // For ranges within a single text node, surroundContents works directly
-    if (range.startContainer === range.endContainer) {
-      const span = document.createElement('span');
-      span.className = className;
-      span.dataset.annotationId = id;
-      span.dataset.annotationType = annotation.type;
-      try {
-        range.surroundContents(span);
-      } catch {
-        // surroundContents can fail if range partially selects a non-text node
-        wrapRangeTextNodes(range, id, annotation);
+  for (const entry of textNodeIndex) {
+    const covering = spans.filter((s) => s.start < entry.end && s.end > entry.start);
+    if (covering.length === 0) continue;
+
+    // Segment boundaries inside this node: node edges plus every covering
+    // annotation edge, clamped to the node.
+    const cuts = new Set<number>([entry.start, entry.end]);
+    for (const s of covering) {
+      cuts.add(Math.max(s.start, entry.start));
+      cuts.add(Math.min(s.end, entry.end));
+    }
+    const bounds = [...cuts].sort((a, b) => a - b);
+
+    const text = entry.node.textContent ?? '';
+    const fragment = document.createDocumentFragment();
+
+    for (let i = 0; i < bounds.length - 1; i++) {
+      const segStart = bounds[i]!;
+      const segEnd = bounds[i + 1]!;
+      let segment: Node = document.createTextNode(text.slice(segStart - entry.start, segEnd - entry.start));
+
+      // Wrap back-to-front so the last-listed covering annotation is innermost.
+      for (let k = covering.length - 1; k >= 0; k--) {
+        const s = covering[k]!;
+        if (s.start > segStart || s.end < segEnd) continue;
+        const span = document.createElement('span');
+        span.className = `annotation-${s.annotation.type}`;
+        span.dataset.annotationId = s.annotation.id;
+        span.dataset.annotationType = s.annotation.type;
+        span.appendChild(segment);
+        segment = span;
       }
-      continue;
+
+      fragment.appendChild(segment);
     }
 
-    // For cross-element ranges, wrap each text node segment individually
-    wrapRangeTextNodes(range, id, annotation);
-  }
-}
-
-/**
- * Wrap individual text node segments within a range (for cross-element ranges).
- * Same approach as Hypothesis web annotator.
- */
-function wrapRangeTextNodes(
-  range: Range,
-  id: string,
-  annotation: OverlayAnnotation
-): void {
-  const className = `annotation-${annotation.type}`;
-
-  const walker = document.createTreeWalker(
-    range.commonAncestorContainer,
-    NodeFilter.SHOW_TEXT
-  );
-
-  // Collect text nodes first (avoid modifying DOM while walking)
-  const textNodes: Text[] = [];
-  while (walker.nextNode()) {
-    const node = walker.currentNode as Text;
-    if (range.intersectsNode(node)) {
-      textNodes.push(node);
-    }
-  }
-
-  for (const textNode of textNodes) {
-    const nodeRange = document.createRange();
-    nodeRange.selectNodeContents(textNode);
-
-    // Clip to annotation boundaries
-    if (textNode === range.startContainer) {
-      nodeRange.setStart(textNode, range.startOffset);
-    }
-    if (textNode === range.endContainer) {
-      nodeRange.setEnd(textNode, range.endOffset);
-    }
-
-    const span = document.createElement('span');
-    span.className = className;
-    span.dataset.annotationId = id;
-    span.dataset.annotationType = annotation.type;
-    try {
-      nodeRange.surroundContents(span);
-    } catch {
-      // Skip nodes that can't be wrapped (e.g., empty text nodes)
-    }
+    entry.node.parentNode?.replaceChild(fragment, entry.node);
   }
 }
 
 /**
  * Remove all annotation highlight spans, restoring the original DOM.
- * Unwraps spans and merges adjacent text nodes.
+ * Unwraps every span, then merges adjacent text nodes in one pass.
  */
 export function clearHighlights(container: HTMLElement): void {
   const spans = container.querySelectorAll('[data-annotation-id]');
@@ -255,8 +221,8 @@ export function clearHighlights(container: HTMLElement): void {
       parent.insertBefore(span.firstChild, span);
     }
     parent.removeChild(span);
-    parent.normalize(); // merge adjacent text nodes
   }
+  container.normalize(); // merge adjacent text nodes across the whole subtree
 }
 
 // ─── Convert W3C Annotations to Overlay Format ──────────────────────────────

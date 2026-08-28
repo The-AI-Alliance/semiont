@@ -56,6 +56,9 @@ jobs:
           - service: archivist
             dockerfile: packages/make-meaning/Dockerfile.archivist
             verify_packages: '@semiont/make-meaning'
+          - service: librarian
+            dockerfile: packages/make-meaning/Dockerfile.librarian
+            verify_packages: '@semiont/make-meaning'
 
     steps:
       - name: Checkout repository

@@ -6,14 +6,13 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { memoryAnchoredTextStore } from './helpers/anchored-text';
-import { AnnotationContext } from '../annotation-context';
+import { AnnotationContext, type AnnotationGatherReads } from '../annotation-context';
 import { deriveViews } from '@semiont/core';
 import { resourceId, annotationId, userId, EventBus, type Logger } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
-import type { KnowledgeBase } from '../knowledge-base';
+import { workingTreeContentReads } from '../knowledge-base';
 import { createTestProject } from './helpers/test-project';
 import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 
@@ -67,7 +66,10 @@ const mockLogger: Logger = {
 describe('AnnotationContext', () => {
   let project: Awaited<ReturnType<typeof createTestProject>>['project'];
   let teardown: () => Promise<void>;
-  let kb: KnowledgeBase;
+  // The narrow gather reads — real views + the real working-tree content
+  // adapter (exercised here, not mocked), a mock graph, mock vectors.
+  let kb: AnnotationGatherReads;
+  let workingTree: WorkingTreeStore;
   let mockGraphDb: GraphDatabase;
 
   beforeAll(async () => {
@@ -75,15 +77,13 @@ describe('AnnotationContext', () => {
 
     mockGraphDb = createMockGraphDb();
     const eventStore = createEventStore(project, new EventBus(), mockLogger);
+    workingTree = new WorkingTreeStore(project, mockLogger);
     kb = {
-      eventStore,
       views: eventStore.viewStorage,
-      content: new WorkingTreeStore(project, mockLogger),
+      content: workingTreeContentReads(eventStore.viewStorage, workingTree),
       graph: mockGraphDb,
-      anchoredText: memoryAnchoredTextStore(),
-      vectors: { searchResources: vi.fn().mockResolvedValue([]), searchAnnotations: vi.fn().mockResolvedValue([]), searchByResource: vi.fn().mockResolvedValue([]) } as any,
-      projectionsDir: project.projectionsDir,
-      weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
+      vectors: { searchAnnotations: vi.fn().mockResolvedValue([]) } as AnnotationGatherReads['vectors'],
+      weaveProgress: { whenApplied: vi.fn(async () => {}) },
     };
   });
 
@@ -95,7 +95,7 @@ describe('AnnotationContext', () => {
   async function createTestResource(id: string, content: string): Promise<void> {
     const testContent = Buffer.from(content, 'utf-8');
     const storageUri = `file://test-resources/${id}.txt`;
-    const { checksum } = await kb.content.store(testContent, storageUri);
+    const { checksum } = await workingTree.store(testContent, storageUri);
 
     const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
@@ -685,6 +685,122 @@ describe('AnnotationContext', () => {
         citedByCount: 0,
         siblingEntityTypes: [],
       });
+    });
+  });
+
+  // ── The resource-id content re-key (EXTRACT-LIBRARIAN P2 / D-CONTENT b) ────
+  //
+  // The fetch moved from `content.retrieve(storageUri)` to
+  // `content.getBinary(resourceId)`, so the Librarian can serve it over HTTP
+  // without the caller holding a storage path. `storageUri` stays on the
+  // descriptor as the has-content SIGNAL, which is the subtle half: the field
+  // is still read, just no longer used to fetch. These pin both halves — a
+  // regression that fetched by storageUri again, or dropped the signal check,
+  // would otherwise pass every existing test.
+  describe('content reads are keyed by resource id, gated on storageUri', () => {
+    it('getAnnotationContext reads the resource through getBinary', async () => {
+      const rid = 'res-content-by-id';
+      const aid = annotationId('ann-content-by-id');
+      await createTestResource(rid, 'alpha bravo charlie delta echo');
+      await createTestAnnotation(rid, aid, 'charlie', 12, 19);
+
+      const spy = vi.spyOn(kb.content, 'getBinary');
+      const result = await AnnotationContext.getAnnotationContext(
+        aid, resourceId(rid), 5, 5, kb,
+      );
+
+      // Keyed by the resource id, never by the storage path.
+      expect(spy).toHaveBeenCalledWith(resourceId(rid));
+      expect(result.context.selected).toBe('charlie');
+      spy.mockRestore();
+    });
+
+    it('refuses a resource whose descriptor carries no storageUri', async () => {
+      // The signal, not the key: a descriptor without it has no content to
+      // fetch, and the refusal has to happen before a getBinary that would
+      // fail further away with a less useful message.
+      const bare = { '@id': resourceId('res-no-content'), name: 'No content', representations: [] };
+      await expect(
+        AnnotationContext.getAnnotationContext(
+          annotationId('ann-x'), resourceId('res-no-content'), 5, 5,
+          { views: { get: vi.fn().mockResolvedValue({ resource: bare, annotations: { annotations: [] } }) } } as never,
+        ),
+      ).rejects.toThrow();
+    });
+
+    it('fetches the TARGET resource by id too, when a reference resolves', async () => {
+      // A resolved reference gathers both ends: the source for the selector's
+      // surroundings, the target for what it points at. Both go through
+      // getBinary now, and the target half is the easier one to leave behind
+      // because it only runs for annotations that actually resolve.
+      const src = 'res-ref-source';
+      const dst = 'res-ref-target';
+      await createTestResource(src, 'see the other document for detail');
+      await createTestResource(dst, 'the other document says something specific');
+
+      const aid = annotationId('ann-resolved-ref');
+      const eventStore = createEventStore(project, new EventBus(), mockLogger);
+      await eventStore.appendEvent({
+        type: 'mark:added',
+        resourceId: resourceId(src),
+        userId: userId('user-1'),
+        version: 1,
+        payload: {
+          annotation: {
+            '@context': 'http://www.w3.org/ns/anno.jsonld',
+            id: aid,
+            type: 'Annotation',
+            motivation: 'linking',
+            // The body's source is what makes this a RESOLVED reference —
+            // it is where targetDoc and the target fetch both come from.
+            body: [{ type: 'SpecificResource', source: dst, purpose: 'linking' }],
+            target: {
+              source: src,
+              selector: [{ type: 'TextPositionSelector', start: 8, end: 22 }],
+            },
+          },
+        },
+      } as never);
+      await new Promise((r) => setTimeout(r, 100));
+
+      const spy = vi.spyOn(kb.content, 'getBinary');
+      const result = await AnnotationContext.buildLLMContext(
+        aid, resourceId(src), kb, mockEmbeddingProvider,
+        { includeTargetContext: true }, undefined, mockLogger,
+      );
+
+      // Both ends fetched, both by resource id.
+      expect(spy).toHaveBeenCalledWith(resourceId(src));
+      expect(spy).toHaveBeenCalledWith(resourceId(dst));
+      // `focus` is discriminated on `kind`; narrow before reading the
+      // annotation-only half rather than asserting past the union.
+      expect(result.focus.kind).toBe('annotation');
+      if (result.focus.kind !== 'annotation') throw new Error('expected an annotation focus');
+      expect(result.focus.targetContext?.content).toContain('the other document');
+      spy.mockRestore();
+    });
+  });
+
+  // ── The working-tree adapter's own refusal (knowledge-base.ts) ─────────────
+  describe('workingTreeContentReads', () => {
+    it('names the resource when it has no storageUri', async () => {
+      // In-process roots satisfy ContentReads with this adapter; the Librarian
+      // satisfies it with HttpContentTransport. Both must fail the same way,
+      // so this message is part of the seam's contract, not an internal detail.
+      const reads = workingTreeContentReads(
+        { get: vi.fn().mockResolvedValue({ resource: { '@id': 'res-empty', name: 'x', representations: [] } }) } as never,
+        workingTree,
+      );
+      await expect(reads.getBinary(resourceId('res-empty')))
+        .rejects.toThrow(/no storageUri for res-empty/);
+    });
+
+    it('reports a resource the views do not know', async () => {
+      const reads = workingTreeContentReads(
+        { get: vi.fn().mockResolvedValue(undefined) } as never,
+        workingTree,
+      );
+      await expect(reads.getBinary(resourceId('res-absent'))).rejects.toThrow(/res-absent/);
     });
   });
 });

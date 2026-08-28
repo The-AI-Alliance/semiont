@@ -116,16 +116,18 @@ step "Container runtime: ${BOLD}$RT${RESET}"
 
 SKIP_BUILD=false
 IMAGES_ONLY=false
+IMAGES_FORCED=false
 PACKAGES=""
 START_FROM=""
-IMAGES="backend worker smelter weaver archivist browser"
+IMAGES="backend worker smelter weaver archivist librarian browser"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
     --images-only) IMAGES_ONLY=true; shift ;;
     --package) PACKAGES="$2"; shift 2 ;;
     --start-from) START_FROM="$2"; shift 2 ;;
-    --image) IMAGES="${2//,/ }"; shift 2 ;;
+    --image) IMAGES="${2//,/ }"; IMAGES_FORCED=true; shift 2 ;;
+    --force-images) IMAGES_FORCED=true; shift ;;
     -h|--help)
       echo "Usage: local-build.sh [options]"
       echo ""
@@ -145,7 +147,12 @@ while [[ $# -gt 0 ]]; do
       echo "  --start-from <pkg> Skip packages before this one in the build order"
       echo "  --skip-build       Skip build, publish only (reuse previous artifacts)"
       echo "  --image <list>     Comma-separated images to build (default:"
-      echo "                     backend,worker,smelter,weaver,archivist,browser)"
+      echo "                     backend,worker,smelter,weaver,archivist,librarian,browser)."
+      echo "                     Named images always build, even when unchanged"
+      echo "  --force-images     Build every image even when its Dockerfile and"
+      echo "                     package integrities are unchanged (images whose"
+      echo "                     inputs the skip check cannot see — a moved base"
+      echo "                     tag, bumped third-party deps — need this)"
       echo "  --images-only      Build ONLY container images, against the Verdaccio a"
       echo "                     previous run left running. Skips the npm build+publish,"
       echo "                     the drift gates and the launcher. Pair with --image to"
@@ -179,6 +186,7 @@ image_dockerfile() {
     smelter)  echo "packages/make-meaning/Dockerfile.smelter" ;;
     weaver)   echo "packages/make-meaning/Dockerfile.weaver" ;;
     archivist) echo "packages/make-meaning/Dockerfile.archivist" ;;
+    librarian) echo "packages/make-meaning/Dockerfile.librarian" ;;
     browser) echo "apps/browser/Dockerfile" ;;
     *) return 1 ;;
   esac
@@ -186,7 +194,7 @@ image_dockerfile() {
 
 for img in $IMAGES; do
   if ! image_dockerfile "$img" >/dev/null; then
-    fail "Unknown image: $img (expected backend, worker, smelter, weaver, archivist, or browser)"
+    fail "Unknown image: $img (expected backend, worker, smelter, weaver, archivist, librarian, or browser)"
     exit 1
   fi
 done
@@ -422,20 +430,77 @@ fanout_image() {
   done
 }
 
+# --- Skip unchanged images ---
+# An image is a function of its Dockerfile and the @semiont/* packages it
+# installs. "Unchanged" is decided by package INTEGRITY against the
+# freshly-published Verdaccio — versions and mtimes are useless because every
+# run republishes (check-semiont-drift.mjs reasons the same way) — plus the
+# Dockerfile hash. Third-party deps and the base tag are treated as stable;
+# when upstream moves them, --image <name> forces the rebuild (explicit wins,
+# and it also refreshes the recorded signature). The @semiont/* set is
+# DERIVED from the Dockerfile text, not restated here.
+IMAGE_STATE="${XDG_CACHE_HOME:-$HOME/.cache}/semiont/local-build-images.json"
+mkdir -p "$(dirname "$IMAGE_STATE")"
+
+# One line capturing everything a rebuild depends on; EMPTY when any
+# integrity lookup fails, and an empty signature never skips and never
+# records — lookup trouble degrades to building, not to false skips.
+image_signature() {
+  local df pkg integ sig
+  df="$REPO_ROOT/$(image_dockerfile "$1")"
+  sig="dockerfile:$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$df")"
+  # Install lines only — comments mention packages that are not installed.
+  for pkg in $(grep 'npm install' "$df" | grep -ohE '@semiont/[a-z-]+' | sort -u); do
+    integ=$(curl -sf --max-time 10 "$REGISTRY/$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=""))' "$pkg")"       | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d["versions"][d["dist-tags"]["latest"]]["dist"]["integrity"])' 2>/dev/null) || integ=""
+    [[ -z "$integ" ]] && { echo ""; return; }
+    sig="$sig $pkg:$integ"
+  done
+  echo "$sig"
+}
+
+state_get() { python3 -c 'import json,sys
+try: print(json.load(open(sys.argv[1])).get(sys.argv[2],""))
+except Exception: print("")' "$IMAGE_STATE" "$1"; }
+
+state_put() { python3 -c 'import json,sys
+p=sys.argv[1]
+try: d=json.load(open(p))
+except Exception: d={}
+d[sys.argv[2]]=sys.argv[3]
+json.dump(d,open(p,"w"),indent=1)' "$IMAGE_STATE" "$1" "$2"; }
+
+BUILD_IMGS=()
+BUILD_SIGS=()
+SKIPPED=""
+for img in $IMAGES; do
+  TAG="ghcr.io/the-ai-alliance/semiont-${img}:local"
+  SIG=$(image_signature "$img")
+  if [[ "$IMAGES_FORCED" != true && -n "$SIG" && "$(state_get "$img")" == "$SIG" ]] \
+     && $RT image inspect "$TAG" >/dev/null 2>&1; then
+    ok "$TAG unchanged (Dockerfile + package integrities) — skipped"
+    SKIPPED="$SKIPPED $img"
+  else
+    BUILD_IMGS+=("$img")
+    BUILD_SIGS+=("$SIG")
+  fi
+done
+if [[ ${#BUILD_IMGS[@]} -eq 0 ]]; then
+  ok "All images unchanged — nothing to build"
+fi
+
 # Three builds at a time: ~30s of EVERY build is fixed buildkit-shim latency
 # (10s "transferring" round-trips for byte-sized payloads), which overlapping
 # absorbs. Three, not six: the builder VM has 2G, and the default image order
 # splits the two npm-heavy builds (backend, browser) across batches. Build
 # output goes to a per-image log; a failure tails it and stops the run.
 # Fan-out happens after all builds, keeping the builder VM to itself.
-IMG_LIST=($IMAGES)
 i=0
-while [ $i -lt ${#IMG_LIST[@]} ]; do
-  PIDS=(); TAGS=(); LOGS=()
+while [ $i -lt ${#BUILD_IMGS[@]} ]; do
+  PIDS=(); TAGS=(); LOGS=(); IMGS=()
   for j in 0 1 2; do
     idx=$((i + j))
-    [ $idx -ge ${#IMG_LIST[@]} ] && break
-    img=${IMG_LIST[$idx]}
+    [ $idx -ge ${#BUILD_IMGS[@]} ] && break
+    img=${BUILD_IMGS[$idx]}
     DF=$(image_dockerfile "$img")
     TAG="ghcr.io/the-ai-alliance/semiont-${img}:local"
     LOG=$(mktemp "${TMPDIR:-/tmp}/semiont-build-${img}.XXXXXX")
@@ -447,6 +512,7 @@ while [ $i -lt ${#IMG_LIST[@]} ]; do
     PIDS+=($!)
     TAGS+=("$TAG")
     LOGS+=("$LOG")
+    IMGS+=("$idx")
   done
   for j in "${!PIDS[@]}"; do
     st=0
@@ -458,11 +524,17 @@ while [ $i -lt ${#IMG_LIST[@]} ]; do
     fi
     ok "${TAGS[$j]} built"
     rm -f "${LOGS[$j]}"
+    idx=${IMGS[$j]}
+    if [[ -n "${BUILD_SIGS[$idx]}" ]]; then
+      state_put "${BUILD_IMGS[$idx]}" "${BUILD_SIGS[$idx]}"
+    fi
   done
   i=$((i + 3))
 done
 
-for img in "${IMG_LIST[@]}"; do
+# Fan-out covers skipped images too: it heals the case where another runtime
+# was down when the image was last built.
+for img in $IMAGES; do
   fanout_image "ghcr.io/the-ai-alliance/semiont-${img}:local"
 done
 

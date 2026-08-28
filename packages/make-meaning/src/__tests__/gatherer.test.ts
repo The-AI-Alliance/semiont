@@ -8,11 +8,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { memoryAnchoredTextStore } from './helpers/anchored-text';
 import { take } from 'rxjs/operators';
 import { EventBus, annotationId, resourceId, type Logger } from '@semiont/core';
-import type { KnowledgeBase } from '../knowledge-base';
-import { Gatherer } from '../gatherer';
+import { Gatherer, type GathererStores } from '../gatherer';
 
 // Mock AnnotationContext and LLMContext
 vi.mock('../annotation-context', () => ({
@@ -44,29 +42,38 @@ const mockInferenceClient = {
   generateTextWithMetadata: vi.fn(),
 };
 
-function createMockKb(): KnowledgeBase {
+// The context modules are vi.mocked above, so the Gatherer never actually
+// reaches these members — the fixture is the narrow slice, nothing more.
+function createMockStores(): GathererStores {
   return {
-    eventStore: {} as any,
-    views: {} as any,
-    content: {} as any,
-    graph: {} as any,
-    anchoredText: memoryAnchoredTextStore(),
-      vectors: { searchResources: vi.fn().mockResolvedValue([]), searchAnnotations: vi.fn().mockResolvedValue([]), searchByResource: vi.fn().mockResolvedValue([]) } as any,
-    projectionsDir: '',
-      weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
+    views: { get: vi.fn(async () => null) },
+    content: { getBinary: vi.fn(async () => ({ data: new ArrayBuffer(0), contentType: 'text/plain' })) },
+    graph: {
+      getResource: vi.fn(async () => null),
+      getResourceConnections: vi.fn(async () => []),
+      getResourceReferencedBy: vi.fn(async () => []),
+      getResourceAnnotations: vi.fn(async () => []),
+      getEntityTypeStats: vi.fn(async () => []),
+    },
+    vectors: {
+      searchAnnotations: vi.fn(async () => []),
+      searchByResource: vi.fn(async () => []),
+    },
+    weaveProgress: { whenApplied: vi.fn(async () => {}) },
+    smeltProgress: { whenSettled: vi.fn(async () => 'inert' as const) },
   };
 }
 
 describe('Gatherer', () => {
   let eventBus: EventBus;
   let gatherer: Gatherer;
-  let kb: KnowledgeBase;
+  let kb: GathererStores;
   const mockEmbeddingProvider = createMockEmbeddingProvider();
 
   beforeEach(async () => {
     vi.clearAllMocks();
     eventBus = new EventBus();
-    kb = createMockKb();
+    kb = createMockStores();
     gatherer = new Gatherer(kb, eventBus, mockInferenceClient as any, 15_000, mockLogger, mockEmbeddingProvider);
     await gatherer.initialize();
   });

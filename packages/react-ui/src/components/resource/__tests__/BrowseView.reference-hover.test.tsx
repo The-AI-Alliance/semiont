@@ -28,7 +28,7 @@ vi.mock('remark-gfm', () => ({ default: () => ({}) }));
 vi.mock('../../../lib/annotation-overlay', () => ({
   buildSourceToRenderedMap: vi.fn(() => new Map()),
   buildTextNodeIndex: vi.fn(() => []),
-  resolveAnnotationRanges: vi.fn(() => new Map()),
+  resolveAnnotationSpans: vi.fn(() => []),
   applyHighlights: vi.fn(),
   clearHighlights: vi.fn(),
   toOverlayAnnotations: vi.fn(() => []),

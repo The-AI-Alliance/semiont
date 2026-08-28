@@ -14,12 +14,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { memoryAnchoredTextStore } from './helpers/anchored-text';
 import { take } from 'rxjs/operators';
 import { EventBus, resourceId, type GatheredContext, type Logger, type ResourceId } from '@semiont/core';
-import type { KnowledgeBase } from '../knowledge-base';
 import type { InferenceClient } from '@semiont/inference';
-import { Matcher } from '../matcher';
+import { Matcher, type MatcherStores } from '../matcher';
 import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 
 type AnnotationFocus = Extract<GatheredContext['focus'], { kind: 'annotation' }>;
@@ -155,17 +153,11 @@ interface MockGraphOverrides {
   viewsGet?: ReturnType<typeof vi.fn>;
 }
 
-function createMockKb(overrides: MockGraphOverrides = {}): KnowledgeBase {
+function createMockStores(overrides: MockGraphOverrides = {}): MatcherStores {
   return {
-    eventStore: {} as any,
-    views: { get: overrides.viewsGet ?? vi.fn().mockResolvedValue(null) } as any,
-    content: {} as any,
-    anchoredText: memoryAnchoredTextStore(),
-      vectors: { searchResources: vi.fn().mockResolvedValue([]), searchAnnotations: vi.fn().mockResolvedValue([]), searchByResource: vi.fn().mockResolvedValue([]) } as any,
-    projectionsDir: '',
-      weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
+    views: { get: overrides.viewsGet ?? vi.fn().mockResolvedValue(null) } as MatcherStores['views'],
+    vectors: { searchResources: vi.fn().mockResolvedValue([]) } as MatcherStores['vectors'],
     graph: {
-      getResourceReferencedBy: overrides.getResourceReferencedBy ?? vi.fn().mockResolvedValue([]),
       getResource: overrides.getResource ?? vi.fn().mockResolvedValue(null),
       listResources: vi.fn(async (filter: MockResourceFilter) => {
         if (filter?.search) {
@@ -179,13 +171,7 @@ function createMockKb(overrides: MockGraphOverrides = {}): KnowledgeBase {
         }
         return { resources: [], total: 0 };
       }),
-      createResource: vi.fn(),
-      deleteResource: vi.fn(),
-      getBacklinks: vi.fn(),
-      findPath: vi.fn(),
-      getResourceConnections: vi.fn(),
-      disconnect: vi.fn(),
-    } as any,
+    } as MatcherStores['graph'],
   };
 }
 
@@ -194,13 +180,13 @@ describe('Matcher', () => {
   let eventBus: EventBus;
   let matcher: Matcher;
   let mockSearchFn: SearchMatchesMock;
-  let kb: KnowledgeBase;
+  let kb: MatcherStores;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     eventBus = new EventBus();
     mockSearchFn = vi.fn<SearchMatches>();
-    kb = createMockKb({ searchMatches: mockSearchFn });
+    kb = createMockStores({ searchMatches: mockSearchFn });
     matcher = new Matcher(kb, eventBus, mockLogger, noopInference, createMockEmbeddingProvider());
     await matcher.initialize();
   });
@@ -298,7 +284,7 @@ describe('Matcher', () => {
       mockListResources = vi.fn<EntityTypeMatches>().mockResolvedValue({ resources: [], total: 0 });
       mockGetResource = vi.fn().mockResolvedValue(null);
       mockViewGet = vi.fn().mockResolvedValue(null);
-      kb = createMockKb({
+      kb = createMockStores({
         searchMatches: mockSearchFn2,
         entityTypeMatches: mockListResources,
         getResource: mockGetResource,
@@ -515,10 +501,10 @@ describe('Matcher', () => {
           ? Promise.resolve({ resource: { '@id': 'res-sem', name: 'Semantic Lag', dateCreated: '2026-07-13T00:00:00Z' }, annotations: {} })
           : Promise.resolve(null),
       );
-      const kbLocal = createMockKb({ viewsGet: viewGet });
-      (kbLocal as any).vectors = {
+      const kbLocal = createMockStores({ viewsGet: viewGet });
+      kbLocal.vectors = {
         searchResources: vi.fn().mockResolvedValue([{ resourceId: 'res-sem', score: 0.9 }]),
-      };
+      } as MatcherStores['vectors'];
       const embeddingProvider = { embed: vi.fn().mockResolvedValue([0.1, 0.2]) } as any;
       const localMatcher = new Matcher(kbLocal, localBus, mockLogger, noopInference, embeddingProvider);
       await localMatcher.initialize();
@@ -638,7 +624,7 @@ describe('Matcher', () => {
       mockSearchFn2 = vi.fn<SearchMatches>().mockResolvedValue([RES_A, RES_B]);
       mockListResources = vi.fn<EntityTypeMatches>().mockResolvedValue({ resources: [], total: 0 });
       mockGetResource = vi.fn().mockResolvedValue(null);
-      kb = createMockKb({
+      kb = createMockStores({
         searchMatches: mockSearchFn2,
         entityTypeMatches: mockListResources,
         getResource: mockGetResource,
@@ -686,7 +672,7 @@ describe('Matcher', () => {
       mockSearchFn2 = vi.fn<SearchMatches>().mockResolvedValue([RES_A]);
       mockListResources = vi.fn<EntityTypeMatches>().mockResolvedValue({ resources: [], total: 0 });
       mockGetResource = vi.fn().mockResolvedValue(null);
-      kb = createMockKb({
+      kb = createMockStores({
         searchMatches: mockSearchFn2,
         entityTypeMatches: mockListResources,
         getResource: mockGetResource,
@@ -770,7 +756,7 @@ describe('Matcher', () => {
         mockSearchFn2 = vi.fn<SearchMatches>().mockResolvedValue([RES_A, RES_B, RES_C]);
         mockListResources = vi.fn<EntityTypeMatches>().mockResolvedValue({ resources: [], total: 0 });
         mockGetResource = vi.fn().mockResolvedValue(null);
-        kb = createMockKb({
+        kb = createMockStores({
           searchMatches: mockSearchFn2,
           entityTypeMatches: mockListResources,
           getResource: mockGetResource,

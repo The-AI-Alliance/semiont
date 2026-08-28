@@ -38,17 +38,16 @@ export interface KnowledgeSystem {
 }
 
 /**
- * The gateway's view of the system after EXTRACT-ARCHIVIST P3: the Archivist
- * service owns Stower/Browser/CloneTokenManager out-of-process; the gateway
- * hosts only the read/inference actors EXTRACT-LIBRARIAN takes next. `kb`
- * here is a READ bundle over the shared stateDir — the one writer is the
- * Archivist (D4b/D6).
+ * The gateway's view of the system after EXTRACT-ARCHIVIST P3 and
+ * EXTRACT-LIBRARIAN P3: the Archivist service owns
+ * Stower/Browser/CloneTokenManager and the Librarian owns Matcher and
+ * Gatherer, out-of-process. The gateway hosts NO actors — `kb` here is a
+ * READ bundle over the shared stateDir for the handler subset and the
+ * backend's routes; the one writer is the Archivist (D4b/D6).
  */
 export interface GatewayKnowledgeSystem {
-  kb:       KnowledgeBase;
-  gatherer: Gatherer;
-  matcher:  Matcher;
-  stop:     () => Promise<void>;
+  kb:   KnowledgeBase;
+  stop: () => Promise<void>;
 }
 
 export async function stopKnowledgeSystem(ks: KnowledgeSystem): Promise<void> {

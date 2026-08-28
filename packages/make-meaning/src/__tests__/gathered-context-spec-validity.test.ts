@@ -24,9 +24,7 @@ import {
   type ResourceDescriptor,
   type components,
 } from '@semiont/core';
-import { GraphContext } from '../graph-context';
-import { memoryAnchoredTextStore } from './helpers/anchored-text';
-import type { KnowledgeBase } from '../knowledge-base';
+import { GraphContext, type KnowledgeGraphReads } from '../graph-context';
 
 type GatheredContext = components['schemas']['GatheredContext'];
 
@@ -52,7 +50,7 @@ const resource = (id: string, name: string): ResourceDescriptor => ({
  * which round-trips the codec (D7); a hand-built fixture would have validated
  * against the old lying store too.
  */
-async function seedGraph(): Promise<{ kb: KnowledgeBase; annotation: Annotation }> {
+async function seedGraph(): Promise<{ kb: KnowledgeGraphReads; annotation: Annotation }> {
   const graph = new MemoryGraphDatabase();
   await graph.createResource(resource(String(SOURCE_ID), 'Cedar County, Iowa'));
   await graph.createResource(resource(String(DERIVED_FROM_ID), 'Counties of Iowa'));
@@ -66,17 +64,11 @@ async function seedGraph(): Promise<{ kb: KnowledgeBase; annotation: Annotation 
     creator: { '@id': 'did:user:test', '@type': 'Person', name: 'Test User' },
   } as Parameters<MemoryGraphDatabase['createAnnotation']>[0]);
 
-  const kb = {
-    eventStore: {} as any,
-    views: { get: vi.fn().mockResolvedValue({ resource: resource(String(DERIVED_FROM_ID), 'Counties of Iowa') }) } as any,
-    content: {} as any,
-    graph: graph as any,
-    anchoredText: memoryAnchoredTextStore(),
-    vectors: {} as any,
-    projectionsDir: '',
-    weaveProgress: { whenApplied: vi.fn(), appliedUpTo: vi.fn(), dispose: vi.fn() } as any,
-    smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
-  } as KnowledgeBase;
+  const kb: KnowledgeGraphReads = {
+    views: { get: vi.fn().mockResolvedValue({ resource: resource(String(DERIVED_FROM_ID), 'Counties of Iowa') }) } as KnowledgeGraphReads['views'],
+    graph,
+    weaveProgress: { whenApplied: vi.fn() } as KnowledgeGraphReads['weaveProgress'],
+  };
 
   return { kb, annotation };
 }

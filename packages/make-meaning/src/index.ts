@@ -23,7 +23,8 @@ export { asBusRequestPrimitive } from './bus-request-local';
 export {
   registerBusHandlers,
   registerAnnotationAssemblyHandler,
-  registerAnnotationLookupHandlers,
+  registerAnnotationContextHandler,
+  registerGatherSummaryHandler,
   registerBindUpdateBodyHandler,
   registerJobCommandHandlers,
 } from './handlers';

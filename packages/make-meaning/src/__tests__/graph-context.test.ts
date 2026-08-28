@@ -6,151 +6,27 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { memoryAnchoredTextStore } from './helpers/anchored-text';
-import { GraphContext } from '../graph-context';
+import { GraphContext, type KnowledgeGraphReads } from '../graph-context';
 import { resourceId, type Logger } from '@semiont/core';
-import type { KnowledgeBase } from '../knowledge-base';
 import { WeaveProgressTimeout } from '../weave-progress';
 
 const mockGraphDb = {
   getResource: vi.fn(),
   getResourceReferencedBy: vi.fn(),
   getResourceAnnotations: vi.fn(),
-  findPath: vi.fn(),
   getResourceConnections: vi.fn()
 };
 
 const mockViews = { get: vi.fn() };
 
-const mockWeaveProgress = { whenApplied: vi.fn(), appliedUpTo: vi.fn(), dispose: vi.fn() };
+const mockWeaveProgress = { whenApplied: vi.fn() };
 
 describe('GraphContext', () => {
-  const mockKb: KnowledgeBase = {
-    eventStore: {} as any,
-    views: mockViews as any,
-    content: {} as any,
-    graph: mockGraphDb as any,
-    anchoredText: memoryAnchoredTextStore(),
-      vectors: { searchResources: vi.fn().mockResolvedValue([]), searchAnnotations: vi.fn().mockResolvedValue([]), searchByResource: vi.fn().mockResolvedValue([]) } as any,
-    projectionsDir: '',
-    weaveProgress: mockWeaveProgress as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
+  const mockKb: KnowledgeGraphReads = {
+    views: mockViews as KnowledgeGraphReads['views'],
+    graph: mockGraphDb as KnowledgeGraphReads['graph'],
+    weaveProgress: mockWeaveProgress as KnowledgeGraphReads['weaveProgress'],
   };
-
-  it('should get backlinks for a resource', async () => {
-    mockGraphDb.getResourceReferencedBy.mockResolvedValue([
-      {
-        '@context': 'http://www.w3.org/ns/anno.jsonld',
-        id: 'http://localhost:4000/annotations/ann1',
-        type: 'Annotation',
-        motivation: 'linking',
-        body: 'Reference text',
-        target: 'http://localhost:4000/resources/source'
-      }
-    ]);
-
-    const result = await GraphContext.getBacklinks(resourceId('test-resource'), mockKb);
-
-    expect(result).toHaveLength(1);
-    expect(result[0]).toHaveProperty('id');
-    expect(mockGraphDb.getResourceReferencedBy).toHaveBeenCalledWith(
-      resourceId('test-resource')
-    );
-  });
-
-  it('should find path between resources', async () => {
-    mockGraphDb.findPath.mockResolvedValue([
-      {
-        fromResource: resourceId('res1'),
-        toResource: resourceId('res2'),
-        depth: 1,
-        connections: [
-          {
-            source: resourceId('res1'),
-            target: resourceId('res2'),
-            via: 'annotation-1'
-          }
-        ]
-      }
-    ]);
-
-    const result = await GraphContext.findPath(
-      resourceId('res1'),
-      resourceId('res2'),
-      mockKb,
-      3
-    );
-
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
-      fromResource: resourceId('res1'),
-      toResource: resourceId('res2'),
-      depth: 1
-    });
-    expect(mockGraphDb.findPath).toHaveBeenCalledWith(
-      resourceId('res1'),
-      resourceId('res2'),
-      3
-    );
-  });
-
-  it('should get resource connections', async () => {
-    mockGraphDb.getResourceConnections.mockResolvedValue([
-      {
-        source: resourceId('test'),
-        target: resourceId('target1'),
-        via: 'annotation-1'
-      },
-      {
-        source: resourceId('test'),
-        target: resourceId('target2'),
-        via: 'annotation-2'
-      }
-    ]);
-
-    const result = await GraphContext.getResourceConnections(resourceId('test'), mockKb);
-
-    expect(result).toHaveLength(2);
-    expect(result[0]).toHaveProperty('source');
-    expect(result[0]).toHaveProperty('target');
-    expect(result[0]).toHaveProperty('via');
-    expect(mockGraphDb.getResourceConnections).toHaveBeenCalledWith(resourceId('test'));
-  });
-
-  it('should handle empty backlinks', async () => {
-    mockGraphDb.getResourceReferencedBy.mockResolvedValue([]);
-
-    const result = await GraphContext.getBacklinks(resourceId('no-backlinks'), mockKb);
-
-    expect(result).toEqual([]);
-  });
-
-  it('should handle no path found', async () => {
-    mockGraphDb.findPath.mockResolvedValue([]);
-
-    const result = await GraphContext.findPath(
-      resourceId('isolated1'),
-      resourceId('isolated2'),
-      mockKb
-    );
-
-    expect(result).toEqual([]);
-  });
-
-  it('should call findPath without maxDepth when not provided', async () => {
-    mockGraphDb.findPath.mockResolvedValue([]);
-
-    await GraphContext.findPath(
-      resourceId('from'),
-      resourceId('to'),
-      mockKb
-    );
-
-    expect(mockGraphDb.findPath).toHaveBeenCalledWith(
-      resourceId('from'),
-      resourceId('to'),
-      undefined
-    );
-  });
 
   describe('buildKnowledgeGraph (CONTEXT-UNIFICATION P2)', () => {
     const mainDoc = { '@id': 'res-main', name: 'Main', entityTypes: ['Paper'] };
