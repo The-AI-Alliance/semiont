@@ -69,4 +69,42 @@ export class ResourceOperations {
 
     return makeResourceId(rId);
   }
+
+  /**
+   * Create a resource from a clone token via EventBus → CloneTokenManager.
+   * The bytes are already stored (the gateway's upload path, `noGit` — the
+   * Archivist's register does the one `git add`, D4b); the command carries
+   * storage coordinates only (EXTRACT-ARCHIVIST P3, D4a).
+   */
+  static async createFromCloneToken(
+    input: {
+      token: string;
+      name: string;
+      storageUri: string;
+      contentChecksum: string;
+      byteSize: number;
+      format: ContentFormat;
+      archiveOriginal?: boolean;
+    },
+    userId: UserId,
+    eventBus: EventBus,
+  ): Promise<ResourceId> {
+    const { resourceId: rId } = await busRequest(
+      asBusRequestPrimitive(eventBus),
+      'yield:clone-create',
+      {
+        token: input.token,
+        name: input.name,
+        storageUri: input.storageUri,
+        contentChecksum: input.contentChecksum,
+        byteSize: input.byteSize,
+        format: input.format,
+        archiveOriginal: input.archiveOriginal,
+        _userId: userId,
+      },
+      30_000,
+    );
+
+    return makeResourceId(rId);
+  }
 }

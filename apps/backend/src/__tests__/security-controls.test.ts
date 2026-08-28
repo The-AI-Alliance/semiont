@@ -13,7 +13,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig, EventBus } from '@semiont/core';
-import type { MakeMeaningService } from '@semiont/make-meaning';
+import type { GatewayMakeMeaningService } from '@semiont/make-meaning';
 import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
 import { makeMeaningMock } from './helpers/make-meaning-mock';
 
@@ -31,7 +31,7 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
   const actual = await importOriginal() as Record<string, unknown>;
   return {
     ...actual,
-    startMakeMeaning: vi.fn().mockResolvedValue(makeMeaningMock())
+    startMakeMeaningGateway: vi.fn().mockResolvedValue(makeMeaningMock())
   };
 });
 
@@ -39,7 +39,7 @@ type Variables = {
   user: User;
   config: EnvironmentConfig;
   eventBus: EventBus;
-  makeMeaning: MakeMeaningService;
+  makeMeaning: GatewayMakeMeaningService;
 };
 
 type ErrorResponse = {

@@ -22,7 +22,7 @@ import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
 import { SemiontProject } from '@semiont/core/node';
 import { type EnvironmentConfig, EventBus } from '@semiont/core';
-import { startMakeMeaning, makeMeaningConfigFrom } from '@semiont/make-meaning';
+import { startMakeMeaningGateway, makeMeaningConfigFrom } from '@semiont/make-meaning';
 import { loadEnvironmentConfig } from '@semiont/core/node';
 
 import { User } from '@prisma/client';
@@ -150,13 +150,13 @@ const logger = getLogger();
 // Create global EventBus for real-time events
 const eventBus = new EventBus();
 
-// Initialize make-meaning service (job queue, workers, Weaver).
-// startMakeMeaning registers all bus command handlers (annotation-assembly,
-// annotation-lookups, bind-update-body, job-commands) on the EventBus —
-// previously those were registered here in the backend. Moved into
-// make-meaning so LocalTransport and any future transport get the same
-// translation layer for free.
-const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot, { anchoredTextDir }), makeMeaningConfigFrom(config), eventBus, logger);
+// Initialize the GATEWAY's make-meaning slice (EXTRACT-ARCHIVIST P3): job
+// queue, Gatherer, Matcher, and their bus handlers. The record's actors —
+// Stower, Browser, CloneTokenManager, annotation-assembly, enrichment, the
+// view rebuild — run in the Archivist service (archivist-main); this
+// process reads views from the shared stateDir (D6) and replays event
+// history through the Archivist's D1 read path.
+const makeMeaning = await startMakeMeaningGateway(new SemiontProject(projectRoot, { anchoredTextDir }), makeMeaningConfigFrom(config), eventBus, logger);
 
 // Import route definitions
 import { rootRouter } from './routes/root';
@@ -189,7 +189,7 @@ type Variables = {
   user: User;
   config: EnvironmentConfig;
   eventBus: EventBus;
-  makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
+  makeMeaning: Awaited<ReturnType<typeof startMakeMeaningGateway>>;
 };
 
 // Create Hono app with proper typing
@@ -354,18 +354,9 @@ if (config.env?.NODE_ENV !== 'test') {
       auth: 'Authorization: Bearer; media tokens via ?token= for /api/resources/:id',
     });
 
-    // Pre-load entity types from graph database for performance
-    try {
-      const entityTypes = await makeMeaning.knowledgeSystem.kb.graph.getEntityTypes();
-      logger.info('Loaded entity types from graph database', {
-        count: entityTypes.length
-      });
-    } catch (error) {
-      logger.error('Failed to pre-load entity types', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
-    }
+    // The entity-type warm (getEntityTypes → initializeTagCollections seed)
+    // moved into archivist-main with the rest of the record's startup
+    // (EXTRACT-ARCHIVIST P3).
   });
 }
 

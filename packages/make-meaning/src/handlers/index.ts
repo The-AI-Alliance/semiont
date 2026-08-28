@@ -44,3 +44,22 @@ export function registerBusHandlers(
   registerBindUpdateBodyHandler(eventBus, logger);
   registerJobCommandHandlers(eventBus, jobQueue, project, logger);
 }
+
+/**
+ * The gateway's handler subset (EXTRACT-ARCHIVIST P3). Annotation-assembly
+ * is deliberately ABSENT: it consumes the `mark:added` facts Stower produces,
+ * so it registers in archivist-main beside that Stower (D2 i). Registering
+ * it here too would double-emit `mark:create` and double-append.
+ */
+export function registerGatewayBusHandlers(
+  eventBus: EventBus,
+  kb: KnowledgeSystem['kb'],
+  gatherer: KnowledgeSystem['gatherer'],
+  jobQueue: JobQueue,
+  project: SemiontProject,
+  logger: Logger,
+): void {
+  registerAnnotationLookupHandlers(eventBus, kb, gatherer, logger);
+  registerBindUpdateBodyHandler(eventBus, logger);
+  registerJobCommandHandlers(eventBus, jobQueue, project, logger);
+}

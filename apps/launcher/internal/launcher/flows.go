@@ -152,6 +152,10 @@ func flowFullStart(x executor, fc flowCtx) int {
 		}
 	}
 
+	if code := flowArchivist(x, fc, addr, stage, secret, otel); code != 0 {
+		return code
+	}
+
 	// The Browser rides every start but belongs to no stack.
 	return flowBrowser(x, fc.version, 3000, false)
 }
@@ -496,6 +500,37 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage, secret str
 	return 0
 }
 
+// flowArchivist: the Archivist starts LAST of the stack services — it
+// dials the gateway's bus like the sidecars, and nothing else at boot waits
+// on it. A fleet member on every start (user, 2026-08-27, overriding the
+// P2a handoff's register-only suggestion): until the cutover phase the
+// gateway's in-process actors run BESIDE it — browse replies answered twice
+// (deduped client-side by e-ids), writes double-applied (visible and
+// revertible in the git-committed event log).
+func flowArchivist(x executor, fc flowCtx, addr, stage, secret string, otel []string) int {
+	x.banner("Starting Archivist")
+	// The anchored-text store is mounted SHARED: the backend owns its image
+	// stamp until cutover (see stateMountsShared).
+	extra, ok := x.stateMountsShared("anchored-text", fc.root)
+	if !ok {
+		return 1
+	}
+	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, fc.version, fc.userEnv, otel, extra...)
+	id, ok := x.runDetached(args)
+	if !ok {
+		x.say(sayFail, "Archivist failed to start.")
+		return 1
+	}
+	d, ok := x.waitHTTP("Archivist", "http://localhost:9093/health", 30)
+	if !ok {
+		x.dumpLogs("semiont-archivist", "archivist")
+		return 1
+	}
+	x.say(sayOK, "Archivist healthy (http://localhost:9093) %s", x.dim("("+took(d)+")"))
+	x.record("archivist", id, image("archivist", fc.version), providedLauncher, "http://localhost:9093/health", "")
+	return 0
+}
+
 // flowOneService: `start --service` — the no-op obligation gate, the
 // service's own teardown/ports/pull, secret rejoin + OTel detection + fresh
 // staging for config consumers, then the service's launch and gate.
@@ -626,6 +661,10 @@ func flowOneService(x executor, fc flowCtx) int {
 		}
 	case "backend":
 		if code := flowBackend(x, fc, addr, stage, secret, otel); code != 0 {
+			return code
+		}
+	case "archivist":
+		if code := flowArchivist(x, fc, addr, stage, secret, otel); code != 0 {
 			return code
 		}
 	case "worker", "smelter", "weaver":

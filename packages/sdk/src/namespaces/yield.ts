@@ -7,7 +7,7 @@ import type {
   GatheredContext,
   GenerationJobParams,
 } from '@semiont/core';
-import { resourceId as toResourceId } from '@semiont/core';
+import { resourceId as toResourceId, cloneFormat, deriveStorageUri, getPrimaryRepresentation } from '@semiont/core';
 
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest } from '@semiont/core';
@@ -327,12 +327,24 @@ export class YieldNamespace implements IYieldNamespace {
   }
 
   async createFromToken(options: CreateFromTokenOptions): Promise<{ resourceId: ResourceId }> {
-    const result = await busRequest(
-      this.transport,
-      'yield:clone-create',
-      options,
-    );
-    return { resourceId: toResourceId(result.resourceId) };
+    // The clone's bytes ride the upload path, never the bus (EXTRACT-ARCHIVIST
+    // P3, D4a): fetch the source, apply the clone-format gate (authorable
+    // sources keep their base type, everything else falls back to text/plain),
+    // and put the bytes with the token — the gateway stores them and routes
+    // creation through `yield:clone-create`.
+    const source = await this.fromToken(options.token);
+    const format = cloneFormat(getPrimaryRepresentation(source)?.mediaType);
+    const file = typeof Buffer !== 'undefined'
+      ? Buffer.from(options.content)
+      : new File([options.content], options.name, { type: format });
+    return this.content.putBinary({
+      name: options.name,
+      file,
+      format,
+      storageUri: deriveStorageUri(options.name, format),
+      cloneToken: options.token,
+      ...(options.archiveOriginal !== undefined ? { archiveOriginal: options.archiveOriginal } : {}),
+    });
   }
 
   clone(): void {

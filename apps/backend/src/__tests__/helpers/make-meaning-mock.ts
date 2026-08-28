@@ -5,8 +5,8 @@
  * mismatches at the factory rather than at every call site.
  *
  * Usage:
- *   startMakeMeaning: vi.fn().mockResolvedValue(makeMeaningMock())
- *   startMakeMeaning: vi.fn().mockResolvedValue(makeMeaningMock({ jobQueue: myMockJobQueue }))
+ *   startMakeMeaningGateway: vi.fn().mockResolvedValue(makeMeaningMock())
+ *   startMakeMeaningGateway: vi.fn().mockResolvedValue(makeMeaningMock({ jobQueue: myMockJobQueue }))
  */
 
 import { vi } from 'vitest';

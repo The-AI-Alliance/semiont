@@ -304,6 +304,7 @@ export {
   baseMediaType,
   isSupportedMediaType,
   capabilitiesOf,
+  cloneFormat,
   extensionForMediaType,
   mediaTypeForExtension,
   textExtractionOf,

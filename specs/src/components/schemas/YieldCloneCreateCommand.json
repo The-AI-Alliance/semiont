@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Bus command to create a cloned resource from a clone token.",
+  "description": "Bus command to create a cloned resource from a clone token. Bytes are stored gateway-side BEFORE this command is emitted (GATEWAY.md D4a: the Archivist serves no bytes) — the command carries the storage coordinates, never content.",
   "properties": {
     "correlationId": {
       "type": "string"
@@ -15,12 +15,21 @@
     "name": {
       "type": "string"
     },
-    "content": {
+    "storageUri": {
       "type": "string"
+    },
+    "contentChecksum": {
+      "type": "string"
+    },
+    "byteSize": {
+      "type": "integer"
+    },
+    "format": {
+      "$ref": "./ContentFormat.json"
     },
     "archiveOriginal": {
       "type": "boolean"
     }
   },
-  "required": ["correlationId", "token", "name", "content"]
+  "required": ["correlationId", "token", "name", "storageUri", "contentChecksum", "byteSize", "format"]
 }

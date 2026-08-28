@@ -69,7 +69,7 @@ function fakeStoredYieldCreated(
 }
 
 
-type Variables = { user: User; principalDid: string; eventBus: EventBusType; logger: ReturnType<typeof initializeLogger>; makeMeaning: unknown };
+type Variables = { user: User; principalDid: string; eventBus: EventBusType; logger: ReturnType<typeof initializeLogger>; makeMeaning: unknown; config: unknown };
 
 beforeAll(() => {
   process.env.NODE_ENV = 'test';
@@ -93,23 +93,30 @@ interface QueryEventsStub {
   (resourceId: string, filter?: { fromSequence?: number }): Promise<unknown[]>;
 }
 
-function fakeMakeMeaning(queryEvents: QueryEventsStub = async () => []) {
-  return {
-    knowledgeSystem: {
-      kb: {
-        eventStore: {
-          log: {
-            queryEvents,
-          },
-        },
-      },
-    },
-  };
+/**
+ * Replay now reads the Archivist's D1 HTTP path (EXTRACT-ARCHIVIST P3), so
+ * the stub lives behind a fetch double instead of an in-process kb. The
+ * stub keeps the old (resourceId, { fromSequence }) call shape so the
+ * assertions on WHAT was asked survive the transport change.
+ */
+const ARCHIVIST_HOST = 'archivist.test';
+process.env.SEMIONT_WORKER_SECRET ??= 'bus-test-worker-secret';
+
+function withArchivistReplay(queryEvents: QueryEventsStub = async () => []) {
+  vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+    const u = new URL(String(url));
+    const rid = decodeURIComponent(u.pathname.slice('/events/'.length));
+    const events = await queryEvents(rid, { fromSequence: Number(u.searchParams.get('fromSequence')) });
+    return new Response(JSON.stringify({ events }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  }));
 }
 
 function buildApp(
   eventBus: EventBus,
-  makeMeaning: unknown = fakeMakeMeaning(),
+  makeMeaning: unknown = {},
   options: { principalDid?: string } = {},
 ) {
   const passthrough = async (_c: unknown, next: () => Promise<void>) => next();
@@ -124,6 +131,7 @@ function buildApp(
     c.set('eventBus', eventBus);
     c.set('logger', logger);
     c.set('makeMeaning', makeMeaning);
+    c.set('config', { services: { archivist: { host: ARCHIVIST_HOST, port: 9093 } } });
     await next();
   });
   app.route('/', router);
@@ -324,7 +332,7 @@ describe('bus routes', () => {
       const received: any[] = [];
       eventBus.get('mark:added' as any).subscribe((v) => received.push(v));
 
-      const humanApp = buildApp(eventBus, fakeMakeMeaning(), {
+      const humanApp = buildApp(eventBus, {}, {
         principalDid: 'did:web:test.local:users:alice%40test.local',
       });
       const res = await humanApp.request('/bus/emit', {
@@ -343,7 +351,7 @@ describe('bus routes', () => {
       eventBus.get('mark:added' as any).subscribe((v) => received.push(v));
 
       const agentDid = 'did:web:test.local:agents:ollama:gemma2%3A27b';
-      const agentApp = buildApp(eventBus, fakeMakeMeaning(), { principalDid: agentDid });
+      const agentApp = buildApp(eventBus, {}, { principalDid: agentDid });
       const res = await agentApp.request('/bus/emit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -517,7 +525,8 @@ describe('bus routes', () => {
         fakeStoredMarkAdded(8, 'res-1', 'keep-ann'),
         fakeStoredYieldCreated(9, 'skip-res'),
       ]);
-      const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
+      withArchivistReplay(queryEvents);
+      const app2 = buildApp(eventBus);
 
       const res = await subscribe(app2, {
         scoped: [{ scope: 'res-1', channels: ['mark:added'], lastEventId: 'p-res-1-7' }],
@@ -534,7 +543,8 @@ describe('bus routes', () => {
       const queryEvents = vi.fn<QueryEventsStub>().mockResolvedValue([
         fakeStoredMarkAdded(20, 'res-1', 'far-ahead'),
       ]);
-      const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
+      withArchivistReplay(queryEvents);
+      const app2 = buildApp(eventBus);
 
       const res = await subscribe(app2, {
         scoped: [{ scope: 'res-1', channels: ['mark:added'], lastEventId: 'p-res-1-7' }],
@@ -583,7 +593,8 @@ describe('bus routes', () => {
           resolveQuery = r;
         });
       });
-      const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
+      withArchivistReplay(queryEvents);
+      const app2 = buildApp(eventBus);
 
       const res = await subscribe(app2, {
         scoped: [{ scope: 'res-1', channels: ['mark:added'], lastEventId: 'p-res-1-7' }],
@@ -631,7 +642,8 @@ describe('bus routes', () => {
           resolveQuery = r;
         });
       });
-      const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
+      withArchivistReplay(queryEvents);
+      const app2 = buildApp(eventBus);
 
       const res = await subscribe(app2, {
         scoped: [{ scope: 'res-1', channels: ['mark:added'], lastEventId: 'p-res-1-7' }],
@@ -720,7 +732,8 @@ describe('bus routes', () => {
       const queryEvents = vi.fn<QueryEventsStub>().mockResolvedValue([
         fakeStoredMarkAdded(8, 'res-1', 'replayed-1'),
       ]);
-      const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
+      withArchivistReplay(queryEvents);
+      const app2 = buildApp(eventBus);
 
       const res = await subscribe(app2, {
         scoped: [
@@ -738,7 +751,8 @@ describe('bus routes', () => {
 
     it('emits a SCOPED bus:resume-gap for a mismatched watermark, leaving sibling scopes untouched', async () => {
       const queryEvents = vi.fn<QueryEventsStub>();
-      const app2 = buildApp(eventBus, fakeMakeMeaning(queryEvents));
+      withArchivistReplay(queryEvents);
+      const app2 = buildApp(eventBus);
 
       const res = await subscribe(app2, {
         scoped: [

@@ -246,6 +246,15 @@ export interface PutBinaryRequest {
   generationPrompt?: string;
   generator?: Agent | Agent[];
   isDraft?: boolean;
+  /**
+   * Clone provenance (EXTRACT-ARCHIVIST P3): when set, the gateway stores
+   * the bytes and routes creation through `yield:clone-create` — the
+   * CloneTokenManager validates the token and inherits source metadata.
+   * Bytes never ride the bus (D4a).
+   */
+  cloneToken?: string;
+  /** Clone-only: archive the source resource after a successful clone. */
+  archiveOriginal?: boolean;
 }
 
 /**

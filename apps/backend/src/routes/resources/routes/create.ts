@@ -41,6 +41,8 @@ export function registerCreateResource(router: ResourcesRouterType) {
     const generationPrompt = formData.get('generationPrompt') as string | null;
     const generatorStr = formData.get('generator') as string | null;
     const isDraftStr = formData.get('isDraft') as string | null;
+    const cloneToken = formData.get('cloneToken') as string | null;
+    const archiveOriginalStr = formData.get('archiveOriginal') as string | null;
 
     // Validate required fields. storageUri is required: the client names the
     // content's location (the typed PutBinaryRequest.storageUri is required,
@@ -96,14 +98,37 @@ export function registerCreateResource(router: ResourcesRouterType) {
               }
             : undefined;
 
-          // Write content to disk before emitting on the bus (no Buffer on bus)
+          // Write content to disk before emitting on the bus (no Buffer on
+          // bus). `noGit`: the gateway writes bytes but never touches the
+          // git index — the Archivist's `register` does the ONE `git add`
+          // on event apply (GATEWAY.md D4b, single-writer).
           const arrayBuffer = await file.arrayBuffer();
           const contentBuffer = Buffer.from(arrayBuffer);
           const { knowledgeSystem: { kb } } = c.get('makeMeaning');
-          const stored = await kb.content.store(contentBuffer, storageUri);
+          const stored = await kb.content.store(contentBuffer, storageUri, { noGit: true });
+
+          const eventBus = c.get('eventBus');
+
+          // Clone uploads carry a token instead of full metadata: the
+          // CloneTokenManager validates it and inherits the source's entity
+          // types (EXTRACT-ARCHIVIST P3 — bytes never ride the bus, D4a).
+          if (cloneToken) {
+            return ResourceOperations.createFromCloneToken(
+              {
+                token: cloneToken,
+                name,
+                storageUri,
+                contentChecksum: stored.checksum,
+                byteSize: stored.byteSize,
+                format,
+                archiveOriginal: archiveOriginalStr ? archiveOriginalStr === 'true' : undefined,
+              },
+              userId(principalDid),
+              eventBus,
+            );
+          }
 
           // Delegate to make-meaning for resource creation (via EventBus)
-          const eventBus = c.get('eventBus');
           return ResourceOperations.createResource(
             {
               name,

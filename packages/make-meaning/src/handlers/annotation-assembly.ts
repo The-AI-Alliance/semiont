@@ -1,6 +1,6 @@
 import { resourceId, didToAgent, assembleAnnotation } from '@semiont/core';
 import type { EventBus, Logger, components } from '@semiont/core';
-import type { KnowledgeBase } from '../knowledge-base.js';
+import type { ViewStorage } from '@semiont/event-sourcing';
 import { assertAnnotatableTarget } from '../annotation-operations.js';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
@@ -35,7 +35,7 @@ type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
  * P5) — a restore that re-subjected historical facts to this gate would be the
  * 2026-07-09 "events are facts, commands are requests" ruling undone.
  */
-export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: KnowledgeBase, parentLogger: Logger): void {
+export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { views: Pick<ViewStorage, 'get'> }, parentLogger: Logger): void {
   const logger = parentLogger.child({ component: 'annotation-assembly' });
   const inflight = new Map<string, { annotationId: string }>();
 

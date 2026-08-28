@@ -20,7 +20,7 @@ With no --runtime, EVERY installed runtime is swept — stopping via the wrong
 runtime is a silent no-op that leaves the real stack running.
 
 With --service <name>, stop just that one service (backend, worker, smelter,
-weaver, browser, database, graph, vectors, inference, or traces). The staged
+weaver, archivist, browser, database, graph, vectors, inference, or traces). The staged
 config copies are left in place — the rest of the stack is still mounting
 them.
 
@@ -44,7 +44,7 @@ targets a codespace stack, --runtime targets the local one.
 // member (BROWSER-LIFECYCLE.md) — a bare stop leaves the viewer running
 // (announced), and `stop --service browser` is its explicit off-switch.
 var stopNames = []string{
-	"semiont-weaver", "semiont-smelter", "semiont-worker",
+	"semiont-archivist", "semiont-weaver", "semiont-smelter", "semiont-worker",
 	"semiont-backend", "semiont-postgres", "semiont-ollama", "semiont-qdrant",
 	"semiont-neo4j", "semiont-jaeger",
 }

@@ -351,7 +351,6 @@ describe('CloneTokenManager constructs from capability doubles (EXTRACT-ARCHIVIS
         }),
       },
       content: {
-        store: vi.fn().mockResolvedValue({ storageUri: 'file:///new', checksum: 'sha-new', byteSize: 8 }),
         resolveUri: vi.fn(() => tmpFile),
       },
     } satisfies CloneTokenStores;
@@ -386,7 +385,6 @@ describe('CloneTokenManager constructs from capability doubles (EXTRACT-ARCHIVIS
         }),
       },
       content: {
-        store: vi.fn(),
         resolveUri: vi.fn(() => tmpFile),
       },
     } satisfies CloneTokenStores;
@@ -484,7 +482,7 @@ describe('channel rosters match actual subscriptions (census gate)', () => {
   it('CloneTokenManager', async () => {
     const channels = await subscribedChannels(async (bus) => {
       const ctm = new CloneTokenManager(
-        { views: { get: vi.fn() }, content: { store: vi.fn(), resolveUri: vi.fn() } },
+        { views: { get: vi.fn() }, content: { resolveUri: vi.fn() } },
         bus, mockLogger,
       );
       await ctm.initialize();

@@ -17,23 +17,23 @@ import { promises as fs } from 'fs';
 import { Subscription, from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import type { EventMap, Logger, ResourceId } from '@semiont/core';
-import { type EventBus, cloneToken as makeCloneToken, type CloneToken, type SupportedMediaType, resourceId, userId as makeUserId, deriveStorageUri } from '@semiont/core';
-import { getPrimaryRepresentation, getResourceEntityTypes, baseMediaType, isSupportedMediaType, capabilitiesOf } from '@semiont/core';
+import { type EventBus, cloneToken as makeCloneToken, type CloneToken, resourceId, userId as makeUserId } from '@semiont/core';
+import { getResourceEntityTypes } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { WorkingTreeStore } from '@semiont/content';
 import { ResourceContext } from './resource-context';
 import { ResourceOperations } from './resource-operations';
 
 /**
- * What the clone workflow touches (EXTRACT-ARCHIVIST P1): resource metadata
- * via views, and the working tree for the clone's own bytes. Existence
- * checks resolve + stat — never a byte read to answer a boolean (GATEWAY.md
- * D4a). `store` is scheduled to collapse into the gateway's create path
- * (D4a, clone-token-manager `:211`); it stays only until that lands.
+ * What the clone workflow touches (EXTRACT-ARCHIVIST P1/P3): resource
+ * metadata via views, and `resolveUri` for existence checks — never bytes
+ * (GATEWAY.md D4a). The clone's own bytes are stored by the gateway's
+ * upload path before `yield:clone-create` arrives; this actor holds NO
+ * byte capability at all.
  */
 export interface CloneTokenStores {
   views: Pick<ViewStorage, 'get'>;
-  content: Pick<WorkingTreeStore, 'store' | 'resolveUri'>;
+  content: Pick<WorkingTreeStore, 'resolveUri'>;
 }
 
 /**
@@ -224,24 +224,18 @@ export class CloneTokenManager {
         return;
       }
 
-      // Determine format. A clone opens in the compose editor, so the gate
-      // is the registry's `authorable` capability: authorable sources keep
-      // their base media type, everything else falls back to text/plain.
-      const base = baseMediaType(getPrimaryRepresentation(sourceDoc)?.mediaType ?? 'text/plain');
-      const format: SupportedMediaType =
-        isSupportedMediaType(base) && capabilitiesOf(base)?.authorable ? base : 'text/plain';
-
-      // Write content to disk, then create via EventBus (no Buffer on bus)
-      const resolvedUri = deriveStorageUri(event.name, format);
-      const stored = await this.stores.content.store(Buffer.from(event.content), resolvedUri);
-
+      // Bytes are already on disk — the gateway's upload path stored them
+      // (noGit) before emitting this command, and the SDK applied the
+      // clone-format gate (core `cloneFormat`) when deriving the upload.
+      // This actor contributes what only it knows: token validity and the
+      // source's entity types.
       const newResourceId = await ResourceOperations.createResource(
         {
           name: event.name,
-          storageUri: resolvedUri,
-          contentChecksum: stored.checksum,
-          byteSize: stored.byteSize,
-          format,
+          storageUri: event.storageUri,
+          contentChecksum: event.contentChecksum,
+          byteSize: event.byteSize,
+          format: event.format,
           entityTypes: getResourceEntityTypes(sourceDoc),
         },
         makeUserId(event._userId),

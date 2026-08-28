@@ -27,6 +27,7 @@ const (
 var preflightNames = []string{
 	"semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-postgres",
 	"semiont-backend", "semiont-worker", "semiont-smelter", "semiont-weaver",
+	"semiont-archivist",
 }
 
 type startOptions struct {
@@ -67,7 +68,8 @@ Options:
                         SEMIONT_ROOT and cwd discovery.
   --service <name>      Start (restart) just this one service, leaving the rest
                         of the stack untouched: backend, worker, smelter, weaver,
-                        browser, database, graph, vectors, inference, or traces.
+                        archivist, browser, database, graph, vectors, inference,
+                        or traces.
                         Rejoins a running stack's worker secret automatically;
                         OTel export is enabled iff traces (Jaeger) is up.
   --port <n>            Browser port (--service browser only; default 3000).
@@ -409,7 +411,11 @@ func Start(args []string) int {
 			fmt.Fprintln(os.Stderr, "  cd into a KB clone, or set SEMIONT_ROOT / pass --root.")
 			return 1
 		}
-		if opts.service == "" || opts.service == "backend" {
+		// The /kb-mount invariant: services that mount the clone require a
+		// real git clone. The Archivist most of all — it is the git
+		// single-writer (D4b), so handing it a non-clone would fail at the
+		// first `git add` rather than here, with a worse message.
+		if opts.service == "" || opts.service == "backend" || opts.service == "archivist" {
 			if !requireGitClone(u, root) {
 				return 1
 			}
@@ -749,6 +755,30 @@ func sidecarArgs(svc, mem string, port int, stage, addr, secret, version string,
 // browserArgs: the Browser publishes on the chosen host port (default
 // 3000; the SPA server always listens on 3000 inside). The ONLY port a flag
 // may move — it's absent from the config and nothing in the stack dials it.
+// archivistArgs: the Archivist owns the file-backed record, so its mount
+// shape is the BACKEND's minus the database — the KB root read-write (it is
+// the git single-writer, D4b), the anchored-text store, and a staged config
+// copy. Env is the sidecar set, which already carries every ${VAR} the
+// config interpolates. Deliberately NO JWT_SECRET: it signs nothing; agent
+// auth presents the worker secret (the same fact D1's read path relies on).
+func archivistArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []string, state ...string) []string {
+	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
+		"--memory", "2G", "--publish", "9093:9093",
+		"--volume", kbRoot + ":" + kbMountTarget,
+		"--volume", stage + "/archivist.toml:/home/semiont/.semiontconfig:ro"}
+	a = append(a, state...)
+	a = append(a, userEnv...)
+	a = append(a, otel...)
+	a = append(a,
+		"--env", "BACKEND_HOST="+addr,
+		"--env", "OLLAMA_HOST="+addr,
+		"--env", "NEO4J_HOST="+addr,
+		"--env", "QDRANT_HOST="+addr,
+		"--env", "POSTGRES_HOST="+addr,
+		"--env", "SEMIONT_WORKER_SECRET="+secret)
+	return append(a, image("archivist", version))
+}
+
 func browserArgs(version string, port int) []string {
 	a := []string{"run", "-d", "--name", "semiont-browser", // no --rm: see providedRunArgs
 		"--memory", "1G", "--publish", fmt.Sprintf("%d:3000", port)}
@@ -785,7 +815,7 @@ func pullArgs(rt, img string) []string {
 
 // browser is absent: the Browser pulls its own image inside flowBrowser,
 // and only when actually (re)starting — a kept Browser costs no pull.
-var semiontServices = []string{"backend", "worker", "smelter", "weaver"}
+var semiontServices = []string{"backend", "worker", "smelter", "weaver", "archivist"}
 
 // sidecarSpecs: the three make-meaning sidecars, in start order.
 type sidecarSpec struct {

@@ -43,12 +43,13 @@ var roles = map[string]roleSpec{
 	"worker":    {"", "semiont-worker", []portNeed{{9090, "Worker"}}},
 	"smelter":   {"", "semiont-smelter", []portNeed{{9091, "Smelter"}}},
 	"weaver":    {"", "semiont-weaver", []portNeed{{9092, "Weaver"}}},
+	"archivist": {"", "semiont-archivist", []portNeed{{9093, "Archivist"}}},
 	// browser: the Browser owns its port inside flowBrowser — an empty
 	// ports list here keeps 3000 out of every stack-level claim and sweep.
 	"browser": {"", "semiont-browser", nil},
 }
 
-const roleList = "backend, worker, smelter, weaver, browser, database, graph, vectors, inference, embedding, or traces"
+const roleList = "backend, worker, smelter, weaver, archivist, browser, database, graph, vectors, inference, embedding, or traces"
 
 // roleByContainer inverts the roles table (container name → role).
 var roleByContainer = func() map[string]string {
@@ -75,7 +76,7 @@ func roleTitle(role string) string {
 }
 
 func isConfigConsumer(svc string) bool {
-	return svc == "backend" || svc == "worker" || svc == "smelter" || svc == "weaver"
+	return svc == "backend" || svc == "worker" || svc == "smelter" || svc == "weaver" || svc == "archivist"
 }
 
 func serviceNeedsAddr(svc string) bool {
@@ -91,7 +92,7 @@ func serviceNeedsAddr(svc string) bool {
 // inspect-schema change) and must be loud, never silently degraded to a
 // generated secret.
 func recoverWorkerSecret(rt string) (secret, from, seen string) {
-	for _, c := range []string{"semiont-backend", "semiont-worker", "semiont-smelter", "semiont-weaver"} {
+	for _, c := range []string{"semiont-backend", "semiont-worker", "semiont-smelter", "semiont-weaver", "semiont-archivist"} {
 		out, err := capture(rt, "inspect", c)
 		if err != nil || out == "" {
 			continue

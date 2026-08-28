@@ -36,11 +36,13 @@
  *   SEMIONT_SKIP_REBUILD      — 'true' skips the startup view rebuild.
  */
 
-import { BehaviorSubject, Subscription } from 'rxjs';
+import { BehaviorSubject, Subscription, merge, from } from 'rxjs';
+import { concatMap } from 'rxjs/operators';
 import { HttpTransport } from '@semiont/http-transport';
 import {
   EventBus,
   BUS_OPERATIONS,
+  PERSISTED_EVENT_TYPES,
   baseUrl as makeBaseUrl,
   accessToken as makeAccessToken,
   retryWithBackoff,
@@ -49,6 +51,7 @@ import {
   errField,
   type AccessToken,
   type EventMap,
+  type StoredEvent,
 } from '@semiont/core';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 import { createEventStore } from '@semiont/event-sourcing';
@@ -62,6 +65,9 @@ import { createSmeltProgress } from './smelt-progress';
 import { createLimitsDiscovery } from './limits-discovery';
 import { makeMeaningConfigFrom } from './config';
 import { createArchivistServer } from './archivist-read-path';
+import { registerAnnotationAssemblyHandler } from './handlers/annotation-assembly';
+import { bootstrapEntityTypes } from './bootstrap/entity-types';
+import { wireEnrichment } from './event-enrichment';
 
 // ── Config ───────────────────────────────────────────────────────────
 
@@ -114,11 +120,16 @@ const logger = createProcessLogger('archivist');
 
 // ── Bus roster ───────────────────────────────────────────────────────
 
-/** Everything the actors subscribe to, plus the smelt barrier's fold input. */
+/**
+ * Everything the actors subscribe to, plus the smelt barrier's fold input,
+ * plus `mark:create-request` — annotation-assembly registers HERE beside the
+ * Stower whose `mark:added` facts it consumes (EXTRACT-ARCHIVIST P3, D2 i).
+ */
 const INBOUND_CHANNELS = [
   ...STOWER_CHANNELS,
   ...BROWSER_CHANNELS,
   ...CLONE_TOKEN_CHANNELS,
+  'mark:create-request',
   'smelt:settled',
 ] as const satisfies readonly (keyof EventMap)[];
 
@@ -129,7 +140,6 @@ const INBOUND_CHANNELS = [
  * owner; anything else belongs in the derivation, never here.
  */
 const OUTBOUND_STRAYS = [
-  'mark:create-failed',      // op keyed 'mark:create-request' (gateway handler re-emits mark:create)
   'mark:body-update-failed', // op keyed 'bind:update-body' (gateway handler re-emits mark:update-body)
   'yield:move-failed',       // yield:mv has no registered operation; failure is direct-subscribed
 ] as const satisfies readonly (keyof EventMap)[];
@@ -218,11 +228,16 @@ async function main() {
   const eventStore = createEventStore(project, localBus, logger.child({ component: 'event-store' }));
   if (!skipRebuild) {
     // The Browser reads views, so they must be populated before any request
-    // is served — same startup contract as createKnowledgeBase.
+    // is served — same startup contract as createKnowledgeBase. The
+    // Archivist is the ONE rebuild owner (D6): the gateway never rebuilds,
+    // it reads this stateDir.
     logger.info('Rebuilding materialized views from the event log');
     await eventStore.views.rebuildAll(eventStore.log);
   }
   const views = eventStore.viewStorage;
+  // Annotation enrichment rides this process's append path (P3): published
+  // facts carry their annotation, and the forwarded copies below carry it too.
+  wireEnrichment(eventStore, { views });
   const content = new WorkingTreeStore(project, logger.child({ component: 'working-tree-store' }));
   const anchoredText = createAnchoredTextStore(anchoredTextDir, logger.child({ component: 'anchored-text-store' }));
   const smeltProgress = createSmeltProgress(localBus);
@@ -262,6 +277,21 @@ async function main() {
   );
   await cloneTokenManager.initialize();
 
+  // The fact-consumers follow the facts (P3, D2 i): annotation-assembly
+  // subscribes to the mark:added this process's Stower publishes, and its
+  // mark:create-ok/-failed replies ride the outbound pump like every reply.
+  registerAnnotationAssemblyHandler(localBus, { views }, logger);
+
+  // Vocabulary bootstrap emits frame:add-entity-type for missing defaults —
+  // handled by our own Stower, in-process, no cross-service boot race (P3).
+  await bootstrapEntityTypes(localBus, eventStore, logger.child({ component: 'entity-types-bootstrap' }));
+
+  // The entity-type warm (was gateway index.ts): getEntityTypes() lazily runs
+  // initializeTagCollections(), which merges DEFAULT_ENTITY_TYPES into the
+  // Neo4j TagCollection and persists it. Seed-and-warm, not a dead read.
+  const entityTypes = await graphDb.getEntityTypes();
+  logger.info('Entity-type collections warmed', { count: entityTypes.length });
+
   // ── Bus pumps ──────────────────────────────────────────────────────
   const httpTransport = new HttpTransport({
     baseUrl: makeBaseUrl(baseUrl),
@@ -290,7 +320,43 @@ async function main() {
       }),
     );
   }
-  logger.info('Bus pumps attached', { inbound: INBOUND_CHANNELS.length, outbound: outbound.length });
+
+  // ── The fact pump (P3, D5): persisted events ride the bus ──────────
+  // Every append publishes an (enriched) StoredEvent on this process's bus;
+  // this pump emits each one to the gateway via the ordinary /bus/emit —
+  // persisted channels are registered there (validate: null), and channel
+  // authz is deferred wholesale (CHANNEL-AUTHZ.md). Emitted twice, exactly
+  // as in-process appendEvent published: once global (the Smelter's and
+  // Weaver's unscoped subscriptions), once resource-scoped (clients'
+  // per-resource feeds, whose SSE frames carry the resumable p-<scope>-<seq>
+  // ids). Serialized with concatMap: projections downstream assume
+  // per-resource ORDER, and parallel emits would reorder. A fact that fails
+  // after the transport's retries is logged loudly and NOT retried further —
+  // the D1 replay path and the projectors' catch-up/reconcile passes exist
+  // for exactly that gap.
+  const publishFact = async (event: StoredEvent): Promise<void> => {
+    try {
+      const type = event.type as keyof EventMap;
+      await httpTransport.emit(type, event as never);
+      if (event.resourceId) {
+        await httpTransport.emit(type, event as never, event.resourceId);
+      }
+    } catch (error) {
+      logger.error('Fact publish failed — projectors will heal on their next catch-up', {
+        type: event.type,
+        resourceId: event.resourceId,
+        sequenceNumber: event.metadata?.sequenceNumber,
+        error: errField(error),
+      });
+    }
+  };
+  pumps.push(
+    merge(...PERSISTED_EVENT_TYPES.map((type) => localBus.getDomainEvent(type)))
+      .pipe(concatMap((event) => from(publishFact(event))))
+      .subscribe(),
+  );
+
+  logger.info('Bus pumps attached', { inbound: INBOUND_CHANNELS.length, outbound: outbound.length, facts: PERSISTED_EVENT_TYPES.length });
 
   // ── Health + the D1 read path ──────────────────────────────────────
   const server = createArchivistServer({

@@ -62,6 +62,11 @@ RUN chown semiont:nodejs /kb
 USER semiont
 
 ENV NODE_ENV=production
+# The container-side paths are constants of the image, declared here the way
+# the backend image declares them (see rootstate.go's anchored-text comment):
+# the launcher mounts host dirs AT these targets and passes no path env.
+ENV SEMIONT_ROOT=/kb
+ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
 EXPOSE 9093
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \

@@ -315,6 +315,7 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 		portNeed{9090, "Worker"},
 		portNeed{9091, "Smelter"},
 		portNeed{9092, "Weaver"},
+		portNeed{9093, "Archivist"},
 		// No browser port here: the Browser is not a stack member — its
 		// port is checked inside flowBrowser, and only when (re)starting.
 	)
