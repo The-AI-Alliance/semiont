@@ -150,12 +150,8 @@ const logger = getLogger();
 // Create global EventBus for real-time events
 const eventBus = new EventBus();
 
-// Initialize the GATEWAY's make-meaning slice (EXTRACT-ARCHIVIST P3): job
-// queue, Gatherer, Matcher, and their bus handlers. The record's actors —
-// Stower, Browser, CloneTokenManager, annotation-assembly, enrichment, the
-// view rebuild — run in the Archivist service (archivist-main); this
-// process reads views from the shared stateDir (D6) and replays event
-// history through the Archivist's D1 read path.
+// The gateway's make-meaning slice: job queue, kb reads, and the handler
+// subset — no actors. Actors run in the Archivist and Librarian services.
 const makeMeaning = await startMakeMeaningGateway(new SemiontProject(projectRoot, { anchoredTextDir }), makeMeaningConfigFrom(config), eventBus, logger);
 
 // Import route definitions
