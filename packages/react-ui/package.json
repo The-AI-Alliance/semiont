@@ -99,7 +99,7 @@
     "@vitest/coverage-v8": "^4.1.11",
     "autoprefixer": "^10.5.4",
     "axe-core": "^4.12.1",
-    "cssnano": "^8.0.5",
+    "cssnano": "^8.0.8",
     "fast-check": "^4.9.0",
     "jest-axe": "^11.0.0",
     "jsdom": "^29.1.1",
