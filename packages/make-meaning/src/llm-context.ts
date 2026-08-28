@@ -6,17 +6,35 @@
  */
 
 import { ResourceContext } from './resource-context';
-import { GraphContext } from './graph-context';
+import { GraphContext, type KnowledgeGraphReads } from './graph-context';
 import { generateResourceSummary, generateReferenceSuggestions } from './generation/resource-generation';
 import type { InferenceClient } from '@semiont/inference';
 import { getPrimaryRepresentation, getResourceEntityTypes, getResourceId } from '@semiont/core';
 import { resourceId as makeResourceId, type Logger, type ResourceId } from '@semiont/core';
 import type { GatheredContext } from '@semiont/core';
-import type { KnowledgeBase } from './knowledge-base';
-import { SmeltProgressTimeout } from './smelt-progress';
+import type { ViewStorage } from '@semiont/event-sourcing';
+import type { VectorStore } from '@semiont/vectors';
+import { SmeltProgressTimeout, type SmeltProgress } from './smelt-progress';
+import type { ContentReads } from './knowledge-base';
 import { recordGatherDegrade } from '@semiont/observability';
 
 import type { ResourceDescriptor } from '@semiont/core';
+
+/**
+ * What the resource-gather path reads (EXTRACT-LIBRARIAN P2; content re-keyed
+ * by D-CONTENT b) — the graph builder's slice plus this module's own reads.
+ * Pick-derived, never restated. In-process roots satisfy it with
+ * `workingTreeContentReads` over their `kb`; the Librarian passes
+ * `HttpContentTransport`.
+ */
+export interface ResourceGatherReads {
+  views: Pick<ViewStorage, 'get'>;
+  content: ContentReads;
+  graph: KnowledgeGraphReads['graph'];
+  vectors: Pick<VectorStore, 'searchByResource'>;
+  weaveProgress: KnowledgeGraphReads['weaveProgress'];
+  smeltProgress: Pick<SmeltProgress, 'whenSettled'>;
+}
 
 export interface LLMContextOptions {
   depth: number;
@@ -38,7 +56,7 @@ export class LLMContext {
   static async getResourceContext(
     resourceId: ResourceId,
     options: LLMContextOptions,
-    kb: KnowledgeBase,
+    kb: ResourceGatherReads,
     inferenceClient: InferenceClient,
     /**
      * Bound on the semanticContext read-your-writes barrier

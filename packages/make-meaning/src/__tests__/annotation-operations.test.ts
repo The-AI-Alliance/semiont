@@ -9,7 +9,6 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { memoryAnchoredTextStore } from './helpers/anchored-text';
 import { firstValueFrom } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
 import { promises as fs } from 'fs';
@@ -18,11 +17,9 @@ import { AnnotationOperations } from '../annotation-operations';
 import { ResourceOperations } from '../resource-operations';
 import { resourceId, userId, EventBus, type Logger, type SupportedMediaType, deriveStorageUri } from '@semiont/core';
 import type { components } from '@semiont/core';
-import { createEventStore, type EventStore } from '@semiont/event-sourcing';
-import type { KnowledgeBase } from '../knowledge-base';
-import { Stower } from '../stower';
-import { getGraphDatabase } from '@semiont/graph';
-import type { GraphServiceConfig } from '@semiont/core';
+import { createEventStore, type EventStore, type ViewStorage } from '@semiont/event-sourcing';
+import type { WorkingTreeStore } from '@semiont/content';
+import { Stower, type StowerStores } from '../stower';
 import { createTestProject } from './helpers/test-project';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
@@ -40,7 +37,7 @@ async function createAnnotationAndAwait(
   request: CreateAnnotationRequest,
   uid: ReturnType<typeof userId>,
   eventBus: EventBus,
-  kb: KnowledgeBase,
+  kb: { views: Pick<ViewStorage, 'get'> },
 ) {
   const creator = { '@type': 'Person' as const, '@id': 'did:web:test.local:users:test-user', name: 'Test User' };
   const result = await AnnotationOperations.createAnnotation(request, uid, creator, eventBus, kb);
@@ -68,7 +65,8 @@ describe('AnnotationOperations', () => {
   let testEventStore: EventStore;
   let eventBus: EventBus;
   let stower: Stower;
-  let kb: KnowledgeBase;
+  let kb: { views: Pick<ViewStorage, 'get'> };
+  let workingTree: WorkingTreeStore;
   let testResourceId: string;
   let suiteProject: Awaited<ReturnType<typeof createTestProject>>['project'];
 
@@ -77,7 +75,7 @@ describe('AnnotationOperations', () => {
     uid: ReturnType<typeof userId>,
   ) {
     const uri = deriveStorageUri(`test-${++fileCounter}`, opts.format);
-    const stored = await kb.content.store(opts.content, uri);
+    const stored = await workingTree.store(opts.content, uri);
     return ResourceOperations.createResource(
       { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format, language: opts.language, entityTypes: opts.entityTypes },
       uid,
@@ -93,13 +91,11 @@ describe('AnnotationOperations', () => {
     // Initialize EventBus and stores
     eventBus = new EventBus();
     testEventStore = createEventStore(project, eventBus, mockLogger);
-    const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-    const { WorkingTreeStore } = await import('@semiont/content');
-    const repStore = new WorkingTreeStore(project, mockLogger);
-    kb = { anchoredText: memoryAnchoredTextStore(),
-      vectors: { searchResources: vi.fn().mockResolvedValue([]), searchAnnotations: vi.fn().mockResolvedValue([]), searchByResource: vi.fn().mockResolvedValue([]) } as any, eventStore: testEventStore, views: testEventStore.viewStorage, content: repStore, graph: graphDb, projectionsDir: project.projectionsDir, weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} }, };
+    const { WorkingTreeStore: WorkingTreeStoreImpl } = await import('@semiont/content');
+    workingTree = new WorkingTreeStoreImpl(project, mockLogger);
+    kb = { views: testEventStore.viewStorage };
 
-    stower = new Stower(kb, eventBus, project, mockLogger);
+    stower = new Stower({ content: workingTree, eventStore: testEventStore }, eventBus, project, mockLogger);
     await stower.initialize();
 
     // Create a test resource for annotations
@@ -873,10 +869,11 @@ describe('AnnotationOperations', () => {
       // Isolated Stower over a KB whose eventStore.appendEvent rejects, so the
       // catch branch runs without disturbing the shared real-KB harness.
       const failBus = new EventBus();
-      const failingKb = {
-        eventStore: { appendEvent: vi.fn().mockRejectedValue(new Error('disk full')) },
-      } as unknown as KnowledgeBase;
-      const failStower = new Stower(failingKb, failBus, suiteProject, mockLogger);
+      const failingStores: StowerStores = {
+        content: { register: vi.fn(), move: vi.fn(), remove: vi.fn(), resolveUri: vi.fn() } as unknown as StowerStores['content'],
+        eventStore: { appendEvent: vi.fn().mockRejectedValue(new Error('disk full')) } as StowerStores['eventStore'],
+      };
+      const failStower = new Stower(failingStores, failBus, suiteProject, mockLogger);
       await failStower.initialize();
 
       const correlationId = 'uet-cid-fail';

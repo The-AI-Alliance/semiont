@@ -6,14 +6,13 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { memoryAnchoredTextStore } from './helpers/anchored-text';
-import { AnnotationContext } from '../annotation-context';
+import { AnnotationContext, type AnnotationGatherReads } from '../annotation-context';
 import { deriveViews } from '@semiont/core';
 import { resourceId, annotationId, userId, EventBus, type Logger } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
-import type { KnowledgeBase } from '../knowledge-base';
+import { workingTreeContentReads } from '../knowledge-base';
 import { createTestProject } from './helpers/test-project';
 import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 
@@ -67,7 +66,10 @@ const mockLogger: Logger = {
 describe('AnnotationContext', () => {
   let project: Awaited<ReturnType<typeof createTestProject>>['project'];
   let teardown: () => Promise<void>;
-  let kb: KnowledgeBase;
+  // The narrow gather reads — real views + the real working-tree content
+  // adapter (exercised here, not mocked), a mock graph, mock vectors.
+  let kb: AnnotationGatherReads;
+  let workingTree: WorkingTreeStore;
   let mockGraphDb: GraphDatabase;
 
   beforeAll(async () => {
@@ -75,15 +77,13 @@ describe('AnnotationContext', () => {
 
     mockGraphDb = createMockGraphDb();
     const eventStore = createEventStore(project, new EventBus(), mockLogger);
+    workingTree = new WorkingTreeStore(project, mockLogger);
     kb = {
-      eventStore,
       views: eventStore.viewStorage,
-      content: new WorkingTreeStore(project, mockLogger),
+      content: workingTreeContentReads(eventStore.viewStorage, workingTree),
       graph: mockGraphDb,
-      anchoredText: memoryAnchoredTextStore(),
-      vectors: { searchResources: vi.fn().mockResolvedValue([]), searchAnnotations: vi.fn().mockResolvedValue([]), searchByResource: vi.fn().mockResolvedValue([]) } as any,
-      projectionsDir: project.projectionsDir,
-      weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
+      vectors: { searchAnnotations: vi.fn().mockResolvedValue([]) } as AnnotationGatherReads['vectors'],
+      weaveProgress: { whenApplied: vi.fn(async () => {}) },
     };
   });
 
@@ -95,7 +95,7 @@ describe('AnnotationContext', () => {
   async function createTestResource(id: string, content: string): Promise<void> {
     const testContent = Buffer.from(content, 'utf-8');
     const storageUri = `file://test-resources/${id}.txt`;
-    const { checksum } = await kb.content.store(testContent, storageUri);
+    const { checksum } = await workingTree.store(testContent, storageUri);
 
     const eventStore = createEventStore(project, new EventBus(), mockLogger);
 

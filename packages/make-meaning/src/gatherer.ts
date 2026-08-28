@@ -31,16 +31,34 @@ import { EventBus, annotationId as makeAnnotationId, resourceId, errField } from
 import { withActorSpan } from '@semiont/observability';
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider } from '@semiont/vectors';
-import type { KnowledgeBase } from './knowledge-base';
-import { AnnotationContext } from './annotation-context';
-import { LLMContext } from './llm-context';
+import { AnnotationContext, type AnnotationGatherReads } from './annotation-context';
+import { LLMContext, type ResourceGatherReads } from './llm-context';
+
+/**
+ * The Gatherer's capability slice (EXTRACT-LIBRARIAN P2) — DERIVED as the
+ * intersection of the two gather paths' reads, never restated. A full
+ * `KnowledgeBase` satisfies it structurally; the standalone Librarian (P3)
+ * builds it from the shared stateDir (views), the network clients
+ * (graph/vectors), bus-fed progress folds, and D-CONTENT's answer (content).
+ */
+export type GathererStores = AnnotationGatherReads & ResourceGatherReads;
+
+/**
+ * The request channels Gatherer subscribes to — the Librarian's inbound wire
+ * roster for this actor (P3). Pinned to `initialize()`'s actual subscriptions
+ * by the census gate in gatherer-decoupling.test.ts.
+ */
+export const GATHERER_CHANNELS = [
+  'gather:requested',
+  'gather:resource-requested',
+] as const satisfies readonly (keyof EventMap)[];
 
 export class Gatherer {
   private subscriptions: Subscription[] = [];
   private readonly logger: Logger;
 
   constructor(
-    private kb: KnowledgeBase,
+    private stores: GathererStores,
     private eventBus: EventBus,
     private inferenceClient: InferenceClient,
     /** Settle bound for the resource-gather barrier — operator-owned config (D5), threaded from `MakeMeaningConfig.gather`. */
@@ -100,7 +118,7 @@ export class Gatherer {
       const response = await AnnotationContext.buildLLMContext(
         makeAnnotationId(event.annotationId),
         resourceId(event.resourceId),
-        this.kb,
+        this.stores,
         this.embeddingProvider,
         event.options ?? {},
         this.inferenceClient,
@@ -134,7 +152,7 @@ export class Gatherer {
       const result = await LLMContext.getResourceContext(
         resourceId(event.resourceId),
         event.options,
-        this.kb,
+        this.stores,
         this.inferenceClient,
         this.settleTimeoutMs,
         this.logger,
@@ -165,7 +183,7 @@ export class Gatherer {
     return AnnotationContext.generateAnnotationSummary(
       annotationId,
       resourceId,
-      this.kb,
+      this.stores,
       this.inferenceClient,
     );
   }

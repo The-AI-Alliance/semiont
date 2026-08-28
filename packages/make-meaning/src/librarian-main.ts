@@ -1,45 +1,49 @@
 /**
- * Librarian Main — standalone entry point (EXTRACT-LIBRARIAN P1)
+ * Librarian Main — standalone entry point (EXTRACT-LIBRARIAN P1 + P3)
  *
  * The reference desk: searches the collection and hands back what is
  * relevant — ranked or assembled — for an inquiry that belongs to someone
  * else. Never concludes anything; concluding is the Generator's job. Runs
- * the LLM-bound actors, starting with `Matcher` (candidate search + scoring
- * for the bind flow); `Gatherer` joins in P3 once the shared
- * context-builders have an owner (P2).
+ * the LLM-bound actors: `Matcher` (candidate search + scoring for the bind
+ * flow) and `Gatherer` (LLM context assembly for the gather flows), plus
+ * the gather-summary handler that calls the Gatherer (the fact-consumers-
+ * follow-the-actor pattern, D2 i).
  *
  * Its attachments are the bus (HttpTransport: SSE in, `/bus/emit` out),
  * Neo4j and Qdrant (the retrieval sources), an embedding provider (query
- * embedding), an inference client (semantic scoring), and ONE read of the
- * record: `views.get`, `resourceWithViewGrace`'s fallback half, served from
- * the shared stateDir the Archivist materializes into (D6 — reader mounts
- * shared, never rebuilds). This process appends nothing, serves no bytes,
- * and owns no store.
+ * embedding), per-actor inference clients, content over
+ * `HttpContentTransport` (D-CONTENT b — bytes ride the byte path; this
+ * process reads them over the gateway like the smelter does), and views
+ * from the shared stateDir the Archivist materializes into (D6 — reader
+ * mounts shared, never rebuilds). The weave/smelt progress folds run
+ * locally, fed by the same `weave:applied` / `smelt:settled` signals over
+ * SSE, so the graph grace and the settle barrier work unchanged. This
+ * process appends nothing, serves no bytes, and owns no store.
  *
  * Bus wiring is two disjoint pumps on the archivist-main pattern:
- *   in  — MATCHER_CHANNELS (pinned to the actor's real subscriptions by a
- *         census gate); SSE frames are pushed onto the local bus.
+ *   in  — MATCHER_CHANNELS + GATHERER_CHANNELS (each pinned to its actor's
+ *         real subscriptions by a census gate) + `gather:summary-requested`
+ *         (the handler's channel) + the two progress signals; SSE frames
+ *         are pushed onto the local bus.
  *   out — every reply channel DERIVED from BUS_OPERATIONS over the inbound
- *         set. No strays: the match operation is keyed under its own
- *         request channel.
+ *         set. No strays: every operation here is keyed under its own
+ *         request channel, and the progress signals have no operations so
+ *         nothing echoes.
  *
- * No fact pump (nothing here persists events), no content transport
- * (nothing here reads bytes), no second HTTP route (nothing dials the
- * Librarian — it dials the gateway), and no view rebuild EVER (the
- * Archivist is the one rebuild owner).
+ * No fact pump (nothing here persists events), no second HTTP route
+ * (nothing dials the Librarian — it dials the gateway), and no view
+ * rebuild EVER (the Archivist is the one rebuild owner).
  *
  * Environment variables:
  *   SEMIONT_ROOT              — project root (the KB directory). Required.
  *   SEMIONT_ANCHORED_TEXT_DIR — anchored-text store dir. Required by
- *                               SemiontProject (deliberately no default);
- *                               nothing here reads the store until the
- *                               Gatherer arrives (P3).
+ *                               SemiontProject (deliberately no default).
  *   SEMIONT_WORKER_SECRET     — shared secret for agent auth to the gateway.
  */
 
 import { BehaviorSubject, Subscription } from 'rxjs';
 import { createServer } from 'http';
-import { HttpTransport } from '@semiont/http-transport';
+import { HttpTransport, HttpContentTransport } from '@semiont/http-transport';
 import {
   EventBus,
   BUS_OPERATIONS,
@@ -57,6 +61,11 @@ import { getGraphDatabase } from '@semiont/graph';
 import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
 import { createInferenceClient } from '@semiont/inference';
 import { Matcher, MATCHER_CHANNELS } from './matcher';
+import { Gatherer, GATHERER_CHANNELS } from './gatherer';
+import { createWeaveProgress } from './weave-progress';
+import { createSmeltProgress } from './smelt-progress';
+import { registerGatherSummaryHandler } from './handlers/annotation-lookups';
+import { assertMakeMeaningConfig } from './service';
 import { makeMeaningConfigFrom, resolveActorInference } from './config';
 
 // ── Config ───────────────────────────────────────────────────────────
@@ -80,6 +89,10 @@ if (!backendPublicURL) {
 const baseUrl: string = backendPublicURL;
 
 const config = makeMeaningConfigFrom(envConfig);
+// One decider for the config's shape invariants (graph presence, the A4
+// gather-barrier nesting) — the same assertion the other composition roots
+// run, now that the Gatherer's settle barrier lives in this process.
+assertMakeMeaningConfig(config);
 
 const maybeGraphConfig = config.services.graph;
 if (!maybeGraphConfig?.type) {
@@ -109,8 +122,19 @@ const logger = createProcessLogger('librarian');
 
 // ── Bus roster ───────────────────────────────────────────────────────
 
+/**
+ * The actors' rosters, the gather-summary handler's channel, and the two
+ * progress SIGNALS the local folds consume (`weave:applied` for the graph
+ * grace, `smelt:settled` for the settle barrier — the archivist-main
+ * precedent). Signals have no BUS_OPERATIONS entries, so the outbound
+ * derivation ignores them and nothing echoes.
+ */
 const INBOUND_CHANNELS = [
   ...MATCHER_CHANNELS,
+  ...GATHERER_CHANNELS,
+  'gather:summary-requested',
+  'weave:applied',
+  'smelt:settled',
 ] as const satisfies readonly (keyof EventMap)[];
 
 function outboundChannels(): (keyof EventMap)[] {
@@ -215,6 +239,21 @@ async function main() {
     dimensions: () => embeddingProvider.dimensions(),
   });
 
+  // The transport is built before the actors: the Gatherer's content reads
+  // ride it (D-CONTENT b). Its pumps attach after the actors subscribe.
+  const httpTransport = new HttpTransport({
+    baseUrl: makeBaseUrl(baseUrl),
+    token$: tokenSubject,
+    tokenRefresher: refreshToken,
+  });
+  const contentReads = new HttpContentTransport(httpTransport);
+
+  // The progress folds, fed by the signals INBOUND_CHANNELS pumps onto the
+  // local bus — the graph grace and the settle barrier work exactly as
+  // in-process.
+  const weaveProgress = createWeaveProgress(localBus);
+  const smeltProgress = createSmeltProgress(localBus);
+
   // ── Actors ─────────────────────────────────────────────────────────
   const matcher = new Matcher(
     { graph: graphDb, views, vectors: vectorStore },
@@ -225,13 +264,21 @@ async function main() {
   );
   await matcher.initialize();
 
-  // ── Bus pumps ──────────────────────────────────────────────────────
-  const httpTransport = new HttpTransport({
-    baseUrl: makeBaseUrl(baseUrl),
-    token$: tokenSubject,
-    tokenRefresher: refreshToken,
-  });
+  const gatherer = new Gatherer(
+    { views, content: contentReads, graph: graphDb, vectors: vectorStore, weaveProgress, smeltProgress },
+    localBus,
+    createInferenceClient(resolveActorInference(config, 'gatherer'), logger.child({ component: 'inference-client-gatherer' })),
+    config.gather.settleTimeoutMs,
+    logger.child({ component: 'gatherer' }),
+    embeddingProvider,
+  );
+  await gatherer.initialize();
 
+  // The summary handler follows its actor (the D2-i pattern): it calls the
+  // Gatherer's inference path, so it registers here beside it.
+  registerGatherSummaryHandler(localBus, gatherer, logger);
+
+  // ── Bus pumps ──────────────────────────────────────────────────────
   const pumps: Subscription[] = [];
 
   httpTransport.actor.addChannels([...INBOUND_CHANNELS]);
@@ -265,7 +312,7 @@ async function main() {
   const server = createServer((req, res) => {
     if (req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', actors: ['matcher'] }));
+      res.end(JSON.stringify({ status: 'ok', actors: ['matcher', 'gatherer'] }));
       return;
     }
     res.writeHead(404);
@@ -280,7 +327,9 @@ async function main() {
     clearInterval(reauthTimer);
     for (const pump of pumps) pump.unsubscribe();
     httpTransport.dispose();
-    void matcher.stop().then(async () => {
+    void Promise.all([matcher.stop(), gatherer.stop()]).then(async () => {
+      weaveProgress.dispose();
+      smeltProgress.dispose();
       await graphDb.disconnect();
       localBus.destroy();
       server.close();

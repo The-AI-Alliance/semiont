@@ -7,18 +7,26 @@
 
 import type {
   ResourceId,
-  GraphConnection,
-  GraphPath,
   components,
 } from '@semiont/core';
 import { getResourceId, getResourceEntityTypes, getTargetSource, resourceId as createResourceId } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { recordGatherDegrade } from '@semiont/observability';
-import type { KnowledgeBase } from './knowledge-base';
-import { WeaveProgressTimeout } from './weave-progress';
+import type { GraphDatabase } from '@semiont/graph';
+import type { ViewStorage } from '@semiont/event-sourcing';
+import { WeaveProgressTimeout, type WeaveProgress } from './weave-progress';
 
-import type { Annotation } from '@semiont/core';
+/**
+ * What the unified graph builder reads (EXTRACT-LIBRARIAN P2) — Pick-derived,
+ * never restated. The weave fold is bus-fed (`weave:applied`), so this slice
+ * works identically in-process and in the standalone Librarian.
+ */
+export interface KnowledgeGraphReads {
+  graph: Pick<GraphDatabase, 'getResource' | 'getResourceConnections' | 'getResourceReferencedBy' | 'getResourceAnnotations'>;
+  views: Pick<ViewStorage, 'get'>;
+  weaveProgress: Pick<WeaveProgress, 'whenApplied'>;
+}
 
 // The unified knowledge-graph shape is the core/spec type (CONTEXT-UNIFICATION):
 // resources AND annotations are nodes; edges are typed and directional. The
@@ -53,35 +61,6 @@ export const GRAPH_BARRIER_BUDGET_MS =
 export class GraphContext {
 
   /**
-   * Get all resources referencing this resource (backlinks)
-   * Requires graph traversal - must use graph database
-   */
-  static async getBacklinks(resourceId: ResourceId, kb: KnowledgeBase): Promise<Annotation[]> {
-    return kb.graph.getResourceReferencedBy(resourceId);
-  }
-
-  /**
-   * Find shortest path between two resources
-   * Requires graph traversal - must use graph database
-   */
-  static async findPath(
-    fromResourceId: ResourceId,
-    toResourceId: ResourceId,
-    kb: KnowledgeBase,
-    maxDepth?: number
-  ): Promise<GraphPath[]> {
-    return kb.graph.findPath(fromResourceId, toResourceId, maxDepth);
-  }
-
-  /**
-   * Get resource connections (graph edges)
-   * Requires graph traversal - must use graph database
-   */
-  static async getResourceConnections(resourceId: ResourceId, kb: KnowledgeBase): Promise<GraphConnection[]> {
-    return kb.graph.getResourceConnections(resourceId);
-  }
-
-  /**
    * Build the unified knowledge graph for a resource's neighborhood:
    * resources AND annotations as typed nodes, typed/directional edges.
    *
@@ -97,7 +76,7 @@ export class GraphContext {
    */
   static async buildKnowledgeGraph(
     resourceId: ResourceId,
-    kb: KnowledgeBase,
+    kb: KnowledgeGraphReads,
     /** Breadcrumb sink for the projection-lag degrade path; the degrade counter fires regardless. */
     logger?: Logger,
   ): Promise<KnowledgeGraph> {

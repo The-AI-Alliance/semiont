@@ -12,7 +12,7 @@
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
 import { generateResourceSummary } from './generation/resource-generation';
-import { getBodySource, getTargetSource, getTargetSelector, getResourceEntityTypes, getTextPositionSelector, getPrimaryRepresentation, decodeRepresentation, deriveViews } from '@semiont/core';
+import { getBodySource, getTargetSource, getTargetSelector, getResourceEntityTypes, getResourceId, getTextPositionSelector, getPrimaryRepresentation, decodeRepresentation, deriveViews } from '@semiont/core';
 import type { components, GatheredContext } from '@semiont/core';
 
 import type {
@@ -25,13 +25,29 @@ import type {
 import { resourceId as createResourceId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { ResourceContext } from './resource-context';
-import { GraphContext } from './graph-context';
-import type { WorkingTreeStore } from '@semiont/content';
+import { GraphContext, type KnowledgeGraphReads } from './graph-context';
 import type { ViewStorage } from '@semiont/event-sourcing';
-import type { KnowledgeBase } from './knowledge-base';
+import type { GraphDatabase } from '@semiont/graph';
+import type { VectorStore } from '@semiont/vectors';
+import type { ContentReads } from './knowledge-base';
 
 /** The view slice the annotation reads run on (EXTRACT-ARCHIVIST P1). */
 type ViewGet = { views: Pick<ViewStorage, 'get'> };
+
+/**
+ * What the annotation-gather path reads (EXTRACT-LIBRARIAN P2; content
+ * re-keyed by D-CONTENT b) — the graph builder's slice plus this module's
+ * own reads. Pick-derived, never restated. In-process roots satisfy it with
+ * `workingTreeContentReads` over their `kb`; the Librarian passes
+ * `HttpContentTransport`.
+ */
+export interface AnnotationGatherReads {
+  views: Pick<ViewStorage, 'get'>;
+  content: ContentReads;
+  graph: KnowledgeGraphReads['graph'] & Pick<GraphDatabase, 'getEntityTypeStats'>;
+  vectors: Pick<VectorStore, 'searchAnnotations'>;
+  weaveProgress: KnowledgeGraphReads['weaveProgress'];
+}
 
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
 type TextQuoteSelector = components['schemas']['TextQuoteSelector'];
@@ -67,7 +83,7 @@ export class AnnotationContext {
   static async buildLLMContext(
     annotationId: AnnotationId,
     resourceId: ResourceId,
-    kb: KnowledgeBase,
+    kb: AnnotationGatherReads,
     embeddingProvider: EmbeddingProvider,
     options: BuildContextOptions = {},
     inferenceClient?: InferenceClient,
@@ -143,8 +159,8 @@ export class AnnotationContext {
         throw new Error('Source content not found: no storageUri');
       }
       const primaryRep = getPrimaryRepresentation(sourceDoc);
-      const sourceContent = await kb.content.retrieve(sourceDoc.storageUri);
-      const contentStr = decodeRepresentation(sourceContent, primaryRep?.mediaType ?? 'text/plain');
+      const { data: sourceContent } = await kb.content.getBinary(resourceId);
+      const contentStr = decodeRepresentation(Buffer.from(sourceContent), primaryRep?.mediaType ?? 'text/plain');
 
       const targetSelectorRaw = getTargetSelector(annotation.target);
 
@@ -194,10 +210,10 @@ export class AnnotationContext {
     // Build target context if requested and available
     let targetContext;
     if (includeTargetContext && targetDoc) {
-      if (targetDoc.storageUri) {
+      if (targetDoc.storageUri && bodySource) {
         const targetRep = getPrimaryRepresentation(targetDoc);
-        const targetContent = await kb.content.retrieve(targetDoc.storageUri);
-        const contentStr = decodeRepresentation(targetContent, targetRep?.mediaType ?? 'text/plain');
+        const { data: targetContent } = await kb.content.getBinary(createResourceId(bodySource));
+        const contentStr = decodeRepresentation(Buffer.from(targetContent), targetRep?.mediaType ?? 'text/plain');
 
         targetContext = {
           content: contentStr.slice(0, contextWindow * 2),
@@ -475,7 +491,7 @@ Summary:`;
     resourceId: ResourceId,
     contextBefore: number,
     contextAfter: number,
-    kb: ViewGet & { content: Pick<WorkingTreeStore, 'retrieve'> }
+    kb: ViewGet & { content: ContentReads }
   ): Promise<AnnotationContextResponse> {
     // Get annotation from view storage
     const annotation = await this.getAnnotation(annotationId, resourceId, kb);
@@ -520,7 +536,7 @@ Summary:`;
   static async generateAnnotationSummary(
     annotationId: AnnotationId,
     resourceId: ResourceId,
-    kb: ViewGet & { content: Pick<WorkingTreeStore, 'retrieve'> },
+    kb: ViewGet & { content: ContentReads },
     inferenceClient: InferenceClient,
   ): Promise<ContextualSummaryResponse> {
     // Get annotation from view storage
@@ -567,18 +583,21 @@ Summary:`;
   }
 
   /**
-   * Get resource content as string
+   * Get resource content as string. ResourceId-keyed (D-CONTENT b): the
+   * descriptor's `storageUri` stays the has-content signal, the fetch goes
+   * by id.
    */
   private static async getResourceContent(
     resource: ResourceDescriptor,
-    content: Pick<WorkingTreeStore, 'retrieve'>
+    content: ContentReads
   ): Promise<string> {
-    if (!resource.storageUri) {
+    const id = getResourceId(resource);
+    if (!resource.storageUri || !id) {
       throw new Error('Resource content not found: no storageUri');
     }
     const primaryRep = getPrimaryRepresentation(resource);
-    const buf = await content.retrieve(resource.storageUri);
-    return decodeRepresentation(buf, primaryRep?.mediaType ?? 'text/plain');
+    const { data } = await content.getBinary(createResourceId(id));
+    return decodeRepresentation(Buffer.from(data), primaryRep?.mediaType ?? 'text/plain');
   }
 
   /**

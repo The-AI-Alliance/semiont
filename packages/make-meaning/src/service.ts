@@ -15,7 +15,7 @@ import { from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import { createInferenceClient } from '@semiont/inference';
 import { getGraphDatabase } from '@semiont/graph';
-import { createKnowledgeBase } from './knowledge-base';
+import { createKnowledgeBase, workingTreeContentReads } from './knowledge-base';
 import { GRAPH_BARRIER_BUDGET_MS } from './graph-context';
 import { Gatherer } from './gatherer';
 import { Matcher } from './matcher';
@@ -230,7 +230,10 @@ async function createKnowledgeSystemFromConfig(
   await bootstrapEntityTypes(eventBus, eventStore, logger.child({ component: 'entity-types-bootstrap' }));
 
   const gatherer = new Gatherer(
-    kb, eventBus,
+    // The content capability is ResourceId-keyed (D-CONTENT b); in-process
+    // it wraps this root's own working tree behind the transport shape.
+    { ...kb, content: workingTreeContentReads(kb.views, kb.content) },
+    eventBus,
     createInferenceClient(resolveActorInference(config, 'gatherer'), logger.child({ component: 'inference-client-gatherer' })),
     config.gather.settleTimeoutMs,
     logger.child({ component: 'gatherer' }),
@@ -262,7 +265,7 @@ async function createKnowledgeSystemFromConfig(
 
 // ─── Public entry point ───────────────────────────────────────────────────────
 
-function assertMakeMeaningConfig(config: MakeMeaningConfig): void {
+export function assertMakeMeaningConfig(config: MakeMeaningConfig): void {
   if (!config.services?.graph) {
     throw new Error('services.graph is required for make-meaning service');
   }
@@ -331,12 +334,12 @@ export interface GatewayMakeMeaningService {
 
 /**
  * The gateway's composition root: everything startMakeMeaning builds EXCEPT
- * the actors extracted to services. The Archivist (archivist-main) owns
+ * the actors, which have all left. The Archivist (archivist-main) owns
  * Stower/Browser/CloneTokenManager, enrichment, the entity-type bootstrap +
  * warm, and the view rebuild; the Librarian (librarian-main) owns Matcher
- * (EXTRACT-LIBRARIAN P1). This root still hosts the Gatherer and its
- * handlers — the last actor EXTRACT-LIBRARIAN P3 takes — plus the job
- * queue, reading views from the shared stateDir (D6).
+ * and Gatherer (EXTRACT-LIBRARIAN P1/P3). What remains here is `kb` reads
+ * for the handler subset and the backend's routes, plus the job queue,
+ * reading views from the shared stateDir (D6).
  *
  * Views are never rebuilt here — one rebuild owner, one writer (D4b).
  */
@@ -349,30 +352,20 @@ export async function startMakeMeaningGateway(
   assertMakeMeaningConfig(config);
 
   const { jobQueue, jobStatusSubscription } = await createJobQueue(project, eventBus, logger);
-  const { kb, embeddingProvider } = await connectStores(project, config, eventBus, logger, true);
-
-  const gatherer = new Gatherer(
-    kb, eventBus,
-    createInferenceClient(resolveActorInference(config, 'gatherer'), logger.child({ component: 'inference-client-gatherer' })),
-    config.gather.settleTimeoutMs,
-    logger.child({ component: 'gatherer' }),
-    embeddingProvider,
-  );
-  await gatherer.initialize();
+  const { kb } = await connectStores(project, config, eventBus, logger, true);
 
   const knowledgeSystem: GatewayKnowledgeSystem = {
     kb,
-    gatherer,
     stop: async () => {
-      await gatherer.stop();
       kb.weaveProgress.dispose();
       await kb.graph.disconnect();
     },
   };
 
-  // The gateway's handler subset: annotation-assembly is NOT here — it moved
-  // into the Archivist beside the Stower whose facts it consumes (D2 i).
-  registerGatewayBusHandlers(eventBus, kb, gatherer, jobQueue, project, logger);
+  // The gateway's handler subset: annotation-assembly moved into the
+  // Archivist (D2 i) and gather-summary into the Librarian — each beside
+  // the actor it calls.
+  registerGatewayBusHandlers(eventBus, kb, jobQueue, project, logger);
 
   return {
     knowledgeSystem,

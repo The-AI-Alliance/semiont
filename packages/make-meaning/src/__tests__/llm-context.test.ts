@@ -13,17 +13,17 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { memoryAnchoredTextStore } from './helpers/anchored-text';
 import { firstValueFrom } from 'rxjs';
 import { take } from 'rxjs/operators';
-import { LLMContext } from '../llm-context';
+import { LLMContext, type ResourceGatherReads } from '../llm-context';
 import { ResourceOperations } from '../resource-operations';
 import { AnnotationOperations } from '../annotation-operations';
 import { resourceId, annotationId, userId, EventBus, type Logger, type SupportedMediaType, deriveStorageUri } from '@semiont/core';
 import type { GraphServiceConfig, GatheredContext } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore, calculateChecksum } from '@semiont/content';
-import type { KnowledgeBase } from '../knowledge-base';
+import type { GraphDatabase } from '@semiont/graph';
+import { workingTreeContentReads } from '../knowledge-base';
 import { createSmeltProgress } from '../smelt-progress';
 import { Stower } from '../stower';
 import { createTestProject } from './helpers/test-project';
@@ -61,7 +61,11 @@ describe('LLM Context', () => {
   let eventBus: EventBus;
   let stower: Stower;
   let graphConfig: GraphServiceConfig;
-  let kb: KnowledgeBase;
+  // The narrow gather reads — real views + the real working-tree content
+  // adapter (exercised here, not mocked), a real memory graph, mock vectors.
+  let kb: ResourceGatherReads;
+  let workingTree: WorkingTreeStore;
+  let graphDb: GraphDatabase;
   let testResourceId: string;
 
   async function create(
@@ -69,7 +73,7 @@ describe('LLM Context', () => {
     uid: ReturnType<typeof userId>,
   ) {
     const uri = deriveStorageUri(`test-${++fileCounter}`, opts.format);
-    const stored = await kb.content.store(opts.content, uri);
+    const stored = await workingTree.store(opts.content, uri);
     return ResourceOperations.createResource(
       { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format, language: opts.language },
       uid,
@@ -94,14 +98,22 @@ describe('LLM Context', () => {
     eventBus = new EventBus();
     eventStore = createEventStore(project, eventBus, mockLogger);
 
-    // Create KnowledgeBase - share event store's view storage to avoid separate instances
+    // The narrow reads — share the event store's view storage to avoid
+    // separate instances; content goes through the real adapter.
     const { getGraphDatabase } = await import('@semiont/graph');
-    const graphDb = await getGraphDatabase(graphConfig);
-    kb = { anchoredText: memoryAnchoredTextStore(),
-      vectors: { searchResources: vi.fn().mockResolvedValue([]), searchAnnotations: vi.fn().mockResolvedValue([]), searchByResource: vi.fn().mockResolvedValue([]) } as any, eventStore, views: eventStore.viewStorage, content: new WorkingTreeStore(project, mockLogger), graph: graphDb, projectionsDir: project.projectionsDir, weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} }, };
+    graphDb = await getGraphDatabase(graphConfig);
+    workingTree = new WorkingTreeStore(project, mockLogger);
+    kb = {
+      views: eventStore.viewStorage,
+      content: workingTreeContentReads(eventStore.viewStorage, workingTree),
+      graph: graphDb,
+      vectors: { searchByResource: vi.fn().mockResolvedValue([]) } as ResourceGatherReads['vectors'],
+      weaveProgress: { whenApplied: vi.fn(async () => {}) },
+      smeltProgress: { whenSettled: async () => 'inert' as const },
+    };
 
     // Start Stower
-    stower = new Stower(kb, eventBus, project, mockLogger);
+    stower = new Stower({ content: workingTree, eventStore }, eventBus, project, mockLogger);
     await stower.initialize();
 
     // Create a test resource
@@ -119,7 +131,7 @@ describe('LLM Context', () => {
 
     // Populate graph database (required by GraphContext)
     // Construct a minimal ResourceDescriptor since createResource now returns only ResourceId
-    await kb.graph.createResource({
+    await graphDb.createResource({
       '@context': 'https://www.w3.org/ns/anno.jsonld',
       '@id': resId,
       name: 'LLM Context Test Resource',
@@ -211,7 +223,7 @@ describe('LLM Context', () => {
 
       // The unified context sources annotations from the graph projection; this test's kb wires no
       // Weaver, so add the annotation to the graph store directly.
-      await kb.graph.createAnnotation({
+      await graphDb.createAnnotation({
         id: annotationId('llm-graph-ann'),
         motivation: 'highlighting',
         target: { source: testResourceId, selector: [{ type: 'TextPositionSelector', start: 0, end: 4 }] },
@@ -505,7 +517,7 @@ describe('LLM Context', () => {
       'r-question': { resource: { '@id': 'r-question', name: 'A Prior Question' } },
     };
 
-    function kbWithVectors(capture?: (opts: any) => void, extraPool: any[] = []): KnowledgeBase {
+    function kbWithVectors(capture?: (opts: any) => void, extraPool: any[] = []): ResourceGatherReads {
       return {
         ...kb,
         views: { get: async (id: any) => POOL_VIEWS[String(id)] ?? kb.views.get(id) } as any,
@@ -571,14 +583,14 @@ describe('LLM Context', () => {
     // A vector store that has no focal vectors until the "Smelter" applies,
     // plus a real SmeltProgress fold on a test-driven bus: the delayed-Smelter
     // harness ("projection-lag grace" pattern).
-    function lagKb(progressBus: EventBus, state: { indexed: boolean }): { lagged: KnowledgeBase; searches: () => number } {
+    function lagKb(progressBus: EventBus, state: { indexed: boolean }): { lagged: ResourceGatherReads; searches: () => number } {
       const searchByResource = vi.fn(async () => (state.indexed ? hit : []));
-      const lagged: KnowledgeBase = {
+      const lagged: ResourceGatherReads = {
         ...kb,
         smeltProgress: createSmeltProgress(progressBus),
         // The hit's source must resolve to a named view (P3/D9) or the match drops.
         views: { get: async (id: any) => (String(id) === 'r-sim' ? { resource: { '@id': 'r-sim', name: 'Similar Doc' } } : kb.views.get(id)) } as any,
-        vectors: { searchByResource } as unknown as KnowledgeBase['vectors'],
+        vectors: { searchByResource } as unknown as ResourceGatherReads['vectors'],
       };
       return { lagged, searches: () => searchByResource.mock.calls.length };
     }

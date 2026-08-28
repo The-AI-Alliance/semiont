@@ -20,7 +20,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { firstValueFrom, race, timer, take } from 'rxjs';
 import { EventBus, resourceId, type Logger } from '@semiont/core';
 import { registerAnnotationAssemblyHandler } from '../../handlers/annotation-assembly';
-import type { KnowledgeBase } from '../../knowledge-base';
+
+type AssemblyReads = Parameters<typeof registerAnnotationAssemblyHandler>[1];
 
 const silentLogger: Logger = {
   debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
@@ -31,7 +32,7 @@ const USER_DID = 'did:web:test:users:test';
 const RID = 'res-under-test';
 
 /** A KB whose one resource carries `mediaType` as its primary representation. */
-function kbServing(mediaType: string | undefined): KnowledgeBase {
+function kbServing(mediaType: string | undefined): AssemblyReads {
   return {
     views: {
       get: vi.fn().mockResolvedValue({
@@ -43,7 +44,7 @@ function kbServing(mediaType: string | undefined): KnowledgeBase {
         },
       }),
     },
-  } as unknown as KnowledgeBase;
+  } as AssemblyReads;
 }
 
 const request = {

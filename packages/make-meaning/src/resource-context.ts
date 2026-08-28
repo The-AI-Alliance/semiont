@@ -8,12 +8,13 @@
  * single-index reads; anything that FUSES sources belongs to the Matcher.
  */
 
-import { getPrimaryRepresentation, decodeRepresentation, getResourceEntityTypes } from '@semiont/core';
+import { getPrimaryRepresentation, decodeRepresentation, getResourceEntityTypes, getResourceId, resourceId as makeResourceId } from '@semiont/core';
 import type { Logger, ResourceId } from '@semiont/core';
 import { compareByRecencyThenId, type GraphDatabase } from '@semiont/graph';
 import { mergeByResource, type EmbeddingProvider, type VectorStore } from '@semiont/vectors';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { WorkingTreeStore } from '@semiont/content';
+import type { ContentReads } from './knowledge-base';
 import { resourceWithViewGrace } from './graph-read-grace';
 
 import type { ResourceDescriptor } from '@semiont/core';
@@ -225,16 +226,20 @@ export class ResourceContext {
 
   /**
    * Get full content for a resource
-   * Retrieves and decodes the primary representation
+   * Retrieves and decodes the primary representation. ResourceId-keyed
+   * (EXTRACT-LIBRARIAN P3, D-CONTENT b): the descriptor's `storageUri` is the
+   * has-content signal; the fetch itself goes by id, so the standalone
+   * Librarian serves it over the transport.
    */
   static async getResourceContent(
     resource: ResourceDescriptor,
-    kb: { content: Pick<WorkingTreeStore, 'retrieve'> }
+    kb: { content: ContentReads }
   ): Promise<string | undefined> {
-    if (resource.storageUri) {
-      const contentBuffer = await kb.content.retrieve(resource.storageUri);
+    const id = getResourceId(resource);
+    if (resource.storageUri && id) {
+      const { data } = await kb.content.getBinary(makeResourceId(id));
       const primaryRep = getPrimaryRepresentation(resource);
-      return decodeRepresentation(contentBuffer, primaryRep?.mediaType ?? 'text/plain');
+      return decodeRepresentation(Buffer.from(data), primaryRep?.mediaType ?? 'text/plain');
     }
     return undefined;
   }

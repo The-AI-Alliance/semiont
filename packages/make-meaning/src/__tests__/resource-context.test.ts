@@ -3,11 +3,14 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { memoryAnchoredTextStore } from './helpers/anchored-text';
 import { ResourceContext } from '../resource-context';
 import type { ResourceDescriptor, ResourceId } from '@semiont/core';
 import { resourceId } from '@semiont/core';
-import type { KnowledgeBase } from '../knowledge-base';
+
+// The union of the slices this file exercises — DERIVED from the methods'
+// own parameter types, never restated.
+type ResourceContextReads = Parameters<typeof ResourceContext.listResources>[1] &
+  Parameters<typeof ResourceContext.addContentPreviews>[1];
 
 // Mock the helpers ResourceContext reads from core. Use importOriginal so
 // branded constructors (resourceId, etc.) keep their real implementations.
@@ -22,7 +25,7 @@ vi.mock('@semiont/core', async (importOriginal) => {
 
 import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/core';
 describe('ResourceContext', () => {
-  let mockKb: KnowledgeBase;
+  let mockKb: ResourceContextReads;
   let mockViewStorage: any;
   let mockRepStore: any;
   let mockGraph: any;
@@ -40,18 +43,15 @@ describe('ResourceContext', () => {
     };
 
     mockGraph = {
+      getResource: vi.fn().mockResolvedValue(null),
       listResources: vi.fn().mockResolvedValue({ resources: [], total: 0 }),
     };
 
     mockKb = {
-      eventStore: {} as any,
       views: mockViewStorage,
       content: mockRepStore,
       graph: mockGraph,
-      anchoredText: memoryAnchoredTextStore(),
-      vectors: { searchResources: vi.fn().mockResolvedValue([]), searchAnnotations: vi.fn().mockResolvedValue([]), searchByResource: vi.fn().mockResolvedValue([]) } as any,
-      projectionsDir: '',
-      weaveProgress: {} as any, smeltProgress: { settledAt: () => undefined, whenSettled: async () => 'inert' as const, dispose: () => {} },
+      vectors: { searchResources: vi.fn().mockResolvedValue([]) } as ResourceContextReads['vectors'],
     };
   });
 

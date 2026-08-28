@@ -13,17 +13,18 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { resourceId } from '@semiont/core';
-import type { KnowledgeBase } from '../knowledge-base';
 import { resourceWithViewGrace } from '../graph-read-grace';
+
+type GraceReads = Parameters<typeof resourceWithViewGrace>[0];
 
 const DOC = { '@id': 'res-1', name: 'From Graph', representations: [], archived: false, entityTypes: [] };
 const VIEW_DOC = { '@id': 'res-1', name: 'From View', representations: [], archived: false, entityTypes: [] };
 
-function kbWith(graphDoc: unknown, viewDoc: unknown): KnowledgeBase {
+function kbWith(graphDoc: unknown, viewDoc: unknown): GraceReads {
   return {
-    graph: { getResource: vi.fn().mockResolvedValue(graphDoc) } as any,
-    views: { get: vi.fn().mockResolvedValue(viewDoc ? { resource: viewDoc, annotations: {} } : null) } as any,
-  } as unknown as KnowledgeBase;
+    graph: { getResource: vi.fn().mockResolvedValue(graphDoc) } as GraceReads['graph'],
+    views: { get: vi.fn().mockResolvedValue(viewDoc ? { resource: viewDoc, annotations: {} } : null) } as GraceReads['views'],
+  };
 }
 
 describe('resourceWithViewGrace', () => {
@@ -53,10 +54,10 @@ describe('resourceWithViewGrace', () => {
   });
 
   it('a throwing graph read degrades to the view, not to a rejection', async () => {
-    const kb = {
-      graph: { getResource: vi.fn().mockRejectedValue(new Error('neo4j hiccup')) } as any,
-      views: { get: vi.fn().mockResolvedValue({ resource: VIEW_DOC, annotations: {} }) } as any,
-    } as unknown as KnowledgeBase;
+    const kb: GraceReads = {
+      graph: { getResource: vi.fn().mockRejectedValue(new Error('neo4j hiccup')) } as GraceReads['graph'],
+      views: { get: vi.fn().mockResolvedValue({ resource: VIEW_DOC, annotations: {} }) } as GraceReads['views'],
+    };
 
     const result = await resourceWithViewGrace(kb, resourceId('res-1'));
     expect(result.resource?.name).toBe('From View');
