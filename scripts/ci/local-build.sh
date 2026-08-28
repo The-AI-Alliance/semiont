@@ -118,7 +118,7 @@ SKIP_BUILD=false
 IMAGES_ONLY=false
 PACKAGES=""
 START_FROM=""
-IMAGES="backend worker smelter weaver browser"
+IMAGES="backend worker smelter weaver archivist browser"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
@@ -145,7 +145,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --start-from <pkg> Skip packages before this one in the build order"
       echo "  --skip-build       Skip build, publish only (reuse previous artifacts)"
       echo "  --image <list>     Comma-separated images to build (default:"
-      echo "                     backend,worker,smelter,weaver,browser)"
+      echo "                     backend,worker,smelter,weaver,archivist,browser)"
       echo "  --images-only      Build ONLY container images, against the Verdaccio a"
       echo "                     previous run left running. Skips the npm build+publish,"
       echo "                     the drift gates and the launcher. Pair with --image to"
@@ -178,6 +178,7 @@ image_dockerfile() {
     worker)   echo "packages/jobs/Dockerfile" ;;
     smelter)  echo "packages/make-meaning/Dockerfile.smelter" ;;
     weaver)   echo "packages/make-meaning/Dockerfile.weaver" ;;
+    archivist) echo "packages/make-meaning/Dockerfile.archivist" ;;
     browser) echo "apps/browser/Dockerfile" ;;
     *) return 1 ;;
   esac
@@ -185,7 +186,7 @@ image_dockerfile() {
 
 for img in $IMAGES; do
   if ! image_dockerfile "$img" >/dev/null; then
-    fail "Unknown image: $img (expected backend, worker, smelter, weaver, or browser)"
+    fail "Unknown image: $img (expected backend, worker, smelter, weaver, archivist, or browser)"
     exit 1
   fi
 done
