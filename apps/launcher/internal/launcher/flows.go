@@ -151,6 +151,10 @@ func flowFullStart(x executor, fc flowCtx) int {
 		return code
 	}
 
+	if code := flowLibrarian(x, fc, addr, stage, secret, otel); code != 0 {
+		return code
+	}
+
 	// The weaver note: the graph projection is standalone-only — without the
 	// weaver the graph stays empty and every gather 404s at the
 	// buildKnowledgeGraph barrier.
@@ -549,6 +553,38 @@ func flowArchivist(x executor, fc flowCtx, addr, stage, secret string, otel []st
 	return 0
 }
 
+// flowLibrarian: the Librarian (the Matcher — match:* search) starts with
+// the core services, BEFORE the sidecars: no sidecar boot path is known to
+// ask match:* today, but health-after-pumps plus this ordering makes the
+// question moot rather than racy (the smelter's 3.5s boot race against the
+// Archivist is the cautionary tale). It reads everything and writes nothing
+// durable — see librarianArgs.
+func flowLibrarian(x executor, fc flowCtx, addr, stage, secret string, otel []string) int {
+	x.banner("Starting Librarian")
+	state, ok := x.stateMountsShared("state", fc.root)
+	if !ok {
+		return 1
+	}
+	anchored, ok := x.stateMountsShared("anchored-text", fc.root)
+	if !ok {
+		return 1
+	}
+	args := librarianArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, fc.version, fc.userEnv, otel, append(state, anchored...)...)
+	id, ok := x.runDetached(args)
+	if !ok {
+		x.say(sayFail, "Librarian failed to start.")
+		return 1
+	}
+	d, ok := x.waitHTTP("Librarian", "http://localhost:9094/health", 30)
+	if !ok {
+		x.dumpLogs("semiont-librarian", "librarian")
+		return 1
+	}
+	x.say(sayOK, "Librarian healthy (http://localhost:9094) %s", x.dim("("+took(d)+")"))
+	x.record("librarian", id, image("librarian", fc.version), providedLauncher, "http://localhost:9094/health", "")
+	return 0
+}
+
 // flowOneService: `start --service` — the no-op obligation gate, the
 // service's own teardown/ports/pull, secret rejoin + OTel detection + fresh
 // staging for config consumers, then the service's launch and gate.
@@ -683,6 +719,10 @@ func flowOneService(x executor, fc flowCtx) int {
 		}
 	case "archivist":
 		if code := flowArchivist(x, fc, addr, stage, secret, otel); code != 0 {
+			return code
+		}
+	case "librarian":
+		if code := flowLibrarian(x, fc, addr, stage, secret, otel); code != 0 {
 			return code
 		}
 	case "worker", "smelter", "weaver":

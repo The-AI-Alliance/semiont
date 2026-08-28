@@ -19,6 +19,8 @@ container stop semiont-weaver
 container rm semiont-weaver
 container stop semiont-archivist
 container rm semiont-archivist
+container stop semiont-librarian
+container rm semiont-librarian
 # sweep stray Semiont containers under docker:
 docker stop semiont-jaeger
 docker rm semiont-jaeger
@@ -38,6 +40,8 @@ docker stop semiont-weaver
 docker rm semiont-weaver
 docker stop semiont-archivist
 docker rm semiont-archivist
+docker stop semiont-librarian
+docker rm semiont-librarian
 # sweep stray Semiont containers under podman:
 podman stop semiont-jaeger
 podman rm semiont-jaeger
@@ -57,15 +61,18 @@ podman stop semiont-weaver
 podman rm semiont-weaver
 podman stop semiont-archivist
 podman rm semiont-archivist
+podman stop semiont-librarian
+podman rm semiont-librarian
 # remove staged config copies: /tmp/semiont-config.*
-# require free ports: 7474 7687 6333 5432 4000 9090 9091 9092 9093 16686 4318
-# stage per-service config copies under <config-stage>: backend.toml worker.toml smelter.toml weaver.toml archivist.toml
+# require free ports: 7474 7687 6333 5432 4000 9090 9091 9092 9093 9094 16686 4318
+# stage per-service config copies under <config-stage>: backend.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml
 # append [environments.local.archivist] host/port (launcher-staged topology) to backend.toml
 container image pull ghcr.io/the-ai-alliance/semiont-backend:latest
 container image pull ghcr.io/the-ai-alliance/semiont-worker:latest
 container image pull ghcr.io/the-ai-alliance/semiont-smelter:latest
 container image pull ghcr.io/the-ai-alliance/semiont-weaver:latest
 container image pull ghcr.io/the-ai-alliance/semiont-archivist:latest
+container image pull ghcr.io/the-ai-alliance/semiont-librarian:latest
 container run -d --name semiont-jaeger --memory 1G -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:1.76.0
 # wait: http://localhost:16686 (30s)
 # graph state: <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j (created if absent; reused across restarts)
@@ -98,6 +105,10 @@ container run -d --name semiont-backend --publish 4000:4000 --memory 8G --volume
 # state state: <home>/.local/share/semiont/roots/example.github.io-test-kb/state (created if absent; reused across restarts)
 container run -d --name semiont-archivist --memory 2G --publish 9093:9093 --volume <kb-root>:/kb --volume <config-stage>/archivist.toml:/home/semiont/.semiontconfig:ro -v <home>/.local/share/semiont/roots/example.github.io-test-kb/anchored-text:/anchored-text -v <home>/.local/share/semiont/roots/example.github.io-test-kb/state:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env BACKEND_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env POSTGRES_HOST=<host-addr> --env XDG_STATE_HOME=/semiont-state --env SEMIONT_WORKER_SECRET=<worker-secret> ghcr.io/the-ai-alliance/semiont-archivist:latest
 # wait: http://localhost:9093/health (30s)
+# mount state state (shared; the stamp stays with its owning service)
+# mount anchored-text state (shared; the stamp stays with its owning service)
+container run -d --name semiont-librarian --memory 2G --publish 9094:9094 --volume <kb-root>:/kb:ro --volume <config-stage>/librarian.toml:/home/semiont/.semiontconfig:ro -v <home>/.local/share/semiont/roots/example.github.io-test-kb/state:/semiont-state -v <home>/.local/share/semiont/roots/example.github.io-test-kb/anchored-text:/anchored-text --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env BACKEND_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env POSTGRES_HOST=<host-addr> --env ARCHIVIST_HOST=<host-addr> --env XDG_STATE_HOME=/semiont-state --env SEMIONT_WORKER_SECRET=<worker-secret> ghcr.io/the-ai-alliance/semiont-librarian:latest
+# wait: http://localhost:9094/health (30s)
 container run -d --name semiont-worker --memory 2G --publish 9090:9090 --volume <config-stage>/worker.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env BACKEND_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env POSTGRES_HOST=<host-addr> --env SEMIONT_WORKER_SECRET=<worker-secret> ghcr.io/the-ai-alliance/semiont-worker:latest
 # wait: http://localhost:9090/health (30s)
 container run -d --name semiont-smelter --memory 2G --publish 9091:9091 --volume <config-stage>/smelter.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env BACKEND_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env POSTGRES_HOST=<host-addr> --env SEMIONT_WORKER_SECRET=<worker-secret> ghcr.io/the-ai-alliance/semiont-smelter:latest

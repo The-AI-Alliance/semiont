@@ -298,7 +298,7 @@ func (x *liveExec) stageAll(configFile, envName, addr string) (string, bool) {
 		x.u.fail("Reading %s: %v", configFile, err)
 		return "", false
 	}
-	for _, svc := range []string{"backend", "worker", "smelter", "weaver", "archivist"} {
+	for _, svc := range []string{"backend", "worker", "smelter", "weaver", "archivist", "librarian"} {
 		out := cfg
 		if svc == "backend" {
 			out = patchArchivistTopology(cfg, envName, addr)
@@ -772,7 +772,7 @@ func (x *planExec) portChecks(ports []portNeed) bool {
 }
 
 func (x *planExec) stageAll(_, envName, _ string) (string, bool) {
-	x.c("stage per-service config copies under <config-stage>: backend.toml worker.toml smelter.toml weaver.toml archivist.toml")
+	x.c("stage per-service config copies under <config-stage>: backend.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml")
 	x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to backend.toml", envName)
 	return "<config-stage>", true
 }

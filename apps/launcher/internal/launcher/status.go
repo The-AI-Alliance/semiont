@@ -77,6 +77,7 @@ var statusServices = []struct {
 	{"embedding", "http://localhost:11434/api/version", true},
 	{"weaver", "http://localhost:9092/health", true},
 	{"archivist", "http://localhost:9093/health", true},
+	{"librarian", "http://localhost:9094/health", true},
 	{"graph", "http://localhost:7474", true},
 	{"smelter", "http://localhost:9091/health", true},
 	{"vectors", "http://localhost:6333/readyz", true},

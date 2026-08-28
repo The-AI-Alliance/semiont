@@ -37,9 +37,9 @@ func TestMemCeilingGB(t *testing.T) {
 // obligation; ollama once whichever role provides it; traces with --observe.
 func TestStartCeilingsGB(t *testing.T) {
 	base := startCeilingsGB(nil, startOptions{})
-	// backend 8 + worker 2 + smelter 2 + weaver 3 + archivist 2 + browser 1
-	if base != 18 {
-		t.Fatalf("base ceilings = %vG, want 18G (did a service's ceiling change without this test?)", base)
+	// backend 8 + worker 2 + smelter 2 + weaver 3 + archivist 2 + librarian 2 + browser 1
+	if base != 20 {
+		t.Fatalf("base ceilings = %vG, want 20G (did a service's ceiling change without this test?)", base)
 	}
 	plan := &launchPlan{Roles: map[string]rolePlan{
 		"graph":     {Obligation: obligationProvided},
@@ -49,20 +49,20 @@ func TestStartCeilingsGB(t *testing.T) {
 	}}
 	full := startCeilingsGB(plan, startOptions{observe: true})
 	// + graph 2 + vectors 2 + database 1 + ollama 8 + traces 1
-	if full != 32 {
-		t.Fatalf("full ceilings = %vG, want 32G", full)
+	if full != 34 {
+		t.Fatalf("full ceilings = %vG, want 34G", full)
 	}
 	// An external inference (anthropic) runs no Ollama container.
 	plan.Roles["inference"] = rolePlan{Driver: "anthropic", Obligation: obligationExternal}
-	if got := startCeilingsGB(plan, startOptions{}); got != 23 {
-		t.Fatalf("external-inference ceilings = %vG, want 23G", got)
+	if got := startCeilingsGB(plan, startOptions{}); got != 25 {
+		t.Fatalf("external-inference ceilings = %vG, want 25G", got)
 	}
 	// THE DEFAULT: host-process Ollama (models get Metal on the host; the
 	// container is the fallback). Its host RAM is outside this sum — the
 	// launcher neither sets nor sees it — so the default stack is 23G too.
 	plan.Roles["inference"] = rolePlan{Driver: "ollama", Obligation: obligationHostProcess}
-	if got := startCeilingsGB(plan, startOptions{}); got != 23 {
-		t.Fatalf("host-ollama (default) ceilings = %vG, want 23G — the host process must not be counted", got)
+	if got := startCeilingsGB(plan, startOptions{}); got != 25 {
+		t.Fatalf("host-ollama (default) ceilings = %vG, want 25G — the host process must not be counted", got)
 	}
 }
 

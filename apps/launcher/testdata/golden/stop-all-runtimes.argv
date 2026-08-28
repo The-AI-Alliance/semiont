@@ -6,6 +6,8 @@ container stop semiont-smelter
 container rm semiont-smelter
 container stop semiont-worker
 container rm semiont-worker
+container stop semiont-librarian
+container rm semiont-librarian
 container stop semiont-backend
 container rm semiont-backend
 container stop semiont-postgres
@@ -26,6 +28,8 @@ docker stop semiont-smelter
 docker rm semiont-smelter
 docker stop semiont-worker
 docker rm semiont-worker
+docker stop semiont-librarian
+docker rm semiont-librarian
 docker stop semiont-backend
 docker rm semiont-backend
 docker stop semiont-postgres
@@ -46,6 +50,8 @@ podman stop semiont-smelter
 podman rm semiont-smelter
 podman stop semiont-worker
 podman rm semiont-worker
+podman stop semiont-librarian
+podman rm semiont-librarian
 podman stop semiont-backend
 podman rm semiont-backend
 podman stop semiont-postgres
