@@ -24,6 +24,10 @@
     "./archivist-main": {
       "types": "./dist/archivist-main.d.ts",
       "import": "./dist/archivist-main.js"
+    },
+    "./librarian-main": {
+      "types": "./dist/librarian-main.d.ts",
+      "import": "./dist/librarian-main.js"
     }
   },
   "files": [

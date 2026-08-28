@@ -331,12 +331,12 @@ export interface GatewayMakeMeaningService {
 
 /**
  * The gateway's composition root: everything startMakeMeaning builds EXCEPT
- * the Archivist's actors and the machinery that rides the append path. The
- * Archivist service (archivist-main) owns Stower/Browser/CloneTokenManager,
- * enrichment, the entity-type bootstrap + warm, and the view rebuild; this
- * root hosts the read/inference side that EXTRACT-LIBRARIAN will take next
- * (Gatherer, Matcher, their handlers) plus the job queue, reading views from
- * the shared stateDir (D6).
+ * the actors extracted to services. The Archivist (archivist-main) owns
+ * Stower/Browser/CloneTokenManager, enrichment, the entity-type bootstrap +
+ * warm, and the view rebuild; the Librarian (librarian-main) owns Matcher
+ * (EXTRACT-LIBRARIAN P1). This root still hosts the Gatherer and its
+ * handlers — the last actor EXTRACT-LIBRARIAN P3 takes — plus the job
+ * queue, reading views from the shared stateDir (D6).
  *
  * Views are never rebuilt here — one rebuild owner, one writer (D4b).
  */
@@ -360,20 +360,10 @@ export async function startMakeMeaningGateway(
   );
   await gatherer.initialize();
 
-  const matcher = new Matcher(
-    kb, eventBus,
-    logger.child({ component: 'matcher' }),
-    createInferenceClient(resolveActorInference(config, 'matcher'), logger.child({ component: 'inference-client-matcher' })),
-    embeddingProvider,
-  );
-  await matcher.initialize();
-
   const knowledgeSystem: GatewayKnowledgeSystem = {
     kb,
     gatherer,
-    matcher,
     stop: async () => {
-      await matcher.stop();
       await gatherer.stop();
       kb.weaveProgress.dispose();
       await kb.graph.disconnect();
