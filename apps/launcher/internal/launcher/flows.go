@@ -463,6 +463,14 @@ func flowBackend(x executor, fc flowCtx, addr, stage, secret string, otel []stri
 	if !ok {
 		return 1
 	}
+	// The shared XDG state tree (EXTRACT-ARCHIVIST D6): the Archivist
+	// rebuilds the views in here; the gateway's Gatherer reads them. Shared,
+	// not stamped — the Archivist owns this store's stamp.
+	state, ok := x.stateMountsShared("state", fc.root)
+	if !ok {
+		return 1
+	}
+	extra = append(extra, state...)
 	bArgs := backendArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, jwt, fc.version, port, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
@@ -502,19 +510,24 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage, secret str
 
 // flowArchivist: the Archivist starts LAST of the stack services — it
 // dials the gateway's bus like the sidecars, and nothing else at boot waits
-// on it. A fleet member on every start (user, 2026-08-27, overriding the
-// P2a handoff's register-only suggestion): until the cutover phase the
-// gateway's in-process actors run BESIDE it — browse replies answered twice
-// (deduped client-side by e-ids), writes double-applied (visible and
-// revertible in the git-committed event log).
+// on it. Since the P3 cutover it is the ONLY holder of the record: the
+// gateway constructs no actors, and this service owns event appends, the
+// projection rebuild, and the git index (D4b).
 func flowArchivist(x executor, fc flowCtx, addr, stage, secret string, otel []string) int {
 	x.banner("Starting Archivist")
-	// The anchored-text store is mounted SHARED: the backend owns its image
-	// stamp until cutover (see stateMountsShared).
+	// anchored-text stays SHARED (the backend owns that stamp until
+	// EXTRACT-LIBRARIAN moves the Gatherer); the XDG state tree is the
+	// inverse — the Archivist owns ITS stamp as the projection writer, and
+	// the gateway mounts it shared to read the views (D6).
 	extra, ok := x.stateMountsShared("anchored-text", fc.root)
 	if !ok {
 		return 1
 	}
+	state, ok := x.stateMounts("state", image("archivist", fc.version), fc.root)
+	if !ok {
+		return 1
+	}
+	extra = append(extra, state...)
 	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, fc.version, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
