@@ -75,7 +75,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 	x.say(sayOK, "Required ports are free")
 
-	stage, ok := x.stageAll(fc.configFile)
+	stage, ok := x.stageAll(fc.configFile, fc.plan.EnvName, addr)
 	if !ok {
 		return 1
 	}
@@ -142,6 +142,15 @@ func flowFullStart(x executor, fc flowCtx) int {
 		return code
 	}
 
+	// The Archivist boots BEFORE the sidecars: since the P3 cutover it
+	// answers their boot-time bus requests (the smelter's reconcile opens
+	// with browse:resources), and its /health only turns on after its bus
+	// pumps attach — so gating here closes the startup race a 3.5-second
+	// head start once lost a smelter to.
+	if code := flowArchivist(x, fc, addr, stage, secret, otel); code != 0 {
+		return code
+	}
+
 	// The weaver note: the graph projection is standalone-only — without the
 	// weaver the graph stays empty and every gather 404s at the
 	// buildKnowledgeGraph barrier.
@@ -150,10 +159,6 @@ func flowFullStart(x executor, fc flowCtx) int {
 		if code := flowSidecar(x, fc, sc, addr, stage, secret, otel); code != 0 {
 			return code
 		}
-	}
-
-	if code := flowArchivist(x, fc, addr, stage, secret, otel); code != 0 {
-		return code
 	}
 
 	// The Browser rides every start but belongs to no stack.
@@ -508,11 +513,11 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage, secret str
 	return 0
 }
 
-// flowArchivist: the Archivist starts LAST of the stack services — it
-// dials the gateway's bus like the sidecars, and nothing else at boot waits
-// on it. Since the P3 cutover it is the ONLY holder of the record: the
-// gateway constructs no actors, and this service owns event appends, the
-// projection rebuild, and the git index (D4b).
+// flowArchivist: the Archivist starts right after the backend and BEFORE
+// the sidecars — since the P3 cutover it is the ONLY holder of the record
+// (the gateway constructs no actors; this service owns event appends, the
+// projection rebuild, and the git index, D4b), so the sidecars' boot-time
+// bus requests are answered here and must find the pumps attached.
 func flowArchivist(x executor, fc flowCtx, addr, stage, secret string, otel []string) int {
 	x.banner("Starting Archivist")
 	// anchored-text stays SHARED (the backend owns that stamp until
@@ -608,7 +613,7 @@ func flowOneService(x executor, fc flowCtx) int {
 		if secret, ok = x.recoverSecret(); !ok {
 			return 1
 		}
-		if stage, ok = x.stageOne(svc, fc.configFile); !ok {
+		if stage, ok = x.stageOne(svc, fc.configFile, fc.plan.EnvName, addr); !ok {
 			return 1
 		}
 	}

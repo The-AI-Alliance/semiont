@@ -45,6 +45,9 @@ type rolePlan struct {
 type launchPlan struct {
 	Roles       map[string]rolePlan
 	BackendPort int
+	// EnvName is the [defaults]-selected environment — staging needs it to
+	// address the section it appends (see patchArchivistTopology).
+	EnvName string
 	// OllamaModels: every model this config asks OLLAMA to serve — the
 	// ollama-typed actor/worker bindings plus an ollama embedding. Distinct
 	// from the per-role Models (which list what a role uses whoever serves
@@ -358,7 +361,7 @@ func parseHostPort(s string) (host string, port int) {
 
 // derivePlan maps the selected environment to per-role launch obligations.
 func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
-	plan := &launchPlan{Roles: map[string]rolePlan{}, BackendPort: 4000, OllamaModels: ollamaModels(env)}
+	plan := &launchPlan{Roles: map[string]rolePlan{}, BackendPort: 4000, EnvName: envName, OllamaModels: ollamaModels(env)}
 	if env.Backend != nil && env.Backend.Port != 0 {
 		plan.BackendPort = env.Backend.Port
 	}

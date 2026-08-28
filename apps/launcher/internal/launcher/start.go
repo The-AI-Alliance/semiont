@@ -729,7 +729,6 @@ func backendArgs(kbRoot, stage, addr, secret, jwt, version string, port int, use
 		"--env", "NEO4J_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "OLLAMA_HOST="+addr,
-		"--env", "ARCHIVIST_HOST="+addr,
 		// XDG_STATE_HOME rides in argv, NOT as an image ENV like
 		// SEMIONT_ROOT: it is a standard override project.ts already
 		// honours, and the env and its mount live in this one builder —
@@ -758,7 +757,6 @@ func sidecarArgs(svc string, port int, stage, addr, secret, version string, user
 		// Interpolation requirement only: loadEnvironmentConfig expands the
 		// WHOLE TOML eagerly, so every consumer needs every ${VAR} defined
 		// (the same reason the Archivist gets POSTGRES_HOST).
-		"--env", "ARCHIVIST_HOST="+addr,
 		"--env", "SEMIONT_WORKER_SECRET="+secret)
 	return append(a, image(svc, version))
 }
@@ -786,7 +784,6 @@ func archivistArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []
 		"--env", "NEO4J_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "POSTGRES_HOST="+addr,
-		"--env", "ARCHIVIST_HOST="+addr,
 		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_WORKER_SECRET="+secret)
 	return append(a, image("archivist", version))
