@@ -203,11 +203,12 @@ if (!result.ok) throw result.error;
 
 ## Graph Traversal
 
-```typescript
-import { GraphContext } from '@semiont/make-meaning';
+Direct graph queries go through the `GraphDatabase` interface. (Bus clients get
+referenced-by lookups from the Browser via `browse:referenced-by-requested`.)
 
-// Find backlinks
-const backlinks = await GraphContext.getBacklinks(resourceId, kb);
+```typescript
+// Find backlinks (incoming links)
+const backlinks = await kb.graph.getResourceReferencedBy(resourceId);
 console.log(`Found ${backlinks.length} backlinks`);
 
 // Search resources
@@ -217,7 +218,7 @@ const { resources: results } = await kb.graph.listResources({
 });
 
 // Find paths between resources
-const paths = await GraphContext.findPath(fromId, toId, kb, 3);
+const paths = await kb.graph.findPath(fromId, toId, 3);
 ```
 
 ## Candidate Search via EventBus (Low-Level)

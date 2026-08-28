@@ -289,29 +289,29 @@ static async getAnnotation(
 
 ### GraphContext
 
-Graph database operations for traversing resource relationships.
+The unified knowledge-graph builder.
 
 **Implementation**: [src/graph-context.ts](../src/graph-context.ts)
 
-#### getBacklinks()
+#### buildKnowledgeGraph()
 
 ```typescript
-static async getBacklinks(
+static async buildKnowledgeGraph(
   resourceId: ResourceId,
-  kb: KnowledgeBase,
-): Promise<Annotation[]>
+  kb: KnowledgeGraphReads,
+  logger?: Logger,
+): Promise<KnowledgeGraph>
 ```
 
-#### findPath()
+Builds the resource's full neighborhood — resources AND annotations as typed nodes, typed
+directional edges, including inbound citations — with read-your-writes grace for graph
+projection lag. `KnowledgeGraphReads` is the Pick-derived slice it needs: four graph reads,
+`views.get`, and the weave-progress barrier.
 
-```typescript
-static async findPath(
-  fromResourceId: ResourceId,
-  toResourceId: ResourceId,
-  kb: KnowledgeBase,
-  maxDepth?: number,
-): Promise<GraphPath[]>
-```
+For direct graph queries (backlinks, paths, connections), use the `GraphDatabase` interface
+(`kb.graph.getResourceReferencedBy(...)`, `kb.graph.findPath(...)`,
+`kb.graph.getResourceConnections(...)`). Bus clients get referenced-by lookups from the
+Browser via `browse:referenced-by-requested`.
 
 ### LLMContext
 
