@@ -268,7 +268,7 @@ func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
 	// them; the runtime's `logs` answered "No such container"). Cleanup is
 	// already explicit at both ends: start's preflight and stop both
 	// stop+rm by name.
-	a := []string{"run", "-d", "--name", roles[role].container}
+	a := []string{"run", "-d", "--name", roles[role].container, "--memory", roles[role].mem}
 	for _, ap := range spec.auxPorts {
 		a = append(a, "-p", fmt.Sprintf("%d:%d", ap.port, ap.port))
 	}
@@ -286,7 +286,9 @@ func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
 // shape do not — roles[owner].container would be wrong for embedding.
 func ollamaRunArgs(rp rolePlan, extra ...string) []string {
 	spec := driverCatalog["inference"]["ollama"]
-	a := []string{"run", "-d", "--name", "semiont-ollama"} // no --rm: see providedRunArgs
+	// The ceiling is the INFERENCE role's whichever role owns the container
+	// (an all-remote embedding config still runs one Ollama).
+	a := []string{"run", "-d", "--name", "semiont-ollama", "--memory", roles["inference"].mem} // no --rm: see providedRunArgs
 	a = append(a, "-p", fmt.Sprintf("%d:%d", rp.Port, spec.defaultPort))
 	a = append(a, extra...)
 	return append(a, rp.Image)

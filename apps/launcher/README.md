@@ -553,6 +553,23 @@ The stream is inbound only, and says so on startup — your own `beckon` and
 `browse --browser` cues are not echoed back, so silence where a cue should
 appear is not evidence the cue failed.
 
+### Memory ceilings
+
+Every container the launcher runs carries an explicit `--memory` ceiling, from
+one table in the launcher (no silent runtime defaults — Apple container would
+quietly size each per-container VM at 1G, where a JVM graph or a loaded model
+dies; docker would leave it unlimited inside its shared VM). The ceilings are
+visible in every `--dry-run` line.
+
+On Apple container specifically, ceilings approximate commitments — each one
+sizes a VM whose kernel and page cache grow into it — so a live start sums
+what it is about to request and **warns with the arithmetic** when the total
+crosses 75% of the machine's RAM. A warning, never a refusal: macOS degrades
+under pressure (compression, swap) rather than breaking, and the launcher
+cannot know what else the host is doing. On docker/podman the sum is quiet by
+design: caps are not reservations there, and the runtime's own VM setting is
+the real budget.
+
 ### Where state lives
 
 Local-stack databases persist across restarts. Each local semiont root gets

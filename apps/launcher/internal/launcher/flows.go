@@ -492,7 +492,7 @@ func flowBackend(x executor, fc flowCtx, addr, stage, secret string, otel []stri
 }
 
 func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage, secret string, otel []string) int {
-	args := sidecarArgs(sc.svc, sc.mem, sc.port, stage, addr, secret, fc.version, fc.userEnv, otel)
+	args := sidecarArgs(sc.svc, sc.port, stage, addr, secret, fc.version, fc.userEnv, otel)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "%s failed to start.", sc.label)

@@ -698,6 +698,7 @@ func image(svc, version string) string {
 
 func tracesArgs() []string {
 	return []string{"run", "-d", "--name", "semiont-jaeger", // no --rm: see providedRunArgs
+		"--memory", roles["traces"].mem,
 		"-p", "16686:16686", "-p", "4318:4318", "jaegertracing/all-in-one:1.76.0"}
 }
 
@@ -716,7 +717,7 @@ const kbMountTarget = "/kb"
 
 func backendArgs(kbRoot, stage, addr, secret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-backend", // no --rm: see providedRunArgs
-		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", "8G",
+		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", roles["backend"].mem,
 		"--volume", kbRoot + ":" + kbMountTarget,
 		"--volume", stage + "/backend.toml:/home/semiont/.semiontconfig:ro"}
 	// Persistent state the backend itself owns (stateStores["backend"]).
@@ -741,10 +742,10 @@ func backendArgs(kbRoot, stage, addr, secret, jwt, version string, port int, use
 
 // sidecarArgs covers the three make-meaning sidecars (worker / smelter /
 // weaver) — identical in shape, differing only in name, port, and memory.
-func sidecarArgs(svc, mem string, port int, stage, addr, secret, version string, userEnv, otel []string) []string {
+func sidecarArgs(svc string, port int, stage, addr, secret, version string, userEnv, otel []string) []string {
 	p := strconv.Itoa(port)
 	a := []string{"run", "-d", "--name", "semiont-" + svc, // no --rm: see providedRunArgs
-		"--memory", mem, "--publish", p + ":" + p,
+		"--memory", roles[svc].mem, "--publish", p + ":" + p,
 		"--volume", stage + "/" + svc + ".toml:/home/semiont/.semiontconfig:ro"}
 	a = append(a, userEnv...)
 	a = append(a, otel...)
@@ -773,7 +774,7 @@ func sidecarArgs(svc, mem string, port int, stage, addr, secret, version string,
 // auth presents the worker secret (the same fact D1's read path relies on).
 func archivistArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
-		"--memory", "2G", "--publish", "9093:9093",
+		"--memory", roles["archivist"].mem, "--publish", "9093:9093",
 		"--volume", kbRoot + ":" + kbMountTarget,
 		"--volume", stage + "/archivist.toml:/home/semiont/.semiontconfig:ro"}
 	a = append(a, state...)
@@ -793,7 +794,7 @@ func archivistArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []
 
 func browserArgs(version string, port int) []string {
 	a := []string{"run", "-d", "--name", "semiont-browser", // no --rm: see providedRunArgs
-		"--memory", "1G", "--publish", fmt.Sprintf("%d:3000", port)}
+		"--memory", roles["browser"].mem, "--publish", fmt.Sprintf("%d:3000", port)}
 	// The Browser's KB-discovery view (BROWSER-KB-DISCOVERY.md lane 1): a
 	// read-only DIRECTORY mount (Apple container cannot single-file mount).
 	// Inert until the Browser image serves /discovery — a dormant feature
@@ -831,14 +832,14 @@ var semiontServices = []string{"backend", "worker", "smelter", "weaver", "archiv
 
 // sidecarSpecs: the three make-meaning sidecars, in start order.
 type sidecarSpec struct {
-	svc, label, mem, banner string
-	port                    int
+	svc, label, banner string
+	port               int
 }
 
 var sidecarSpecs = []sidecarSpec{
-	{"worker", "Worker pool", "2G", "Starting Worker Pool", 9090},
-	{"smelter", "Smelter", "2G", "Starting Smelter", 9091},
-	{"weaver", "Weaver", "3G", "Starting Weaver", 9092},
+	{"worker", "Worker pool", "Starting Worker Pool", 9090},
+	{"smelter", "Smelter", "Starting Smelter", 9091},
+	{"weaver", "Weaver", "Starting Weaver", 9092},
 }
 
 // --- The real run ---
@@ -847,6 +848,15 @@ var sidecarSpecs = []sidecarSpec{
 // live-only bookends (timing stamp, summary table).
 func runStart(u *ui, rt, version, root, configFile string, opts startOptions, userEnv []string, plan *launchPlan) int {
 	t0 := time.Now()
+	// The memory preflight is a LIVE-ONLY bookend, like the timing stamp:
+	// dry-run output must stay machine-independent (host RAM in a golden
+	// would churn per machine), and the per-container ceilings are already
+	// visible in every dry-run argv line.
+	if rt == "container" {
+		if w := memoryBudgetWarning(startCeilingsGB(plan, opts), hostMemGB()); w != "" {
+			u.warn("%s", w)
+		}
+	}
 	x := &liveExec{u: u, rt: rt, plan: plan}
 	if code := flowFullStart(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: configFile, userEnv: userEnv}); code != 0 {
 		return code
