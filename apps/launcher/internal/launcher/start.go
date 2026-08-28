@@ -794,10 +794,12 @@ func archivistArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []
 // READ-ONLY (it is not the git writer; the clone invariant does not apply),
 // the shared state tree for views (D6 reader), the shared anchored-text dir
 // (unread until its P3, but the image declares the path and SemiontProject
-// requires it). Env is the eager-interpolation set — including
-// ARCHIVIST_HOST, which it never dials, for the same reason the Archivist
-// carries POSTGRES_HOST. NO JWT_SECRET, and no LIBRARIAN_HOST exists
-// anywhere: nothing dials this service; it dials the gateway.
+// requires it). Env is the eager-interpolation set — the ${VAR}s a
+// committed KB config may reference, same as the other sidecars. NOT
+// ARCHIVIST_HOST: no config interpolates that var (the archivist address
+// is a literal patchArchivistTopology stages into backend.toml only). NO
+// JWT_SECRET, and no LIBRARIAN_HOST exists anywhere: nothing dials this
+// service; it dials the gateway.
 func librarianArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
 		"--memory", roles["librarian"].mem, "--publish", "9094:9094",
@@ -812,7 +814,6 @@ func librarianArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []
 		"--env", "NEO4J_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "POSTGRES_HOST="+addr,
-		"--env", "ARCHIVIST_HOST="+addr,
 		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_WORKER_SECRET="+secret)
 	return append(a, image("librarian", version))
