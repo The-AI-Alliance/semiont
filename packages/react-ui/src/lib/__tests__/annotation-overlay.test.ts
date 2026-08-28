@@ -1,18 +1,18 @@
 /**
  * Tests for annotation-overlay.ts — the DOM-based annotation rendering layer.
  *
- * These tests use jsdom's TreeWalker and Range APIs to verify:
+ * These tests use jsdom's TreeWalker API to verify:
  * - Source→rendered offset mapping (markdown syntax stripping)
- * - Text node index construction and binary search
- * - Annotation range resolution from W3C offsets
- * - Highlight span application and cleanup
+ * - Text node index construction
+ * - Annotation offset-span resolution from W3C offsets
+ * - Highlight span application (including overlap geometry) and cleanup
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   buildSourceToRenderedMap,
   buildTextNodeIndex,
-  resolveAnnotationRanges,
+  resolveAnnotationSpans,
   applyHighlights,
   clearHighlights,
   type OverlayAnnotation,
@@ -22,7 +22,7 @@ import {
 
 /**
  * Create a container element with the given HTML and attach it to the document
- * so that TreeWalker and Range APIs work in jsdom.
+ * so that TreeWalker works in jsdom.
  */
 function createContainer(html: string): HTMLDivElement {
   const container = document.createElement('div');
@@ -42,6 +42,13 @@ function makeAnnotation(overrides: Partial<OverlayAnnotation> & { id: string; of
     source: null,
     ...overrides,
   };
+}
+
+/** Resolve + apply against a container in one step (the BrowseView pipeline). */
+function overlay(source: string, container: HTMLElement, annotations: OverlayAnnotation[]): void {
+  const offsetMap = buildSourceToRenderedMap(source, container);
+  const textNodeIndex = buildTextNodeIndex(container);
+  applyHighlights(resolveAnnotationSpans(annotations, offsetMap), textNodeIndex);
 }
 
 // ─── buildSourceToRenderedMap ────────────────────────────────────────────────
@@ -191,42 +198,43 @@ describe('buildTextNodeIndex', () => {
   });
 });
 
-// ─── resolveAnnotationRanges ────────────────────────────────────────────────
+// ─── resolveAnnotationSpans ─────────────────────────────────────────────────
 
-describe('resolveAnnotationRanges', () => {
-  it('resolves a plain text annotation to a DOM Range', () => {
+describe('resolveAnnotationSpans', () => {
+  it('resolves a plain text annotation to rendered offsets', () => {
     const source = 'Zeus was the king of the gods.';
     const container = createContainer('<p>Zeus was the king of the gods.</p>');
     const offsetMap = buildSourceToRenderedMap(source, container);
-    const textNodeIndex = buildTextNodeIndex(container);
 
     const annotations: OverlayAnnotation[] = [
       makeAnnotation({ id: 'ann-1', offset: 0, length: 4, exact: 'Zeus' }),
     ];
 
-    const ranges = resolveAnnotationRanges(annotations, offsetMap, textNodeIndex);
+    const spans = resolveAnnotationSpans(annotations, offsetMap);
 
-    expect(ranges.size).toBe(1);
-    const entry = ranges.get('ann-1')!;
-    expect(entry.range.toString()).toBe('Zeus');
+    expect(spans.length).toBe(1);
+    expect(spans[0]!.start).toBe(0);
+    expect(spans[0]!.end).toBe(4);
+    expect(spans[0]!.annotation.id).toBe('ann-1');
 
     cleanup(container);
   });
 
-  it('resolves annotation inside bold text', () => {
+  it('resolves annotation inside bold text to syntax-stripped offsets', () => {
     const source = 'The **Zeus** ruled.';
     const container = createContainer('<p>The <strong>Zeus</strong> ruled.</p>');
     const offsetMap = buildSourceToRenderedMap(source, container);
-    const textNodeIndex = buildTextNodeIndex(container);
 
     const annotations: OverlayAnnotation[] = [
       makeAnnotation({ id: 'ann-1', offset: 6, length: 4, exact: 'Zeus' }),
     ];
 
-    const ranges = resolveAnnotationRanges(annotations, offsetMap, textNodeIndex);
+    const spans = resolveAnnotationSpans(annotations, offsetMap);
 
-    expect(ranges.size).toBe(1);
-    expect(ranges.get('ann-1')!.range.toString()).toBe('Zeus');
+    expect(spans.length).toBe(1);
+    // Rendered: "The Zeus ruled." — "Zeus" at 4-8
+    expect(spans[0]!.start).toBe(4);
+    expect(spans[0]!.end).toBe(8);
 
     cleanup(container);
   });
@@ -235,18 +243,19 @@ describe('resolveAnnotationRanges', () => {
     const source = 'Zeus and Hera ruled.';
     const container = createContainer('<p>Zeus and Hera ruled.</p>');
     const offsetMap = buildSourceToRenderedMap(source, container);
-    const textNodeIndex = buildTextNodeIndex(container);
 
     const annotations: OverlayAnnotation[] = [
       makeAnnotation({ id: 'ann-1', offset: 0, length: 4, exact: 'Zeus' }),
       makeAnnotation({ id: 'ann-2', offset: 9, length: 4, exact: 'Hera' }),
     ];
 
-    const ranges = resolveAnnotationRanges(annotations, offsetMap, textNodeIndex);
+    const spans = resolveAnnotationSpans(annotations, offsetMap);
 
-    expect(ranges.size).toBe(2);
-    expect(ranges.get('ann-1')!.range.toString()).toBe('Zeus');
-    expect(ranges.get('ann-2')!.range.toString()).toBe('Hera');
+    expect(spans.length).toBe(2);
+    expect(spans[0]!.start).toBe(0);
+    expect(spans[0]!.end).toBe(4);
+    expect(spans[1]!.start).toBe(9);
+    expect(spans[1]!.end).toBe(13);
 
     cleanup(container);
   });
@@ -255,15 +264,29 @@ describe('resolveAnnotationRanges', () => {
     const source = 'Hello';
     const container = createContainer('<p>Hello</p>');
     const offsetMap = buildSourceToRenderedMap(source, container);
-    const textNodeIndex = buildTextNodeIndex(container);
 
     const annotations: OverlayAnnotation[] = [
       makeAnnotation({ id: 'ann-1', offset: 100, length: 4, exact: 'nope' }),
     ];
 
-    const ranges = resolveAnnotationRanges(annotations, offsetMap, textNodeIndex);
+    const spans = resolveAnnotationSpans(annotations, offsetMap);
 
-    expect(ranges.size).toBe(0);
+    expect(spans.length).toBe(0);
+
+    cleanup(container);
+  });
+
+  it('skips empty annotations', () => {
+    const source = 'Hello';
+    const container = createContainer('<p>Hello</p>');
+    const offsetMap = buildSourceToRenderedMap(source, container);
+
+    const spans = resolveAnnotationSpans(
+      [makeAnnotation({ id: 'ann-1', offset: 2, length: 0 })],
+      offsetMap,
+    );
+
+    expect(spans.length).toBe(0);
 
     cleanup(container);
   });
@@ -272,55 +295,120 @@ describe('resolveAnnotationRanges', () => {
 // ─── applyHighlights / clearHighlights ──────────────────────────────────────
 
 describe('applyHighlights', () => {
-  it('wraps a single-text-node range with a span', () => {
+  it('wraps a single-text-node span', () => {
     const container = createContainer('<p>Zeus was king.</p>');
-    const textNode = container.querySelector('p')!.firstChild as Text;
 
-    const range = document.createRange();
-    range.setStart(textNode, 0);
-    range.setEnd(textNode, 4);
-
-    const ann = makeAnnotation({ id: 'ann-1', offset: 0, length: 4, exact: 'Zeus', type: 'reference' });
-    const ranges = new Map([['ann-1', { range, annotation: ann }]]);
-
-    applyHighlights(ranges);
+    overlay('Zeus was king.', container, [
+      makeAnnotation({ id: 'ann-1', offset: 0, length: 4, exact: 'Zeus', type: 'reference' }),
+    ]);
 
     const span = container.querySelector('[data-annotation-id="ann-1"]');
     expect(span).not.toBeNull();
     expect(span!.textContent).toBe('Zeus');
     expect(span!.className).toBe('annotation-reference');
     expect(span!.getAttribute('data-annotation-type')).toBe('reference');
+    expect(container.textContent).toBe('Zeus was king.');
 
     cleanup(container);
   });
 
   it('applies correct CSS class per annotation type', () => {
     const container = createContainer('<p>Zeus Hera</p>');
-    const textNode = container.querySelector('p')!.firstChild as Text;
 
-    const range1 = document.createRange();
-    range1.setStart(textNode, 0);
-    range1.setEnd(textNode, 4);
+    overlay('Zeus Hera', container, [
+      makeAnnotation({ id: 'ann-1', offset: 0, length: 4, type: 'highlight' }),
+      makeAnnotation({ id: 'ann-2', offset: 5, length: 4, type: 'assessment' }),
+    ]);
 
-    const range2 = document.createRange();
-    range2.setStart(textNode, 5);
-    range2.setEnd(textNode, 9);
+    expect(container.querySelector('.annotation-highlight')!.textContent).toBe('Zeus');
+    expect(container.querySelector('.annotation-assessment')!.textContent).toBe('Hera');
+    expect(container.textContent).toBe('Zeus Hera');
 
-    const ann1 = makeAnnotation({ id: 'ann-1', offset: 0, length: 4, type: 'highlight' });
-    const ann2 = makeAnnotation({ id: 'ann-2', offset: 5, length: 4, type: 'assessment' });
+    cleanup(container);
+  });
 
-    // Apply one at a time since text node splits after first apply
-    applyHighlights(new Map([['ann-1', { range: range1, annotation: ann1 }]]));
+  it('wraps an annotation crossing element boundaries as sibling spans', () => {
+    const source = 'The **Zeus** ruled.';
+    const container = createContainer('<p>The <strong>Zeus</strong> ruled.</p>');
 
-    // Re-find the second range after DOM modification
-    const updatedTextNode = container.querySelector('p')!.lastChild as Text;
-    const range2b = document.createRange();
-    range2b.setStart(updatedTextNode, 1); // " Hera" — offset 1 = "H"
-    range2b.setEnd(updatedTextNode, 5);   // "Hera"
-    applyHighlights(new Map([['ann-2', { range: range2b, annotation: ann2 }]]));
+    // "e Zeus ru" in rendered text: crosses into and out of the <strong>.
+    overlay(source, container, [
+      makeAnnotation({ id: 'ann-1', offset: 2, length: 13, exact: 'e **Zeus** ru' }),
+    ]);
 
-    expect(container.querySelector('.annotation-highlight')).not.toBeNull();
-    expect(container.querySelector('.annotation-assessment')).not.toBeNull();
+    const segments = container.querySelectorAll('[data-annotation-id="ann-1"]');
+    expect(segments.length).toBe(3); // "e ", "Zeus", " ru"
+    const joined = [...segments].map((s) => s.textContent).join('');
+    expect(joined).toBe('e Zeus ru');
+    expect(container.textContent).toBe('The Zeus ruled.');
+
+    cleanup(container);
+  });
+
+  it('renders exact geometry for identical stacked annotations', () => {
+    // The regression shape: repeated annotation of the same passage. The
+    // Range-based predecessor let the first wrap corrupt the ranges of the
+    // rest — later annotations collapsed to empty spans or swallowed whole
+    // paragraphs. Offsets cannot be corrupted by DOM mutation.
+    const container = createContainer('<p>Zeus was the king of the gods.</p>');
+
+    overlay('Zeus was the king of the gods.', container, [
+      makeAnnotation({ id: 'ann-1', offset: 0, length: 4, type: 'highlight' }),
+      makeAnnotation({ id: 'ann-2', offset: 0, length: 4, type: 'highlight' }),
+      makeAnnotation({ id: 'ann-3', offset: 0, length: 4, type: 'highlight' }),
+    ]);
+
+    for (const id of ['ann-1', 'ann-2', 'ann-3']) {
+      const span = container.querySelector(`[data-annotation-id="${id}"]`);
+      expect(span, id).not.toBeNull();
+      expect(span!.textContent, id).toBe('Zeus');
+    }
+    expect(container.textContent).toBe('Zeus was the king of the gods.');
+
+    cleanup(container);
+  });
+
+  it('renders partial overlap with per-region nesting, later annotation innermost', () => {
+    const container = createContainer('<p>Zeus and Hera</p>');
+
+    // ann-1 covers "Zeus and", ann-2 covers "and Hera" — overlap on "and".
+    overlay('Zeus and Hera', container, [
+      makeAnnotation({ id: 'ann-1', offset: 0, length: 8, type: 'highlight' }),
+      makeAnnotation({ id: 'ann-2', offset: 5, length: 8, type: 'reference' }),
+    ]);
+
+    const ann1 = [...container.querySelectorAll('[data-annotation-id="ann-1"]')];
+    const ann2 = [...container.querySelectorAll('[data-annotation-id="ann-2"]')];
+    expect(ann1.map((s) => s.textContent).join('')).toBe('Zeus and');
+    expect(ann2.map((s) => s.textContent).join('')).toBe('and Hera');
+
+    // In the overlap region, the later-listed annotation is innermost: walking
+    // up from "and" hits ann-2 (the reference) before ann-1.
+    const overlapText = [...container.querySelectorAll('span')]
+      .find((s) => s.textContent === 'and' && s.childNodes.length === 1 && s.firstChild!.nodeType === Node.TEXT_NODE)!;
+    expect(overlapText.closest('[data-annotation-id]')!.getAttribute('data-annotation-id')).toBe('ann-2');
+    expect(container.textContent).toBe('Zeus and Hera');
+
+    cleanup(container);
+  });
+
+  it('mutates each annotated text node once, not once per annotation', () => {
+    const container = createContainer('<p>Zeus was the king of the gods.</p>');
+    const p = container.querySelector('p')!;
+    let replaceCalls = 0;
+    const origReplace = p.replaceChild.bind(p);
+    p.replaceChild = ((n: Node, o: Node) => {
+      replaceCalls++;
+      return origReplace(n, o);
+    }) as typeof p.replaceChild;
+
+    overlay('Zeus was the king of the gods.', container, [
+      makeAnnotation({ id: 'ann-1', offset: 0, length: 4 }),
+      makeAnnotation({ id: 'ann-2', offset: 0, length: 4 }),
+      makeAnnotation({ id: 'ann-3', offset: 9, length: 4 }),
+    ]);
+
+    expect(replaceCalls).toBe(1);
 
     cleanup(container);
   });
@@ -329,14 +417,10 @@ describe('applyHighlights', () => {
 describe('clearHighlights', () => {
   it('removes annotation spans and restores original text', () => {
     const container = createContainer('<p>Zeus was king.</p>');
-    const textNode = container.querySelector('p')!.firstChild as Text;
 
-    const range = document.createRange();
-    range.setStart(textNode, 0);
-    range.setEnd(textNode, 4);
-
-    const ann = makeAnnotation({ id: 'ann-1', offset: 0, length: 4, exact: 'Zeus' });
-    applyHighlights(new Map([['ann-1', { range, annotation: ann }]]));
+    overlay('Zeus was king.', container, [
+      makeAnnotation({ id: 'ann-1', offset: 0, length: 4, exact: 'Zeus' }),
+    ]);
 
     // Verify span exists
     expect(container.querySelector('[data-annotation-id]')).not.toBeNull();
@@ -360,6 +444,22 @@ describe('clearHighlights', () => {
 
     expect(container.querySelectorAll('[data-annotation-id]').length).toBe(0);
     expect(container.textContent).toBe('Zeus and Hera');
+
+    cleanup(container);
+  });
+
+  it('unwraps nested overlap spans', () => {
+    const container = createContainer('<p>Zeus was king.</p>');
+
+    overlay('Zeus was king.', container, [
+      makeAnnotation({ id: 'ann-1', offset: 0, length: 8 }),
+      makeAnnotation({ id: 'ann-2', offset: 5, length: 8 }),
+    ]);
+
+    clearHighlights(container);
+
+    expect(container.querySelectorAll('[data-annotation-id]').length).toBe(0);
+    expect(container.textContent).toBe('Zeus was king.');
 
     cleanup(container);
   });
@@ -390,15 +490,9 @@ describe('end-to-end overlay pipeline', () => {
     const source = 'Zeus was the king of the gods.';
     const container = createContainer('<p>Zeus was the king of the gods.</p>');
 
-    const offsetMap = buildSourceToRenderedMap(source, container);
-    const textNodeIndex = buildTextNodeIndex(container);
-
-    const annotations: OverlayAnnotation[] = [
+    overlay(source, container, [
       makeAnnotation({ id: 'ann-1', offset: 0, length: 4, exact: 'Zeus', type: 'reference' }),
-    ];
-
-    const ranges = resolveAnnotationRanges(annotations, offsetMap, textNodeIndex);
-    applyHighlights(ranges);
+    ]);
 
     // Verify annotation applied
     const span = container.querySelector('[data-annotation-id="ann-1"]');
@@ -418,15 +512,9 @@ describe('end-to-end overlay pipeline', () => {
     const source = 'The **Zeus** ruled.';
     const container = createContainer('<p>The <strong>Zeus</strong> ruled.</p>');
 
-    const offsetMap = buildSourceToRenderedMap(source, container);
-    const textNodeIndex = buildTextNodeIndex(container);
-
-    const annotations: OverlayAnnotation[] = [
+    overlay(source, container, [
       makeAnnotation({ id: 'ann-1', offset: 6, length: 4, exact: 'Zeus', type: 'highlight' }),
-    ];
-
-    const ranges = resolveAnnotationRanges(annotations, offsetMap, textNodeIndex);
-    applyHighlights(ranges);
+    ]);
 
     const span = container.querySelector('[data-annotation-id="ann-1"]');
     expect(span).not.toBeNull();
@@ -439,16 +527,10 @@ describe('end-to-end overlay pipeline', () => {
     const source = 'Zeus ruled.\n\nHera was queen.';
     const container = createContainer('<p>Zeus ruled.</p><p>Hera was queen.</p>');
 
-    const offsetMap = buildSourceToRenderedMap(source, container);
-    const textNodeIndex = buildTextNodeIndex(container);
-
-    const annotations: OverlayAnnotation[] = [
+    overlay(source, container, [
       makeAnnotation({ id: 'ann-1', offset: 0, length: 4, exact: 'Zeus', type: 'reference' }),
       makeAnnotation({ id: 'ann-2', offset: 13, length: 4, exact: 'Hera', type: 'highlight' }),
-    ];
-
-    const ranges = resolveAnnotationRanges(annotations, offsetMap, textNodeIndex);
-    applyHighlights(ranges);
+    ]);
 
     expect(container.querySelector('[data-annotation-id="ann-1"]')!.textContent).toBe('Zeus');
     expect(container.querySelector('[data-annotation-id="ann-2"]')!.textContent).toBe('Hera');
@@ -463,16 +545,10 @@ describe('end-to-end overlay pipeline', () => {
     const source = 'Zeus loved Zeus.';
     const container = createContainer('<p>Zeus loved Zeus.</p>');
 
-    const offsetMap = buildSourceToRenderedMap(source, container);
-    const textNodeIndex = buildTextNodeIndex(container);
-
-    const annotations: OverlayAnnotation[] = [
+    overlay(source, container, [
       makeAnnotation({ id: 'ann-1', offset: 0, length: 4, exact: 'Zeus', type: 'reference' }),
       makeAnnotation({ id: 'ann-2', offset: 11, length: 4, exact: 'Zeus', type: 'highlight' }),
-    ];
-
-    const ranges = resolveAnnotationRanges(annotations, offsetMap, textNodeIndex);
-    applyHighlights(ranges);
+    ]);
 
     const spans = container.querySelectorAll('[data-annotation-id]');
     expect(spans.length).toBe(2);

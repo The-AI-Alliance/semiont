@@ -12,7 +12,7 @@ import type { AnnotationsCollection } from '../../types/annotation-props';
 import {
   buildSourceToRenderedMap,
   buildTextNodeIndex,
-  resolveAnnotationRanges,
+  resolveAnnotationSpans,
   applyHighlights,
   clearHighlights,
   toOverlayAnnotations,
@@ -122,8 +122,8 @@ export const BrowseView = memo(function BrowseView({
     const container = containerRef.current;
     const offsetMap = buildSourceToRenderedMap(content, container);
     const textNodeIndex = buildTextNodeIndex(container);
-    const ranges = resolveAnnotationRanges(overlayAnnotations, offsetMap, textNodeIndex);
-    applyHighlights(ranges);
+    const spans = resolveAnnotationSpans(overlayAnnotations, offsetMap);
+    applyHighlights(spans, textNodeIndex);
 
     return () => clearHighlights(container);
   }, [content, overlayAnnotations]);
