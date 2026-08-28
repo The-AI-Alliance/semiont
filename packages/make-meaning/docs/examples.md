@@ -22,7 +22,7 @@ const { kb } = makeMeaning.knowledgeSystem;
 Write content to the content store first, then register it via `createResource` (returns the new `ResourceId`):
 
 ```typescript
-import { deriveStorageUri } from '@semiont/content';
+import { deriveStorageUri } from '@semiont/core';
 
 const uri = deriveStorageUri('my-document', 'text/markdown');
 const stored = await kb.content.store(Buffer.from('# Hello World\n\nThis is a test document.'), uri);
@@ -64,13 +64,17 @@ if (resource) {
 import { ResourceContext } from '@semiont/make-meaning';
 
 // `total` is the size of the whole match set, not of the returned page.
-const { resources, total } = await ResourceContext.listResources({
+// The third argument powers the semantic fallback for empty lexical searches:
+// the embedding provider comes from the composition root (`createEmbeddingProvider`
+// from @semiont/vectors) and the floor from `config.search.semanticFloor`.
+// `matchKind` reports whether the answer is 'lexical' or 'semantic'.
+const { resources, total, matchKind } = await ResourceContext.listResources({
   search: 'lovelace',
   entityType: 'Person',
   archived: false,
   offset: 0,
   limit: 10,
-}, kb);
+}, kb, { embeddingProvider, semanticFloor: config.search.semanticFloor, logger });
 
 const withPreviews = await ResourceContext.addContentPreviews(resources, kb);
 for (const resource of withPreviews) {
@@ -103,6 +107,7 @@ const result = await AnnotationOperations.createAnnotation(
   userId('user-123'),
   userToAgent({ id: userId('user-123'), name: 'Test User', email: 'test@example.com', domain: 'example.com' }),
   eventBus,
+  kb,  // views.get — the annotatability gate reads the target's media type
 );
 
 console.log(`Created annotation: ${result.annotation.id}`);
@@ -113,28 +118,25 @@ console.log(`Created annotation: ${result.annotation.id}`);
 ```typescript
 import { AnnotationContext } from '@semiont/make-meaning';
 
-// By motivation
-const annotationsByType = await AnnotationContext.getResourceAnnotations(resourceId, kb);
-console.log(`Highlights: ${annotationsByType.highlighting?.length || 0}`);
-console.log(`Comments: ${annotationsByType.commenting?.length || 0}`);
+// The resource's annotation projection — a flat list with a version stamp
+const projection = await AnnotationContext.getResourceAnnotations(resourceId, kb);
+console.log(`Annotations: ${projection.annotations.length} (projection v${projection.version})`);
 
-// Flat list
+// Just the annotations, with resolved references enriched
 const allAnnotations = await AnnotationContext.getAllAnnotations(resourceId, kb);
 ```
 
 ### Building LLM Context
 
+`AnnotationContext.buildLLMContext` is the Gatherer's engine; it takes the Pick-derived
+`AnnotationGatherReads` slice (its `content` capability is ResourceId-keyed, not the raw
+working tree) plus a mandatory `EmbeddingProvider`. Callers reach it through the gather
+flow — `semiont.gather.annotation(...)` in the SDK, or `gather:requested` on the bus
+(see below) — which returns an annotation-focus `GatheredContext`:
+
 ```typescript
-import { AnnotationContext } from '@semiont/make-meaning';
+const { response: context } = await semiont.gather.annotation(resourceId, annotationId);
 
-const context = await AnnotationContext.buildLLMContext(
-  annotationId,
-  resourceId,
-  kb,
-  { contextWindow: 1000 },
-);
-
-// buildLLMContext returns an annotation-focus GatheredContext
 if (context.focus.kind === 'annotation') {
   console.log(`Selected: "${context.focus.selected?.text}"`);
   console.log(`Before: "${context.focus.selected?.before}"`);
