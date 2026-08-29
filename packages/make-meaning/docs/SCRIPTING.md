@@ -61,7 +61,7 @@ async function main() {
 
   try {
     // Access components:
-    // makeMeaning.knowledgeSystem.kb                — Knowledge Base (eventStore, views, content, graph, weaver, vectors?)
+    // makeMeaning.knowledgeSystem.kb                — Knowledge Base (eventStore, views, content, anchoredText, graph, weaveProgress, smeltProgress, vectors)
     // makeMeaning.knowledgeSystem.stower            — Write gateway actor
     // makeMeaning.knowledgeSystem.browser           — Read actor (browse queries, directory listings)
     // makeMeaning.knowledgeSystem.gatherer          — Context assembly actor
@@ -92,8 +92,7 @@ Content is written to the content store first; `createResource` then registers i
 
 ```typescript
 import { ResourceOperations } from '@semiont/make-meaning';
-import { deriveStorageUri } from '@semiont/content';
-import { userId } from '@semiont/core';
+import { deriveStorageUri, userId } from '@semiont/core';
 
 const kb = makeMeaning.knowledgeSystem.kb;
 const uri = deriveStorageUri('my-document', 'text/plain');
