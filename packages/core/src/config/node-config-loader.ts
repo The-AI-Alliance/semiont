@@ -4,7 +4,7 @@ import * as path from 'path';
 import { createTomlConfigLoader } from './toml-loader.js';
 import type { EnvironmentConfig } from './config.types.js';
 
-export { SemiontProject, stateDirFor } from '../project.js';
+export { SemiontProject, SemiontState, stateDirFor } from '../project.js';
 
 const nodeTomlFileReader = {
   readIfExists: (filePath: string): string | null =>

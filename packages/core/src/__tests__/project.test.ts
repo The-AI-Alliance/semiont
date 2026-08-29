@@ -9,11 +9,46 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execFileSync } from 'child_process';
-import { SemiontProject } from '../project';
+import { SemiontProject, SemiontState } from '../project';
 
 async function makeTempDir(): Promise<string> {
   return fs.mkdtemp(join(tmpdir(), 'semiont-project-test-'));
 }
+
+describe('SemiontState — the half that needs no KB root', () => {
+  // SINGLE-KB-MOUNT P5 leaves the gateway with no readable KB root while it
+  // still legitimately needs the state paths. That is not a project with
+  // fields missing, it is a smaller thing: a KB's state tree, addressed by
+  // name. Split rather than made optional, so "needs a working tree" stays a
+  // COMPILE-time fact — passing a SemiontState where a SemiontProject is
+  // required is a type error, not a throw inside some later read.
+  const state = new SemiontState({ name: 'kb-under-test', anchoredTextDir: '/anchored-text' });
+
+  it('resolves every name-derived path with no KB root in sight', () => {
+    expect(state.name).toBe('kb-under-test');
+    expect(state.stateDir).toContain('semiont/kb-under-test');
+    expect(state.projectionsDir).toBe(join(state.stateDir, 'projections'));
+    expect(state.jobsDir).toBe(join(state.stateDir, 'jobs'));
+    expect(state.backendLogsDir).toBe(join(state.stateDir, 'backend'));
+    expect(state.backendAppLogFile).toBe(join(state.backendLogsDir, 'app.log'));
+    expect(state.backendErrorLogFile).toBe(join(state.backendLogsDir, 'error.log'));
+    expect(state.backendPidFile).toBe(join(state.runtimeDir, 'backend.pid'));
+  });
+
+  it('carries the supplied anchored-text path verbatim', () => {
+    // Still required, still no default — the guard the docstring argues for is
+    // untouched by the split. It simply lives on the smaller type now.
+    expect(state.anchoredTextDir).toBe('/anchored-text');
+  });
+
+  it('has no working-tree surface at all', () => {
+    // The point of the split: these are absent from the TYPE, so a consumer
+    // that needs them cannot be handed a SemiontState by mistake.
+    expect('root' in state).toBe(false);
+    expect('eventsDir' in state).toBe(false);
+    expect('gitSync' in state).toBe(false);
+  });
+});
 
 describe('SemiontProject', () => {
   const dirs: string[] = [];

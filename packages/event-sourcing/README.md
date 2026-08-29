@@ -44,7 +44,9 @@ import { createEventStore } from '@semiont/event-sourcing';
 import { SemiontProject } from '@semiont/core/node';
 import { EventBus, resourceId, userId, CREATION_METHODS } from '@semiont/core';
 
-const project = new SemiontProject('/path/to/project');
+const project = new SemiontProject('/path/to/project', {
+  anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR!,
+});
 const eventBus = new EventBus();
 const eventStore = createEventStore(project, eventBus, logger);
 

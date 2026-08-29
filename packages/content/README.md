@@ -26,7 +26,9 @@ The quick start example below shows direct instantiation for **testing, CLI tool
 import { WorkingTreeStore, deriveStorageUri } from '@semiont/content';
 import { SemiontProject } from '@semiont/core/node';
 
-const project = new SemiontProject('/path/to/project');
+const project = new SemiontProject('/path/to/project', {
+  anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR!,
+});
 const store = new WorkingTreeStore(project);
 
 // Derive a stable file:// URI from a resource name

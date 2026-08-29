@@ -45,7 +45,9 @@ import type { Logger } from '@semiont/core';
 
 // EventBus is created outside make-meaning — it is not encapsulated by this package
 const eventBus = new EventBus();
-const project = new SemiontProject('/path/to/project');
+const project = new SemiontProject('/path/to/project', {
+  anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR!,
+});
 
 // Start all infrastructure
 const makeMeaning = await startMakeMeaning(project, config, eventBus, logger);

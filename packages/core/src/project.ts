@@ -9,10 +9,18 @@ import { execFileSync } from 'child_process';
  * Computes all paths — durable and ephemeral — once at construction time.
  * XDG environment variables are read here and nowhere else.
  *
- * Durable paths (inside the project root, committed or repo-local):
+ * **The paths divide along what they are derived FROM, and so does the type.**
+ * Everything ephemeral is composed from the KB's NAME, so it needs no working
+ * tree and lives on `SemiontState`. Only the durable half is composed from the
+ * root. `SemiontProject extends SemiontState` — a project is its state plus a
+ * working tree — which lets a consumer that has no KB root (the gateway, after
+ * SINGLE-KB-MOUNT P5) take the smaller type and still be checked by the
+ * compiler rather than by a throw at first read.
+ *
+ * Durable paths (inside the project root, committed or repo-local) — `SemiontProject`:
  *   eventsDir — .semiont/events/  (system of record, committed)
  *
- * Ephemeral paths (outside the project root, never committed):
+ * Ephemeral paths (outside the project root, never committed) — `SemiontState`:
  *   configDir      — $XDG_CONFIG_HOME/semiont/{name}/  (generated config for managed processes)
  *   stateDir        — $XDG_STATE_HOME/semiont/{name}/
  *   projectionsDir  — stateDir/projections/
@@ -55,16 +63,37 @@ export function stateDirFor(name: string): string {
   return path.join(xdgState, 'semiont', name);
 }
 
-export class SemiontProject {
-  readonly root: string;
+/**
+ * A KB's state tree, addressed by NAME — everything that needs no working tree.
+ *
+ * This exists because a consumer appeared that genuinely needs half of
+ * `SemiontProject` and cannot supply the other half: the gateway reads
+ * `projectionsDir`, `jobsDir`, the backend log paths and `anchoredTextDir`, all
+ * of which live on the shared state and anchored-text mounts, while having no
+ * readable KB root at all (SINGLE-KB-MOUNT P5).
+ *
+ * **Split rather than made optional, deliberately.** Relaxing
+ * `SemiontProject`'s root-derived fields to optional-and-throw-on-read would
+ * have traded a compile-time guarantee for a runtime one, and bought no extra
+ * safety doing it: a getter asserts PRESENCE exactly as weakly as a constructor
+ * does — neither can tell a real path from a typo. Two types keep "needs a
+ * working tree" a fact the compiler enforces. Handing a `SemiontState` to
+ * something that reads `eventsDir` does not compile.
+ *
+ * Every field here is required. The `anchoredTextDir` guard is unchanged by the
+ * split — see its note on the constructor.
+ */
+export class SemiontState {
   readonly name: string;
 
-  /** True if [git] sync = true in .semiont/config. When true, semiont stages
-   *  working-tree and event-log changes in the git index automatically. */
-  readonly gitSync: boolean;
-
-  // Durable
-  readonly eventsDir: string;
+  /** Supplied by the caller; required, no default.
+   *
+   *  A default would let a deployment that forgot it write a full OCR pass per
+   *  representation into a directory nobody mounted, lose it on the next
+   *  `stop`, and re-derive it forever: silent, expensive, and indistinguishable
+   *  from working. Passed IN, never read from the environment here — the entry
+   *  point owns that read, exactly as it owns SEMIONT_ROOT. */
+  readonly anchoredTextDir: string;
 
   // Ephemeral — config (generated config files for managed processes)
   readonly configDir: string;
@@ -73,7 +102,6 @@ export class SemiontProject {
   readonly stateDir: string;
   readonly projectionsDir: string;
   readonly jobsDir: string;
-  readonly anchoredTextDir: string;
   readonly backendLogsDir: string;
   readonly backendAppLogFile: string;
   readonly backendErrorLogFile: string;
@@ -82,35 +110,9 @@ export class SemiontProject {
   readonly runtimeDir: string;
   readonly backendPidFile: string;
 
-  /**
-   * @param projectRoot  the KB clone this project describes
-   * @param opts.name    seed value: written to `.semiont/config` when that
-   *   file does not yet exist. It does NOT override an existing config — the
-   *   name always comes from the file, so a KB's committed identity wins over
-   *   anything a caller passes.
-   * @param opts.anchoredTextDir  where this deployment keeps the anchored-text
-   *   store. Passed IN, never read from the environment here: the entry point
-   *   owns that read, exactly as it owns SEMIONT_ROOT. Required, and with no
-   *   default — a default would let a deployment that forgot it write a full
-   *   OCR pass per representation into a directory nobody mounted, lose it on
-   *   the next `stop`, and re-derive it forever: silent, expensive, and
-   *   indistinguishable from working.
-   */
-  constructor(projectRoot: string, opts: { anchoredTextDir: string; name?: string }) {
-    const name = opts.name;
+  constructor(opts: { name: string; anchoredTextDir: string }) {
+    this.name = opts.name;
     this.anchoredTextDir = opts.anchoredTextDir;
-    this.root = projectRoot;
-    if (name !== undefined) {
-      const configPath = path.join(projectRoot, '.semiont', 'config');
-      if (!fs.existsSync(configPath)) {
-        fs.mkdirSync(path.join(projectRoot, '.semiont'), { recursive: true });
-        fs.writeFileSync(configPath, `[project]\nname = "${name}"\n`);
-      }
-    }
-    this.name = SemiontProject.readName(projectRoot);
-    this.gitSync = SemiontProject.readGitSync(projectRoot);
-
-    this.eventsDir = path.join(projectRoot, '.semiont', 'events');
 
     const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
     this.configDir = path.join(xdgConfig, 'semiont', this.name);
@@ -126,6 +128,53 @@ export class SemiontProject {
     const runtimeBase = xdgRuntime ?? process.env.TMPDIR ?? '/tmp';
     this.runtimeDir = path.join(runtimeBase, 'semiont', this.name);
     this.backendPidFile = path.join(this.runtimeDir, 'backend.pid');
+  }
+}
+
+/** A project is its state plus a working tree. */
+export class SemiontProject extends SemiontState {
+  readonly root: string;
+
+  /** True if [git] sync = true in .semiont/config. When true, semiont stages
+   *  working-tree and event-log changes in the git index automatically. */
+  readonly gitSync: boolean;
+
+  // Durable
+  readonly eventsDir: string;
+
+  /**
+   * Seed `.semiont/config` if absent, then read the name back OUT of it.
+   *
+   * The order is the point, and it is why this is a static rather than inline
+   * in the constructor: `super()` needs the resolved name, and the resolved
+   * name is whatever the file says — a seed only applies when no file exists,
+   * so a KB's committed identity always wins over anything a caller passes.
+   */
+  private static seedAndReadName(projectRoot: string, seed?: string): string {
+    if (seed !== undefined) {
+      const configPath = path.join(projectRoot, '.semiont', 'config');
+      if (!fs.existsSync(configPath)) {
+        fs.mkdirSync(path.join(projectRoot, '.semiont'), { recursive: true });
+        fs.writeFileSync(configPath, `[project]\nname = "${seed}"\n`);
+      }
+    }
+    return SemiontProject.readName(projectRoot);
+  }
+
+  /**
+   * @param projectRoot  the KB clone this project describes
+   * @param opts.name    seed value — see `seedAndReadName`.
+   * @param opts.anchoredTextDir  see `SemiontState.anchoredTextDir`; required
+   *   here for the same reason and with the same absence of a default.
+   */
+  constructor(projectRoot: string, opts: { anchoredTextDir: string; name?: string }) {
+    super({
+      name: SemiontProject.seedAndReadName(projectRoot, opts.name),
+      anchoredTextDir: opts.anchoredTextDir,
+    });
+    this.root = projectRoot;
+    this.gitSync = SemiontProject.readGitSync(projectRoot);
+    this.eventsDir = path.join(projectRoot, '.semiont', 'events');
   }
 
   /**
