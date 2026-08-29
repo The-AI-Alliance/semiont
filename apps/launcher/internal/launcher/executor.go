@@ -288,6 +288,26 @@ func patchArchivistTopology(cfg []byte, envName, addr string) []byte {
 	return append(cfg, []byte(stanza)...)
 }
 
+// patchKBName appends a top-level [kb] — the KB's committed name — to a
+// staged LIBRARIAN config (SINGLE-KB-MOUNT D4). The Librarian mounts no piece
+// of the KB tree, and this one committed fact is how it locates the views the
+// Archivist materializes under the shared state mount. Top-level deliberately:
+// an environment section cannot override what sits beside [defaults]. A
+// hand-written [kb] wins — the escape hatch for an operator whose state tree
+// lives under a name the current root would not derive. Invalid TOML passes
+// through untouched; the consumer's own loader owns that error.
+func patchKBName(cfg []byte, name string) []byte {
+	var doc map[string]any
+	if err := toml.Unmarshal(cfg, &doc); err != nil {
+		return cfg
+	}
+	if _, has := doc["kb"]; has {
+		return cfg
+	}
+	stanza := fmt.Sprintf("\n# Staged by the launcher: this KB's committed identity (SINGLE-KB-MOUNT D4).\n[kb]\nname = %q\n", name)
+	return append(cfg, []byte(stanza)...)
+}
+
 func (x *liveExec) stageAll(configFile, envName, addr string) (string, bool) {
 	stage, ok := x.stageDir()
 	if !ok {
@@ -302,6 +322,9 @@ func (x *liveExec) stageAll(configFile, envName, addr string) (string, bool) {
 		out := cfg
 		if svc == "backend" {
 			out = patchArchivistTopology(cfg, envName, addr)
+		}
+		if svc == "librarian" {
+			out = patchKBName(cfg, effectiveKBName(x.root))
 		}
 		if err := os.WriteFile(filepath.Join(stage, svc+".toml"), out, 0o644); err != nil {
 			x.u.fail("Staging config for %s: %v", svc, err)
@@ -323,6 +346,9 @@ func (x *liveExec) stageOne(svc, configFile, envName, addr string) (string, bool
 	}
 	if svc == "backend" {
 		cfg = patchArchivistTopology(cfg, envName, addr)
+	}
+	if svc == "librarian" {
+		cfg = patchKBName(cfg, effectiveKBName(x.root))
 	}
 	if err := os.WriteFile(filepath.Join(stage, svc+".toml"), cfg, 0o644); err != nil {
 		x.u.fail("Staging config for %s: %v", svc, err)

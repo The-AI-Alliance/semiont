@@ -565,11 +565,7 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage, secret string, otel []st
 	if !ok {
 		return 1
 	}
-	anchored, ok := x.stateMountsShared("anchored-text", fc.root)
-	if !ok {
-		return 1
-	}
-	args := librarianArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, fc.version, fc.userEnv, otel, append(state, anchored...)...)
+	args := librarianArgs(stage, addr, secret, fc.version, fc.userEnv, otel, state...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Librarian failed to start.")

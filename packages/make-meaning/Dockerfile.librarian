@@ -47,19 +47,14 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
 COPY LICENSE /home/semiont/LICENSE
 COPY packages/make-meaning/NOTICE.librarian /home/semiont/NOTICE
 
-WORKDIR /kb
-RUN chown semiont:nodejs /kb
+WORKDIR /home/semiont
 USER semiont
 
 ENV NODE_ENV=production
-# The container-side paths are constants of the image, declared here the way
-# the backend and archivist images declare them: the launcher mounts host dirs
-# AT these targets and passes no path env. The Librarian reads the KB root for
-# config only, and views from the shared stateDir mount (D6); anchored-text is
-# required by SemiontProject's constructor and read once the Gatherer joins
-# (EXTRACT-LIBRARIAN P3).
-ENV SEMIONT_ROOT=/kb
-ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
+# No SEMIONT_ROOT and no SEMIONT_ANCHORED_TEXT_DIR — this image mounts no
+# piece of the KB tree (SINGLE-KB-MOUNT P1). The Librarian locates the views
+# it reads from the staged `[kb] name` under the shared state mount, and
+# everything else reaches it over the wire.
 EXPOSE 9094
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \

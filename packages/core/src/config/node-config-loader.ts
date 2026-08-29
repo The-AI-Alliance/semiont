@@ -4,7 +4,7 @@ import * as path from 'path';
 import { createTomlConfigLoader } from './toml-loader.js';
 import type { EnvironmentConfig } from './config.types.js';
 
-export { SemiontProject } from '../project.js';
+export { SemiontProject, stateDirFor } from '../project.js';
 
 const nodeTomlFileReader = {
   readIfExists: (filePath: string): string | null =>
@@ -24,7 +24,7 @@ const nodeTomlFileReader = {
  * same way the launcher selects it. There is no environment-variable override.
  */
 export function loadEnvironmentConfig(
-  projectRoot: string,
+  projectRoot: string | null,
   environment?: string
 ): EnvironmentConfig {
   const globalConfigPath = path.join(os.homedir(), '.semiontconfig');

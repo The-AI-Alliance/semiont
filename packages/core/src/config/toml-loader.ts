@@ -102,6 +102,14 @@ interface SemiontConfigFile {
     environment?: string;
     platform?: string;
   };
+  // The KB's committed identity, staged by the launcher (SINGLE-KB-MOUNT D4).
+  // Top-level DELIBERATELY: [site] lives inside environment sections, where an
+  // override can report an identity the KB never declared; [kb] sits beside
+  // [defaults] in the file root, out of any environment section's reach.
+  kb?: {
+    name?: string;
+    domain?: string;
+  };
   environments?: Record<string, EnvironmentSection>;
 }
 
@@ -548,6 +556,11 @@ export function loadTomlConfig(
 
   const config: EnvironmentConfig = {
     services,
+    // From the GLOBAL file's root only — an [environments.X.kb] section is
+    // inert by construction, which is what "not overridable" means here.
+    ...(raw.kb?.name
+      ? { kb: { name: raw.kb.name, ...(raw.kb.domain ? { domain: raw.kb.domain } : {}) } }
+      : {}),
     ...(inferenceProviders ? { inference: inferenceProviders } : {}),
     ...(Object.keys(topLevelWorkers).length > 0 ? { workers: topLevelWorkers } : {}),
     ...(Object.keys(topLevelActors).length > 0 ? { actors: topLevelActors } : {}),

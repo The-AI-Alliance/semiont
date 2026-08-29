@@ -50,3 +50,32 @@ func TestPatchArchivistTopologyOtherEnvSectionDoesNotBlock(t *testing.T) {
 		t.Fatalf("section for a different env suppressed the local append:\n%s", out)
 	}
 }
+
+// SINGLE-KB-MOUNT D4: the Librarian has no /kb mount, so the launcher stages
+// the KB's committed name under a TOP-LEVEL [kb] — beside [defaults], out of
+// any environment section's reach, which is what "not overridable" means.
+func TestPatchKBNameAppends(t *testing.T) {
+	out := patchKBName([]byte(stagingFixture), "example-kb")
+	var doc map[string]any
+	if err := toml.Unmarshal(out, &doc); err != nil {
+		t.Fatalf("patched config is not valid TOML: %v\n%s", err, out)
+	}
+	kb, ok := doc["kb"].(map[string]any)
+	if !ok {
+		t.Fatalf("no [kb] in patched config:\n%s", out)
+	}
+	if got := kb["name"]; got != "example-kb" {
+		t.Fatalf("name = %v, want the committed KB name", got)
+	}
+}
+
+func TestPatchKBNameRespectsHandWrittenSection(t *testing.T) {
+	// The escape hatch: an operator who moved a KB directory but keeps its
+	// state tree under the old name pins [kb] by hand and the launcher
+	// defers, same stance as patchArchivistTopology.
+	handWritten := "[kb]\nname = \"pinned-elsewhere\"\n\n" + stagingFixture
+	out := patchKBName([]byte(handWritten), "example-kb")
+	if string(out) != handWritten {
+		t.Fatalf("a hand-written [kb] section must pass through untouched")
+	}
+}

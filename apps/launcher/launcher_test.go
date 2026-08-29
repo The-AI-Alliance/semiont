@@ -660,13 +660,13 @@ func TestBackendDataPersistsAcrossStarts(t *testing.T) {
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("second start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	// THREE mounts per boot: the backend (stamp owner), the Archivist and
-	// the Librarian (shared readers) all mount the store. The invariant
-	// under test is unchanged — the mount survives across starts — the
-	// multiplier is just fleet size.
+	// TWO mounts per boot: the backend (stamp owner) and the Archivist
+	// (shared reader). The Librarian mounts nothing of the KB's stores
+	// since SINGLE-KB-MOUNT P1. The invariant under test is unchanged —
+	// the mount survives across starts — the multiplier is just fleet size.
 	mount := dir + "/anchored-text:/anchored-text"
-	if got := strings.Count(string(s.mustLog(t)), mount); got != 6 {
-		t.Errorf("anchored-text mount should appear thrice in both boots (want 6, got %d)", got)
+	if got := strings.Count(string(s.mustLog(t)), mount); got != 4 {
+		t.Errorf("anchored-text mount should appear twice in both boots (want 4, got %d)", got)
 	}
 }
 
@@ -4363,9 +4363,11 @@ func TestStartServiceBrowserNoClone(t *testing.T) {
 	}
 }
 
-// The Librarian restart path — the argv IS the contract: /kb read-only, the
-// shared state + anchored-text mounts, librarian.toml, 9094, and neither
-// JWT_SECRET (it signs nothing) nor LIBRARIAN_HOST (nothing dials it).
+// The Librarian restart path — the argv IS the contract: NO piece of the KB
+// tree (SINGLE-KB-MOUNT P1), just the shared state mount, librarian.toml,
+// 9094, and neither JWT_SECRET (it signs nothing) nor LIBRARIAN_HOST
+// (nothing dials it). The staged config carries the committed [kb] name —
+// the one fact the Librarian needs to find the Archivist's views.
 func TestStartServiceLibrarian(t *testing.T) {
 	s := newScenario(t, "container")
 	stdout, stderr, code := s.run(t, "start", "--service", "librarian")
@@ -4377,16 +4379,28 @@ func TestStartServiceLibrarian(t *testing.T) {
 	mustContain(t, "argv", log,
 		"--name semiont-librarian",
 		"--publish 9094:9094",
-		":/kb:ro",
 		"librarian.toml:/home/semiont/.semiontconfig:ro",
 		"state:/semiont-state",
-		"anchored-text:/anchored-text",
 		"--env SEMIONT_WORKER_SECRET=")
-	for _, banned := range []string{"JWT_SECRET", "LIBRARIAN_HOST"} {
+	for _, banned := range []string{"JWT_SECRET", "LIBRARIAN_HOST", ":/kb", "anchored-text:"} {
 		if strings.Contains(log, banned) {
 			t.Errorf("the Librarian must not receive %s:\n%s", banned, log)
 		}
 	}
+	// The staging wiring, asserted end to end: pull the stage dir back out of
+	// the argv and read the file the container would. Boot refuses without
+	// [kb] name, so a miss here is a librarian that never starts live.
+	m := regexp.MustCompile(`--volume (\S+)/librarian\.toml:`).FindStringSubmatch(log)
+	if m == nil {
+		t.Fatalf("no staged librarian.toml in argv:\n%s", log)
+	}
+	staged, err := os.ReadFile(filepath.Join(m[1], "librarian.toml"))
+	if err != nil {
+		t.Fatalf("reading staged librarian.toml: %v", err)
+	}
+	mustContain(t, "staged librarian.toml", string(staged),
+		"[kb]",
+		`name = "Test Knowledge Base"`)
 }
 
 // The Archivist restart path: teardown + port settle + staged config + run +

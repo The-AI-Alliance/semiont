@@ -34,11 +34,14 @@
  * (nothing dials the Librarian — it dials the gateway), and no view
  * rebuild EVER (the Archivist is the one rebuild owner).
  *
+ * No KB mount (SINGLE-KB-MOUNT P1): this process never touches the KB tree.
+ * The one committed fact it needs — the KB name, to find the views the
+ * Archivist materializes under the shared state mount — arrives as
+ * `[kb] name` in the staged config (D4), and boot refuses without it.
+ *
  * Environment variables:
- *   SEMIONT_ROOT              — project root (the KB directory). Required.
- *   SEMIONT_ANCHORED_TEXT_DIR — anchored-text store dir. Required by
- *                               SemiontProject (deliberately no default).
  *   SEMIONT_WORKER_SECRET     — shared secret for agent auth to the gateway.
+ *   XDG_STATE_HOME            — the shared state mount the views live under.
  */
 
 import { BehaviorSubject, Subscription } from 'rxjs';
@@ -55,7 +58,7 @@ import {
   type AccessToken,
   type EventMap,
 } from '@semiont/core';
-import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
+import { loadEnvironmentConfig, stateDirFor } from '@semiont/core/node';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { getGraphDatabase } from '@semiont/graph';
 import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
@@ -66,22 +69,14 @@ import { createWeaveProgress } from './weave-progress';
 import { createSmeltProgress } from './smelt-progress';
 import { registerGatherSummaryHandler } from './handlers/annotation-lookups';
 import { assertMakeMeaningConfig } from './service';
-import { makeMeaningConfigFrom, resolveActorInference } from './config';
+import { makeMeaningConfigFrom, requireKBName, resolveActorInference } from './config';
 
 // ── Config ───────────────────────────────────────────────────────────
 
-const maybeRoot = process.env.SEMIONT_ROOT;
-if (!maybeRoot) {
-  throw new Error('SEMIONT_ROOT environment variable is not set');
-}
-const projectRoot: string = maybeRoot;
-const maybeAnchoredTextDir = process.env.SEMIONT_ANCHORED_TEXT_DIR;
-if (!maybeAnchoredTextDir) {
-  throw new Error('SEMIONT_ANCHORED_TEXT_DIR environment variable is not set');
-}
-const anchoredTextDir: string = maybeAnchoredTextDir;
-
-const envConfig = loadEnvironmentConfig(projectRoot);
+// No project root: this process has no KB mount, so everything it needs
+// rides the staged config (~/.semiontconfig in the container).
+const envConfig = loadEnvironmentConfig(null);
+const kbName = requireKBName(envConfig);
 const backendPublicURL = envConfig.services?.backend?.publicURL;
 if (!backendPublicURL) {
   throw new Error('services.backend.publicURL is required in environment config');
@@ -217,12 +212,15 @@ async function main() {
   }, 12 * 60 * 60 * 1000);
 
   // ── The stores: reads only, nothing owned ──────────────────────────
-  const project = new SemiontProject(projectRoot, { anchoredTextDir });
   const localBus = new EventBus();
 
-  // The one filesystem read: views from the shared stateDir (D6). The
+  // The one filesystem read: views from the shared stateDir (D6), located
+  // by the staged KB name alone — no SemiontProject, no KB root. The
   // Archivist materializes them; this process NEVER rebuilds.
-  const views = new FilesystemViewStorage(project, logger.child({ component: 'view-storage' }));
+  const views = new FilesystemViewStorage(
+    { stateDir: stateDirFor(kbName) },
+    logger.child({ component: 'view-storage' }),
+  );
 
   logger.info('Connecting to graph database', { type: graphConfig.type });
   const graphDb = await getGraphDatabase(graphConfig);

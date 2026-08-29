@@ -44,6 +44,17 @@ import { execFileSync } from 'child_process';
  * from its own container image and keeps no per-project state on the host, so
  * there is nothing to derive from a project root.
  */
+/**
+ * The one composition of a project's state-tree root from its name. The
+ * Librarian resolves this WITHOUT a SemiontProject — it has no KB root to
+ * construct one from (SINGLE-KB-MOUNT P1) — so the join lives here, beside
+ * the constructor that also uses it, rather than being restated over there.
+ */
+export function stateDirFor(name: string): string {
+  const xdgState = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
+  return path.join(xdgState, 'semiont', name);
+}
+
 export class SemiontProject {
   readonly root: string;
   readonly name: string;
@@ -104,8 +115,7 @@ export class SemiontProject {
     const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
     this.configDir = path.join(xdgConfig, 'semiont', this.name);
 
-    const xdgState = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
-    this.stateDir = path.join(xdgState, 'semiont', this.name);
+    this.stateDir = stateDirFor(this.name);
     this.projectionsDir = path.join(this.stateDir, 'projections');
     this.jobsDir = path.join(this.stateDir, 'jobs');
     this.backendLogsDir = path.join(this.stateDir, 'backend');

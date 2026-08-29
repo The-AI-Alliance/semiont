@@ -10,7 +10,6 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getShardPath } from '@semiont/core';
-import type { SemiontProject } from '@semiont/core/node';
 import type { ResourceAnnotations, ResourceDescriptor, ResourceId, Logger } from '@semiont/core';
 
 // Complete state for a resource in materialized view (metadata + annotations)
@@ -38,7 +37,11 @@ export class FilesystemViewStorage implements ViewStorage {
   private basePath: string;
   private logger?: Logger;
 
-  constructor(project: SemiontProject, logger?: Logger) {
+  // Takes only the state root it reads under — not a full SemiontProject.
+  // The Librarian resolves this from the staged `[kb] name` with no KB mount
+  // (SINGLE-KB-MOUNT P1); in-process callers pass their SemiontProject, which
+  // satisfies the slice structurally.
+  constructor(project: { stateDir: string }, logger?: Logger) {
     this.logger = logger;
     this.basePath = project.stateDir;
   }

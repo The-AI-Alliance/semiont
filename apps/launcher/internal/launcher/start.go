@@ -789,21 +789,19 @@ func archivistArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []
 	return append(a, image("archivist", version))
 }
 
-// librarianArgs: the Librarian (Matcher — search and match) reads
-// everything and writes nothing durable, and its mounts say so: /kb
-// READ-ONLY (it is not the git writer; the clone invariant does not apply),
-// the shared state tree for views (D6 reader), the shared anchored-text dir
-// (unread until its P3, but the image declares the path and SemiontProject
-// requires it). Env is the eager-interpolation set — the ${VAR}s a
+// librarianArgs: the Librarian (Matcher — search and match) reads everything
+// and writes nothing durable, and its mounts say so: NO piece of the KB tree
+// (SINGLE-KB-MOUNT P1 — it locates the Archivist's views from the staged
+// [kb] name, see patchKBName), just the shared state tree (D6 reader) and
+// its staged config. Env is the eager-interpolation set — the ${VAR}s a
 // committed KB config may reference, same as the other sidecars. NOT
-// ARCHIVIST_HOST: no config interpolates that var (the archivist address
-// is a literal patchArchivistTopology stages into backend.toml only). NO
+// ARCHIVIST_HOST: no config interpolates that var (the archivist address is
+// a literal patchArchivistTopology stages into backend.toml only). NO
 // JWT_SECRET, and no LIBRARIAN_HOST exists anywhere: nothing dials this
 // service; it dials the gateway.
-func librarianArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []string, state ...string) []string {
+func librarianArgs(stage, addr, secret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
 		"--memory", roles["librarian"].mem, "--publish", "9094:9094",
-		"--volume", kbRoot + ":" + kbMountTarget + ":ro",
 		"--volume", stage + "/librarian.toml:/home/semiont/.semiontconfig:ro"}
 	a = append(a, state...)
 	a = append(a, userEnv...)

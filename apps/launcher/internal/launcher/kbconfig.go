@@ -41,6 +41,19 @@ func loadKBIdentity(root string) *kbIdentity {
 	return parseKBIdentity(b)
 }
 
+// effectiveKBName is the name a container's own reader would compute for
+// this root: the committed [project] name when declared, else the directory
+// basename — the same fallback SemiontProject.readName (packages/core/src/
+// project.ts) applies. The staged [kb] name (SINGLE-KB-MOUNT D4) MUST agree
+// with the name the Archivist derives from its /kb mount, or the Librarian
+// composes a state path nobody writes to and reads an empty view store.
+func effectiveKBName(root string) string {
+	if id := loadKBIdentity(root); id != nil && id.Name != "" {
+		return id.Name
+	}
+	return filepath.Base(root)
+}
+
 // parseKBIdentity is the same read with the file already in hand — the
 // codespace path gets these bytes over ssh rather than off this disk, and
 // must interpret them identically.
