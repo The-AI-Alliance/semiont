@@ -20,8 +20,11 @@
  *   {projectRoot}/docs/overview.md
  */
 
-import { promises as fs } from 'fs';
+import { promises as fs, createWriteStream } from 'fs';
 import { execFileSync } from 'child_process';
+import { createHash, randomUUID } from 'crypto';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import path from 'path';
 import type { SemiontProject } from '@semiont/core/node';
 import type { Logger } from '@semiont/core';
@@ -58,33 +61,73 @@ export class WorkingTreeStore {
   /**
    * Write content to disk at the location indicated by storageUri.
    *
-   * API/GUI/AI path: caller provides bytes; file may not yet exist.
+   * API/GUI/AI path: caller provides bytes — as a Buffer it already holds, or
+   * as a stream (the Archivist's write endpoint hands the request body
+   * straight through, SINGLE-KB-MOUNT P2/D7: memory stays bounded by the
+   * chunk, never the representation).
    *
-   * @param content - Raw bytes to write
+   * Atomic either way: bytes stream into a temp file beside the target and
+   * are renamed into place only once complete — and only once
+   * `expectedChecksum`, when given, agrees with what actually arrived. A
+   * mismatch or a torn stream leaves the target untouched (a version being
+   * overwritten survives) and no temp file behind, so the Stower's `register`
+   * can never find partial bytes an event names.
+   *
+   * @param content - Raw bytes to write, whole or streamed
    * @param storageUri - file:// URI (e.g. "file://docs/overview.md")
+   * @throws ChecksumMismatchError when expectedChecksum disagrees with the body
    * @returns Stored resource metadata
    */
-  async store(content: Buffer, storageUri: string, options?: { noGit?: boolean }): Promise<StoredResource> {
+  async store(
+    content: Buffer | Readable,
+    storageUri: string,
+    options?: { noGit?: boolean; expectedChecksum?: string },
+  ): Promise<StoredResource> {
     const filePath = this.resolveUri(storageUri);
-    const checksum = calculateChecksum(content);
+    const source = Buffer.isBuffer(content) ? Readable.from([content]) : content;
 
-    this.logger?.debug('Storing resource', { storageUri, byteSize: content.length });
+    this.logger?.debug('Storing resource', { storageUri });
 
     await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, content);
+    const tempPath = `${filePath}.${randomUUID()}.tmp`;
+    const hash = createHash('sha256');
+    let byteSize = 0;
 
-    if (this.shouldRunGit(options?.noGit)) {
-      execFileSync('git', ['add', filePath], { cwd: this.projectRoot });
+    try {
+      await pipeline(
+        source,
+        async function* (chunks: AsyncIterable<Buffer>) {
+          for await (const chunk of chunks) {
+            hash.update(chunk);
+            byteSize += chunk.length;
+            yield chunk;
+          }
+        },
+        createWriteStream(tempPath),
+      );
+
+      const checksum = hash.digest('hex');
+      if (options?.expectedChecksum !== undefined && options.expectedChecksum !== checksum) {
+        throw new ChecksumMismatchError(storageUri, options.expectedChecksum, checksum);
+      }
+      await fs.rename(tempPath, filePath);
+
+      if (this.shouldRunGit(options?.noGit)) {
+        execFileSync('git', ['add', filePath], { cwd: this.projectRoot });
+      }
+
+      this.logger?.info('Resource stored', { storageUri, checksum, byteSize });
+
+      return {
+        storageUri,
+        checksum,
+        byteSize,
+        created: new Date().toISOString(),
+      };
+    } catch (error) {
+      await fs.rm(tempPath, { force: true });
+      throw error;
     }
-
-    this.logger?.info('Resource stored', { storageUri, checksum, byteSize: content.length });
-
-    return {
-      storageUri,
-      checksum,
-      byteSize: content.length,
-      created: new Date().toISOString(),
-    };
   }
 
   /**

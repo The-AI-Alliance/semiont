@@ -362,9 +362,10 @@ async function main() {
 
   logger.info('Bus pumps attached', { inbound: INBOUND_CHANNELS.length, outbound: outbound.length, facts: PERSISTED_EVENT_TYPES.length });
 
-  // ── Health + the D1 read path ──────────────────────────────────────
+  // ── The HTTP surface: health, the D1 read path, the content write path ──
   const server = createArchivistServer({
     events: eventStore.log,
+    content,
     workerSecret,
     health: () => ({
       status: 'ok',
@@ -373,7 +374,7 @@ async function main() {
     logger,
   });
   server.listen(healthPort, () => {
-    logger.info('Archivist HTTP surface ready', { port: healthPort, paths: ['/health', '/events/:resourceId'] });
+    logger.info('Archivist HTTP surface ready', { port: healthPort, paths: ['/health', '/events/:resourceId', '/content/:storageUri'] });
   });
 
   const shutdown = () => {

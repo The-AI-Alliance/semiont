@@ -5,9 +5,13 @@
  *   parameters survive validation ("text/plain; charset=iso-8859-1" is
  *   admitted and stored verbatim).
  * - storageUri is required: the client names the content's location and the
- *   server stores the bytes there verbatim — it does not derive a path.
+ *   bytes are stored there verbatim — the server does not derive a path.
  *   Omitting storageUri is a 400 (the typed PutBinaryRequest.storageUri is
  *   required, and every client supplies one).
+ *
+ * The write itself goes to the Archivist over HTTP (SINGLE-KB-MOUNT P2), so
+ * `putContent` is what these tests stub — the same boundary the local
+ * `kb.content.store` mock used to stand at, one seam further out.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -18,6 +22,7 @@ import type { EventBus as EventBusType } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
 import { registerCreateResource } from '../../routes/resources/routes/create';
 import type { ResourcesRouterType } from '../../routes/resources/shared';
+import { putContent, type ArchivistAddressConfig } from '../../lib/archivist';
 
 vi.mock('@semiont/make-meaning', () => ({
   ResourceOperations: {
@@ -25,13 +30,28 @@ vi.mock('@semiont/make-meaning', () => ({
   },
 }));
 
-type Variables = { user: User; principalDid: string; eventBus: EventBusType; makeMeaning: unknown };
-
-const storeMock = vi.fn(async (_content: Buffer, uri: string) => ({
-  checksum: 'sha256:test',
-  byteSize: 2,
-  storageUri: uri,
+vi.mock('../../lib/archivist', () => ({
+  putContent: vi.fn(async (_config: unknown, storageUri: string) => ({
+    storageUri,
+    checksum: 'sha256:test',
+    byteSize: 2,
+    created: '2026-08-29T00:00:00.000Z',
+  })),
 }));
+
+// `makeMeaning` is deliberately absent: the create route no longer touches it
+// at all now that the bytes leave over HTTP. `config` is typed as the slice
+// the route actually forwards rather than the whole EnvironmentConfig — a
+// full one here would be noise, and asserting a fake into the wide type
+// would hide a real mismatch instead of catching it.
+type Variables = {
+  user: User;
+  principalDid: string;
+  eventBus: EventBusType;
+  config: ArchivistAddressConfig;
+};
+
+const putContentMock = vi.mocked(putContent);
 
 function fakeUser(): User {
   return {
@@ -51,7 +71,7 @@ app.use('*', async (c, next) => {
   c.set('user', fakeUser());
   c.set('principalDid', 'did:web:test.local:users:test%40test.local');
   c.set('eventBus', new EventBus());
-  c.set('makeMeaning', { knowledgeSystem: { kb: { content: { store: storeMock } } } });
+  c.set('config', { services: { archivist: { host: 'archivist.test', port: 9093 } } });
   await next();
 });
 registerCreateResource(app as unknown as ResourcesRouterType);
@@ -81,7 +101,7 @@ describe('POST /resources validation', () => {
 
     expect(res.status).toBe(400);
     expect(await res.text()).toContain('storageUri');
-    expect(storeMock).not.toHaveBeenCalled();
+    expect(putContentMock).not.toHaveBeenCalled();
     expect(ResourceOperations.createResource).not.toHaveBeenCalled();
   });
 
@@ -90,7 +110,7 @@ describe('POST /resources validation', () => {
 
     expect(res.status).toBe(400);
     expect(await res.text()).toContain('application/x-not-a-thing');
-    expect(storeMock).not.toHaveBeenCalled();
+    expect(putContentMock).not.toHaveBeenCalled();
     expect(ResourceOperations.createResource).not.toHaveBeenCalled();
   });
 
@@ -99,8 +119,10 @@ describe('POST /resources validation', () => {
 
     expect(res.status).toBe(202);
     expect(await res.json()).toEqual({ resourceId: 'res-created-1' });
-    expect(storeMock).toHaveBeenCalledTimes(1);
-    expect(storeMock.mock.calls[0]![1]).toBe('file://chosen/path.md');
+    expect(putContentMock).toHaveBeenCalledTimes(1);
+    // putContent(config, storageUri, body) — the URI is still argument 1, as
+    // it was for the store(content, uri) call this replaced.
+    expect(putContentMock.mock.calls[0]![1]).toBe('file://chosen/path.md');
     expect(ResourceOperations.createResource).toHaveBeenCalledWith(
       expect.objectContaining({ storageUri: 'file://chosen/path.md' }),
       expect.anything(),

@@ -2,15 +2,28 @@
 import { Hono } from 'hono';
 import { User } from '@prisma/client';
 import { authMiddleware } from '../../middleware/auth';
-import type { EventBus } from '@semiont/core';
+import type { EnvironmentConfig, EventBus } from '@semiont/core';
 import type { startMakeMeaningGateway } from '@semiont/make-meaning';
 
+// The context these routes read. `config` and `eventBus` are set by the
+// global middleware in index.ts; the rest by authMiddleware below.
+// Named once — the router type and the constructor below both refer to it,
+// rather than restating it and drifting.
+type ResourceVariables = {
+  user: User;
+  principalDid: string;
+  agentDid?: string;
+  eventBus: EventBus;
+  config: EnvironmentConfig;
+  makeMeaning: Awaited<ReturnType<typeof startMakeMeaningGateway>>;
+};
+
 // Shared router type
-export type ResourcesRouterType = Hono<{ Variables: { user: User; principalDid: string; agentDid?: string; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaningGateway>> } }>;
+export type ResourcesRouterType = Hono<{ Variables: ResourceVariables }>;
 
 // Create a router with auth middleware pre-applied
 export function createResourceRouter(): ResourcesRouterType {
-  const router = new Hono<{ Variables: { user: User; principalDid: string; agentDid?: string; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaningGateway>> } }>();
+  const router = new Hono<{ Variables: ResourceVariables }>();
   router.use('/api/resources/*', authMiddleware);
   router.use('/api/clone-tokens/*', authMiddleware);
   router.use('/resources/*', authMiddleware); // W3C URI endpoints also require auth

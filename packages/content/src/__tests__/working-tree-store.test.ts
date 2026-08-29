@@ -10,6 +10,7 @@ import { promises as fs } from 'fs';
 import { execFileSync } from 'child_process';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { Readable } from 'stream';
 import { SemiontProject } from '@semiont/core/node';
 import { WorkingTreeStore, ChecksumMismatchError } from '../working-tree-store';
 import { calculateChecksum } from '../checksum';
@@ -94,6 +95,84 @@ describe('WorkingTreeStore', () => {
       expect(stored.checksum).toBe(calculateChecksum(Buffer.from('second')));
       const onDisk = await fs.readFile(join(root, 'overwrite.txt'), 'utf-8');
       expect(onDisk).toBe('second');
+    });
+  });
+
+  /**
+   * SINGLE-KB-MOUNT P2: the Archivist's write endpoint hands `store` the
+   * request stream itself, so the store must be memory-bounded (never the
+   * whole body in one Buffer) and atomic (a failed or mismatched write leaves
+   * the target — including a previous version being overwritten — untouched).
+   */
+  describe('store from a stream', () => {
+    it('streams a Readable to disk and returns the same metadata a Buffer would', async () => {
+      const chunks = ['stream ', 'me ', 'in ', 'pieces'];
+      const whole = Buffer.from(chunks.join(''));
+
+      const stored = await store.store(Readable.from(chunks.map((c) => Buffer.from(c))), 'file://streamed.txt');
+
+      expect(stored.checksum).toBe(calculateChecksum(whole));
+      expect(stored.byteSize).toBe(whole.length);
+      const onDisk = await fs.readFile(join(root, 'streamed.txt'));
+      expect(onDisk.equals(whole)).toBe(true);
+    });
+
+    it('rejects a disagreeing expectedChecksum with nothing at the target', async () => {
+      const error = await store
+        .store(Readable.from([Buffer.from('actual bytes')]), 'file://never-lands.txt', {
+          expectedChecksum: calculateChecksum('what the caller thought it sent'),
+        })
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(ChecksumMismatchError);
+      await expect(fs.access(join(root, 'never-lands.txt'))).rejects.toThrow();
+    });
+
+    it('a mismatched overwrite leaves the previous version intact', async () => {
+      // The property buffering never had: the old bytes must survive a failed
+      // replacement, because the store writes beside the target and renames
+      // only after the checksum agrees.
+      await store.store(Buffer.from('the good version'), 'file://precious.txt');
+
+      const error = await store
+        .store(Readable.from([Buffer.from('corrupted replacement')]), 'file://precious.txt', {
+          expectedChecksum: calculateChecksum('the intended replacement'),
+        })
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(ChecksumMismatchError);
+      const onDisk = await fs.readFile(join(root, 'precious.txt'), 'utf-8');
+      expect(onDisk).toBe('the good version');
+    });
+
+    it('accepts a matching expectedChecksum, from either input shape', async () => {
+      const content = Buffer.from('verified stream');
+      const checksum = calculateChecksum(content);
+
+      const fromStream = await store.store(Readable.from([content]), 'file://verified-stream.txt', {
+        expectedChecksum: checksum,
+      });
+      const fromBuffer = await store.store(content, 'file://verified-buffer.txt', {
+        expectedChecksum: checksum,
+      });
+
+      expect(fromStream.checksum).toBe(checksum);
+      expect(fromBuffer.checksum).toBe(checksum);
+    });
+
+    it('a source that errors mid-flight leaves nothing at the target and no temp litter', async () => {
+      async function* failing(): AsyncGenerator<Buffer> {
+        yield Buffer.from('the first chunk arrives fine');
+        throw new Error('connection reset');
+      }
+
+      await expect(store.store(Readable.from(failing()), 'file://torn/half.txt')).rejects.toThrow('connection reset');
+
+      await expect(fs.access(join(root, 'torn', 'half.txt'))).rejects.toThrow();
+      // The temp file must not survive either — a directory of orphaned
+      // partials is the Stower's register finding files no event names.
+      const leftovers = await fs.readdir(join(root, 'torn')).catch(() => []);
+      expect(leftovers).toEqual([]);
     });
   });
 

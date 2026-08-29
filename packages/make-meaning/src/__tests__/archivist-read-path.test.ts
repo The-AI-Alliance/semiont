@@ -14,8 +14,11 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { AddressInfo } from 'net';
+import { promises as fs } from 'fs';
+import * as path from 'path';
 import { EventBus, resourceId, userId, type Logger, type ResourceId, type StoredEvent } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
+import { WorkingTreeStore, calculateChecksum, type StoredResource } from '@semiont/content';
 import { createArchivistServer } from '../archivist-read-path';
 import { createTestProject, type TestProject } from './helpers/test-project';
 
@@ -62,6 +65,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
 
     const server = createArchivistServer({
       events: eventStore.log,
+      content: new WorkingTreeStore(tp.project, mockLogger),
       workerSecret: SECRET,
       health: () => ({ status: 'ok' }),
       logger: mockLogger,
@@ -117,5 +121,90 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
     const res = await fetch(`${baseUrl}/health`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: 'ok' });
+  });
+
+  /**
+   * SINGLE-KB-MOUNT P2 — the Archivist accepts bytes (D1 reverses GATEWAY.md
+   * D4a). The gateway will stream upload bodies here instead of writing the
+   * shared mount itself; the event contract is untouched — the Stower still
+   * `register`s and does the one `git add` on event apply, which is why the
+   * write below is `noGit` and emits nothing.
+   */
+  describe('PUT /content/:storageUri (SINGLE-KB-MOUNT P2)', () => {
+    const BODY = 'hello archivist';
+    const URI = 'file://docs/note.md';
+    const put = (uri: string, body: string, opts: { auth?: string; checksum?: string } = {}) =>
+      fetch(`${baseUrl}/content/${encodeURIComponent(uri)}${opts.checksum ? `?checksum=${opts.checksum}` : ''}`, {
+        method: 'PUT',
+        body,
+        ...(opts.auth !== undefined ? { headers: { authorization: opts.auth } } : {}),
+      });
+
+    it('writes the bytes and returns the stored record', async () => {
+      const res = await put(URI, BODY, { auth: `Bearer ${SECRET}` });
+      expect(res.status).toBe(200);
+
+      const stored = await res.json() as StoredResource;
+      expect(stored.storageUri).toBe(URI);
+      expect(stored.checksum).toBe(calculateChecksum(BODY));
+      expect(stored.byteSize).toBe(Buffer.byteLength(BODY));
+
+      // On disk where the Stower's `register` will find it on event apply.
+      const onDisk = await fs.readFile(path.join(tp.project.root, 'docs/note.md'), 'utf8');
+      expect(onDisk).toBe(BODY);
+    });
+
+    it('accepts a matching checksum', async () => {
+      const res = await put(URI, BODY, { auth: `Bearer ${SECRET}`, checksum: calculateChecksum(BODY) });
+      expect(res.status).toBe(200);
+    });
+
+    it('rejects a disagreeing checksum before anything is written', async () => {
+      const res = await put('file://docs/evil.md', BODY, {
+        auth: `Bearer ${SECRET}`,
+        checksum: calculateChecksum('different bytes'),
+      });
+      expect(res.status).toBe(409);
+
+      // "Before anything is written" is the load-bearing half: a rejected
+      // body must leave no file for the Stower's register to trip over.
+      await expect(fs.access(path.join(tp.project.root, 'docs/evil.md'))).rejects.toThrow();
+    });
+
+    it('refuses an unauthenticated write', async () => {
+      const res = await put(URI, BODY);
+      expect(res.status).toBe(401);
+      await expect(fs.access(path.join(tp.project.root, 'docs/note.md'))).rejects.toThrow();
+    });
+
+    it('refuses to serve open when no secret is configured — 503, never default-open', async () => {
+      const secretless = createArchivistServer({
+        events: eventStore.log,
+        content: new WorkingTreeStore(tp.project, mockLogger),
+        workerSecret: '',
+        health: () => ({ status: 'ok' }),
+        logger: mockLogger,
+      });
+      await new Promise<void>((resolve) => secretless.listen(0, resolve));
+      const port = (secretless.address() as AddressInfo).port;
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/content/${encodeURIComponent(URI)}`, {
+          method: 'PUT',
+          body: BODY,
+        });
+        expect(res.status).toBe(503);
+      } finally {
+        await new Promise<void>((resolve, reject) => secretless.close((e) => (e ? reject(e) : resolve())));
+      }
+    });
+
+    it('refuses an empty storage URI', async () => {
+      const res = await fetch(`${baseUrl}/content/`, {
+        method: 'PUT',
+        body: BODY,
+        headers: { authorization: `Bearer ${SECRET}` },
+      });
+      expect(res.status).toBe(400);
+    });
   });
 });

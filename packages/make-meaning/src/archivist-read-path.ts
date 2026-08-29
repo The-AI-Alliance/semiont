@@ -1,68 +1,94 @@
 /**
- * The Archivist's HTTP surface: the /health probe and the D1 sequence-ranged
- * event read path (EXTRACT-ARCHIVIST P2a).
+ * The Archivist's HTTP surface: the /health probe, the D1 sequence-ranged
+ * event read path (EXTRACT-ARCHIVIST P2a), and the content write path
+ * (SINGLE-KB-MOUNT P2).
+ *
+ * ⚠️ STANDING RULE, load-bearing: **this surface serves the KB tree, and
+ * nothing else.** `browse:*`, `match:*`, `gather:*` stay on the bus. The
+ * earlier, narrower rule — exactly one customer, the gateway's SSE resume —
+ * was re-examined by SINGLE-KB-MOUNT D1 (2026-08-29), which reversed
+ * GATEWAY.md D4a: the Archivist is the knowledge base's storage authority,
+ * and this HTTP surface is how bytes and record reads reach it (D2: bytes
+ * ride HTTP, never the bus). That is a change of design, not a widened seam;
+ * an endpoint that is not a KB-tree read or write still does not belong here.
  *
  * D1 (settled 2026-08-27): moving the event store out of the gateway breaks
  * `/bus/subscribe`'s `Last-Event-ID` replay, which reads the log in-process
- * (apps/backend/src/routes/bus.ts). The answer is this one narrow call —
+ * (apps/backend/src/routes/bus.ts). The answer is one narrow call —
  * the events for ONE resource from ONE sequence — which the gateway calls
  * directly:
  *
  *   GET /events/:resourceId?fromSequence=N   (inclusive, like the filter it
  *   mirrors: `queryEvents(rId, { fromSequence })`; the caller does the +1)
  *
- * ⚠️ STANDING RULE, load-bearing: this is a second protocol surface on the
- * Archivist beside the bus, and it stays justified only while it has
- * EXACTLY ONE customer — the gateway's SSE resume. A second customer
- * appearing here is the signal to re-examine the design, never to widen
- * the seam. Bus-replay and broker-replay alternatives were considered and
- * rejected with reasons in .plans/EXTRACT-ARCHIVIST.md; do not re-litigate
- * them here, and do not add endpoints.
+ * SINGLE-KB-MOUNT P2: the gateway stops writing the shared mount and streams
+ * upload bodies here instead —
  *
- * Auth: the gateway authenticates with the same SEMIONT_WORKER_SECRET the
+ *   PUT /content/:storageUri[?checksum=sha256hex]   (storageUri URI-encoded
+ *   as one path segment; an optional checksum is verified BEFORE anything is
+ *   written, and a disagreement is a 409)
+ *
+ * The write is `noGit` and emits nothing: the event contract is untouched —
+ * the Stower still `register`s the bytes from disk and does the one `git add`
+ * on event apply (GATEWAY.md D4b, single-writer).
+ *
+ * Auth: callers authenticate with the same SEMIONT_WORKER_SECRET the
  * agent-token flow uses — service-to-service, one shared deployment fact.
- * With no secret configured the read path refuses loudly (503) rather than
- * serving unauthenticated: absence fails, it is never a default-open.
+ * With no secret configured, every path but /health refuses loudly (503)
+ * rather than serving unauthenticated: absence fails, it is never a
+ * default-open.
  */
 
-import { createServer, type Server } from 'http';
+import { createServer, type IncomingMessage, type ServerResponse, type Server } from 'http';
 import type { Logger } from '@semiont/core';
 import { resourceId as makeResourceId, errField } from '@semiont/core';
 import type { EventLog } from '@semiont/event-sourcing';
+import { ChecksumMismatchError, type WorkingTreeStore } from '@semiont/content';
 
 export interface ArchivistServerDeps {
   /** The record's log — the read half only. */
   events: Pick<EventLog, 'queryEvents'>;
-  /** Shared service secret; empty disables the read path (503), never opens it. */
+  /** The KB tree's write path — `store` only; `register` and the git index
+   *  stay the Stower's on event apply. */
+  content: Pick<WorkingTreeStore, 'store'>;
+  /** Shared service secret; empty disables everything but /health (503), never opens it. */
   workerSecret: string;
   /** Liveness payload for /health — actor states, counters. */
   health: () => Record<string, unknown>;
   logger: Logger;
 }
 
+const json = (res: ServerResponse, status: number, body: unknown): void => {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(body));
+};
+
 export function createArchivistServer(deps: ArchivistServerDeps): Server {
-  const { events, workerSecret, health, logger } = deps;
+  const { events, content, workerSecret, health, logger } = deps;
+
+  /** The 503/401 posture every authenticated path shares. True = request may proceed. */
+  const authorized = (req: IncomingMessage, res: ServerResponse): boolean => {
+    if (!workerSecret) {
+      json(res, 503, { error: 'disabled: no SEMIONT_WORKER_SECRET configured' });
+      return false;
+    }
+    if (req.headers.authorization !== `Bearer ${workerSecret}`) {
+      json(res, 401, { error: 'unauthorized' });
+      return false;
+    }
+    return true;
+  };
 
   return createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://archivist');
 
     if (req.method === 'GET' && url.pathname === '/health') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(health()));
+      json(res, 200, health());
       return;
     }
 
     if (req.method === 'GET' && url.pathname.startsWith('/events/')) {
-      if (!workerSecret) {
-        res.writeHead(503, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'read path disabled: no SEMIONT_WORKER_SECRET configured' }));
-        return;
-      }
-      if (req.headers.authorization !== `Bearer ${workerSecret}`) {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'unauthorized' }));
-        return;
-      }
+      if (!authorized(req, res)) return;
 
       const rawId = decodeURIComponent(url.pathname.slice('/events/'.length));
       const rawFrom = url.searchParams.get('fromSequence');
@@ -70,20 +96,46 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
       // The seam is sequence-ranged by definition — a missing fromSequence
       // would be a whole-log read, which is the widening this rule forbids.
       if (!rawId || !Number.isInteger(fromSequence) || fromSequence < 1) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'resourceId path segment and integer fromSequence >= 1 are required' }));
+        json(res, 400, { error: 'resourceId path segment and integer fromSequence >= 1 are required' });
         return;
       }
 
       events.queryEvents(makeResourceId(rawId), { fromSequence })
-        .then((replay) => {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ events: replay }));
-        })
+        .then((replay) => json(res, 200, { events: replay }))
         .catch((error: unknown) => {
           logger.error('D1 read path failed', { resourceId: rawId, fromSequence, error: errField(error) });
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'event read failed' }));
+          json(res, 500, { error: 'event read failed' });
+        });
+      return;
+    }
+
+    if (req.method === 'PUT' && url.pathname.startsWith('/content/')) {
+      if (!authorized(req, res)) return;
+
+      const storageUri = decodeURIComponent(url.pathname.slice('/content/'.length));
+      if (!storageUri) {
+        json(res, 400, { error: 'storageUri path segment is required' });
+        return;
+      }
+      const expectedChecksum = url.searchParams.get('checksum');
+
+      // The request body streams straight into the store (D7: memory bounded
+      // by the chunk, never the representation). The store writes beside the
+      // target and renames only after the checksum agrees, so a disagreeing
+      // body — or a torn upload — leaves nothing where the Stower's register
+      // would find it.
+      content.store(req, storageUri, {
+        noGit: true,
+        ...(expectedChecksum !== null ? { expectedChecksum } : {}),
+      })
+        .then((stored) => json(res, 200, stored))
+        .catch((error: unknown) => {
+          if (error instanceof ChecksumMismatchError) {
+            json(res, 409, { error: 'checksum mismatch: body does not match the checksum the caller supplied' });
+            return;
+          }
+          logger.error('Content write failed', { storageUri, error: errField(error) });
+          json(res, 500, { error: 'content write failed' });
         });
       return;
     }
