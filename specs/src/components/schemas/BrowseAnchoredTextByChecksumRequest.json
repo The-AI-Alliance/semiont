@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Request the stored extraction outcome for a content identity the caller already holds — the detection workers' read-through cache consult (ANCHORED-TEXT-TO-SMELTER P2). A hit — success or decline — is served whole and the caller skips extraction; null is a miss and the caller extracts locally. Read-only: the Smelter is the sole writer and never answers over this channel.",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "checksum": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "correlationId",
+    "checksum"
+  ]
+}

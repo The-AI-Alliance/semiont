@@ -18,7 +18,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
-import { EventBus, type AnchoredText, type Logger } from '@semiont/core';
+import { EventBus, type AnchoredText, type ExtractionOutcome, type Logger } from '@semiont/core';
 import type { MakeMeaningConfig } from '../service';
 import { Browser } from '../browser';
 import { SmeltProgressTimeout } from '../smelt-progress';
@@ -143,5 +143,92 @@ describe('browse:anchored-text-requested', () => {
     eventBus.get('browse:anchored-text-requested').next({ correlationId: 'c1', resourceId: RID });
 
     expect((await failure).message).toContain('fold is broken');
+  });
+});
+
+/**
+ * The checksum-addressed consult (ANCHORED-TEXT-TO-SMELTER P2, D2).
+ *
+ * The detection workers' read-through cache: the caller already computed the
+ * checksum from bytes it holds, so there is no resourceId to resolve and no
+ * content generation to wait for — no view read, no settle barrier. A hit —
+ * success OR decline — is served whole and the worker skips extraction; null
+ * is a miss and the worker extracts locally and discards.
+ */
+describe('browse:anchored-text-by-checksum-requested', () => {
+  const OUTCOME: ExtractionOutcome = { kind: 'extracted', method: 'ocr', ...MAP };
+
+  async function consult(eventBus: EventBus, browser: Browser, checksum: string) {
+    await browser.initialize();
+    const reply = firstValueFrom(
+      eventBus.get('browse:anchored-text-by-checksum-result').pipe(filter((e) => e.correlationId === 'c1'), take(1)),
+    );
+    eventBus.get('browse:anchored-text-by-checksum-requested').next({ correlationId: 'c1', checksum });
+    return reply;
+  }
+
+  it('serves a stored outcome whole, straight from the store', async () => {
+    const read = vi.fn(async () => OUTCOME);
+    const whenSettled = vi.fn();
+    const viewsGet = vi.fn();
+    const { eventBus, browser } = browserOver({
+      anchoredText: { read },
+      views: { get: viewsGet },
+      smeltProgress: { whenSettled },
+    });
+    stop = () => browser.stop();
+
+    expect((await consult(eventBus, browser, 'sha256:abc')).response).toEqual(OUTCOME);
+    expect(read).toHaveBeenCalledWith('sha256:abc');
+    // The caller holds the content identity: nothing to resolve, nothing to
+    // wait for. Paying for either would reintroduce what this address avoids.
+    expect(viewsGet).not.toHaveBeenCalled();
+    expect(whenSettled).not.toHaveBeenCalled();
+  });
+
+  it('a decline is a hit — served whole so the caller can skip extraction', async () => {
+    const declined: ExtractionOutcome = { kind: 'declined', declined: 'encrypted' };
+    const { eventBus, browser } = browserOver({
+      anchoredText: { read: async () => declined },
+      views: viewWithChecksum,
+      smeltProgress: { whenSettled: vi.fn() },
+    });
+    stop = () => browser.stop();
+
+    expect((await consult(eventBus, browser, 'sha256:abc')).response).toEqual(declined);
+  });
+
+  it('answers null on a miss without waiting', async () => {
+    const whenSettled = vi.fn();
+    const { eventBus, browser } = browserOver({
+      anchoredText: { read: async () => null },
+      views: viewWithChecksum,
+      smeltProgress: { whenSettled },
+    });
+    stop = () => browser.stop();
+
+    expect((await consult(eventBus, browser, 'sha256:abc')).response).toBeNull();
+    // A miss means "extract it yourself", not "wait and re-ask": with no
+    // resourceId there is no generation the barrier could even key on.
+    expect(whenSettled).not.toHaveBeenCalled();
+  });
+
+  it('fails the request when the store read throws', async () => {
+    // The real store never throws — every failure path is a miss — but the
+    // handler must not wedge the channel if that contract is ever broken.
+    const { eventBus, browser } = browserOver({
+      anchoredText: { read: async () => { throw new Error('store on fire'); } },
+      views: viewWithChecksum,
+      smeltProgress: { whenSettled: vi.fn() },
+    });
+    stop = () => browser.stop();
+    await browser.initialize();
+
+    const failure = firstValueFrom(
+      eventBus.get('browse:anchored-text-by-checksum-failed').pipe(filter((e) => e.correlationId === 'c1'), take(1)),
+    );
+    eventBus.get('browse:anchored-text-by-checksum-requested').next({ correlationId: 'c1', checksum: 'sha256:abc' });
+
+    expect((await failure).message).toContain('store on fire');
   });
 });

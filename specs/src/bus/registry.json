@@ -95,6 +95,9 @@
       "browse:anchored-text-requested",
       "browse:anchored-text-result",
       "browse:anchored-text-failed",
+      "browse:anchored-text-by-checksum-requested",
+      "browse:anchored-text-by-checksum-result",
+      "browse:anchored-text-by-checksum-failed",
       "browse:resources-requested",
       "browse:resources-result",
       "browse:resources-failed",
@@ -276,6 +279,9 @@
       "browse:anchored-text-requested",
       "browse:anchored-text-result",
       "browse:anchored-text-failed",
+      "browse:anchored-text-by-checksum-requested",
+      "browse:anchored-text-by-checksum-result",
+      "browse:anchored-text-by-checksum-failed",
       "browse:resources-requested",
       "browse:resources-result",
       "browse:resources-failed",
@@ -1885,6 +1891,60 @@
       }
     },
     {
+      "channel": "browse:anchored-text-by-checksum-requested",
+      "shape": "schema",
+      "schema": "BrowseAnchoredTextByChecksumRequest",
+      "validate": "BrowseAnchoredTextByChecksumRequest",
+      "ts": "components['schemas']['BrowseAnchoredTextByChecksumRequest']",
+      "docs": {
+        "lead": [
+          "",
+          "  // The checksum-addressed consult: the stored extraction outcome for a",
+          "  // content identity the caller already holds (ANCHORED-TEXT-TO-SMELTER P2).",
+          "  //",
+          "  // The detection workers' read-through cache: a hit — success or decline —",
+          "  // is served whole and the caller skips extraction; `null` is a miss and",
+          "  // the caller extracts locally. No settle barrier: with no resourceId there",
+          "  // is no generation to wait for. Read-only over the wire: the Smelter is",
+          "  // the sole writer and never answers here."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:anchored-text-by-checksum-result",
+      "shape": "custom",
+      "validate": "BrowseAnchoredTextResult",
+      "ts": "{ correlationId: string; response: components['schemas']['ExtractionOutcome'] | null }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:anchored-text-by-checksum-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId } & CommandError"
+      }
+    },
+    {
       "channel": "browse:resources-requested",
       "shape": "schema",
       "schema": "BrowseResourcesRequest",
@@ -3325,6 +3385,15 @@
       "request": "browse:anchored-text-requested",
       "result": "browse:anchored-text-result",
       "failure": "browse:anchored-text-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "browse:anchored-text-by-checksum-requested",
+      "result": "browse:anchored-text-by-checksum-result",
+      "failure": "browse:anchored-text-by-checksum-failed",
       "docs": {
         "lead": [],
         "trailing": ""

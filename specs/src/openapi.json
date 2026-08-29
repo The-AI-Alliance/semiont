@@ -267,6 +267,9 @@
       "BrowseAnchoredTextResult": {
         "$ref": "components/schemas/BrowseAnchoredTextResult.json"
       },
+      "BrowseAnchoredTextByChecksumRequest": {
+        "$ref": "components/schemas/BrowseAnchoredTextByChecksumRequest.json"
+      },
       "BrowseResourceRequest": {
         "$ref": "components/schemas/BrowseResourceRequest.json"
       },

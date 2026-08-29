@@ -55,7 +55,7 @@ import {
 } from '@semiont/core';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 import { createEventStore } from '@semiont/event-sourcing';
-import { WorkingTreeStore, createAnchoredTextStore } from '@semiont/content';
+import { WorkingTreeStore, createAnchoredTextStore, type AnchoredTextStore } from '@semiont/content';
 import { getGraphDatabase } from '@semiont/graph';
 import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
 import { Stower, STOWER_CHANNELS } from './stower';
@@ -239,7 +239,11 @@ async function main() {
   // facts carry their annotation, and the forwarded copies below carry it too.
   wireEnrichment(eventStore, { views });
   const content = new WorkingTreeStore(project, logger.child({ component: 'working-tree-store' }));
-  const anchoredText = createAnchoredTextStore(anchoredTextDir, logger.child({ component: 'anchored-text-store' }));
+  // Read-only from construction (ANCHORED-TEXT-TO-SMELTER D5): this process
+  // shares the directory with the store's single writer, so the narrowing —
+  // not mere abstinence — is what keeps single-writer true. Widening this
+  // type is the regression, not a refactor.
+  const anchoredText: Pick<AnchoredTextStore, 'read'> = createAnchoredTextStore(anchoredTextDir, logger.child({ component: 'anchored-text-store' }));
   const smeltProgress = createSmeltProgress(localBus);
 
   logger.info('Connecting to graph database', { type: graphConfig.type });
