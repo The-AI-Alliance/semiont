@@ -119,7 +119,7 @@ IMAGES_ONLY=false
 IMAGES_FORCED=false
 PACKAGES=""
 START_FROM=""
-IMAGES="backend worker smelter weaver archivist librarian browser"
+IMAGES="gateway worker smelter weaver archivist librarian browser"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
@@ -147,7 +147,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --start-from <pkg> Skip packages before this one in the build order"
       echo "  --skip-build       Skip build, publish only (reuse previous artifacts)"
       echo "  --image <list>     Comma-separated images to build (default:"
-      echo "                     backend,worker,smelter,weaver,archivist,librarian,browser)."
+      echo "                     gateway,worker,smelter,weaver,archivist,librarian,browser)."
       echo "                     Named images always build, even when unchanged"
       echo "  --force-images     Build every image even when its Dockerfile and"
       echo "                     package integrities are unchanged (images whose"
@@ -169,7 +169,7 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "Build order:"
       echo "  http-transport, ontology, core, content, event-sourcing, graph, inference,"
-      echo "  jobs, make-meaning, react-ui, backend, browser"
+      echo "  jobs, make-meaning, react-ui, gateway, browser"
       exit 0
       ;;
     *) fail "Unknown argument: $1" >&2; exit 1 ;;
@@ -181,7 +181,7 @@ done
 # a local image is the registry the packages are installed from).
 image_dockerfile() {
   case "$1" in
-    backend)  echo "apps/gateway/Dockerfile" ;;
+    gateway)  echo "apps/gateway/Dockerfile" ;;
     worker)   echo "packages/jobs/Dockerfile" ;;
     smelter)  echo "packages/make-meaning/Dockerfile.smelter" ;;
     weaver)   echo "packages/make-meaning/Dockerfile.weaver" ;;
@@ -194,7 +194,7 @@ image_dockerfile() {
 
 for img in $IMAGES; do
   if ! image_dockerfile "$img" >/dev/null; then
-    fail "Unknown image: $img (expected backend, worker, smelter, weaver, archivist, librarian, or browser)"
+    fail "Unknown image: $img (expected gateway, worker, smelter, weaver, archivist, librarian, or browser)"
     exit 1
   fi
 done
@@ -491,7 +491,7 @@ fi
 # Three builds at a time: ~30s of EVERY build is fixed buildkit-shim latency
 # (10s "transferring" round-trips for byte-sized payloads), which overlapping
 # absorbs. Three, not six: the builder VM has 2G, and the default image order
-# splits the two npm-heavy builds (backend, browser) across batches. Build
+# splits the two npm-heavy builds (gateway, browser) across batches. Build
 # output goes to a per-image log; a failure tails it and stops the run.
 # Fan-out happens after all builds, keeping the builder VM to itself.
 i=0

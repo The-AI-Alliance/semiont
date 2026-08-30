@@ -50,8 +50,8 @@ The backend container applies migrations on startup, before the server process s
 
 ```dockerfile
 CMD set -e; \
-    (cd "$BACKEND_DIR" && npx prisma migrate deploy --schema=prisma/schema.prisma); \
-    exec node "$BACKEND_DIR/dist/index.js"
+    (cd "$GATEWAY_DIR" && npx prisma migrate deploy --schema=prisma/schema.prisma); \
+    exec node "$GATEWAY_DIR/dist/index.js"
 ```
 
 `migrate deploy` applies any migration in `prisma/migrations/` that the database has not recorded yet. It never generates migrations and never resets data. If it fails, the container exits — the server does not start against a database whose schema it does not match.
@@ -73,21 +73,21 @@ This writes a new timestamped directory under `prisma/migrations/`, applies it l
 The `semiont` launcher has no `exec` verb. Reach into a running container with your container engine directly. Containers are named `semiont-<service>`:
 
 ```bash
-container exec -it semiont-backend sh     # or: docker exec -it semiont-backend sh
+container exec -it semiont-gateway sh     # or: docker exec -it semiont-gateway sh
 container exec -it semiont-postgres psql -U postgres semiont
 ```
 
-Prisma lives inside the backend package, so prisma commands need its directory. `BACKEND_DIR` is set in the image:
+Prisma lives inside the backend package, so prisma commands need its directory. `GATEWAY_DIR` is set in the image:
 
 ```bash
 # Confirm the backend can reach the database and see the expected schema
-container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma db pull --print'
+container exec semiont-gateway sh -c 'cd "$GATEWAY_DIR" && npx prisma db pull --print'
 
 # Migration state: which migrations are applied, which are pending
-container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma migrate status'
+container exec semiont-gateway sh -c 'cd "$GATEWAY_DIR" && npx prisma migrate status'
 
 # The schema the image shipped with
-container exec semiont-backend sh -c 'cat "$BACKEND_DIR/prisma/schema.prisma"'
+container exec semiont-gateway sh -c 'cat "$GATEWAY_DIR/prisma/schema.prisma"'
 ```
 
 ### Prisma Studio
@@ -161,7 +161,7 @@ Adding a required column to a populated table needs the usual two-step: add it n
 
 ```bash
 semiont logs --service backend | grep -i migrat
-container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma migrate status'
+container exec semiont-gateway sh -c 'cd "$GATEWAY_DIR" && npx prisma migrate status'
 ```
 
 ## Backup and recovery
@@ -223,8 +223,8 @@ semiont logs --service database
 A database changed outside migrations no longer matches the schema the image ships:
 
 ```bash
-container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma migrate status'
-container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma db pull --print'
+container exec semiont-gateway sh -c 'cd "$GATEWAY_DIR" && npx prisma migrate status'
+container exec semiont-gateway sh -c 'cd "$GATEWAY_DIR" && npx prisma db pull --print'
 ```
 
 Reconcile by writing a migration that captures the intended state. If the database is disposable, `semiont clean` and start fresh.

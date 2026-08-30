@@ -38,13 +38,13 @@ type executor interface {
 	waitHTTP(label, url string, seconds int) (time.Duration, bool) // wall-clock budget, not attempts
 	waitPG(addr string, port, seconds int) (time.Duration, bool)
 	probeTCP(role string, rp rolePlan) bool // external-role reachability
-	backendReachable(addr string, port int) bool
+	gatewayReachable(addr string, port int) bool
 	resolveAddr() (string, bool) // container→host address ("<host-addr>" in plan mode)
 	either(cond func() bool, then, els func() int) int
 	otelDetect(addr string) []string       // --service: OTel iff traces is up
 	recoverSecret() (string, bool)         // --service: rejoin the running stack's secret
 	workerSecret() (string, bool)          // full start: env or generated
-	jwtSecret(root string) (string, bool)  // backend token-signing key: env, else persisted per-root, else generated
+	jwtSecret(root string) (string, bool)  // gateway token-signing key: env, else persisted per-root, else generated
 	ollamaVolume(opts startOptions) string // model-cache choice (prompt is live-only)
 	record(role, id, image, provided, endpoint, driver string)
 	providerOf(role string) string        // how an already-recorded role was provided
@@ -194,7 +194,7 @@ func (x *liveExec) hostOllamaReachable(addr string, port int) bool {
 	}
 	fmt.Println()
 	x.u.warn("Ollama is running on the host but not reachable from containers.")
-	fmt.Printf("   The backend runs in a container and needs Ollama at %s:%d.\n", addr, port)
+	fmt.Printf("   The gateway runs in a container and needs Ollama at %s:%d.\n", addr, port)
 	fmt.Println()
 	if runSilent("pgrep", "-f", "Ollama.app/Contents") == nil {
 		fmt.Println("   Detected: Ollama Desktop app")
@@ -271,13 +271,13 @@ func (x *liveExec) stageDir() (string, bool) {
 // is the point — a process that cannot reach the record has nothing to do.
 //
 // The Archivist itself is absent: it IS the record, and holds the mount.
-var archivistDialers = map[string]bool{"backend": true, "smelter": true, "librarian": true, "worker": true}
+var archivistDialers = map[string]bool{"gateway": true, "smelter": true, "librarian": true, "worker": true}
 
 // kbIdentityStaged: the services that describe a KB tree they do not mount,
 // and so must be handed its committed identity rather than reading it
 // (SINGLE-KB-MOUNT P5/P6). The Archivist is absent because it HOLDS the
 // tree; the Smelter and Worker are absent because they never name the KB.
-var kbIdentityStaged = map[string]bool{"backend": true, "librarian": true}
+var kbIdentityStaged = map[string]bool{"gateway": true, "librarian": true}
 
 // stagedConfig applies every launcher-owned patch a service's config needs.
 // ONE decider: `stageAll` and `stageOne` stage the same services from the
@@ -360,7 +360,7 @@ func (x *liveExec) stageAll(configFile, envName, addr string) (string, bool) {
 		x.u.fail("Reading %s: %v", configFile, err)
 		return "", false
 	}
-	for _, svc := range []string{"backend", "worker", "smelter", "weaver", "archivist", "librarian"} {
+	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian"} {
 		out := x.stagedConfig(svc, cfg, envName, addr)
 		if err := os.WriteFile(filepath.Join(stage, svc+".toml"), out, 0o644); err != nil {
 			x.u.fail("Staging config for %s: %v", svc, err)
@@ -426,18 +426,18 @@ func (x *liveExec) probeTCP(role string, rp rolePlan) bool {
 	return verifyExternal(x.u, role, rp)
 }
 
-func (x *liveExec) backendReachable(addr string, port int) bool {
-	x.u.log("Verifying backend reachable from containers...")
+func (x *liveExec) gatewayReachable(addr string, port int) bool {
+	x.u.log("Verifying gateway reachable from containers...")
 	t0 := time.Now()
 	for i := 0; i < 20; i++ {
 		if runSilent(x.rt, "run", "--rm", "busybox:1.38.0", "sh", "-c",
 			fmt.Sprintf("wget -q -O- http://%s:%d/api/health", addr, port)) == nil {
-			x.u.ok("Backend reachable from containers %s", x.u.dim("("+took(time.Since(t0))+")"))
+			x.u.ok("Gateway reachable from containers %s", x.u.dim("("+took(time.Since(t0))+")"))
 			return true
 		}
 		time.Sleep(time.Second)
 	}
-	x.u.fail("Backend not reachable from containers at %s:%d within 20s.", addr, port)
+	x.u.fail("Gateway not reachable from containers at %s:%d within 20s.", addr, port)
 	return false
 }
 
@@ -502,7 +502,7 @@ func (x *liveExec) workerSecret() (string, bool) {
 	return fullStartSecret(x.u)
 }
 
-// jwtSecret is per-root and persisted, so a --service backend restart resolves
+// jwtSecret is per-root and persisted, so a --service gateway restart resolves
 // the SAME value a full start did — no inspect-based recovery needed (contrast
 // recoverSecret, which exists because the worker secret is never persisted).
 //
@@ -751,7 +751,7 @@ func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 //
 // The stamp follows the WRITER, which is what makes an image-change clear
 // correct: the stamp names the code whose output the store holds. It moved
-// from the backend to the Smelter in ANCHORED-TEXT-TO-SMELTER P5, once P4
+// from the gateway to the Smelter in ANCHORED-TEXT-TO-SMELTER P5, once P4
 // had removed the gateway's anchored-text faces.
 //
 // Two earlier versions of this comment predicted the wrong trigger — first
@@ -835,8 +835,8 @@ func (x *planExec) portChecks(ports []portNeed) bool {
 }
 
 func (x *planExec) stageAll(_, envName, _ string) (string, bool) {
-	x.c("stage per-service config copies under <config-stage>: backend.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml")
-	for _, svc := range []string{"backend", "worker", "smelter", "librarian"} {
+	x.c("stage per-service config copies under <config-stage>: gateway.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml")
+	for _, svc := range []string{"gateway", "worker", "smelter", "librarian"} {
 		x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to %s.toml", envName, svc)
 	}
 	return "<config-stage>", true
@@ -884,7 +884,7 @@ func (x *planExec) recordPorts([]portNeed) {}
 
 func (x *planExec) hostOllamaReachable(string, int) bool { return true }
 
-func (x *planExec) backendReachable(addr string, port int) bool {
+func (x *planExec) gatewayReachable(addr string, port int) bool {
 	x.c(`probe: %s run --rm busybox:1.38.0 sh -c "wget -q -O- http://%s:%d/api/health" (up to 20 tries)`, x.rt, addr, port)
 	return true
 }

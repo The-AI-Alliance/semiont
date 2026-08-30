@@ -21,9 +21,9 @@ explicitly; --runtime targets a local runtime.
 Follow the Semiont service logs, one [svc]-prefixed stream per service.
 Ctrl+C stops *following* — it does not stop the stack (that's semiont stop).
 
-By default follows the five Semiont services (backend, worker, smelter,
+By default follows the five Semiont services (gateway, worker, smelter,
 weaver, archivist, librarian, browser). With --service <name>, follow any ONE
-service including the infrastructure roles: backend, worker, smelter, weaver,
+service including the infrastructure roles: gateway, worker, smelter, weaver,
 archivist, librarian, browser,
 database, graph, vectors, inference, or traces.
 
@@ -32,7 +32,7 @@ present (--runtime overrides); otherwise the stack is discovered by
 name-scan.
 `
 
-var logServices = []string{"backend", "worker", "smelter", "weaver", "archivist", "librarian", "browser"}
+var logServices = []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "browser"}
 
 // Logs implements `semiont logs` — the port of the fleet's logs.sh.
 func Logs(args []string) int {
@@ -249,7 +249,7 @@ func Logs(args []string) int {
 }
 
 // stackRuntime finds the runtime actually running the stack: following via
-// the wrong one shows nothing. It anchors on semiont-backend by NAME —
+// the wrong one shows nothing. It anchors on semiont-gateway by NAME —
 // matching any "semiont-" would false-positive on unrelated containers
 // (e.g. a local verdaccio).
 func stackRuntime() string {
@@ -269,7 +269,7 @@ func stackRuntime() string {
 		}
 		for _, line := range strings.Split(out, "\n") {
 			fields := strings.Fields(line)
-			if len(fields) > 0 && fields[0] == "semiont-backend" {
+			if len(fields) > 0 && fields[0] == "semiont-gateway" {
 				return rt
 			}
 		}

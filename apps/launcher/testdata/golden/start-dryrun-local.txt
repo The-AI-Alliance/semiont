@@ -9,8 +9,8 @@ container stop semiont-qdrant
 container rm semiont-qdrant
 container stop semiont-postgres
 container rm semiont-postgres
-container stop semiont-backend
-container rm semiont-backend
+container stop semiont-gateway
+container rm semiont-gateway
 container stop semiont-worker
 container rm semiont-worker
 container stop semiont-smelter
@@ -23,8 +23,8 @@ container stop semiont-librarian
 container rm semiont-librarian
 # remove staged config copies: /tmp/semiont-config.*
 # require free ports: 7474 7687 6333 5432 4000 9090 9091 9092 9093 9094 16686 4318
-# stage per-service config copies under <config-stage>: backend.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml
-# append [environments.local.archivist] host/port (launcher-staged topology) to backend.toml
+# stage per-service config copies under <config-stage>: gateway.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml
+# append [environments.local.archivist] host/port (launcher-staged topology) to gateway.toml
 # append [environments.local.archivist] host/port (launcher-staged topology) to worker.toml
 # append [environments.local.archivist] host/port (launcher-staged topology) to smelter.toml
 # append [environments.local.archivist] host/port (launcher-staged topology) to librarian.toml
@@ -53,7 +53,7 @@ container run -d --name semiont-postgres --memory 1G -p 5432:5432 -v <home>/.loc
 # wait: tcp localhost:5432 (20s)
 # probe: container run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432
 # mount state state (shared; the stamp stays with its owning service)
-container run -d --name semiont-backend --publish 4000:4000 --memory 8G --volume <config-stage>/backend.toml:/home/semiont/.semiontconfig:ro -v <home>/.local/share/semiont/roots/example.github.io-test-kb/state:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env POSTGRES_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env XDG_STATE_HOME=/semiont-state --env SEMIONT_WORKER_SECRET=<worker-secret> --env JWT_SECRET=<jwt-secret> ghcr.io/the-ai-alliance/semiont-backend:local
+container run -d --name semiont-gateway --publish 4000:4000 --memory 8G --volume <config-stage>/gateway.toml:/home/semiont/.semiontconfig:ro -v <home>/.local/share/semiont/roots/example.github.io-test-kb/state:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env POSTGRES_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env XDG_STATE_HOME=/semiont-state --env SEMIONT_WORKER_SECRET=<worker-secret> --env JWT_SECRET=<jwt-secret> ghcr.io/the-ai-alliance/semiont-gateway:local
 # wait: http://localhost:4000/api/health (120s)
 # probe: container run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:4000/api/health" (up to 20 tries)
 # mount anchored-text state (shared; the stamp stays with its owning service)

@@ -115,7 +115,7 @@ func TestStagedConfigPerService(t *testing.T) {
 		// The gateway joined the identity column in P5: once it stops mounting
 		// /kb, staged [kb] is the ONLY way it sees the committed domain its
 		// boot refusal turns on.
-		{"backend", true, true},
+		{"gateway", true, true},
 		{"librarian", true, true},
 		{"smelter", true, false},
 		{"worker", true, false},

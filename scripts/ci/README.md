@@ -9,7 +9,7 @@ No npm is required on the host for local builds.
 |--------|---------|
 | `build.sh` | Install deps + build packages and apps |
 | `publish.sh` | Version stamp + stage + publish to a registry |
-| `publish-npm-apps.mjs` | Stage backend/browser into `.npm-stage/` for publishing |
+| `publish-npm-apps.mjs` | Stage gateway/browser into `.npm-stage/` for publishing |
 | `local-build.sh` | Host-side wrapper: start Verdaccio + build + publish in a container + build the `:local` service/browser images, fanned out to every container engine on the machine |
 | `verdaccio.yaml` | Verdaccio config for local registry (proxies non-@semiont packages to npmjs.com) |
 
@@ -43,7 +43,7 @@ SEMIONT_VERSION=local semiont start
 echo password | semiont useradd --email admin@example.com --admin
 
 # 3. Iterate — edit code, rebuild only what changed:
-./scripts/ci/local-build.sh --package core,backend --image backend
+./scripts/ci/local-build.sh --package core,gateway --image backend
 # Verdaccio restarts fresh each run; the publish step always publishes all
 # packages, and --image narrows which images are rebuilt.
 

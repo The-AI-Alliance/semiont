@@ -57,7 +57,7 @@ var roles = map[string]roleSpec{
 	// it participates in status but supports no start/stop.
 	"embedding": {"", "", nil, ""},
 	"database":  {"PostgreSQL", "semiont-postgres", []portNeed{{5432, "PostgreSQL"}}, "1G"},
-	"backend":   {"", "semiont-backend", []portNeed{{4000, "Backend"}}, "8G"},
+	"gateway":   {"", "semiont-gateway", []portNeed{{4000, "Gateway"}}, "8G"},
 	"worker":    {"", "semiont-worker", []portNeed{{9090, "Worker"}}, "2G"},
 	"smelter":   {"", "semiont-smelter", []portNeed{{9091, "Smelter"}}, "2G"},
 	"weaver":    {"", "semiont-weaver", []portNeed{{9092, "Weaver"}}, "3G"},
@@ -68,7 +68,7 @@ var roles = map[string]roleSpec{
 	"browser": {"", "semiont-browser", nil, "1G"},
 }
 
-const roleList = "backend, worker, smelter, weaver, archivist, librarian, browser, database, graph, vectors, inference, embedding, or traces"
+const roleList = "gateway, worker, smelter, weaver, archivist, librarian, browser, database, graph, vectors, inference, embedding, or traces"
 
 // roleByContainer inverts the roles table (container name → role).
 var roleByContainer = func() map[string]string {
@@ -95,7 +95,7 @@ func roleTitle(role string) string {
 }
 
 func isConfigConsumer(svc string) bool {
-	return svc == "backend" || svc == "worker" || svc == "smelter" || svc == "weaver" || svc == "archivist" || svc == "librarian"
+	return svc == "gateway" || svc == "worker" || svc == "smelter" || svc == "weaver" || svc == "archivist" || svc == "librarian"
 }
 
 func serviceNeedsAddr(svc string) bool {
@@ -105,13 +105,13 @@ func serviceNeedsAddr(svc string) bool {
 // recoverWorkerSecret pulls SEMIONT_WORKER_SECRET out of a running Semiont
 // container's env via the runtime's inspect — restarting one service rejoins
 // the incumbent stack's secret instead of minting a fresh one (which would
-// silently break sidecar↔backend auth). Returns the secret and the container
+// silently break sidecar↔gateway auth). Returns the secret and the container
 // it came from — and, crucially, whether any Semiont container was SEEN at
 // all: "seen but unreadable" is the brittle-parse failure mode (a runtime
 // inspect-schema change) and must be loud, never silently degraded to a
 // generated secret.
 func recoverWorkerSecret(rt string) (secret, from, seen string) {
-	for _, c := range []string{"semiont-backend", "semiont-worker", "semiont-smelter", "semiont-weaver", "semiont-archivist", "semiont-librarian"} {
+	for _, c := range []string{"semiont-gateway", "semiont-worker", "semiont-smelter", "semiont-weaver", "semiont-archivist", "semiont-librarian"} {
 		out, err := capture(rt, "inspect", c)
 		if err != nil || out == "" {
 			continue
@@ -187,7 +187,7 @@ func inspectEnv(entry map[string]any) []string {
 // fresh one — but ONLY when no Semiont container was seen at all. A
 // container that exists yet yields no secret means the inspect parse broke
 // (or the container is genuinely secret-less); generating there would
-// silently break backend↔sidecar auth, so it fails loudly instead.
+// silently break gateway↔sidecar auth, so it fails loudly instead.
 func serviceSecret(u *ui, rt string) (string, bool) {
 	s, from, seen := recoverWorkerSecret(rt)
 	if s != "" {
@@ -203,7 +203,7 @@ func serviceSecret(u *ui, rt string) (string, bool) {
 	}
 	if seen != "" {
 		u.fail("A Semiont container (%s) exists but its worker secret could not be recovered from `%s inspect` — the runtime's inspect schema may have changed.", seen, rt)
-		fmt.Fprintln(os.Stderr, "  Generating a new secret would silently break backend↔sidecar auth. Either:")
+		fmt.Fprintln(os.Stderr, "  Generating a new secret would silently break gateway↔sidecar auth. Either:")
 		fmt.Fprintln(os.Stderr, "    - set SEMIONT_WORKER_SECRET to the running stack's secret, or")
 		fmt.Fprintln(os.Stderr, "    - restart the whole stack:  semiont start")
 		return "", false
@@ -255,8 +255,8 @@ func serviceEndpoint(svc string, plan *launchPlan) string {
 		return "http://localhost:16686"
 	case "browser":
 		return "http://localhost:3000"
-	case "backend":
-		return fmt.Sprintf("http://localhost:%d/api/health", plan.BackendPort)
+	case "gateway":
+		return fmt.Sprintf("http://localhost:%d/api/health", plan.GatewayPort)
 	case "worker":
 		return "http://localhost:9090/health"
 	case "smelter":

@@ -3,7 +3,7 @@
  * (backend `index.ts`, `worker-main.ts`, `smelter-main.ts`).
  *
  * Configuration is via standard `OTEL_*` env vars:
- *   - `OTEL_SERVICE_NAME`           — service identity (e.g. `semiont-backend`)
+ *   - `OTEL_SERVICE_NAME`           — service identity (e.g. `semiont-gateway`)
  *   - `OTEL_EXPORTER_OTLP_ENDPOINT` — collector endpoint (HTTP)
  *   - `OTEL_TRACES_SAMPLER`         — sampler (default: `parentbased_always_on`)
  *   - `OTEL_TRACES_SAMPLER_ARG`     — sampler ratio (default: `1.0`)
@@ -47,7 +47,7 @@ import {
 } from '@opentelemetry/semantic-conventions';
 
 export interface NodeObservabilityConfig {
-  /** Service identity (e.g. `semiont-backend`). Overridden by `OTEL_SERVICE_NAME`. */
+  /** Service identity (e.g. `semiont-gateway`). Overridden by `OTEL_SERVICE_NAME`. */
   serviceName: string;
   /** Service version. Defaults to `0.0.0` if omitted. */
   serviceVersion?: string;

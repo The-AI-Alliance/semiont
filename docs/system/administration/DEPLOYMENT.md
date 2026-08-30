@@ -23,7 +23,7 @@ Five published service images, plus the infrastructure containers a stack needs
 
 | Image | Role | Port |
 |---|---|---|
-| `ghcr.io/the-ai-alliance/semiont-backend` | API, auth, event log, projections | 4000 |
+| `ghcr.io/the-ai-alliance/semiont-gateway` | API, auth, event log, projections | 4000 |
 | `ghcr.io/the-ai-alliance/semiont-browser` | Browser UI | 3000 |
 | `ghcr.io/the-ai-alliance/semiont-worker` | Job / generation worker | 9090 |
 | `ghcr.io/the-ai-alliance/semiont-smelter` | Embedding / vector pipeline | 9091 |

@@ -9,8 +9,8 @@ import (
 const useraddUsage = `Usage: semiont useradd --email <email> [--generate-password] [options]
 
 Create or update a user in a RUNNING Semiont stack, local or codespace. The
-launcher execs 'semiont-useradd' inside the backend container and passes every
-other flag through verbatim — the backend owns the user schema, the password
+launcher execs 'semiont-useradd' inside the gateway container and passes every
+other flag through verbatim — the gateway owns the user schema, the password
 hashing, and the database write; this launcher only decides which stack is
 meant.
 
@@ -39,7 +39,7 @@ Launcher-owned (consumed here, not forwarded):
   --runtime <name>      Target the LOCAL stack (selector only, as in stop)
   --help, -h            Show this help
 
-Needs a running backend: semiont start first. With more than one stack
+Needs a running gateway: semiont start first. With more than one stack
 recorded, the working directory disambiguates (the clone whose local stack
 is running means local; a clone whose origin names a codespace stack, with
 no local stack, means that one) — anywhere less certain, useradd refuses to
@@ -57,10 +57,10 @@ Examples:
   semiont useradd --repo The-AI-Alliance/my-kb --email alice@example.com --generate-password
 `
 
-// Useradd implements `semiont useradd` — a thin exec bridge to the backend's
+// Useradd implements `semiont useradd` — a thin exec bridge to the gateway's
 // own `semiont-useradd`. The launcher contributes only what it knows: which
-// stack is meant, and the sharpest handle into its backend. Everything else
-// passes through verbatim — the backend owns validation, hashing, and the
+// stack is meant, and the sharpest handle into its gateway. Everything else
+// passes through verbatim — the gateway owns validation, hashing, and the
 // database write.
 //
 // It goes through the container rather than dialing postgres directly on
@@ -72,7 +72,7 @@ Examples:
 // owner also keeps this launcher technology-agnostic: it runs containers, and
 // need not know that postgres or argon2 exist.
 //
-// (The exec target is the backend image's own `semiont-useradd` bin, not a
+// (The exec target is the gateway image's own `semiont-useradd` bin, not a
 // `semiont useradd` subcommand: there is no CLI inside the image to host one.)
 //
 // The password NEVER travels in argv. It used to ride into the container as an
@@ -144,7 +144,7 @@ func Useradd(args []string) int {
 	// Asking for both a password and a generated one is a contradiction, and
 	// it must be REFUSED here: --password-stdin is stripped above and re-added
 	// only when a password is actually read, so forwarding alone would let the
-	// backend's own mutual-exclusion check never see the pair — the user would
+	// gateway's own mutual-exclusion check never see the pair — the user would
 	// silently get a generated password they did not ask to keep.
 	if generate && wantStdin {
 		u.fail("--password-stdin and --generate-password are contradictory: one supplies a password, the other invents one.")
@@ -159,8 +159,8 @@ func Useradd(args []string) int {
 
 	rt, handle := "", ""
 	if target == nil {
-		if rt, handle = backendHandle(); rt == "" {
-			u.fail("useradd needs a running backend, and none was found under any installed runtime.")
+		if rt, handle = gatewayHandle(); rt == "" {
+			u.fail("useradd needs a running gateway, and none was found under any installed runtime.")
 			fmt.Fprintln(os.Stderr, "  Start the stack first:  semiont start")
 			return 1
 		}
@@ -169,11 +169,11 @@ func Useradd(args []string) int {
 	// The password is read LAST, after every refusal this command can make.
 	// Nobody should be asked to type a secret by an invocation that was
 	// already going to be rejected for contradictory flags or a missing
-	// backend — the prompt would also bury the actual error.
+	// gateway — the prompt would also bury the actual error.
 	//
-	// Who supplies it? The backend requires one only to CREATE, so an --update
+	// Who supplies it? The gateway requires one only to CREATE, so an --update
 	// that isn't explicitly changing the password needs none, and
-	// --generate-password means the backend invents its own.
+	// --generate-password means the gateway invents its own.
 	password := ""
 	if !generate && (!update || wantStdin) {
 		pw, ok := readPassword(u)
@@ -187,7 +187,7 @@ func Useradd(args []string) int {
 	if target != nil {
 		return useraddCodespace(u, target, rest, password)
 	}
-	// `semiont-useradd` is a bin the backend package declares, linked onto PATH
+	// `semiont-useradd` is a bin the gateway package declares, linked onto PATH
 	// by its image. -i attaches stdin so the password can cross that way; it is
 	// omitted when there is no password to send, so the echoed command is the
 	// exact command run in both cases.
@@ -198,14 +198,14 @@ func Useradd(args []string) int {
 	execArgs := append(append(head, handle, "semiont-useradd"), rest...)
 	u.echoCmd(rt, execArgs...)
 	if err := runVisibleWithStdin(password, rt, execArgs...); err != nil {
-		u.fail("useradd failed inside the backend container (see output above).")
+		u.fail("useradd failed inside the gateway container (see output above).")
 		return 1
 	}
 	return 0
 }
 
 // useraddCodespace runs the same verb one hop further out: through ssh into
-// the codespace, then docker exec into its backend.
+// the codespace, then docker exec into its gateway.
 //
 // CRITICAL: `gh codespace ssh -- cmd` runs the remote side through a SHELL
 // (proven live — a `/workspaces/*` glob expands there). The local path has no
@@ -230,7 +230,7 @@ func useraddCodespace(u *ui, st *stackState, args []string, password string) int
 	u.log("useradd on %s %s", u.bold(st.Repo), u.dim("(codespace "+st.Codespace+")"))
 	u.echoCmd("gh", "codespace", "ssh", "-c", st.Codespace, "--", remote)
 	if err := runVisibleWithStdin(password, "gh", sshArgs...); err != nil {
-		u.fail("useradd failed inside the codespace's backend (see output above).")
+		u.fail("useradd failed inside the codespace's gateway (see output above).")
 		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status --repo "+st.Repo)
 		return 1
 	}
@@ -246,7 +246,7 @@ func remoteUseraddCmd(args []string, stdin bool) string {
 	if stdin {
 		cmd += " -i"
 	}
-	cmd += " semiont-backend semiont-useradd"
+	cmd += " semiont-gateway semiont-useradd"
 	for _, a := range args {
 		cmd += " " + shellQuote(a)
 	}
@@ -260,21 +260,21 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-// backendHandle finds the runtime running the stack and the sharpest handle
-// for its backend container: the record's runtime + ID when present (and
+// gatewayHandle finds the runtime running the stack and the sharpest handle
+// for its gateway container: the record's runtime + ID when present (and
 // that runtime is installed), else the name under whichever runtime's
-// listing shows semiont-backend.
-func backendHandle() (rt, handle string) {
+// listing shows semiont-gateway.
+func gatewayHandle() (rt, handle string) {
 	if st := loadLocalState(); st != nil && st.Runtime != "" && onPath(st.Runtime) {
-		if e, ok := st.Services["backend"]; ok && e.Provided == providedLauncher {
+		if e, ok := st.Services["gateway"]; ok && e.Provided == providedLauncher {
 			if e.ID != "" {
 				return st.Runtime, e.ID
 			}
-			return st.Runtime, "semiont-backend"
+			return st.Runtime, "semiont-gateway"
 		}
 	}
 	if rt := stackRuntime(); rt != "" {
-		return rt, "semiont-backend"
+		return rt, "semiont-gateway"
 	}
 	return "", ""
 }

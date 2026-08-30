@@ -8,7 +8,7 @@
  * `prisma migrate deploy` and then the server:
  *
  *   if [ -z "$DATABASE_URL" ]; then
- *     DATABASE_URL="$(node "$BACKEND_DIR/dist/cli/db-url.js")"; export DATABASE_URL
+ *     DATABASE_URL="$(node "$GATEWAY_DIR/dist/cli/db-url.js")"; export DATABASE_URL
  *   fi
  *
  * Why a separate process rather than deriving it inside the server:

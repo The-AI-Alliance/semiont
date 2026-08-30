@@ -50,7 +50,7 @@ startup. See [containers.md](containers.md).
 
 ## Stale browser tabs poison backend logs
 
-If `container logs semiont-backend` is a firehose of `Invalid token
+If `container logs semiont-gateway` is a firehose of `Invalid token
 signature` or `401` entries when no test is running, a lingering tab
 from an earlier dev session is still holding an SSE connection with
 an expired token and retrying. It won't break the tests directly, but

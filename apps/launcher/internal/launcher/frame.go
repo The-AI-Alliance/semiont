@@ -103,7 +103,7 @@ func Frame(args []string) int {
 
 	// One command per type: the protocol has no batch add (the SDK's
 	// addEntityTypes is the same loop). A rejection STOPS the run rather
-	// than pressing on — a total that counted adds the backend refused
+	// than pressing on — a total that counted adds the gateway refused
 	// would be a lie, and the untried tags cost nothing to re-issue.
 	var added []string
 	for _, et := range entityTypes {
@@ -120,7 +120,7 @@ func Frame(args []string) int {
 		added = append(added, et)
 	}
 
-	// "Accepted", not "created": the ack carries no payload, so the backend
+	// "Accepted", not "created": the ack carries no payload, so the gateway
 	// never says whether a type was new or already there.
 	u.ok("Entity types accepted: %s %s", strings.Join(added, ", "),
 		u.dim("(semiont browse --entity-types shows the vocabulary)"))

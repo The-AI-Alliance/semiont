@@ -8,7 +8,7 @@ interesting ones, prefixed with a ``--source`` label.
 Designed for the **live monitoring** workflow described in
 ``tests/e2e/docs/live-monitoring.md`` — start one tail per container::
 
-    container logs --follow semiont-backend 2>&1 \\
+    container logs --follow semiont-gateway 2>&1 \\
       | python3 tests/e2e/scripts/log-filter.py --source backend &
     container logs --follow semiont-worker 2>&1 \\
       | python3 tests/e2e/scripts/log-filter.py --source worker &

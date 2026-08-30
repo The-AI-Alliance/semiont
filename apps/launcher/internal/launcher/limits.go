@@ -4,7 +4,7 @@ package launcher
 // model, sourced from the PLATFORM and nowhere else.
 //
 // The launcher is a bus client here like every other client: one correlated
-// browse:agents-requested exchange against the local backend, decode the
+// browse:agents-requested exchange against the local gateway, decode the
 // collaborator roster, read each entry's discovered limits. It never asks a
 // provider directly for a ceiling — Anthropic's /v1/models and Ollama's
 // /api/tags are still probed elsewhere in status, but only for the runtime
@@ -12,7 +12,7 @@ package launcher
 // model identity). Platform data flows through the platform surface, in
 // every language; that is what putting it in the SDK is for.
 //
-// Absence is the normal answer, not an error: no stack, no session, backend
+// Absence is the normal answer, not an error: no stack, no session, gateway
 // down, a provider that could not be reached when the Browser enriched the
 // roster — all of them mean the row renders exactly as it did before. Status
 // says what it knows and stays silent about the rest.
@@ -29,7 +29,7 @@ import (
 
 // statusCeilingTimeout bounds the one bus request status makes. The client's
 // default is 30 seconds — right for a verb whose whole job is the exchange,
-// and far too long for a decoration on a report: a wedged backend would stall
+// and far too long for a decoration on a report: a wedged gateway would stall
 // `semiont status` for half a minute. Matched to the other status probes,
 // which give a live fact 2–3 seconds to arrive or go unreported.
 const statusCeilingTimeout = 3 * time.Second
@@ -41,7 +41,7 @@ type modelCeilings map[string]semiont.InferenceLimits
 
 func ceilingKey(provider, model string) string { return provider + "\x00" + model }
 
-// fetchModelCeilings asks the local stack's backend for the collaborator
+// fetchModelCeilings asks the local stack's gateway for the collaborator
 // roster and indexes the entries that carry limits. A nil result is the
 // answer for every unhappy path, and callers need not tell them apart:
 // "no ceiling to show" is one outcome however it arose.
@@ -49,7 +49,7 @@ func fetchModelCeilings(st *stackState) modelCeilings {
 	if st == nil {
 		return nil
 	}
-	base := backendBase(st)
+	base := gatewayBase(st)
 	if base == "" {
 		return nil
 	}

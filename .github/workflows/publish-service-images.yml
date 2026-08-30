@@ -2,8 +2,8 @@ name: Publish Service Container Images
 
 run-name: "Service Images @ ${{ inputs.version }}${{ inputs.dry_run && ' (dry-run)' || '' }}"
 
-# Builds and publishes the four backend-side service images
-# (backend · worker · smelter · weaver) from the published @semiont/* packages,
+# Builds and publishes the four gateway-side service images
+# (gateway · worker · smelter · weaver) from the published @semiont/* packages,
 # mirroring publish-browser.yml's verify-npm → scan → multi-arch push → SBOM →
 # attest spine, with an added license-policy gate. Config is runtime (bind-mount);
 # the images ship config-free.
@@ -41,9 +41,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - service: backend
+          - service: gateway
             dockerfile: apps/gateway/Dockerfile
-            verify_packages: '@semiont/backend'
+            verify_packages: '@semiont/gateway'
           - service: worker
             dockerfile: packages/jobs/Dockerfile
             verify_packages: '@semiont/jobs'

@@ -324,7 +324,7 @@ if (config.env?.NODE_ENV !== 'test') {
   // (or `OTEL_SDK_DISABLED=true`). Init before serve() so any spans
   // created during request handling are captured.
   const { initObservabilityNode } = await import('@semiont/observability/node');
-  initObservabilityNode({ serviceName: 'semiont-backend' });
+  initObservabilityNode({ serviceName: 'semiont-gateway' });
 
   // BEFORE serve(), and deliberately unguarded: this validates JWT_SECRET,
   // site.domain, and site.oauthAllowedDomains — without all three the process

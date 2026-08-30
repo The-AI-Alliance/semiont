@@ -85,7 +85,7 @@ jobs:
 
           # Pull the published-package list from version.json (the
           # workspace's single source of truth). Library packages live
-          # under `packages/`; both published apps (backend, browser)
+          # under `packages/`; both published apps (gateway, browser)
           # publish from `.npm-stage/` via the `stage` field.
           MANIFEST=$(node -e "
             const v = JSON.parse(require('fs').readFileSync('version.json', 'utf-8'));

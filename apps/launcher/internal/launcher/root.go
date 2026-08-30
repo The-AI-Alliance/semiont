@@ -16,7 +16,7 @@ import (
 // found by walking up from cwd looking for .semiont/. git is deliberately NOT
 // part of discovery; whether the root must also be a git clone is a separate
 // invariant, enforced only where the /kb mount makes it real (full start,
-// --service backend).
+// --service gateway).
 //
 // Today there is one root; the plural-ready shape (status's SEMIONT ROOTS
 // section, the source annotation) anticipates supporting many.
@@ -251,13 +251,13 @@ func resolveRootArg(arg string) (string, error) {
 	}
 }
 
-// requireGitClone enforces the /kb-mount invariant: the backend versions the
+// requireGitClone enforces the /kb-mount invariant: the gateway versions the
 // event log via git, so a real clone is mandatory wherever /kb is mounted.
 // Fails with instructions rather than git's opaque fatal when someone used
 // GitHub's "Download ZIP" (or has no git at all).
 func requireGitClone(u *ui, root string) bool {
 	if _, err := capture("git", "-C", root, "rev-parse", "--show-toplevel"); err != nil {
-		u.fail("The KB root must be a git clone (the backend versions the event log via git): %s", root)
+		u.fail("The KB root must be a git clone (the gateway versions the event log via git): %s", root)
 		fmt.Fprintln(os.Stderr, "  If you used GitHub's 'Download ZIP', clone the repository instead:  git clone <repo-url>")
 		return false
 	}

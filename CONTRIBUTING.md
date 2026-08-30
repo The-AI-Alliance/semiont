@@ -157,7 +157,7 @@ git checkout -b docs/improve-api-reference
 npm test
 
 # Run one workspace's tests
-npm test -w @semiont/backend
+npm test -w semiont-gateway
 npm test -w semiont-browser
 
 # Type check
@@ -199,7 +199,7 @@ Then create a Pull Request from your fork to `The-AI-Alliance/semiont:main` on G
 
 ## 🌍 Deployment Targets
 
-Semiont ships as container images (`semiont-backend`, `semiont-browser`, `semiont-worker`,
+Semiont ships as container images (`semiont-gateway`, `semiont-browser`, `semiont-worker`,
 `semiont-smelter`, `semiont-weaver`) plus the infrastructure containers a stack needs. There is no
 per-platform plugin system: the old `(platform × serviceType × command)` handler matrix has been
 removed.

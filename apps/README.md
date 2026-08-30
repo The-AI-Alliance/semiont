@@ -6,7 +6,7 @@ Deployable applications for the Semiont platform.
 
 | Package | Version | Source | Description |
 | ------- | ------- | ------ | ----------- |
-| [@semiont/backend](https://www.npmjs.com/package/@semiont/backend) | [![npm](https://img.shields.io/npm/v/@semiont/backend)](https://www.npmjs.com/package/@semiont/backend) | [gateway](./gateway/) | Hono API server + event-bus gateway |
+| [@semiont/gateway](https://www.npmjs.com/package/@semiont/gateway) | [![npm](https://img.shields.io/npm/v/@semiont/gateway)](https://www.npmjs.com/package/@semiont/gateway) | [gateway](./gateway/) | Hono API server + event-bus gateway |
 | [@semiont/browser](https://www.npmjs.com/package/@semiont/browser) | [![npm](https://img.shields.io/npm/v/@semiont/browser)](https://www.npmjs.com/package/@semiont/browser) | [browser](./browser/) | Vite + React SPA — the Semiont Browser |
 
 The backend and Browser also ship as published, attested container images

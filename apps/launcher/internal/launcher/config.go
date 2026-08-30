@@ -71,7 +71,9 @@ type semiontConfig struct {
 }
 
 type envConfig struct {
-	Backend   *backendCfg            `toml:"backend"`
+	// The Go field is `Gateway`; the TOML tag still reads `backend` until the
+	// key itself gains its alias. Field name and wire key are separate renames.
+	Gateway   *gatewayCfg            `toml:"backend"`
 	Graph     *graphCfg              `toml:"graph"`
 	Vectors   *vectorsCfg            `toml:"vectors"`
 	Embedding *embeddingCfg          `toml:"embedding"`
@@ -95,7 +97,7 @@ type siteCfg struct {
 	Domain *string `toml:"domain"`
 }
 
-type backendCfg struct {
+type gatewayCfg struct {
 	Platform string `toml:"platform"`
 	Port     int    `toml:"port"`
 }

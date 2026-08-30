@@ -41,11 +41,11 @@ func refreshSession(u *ui, cli *semiont.ClientWithResponses, key string, e token
 }
 
 // verbSession resolves what every knowledge verb needs: which stack, its
-// backend base URL, and a live session token. One place, because nine verbs
+// gateway base URL, and a live session token. One place, because nine verbs
 // asking the same three questions nine different ways is how they drift.
 // Refusals are printed here with their fix-it lines; ok=false means stop.
 type verbTarget struct {
-	base  string // backend base URL (local record, or a codespace's forward)
+	base  string // gateway base URL (local record, or a codespace's forward)
 	key   string // token/stack key: "local" or "codespace:<repo>"
 	token string
 	root  string // KB root, "" for a codespace target with no local clone
@@ -69,7 +69,7 @@ func verbSession(u *ui, verb, repo string, wantLocal bool) (verbTarget, bool) {
 			fmt.Fprintln(os.Stderr, "  Start one first:  semiont start")
 			return verbTarget{}, false
 		}
-		t.base = backendBase(local)
+		t.base = gatewayBase(local)
 		t.key = "local"
 		t.root = local.KBRoot
 		if t.root == "" {
@@ -137,7 +137,7 @@ func Logout(args []string) int {
 	} else {
 		key = "local"
 		if local := ss.Stacks["local"]; local != nil {
-			base = backendBase(local)
+			base = gatewayBase(local)
 		}
 	}
 

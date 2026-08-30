@@ -340,7 +340,7 @@ Apache-2.0
 
 - [`@semiont/sdk`](../sdk/) - The Semiont SDK (`SemiontClient`) - use this for application development
 - [`@semiont/http-transport`](../http-transport/) - HTTP implementations of core's transport contract
-- [`@semiont/backend`](../../apps/gateway/) - Backend API server
+- [`@semiont/gateway`](../../apps/gateway/) - Backend API server
 - [`@semiont/browser`](../../apps/browser/) - Web application
 
 ## Learn More

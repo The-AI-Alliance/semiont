@@ -19,7 +19,7 @@ its own explicit command: semiont clean.
 With no --runtime, EVERY installed runtime is swept — stopping via the wrong
 runtime is a silent no-op that leaves the real stack running.
 
-With --service <name>, stop just that one service (backend, worker, smelter,
+With --service <name>, stop just that one service (gateway, worker, smelter,
 weaver, archivist, librarian, browser, database, graph, vectors, inference, or
 traces). The staged
 config copies are left in place — the rest of the stack is still mounting
@@ -40,14 +40,14 @@ targets a codespace stack, --runtime targets the local one.
 // stopNames sweeps all ten container names in REVERSE start order —
 // dependents before their dependencies, so nothing spends teardown alive
 // with its upstream already gone (start brings up jaeger → neo4j → qdrant →
-// ollama → postgres → backend → worker → smelter → weaver → browser).
+// ollama → postgres → gateway → worker → smelter → weaver → browser).
 // semiont-browser is deliberately ABSENT: the Browser is not a stack
 // member (BROWSER-LIFECYCLE.md) — a bare stop leaves the viewer running
 // (announced), and `stop --service browser` is its explicit off-switch.
 var stopNames = []string{
 	"semiont-archivist", "semiont-weaver", "semiont-smelter", "semiont-worker",
 	"semiont-librarian",
-	"semiont-backend", "semiont-postgres", "semiont-ollama", "semiont-qdrant",
+	"semiont-gateway", "semiont-postgres", "semiont-ollama", "semiont-qdrant",
 	"semiont-neo4j", "semiont-jaeger",
 }
 
@@ -395,7 +395,7 @@ func Stop(args []string) int {
 	// Shared-artifact cleanup is safe only when this sweep actually covered
 	// the recorded stack (or no record exists): with an explicit --runtime
 	// that mismatches the record, the REAL stack may still be running — its
-	// staged configs are live mounts (deleting them under a running backend
+	// staged configs are live mounts (deleting them under a running gateway
 	// is the measured Apple-container failure this staging exists to
 	// prevent), and its record still describes reality.
 	if st != nil && !useState {

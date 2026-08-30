@@ -52,7 +52,7 @@ func memCeilingGB(m string) float64 {
 // inference or the embedding role provides it as a container.
 func startCeilingsGB(plan *launchPlan, opts startOptions) float64 {
 	sum := 0.0
-	for _, svc := range []string{"backend", "worker", "smelter", "weaver", "archivist", "librarian", "browser"} {
+	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "browser"} {
 		sum += memCeilingGB(roles[svc].mem)
 	}
 	if opts.observe {
@@ -82,8 +82,8 @@ func memoryBudgetWarning(sumGB, hostGB float64) string {
 		return ""
 	}
 	return fmt.Sprintf(
-		"Memory ceilings total %.1fG of this machine's %.0fG. On Apple container each ceiling sizes a per-container VM, so the stack can grow toward that total — expect pressure (compression, swap). Each container's ceiling is on its --dry-run line; the backend's %s is the largest fixed one.",
-		sumGB, hostGB, roles["backend"].mem)
+		"Memory ceilings total %.1fG of this machine's %.0fG. On Apple container each ceiling sizes a per-container VM, so the stack can grow toward that total — expect pressure (compression, swap). Each container's ceiling is on its --dry-run line; the gateway's %s is the largest fixed one.",
+		sumGB, hostGB, roles["gateway"].mem)
 }
 
 // hostMemGB reads the machine's physical memory: sysctl on darwin,

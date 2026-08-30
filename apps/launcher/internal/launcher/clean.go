@@ -20,7 +20,7 @@ import (
 const cleanUsage = `Usage: semiont clean [options]
 
 Remove the persistent local-stack state (PostgreSQL, Qdrant, Neo4j data,
-and the backend's own derived stores)
+and the gateway's own derived stores)
 for one local semiont root. The stack must be stopped first — state is
 never removed while a recorded stack may be mounting it.
 

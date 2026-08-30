@@ -20,7 +20,7 @@ import (
 // understands; a family tested only against a double can agree with a bug in
 // our own client.
 
-// reply wraps a scripted response the way the backend does — the verbs decode
+// reply wraps a scripted response the way the gateway does — the verbs decode
 // `{correlationId, response}`, so a bare body would fail to parse and the test
 // would be measuring the wrong thing.
 func reply(body string) []byte {

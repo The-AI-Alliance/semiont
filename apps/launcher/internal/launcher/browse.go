@@ -240,7 +240,7 @@ func Browse(args []string) int {
 	}
 
 	// Typed request per operation — the generated types come from the same
-	// schemas the backend validates against, so a wrong or missing field is
+	// schemas the gateway validates against, so a wrong or missing field is
 	// a compile error here rather than a rejection (or a silent drop) there.
 	var op bus.Channel
 	var payload any
@@ -358,7 +358,7 @@ func launchBrowser(u *ui, override string) (browserProbe, bool) {
 }
 
 // busFail turns a bus error into the launcher's voice: a rejection carries
-// the backend's own message, a timeout says what went unanswered, and an
+// the gateway's own message, a timeout says what went unanswered, and an
 // expired session points at login rather than leaving the user guessing.
 func busFail(u *ui, verb string, err error) int {
 	var re *bus.RequestError
@@ -445,7 +445,7 @@ func renderBrowse(u *ui, op bus.Channel, reply json.RawMessage) int {
 	return 0
 }
 
-// rawFallback prints what the backend actually said. A reply we cannot shape
+// rawFallback prints what the gateway actually said. A reply we cannot shape
 // is still information — swallowing it would be the dishonest option.
 func rawFallback(payload json.RawMessage) int {
 	fmt.Println(string(payload))

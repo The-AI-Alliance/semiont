@@ -46,8 +46,8 @@ jobs:
           CI: true
           NODE_OPTIONS: "--max-old-space-size=4096"
 
-  test-backend:
-    name: Backend Tests
+  test-gateway:
+    name: Gateway Tests
     runs-on: ubuntu-latest
 
     services:
@@ -80,9 +80,9 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: apps/gateway/.tscache
-          key: ${{ runner.os }}-backend-tsc-${{ hashFiles('apps/gateway/src/**/*.ts', 'apps/gateway/tsconfig.json', 'packages/*/src/**/*.ts') }}
+          key: ${{ runner.os }}-gateway-tsc-${{ hashFiles('apps/gateway/src/**/*.ts', 'apps/gateway/tsconfig.json', 'packages/*/src/**/*.ts') }}
           restore-keys: |
-            ${{ runner.os }}-backend-tsc-
+            ${{ runner.os }}-gateway-tsc-
 
       - name: Install dependencies
         run: |
@@ -91,24 +91,24 @@ jobs:
 
       - name: Generate Prisma Client
         run: |
-          echo "Generating Prisma client for backend..."
+          echo "Generating Prisma client for gateway..."
           cd apps/gateway
           npx prisma generate
         env:
           CI: true
 
-      - name: Run backend type check
+      - name: Run gateway type check
         run: |
-          echo "Running backend TypeScript type check..."
+          echo "Running gateway TypeScript type check..."
           cd apps/gateway
           npm run typecheck
         env:
           CI: true
           NODE_OPTIONS: "--max-old-space-size=8192"
 
-      - name: Run backend unit tests
+      - name: Run gateway unit tests
         run: |
-          echo "Running backend unit tests..."
+          echo "Running gateway unit tests..."
           cd apps/gateway
           npm test
         env:
@@ -119,9 +119,9 @@ jobs:
           GOOGLE_CLIENT_SECRET: test-client-secret
           SITE_DOMAIN: test.semiont.com
 
-      - name: Run backend integration tests
+      - name: Run gateway integration tests
         run: |
-          echo "Running backend integration tests..."
+          echo "Running gateway integration tests..."
           cd apps/gateway
           npm run test:integration
         env:
@@ -169,7 +169,7 @@ jobs:
 
       - name: Generate Prisma Client
         run: |
-          echo "Generating Prisma client for backend..."
+          echo "Generating Prisma client for gateway..."
           cd apps/gateway
           npx prisma generate
         env:
@@ -186,7 +186,7 @@ jobs:
         env:
           CI: true
           NODE_OPTIONS: "--max-old-space-size=4096"
-          # Backend environment variables
+          # Gateway environment variables
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-key-for-testing-32char
           GOOGLE_CLIENT_ID: test-client-id
@@ -240,7 +240,7 @@ jobs:
   build-all:
     name: Build All Applications
     runs-on: ubuntu-latest
-    needs: [test-browser, test-backend]
+    needs: [test-browser, test-gateway]
 
     steps:
       - name: Checkout code
@@ -266,7 +266,7 @@ jobs:
         env:
           CI: true
           NODE_OPTIONS: "--max-old-space-size=4096"
-          # Backend environment variables for build
+          # Gateway environment variables for build
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-key-for-testing-32char
           GOOGLE_CLIENT_ID: test-client-id

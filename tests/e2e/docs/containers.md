@@ -11,7 +11,7 @@ through that lifecycle.
 | Container | What's inside | Where it comes from |
 |---|---|---|
 | `semiont-browser` | Vite-built SPA served on `:3000` | published image, or `:local` via `scripts/ci/local-build.sh` |
-| `semiont-backend` | `@semiont/backend` on `:4000` | published image, or `:local` via `scripts/ci/local-build.sh` |
+| `semiont-gateway` | `@semiont/gateway` on `:4000` | published image, or `:local` via `scripts/ci/local-build.sh` |
 | `semiont-worker`, `semiont-smelter`, `semiont-weaver` | Background workers / pipeline actors | published images, or `:local` via `scripts/ci/local-build.sh` |
 | plus: `semiont-neo4j`, `semiont-qdrant`, `semiont-ollama`, `semiont-postgres` | Storage + inference | started by `semiont start` |
 
@@ -47,7 +47,7 @@ container image ls                        # list local images
 container inspect <name>                  # JSON dump — mounts, env, IP, etc.
 ```
 
-Use `container logs -f semiont-backend` when diagnosing a failing test
+Use `container logs -f semiont-gateway` when diagnosing a failing test
 — the backend's structured logs often reveal whether a bus handler
 actually ran. (`semiont logs`, from the KB directory, follows all
 services at once with `[svc]` prefixes.)

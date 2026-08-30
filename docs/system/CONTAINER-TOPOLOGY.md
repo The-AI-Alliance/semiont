@@ -20,7 +20,7 @@ graph TB
         SPA["Static SPA server<br/>(serves the Semiont Browser)"]
     end
 
-    subgraph backend_c ["semiont-backend"]
+    subgraph backend_c ["semiont-gateway"]
         HTTPD["HTTP Server<br/>(Hono)"]
         STOWER["Stower"]
         BROWSER["Browser<br/>(browse.* reads)"]

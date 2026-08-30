@@ -5,7 +5,7 @@ set -euo pipefail
 #
 # Usage:
 #   ./scripts/ci/build.sh                        # build everything
-#   ./scripts/ci/build.sh --package core,backend  # build only core and backend
+#   ./scripts/ci/build.sh --package core,gateway  # build only core and gateway
 #   ./scripts/ci/build.sh --start-from react-ui   # skip packages before react-ui
 #
 # The list of packages and the build order come from `version.json`
@@ -14,7 +14,7 @@ set -euo pipefail
 # `--package` / `--start-from` CLI args.
 #
 # Library packages (under `packages/`) are built first, in the order
-# version.json lists them; apps (`backend`, `browser`) follow.
+# version.json lists them; apps (`gateway`, `browser`) follow.
 # App staging (.npm-stage/) is the publish flow's job — see
 # scripts/ci/publish.sh, which runs publish-npm-apps.mjs itself.
 #

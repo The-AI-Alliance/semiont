@@ -26,7 +26,7 @@ const (
 // open across stacks.
 var preflightNames = []string{
 	"semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-postgres",
-	"semiont-backend", "semiont-worker", "semiont-smelter", "semiont-weaver",
+	"semiont-gateway", "semiont-worker", "semiont-smelter", "semiont-weaver",
 	"semiont-archivist", "semiont-librarian",
 }
 
@@ -54,7 +54,7 @@ type startOptions struct {
 const startUsage = `Usage: semiont start [options]
 
 Start a local Semiont stack — graph (Neo4j), vectors (Qdrant), inference
-(Ollama), database (PostgreSQL), the Semiont backend, worker, smelter, weaver, and
+(Ollama), database (PostgreSQL), the Semiont gateway, worker, smelter, weaver, and
 the Browser (http://localhost:3000) — all in containers.
 
 Options:
@@ -67,7 +67,7 @@ Options:
                         every real start; see semiont status). Wins over
                         SEMIONT_ROOT and cwd discovery.
   --service <name>      Start (restart) just this one service, leaving the rest
-                        of the stack untouched: backend, worker, smelter, weaver,
+                        of the stack untouched: gateway, worker, smelter, weaver,
                         archivist, librarian, browser, database, graph, vectors,
                         inference, or traces.
                         Rejoins a running stack's worker secret automatically;
@@ -111,9 +111,9 @@ Environment:
                         from the current directory looking for .semiont/.
   SEMIONT_VERSION       Image tag to run (default: latest; 'local' uses
                         locally-built :local images and skips the pull)
-  SEMIONT_WORKER_SECRET Shared backend/sidecar secret (default: generated per
+  SEMIONT_WORKER_SECRET Shared gateway/sidecar secret (default: generated per
                         run; --service rejoins the running stack's secret)
-  JWT_SECRET            The backend's token-signing key, min 32 chars (default:
+  JWT_SECRET            The gateway's token-signing key, min 32 chars (default:
                         generated ONCE per KB root and kept, so tokens survive
                         a restart). An ordered, comma-separated LIST rotates
                         without logging anyone out: the first key signs, every
@@ -386,8 +386,8 @@ func Start(args []string) int {
 	// Resolve the KB root: SEMIONT_ROOT override (strict), else walk up from
 	// cwd for .semiont/ — deliberately after arg parsing so --help works
 	// anywhere. Only flows that read the config need a root at all; only
-	// flows that mount /kb (full start, --service backend) must additionally
-	// be a git clone — the backend versions the event log via git. A
+	// flows that mount /kb (full start, --service gateway) must additionally
+	// be a git clone — the gateway versions the event log via git. A
 	// --service target that touches neither (infra, browser) runs from
 	// anywhere: "just the browser" needs no clone at all.
 	// Everything except browser and traces is config-driven now: infra
@@ -415,7 +415,7 @@ func Start(args []string) int {
 		// real git clone. The Archivist most of all — it is the git
 		// single-writer (D4b), so handing it a non-clone would fail at the
 		// first `git add` rather than here, with a worse message.
-		if opts.service == "" || opts.service == "backend" || opts.service == "archivist" {
+		if opts.service == "" || opts.service == "gateway" || opts.service == "archivist" {
 			if !requireGitClone(u, root) {
 				return 1
 			}
@@ -556,14 +556,14 @@ func Start(args []string) int {
 		version = "latest"
 	}
 
-	u.banner("Semiont Local Backend")
+	u.banner("Semiont Local Gateway")
 	if rootNeeded {
 		ident := loadKBIdentity(root)
 		// A KB must declare its identity to run. The launcher publishes a
 		// discovery document in which `did` is REQUIRED, so a KB with no
 		// [site] domain cannot be represented in it — and the alternatives are
 		// worse than refusing: publishing nothing makes a running KB silently
-		// undiscoverable, and defaulting the domain is what the backend's TOML
+		// undiscoverable, and defaulting the domain is what the gateway's TOML
 		// loader does (to the literal "localhost"), which would give every
 		// domain-less KB on the machine one fabricated, colliding identity.
 		// An address wearing a name is precisely the confusion this rule ends.
@@ -702,13 +702,13 @@ func tracesArgs() []string {
 		"-p", "16686:16686", "-p", "4318:4318", "jaegertracing/all-in-one:1.76.0"}
 }
 
-// backendArgs: the backend takes the four dependency hosts but must NOT
+// gatewayArgs: the gateway takes the four dependency hosts but must NOT
 // receive BACKEND_HOST (publicURL derives from it; see the DID/site.domain
 // history before ever changing this). Admin seeding deliberately does NOT
-// ride in here — `semiont useradd` execs the backend's own `semiont-useradd`
+// ride in here — `semiont useradd` execs the gateway's own `semiont-useradd`
 // instead, so no password ever sits in the container's inspectable env.
-// jwt is the token-signing key — backend-only, deliberately not in sidecarArgs:
-// the sidecars present agent tokens the backend minted and never sign anything.
+// jwt is the token-signing key — gateway-only, deliberately not in sidecarArgs:
+// the sidecars present agent tokens the gateway minted and never sign anything.
 // kbMountTarget is where the KB clone lands inside the ARCHIVIST container —
 // the only container that mounts it (SINGLE-KB-MOUNT, the whole plan's point).
 // The value is HALF of an agreement: the archivist image declares
@@ -716,16 +716,16 @@ func tracesArgs() []string {
 // TestContainerPathsMatchTheImage is what makes them match.
 const kbMountTarget = "/kb"
 
-// backendArgs: the gateway mounts NO piece of the knowledge base (P6). It
+// gatewayArgs: the gateway mounts NO piece of the knowledge base (P6). It
 // reaches bytes and the record over HTTP through the Archivist, and everything
 // it once read off the tree — the KB name, the committed did:web domain — the
 // launcher stages into its config copy. What is left is that copy and the
 // gateway's own state.
-func backendArgs(stage, addr, secret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
-	a := []string{"run", "-d", "--name", "semiont-backend", // no --rm: see providedRunArgs
-		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", roles["backend"].mem,
-		"--volume", stage + "/backend.toml:/home/semiont/.semiontconfig:ro"}
-	// Persistent state the backend itself owns (stateStores["backend"]).
+func gatewayArgs(stage, addr, secret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
+	a := []string{"run", "-d", "--name", "semiont-gateway", // no --rm: see providedRunArgs
+		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", roles["gateway"].mem,
+		"--volume", stage + "/gateway.toml:/home/semiont/.semiontconfig:ro"}
+	// Persistent state the gateway itself owns (stateStores["gateway"]).
 	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
@@ -741,7 +741,7 @@ func backendArgs(stage, addr, secret, jwt, version string, port int, userEnv, ot
 		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_WORKER_SECRET="+secret,
 		"--env", "JWT_SECRET="+jwt)
-	return append(a, image("backend", version))
+	return append(a, image("gateway", version))
 }
 
 // sidecarArgs covers the three make-meaning sidecars (worker / smelter /
@@ -771,7 +771,7 @@ func sidecarArgs(svc string, port int, stage, addr, secret, version string, user
 // 3000; the SPA server always listens on 3000 inside). The ONLY port a flag
 // may move — it's absent from the config and nothing in the stack dials it.
 // archivistArgs: the Archivist owns the file-backed record, so its mount
-// shape is the BACKEND's minus the database — the KB root read-write (it is
+// shape is the GATEWAY's minus the database — the KB root read-write (it is
 // the git single-writer, D4b), the anchored-text store, and a staged config
 // copy. Env is the sidecar set, which already carries every ${VAR} the
 // config interpolates. Deliberately NO JWT_SECRET: it signs nothing; agent
@@ -860,7 +860,7 @@ func pullArgs(rt, img string) []string {
 
 // browser is absent: the Browser pulls its own image inside flowBrowser,
 // and only when actually (re)starting — a kept Browser costs no pull.
-var semiontServices = []string{"backend", "worker", "smelter", "weaver", "archivist", "librarian"}
+var semiontServices = []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian"}
 
 // sidecarSpecs: the three make-meaning sidecars, in start order.
 type sidecarSpec struct {
@@ -1002,7 +1002,7 @@ func removeStagedConfigs() {
 // (parent+child servers, SO_REUSEPORT), so callers iterate.
 //
 // Both flags are load-bearing. Without `-sTCP:LISTEN`, lsof also matches CLOSED
-// outbound sockets, so a browser that once talked to a since-stopped backend
+// outbound sockets, so a browser that once talked to a since-stopped gateway
 // makes the port read as held. And `-t` is absent because macOS lsof prints
 // nothing when `-t` meets `-s`: the terse form would report every port free.
 func listenersOn(port int) []string {
@@ -1096,7 +1096,7 @@ func describeProcs(pids []string) string {
 // committed identity for AGENT dids (KB-IDENTITY-VS-ADDRESS P4, decision 10).
 //
 // A KB has one committed identity — `[site] domain` in .semiont/config — but
-// the backend resolves the domain it mints AGENT dids under as
+// the gateway resolves the domain it mints AGENT dids under as
 // `resolved.site ?? projectSite` (packages/core/src/config/toml-loader.ts is
 // the authority for that precedence; do not reimplement it here). So an
 // environment `[site]` section replaces the KB's declaration wholesale, and a
@@ -1133,7 +1133,7 @@ func warnIdentityOverride(u *ui, site *siteCfg, committed string) {
 	fmt.Printf("  KB identity (committed .semiont/config): %s\n", didWebOf(committed))
 	fmt.Printf("  Agent identities (this config's [site]):  %s\n", didWebOf(effective)+":agents:…")
 	if site.Domain == nil {
-		fmt.Println("  The [site] section declares no domain, so the backend substitutes")
+		fmt.Println("  The [site] section declares no domain, so the gateway substitutes")
 		fmt.Println("  \"localhost\" — an identity every domain-less KB on this machine shares.")
 	}
 	fmt.Println("  The KB's own identity is unchanged; only the agents' domain moves.")

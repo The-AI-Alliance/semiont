@@ -7,7 +7,7 @@ In order:
 1. **Run just that test with the bus log**: `-g '<title>' --repeat-each 3`.
    Three runs tells you flaky vs. deterministic in under a minute. See
    [running.md](running.md).
-2. **Tail backend logs during the run**: `container logs -f semiont-backend`.
+2. **Tail backend logs during the run**: `container logs -f semiont-gateway`.
    If the event never reaches the backend, it's a Browser-side
    emit/subscribe problem; if the backend logs the emit but no
    response comes back through SSE, it's a result-channel or SSE
@@ -118,7 +118,7 @@ Delete the diagnostic as soon as you know.
 ## Tailing backend logs during a test
 
 ```sh
-container logs -f semiont-backend
+container logs -f semiont-gateway
 ```
 
 Useful columns in the JSONL log lines:

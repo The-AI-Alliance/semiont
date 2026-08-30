@@ -253,7 +253,7 @@ func selectRuntime(u *ui, requested string) (string, bool) {
 // --- Health waits ---
 
 // healthProbeTimeout bounds ONE host-side probe. Shared with the SDK-backed
-// backend probe (roleHealthy) so the two cannot drift into a status report
+// gateway probe (roleHealthy) so the two cannot drift into a status report
 // where one role is allowed to stall longer than the rest.
 const healthProbeTimeout = 2 * time.Second
 

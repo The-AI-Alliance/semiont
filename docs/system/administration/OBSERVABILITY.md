@@ -66,7 +66,7 @@ inherit from your shell; for containers, add to compose / ECS task env.
 |-----------------------------------|----------------------------------------|------------------------------------|
 | `OTEL_EXPORTER_OTLP_ENDPOINT`     | (none — SDK does not initialize)       | OTLP HTTP collector URL            |
 | `OTEL_EXPORTER_OTLP_HEADERS`      | (none)                                 | Auth headers for SaaS APMs         |
-| `OTEL_SERVICE_NAME`               | `semiont-backend` / `-worker` / `-smelter` | Service identity                |
+| `OTEL_SERVICE_NAME`               | `semiont-gateway` / `-worker` / `-smelter` | Service identity                |
 | `OTEL_TRACES_SAMPLER`             | `parentbased_always_on`                | Sampler                            |
 | `OTEL_TRACES_SAMPLER_ARG`         | (n/a)                                  | Ratio for traceidratio samplers    |
 | `OTEL_CONSOLE_EXPORTER`           | `false`                                | Set `true` for stderr exporter (dev only) |
@@ -117,7 +117,7 @@ docker run -d --name jaeger \
 
 # 2. Point Semiont at it
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
-export OTEL_SERVICE_NAME=semiont-backend
+export OTEL_SERVICE_NAME=semiont-gateway
 semiont start --service backend
 
 # 3. Browse traces at http://localhost:16686
@@ -144,10 +144,10 @@ cross-service trace propagation without standing Jaeger up by hand.
 curl -s http://localhost:16686/api/services | jq -r '.data[]'
 
 # Operations on a service
-curl -s http://localhost:16686/api/services/semiont-backend/operations | jq -r '.data[]'
+curl -s http://localhost:16686/api/services/semiont-gateway/operations | jq -r '.data[]'
 
 # Cross-service traces (most useful for debugging propagation)
-curl -s 'http://localhost:16686/api/traces?service=semiont-backend&limit=200&lookback=10m' \
+curl -s 'http://localhost:16686/api/traces?service=semiont-gateway&limit=200&lookback=10m' \
   | jq -r '.data[] | select(([.processes[].serviceName] | unique | length) > 1) | "\(.traceID) services=\([.processes[].serviceName] | unique | join(","))"'
 ```
 
@@ -155,10 +155,10 @@ If Jaeger only knows about itself (`jaeger-all-in-one`), no Semiont
 process has exported spans. Most likely causes:
 
 1. `OTEL_EXPORTER_OTLP_ENDPOINT` is set but unreachable — verify with
-   `container exec semiont-backend wget -qO- http://...:4318` from
+   `container exec semiont-gateway wget -qO- http://...:4318` from
    inside the backend container.
 2. `@semiont/observability` isn't installed in the running backend.
-   Verify: `container exec semiont-backend ls /home/semiont/.local/share/semiont/node_modules/@semiont/`.
+   Verify: `container exec semiont-gateway ls /home/semiont/.local/share/semiont/node_modules/@semiont/`.
 3. Backend image was built before observability was bumped — rebuild
    with `--no-cache`.
 

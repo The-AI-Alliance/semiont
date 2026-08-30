@@ -24,7 +24,7 @@ import (
 // orchestrates the outside only (create, wait, forward, lifecycle) by shelling
 // out to `gh`, which owns auth and the tunnel client.
 
-// The KB (backend, remote port 4000) is the ONLY port a codespace stack
+// The KB (gateway, remote port 4000) is the ONLY port a codespace stack
 // forwards: the browser's Knowledge Bases panel connects to KBs by
 // host/port, so one browser works N codespace KBs at once — each stack gets
 // its own local port, canonical 4000 when free, else the lowest free above
@@ -709,7 +709,7 @@ type creationLogTail struct {
 	lastBeat time.Time
 	// The display window is far too small to explain a failure: in the live
 	// case the devcontainer marker sat ~18 lines below the real cause (a
-	// backend refusing to boot), so a report built from `lines` would show
+	// gateway refusing to boot), so a report built from `lines` would show
 	// the stack trace and none of the reason. This wider ring exists only to
 	// be printed when the hooks fail.
 	context []string
@@ -1490,8 +1490,8 @@ func waitForRemoteKB(u *ui, name string, created bool) int {
 	}
 	tail.stop()
 	u.fail("The stack did not come up inside %s within %s.", name, took(remoteReadyBudget))
-	fmt.Fprintf(os.Stderr, "  Look inside:  gh codespace ssh -c %s -- 'docker ps; docker logs --tail 50 semiont-backend'\n", name)
-	fmt.Fprintln(os.Stderr, "  A crash-looping backend is the usual cause; its logs name the reason.")
+	fmt.Fprintf(os.Stderr, "  Look inside:  gh codespace ssh -c %s -- 'docker ps; docker logs --tail 50 semiont-gateway'\n", name)
+	fmt.Fprintln(os.Stderr, "  A crash-looping gateway is the usual cause; its logs name the reason.")
 	return 1
 }
 
@@ -1515,7 +1515,7 @@ const (
 	remoteUnknown                         // ssh itself is unusable — we cannot ask
 )
 
-// askRemoteKB asks the codespace whether its backend serves health, and — the
+// askRemoteKB asks the codespace whether its gateway serves health, and — the
 // part that matters — distinguishes "not ready" from "could not ask".
 //
 // ssh is a NICETY in this flow, never a gate: it can fail while the stack is

@@ -14,8 +14,8 @@ or Podman (in that order). Override with `CONTAINER_RUNTIME=docker` (or `podman`
 
 ```bash
 npm run container:build           # Build all images
-npm run container:build:backend   # Build backend only
-npm run container:build:Browser  # Build Browser only
+npm run container:build:gateway   # Build gateway only
+npm run container:build:browser   # Build browser only
 npm run container:images          # List semiont images
 npm run container:clean           # Remove semiont images
 ```

@@ -16,10 +16,10 @@
 //	FAKERT_NSLOOKUP          "ok" makes the host-alias probe succeed
 //	FAKERT_GATEWAY           default-gateway probe output (default 192.168.64.1)
 //	FAKERT_OLLAMA_REACHABLE  "1" makes the busybox wget probe of :11434 succeed
-//	FAKERT_BACKEND_UNREACHABLE  "1" fails the busybox wget probe of :4000
+//	FAKERT_GATEWAY_UNREACHABLE  "1" fails the busybox wget probe of :4000
 //	FAKERT_NC_FAIL           "1" fails the busybox `nc -z` postgres probe
 //	FAKERT_VOLUME_ABSENT     "1" makes `volume rm` fail (volume not found)
-//	FAKERT_STACK_RUNTIME     which runtime's list/ps shows semiont-backend
+//	FAKERT_STACK_RUNTIME     which runtime's list/ps shows semiont-gateway
 //	FAKERT_PULL_FAIL         substring; pulls of matching images fail
 //	FAKERT_DAEMON_DOWN       "1": every runtime command fails XPC-style;
 //	                         `container system status` reports the apiserver down
@@ -377,7 +377,7 @@ func ghCodespace(args []string, joined string) {
 		// reversed-argument bug found live on 2026-07-20.
 		//
 		// FAKERT_GH_FORWARD_SICK: the tunnel is bound but the stack behind
-		// it answers 503 (backend still warming). FAKERT_GH_FORWARD_DIES_
+		// it answers 503 (gateway still warming). FAKERT_GH_FORWARD_DIES_
 		// AFTER_MS: the forward process exits after that delay — the
 		// mid-wait death observed live on 2026-07-23 (pid went defunct
 		// while the KB was healthy in the codespace).
@@ -458,15 +458,15 @@ func ghCodespace(args []string, joined string) {
 		// lines, then exit — a tailer that ends early is legal (the launcher
 		// treats the stream as decoration, never a gate).
 		fmt.Println("2026-01-01 00:00:00.000Z: Running onCreateCommand...")
-		fmt.Println("2026-01-01 00:00:01.000Z: Pulling semiont-backend:latest")
+		fmt.Println("2026-01-01 00:00:01.000Z: Pulling semiont-gateway:latest")
 		// FAKERT_GH_HOOKS_FAIL: the devcontainer's lifecycle command failed —
 		// the stack will never come up, so waiting is pointless. Shaped like
 		// the live 2026-07-27 log: the CAUSE (a service refusing to boot)
 		// several lines above the devcontainer's own announcement, which is
 		// why the launcher must print the run-up and not just the marker.
 		if os.Getenv("FAKERT_GH_HOOKS_FAIL") != "" {
-			fmt.Println("semiont-backend  | Error: JWT_SECRET is not set. `semiont start` generates one per knowledge base and injects it")
-			fmt.Println("semiont-backend  |     at requireJwtSecret (file:///home/semiont/.local/share/semiont/node_modules/@semiont/backend/dist/index.js:219:11)")
+			fmt.Println("semiont-gateway  | Error: JWT_SECRET is not set. `semiont start` generates one per knowledge base and injects it")
+			fmt.Println("semiont-gateway  |     at requireJwtSecret (file:///home/semiont/.local/share/semiont/node_modules/@semiont/gateway/dist/index.js:219:11)")
 			fmt.Println("2026-01-01 00:00:02.000Z: Retry after fixing with:  bash .devcontainer/post-start.sh")
 			fmt.Println("2026-01-01 00:00:02.100Z: postStartCommand from devcontainer.json failed with exit code 1. Skipping any further user-provided commands.")
 			fmt.Println("2026-01-01 00:00:02.200Z: devcontainer process exited with exit code 1")
@@ -734,9 +734,9 @@ func runtimeCmd(base string, args []string) {
 		if os.Getenv("FAKERT_STACK_RUNTIME") == base {
 			if header {
 				fmt.Println("ID              IMAGE                       STATE")
-				fmt.Println("semiont-backend ghcr.io/x/semiont-backend  running")
+				fmt.Println("semiont-gateway ghcr.io/x/semiont-gateway  running")
 			} else {
-				fmt.Println("semiont-backend")
+				fmt.Println("semiont-gateway")
 			}
 		}
 	case "logs":
@@ -761,7 +761,7 @@ func runtimeCmd(base string, args []string) {
 		fmt.Println("fakert exec ok")
 	case "inspect":
 		// Scripted via FAKERT_STATE_<svc> (svc = name minus "semiont-"),
-		// e.g. FAKERT_STATE_backend=running. Unset = container not found.
+		// e.g. FAKERT_STATE_gateway=running. Unset = container not found.
 		// With FAKERT_SECRET set, the env list carries the worker secret —
 		// exercising the launcher's --service secret recovery.
 		svc := strings.TrimPrefix(handleName(args[len(args)-1]), "semiont-")
@@ -878,7 +878,7 @@ func run(args []string) {
 		}
 	}
 	// The container identifier the runtime reports — name-derived so tests
-	// can assert id-based stop/status flows ("fid-semiont-backend").
+	// can assert id-based stop/status flows ("fid-semiont-gateway").
 	if name != "" {
 		fmt.Println("fid-" + name)
 	} else {
@@ -1044,7 +1044,7 @@ func busybox(args []string, joined string) {
 				os.Exit(1)
 			}
 		case strings.Contains(joined, ":4000"):
-			if os.Getenv("FAKERT_BACKEND_UNREACHABLE") != "" {
+			if os.Getenv("FAKERT_GATEWAY_UNREACHABLE") != "" {
 				os.Exit(1)
 			}
 		default:
@@ -1104,7 +1104,7 @@ func busUnsubscribe(target *busSub) {
 
 // busPublish fans one event out to every subscriber listening for it.
 // busSubscriberCount reports how many live subscriptions cover a channel —
-// the fake's answer to the real backend's observer count.
+// the fake's answer to the real gateway's observer count.
 func busSubscriberCount(channel string) int {
 	busMu.Lock()
 	defer busMu.Unlock()
@@ -1284,18 +1284,18 @@ func serve(ports []string) {
 		go func() {
 			_ = http.Serve(ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// A sick serve answers but is never ready (see the forward
-				// case) — bound ≠ healthy, exactly like a warming backend.
+				// case) — bound ≠ healthy, exactly like a warming gateway.
 				if os.Getenv("FAKERT_SERVE_SICK") != "" {
 					http.Error(w, "warming", http.StatusServiceUnavailable)
 					return
 				}
-				// The backend's password login (sdk-go glue): any credentials
+				// The gateway's password login (sdk-go glue): any credentials
 				// accepted, fixed fake JWT back — tests assert the TOKEN is
 				// stored and the PASSWORD never is.
 				if r.URL.Path == "/api/tokens/password" {
 					// Explicit Content-Type: the generated Go client parses
 					// JSON200 only when the header says json (the sniffer
-					// would say text/plain), exactly like the real backend.
+					// would say text/plain), exactly like the real gateway.
 					w.Header().Set("Content-Type", "application/json")
 					_ = json.NewEncoder(w).Encode(map[string]any{
 						"success":      true,
@@ -1363,7 +1363,7 @@ func serve(ports []string) {
 				// The event bus. /bus/subscribe holds an SSE stream open and
 				// replies to whatever /bus/emit receives, echoing the
 				// caller's correlationId — the same contract the real
-				// backend keeps, so the launcher's subscribe-before-emit
+				// gateway keeps, so the launcher's subscribe-before-emit
 				// ordering is exercised for real.
 				// FAKERT_BUS_REPLY_<channel-with-colons-as-underscores>:
 				// JSON `response` object for that operation's result.
@@ -1418,7 +1418,7 @@ func serve(ports []string) {
 							}
 						}
 					}
-					// FIDELITY: the real backend answers 202 with the number
+					// FIDELITY: the real gateway answers 202 with the number
 					// of subscribers its target subject had at dispatch, and
 					// the launcher's output turns on that number. Count the
 					// fake's own live subscribers for that channel rather than

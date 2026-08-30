@@ -832,7 +832,7 @@ skips it.)
 Inner loop, in priority order:
 
 1. **Re-run the failing test with the bus log** under `--repeat-each 3` to separate flake from determinism.
-2. **Tail the backend** during the run: `container logs -f semiont-backend`. If the event never reaches the backend, it's a Browser emit/subscribe problem; if the backend logs the emit but no SSE write follows, it's a result-channel problem.
+2. **Tail the backend** during the run: `container logs -f semiont-gateway`. If the event never reaches the backend, it's a Browser emit/subscribe problem; if the backend logs the emit but no SSE write follows, it's a result-channel problem.
 3. **Open the trace report** (`npm run show-report`). Each failed test has a DOM snapshot, a screenshot, a video, and a `trace.zip` for time-travel debugging in Playwright's trace viewer.
 4. **Pull `console.error` from the trace** without booting the viewer — see [`tests/e2e/docs/debugging.md`](../../tests/e2e/docs/debugging.md#pulling-a-js-error-from-a-trace) for the JSONL recipe.
 5. **Write a throwaway diagnostic spec** with the minimum flow and no assertions. If the diagnostic succeeds where the real test fails, the delta between them is the bug.

@@ -111,13 +111,13 @@ func TestBrowserTargetPrefersTheOverrideOverTheRecord(t *testing.T) {
 	}
 }
 
-// ── the backend's probe goes through the SDK ────────────────────────────
+// ── the gateway's probe goes through the SDK ────────────────────────────
 
-// The backend is the one role in the status table with a generated client,
+// The gateway is the one role in the status table with a generated client,
 // and its probe must use it — that is the whole of "the launcher does not
 // touch the wire". Asserted by watching the ROUTE: the generic prober fetches
 // the recorded endpoint verbatim, the SDK asks its own /api/health.
-func TestRoleHealthyProbesTheBackendThroughTheSDK(t *testing.T) {
+func TestRoleHealthyProbesTheGatewayThroughTheSDK(t *testing.T) {
 	var paths []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		paths = append(paths, r.URL.Path)
@@ -126,8 +126,8 @@ func TestRoleHealthyProbesTheBackendThroughTheSDK(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if !roleHealthy("backend", srv.URL+"/api/health") {
-		t.Error("a serving backend must read healthy")
+	if !roleHealthy("gateway", srv.URL+"/api/health") {
+		t.Error("a serving gateway must read healthy")
 	}
 	// A sidecar serves /health and has no client of its own; it keeps the
 	// generic prober, and the recorded path must survive untouched.
@@ -140,14 +140,14 @@ func TestRoleHealthyProbesTheBackendThroughTheSDK(t *testing.T) {
 	}
 }
 
-func TestRoleHealthyReportsADeadBackend(t *testing.T) {
-	if roleHealthy("backend", deadOrigin(t)+"/api/health") {
-		t.Error("an unreachable backend must not read healthy")
+func TestRoleHealthyReportsADeadGateway(t *testing.T) {
+	if roleHealthy("gateway", deadOrigin(t)+"/api/health") {
+		t.Error("an unreachable gateway must not read healthy")
 	}
-	// A backend record that is not the health route falls back rather than
+	// A gateway record that is not the health route falls back rather than
 	// guessing at an origin it cannot derive.
-	if roleHealthy("backend", deadOrigin(t)) {
-		t.Error("an unreachable backend must not read healthy on the fallback path either")
+	if roleHealthy("gateway", deadOrigin(t)) {
+		t.Error("an unreachable gateway must not read healthy on the fallback path either")
 	}
 }
 
@@ -228,7 +228,7 @@ func TestBrowseBrowserNamesAContainerThatIsNotAnswering(t *testing.T) {
 }
 
 // A count of -1 means the server did not tell us. That is not an empty room,
-// and treating it as one would fail every tour step against a backend too old
+// and treating it as one would fail every tour step against a gateway too old
 // to report the count.
 func TestBrowseBrowserDoesNotRefuseOnAnUnknownCount(t *testing.T) {
 	fake, restore := withFake(t)

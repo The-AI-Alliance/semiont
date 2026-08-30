@@ -9,7 +9,7 @@ Five services run Semiont code. Each is a published container image; see [Contai
 | Service | Port | What runs | Bundled package | Docs |
 |---|---|---|---|---|
 | **browser** | 3000 | Static server for the Semiont Browser SPA | `semiont-browser` | [README](../../../apps/browser/README.md) |
-| **backend** | 4000 | API server + unified bus gateway; Stower, Browser, Gatherer, Matcher | `semiont-backend` | [README](../../../apps/gateway/README.md) |
+| **backend** | 4000 | API server + unified bus gateway; Stower, Browser, Gatherer, Matcher | `semiont-gateway` | [README](../../../apps/gateway/README.md) |
 | **worker** | 9090 | Annotation/generation worker pool | `@semiont/jobs` | [API](../../../packages/jobs/docs/API.md) |
 | **smelter** | 9091 | Embedding/vector pipeline actor | `@semiont/make-meaning` | [Package](../../../packages/make-meaning/) |
 | **weaver** | 9092 | Graph-projection actor | `@semiont/make-meaning` | [Package](../../../packages/make-meaning/) |
@@ -74,7 +74,7 @@ Services log to stdout, so `semiont logs` is the way to read them — there are 
 The launcher has no `exec` verb. To get a shell in a running service, use your container engine; containers are named `semiont-<service>`:
 
 ```bash
-container exec -it semiont-backend sh    # or: docker exec -it semiont-backend sh
+container exec -it semiont-gateway sh    # or: docker exec -it semiont-gateway sh
 ```
 
 ### Configuration

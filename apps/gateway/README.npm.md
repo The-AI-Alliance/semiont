@@ -1,8 +1,8 @@
-# @semiont/backend
+# @semiont/gateway
 
-[![npm version](https://img.shields.io/npm/v/@semiont/backend.svg)](https://www.npmjs.com/package/@semiont/backend)
-[![npm downloads](https://img.shields.io/npm/dm/@semiont/backend.svg)](https://www.npmjs.com/package/@semiont/backend)
-[![License](https://img.shields.io/npm/l/@semiont/backend.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@semiont/gateway.svg)](https://www.npmjs.com/package/@semiont/gateway)
+[![npm downloads](https://img.shields.io/npm/dm/@semiont/gateway.svg)](https://www.npmjs.com/package/@semiont/gateway)
+[![License](https://img.shields.io/npm/l/@semiont/gateway.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
 Pre-built Semiont backend server for npm consumption. This package contains the compiled backend application with Prisma schema and migrations.
 
@@ -18,15 +18,15 @@ cd /path/to/your-knowledge-base
 semiont start
 ```
 
-This package is what the `semiont-backend` container image runs inside.
+This package is what the `semiont-gateway` container image runs inside.
 
 ## Direct usage
 
 ```bash
-npm install @semiont/backend
+npm install @semiont/gateway
 
-npx prisma migrate deploy --schema=node_modules/@semiont/backend/prisma/schema.prisma
-node node_modules/@semiont/backend/dist/index.js
+npx prisma migrate deploy --schema=node_modules/@semiont/gateway/prisma/schema.prisma
+node node_modules/@semiont/gateway/dist/index.js
 ```
 
 Requires in the environment:

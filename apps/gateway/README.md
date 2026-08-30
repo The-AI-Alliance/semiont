@@ -22,10 +22,10 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 
 ## npm Package
 
-[![npm version](https://img.shields.io/npm/v/@semiont/backend.svg)](https://www.npmjs.com/package/@semiont/backend)
-[![npm downloads](https://img.shields.io/npm/dm/@semiont/backend.svg)](https://www.npmjs.com/package/@semiont/backend)
+[![npm version](https://img.shields.io/npm/v/@semiont/gateway.svg)](https://www.npmjs.com/package/@semiont/gateway)
+[![npm downloads](https://img.shields.io/npm/dm/@semiont/gateway.svg)](https://www.npmjs.com/package/@semiont/gateway)
 
-The backend is published as `@semiont/backend` on npm with pre-built dist and Prisma schema. The published backend image installs it at build time, pinned to `SEMIONT_VERSION`, and runs it directly — nothing installs it into a project.
+The backend is published as `@semiont/gateway` on npm with pre-built dist and Prisma schema. The published backend image installs it at build time, pinned to `SEMIONT_VERSION`, and runs it directly — nothing installs it into a project.
 
 ## Quick Start
 
@@ -61,13 +61,13 @@ npm run dev
 
 ## 🐳 Container Image
 
-[![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-backend)
+[![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-gateway)
 
 Pull and run the published backend container image:
 
 ```bash
 # Pull latest development build
-docker pull ghcr.io/the-ai-alliance/semiont-backend:dev
+docker pull ghcr.io/the-ai-alliance/semiont-gateway:dev
 
 # Run with configuration
 docker run -d \
@@ -75,8 +75,8 @@ docker run -d \
   -v $(pwd):/app/kb \
   -v $(pwd)/.semiont/semiontconfig/anthropic.toml:/home/semiont/.semiontconfig:ro \
   -e SEMIONT_ROOT=/app/kb \
-  --name semiont-backend \
-  ghcr.io/the-ai-alliance/semiont-backend:latest
+  --name semiont-gateway \
+  ghcr.io/the-ai-alliance/semiont-gateway:latest
 ```
 
 **Configuration requirements:**
@@ -399,7 +399,7 @@ See [Testing Guide](./docs/TESTING.md) for testing patterns.
 
 ### Deployment
 
-The backend ships as the published `semiont-backend` container image; a KB stack runs it via the
+The backend ships as the published `semiont-gateway` container image; a KB stack runs it via the
 host-installed `semiont` launcher (see [apps/launcher](../launcher/README.md)) or
 `docker compose` against the KB's `.semiont/compose/backend.yml`.
 

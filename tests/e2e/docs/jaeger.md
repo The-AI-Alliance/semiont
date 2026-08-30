@@ -36,7 +36,7 @@ Three env vars, all optional:
 | Variable | Default | Purpose |
 |---|---|---|
 | `JAEGER_QUERY_URL` | `http://192.168.64.16:16686` | Jaeger UI/Query base URL. |
-| `JAEGER_SERVICES` | `semiont-backend,semiont-worker,semiont-smelter,semiont-browser` | Comma-separated services to query. |
+| `JAEGER_SERVICES` | `semiont-gateway,semiont-worker,semiont-smelter,semiont-browser` | Comma-separated services to query. |
 | `JAEGER_ATTACH` | `failure` | When to attach evidence — `failure` (default), `always`, or `off`. |
 
 The default `failure` mode means passing tests don't pay the per-test
@@ -90,7 +90,7 @@ and writes a `<container>.log` slice into the test's output directory.
 python3 tests/e2e/scripts/slice-container-logs.py
 ```
 
-That writes `semiont-backend.log`, `semiont-worker.log`, and
+That writes `semiont-gateway.log`, `semiont-worker.log`, and
 `semiont-smelter.log` (when each has events in the test window) into
 every test directory next to the existing Jaeger artifacts. Combined
 with the `jaeger-*.json` artifacts and the Playwright trace.zip, a
@@ -98,7 +98,7 @@ failing test's directory ends up with the full cross-process record.
 
 Defaults:
 
-- **Containers**: `semiont-backend,semiont-worker,semiont-smelter`. The
+- **Containers**: `semiont-gateway,semiont-worker,semiont-smelter`. The
   Browser container is omitted because its log format is mostly
   unstructured stdout without timestamps. Override with
   `--containers <comma-list>`.

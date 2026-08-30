@@ -1,7 +1,7 @@
 # Stage 1: install. Unlike the other service images, the backend does NOT discard
 # npm afterward — the runtime stage copies it over for `npx prisma` (see below).
 #
-# The image runs @semiont/backend directly — there is no CLI layer. The package
+# The image runs @semiont/gateway directly — there is no CLI layer. The package
 # and its lazy peers install into /home/semiont/.local/share/semiont.
 # neo4j-driver and @qdrant/js-client-rest are lazy peers of @semiont/graph and
 # @semiont/vector (loaded at connect time) — the backend dials both, so they are
@@ -30,7 +30,7 @@ ARG SEMIONT_VERSION=latest
 RUN --mount=type=cache,target=/root/.npm \
     npm config set registry $NPM_REGISTRY && \
     npm install -g npm@12.0.1 && \
-    npm install @semiont/backend@${SEMIONT_VERSION} neo4j-driver @qdrant/js-client-rest \
+    npm install @semiont/gateway@${SEMIONT_VERSION} neo4j-driver @qdrant/js-client-rest \
       --prefix /home/semiont/.local/share/semiont
 
 # Generate the Prisma client. This is NOT optional: dist/index.js leaves
@@ -49,7 +49,7 @@ RUN --mount=type=cache,target=/root/.npm \
 #
 # Output lands in the prefix's node_modules/.prisma + node_modules/@prisma/client,
 # inside the tree the runtime stage COPYs — verified, not assumed.
-RUN cd /home/semiont/.local/share/semiont/node_modules/@semiont/backend && \
+RUN cd /home/semiont/.local/share/semiont/node_modules/@semiont/gateway && \
     npx prisma generate --schema=prisma/schema.prisma && \
     test -d /home/semiont/.local/share/semiont/node_modules/.prisma/client
 
@@ -164,12 +164,12 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 # carries the KB's own settings plus the staged `[kb]` identity and archivist
 # topology. Bytes and the event log come from the Archivist over HTTP.
 ENV SEMIONT_ENV=local
-ENV BACKEND_DIR=/home/semiont/.local/share/semiont/node_modules/@semiont/backend
+ENV GATEWAY_DIR=/home/semiont/.local/share/semiont/node_modules/@semiont/gateway
 
 # The package's declared bins, linked here by `npm install --prefix`. On PATH so
 # `semiont useradd` can `container exec … semiont-useradd <args>` — a bare command
 # name with argv passed straight through, no `sh -c`. That matters because the
-# password is IN that argv: routing it through a shell to expand $BACKEND_DIR
+# password is IN that argv: routing it through a shell to expand $GATEWAY_DIR
 # would let shell metacharacters in a password be mangled or interpreted.
 ENV PATH="/home/semiont/.local/share/semiont/node_modules/.bin:${PATH}"
 
@@ -181,17 +181,17 @@ ENV PATH="/home/semiont/.local/share/semiont/node_modules/.bin:${PATH}"
 #
 # Placed after the COPY, the prune, and the ENV so it validates all three at
 # once: an install-prefix change, a prune that reached too far, or a drifted
-# BACKEND_DIR each fail the build here rather than surfacing at runtime as a bare
+# GATEWAY_DIR each fail the build here rather than surfacing at runtime as a bare
 # `node: cannot find module`. (The installer stage's own `test -d` stays — it
 # pins the generate step where it runs, so a failure there names the right step.)
-RUN test -f "$BACKEND_DIR/dist/index.js" \
-      || { echo "BACKEND_DIR does not contain dist/index.js: $BACKEND_DIR"; exit 1; }; \
-    test -f "$BACKEND_DIR/prisma/schema.prisma" \
-      || { echo "no prisma schema under $BACKEND_DIR — migrate deploy would fail at start"; exit 1; }; \
+RUN test -f "$GATEWAY_DIR/dist/index.js" \
+      || { echo "GATEWAY_DIR does not contain dist/index.js: $GATEWAY_DIR"; exit 1; }; \
+    test -f "$GATEWAY_DIR/prisma/schema.prisma" \
+      || { echo "no prisma schema under $GATEWAY_DIR — migrate deploy would fail at start"; exit 1; }; \
     test -d /home/semiont/.local/share/semiont/node_modules/.prisma/client \
       || { echo "generated prisma client missing from the runtime image (pruned?)"; exit 1; }; \
-    test -f "$BACKEND_DIR/dist/cli/db-url.js" \
-      || { echo "@semiont/backend@${SEMIONT_VERSION} predates dist/cli/db-url.js, which this CMD needs to derive DATABASE_URL — build with a version that ships it"; exit 1; }; \
+    test -f "$GATEWAY_DIR/dist/cli/db-url.js" \
+      || { echo "@semiont/gateway@${SEMIONT_VERSION} predates dist/cli/db-url.js, which this CMD needs to derive DATABASE_URL — build with a version that ships it"; exit 1; }; \
     command -v semiont-useradd >/dev/null \
       || { echo "semiont-useradd is not on PATH — \`semiont useradd\` execs it by name; check the package's bin entry and the PATH above"; exit 1; }
 
@@ -224,8 +224,8 @@ RUN test -f "$BACKEND_DIR/dist/index.js" \
 #                    TLS-requiring database); when set, the derivation is skipped
 CMD set -e; \
     if [ -z "${DATABASE_URL:-}" ]; then \
-      DATABASE_URL="$(node "$BACKEND_DIR/dist/cli/db-url.js")"; \
+      DATABASE_URL="$(node "$GATEWAY_DIR/dist/cli/db-url.js")"; \
       export DATABASE_URL; \
     fi; \
-    (cd "$BACKEND_DIR" && npx prisma migrate deploy --schema=prisma/schema.prisma); \
-    exec node "$BACKEND_DIR/dist/index.js"
+    (cd "$GATEWAY_DIR" && npx prisma migrate deploy --schema=prisma/schema.prisma); \
+    exec node "$GATEWAY_DIR/dist/index.js"

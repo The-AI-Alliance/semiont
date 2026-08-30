@@ -45,7 +45,7 @@ npm run build
 npm start
 ```
 
-**Note on Building**: For local development, use `npm run dev` for auto-restart. Production builds happen in the `semiont-backend` image build (`apps/gateway/Dockerfile`).
+**Note on Building**: For local development, use `npm run dev` for auto-restart. Production builds happen in the `semiont-gateway` image build (`apps/gateway/Dockerfile`).
 
 ## Essential CLI Commands
 

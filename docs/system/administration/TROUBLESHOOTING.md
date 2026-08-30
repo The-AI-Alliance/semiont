@@ -29,15 +29,15 @@ Containers run without `--rm`, deliberately: a crashed container stays inspectab
 The launcher has no `exec` verb. Use your container engine; containers are named `semiont-<service>`:
 
 ```bash
-container exec -it semiont-backend sh        # or docker exec / podman exec
+container exec -it semiont-gateway sh        # or docker exec / podman exec
 container ps --all | grep semiont
-container inspect semiont-backend
+container inspect semiont-gateway
 ```
 
-The backend image sets `BACKEND_DIR` to the installed package, which prisma commands need:
+The backend image sets `GATEWAY_DIR` to the installed package, which prisma commands need:
 
 ```bash
-container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma migrate status'
+container exec semiont-gateway sh -c 'cd "$GATEWAY_DIR" && npx prisma migrate status'
 ```
 
 ## Common failures
@@ -161,7 +161,7 @@ semiont logs --service worker | grep -iE "inference|model"
 
 ```bash
 semiont logs --service backend | grep -iE "oauth|auth|jwt"
-container exec semiont-backend sh -c 'env | grep -E "^(JWT_SECRET|GOOGLE)" | sed "s/=.*/=<set>/"'
+container exec semiont-gateway sh -c 'env | grep -E "^(JWT_SECRET|GOOGLE)" | sed "s/=.*/=<set>/"'
 ```
 
 Note the `sed` — do not print secret values to a terminal or into a bug report.
@@ -233,7 +233,7 @@ container exec semiont-postgres psql -U postgres semiont \
 
 ```bash
 semiont status --verbose > status.txt
-container inspect semiont-backend > backend-inspect.json
+container inspect semiont-gateway > backend-inspect.json
 semiont logs --service backend > backend.log 2>&1     # Ctrl-C when you have enough
 ```
 

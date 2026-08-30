@@ -442,7 +442,7 @@ adminEmail = %q
 	}
 
 	if noGit {
-		u.warn("--no-git: git init is skipped, git.sync = false, and .semiont/ is not staged — the backend versions the event log via git, so this KB cannot run the full stack until it becomes a clone.")
+		u.warn("--no-git: git init is skipped, git.sync = false, and .semiont/ is not staged — the gateway versions the event log via git, so this KB cannot run the full stack until it becomes a clone.")
 	}
 	startedWriting = true
 	if err := os.MkdirAll(semiontDir, 0o755); err != nil {

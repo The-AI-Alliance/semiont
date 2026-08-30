@@ -82,7 +82,7 @@ services:
       - "3000:3000"
 
   backend:
-    image: ghcr.io/the-ai-alliance/semiont-backend:0.5.12
+    image: ghcr.io/the-ai-alliance/semiont-gateway:0.5.12
     ports:
       - "4000:4000"   # must be reachable from the user's browser
     # ... backend config (see the backend image docs)
@@ -140,7 +140,7 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: semiont-backend-service
+            name: semiont-gateway-service
             port:
               number: 4000
 ```

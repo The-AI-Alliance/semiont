@@ -31,7 +31,7 @@ func TestTruncateLineRuneSafe(t *testing.T) {
 
 func TestSplitCRLines(t *testing.T) {
 	// Compose progress: CR-rewritten fragments, then a real newline.
-	in := "pulling 1%\rpulling 50%\rpulling 100%\n ✔ backend Pulled\r\n"
+	in := "pulling 1%\rpulling 50%\rpulling 100%\n ✔ gateway Pulled\r\n"
 	sc := bufio.NewScanner(strings.NewReader(in))
 	sc.Split(splitCRLines)
 	var lines []string
@@ -40,7 +40,7 @@ func TestSplitCRLines(t *testing.T) {
 			lines = append(lines, tok)
 		}
 	}
-	want := []string{"pulling 1%", "pulling 50%", "pulling 100%", " ✔ backend Pulled"}
+	want := []string{"pulling 1%", "pulling 50%", "pulling 100%", " ✔ gateway Pulled"}
 	if strings.Join(lines, "|") != strings.Join(want, "|") {
 		t.Errorf("split = %v, want %v", lines, want)
 	}
