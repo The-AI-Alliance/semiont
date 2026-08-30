@@ -67,6 +67,7 @@ podman rm semiont-librarian
 # require free ports: 7474 7687 6333 5432 4000 9090 9091 9092 9093 9094 16686 4318
 # stage per-service config copies under <config-stage>: backend.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml
 # append [environments.local.archivist] host/port (launcher-staged topology) to backend.toml
+# append [environments.local.archivist] host/port (launcher-staged topology) to worker.toml
 # append [environments.local.archivist] host/port (launcher-staged topology) to smelter.toml
 # append [environments.local.archivist] host/port (launcher-staged topology) to librarian.toml
 container image pull ghcr.io/the-ai-alliance/semiont-backend:latest

@@ -9,7 +9,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { AnyJob, JobStatus, JobQueryFilters, CancelledJob, CompleteJob, FailedJob, PendingJob, RunningJob } from './types';
-import type { SemiontProject } from '@semiont/core/node';
+import type { SemiontState } from '@semiont/core/node';
 import { jobId as toJobId, type JobId, type Logger, type EventBus } from '@semiont/core';
 import type { JobQueue } from './job-queue-interface';
 
@@ -55,11 +55,13 @@ export class FsJobQueue implements JobQueue {
   private lastProgressWrite = new Map<string, number>();
 
   constructor(
-    project: SemiontProject,
+    /** `SemiontState` and not `SemiontProject`: the queue reads ONE path,
+     *  and the gateway that owns it mounts no KB tree (SINGLE-KB-MOUNT P5). */
+    state: SemiontState,
     logger: Logger,
     private eventBus?: EventBus
   ) {
-    this.jobsDir = project.jobsDir;
+    this.jobsDir = state.jobsDir;
     this.logger = logger;
   }
 

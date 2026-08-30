@@ -54,8 +54,8 @@ import { pipeline } from 'stream/promises';
 import type { Logger } from '@semiont/core';
 import { resourceId as makeResourceId, errField } from '@semiont/core';
 import type { EventLog, ViewStorage } from '@semiont/event-sourcing';
-import { ChecksumMismatchError, type WorkingTreeStore } from '@semiont/content';
-import { resolveRepresentation, RepresentationMissing } from './representation';
+import { ChecksumMismatchError, RepresentationMissing, type WorkingTreeStore } from '@semiont/content';
+import { resolveRepresentation } from './representation';
 
 export interface ArchivistServerDeps {
   /** The record's log — the read half only. */
@@ -69,6 +69,15 @@ export interface ArchivistServerDeps {
   workerSecret: string;
   /** Liveness payload for /health — actor states, counters. */
   health: () => Record<string, unknown>;
+  /**
+   * The KB working tree's current branch, `null` outside a git checkout.
+   *
+   * A live fact about the tree, so it is answered by the process that HOLDS
+   * the tree (SINGLE-KB-MOUNT P5). The gateway used to read it off its own
+   * `/kb` mount; the launcher cannot stage it because a branch switch does
+   * not restart the stack, and a staged value would quietly go stale.
+   */
+  branch: () => string | null;
   logger: Logger;
 }
 
@@ -78,7 +87,7 @@ const json = (res: ServerResponse, status: number, body: unknown): void => {
 };
 
 export function createArchivistServer(deps: ArchivistServerDeps): Server {
-  const { events, content, views, workerSecret, health, logger } = deps;
+  const { events, content, views, workerSecret, health, branch, logger } = deps;
 
   /** The 503/401 posture every authenticated path shares. True = request may proceed. */
   const authorized = (req: IncomingMessage, res: ServerResponse): boolean => {
@@ -98,6 +107,15 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
 
     if (req.method === 'GET' && url.pathname === '/health') {
       json(res, 200, health());
+      return;
+    }
+
+    // GET /kb/branch — the working tree's current branch (SINGLE-KB-MOUNT
+    // P5). A KB-tree read like every other path here, and authenticated like
+    // them: a branch name says which line of work a knowledge base is on.
+    if (req.method === 'GET' && url.pathname === '/kb/branch') {
+      if (!authorized(req, res)) return;
+      json(res, 200, { branch: branch() });
       return;
     }
 

@@ -47,7 +47,7 @@
 import { BehaviorSubject, Subscription } from 'rxjs';
 import { createServer } from 'http';
 import { HttpTransport } from '@semiont/http-transport';
-import { archivistContentReads } from './archivist-endpoint';
+import { archivistContentReads } from '@semiont/content';
 import {
   EventBus,
   BUS_OPERATIONS,

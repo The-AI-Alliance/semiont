@@ -20,7 +20,8 @@ import { resourceId as makeResourceId, userId, type Logger, type ResourceDescrip
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { EventBus } from '@semiont/core';
 import { WorkingTreeStore } from '@semiont/content';
-import { representationSource, resolveRepresentation, RepresentationMissing } from '../representation';
+import { RepresentationMissing } from '@semiont/content';
+import { representationSource, resolveRepresentation } from '../representation';
 import { workingTreeContentReads } from '../knowledge-base';
 import { createTestProject, type TestProject } from './helpers/test-project';
 

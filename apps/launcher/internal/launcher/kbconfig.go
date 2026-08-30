@@ -78,3 +78,16 @@ func parseKBIdentity(b []byte) *kbIdentity {
 		Domain:   raw.Site.Domain,
 	}
 }
+
+// committedDomain is the KB's permanent did:web identity as its own config
+// declares it, "" when it declares none. The launcher stages this into the
+// services that describe the KB without mounting it (SINGLE-KB-MOUNT P5);
+// staging "" is deliberate — a consumer that needs an identity must refuse,
+// and a fabricated one ('localhost', the dial address) is how two knowledge
+// bases end up sharing a did.
+func committedDomain(root string) string {
+	if id := loadKBIdentity(root); id != nil {
+		return id.Domain
+	}
+	return ""
+}

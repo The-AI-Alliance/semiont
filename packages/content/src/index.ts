@@ -43,6 +43,18 @@ export {
 // The out-of-process half of the same cache: the store contract over
 // IContentTransport, for the workers that consult it across the wire (P2c).
 
+// Reading a resource's bytes — the contract every reader declares, the way
+// it fails, and the Archivist-backed implementation the fleet uses when it
+// holds no KB mount (SINGLE-KB-MOUNT P4).
+export {
+  archivistEndpoint,
+  archivistContentReads,
+  RepresentationMissing,
+  type ContentReads,
+  type MissingReason,
+  type ArchivistAddressConfig,
+} from './representation-reads';
+
 // PDF text-layer extraction. The anchoring vocabulary these produce
 // (AnchoredText, PdfTextItem) and the locate/textUnder pair that reads it are
 // exported from @semiont/core — pure, and needed by the browser canvas too.

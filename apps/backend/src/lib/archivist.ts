@@ -15,9 +15,31 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import type { StoredResource } from '@semiont/content';
-import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/make-meaning';
+import { archivistEndpoint, type ArchivistAddressConfig, type StoredResource } from '@semiont/content';
 import { getLogger } from '../logger';
+
+/**
+ * The KB working tree's current branch, for `/api/status` (SINGLE-KB-MOUNT
+ * P5). The gateway used to read this off its own `/kb` mount; the Archivist
+ * holds the tree now, so it answers.
+ *
+ * `undefined` on every failure — unreachable, 401, malformed — because the
+ * field is optional and `/api/status` must still answer. A status endpoint
+ * that 503s because one optional field could not be filled is worse than one
+ * that omits it, and the browser's KB panel already renders a placeholder in
+ * the branch slot.
+ */
+export async function kbBranch(config: ArchivistAddressConfig): Promise<string | undefined> {
+  try {
+    const { base, headers } = archivistEndpoint(config);
+    const res = await fetch(`${base}/kb/branch`, { headers });
+    if (!res.ok) return undefined;
+    const { branch } = await res.json() as { branch?: string | null };
+    return branch ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Write a representation's bytes to the record.

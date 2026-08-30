@@ -15,7 +15,7 @@ import type { GatheredContext } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { VectorStore } from '@semiont/vectors';
 import { SmeltProgressTimeout, type SmeltProgress } from './smelt-progress';
-import type { ContentReads } from './knowledge-base';
+import type { ContentReads } from '@semiont/content';
 import { recordGatherDegrade } from '@semiont/observability';
 
 import type { ResourceDescriptor } from '@semiont/core';

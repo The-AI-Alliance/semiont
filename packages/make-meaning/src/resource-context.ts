@@ -14,8 +14,7 @@ import type { Logger, ResourceId } from '@semiont/core';
 import { compareByRecencyThenId, type GraphDatabase } from '@semiont/graph';
 import { mergeByResource, type EmbeddingProvider, type VectorStore } from '@semiont/vectors';
 import type { ViewStorage } from '@semiont/event-sourcing';
-import type { WorkingTreeStore } from '@semiont/content';
-import type { ContentReads } from './knowledge-base';
+import type { ContentReads, WorkingTreeStore } from '@semiont/content';
 import { resourceWithViewGrace } from './graph-read-grace';
 
 import type { ResourceDescriptor } from '@semiont/core';

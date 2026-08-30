@@ -39,6 +39,7 @@ import {
   type KbTarget,
 } from '@semiont/sdk';
 import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
+import type { ContentReads } from '@semiont/content';
 import { BehaviorSubject } from 'rxjs';
 
 type Agent = components['schemas']['Agent'];
@@ -63,8 +64,16 @@ export interface WorkerRuntimeOptions {
   group: AgentGroup;
   /** The backend URL this worker dials — connection topology ONLY, never identity. */
   backendBaseUrl: string;
-  /** Shared secret for `/api/tokens/agent`. */
+  /** Shared secret for `/api/tokens/agent`, and the bearer the byte reads
+   *  below show the Archivist. */
   workerSecret: string;
+  /**
+   * The resource's bytes, for detection's extraction seam. Built by the
+   * entrypoint (`worker-main`) rather than here, so a worker with no
+   * Archivist configured refuses at boot instead of failing every job
+   * (SINGLE-KB-MOUNT P4).
+   */
+  contentReads: ContentReads;
   logger: Logger;
 }
 
@@ -226,7 +235,7 @@ export async function authenticateAgent(opts: {
 export async function startAgentWorker(
   opts: WorkerRuntimeOptions,
 ): Promise<AgentWorkerHandle> {
-  const { group, backendBaseUrl, workerSecret, logger } = opts;
+  const { group, backendBaseUrl, workerSecret, contentReads, logger } = opts;
   const { inference } = group;
 
   const { protocol, host, port } = parseBackendUrl(backendBaseUrl);
@@ -304,6 +313,7 @@ export async function startAgentWorker(
     // Archivist answers the checksum-addressed read, and a worker that
     // misses extracts locally and discards.
     anchoredTextStore: anchoredTextOverBus(client, logger),
+    contentReads,
     logger,
   });
 

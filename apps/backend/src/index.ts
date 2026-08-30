@@ -20,9 +20,9 @@ import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
-import { SemiontProject } from '@semiont/core/node';
+import { SemiontState } from '@semiont/core/node';
 import { type EnvironmentConfig, EventBus } from '@semiont/core';
-import { startMakeMeaningGateway, makeMeaningConfigFrom } from '@semiont/make-meaning';
+import { startMakeMeaningGateway, makeMeaningConfigFrom, requireKBName } from '@semiont/make-meaning';
 import { loadEnvironmentConfig } from '@semiont/core/node';
 
 import { User } from '@prisma/client';
@@ -40,7 +40,7 @@ if (!projectRoot) {
 
 // Where this deployment keeps the anchored-text store. Read HERE, beside
 // SEMIONT_ROOT, because both are deployment facts the entry point owns —
-// SemiontProject receives values, it does not reach into the environment for
+// SemiontState receives values, it does not reach into the environment for
 // them. The backend image declares this as /anchored-text and `semiont start`
 // bind-mounts the KB's per-root store onto it.
 const anchoredTextDir = process.env.SEMIONT_ANCHORED_TEXT_DIR;
@@ -79,12 +79,17 @@ requireJwtSecret();
 //   effective  = config.site.domain — what THIS process will mint AGENT dids
 //                from (JWTService.getDomainForAgent).
 //
-// Deliberately NOT read from EnvironmentConfig for the committed side: the
-// TOML loader defaults a domain-less `[site]` to the literal 'localhost' and
-// lets the environment section override the project's, so it can report an
-// identity the KB never declared.
+// The committed side is the launcher-staged top-level `[kb] domain`
+// (SINGLE-KB-MOUNT P5) — read there and NOWHERE else. It used to come off
+// this process's own `/kb` mount, which it no longer has. `[site]` remains
+// the wrong source for it either way: the TOML loader defaults a domain-less
+// `[site]` to the literal 'localhost' and lets an environment section
+// override the project's, so it can report an identity the KB never
+// declared. `[kb]` sits beside `[defaults]`, out of that reach, and the
+// launcher stages NO domain when the KB declares none — so an undeclared
+// identity still arrives here as absent, and still refuses below.
 {
-  const committedDomain = new SemiontProject(projectRoot, { anchoredTextDir }).siteDomain();
+  const committedDomain = config.kb?.domain;
 
   // Decision 8 — a knowledge base declares its identity or does not run.
   // `semiont start` already refuses this; a backend launched another way
@@ -93,7 +98,8 @@ requireJwtSecret();
   // satisfiable by construction rather than conditionally true.
   if (!committedDomain) {
     throw new Error(
-      `This knowledge base declares no identity: [site] domain is missing from ${projectRoot}/.semiont/config.\n` +
+      'This knowledge base declares no identity: [site] domain is missing from its ' +
+        '.semiont/config, so the launcher staged no [kb] domain.\n' +
         'A knowledge base declares its identity or does not run — it is permanent, and has no safe default ' +
         "(inferring one from an address is how two KBs end up sharing a fabricated 'did:web:localhost').\n" +
         'Add:\n\n  [site]\n  domain = "your-org.github.io:your-kb-repo"\n',
@@ -152,7 +158,15 @@ const eventBus = new EventBus();
 
 // The gateway's make-meaning slice: job queue, kb reads, and the handler
 // subset — no actors. Actors run in the Archivist and Librarian services.
-const makeMeaning = await startMakeMeaningGateway(new SemiontProject(projectRoot, { anchoredTextDir }), makeMeaningConfigFrom(config), eventBus, logger);
+// A `SemiontState`, not a `SemiontProject`: name + the state-mount paths,
+// with no KB root. That is the type-level statement of P5 — the gateway
+// cannot reach a tree it does not have, and the compiler enforces it.
+const makeMeaning = await startMakeMeaningGateway(
+  new SemiontState({ name: requireKBName(config), anchoredTextDir }),
+  makeMeaningConfigFrom(config),
+  eventBus,
+  logger,
+);
 
 // Import route definitions
 import { rootRouter } from './routes/root';

@@ -16,7 +16,10 @@
 
 import { getPrimaryRepresentation, type ResourceDescriptor, type ResourceId } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
-import type { WorkingTreeStore } from '@semiont/content';
+// The failure is `@semiont/content`'s: the Archivist's HTTP client raises the
+// same one for the same fact, and a caller must not be able to tell which
+// side of the wire it came from (SINGLE-KB-MOUNT P4).
+import { RepresentationMissing, type WorkingTreeStore } from '@semiont/content';
 import type { Readable } from 'stream';
 
 /** A resource's bytes: where they live and what they are. */
@@ -50,24 +53,6 @@ export function representationSource(resource: ResourceDescriptor | undefined): 
     // only `charset=` so text callers decode identically either way.
     mediaType: getPrimaryRepresentation(resource)?.mediaType ?? 'application/octet-stream',
   };
-}
-
-/** Which half of the lookup failed — the gateway serves two different 404s. */
-export type MissingReason = 'resource' | 'representation';
-
-export class RepresentationMissing extends Error {
-  constructor(readonly resourceId: string, readonly reason: MissingReason) {
-    // NAMES THE RESOURCE. The client-visible wording is the gateway's, built
-    // from `reason` — so this message is free to be diagnostic, and must be:
-    // an operator reading a log needs to know which resource, which is what
-    // the pre-collapse message gave them.
-    super(
-      reason === 'resource'
-        ? `Resource not found: ${resourceId}`
-        : `Resource representation not found: no storageUri for ${resourceId}`,
-    );
-    this.name = 'RepresentationMissing';
-  }
 }
 
 export interface RepresentationReads {

@@ -12,7 +12,7 @@
  */
 
 import type { EventBus, Logger } from '@semiont/core';
-import type { SemiontProject } from '@semiont/core/node';
+import type { SemiontState } from '@semiont/core/node';
 import type { JobQueue } from '@semiont/jobs';
 
 import type { KnowledgeSystem } from '../knowledge-system.js';
@@ -38,7 +38,7 @@ export function registerBusHandlers(
   eventBus: EventBus,
   knowledgeSystem: KnowledgeSystem,
   jobQueue: JobQueue,
-  project: SemiontProject,
+  state: SemiontState,
   logger: Logger,
 ): void {
   const { kb } = knowledgeSystem;
@@ -50,7 +50,7 @@ export function registerBusHandlers(
   );
   registerGatherSummaryHandler(eventBus, knowledgeSystem.gatherer, logger);
   registerBindUpdateBodyHandler(eventBus, logger);
-  registerJobCommandHandlers(eventBus, jobQueue, project, logger);
+  registerJobCommandHandlers(eventBus, jobQueue, state, logger);
 }
 
 /**
@@ -70,9 +70,9 @@ export function registerBusHandlers(
 export function registerGatewayBusHandlers(
   eventBus: EventBus,
   jobQueue: JobQueue,
-  project: SemiontProject,
+  state: SemiontState,
   logger: Logger,
 ): void {
   registerBindUpdateBodyHandler(eventBus, logger);
-  registerJobCommandHandlers(eventBus, jobQueue, project, logger);
+  registerJobCommandHandlers(eventBus, jobQueue, state, logger);
 }

@@ -32,7 +32,7 @@ import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourc
 
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
-import { extractPdfTextLayer, type AnchoredTextStore } from '@semiont/content';
+import { extractPdfTextLayer, type AnchoredTextStore, type ContentReads } from '@semiont/content';
 import { prepareDetection } from './workers/detection/prepare-detection';
 import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
 import {
@@ -103,6 +103,13 @@ export interface WorkerProcessConfig {
    * the store rides the config from where the transport is in hand.
    */
   anchoredTextStore: AnchoredTextStore;
+  /**
+   * The resource's bytes, for the detection extraction seam. Dials the
+   * Archivist rather than the gateway (SINGLE-KB-MOUNT P4) — which is why it
+   * rides the config instead of coming off the session: the session's
+   * transport is pointed at the gateway, and this read should not be.
+   */
+  contentReads: ContentReads;
   logger: Logger;
 }
 
@@ -260,7 +267,7 @@ async function handleJobInner(
     // trace, which is exactly what made a 411 s opaque job hard to diagnose.
     const source = await withSpan(
       'detection:prepare',
-      () => prepareDetection(mediaType ?? '', session, resourceId, userId, generator, config.anchoredTextStore),
+      () => prepareDetection(mediaType ?? '', config.contentReads, resourceId, userId, generator, config.anchoredTextStore),
       { attrs: { 'resource.id': resourceId as unknown as string, 'media.type': mediaType ?? 'unknown' } },
     );
 

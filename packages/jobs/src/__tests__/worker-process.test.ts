@@ -76,6 +76,17 @@ vi.mock('@semiont/content', async (importOriginal) => {
   };
 });
 
+/**
+ * Detection's byte read. Module-level so assertions can reach the spy while
+ * `makeConfig` keeps its one-argument shape; `vi.clearAllMocks()` clears the
+ * calls between tests but leaves this implementation in place.
+ *
+ * It hangs off the config rather than the session because detection now reads
+ * from the Archivist, not through the gateway (SINGLE-KB-MOUNT P4). The bytes
+ * are inert — every extractor these tests exercise is mocked per test.
+ */
+const getBinary = vi.fn(async () => ({ data: new ArrayBuffer(8), contentType: 'application/pdf' }));
+
 const RID = 'res-abc';
 const UID = 'did:web:example.com:users:test';
 const JID = 'job-xyz';
@@ -113,12 +124,6 @@ function makeFakeSessionAndAdapter() {
           fresh: async () => ({ representations: [{ mediaType: 'text/plain' }] }),
         })),
         resourceContent: vi.fn(async (_rid: string) => 'the content'),
-        // PDF detection ('pdf-text-layer') fetches the raw bytes here; the
-        // bytes are inert because extractPdfTextLayer is mocked per test.
-        resourceRepresentation: vi.fn(async (_rid: string) => ({
-          data: new ArrayBuffer(8),
-          contentType: 'application/pdf',
-        })),
       },
       yield: {
         resource: vi.fn(async (data: Parameters<SemiontSession['client']['yield']['resource']>[0]) => {
@@ -159,6 +164,7 @@ function makeConfig(session: SemiontSession): WorkerProcessConfig {
       write: vi.fn(async () => {}),
       list: vi.fn(async () => []),
     },
+    contentReads: { getBinary },
     logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(function(this: any){ return this; }) } as never,
   };
 }
@@ -816,7 +822,7 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob(jobType));
 
       // pdf-text-layer fetches the representation bytes, never resourceContent.
-      expect(h.session.client.browse.resourceRepresentation).toHaveBeenCalled();
+      expect(getBinary).toHaveBeenCalled();
       expect(h.session.client.browse.resourceContent).not.toHaveBeenCalled();
       const call = lastCall();
       expect(call).toBeDefined();

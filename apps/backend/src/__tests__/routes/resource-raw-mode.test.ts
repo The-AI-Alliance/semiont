@@ -68,6 +68,7 @@ describe('GET /resources/:id byte fidelity (S12 transport-fidelity lemma)', () =
       views,
       workerSecret: WORKER_SECRET,
       health: () => ({ status: 'ok' }),
+      branch: () => 'main',
       logger: mockLogger,
     });
     await new Promise<void>((resolve) => archivist.listen(0, resolve));

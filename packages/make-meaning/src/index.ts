@@ -11,11 +11,10 @@ export type { MakeMeaningService, GatewayMakeMeaningService, MakeMeaningConfig }
 // has to cross.
 export { createArchivistServer } from './archivist-read-path';
 export type { ArchivistServerDeps } from './archivist-read-path';
-// Its address, and the byte read that rides it. The gateway shares this
-// resolution rather than keeping a second copy of two deployment facts.
-export { archivistEndpoint, archivistContentReads } from './archivist-endpoint';
-export type { ArchivistAddressConfig } from './archivist-endpoint';
-export { makeMeaningConfigFrom } from './config';
+// Its address, and the byte read that rides it, live in `@semiont/content`:
+// the Worker needs them too, and `make-meaning` depends on `jobs`, so a
+// shared fact has to sit under both (SINGLE-KB-MOUNT P4).
+export { makeMeaningConfigFrom, requireKBName } from './config';
 
 // Knowledge System
 export type { KnowledgeSystem, GatewayKnowledgeSystem } from './knowledge-system';

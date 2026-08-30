@@ -21,11 +21,11 @@
 
 import type { EventStore, EventReadStorage, ViewMaterializer } from '@semiont/event-sourcing';
 import { FilesystemViewStorage, type ViewStorage } from '@semiont/event-sourcing';
-import { WorkingTreeStore, createAnchoredTextStore, type AnchoredTextStore } from '@semiont/content';
+import { WorkingTreeStore, createAnchoredTextStore, type AnchoredTextStore, type ContentReads } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
 import type { VectorStore } from '@semiont/vectors';
 import type { SemiontProject } from '@semiont/core/node';
-import type { EventBus, IContentTransport, Logger } from '@semiont/core';
+import type { EventBus, Logger } from '@semiont/core';
 import { resolveRepresentation } from './representation.js';
 import { createWeaveProgress, type WeaveProgress } from './weave-progress.js';
 import { createSmeltProgress, type SmeltProgress } from './smelt-progress.js';
@@ -66,15 +66,6 @@ export interface EventStoreReads {
   log: { storage: EventReadStorage };
   views: { materializer: Pick<ViewMaterializer, 'materialize'> };
 }
-
-/**
- * The gather paths' byte read (EXTRACT-LIBRARIAN P3, D-CONTENT b) — DERIVED
- * from the transport contract, never restated. Keyed by ResourceId because
- * that is the transport's key: the standalone Librarian satisfies this with
- * `HttpContentTransport` directly, and in-process roots wrap the working
- * tree behind the same shape via `workingTreeContentReads`.
- */
-export type ContentReads = Pick<IContentTransport, 'getBinary'>;
 
 /**
  * In-process `ContentReads`: the BUFFERING face of `resolveRepresentation` —

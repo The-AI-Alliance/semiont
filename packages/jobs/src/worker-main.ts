@@ -40,6 +40,7 @@ import { readFileSync, existsSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import { createTomlConfigLoader, type EnvironmentConfig } from '@semiont/core';
+import { archivistContentReads } from '@semiont/content';
 
 const ALL_JOB_TYPES = [
   'reference-annotation', 'generation', 'highlight-annotation',
@@ -88,6 +89,12 @@ if (!backendPublicURL) {
 const backendBaseUrl: string = backendPublicURL;
 
 const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
+
+// Bytes come from the Archivist, not the gateway (SINGLE-KB-MOUNT P4).
+// Resolved at module scope so a worker with no Archivist address — or no
+// worker secret to show it — dies here, while an operator is watching,
+// rather than failing every detection job for the life of the process.
+const contentReads = archivistContentReads(envConfig);
 const healthPort = 9090;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
@@ -147,7 +154,7 @@ async function main() {
 
   const workers = await Promise.all(
     Array.from(groups.values()).map((group) =>
-      startAgentWorker({ group, backendBaseUrl, workerSecret, logger }),
+      startAgentWorker({ group, backendBaseUrl, workerSecret, contentReads, logger }),
     ),
   );
 

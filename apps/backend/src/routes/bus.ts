@@ -16,7 +16,7 @@ import {
   withTraceparent,
 } from '@semiont/observability';
 import { getLogger } from '../logger';
-import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/make-meaning';
+import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/content';
 import type { startMakeMeaningGateway } from '@semiont/make-meaning';
 import { validators, formatErrors } from '@semiont/core/openapi';
 

@@ -20,7 +20,7 @@ import { EventBus, resourceId, userId, type Logger, type ResourceId, type Stored
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore, calculateChecksum, type StoredResource } from '@semiont/content';
 import { createArchivistServer } from '../archivist-read-path';
-import { archivistContentReads, type ArchivistAddressConfig } from '../archivist-endpoint';
+import { archivistContentReads, type ArchivistAddressConfig } from '@semiont/content';
 import { createTestProject, type TestProject } from './helpers/test-project';
 
 const mockLogger: Logger = {
@@ -70,6 +70,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       views: eventStore.viewStorage,
       workerSecret: SECRET,
       health: () => ({ status: 'ok' }),
+      branch: () => 'main',
       logger: mockLogger,
     });
     await new Promise<void>((resolve) => server.listen(0, resolve));
@@ -186,6 +187,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
         views: eventStore.viewStorage,
         workerSecret: '',
         health: () => ({ status: 'ok' }),
+      branch: () => 'main',
         logger: mockLogger,
       });
       await new Promise<void>((resolve) => secretless.listen(0, resolve));
@@ -279,6 +281,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
         views: eventStore.viewStorage,
         workerSecret: '',
         health: () => ({ status: 'ok' }),
+      branch: () => 'main',
         logger: mockLogger,
       });
       await new Promise<void>((resolve) => secretless.listen(0, resolve));

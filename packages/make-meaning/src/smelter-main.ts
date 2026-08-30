@@ -21,11 +21,10 @@
  */
 
 import { BehaviorSubject } from 'rxjs';
-import { createAnchoredTextStore } from '@semiont/content';
+import { archivistContentReads, createAnchoredTextStore } from '@semiont/content';
 import { createSmelterActorStateUnit, type SmelterActorStateUnit } from './smelter-actor-state-unit';
 import { Smelter } from './smelter';
 import { HttpTransport } from '@semiont/http-transport';
-import { archivistContentReads } from './archivist-endpoint';
 import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader, retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY } from '@semiont/core';
 import type { AccessToken } from '@semiont/core';
 import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';

@@ -7,15 +7,15 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import type { SemiontProject } from '@semiont/core/node';
+import type { SemiontState } from '@semiont/core/node';
 
 /**
  * Read entity types from view storage projection
  */
-export async function readEntityTypesProjection(project: SemiontProject): Promise<string[]> {
+export async function readEntityTypesProjection(state: SemiontState): Promise<string[]> {
 
   const entityTypesPath = path.join(
-    project.stateDir,
+    state.stateDir,
     'projections',
     '__system__',
     'entitytypes.json'

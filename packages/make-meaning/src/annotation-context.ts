@@ -29,7 +29,7 @@ import { GraphContext, type KnowledgeGraphReads } from './graph-context';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { GraphDatabase } from '@semiont/graph';
 import type { VectorStore } from '@semiont/vectors';
-import type { ContentReads } from './knowledge-base';
+import type { ContentReads } from '@semiont/content';
 
 /** The view slice the annotation reads run on (EXTRACT-ARCHIVIST P1). */
 type ViewGet = { views: Pick<ViewStorage, 'get'> };
