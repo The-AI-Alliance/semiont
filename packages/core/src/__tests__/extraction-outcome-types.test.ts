@@ -16,14 +16,13 @@
  * after.
  */
 import { describe, it, expect } from 'vitest';
-import type { components, paths } from '../types';
+import type { components } from '../types';
 
+// The HTTP faces are gone (ANCHORED-TEXT-TO-SMELTER P4): the store is reached
+// over the bus, so the wire shapes this pins are the CHANNEL payloads. The
+// union itself is unchanged — only the surfaces carrying it shrank.
 type Outcome = components['schemas']['ExtractionOutcome'];
-type PutBody =
-  paths['/anchored-text/{checksum}']['put']['requestBody']['content']['application/json'];
 type BrowseReply = components['schemas']['BrowseAnchoredTextResult']['response'];
-type GetResponse =
-  paths['/resources/{id}/anchored-text']['get']['responses']['200']['content']['application/json'];
 
 /**
  * A2/A3's shape for THIS union — WIRE-UNION-DISCRIMINANTS P5c (D6: Option A).
@@ -72,19 +71,10 @@ describe('anchored-text record — extraction outcome guard (P2a)', () => {
     expect(decline).toBeDefined();
   });
 
-  it('the PUT body and browse/GET replies carry the outcome, and the bare AnchoredText no longer typechecks', () => {
+  it('the bus reply carries the outcome', () => {
     const outcome: Outcome = { kind: 'extracted', text: 't', items: [], method: 'pdf-text-layer' };
-    const put: PutBody = outcome;
     const browse: BrowseReply = outcome;
     const browseNull: BrowseReply = null;
-    const got: GetResponse = outcome;
-
-    // The pre-P2a record: geometry with no provenance. Neither branch of the
-    // outcome admits it — success requires `method`, a decline requires
-    // `declined` — so the route can no longer carry the bare shape.
-    // @ts-expect-error — bare { text, items } is not an ExtractionOutcome
-    const bare: PutBody = { text: 't', items: [] };
-
-    expect({ put, browse, browseNull, got, bare }).toBeDefined();
+    expect({ browse, browseNull }).toBeDefined();
   });
 });

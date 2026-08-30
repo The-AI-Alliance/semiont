@@ -741,7 +741,7 @@ func backendArgs(kbRoot, stage, addr, secret, jwt, version string, port int, use
 
 // sidecarArgs covers the three make-meaning sidecars (worker / smelter /
 // weaver) — identical in shape, differing only in name, port, and memory.
-func sidecarArgs(svc string, port int, stage, addr, secret, version string, userEnv, otel []string) []string {
+func sidecarArgs(svc string, port int, stage, addr, secret, version string, userEnv, otel []string, extra ...string) []string {
 	p := strconv.Itoa(port)
 	a := []string{"run", "-d", "--name", "semiont-" + svc, // no --rm: see providedRunArgs
 		"--memory", roles[svc].mem, "--publish", p + ":" + p,
@@ -758,6 +758,7 @@ func sidecarArgs(svc string, port int, stage, addr, secret, version string, user
 		// WHOLE TOML eagerly, so every consumer needs every ${VAR} defined
 		// (the same reason the Archivist gets POSTGRES_HOST).
 		"--env", "SEMIONT_WORKER_SECRET="+secret)
+	a = append(a, extra...)
 	return append(a, image(svc, version))
 }
 

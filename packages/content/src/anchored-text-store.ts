@@ -162,8 +162,19 @@ export interface AnchoredTextStore {
      * key scheme here.
      */
     read(key: string): Promise<ExtractionOutcome | null>;
-    /** Record an extraction outcome under the content checksum of its source
-     *  bytes. A store that cannot write is still a store. */
+    /**
+     * Record an extraction outcome under the content checksum of its source
+     * bytes. **THROWS on failure: a write that returns has written.**
+     *
+     * Asymmetric with `read` above, which never throws, and deliberately so —
+     * a miss is a normal answer, a failed write is not. The store used to
+     * swallow for everyone, which forced the one caller that needs a throw
+     * (the Smelter's re-anchor publish, whose `smelt:rebuild-anchors-failed`
+     * accounting rides on it) to route around the store entirely. Now the
+     * contract is honest and **leniency is the caller's**, stated where it is
+     * wanted: the read-through seam in `pdf-extractor` catches, because a
+     * store may make extraction faster but must never make it fail.
+     */
     write(key: string, outcome: ExtractionOutcome): Promise<void>;
     /**
      * Every key `read()` would currently HIT — entries under a stale stamp or
@@ -267,8 +278,12 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
                 await fs.promises.mkdir(path.dirname(target), { recursive: true });
                 await fs.promises.writeFile(temp, JSON.stringify(entry), 'utf8');
                 await fs.promises.rename(temp, target);
-            } catch {
+            } catch (error) {
+                // Clean up the partial temp, then RETHROW. A write that returns
+                // has written — see the interface doc. Callers that want
+                // best-effort say so at their own call site.
                 await fs.promises.rm(temp, { force: true }).catch(() => {});
+                throw error;
             }
         },
 

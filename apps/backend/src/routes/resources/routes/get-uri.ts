@@ -12,6 +12,10 @@
  * - GET /resources/:id/jsonld — the JSON-LD description (GetResourceResponse:
  *   descriptor + annotations + inbound entity references) via the bus
  *   gateway. Live data — Cache-Control: no-cache.
+ * The anchored-text faces that used to live here are gone
+ * (ANCHORED-TEXT-TO-SMELTER P4): the store is reached over the bus, the
+ * Smelter writes it, and the Archivist answers reads.
+ *
  * - GET /api/resources/:id — browser-friendly alias of the pipe. Exists only
  *   as the ?token= auth affordance for <img>, PDF.js, and download links,
  *   which cannot carry Authorization headers (bearer + ?token= only — no
@@ -21,8 +25,7 @@
 import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { busLog, resourceId, isObject, isString, isNumber, isArray } from '@semiont/core';
-import type { ExtractionOutcome } from '@semiont/core';
+import { busLog, resourceId } from '@semiont/core';
 import { getContent } from '../../../lib/archivist';
 import { eventBusRequest } from '../../../utils/event-bus-request';
 import { SpanKind, withSpan, withTraceparent } from '@semiont/observability';
@@ -50,186 +53,7 @@ function describedByLink(id: string): string {
   return `</resources/${id}/jsonld>; rel="describedby"; type="application/ld+json"`;
 }
 
-const EXTRACTION_METHODS = new Set(['text-passthrough', 'pdf-text-layer', 'table', 'form', 'ocr']);
-const DECLINE_REASONS = new Set(['no-text-layer', 'encrypted', 'corrupt', 'too-large']);
-const PDF_CLASSES = new Set(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
-
-/**
- * `integer` in the schema, not merely `number` — page indices and word counts.
- * Deliberately NOT used for `PdfTextItem` geometry: the spec types every field
- * there (`page` included) as `number`, so requiring integers would make this
- * guard stricter than the contract it enforces.
- */
-const isInteger = (value: unknown): value is number => Number.isInteger(value);
-
-/**
- * The anchored-text key is the content checksum of the bytes the map derives
- * from: `calculateChecksum` is `sha256().digest('hex')`, so 64 lowercase hex
- * characters and nothing else.
- *
- * Checked at the route because the store cannot report it. `AnchoredTextStore`
- * refuses a key it cannot shard by logging and returning — "a store that cannot
- * write is still a store", which is the right rule for a cache library whose
- * every failure is a miss. Through a PUT it becomes a lie: 204 tells the
- * producer the map is published while the artifact is permanently absent, and
- * the reconcile diff can never see the hole because nothing was recorded.
- *
- * Lowercase is load-bearing, not pedantry: the store shards on the key's
- * leading characters, so accepting `AB…` as well as `ab…` would file one
- * content identity under two paths.
- */
-const CONTENT_CHECKSUM = /^[0-9a-f]{64}$/;
-
-/**
- * Narrow a request body to `ExtractionOutcome` (PERSIST-ANCHORS D1): the
- * anchored text with its provenance, or a named decline.
- *
- * Hand-written rather than schema-driven because the geometry is the point: an
- * item missing `page` or carrying a string `x` would be stored happily and then
- * place an annotation rectangle nowhere, discovered much later by a reader who
- * cannot tell a bad write from a bad recognizer.
- */
-function isExtractionOutcome(value: unknown): value is ExtractionOutcome {
-  if (!isObject(value)) return false;
-  if (value.kind === 'declined') return isString(value.declined) && DECLINE_REASONS.has(value.declined);
-  if (value.kind !== 'extracted') return false;
-  if (!isString(value.text) || !isArray(value.items)) return false;
-  if (!isString(value.method) || !EXTRACTION_METHODS.has(value.method)) return false;
-  if (value.pdfClass !== undefined && !(isString(value.pdfClass) && PDF_CLASSES.has(value.pdfClass))) return false;
-  if (value.ocrConfidence !== undefined) {
-    const c = value.ocrConfidence;
-    if (!isObject(c) || !isNumber(c.mean) || !isInteger(c.lowConfidenceWords) || !isInteger(c.totalWords)) return false;
-  }
-  if (value.unreadPages !== undefined && !(isArray(value.unreadPages) && value.unreadPages.every(isInteger))) return false;
-  return value.items.every((item) =>
-    isObject(item)
-    && isNumber(item.start) && isNumber(item.end) && isNumber(item.page)
-    && isNumber(item.x) && isNumber(item.y)
-    && isNumber(item.width) && isNumber(item.height));
-}
-
 export function registerGetResourceUri(router: ResourcesRouterType) {
-  // PUT /anchored-text/:checksum — publish a derived coordinate map, keyed by
-  // the content checksum of the bytes it was derived from (PERSIST-ANCHORS
-  // decision A). The producer supplies the checksum because it alone knows
-  // which bytes it read — deriving the key server-side from the resource's
-  // CURRENT representation would file old geometry under a new checksum when
-  // a byte change races the publish, and that entry would read as "present"
-  // to the reconcile diff forever.
-  //
-  // The Smelter is the sole producer: it is the only process that reads a
-  // representation's bytes at ingest, so it is the only one positioned to
-  // derive a map cheaply. It runs separately from the backend, which is why
-  // this crosses HTTP at all rather than writing the store directly the way
-  // an in-process caller does.
-  //
-  // **Agents only.** A map is derived data every consumer trusts to place
-  // annotation geometry; letting a browser session write one would let a user
-  // poison where quotes land for everyone reading that document. `principalDid`
-  // deliberately erases the human/software distinction, so this checks
-  // `agentDid` instead.
-  router.put('/anchored-text/:checksum', async (c) => {
-    if (!c.get('agentDid')) {
-      throw new HTTPException(403, { message: 'Only an agent may publish anchored text' });
-    }
-
-    const { checksum } = c.req.param();
-    if (!CONTENT_CHECKSUM.test(checksum)) {
-      throw new HTTPException(400, { message: 'Path segment must be a content checksum: 64 lowercase hex characters' });
-    }
-    const body: unknown = await c.req.json().catch(() => null);
-    if (!isExtractionOutcome(body)) {
-      throw new HTTPException(400, { message: 'Body must be an ExtractionOutcome: { text, items[], method, … } or { declined }' });
-    }
-
-    const { knowledgeSystem: { kb } } = c.get('makeMeaning');
-    await kb.anchoredText.write(checksum, body);
-    // 204: there is nothing to return, and the caller already holds the map.
-    return c.body(null, 204);
-  });
-
-  // GET /anchored-text/keys — the store's would-hit keys, straight from the
-  // store like the PUT above (no bus gateway, no settle barrier): this is the
-  // reconcile planner's bulk existence read (PERSIST-ANCHORS P0), asking
-  // presence rather than content at a moment. Agents only — projection-
-  // maintenance planning data, the same trust boundary as publishing a map.
-  router.get('/anchored-text/keys', async (c) => {
-    if (!c.get('agentDid')) {
-      throw new HTTPException(403, { message: 'Only an agent may list anchored-text keys' });
-    }
-
-    const { knowledgeSystem: { kb } } = c.get('makeMeaning');
-    return c.json({ keys: await kb.anchoredText.list() }, 200, { 'Cache-Control': 'no-cache' });
-  });
-
-  // GET /anchored-text/:checksum — the cache-consult read (PERSIST-ANCHORS
-  // P2c): the extraction seam asks "has this exact byte content already been
-  // extracted?", and every cache consumer runs out of process (the smelter
-  // worker, the detection workers), so the consult must cross the wire or
-  // the cache is write-only from exactly the processes it exists to serve.
-  //
-  // Straight store read, no settle barrier: presence at this instant is the
-  // question — the same semantics as the keys listing above. The barrier
-  // belongs to the resource-addressed GET below, which resolves a mutable
-  // pointer through the view index; a caller holding the checksum already
-  // holds the content identity. Agents only, same trust boundary as the PUT.
-  //
-  // Registered AFTER /anchored-text/keys so the static segment wins —
-  // though a 'keys' checksum would miss harmlessly anyway.
-  router.get('/anchored-text/:checksum', async (c) => {
-    if (!c.get('agentDid')) {
-      throw new HTTPException(403, { message: 'Only an agent may read anchored text by checksum' });
-    }
-
-    const { checksum } = c.req.param();
-    if (!CONTENT_CHECKSUM.test(checksum)) {
-      throw new HTTPException(400, { message: 'Path segment must be a content checksum: 64 lowercase hex characters' });
-    }
-    const { knowledgeSystem: { kb } } = c.get('makeMeaning');
-    const outcome = await kb.anchoredText.read(checksum);
-    if (outcome === null) {
-      return c.body(null, 204, { 'Cache-Control': 'no-cache' });
-    }
-    return c.json(outcome, 200, { 'Cache-Control': 'no-cache' });
-  });
-
-  // GET /resources/:id/anchored-text — the derived coordinate map, via the bus
-  // gateway. Reading never derives: the map is written only by the PUT above,
-  // and only by an agent, so no reader can provoke extraction from here.
-  //
-  // "No map" is the common answer and is a 204, not a 404 — a fact about
-  // extraction, not a missing route. It is carried as an empty body rather
-  // than a JSON `null` body because a typed client cannot represent the
-  // difference: oapi-codegen unmarshals a 200 into `var dest AnchoredText`,
-  // and `null` into a struct is a documented no-op in encoding/json, so
-  // `JSON200` would come back non-nil pointing at a zero value. "No map" and
-  // "an empty map" would be the same answer. With 204 no case matches, the
-  // field stays nil, and nil means what it should.
-  router.get('/resources/:id/anchored-text', async (c) => {
-    const { id } = c.req.param();
-    const eventBus = c.get('eventBus');
-    const correlationId = crypto.randomUUID();
-
-    try {
-      const response = await eventBusRequest(
-        eventBus,
-        'browse:anchored-text-requested',
-        { correlationId, resourceId: id },
-        'browse:anchored-text-result',
-        'browse:anchored-text-failed',
-      );
-      if (response === null || response === undefined) {
-        return c.body(null, 204, { 'Cache-Control': 'no-cache' });
-      }
-      return c.json(response, 200, { 'Cache-Control': 'no-cache' });
-    } catch (error) {
-      if (error instanceof Error && error.message === 'Resource not found') {
-        throw new HTTPException(404, { message: 'Resource not found' });
-      }
-      throw error;
-    }
-  });
-
   // GET /resources/:id/jsonld — the JSON-LD description, via
   // `browse:resource-requested`. Hono params don't span '/', so this cannot
   // collide with the pipe route below.

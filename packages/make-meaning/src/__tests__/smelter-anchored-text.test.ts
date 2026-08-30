@@ -8,8 +8,10 @@
  * detection jobs and the browser — arrives later and would have to redo all of
  * it. Publishing here is what turns that one pass into the only pass.
  *
- * Through `IContentTransport`, not a shared volume: the KnowledgeSystem owns
- * storage and the Smelter is a separate process.
+ * To a store the Smelter HOLDS, on its own mount (ANCHORED-TEXT-TO-SMELTER P1).
+ * It used to publish through `IContentTransport`, which put the gateway between
+ * this process and an artifact it derives itself; it is now the sole writer and
+ * every read of the store moved to the Archivist's bus channels.
  */
 
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
@@ -17,6 +19,7 @@ import { EMPTY, Subject } from 'rxjs';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { calculateChecksum } from '@semiont/content';
 import { MemoryVectorStore } from '@semiont/vectors';
+import type { AnchoredTextStore } from '@semiont/content';
 import type { ExtractionOutcome, IContentTransport, Logger } from '@semiont/core';
 import { Smelter } from '../smelter';
 import type { SmelterEvent } from '../smelter-actor-state-unit';
@@ -24,8 +27,7 @@ import {
   createMockEmbeddingProvider,
   createContentTransport,
   createFakeKsBus,
-  resourceDescriptor,
-} from './helpers/smelter-harness';
+  resourceDescriptor } from './helpers/smelter-harness';
 
 const mockLogger: Logger = {
   debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
@@ -47,20 +49,38 @@ beforeAll(async () => {
   PDF_BYTES = await doc.save();
 });
 
-/**
- * A content transport that serves one document and records every published map.
- * `putAnchoredText` is the method under test; everything else is the existing
- * harness behaviour.
- */
-function transportRecording(
-  put: (checksum: string, anchored: ExtractionOutcome) => void,
+/** Serves the one document under test; publishing is the store's job now. */
+function transportServing(
   entry: { text: string; mediaType: string } | { bytes: Uint8Array; mediaType: string },
 ): IContentTransport {
-  const base = createContentTransport({ read: (rid) => (rid === RID ? entry : undefined) });
-  return { ...base, putAnchoredText: async (checksum, anchored) => { put(checksum, anchored); } };
+  return createContentTransport({ read: (rid) => (rid === RID ? entry : undefined) });
 }
 
-async function smelterOver(content: IContentTransport, mediaType = 'text/plain') {
+/**
+ * A store that records every publish. The recording moved here from the
+ * transport with the store itself (ANCHORED-TEXT-TO-SMELTER P1): the Smelter
+ * writes to the store it holds, so a transport-side `putAnchoredText` spy
+ * would now observe nothing — which is the decoupling working.
+ */
+function storeRecording(
+  put: (checksum: string, anchored: ExtractionOutcome) => void,
+  fail = false,
+): AnchoredTextStore {
+  return {
+    async read() { return null; },
+    async write(key, outcome) {
+      if (fail) throw new Error('store unavailable');
+      put(key, outcome);
+    },
+    async list() { return []; },
+  };
+}
+
+async function smelterOver(
+  content: IContentTransport,
+  anchoredStore: AnchoredTextStore,
+  mediaType = 'text/plain',
+) {
   const events$ = new Subject<SmelterEvent>();
   const vectorStore = new MemoryVectorStore();
   await vectorStore.connect();
@@ -70,6 +90,7 @@ async function smelterOver(content: IContentTransport, mediaType = 'text/plain')
     vectorStore,
     createMockEmbeddingProvider(),
     content,
+    anchoredStore,
     createFakeKsBus([resourceDescriptor(RID, mediaType)]),
     { chunkSize: 512, overlap: 64 },
     { burstWindowMs: 5, maxBatchSize: 100, idleTimeoutMs: 20 },
@@ -85,7 +106,8 @@ describe('Smelter publishes derived anchored text', () => {
   it('publishes the map for a resource whose extraction carried geometry', async () => {
     const put = vi.fn();
     const { events$, settle } = await smelterOver(
-      transportRecording(put, { bytes: PDF_BYTES, mediaType: 'application/pdf' }),
+      transportServing({ bytes: PDF_BYTES, mediaType: 'application/pdf' }),
+      storeRecording(put),
       'application/pdf',
     );
 
@@ -111,7 +133,8 @@ describe('Smelter publishes derived anchored text', () => {
     // record.
     const put = vi.fn();
     const { events$, settle } = await smelterOver(
-      transportRecording(put, { text: 'no geometry here', mediaType: 'text/plain' }),
+      transportServing({ text: 'no geometry here', mediaType: 'text/plain' }),
+      storeRecording(put),
     );
 
     events$.next({ type: 'smelt:embed', resourceId: RID, payload: {} });
@@ -124,14 +147,14 @@ describe('Smelter publishes derived anchored text', () => {
     // The map is an optimization; the embedding is the job. A storage failure
     // must not turn a successful index into a skip — that would hide the
     // resource from search over a cache write.
-    const base = createContentTransport({
-      read: (rid) => (rid === RID ? { text: 'alpha beta', mediaType: 'text/plain' } : undefined),
-    });
-    const content: IContentTransport = {
-      ...base,
-      putAnchoredText: async () => { throw new Error('store unavailable'); },
-    };
-    const { events$, settle } = await smelterOver(content);
+    // The throw now comes from the STORE, whose `write` rejects rather than
+    // swallowing (ANCHORED-TEXT-TO-SMELTER P1). This test is what pins that
+    // the extraction seam still catches: strictness moved to the store, and
+    // best-effort stayed at the seam that wants it.
+    const { events$, settle } = await smelterOver(
+      transportServing({ text: 'alpha beta', mediaType: 'text/plain' }),
+      storeRecording(vi.fn(), true),
+    );
 
     events$.next({ type: 'smelt:embed', resourceId: RID, payload: {} });
     await settle();

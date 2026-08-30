@@ -638,8 +638,8 @@ func TestStatePersistsAcrossStarts(t *testing.T) {
 	}
 }
 
-// The backend keeps derived state of its own — the anchored-text store, a
-// coordinate map per representation that costs ~2.9s/page of OCR to rebuild.
+// The anchored-text store — a coordinate map per representation that costs
+// ~2.9s/page of OCR to rebuild — is mounted state, not container state.
 // Unmounted it lives in the container and dies with it on every `stop`, and
 // nothing re-derives it: reconcile plans work from Qdrant, which persists, so
 // it sees matching checksums and does nothing.
@@ -656,17 +656,28 @@ func TestBackendDataPersistsAcrossStarts(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "anchored-text")); err != nil {
 		t.Fatalf("anchored-text state dir after start: %v", err)
 	}
+	mount := dir + "/anchored-text:/anchored-text"
+	firstBoot := strings.Count(string(s.mustLog(t)), mount)
+
 	s.killServes()
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("second start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	// TWO mounts per boot: the backend (stamp owner) and the Archivist
-	// (shared reader). The Librarian mounts nothing of the KB's stores
-	// since SINGLE-KB-MOUNT P1. The invariant under test is unchanged —
-	// the mount survives across starts — the multiplier is just fleet size.
-	mount := dir + "/anchored-text:/anchored-text"
-	if got := strings.Count(string(s.mustLog(t)), mount); got != 4 {
-		t.Errorf("anchored-text mount should appear twice in both boots (want 4, got %d)", got)
+	// The invariant is PERSISTENCE — a restart mounts the store exactly as
+	// the first boot did — so it is asserted against the first boot rather
+	// than against a hard-coded total.
+	//
+	// A literal count would encode fleet size, which is not what this test is
+	// about and which keeps moving: two mounters, then three when the Smelter
+	// took the store (ANCHORED-TEXT-TO-SMELTER P1), and two again at that
+	// plan's P5 when the stamp follows the writer and the gateway's mount
+	// goes. Every one of those is a correct state, and none of them should
+	// make this test fail.
+	if firstBoot == 0 {
+		t.Fatalf("anchored-text mount absent from the first boot")
+	}
+	if total := strings.Count(string(s.mustLog(t)), mount); total != firstBoot*2 {
+		t.Errorf("anchored-text mount did not survive the restart: %d on the first boot, %d across both", firstBoot, total)
 	}
 }
 

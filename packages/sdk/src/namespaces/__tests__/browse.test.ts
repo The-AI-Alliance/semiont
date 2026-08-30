@@ -120,10 +120,6 @@ function makeContent(): IContentTransport {
     getBinary: vi.fn().mockResolvedValue({ data: new ArrayBuffer(0), contentType: 'text/plain' }),
     getBinaryStream: vi.fn().mockResolvedValue({ stream: new ReadableStream(), contentType: 'text/plain' }),
     getResourceGraph: vi.fn(),
-    putAnchoredText: vi.fn(),
-    getAnchoredText: vi.fn(),
-    listAnchoredTextKeys: vi.fn().mockResolvedValue([]),
-    getAnchoredTextByChecksum: vi.fn().mockResolvedValue(null),
     dispose: vi.fn(),
   };
 }
@@ -277,7 +273,6 @@ describe('BrowseNamespace', () => {
     );
     // The HTTP hop through the gateway is gone — the reply arrives on the
     // bridged result channel like every other bus reply.
-    expect(content.getAnchoredText).not.toHaveBeenCalled();
   });
 
   it('anchoredTextByChecksum consults by content identity over the bus', async () => {
@@ -297,7 +292,6 @@ describe('BrowseNamespace', () => {
       'browse:anchored-text-by-checksum-requested',
       expect.objectContaining({ checksum: 'abc123' }),
     );
-    expect(content.getAnchoredTextByChecksum).not.toHaveBeenCalled();
   });
 
   it('anchoredTextByChecksum resolves null for a miss — the caller extracts locally', async () => {

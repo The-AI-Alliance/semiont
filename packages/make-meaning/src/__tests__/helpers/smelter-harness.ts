@@ -16,6 +16,7 @@
 import { vi } from 'vitest';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import type { ExtractionOutcome, ConnectionState, Logger, EventMap, IContentTransport, components } from '@semiont/core';
+import type { AnchoredTextStore } from '@semiont/content';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { BusRequestPrimitive } from '@semiont/core';
 import type { SmelterEvent } from '../../smelter-actor-state-unit';
@@ -100,33 +101,10 @@ export type ContentEntry =
 export function createContentTransport(opts: {
   read: (rid: string) => ContentEntry | 'fail' | undefined;
   wrap?: <T>(p: Promise<T>, label: string) => Promise<T>;
-  /**
-   * The anchored-text store, caller-owned so tests can seed it (artifact
-   * present) or leave it empty (the lost-artifact shape PERSIST-ANCHORS P0
-   * reconciles) and observe what the Smelter published. Mirrors production
-   * semantics: put writes, get misses as null, list returns would-hit keys.
-   */
-  anchored?: Map<string, ExtractionOutcome>;
 }): IContentTransport {
-  const anchored = opts.anchored ?? new Map<string, ExtractionOutcome>();
   return {
     async putBinary(): Promise<never> {
       throw new Error('not supported');
-    },
-    // Writes are checksum-addressed (P1b): the map's keys are content
-    // checksums, which is exactly what `listAnchoredTextKeys` must return
-    // for the reconcile diff to compare against catalog checksums.
-    async putAnchoredText(checksum, value) {
-      anchored.set(checksum, value);
-    },
-    async getAnchoredText(resourceId) {
-      return anchored.get(String(resourceId)) ?? null;
-    },
-    async getAnchoredTextByChecksum(checksum) {
-      return anchored.get(checksum) ?? null;
-    },
-    async listAnchoredTextKeys() {
-      return [...anchored.keys()];
     },
     async getBinary(resourceId) {
       const rid = String(resourceId);
@@ -171,6 +149,32 @@ export function createMockContentTransport(
  * filter by channel in assertions), so tests can observe the Smelter's
  * outbound signals (`smelt:settled`).
  */
+/**
+ * An in-memory `AnchoredTextStore` — the Smelter's own store, which it now
+ * holds directly rather than reaching through the content transport
+ * (ANCHORED-TEXT-TO-SMELTER P1).
+ *
+ * `write` REJECTS rather than swallowing, matching the real store's contract
+ * (a write that returns has written). Tests that want the best-effort seam's
+ * behaviour catch at their own call site, exactly as `pdf-extractor` does.
+ * Pass a shared `entries` map to assert on what was published.
+ */
+export function memoryAnchoredStore(
+  entries: Map<string, ExtractionOutcome> = new Map(),
+): AnchoredTextStore {
+  return {
+    async read(key) {
+      return entries.get(key) ?? null;
+    },
+    async write(key, outcome) {
+      entries.set(key, outcome);
+    },
+    async list() {
+      return [...entries.keys()];
+    },
+  };
+}
+
 export function createFakeKsBus(
   resources: ResourceDescriptor[],
   annotationsByResource: Map<string, Annotation[]> = new Map(),

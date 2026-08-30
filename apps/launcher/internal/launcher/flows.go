@@ -501,7 +501,20 @@ func flowBackend(x executor, fc flowCtx, addr, stage, secret string, otel []stri
 }
 
 func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage, secret string, otel []string) int {
-	args := sidecarArgs(sc.svc, sc.port, stage, addr, secret, fc.version, fc.userEnv, otel)
+	// The Smelter derives the anchored-text artifacts, so it HOLDS the store
+	// (ANCHORED-TEXT-TO-SMELTER P1) rather than reaching it over the content
+	// transport. SHARED, as a peer of the backend and Archivist — the stamp
+	// stays with the backend until P5 moves it, after the other three stop
+	// mounting (D3). The other two sidecars touch anchored text at all.
+	var extra []string
+	if sc.svc == "smelter" {
+		m, ok := x.stateMountsShared("anchored-text", fc.root)
+		if !ok {
+			return 1
+		}
+		extra = m
+	}
+	args := sidecarArgs(sc.svc, sc.port, stage, addr, secret, fc.version, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "%s failed to start.", sc.label)

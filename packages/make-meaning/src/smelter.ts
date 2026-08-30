@@ -41,7 +41,7 @@ import { burstBuffer, errField } from '@semiont/core';
 import type { Logger, Annotation, ResourceId, AnnotationId, ResourceDescriptor, IContentTransport, EventMap } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes, textExtractionOf } from '@semiont/core';
-import { anchoredTextStoreOverTransport, calculateChecksum, EXTRACTORS, type AnchoredTextStore } from '@semiont/content';
+import { calculateChecksum, EXTRACTORS, type AnchoredTextStore } from '@semiont/content';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { ChunkingConfig } from '@semiont/core';
@@ -172,19 +172,20 @@ export class Smelter {
     private vectorStore: VectorStore,
     private embeddingProvider: EmbeddingProvider,
     private content: IContentTransport,
+    /**
+     * The anchored-text store, held DIRECTLY (ANCHORED-TEXT-TO-SMELTER P1).
+     *
+     * It used to be built here over the content transport, which put the
+     * gateway between this process and an artifact it produces itself. The
+     * Smelter now owns the store on its own mount and is the only writer;
+     * every read of it moved to the Archivist's bus channels.
+     */
+    private anchoredStore: AnchoredTextStore,
     private bus: BusRequestPrimitive,
     private chunkingConfig: ChunkingConfig,
     private timing: SmelterTiming,
     private logger: Logger,
-  ) {
-    // The extraction seam's view of the one real store, reached through the
-    // same transport this worker already holds (PERSIST-ANCHORS P2c) —
-    // best-effort by the store's contract; the re-anchor path bypasses it
-    // for its strict publish.
-    this.anchoredStore = anchoredTextStoreOverTransport(content, logger.child({ component: 'anchored-text-cache' }));
-  }
-
-  private readonly anchoredStore: AnchoredTextStore;
+  ) {}
 
   get eventsProcessed(): number {
     return this._eventsProcessed;
@@ -454,7 +455,7 @@ export class Smelter {
     // double-write is idempotent (same bytes, same STAMP, atomic rename ⇒
     // byte-identical), so strictness costs one redundant write and buys an
     // honest `smelt:rebuild-anchors-failed`.
-    await this.content.putAnchoredText(checksum, { ...extracted, items: extracted.items });
+    await this.anchoredStore.write(checksum, { ...extracted, items: extracted.items });
     this.logger.info('Re-anchored resource', { resourceId: rid, checksum, items: extracted.items.length });
   }
 
@@ -818,7 +819,7 @@ export class Smelter {
         // per resource (PERSIST-ANCHORS P0). Keys are resource ids today;
         // P1 rekeys the store by content checksum and this lookup moves
         // with it.
-        this.content.listAnchoredTextKeys().then((keys) => new Set(keys)),
+        this.anchoredStore.list().then((keys) => new Set(keys)),
       ]);
       const resources = await this.listAllResources();
       this.logger.info('Reconcile started', {

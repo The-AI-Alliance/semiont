@@ -18,6 +18,7 @@
  */
 
 import { BehaviorSubject } from 'rxjs';
+import { createAnchoredTextStore } from '@semiont/content';
 import { createSmelterActorStateUnit, type SmelterActorStateUnit } from './smelter-actor-state-unit';
 import { Smelter } from './smelter';
 import { HttpTransport, HttpContentTransport } from '@semiont/http-transport';
@@ -195,12 +196,22 @@ async function main() {
   const contentTransport = new HttpContentTransport(httpTransport);
   logger.info('Content transport ready', { mode: 'http' });
 
+  // The anchored-text store, on this process's own mount (ANCHORED-TEXT-TO-SMELTER
+  // P1). The Smelter derives these artifacts, so it holds them: no gateway
+  // round-trip to reach its own output, and it is the sole writer.
+  const anchoredTextDir = process.env.SEMIONT_ANCHORED_TEXT_DIR;
+  if (!anchoredTextDir) {
+    throw new Error('SEMIONT_ANCHORED_TEXT_DIR is required — the Smelter owns the anchored-text store and has no default for where it lives');
+  }
+  const anchoredStore = createAnchoredTextStore(anchoredTextDir, logger.child({ component: 'anchored-text-store' }));
+
   const smelter = new Smelter(
     actorStateUnit.events$,
     actorStateUnit.rebuildAnchors$,
     vectorStore,
     embeddingProvider,
     contentTransport,
+    anchoredStore,
     httpTransport,
     chunkingConfig,
     { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
