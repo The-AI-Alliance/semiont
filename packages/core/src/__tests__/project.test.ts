@@ -22,7 +22,7 @@ describe('SemiontState — the half that needs no KB root', () => {
   // name. Split rather than made optional, so "needs a working tree" stays a
   // COMPILE-time fact — passing a SemiontState where a SemiontProject is
   // required is a type error, not a throw inside some later read.
-  const state = new SemiontState({ name: 'kb-under-test', anchoredTextDir: '/anchored-text' });
+  const state = new SemiontState({ name: 'kb-under-test' });
 
   it('resolves every name-derived path with no KB root in sight', () => {
     expect(state.name).toBe('kb-under-test');
@@ -35,10 +35,13 @@ describe('SemiontState — the half that needs no KB root', () => {
     expect(state.backendPidFile).toBe(join(state.runtimeDir, 'backend.pid'));
   });
 
-  it('carries the supplied anchored-text path verbatim', () => {
-    // Still required, still no default — the guard the docstring argues for is
-    // untouched by the split. It simply lives on the smaller type now.
-    expect(state.anchoredTextDir).toBe('/anchored-text');
+  it('takes NOTHING but the name — every path here derives from it', () => {
+    // SINGLE-KB-MOUNT P6 moved `anchoredTextDir` to SemiontProject: it is a
+    // SUPPLIED path rather than a derived one, and the gateway — the reason
+    // this type exists — neither mounts the store nor reads it. Requiring it
+    // here would have made the one consumer that cannot supply it supply it
+    // anyway, which is the shape this split exists to avoid.
+    expect(Object.keys(state)).not.toContain('anchoredTextDir');
   });
 
   it('has no working-tree surface at all', () => {

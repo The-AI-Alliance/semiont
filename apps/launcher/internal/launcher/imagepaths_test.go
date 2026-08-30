@@ -60,7 +60,11 @@ func TestContainerPathsMatchTheImage(t *testing.T) {
 		env    string
 		mounts string
 	}{
-		{"backend", []string{"..", "..", "..", "backend", "Dockerfile"}, "SEMIONT_ROOT", kbMountTarget},
+		// The KB tree's row moved from the backend to the ARCHIVIST with the
+		// mount itself (SINGLE-KB-MOUNT P6): the gateway declares neither of
+		// these env vars now, because it mounts nothing they could name.
+		{"archivist", []string{"..", "..", "..", "..", "packages", "make-meaning", "Dockerfile.archivist"},
+			"SEMIONT_ROOT", kbMountTarget},
 		{"smelter", []string{"..", "..", "..", "..", "packages", "make-meaning", "Dockerfile.smelter"},
 			"SEMIONT_ANCHORED_TEXT_DIR", stateStores["anchored-text"].mounts[0].target},
 	} {
@@ -74,5 +78,44 @@ func TestContainerPathsMatchTheImage(t *testing.T) {
 			t.Errorf("%s/%s: the image says %q, the launcher mounts onto %q — the service would read an empty directory and never report it",
 				c.label, c.env, got, c.mounts)
 		}
+	}
+}
+
+// THE WHOLE PLAN'S GATE (SINGLE-KB-MOUNT): exactly one container bind-mounts
+// the knowledge base tree.
+//
+// Asserted on the run arguments the launcher BUILDS, not observed on a running
+// stack — an observation passes for whatever happens to be up, while this fails
+// the moment someone re-adds a mount, which is the only way the property is
+// ever lost.
+func TestExactlyOneContainerMountsTheKB(t *testing.T) {
+	const kbRoot = "/host/kb"
+	mount := kbRoot + ":" + kbMountTarget
+
+	// Every builder that could plausibly want the tree, with the arguments a
+	// real start passes. `archivistArgs` is the one that takes a kbRoot at all
+	// now — the others cannot mount it because they are not given it, which is
+	// the property expressed in the signatures themselves.
+	fleet := map[string][]string{
+		"backend":   backendArgs("/stage", "1.2.3.4", "secret", "jwt", "v", 4000, nil, nil),
+		"archivist": archivistArgs(kbRoot, "/stage", "1.2.3.4", "secret", "v", nil, nil),
+		"librarian": librarianArgs("/stage", "1.2.3.4", "secret", "v", nil, nil),
+		"worker":    sidecarArgs("worker", 9090, "/stage", "1.2.3.4", "secret", "v", nil, nil),
+		"smelter":   sidecarArgs("smelter", 9091, "/stage", "1.2.3.4", "secret", "v", nil, nil),
+		"weaver":    sidecarArgs("weaver", 9092, "/stage", "1.2.3.4", "secret", "v", nil, nil),
+	}
+
+	var mounters []string
+	for svc, args := range fleet {
+		for _, a := range args {
+			if strings.Contains(a, kbMountTarget) && strings.Contains(a, kbRoot) {
+				mounters = append(mounters, svc)
+				break
+			}
+		}
+	}
+
+	if len(mounters) != 1 || mounters[0] != "archivist" {
+		t.Fatalf("containers mounting %s = %v, want exactly [archivist] — the tree has one owner", mount, mounters)
 	}
 }

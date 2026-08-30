@@ -158,17 +158,11 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "require('http').get('http://localhost:4000/api/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
-# The KB working tree is bind-mounted at /kb and the TOML config at
-# ~/.semiontconfig; the backend reads both (see src/index.ts). These were injected
-# by the CLI before it was retired — they are fixed inside the container, so bake
-# them here.
-ENV SEMIONT_ROOT=/kb
-# Where the launcher mounts this KB's anchored-text store. Declared here for
-# the same reason SEMIONT_ROOT is: the container-side path is a constant of the
-# image, and the host side is the launcher's business. There is no fallback —
-# index.ts reads this and refuses to boot without it, so running the backend
-# outside a container means supplying it.
-ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
+# The gateway mounts NO piece of the knowledge base (SINGLE-KB-MOUNT P6), so
+# it declares neither SEMIONT_ROOT nor SEMIONT_ANCHORED_TEXT_DIR. Its whole
+# input is the TOML config the launcher stages at ~/.semiontconfig — which
+# carries the KB's own settings plus the staged `[kb]` identity and archivist
+# topology. Bytes and the event log come from the Archivist over HTTP.
 ENV SEMIONT_ENV=local
 ENV BACKEND_DIR=/home/semiont/.local/share/semiont/node_modules/@semiont/backend
 

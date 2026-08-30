@@ -68,9 +68,9 @@ export function stateDirFor(name: string): string {
  *
  * This exists because a consumer appeared that genuinely needs half of
  * `SemiontProject` and cannot supply the other half: the gateway reads
- * `projectionsDir`, `jobsDir`, the backend log paths and `anchoredTextDir`, all
- * of which live on the shared state and anchored-text mounts, while having no
- * readable KB root at all (SINGLE-KB-MOUNT P5).
+ * `projectionsDir`, `jobsDir` and the backend log paths, all of which live on
+ * the shared state mount, while having no readable KB root at all
+ * (SINGLE-KB-MOUNT P5).
  *
  * **Split rather than made optional, deliberately.** Relaxing
  * `SemiontProject`'s root-derived fields to optional-and-throw-on-read would
@@ -80,20 +80,14 @@ export function stateDirFor(name: string): string {
  * working tree" a fact the compiler enforces. Handing a `SemiontState` to
  * something that reads `eventsDir` does not compile.
  *
- * Every field here is required. The `anchoredTextDir` guard is unchanged by the
- * split — see its note on the constructor.
+ * Every field here is required, and every one is derived from `name` alone —
+ * which is what makes the name the whole of this type's input. `anchoredTextDir`
+ * is deliberately NOT here (SINGLE-KB-MOUNT P6): it is a supplied path rather
+ * than a derived one, and its only readers hold a working tree too, so it sits
+ * on `SemiontProject` where they already are.
  */
 export class SemiontState {
   readonly name: string;
-
-  /** Supplied by the caller; required, no default.
-   *
-   *  A default would let a deployment that forgot it write a full OCR pass per
-   *  representation into a directory nobody mounted, lose it on the next
-   *  `stop`, and re-derive it forever: silent, expensive, and indistinguishable
-   *  from working. Passed IN, never read from the environment here — the entry
-   *  point owns that read, exactly as it owns SEMIONT_ROOT. */
-  readonly anchoredTextDir: string;
 
   // Ephemeral — config (generated config files for managed processes)
   readonly configDir: string;
@@ -110,9 +104,8 @@ export class SemiontState {
   readonly runtimeDir: string;
   readonly backendPidFile: string;
 
-  constructor(opts: { name: string; anchoredTextDir: string }) {
+  constructor(opts: { name: string }) {
     this.name = opts.name;
-    this.anchoredTextDir = opts.anchoredTextDir;
 
     const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
     this.configDir = path.join(xdgConfig, 'semiont', this.name);
@@ -134,6 +127,7 @@ export class SemiontState {
 /** A project is its state plus a working tree. */
 export class SemiontProject extends SemiontState {
   readonly root: string;
+  readonly anchoredTextDir: string;
 
   /** True if [git] sync = true in .semiont/config. When true, semiont stages
    *  working-tree and event-log changes in the git index automatically. */
@@ -164,14 +158,23 @@ export class SemiontProject extends SemiontState {
   /**
    * @param projectRoot  the KB clone this project describes
    * @param opts.name    seed value — see `seedAndReadName`.
-   * @param opts.anchoredTextDir  see `SemiontState.anchoredTextDir`; required
-   *   here for the same reason and with the same absence of a default.
+   * @param opts.anchoredTextDir  where this deployment keeps the anchored-text
+   *   store. Supplied by the caller; REQUIRED, no default.
+   *
+   *   A default would let a deployment that forgot it write a full OCR pass per
+   *   representation into a directory nobody mounted, lose it on the next
+   *   `stop`, and re-derive it forever: silent, expensive, and indistinguishable
+   *   from working. Passed IN, never read from the environment here — the entry
+   *   point owns that read, exactly as it owns SEMIONT_ROOT.
+   *
+   *   It lives on THIS type rather than `SemiontState` (SINGLE-KB-MOUNT P6)
+   *   because every reader of it holds a working tree as well, and the one
+   *   consumer that needs state paths without a tree — the gateway — does not
+   *   read it at all.
    */
   constructor(projectRoot: string, opts: { anchoredTextDir: string; name?: string }) {
-    super({
-      name: SemiontProject.seedAndReadName(projectRoot, opts.name),
-      anchoredTextDir: opts.anchoredTextDir,
-    });
+    super({ name: SemiontProject.seedAndReadName(projectRoot, opts.name) });
+    this.anchoredTextDir = opts.anchoredTextDir;
     this.root = projectRoot;
     this.gitSync = SemiontProject.readGitSync(projectRoot);
     this.eventsDir = path.join(projectRoot, '.semiont', 'events');

@@ -33,27 +33,19 @@ import { User } from '@prisma/client';
 // both halves. Nothing is selected here — no environment variable, no 'local'
 // default: those disagreed across entry points and silently loaded the wrong
 // (empty) section.
-const projectRoot = process.env.SEMIONT_ROOT;
-if (!projectRoot) {
-  throw new Error('SEMIONT_ROOT environment variable is not set');
-}
-
-// Where this deployment keeps the anchored-text store. Read HERE, beside
-// SEMIONT_ROOT, because both are deployment facts the entry point owns —
-// SemiontState receives values, it does not reach into the environment for
-// them. The backend image declares this as /anchored-text and `semiont start`
-// bind-mounts the KB's per-root store onto it.
-const anchoredTextDir = process.env.SEMIONT_ANCHORED_TEXT_DIR;
-if (!anchoredTextDir) {
-  throw new Error(
-    'SEMIONT_ANCHORED_TEXT_DIR environment variable is not set. It names the directory ' +
-    "holding this knowledge base's anchored-text store and has no default: the backend " +
-    'image declares it (SEMIONT_ANCHORED_TEXT_DIR=/anchored-text) and `semiont start` ' +
-    'mounts the per-root store onto it. Running outside a container means setting it.',
-  );
-}
-
-const config = loadEnvironmentConfig(projectRoot);
+// `null`, not a KB root: this process mounts no knowledge base (SINGLE-KB-MOUNT
+// P6). Everything it needs — the KB's own committed settings plus the
+// launcher's staged `[kb]` identity and archivist topology — arrives in the
+// per-service copy the launcher mounts at ~/.semiontconfig, which is exactly
+// what the loader reads when given no root. Every sidecar has loaded this way
+// since it was extracted; the gateway was the last holdout, and only because
+// it still had a tree to read from.
+//
+// SEMIONT_ROOT and SEMIONT_ANCHORED_TEXT_DIR are gone with the mounts they
+// named. The store the second one pointed at belongs to the Smelter
+// (ANCHORED-TEXT-TO-SMELTER P1) and the tree the first one pointed at belongs
+// to the Archivist; this process reaches both over HTTP.
+const config = loadEnvironmentConfig(null);
 
 if (!config.services?.backend) {
   throw new Error('services.backend is required in environment config');
@@ -162,7 +154,7 @@ const eventBus = new EventBus();
 // with no KB root. That is the type-level statement of P5 — the gateway
 // cannot reach a tree it does not have, and the compiler enforces it.
 const makeMeaning = await startMakeMeaningGateway(
-  new SemiontState({ name: requireKBName(config), anchoredTextDir }),
+  new SemiontState({ name: requireKBName(config) }),
   makeMeaningConfigFrom(config),
   eventBus,
   logger,
