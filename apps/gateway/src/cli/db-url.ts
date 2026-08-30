@@ -36,14 +36,14 @@
 import { loadEnvironmentConfig } from '@semiont/core/node';
 import { databaseUrlFrom } from '../utils/database-url';
 
-const projectRoot = process.env.SEMIONT_ROOT;
-if (!projectRoot) {
-  process.stderr.write('SEMIONT_ROOT is not set — cannot locate the knowledge base config\n');
-  process.exit(1);
-}
-
+// `null`, not SEMIONT_ROOT: the gateway mounts no piece of the knowledge base
+// (SINGLE-KB-MOUNT P6), so its image sets no SEMIONT_ROOT and there is no tree
+// here to point at. Its whole config input is the staged ~/.semiontconfig the
+// launcher bind-mounts, which is exactly what the loader reads when the project
+// root is null — the same call index.ts makes. Requiring the variable made this
+// step, and therefore every container start, fail before the server ever ran.
 try {
-  process.stdout.write(databaseUrlFrom(loadEnvironmentConfig(projectRoot)));
+  process.stdout.write(databaseUrlFrom(loadEnvironmentConfig(null)));
 } catch (error) {
   process.stderr.write(
     `Could not derive DATABASE_URL from config: ${error instanceof Error ? error.message : String(error)}\n` +

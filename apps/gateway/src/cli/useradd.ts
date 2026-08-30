@@ -151,11 +151,11 @@ async function main(argv: string[]): Promise<number> {
   const o = parseArgs(argv);
   validate(o);
 
-  const projectRoot = process.env.SEMIONT_ROOT;
-  if (!projectRoot) {
-    throw new Error('SEMIONT_ROOT is not set — cannot locate the knowledge base config');
-  }
-  const config = loadEnvironmentConfig(projectRoot);
+  // `null` for the same reason db-url.ts passes null: this bin is exec'd INSIDE
+  // the gateway container (`container exec semiont-gateway semiont-useradd`),
+  // which mounts no knowledge base and sets no SEMIONT_ROOT. The staged
+  // ~/.semiontconfig is the config, and the loader reads it either way.
+  const config = loadEnvironmentConfig(null);
 
   // An explicit DATABASE_URL still wins, matching the container CMD's precedence.
   const connectionString = process.env.DATABASE_URL || databaseUrlFrom(config);
