@@ -710,16 +710,23 @@ func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 }
 
 // stateMountsShared: a role's state mounts for a container that is NOT the
-// stamp's owner. Until the Archivist cutover the BACKEND owns the
-// anchored-text stamp (it mounts via stateMounts and clears on image
-// change); the Archivist mounts the same store as a peer. Running the
-// stamped path here with the archivist image would flip the stamp on every
-// start and — anchored-text being a projection — CLEAR the store each
-// alternation, at ~2.9s/page of OCR to rebuild. Ownership flips only when
-// the BACKEND stops mounting this store — which is EXTRACT-LIBRARIAN's
-// cutover (the Gatherer reads anchored text gateway-side until then), NOT
-// the Archivist's. Corrected 2026-08-27; the first version of this comment
-// said "at cutover" and meant the wrong one.
+// stamp's owner. The SMELTER owns the anchored-text stamp (it mounts via
+// stateMounts with the smelter image and clears on image change); the
+// Archivist mounts the same store as a peer, read-only.
+//
+// Running the stamped path here with a second image would flip the stamp on
+// every start and — anchored-text being a projection — CLEAR the store each
+// alternation, at ~2.9s/page of OCR to rebuild. Exactly one service may take
+// the stamped path per store.
+//
+// The stamp follows the WRITER, which is what makes an image-change clear
+// correct: the stamp names the code whose output the store holds. It moved
+// from the backend to the Smelter in ANCHORED-TEXT-TO-SMELTER P5, once P4
+// had removed the gateway's anchored-text faces.
+//
+// Two earlier versions of this comment predicted the wrong trigger — first
+// "the Archivist cutover", then EXTRACT-LIBRARIAN's. Neither happened; that
+// plan retired the flip entirely (the Gatherer reads no anchored text).
 func (x *liveExec) stateMountsShared(role, root string) ([]string, bool) {
 	args := stateMountArgs(role, root)
 	if len(args) == 0 {
