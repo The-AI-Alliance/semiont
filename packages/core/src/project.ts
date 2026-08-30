@@ -215,10 +215,8 @@ export class SemiontProject extends SemiontState {
    *
    * Reads the committed file DIRECTLY, and deliberately not
    * `EnvironmentConfig.site.domain`, which is the same value only by
-   * accident: the TOML loader defaults a domain-less `[site]` to the string
-   * `'localhost'` (so every domain-less KB on a machine would claim one
-   * fabricated `did:web:localhost`) and lets the environment section
-   * override the KB's own declaration. Either would report an identity the
+   * accident: the environment section can override the KB's own declaration.
+   * That would report an identity the
    * launcher never minted — an address wearing a name, which is the whole
    * category error .plans/KB-IDENTITY-VS-ADDRESS.md exists to end. Identity
    * is declared or absent; it is never defaulted.

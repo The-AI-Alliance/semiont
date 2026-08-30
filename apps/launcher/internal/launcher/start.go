@@ -563,8 +563,7 @@ func Start(args []string) int {
 		// discovery document in which `did` is REQUIRED, so a KB with no
 		// [site] domain cannot be represented in it — and the alternatives are
 		// worse than refusing: publishing nothing makes a running KB silently
-		// undiscoverable, and defaulting the domain is what the gateway's TOML
-		// loader does (to the literal "localhost"), which would give every
+		// undiscoverable, and defaulting the domain would give every
 		// domain-less KB on the machine one fabricated, colliding identity.
 		// An address wearing a name is precisely the confusion this rule ends.
 		if ident == nil || ident.didWeb() == "" {
@@ -1115,8 +1114,9 @@ func describeProcs(pids []string) string {
 // the gateway resolves the domain it mints AGENT dids under as
 // `resolved.site ?? projectSite` (packages/core/src/config/toml-loader.ts is
 // the authority for that precedence; do not reimplement it here). So an
-// environment `[site]` section replaces the KB's declaration wholesale, and a
-// section that omits `domain` substitutes the literal "localhost". The KB's
+// environment `[site]` section that DECLARES a domain replaces the KB's
+// declaration wholesale. (One that omits `domain` no longer substitutes
+// anything — the gateway falls back to the committed `[kb]` domain.) The KB's
 // own did is unaffected — only its agents move — which is exactly why this is
 // easy to ship without noticing: one logical KB, two identity roots.
 //
@@ -1131,9 +1131,12 @@ func warnIdentityOverride(u *ui, site *siteCfg, committed string) {
 	if site == nil || committed == "" {
 		return
 	}
-	// The one line borrowed from the loader — see toml-loader.ts `site.domain
-	// ?? 'localhost'`. If that default changes there, change it here.
-	effective := "localhost"
+	// The one line borrowed from the loader — see toml-loader.ts. A [site] that
+	// omits `domain` no longer resolves to anything: the loader stopped
+	// manufacturing 'localhost', so the gateway falls back to the committed
+	// [kb] domain and nothing diverges. If that resolution changes there,
+	// change it here.
+	effective := committed
 	if site.Domain != nil && *site.Domain != "" {
 		effective = *site.Domain
 	}
@@ -1148,10 +1151,6 @@ func warnIdentityOverride(u *ui, site *siteCfg, committed string) {
 	u.warn("This config's [site] section overrides the KB's declared identity for agent identities.")
 	fmt.Printf("  KB identity (committed .semiont/config): %s\n", didWebOf(committed))
 	fmt.Printf("  Agent identities (this config's [site]):  %s\n", didWebOf(effective)+":agents:…")
-	if site.Domain == nil {
-		fmt.Println("  The [site] section declares no domain, so the gateway substitutes")
-		fmt.Println("  \"localhost\" — an identity every domain-less KB on this machine shares.")
-	}
 	fmt.Println("  The KB's own identity is unchanged; only the agents' domain moves.")
 }
 

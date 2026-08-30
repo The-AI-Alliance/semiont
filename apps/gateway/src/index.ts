@@ -75,15 +75,15 @@ requireJwtSecret();
 // The committed side is the launcher-staged top-level `[kb] domain`
 // (SINGLE-KB-MOUNT P5) — read there and NOWHERE else. It used to come off
 // this process's own `/kb` mount, which it no longer has. `[site]` remains
-// the wrong source for it either way: the TOML loader defaults a domain-less
-// `[site]` to the literal 'localhost' and lets an environment section
-// override the project's, so it can report an identity the KB never
-// declared. `[kb]` sits beside `[defaults]`, out of that reach, and the
-// launcher stages NO domain when the KB declares none — so an undeclared
-// identity still arrives here as absent, and still refuses below.
-// Resolved out of the block below so JWTService.initialize can be handed the
-// values rather than re-deriving them from a config shape this process no
-// longer fully has.
+// the wrong source for it either way: an environment section can override the
+// project's, so it can report an identity the KB never declared. `[kb]` sits
+// beside `[defaults]`, out of that reach, and the launcher stages NO domain
+// when the KB declares none — so an undeclared identity still arrives here as
+// absent, and still refuses below.
+//
+// Both resolved values escape the block so JWTService.initialize can be handed
+// them, rather than re-deriving them from a config shape this process no longer
+// fully has.
 let effectiveDomain: string;
 let effectiveOAuthAllowedDomains: string[] | undefined;
 
@@ -125,8 +125,7 @@ let effectiveOAuthAllowedDomains: string[] | undefined;
         `"${effectiveDomain}" (environment config). The KB's own did is unaffected; only agent identities move. ` +
         'If unintended, remove the `site` section for this environment from the KB\'s ' +
         '`.semiont/semiontconfig/<name>.toml` — that file is the source of truth; inside the container it is ' +
-        'only mounted read-only at ~/.semiontconfig, so editing it there does not persist. Note that a ' +
-        "`site` section without a `domain` key silently resolves to 'localhost'.",
+        'only mounted read-only at ~/.semiontconfig, so editing it there does not persist.',
     );
   }
 

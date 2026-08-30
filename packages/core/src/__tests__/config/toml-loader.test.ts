@@ -207,8 +207,9 @@ semanticFloor = 0.75
 
   it('throws for a named environment with no [environments.X] section', () => {
     // The silent `?? {}` here is exactly what let a mis-declared environment
-    // load an empty section — every downstream default then fires, including
-    // site.domain -> 'localhost', fabricating a did:web:localhost identity.
+    // load an empty section, with every downstream default firing behind it.
+    // (The worst of those, site.domain -> 'localhost', is gone — see the
+    // domain-less [site] test below — but throwing here is still the fix.)
     expect(() =>
       loadTomlConfig('/project', 'staging', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {})
     ).toThrow(/staging/);
@@ -292,6 +293,63 @@ ${MINIMAL_TOML}`;
   // [site], whose domain an environment section can override into an identity
   // the KB never declared. [kb] lives beside [defaults] in the file root, so
   // an environment section cannot reach it by construction.
+  // A `[site]` section is routinely added for an unrelated key — most often
+  // `oauthAllowedDomains` — and the loader used to fill in the missing `domain`
+  // with the literal 'localhost'. That silently renamed the KB's agents to
+  // did:web:localhost, an identity every other domain-less KB on the machine
+  // also claims. Absent must stay absent so a consumer can fall back to the
+  // committed [kb] domain, or refuse; neither is possible on top of a
+  // fabricated value.
+  it('never manufactures a domain for a [site] section that omits one', () => {
+    const toml = `
+[defaults]
+environment = "local"
+
+[environments.local.gateway]
+platform = "posix"
+port = 3001
+
+[environments.local.site]
+oauthAllowedDomains = ["example.com"]
+
+[environments.local.make-meaning.graph]
+type = "memory"
+${SERVICES_LOCAL}`;
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+
+    expect(config.site?.domain).toBeUndefined();
+    // The section still carries what it was actually added for.
+    expect(config.site?.oauthAllowedDomains).toEqual(['example.com']);
+  });
+
+  it('carries the staged [kb] sign-in policy, so a gateway with no [site] can still authenticate', () => {
+    // SINGLE-KB-MOUNT: the gateway stopped mounting the tree that holds
+    // `.semiont/config`, so the launcher stages both committed facts under
+    // [kb]. Staging the identity but not the policy left a well-formed KB
+    // unable to start.
+    const toml = `
+[kb]
+name = "example-kb"
+domain = "example.github.io:test-kb"
+oauthAllowedDomains = ["example.com"]
+
+[defaults]
+environment = "local"
+
+[environments.local.gateway]
+platform = "posix"
+port = 3001
+
+[environments.local.make-meaning.graph]
+type = "memory"
+${SERVICES_LOCAL}`;
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+
+    expect(config.kb?.domain).toBe('example.github.io:test-kb');
+    expect(config.kb?.oauthAllowedDomains).toEqual(['example.com']);
+    expect(config.site).toBeUndefined();
+  });
+
   it('maps top-level [kb] to config.kb', () => {
     const toml = `
 [kb]

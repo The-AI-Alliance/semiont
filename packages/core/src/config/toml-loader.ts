@@ -305,7 +305,8 @@ export function loadTomlConfig(
   // 4. A named environment with no [environments.X] section ANYWHERE is a config
   //    error, not a silent empty {}. The silent {} is what let a KB declaring
   //    `environment = "staging"` (with no [environments.staging]) load nothing and
-  //    let every downstream default fire — including site.domain -> 'localhost',
+  //    let every downstream default fire, back when a domain-less [site]
+  //    still resolved to 'localhost',
   //    the fabricated colliding did:web:localhost identity. Fail loud instead.
   const projectHasSection =
     projectConfig?.environments != null && resolvedEnvironment in projectConfig.environments;
@@ -589,7 +590,14 @@ export function loadTomlConfig(
     ...(Object.keys(topLevelWorkers).length > 0 ? { workers: topLevelWorkers } : {}),
     ...(Object.keys(topLevelActors).length > 0 ? { actors: topLevelActors } : {}),
     site: site ? {
-      domain: site.domain ?? 'localhost',
+      // NO 'localhost' default. A `[site]` section is routinely added for an
+      // unrelated key — `oauthAllowedDomains` is the usual one — and
+      // manufacturing a domain for it silently renamed the KB's agents to
+      // `did:web:localhost`, an identity that collides with every other
+      // domain-less KB on the machine. Absent now means absent, so a consumer
+      // either falls back to the committed `[kb] domain` or refuses; neither
+      // can be done on top of a fabricated value.
+      ...(site.domain ? { domain: site.domain } : {}),
       siteName: site.siteName,
       adminEmail: site.adminEmail,
       oauthAllowedDomains: site.oauthAllowedDomains as [string, ...string[]] | undefined,

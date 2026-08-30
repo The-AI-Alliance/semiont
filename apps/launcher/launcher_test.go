@@ -827,16 +827,23 @@ func TestStartWarnsWhenEnvConfigOverridesIdentity(t *testing.T) {
 		"elsewhere.example:other-kb",
 		"agent identities")
 
-	// 2. A [site] section with NO domain — the one nobody intends. The loader
-	// substitutes the literal 'localhost', so agents land under
-	// did:web:localhost and collide with every other such KB on the machine.
+	// 2. A [site] section with NO domain — the shape someone gets by adding the
+	// section for `oauthAllowedDomains` alone. This USED to be the one nobody
+	// intends: the loader substituted the literal 'localhost' and the agents
+	// collided with every other such KB on the machine. The loader no longer
+	// manufactures a domain, so the gateway falls back to the KB's committed
+	// identity, nothing diverges, and there is nothing to warn about.
 	s2 := newScenario(t, "container")
 	withSite(t, s2, "[environments.local.site]\noauthAllowedDomains = [\"example.com\"]\n")
 	stdout, stderr, code = s2.run(t, "start", "--config", "sited", "--dry-run")
 	if code != 0 {
-		t.Fatalf("domain-less site must warn, not refuse: exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("domain-less site must not refuse: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "localhost warning", stdout, "did:web:localhost", "declares no domain")
+	for _, absent := range []string{"did:web:localhost", "declares no domain", "overrides the KB's declared identity"} {
+		if strings.Contains(stdout, absent) {
+			t.Errorf("domain-less [site] no longer diverges, so %q must not appear:\n%s", absent, stdout)
+		}
+	}
 
 	// 3. No environment [site] at all — every launcher-generated config. This
 	// is the case that must stay SILENT; a warning here would be pure noise
@@ -877,10 +884,9 @@ func TestStartRefusesKBWithoutDid(t *testing.T) {
 	// A did:web is REQUIRED (KB-IDENTITY-VS-ADDRESS decision 8, 2026-07-27).
 	// The launcher publishes a discovery document in which `did` is a required
 	// field, so a KB with no [site] domain cannot be represented — and the
-	// alternative to refusing is worse than it looks: the gateway's TOML
-	// loader defaults a domain-less [site] to the literal "localhost", so
-	// every such KB on a machine would report one fabricated, colliding
-	// did:web:localhost. An address wearing a name is the category error this
+	// alternative to refusing is worse than it looks: any default at all would
+	// have every such KB on a machine report one fabricated, colliding
+	// identity. An address wearing a name is the category error this
 	// whole plan is about. Identity is declared, never defaulted.
 	s := newScenario(t, "container")
 	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "config"),

@@ -153,12 +153,9 @@ describe('SemiontProject', () => {
    * launcher turns into `did:web:<domain>` and calls "the permanent identity
    * in the committed event log" (KB-IDENTITY-VS-ADDRESS.md). It is read from
    * the committed `.semiont/config` and from nowhere else: the environment
-   * config's `site` section can override it in `EnvironmentConfig`, and the
-   * TOML loader defaults a domain-less `[site]` to the string `'localhost'`
-   * — either would make the gateway report an identity the launcher never
-   * minted, or (worse) hand every domain-less KB on a machine the SAME
-   * fabricated `did:web:localhost`. Identity must be declared, never
-   * defaulted.
+   * config's `site` section can override it in `EnvironmentConfig`, which
+   * would make the gateway report an identity the launcher never minted.
+   * Identity must be declared, never defaulted.
    */
   describe('siteDomain()', () => {
     it('returns the declared [site] domain, colon-path form preserved verbatim', async () => {
