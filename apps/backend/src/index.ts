@@ -65,9 +65,10 @@ requireJwtSecret();
 // same moment. Splitting them into separate passes is how one drifts from
 // the other.
 //
-//   committed  = `[site] domain` from <root>/.semiont/config — the KB's own
-//                permanent identity, the string the launcher turns into
-//                did:web and publishes, and what /api/status reports.
+//   committed  = the launcher-staged `[kb] domain` — the KB's own permanent
+//                identity, read off its `.semiont/config` by the launcher,
+//                turned into did:web and published, and what /api/status
+//                reports.
 //   effective  = config.site.domain — what THIS process will mint AGENT dids
 //                from (JWTService.getDomainForAgent).
 //
