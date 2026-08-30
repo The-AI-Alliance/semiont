@@ -20,10 +20,15 @@ import (
 // Reading the Dockerfile from a Go test crosses a module boundary deliberately:
 // the coupling is real and spans both sides, so a check that does not span it
 // would only assert one side against a copy of itself.
-func TestContainerPathsMatchTheImage(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "backend", "Dockerfile"))
+// declaredEnv parses one Dockerfile's ENV lines. Reading them from a Go test
+// crosses a module boundary deliberately: the coupling is real and spans both
+// sides, so a check that does not span it would only assert one side against a
+// copy of itself.
+func declaredEnv(t *testing.T, parts ...string) map[string]string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(parts...))
 	if err != nil {
-		t.Fatalf("reading the backend Dockerfile: %v", err)
+		t.Fatalf("reading %s: %v", filepath.Join(parts...), err)
 	}
 	declared := map[string]string{}
 	for _, line := range strings.Split(string(b), "\n") {
@@ -36,24 +41,38 @@ func TestContainerPathsMatchTheImage(t *testing.T) {
 		}
 	}
 	if len(declared) == 0 {
-		t.Fatal("parsed no ENV lines out of the backend Dockerfile — the parser, not the paths, is what broke")
+		t.Fatalf("parsed no ENV lines out of %s — the parser, not the paths, is what broke", filepath.Join(parts...))
 	}
+	return declared
+}
 
-	// Each row: the ENV the image uses to tell the backend where something is,
-	// and the container path the launcher mounts onto. Add a row whenever a
-	// mount gains an ENV.
-	for _, c := range []struct{ env, mounts string }{
-		{"SEMIONT_ROOT", kbMountTarget},
-		{"SEMIONT_ANCHORED_TEXT_DIR", stateStores["anchored-text"].mounts[0].target},
+func TestContainerPathsMatchTheImage(t *testing.T) {
+	// Each row: an image, the ENV it uses to find something, and the container
+	// path the launcher mounts onto for it. The row belongs to whichever image
+	// MOUNTS the store — anchored-text moved from the backend to the Smelter
+	// with the mount and the stamp (ANCHORED-TEXT-TO-SMELTER P4/P5), and the
+	// Smelter was declaring no such ENV while `smelter-main` refused to boot
+	// without it. Add a row whenever a mount gains an ENV; move one whenever a
+	// mount moves.
+	for _, c := range []struct {
+		label  string
+		file   []string
+		env    string
+		mounts string
+	}{
+		{"backend", []string{"..", "..", "..", "backend", "Dockerfile"}, "SEMIONT_ROOT", kbMountTarget},
+		{"smelter", []string{"..", "..", "..", "..", "packages", "make-meaning", "Dockerfile.smelter"},
+			"SEMIONT_ANCHORED_TEXT_DIR", stateStores["anchored-text"].mounts[0].target},
 	} {
+		declared := declaredEnv(t, c.file...)
 		got, ok := declared[c.env]
 		if !ok {
-			t.Errorf("apps/backend/Dockerfile declares no %s, but the launcher mounts onto %s expecting it", c.env, c.mounts)
+			t.Errorf("the %s image declares no %s, but the launcher mounts onto %s expecting it", c.label, c.env, c.mounts)
 			continue
 		}
 		if got != c.mounts {
-			t.Errorf("%s: the image says %q, the launcher mounts onto %q — the backend would read an empty directory and never report it",
-				c.env, got, c.mounts)
+			t.Errorf("%s/%s: the image says %q, the launcher mounts onto %q — the service would read an empty directory and never report it",
+				c.label, c.env, got, c.mounts)
 		}
 	}
 }

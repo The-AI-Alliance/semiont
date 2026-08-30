@@ -1755,6 +1755,12 @@ type BrowseAgentsResult struct {
 	} `json:"response"`
 }
 
+// BrowseAnchoredTextByChecksumRequest Request the stored extraction outcome for a content identity the caller already holds — the detection workers' read-through cache consult (ANCHORED-TEXT-TO-SMELTER P2). A hit — success or decline — is served whole and the caller skips extraction; null is a miss and the caller extracts locally. Read-only: the Smelter is the sole writer and never answers over this channel.
+type BrowseAnchoredTextByChecksumRequest struct {
+	Checksum      string `json:"checksum"`
+	CorrelationId string `json:"correlationId"`
+}
+
 // BrowseAnchoredTextRequest Request a resource's derived coordinate map — the text recovered from its bytes plus the geometry indexing it. Read-only: the Smelter is the sole producer and publishes through the content transport, never over this channel.
 type BrowseAnchoredTextRequest struct {
 	CorrelationId string `json:"correlationId"`
@@ -4565,9 +4571,6 @@ type PostResourcesMultipartBody struct {
 	// StorageUri Where the content lives (file://... for local). Required — the client names the location; the server does not derive one.
 	StorageUri string `json:"storageUri"`
 }
-
-// PutAnchoredTextChecksumJSONRequestBody defines body for PutAnchoredTextChecksum for application/json ContentType.
-type PutAnchoredTextChecksumJSONRequestBody = ExtractionOutcome
 
 // PatchApiAdminUsersIdJSONRequestBody defines body for PatchApiAdminUsersId for application/json ContentType.
 type PatchApiAdminUsersIdJSONRequestBody = UpdateUserRequest
@@ -10879,17 +10882,6 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
-	// GetAnchoredTextKeys request
-	GetAnchoredTextKeys(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetAnchoredTextChecksum request
-	GetAnchoredTextChecksum(ctx context.Context, checksum string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PutAnchoredTextChecksumWithBody request with any body
-	PutAnchoredTextChecksumWithBody(ctx context.Context, checksum string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PutAnchoredTextChecksum(ctx context.Context, checksum string, body PutAnchoredTextChecksumJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetApiAdminOauthConfig request
 	GetApiAdminOauthConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -10977,59 +10969,8 @@ type ClientInterface interface {
 	// GetResourcesId request
 	GetResourcesId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetResourcesIdAnchoredText request
-	GetResourcesIdAnchoredText(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetResourcesIdJsonld request
 	GetResourcesIdJsonld(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
-}
-
-func (c *Client) GetAnchoredTextKeys(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetAnchoredTextKeysRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetAnchoredTextChecksum(ctx context.Context, checksum string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetAnchoredTextChecksumRequest(c.Server, checksum)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PutAnchoredTextChecksumWithBody(ctx context.Context, checksum string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPutAnchoredTextChecksumRequestWithBody(c.Server, checksum, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PutAnchoredTextChecksum(ctx context.Context, checksum string, body PutAnchoredTextChecksumJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPutAnchoredTextChecksumRequest(c.Server, checksum, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
 }
 
 func (c *Client) GetApiAdminOauthConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -11416,18 +11357,6 @@ func (c *Client) GetResourcesId(ctx context.Context, id string, reqEditors ...Re
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetResourcesIdAnchoredText(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetResourcesIdAnchoredTextRequest(c.Server, id)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) GetResourcesIdJsonld(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetResourcesIdJsonldRequest(c.Server, id)
 	if err != nil {
@@ -11438,114 +11367,6 @@ func (c *Client) GetResourcesIdJsonld(ctx context.Context, id string, reqEditors
 		return nil, err
 	}
 	return c.Client.Do(req)
-}
-
-// NewGetAnchoredTextKeysRequest generates requests for GetAnchoredTextKeys
-func NewGetAnchoredTextKeysRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/anchored-text/keys")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetAnchoredTextChecksumRequest generates requests for GetAnchoredTextChecksum
-func NewGetAnchoredTextChecksumRequest(server string, checksum string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "checksum", checksum, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/anchored-text/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewPutAnchoredTextChecksumRequest calls the generic PutAnchoredTextChecksum builder with application/json body
-func NewPutAnchoredTextChecksumRequest(server string, checksum string, body PutAnchoredTextChecksumJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPutAnchoredTextChecksumRequestWithBody(server, checksum, "application/json", bodyReader)
-}
-
-// NewPutAnchoredTextChecksumRequestWithBody generates requests for PutAnchoredTextChecksum with any type of body
-func NewPutAnchoredTextChecksumRequestWithBody(server string, checksum string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "checksum", checksum, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/anchored-text/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PUT", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
 }
 
 // NewGetApiAdminOauthConfigRequest generates requests for GetApiAdminOauthConfig
@@ -12316,40 +12137,6 @@ func NewGetResourcesIdRequest(server string, id string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewGetResourcesIdAnchoredTextRequest generates requests for GetResourcesIdAnchoredText
-func NewGetResourcesIdAnchoredTextRequest(server string, id string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/resources/%s/anchored-text", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewGetResourcesIdJsonldRequest generates requests for GetResourcesIdJsonld
 func NewGetResourcesIdJsonldRequest(server string, id string) (*http.Request, error) {
 	var err error
@@ -12427,17 +12214,6 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
-	// GetAnchoredTextKeysWithResponse request
-	GetAnchoredTextKeysWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAnchoredTextKeysResponse, error)
-
-	// GetAnchoredTextChecksumWithResponse request
-	GetAnchoredTextChecksumWithResponse(ctx context.Context, checksum string, reqEditors ...RequestEditorFn) (*GetAnchoredTextChecksumResponse, error)
-
-	// PutAnchoredTextChecksumWithBodyWithResponse request with any body
-	PutAnchoredTextChecksumWithBodyWithResponse(ctx context.Context, checksum string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutAnchoredTextChecksumResponse, error)
-
-	PutAnchoredTextChecksumWithResponse(ctx context.Context, checksum string, body PutAnchoredTextChecksumJSONRequestBody, reqEditors ...RequestEditorFn) (*PutAnchoredTextChecksumResponse, error)
-
 	// GetApiAdminOauthConfigWithResponse request
 	GetApiAdminOauthConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAdminOauthConfigResponse, error)
 
@@ -12525,82 +12301,8 @@ type ClientWithResponsesInterface interface {
 	// GetResourcesIdWithResponse request
 	GetResourcesIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdResponse, error)
 
-	// GetResourcesIdAnchoredTextWithResponse request
-	GetResourcesIdAnchoredTextWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdAnchoredTextResponse, error)
-
 	// GetResourcesIdJsonldWithResponse request
 	GetResourcesIdJsonldWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdJsonldResponse, error)
-}
-
-type GetAnchoredTextKeysResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Keys []string `json:"keys"`
-	}
-	JSON403 *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetAnchoredTextKeysResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetAnchoredTextKeysResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetAnchoredTextChecksumResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ExtractionOutcome
-	JSON403      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetAnchoredTextChecksumResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetAnchoredTextChecksumResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PutAnchoredTextChecksumResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *ErrorResponse
-	JSON403      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r PutAnchoredTextChecksumResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PutAnchoredTextChecksumResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
 }
 
 type GetApiAdminOauthConfigResponse struct {
@@ -13151,30 +12853,6 @@ func (r GetResourcesIdResponse) StatusCode() int {
 	return 0
 }
 
-type GetResourcesIdAnchoredTextResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ExtractionOutcome
-	JSON404      *ErrorResponse
-	JSON504      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetResourcesIdAnchoredTextResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetResourcesIdAnchoredTextResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type GetResourcesIdJsonldResponse struct {
 	Body                 []byte
 	HTTPResponse         *http.Response
@@ -13197,41 +12875,6 @@ func (r GetResourcesIdJsonldResponse) StatusCode() int {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
-}
-
-// GetAnchoredTextKeysWithResponse request returning *GetAnchoredTextKeysResponse
-func (c *ClientWithResponses) GetAnchoredTextKeysWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAnchoredTextKeysResponse, error) {
-	rsp, err := c.GetAnchoredTextKeys(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetAnchoredTextKeysResponse(rsp)
-}
-
-// GetAnchoredTextChecksumWithResponse request returning *GetAnchoredTextChecksumResponse
-func (c *ClientWithResponses) GetAnchoredTextChecksumWithResponse(ctx context.Context, checksum string, reqEditors ...RequestEditorFn) (*GetAnchoredTextChecksumResponse, error) {
-	rsp, err := c.GetAnchoredTextChecksum(ctx, checksum, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetAnchoredTextChecksumResponse(rsp)
-}
-
-// PutAnchoredTextChecksumWithBodyWithResponse request with arbitrary body returning *PutAnchoredTextChecksumResponse
-func (c *ClientWithResponses) PutAnchoredTextChecksumWithBodyWithResponse(ctx context.Context, checksum string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutAnchoredTextChecksumResponse, error) {
-	rsp, err := c.PutAnchoredTextChecksumWithBody(ctx, checksum, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePutAnchoredTextChecksumResponse(rsp)
-}
-
-func (c *ClientWithResponses) PutAnchoredTextChecksumWithResponse(ctx context.Context, checksum string, body PutAnchoredTextChecksumJSONRequestBody, reqEditors ...RequestEditorFn) (*PutAnchoredTextChecksumResponse, error) {
-	rsp, err := c.PutAnchoredTextChecksum(ctx, checksum, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePutAnchoredTextChecksumResponse(rsp)
 }
 
 // GetApiAdminOauthConfigWithResponse request returning *GetApiAdminOauthConfigResponse
@@ -13513,15 +13156,6 @@ func (c *ClientWithResponses) GetResourcesIdWithResponse(ctx context.Context, id
 	return ParseGetResourcesIdResponse(rsp)
 }
 
-// GetResourcesIdAnchoredTextWithResponse request returning *GetResourcesIdAnchoredTextResponse
-func (c *ClientWithResponses) GetResourcesIdAnchoredTextWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdAnchoredTextResponse, error) {
-	rsp, err := c.GetResourcesIdAnchoredText(ctx, id, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetResourcesIdAnchoredTextResponse(rsp)
-}
-
 // GetResourcesIdJsonldWithResponse request returning *GetResourcesIdJsonldResponse
 func (c *ClientWithResponses) GetResourcesIdJsonldWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdJsonldResponse, error) {
 	rsp, err := c.GetResourcesIdJsonld(ctx, id, reqEditors...)
@@ -13529,107 +13163,6 @@ func (c *ClientWithResponses) GetResourcesIdJsonldWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseGetResourcesIdJsonldResponse(rsp)
-}
-
-// ParseGetAnchoredTextKeysResponse parses an HTTP response from a GetAnchoredTextKeysWithResponse call
-func ParseGetAnchoredTextKeysResponse(rsp *http.Response) (*GetAnchoredTextKeysResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetAnchoredTextKeysResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Keys []string `json:"keys"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetAnchoredTextChecksumResponse parses an HTTP response from a GetAnchoredTextChecksumWithResponse call
-func ParseGetAnchoredTextChecksumResponse(rsp *http.Response) (*GetAnchoredTextChecksumResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetAnchoredTextChecksumResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ExtractionOutcome
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePutAnchoredTextChecksumResponse parses an HTTP response from a PutAnchoredTextChecksumWithResponse call
-func ParsePutAnchoredTextChecksumResponse(rsp *http.Response) (*PutAnchoredTextChecksumResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PutAnchoredTextChecksumResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
 }
 
 // ParseGetApiAdminOauthConfigResponse parses an HTTP response from a GetApiAdminOauthConfigWithResponse call
@@ -14479,46 +14012,6 @@ func ParseGetResourcesIdResponse(rsp *http.Response) (*GetResourcesIdResponse, e
 			return nil, err
 		}
 		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetResourcesIdAnchoredTextResponse parses an HTTP response from a GetResourcesIdAnchoredTextWithResponse call
-func ParseGetResourcesIdAnchoredTextResponse(rsp *http.Response) (*GetResourcesIdAnchoredTextResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetResourcesIdAnchoredTextResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ExtractionOutcome
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 504:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON504 = &dest
 
 	}
 
