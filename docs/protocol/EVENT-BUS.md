@@ -90,7 +90,7 @@ pattern: TS gets it free from the `never` default; Go needs its census extended.
 Commands that mutate state need to know who's making them. The convention: clients **never** set `_userId` themselves. The HTTP gateway reads the authenticated user from the JWT and stamps `_userId` onto the payload before forwarding to the in-process bus:
 
 ```ts
-// apps/backend/src/routes/bus.ts
+// apps/gateway/src/routes/bus.ts
 const user = c.get('user') as User | undefined;
 if (user) {
   payload._userId = userToDid(user);
@@ -250,7 +250,7 @@ Five operations, all logged at transport-contract choke points (not in the SDK's
 |---|---|
 | `EMIT` | `HttpTransport.emit()`, `LocalTransport.emit()`, backend `/bus/emit` route |
 | `RECV` | HttpTransport SSE-side fan-in, `LocalTransport.bridgeInto` callback |
-| `SSE` | Backend `writeBusEvent()` in `apps/backend/src/routes/bus.ts` |
+| `SSE` | Backend `writeBusEvent()` in `apps/gateway/src/routes/bus.ts` |
 | `PUT` | `HttpContentTransport.putBinary()` + matching backend route |
 | `GET` | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching backend route |
 

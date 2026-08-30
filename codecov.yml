@@ -191,5 +191,5 @@ flags:
 
   backend:
     paths:
-      - apps/backend/**
+      - apps/gateway/**
     carryforward: true

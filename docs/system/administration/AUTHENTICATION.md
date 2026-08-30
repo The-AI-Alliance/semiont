@@ -72,10 +72,10 @@ row against the literal, not against another document:
 
 | Token | Minted at | Literal |
 |---|---|---|
-| Access | [`apps/backend/src/routes/auth.ts:128`](../../../apps/backend/src/routes/auth.ts#L128) | `generateToken(jwtPayload, '10m')` |
-| Refresh | [`apps/backend/src/routes/auth.ts:129`](../../../apps/backend/src/routes/auth.ts#L129) | `generateToken(jwtPayload, '30d')` |
-| Agent | [`apps/backend/src/routes/auth.ts:430`](../../../apps/backend/src/routes/auth.ts#L430) | `}, '24h')` |
-| Media | [`apps/backend/src/auth/jwt.ts:189`](../../../apps/backend/src/auth/jwt.ts#L189) | `expiresIn: '5m'` |
+| Access | [`apps/gateway/src/routes/auth.ts:128`](../../../apps/gateway/src/routes/auth.ts#L128) | `generateToken(jwtPayload, '10m')` |
+| Refresh | [`apps/gateway/src/routes/auth.ts:129`](../../../apps/gateway/src/routes/auth.ts#L129) | `generateToken(jwtPayload, '30d')` |
+| Agent | [`apps/gateway/src/routes/auth.ts:430`](../../../apps/gateway/src/routes/auth.ts#L430) | `}, '24h')` |
+| Media | [`apps/gateway/src/auth/jwt.ts:189`](../../../apps/gateway/src/auth/jwt.ts#L189) | `expiresIn: '5m'` |
 
 Every JWT carries the user's **`tokenVersion`** at mint time (a required claim — there is no compatibility default). Both access-validation and `/api/tokens/refresh` reject when `payload.tokenVersion !== user.tokenVersion`.
 
@@ -162,11 +162,11 @@ Admin routes require a valid token **plus** `isAdmin: true`, returning `403` oth
 
 ## Implementation Details
 
-### Bearer validation (`apps/backend/src/middleware/auth.ts`)
+### Bearer validation (`apps/gateway/src/middleware/auth.ts`)
 
 The middleware accepts a media token via `?token=` for `GET /api/resources/:id`, otherwise an `Authorization: Bearer` header; a missing token returns the actionable 401 above. On a valid token it loads the principal (`OAuthService.getPrincipalFromToken` → `prisma.user.findUnique`), enforcing the `isActive` and `tokenVersion` checks, and sets `c.get('user')`.
 
-### Route protection (`apps/backend/src/routes/resources/shared.ts`)
+### Route protection (`apps/gateway/src/routes/resources/shared.ts`)
 
 ```typescript
 import { authMiddleware } from '../../middleware/auth';
@@ -177,7 +177,7 @@ export function initResourcesRouter(router: Hono) {
 }
 ```
 
-### Logout (`apps/backend/src/routes/auth.ts`)
+### Logout (`apps/gateway/src/routes/auth.ts`)
 
 ```typescript
 authRouter.post('/api/users/logout', authMiddleware, async (c) => {

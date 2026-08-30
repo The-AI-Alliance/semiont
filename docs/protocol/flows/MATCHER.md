@@ -152,7 +152,7 @@ When `useSemanticScoring: true`, scores in the 25–49 range may shift significa
 ## Implementation
 
 - **Matcher actor**: [packages/make-meaning/src/matcher.ts](../../../packages/make-meaning/src/matcher.ts) — retrieval, structural scoring, inference re-ranking, referenced-by
-- **Bus gateway**: [apps/backend/src/routes/bus.ts](../../../apps/backend/src/routes/bus.ts) — `/bus/emit` + `/bus/subscribe`; the Matcher subscribes to `match:search-requested` on the EventBus
+- **Bus gateway**: [apps/gateway/src/routes/bus.ts](../../../apps/gateway/src/routes/bus.ts) — `/bus/emit` + `/bus/subscribe`; the Matcher subscribes to `match:search-requested` on the EventBus
 - **SDK**: `client.match.search()` in [@semiont/sdk](../../../packages/sdk/README.md) — Observable of scored results
 - **StateUnit**: [packages/sdk/src/state/flows/match-state-unit.ts](../../../packages/sdk/src/state/flows/match-state-unit.ts)
 - **Event definitions** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `MATCH FLOW` section

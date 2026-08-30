@@ -18,7 +18,7 @@ Brief description of the changes in this PR.
 ## Areas Changed
 
 - [ ] Browser (`apps/browser`)
-- [ ] Backend (`apps/backend`)
+- [ ] Backend (`apps/gateway`)
 - [ ] Launcher (`apps/launcher`)
 - [ ] HTTP Transport (`packages/http-transport`)
 - [ ] Core (`packages/core`)
@@ -87,7 +87,7 @@ cd apps/browser && npm run test:security
 ### Backend Security Tests
 
 ```bash
-cd apps/backend && npm run test:security
+cd apps/gateway && npm run test:security
 # Paste results here
 ```
 

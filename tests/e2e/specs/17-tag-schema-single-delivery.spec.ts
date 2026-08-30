@@ -21,7 +21,7 @@ import { SemiontClient, type TagSchema } from '@semiont/sdk';
  * reconnect-overlap bug (Fix #1), this double-delivery needs no make-before-
  * break race — it happens on any steady-state resource-subscribed connection.
  * (The reconnect-overlap half stays guarded at the unit level: the
- * `e-<channel>:<cid>` deterministic-id test in `apps/backend/.../bus.test.ts`.)
+ * `e-<channel>:<cid>` deterministic-id test in `apps/gateway/.../bus.test.ts`.)
  *
  * Signal: `[bus RECV]` is logged at `actor-state-unit.ts` only for events that
  * pass the `seenEventIds` dedup, so `bus.receives(channel).length` is the

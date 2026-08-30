@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url);
  *
  * Resolves the prisma CLI through Node module resolution rather than a hardcoded
  * `node_modules/.bin/prisma` path — prisma may hoist to the workspace root
- * instead of apps/backend/node_modules — then runs the resolved entry with node.
+ * instead of apps/gateway/node_modules — then runs the resolved entry with node.
  */
 export function applyTestSchema(connectionString: string): void {
   const backendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');

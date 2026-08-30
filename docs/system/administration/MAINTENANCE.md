@@ -84,7 +84,7 @@ For archive export and restore, see [BACKUP.md](BACKUP.md). PostgreSQL holds use
 
 Three secrets matter, and rotating them is not free:
 
-**`JWT_SECRET`** — signs every token. Rotating it invalidates every token previously issued, including tokens held by running workers. The symptom of a rotation nobody re-authenticated after is `Invalid token signature` in the backend log, and jobs that never start. Plan a rotation as "every client must re-authenticate," and restart the whole stack rather than one service. Minimum 32 characters, enforced at startup ([`auth/jwt.ts`](../../../apps/backend/src/auth/jwt.ts)).
+**`JWT_SECRET`** — signs every token. Rotating it invalidates every token previously issued, including tokens held by running workers. The symptom of a rotation nobody re-authenticated after is `Invalid token signature` in the backend log, and jobs that never start. Plan a rotation as "every client must re-authenticate," and restart the whole stack rather than one service. Minimum 32 characters, enforced at startup ([`auth/jwt.ts`](../../../apps/gateway/src/auth/jwt.ts)).
 
 **`SEMIONT_WORKER_SECRET`** — the shared secret the worker, smelter, and weaver exchange at `POST /api/tokens/agent` for a JWT. It must match across the whole stack. `semiont start --service worker` rejoins the running stack's secret automatically; a service started by hand does not.
 
@@ -133,7 +133,7 @@ Auth is applied **per router**, not globally with a public-endpoint allowlist. E
 
 | Router | Protected paths |
 |---|---|
-| `resources` | `/api/resources/*`, `/api/clone-tokens/*`, `/resources/*` ([`routes/resources/shared.ts`](../../../apps/backend/src/routes/resources/shared.ts)) |
+| `resources` | `/api/resources/*`, `/api/clone-tokens/*`, `/resources/*` ([`routes/resources/shared.ts`](../../../apps/gateway/src/routes/resources/shared.ts)) |
 | `admin` | `/api/admin/*` (plus `adminMiddleware`) |
 | `exchange` | `/api/admin/exchange/*`, `/api/moderate/exchange/*` (plus admin / moderator middleware) |
 | `status` | `/api/status` |

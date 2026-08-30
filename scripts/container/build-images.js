@@ -116,7 +116,7 @@ async function buildImage(service, dockerfile, context, buildArgs = [], runtime)
 }
 
 async function buildBackend(runtime) {
-  await buildImage('backend', 'apps/backend/Dockerfile', '.', [], runtime);
+  await buildImage('backend', 'apps/gateway/Dockerfile', '.', [], runtime);
 }
 
 async function buildBrowser(runtime) {

@@ -306,7 +306,7 @@ All contributions should include appropriate tests. We have comprehensive testin
 ### Testing Documentation
 
 - **[System Testing Guide](docs/development/TESTING.md)** - Overall testing strategy, Vitest, MSW v2, Browser testing
-- **[Backend Testing Guide](apps/backend/docs/TESTING.md)** - Jest, unit tests, Prisma database tests
+- **[Backend Testing Guide](apps/gateway/docs/TESTING.md)** - Jest, unit tests, Prisma database tests
 
 ### Quick Start
 
@@ -317,7 +317,7 @@ npm test
 
 **Run service-specific tests:**
 ```bash
-cd apps/backend && npm test     # Backend tests (Jest)
+cd apps/gateway && npm test     # Backend tests (Jest)
 cd apps/browser && npm test    # Browser tests (Vitest)
 ```
 
@@ -346,7 +346,7 @@ Update docs when you:
 ### Documentation Locations
 
 - **System-wide**: `docs/` - Architecture, deployment, testing
-- **Backend**: `apps/backend/docs/` - Backend-specific guides
+- **Backend**: `apps/gateway/docs/` - Backend-specific guides
 - **Browser**: `apps/browser/docs/` - Browser-specific guides
 - **Launcher**: `apps/launcher/README.md` - The host-installed `semiont` command
 - **Platforms**: `docs/system/platforms/` - Platform-specific deployment

@@ -10,7 +10,7 @@
  * Kept separate from the server entry point on purpose: the container derives
  * this in its CMD, BEFORE `prisma migrate deploy` and before node, because
  * migrate runs as its own process and would never see a value assembled inside
- * the server. See apps/backend/Dockerfile and src/cli/db-url.ts.
+ * the server. See apps/gateway/Dockerfile and src/cli/db-url.ts.
  */
 
 import type { EnvironmentConfig } from '@semiont/core';

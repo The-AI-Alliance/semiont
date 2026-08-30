@@ -317,7 +317,7 @@ connections. The client dedups by event id (`seenEventIds` in the
 actor-state-unit):
 
 - Persisted ids (`p-<scope>-<seq>`) are stable across connections → deduped to a single emission.
-- Correlation-reply ids (`e-<channel>:<cid>`) are deterministic → **also deduped**, so a reply landing on both the old and new connection is delivered once. (This closed a real duplicate-delivery bug: a per-connection id tagged the same reply differently on each connection and the dedup missed it — see the backend `writeBusEvent` rationale in `apps/backend/src/routes/bus.ts`.)
+- Correlation-reply ids (`e-<channel>:<cid>`) are deterministic → **also deduped**, so a reply landing on both the old and new connection is delivered once. (This closed a real duplicate-delivery bug: a per-connection id tagged the same reply differently on each connection and the dedup missed it — see the backend `writeBusEvent` rationale in `apps/gateway/src/routes/bus.ts`.)
 - Other ephemeral ids (`e-<connectionId>-<counter>`) carry no `correlationId` and remain per-connection, so they aren't deduped — but their consumers tolerate a rare double (cache invalidations and job-completion are idempotent/terminal).
 
 ## Wire framing and client parser obligations
@@ -480,7 +480,7 @@ above is the decision tree.
 
 ## Where the code implementing this contract lives
 
-- `apps/backend/src/routes/bus.ts` — the `/bus/emit` and
+- `apps/gateway/src/routes/bus.ts` — the `/bus/emit` and
   `/bus/subscribe` routes.
 - `specs/src/bus/registry.json` — the authority: channels, payloads, operations.
 - `packages/core/src/bus-protocol.ts` — GENERATED `EventMap`, `CHANNEL_SCHEMAS`,

@@ -181,7 +181,7 @@ done
 # a local image is the registry the packages are installed from).
 image_dockerfile() {
   case "$1" in
-    backend)  echo "apps/backend/Dockerfile" ;;
+    backend)  echo "apps/gateway/Dockerfile" ;;
     worker)   echo "packages/jobs/Dockerfile" ;;
     smelter)  echo "packages/make-meaning/Dockerfile.smelter" ;;
     weaver)   echo "packages/make-meaning/Dockerfile.weaver" ;;

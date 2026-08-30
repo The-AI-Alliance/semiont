@@ -284,7 +284,7 @@ We welcome contributions! Please read:
 - [Jobs Package](../../packages/jobs/) - Background job processing (async operations)
 
 ### Other Services
-- [Backend README](../backend/README.md) - Backend API server
+- [Backend README](../gateway/README.md) - Backend API server
 - [MCP Server README](../../packages/mcp-server/README.md) - AI integration via Model Context Protocol
 - [API Client README](../../packages/http-transport/README.md) - Type-safe TypeScript client
 - [Launcher README](../launcher/README.md) - The host-installed `semiont` command

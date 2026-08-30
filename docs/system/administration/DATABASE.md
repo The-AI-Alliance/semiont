@@ -7,8 +7,8 @@ How Semiont manages its PostgreSQL database, including schema definition, migrat
 ## Overview
 
 - **Engine**: PostgreSQL 15 (`postgres:15.18-alpine` when the launcher provisions it)
-- **ORM**: [Prisma](https://www.prisma.io/) — [schema](../../../apps/backend/prisma/schema.prisma)
-- **Migrations**: versioned migration files under [`apps/backend/prisma/migrations/`](../../../apps/backend/prisma/migrations/), applied with `prisma migrate deploy` when the backend container starts
+- **ORM**: [Prisma](https://www.prisma.io/) — [schema](../../../apps/gateway/prisma/schema.prisma)
+- **Migrations**: versioned migration files under [`apps/gateway/prisma/migrations/`](../../../apps/gateway/prisma/migrations/), applied with `prisma migrate deploy` when the backend container starts
 - **Connection**: pooled by Prisma Client
 - **Scope**: the `users` table, nothing else
 
@@ -42,11 +42,11 @@ model User {
 }
 ```
 
-[`schema.prisma`](../../../apps/backend/prisma/schema.prisma) is the authority — read it rather than this excerpt when it matters.
+[`schema.prisma`](../../../apps/gateway/prisma/schema.prisma) is the authority — read it rather than this excerpt when it matters.
 
 ## Migrations
 
-The backend container applies migrations on startup, before the server process starts. From [`apps/backend/Dockerfile`](../../../apps/backend/Dockerfile):
+The backend container applies migrations on startup, before the server process starts. From [`apps/gateway/Dockerfile`](../../../apps/gateway/Dockerfile):
 
 ```dockerfile
 CMD set -e; \
@@ -60,7 +60,7 @@ Because migrations ship inside the image, **the image version determines the sch
 
 ### Adding a migration
 
-Migrations are authored against a database, from `apps/backend/`:
+Migrations are authored against a database, from `apps/gateway/`:
 
 ```bash
 npx prisma migrate dev --name add_something
@@ -95,7 +95,7 @@ container exec semiont-backend sh -c 'cat "$BACKEND_DIR/prisma/schema.prisma"'
 Studio is a browser UI over the database. Run it from the host against the stack's PostgreSQL rather than from inside the container — the port is already exposed and you avoid a second port mapping:
 
 ```bash
-cd apps/backend
+cd apps/gateway
 DATABASE_URL="postgresql://postgres:localpass@localhost:5432/semiont" npx prisma studio
 ```
 
@@ -185,7 +185,7 @@ The backend reports database reachability at `GET /api/health`:
 curl -s http://localhost:4000/api/health
 ```
 
-`database` is `connected` or `disconnected`, from a `SELECT 1` in `DatabaseConnection.checkHealth()` ([`apps/backend/src/db.ts`](../../../apps/backend/src/db.ts)). `semiont status` surfaces the same check per service.
+`database` is `connected` or `disconnected`, from a `SELECT 1` in `DatabaseConnection.checkHealth()` ([`apps/gateway/src/db.ts`](../../../apps/gateway/src/db.ts)). `semiont status` surfaces the same check per service.
 
 For query-level inspection:
 

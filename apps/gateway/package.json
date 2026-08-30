@@ -1,5 +1,5 @@
 {
-  "name": "semiont-backend",
+  "name": "semiont-gateway",
   "version": "0.5.29",
   "engines": {
     "node": ">=24.0.0"

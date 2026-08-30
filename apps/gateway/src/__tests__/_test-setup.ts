@@ -98,7 +98,7 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
 
   // mkdtemp, not Date.now(): parallel test files calling this in the same
   // millisecond must not share (and mutually clobber) one directory.
-  const testDir = await fs.mkdtemp(join(tmpdir(), 'semiont-backend-test-'));
+  const testDir = await fs.mkdtemp(join(tmpdir(), 'semiont-gateway-test-'));
 
   const dataPath = join(testDir, 'data');
   await fs.mkdir(dataPath, { recursive: true });
@@ -119,7 +119,7 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
   await fs.writeFile(
     join(testDir, '.semiontconfig'),
     `[defaults]\nenvironment = "${environment}"\n\n` +
-      `[kb]\nname = "semiont-backend-test"\ndomain = "test.local"\n` +
+      `[kb]\nname = "semiont-gateway-test"\ndomain = "test.local"\n` +
       MINIMAL_SEMIONTCONFIG,
     'utf-8',
   );
@@ -135,7 +135,7 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
   await fs.mkdir(join(testDir, '.semiont'), { recursive: true });
   await fs.writeFile(
     join(testDir, '.semiont', 'config'),
-    '[project]\nname = "semiont-backend-test"\n\n[site]\ndomain = "test.local"\n',
+    '[project]\nname = "semiont-gateway-test"\n\n[site]\ndomain = "test.local"\n',
     'utf-8',
   );
 

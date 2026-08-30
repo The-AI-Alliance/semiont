@@ -6,7 +6,7 @@ This document describes the current security implementation in Semiont and provi
 
 ### Authentication
 
-For backend implementation details, see the [Backend Authentication Guide](../../../apps/backend/docs/AUTHENTICATION.md).
+For backend implementation details, see the [Backend Authentication Guide](../../../apps/gateway/docs/AUTHENTICATION.md).
 
 Semiont implements **bearer-only** authentication — an `Authorization: Bearer` JWT on every request, no session cookies (see [Authentication](./AUTHENTICATION.md)) — with OAuth sign-in support for:
 

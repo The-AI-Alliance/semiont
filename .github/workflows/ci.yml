@@ -79,8 +79,8 @@ jobs:
       - name: Cache TypeScript incremental build info
         uses: actions/cache@v6.1.0
         with:
-          path: apps/backend/.tscache
-          key: ${{ runner.os }}-backend-tsc-${{ hashFiles('apps/backend/src/**/*.ts', 'apps/backend/tsconfig.json', 'packages/*/src/**/*.ts') }}
+          path: apps/gateway/.tscache
+          key: ${{ runner.os }}-backend-tsc-${{ hashFiles('apps/gateway/src/**/*.ts', 'apps/gateway/tsconfig.json', 'packages/*/src/**/*.ts') }}
           restore-keys: |
             ${{ runner.os }}-backend-tsc-
 
@@ -92,7 +92,7 @@ jobs:
       - name: Generate Prisma Client
         run: |
           echo "Generating Prisma client for backend..."
-          cd apps/backend
+          cd apps/gateway
           npx prisma generate
         env:
           CI: true
@@ -100,7 +100,7 @@ jobs:
       - name: Run backend type check
         run: |
           echo "Running backend TypeScript type check..."
-          cd apps/backend
+          cd apps/gateway
           npm run typecheck
         env:
           CI: true
@@ -109,7 +109,7 @@ jobs:
       - name: Run backend unit tests
         run: |
           echo "Running backend unit tests..."
-          cd apps/backend
+          cd apps/gateway
           npm test
         env:
           CI: true
@@ -122,7 +122,7 @@ jobs:
       - name: Run backend integration tests
         run: |
           echo "Running backend integration tests..."
-          cd apps/backend
+          cd apps/gateway
           npm run test:integration
         env:
           CI: true
@@ -170,7 +170,7 @@ jobs:
       - name: Generate Prisma Client
         run: |
           echo "Generating Prisma client for backend..."
-          cd apps/backend
+          cd apps/gateway
           npx prisma generate
         env:
           CI: true
@@ -180,7 +180,7 @@ jobs:
           echo "Running comprehensive test suite..."
           # Run tests for each package
           cd apps/browser && npm test && cd ../..
-          cd apps/backend && npm test && npm run test:integration && cd ../..
+          cd apps/gateway && npm test && npm run test:integration && cd ../..
 
           echo "All tests completed successfully"
         env:

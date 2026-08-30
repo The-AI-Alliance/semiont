@@ -599,7 +599,7 @@ For detailed styling guidelines, see the [Style Guide](./style-guide.md).
 
 ### System Documentation
 - [System Documentation](../../../docs/system/README.md) - Overall platform
-- [Backend README](../../backend/README.md) - Backend API
+- [Backend README](../../gateway/README.md) - Backend API
 - [Launcher README](../../launcher/README.md) - `semiont` launcher usage
 
 ---

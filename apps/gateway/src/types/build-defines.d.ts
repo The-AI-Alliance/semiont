@@ -13,7 +13,7 @@
  */
 
 /**
- * The package version this bundle was built from — `apps/backend/package.json`,
+ * The package version this bundle was built from — `apps/gateway/package.json`,
  * which `scripts/release/version.mjs` keeps in sync with `version.json`.
  *
  * Reported by `GET /api/health`.

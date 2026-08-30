@@ -45,13 +45,13 @@ const BACKEND_RUNTIME_DEVDEPS = ['prisma'];
  * of truth for external runtime version ranges. This mirrors stampInternalDeps
  * (which owns the internal `@semiont/*` pins): instead of hand-maintaining a
  * second copy of the dep ranges in `package.publish.json` (which silently
- * drifted), we read them straight from `apps/backend/package.json` so they can
+ * drifted), we read them straight from `apps/gateway/package.json` so they can
  * never diverge. External ranges and the internal `@semiont/*` set both come
  * verbatim from source; runtime deps that source keeps as devDependencies
  * (BACKEND_RUNTIME_DEVDEPS) are folded in. The internal `"*"` ranges are pinned
  * to the exact release version afterwards by stampInternalDeps.
  *
- * @param {string} backendDir absolute path to apps/backend
+ * @param {string} backendDir absolute path to apps/gateway
  * @returns {Record<string,string>} the staged manifest's `dependencies`
  */
 function deriveBackendRuntimeDeps(backendDir) {
@@ -61,7 +61,7 @@ function deriveBackendRuntimeDeps(backendDir) {
     const range = src.devDependencies?.[name];
     if (!range) {
       throw new Error(
-        `Cannot promote '${name}' to a runtime dependency: not found in apps/backend/package.json devDependencies`
+        `Cannot promote '${name}' to a runtime dependency: not found in apps/gateway/package.json devDependencies`
       );
     }
     deps[name] = range;
@@ -73,21 +73,21 @@ function deriveBackendRuntimeDeps(backendDir) {
 function stageBackend(version) {
   log('\n=== Staging @semiont/backend ===\n');
 
-  const backendDir = resolve(rootDir, 'apps/backend');
+  const backendDir = resolve(rootDir, 'apps/gateway');
   const stageDir = resolve(STAGE_DIR, 'backend');
 
   if (DRY_RUN) {
     log(`  Would stage to: ${stageDir}`);
     log(`  Would copy: dist/, prisma/`);
     log(`  Would use: package.publish.json with version ${version}`);
-    log(`  Would derive dependencies from apps/backend/package.json (promoted: ${BACKEND_RUNTIME_DEVDEPS.join(', ')})`);
+    log(`  Would derive dependencies from apps/gateway/package.json (promoted: ${BACKEND_RUNTIME_DEVDEPS.join(', ')})`);
     return stageDir;
   }
 
   // Verify built artifacts exist
   const distIndex = resolve(backendDir, 'dist/index.js');
   if (!existsSync(distIndex)) {
-    throw new Error(`Backend not built: ${distIndex} not found. Run 'npm run build' in apps/backend first.`);
+    throw new Error(`Backend not built: ${distIndex} not found. Run 'npm run build' in apps/gateway first.`);
   }
 
   const prismaSchema = resolve(backendDir, 'prisma/schema.prisma');

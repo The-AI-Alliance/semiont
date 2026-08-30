@@ -162,11 +162,11 @@ To verify compliance with this pattern:
 ```bash
 # Check for violations in routes
 grep -r "new WorkingTreeStore\|await getGraphDatabase\|await getInferenceClient\|createEventStore(" \
-  apps/backend/src/routes --include="*.ts"
+  apps/gateway/src/routes --include="*.ts"
 
 # Check for violations in services
 grep -r "new WorkingTreeStore\|await getGraphDatabase\|await getInferenceClient\|createEventStore(" \
-  apps/backend/src/services --include="*.ts"
+  apps/gateway/src/services --include="*.ts"
 
 # Should return no results (all matches should be in test files only)
 ```

@@ -128,7 +128,7 @@ The split is **display vs programmatic**, not text vs binary:
 
 - [`@semiont/http-transport` MEDIA-TOKENS.md](../../../packages/http-transport/docs/MEDIA-TOKENS.md) — the canonical media-token spec (claims, threat model, OpenAPI)
 - [Browser Authentication Architecture](./AUTHENTICATION.md) — the SPA's bearer-only session model
-- [Backend Authentication Guide](../../backend/docs/AUTHENTICATION.md) — JWT validation, including the `?token=` media path
+- [Backend Authentication Guide](../../gateway/docs/AUTHENTICATION.md) — JWT validation, including the `?token=` media path
 - [System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md) — end-to-end auth flows
 
 ---

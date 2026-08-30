@@ -22,7 +22,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/The-AI-Alliance/semiont.git",
-    "directory": "apps/backend"
+    "directory": "apps/gateway"
   },
   "license": "Apache-2.0"
 }

@@ -233,7 +233,7 @@ Only `POST /bus/emit` and `GET /bus/subscribe` carry domain traffic; the rest of
 ## Project Structure
 
 ```
-apps/backend/
+apps/gateway/
 ├── docs/                      # Documentation
 │   ├── ARCHITECTURE.md       # Backend architecture
 │   ├── AUTHENTICATION.md     # Auth implementation

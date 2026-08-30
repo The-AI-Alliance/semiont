@@ -42,7 +42,7 @@ jobs:
       matrix:
         include:
           - service: backend
-            dockerfile: apps/backend/Dockerfile
+            dockerfile: apps/gateway/Dockerfile
             verify_packages: '@semiont/backend'
           - service: worker
             dockerfile: packages/jobs/Dockerfile

@@ -39,7 +39,7 @@ over HTTP+SSE or stay in-process.
 | `RECV` | HttpTransport's wire-parse (SSE-side fan-in inside actor-state-unit) |
 | `RECV` | `LocalTransport.bridgeInto` subscriber callback              |
 | `EMIT` | Backend `/bus/emit` HTTP route                               |
-| `SSE`  | Backend `writeBusEvent()` in `apps/backend/src/routes/bus.ts`|
+| `SSE`  | Backend `writeBusEvent()` in `apps/gateway/src/routes/bus.ts`|
 | `PUT`  | `HttpContentTransport.putBinary()` + matching backend route  |
 | `GET`  | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching backend route |
 | `GET`  | `LocalContentTransport.getBinary()` / `getBinaryStream()` (in-process)            |

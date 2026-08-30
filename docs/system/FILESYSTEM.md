@@ -118,7 +118,7 @@ To rebuild deliberately without a restart, the backend ships scripts for each
 derived read model:
 
 ```bash
-cd apps/backend
+cd apps/gateway
 npm run rebuild-projections    # materialized views
 npm run rebuild-graph          # graph projection
 ```

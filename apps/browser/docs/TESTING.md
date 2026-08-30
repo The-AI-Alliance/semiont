@@ -653,7 +653,7 @@ Planned improvements for higher test coverage:
 
 ### Testing Guides
 - [System Testing Guide](../../../docs/development/TESTING.md) - Testing across all services
-- [Backend Testing](../../backend/docs/TESTING.md) - Backend API tests
+- [Backend Testing](../../gateway/docs/TESTING.md) - Backend API tests
 
 ### Development Guides
 - [Development Guide](./DEVELOPMENT.md) - Local development workflows

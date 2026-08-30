@@ -81,7 +81,7 @@ semiont stop --service browser   # stop one service
 Prisma is driven from the backend workspace:
 
 ```bash
-cd apps/backend
+cd apps/gateway
 npx prisma studio          # database browser
 npx prisma migrate dev     # create + apply a migration
 npx prisma generate        # regenerate the client

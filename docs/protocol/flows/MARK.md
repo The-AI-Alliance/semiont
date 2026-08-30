@@ -750,7 +750,7 @@ Detection has no dedicated REST endpoints. `mark.assist(...)` emits a `job:creat
 
 - [packages/sdk/src/namespaces/mark.ts](../../../packages/sdk/src/namespaces/mark.ts) - `assist()` maps motivation → `jobType` and emits `job:create`
 - [packages/make-meaning/src/handlers/job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts) - `job:create` / `job:claim` handlers
-- [apps/backend/src/routes/bus.ts](../../../apps/backend/src/routes/bus.ts) - Bus gateway (`/bus/emit`, `/bus/subscribe`)
+- [apps/gateway/src/routes/bus.ts](../../../apps/gateway/src/routes/bus.ts) - Bus gateway (`/bus/emit`, `/bus/subscribe`)
 
 ### Browser
 

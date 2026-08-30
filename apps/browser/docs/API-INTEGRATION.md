@@ -334,7 +334,7 @@ like `browse:resources-failed`), raised from the promise returned by
 
 ### Backend
 
-- [Backend README](../../backend/README.md)
+- [Backend README](../../gateway/README.md)
 
 ### Protocol
 

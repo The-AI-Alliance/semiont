@@ -849,7 +849,7 @@ Anything inside `@semiont/*` is published to a local Verdaccio and consumed via 
 | `packages/react-ui`, `packages/http-transport`, `packages/core`, `packages/sdk` | `./scripts/ci/local-build.sh` | Browser container |
 | `apps/browser` only | `./scripts/ci/local-build.sh` | Browser container |
 | `packages/make-meaning`, `event-sourcing`, anything backend-side | `./scripts/ci/local-build.sh` (rebuilds the `:local` images) | the stack: `SEMIONT_VERSION=local semiont start` |
-| `apps/backend` | `./scripts/ci/local-build.sh` | the stack: `SEMIONT_VERSION=local semiont start` |
+| `apps/gateway` | `./scripts/ci/local-build.sh` | the stack: `SEMIONT_VERSION=local semiont start` |
 
 Two pitfalls that have caught real time before:
 
@@ -942,7 +942,7 @@ monorepo's test suite.
 
 ### Per-workspace scripts
 
-Backend (`apps/backend/`):
+Backend (`apps/gateway/`):
 
 ```bash
 npm test                    # Everything
@@ -973,7 +973,7 @@ script (`--workspaces --if-present`), and `npm run typecheck` does the same for
 To target one workspace from the root, use `--workspace`:
 
 ```bash
-npm run test:unit --workspace=apps/backend
+npm run test:unit --workspace=apps/gateway
 ```
 
 ### Run them in a container
@@ -984,7 +984,7 @@ lightningcss), so use an Alpine image — a glibc `node:24` fails with a
 
 ```bash
 container run --rm -v "$(pwd)":/work -w /work node:24-alpine \
-  sh -c 'npm run test:unit --workspace=apps/backend'
+  sh -c 'npm run test:unit --workspace=apps/gateway'
 ```
 
 `tsc --noEmit` is libc-agnostic and runs under either image.
@@ -993,7 +993,7 @@ container run --rm -v "$(pwd)":/work -w /work node:24-alpine \
 
 Backend integration tests provision a real PostgreSQL with
 [`@testcontainers/postgresql`](https://node.testcontainers.org/) rather than
-mocking the database — see `apps/backend/src/__tests__/setup/database.ts`. Docker
+mocking the database — see `apps/gateway/src/__tests__/setup/database.ts`. Docker
 works with no configuration. For Podman, point testcontainers at its socket:
 
 **Linux (rootless):**
@@ -1075,7 +1075,7 @@ what passes. It runs on every push and pull request, on Node 24, with these jobs
 | Job | What it covers |
 |---|---|
 | `test-browser` | `npm run typecheck` + `npm test` for `apps/browser` |
-| `test-backend` | typecheck, `npm test`, and `npm run test:integration` for `apps/backend`, against a `postgres:15` service container |
+| `test-backend` | typecheck, `npm test`, and `npm run test:integration` for `apps/gateway`, against a `postgres:15` service container |
 | `test-comprehensive` | Browser and backend suites again, backend integration included, against a `postgres:15` service container |
 | `validate-config` | `npm ci --include=optional` + `npm run build:packages` |
 | `check-phantom-deps` | imports not declared in the importing package's `package.json` |
@@ -1099,7 +1099,7 @@ everything — CI runs the full matrix.
 
 ### Application Testing Documentation
 - [Browser Testing](../../apps/browser/README.md#testing) - Browser-specific testing setup, scripts, and philosophy
-- [Backend Testing](../../apps/backend/README.md#testing) - Backend API testing and integration tests
+- [Backend Testing](../../apps/gateway/README.md#testing) - Backend API testing and integration tests
 
 ### End-to-End Testing
 - [tests/e2e/README.md](../../tests/e2e/README.md) - Suite overview, current spec list, full stack-rebuild flow

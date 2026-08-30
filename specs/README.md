@@ -178,7 +178,7 @@ High-level guides in [docs/protocol/](../docs/protocol/):
 - **[W3C-SELECTORS.md](../docs/protocol/W3C-SELECTORS.md)** - Selector specifications
 
 For implementation details:
-- [Backend Documentation](../apps/backend/README.md) - Backend architecture
+- [Backend Documentation](../apps/gateway/README.md) - Backend architecture
 - [API Client Documentation](../packages/http-transport/README.md) - TypeScript SDK
 
 ## Decomposition Notes
@@ -230,7 +230,7 @@ Generated from `npm run openapi:stats`:
 
 - [Root README](../README.md) - Project overview
 - [System Documentation](../docs/system/README.md) - System architecture index
-- [Backend README](../apps/backend/README.md) - Backend implementation
+- [Backend README](../apps/gateway/README.md) - Backend implementation
 - [@semiont/http-transport](../packages/http-transport/README.md) - HTTP + SSE wire adapters
 - [@semiont/sdk](../packages/sdk/README.md) - The TypeScript client built over them
 

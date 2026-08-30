@@ -178,7 +178,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./apps/backend
+        working-directory: ./apps/gateway
 
     services:
       postgres:
@@ -209,8 +209,8 @@ jobs:
       - name: Cache TypeScript incremental build info
         uses: actions/cache@v6.1.0
         with:
-          path: apps/backend/.tscache
-          key: ${{ runner.os }}-backend-tsc-${{ hashFiles('apps/backend/src/**/*.ts', 'apps/backend/tsconfig.json', 'packages/*/src/**/*.ts') }}
+          path: apps/gateway/.tscache
+          key: ${{ runner.os }}-backend-tsc-${{ hashFiles('apps/gateway/src/**/*.ts', 'apps/gateway/tsconfig.json', 'packages/*/src/**/*.ts') }}
           restore-keys: |
             ${{ runner.os }}-backend-tsc-
 
@@ -294,7 +294,7 @@ jobs:
             'model = "llama3"' \
             'baseURL = "http://localhost:11434"' \
             > ~/.semiontconfig
-          cd apps/backend
+          cd apps/gateway
           npx prisma db push --url "$DATABASE_URL"
         env:
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
@@ -344,7 +344,7 @@ jobs:
           export GOOGLE_CLIENT_SECRET=test-client-secret
 
           echo "Starting backend in the ci environment..."
-          cd apps/backend
+          cd apps/gateway
           nohup npm start > backend.log 2>&1 &
           APP_PID=$!
           echo "BACKEND_PID=$APP_PID" >> $GITHUB_ENV
@@ -516,7 +516,7 @@ jobs:
         uses: codecov/codecov-action@v7.0.0
         if: always()
         with:
-          file: ./apps/backend/coverage/lcov.info
+          file: ./apps/gateway/coverage/lcov.info
           flags: backend
           name: backend-coverage
         continue-on-error: true

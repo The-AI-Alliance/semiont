@@ -4,7 +4,7 @@ package bus
 // request/reply convention. Hand-written; the vocabulary it speaks
 // (channels, operations) is generated from specs/src/bus/registry.json.
 //
-// Wire shape, as the backend implements it (apps/backend/src/routes/bus.ts):
+// Wire shape, as the backend implements it (apps/gateway/src/routes/bus.ts):
 //   POST /bus/emit          {channel, payload, scope?}
 //   POST /bus/subscribe     {global: [...], scoped: [{scope, channels, lastEventId?}, ...]}
 //     (SSE response, bearer; MULTI-RESOURCE-SCOPE — the GET query form is gone)

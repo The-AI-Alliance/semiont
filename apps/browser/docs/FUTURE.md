@@ -537,7 +537,7 @@ Start simple, add features incrementally.
 - [Development Guide](./DEVELOPMENT.md) - Local development setup
 
 ### Backend Documentation
-- [Backend README](../../backend/README.md) - REST API implementation
+- [Backend README](../../gateway/README.md) - REST API implementation
 - [Jobs Package](../../../packages/jobs/) - Async operations (for AI features)
 
 ### API Documentation

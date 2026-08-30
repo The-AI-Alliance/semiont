@@ -691,7 +691,7 @@ See [EVENT-BUS.md](../EVENT-BUS.md) for the bus protocol.
 
 ### Backend
 
-- [apps/backend/src/routes/bus.ts](../../../apps/backend/src/routes/bus.ts) - Bus gateway (`/bus/emit`, `/bus/subscribe`)
+- [apps/gateway/src/routes/bus.ts](../../../apps/gateway/src/routes/bus.ts) - Bus gateway (`/bus/emit`, `/bus/subscribe`)
 - [packages/make-meaning/src/handlers/job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts) - `job:create`/`job:claim` handlers
 
 ### Browser

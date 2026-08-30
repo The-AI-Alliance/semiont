@@ -71,7 +71,7 @@ RUN set -eu; \
         HAVE=$(node -pe "require('$p/package.json').version"); \
         if node -e 'const c=(a,b)=>{a=a.split(".").map(Number);b=b.split(".").map(Number);for(let i=0;i<3;i++){const d=(a[i]||0)-(b[i]||0);if(d)return d}return 0};process.exit(c(process.argv[1],process.argv[2])>=0?0:1)' "$HAVE" "$WANT"; then \
           echo "$ROOT now provides $PKG $HAVE (>= $WANT) at $p."; \
-          echo "DELETE the $PKG entry from the self-retiring patch block in apps/backend/Dockerfile."; \
+          echo "DELETE the $PKG entry from the self-retiring patch block in apps/gateway/Dockerfile."; \
           return 1; \
         fi; \
       done; \
@@ -141,7 +141,7 @@ RUN find /usr/local/lib/node_modules /home/semiont/.local/share/semiont \
       -type d \( -name typescript -o -name '@typescript' -o -name elkjs \) \
       -prune -exec rm -rf {} +
 
-COPY LICENSE apps/backend/NOTICE /home/semiont/
+COPY LICENSE apps/gateway/NOTICE /home/semiont/
 
 WORKDIR /kb
 RUN chown semiont:nodejs /kb

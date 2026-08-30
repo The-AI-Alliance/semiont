@@ -79,7 +79,7 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/admin/users  #
 # Runs on:
 - push: [main, develop]
 - pull_request: [main, develop]  
-- paths: apps/browser/**, apps/backend/**
+- paths: apps/browser/**, apps/gateway/**
 - workflow_dispatch: # Manual trigger
 ```
 
@@ -180,7 +180,7 @@ If security tests fail:
 1. **Run security tests locally** before pushing:
    ```bash
    cd apps/browser && npm run test:security
-   cd apps/backend && npm run test:security
+   cd apps/gateway && npm run test:security
    ```
 
 2. **Check admin route behavior** manually:

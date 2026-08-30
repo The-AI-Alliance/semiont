@@ -45,7 +45,7 @@ npm run build
 npm start
 ```
 
-**Note on Building**: For local development, use `npm run dev` for auto-restart. Production builds happen in the `semiont-backend` image build (`apps/backend/Dockerfile`).
+**Note on Building**: For local development, use `npm run dev` for auto-restart. Production builds happen in the `semiont-backend` image build (`apps/gateway/Dockerfile`).
 
 ## Essential CLI Commands
 
@@ -233,7 +233,7 @@ DATABASE_URL="postgresql://dev_user:dev_password@localhost:5432/semiont_dev"
 
 ```bash
 # Clone and install
-cd apps/backend
+cd apps/gateway
 npm install
 
 # Configure environment
@@ -381,7 +381,7 @@ Add to `.vscode/launch.json`:
   "name": "Debug Backend",
   "runtimeExecutable": "npm",
   "runtimeArgs": ["run", "dev"],
-  "cwd": "${workspaceFolder}/apps/backend",
+  "cwd": "${workspaceFolder}/apps/gateway",
   "console": "integratedTerminal"
 }
 ```

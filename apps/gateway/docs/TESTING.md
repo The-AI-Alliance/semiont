@@ -22,7 +22,7 @@ The backend uses **Vitest** with a focus on **HTTP contract testing**:
 
 ## Test Organization
 
-### HTTP Contract Tests (apps/backend/src/__tests__/routes/)
+### HTTP Contract Tests (apps/gateway/src/__tests__/routes/)
 
 Tests focus on HTTP layer only - status codes, authentication, response structure:
 
@@ -168,7 +168,7 @@ npm run typecheck
 
 ## What to Test Where
 
-### ✅ Backend HTTP Contract Tests (apps/backend/src/__tests__/routes/)
+### ✅ Backend HTTP Contract Tests (apps/gateway/src/__tests__/routes/)
 
 Test HTTP exposure:
 
@@ -268,7 +268,7 @@ describe('Resource Creation Flow', () => {
 
 ## Current Test Coverage
 
-### HTTP Contract Tests (apps/backend)
+### HTTP Contract Tests (apps/gateway)
 
 1. **resources-crud.test.ts** (12 tests)
    - POST /resources (create) - 201, 401, 400 validation

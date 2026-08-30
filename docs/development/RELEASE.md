@@ -260,17 +260,17 @@ your workspace — the exact failure this convention removes.
 ## External dependency ranges: derived at publish (backend)
 
 The backend publishes from a staging directory, so it needs a publish-only
-manifest (`apps/backend/package.publish.json`) — the published package has a
+manifest (`apps/gateway/package.publish.json`) — the published package has a
 different `name` (`@semiont/backend` vs `semiont-backend`), adds `bin`/`files`/
 `publishConfig`, and drops dev tooling. That template holds **only the publish
 metadata that differs from source**. It does **not** re-declare dependencies.
 
 The same single-source-of-truth rule as internal pinning applies to *external*
-runtime deps: **source `apps/backend/package.json` is the single source of truth
+runtime deps: **source `apps/gateway/package.json` is the single source of truth
 for external version ranges.** At staging, `stageBackend`
 (`scripts/ci/publish-npm-apps.mjs`) builds the published `dependencies` by:
 
-1. Taking `apps/backend/package.json` `dependencies` verbatim — both the
+1. Taking `apps/gateway/package.json` `dependencies` verbatim — both the
    external ranges and the internal `@semiont/*` set. They are read from source,
    so they **can never drift** from it.
 2. Promoting the curated runtime deps that source keeps as `devDependencies`
@@ -281,7 +281,7 @@ for external version ranges.** At staging, `stageBackend`
 
 Do **not** add a `dependencies` block to `package.publish.json` — the staging
 script overwrites it, so hand-authored entries there are silently ignored. To
-add a runtime dependency, add it to `apps/backend/package.json`. If it must stay
+add a runtime dependency, add it to `apps/gateway/package.json`. If it must stay
 a `devDependency` in source but ship at runtime (like `prisma`), add it to
 `BACKEND_RUNTIME_DEVDEPS` in `scripts/ci/publish-npm-apps.mjs`.
 
@@ -325,7 +325,7 @@ Optional `stage` field for apps that publish from a staging directory
 
 ```json
 "semiont-backend": {
-  "dir": "apps/backend",
+  "dir": "apps/gateway",
   "stage": ".npm-stage/backend",
   "version": "0.4.22",
   "publish": true

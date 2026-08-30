@@ -30,7 +30,7 @@ So the "full rebuild" flow depends on what changed:
 | `packages/react-ui`, `packages/http-transport`, `packages/core` | `local-build.sh` | browser |
 | `apps/browser` only | `local-build.sh` | browser |
 | `packages/make-meaning`, `packages/event-sourcing`, etc. — anything the backend imports | `local-build.sh` (rebuilds the `:local` images) | the stack: `SEMIONT_VERSION=local semiont start` |
-| `apps/backend` | `local-build.sh` | the stack: `SEMIONT_VERSION=local semiont start` |
+| `apps/gateway` | `local-build.sh` | the stack: `SEMIONT_VERSION=local semiont start` |
 
 ## Apple container CLI primer
 

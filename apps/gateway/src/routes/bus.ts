@@ -39,10 +39,9 @@ const getBusLogger = () => getLogger().child({ component: 'bus' });
  *
  * Address and auth come from `archivistEndpoint` (@semiont/core/node),
  * shared with the content proxying and with the fleet's own byte readers so
- * the deployment fact has one home. A missing host
- * or secret throws — the caller's catch degrades to a scoped
- * `bus:resume-gap`, which is the honest answer when the record cannot be
- * reached.
+ * the deployment fact has one home. A missing host or secret throws — the
+ * caller's catch degrades to a scoped `bus:resume-gap`, which is the honest
+ * answer when the record cannot be reached.
  */
 async function fetchArchivistReplay(
   config: ArchivistAddressConfig,

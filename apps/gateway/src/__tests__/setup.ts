@@ -90,7 +90,7 @@ vi.mock('@semiont/core/node', async (importOriginal) => ({
     // matching keeps these fixtures in the ordinary, non-diverged case and
     // therefore silent (a mismatch warns; KB-IDENTITY decision 10).
     kb: {
-      name: 'semiont-backend-unit',
+      name: 'semiont-gateway-unit',
       domain: 'localhost',
     },
     env: {
@@ -125,7 +125,7 @@ process.env.JWT_SECRET = 'test-secret-key-for-testing-32char';
 mkdirSync(`${testDir}/.semiont`, { recursive: true });
 writeFileSync(
   `${testDir}/.semiont/config`,
-  '[project]\nname = "semiont-backend-unit"\n\n[site]\ndomain = "localhost"\n',
+  '[project]\nname = "semiont-gateway-unit"\n\n[site]\ndomain = "localhost"\n',
   'utf-8',
 );
 
