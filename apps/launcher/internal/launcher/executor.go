@@ -321,14 +321,14 @@ func patchArchivistTopology(cfg []byte, envName, addr string) []byte {
 // `<root>/.semiont/config`, for the two services that no longer mount the tree
 // they describe:
 //
-//   name   — how the Librarian and the gateway locate the views the Archivist
-//            materializes under the shared state mount.
-//   domain — the KB's permanent did:web identity. The gateway REFUSES to boot
-//            without it (KB-IDENTITY decision 8), and once it stops mounting
-//            /kb this staged copy is the only way it can see the committed
-//            value. Omitted when the KB declares none, so the refusal still
-//            fires: staging a fabricated identity is the one thing worse than
-//            failing loudly.
+//	name   — how the Librarian and the gateway locate the views the Archivist
+//	         materializes under the shared state mount.
+//	domain — the KB's permanent did:web identity. The gateway REFUSES to boot
+//	         without it (KB-IDENTITY decision 8), and once it stops mounting
+//	         /kb this staged copy is the only way it can see the committed
+//	         value. Omitted when the KB declares none, so the refusal still
+//	         fires: staging a fabricated identity is the one thing worse than
+//	         failing loudly.
 //
 // Top-level deliberately: an environment section cannot override what sits
 // beside [defaults]. A hand-written [kb] wins — the escape hatch for an

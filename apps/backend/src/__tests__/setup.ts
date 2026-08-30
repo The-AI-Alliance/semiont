@@ -83,6 +83,16 @@ vi.mock('@semiont/core/node', async (importOriginal) => ({
       adminEmail: 'admin@test.local',
       oauthAllowedDomains: ['test.local'],
     },
+    // The KB's committed identity, as the launcher stages it (SINGLE-KB-MOUNT
+    // P5). The gateway mounts no KB tree, so this is the ONLY place it can see
+    // either value: `name` composes its state paths, `domain` is the committed
+    // side of the identity check. `domain` mirrors `site.domain` on purpose —
+    // matching keeps these fixtures in the ordinary, non-diverged case and
+    // therefore silent (a mismatch warns; KB-IDENTITY decision 10).
+    kb: {
+      name: 'semiont-backend-unit',
+      domain: 'localhost',
+    },
     env: {
       NODE_ENV: 'test' as const,
     },
