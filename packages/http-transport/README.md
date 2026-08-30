@@ -18,7 +18,7 @@ import { SemiontClient, HttpTransport, HttpContentTransport } from '@semiont/sdk
 import { baseUrl } from '@semiont/core';
 
 const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/') });
-// HttpTransport implements both ITransport and IBackendOperations; passing it
+// HttpTransport implements both ITransport and IGatewayOperations; passing it
 // third enables the `auth` / `admin` namespaces.
 const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 ```

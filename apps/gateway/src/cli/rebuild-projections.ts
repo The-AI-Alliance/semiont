@@ -24,7 +24,7 @@ async function rebuildProjections(rId?: string, environment?: string) {
   }
   // environment: an explicit --environment flag, else the loader resolves it from
   // `[defaults] environment`. No local 'development' default — that disagreed with
-  // the backend's 'local' and hid the wrong-section load.
+  // the gateway's 'local' and hid the wrong-section load.
   const config = loadEnvironmentConfig(projectRoot, environment);
 
   // Initialize logger
@@ -43,7 +43,7 @@ async function rebuildProjections(rId?: string, environment?: string) {
   const anchoredTextDir = process.env.SEMIONT_ANCHORED_TEXT_DIR;
   if (!anchoredTextDir) {
     throw new Error(
-      'SEMIONT_ANCHORED_TEXT_DIR environment variable is not set (the backend image ' +
+      'SEMIONT_ANCHORED_TEXT_DIR environment variable is not set (the gateway image ' +
       'declares it as /anchored-text; set it when running this outside a container).',
     );
   }

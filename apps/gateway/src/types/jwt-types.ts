@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { GoogleAuthRequest, UserId } from '@semiont/core';
 import type { Email } from '@semiont/core';
 
-// JWT Payload schema - backend-specific internal type for JWT validation
+// JWT Payload schema - gateway-specific internal type for JWT validation
 export const JWTPayloadSchema = z.object({
   userId: z.string().regex(/^c[a-z0-9]{24,}$/), // CUID format
   email: z.string().email(),

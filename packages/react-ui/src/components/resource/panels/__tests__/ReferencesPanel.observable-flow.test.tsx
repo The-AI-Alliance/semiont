@@ -3,7 +3,7 @@
  *
  * Written after an e2e failure (test 05) where `ReferencesPanel` rendered
  * "No entity types available" even though the client provably received a
- * 9-string entity-types array from the backend.
+ * 9-string entity-types array from the gateway.
  *
  * This test closes the Layer 5-6 gap: the existing `ResourceViewerPage.test.tsx`
  * stubs `UnifiedAnnotationsPanel`/`ReferencesPanel` as `<div data-testid>`s,

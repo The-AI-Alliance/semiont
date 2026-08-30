@@ -804,7 +804,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       const { browse, eventBus, emitSpy } = createHarness();
       await firstDefined(browse.agents());
 
-      // The roster's one real staleness event — a backend restart with a
+      // The roster's one real staleness event — a gateway restart with a
       // changed TOML — necessarily presents as an SSE gap.
       eventBus.get('bus:resume-gap').next(fakeBusResumeGap(undefined, 'retention window exceeded'));
       await flush();

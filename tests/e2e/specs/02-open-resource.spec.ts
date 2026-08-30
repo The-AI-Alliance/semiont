@@ -7,7 +7,7 @@ import { test, expect } from '../fixtures/auth';
  * Regression target: the entity-types-missing bug caused by the SSE
  * reconnect storm eating the busRequest response. If entity types are
  * observable in the UI, the full chain is working: frontend fetch →
- * /bus/emit → backend handler → response → SSE → actor.on$ → BehaviorSubject → UI.
+ * /bus/emit → gateway handler → response → SSE → actor.on$ → BehaviorSubject → UI.
  */
 test.describe('open resource', () => {
   test('opens the first resource from Discover and shows content', async ({ signedInPage: page, bus }) => {

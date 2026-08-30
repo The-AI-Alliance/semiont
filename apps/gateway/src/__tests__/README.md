@@ -1,10 +1,10 @@
-# Backend Security Tests
+# Gateway Security Tests
 
-This directory contains comprehensive security tests for the Semiont backend application.
+This directory contains comprehensive security tests for the Semiont gateway application.
 
 ## 🎯 Test Coverage Overview
 
-Our backend security tests provide comprehensive coverage across all security-critical components:
+Our gateway security tests provide comprehensive coverage across all security-critical components:
 
 ### **Authentication & Authorization Tests**
 - **JWT Service Tests** (`auth/jwt.test.ts`): Token generation, validation, and security
@@ -13,7 +13,7 @@ Our backend security tests provide comprehensive coverage across all security-cr
 - **Admin API Tests** (`api/admin-endpoints.test.ts`): Admin endpoint protection and data security
 
 ### **Security Requirements Tests**
-- **Backend Security Tests** (`backend-security.test.ts`): Core security requirements and best practices
+- **Gateway Security Tests** (`gateway-security.test.ts`): Core security requirements and best practices
 
 ## 🔐 Security Test Categories
 
@@ -50,7 +50,7 @@ Our backend security tests provide comprehensive coverage across all security-cr
 
 ## Test Files
 
-### `backend-security.test.ts`
+### `gateway-security.test.ts`
 **Comprehensive security requirements documentation** that verifies:
 
 - ✅ **Authentication requirements** - JWT tokens, Authorization headers
@@ -84,7 +84,7 @@ npm test -- middleware/auth.test.ts
 npm test -- api/admin-endpoints.test.ts
 
 # Core security requirements
-npm test -- backend-security.test.ts
+npm test -- gateway-security.test.ts
 ```
 
 ### **Run with Coverage**
@@ -150,7 +150,7 @@ All admin endpoints properly protected:
 
 ## Comparison with Browser Security
 
-| Aspect | Browser (Fixed) | Backend (Already Secure) |
+| Aspect | Browser (Fixed) | Gateway (Already Secure) |
 |--------|------------------|--------------------------|
 | **Issue** | 307 redirects with content leakage | Already returning proper 403 JSON |
 | **Fix** | Server-side auth wrapper | Already had proper middleware |

@@ -2,9 +2,9 @@
  * Database URL Derivation
  *
  * The config → connection-string translation. This was the retired CLI's job:
- * `backend-start.ts` read the TOML it had already loaded and handed node a
+ * `gateway-start.ts` read the TOML it had already loaded and handed node a
  * `DATABASE_URL`. When the CLI went, so did the only thing that bridged the two
- * halves of the fact — the config knows the credentials, and the backend only
+ * halves of the fact — the config knows the credentials, and the gateway only
  * ever read a connection string from the environment.
  *
  * Kept separate from the server entry point on purpose: the container derives

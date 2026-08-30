@@ -48,7 +48,7 @@ statusRouter.get('/api/status', async (c) => {
   // `[site] domain` — the same source, and therefore byte-identical to the
   // string the launcher publishes.
   //
-  // Both branches below are unreachable in a running backend: `SEMIONT_ROOT`
+  // Both branches below are unreachable in a running gateway: `SEMIONT_ROOT`
   // is mandatory and boot refuses a KB with no declared domain (decision 8).
   // They throw rather than fall back BECAUSE the field is required — the only
   // fallbacks available would be fabrications ('localhost', the address), and

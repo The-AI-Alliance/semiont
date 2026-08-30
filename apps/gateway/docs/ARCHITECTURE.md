@@ -1,6 +1,6 @@
-# Backend Architecture
+# Gateway Architecture
 
-This document describes the architectural patterns and design principles that govern the Semiont backend.
+This document describes the architectural patterns and design principles that govern the Semiont gateway.
 
 ## Infrastructure Management
 
@@ -8,7 +8,7 @@ This document describes the architectural patterns and design principles that go
 
 **All infrastructure components are created once and managed by MakeMeaningService.**
 
-This is a **critical architectural constraint** that must be followed throughout the backend codebase.
+This is a **critical architectural constraint** that must be followed throughout the gateway codebase.
 
 #### The Rule
 
@@ -71,7 +71,7 @@ See [@semiont/make-meaning](../../../packages/make-meaning/) for the implementat
 
 #### Implementation Pattern
 
-**Backend Initialization** ([src/index.ts:104](../src/index.ts#L104)):
+**Gateway Initialization** ([src/index.ts:104](../src/index.ts#L104)):
 
 ```typescript
 // Create MakeMeaningService ONCE at startup
@@ -251,7 +251,7 @@ router.post('/summarize', async (c) => {
 
 ## KS/Worker Process Split
 
-The backend runs as two processes:
+The gateway runs as two processes:
 
 1. **Knowledge System (KS)** -- the main process. Runs all KB actors (Stower, Browser, Gatherer, Matcher, Smelter), all stores, the RxJS EventBus, SSE streaming, the HTTP API, and the job queue.
 

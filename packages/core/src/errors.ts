@@ -22,7 +22,7 @@
  *  - `not-found`    — resource missing (HTTP 404)
  *  - `conflict`     — concurrent modification, duplicate, etc. (HTTP 409)
  *  - `bad-request`  — request malformed (HTTP 400)
- *  - `unavailable`  — backend unreachable, network error, 5xx
+ *  - `unavailable`  — gateway unreachable, network error, 5xx
  *  - `error`        — unclassified fallback
  */
 export type TransportErrorCode =

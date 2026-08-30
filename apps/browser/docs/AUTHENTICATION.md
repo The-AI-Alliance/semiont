@@ -5,7 +5,7 @@
 A user is always authenticated **against a specific Knowledge Base
 (KB)** — never globally. Switching KBs means switching sessions
 atomically. The Browser stores one JWT pair per KB in
-`localStorage` and validates on session construction via the backend's
+`localStorage` and validates on session construction via the gateway's
 `GET /api/users/me` endpoint.
 
 There is no NextAuth, no httpOnly cookie, no global session. Session
@@ -131,8 +131,8 @@ false) is how the layout knows to render the unauth view with a
 
 ```
 1. User adds a KB via KnowledgeBasePanel
-   └── The Browser POSTs credentials directly to that KB's backend
-       └── Backend returns access + refresh JWTs
+   └── The Browser POSTs credentials directly to that KB's gateway
+       └── Gateway returns access + refresh JWTs
            └── Panel calls browser.addKb({...kb}) and browser.signIn(id, access, refresh)
                └── Browser stores tokens, activates the KB, constructs a SemiontSession
 
@@ -157,11 +157,11 @@ false) is how the layout knows to render the unauth view with a
 
 ## OAuth flow
 
-OAuth providers can be configured per KB on the backend. The flow:
+OAuth providers can be configured per KB on the gateway. The flow:
 
 1. User picks a KB and an OAuth provider in the connect form.
-2. Browser redirects to the backend's OAuth endpoint for that KB.
-3. Backend handles the OAuth dance, issues a JWT, redirects back with
+2. Browser redirects to the gateway's OAuth endpoint for that KB.
+3. Gateway handles the OAuth dance, issues a JWT, redirects back with
    the token in the URL fragment.
 4. The Browser parses the fragment, calls `browser.signIn(id, ...)` with
    the returned tokens.

@@ -6,7 +6,7 @@
  * plus infrastructure namespaces (Job, Auth, Admin).
  *
  * Each namespace maps 1:1 to a flow. Each flow maps to a clear actor on
- * the backend. The frontend calls `client.mark.annotation()` and the
+ * the gateway. The frontend calls `client.mark.annotation()` and the
  * client handles HTTP, auth, SSE, and caching internally.
  *
  * Return type conventions:
@@ -233,7 +233,7 @@ export type YieldGenerationEvent =
  * Live queries return Observables that emit initial state and re-emit
  * on bus gateway updates. One-shot reads return Promises.
  *
- * Backend actor: Browser (context classes)
+ * Gateway actor: Browser (context classes)
  * Event prefix: browse:*
  */
 
@@ -310,7 +310,7 @@ export interface BrowseNamespace {
  * writes; Browse owns reads — the same asymmetry that already holds for
  * resources and annotations.
  *
- * Backend actor: Stower
+ * Gateway actor: Stower
  * Event prefix: frame:*
  */
 export interface FrameNamespace {
@@ -339,7 +339,7 @@ export interface FrameNamespace {
  * Results appear on browse Observables via bus gateway.
  * assist() returns an Observable for long-running progress.
  *
- * Backend actor: Stower
+ * Gateway actor: Stower
  * Event prefix: mark:*
  */
 export interface MarkNamespace {
@@ -355,7 +355,7 @@ export interface MarkNamespace {
   /**
    * Replace a resource's own entity-type classification. A **diff/replace**
    * operation: pass the resource's current types as `current` and the desired
-   * full set as `updated`. The backend folds the difference into
+   * full set as `updated`. The gateway folds the difference into
    * `resource.entityTypes`, so the change surfaces in
    * `browse.resources({ entityType })` and `getResourceEntityTypes`. Awaitable +
    * rejects on failure, like `delete`/`archive`.
@@ -393,7 +393,7 @@ export interface MarkNamespace {
  * with resolved reference) arrives on browse.annotations() via the
  * enriched mark:body-updated event.
  *
- * Backend actor: Stower (via mark:update-body)
+ * Gateway actor: Stower (via mark:update-body)
  * Event prefix: mark:body-updated (shares mark event pipeline)
  */
 export interface BindNamespace {
@@ -412,7 +412,7 @@ export interface BindNamespace {
  * Long-running (LLM calls + graph traversal). Returns Observables
  * that emit progress then the gathered context.
  *
- * Backend actor: Gatherer
+ * Gateway actor: Gatherer
  * Event prefix: gather:*
  */
 export interface GatherNamespace {
@@ -442,7 +442,7 @@ export interface GatherNamespace {
  * Long-running (semantic search, optional LLM scoring). Returns
  * Observable with progress then results.
  *
- * Backend actor: Matcher
+ * Gateway actor: Matcher
  * Event prefix: match:*
  */
 export interface MatchNamespace {
@@ -463,7 +463,7 @@ export interface MatchNamespace {
  * resource() is synchronous file upload (Promise).
  * fromContext() is long-running LLM generation (Observable).
  *
- * Backend actor: Stower + generation worker
+ * Gateway actor: Stower + generation worker
  * Event prefix: yield:*
  */
 export interface YieldNamespace {
@@ -499,7 +499,7 @@ export interface YieldNamespace {
  * Fire-and-forget. Ephemeral presence signal delivered via the
  * attention-stream to other participants.
  *
- * Backend actor: (frontend relay via attention-stream)
+ * Gateway actor: (frontend relay via attention-stream)
  * Event prefix: beckon:*
  */
 export interface BeckonNamespace {

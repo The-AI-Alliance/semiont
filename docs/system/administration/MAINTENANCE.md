@@ -52,10 +52,10 @@ semiont stop
 SEMIONT_VERSION=0.5.21 semiont start
 ```
 
-Watch the backend come up. A migration failure means the container exits rather than serving against a mismatched schema:
+Watch the gateway come up. A migration failure means the container exits rather than serving against a mismatched schema:
 
 ```bash
-semiont logs --service backend
+semiont logs --service gateway
 semiont status
 ```
 
@@ -84,7 +84,7 @@ For archive export and restore, see [BACKUP.md](BACKUP.md). PostgreSQL holds use
 
 Three secrets matter, and rotating them is not free:
 
-**`JWT_SECRET`** — signs every token. Rotating it invalidates every token previously issued, including tokens held by running workers. The symptom of a rotation nobody re-authenticated after is `Invalid token signature` in the backend log, and jobs that never start. Plan a rotation as "every client must re-authenticate," and restart the whole stack rather than one service. Minimum 32 characters, enforced at startup ([`auth/jwt.ts`](../../../apps/gateway/src/auth/jwt.ts)).
+**`JWT_SECRET`** — signs every token. Rotating it invalidates every token previously issued, including tokens held by running workers. The symptom of a rotation nobody re-authenticated after is `Invalid token signature` in the gateway log, and jobs that never start. Plan a rotation as "every client must re-authenticate," and restart the whole stack rather than one service. Minimum 32 characters, enforced at startup ([`auth/jwt.ts`](../../../apps/gateway/src/auth/jwt.ts)).
 
 **`SEMIONT_WORKER_SECRET`** — the shared secret the worker, smelter, and weaver exchange at `POST /api/tokens/agent` for a JWT. It must match across the whole stack. `semiont start --service worker` rejoins the running stack's secret automatically; a service started by hand does not.
 
@@ -122,7 +122,7 @@ Services log structured JSON to stdout. There is no aggregation layer and no ret
 
 ```bash
 semiont logs                                    # All five services
-semiont logs --service backend | grep -i error
+semiont logs --service gateway | grep -i error
 ```
 
 Review on symptom, not on a schedule. When something is wrong, [Troubleshooting](TROUBLESHOOTING.md) starts from `semiont status`.

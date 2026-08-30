@@ -22,7 +22,7 @@ Steps 3-5 run per annotation in a loop. The threshold between "bind to existing"
 
 ## Prerequisite: declare the entity-type vocabulary
 
-The `entityTypes` parameter you pass to `mark.assist` (Step 1) and the entity types stamped on resources synthesized in Step 5 must already be in the KB's **published entity-type vocabulary** — declared via `semiont.frame.addEntityTypes([...])`. This is normally done once, at corpus ingest, by the [`semiont-ingest`](../semiont-ingest/SKILL.md) skill. Skipping the declaration "works" in the lenient sense (entity-type strings still get stamped on annotations and resources), but `browse.entityTypes()` will then return an accumulated drift instead of a coherent published set, and a stricter backend would reject unknown types. Declare the vocabulary upfront.
+The `entityTypes` parameter you pass to `mark.assist` (Step 1) and the entity types stamped on resources synthesized in Step 5 must already be in the KB's **published entity-type vocabulary** — declared via `semiont.frame.addEntityTypes([...])`. This is normally done once, at corpus ingest, by the [`semiont-ingest`](../semiont-ingest/SKILL.md) skill. Skipping the declaration "works" in the lenient sense (entity-type strings still get stamped on annotations and resources), but `browse.entityTypes()` will then return an accumulated drift instead of a coherent published set, and a stricter gateway would reject unknown types. Declare the vocabulary upfront.
 
 If you are running this pipeline on a corpus that wasn't ingested via `semiont-ingest`, declare the vocabulary explicitly before the first `mark.assist` call:
 

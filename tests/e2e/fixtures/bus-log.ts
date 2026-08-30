@@ -12,7 +12,7 @@ import { expect } from '@playwright/test';
  * Five ops are captured (matches the `BusOp` union in core):
  *   - `EMIT` / `RECV` — bus events (channel = `<channel>`)
  *   - `SSE`           — server SSE write (only seen if the test surfaces
- *                       backend stderr; usually not visible from a
+ *                       gateway stderr; usually not visible from a
  *                       browser-only fixture)
  *   - `PUT` / `GET`   — content uploads / downloads (channel = `'content'`)
  *
@@ -73,7 +73,7 @@ export class BusLogCapture {
     return this.byOp('RECV', channel);
   }
 
-  /** Server-side SSE writes (visible only when the backend's stderr is captured). */
+  /** Server-side SSE writes (visible only when the gateway's stderr is captured). */
   sses(channel: string): BusLogEntry[] {
     return this.byOp('SSE', channel);
   }

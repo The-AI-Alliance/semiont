@@ -2,7 +2,7 @@
  * The /know landing route resolves "where was I?" and redirects there.
  *
  * That memory is per-KB. Held globally it sends the user straight into the
- * PREVIOUS KB's resource after a switch — an id the newly active backend has
+ * PREVIOUS KB's resource after a switch — an id the newly active gateway has
  * never heard of, so a guaranteed 404 and a console full of B14/B15 retry
  * noise. The page must read the ACTIVE KB's last-viewed resource from the
  * browser session layer, never a global localStorage key.

@@ -1,4 +1,4 @@
-# Backend Logging
+# Gateway Logging
 
 Comprehensive Winston-based logging with configurable log levels, structured metadata, and request correlation for debugging and monitoring.
 
@@ -473,7 +473,7 @@ LOG_LEVEL=debug npm start
 2025-12-29 19:40:00 [HTTP] Outgoing response {"status":500,"duration":50,"requestId":"def-456"}
 ```
 
-**Diagnosis**: Backend doesn't have write permission to `/data/resources/`
+**Diagnosis**: Gateway doesn't have write permission to `/data/resources/`
 
 ### Production Monitoring
 

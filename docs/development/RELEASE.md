@@ -83,7 +83,7 @@ gh run watch <run-id> --exit-status
 1. **Verifies version sync** across all `package.json` files
 2. **Creates and pushes a git tag** `v{version}` (skips if already exists)
 3. **Creates a GitHub Release** with auto-generated release notes from commits and merged PRs
-4. **Publishes npm packages** — all `@semiont/*` libraries, CLI, backend, and Browser
+4. **Publishes npm packages** — all `@semiont/*` libraries, CLI, gateway, and Browser
 5. **Builds and publishes the desktop apps** — only when the **Build and
    publish desktop apps** box (`desktop=true`) is checked; chains the
    `publish-desktop.yml` workflow for macOS (Intel + Apple Silicon) and
@@ -249,7 +249,7 @@ Workspace packages depend on each other (`@semiont/*` / `semiont-*`). The rule:
 There is exactly **one** implementation of that rewrite —
 `scripts/ci/stamp-internal-deps.mjs` (`stampInternalDeps`) — used by both
 publish paths: `scripts/ci/stamp-versions.mjs` (invoked by `publish.sh`, for the
-in-place libs + cli) and `publish-npm-apps.mjs` (for the staged backend/browser
+in-place libs + cli) and `publish-npm-apps.mjs` (for the staged gateway/browser
 tarballs). `version-bump.sh` and `version:sync` only stamp the `version` field;
 they do **not** pin internal deps — those stay `"*"`.
 
@@ -257,9 +257,9 @@ Do **not** hand-pin an internal dep to a concrete version in source: it adds a
 maintenance point that drifts and lets a stale published copy substitute for
 your workspace — the exact failure this convention removes.
 
-## External dependency ranges: derived at publish (backend)
+## External dependency ranges: derived at publish (gateway)
 
-The backend publishes from a staging directory, so it needs a publish-only
+The gateway publishes from a staging directory, so it needs a publish-only
 manifest (`apps/gateway/package.publish.json`) — the published package has a
 different `name` (`@semiont/gateway` vs `semiont-gateway`), adds `bin`/`files`/
 `publishConfig`, and drops dev tooling. That template holds **only the publish
@@ -288,7 +288,7 @@ a `devDependency` in source but ship at runtime (like `prisma`), add it to
 This replaced a hand-maintained copy of the dep ranges in
 `package.publish.json` that drifted from source on every dependency bump (it had
 shipped a `@hono/node-server` *major* behind source, and had dropped
-`@semiont/observability` entirely even though the built backend imports it at
+`@semiont/observability` entirely even though the built gateway imports it at
 startup).
 
 The **Browser** is deliberately different: `apps/browser/package.publish.json`

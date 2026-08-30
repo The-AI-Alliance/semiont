@@ -35,7 +35,7 @@ export interface MakeMeaningService {
   knowledgeSystem: KnowledgeSystem;
   jobQueue:        JobQueue;
   /**
-   * The one SemiontProject this backend is serving — the same instance the
+   * The one SemiontProject this gateway is serving — the same instance the
    * KnowledgeSystem, the job queue and the bus handlers were built from.
    *
    * Exposed so request handlers reach for it instead of improvising their own
@@ -105,7 +105,7 @@ async function createJobQueue(
 // hangs forever and the container sits unhealthy indefinitely. Observed live
 // on a Codespaces resume (2026-07-20): all ten containers restart at once and
 // `depends_on` does not apply — it governs `compose up`, not daemon-driven
-// restarts — so the backend can reach these connects before Neo4j/Qdrant/
+// restarts — so the gateway can reach these connects before Neo4j/Qdrant/
 // Ollama are listening. Failing fast turns an unrecoverable hang into a crash
 // the restart policy retries until the dependency is up.
 export const STARTUP_CONNECT_TIMEOUT_MS = 60_000;

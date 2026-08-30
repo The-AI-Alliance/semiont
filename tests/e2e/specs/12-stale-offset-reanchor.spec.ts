@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/auth';
-import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { SemiontClient } from '@semiont/sdk';
 
 /**
@@ -41,7 +41,7 @@ test.beforeAll(async () => {
   expect(CONTENT.substring(TRUE_START, TRUE_END)).toBe(EXACT);
 
   const client = await SemiontClient.signInHttp({
-    baseUrl: BACKEND_URL,
+    baseUrl: GATEWAY_URL,
     email: E2E_EMAIL,
     password: E2E_PASSWORD,
   });

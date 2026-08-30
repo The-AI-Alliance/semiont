@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/auth';
-import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { SemiontClient, type TagSchema } from '@semiont/sdk';
 
 /**
@@ -30,7 +30,7 @@ import { SemiontClient, type TagSchema } from '@semiont/sdk';
  * Mechanics:
  *  - The PAGE holds the resource-subscribed connection (the one that
  *    double-delivered); its console bus-log is what the `bus` fixture captures.
- *  - A parallel SDK client (same backend/user, like spec 11) only *triggers*
+ *  - A parallel SDK client (same gateway/user, like spec 11) only *triggers*
  *    one `frame:tag-schema-added`; the event fans out to the page over SSE.
  *  - A stable schema id is fine: the Stower appends a domain event on every
  *    `addTagSchema` (re-registration is a projection no-op but still emits),
@@ -76,7 +76,7 @@ test.describe('frame:tag-schema-added single delivery (BRIDGED ∩ RESOURCE_SCOP
 
     // ── Trigger exactly one frame:tag-schema-added from a parallel client ──
     const client = await SemiontClient.signInHttp({
-      baseUrl: BACKEND_URL,
+      baseUrl: GATEWAY_URL,
       email: E2E_EMAIL,
       password: E2E_PASSWORD,
     });

@@ -37,7 +37,7 @@ name = "My Knowledge Base"
 version = "0.1.0"
 
 [git]
-sync = true                # backend stages event-log writes with git
+sync = true                # gateway stages event-log writes with git
 
 [site]
 # Permanent did:web identity for everything this KB mints (stamped into the
@@ -74,7 +74,7 @@ platform = "posix"
 
 # ── ENVIRONMENT: local ───────────────────────────────────────────────────────
 
-[environments.local.backend]
+[environments.local.gateway]
 port = 4000
 publicURL = "http://localhost:4000"
 
@@ -124,9 +124,30 @@ model = "claude-sonnet-4-6"
 maxTokens = 16384
 ```
 
+### The `[gateway]` section was once called `[backend]`
+
+Both spellings load. `[environments.<env>.gateway]` is current; `[environments.<env>.backend]`
+is the older name, still accepted so an existing knowledge base keeps starting without being
+edited. `semiont init` writes the new spelling.
+
+Declaring **both** in one environment is an error, not a precedence rule:
+
+```
+environment "local" declares both [environments.local.gateway] and
+[environments.local.backend]; they are one section under two spellings —
+keep gateway and delete backend
+```
+
+A file with both is half-migrated, and silently choosing one would leave the next reader unable
+to tell which section is live. Delete the `[backend]` section and keep `[gateway]`.
+
+The same applies to the host variable the generated `publicURL` interpolates: new configs use
+`${GATEWAY_HOST}`, older ones use `${BACKEND_HOST}`, and the launcher sets **both** so either
+resolves.
+
 ### Secrets
 
-Secrets are **not** part of the config file. The backend reads them from its environment:
+Secrets are **not** part of the config file. The gateway reads them from its environment:
 
 | Variable | Used for |
 |---|---|

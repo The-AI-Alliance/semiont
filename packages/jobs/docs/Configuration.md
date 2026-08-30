@@ -43,7 +43,7 @@ Created automatically by `initialize()`.
 
 Workers do not poll the queue. The worker process opens a `SemiontSession` and a `JobClaimAdapter` (created internally by `startWorkerProcess`, in this package's `src/job-claim-adapter.ts`) subscribes to the bus `job:queued` channel over SSE. When a job is queued, the adapter is pushed the event, claims the job atomically, and dispatches it by `jobType`. There is no poll interval or error-backoff to tune.
 
-Announcements have built-in catch-up: the backend re-announces pending jobs every 30 seconds (and immediately at startup), so a job queued while every eligible worker was busy or disconnected is claimed as soon as one frees up.
+Announcements have built-in catch-up: the gateway re-announces pending jobs every 30 seconds (and immediately at startup), so a job queued while every eligible worker was busy or disconnected is claimed as soon as one frees up.
 
 Each worker process serves the `jobTypes` it is configured for — driven by the per-`(provider, model)` worker entries in `~/.semiontconfig`. Multiple job types that share an inference engine share one worker process (and one software-agent identity); different engines run as separate processes.
 

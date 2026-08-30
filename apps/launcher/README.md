@@ -176,10 +176,10 @@ semiont stop
   Codespace placement is never sticky — every codespace start says
   `--runtime codespace` (or rides an existing record).
 - `semiont useradd` creates or updates users in the RUNNING stack: the
-  launcher execs the backend's own `semiont-useradd` inside the backend
+  launcher execs the gateway's own `semiont-useradd` inside the gateway
   container (record-driven runtime + container ID, name-scan fallback) and
   passes every other flag through verbatim (`--admin`, `--generate-password`,
-  `--update`, `--upsert`, …). The backend owns the user schema, the password
+  `--update`, `--upsert`, …). The gateway owns the user schema, the password
   hashing and the database write; this launcher only decides which stack is
   meant. The password is the one thing it does NOT pass as an argument: it is
   prompted for on a terminal (or read from stdin when piped) and fed to
@@ -193,7 +193,7 @@ semiont stop
   several stacks recorded it refuses to guess — `--repo <owner/name>` picks a
   codespace stack, `--runtime` the local one (the same vocabulary `stop`
   uses). This replaced `start --email/--password`: the admin password used to
-  ride into the backend container as an env var, readable via `inspect` for
+  ride into the gateway container as an env var, readable via `inspect` for
   the stack's whole lifetime — now it exists only in one exec's argv, redacted
   in the echoed command and the invocation log.
 - `semiont start --dry-run` prints the exact runtime commands a real run would
@@ -233,7 +233,7 @@ semiont stop
   the last ~20 lines of that container's own logs plus the `semiont logs
   --service <name>` pointer — the cause of a startup crash is usually
   sitting right there (a friction log spent most of a day on an errno -35
-  event-log read failure that was in `logs` for the whole 120s backend
+  event-log read failure that was in `logs` for the whole 120s gateway
   wait). Service containers run **without `--rm`** for the same reason: a
   container that CRASHES during the gate used to remove itself, destroying
   the very logs that explain it ("No such container"). It now remains,
@@ -302,17 +302,17 @@ semiont stop
   ways. `type = "voyage"` is remote SaaS; either way embedding has a status
   row and start/stop belongs to whatever provides it.
 - **A config naming no vector store or no embedding provider is refused, before
-  anything launches.** Semantic search is always available, so the backend's
+  anything launches.** Semantic search is always available, so the gateway's
   TOML loader refuses such a config at boot. The launcher reads the same file
   with its own structs, so it refuses the same configs one round trip earlier —
-  otherwise `semiont start` brings the whole stack up and the backend dies
+  otherwise `semiont start` brings the whole stack up and the gateway dies
   seconds later on a file the launcher already had in its hands. Same rule,
   same words as the loader's, plus the config path. Both sections are required
   and `embedding` needs its `model`; the refusal happens in `derivePlan`, so
   `--dry-run` and the `semiont init` self-vet enforce it too, not just `start`.
-  `type = "memory"` is a first-class vector store to the *backend* and is
+  `type = "memory"` is a first-class vector store to the *gateway* and is
   refused *here* with its own explanation: a launcher-managed stack runs the
-  backend and the Smelter as separate containers, and an in-process index
+  gateway and the Smelter as separate containers, and an in-process index
   cannot be shared across them.
 - **The inference and embedding rows list their models.** Which models a stack
   uses is config truth, recorded at start (the union of `actors.*` and
@@ -361,7 +361,7 @@ semiont stop
   publishes a ceiling for a remote model it REPLACES the context figure
   `/v1/models` reported — one number, from one source; that probe keeps
   rendering only what it alone knows. No stack, no session, an unreachable or
-  wedged backend (the request is bounded well under the bus client's 30 s
+  wedged gateway (the request is bounded well under the bus client's 30 s
   default), or an entry whose discovery failed: the row renders exactly as it
   did before, no ceiling and no error. And a ceiling appears only where the
   record can say which provider serves THAT model — a row whose driver says
@@ -372,7 +372,7 @@ semiont stop
   `GIT_DIR`): the override is strict (invalid values error, never fall back),
   else the root is found by walking up from cwd for `.semiont/`. git is not
   part of discovery — the must-be-a-git-clone invariant applies only where
-  `/kb` is mounted (full start, `--service backend`); sidecars need only the
+  `/kb` is mounted (full start, `--service gateway`); sidecars need only the
   `.semiont/` tree. `semiont status` reports the root(s) in its LOCAL ROOTS
   section.
 - The launcher remembers every root a real start used in `roots.json` (beside
@@ -410,7 +410,7 @@ semiont stop
   machine's stack) falls back to the historical name sweep; the record is
   belief — `status` still verifies every claim against the runtime.
 - `start`, `stop`, and `status` take `--service <name>` to act on one service
-  (named by role: backend, worker, smelter, weaver, browser,
+  (named by role: gateway, worker, smelter, weaver, browser,
   database, graph, vectors, inference, embedding, traces — the concrete products PostgreSQL,
   Neo4j, Qdrant, Ollama, and Jaeger appear as detail alongside). A `--service` start rejoins the running stack's
   worker secret automatically (recovered from a running container's env via
@@ -424,13 +424,13 @@ semiont stop
 ### Login and upload
 
 `semiont login --email <address>` authenticates against a running stack's
-backend and stores the session token — never the password, which is read
+gateway and stores the session token — never the password, which is read
 from stdin only (prompted echo-off on a terminal; `echo "$PW" | semiont
 login …` for scripts) — per stack in the launcher state home, mode 0600.
 `semiont yield --upload <file>` then registers files as KB resources.
 Files must live under the KB root (storage URIs are repo-relative; the
 content belongs in the repo) — and commit the `.semiont/events/` files an
-upload creates: they ARE the documents. Both verbs speak to the backend
+upload creates: they ARE the documents. Both verbs speak to the gateway
 through `packages/sdk-go`, the Go client generated from the same OpenAPI
 authority as the TypeScript SDK's types.
 Both take `--repo <owner/name>` to target a codespace stack through its
@@ -473,7 +473,7 @@ a lie.
 here). They are one keystroke apart and mean opposite things, so they refuse
 each other with a message that says so.
 
-Every emit now reports how many subscribers the backend's target subject had
+Every emit now reports how many subscribers the gateway's target subject had
 **at dispatch**, and the verbs say so plainly:
 
 ```
@@ -485,7 +485,7 @@ Every emit now reports how many subscribers the backend's target subject had
 That number is deliberately not called delivery: a subscriber is a connection,
 not a pair of eyes, and these channels have no reply. But zero subscribers is a
 fact worth saying out loud — `/bus/subscribe` enforces no channel allowlist and
-the backend publishes unconditionally, so before this an emit into an empty
+the gateway publishes unconditionally, so before this an emit into an empty
 room returned a clean ✓.
 
 `beckon` exits 0 into an empty room — a beckon is genuinely fire-and-forget,
@@ -583,7 +583,7 @@ including users, which the event log does **not** record — survive `stop`
 and restart. A `meta.json` stamp records which image wrote each store; a
 start whose config names a *different* database image over existing data
 refuses with a fix-it line rather than risk it (Postgres data is never
-auto-deleted). The backend applies its schema with `prisma migrate deploy`,
+auto-deleted). The gateway applies its schema with `prisma migrate deploy`,
 which only applies not-yet-applied migrations — a populated database
 no-ops on restart.
 

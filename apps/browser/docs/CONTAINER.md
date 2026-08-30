@@ -30,14 +30,14 @@ docker run -d \
 
 Open <http://localhost:3000> and add your knowledge base (protocol, host,
 port, then sign in) from the app's connection panel. The container itself
-takes no backend configuration — see [Configuration](#configuration).
+takes no gateway configuration — see [Configuration](#configuration).
 
 ## Configuration
 
 ### Architecture: The Browser Connects, Not the Container
 
 The Browser image is a static file server (`server.js`) for the prebuilt
-Vite SPA. It has no backend URL — at build time or at runtime — and it never
+Vite SPA. It has no gateway URL — at build time or at runtime — and it never
 proxies API traffic.
 
 Knowledge-base connections are made **in the running app, by the user**:
@@ -53,8 +53,8 @@ Knowledge-base connections are made **in the running app, by the user**:
    automatically before they expire.
 
 Multiple knowledge bases can be configured side by side, and connections
-persist across page reloads. The backend allows cross-origin requests from
-any origin, so the only network requirement is that each KB backend is
+persist across page reloads. The gateway allows cross-origin requests from
+any origin, so the only network requirement is that each KB gateway is
 reachable **from the user's browser** — reachability from the Browser
 container is irrelevant. No reverse proxy or path-based routing layer is
 needed.
@@ -67,7 +67,7 @@ The image consumes exactly one runtime variable:
 
 There are no `SEMIONT_*` runtime variables: the JS bundle is prebuilt when
 the `@semiont/browser` npm package is published, and the static server does
-no templating. Backend locations are chosen by users in the app, not by
+no templating. Gateway locations are chosen by users in the app, not by
 container configuration.
 
 ## Deployment Scenarios
@@ -81,23 +81,23 @@ services:
     ports:
       - "3000:3000"
 
-  backend:
+  gateway:
     image: ghcr.io/the-ai-alliance/semiont-gateway:0.5.12
     ports:
       - "4000:4000"   # must be reachable from the user's browser
-    # ... backend config (see the backend image docs)
+    # ... gateway config (see the gateway image docs)
 ```
 
 The two containers never talk to each other, so no proxy sits between them
 and no `depends_on` is needed. The user's browser loads the SPA from
 `http://localhost:3000` and connects to the knowledge base by adding
 `http` / `localhost` / `4000` in the app's connection panel. Publishing the
-backend port to the host is what matters — a browser cannot resolve Compose
-service names like `backend`.
+gateway port to the host is what matters — a browser cannot resolve Compose
+service names like `gateway`.
 
 ### Kubernetes with Ingress Controller
 
-Give the Browser and each knowledge-base backend their own
+Give the Browser and each knowledge-base gateway their own
 browser-reachable origins. No path-based API routing is required:
 
 ```yaml
@@ -127,18 +127,18 @@ spec:
       paths:
       - path: /
         pathType: Prefix
-        backend:
+        gateway:
           service:
             name: semiont-browser-service
             port:
               number: 3000
-  # Each knowledge-base backend gets its own origin
+  # Each knowledge-base gateway gets its own origin
   - host: kb.example.com
     http:
       paths:
       - path: /
         pathType: Prefix
-        backend:
+        gateway:
           service:
             name: semiont-gateway-service
             port:
@@ -146,16 +146,16 @@ spec:
 ```
 
 Users add `https` / `kb.example.com` / `443` in the connection panel; the
-browser then calls the backend origin directly (the backend allows
-cross-origin requests). Serve backends over HTTPS — a browser will refuse to
+browser then calls the gateway origin directly (the gateway allows
+cross-origin requests). Serve gateways over HTTPS — a browser will refuse to
 call an `http://` knowledge base from an `https://` page (mixed content).
 
 ### AWS ECS
 
-Run the Browser and backend as separate services, each with its own
+Run the Browser and gateway as separate services, each with its own
 browser-reachable HTTPS endpoint (for example, hostname-based listener rules
 on an ALB). The Browser task definition needs **no environment variables**
-— there is no backend URL to inject. Users connect to the backend origin
+— there is no gateway URL to inject. Users connect to the gateway origin
 from the app's connection panel, exactly as in the other scenarios.
 
 ## Building Custom Images
@@ -209,7 +209,7 @@ takes no configuration beyond `PORT`:
 ```bash
 docker run -d -p 3000:3000 ghcr.io/the-ai-alliance/semiont-browser:latest
 
-# Backend secrets (GOOGLE_CLIENT_SECRET, JWT signing key, etc.) stay in the backend container
+# Gateway secrets (GOOGLE_CLIENT_SECRET, JWT signing key, etc.) stay in the gateway container
 ```
 
 Users' knowledge-base tokens exist only in their own browsers' `localStorage`
@@ -217,7 +217,7 @@ Users' knowledge-base tokens exist only in their own browsers' `localStorage`
 
 ### Secret Rotation
 
-The Browser contains no secrets. All sensitive credentials (OAuth client secrets, JWT signing keys) live in the backend container. Rotate them there.
+The Browser contains no secrets. All sensitive credentials (OAuth client secrets, JWT signing keys) live in the gateway container. Rotate them there.
 
 ## Troubleshooting
 
@@ -225,14 +225,14 @@ The Browser contains no secrets. All sensitive credentials (OAuth client secrets
 
 **Problem**: Adding a KB in the connection panel fails with a network error.
 
-**Cause**: The KB backend must be reachable from the **user's browser**, not
+**Cause**: The KB gateway must be reachable from the **user's browser**, not
 from the Browser container.
 
 **Solutions**:
-1. Verify the backend is running and exposed on a browser-reachable address.
+1. Verify the gateway is running and exposed on a browser-reachable address.
 2. Docker Compose: connect to `localhost:4000` (the host-published port).
-   Compose service names like `backend` do not resolve in a browser.
-3. Kubernetes/cloud: give the backend its own browser-reachable origin
+   Compose service names like `gateway` do not resolve in a browser.
+3. Kubernetes/cloud: give the gateway its own browser-reachable origin
    (Ingress host or load-balancer endpoint), and connect to that.
 
 ### Requests blocked as "mixed content"
@@ -240,15 +240,15 @@ from the Browser container.
 **Problem**: The Browser is served over `https://`, but the knowledge base
 was added with the `http` protocol — the browser silently blocks the calls.
 
-**Solution**: Serve knowledge-base backends over HTTPS in production and
+**Solution**: Serve knowledge-base gateways over HTTPS in production and
 select `https` when adding the KB.
 
 ### Signed out of a knowledge base unexpectedly
 
 **Problem**: A previously connected KB drops to signed-out.
 
-**Cause**: The refresh token expired, or the backend's JWT signing secret
-changed (for example, a backend restart that regenerated `JWT_SECRET`),
+**Cause**: The refresh token expired, or the gateway's JWT signing secret
+changed (for example, a gateway restart that regenerated `JWT_SECRET`),
 which invalidates every issued token.
 
 **Solution**: Sign in to that KB again from the connection panel.
@@ -296,8 +296,8 @@ Published images follow this tagging strategy:
 
 ```
 Browser ── GET https://app.example.com/ ─────────────▶ Browser container (static SPA)
-Browser ── POST https://kb.example.com/api/tokens/… ─▶ KB backend (sign-in, token refresh)
-Browser ── POST /bus/emit, GET /bus/subscribe (SSE) ─▶ KB backend (domain traffic)
+Browser ── POST https://kb.example.com/api/tokens/… ─▶ KB gateway (sign-in, token refresh)
+Browser ── POST /bus/emit, GET /bus/subscribe (SSE) ─▶ KB gateway (domain traffic)
 ```
 
 The Browser container serves static assets and is otherwise out of the data
@@ -310,7 +310,7 @@ knowledge bases as the user has added.
 - [Deployment Guide](./DEPLOYMENT.md) - Deployment workflows and strategies
 - [Development Guide](./DEVELOPMENT.md) - Local development setup
 - [Container Topology](../../../docs/system/CONTAINER-TOPOLOGY.md) - Multi-container deployment architecture
-- [Container Images](../../../docs/system/administration/IMAGES.md) - All published images and the backend npm-distribution model
+- [Container Images](../../../docs/system/administration/IMAGES.md) - All published images and the gateway npm-distribution model
 
 ## Support
 

@@ -109,7 +109,7 @@ export function validateRegistry(reg) {
   // ── bridgedBroadcasts holds only channels no operation owns ─────────────
   // This is the rule the BRIDGED_BROADCASTS doc comment states in prose: a
   // reply channel belongs in operations, where the bridged set DERIVES it.
-  // Listing one here duplicates it in BRIDGED_CHANNELS, and the backend SSE
+  // Listing one here duplicates it in BRIDGED_CHANNELS, and the gateway SSE
   // forwarder maps `?channel=` entries 1:1 with no dedup — so every event on
   // it is delivered twice (.plans/bugs/BRIDGE-GAPS.md).
   const seenBroadcast = new Set();

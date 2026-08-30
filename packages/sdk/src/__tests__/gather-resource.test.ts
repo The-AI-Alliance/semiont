@@ -3,7 +3,7 @@
  * over `gather:resource-requested` → `gather:resource-complete`/`-failed`
  * (no progress events, so a Promise via busRequest, not a StreamObservable).
  *
- * The backend route (`gatherer.ts` handleResourceGather) and the wire contract
+ * The gateway route (`gatherer.ts` handleResourceGather) and the wire contract
  * (GatherResourceRequest/Complete, carrying a unified GatheredContext) already exist;
  * this exercises the SDK method that was previously a throwing stub. See the
  * my-chat SDK-FRICTION-LOG B1.

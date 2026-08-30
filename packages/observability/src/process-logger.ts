@@ -1,7 +1,7 @@
 /**
  * Process-level structured logger for Node entry points.
  *
- * Used by long-lived Node processes (backend, workers, smelter) that
+ * Used by long-lived Node processes (gateway, workers, smelter) that
  * want JSON-structured stdout with active-span trace correlation. The
  * `trace_id` / `span_id` fields are populated from the current OTel
  * span context via `getLogTraceContext` — this is the same Tier 3

@@ -4,7 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
  * Read required env vars early and fail fast with a clear message.
  * Tests don't run without these — automating test-user creation is a
  * separate plan; for now the test runner expects the user to bring up
- * a backend with a known user.
+ * a gateway with a known user.
  */
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -24,9 +24,9 @@ function requireEnv(name: string): string {
 // The Browser the tests drive. Default matches the local container exposure.
 export const BROWSER_URL = process.env.E2E_BROWSER_URL ?? 'http://localhost:3000';
 
-// Backend the Browser points at. Separate from BROWSER_URL because the
+// Gateway the Browser points at. Separate from BROWSER_URL because the
 // sign-in form asks for host/port/protocol explicitly.
-export const BACKEND_URL = process.env.E2E_BACKEND_URL ?? 'http://localhost:4000';
+export const GATEWAY_URL = process.env.E2E_GATEWAY_URL ?? 'http://localhost:4000';
 
 // Credentials for the sign-in flow. Required — no defaults so tests can't
 // accidentally hit a shared account.

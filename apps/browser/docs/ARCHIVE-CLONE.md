@@ -67,7 +67,7 @@ Located in the "Manage" section below the Archive button:
 ### Workflow
 
 1. **Initiate Clone**: User clicks "Clone" button
-2. **Token Generation**: Backend creates a short-lived token
+2. **Token Generation**: Gateway creates a short-lived token
 3. **Redirect**: User redirected to `/know/create?mode=clone&token=xxx`
 4. **Edit Copy**: Create page loads source document for editing
 5. **Save**: Creates new document with provenance link

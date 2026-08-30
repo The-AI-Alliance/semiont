@@ -11,7 +11,7 @@ import type { SemiontSession } from '@semiont/sdk';
 import { renderAgentLabel } from './agent-label';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 
-// Extended annotation type with runtime properties added by backend enrichment
+// Extended annotation type with runtime properties added by gateway enrichment
 interface EnrichedAnnotation extends Annotation {
   _resolvedDocumentName?: string;
   _resolvedDocumentMediaType?: string;
@@ -58,7 +58,7 @@ export function ReferenceEntry({
   const hasSvgSelector = getSvgSelector(selector);
   const annotationType = hasFragmentSelector ? 'Fragment annotation' : hasSvgSelector ? 'Image annotation' : 'Annotation';
 
-  // Extract resolved document name and media type if enriched by backend
+  // Extract resolved document name and media type if enriched by gateway
   const enrichedReference = reference as EnrichedAnnotation;
   const resolvedDocumentName = enrichedReference._resolvedDocumentName;
   const resolvedDocumentMediaType = enrichedReference._resolvedDocumentMediaType;

@@ -121,7 +121,7 @@ Before this fixture, a class of Browser bugs was invisible to e2e:
 
 The bus capture surfaces wire-level failures; jaeger surfaces
 cross-process span errors; the container log slicer surfaces
-backend-side errors. None of them caught what was visible in the
+gateway-side errors. None of them caught what was visible in the
 DevTools console as a red error message. `pageErrors` does.
 
 ## Limitations

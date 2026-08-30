@@ -1,5 +1,5 @@
 import { test as base, expect, type Page } from '@playwright/test';
-import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { attachBusLog, type BusLogCapture } from './bus-log';
 import { JaegerCapture, attachJaegerEvidence } from './jaeger';
 import { attachPageErrors, attachPageErrorsArtifact, type PageErrorsCapture } from './page-errors';
@@ -19,10 +19,10 @@ export async function signIn(page: Page): Promise<void> {
   // is already on a know/* route. Detect that and bail.
   if (await isAlreadySignedIn(page)) return;
 
-  const backend = new URL(BACKEND_URL);
-  const host = backend.hostname;
-  const port = backend.port || (backend.protocol === 'https:' ? '443' : '80');
-  const protocol = backend.protocol === 'https:' ? 'https' : 'http';
+  const gateway = new URL(GATEWAY_URL);
+  const host = gateway.hostname;
+  const port = gateway.port || (gateway.protocol === 'https:' ? '443' : '80');
+  const protocol = gateway.protocol === 'https:' ? 'https' : 'http';
 
   // KnowledgeBasePanel auto-opens the Connect form when there are zero
   // registered KBs. When at least one KB is registered, the form is

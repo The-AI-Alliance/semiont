@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/auth';
-import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { SemiontClient, resourceId as ridBrand, type TagSchema } from '@semiont/sdk';
 
 /**
@@ -13,7 +13,7 @@ import { SemiontClient, resourceId as ridBrand, type TagSchema } from '@semiont/
  * Four things are exercised end-to-end:
  *
  * 1. **Registration round-trip.** `client.frame.addTagSchema(SCHEMA)`
- *    emits `frame:add-tag-schema`; the backend's Stower persists a
+ *    emits `frame:add-tag-schema`; the gateway's Stower persists a
  *    `frame:tag-schema-added` domain event on the `__system__` stream
  *    and broadcasts it (a bridged channel — see
  *    `packages/core/src/bridged-channels.ts`). The signed-in test
@@ -46,7 +46,7 @@ import { SemiontClient, resourceId as ridBrand, type TagSchema } from '@semiont/
  * - **Bridge regression** — the test page never receives
  *   `frame:tag-schema-added` even though `frame.addTagSchema` succeeded
  *   on the SDK side. Means `'frame:tag-schema-added'` was dropped from
- *   `BRIDGED_CHANNELS` or the backend isn't fanning the system event
+ *   `BRIDGED_CHANNELS` or the gateway isn't fanning the system event
  *   to SSE subscribers.
  * - **Materialization regression** — the projection file isn't being
  *   written, so `browse.tagSchemas()` doesn't surface the registration.
@@ -107,9 +107,9 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
   }) => {
     test.setTimeout(120_000);
 
-    // The page is signed in and connected to the backend's SSE feed.
+    // The page is signed in and connected to the gateway's SSE feed.
     // Operations on a parallel SDK client below generate events on the
-    // backend; bridged events fan out to the page's bus.
+    // gateway; bridged events fan out to the page's bus.
     await page.goto('/en/know/discover');
     // Wait for at least one resource card to render — proves the page's
     // session is fully connected before we start poking via the SDK.
@@ -117,12 +117,12 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       page.getByRole('button', { name: /^open resource:/i }).first(),
     ).toBeVisible({ timeout: 15_000 });
 
-    // Build a parallel SDK client. Same backend, same user. This is the
+    // Build a parallel SDK client. Same gateway, same user. This is the
     // shape every production caller takes (see seed.ts and the demo-KB
     // skills); the test exercises the SDK end-to-end rather than poking
     // bus channels directly.
     const client = await SemiontClient.signInHttp({
-      baseUrl: BACKEND_URL,
+      baseUrl: GATEWAY_URL,
       email: E2E_EMAIL,
       password: E2E_PASSWORD,
     });

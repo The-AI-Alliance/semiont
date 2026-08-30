@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-// A healthy backend answers, and the parsed body comes back.
-func TestHealthCheckReportsAServingBackend(t *testing.T) {
+// A healthy gateway answers, and the parsed body comes back.
+func TestHealthCheckReportsAServingGateway(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/health" {
 			t.Errorf("asked for %q, want /api/health — the route is the generated client's to know", r.URL.Path)
@@ -32,7 +32,7 @@ func TestHealthCheckReportsAServingBackend(t *testing.T) {
 	}
 }
 
-// A backend that answers with a failure status is DOWN, and says which status
+// A gateway that answers with a failure status is DOWN, and says which status
 // — a caller that only wanted liveness compares against nil, but one deciding
 // whether to wait or abort needs the reason.
 func TestHealthCheckFailsOnANonSuccessStatus(t *testing.T) {

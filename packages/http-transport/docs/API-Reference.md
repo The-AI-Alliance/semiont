@@ -18,7 +18,7 @@ Implements `ITransport` from `@semiont/core`. Owns the SSE bus connection, HTTP 
 
 | Option | Type | Required | Description |
 |---|---|---|---|
-| `baseUrl` | `BaseUrl` | yes | Backend API URL (cast via `baseUrl(...)` from `@semiont/core`). |
+| `baseUrl` | `BaseUrl` | yes | Gateway API URL (cast via `baseUrl(...)` from `@semiont/core`). |
 | `token$` | `BehaviorSubject<AccessToken \| null>` | no | Observable access-token source. Headers read the current value; updates via `.next(newToken)` are observed for the next request. Omit for unauthenticated usage. |
 | `timeout` | `number` | no | Request timeout in ms (default: 30000). |
 | `retry` | `number` | no | Retry attempts on transient failure (default: 2). |
@@ -69,7 +69,7 @@ import { BehaviorSubject } from 'rxjs';
 
 const token$ = new BehaviorSubject<AccessToken | null>(accessToken('...'));
 const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example.com'), token$ });
-// HttpTransport implements both ITransport and IBackendOperations; passing it
+// HttpTransport implements both ITransport and IGatewayOperations; passing it
 // third enables the `auth` / `admin` namespaces. Omit the third argument and
 // `client.auth` / `client.admin` are `undefined`.
 const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);

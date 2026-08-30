@@ -16,7 +16,7 @@ describe('Annotation Positioning - Real World Case', () => {
 Action by plaintiff Engineering Associates of New England, Inc., a New Hampshire corporation with a principal place of business in Manchester, against W. & L. E. Gurley, a New York corporation with a principal place of business in Troy, New York, later known as B & L Liquidating Corporation, to recover commissions allegedly earned under a sales representative agreement with Gurley. Service of plaintiff's writ, dated January 18, 1969, was made on the secretary of state pursuant to RSA 300:14 (1966), which was then in effect, and notice sent to Gurley at its office in Troy.
 B & L Liquidating appeared specially and moved to dismiss plaintiff's action on the following grounds: (1) Defendant did not enter into a contract which was to be performed in whole or in part in New Hampshire; (2) defendant was not registered to do business and was not doing business in New Hampshire; and (3) Plaintiff's claim should have been brought in the New York court which was supervising the liquidation of B & L Liquidating, formerly W. & L. E. Gurley. Hearing before King, J., who reserved and transferred without ruling, on an agreed statement of facts, the question "whether the plaintiff has jurisdiction over and can sue B 8c L Liquidating Corporation, which was dissolved on January 21,1969."`;
 
-  // The annotation from the backend
+  // The annotation from the gateway
   const annotation = {
     "@context": "http://www.w3.org/ns/anno.jsonld",
     "type": "Annotation",

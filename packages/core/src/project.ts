@@ -26,11 +26,11 @@ import { execFileSync } from 'child_process';
  *   projectionsDir  — stateDir/projections/
  *   jobsDir         — stateDir/jobs/
  *   anchoredTextDir — supplied by the caller; required, no default
- *   backendLogsDir      — stateDir/backend/
- *   backendAppLogFile   — backendLogsDir/app.log
- *   backendErrorLogFile — backendLogsDir/error.log
+ *   gatewayLogsDir      — stateDir/gateway/
+ *   gatewayAppLogFile   — gatewayLogsDir/app.log
+ *   gatewayErrorLogFile — gatewayLogsDir/error.log
  *   runtimeDir      — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
- *   backendPidFile  — runtimeDir/backend.pid
+ *   gatewayPidFile  — runtimeDir/gateway.pid
  *
  * Everything ephemeral that is DERIVED sits under stateDir together —
  * projections (from the event log) and jobs. The anchored-text store is
@@ -43,7 +43,7 @@ import { execFileSync } from 'child_process';
  *
  * There is no $XDG_DATA_HOME path here, deliberately. Semiont's own system of
  * record is the committed event log above; the databases live under the
- * launcher's per-root state, not the backend's. A `dataHome` field existed and
+ * launcher's per-root state, not the gateway's. A `dataHome` field existed and
  * had exactly one consumer — the anchored-text store, which belonged in state
  * all along — so it went with the move rather than being left for a
  * hypothetical future user of the DATA tier.
@@ -68,7 +68,7 @@ export function stateDirFor(name: string): string {
  *
  * This exists because a consumer appeared that genuinely needs half of
  * `SemiontProject` and cannot supply the other half: the gateway reads
- * `projectionsDir`, `jobsDir` and the backend log paths, all of which live on
+ * `projectionsDir`, `jobsDir` and the gateway log paths, all of which live on
  * the shared state mount, while having no readable KB root at all
  * (SINGLE-KB-MOUNT P5).
  *
@@ -96,13 +96,13 @@ export class SemiontState {
   readonly stateDir: string;
   readonly projectionsDir: string;
   readonly jobsDir: string;
-  readonly backendLogsDir: string;
-  readonly backendAppLogFile: string;
-  readonly backendErrorLogFile: string;
+  readonly gatewayLogsDir: string;
+  readonly gatewayAppLogFile: string;
+  readonly gatewayErrorLogFile: string;
 
   // Ephemeral — runtime
   readonly runtimeDir: string;
-  readonly backendPidFile: string;
+  readonly gatewayPidFile: string;
 
   constructor(opts: { name: string }) {
     this.name = opts.name;
@@ -113,14 +113,14 @@ export class SemiontState {
     this.stateDir = stateDirFor(this.name);
     this.projectionsDir = path.join(this.stateDir, 'projections');
     this.jobsDir = path.join(this.stateDir, 'jobs');
-    this.backendLogsDir = path.join(this.stateDir, 'backend');
-    this.backendAppLogFile = path.join(this.backendLogsDir, 'app.log');
-    this.backendErrorLogFile = path.join(this.backendLogsDir, 'error.log');
+    this.gatewayLogsDir = path.join(this.stateDir, 'gateway');
+    this.gatewayAppLogFile = path.join(this.gatewayLogsDir, 'app.log');
+    this.gatewayErrorLogFile = path.join(this.gatewayLogsDir, 'error.log');
 
     const xdgRuntime = process.env.XDG_RUNTIME_DIR;
     const runtimeBase = xdgRuntime ?? process.env.TMPDIR ?? '/tmp';
     this.runtimeDir = path.join(runtimeBase, 'semiont', this.name);
-    this.backendPidFile = path.join(this.runtimeDir, 'backend.pid');
+    this.gatewayPidFile = path.join(this.runtimeDir, 'gateway.pid');
   }
 }
 

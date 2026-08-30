@@ -16,7 +16,7 @@ npm install @semiont/content
 
 ## Architecture Context
 
-**Infrastructure Ownership**: In production applications, the working tree store is **created and managed by [@semiont/make-meaning](../make-meaning/)'s `startMakeMeaning()` function**, which serves as the single orchestration point for all infrastructure components. Backend code accesses it as `knowledgeBase.content`.
+**Infrastructure Ownership**: In production applications, the working tree store is **created and managed by [@semiont/make-meaning](../make-meaning/)'s `startMakeMeaning()` function**, which serves as the single orchestration point for all infrastructure components. Gateway code accesses it as `knowledgeBase.content`.
 
 The quick start example below shows direct instantiation for **testing, CLI tools, or content management scripts**.
 

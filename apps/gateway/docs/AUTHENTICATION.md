@@ -1,14 +1,14 @@
-# Backend Authentication Guide
+# Gateway Authentication Guide
 
-Backend developer's guide to implementing and debugging authentication in the Semiont backend.
+Gateway developer's guide to implementing and debugging authentication in the Semiont gateway.
 
 **Related Documentation:**
 - **[System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md)** - **Read this first!** The complete bearer-only authentication model, flows, and diagrams
-- [Main README](../README.md) - Backend overview
+- [Main README](../README.md) - Gateway overview
 - [Semiont Protocol](../../../docs/protocol/README.md) - The eight verbs and the bus
 - [Development Guide](./DEVELOPMENT.md) - Local setup
 
-**Scope**: This document is a practical guide for backend developers. For the complete authentication architecture and flow diagrams, see the [System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md).
+**Scope**: This document is a practical guide for gateway developers. For the complete authentication architecture and flow diagrams, see the [System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md).
 
 ## Quick Reference
 
@@ -156,7 +156,7 @@ const moderatorMiddleware = async (c: any, next: any) => {
 moderateRouter.use('/api/moderate/*', authMiddleware, moderatorMiddleware);
 ```
 
-## Backend Authentication Flow
+## Gateway Authentication Flow
 
 ### 1. Token Reception
 
@@ -190,7 +190,7 @@ app.get('/api/documents', async (c) => {
 
 ## Token & Session Endpoints
 
-Backend-specific endpoints beyond the public login routes (`/api/tokens/password`,
+Gateway-specific endpoints beyond the public login routes (`/api/tokens/password`,
 `/api/tokens/google`). Align behavior to the canonical
 [System Authentication](../../../docs/system/administration/AUTHENTICATION.md).
 
@@ -239,7 +239,7 @@ request — server-side, all devices.
 - **Returns**: `204 No Content`
 
 > **MCP clients.** The previous browser-mediated MCP token-provisioning flow has been
-> **removed**. Today `packages/mcp-server` runs single-backend with a **static**
+> **removed**. Today `packages/mcp-server` runs single-gateway with a **static**
 > `SEMIONT_ACCESS_TOKEN` (from env) that does **not** refresh — so it stops working when
 > the access token expires, or when a logout bumps `tokenVersion`. A refreshing
 > provisioning flow is being rebuilt; this guide will document it once it lands.
@@ -277,7 +277,7 @@ Held by the SDK `Session`, which exchanges it for fresh access tokens via
 
 ### JWT Validation Layers
 
-The backend validates tokens through multiple layers:
+The gateway validates tokens through multiple layers:
 
 1. **Signature verification** - HMAC SHA256
 2. **Payload structure** - Zod schema validation
@@ -297,7 +297,7 @@ The backend validates tokens through multiple layers:
 
 ### Security Test Coverage
 
-The backend includes comprehensive route-level authentication test coverage:
+The gateway includes comprehensive route-level authentication test coverage:
 
 - **Dynamic route testing** - Tests ALL registered Hono routes automatically
 - **OpenAPI spec validation** - Uses OpenAPI as single source of truth for public routes
@@ -311,7 +311,7 @@ This test ensures no authentication regressions occur when adding or modifying r
 
 ## Debugging Authentication Issues
 
-### Common Backend Issues
+### Common Gateway Issues
 
 **"Unauthorized" Error (401)**:
 
@@ -363,7 +363,7 @@ LOG_LEVEL=debug
 - Verify the `POST /api/tokens/refresh` endpoint is accessible
 - Ensure the refresh token is sent as `{ "refreshToken": "…" }` in the body
 
-### Backend Debugging Tools
+### Gateway Debugging Tools
 
 **1. Log Authentication Attempts**:
 
@@ -432,4 +432,4 @@ See [System Authentication Architecture](../../../docs/system/administration/AUT
 ---
 
 **Last Updated**: 2026-06-20
-**Scope**: Backend authentication implementation and debugging
+**Scope**: Gateway authentication implementation and debugging

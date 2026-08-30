@@ -17,7 +17,7 @@ Usage::
 
 Dumps:
 
-- Backend / worker / smelter log lines whose ``timestamp`` is in the
+- Gateway / worker / smelter log lines whose ``timestamp`` is in the
   window (full lines, not just errors, unless ``--errors-only``).
 - Jaeger trace counts per service + the first 20 trace deeplinks.
 

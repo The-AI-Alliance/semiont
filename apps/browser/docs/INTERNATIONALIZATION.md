@@ -39,7 +39,7 @@ i18n
     ns: ['translation'],
     defaultNS: 'translation',
     fallbackLng: 'en',
-    backend: {
+    gateway: {
       loadPath: '/messages/{{lng}}.json',
     },
     interpolation: { escapeValue: false },

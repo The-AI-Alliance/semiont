@@ -67,7 +67,7 @@ language SDK        @semiont/sdk (TypeScript) · sdk-go · more planned
    │
 the contract        bus protocol, annotation model, job lifecycle
    │
-Semiont backend
+Semiont gateway
 ```
 
 Three claims about this picture, in decreasing order of how often people
@@ -91,7 +91,7 @@ believe them at first:
    no React anywhere — so a Vue or Svelte binding is a seam awaiting an author,
    not a rearchitecture.
 
-One house rule follows from the picture: **your app never calls the backend's
+One house rule follows from the picture: **your app never calls the gateway's
 HTTP API directly.** The SDK is the boundary. If the SDK doesn't expose
 something you need, that's an SDK gap to raise, not a reason to reach around
 it.
@@ -113,7 +113,7 @@ throughout [`docs/protocol/flows/`](../../../docs/protocol/flows/):
 | `beckon` | coordinate attention across participants |
 
 Plus `job` for tracking long-running work, and `auth` / `admin` when the client
-is built against an HTTP backend. Learn all eight once and the surface stays
+is built against an HTTP gateway. Learn all eight once and the surface stays
 small — but you only need three in your first hour: `yield` to put a document
 in, `gather` to collect what's related, `browse` to read it all back.
 
@@ -147,7 +147,7 @@ in an effect, so the first render happens before the query's synchronous
 
 The one escape hatch is `.fresh()`: an explicit one-shot fetch for "I want the
 latest, right now." The division of labor is deliberate — a cache read and a
-backend request are different types, so "which one am I doing?" is impossible
+gateway request are different types, so "which one am I doing?" is impossible
 to get wrong. The full behavioral contract, numbered and test-cited, is
 [CACHE-SEMANTICS](./CACHE-SEMANTICS.md); the design rationale is
 [REACTIVE-MODEL](./REACTIVE-MODEL.md).
@@ -295,7 +295,7 @@ vibe-code your app on Semiont; don't vibe-code your own Semiont.
 
 ## What you need, and where to go next
 
-You need Node and a running Semiont backend to point at.
+You need Node and a running Semiont gateway to point at.
 
 Where to go by goal:
 

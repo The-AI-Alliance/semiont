@@ -258,7 +258,7 @@ describe('POST /api/tokens/agent', () => {
       expect(response.status).toBe(400);
     });
 
-    it('returns 503 when SEMIONT_WORKER_SECRET is not configured on the backend', async () => {
+    it('returns 503 when SEMIONT_WORKER_SECRET is not configured on the gateway', async () => {
       delete process.env.SEMIONT_WORKER_SECRET;
 
       const response = await app.request('/api/tokens/agent', {

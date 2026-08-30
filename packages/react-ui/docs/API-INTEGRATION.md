@@ -233,7 +233,7 @@ For lower-level access you can reach the buses directly:
 `semiont.emit/on/stream` on the browser, and `session.client.emit/on/stream`
 on the client. Most components should prefer the hooks.
 
-Note: with this model you do **not** wire backend events to manual cache
+Note: with this model you do **not** wire gateway events to manual cache
 invalidation. The SDK's read-through cache already invalidates on the relevant
 bus events; `useEventSubscription` is for UI reactions (animations, focus,
 navigation), not for keeping `browse.*` reads fresh.

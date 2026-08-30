@@ -90,7 +90,7 @@ type envConfig struct {
 	Workers    map[string]bindingCfg  `toml:"workers"`
 	// Site is read ONLY to detect that it exists (KB-IDENTITY-VS-ADDRESS P4).
 	// The launcher never writes one — confgen.go emits no [site] section — so
-	// its presence means a human added it, and the backend's TOML loader then
+	// its presence means a human added it, and the gateway's TOML loader then
 	// resolves the AGENTS' domain from it instead of the KB's committed
 	// .semiont/config. The launcher does not act on the value; it reports the
 	// divergence and lets the operator judge.

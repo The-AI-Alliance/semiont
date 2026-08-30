@@ -1,7 +1,7 @@
 /**
  * Text encoding utilities for consistent charset handling
  *
- * Ensures frontend decoding matches backend decoding by respecting
+ * Ensures frontend decoding matches gateway decoding by respecting
  * charset parameters in mediaType (e.g., "text/plain; charset=iso-8859-1")
  */
 
@@ -25,7 +25,7 @@ export function extractCharset(mediaType: string): string {
  *
  * Uses TextDecoder with the charset extracted from mediaType parameter.
  * This ensures the same character space is used for both annotation creation
- * (backend) and rendering (frontend).
+ * (gateway) and rendering (frontend).
  *
  * @param buffer - Binary data to decode
  * @param mediaType - Media type with optional charset parameter

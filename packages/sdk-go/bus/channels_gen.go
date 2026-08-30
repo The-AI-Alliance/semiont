@@ -6,7 +6,7 @@
 
 package bus
 
-// Channel is a bus channel name. Only channels the backend will accept on
+// Channel is a bus channel name. Only channels the gateway will accept on
 // /bus/emit have an entry in ChannelSchemas; emitting anything else is a
 // client bug the server rejects.
 type Channel string
@@ -554,7 +554,7 @@ const (
 )
 
 // ChannelSchemas maps an emittable channel to the OpenAPI schema name its
-// payload must satisfy — the same mapping the backend validates against.
+// payload must satisfy — the same mapping the gateway validates against.
 // A channel absent from this map is not emittable.
 var ChannelSchemas = map[Channel]string{
 	YieldCreate:                           "YieldCreateCommand",
@@ -666,7 +666,7 @@ var ChannelSchemas = map[Channel]string{
 	SessionLeft:                           "SessionLeftEvent",
 }
 
-// Emittable reports whether the backend accepts this channel on /bus/emit.
+// Emittable reports whether the gateway accepts this channel on /bus/emit.
 func (c Channel) Emittable() bool {
 	_, ok := ChannelSchemas[c]
 	return ok

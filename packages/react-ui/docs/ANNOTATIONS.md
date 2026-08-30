@@ -572,7 +572,7 @@ See test files for comprehensive examples:
 
 Annotation data flows through the SDK's read-through cache, so there are **no
 manual refetch or invalidation calls** in component code. Subscribing to a
-resource's `browse.*` live queries acquires its SSE scope; backend events on the
+resource's `browse.*` live queries acquires its SSE scope; gateway events on the
 session bus then drive the cache to refresh automatically. Components that just
 need the data read it via `useObservable`:
 
@@ -597,7 +597,7 @@ function AnnotationsList({ rId }: { rId: ResourceId }) {
 **Benefits:**
 
 - ✅ Zero manual `refetch()` calls
-- ✅ Automatic cache updates from backend changes
+- ✅ Automatic cache updates from gateway changes
 - ✅ Real-time collaboration support
 - ✅ Consistent cache state across components
 

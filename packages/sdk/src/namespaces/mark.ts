@@ -41,7 +41,7 @@ export class MarkNamespace implements IMarkNamespace {
   }
 
   async delete(resourceId: ResourceId, annotationId: AnnotationId): Promise<void> {
-    // Confirmed write (matches `annotation()` above): await the backend's
+    // Confirmed write (matches `annotation()` above): await the gateway's
     // correlation-keyed reply and REJECT on failure, rather than fire-and-forget
     // an emit whose mark:delete-failed nobody awaited (.plans/bugs/BRIDGE-GAPS.md).
     await busRequest(
@@ -52,7 +52,7 @@ export class MarkNamespace implements IMarkNamespace {
   }
 
   async archive(resourceId: ResourceId): Promise<void> {
-    // Confirmed write: await the backend's correlation-keyed reply and REJECT on
+    // Confirmed write: await the gateway's correlation-keyed reply and REJECT on
     // failure, rather than fire-and-forget an emit whose failure had nowhere to go
     // (.plans/bugs/BRIDGE-GAPS.md).
     await busRequest(
@@ -71,14 +71,14 @@ export class MarkNamespace implements IMarkNamespace {
   }
 
   /**
-   * Replace a resource's own entity-type classification. The backend diffs
+   * Replace a resource's own entity-type classification. The gateway diffs
    * `current` vs `updated` and folds the changes into `resource.entityTypes`
    * (mark:entity-tag-added/-removed → Weaver), so the change surfaces in
    * `browse.resources({ entityType })` and `getResourceEntityTypes`. A
    * **replace/diff** operation: pass the resource's current types as `current`,
    * the desired full set as `updated`.
    *
-   * Confirmed write (like `delete`/`archive`): awaits the backend's
+   * Confirmed write (like `delete`/`archive`): awaits the gateway's
    * correlation-keyed reply and REJECTS on failure rather than fire-and-forget an
    * emit whose failure had nowhere to go (.plans/bugs/BRIDGE-GAPS.md).
    */

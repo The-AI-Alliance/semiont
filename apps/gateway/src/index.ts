@@ -85,7 +85,7 @@ requireJwtSecret();
   const committedDomain = config.kb?.domain;
 
   // Decision 8 — a knowledge base declares its identity or does not run.
-  // `semiont start` already refuses this; a backend launched another way
+  // `semiont start` already refuses this; a gateway launched another way
   // (docker, npm, a script) must refuse too, or /api/status would owe a
   // required `did` it cannot produce. Refusing is what makes that field
   // satisfiable by construction rather than conditionally true.
@@ -343,7 +343,7 @@ if (config.env?.NODE_ENV !== 'test') {
     port: port,
     hostname: '0.0.0.0'
   }, async (info) => {
-    logger.info('Semiont Backend ready', {
+    logger.info('Semiont Gateway ready', {
       url: `http://localhost:${info.port}/api`,
       environment: config.env?.NODE_ENV ?? 'development'
     });

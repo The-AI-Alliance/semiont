@@ -1,6 +1,6 @@
 /**
  * Contract tests - verify API matches shared types
- * These tests ensure the backend API contract matches the shared types package
+ * These tests ensure the gateway API contract matches the shared types package
  */
 
 import { describe, it, expect } from 'vitest';

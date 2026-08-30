@@ -1,7 +1,7 @@
 /**
  * The config → connection-string translation.
  *
- * This is the piece the retired CLI owned: `backend-start.ts` built
+ * This is the piece the retired CLI owned: `gateway-start.ts` built
  * `postgresql://user:pass@host:port/name` from the TOML it had already loaded,
  * and passed it to node. Nothing did it after the CLI was deleted, which is why
  * the container could not start at all — `migrate deploy` had no datasource url.

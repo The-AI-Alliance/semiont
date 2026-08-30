@@ -179,7 +179,7 @@ async function authenticate(): Promise<string> {
     isTransientFetchError,
     STARTUP_FETCH_RETRY,
     ({ attempt, attempts, delayMs, error }) => {
-      logger.warn('Backend unreachable, retrying authentication', {
+      logger.warn('Gateway unreachable, retrying authentication', {
         attempt,
         attempts,
         retryInMs: delayMs,

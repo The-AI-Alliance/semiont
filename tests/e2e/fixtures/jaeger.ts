@@ -22,7 +22,7 @@
  *
  * Limitations:
  *   - Browser doesn't currently emit OTel spans by default — the
- *     captured trace prefixes are mostly backend-originated. The
+ *     captured trace prefixes are mostly gateway-originated. The
  *     fixture still queries the browser service in case it's added
  *     later.
  *   - Trace-id prefixes have a small chance of collision (8 hex = 32

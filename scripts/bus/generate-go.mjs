@@ -12,7 +12,7 @@
 //
 // Channels whose payload is TypeScript-only (DOM geometry, callbacks) are
 // EXCLUDED: they never cross the wire, so a Go constant for them would be an
-// invitation to emit something the backend will reject.
+// invitation to emit something the gateway will reject.
 //
 // --check diffs without writing (the CI drift gate).
 
@@ -80,7 +80,7 @@ const schemaRows = alignRows(emittable.map((c) => [`${goName(c.channel)}:`, JSON
 const channelsGo = `${BANNER}
 package bus
 
-// Channel is a bus channel name. Only channels the backend will accept on
+// Channel is a bus channel name. Only channels the gateway will accept on
 // /bus/emit have an entry in ChannelSchemas; emitting anything else is a
 // client bug the server rejects.
 type Channel string
@@ -90,13 +90,13 @@ ${channelLines.join('\n\n')}
 )
 
 // ChannelSchemas maps an emittable channel to the OpenAPI schema name its
-// payload must satisfy — the same mapping the backend validates against.
+// payload must satisfy — the same mapping the gateway validates against.
 // A channel absent from this map is not emittable.
 var ChannelSchemas = map[Channel]string{
 ${schemaRows.join('\n')}
 }
 
-// Emittable reports whether the backend accepts this channel on /bus/emit.
+// Emittable reports whether the gateway accepts this channel on /bus/emit.
 func (c Channel) Emittable() bool {
 \t_, ok := ChannelSchemas[c]
 \treturn ok

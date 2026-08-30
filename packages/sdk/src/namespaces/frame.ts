@@ -25,7 +25,7 @@ import type { FrameNamespace as IFrameNamespace } from './types';
 export class FrameNamespace implements IFrameNamespace {
   constructor(private readonly transport: ITransport) {}
 
-  // Writes are confirmed: each awaits the backend's correlation-keyed
+  // Writes are confirmed: each awaits the gateway's correlation-keyed
   // `*-add-ok`/`*-add-failed` reply (bridged) via busRequest and REJECTS on
   // failure — a remote add-failure is surfaced to the caller, never silently
   // dropped (.plans/bugs/BRIDGE-GAPS.md).

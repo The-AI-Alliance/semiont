@@ -28,7 +28,7 @@ import { FrameNamespace } from './namespaces/frame';
 import { JobNamespace } from './namespaces/job';
 import { AuthNamespace } from './namespaces/auth';
 import { AdminNamespace } from './namespaces/admin';
-import type { IBackendOperations, IContentTransport, ITransport } from '@semiont/core';
+import type { IGatewayOperations, IContentTransport, ITransport } from '@semiont/core';
 
 // Local imports of the HTTP adapters from @semiont/http-transport — needed
 // here so `SemiontClient.fromHttp(...)` can construct them. The same
@@ -74,9 +74,9 @@ export class SemiontClient {
   //
   // The first nine namespaces are bus-driven and always present. `frame`
   // is the schema-layer flow's surface (eighth flow); the other eight are
-  // content-layer flows plus `job`. `auth` and `admin` are backend-ops
+  // content-layer flows plus `job`. `auth` and `admin` are gateway-ops
   // namespaces — they're only constructed when the caller passes an
-  // `IBackendOperations` instance to the constructor. A `SemiontClient`
+  // `IGatewayOperations` instance to the constructor. A `SemiontClient`
   // over a transport-only setup (e.g. `LocalTransport`) has
   // `auth === undefined` / `admin === undefined`.
   public readonly frame: FrameNamespace;
@@ -104,16 +104,16 @@ export class SemiontClient {
    * (e.g. for tests or to subscribe to arbitrary channels), they read it
    * back via `client.bus`.
    *
-   * `backend` is optional. When provided, the `auth` and `admin`
+   * `gateway` is optional. When provided, the `auth` and `admin`
    * namespaces are constructed against it; when omitted, they're
    * `undefined`. For HTTP setups this is conventionally the same
    * `HttpTransport` instance that's also passed as `transport` (HTTP
-   * implements both `ITransport` and `IBackendOperations`).
+   * implements both `ITransport` and `IGatewayOperations`).
    */
   constructor(
     transport: ITransport,
     content: IContentTransport,
-    backend?: IBackendOperations,
+    gateway?: IGatewayOperations,
     options?: {
       /**
        * B17 — cache persistence through the environment's SessionStorage
@@ -148,8 +148,8 @@ export class SemiontClient {
     this.yield  = new YieldNamespace(this.transport, this.bus, this.content);
     this.beckon = new BeckonNamespace(this.transport, this.bus);
     this.job    = new JobNamespace(this.transport, this.bus);
-    this.auth   = backend ? new AuthNamespace(backend)  : undefined;
-    this.admin  = backend ? new AdminNamespace(backend) : undefined;
+    this.auth   = gateway ? new AuthNamespace(gateway)  : undefined;
+    this.admin  = gateway ? new AdminNamespace(gateway) : undefined;
   }
 
   /** Transport-level connection state. HTTP reflects SSE health; local is always 'connected'. */
@@ -209,7 +209,7 @@ export class SemiontClient {
     const token$ = new BehaviorSubject<AccessToken | null>(tok);
     const transport = new HttpTransport({ baseUrl: url, token$ });
     const content = new HttpContentTransport(transport);
-    // HttpTransport implements both ITransport and IBackendOperations;
+    // HttpTransport implements both ITransport and IGatewayOperations;
     // pass it twice so `client.auth` / `client.admin` are wired.
     return new SemiontClient(transport, content, transport);
   }
@@ -231,7 +231,7 @@ export class SemiontClient {
    * the session machinery for proactive refresh and persistence.
    *
    * Named `signInHttp` because email+password authentication is
-   * inherently an HTTP-shaped operation in the current backend; an
+   * inherently an HTTP-shaped operation in the current gateway; an
    * in-process `LocalTransport` doesn't have a credentials login
    * path. Non-HTTP transports construct the client directly from
    * their package's transport instance.
@@ -250,7 +250,7 @@ export class SemiontClient {
     const content = new HttpContentTransport(transport);
     const client = new SemiontClient(transport, content, transport);
     try {
-      // HTTP-only factory: backend is guaranteed present.
+      // HTTP-only factory: gateway is guaranteed present.
       const auth = await client.auth!.password(opts.email, opts.password);
       token$.next(accessToken(auth.token));
       return client;

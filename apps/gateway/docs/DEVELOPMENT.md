@@ -1,9 +1,9 @@
-# Backend Local Development
+# Gateway Local Development
 
-Complete guide to local development for the Semiont backend service.
+Complete guide to local development for the Semiont gateway service.
 
 **Related Documentation:**
-- [Main README](../README.md) - Backend overview
+- [Main README](../README.md) - Gateway overview
 - [Semiont Protocol](../../../docs/protocol/README.md) - The eight verbs and the bus
 - [Testing Guide](./TESTING.md) - Running tests
 - [Deployment Guide](../../../docs/system/administration/DEPLOYMENT.md) - Deployment procedures
@@ -18,14 +18,14 @@ semiont start
 
 # This will:
 # ✅ Start PostgreSQL, Neo4j, Qdrant, and Ollama containers
-# ✅ Start backend, worker, smelter, and weaver with the KB's config
+# ✅ Start gateway, worker, smelter, and weaver with the KB's config
 # ✅ Ensure the Browser is running
 # 🎉 Ready to develop in ~30 seconds!
 ```
 
 **That's it!** Your complete development environment is running:
 - **Browser**: http://localhost:3000
-- **Backend**: http://localhost:4000
+- **Gateway**: http://localhost:4000
 - **Database**: PostgreSQL in Docker container
 
 ### 🛠 Manual Setup (Alternative)
@@ -57,15 +57,15 @@ semiont status              # Check service health
 
 # Service-specific commands
 semiont start --service database  # Start PostgreSQL container
-semiont start --service backend   # Start backend (auto-starts database if needed)
+semiont start --service gateway   # Start gateway (auto-starts database if needed)
 semiont start --service browser  # Start the Browser only
-semiont stop --service backend    # Stop backend service
-semiont start --service backend   # Restart backend, leaving the rest of the stack up
+semiont stop --service gateway    # Stop gateway service
+semiont start --service gateway   # Restart gateway, leaving the rest of the stack up
 ```
 
 ## Why Use Semiont CLI?
 
-- **🔄 Smart Dependencies**: The Browser auto-starts backend, backend auto-starts database
+- **🔄 Smart Dependencies**: The Browser auto-starts gateway, gateway auto-starts database
 - **📦 Consistent Environment**: Everyone gets identical PostgreSQL setup
 - **⚡ Zero Configuration**: No manual database setup, connection strings, or environment variables
 - **🧹 Easy Reset**: Corrupted data? `--reset` gives you a fresh start
@@ -94,7 +94,7 @@ semiont start
 
 # Your services are now running! Develop normally...
 # Browser: http://localhost:3000
-# Backend: http://localhost:4000
+# Gateway: http://localhost:4000
 # Database: Managed automatically
 
 # When done developing
@@ -104,11 +104,11 @@ semiont stop
 ### Restarting one service
 
 ```bash
-semiont start --service backend    # Rebuild-free restart of just the backend
+semiont start --service gateway    # Rebuild-free restart of just the gateway
 semiont start --service database   # Just PostgreSQL
 ```
 
-`--service` takes one name: `backend`, `worker`, `smelter`, `weaver`, `browser`,
+`--service` takes one name: `gateway`, `worker`, `smelter`, `weaver`, `browser`,
 `database`, `graph`, `vectors`, `inference`, `embedding`, or `traces`. The rest of the stack is
 left untouched, and a restarted service rejoins the running stack's worker secret
 automatically.
@@ -188,7 +188,7 @@ semiont start --runtime podman
 - **Lower Resource Usage**: More efficient than Docker Desktop
 - **No Background Daemon**: Containers run without persistent daemon
 
-`DOCKER_HOST` matters for the backend's **integration tests**, which provision
+`DOCKER_HOST` matters for the gateway's **integration tests**, which provision
 PostgreSQL with `@testcontainers/postgresql`; the launcher itself is told which
 runtime to use by `--runtime`. Ryuk is disabled by the test setup, so there is no
 `TESTCONTAINERS_RYUK_DISABLED` to export.
@@ -378,7 +378,7 @@ Add to `.vscode/launch.json`:
 {
   "type": "node",
   "request": "launch",
-  "name": "Debug Backend",
+  "name": "Debug Gateway",
   "runtimeExecutable": "npm",
   "runtimeArgs": ["run", "dev"],
   "cwd": "${workspaceFolder}/apps/gateway",
@@ -487,7 +487,7 @@ container at `/home/semiont/.semiontconfig`, which is the path the process reads
 `loadEnvironmentConfig(projectRoot, env)` merges them into an `EnvironmentConfig`
 (`@semiont/core`). `services.gateway` must be present or startup fails.
 
-Beyond that, the backend reads from the environment directly:
+Beyond that, the gateway reads from the environment directly:
 
 | Variable | Purpose |
 |---|---|

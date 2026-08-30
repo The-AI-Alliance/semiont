@@ -1,7 +1,7 @@
 # Session Architecture
 
 The session layer is the per-KB authentication, token-refresh, event-bus,
-and HTTP client glue that sits between the React tree and the backend.
+and HTTP client glue that sits between the React tree and the gateway.
 This document describes the current shape after the UNREACT and
 state-units-from-session refactors.
 

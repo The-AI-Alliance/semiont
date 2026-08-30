@@ -26,7 +26,7 @@
  * And why the value is derived HERE rather than injected by the launcher: set
  * inside the container, the password never appears in `container inspect`. That
  * is the same rule the launcher already keeps for the admin password (see
- * backendArgs in apps/launcher/internal/launcher/start.go).
+ * gatewayArgs in apps/launcher/internal/launcher/start.go).
  *
  * Stdout is the contract: the URL, no trailing newline, nothing else. Diagnostics
  * go to stderr, and a failure exits non-zero so the CMD's `set -e` aborts before

@@ -189,7 +189,7 @@ flags:
       - apps/browser/**
     carryforward: true
 
-  backend:
+  gateway:
     paths:
       - apps/gateway/**
     carryforward: true

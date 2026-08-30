@@ -1,7 +1,7 @@
 # Containers and rebuild flow
 
 The e2e harness drives the Browser **container**, which talks to the
-backend **container**. All five Semiont images bundle `@semiont/*`
+gateway **container**. All five Semiont images bundle `@semiont/*`
 packages — a change to a package isn't visible to the tests until the
 images are rebuilt and the stack is restarted from them. This doc walks
 through that lifecycle.
@@ -29,7 +29,7 @@ So the "full rebuild" flow depends on what changed:
 |---|---|---|
 | `packages/react-ui`, `packages/http-transport`, `packages/core` | `local-build.sh` | browser |
 | `apps/browser` only | `local-build.sh` | browser |
-| `packages/make-meaning`, `packages/event-sourcing`, etc. — anything the backend imports | `local-build.sh` (rebuilds the `:local` images) | the stack: `SEMIONT_VERSION=local semiont start` |
+| `packages/make-meaning`, `packages/event-sourcing`, etc. — anything the gateway imports | `local-build.sh` (rebuilds the `:local` images) | the stack: `SEMIONT_VERSION=local semiont start` |
 | `apps/gateway` | `local-build.sh` | the stack: `SEMIONT_VERSION=local semiont start` |
 
 ## Apple container CLI primer
@@ -48,7 +48,7 @@ container inspect <name>                  # JSON dump — mounts, env, IP, etc.
 ```
 
 Use `container logs -f semiont-gateway` when diagnosing a failing test
-— the backend's structured logs often reveal whether a bus handler
+— the gateway's structured logs often reveal whether a bus handler
 actually ran. (`semiont logs`, from the KB directory, follows all
 services at once with `[svc]` prefixes.)
 
@@ -56,20 +56,20 @@ services at once with `[svc]` prefixes.)
 
 Apple's container runtime assigns a **fresh bridge IP** on every
 `container run` and every `container start`. The `192.168.64.x` value
-from your last session is stale the moment either the backend or
+from your last session is stale the moment either the gateway or
 Browser restarts, even if you didn't rebuild.
 
 Symptom: every request in your first test times out because the
 browser is dialing a dead address.
 
 ```sh
-container ls | grep -E 'semiont-(browser|backend)'    # inspection only
+container ls | grep -E 'semiont-(browser|gateway)'    # inspection only
 ```
 
 > Useful for *seeing* what is running. Do **not** feed these IPs to the e2e
-> suite — they change on every restart, and pointing the suite at the backend
+> suite — they change on every restart, and pointing the suite at the gateway
 > container also breaks `19-worker-vitals`, which expects the worker's `:9090`
-> on the same host as the backend. Use `192.168.64.1` for both URLs.
+> on the same host as the gateway. Use `192.168.64.1` for both URLs.
 
 ## Building the `:local` images
 

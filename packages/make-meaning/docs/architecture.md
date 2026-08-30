@@ -13,7 +13,7 @@ The third derived read model — the materialized views — is **not** pipeline-
 The package has two composition roots and four standalone service entry points:
 
 - **`startMakeMeaning()`** — the standalone root: runs all five access actors in-process against local stores.
-- **`startMakeMeaningGateway()`** — the gateway root: starts **no actors**. It builds the KB reads for the backend's routes and handler subset, plus the job queue, reading views from the shared stateDir.
+- **`startMakeMeaningGateway()`** — the gateway root: starts **no actors**. It builds the KB reads for the gateway's routes and handler subset, plus the job queue, reading views from the shared stateDir.
 - **Archivist** (`archivist-main`) — the service that keeps the system of record: runs Stower, Browser and CloneTokenManager against local stores (event log, views, working tree, anchored text), plus the annotation-assembly handler, the entity-type bootstrap and the startup view rebuild. It serves no bytes — the gateway is the content server.
 - **Librarian** (`librarian-main`) — the reference desk: runs the LLM-bound actors, Matcher and Gatherer, plus the gather-summary handler. It reads views from the shared stateDir the Archivist materializes into, bytes over `HttpContentTransport`, and runs the weave/smelt progress folds locally off the bus signals. It appends nothing, serves no bytes, and owns no store.
 - **Weaver** (`weaver-main`) and **Smelter** (`smelter-main`) — the projection pipelines, each its own process in every arrangement.
@@ -22,7 +22,7 @@ Each actor's constructor takes a Pick-derived **capability slice** (`StowerStore
 
 ```mermaid
 graph TB
-    Routes["Backend Routes"] -->|commands| BUS["Event Bus"]
+    Routes["Gateway Routes"] -->|commands| BUS["Event Bus"]
     Workers["Job Workers"] -->|commands| BUS
     EBC["SemiontClient"] -->|commands| BUS
 
@@ -208,13 +208,13 @@ WeaverActorStateUnit.events$ (9 channels, StoredEvents)
           → Batch: processBatch() → batchCreateResources / createAnnotations
 ```
 
-Every apply advances a per-resource high-water mark and emits a `weave:applied` signal; the backend's `WeaveProgress` fold (`kb.weaveProgress`) turns those into the `whenApplied` barrier the gatherer's graph reads use. At startup the Weaver runs a **checkpointed catch-up**: it discovers resources via `browse:resources-requested`, fetches gap events via `browse:events-requested` (its ONLY view of history — it has no event-store attachment), and replays them through the normal pipeline; a checkpoint ahead of the log (restore) triggers a per-resource rebuild. Full rebuilds are the `weave:rebuild` bus command — so a wiped graph volume recovers by command or by wiping the checkpoint and restarting.
+Every apply advances a per-resource high-water mark and emits a `weave:applied` signal; the gateway's `WeaveProgress` fold (`kb.weaveProgress`) turns those into the `whenApplied` barrier the gatherer's graph reads use. At startup the Weaver runs a **checkpointed catch-up**: it discovers resources via `browse:resources-requested`, fetches gap events via `browse:events-requested` (its ONLY view of history — it has no event-store attachment), and replays them through the normal pipeline; a checkpoint ahead of the log (restore) triggers a per-resource rebuild. Full rebuilds are the `weave:rebuild` bus command — so a wiped graph volume recovers by command or by wiping the checkpoint and restarting.
 
 ### Smelter (Projection Pipeline, standalone process)
 
 **Implementation**: [src/smelter.ts](../src/smelter.ts), entry point [src/smelter-main.ts](../src/smelter-main.ts)
 
-The Smelter is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`SmelterActorStateUnit`](../src/smelter-actor-state-unit.ts) fan-in. It reads content bytes over `HttpContentTransport` (the gateway's byte path), chunks them, computes embeddings via `@semiont/vectors` (Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). Like the Weaver, it processes strictly in order per resource (`groupBy(resourceId)` + `concatMap`) with `burstBuffer` batching — consecutive same-type runs within a burst share a single `embedBatch()` call. Every settled decision emits a `smelt:settled` signal; the backend's `SmeltProgress` fold (`kb.smeltProgress`) turns those into the `whenSettled` barrier the resource-gather path uses.
+The Smelter is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`SmelterActorStateUnit`](../src/smelter-actor-state-unit.ts) fan-in. It reads content bytes over `HttpContentTransport` (the gateway's byte path), chunks them, computes embeddings via `@semiont/vectors` (Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). Like the Weaver, it processes strictly in order per resource (`groupBy(resourceId)` + `concatMap`) with `burstBuffer` batching — consecutive same-type runs within a burst share a single `embedBatch()` call. Every settled decision emits a `smelt:settled` signal; the gateway's `SmeltProgress` fold (`kb.smeltProgress`) turns those into the `whenSettled` barrier the resource-gather path uses.
 
 | Domain Event | Handler |
 |--------------|---------|

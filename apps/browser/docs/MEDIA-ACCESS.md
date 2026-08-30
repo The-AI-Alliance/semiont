@@ -8,7 +8,7 @@
 
 ## The problem: header-less elements can't authenticate
 
-Semiont's backend is **bearer-only** — every request must carry
+Semiont's gateway is **bearer-only** — every request must carry
 `Authorization: Bearer <jwt>`, and there are **no ambient credentials** —
 nothing the browser attaches automatically, no cookie of any kind. That's a problem
 for the elements that load binary content, because they **cannot set request
@@ -16,13 +16,13 @@ headers**:
 
 ```html
 <!-- ❌ No way to attach Authorization: Bearer on an <img> -->
-<img src="https://backend.example.com/api/resources/123" />
+<img src="https://gateway.example.com/api/resources/123" />
 ```
 
 ```typescript
 // ❌ PDF.js fetches by URL and likewise cannot add an Authorization header
 const pdf = await pdfjsLib.getDocument({
-  url: 'https://backend.example.com/api/resources/123',
+  url: 'https://gateway.example.com/api/resources/123',
 }).promise;
 ```
 
@@ -47,7 +47,7 @@ const url = `${client.baseUrl}/api/resources/${resourceId}?token=${token}`;
 `auth.mediaToken` calls `POST /api/tokens/media` (itself authenticated with the
 session's bearer token) and returns `{ token }`. The token is a JWT scoped to
 **exactly one resource** (`sub: resourceId`) and expiring in **5 minutes**. The
-backend accepts it on `GET /api/resources/:id` in place of the `Authorization`
+gateway accepts it on `GET /api/resources/:id` in place of the `Authorization`
 header.
 
 **This preserves authentication — it doesn't bypass it.** Getting a media token
@@ -85,7 +85,7 @@ const src = mediaUrl(client, resourceId, token);   // undefined until the token 
 
 Build the URL with `mediaUrl`, not by hand. It reads the origin off the client,
 so the URL is **absolute** — a relative `/api/resources/:id` resolves against the
-*host* app's origin under embedding, not the backend's — and it returns
+*host* app's origin under embedding, not the gateway's — and it returns
 `undefined` rather than a tokenless URL, so a caller cannot accidentally render
 a link that is already known to 401. The same rule applies to `<a download>` as
 to `<img>`: an anchor sends no Authorization header either.
@@ -128,7 +128,7 @@ The split is **display vs programmatic**, not text vs binary:
 
 - [`@semiont/http-transport` MEDIA-TOKENS.md](../../../packages/http-transport/docs/MEDIA-TOKENS.md) — the canonical media-token spec (claims, threat model, OpenAPI)
 - [Browser Authentication Architecture](./AUTHENTICATION.md) — the SPA's bearer-only session model
-- [Backend Authentication Guide](../../gateway/docs/AUTHENTICATION.md) — JWT validation, including the `?token=` media path
+- [Gateway Authentication Guide](../../gateway/docs/AUTHENTICATION.md) — JWT validation, including the `?token=` media path
 - [System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md) — end-to-end auth flows
 
 ---

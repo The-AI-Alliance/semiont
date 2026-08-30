@@ -178,7 +178,7 @@ class IdentityUnverifiableError extends Error {
   }
 }
 
-async function authenticateWithBackend(host: string, port: number, protocol: 'http' | 'https', emailStr: string, password: string): Promise<{ token: string; refreshToken: string; did: string; label: string; gitBranch?: string }> {
+async function authenticateWithGateway(host: string, port: number, protocol: 'http' | 'https', emailStr: string, password: string): Promise<{ token: string; refreshToken: string; did: string; label: string; gitBranch?: string }> {
   const origin = `${protocol}://${host}:${port}`;
   // `/api/status` REQUIRES authentication, so the transport needs a token
   // source: without one the identity check goes out unauthenticated and 401s
@@ -367,7 +367,7 @@ export function KnowledgeBasePanel() {
     );
     if (existing) {
       try {
-        const { token, refreshToken, gitBranch } = await authenticateWithBackend(host, port, protocol, email, password);
+        const { token, refreshToken, gitBranch } = await authenticateWithGateway(host, port, protocol, email, password);
         updateKnowledgeBase(existing.id, { ...(gitBranch ? { gitBranch } : {}) });
         signIn(existing.id, token, refreshToken);
         setAddForm(null);
@@ -379,7 +379,7 @@ export function KnowledgeBasePanel() {
       return;
     }
     try {
-      const { token, refreshToken, did, label, gitBranch } = await authenticateWithBackend(host, port, protocol, email, password);
+      const { token, refreshToken, did, label, gitBranch } = await authenticateWithGateway(host, port, protocol, email, password);
       // (C) Verify the outcome against what the user believed they clicked.
       // Reports; never blocks — the KB that answered is the one they reached.
       const expectedDid = addForm?.expectedDid;
@@ -419,7 +419,7 @@ export function KnowledgeBasePanel() {
       return;
     }
     try {
-      const { token, refreshToken, label, gitBranch } = await authenticateWithBackend(
+      const { token, refreshToken, label, gitBranch } = await authenticateWithGateway(
         kb.endpoint.host, kb.endpoint.port, kb.endpoint.protocol, kb.email, password,
       );
       updateKnowledgeBase(kbId, { label, ...(gitBranch ? { gitBranch } : {}) });

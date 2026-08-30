@@ -44,7 +44,7 @@ export interface ResourceDiscoveryPageProps {
   onSearchQueryChange: (query: string) => void;
 
   // Controlled entity-type filter — owned by the state unit so filtering
-  // pushes to the backend rather than running as a post-fetch array filter.
+  // pushes to the gateway rather than running as a post-fetch array filter.
   selectedEntityType: string;
   onSelectedEntityTypeChange: (entityType: string) => void;
 
@@ -106,7 +106,7 @@ export function ResourceDiscoveryPage({
   const hasSearchQuery = searchQuery.trim() !== '';
 
   // When searching, render search results; otherwise render recent.
-  // Both already arrive entity-type-filtered from the backend — no post-filter here.
+  // Both already arrive entity-type-filtered from the gateway — no post-filter here.
   const filteredResources = hasSearchQuery ? searchDocuments : recentDocuments;
 
   // Roving tabindex for entity type filters

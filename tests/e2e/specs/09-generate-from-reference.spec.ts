@@ -151,7 +151,7 @@ test.describe('generate from unresolved reference', () => {
     // "✍️ Compose". Match by substring — the emoji prefix and ellipsis
     // suffix vary per locale.
     //
-    // These options only render once the backend `gather` flow returns a
+    // These options only render once the gateway `gather` flow returns a
     // GatheredContext (GatherContextStep gates all three on `context`).
     // Gather makes an LLM call (the inferred-relationship summary), so on a
     // slow inference provider it can take well over the default 10s action
@@ -189,7 +189,7 @@ test.describe('generate from unresolved reference', () => {
 
     // ── Protocol assertions ─────────────────────────────────────────────
     //
-    // Dispatch: `job:create` was emitted and the backend acked.
+    // Dispatch: `job:create` was emitted and the gateway acked.
     const { request: createReq } = await bus.expectRequestResponse('job:create', 'job:created', 30_000);
     expect(createReq.cid, 'job:create must carry a correlationId').toBeTruthy();
 

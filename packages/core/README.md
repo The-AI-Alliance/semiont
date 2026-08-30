@@ -12,7 +12,7 @@ Core types and domain logic for the Semiont semantic knowledge platform. This pa
 
 ## Who Should Use This
 
-- ✅ **Backend** (`apps/gateway`) - Server implementation, imports types from core
+- ✅ **Gateway** (`apps/gateway`) - Server implementation, imports types from core
 - ✅ **Packages** - Other monorepo packages that need OpenAPI types, the EventBus, or the transport contract
 - ✅ **Browser / Browser** - Types and pure utilities (the main barrel is browser-safe)
 
@@ -31,7 +31,7 @@ import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 
 ## Who Should Use `@semiont/sdk` Instead
 
-Application code talking to a Semiont backend should use [`@semiont/sdk`](../sdk/), which provides `SemiontClient`, the verb-oriented namespaces, and the session layer. The SDK consumes the `ITransport` / `IContentTransport` contracts defined here; the HTTP implementations of those contracts live in [`@semiont/http-transport`](../http-transport/) and are re-exported by the SDK for convenience.
+Application code talking to a Semiont gateway should use [`@semiont/sdk`](../sdk/), which provides `SemiontClient`, the verb-oriented namespaces, and the session layer. The SDK consumes the `ITransport` / `IContentTransport` contracts defined here; the HTTP implementations of those contracts live in [`@semiont/http-transport`](../http-transport/) and are re-exported by the SDK for convenience.
 
 **Rule of thumb**: If you are making API calls, use `@semiont/sdk`. If you only need types and domain logic, use `@semiont/core`. Import from `@semiont/http-transport` directly only when constructing a transport stack by hand.
 
@@ -110,7 +110,7 @@ function handle(event: PersistedEvent) {
 
 ### EventBus
 
-The RxJS-based event bus shared by backend and clients, with a typed channel protocol:
+The RxJS-based event bus shared by gateway and clients, with a typed channel protocol:
 
 ```typescript
 import { EventBus, ScopedEventBus, burstBuffer, serializePerKey } from '@semiont/core';
@@ -128,7 +128,7 @@ import type { EventMap, EventName } from '@semiont/core';
 The interfaces every concrete transport must satisfy, plus the channel set transports bridge into a client's bus:
 
 ```typescript
-import type { ITransport, IContentTransport, IBackendOperations, ConnectionState } from '@semiont/core';
+import type { ITransport, IContentTransport, IGatewayOperations, ConnectionState } from '@semiont/core';
 import { BRIDGED_CHANNELS } from '@semiont/core';
 ```
 
@@ -292,7 +292,7 @@ import type { SemiontConfig, EnvironmentConfig, ServicesConfig } from '@semiont/
 
 Filesystem-backed loading (`SemiontProject`, `loadEnvironmentConfig`) is in `@semiont/core/node` — see above.
 
-### Backend Internal Types
+### Gateway Internal Types
 
 Types not in the OpenAPI spec:
 
@@ -315,7 +315,7 @@ Semiont follows a **spec-first architecture**:
 
 1. **OpenAPI Specification** ([specs/src/](../../specs/src/)) is the source of truth
 2. **@semiont/core** generates types from OpenAPI and provides domain utilities
-3. Every other package imports types from `@semiont/core`; application code talks to the backend through `@semiont/sdk`, whose transports implement core's `ITransport` contract
+3. Every other package imports types from `@semiont/core`; application code talks to the gateway through `@semiont/sdk`, whose transports implement core's `ITransport` contract
 
 **Type Yield Flow**: OpenAPI spec → `@semiont/core/src/types.ts` (via `openapi-typescript`) → imported across the monorepo. This ensures no circular dependencies and clear build order.
 
@@ -340,7 +340,7 @@ Apache-2.0
 
 - [`@semiont/sdk`](../sdk/) - The Semiont SDK (`SemiontClient`) - use this for application development
 - [`@semiont/http-transport`](../http-transport/) - HTTP implementations of core's transport contract
-- [`@semiont/gateway`](../../apps/gateway/) - Backend API server
+- [`@semiont/gateway`](../../apps/gateway/) - Gateway API server
 - [`@semiont/browser`](../../apps/browser/) - Web application
 
 ## Learn More

@@ -28,7 +28,7 @@ export const OPEN_RESOURCES_BY_KB_KEY = 'semiont.openResourcesByKb';
 /**
  * Per-KB "where was I": Record<kbId, resourceId>. Scoped like the tabs it
  * sits beside — a global last-viewed id sends the landing redirect into the
- * previously active KB's resource, which the new backend 404s.
+ * previously active KB's resource, which the new gateway 404s.
  */
 export const LAST_VIEWED_RESOURCE_BY_KB_KEY = 'semiont.lastViewedResourceByKb';
 

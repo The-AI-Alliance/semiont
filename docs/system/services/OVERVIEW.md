@@ -9,7 +9,7 @@ Five services run Semiont code. Each is a published container image; see [Contai
 | Service | Port | What runs | Bundled package | Docs |
 |---|---|---|---|---|
 | **browser** | 3000 | Static server for the Semiont Browser SPA | `semiont-browser` | [README](../../../apps/browser/README.md) |
-| **backend** | 4000 | API server + unified bus gateway; Stower, Browser, Gatherer, Matcher | `semiont-gateway` | [README](../../../apps/gateway/README.md) |
+| **gateway** | 4000 | API server + unified bus gateway; Stower, Browser, Gatherer, Matcher | `semiont-gateway` | [README](../../../apps/gateway/README.md) |
 | **worker** | 9090 | Annotation/generation worker pool | `@semiont/jobs` | [API](../../../packages/jobs/docs/API.md) |
 | **smelter** | 9091 | Embedding/vector pipeline actor | `@semiont/make-meaning` | [Package](../../../packages/make-meaning/) |
 | **weaver** | 9092 | Graph-projection actor | `@semiont/make-meaning` | [Package](../../../packages/make-meaning/) |
@@ -57,15 +57,15 @@ semiont start --config anthropic   # Bring it up on a named config
 
 semiont status                     # Container state + per-service health
 semiont logs                       # Follow every service
-semiont logs --service backend     # One service
+semiont logs --service gateway     # One service
 
-semiont start --service backend    # Restart just one service, leaving the rest up
+semiont start --service gateway    # Restart just one service, leaving the rest up
 semiont stop                       # Tear the stack down
 semiont stop --service worker      # Stop one service
 semiont clean                      # Remove persistent state (PostgreSQL, Qdrant, Neo4j)
 ```
 
-`--service` takes one of `backend`, `worker`, `smelter`, `weaver`, `browser`, `database`, `graph`, `vectors`, `inference`, or `traces`. Omitting it means the whole stack — there is no `--service all`. `semiont stop` deliberately leaves persistent state behind so the next `start` reuses it; `semiont clean` is the only thing that removes it.
+`--service` takes one of `gateway`, `worker`, `smelter`, `weaver`, `browser`, `database`, `graph`, `vectors`, `inference`, or `traces`. Omitting it means the whole stack — there is no `--service all`. `semiont stop` deliberately leaves persistent state behind so the next `start` reuses it; `semiont clean` is the only thing that removes it.
 
 Run `semiont <command> --help` for a command's options and `semiont --help` for the full verb list.
 
@@ -85,7 +85,7 @@ Services are configured per environment in the KB's `.semiont/semiontconfig/<nam
 [defaults]
 environment = "local"
 
-[environments.local.backend]
+[environments.local.gateway]
 platform = "posix"
 port = 4000
 publicURL = "http://${GATEWAY_HOST:-localhost}:4000"
@@ -146,7 +146,7 @@ See the [Configuration Guide](../administration/CONFIGURATION.md) for the full s
 
 ```mermaid
 graph LR
-    DB[PostgreSQL] --> BE[Backend]
+    DB[PostgreSQL] --> BE[Gateway]
     GRAPH[Neo4j] --> BE
     VECTORS[Qdrant] --> BE
     BE --> FE[Browser]
@@ -155,20 +155,20 @@ graph LR
     BE --> WV[Weaver]
 ```
 
-`semiont start` handles this ordering: the infrastructure containers come up first, then the backend, then everything that talks to the backend's bus.
+`semiont start` handles this ordering: the infrastructure containers come up first, then the gateway, then everything that talks to the gateway's bus.
 
 ### Runtime dependencies
 
-- **Browser** → nothing. It serves static assets; the SPA in the user's browser talks to the backend directly.
-- **Backend** → PostgreSQL (users), event log, graph, vector store, inference
-- **Worker** → backend bus, inference
-- **Smelter** → backend bus, vector store, embeddings
-- **Weaver** → backend bus, graph
-- **MCP server** → backend bus
+- **Browser** → nothing. It serves static assets; the SPA in the user's browser talks to the gateway directly.
+- **Gateway** → PostgreSQL (users), event log, graph, vector store, inference
+- **Worker** → gateway bus, inference
+- **Smelter** → gateway bus, vector store, embeddings
+- **Weaver** → gateway bus, graph
+- **MCP server** → gateway bus
 
 ## Service communication
 
-Every actor that runs Semiont code is a bus participant. The backend exposes exactly two runtime endpoints carrying domain traffic — `POST /bus/emit` and `GET /bus/subscribe` (SSE, with dynamic channel subscription and Last-Event-ID replay). Every other HTTP route serves auth, admin, exchange, binary content, or infrastructure.
+Every actor that runs Semiont code is a bus participant. The gateway exposes exactly two runtime endpoints carrying domain traffic — `POST /bus/emit` and `GET /bus/subscribe` (SSE, with dynamic channel subscription and Last-Event-ID replay). Every other HTTP route serves auth, admin, exchange, binary content, or infrastructure.
 
 The worker, smelter, and weaver authenticate via `POST /api/tokens/agent`, exchanging `SEMIONT_WORKER_SECRET` plus a `(provider, model)` identity for a JWT carrying a typed Software-agent DID.
 
@@ -180,7 +180,7 @@ See [Container Topology](../CONTAINER-TOPOLOGY.md) for the full picture.
 
 | Role | Probe |
 |---|---|
-| backend | `http://localhost:4000/api/health` |
+| gateway | `http://localhost:4000/api/health` |
 | worker | `http://localhost:9090/health` |
 | smelter | `http://localhost:9091/health` |
 | weaver | `http://localhost:9092/health` |
@@ -192,11 +192,11 @@ See [Container Topology](../CONTAINER-TOPOLOGY.md) for the full picture.
 
 Every role but `traces` counts toward the exit status, so `semiont status` is usable as a gate in a script. The Browser has no probe — it is a static file server with nothing to be unhealthy about.
 
-The backend's `/api/health` reports database reachability and the environment name; the rest are liveness.
+The gateway's `/api/health` reports database reachability and the environment name; the rest are liveness.
 
 ## Observability
 
-Local stacks run Jaeger by default (`--no-observe` skips it). The backend, worker, smelter, and weaver export OTLP traces and metrics to it; the UI is at http://localhost:16686. Application logs go to stdout as structured JSON — read them with `semiont logs`.
+Local stacks run Jaeger by default (`--no-observe` skips it). The gateway, worker, smelter, and weaver export OTLP traces and metrics to it; the UI is at http://localhost:16686. Application logs go to stdout as structured JSON — read them with `semiont logs`.
 
 ## Platform support
 
@@ -210,7 +210,7 @@ Nothing in the architecture requires containers: the packages are plain Node, so
 
 ```bash
 semiont status                     # Which service is unhealthy
-semiont logs --service backend     # Why
+semiont logs --service gateway     # Why
 ```
 
 Containers are started without `--rm`, so a crashed container stays inspectable and its logs survive.

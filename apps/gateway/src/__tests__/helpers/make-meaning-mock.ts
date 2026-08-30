@@ -1,5 +1,5 @@
 /**
- * Shared MakeMeaningService mock factory for backend tests.
+ * Shared MakeMeaningService mock factory for gateway tests.
  *
  * Provides a structurally-verified stub so the compiler catches shape
  * mismatches at the factory rather than at every call site.

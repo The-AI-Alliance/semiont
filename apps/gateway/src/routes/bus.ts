@@ -283,7 +283,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
 
       // Per-connection record of exactly which channels this subscriber asked
       // for. Makes a missing fan-in wiring greppable: if a reply channel is
-      // absent from `channels` here, the backend will never forward it to this
+      // absent from `channels` here, the gateway will never forward it to this
       // client and any `busRequest` on it times out at 30 s with no error.
       // (Pairs with the emit-side `[bus DROP]` warn; that fires when nothing
       // subscribes at all, this shows what a given client *did* subscribe to.)
@@ -302,7 +302,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // increments; disconnect (stream.onAbort) decrements. The gauge
       // reflects current concurrent SSE connections per service instance.
       //
-      // The same two moments are PRESENCE (GUIDED-TOUR D5): the backend
+      // The same two moments are PRESENCE (GUIDED-TOUR D5): the gateway
       // already knew who was watching and only counted it. Publishing it
       // needs no new tracking — one emit each side. Presence is connection
       // lifecycle, NOT login: a token can be minted and sit unused for hours,
@@ -364,7 +364,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         //
         // For request/reply *replies* (payloads carrying a correlationId) we
         // also open a short `sse.deliver:<channel>` span: the trace then shows
-        // the reply actually leaving the backend for this client — the
+        // the reply actually leaving the gateway for this client — the
         // delivered-counterpart to the emit-side `[bus DROP]` warn, so a
         // delivered-to-wrong-cid or never-delivered reply is visible in one
         // trace instead of cross-referenced by hand. `injectTraceparent` runs
@@ -540,7 +540,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
    *
    * Scope rule:
    *
-   * - **Commands** (frontend → backend handler) and **correlation-ID
+   * - **Commands** (frontend → gateway handler) and **correlation-ID
    *   responses** arrive un-scoped. Handlers subscribe on the global bus.
    * - **Resource-bound broadcasts** (WorkerStateUnit-emitted progress for
    *   resource generation — the `RESOURCE_BROADCAST_TYPES` set) arrive
@@ -631,7 +631,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
             getBusLogger().warn('emit reached no subscribers', {
               channel,
               scope,
-              hint: 'Nothing on this backend subscribes to that channel. For a UI signal meant to cross to a participant, check that the channel is in BRIDGED_BROADCASTS and that a client subscribed to it.',
+              hint: 'Nothing on this gateway subscribes to that channel. For a UI signal meant to cross to a participant, check that the channel is in BRIDGED_BROADCASTS and that a client subscribed to it.',
             });
           }
         },

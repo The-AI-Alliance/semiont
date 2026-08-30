@@ -4,7 +4,7 @@
  * The KB type itself is uniform. The transport-shape variation lives in
  * the nested `endpoint` field, which is a discriminated union:
  *
- *  - `endpoint.kind === 'http'`  — a remote backend reached over HTTP+SSE.
+ *  - `endpoint.kind === 'http'`  — a remote gateway reached over HTTP+SSE.
  *                                  Carries `host`/`port`/`protocol`.
  *  - `endpoint.kind === 'local'` — an in-process knowledge system reached
  *                                  via `LocalTransport` from
@@ -53,7 +53,7 @@ export interface KbTarget {
  *
  * `did` is REQUIRED here, and only here: a knowledge base declares its
  * identity or does not run (decision 8 — the launcher refuses to start one
- * without a `[site] domain`, and the backend refuses to boot), so anything
+ * without a `[site] domain`, and the gateway refuses to boot), so anything
  * that has been connected to *has* a did. What was previously unknowable is
  * now simply a `KbTarget`.
  *
@@ -97,7 +97,7 @@ export type NewKnowledgeBase = Omit<KnowledgeBase, 'id'>;
 export type KbSessionStatus = 'authenticated' | 'expired' | 'signed-out' | 'unreachable';
 
 /**
- * Construct a `KnowledgeBase` for an HTTP-backed Semiont backend without
+ * Construct a `KnowledgeBase` for an HTTP-backed Semiont gateway without
  * spelling out the nested `endpoint` literal. Convenience for tests,
  * worker bootstraps, and one-off scripts.
  *

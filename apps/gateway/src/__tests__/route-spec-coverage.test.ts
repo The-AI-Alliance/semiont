@@ -3,7 +3,7 @@
  *
  * ┌─────────────────────────────────────────────────────────────────┐
  * │  PRIMARY PURPOSE: enforce authentication-by-default across      │
- * │  every registered backend route. No route gets to ship without  │
+ * │  every registered gateway route. No route gets to ship without  │
  * │  either proving it returns 401 to unauthenticated callers, or   │
  * │  being explicitly declared public in the OpenAPI spec.          │
  * │                                                                 │
@@ -40,7 +40,7 @@
  *
  *   - Request-Body Validation — every spec-declared JSON request
  *     body must be wired through `validateRequestBody()` somewhere
- *     in backend source. Protects against "spec claims the body is
+ *     in gateway source. Protects against "spec claims the body is
  *     validated, handler accepts garbage."
  *
  * Everything derives from the spec and `app.routes`. The only
@@ -1066,7 +1066,7 @@ describe('Spec Contract Hygiene', () => {
 //
 // Every spec operation declaring a JSON request body promises a
 // contract: the handler only ever receives payloads matching the
-// declared schema. The way the backend delivers on that promise
+// declared schema. The way the gateway delivers on that promise
 // today is `validateRequestBody(validators.<SchemaName>)` middleware. A spec
 // entry claiming a schema, with no matching middleware call in
 // source, is a spec that lies about its contract.
@@ -1083,7 +1083,7 @@ const MANUAL_REQUEST_VALIDATION = new Map<string, string>([
 ]);
 
 describe('Request-Body Validation', () => {
-  it('every spec-declared JSON request body is validated somewhere in backend source', async () => {
+  it('every spec-declared JSON request body is validated somewhere in gateway source', async () => {
     const fs = await import('fs/promises');
     const path = await import('path');
 
@@ -1100,7 +1100,7 @@ describe('Request-Body Validation', () => {
       }
     }
 
-    // Recursively scan backend source for `validateRequestBody(validators.Name)`
+    // Recursively scan gateway source for `validateRequestBody(validators.Name)`
     // calls — the validators are generated from the spec, so the name in source
     // is the schema name by construction rather than by a matching string.
     const srcDir = path.join(process.cwd(), 'src');

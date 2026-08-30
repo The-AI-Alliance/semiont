@@ -1,5 +1,5 @@
 /**
- * Global test setup for backend
+ * Global test setup for gateway
  * Clean, modern approach with lazy-loading
  */
 
@@ -53,7 +53,7 @@ vi.mock('@semiont/core/node', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@semiont/core/node')>()),
   loadEnvironmentConfig: vi.fn((_projectRoot: string, _env: string): EnvironmentConfig => ({
     services: {
-      backend: {
+      gateway: {
         platform: { type: 'posix' as const },
         port: 4000,
         publicURL: 'http://localhost:4000',

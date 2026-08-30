@@ -14,7 +14,7 @@
  * reconnect. `mark.assist` therefore must NOT call `subscribeToResource`,
  * and must still complete on a globally-delivered `job:complete`.
  *
- * No backend: a fake transport stands in for the bus.
+ * No gateway: a fake transport stands in for the bus.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

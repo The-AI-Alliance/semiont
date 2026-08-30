@@ -2,13 +2,13 @@ import { expect } from '@playwright/test';
 import { SemiontClient } from '@semiont/sdk';
 import { getPrimaryMediaType } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
-import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 
 /**
  * Read a generated resource's descriptor over a SEPARATE signed-in client.
  *
  * `job:complete` proves the worker finished; it does not prove what the worker
- * wrote. Asking the backend afresh is what distinguishes "the generation ran"
+ * wrote. Asking the gateway afresh is what distinguishes "the generation ran"
  * from "the generation produced the resource the form asked for" — the
  * distinction GENERATION-OUTPUT-FORMAT's D6 turns on, since the worker used to
  * derive the filename from the title and silently discard `storageUri`.
@@ -21,7 +21,7 @@ export async function generatedDescriptor(
   timeout = 60_000,
 ): Promise<ResourceDescriptor> {
   const client = await SemiontClient.signInHttp({
-    baseUrl: BACKEND_URL,
+    baseUrl: GATEWAY_URL,
     email: E2E_EMAIL,
     password: E2E_PASSWORD,
   });

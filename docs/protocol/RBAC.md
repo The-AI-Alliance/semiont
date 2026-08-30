@@ -2,7 +2,7 @@
 
 ## Current State
 
-Semiont authenticates all users via OAuth and enforces three privilege levels through middleware on the backend:
+Semiont authenticates all users via OAuth and enforces three privilege levels through middleware on the gateway:
 
 | Role | Flag | Capabilities |
 |------|------|-------------|
@@ -78,7 +78,7 @@ Until content-level access control is implemented:
 
 ### Middleware Pattern
 
-Role checks are enforced via middleware on the backend:
+Role checks are enforced via middleware on the gateway:
 
 ```typescript
 // Admin middleware pattern (used in routes/admin.ts)

@@ -3,7 +3,7 @@ import type { ConnectionState, EventBus, EventMap, BusRequestPrimitive } from '@
 
 /**
  * Adapt a raw in-process `EventBus` to the `BusRequestPrimitive` that
- * `busRequest` consumes. Lets backend-internal callers (bootstrap, event
+ * `busRequest` consumes. Lets gateway-internal callers (bootstrap, event
  * replay, linked-data import) use the same confirmed request/reply path as the
  * SDK — `busRequest(asBusRequestPrimitive(eventBus), …)` — instead of
  * hand-rolled `race(domain-event, *-failed, timeout)` blocks. The reply is

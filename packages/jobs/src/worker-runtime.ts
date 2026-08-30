@@ -62,7 +62,7 @@ export interface AgentGroup {
 
 export interface WorkerRuntimeOptions {
   group: AgentGroup;
-  /** The backend URL this worker dials — connection topology ONLY, never identity. */
+  /** The gateway URL this worker dials — connection topology ONLY, never identity. */
   gatewayBaseUrl: string;
   /** Shared secret for `/api/tokens/agent`, and the bearer the byte reads
    *  below show the Archivist. */
@@ -123,7 +123,7 @@ export function buildHealthPayload(workers: ReadonlyArray<{ vitals(): AgentVital
  *
  * Thresholds are fixed by design (no env knobs) and deliberately
  * layered: inference timeout (10 min, P2) fires first; this watchdog
- * (15 min) catches the failure modes nobody predicted; the backend's
+ * (15 min) catches the failure modes nobody predicted; the gateway's
  * dead-worker janitor (30 min) re-queues the job regardless.
  */
 export const STALL_THRESHOLD_MS = 15 * 60_000;
@@ -181,15 +181,15 @@ export function parseGatewayUrl(url: string): { protocol: 'http' | 'https'; host
 
 /**
  * Exchange the worker secret for this agent's JWT and its canonical DID.
- * The DID is minted by the backend (from its `site.domain`) — the caller
+ * The DID is minted by the gateway (from its `site.domain`) — the caller
  * carries it verbatim.
  *
  * Connection-level failures (`TypeError: fetch failed`) are retried with
- * exponential backoff: the backend may be mid-restart or the container
+ * exponential backoff: the gateway may be mid-restart or the container
  * network still warming up when this process starts, and orchestration
  * runs workers with `--rm` and no restart policy — exiting on the first
  * failed fetch is permanent death. HTTP-level rejections (401 on a bad
- * secret) are NOT retried; the backend is up and said no.
+ * secret) are NOT retried; the gateway is up and said no.
  */
 export async function authenticateAgent(opts: {
   gatewayBaseUrl: string;
@@ -221,7 +221,7 @@ export async function authenticateAgent(opts: {
     isTransientFetchError,
     retry,
     ({ attempt, attempts, delayMs, error }) => {
-      logger?.warn('Backend unreachable, retrying agent authentication', {
+      logger?.warn('Gateway unreachable, retrying agent authentication', {
         agent: `${provider}:${model}`,
         attempt,
         attempts,
@@ -247,7 +247,7 @@ export async function startAgentWorker(
     logger,
   });
 
-  // The exchange minted this worker's canonical DID (from the backend's
+  // The exchange minted this worker's canonical DID (from the gateway's
   // site.domain) and we carry it VERBATIM — never re-derive identity from
   // the URL we happen to dial (`host` is connection topology only). One
   // logical agent previously got two DIDs this way:

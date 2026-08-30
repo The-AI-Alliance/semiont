@@ -33,7 +33,7 @@ npm install @aws-sdk/client-neptune
 
 **Infrastructure Ownership**: In production applications, graph database instances are **created and managed by [@semiont/make-meaning](../make-meaning/)'s `startMakeMeaning()` function**, which serves as the single orchestration point for all infrastructure components (EventStore, GraphDB, RepStore, InferenceClient, JobQueue, Workers).
 
-The examples below show direct usage for **testing, CLI tools, or standalone applications**. For backend integration, see [@semiont/make-meaning](../make-meaning/).
+The examples below show direct usage for **testing, CLI tools, or standalone applications**. For gateway integration, see [@semiont/make-meaning](../make-meaning/).
 
 ## Quick Start
 

@@ -10,7 +10,7 @@ import { useSemiont, useObservable } from '@semiont/react-ui';
  * "Where was I" is per-KB state, read from `lastViewedResource$` — a
  * projection of the active, connected KB. A global record would redirect
  * into the PREVIOUSLY active KB's resource after a switch: an id the new
- * backend has never heard of, so a guaranteed 404.
+ * gateway has never heard of, so a guaranteed 404.
  * See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
  */
 export default function KnowledgePage() {

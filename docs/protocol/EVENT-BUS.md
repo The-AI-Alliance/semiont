@@ -248,15 +248,15 @@ Five operations, all logged at transport-contract choke points (not in the SDK's
 
 | Op | Site |
 |---|---|
-| `EMIT` | `HttpTransport.emit()`, `LocalTransport.emit()`, backend `/bus/emit` route |
+| `EMIT` | `HttpTransport.emit()`, `LocalTransport.emit()`, gateway `/bus/emit` route |
 | `RECV` | HttpTransport SSE-side fan-in, `LocalTransport.bridgeInto` callback |
-| `SSE` | Backend `writeBusEvent()` in `apps/gateway/src/routes/bus.ts` |
-| `PUT` | `HttpContentTransport.putBinary()` + matching backend route |
-| `GET` | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching backend route |
+| `SSE` | Gateway `writeBusEvent()` in `apps/gateway/src/routes/bus.ts` |
+| `PUT` | `HttpContentTransport.putBinary()` + matching gateway route |
+| `GET` | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching gateway route |
 
 The full capture API and per-test fixture are in **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)**.
 
-A clean round-trip across the wire shows a contiguous EMIT → EMIT → SSE → RECV pattern. Missing lines diagnose with surgical precision: no backend `EMIT` means the request never reached the server (auth, CORS, network); no backend `SSE` means the handler never produced a result; no Browser `RECV` means the SSE bytes never parsed.
+A clean round-trip across the wire shows a contiguous EMIT → EMIT → SSE → RECV pattern. Missing lines diagnose with surgical precision: no gateway `EMIT` means the request never reached the server (auth, CORS, network); no gateway `SSE` means the handler never produced a result; no Browser `RECV` means the SSE bytes never parsed.
 
 ## How the SDK shapes the protocol
 

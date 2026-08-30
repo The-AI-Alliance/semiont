@@ -421,7 +421,7 @@ export type EventMap = {
    * Emitted by the Weaver after applying an event (or a batch's last event)
    * for a resource to the graph. `sequenceNumber` is the resource-stream
    * sequence of the last applied event. Folded by `WeaveProgress`
-   * (make-meaning) into the backend-local applied map that the
+   * (make-meaning) into the gateway-local applied map that the
    * `whenApplied` barrier awaits. In-process signal today; crosses the
    * bus gateway after WEAVER-ISOLATION.
    */
@@ -434,7 +434,7 @@ export type EventMap = {
   // the PDF decline classes when extraction lands). Keyed by the
   // checksum of the bytes inspected — "settled at C" is read-your-writes for
   // exactly that content. NEVER emitted on transient failures: an error is not
-  // a decision (SMELTER-INDEX-SYNC A2). Consumed by the backend-local
+  // a decision (SMELTER-INDEX-SYNC A2). Consumed by the gateway-local
   // `SmeltProgress` fold behind the gather-side barrier. This is the
   // Smelter's single outbound signal (SMELTER-AXIOMS D3, as amended).
   'smelt:settled': { resourceId: string; contentChecksum: string; outcome: 'indexed' | 'skipped'; reason?: 'no-extractor' | 'empty' | 'no-text-layer' | 'encrypted' | 'corrupt' | 'too-large' };

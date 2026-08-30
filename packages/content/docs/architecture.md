@@ -52,7 +52,7 @@ Every method accepts `{ noGit: true }` for callers that manage staging themselve
 
 ### 5. Framework Independence
 
-The package has no dependencies on web frameworks or HTTP libraries. It depends on `@semiont/core` for the `SemiontProject` and `Logger` types and the media-type registry (`MEDIA_TYPES`, `SupportedMediaType`), and on `pdfjs-dist` for PDF parsing. It runs anywhere Node runs: backend, CLI, scripts, tests.
+The package has no dependencies on web frameworks or HTTP libraries. It depends on `@semiont/core` for the `SemiontProject` and `Logger` types and the media-type registry (`MEDIA_TYPES`, `SupportedMediaType`), and on `pdfjs-dist` for PDF parsing. It runs anywhere Node runs: gateway, CLI, scripts, tests.
 
 In production the store is instantiated once by [@semiont/make-meaning](../../make-meaning/)'s `createKnowledgeBase()` and shared via the `KnowledgeBase.content` field.
 
@@ -89,4 +89,4 @@ What this package deliberately does **not** do:
 
 - **No event sourcing** — recording *that* a resource was created/moved/removed is the event store's job; this package only touches bytes.
 - **No metadata persistence** — `StoredResource` is returned to the caller, who records it in events. The store keeps no database of its own.
-- **No HTTP** — transport belongs to the backend and `@semiont/http-transport`.
+- **No HTTP** — transport belongs to the gateway and `@semiont/http-transport`.

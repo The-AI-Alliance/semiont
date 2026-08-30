@@ -98,7 +98,7 @@ test.describe('assisted reference detection', () => {
     await submitBtn.click();
 
     // (1) Dispatch — the assist crossed the wire as a reference-annotation
-    // job and the backend acked. (jobType for `linking` is
+    // job and the gateway acked. (jobType for `linking` is
     // `reference-annotation`; see namespaces/mark.ts jobTypeMap.)
     const { request } = await bus.expectRequestResponse('job:create', 'job:created', 30_000);
     expect(request.channel).toBe('job:create');

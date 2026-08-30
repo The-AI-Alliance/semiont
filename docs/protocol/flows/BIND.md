@@ -25,7 +25,7 @@ Both paths result in an `mark:body-updated` event that adds the `SpecificResourc
 
 Resolve a reference annotation by adding a `SpecificResource` link to
 its body. The `bind` namespace issues a confirmed write over `busRequest`:
-`bind.body(...)` emits `bind:update-body`, the backend handler forwards
+`bind.body(...)` emits `bind:update-body`, the gateway handler forwards
 to `mark:update-body`, matches the persisted outcome by `correlationId`,
 and replies on `bind:body-updated` / `bind:body-update-failed`. The SDK
 awaits that real outcome and throws on failure. Persisting the body change
@@ -97,7 +97,7 @@ User clicks "Link" on a result
     |
 client.bind.body(...) → bind:update-body emitted via busRequest (awaits reply)
     |
-backend handler forwards to mark:update-body, persists mark:body-updated event,
+gateway handler forwards to mark:update-body, persists mark:body-updated event,
 materializes view, replies bind:body-updated (correlationId-matched)
     |
 EventStore enrichment attaches post-materialization annotation,

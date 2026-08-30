@@ -175,7 +175,7 @@ await session.client.mark.assist(resourceId, 'tagging', { schemaId: 'legal-irac'
 The resource's **own** classification — the `entityTypes` stamped at creation (§5) — can
 also be changed after the fact. `mark.updateEntityTypes` is a **replace/diff** call: pass
 the resource's *current* set and the desired *full* set (not just the additions); the
-backend folds the difference into `resource.entityTypes`, so the change surfaces in
+gateway folds the difference into `resource.entityTypes`, so the change surfaces in
 `browse.resources({ entityType })` filters and resource metadata. Awaitable and rejects on
 failure, like `mark.delete`:
 
@@ -192,7 +192,7 @@ can name the agent that will serve it: `browse.agents()` returns the KB's declar
 `CollaboratorEntry[]` — each entry a W3C `Agent` plus, for software agents, the
 `servesJobTypes` it's configured to serve (both types importable from `@semiont/core`). It's
 a KB-wide live query like `entityTypes()`: cached for the client's lifetime and refreshed
-after a connection gap (a roster change means a backend restart, which always presents as
+after a connection gap (a roster change means a gateway restart, which always presents as
 one). Match a job type to its serving agent and you have the assignee *before* the work runs
 — and the same DID arrives back as `generator` on every annotation that work creates, so
 your dispatch-time attribution and the stored provenance agree by construction:
@@ -354,7 +354,7 @@ const status = await session.client.job.status(jobId);
 const final  = await session.client.job.pollUntilComplete(jobId, { onProgress: (s) => log(s.status) });
 ```
 
-**Defend against silence.** A job can fail by *never starting* — e.g. the backend restarts
+**Defend against silence.** A job can fail by *never starting* — e.g. the gateway restarts
 with a new signing secret and rejects the emit, so no job is created, nothing streams, and
 `run()` awaits a terminal that will never come. Errors you can catch (§13); silence you have
 to time out. The pattern: race the terminal against a stall timer that **re-arms on every
@@ -493,7 +493,7 @@ made in — so a host with N viewers routes each `mark:requested` to the right o
 The same code runs in both — only two things differ:
 - **Storage:** `InMemorySessionStorage` (or your own file-backed `SessionStorage`) in Node; a
   `localStorage`-backed `SessionStorage` in the browser.
-- **Transport:** the default HTTP transport for a remote backend; `LocalTransport` (from
+- **Transport:** the default HTTP transport for a remote gateway; `LocalTransport` (from
   `@semiont/make-meaning`) for fully in-process operation (embedded use, an agentic worker, a
   test). The verb namespaces are identical either way.
 
@@ -576,7 +576,7 @@ The content side is `inMemoryContent()` — the same in-memory `IContentTranspor
 that backs `createTestClient` (reads throw unless seeded), exported for tests
 that drive content directly: `putBinary` records each resource's SHA-256, so a
 producer-path `putAnchoredText(checksum, …)` reads back through
-`getAnchoredText(resourceId)` the same way the backend's view index resolves it.
+`getAnchoredText(resourceId)` the same way the gateway's view index resolves it.
 
 **Asserting what you sent.** `transport.requestLog` is the arrival-ordered record
 of every request the wire saw — including the payload, so you never need a

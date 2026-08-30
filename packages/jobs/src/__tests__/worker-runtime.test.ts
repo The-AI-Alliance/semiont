@@ -37,7 +37,7 @@ vi.mock('../worker-process', () => ({
 
 // The skew fixture: the worker DIALS a gateway IP…
 const DIAL_URL = 'http://192.168.64.1:4000';
-// …while the exchange mints the canonical identity from the backend's
+// …while the exchange mints the canonical identity from the gateway's
 // site.domain — a different host, deliberately.
 const CANONICAL_DID = 'did:web:kb.example:agents:anthropic:claude-haiku-4-5';
 
@@ -156,13 +156,13 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     ).rejects.toThrow(/SEMIONT_WORKER_SECRET/);
   });
 
-  // The blip that used to be fatal: any momentary backend unreachability
-  // at the instant the worker starts (backend restart, container-network
+  // The blip that used to be fatal: any momentary gateway unreachability
+  // at the instant the worker starts (gateway restart, container-network
   // warm-up) threw `TypeError: fetch failed` straight out of main() and
   // killed the process — with `--rm` and no restart policy, permanently.
-  it('retries startup auth while the backend is unreachable and succeeds once it comes up', async () => {
+  it('retries startup auth while the gateway is unreachable and succeeds once it comes up', async () => {
     // Reserve a port, then free it — the first attempts dial a closed port
-    // and fail at the connection level, exactly like a backend mid-restart.
+    // and fail at the connection level, exactly like a gateway mid-restart.
     const probe = createServer();
     probe.listen(0, '127.0.0.1');
     await once(probe, 'listening');
@@ -170,13 +170,13 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     probe.close();
     await once(probe, 'close');
 
-    let backend: Server | undefined;
+    let gateway: Server | undefined;
     const bringUp = setTimeout(() => {
-      backend = createServer((_req, res) => {
+      gateway = createServer((_req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ token: fakeJwt(), did: CANONICAL_DID }));
       });
-      backend.listen(port, '127.0.0.1');
+      gateway.listen(port, '127.0.0.1');
     }, 150);
 
     const warn = vi.fn();
@@ -191,19 +191,19 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
       });
       expect(result.did).toBe(CANONICAL_DID);
       expect(warn).toHaveBeenCalledWith(
-        'Backend unreachable, retrying agent authentication',
+        'Gateway unreachable, retrying agent authentication',
         expect.objectContaining({ agent: 'anthropic:claude-haiku-4-5', attempt: expect.any(Number) }),
       );
     } finally {
       clearTimeout(bringUp);
-      if (backend) {
-        backend.close();
-        await once(backend, 'close');
+      if (gateway) {
+        gateway.close();
+        await once(gateway, 'close');
       }
     }
   }, 15_000);
 
-  it('gives up after the retry budget when the backend never comes up', async () => {
+  it('gives up after the retry budget when the gateway never comes up', async () => {
     const calls = { count: 0 };
     vi.stubGlobal('fetch', vi.fn(async () => {
       calls.count++;
@@ -224,7 +224,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     expect(calls.count).toBe(3);
   });
 
-  it('does NOT retry an HTTP-level rejection — the backend is up and said no', async () => {
+  it('does NOT retry an HTTP-level rejection — the gateway is up and said no', async () => {
     const fetchMock = vi.fn(async () => new Response('nope', { status: 401, statusText: 'Unauthorized' }));
     vi.stubGlobal('fetch', fetchMock);
 

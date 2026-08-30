@@ -23,7 +23,7 @@ echo password | semiont useradd --email admin@example.com --admin
 ```
 
 One command starts the whole stack — the five published Semiont images
-(backend, worker, smelter, weaver, browser) pulled from
+(gateway, worker, smelter, weaver, browser) pulled from
 `ghcr.io/the-ai-alliance/*` plus the infrastructure containers — with the
 KB's config bind-mounted at runtime. No npm required, and nothing is built
 locally: KB repos carry no Dockerfiles and no scripts. `semiont logs`
@@ -50,7 +50,7 @@ semiont start
 echo password | semiont useradd --email admin@example.com --admin
 ```
 
-On first run, the backend container pulls the inference and embedding models from Ollama. This is a one-time download (~2-4 GB depending on the model) and may take several minutes.
+On first run, the gateway container pulls the inference and embedding models from Ollama. This is a one-time download (~2-4 GB depending on the model) and may take several minutes.
 
 To use Anthropic cloud inference instead:
 
@@ -87,10 +87,10 @@ Open **http://localhost:3000** and enter **http://localhost:4000** as the knowle
 
 ## Local network access
 
-The browser container must be allowed to talk to the backend running on your host. Each platform handles this differently:
+The browser container must be allowed to talk to the gateway running on your host. Each platform handles this differently:
 
 - **macOS + Apple `container`:** the first run prompts for permission. If you dismiss it, enable it under **System Settings → Privacy & Security → Local Network** and tick `container-runtime-linux`.
-- **macOS + Docker Desktop / Podman:** the same prompt appears, granted to `com.docker.backend` or `podman-mac-helper` in the same panel.
+- **macOS + Docker Desktop / Podman:** the same prompt appears, granted to `com.docker.gateway` or `podman-mac-helper` in the same panel.
 - **Linux:** no prompt; containers share the host network namespace by default.
 - **Windows:** Docker Desktop / Podman handle this via WSL2; no extra step.
 
@@ -100,14 +100,14 @@ As an alternative to the container image, Semiont ships a native desktop app for
 
 ## Detailed Setup
 
-- **[Backend](./LOCAL-BACKEND.md)** — PostgreSQL, inference, Neo4j, service management
-- **[Browser](../browser/LOCAL.md)** — SPA, desktop app, connecting to a backend
+- **[Gateway](./LOCAL-GATEWAY.md)** — PostgreSQL, inference, Neo4j, service management
+- **[Browser](../browser/LOCAL.md)** — SPA, desktop app, connecting to a gateway
 
 ## Service Ports
 
 | Service | Port | URL |
 |---------|------|-----|
-| Backend | 4000 | http://localhost:4000 |
+| Gateway | 4000 | http://localhost:4000 |
 | Browser | 3000 | http://localhost:3000 |
 | PostgreSQL | 5432 | postgresql://localhost:5432 |
 

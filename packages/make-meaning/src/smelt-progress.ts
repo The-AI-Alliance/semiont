@@ -1,5 +1,5 @@
 /**
- * SmeltProgress — backend-local fold of `smelt:settled` signals
+ * SmeltProgress — gateway-local fold of `smelt:settled` signals
  * (SMELTER-INDEX-SYNC P1, D1 = push barrier).
  *
  * The Smelter emits `smelt:settled` after deciding a resource's content:
@@ -17,7 +17,7 @@
  * worker; an in-process Smelter would ride the core EventBus and this unit
  * would not change (the WeaveProgress precedent).
  *
- * The fold is ephemeral by design — on backend restart it rebuilds lazily
+ * The fold is ephemeral by design — on gateway restart it rebuilds lazily
  * from live signals. Barrier callers probe the vector store first
  * (SMELTER-INDEX-SYNC A3), so a cold fold only costs waits for resources
  * whose settlement genuinely hasn't been observed yet.

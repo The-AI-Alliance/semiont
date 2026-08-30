@@ -30,7 +30,7 @@ const isAdmin = user?.isAdmin ?? false;
 const isModerator = user?.isModerator ?? false;
 ```
 
-These come straight from the authenticated user record and are coarse — fine-grained permission scopes are still backend-only and a future enhancement.
+These come straight from the authenticated user record and are coarse — fine-grained permission scopes are still gateway-only and a future enhancement.
 
 #### 2. PermissionDeniedModal (`@semiont/react-ui`)
 
@@ -44,7 +44,7 @@ The modal is mounted inside `AuthShell` alongside `SessionExpiredModal`.
 
 #### 3. `signals.notifyPermissionDenied` (`@semiont/sdk`)
 
-A 403 from the backend surfaces on the transport's error stream; the `SemiontBrowser` observes it and raises the signal on the active session's `SessionSignals`:
+A 403 from the gateway surfaces on the transport's error stream; the `SemiontBrowser` observes it and raises the signal on the active session's `SessionSignals`:
 
 ```typescript
 // inside SemiontBrowser, observing transport errors
@@ -75,7 +75,7 @@ flowchart TD
 
 1. **Transport Level** (`@semiont/http-transport`)
    - Throws `APIError` with status: 403 and surfaces it on `transport.errors$`
-   - Preserves error context from the backend
+   - Preserves error context from the gateway
 
 2. **Session Level** (`@semiont/sdk` — `SemiontBrowser`)
    ```typescript
@@ -97,7 +97,7 @@ flowchart TD
 
 ### Best Practices
 
-1. **Never trust client-side permissions** - Always validate on backend
+1. **Never trust client-side permissions** - Always validate on gateway
 2. **Fail closed** - Default to denying access
 3. **Obscure sensitive routes** - Use 404s for admin/moderate paths
 4. **Minimal error information** - Don't reveal system internals
@@ -306,7 +306,7 @@ const permissions = {
 
 2. **Coarse role flags only**
    - `isAdmin` / `isModerator` come straight from `getMe`
-   - Fine-grained per-resource permissions are pending backend support
+   - Fine-grained per-resource permissions are pending gateway support
 
 3. **403 errors not caught**
    - Ensure using `APIError` class from http-transport
@@ -316,7 +316,7 @@ const permissions = {
 
 - [Authentication Architecture](./AUTHENTICATION.md) - 401 handling and session management
 - [@semiont/http-transport Reference](../../../packages/http-transport/docs/API-Reference.md#apierror) - `APIError` shape and HTTP error handling
-- [Backend RBAC](../../../docs/system/administration/SECURITY.md) - Server-side permission system
+- [Gateway RBAC](../../../docs/system/administration/SECURITY.md) - Server-side permission system
 
 ## Contributing
 

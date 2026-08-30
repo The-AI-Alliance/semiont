@@ -183,7 +183,7 @@ describe('bus routes', () => {
 
   // Presence is SSE CONNECTION LIFECYCLE, not login (D5): `semiont login`
   // hits REST and mints a token that may sit unused for hours, while what a
-  // tour needs to know is whether anyone is WATCHING. The backend already
+  // tour needs to know is whether anyone is WATCHING. The gateway already
   // tracked exactly that for its metrics gauge (recordSubscriberConnect /
   // recordSubscriberDisconnect) and threw the information away; these two
   // channels publish it.

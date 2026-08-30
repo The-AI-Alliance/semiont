@@ -11,7 +11,7 @@
  * over SSE, history reads (`browse:*`) and `weave:applied` signals ride
  * the same bus, and its single privileged attachment beyond the bus is
  * the graph database. The graph projection is part of the graph stack,
- * not of the backend process (D4) — this entry point IS that stack
+ * not of the gateway process (D4) — this entry point IS that stack
  * membership.
  *
  * Environment variables:
@@ -58,7 +58,7 @@ if (!maybeGraphConfig?.type) {
 }
 if (maybeGraphConfig.type === 'memory') {
   // The in-memory graph is a hermetic TEST sink — it lives in a single
-  // process's heap and cannot be shared with the backend's readers.
+  // process's heap and cannot be shared with the gateway's readers.
   throw new Error("services.graph.type 'memory' is a test-only sink; the weaver requires a server-backed graph");
 }
 // Re-bind after the guards: module-level narrowing does not carry into main().
@@ -90,11 +90,11 @@ async function authenticate(): Promise<string> {
   // identity (semiont, weaver) — DID did:web:<host>:agents:semiont:weaver —
   // and the bus stamps that onto every signal it emits.
   //
-  // Connection-level failures are retried with backoff: the backend may be
+  // Connection-level failures are retried with backoff: the gateway may be
   // mid-restart or the container network still warming up when this process
   // starts, and orchestration runs it with `--rm` and no restart policy —
   // exiting on the first failed fetch is permanent death. HTTP-level
-  // rejections (bad secret) are NOT retried; the backend is up and said no.
+  // rejections (bad secret) are NOT retried; the gateway is up and said no.
   return retryWithBackoff(
     async () => {
       const response = await fetch(`${baseUrl}/api/tokens/agent`, {
@@ -117,7 +117,7 @@ async function authenticate(): Promise<string> {
     isTransientFetchError,
     STARTUP_FETCH_RETRY,
     ({ attempt, attempts, delayMs, error }) => {
-      logger.warn('Backend unreachable, retrying authentication', {
+      logger.warn('Gateway unreachable, retrying authentication', {
         attempt,
         attempts,
         retryInMs: delayMs,

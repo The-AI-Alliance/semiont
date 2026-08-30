@@ -1,24 +1,24 @@
-# Backend Testing Guide
+# Gateway Testing Guide
 
-Backend testing guide focused on Vitest, HTTP contract testing, and backend-specific testing strategies.
+Gateway testing guide focused on Vitest, HTTP contract testing, and gateway-specific testing strategies.
 
 **Related Documentation:**
 - **[System Testing Guide](../../../docs/development/TESTING.md)** - **Read this first!** Complete testing strategy including Vitest, MSW v2, Browser testing, and test orchestration
-- [Main README](../README.md) - Backend overview
+- [Main README](../README.md) - Gateway overview
 - [Development Guide](./DEVELOPMENT.md) - Local development setup
 - [Contributing Guide](../../../CONTRIBUTING.md) - Code style and patterns
 
-**Scope**: This document covers backend-specific testing using Vitest, HTTP contract testing, and API endpoint validation. For system-wide testing including Browser testing, see the [System Testing Guide](../../../docs/development/TESTING.md).
+**Scope**: This document covers gateway-specific testing using Vitest, HTTP contract testing, and API endpoint validation. For system-wide testing including Browser testing, see the [System Testing Guide](../../../docs/development/TESTING.md).
 
-## Backend Testing Philosophy
+## Gateway Testing Philosophy
 
-The backend uses **Vitest** with a focus on **HTTP contract testing**:
+The gateway uses **Vitest** with a focus on **HTTP contract testing**:
 
 1. **Test the HTTP layer** - Status codes, headers, authentication, request/response validation
 2. **Delegate business logic** - Subsystem logic tested in package tests (`@semiont/make-meaning`, `@semiont/event-sourcing`, etc.)
 3. **Fast execution** - HTTP contract tests run in milliseconds with mocked subsystems
 4. **TypeScript strict mode** - All tests fully typed
-5. **Mock make-meaning** - Backend tests focus on HTTP exposure, not event-sourcing internals
+5. **Mock make-meaning** - Gateway tests focus on HTTP exposure, not event-sourcing internals
 
 ## Test Organization
 
@@ -89,7 +89,7 @@ describe('POST /resources', () => {
 ```
 src/__tests__/
 ├── route-auth-coverage.test.ts  # Comprehensive route authentication testing
-├── backend-security.test.ts     # Security requirements documentation
+├── gateway-security.test.ts     # Security requirements documentation
 └── security-controls.test.ts    # CORS and security headers
 ```
 
@@ -105,7 +105,7 @@ src/__tests__/
 
 ### Subsystem Tests (packages/*/src/__tests__/)
 
-Business logic tests belong in package tests, not backend:
+Business logic tests belong in package tests, not gateway:
 
 ```
 packages/make-meaning/src/__tests__/
@@ -145,12 +145,12 @@ describe('EntityExtractor', () => {
 });
 ```
 
-## Running Backend Tests
+## Running Gateway Tests
 
 ### Using npm Scripts
 
 ```bash
-# Run all backend tests
+# Run all gateway tests
 npm test
 
 # Run specific test files
@@ -168,7 +168,7 @@ npm run typecheck
 
 ## What to Test Where
 
-### ✅ Backend HTTP Contract Tests (apps/gateway/src/__tests__/routes/)
+### ✅ Gateway HTTP Contract Tests (apps/gateway/src/__tests__/routes/)
 
 Test HTTP exposure:
 
@@ -244,7 +244,7 @@ it('should materialize view from yield:created event', async () => {
 ### ❌ What NOT to Test
 
 ```typescript
-// ❌ BAD: Testing business logic in backend tests
+// ❌ BAD: Testing business logic in gateway tests
 // This belongs in packages/make-meaning tests
 describe('POST /resources', () => {
   it('should extract entities from content', async () => {
@@ -257,7 +257,7 @@ describe('POST /resources', () => {
 });
 
 // ❌ BAD: Integration tests between subsystems
-// Backend tests should mock subsystems
+// Gateway tests should mock subsystems
 describe('Resource Creation Flow', () => {
   it('should create resource and update graph database', async () => {
     // Testing subsystem integration - WRONG PLACE!
@@ -436,7 +436,7 @@ const handleArchive = useCallback(async () => {
 }, [resource, rId, updateDocMutation, refetchDocument, showSuccess, showError]);
 ```
 
-**Backend implementation**: the resource update route handler.
+**Gateway implementation**: the resource update route handler.
 
 ```typescript
 if (body.archived !== undefined && body.archived !== doc.archived) {
@@ -459,7 +459,7 @@ Security tests are critical and run automatically in CI/CD:
 ```bash
 # Run all security tests
 npm test -- src/__tests__/route-auth-coverage.test.ts
-npm test -- src/__tests__/backend-security.test.ts
+npm test -- src/__tests__/gateway-security.test.ts
 npm test -- src/__tests__/security-controls.test.ts
 
 # Watch mode
@@ -468,7 +468,7 @@ npm run test:watch -- --testNamePattern=security
 
 ### Understanding route-auth-coverage.test.ts
 
-This test is the **cornerstone of backend security testing**:
+This test is the **cornerstone of gateway security testing**:
 
 ```typescript
 // Dynamically loads OpenAPI spec
@@ -497,7 +497,7 @@ for (const route of routes) {
 
 ## Adding Routes: Security Test Checklist
 
-When adding new backend routes:
+When adding new gateway routes:
 
 1. **Apply authentication middleware**:
    ```typescript
@@ -579,6 +579,6 @@ npm run test:watch
 ---
 
 **Last Updated**: 2026-01-30
-**Scope**: Backend HTTP contract testing with Vitest (Node.js, TypeScript, Security)
+**Scope**: Gateway HTTP contract testing with Vitest (Node.js, TypeScript, Security)
 **Test Framework**: Vitest (not Jest)
-**Testing Pattern**: HTTP contract tests (backend) + business logic tests (packages)
+**Testing Pattern**: HTTP contract tests (gateway) + business logic tests (packages)

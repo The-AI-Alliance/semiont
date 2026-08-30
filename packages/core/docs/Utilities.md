@@ -60,13 +60,13 @@ const text3 = decodeWithCharset(buffer3.buffer, 'text/plain; charset=windows-125
 
 **Why This Matters:**
 
-When creating annotations, the backend calculates TextPositionSelector offsets in the **original character space**. The Browser must decode content using the **same charset** to ensure offsets align correctly.
+When creating annotations, the gateway calculates TextPositionSelector offsets in the **original character space**. The Browser must decode content using the **same charset** to ensure offsets align correctly.
 
 ```typescript
 // ❌ WRONG - Uses UTF-8 for ISO-8859-1 document
 const wrongText = new TextDecoder('utf-8').decode(buffer);
 const sel = reconcileSelector(wrongText, { exact: 'café' });
-// Offsets will be INCORRECT because character positions don't match backend
+// Offsets will be INCORRECT because character positions don't match gateway
 
 // ✅ RIGHT - Uses charset from mediaType
 const rightText = decodeWithCharset(buffer, mediaType);

@@ -15,8 +15,8 @@ import type { Annotation } from '@semiont/core';
 import { annotationId } from '@semiont/core';
 import { getEntityTypes, getBodySource, isResolved } from './helpers/annotation-helpers';
 
-// Test backend URL for W3C-compliant URIs
-const TEST_BACKEND_URL = 'http://localhost:4000';
+// Test gateway URL for W3C-compliant URIs
+const TEST_GATEWAY_URL = 'http://localhost:4000';
 
 describe('W3C Web Annotation Compliance', () => {
   describe('Stub Reference Validation', () => {
@@ -28,7 +28,7 @@ describe('W3C Web Annotation Compliance', () => {
         id: annotationId('test-stub-123'),
         motivation: 'linking',
         target: {
-          source: `${TEST_BACKEND_URL}/resources/doc-123`,
+          source: `${TEST_GATEWAY_URL}/resources/doc-123`,
           selector: [
             {
               type: 'TextPositionSelector',
@@ -67,7 +67,7 @@ describe('W3C Web Annotation Compliance', () => {
         id: annotationId('test-stub-456'),
         motivation: 'linking',
         target: {
-          source: `${TEST_BACKEND_URL}/resources/doc-456`,
+          source: `${TEST_GATEWAY_URL}/resources/doc-456`,
           selector: {
             type: 'TextQuoteSelector',
             exact: 'quantum mechanics',
@@ -120,7 +120,7 @@ describe('W3C Web Annotation Compliance', () => {
         id: annotationId('test-resolved-123'),
         motivation: 'linking',
         target: {
-          source: `${TEST_BACKEND_URL}/resources/doc-source-123`,
+          source: `${TEST_GATEWAY_URL}/resources/doc-source-123`,
           selector: [
             {
               type: 'TextPositionSelector',
@@ -141,7 +141,7 @@ describe('W3C Web Annotation Compliance', () => {
           },
           {
             type: 'SpecificResource',
-            source: `${TEST_BACKEND_URL}/resources/doc-target-456`,
+            source: `${TEST_GATEWAY_URL}/resources/doc-target-456`,
             purpose: 'linking',
           },
         ],
@@ -174,14 +174,14 @@ describe('W3C Web Annotation Compliance', () => {
         if (secondBody) {
           expect(secondBody.type).toBe('SpecificResource');
           if ('source' in secondBody) {
-            expect(secondBody.source).toBe(`${TEST_BACKEND_URL}/resources/doc-target-456`);
+            expect(secondBody.source).toBe(`${TEST_GATEWAY_URL}/resources/doc-target-456`);
           }
         }
       }
 
       // Extract entity types and source
       expect(getEntityTypes(resolvedAnnotation)).toEqual(['Theory']);
-      expect(getBodySource(resolvedAnnotation.body)).toBe(`${TEST_BACKEND_URL}/resources/doc-target-456`);
+      expect(getBodySource(resolvedAnnotation.body)).toBe(`${TEST_GATEWAY_URL}/resources/doc-target-456`);
       expect(isResolved(resolvedAnnotation)).toBe(true);
     });
 
@@ -192,12 +192,12 @@ describe('W3C Web Annotation Compliance', () => {
         id: annotationId('test-resolved-789'),
         motivation: 'linking',
         target: {
-          source: `${TEST_BACKEND_URL}/resources/doc-abc`,
+          source: `${TEST_GATEWAY_URL}/resources/doc-abc`,
         },
         body: [
           {
             type: 'SpecificResource',
-            source: `${TEST_BACKEND_URL}/resources/doc-xyz`,
+            source: `${TEST_GATEWAY_URL}/resources/doc-xyz`,
             purpose: 'linking',
           },
         ],
@@ -229,12 +229,12 @@ describe('W3C Web Annotation Compliance', () => {
         id: annotationId('test-purpose-123'),
         motivation: 'linking',
         target: {
-          source: `${TEST_BACKEND_URL}/resources/doc-123`,
+          source: `${TEST_GATEWAY_URL}/resources/doc-123`,
         },
         body: [
           {
             type: 'SpecificResource',
-            source: `${TEST_BACKEND_URL}/resources/doc-456`,
+            source: `${TEST_GATEWAY_URL}/resources/doc-456`,
             purpose: 'linking',
           },
         ],
@@ -284,7 +284,7 @@ describe('W3C Web Annotation Compliance', () => {
         id: annotationId('test-source-only-target'),
         motivation: 'linking',
         target: {
-          source: `${TEST_BACKEND_URL}/resources/doc-456`, // Source without selector
+          source: `${TEST_GATEWAY_URL}/resources/doc-456`, // Source without selector
         },
         creator: {
           '@type': 'Person' as const,
@@ -296,7 +296,7 @@ describe('W3C Web Annotation Compliance', () => {
 
       expect(typeof annotation.target).toBe('object');
       if (typeof annotation.target === 'object') {
-        expect(annotation.target.source).toBe(`${TEST_BACKEND_URL}/resources/doc-456`);
+        expect(annotation.target.source).toBe(`${TEST_GATEWAY_URL}/resources/doc-456`);
         expect(annotation.target.selector).toBeUndefined();
       }
     });
@@ -309,7 +309,7 @@ describe('W3C Web Annotation Compliance', () => {
         id: annotationId('test-full-target'),
         motivation: 'linking',
         target: {
-          source: `${TEST_BACKEND_URL}/resources/doc-789`,
+          source: `${TEST_GATEWAY_URL}/resources/doc-789`,
           selector: {
             type: 'TextQuoteSelector',
             exact: 'selected text',
@@ -318,7 +318,7 @@ describe('W3C Web Annotation Compliance', () => {
         body: [
           {
             type: 'SpecificResource',
-            source: `${TEST_BACKEND_URL}/resources/doc-ref-789`,
+            source: `${TEST_GATEWAY_URL}/resources/doc-ref-789`,
             purpose: 'linking',
           },
         ],
@@ -332,7 +332,7 @@ describe('W3C Web Annotation Compliance', () => {
 
       expect(typeof annotation.target).toBe('object');
       if (typeof annotation.target === 'object' && 'source' in annotation.target) {
-        expect(annotation.target.source).toBe(`${TEST_BACKEND_URL}/resources/doc-789`);
+        expect(annotation.target.source).toBe(`${TEST_GATEWAY_URL}/resources/doc-789`);
         expect(annotation.target.selector).toBeDefined();
         if (annotation.target.selector && !Array.isArray(annotation.target.selector)) {
           expect(annotation.target.selector.type).toBe('TextQuoteSelector');
@@ -349,7 +349,7 @@ describe('W3C Web Annotation Compliance', () => {
         id: annotationId('test-motivation'),
         motivation: 'linking', // W3C motivation for references
         target: {
-          source: `${TEST_BACKEND_URL}/resources/doc-123`,
+          source: `${TEST_GATEWAY_URL}/resources/doc-123`,
         },
         creator: {
           '@type': 'Person' as const,
@@ -369,7 +369,7 @@ describe('W3C Web Annotation Compliance', () => {
         id: annotationId('test-highlight'),
         motivation: 'highlighting',
         target: {
-          source: `${TEST_BACKEND_URL}/resources/doc-456`,
+          source: `${TEST_GATEWAY_URL}/resources/doc-456`,
           selector: [
             {
               type: 'TextPositionSelector',
@@ -467,7 +467,7 @@ describe('W3C Web Annotation Compliance', () => {
         id: annotationId('test-transition'),
         motivation: 'linking',
         target: {
-          source: `${TEST_BACKEND_URL}/resources/doc-source`,
+          source: `${TEST_GATEWAY_URL}/resources/doc-source`,
           selector: {
             type: 'TextQuoteSelector',
             exact: 'Einstein',
@@ -504,7 +504,7 @@ describe('W3C Web Annotation Compliance', () => {
           },
           {
             type: 'SpecificResource',
-            source: `${TEST_BACKEND_URL}/resources/doc-target`,
+            source: `${TEST_GATEWAY_URL}/resources/doc-target`,
             purpose: 'linking',
           },
         ],
@@ -514,7 +514,7 @@ describe('W3C Web Annotation Compliance', () => {
       // Verify resolved state
       expect(Array.isArray(annotation.body)).toBe(true);
       expect(getEntityTypes(annotation)).toEqual(['Person']);
-      expect(getBodySource(annotation.body)).toBe(`${TEST_BACKEND_URL}/resources/doc-target`);
+      expect(getBodySource(annotation.body)).toBe(`${TEST_GATEWAY_URL}/resources/doc-target`);
       expect(isResolved(annotation)).toBe(true);
     });
 
@@ -526,7 +526,7 @@ describe('W3C Web Annotation Compliance', () => {
         id: annotationId('test-unlink'),
         motivation: 'linking',
         target: {
-          source: `${TEST_BACKEND_URL}/resources/doc-source`,
+          source: `${TEST_GATEWAY_URL}/resources/doc-source`,
         },
         body: [
           {
@@ -536,7 +536,7 @@ describe('W3C Web Annotation Compliance', () => {
           },
           {
             type: 'SpecificResource',
-            source: `${TEST_BACKEND_URL}/resources/doc-target`,
+            source: `${TEST_GATEWAY_URL}/resources/doc-target`,
             purpose: 'linking',
           },
         ],

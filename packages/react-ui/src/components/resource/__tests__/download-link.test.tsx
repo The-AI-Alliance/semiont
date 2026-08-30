@@ -8,7 +8,7 @@
  * so the alias takes bearer + `?token=` only. Both views shipped a bare
  * `/api/resources/${id}` — tokenless, so a 401, AND relative, so under
  * bring-your-own-session embedding it resolves against the HOST app's origin
- * rather than the backend's.
+ * rather than the gateway's.
  *
  * Started RED (both hrefs were `/api/resources/res-1`).
  */
@@ -26,7 +26,7 @@ vi.mock('../../image-annotation/SvgDrawingCanvas', () => ({ SvgDrawingCanvas: ()
 vi.mock('react-markdown', () => ({ default: ({ children }: { children: string }) => <div>{children}</div> }));
 vi.mock('remark-gfm', () => ({ default: () => ({}) }));
 
-const BACKEND = 'http://backend.test:4000';
+const GATEWAY = 'http://gateway.test:4000';
 const UNSUPPORTED = 'application/octet-stream';
 
 const emptyAnnotations = { highlights: [], references: [], assessments: [], comments: [], tags: [] };
@@ -50,7 +50,7 @@ function sessionPending(): SemiontSession {
 
 /**
  * A transport-only client: `SemiontClient.auth` is `AuthNamespace | undefined`,
- * and a host wiring a bare transport (no `IBackendOperations`) has no `auth`.
+ * and a host wiring a bare transport (no `IGatewayOperations`) has no `auth`.
  */
 function sessionWithoutAuth(): SemiontSession {
   return fakeSession({});
@@ -59,7 +59,7 @@ function sessionWithoutAuth(): SemiontSession {
 function fakeSession(clientExtras: Record<string, unknown>): SemiontSession {
   return {
     client: {
-      baseUrl: BACKEND,
+      baseUrl: GATEWAY,
       mark: { request: vi.fn() },
       browse: { click: vi.fn() },
       beckon: { hover: vi.fn() },
@@ -94,11 +94,11 @@ const VIEWS = [
 ] as const;
 
 describe.each(VIEWS)('$name — unsupported-media download link', ({ render: renderView }) => {
-  it('points at the backend origin and carries the media token', async () => {
+  it('points at the gateway origin and carries the media token', async () => {
     renderView(sessionMinting('tok-abc'));
 
     const link = await screen.findByRole('link', { name: 'Download File' });
-    expect(link).toHaveAttribute('href', `${BACKEND}/api/resources/res-1?token=tok-abc`);
+    expect(link).toHaveAttribute('href', `${GATEWAY}/api/resources/res-1?token=tok-abc`);
     expect(link).toHaveAttribute('download');
   });
 

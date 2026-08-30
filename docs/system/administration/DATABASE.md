@@ -8,11 +8,11 @@ How Semiont manages its PostgreSQL database, including schema definition, migrat
 
 - **Engine**: PostgreSQL 15 (`postgres:15.18-alpine` when the launcher provisions it)
 - **ORM**: [Prisma](https://www.prisma.io/) — [schema](../../../apps/gateway/prisma/schema.prisma)
-- **Migrations**: versioned migration files under [`apps/gateway/prisma/migrations/`](../../../apps/gateway/prisma/migrations/), applied with `prisma migrate deploy` when the backend container starts
+- **Migrations**: versioned migration files under [`apps/gateway/prisma/migrations/`](../../../apps/gateway/prisma/migrations/), applied with `prisma migrate deploy` when the gateway container starts
 - **Connection**: pooled by Prisma Client
 - **Scope**: the `users` table, nothing else
 
-In a launcher-managed stack, PostgreSQL runs as the `semiont-postgres` container, and the backend reaches it over the stack network. See [Container Topology](../CONTAINER-TOPOLOGY.md).
+In a launcher-managed stack, PostgreSQL runs as the `semiont-postgres` container, and the gateway reaches it over the stack network. See [Container Topology](../CONTAINER-TOPOLOGY.md).
 
 ## Schema
 
@@ -46,7 +46,7 @@ model User {
 
 ## Migrations
 
-The backend container applies migrations on startup, before the server process starts. From [`apps/gateway/Dockerfile`](../../../apps/gateway/Dockerfile):
+The gateway container applies migrations on startup, before the server process starts. From [`apps/gateway/Dockerfile`](../../../apps/gateway/Dockerfile):
 
 ```dockerfile
 CMD set -e; \
@@ -77,10 +77,10 @@ container exec -it semiont-gateway sh     # or: docker exec -it semiont-gateway 
 container exec -it semiont-postgres psql -U postgres semiont
 ```
 
-Prisma lives inside the backend package, so prisma commands need its directory. `GATEWAY_DIR` is set in the image:
+Prisma lives inside the gateway package, so prisma commands need its directory. `GATEWAY_DIR` is set in the image:
 
 ```bash
-# Confirm the backend can reach the database and see the expected schema
+# Confirm the gateway can reach the database and see the expected schema
 container exec semiont-gateway sh -c 'cd "$GATEWAY_DIR" && npx prisma db pull --print'
 
 # Migration state: which migrations are applied, which are pending
@@ -149,7 +149,7 @@ model User {
 }
 ```
 
-Then generate the migration (`npx prisma migrate dev --name add_audit_log`), commit it, and rebuild the backend image.
+Then generate the migration (`npx prisma migrate dev --name add_audit_log`), commit it, and rebuild the gateway image.
 
 ### Modifying existing tables
 
@@ -160,7 +160,7 @@ Adding a required column to a populated table needs the usual two-step: add it n
 ### Verifying a migration applied
 
 ```bash
-semiont logs --service backend | grep -i migrat
+semiont logs --service gateway | grep -i migrat
 container exec semiont-gateway sh -c 'cd "$GATEWAY_DIR" && npx prisma migrate status'
 ```
 
@@ -179,7 +179,7 @@ Losing the database loses user accounts and their credentials; it does not lose 
 
 ## Health and monitoring
 
-The backend reports database reachability at `GET /api/health`:
+The gateway reports database reachability at `GET /api/health`:
 
 ```bash
 curl -s http://localhost:4000/api/health
@@ -194,18 +194,18 @@ For query-level inspection:
 container exec semiont-postgres psql -U postgres semiont \
   -c "SELECT pid, state, now() - query_start AS duration, query FROM pg_stat_activity WHERE state = 'active';"
 
-# Database-related backend logs
-semiont logs --service backend | grep -iE "prisma|database|connection"
+# Database-related gateway logs
+semiont logs --service gateway | grep -iE "prisma|database|connection"
 ```
 
 ## Troubleshooting
 
-### The backend container exits at startup
+### The gateway container exits at startup
 
 `migrate deploy` failed, so the server never started. The reason is in the logs:
 
 ```bash
-semiont logs --service backend
+semiont logs --service gateway
 ```
 
 Usual causes: PostgreSQL not up yet (the launcher orders startup, but a slow first boot can still race), wrong credentials, or a migration that conflicts with the database's recorded history.
@@ -246,7 +246,7 @@ container exec semiont-postgres psql -U postgres semiont \
 ## Related
 
 - [Container Topology](../CONTAINER-TOPOLOGY.md) — where PostgreSQL sits among the containers
-- [CONFIGURATION.md](CONFIGURATION.md) — how the backend is told where the database is
+- [CONFIGURATION.md](CONFIGURATION.md) — how the gateway is told where the database is
 - [SECRETS.md](../services/SECRETS.md) — credential handling
 - [BACKUP.md](BACKUP.md) — backing up the knowledge, which is not in PostgreSQL
 - [Knowledge System](../KNOWLEDGE-SYSTEM.md) — where resource and annotation data actually lives

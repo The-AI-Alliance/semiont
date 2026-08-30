@@ -259,4 +259,4 @@ eventBus.destroy();
 
 - [API Reference](./api-reference.md) — Complete API documentation
 - [Architecture](./architecture.md) — Actor model and data flow
-- [Scripting](./SCRIPTING.md) — Direct scripting without HTTP backend
+- [Scripting](./SCRIPTING.md) — Direct scripting without HTTP gateway

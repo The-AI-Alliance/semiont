@@ -75,7 +75,7 @@ export class GatherNamespace implements IGatherNamespace {
    * `gather:resource-requested` → `gather:resource-complete`/`-failed`. Unlike
    * `annotation()` there are no progress events, so this is a `Promise`, not a
    * `StreamObservable`. Resolves to the unified `GatheredContext` (focus.kind:
-   * 'resource') the backend assembled — the resource focus plus the shared
+   * 'resource') the gateway assembled — the resource focus plus the shared
    * knowledge graph; rejects with a `BusRequestError` on failure. Defaults mirror
    * the CLI `gather` command (depth 2, maxResources 10, content in, summary out).
    */

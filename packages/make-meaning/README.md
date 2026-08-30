@@ -27,7 +27,7 @@ Two **projection pipelines** follow the event log to keep the eventually-consist
 
 All seven actors subscribe to the EventBus via RxJS pipelines and expose no public business methods — only `initialize()` and `stop()`, plus a startup recovery entry point on the pipelines (`rebuildAll()` / `reconcile()`). Callers communicate with the access actors by putting events on the bus.
 
-The EventBus is a **complete interface** for all knowledge-domain operations. HTTP routes in the backend are thin wrappers that delegate to EventBus actors. The `@semiont/http-transport` exposes the same operations via verb-oriented namespaces (`semiont.browse`, `semiont.mark`, `semiont.gather`, etc.).
+The EventBus is a **complete interface** for all knowledge-domain operations. HTTP routes in the gateway are thin wrappers that delegate to EventBus actors. The `@semiont/http-transport` exposes the same operations via verb-oriented namespaces (`semiont.browse`, `semiont.mark`, `semiont.gather`, etc.).
 
 ## Quick Start
 
@@ -105,7 +105,7 @@ All meaningful actions flow through the EventBus. The KB actors are reactive —
 
 ```mermaid
 graph TB
-    Routes["Backend Routes"] -->|commands| BUS["Event Bus"]
+    Routes["Gateway Routes"] -->|commands| BUS["Event Bus"]
     Workers["Job Workers"] -->|commands| BUS
     EBC["SemiontClient"] -->|commands| BUS
 
@@ -185,7 +185,7 @@ const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, log
 
 ### EventBus Ownership
 
-The EventBus is created by the backend (or script) and passed into `startMakeMeaning()` as a dependency. Make-meaning does not own or encapsulate the EventBus — it is shared across the entire system.
+The EventBus is created by the gateway (or script) and passed into `startMakeMeaning()` as a dependency. Make-meaning does not own or encapsulate the EventBus — it is shared across the entire system.
 
 ### Pure projection validators
 
@@ -206,7 +206,7 @@ This pattern (functional core, imperative shell) is shared with `@semiont/event-
 - **[API Reference](./docs/api-reference.md)** — Context modules and operations
 - **[Examples](./docs/examples.md)** — Common use cases and patterns
 - **[Job Workers](./docs/job-workers.md)** — Async annotation workers (in @semiont/jobs)
-- **[Scripting](./docs/SCRIPTING.md)** — Direct scripting without HTTP backend
+- **[Scripting](./docs/SCRIPTING.md)** — Direct scripting without HTTP gateway
 
 ## Exports
 

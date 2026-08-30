@@ -34,7 +34,7 @@ who built — `CONTAINER_RUNTIME` picks the *build* engine only:
 
 ```bash
 # 1. Build all packages, publish to local Verdaccio, build all five images
-#    (backend, worker, smelter, weaver, browser)
+#    (gateway, worker, smelter, weaver, browser)
 ./scripts/ci/local-build.sh
 
 # 2. Run the full stack from your KB against the :local images
@@ -43,7 +43,7 @@ SEMIONT_VERSION=local semiont start
 echo password | semiont useradd --email admin@example.com --admin
 
 # 3. Iterate — edit code, rebuild only what changed:
-./scripts/ci/local-build.sh --package core,gateway --image backend
+./scripts/ci/local-build.sh --package core,gateway --image gateway
 # Verdaccio restarts fresh each run; the publish step always publishes all
 # packages, and --image narrows which images are rebuilt.
 
@@ -62,14 +62,14 @@ Options:
   --start-from <pkg> Skip packages before this one in the build order
   --skip-build       Skip build, publish only (reuse previous build artifacts)
   --image <list>     Comma-separated images to build
-                     (default: backend,worker,smelter,weaver,browser)
+                     (default: gateway,worker,smelter,weaver,browser)
 ```
 
 Package names for `--package`:
 
 | Libraries | Apps |
 |-----------|------|
-| http-transport, ontology, core, content | backend |
+| http-transport, ontology, core, content | gateway |
 | event-sourcing, graph, inference | browser |
 | jobs, make-meaning, react-ui | |
 

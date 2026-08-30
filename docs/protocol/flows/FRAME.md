@@ -17,13 +17,13 @@ Schema-layer changes fan out across participants the same way content changes do
 
 ## Scope
 
-Frame owns two structural primitives today: **entity-type vocabulary** and **tag-schema registration**. Both are write-side operations on the schema layer — live reads stay on Browse (`browse.entityTypes()`, `browse.tagSchemas()`). Future scope (relation/predicate types, ontology import, schema validation rules — see [Future scope](#future-scope) below) will accrete onto the same namespace as backend support arrives.
+Frame owns two structural primitives today: **entity-type vocabulary** and **tag-schema registration**. Both are write-side operations on the schema layer — live reads stay on Browse (`browse.entityTypes()`, `browse.tagSchemas()`). Future scope (relation/predicate types, ontology import, schema validation rules — see [Future scope](#future-scope) below) will accrete onto the same namespace as gateway support arrives.
 
 The split between writes (Frame) and live reads (Browse) is intentional. Browse is the live-read everything namespace — it owns cache primitives, live-query semantics, and hook-stable observables. Re-implementing those primitives on Frame for a single read would duplicate machinery without benefit. Writes to the schema layer belong on Frame; observation belongs on Browse.
 
 ## Entity types
 
-Add an entity type to the KB's vocabulary. The `frame` namespace emits `frame:add-entity-type` on the bus gateway — the backend Stower handler persists the addition and the change becomes visible to other participants through `browse.entityTypes()`.
+Add an entity type to the KB's vocabulary. The `frame` namespace emits `frame:add-entity-type` on the bus gateway — the gateway Stower handler persists the addition and the change becomes visible to other participants through `browse.entityTypes()`.
 
 ```typescript
 // Add a single entity type
@@ -38,7 +38,7 @@ client.browse.entityTypes().subscribe((types) => {
 });
 ```
 
-Adding the same entity type twice is idempotent — the backend dedupes; the second `frame:add-entity-type` for an existing tag is a no-op. No SDK-level coordination is needed for concurrent adds across participants.
+Adding the same entity type twice is idempotent — the gateway dedupes; the second `frame:add-entity-type` for an existing tag is a no-op. No SDK-level coordination is needed for concurrent adds across participants.
 
 From the launcher, the same write is `semiont frame`:
 
@@ -111,7 +111,7 @@ If `mark.assist` is called with a `schemaId` that isn't in the projection, the d
 
 ## Migrating from earlier channel names
 
-Frame's wire channels were renamed from `mark:*` to `frame:*` when Frame was promoted to flow status. KBs created before the rename have event logs containing `"type": "mark:entity-type-added"` records under `__system__.jsonl`. The SDK and backend reject the old channel names — there is no fallback shim, and no migration tooling ships — so a pre-rename event log has to be rewritten to the current names before the runtime can read it.
+Frame's wire channels were renamed from `mark:*` to `frame:*` when Frame was promoted to flow status. KBs created before the rename have event logs containing `"type": "mark:entity-type-added"` records under `__system__.jsonl`. The SDK and gateway reject the old channel names — there is no fallback shim, and no migration tooling ships — so a pre-rename event log has to be rewritten to the current names before the runtime can read it.
 
 ## Future scope
 
@@ -132,7 +132,7 @@ The design point: Frame's namespace home gives these features a place to grow th
 - **Tests**: [packages/sdk/src/namespaces/__tests__/frame.test.ts](../../../packages/sdk/src/namespaces/__tests__/frame.test.ts), [packages/make-meaning/src/__tests__/handlers/job-commands.test.ts](../../../packages/make-meaning/src/__tests__/handlers/job-commands.test.ts) (dispatcher schema resolution), [packages/make-meaning/src/__tests__/views/tag-schemas-reader.test.ts](../../../packages/make-meaning/src/__tests__/views/tag-schemas-reader.test.ts), [tests/e2e/specs/11-frame-tag-schemas.spec.ts](../../../tests/e2e/specs/11-frame-tag-schemas.spec.ts) (end-to-end registration + tagging round-trip)
 - **Event channels** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `frame:add-entity-type`, `frame:entity-type-added`, `frame:add-tag-schema`, `frame:tag-schema-added`
 - **Bridged channels**: [packages/core/src/bridged-channels.ts](../../../packages/core/src/bridged-channels.ts) — `frame:entity-type-added` and `frame:tag-schema-added` fan out via SSE to all participants
-- **Backend handler**: [packages/make-meaning/src/stower.ts](../../../packages/make-meaning/src/stower.ts) — `handleAddEntityType` and `handleAddTagSchema` append the corresponding domain events
+- **Gateway handler**: [packages/make-meaning/src/stower.ts](../../../packages/make-meaning/src/stower.ts) — `handleAddEntityType` and `handleAddTagSchema` append the corresponding domain events
 - **Materializers**: [packages/event-sourcing/src/views/view-materializer.ts](../../../packages/event-sourcing/src/views/view-materializer.ts) — `materializeEntityTypes` writes `entitytypes.json`; `materializeTagSchemas` writes `tagschemas.json` with most-recent-wins + warning semantics
 - **Projection readers**: [packages/make-meaning/src/views/entity-types-reader.ts](../../../packages/make-meaning/src/views/entity-types-reader.ts), [packages/make-meaning/src/views/tag-schemas-reader.ts](../../../packages/make-meaning/src/views/tag-schemas-reader.ts)
 - **Dispatcher resolution**: [packages/make-meaning/src/handlers/job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts) — for `tag-annotation` jobs, resolves caller-supplied `schemaId` against the projection and embeds the full `TagSchema` in worker params

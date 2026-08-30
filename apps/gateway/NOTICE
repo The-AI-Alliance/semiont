@@ -22,4 +22,4 @@ Each npm dependency's full license text is available in its respective
 node_modules/<package>/LICENSE file within the image, under
 /usr/local/lib/node_modules (npm itself, kept at runtime for
 `npx prisma migrate deploy`) and
-/home/semiont/.local/share/semiont/node_modules (the backend and its peers).
+/home/semiont/.local/share/semiont/node_modules (the gateway and its peers).

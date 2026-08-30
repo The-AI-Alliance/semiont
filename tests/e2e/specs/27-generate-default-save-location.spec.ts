@@ -1,7 +1,7 @@
 import { test, expect } from '../fixtures/auth';
 import { SemiontClient, resourceId as rid } from '@semiont/sdk';
 import { proposeStoragePath, folderOf } from '@semiont/core';
-import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { expectGeneratedAt } from '../fixtures/generated';
 import { openConfigureStep, runGeneration } from '../fixtures/generate';
 
@@ -28,7 +28,7 @@ const resourceIdFromUrl = (url: string) => url.split('/').pop()!.split('?')[0]!;
 
 async function sourceStorageUri(id: string): Promise<string> {
   const client = await SemiontClient.signInHttp({
-    baseUrl: BACKEND_URL,
+    baseUrl: GATEWAY_URL,
     email: E2E_EMAIL,
     password: E2E_PASSWORD,
   });

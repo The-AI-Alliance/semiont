@@ -863,7 +863,7 @@ describe('AnnotationOperations', () => {
     });
 
     it('routes an append failure to a correlated mark:update-entity-types-failed (not silently dropped)', async () => {
-      // The confirmed-write guarantee: if the backend write throws, the failure
+      // The confirmed-write guarantee: if the gateway write throws, the failure
       // must come back on the correlated reply channel so the SDK's busRequest
       // rejects — the "failure has nowhere to go" bug BRIDGE-GAPS.md removed.
       // Isolated Stower over a KB whose eventStore.appendEvent rejects, so the

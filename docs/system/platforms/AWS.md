@@ -29,7 +29,7 @@ inference — `ollama`.
 - **The `semiont` launcher** (host-installed via
   `brew install the-ai-alliance/semiont/semiont`) — `semiont start` from a KB directory. This is the
   supported path, local or GitHub Codespaces. See [apps/launcher](../../../apps/launcher/README.md).
-- **`docker compose`** against a KB's own `.semiont/compose/backend.yml`, which pulls the same
+- **`docker compose`** against a KB's own `.semiont/compose/gateway.yml`, which pulls the same
   published images — equivalent end state to `semiont start`.
 
 See [CONTAINER-TOPOLOGY.md](../CONTAINER-TOPOLOGY.md) for how the containers relate.
@@ -48,7 +48,7 @@ solve these yourself:
   (`services.gateway.publicURL`, and so on), not by any AWS-specific mechanism.
 - **Persistence.** PostgreSQL, Neo4j, and Qdrant need durable volumes. The KB's `.semiont/events/`
   directory is the system of record and must survive task replacement.
-- **The KB working tree.** The backend bind-mounts the KB repo at `/kb`. On a cluster you need a
+- **The KB working tree.** The gateway bind-mounts the KB repo at `/kb`. On a cluster you need a
   shared filesystem or a different content strategy.
 
 None of the above is tested or supported. Treat a cloud deployment as your own integration.

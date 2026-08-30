@@ -124,7 +124,7 @@ export async function createKnowledgeBase(
   // here (WEAVER-ISOLATION D4, refined): the graph projection is part of
   // the graph stack, not the embedding process — `weaver-main` runs it as
   // a standalone actor, and its signals arrive over the bus. This fold is
-  // the backend-side half, wherever the Weaver runs.
+  // the gateway-side half, wherever the Weaver runs.
   const weaveProgress = createWeaveProgress(eventBus);
   // Its vector-projection sibling: fold of `smelt:settled` decision signals
   // from the standalone Smelter, backing the gather-side read-your-writes

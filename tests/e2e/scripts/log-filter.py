@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Compact filter for the structured JSON logs of long-running Semiont
-containers (backend, worker, smelter — all use winston JSON via
+containers (gateway, worker, smelter — all use winston JSON via
 ``createProcessLogger``). Reads JSON lines on stdin and emits only the
 interesting ones, prefixed with a ``--source`` label.
 
@@ -9,7 +9,7 @@ Designed for the **live monitoring** workflow described in
 ``tests/e2e/docs/live-monitoring.md`` — start one tail per container::
 
     container logs --follow semiont-gateway 2>&1 \\
-      | python3 tests/e2e/scripts/log-filter.py --source backend &
+      | python3 tests/e2e/scripts/log-filter.py --source gateway &
     container logs --follow semiont-worker 2>&1 \\
       | python3 tests/e2e/scripts/log-filter.py --source worker &
     container logs --follow semiont-smelter 2>&1 \\

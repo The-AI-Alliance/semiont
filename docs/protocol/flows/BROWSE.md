@@ -21,7 +21,7 @@ Four categories, distinguished by *who can hear them*:
 3. **Local UI signals** — `browse:entity-type-clicked`. Local-bus fan-out inside one browser session; never on the wire.
 4. **Host routing** — the `nav:*` channels. Framework-shaped, host-local, and deliberately never bridged.
 
-Browse is therefore **not** purely a Browser concern. Categories 1 and 2 cross the backend; only 3 and 4 stay in the page.
+Browse is therefore **not** purely a Browser concern. Categories 1 and 2 cross the gateway; only 3 and 4 stay in the page.
 
 ## The bridge boundary: `nav:*` is host-local, `browse:*` may cross
 

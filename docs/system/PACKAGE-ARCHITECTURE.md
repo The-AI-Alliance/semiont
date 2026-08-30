@@ -9,7 +9,7 @@ For the per-package descriptions and npm metadata, see **[../../packages/README.
 ```mermaid
 graph BT
     %% Layer 5: Application Consumers
-    backend["apps/gateway<br/><i>Hono API server</i>"]
+    gateway["apps/gateway<br/><i>Hono API server</i>"]
     browser["apps/browser<br/><i>Vite + React SPA</i>"]
 
     %% Layer 4: Application Logic
@@ -37,11 +37,11 @@ graph BT
     obs["@semiont/observability<br/><i>OTel helpers (withSpan,<br/>traceparent, Node/Web init)</i>"]
 
     %% Application dependencies
-    backend --> meaning
-    backend --> jobs
-    backend --> event
-    backend --> obs
-    backend --> core
+    gateway --> meaning
+    gateway --> jobs
+    gateway --> event
+    gateway --> obs
+    gateway --> core
     Browser --> react
     Browser --> sdk
     Browser --> api
@@ -109,7 +109,7 @@ graph BT
     class sdk,event,graph_pkg layer2
     class inference,jobs layer3
     class meaning,react,mcp layer4
-    class backend,Browser layer5
+    class gateway,Browser layer5
 ```
 
 Edges in the graph reflect the actual `package.json` `dependencies` field for each workspace package.
@@ -118,7 +118,7 @@ Edges in the graph reflect the actual `package.json` `dependencies` field for ea
 
 1. **Single Orchestration Point.** `@semiont/make-meaning`'s `startMakeMeaning()` is the **infrastructure owner** — it initializes and manages the lifecycle of every subsystem (EventStore, GraphDB, RepStore, InferenceClient, JobQueue, Workers, GraphConsumer).
 
-2. **Strict API Boundary.** `apps/browser` never imports backend packages directly. Its only `@semiont/*` imports are `@semiont/sdk`, `@semiont/http-transport`, `@semiont/react-ui`, and `@semiont/observability` — every interaction with the backend goes through the SDK over `HttpTransport`.
+2. **Strict API Boundary.** `apps/browser` never imports gateway packages directly. Its only `@semiont/*` imports are `@semiont/sdk`, `@semiont/http-transport`, `@semiont/react-ui`, and `@semiont/observability` — every interaction with the gateway goes through the SDK over `HttpTransport`.
 
 3. **Layered Dependencies.** Packages can only depend on packages in lower layers. No circular dependencies.
 

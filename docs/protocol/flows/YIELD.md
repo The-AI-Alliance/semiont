@@ -139,13 +139,13 @@ Browser → client.yield.fromContext(...) emits job:create via /bus/emit
            and the reference to auto-bind, from params.context.focus, and
            REJECTS a caller-supplied id via job:create-failed)
     ↓
-Backend job:create handler builds a PendingJob, persists to queue, returns job:created
+Gateway job:create handler builds a PendingJob, persists to queue, returns job:created
     ↓
 Worker (separate process, subscribed to job:queued) claims it via job:claim bus command
     ↓
 Worker generates content → uploads via client.yield.resource() (content over HTTP)
     ↓
-Backend persists content, emits yield:create → Stower appends yield:created
+Gateway persists content, emits yield:create → Stower appends yield:created
     ↓
 Worker emits job:report-progress, then job:complete (job:fail on error)
 on the unified job channels — client filters by jobId
@@ -160,7 +160,7 @@ BrowseNamespace updates the cached annotation in place
 UI updates: ❓ → 🔗 in real-time (<50ms latency)
 ```
 
-## Backend Implementation
+## Gateway Implementation
 
 ### Generation Dispatch
 
@@ -286,7 +286,7 @@ say it.
 2. **Generate** — build the prompt, apply user parameters (prompt, entity types,
    language, temperature, max tokens), call inference via `generateResourceFromTopic()`
 3. **Create** — upload content via `client.yield.resource()` (HTTP multipart —
-   content is not bus traffic); the backend persists it and emits `yield:create` →
+   content is not bus traffic); the gateway persists it and emits `yield:create` →
    Stower appends `yield:created`; the worker receives the new resource ID from the
    upload response
 4. **Link** — annotation-focus: the upload's `sourceAnnotationId` drives the Stower's
@@ -434,11 +434,11 @@ from" is answerable.
 The generation worker does **not** emit `yield:create` on the bus — content
 never travels on the bus. The worker uploads the synthesized content over HTTP
 via `client.yield.resource()` (the same multipart path the compose page uses);
-the backend writes the bytes to disk and emits `yield:create`, which the Stower
+the gateway writes the bytes to disk and emits `yield:create`, which the Stower
 persists. A second event — the reference auto-bind — is then emitted by the
 **Stower**, not by the worker.
 
-**Resource creation** — the worker uploads; the backend emits `yield:create`.
+**Resource creation** — the worker uploads; the gateway emits `yield:create`.
 In [packages/jobs/src/worker-process.ts](../../../packages/jobs/src/worker-process.ts) the worker calls (content over HTTP,
 not the bus; `sourceAnnotationId` is what later drives the auto-bind):
 ```typescript
@@ -457,7 +457,7 @@ const { resourceId: newResourceId } = await session.client.yield.resource({
   generationPrompt, language, entityTypes, generator,
 });
 ```
-The backend persists the content and emits `yield:create` → Stower appends `yield:created`.
+The gateway persists the content and emits `yield:create` → Stower appends `yield:created`.
 
 **Reference resolution (auto-bind)** — the Stower's `yield:create` handler, *not*
 the worker, resolves the source reference. When the upload carried
@@ -479,7 +479,7 @@ auto-bind; instead the worker emits `mark:create` to mint a navigable
 source→derived provenance reference annotation.
 
 **Why two events?**
-- `yield:create` (backend, after the HTTP upload) → Stower persists → `yield:created`: creates the new generated resource
+- `yield:create` (gateway, after the HTTP upload) → Stower persists → `yield:created`: creates the new generated resource
 - `mark:update-body` (Stower auto-bind) → Stower persists → `mark:body-updated`: resolves the source reference in the original document
 
 Both events flow through EventBus → Stower → Event Store → Materialized Views → Graph Database, enabling:
@@ -625,7 +625,7 @@ See [EVENT-BUS.md](../EVENT-BUS.md) for the bus protocol.
 ## Error Handling
 
 **Generation Failures**:
-- Worker logs detailed error to backend console
+- Worker logs detailed error to gateway console
 - Generic error sent to browser: "Generation failed. Please try again."
 - Job marked as `status: 'failed'` in queue
 - Browser shows error toast with retry option
@@ -689,7 +689,7 @@ See [EVENT-BUS.md](../EVENT-BUS.md) for the bus protocol.
 - [Job Workers Documentation](../../../packages/make-meaning/docs/job-workers.md) - Architecture and flow
 - [Make-Meaning Examples](../../../packages/make-meaning/docs/examples.md) - Usage patterns
 
-### Backend
+### Gateway
 
 - [apps/gateway/src/routes/bus.ts](../../../apps/gateway/src/routes/bus.ts) - Bus gateway (`/bus/emit`, `/bus/subscribe`)
 - [packages/make-meaning/src/handlers/job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts) - `job:create`/`job:claim` handlers

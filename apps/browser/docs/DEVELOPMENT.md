@@ -32,8 +32,8 @@ semiont status                    # Per-service container state + health probes
 semiont logs                      # Follow all services, [svc]-prefixed
 semiont stop                      # Tear the stack down
 
-# One service at a time (backend | browser | worker | smelter | weaver | database)
-semiont start --service backend   # Start or restart just the backend
+# One service at a time (gateway | browser | worker | smelter | weaver | database)
+semiont start --service gateway   # Start or restart just the gateway
 semiont stop --service browser   # Close the Browser (it survives a bare `stop`)
 ```
 
@@ -46,11 +46,11 @@ execute.
 
 **Against a stack, iterating on this package** — start the stack, then run the
 Vite dev server from `apps/browser` with `npm run dev` and point it at the
-running backend on `:4000`. Fast HMR against real data; the stack's own Browser
+running gateway on `:4000`. Fast HMR against real data; the stack's own Browser
 container keeps serving the built SPA on `:3000` independently.
 
 **Against locally built images** — when your change needs to be exercised as the
-*shipped* container (or you changed a package the backend imports), rebuild with
+*shipped* container (or you changed a package the gateway imports), rebuild with
 [`scripts/ci/local-build.sh`](../../../scripts/ci/local-build.sh) and restart the
 stack with `SEMIONT_VERSION=local semiont start`. Without that variable the
 launcher pulls the published images and your changes are invisible.
@@ -78,7 +78,7 @@ semiont useradd --email admin@example.com --admin   # prompts for the password
 **Browser only** (point it at an existing KB):
 ```bash
 semiont start --service browser
-# Serves the built SPA on :3000; connect it to any running backend
+# Serves the built SPA on :3000; connect it to any running gateway
 ```
 
 **Full-stack development** (feature work):
@@ -87,12 +87,12 @@ semiont start
 # Five Semiont services + PostgreSQL, Neo4j, Qdrant, Ollama
 ```
 
-**Backend integration testing**:
+**Gateway integration testing**:
 ```bash
 semiont start
 # Then run the Browser from source against it:
 cd apps/browser && npm run dev
-# The stack's backend serves real data while Vite serves the SPA with HMR
+# The stack's gateway serves real data while Vite serves the SPA with HMR
 ```
 
 **Fresh start** (reset data):
@@ -114,16 +114,16 @@ If you prefer manual setup or need to understand the internals:
 
 **1. Standard Development** (`npm run dev`)
 - Uses Vite dev server with hot reload
-- Requires backend API running on port 4000
+- Requires gateway API running on port 4000
 
 **2. Mock API Development** (`npm run dev:mock`) - Recommended for UI work
 - Starts mock API server on port 3001
-- No backend dependencies needed
+- No gateway dependencies needed
 - Perfect for rapid UI/UX iteration
 
 **3. Fast Mode** (`npm run dev:fast`)
 - Vite dev server with favicons and PDF.js pre-copied
-- Requires backend API running separately
+- Requires gateway API running separately
 
 ### Fast Iteration Features
 
@@ -380,12 +380,12 @@ Environment variables are configured automatically based on your environment con
 - Check browser dev tools Network tab
 - Confirm requests carry an `Authorization: Bearer <jwt>` header — the access token lives in JS memory (held by the SDK session), not in a cookie
 - Check /api/auth/me response for current session state
-- Verify backend is running and accessible
+- Verify gateway is running and accessible
 
 ### API Errors
 - Review browser Network tab for failed requests
 - Check API client error handling in console
-- Verify backend is running and accessible
+- Verify gateway is running and accessible
 - Check CORS configuration
 
 ### Performance Issues
@@ -412,7 +412,7 @@ Environment variables are configured automatically based on your environment con
 
 **Solutions**:
 - Check network tab for CORS issues
-- Ensure backend is running and accessible
+- Ensure gateway is running and accessible
 - Verify API endpoint path is correct
 - Check authentication token is included
 
@@ -420,10 +420,10 @@ Environment variables are configured automatically based on your environment con
 **Symptoms**: Unable to sign in or session not persisting
 
 **Solutions**:
-- Check backend logs for OAuth errors
+- Check gateway logs for OAuth errors
 - Confirm the SDK session captured an access token after login — it's held in JS memory and sent as `Authorization: Bearer`, not set as a cookie
 - Check /api/auth/me returns correct user data
-- Ensure OAuth callback URL in Google Cloud Console points to backend (/api/auth/oauth/google/callback)
+- Ensure OAuth callback URL in Google Cloud Console points to gateway (/api/auth/oauth/google/callback)
 
 ### "Build failing"
 **Symptoms**: `npm run build` fails with errors
@@ -599,7 +599,7 @@ For detailed styling guidelines, see the [Style Guide](./style-guide.md).
 
 ### System Documentation
 - [System Documentation](../../../docs/system/README.md) - Overall platform
-- [Backend README](../../gateway/README.md) - Backend API
+- [Gateway README](../../gateway/README.md) - Gateway API
 - [Launcher README](../../launcher/README.md) - `semiont` launcher usage
 
 ---

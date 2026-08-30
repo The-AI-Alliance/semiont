@@ -284,7 +284,7 @@ export function loadTomlConfig(
   const raw = globalContent ? (parseToml(globalContent) as SemiontConfigFile) : ({} as SemiontConfigFile);
 
   // 3. Resolve WHICH environment to load. `[defaults] environment` is the key the
-  //    launcher selects from (config.go: cfg.Defaults.Environment); the backend
+  //    launcher selects from (config.go: cfg.Defaults.Environment); the gateway
   //    resolves from the SAME key so one config selects the environment for both
   //    halves. TWO inputs only — an explicit argument (tests pass one) and the
   //    committed config — and they cannot contradict each other, because the

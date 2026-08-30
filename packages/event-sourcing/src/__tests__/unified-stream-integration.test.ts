@@ -216,7 +216,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
       received.push(e);
     });
 
-    // Simulate the backend emitting replay-window-exceeded
+    // Simulate the gateway emitting replay-window-exceeded
     // (In production this is emitted by the events-stream route when
     // Last-Event-ID is older than REPLAY_WINDOW_CAP)
     eventBus.get('replay-window-exceeded').next({

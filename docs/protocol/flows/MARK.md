@@ -20,7 +20,7 @@ Semiont creates W3C-compliant annotations through two complementary paths: **man
 
 1. **W3C Web Annotation Data Model** - Standards-compliant annotation structure with dual selectors
 2. **AI Inference** - LLM-powered text analysis with configurable prompts and user instructions
-3. **Backend Event Architecture** - Event Store → View Storage → Graph Database flow with <50ms latency
+3. **Gateway Event Architecture** - Event Store → View Storage → Graph Database flow with <50ms latency
 4. **Browser UI** - Real-time progress display with SSE streaming and visual feedback
 
 **Supported Formats**: Currently available for text-based formats (`text/plain`, `text/markdown`). Support for images and PDFs is planned for future releases
@@ -28,7 +28,7 @@ Semiont creates W3C-compliant annotations through two complementary paths: **man
 ## Using the SDK
 
 **Manual annotation** — create an annotation directly. The `mark`
-namespace emits `mark:create-request` via the bus gateway; the backend
+namespace emits `mark:create-request` via the bus gateway; the gateway
 annotation-assembly handler builds the full W3C annotation from the
 intent (using the authenticated user's DID as the creator) and passes
 it to Stower.
@@ -54,7 +54,7 @@ const { annotationId } = await client.mark.annotation({
 
 **Resource classification** — replace a resource's own entity-type
 stamps. A confirmed write over `mark:update-entity-types` (replies
-`mark:update-entity-types-ok` / `-failed`): the backend diffs `current`
+`mark:update-entity-types-ok` / `-failed`): the gateway diffs `current`
 vs `updated` and persists the changes as `mark:entity-tag-added` /
 `mark:entity-tag-removed` events, so the new classification surfaces in
 `browse.resources({ entityType })`. This stamps a resource with types
@@ -440,7 +440,7 @@ return parsed.filter((h: any) =>
 
 ---
 
-## 3. Backend Implementation
+## 3. Gateway Implementation
 
 ### Event-Driven Architecture
 
@@ -452,7 +452,7 @@ Browser → client.mark.assist(rId, motivation, options) emits job:create
           (highlight-annotation | assessment-annotation | comment-annotation |
            tag-annotation | reference-annotation)
     ↓
-Backend job:create handler builds a PendingJob, persists to queue,
+Gateway job:create handler builds a PendingJob, persists to queue,
 returns job:created { jobId }
     ↓
 Worker (separate process, subscribed to job:queued) claims via job:claim
@@ -480,7 +480,7 @@ Commands and result channels:
 
 There is no `mark:`-specific assist channel: AI-assisted detection runs as a job, so progress and terminal events flow on the unified `job:*` lifecycle, filtered by `jobId`.
 
-### Backend Workers (Job Processing)
+### Gateway Workers (Job Processing)
 
 All annotation jobs run through the same processor pattern in [@semiont/jobs](../../../packages/jobs/): the worker process claims a queued job and dispatches by `jobType` to a `process*Job` function in [processors.ts](../../../packages/jobs/src/processors.ts), each of which calls the matching `AnnotationDetection` method. See [Job Workers Documentation](../../../packages/make-meaning/docs/job-workers.md) for complete architecture details.
 
@@ -541,7 +541,7 @@ them through an Observable.
 See [EVENT-BUS.md](../EVENT-BUS.md) and [CHANNELS.md](../CHANNELS.md)
 for the bus protocol and channel inventory.
 
-### Data Flow Through Backend Layers
+### Data Flow Through Gateway Layers
 
 **Event Store → View Storage → Graph Database** ([Knowledge System](../../system/KNOWLEDGE-SYSTEM.md)):
 
@@ -567,7 +567,7 @@ Neptune/In-Memory graph: (Document)-[:HAS_ANNOTATION]->(Annotation)
 ### Error Handling
 
 **Job Failures**:
-- Worker logs detailed error to backend console
+- Worker logs detailed error to gateway console
 - Generic error message sent to Browser ("Detection failed. Please try again later.")
 - Job status preserved in queue for debugging
 - Browser shows user-friendly error toast
@@ -686,7 +686,7 @@ subscription.unsubscribe();
 
 After detection completes:
 
-1. Browser refetches annotations from backend (Materialized Views)
+1. Browser refetches annotations from gateway (Materialized Views)
 2. Annotations converted to TextSegments with positions
 3. CRLF → LF position conversion applied ([CODEMIRROR-INTEGRATION.md](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md))
 4. Visual feedback (sparkle animation for new annotations)
@@ -721,7 +721,7 @@ After detection completes:
 - **Comment quality**: Comments add value beyond restating text, provide context/background
 - **Entity type selection**: References detect only selected types
 - **W3C compliance**: Annotations validate against W3C schema
-- **Event Store persistence**: Annotations survive backend restart
+- **Event Store persistence**: Annotations survive gateway restart
 
 ### Known Limitations
 

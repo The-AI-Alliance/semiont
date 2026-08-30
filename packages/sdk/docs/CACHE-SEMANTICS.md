@@ -270,7 +270,7 @@ starved every subscriber of a never-loaded key **silently and
 permanently**: no retry, no failure signal, `pending` forever. One
 bounded retry converts "reply lost" from permanent starvation into one
 slow load, without a standing retry loop hammering a genuinely-down
-backend. (Since correlated-reply retention landed, 2026-07-29, a
+gateway. (Since correlated-reply retention landed, 2026-07-29, a
 reply lost to a genuine disconnect replays on reconnect, so
 this retry should fire approximately never; it stays as defense in
 depth.)

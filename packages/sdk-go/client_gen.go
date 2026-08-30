@@ -2891,7 +2891,7 @@ type JobDeclinedResult struct {
 	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
 	Kind JobDeclinedResultKind `json:"kind"`
 
-	// Reason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed backend-side and was therefore English everywhere (ASSIST-PROGRESS-CONSOLIDATION P5).
+	// Reason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed gateway-side and was therefore English everywhere (ASSIST-PROGRESS-CONSOLIDATION P5).
 	Reason JobDeclinedResultReason `json:"reason"`
 }
 
@@ -2901,7 +2901,7 @@ type JobDeclinedResultDeclined bool
 // JobDeclinedResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
 type JobDeclinedResultKind string
 
-// JobDeclinedResultReason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed backend-side and was therefore English everywhere (ASSIST-PROGRESS-CONSOLIDATION P5).
+// JobDeclinedResultReason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed gateway-side and was therefore English everywhere (ASSIST-PROGRESS-CONSOLIDATION P5).
 type JobDeclinedResultReason string
 
 // JobFailCommand Command to mark a job as failed
@@ -4202,7 +4202,7 @@ type SpecificResourceType string
 type StatusResponse struct {
 	AuthenticatedAs *string `json:"authenticatedAs,omitempty"`
 
-	// Did The knowledge base's did:web identity — 'did:web:' + the committed [site] domain, byte-identical to the string the launcher publishes in its discovery document. REQUIRED: a KB that declares no domain does not run (the launcher refuses to start it, and the backend refuses to boot), so a response without this field means the caller reached something that bypassed both. Identifies WHICH knowledge base this is; it does NOT identify which running copy — one KB reachable at two addresses (a local clone and a codespace of one repo) reports the same did at both. Use it to verify what you connected to, not to select among discovered entries.
+	// Did The knowledge base's did:web identity — 'did:web:' + the committed [site] domain, byte-identical to the string the launcher publishes in its discovery document. REQUIRED: a KB that declares no domain does not run (the launcher refuses to start it, and the gateway refuses to boot), so a response without this field means the caller reached something that bypassed both. Identifies WHICH knowledge base this is; it does NOT identify which running copy — one KB reachable at two addresses (a local clone and a codespace of one repo) reports the same did at both. Use it to verify what you connected to, not to select among discovered entries.
 	Did      string `json:"did"`
 	Features struct {
 		Collaboration   string `json:"collaboration"`

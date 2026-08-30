@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { SemiontClient } from '@semiont/sdk';
 import type { CollaboratorEntry } from '@semiont/core';
-import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 
 /**
  * Smoke test — COLLABORATOR-DIRECTORY.md Phase 5 (verify): the KB's software
@@ -70,7 +70,7 @@ test.describe('collaborator directory (browse.agents)', () => {
     test.setTimeout(120_000);
 
     const client = await SemiontClient.signInHttp({
-      baseUrl: BACKEND_URL,
+      baseUrl: GATEWAY_URL,
       email: E2E_EMAIL,
       password: E2E_PASSWORD,
     });

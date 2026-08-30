@@ -21,7 +21,7 @@ const MUTABLE_RESOURCE_FACETS = new Set<string>(['archived', 'entityTypes']);
  * tags (mutable since the controlled-vocabulary decision — the Weaver folds
  * `mark:archived`/`mark:unarchived` and `mark:entity-tag-added`/`-removed`
  * through `updateResource`). Every implementation validates its input with
- * this one guard so the mutability contract cannot drift per backend.
+ * this one guard so the mutability contract cannot drift per gateway.
  */
 export function assertMutableResourceUpdate(input: UpdateResourceInput): void {
   const keys = Object.keys(input);
@@ -36,7 +36,7 @@ export function assertMutableResourceUpdate(input: UpdateResourceInput): void {
  *
  * The tiebreak is not cosmetic: browse pages these results with offset/limit,
  * and a partial order lets two pages repeat or drop rows. Ids compare by code
- * point rather than locale so the JS backends agree with the engines, whose
+ * point rather than locale so the JS gateways agree with the engines, whose
  * `ORDER BY` is codepoint-ordered.
  */
 export function compareByRecencyThenId(a: ResourceDescriptor, b: ResourceDescriptor): number {

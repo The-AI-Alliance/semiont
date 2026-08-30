@@ -27,7 +27,7 @@ function StatusDisplayWithAuth() {
     <StatusDisplay
       isFullyAuthenticated={authed}
       isAuthenticated={authed}
-      hasValidBackendToken={authed}
+      hasValidGatewayToken={authed}
     />
   );
 }

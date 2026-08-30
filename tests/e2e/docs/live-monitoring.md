@@ -36,7 +36,7 @@ One per container, filtered to errors and warnings:
 
 ```sh
 container logs --follow semiont-gateway 2>&1 \
-  | python3 tests/e2e/scripts/log-filter.py --source backend &
+  | python3 tests/e2e/scripts/log-filter.py --source gateway &
 
 container logs --follow semiont-worker 2>&1 \
   | python3 tests/e2e/scripts/log-filter.py --source worker &

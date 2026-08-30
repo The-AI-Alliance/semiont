@@ -8,7 +8,7 @@ import { mediaUrl } from '../../lib/media-url';
 interface Props {
   /** The '@id' of the resource whose bytes to offer. */
   resourceUri: string;
-  /** Session for that resource — its client mints the media token and supplies the backend origin. */
+  /** Session for that resource — its client mints the media token and supplies the gateway origin. */
   session: SemiontSession | null;
 }
 

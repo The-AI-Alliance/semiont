@@ -33,7 +33,7 @@ semiont start
 
 # Your services are now running:
 # - Browser: http://localhost:3000
-# - Backend: http://localhost:4000
+# - Gateway: http://localhost:4000
 # - Database: PostgreSQL in Docker container
 ```
 
@@ -43,10 +43,10 @@ semiont start
 # Install dependencies
 npm install
 
-# Start development server (requires backend running)
+# Start development server (requires gateway running)
 npm run dev
 
-# Start with mock API (no backend required)
+# Start with mock API (no gateway required)
 npm run dev:mock
 ```
 
@@ -73,7 +73,7 @@ docker run -d \
 
 **Multi-platform Support:** linux/amd64, linux/arm64
 
-**Docker Compose Example:** See [docs/system/administration/IMAGES.md](../../docs/system/administration/IMAGES.md#docker-compose-example) for complete setup with backend and database.
+**Docker Compose Example:** See [docs/system/administration/IMAGES.md](../../docs/system/administration/IMAGES.md#docker-compose-example) for complete setup with gateway and database.
 
 ## Technology Stack
 
@@ -214,7 +214,7 @@ From `apps/browser/`:
 ```bash
 # Development
 npm run dev              # Vite dev server
-npm run dev:mock         # Against a mock API (no backend needed)
+npm run dev:mock         # Against a mock API (no gateway needed)
 npm run dev:fast         # Skip the prebuild typecheck
 npm run build            # Production build (typechecks first)
 
@@ -284,7 +284,7 @@ We welcome contributions! Please read:
 - [Jobs Package](../../packages/jobs/) - Background job processing (async operations)
 
 ### Other Services
-- [Backend README](../gateway/README.md) - Backend API server
+- [Gateway README](../gateway/README.md) - Gateway API server
 - [MCP Server README](../../packages/mcp-server/README.md) - AI integration via Model Context Protocol
 - [API Client README](../../packages/http-transport/README.md) - Type-safe TypeScript client
 - [Launcher README](../launcher/README.md) - The host-installed `semiont` command

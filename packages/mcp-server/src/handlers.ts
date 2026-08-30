@@ -271,7 +271,7 @@ export async function yieldFromAnnotation(semiont: McpClient, args: any): Promis
   const progressMessages: string[] = [];
   try {
     // Default sourceLanguage from the gathered context's metadata, which the
-    // backend populates from the primary representation. Caller can still
+    // gateway populates from the primary representation. Caller can still
     // override via args.sourceLanguage.
     const ctxSourceLanguage = ctx.metadata?.language;
 

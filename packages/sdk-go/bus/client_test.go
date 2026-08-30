@@ -13,20 +13,20 @@ import (
 	"time"
 )
 
-// fakeBackend scripts /bus/emit + /bus/subscribe the way the real routes
+// fakeGateway scripts /bus/emit + /bus/subscribe the way the real routes
 // behave: every frame is `event: bus-event` carrying {channel, payload}, and
 // a reply is only produced once a request has been emitted — which is what
 // makes the subscribe-before-emit ordering testable.
-type fakeBackend struct {
+type fakeGateway struct {
 	mu        sync.Mutex
 	emitted   []map[string]any
 	replies   chan string // raw SSE frames to write to any open stream
 	subscribe func(r *http.Request)
 }
 
-func newFakeBackend() *fakeBackend { return &fakeBackend{replies: make(chan string, 8)} }
+func newFakeGateway() *fakeGateway { return &fakeGateway{replies: make(chan string, 8)} }
 
-func (f *fakeBackend) server(t *testing.T) *httptest.Server {
+func (f *fakeGateway) server(t *testing.T) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/bus/emit", func(w http.ResponseWriter, r *http.Request) {
@@ -88,7 +88,7 @@ func (f *fakeBackend) server(t *testing.T) *httptest.Server {
 	return srv
 }
 
-func (f *fakeBackend) lastEmit(t *testing.T) map[string]any {
+func (f *fakeGateway) lastEmit(t *testing.T) map[string]any {
 	t.Helper()
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -104,7 +104,7 @@ func frame(channel string, payload map[string]any) string {
 }
 
 func TestRequestCorrelatesReply(t *testing.T) {
-	f := newFakeBackend()
+	f := newFakeGateway()
 	srv := f.server(t)
 	c := NewClient(srv.URL, "tok")
 
@@ -152,7 +152,7 @@ func TestRequestCorrelatesReply(t *testing.T) {
 func TestRequestSubscribesBeforeEmitting(t *testing.T) {
 	// The ordering guarantee: a reply emitted the instant the request lands
 	// must still be caught, which is only true if the stream is already open.
-	f := newFakeBackend()
+	f := newFakeGateway()
 	var subscribedFirst bool
 	f.subscribe = func(*http.Request) {
 		f.mu.Lock()
@@ -183,7 +183,7 @@ func TestRequestSubscribesBeforeEmitting(t *testing.T) {
 }
 
 func TestRequestFailureChannelBecomesError(t *testing.T) {
-	f := newFakeBackend()
+	f := newFakeGateway()
 	srv := f.server(t)
 	c := NewClient(srv.URL, "tok")
 	go func() {
@@ -205,7 +205,7 @@ func TestRequestFailureChannelBecomesError(t *testing.T) {
 	}
 	var re *RequestError
 	if !strings.Contains(err.Error(), "no such resource") {
-		t.Errorf("error lost the backend's message: %v", err)
+		t.Errorf("error lost the gateway's message: %v", err)
 	}
 	if ok := asRequestError(err, &re); !ok || re.Channel != "browse:resource-failed" {
 		t.Errorf("want a RequestError naming the failure channel, got %#v", err)
@@ -221,7 +221,7 @@ func asRequestError(err error, target **RequestError) bool {
 }
 
 func TestRequestTimesOutHonestly(t *testing.T) {
-	f := newFakeBackend()
+	f := newFakeGateway()
 	srv := f.server(t)
 	c := NewClient(srv.URL, "tok")
 	_, err := c.Request(context.Background(), "browse:resource-requested", map[string]any{},
@@ -239,7 +239,7 @@ func TestRequestTimesOutHonestly(t *testing.T) {
 }
 
 func TestRequestStreamsProgress(t *testing.T) {
-	f := newFakeBackend()
+	f := newFakeGateway()
 	srv := f.server(t)
 	c := NewClient(srv.URL, "tok")
 	go func() {
@@ -270,7 +270,7 @@ func TestRequestStreamsProgress(t *testing.T) {
 
 func TestEmitRefusesNonEmittableChannel(t *testing.T) {
 	c := NewClient("http://unused", "tok")
-	// A domain event is not emittable — the backend would reject it, so the
+	// A domain event is not emittable — the gateway would reject it, so the
 	// client refuses rather than making a doomed round trip.
 	subscribers, err := c.Emit(context.Background(), "yield:created", map[string]any{}, "")
 	if err == nil || !strings.Contains(err.Error(), "not emittable") {

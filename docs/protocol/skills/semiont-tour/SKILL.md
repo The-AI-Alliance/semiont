@@ -151,7 +151,7 @@ Two things to know about that output:
 
 ## Did anyone receive it?
 
-Every emit reports how many subscribers the backend had **at dispatch**:
+Every emit reports how many subscribers the gateway had **at dispatch**:
 
 ```
 ✓ Opened res-42 in the Browser (1 subscriber — broadcast, so still no confirmation anyone looked)

@@ -5,7 +5,7 @@
  * Emits `weave:rebuild` to the RUNNING stack's bus — the standalone Weaver
  * (WEAVER-ISOLATION D3/D4) clears and replays the graph projection from the
  * event log. Proves that events are the source of truth and the graph is a
- * projection. Requires the backend and weaver to be running.
+ * projection. Requires the gateway and weaver to be running.
  *
  * Usage:
  *   npm run rebuild-graph              # Rebuild entire graph
@@ -53,7 +53,7 @@ async function rebuildGraph(rId?: string) {
 
   const workerSecret = process.env.SEMIONT_WORKER_SECRET;
   if (!workerSecret) {
-    throw new Error('SEMIONT_WORKER_SECRET is required to authenticate with the backend');
+    throw new Error('SEMIONT_WORKER_SECRET is required to authenticate with the gateway');
   }
 
   const response = await fetch(`${gatewayPublicURL}/api/tokens/agent`, {

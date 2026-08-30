@@ -4,7 +4,7 @@ package bus
 // request/reply convention. Hand-written; the vocabulary it speaks
 // (channels, operations) is generated from specs/src/bus/registry.json.
 //
-// Wire shape, as the backend implements it (apps/gateway/src/routes/bus.ts):
+// Wire shape, as the gateway implements it (apps/gateway/src/routes/bus.ts):
 //   POST /bus/emit          {channel, payload, scope?}
 //   POST /bus/subscribe     {global: [...], scoped: [{scope, channels, lastEventId?}, ...]}
 //     (SSE response, bearer; MULTI-RESOURCE-SCOPE — the GET query form is gone)
@@ -34,14 +34,14 @@ type Event struct {
 	ID      string
 }
 
-// Client talks to one stack's backend.
+// Client talks to one stack's gateway.
 type Client struct {
 	base  string
 	token string
 	hc    *http.Client
 }
 
-// NewClient targets a backend base URL (e.g. http://localhost:4000) with a
+// NewClient targets a gateway base URL (e.g. http://localhost:4000) with a
 // session token from `semiont login`.
 func NewClient(base, token string) *Client {
 	return &Client{
@@ -78,20 +78,20 @@ func (c *Client) request(ctx context.Context, method, path string, body any) (*h
 	return c.hc.Do(req)
 }
 
-// Emit publishes one event and reports how many subscribers the backend's
+// Emit publishes one event and reports how many subscribers the gateway's
 // target subject had AT DISPATCH. Only channels in ChannelSchemas are accepted
-// by the backend; emitting anything else is a client bug, so it is refused
+// by the gateway; emitting anything else is a client bug, so it is refused
 // here rather than at the far end.
 //
 // A zero count is not an error — the emit was accepted and published. It means
 // nothing was listening, which for a fire-and-forget signal is the difference
 // between "sent" and "seen" and is the caller's to act on. Callers that treat
-// success as delivery are the reason this returns a number at all: the backend
+// success as delivery are the reason this returns a number at all: the gateway
 // subscribes no one on the client's behalf, and an unbridged channel publishes
 // into an empty subject with a clean 202.
 //
 // -1 means the server answered 2xx with a body this client could not read
-// (an older backend, or a body shape change) — distinguishable from a true
+// (an older gateway, or a body shape change) — distinguishable from a true
 // zero, because reporting "nobody is listening" on the strength of a parse
 // failure would be the same overclaim in reverse.
 func (c *Client) Emit(ctx context.Context, ch Channel, payload any, scope string) (int, error) {

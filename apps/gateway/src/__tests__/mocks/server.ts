@@ -1,5 +1,5 @@
 /**
- * MSW server setup for backend tests
+ * MSW server setup for gateway tests
  */
 
 import { setupServer } from 'msw/node';

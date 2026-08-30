@@ -28,7 +28,7 @@ Python-2.0
 CC0-1.0
 BlueOak-1.0.0
 
-# Present because the backend image ships npm (for `npx prisma` at runtime), so
+# Present because the gateway image ships npm (for `npx prisma` at runtime), so
 # npm's own bundled tree is redistributed too. Both are permissive: Artistic-2.0
 # is npm's own OSI-approved license; CC-BY-3.0 is the SPDX data package
 # spdx-exceptions (attribution only). Added 2026-07-15.

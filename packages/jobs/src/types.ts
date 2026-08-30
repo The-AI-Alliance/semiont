@@ -358,7 +358,7 @@ const JOB_TYPES: ReadonlySet<string> = new Set<JobType>([
  *
  * Worth checking rather than asserting: `jobType` is a required, enumerated
  * field on every job lifecycle command, so an unrecognized value produces a
- * payload the backend will reject — better caught at the worker with a clear
+ * payload the gateway will reject — better caught at the worker with a clear
  * error than as an opaque emit failure.
  */
 export function isJobType(value: string): value is JobType {

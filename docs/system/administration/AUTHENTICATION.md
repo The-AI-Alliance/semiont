@@ -1,6 +1,6 @@
 # Authentication Architecture
 
-Semiont uses **bearer-only** authentication: every request authenticates with an `Authorization: Bearer` JWT (or, for media, a short-lived `?token=`). There are **no session cookies** — the backend carries no ambient credentials, which is what lets CORS be fully open (`*`) and a KB be hosted on the public internet.
+Semiont uses **bearer-only** authentication: every request authenticates with an `Authorization: Bearer` JWT (or, for media, a short-lived `?token=`). There are **no session cookies** — the gateway carries no ambient credentials, which is what lets CORS be fully open (`*`) and a KB be hosted on the public internet.
 
 **Related Documentation:**
 - [Architecture Overview](../README.md) - Overall application architecture
@@ -13,7 +13,7 @@ Semiont uses **bearer-only** authentication: every request authenticates with an
 Three pieces make up the auth system:
 
 1. **Sign-in** — the browser SPA (Vite + React) or any SDK consumer exchanges credentials (password or Google OAuth) for a JWT, returned **in the response body**. There is no auth server in front of the API and no NextAuth — the SPA is a pure client.
-2. **Bearer validation** — the backend validates the JWT on every protected request (router-level `authMiddleware`), loading the user from the database.
+2. **Bearer validation** — the gateway validates the JWT on every protected request (router-level `authMiddleware`), loading the user from the database.
 3. **Revocable sessions** — a per-user revocation epoch (`User.tokenVersion`) makes **logout server-side, immediate, and all-devices**.
 
 ## Authentication Flow Diagram
@@ -28,7 +28,7 @@ graph TB
         Google[Google OAuth 2.0]
     end
 
-    subgraph "Backend API"
+    subgraph "Gateway API"
         TokenGen[Token endpoints]
         MW[authMiddleware<br/>Bearer + ?token= validator]
         API[Protected APIs]
@@ -192,7 +192,7 @@ authRouter.post('/api/users/logout', authMiddleware, async (c) => {
 
 ## Environment Configuration
 
-### Required environment variables (backend)
+### Required environment variables (gateway)
 
 ```bash
 JWT_SECRET=your-jwt-secret
@@ -208,7 +208,7 @@ There are **no** `NEXTAUTH_*` variables — the Browser is a pure SPA with no au
 
 Store `JWT_SECRET` and OAuth credentials in secure secret storage (e.g. AWS Secrets Manager); never commit them; use different secrets per environment; rotate regularly. See [Configuration Guide](./CONFIGURATION.md).
 
-Nothing generates the signing key at request time, and the backend **refuses to boot** without one rather than surfacing the problem at first sign-in. Who supplies it depends on where the stack runs:
+Nothing generates the signing key at request time, and the gateway **refuses to boot** without one rather than surfacing the problem at first sign-in. Who supplies it depends on where the stack runs:
 
 | Placement | Supplied by | Where it lives |
 |---|---|---|
@@ -226,7 +226,7 @@ Replacing the key outright is what causes an outage: it invalidates every access
 ```bash
 # 1. Mint a new key and put it FIRST, keeping the old one behind it.
 export JWT_SECRET="$(openssl rand -hex 32),$OLD_SECRET"
-semiont start --service backend        # or restart however you deploy
+semiont start --service gateway        # or restart however you deploy
 
 # 2. Nothing breaks. New tokens are signed with the new key; tokens already
 #    issued still verify against the old one, and each re-mints under the new
@@ -235,14 +235,14 @@ semiont start --service backend        # or restart however you deploy
 # 3. Once every outstanding refresh token has had a chance to refresh
 #    (refresh TTL is 30 days), drop the tail:
 export JWT_SECRET="$NEW_SECRET"
-semiont start --service backend
+semiont start --service gateway
 ```
 
 **Retiring the old key early is what breaks sessions** — any refresh token that has not been used since the rotation dies with it. Wait a full refresh TTL, or accept that the stragglers re-authenticate.
 
 Details worth knowing:
 
-- **Each key must be at least 32 characters.** The check is per key, not on the whole string — `<valid>,short` would otherwise pass trivially. `semiont start` refuses such a value up front rather than letting the backend crash-loop.
+- **Each key must be at least 32 characters.** The check is per key, not on the whole string — `<valid>,short` would otherwise pass trivially. `semiont start` refuses such a value up front rather than letting the gateway crash-loop.
 - **A comma cannot appear in a key**, so the delimiter is unambiguous: generated keys are hex, and the documented recipe is `openssl rand -hex 32`.
 - **Logout still wins.** Revocation is a `tokenVersion` epoch check that runs independently of the key ring: a token revoked by signing out stays revoked even though its signature verifies against a ring member. A rotation is not an amnesty.
 - **Media tokens** (`?token=`) sign and verify through the same ring, so they rotate with everything else. Their 5-minute TTL makes the grace window academic, but they are not on a separate path.
@@ -265,7 +265,7 @@ Details worth knowing:
 
 1. Routes explicitly apply `authMiddleware`. 2. Rate-limit per IP/user (edge rate-limiting is your deployment platform's concern). 3. Validate inputs with Zod. 4. Log auth events; the startup log records the bearer-only / open-CORS posture.
 
-> **MCP programmatic access** — the old browser-mediated MCP token routes (`/api/tokens/mcp-setup`, `/api/tokens/mcp-generate`) were removed when auth moved bearer-only; MCP provisioning is being re-architected (each backend KB owns its own grant handshake). MCP `login` is not available until that rebuild lands.
+> **MCP programmatic access** — the old browser-mediated MCP token routes (`/api/tokens/mcp-setup`, `/api/tokens/mcp-generate`) were removed when auth moved bearer-only; MCP provisioning is being re-architected (each gateway KB owns its own grant handshake). MCP `login` is not available until that rebuild lands.
 
 ## Troubleshooting
 

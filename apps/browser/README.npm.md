@@ -32,7 +32,7 @@ npm install @semiont/browser
 PORT=3000 node node_modules/@semiont/browser/server.js
 ```
 
-The SPA is backend-agnostic: it connects to knowledge bases chosen in the browser at runtime, so the
+The SPA is gateway-agnostic: it connects to knowledge bases chosen in the browser at runtime, so the
 only environment variable it needs is `PORT`.
 
 ## Links

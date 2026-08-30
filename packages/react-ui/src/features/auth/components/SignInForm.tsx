@@ -4,8 +4,8 @@
  * Supports both Google OAuth and email/password credentials.
  * No Next.js dependencies - all data via props.
  *
- * When backendUrl is provided it is shown as a locked read-only field.
- * When backendUrl is omitted the user must enter a backend URL to connect to.
+ * When gatewayUrl is provided it is shown as a locked read-only field.
+ * When gatewayUrl is omitted the user must enter a gateway URL to connect to.
  */
 
 import React from 'react';
@@ -15,21 +15,21 @@ import '../auth.css';
 export interface SignInFormProps {
   /**
    * Callback when user clicks Google sign-in.
-   * Receives the backend URL (either the locked one or what the user typed).
+   * Receives the gateway URL (either the locked one or what the user typed).
    */
-  onGoogleSignIn: (backendUrl: string) => Promise<void>;
+  onGoogleSignIn: (gatewayUrl: string) => Promise<void>;
 
   /**
    * Callback when user submits email/password credentials.
-   * Receives the backend URL along with email and password.
+   * Receives the gateway URL along with email and password.
    */
-  onCredentialsSignIn?: ((backendUrl: string, email: string, password: string) => Promise<void>) | undefined;
+  onCredentialsSignIn?: ((gatewayUrl: string, email: string, password: string) => Promise<void>) | undefined;
 
   /**
-   * Pre-filled backend URL. When provided the field is read-only (re-auth to known workspace).
+   * Pre-filled gateway URL. When provided the field is read-only (re-auth to known workspace).
    * When omitted the user enters the URL themselves (new connection).
    */
-  backendUrl?: string;
+  gatewayUrl?: string;
 
   /**
    * Error message to display (if any)
@@ -59,8 +59,8 @@ export interface SignInFormProps {
     welcomeBack: string;
     signInPrompt: string;
     continueWithGoogle: string;
-    backendUrlLabel: string;
-    backendUrlPlaceholder: string;
+    gatewayUrlLabel: string;
+    gatewayUrlPlaceholder: string;
     emailLabel: string;
     emailPlaceholder: string;
     passwordLabel: string;
@@ -72,9 +72,9 @@ export interface SignInFormProps {
     backToHome: string;
     learnMore: string;
     signUpInstead: string;
-    errorBackendUrlRequired: string;
-    errorBackendUrlInvalid: string;
-    errorBackendUrlUnreachable: string;
+    errorGatewayUrlRequired: string;
+    errorGatewayUrlInvalid: string;
+    errorGatewayUrlUnreachable: string;
     errorEmailRequired: string;
     errorPasswordRequired: string;
     tagline: string;
@@ -117,23 +117,23 @@ function normalizeUrlForProbe(raw: string): string | null {
 }
 
 /**
- * CredentialsAuthForm - Backend URL + email/password form.
- * When lockedBackendUrl is provided, the URL field is shown read-only.
+ * CredentialsAuthForm - Gateway URL + email/password form.
+ * When lockedGatewayUrl is provided, the URL field is shown read-only.
  */
 function CredentialsAuthForm({
-  lockedBackendUrl,
+  lockedGatewayUrl,
   onSubmit,
   translations: t,
 }: {
-  lockedBackendUrl: string | undefined;
-  onSubmit: (backendUrl: string, email: string, password: string) => Promise<void>;
+  lockedGatewayUrl: string | undefined;
+  onSubmit: (gatewayUrl: string, email: string, password: string) => Promise<void>;
   translations: SignInFormProps['translations'];
 }) {
-  const [backendUrl, setBackendUrl] = React.useState(lockedBackendUrl ?? '');
+  const [gatewayUrl, setGatewayUrl] = React.useState(lockedGatewayUrl ?? '');
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [validationError, setValidationError] = React.useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = React.useState<{ backendUrl?: string; email?: string; password?: string }>({});
+  const [fieldErrors, setFieldErrors] = React.useState<{ gatewayUrl?: string; email?: string; password?: string }>({});
   const [urlProbeStatus, setUrlProbeStatus] = React.useState<UrlProbeStatus>('idle');
 
   const probeUrl = async (raw: string) => {
@@ -141,7 +141,7 @@ function CredentialsAuthForm({
     if (!url) return;
     // Validate format
     try { new URL(url); } catch {
-      setFieldErrors(prev => ({ ...prev, backendUrl: t.errorBackendUrlInvalid }));
+      setFieldErrors(prev => ({ ...prev, gatewayUrl: t.errorGatewayUrlInvalid }));
       setUrlProbeStatus('error');
       return;
     }
@@ -150,19 +150,19 @@ function CredentialsAuthForm({
       const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(5000) });
       setUrlProbeStatus(res.ok ? 'ok' : 'error');
       if (!res.ok) {
-        setFieldErrors(prev => ({ ...prev, backendUrl: t.errorBackendUrlUnreachable }));
+        setFieldErrors(prev => ({ ...prev, gatewayUrl: t.errorGatewayUrlUnreachable }));
       }
     } catch {
       setUrlProbeStatus('error');
-      setFieldErrors(prev => ({ ...prev, backendUrl: t.errorBackendUrlUnreachable }));
+      setFieldErrors(prev => ({ ...prev, gatewayUrl: t.errorGatewayUrlUnreachable }));
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const errors: { backendUrl?: string; email?: string; password?: string } = {};
+    const errors: { gatewayUrl?: string; email?: string; password?: string } = {};
 
-    if (!backendUrl.trim()) errors.backendUrl = t.errorBackendUrlRequired;
+    if (!gatewayUrl.trim()) errors.gatewayUrl = t.errorGatewayUrlRequired;
     if (!email) errors.email = t.errorEmailRequired;
     if (!password) errors.password = t.errorPasswordRequired;
 
@@ -174,10 +174,10 @@ function CredentialsAuthForm({
 
     setFieldErrors({});
     setValidationError(null);
-    await onSubmit(backendUrl.trim(), email, password);
+    await onSubmit(gatewayUrl.trim(), email, password);
   };
 
-  const probeIndicator = !lockedBackendUrl && urlProbeStatus !== 'idle' ? (
+  const probeIndicator = !lockedGatewayUrl && urlProbeStatus !== 'idle' ? (
     <span
       className={`semiont-form__url-status semiont-form__url-status--${urlProbeStatus}`}
       aria-live="polite"
@@ -198,33 +198,33 @@ function CredentialsAuthForm({
 
       <form onSubmit={handleSubmit} className="semiont-auth__form" noValidate>
         <div className="semiont-form__field">
-          <label htmlFor="backend-url" className="semiont-form__label">
-            {t.backendUrlLabel}
+          <label htmlFor="gateway-url" className="semiont-form__label">
+            {t.gatewayUrlLabel}
           </label>
           <div className="semiont-form__input-row">
             <input
-              id="backend-url"
+              id="gateway-url"
               type="url"
-              value={backendUrl}
+              value={gatewayUrl}
               onChange={(e) => {
-                if (lockedBackendUrl) return;
-                setBackendUrl(e.target.value);
+                if (lockedGatewayUrl) return;
+                setGatewayUrl(e.target.value);
                 setUrlProbeStatus('idle');
-                if (fieldErrors.backendUrl) setFieldErrors({ ...fieldErrors, backendUrl: undefined });
+                if (fieldErrors.gatewayUrl) setFieldErrors({ ...fieldErrors, gatewayUrl: undefined });
               }}
-              onBlur={() => { if (!lockedBackendUrl) probeUrl(backendUrl); }}
-              readOnly={!!lockedBackendUrl}
-              placeholder={t.backendUrlPlaceholder}
-              className={`semiont-input${lockedBackendUrl ? ' semiont-input--readonly' : ''}`}
-              aria-invalid={!!fieldErrors.backendUrl}
-              aria-describedby={fieldErrors.backendUrl ? 'backend-url-error' : undefined}
+              onBlur={() => { if (!lockedGatewayUrl) probeUrl(gatewayUrl); }}
+              readOnly={!!lockedGatewayUrl}
+              placeholder={t.gatewayUrlPlaceholder}
+              className={`semiont-input${lockedGatewayUrl ? ' semiont-input--readonly' : ''}`}
+              aria-invalid={!!fieldErrors.gatewayUrl}
+              aria-describedby={fieldErrors.gatewayUrl ? 'gateway-url-error' : undefined}
               required
             />
             {probeIndicator}
           </div>
-          {fieldErrors.backendUrl && (
-            <span id="backend-url-error" className="semiont-form__error" role="alert">
-              {fieldErrors.backendUrl}
+          {fieldErrors.gatewayUrl && (
+            <span id="gateway-url-error" className="semiont-form__error" role="alert">
+              {fieldErrors.gatewayUrl}
             </span>
           )}
         </div>
@@ -295,23 +295,23 @@ function CredentialsAuthForm({
 /**
  * SignInForm - Main sign-in / connect component.
  *
- * When backendUrl is provided (re-auth to known workspace) the URL field is locked.
- * When backendUrl is omitted (new connection) the user enters the URL themselves.
+ * When gatewayUrl is provided (re-auth to known workspace) the URL field is locked.
+ * When gatewayUrl is omitted (new connection) the user enters the URL themselves.
  */
 export function SignInForm({
   onGoogleSignIn,
   onCredentialsSignIn,
-  backendUrl,
+  gatewayUrl,
   error,
   showCredentialsAuth = false,
   isLoading = false,
   translations: t,
 }: SignInFormProps) {
   const handleGoogleClick = () => {
-    // For Google auth we need the backend URL from the locked prop or we cannot proceed.
-    // The caller is responsible for ensuring backendUrl is set when Google sign-in is offered.
-    if (backendUrl) {
-      onGoogleSignIn(backendUrl);
+    // For Google auth we need the gateway URL from the locked prop or we cannot proceed.
+    // The caller is responsible for ensuring gatewayUrl is set when Google sign-in is offered.
+    if (gatewayUrl) {
+      onGoogleSignIn(gatewayUrl);
     }
   };
 
@@ -348,14 +348,14 @@ export function SignInForm({
               <>
                 {showCredentialsAuth && onCredentialsSignIn && (
                   <CredentialsAuthForm
-                    lockedBackendUrl={backendUrl}
+                    lockedGatewayUrl={gatewayUrl}
                     onSubmit={onCredentialsSignIn}
                     translations={t}
                   />
                 )}
 
-                {/* Google sign-in only shown when a backend URL is known */}
-                {backendUrl && (
+                {/* Google sign-in only shown when a gateway URL is known */}
+                {gatewayUrl && (
                   <button onClick={handleGoogleClick} className={`${buttonStyles.primary.base} semiont-button--full-width`}>
                     <GoogleIcon />
                     {t.continueWithGoogle}

@@ -1,10 +1,10 @@
-# Stage 1: install. Unlike the other service images, the backend does NOT discard
+# Stage 1: install. Unlike the other service images, the gateway does NOT discard
 # npm afterward — the runtime stage copies it over for `npx prisma` (see below).
 #
 # The image runs @semiont/gateway directly — there is no CLI layer. The package
 # and its lazy peers install into /home/semiont/.local/share/semiont.
 # neo4j-driver and @qdrant/js-client-rest are lazy peers of @semiont/graph and
-# @semiont/vector (loaded at connect time) — the backend dials both, so they are
+# @semiont/vector (loaded at connect time) — the gateway dials both, so they are
 # bundled here explicitly rather than installed at startup.
 #
 # Base is node:24-alpine, NOT node:26 like the frontend: node 26's built-in undici
@@ -13,7 +13,7 @@
 FROM node:24-alpine AS installer
 ARG NPM_REGISTRY=https://registry.npmjs.org
 ARG SEMIONT_VERSION=latest
-# The backend KEEPS npm at runtime (for `npx prisma`), so npm's own bundled deps
+# The gateway KEEPS npm at runtime (for `npx prisma`), so npm's own bundled deps
 # ship in the image and face the Trivy gate. node:24-alpine's npm (11.16.0) bundles
 # tar 7.5.15 (CVE-2026-59873 CRITICAL, CVE-2026-59874 HIGH), brace-expansion 5.0.6
 # (CVE-2026-13149 HIGH), and undici 6.26.0 (CVE-2026-12151 HIGH). Pin npm to 12.0.1,
@@ -36,7 +36,7 @@ RUN --mount=type=cache,target=/root/.npm \
 # Generate the Prisma client. This is NOT optional: dist/index.js leaves
 # @prisma/client external, and `npm install` does not generate a client for a
 # schema that lives inside a dependency — so without this step the very first
-# import of the backend's db module dies on
+# import of the gateway's db module dies on
 # `Cannot find module '.prisma/client/default'` (it constructs the client at
 # module scope, so nothing even reaches a query).
 #
@@ -89,7 +89,7 @@ RUN set -eu; \
     patch_dep "$APP_TREE" deepmerge-ts 8.0.0
 
 # Stage 2: runtime — node + git + npm. Unlike the other service images, the
-# backend KEEPS npm because the CMD shells out to `npx prisma migrate deploy`
+# gateway KEEPS npm because the CMD shells out to `npx prisma migrate deploy`
 # before starting. (`prisma generate` no longer needs it at runtime — that moved
 # to the installer stage above.)
 FROM node:24-alpine
@@ -110,13 +110,13 @@ RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 semiont
 
 # npm/npx (pinned + patched in the installer stage) for `npx prisma`, plus the
-# backend package and its lazy peers.
+# gateway package and its lazy peers.
 COPY --from=installer /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=installer /usr/local/bin /usr/local/bin
 COPY --from=installer --chown=semiont:nodejs /home/semiont/.local/share/semiont /home/semiont/.local/share/semiont
 
-# The backend KEEPS npm/npx (see the base-image note above): the entrypoint runs
-# `npx prisma migrate deploy` before starting, so removing npx makes the backend
+# The gateway KEEPS npm/npx (see the base-image note above): the entrypoint runs
+# `npx prisma migrate deploy` before starting, so removing npx makes the gateway
 # fail to start. npm is pinned to 12.0.1 in the installer stage above,
 # with its bundled brace-expansion patched there, so keeping npm is clean for the
 # Trivy gate.
@@ -127,7 +127,7 @@ COPY --from=installer --chown=semiont:nodejs /home/semiont/.local/share/semiont 
 #     Go-stdlib CVE (CVE-2026-39822).
 #   - `elkjs`: pulled by @prisma/studio-core (via prisma) for Prisma Studio's
 #     graph layout. It is EPL-2.0 — not on the license allowlist — and is
-#     lazy-loaded only by the Studio GUI, which the backend never runs (it
+#     lazy-loaded only by the Studio GUI, which the gateway never runs (it
 #     shells out to `npx prisma migrate deploy`). studio-core itself stays:
 #     it is Apache-2.0 and prisma's CLI top-level-requires it (removing it breaks
 #     the CLI, and `migrate deploy` still runs at start), while removing only
@@ -174,8 +174,8 @@ ENV GATEWAY_DIR=/home/semiont/.local/share/semiont/node_modules/@semiont/gateway
 ENV PATH="/home/semiont/.local/share/semiont/node_modules/.bin:${PATH}"
 
 # Assert the image can actually start, using the SAME variable the CMD will.
-# The retired CLI checked this at every container start ("Backend not
-# provisioned…", "Backend entry point not found at…"); those were start-time
+# The retired CLI checked this at every container start ("Gateway not
+# provisioned…", "Gateway entry point not found at…"); those were start-time
 # checks on facts the build fixes, so they belong here instead — one failure for
 # a maintainer in CI beats one per user at first boot.
 #
@@ -200,7 +200,7 @@ RUN test -f "$GATEWAY_DIR/dist/index.js" \
 # stdout — unlike the retired CLI path, which detached node and kept the
 # container alive with `tail -f` on a log file.
 #
-# The derivation is the CLI's old `backend-start.ts` job, restored: the config
+# The derivation is the CLI's old `gateway-start.ts` job, restored: the config
 # holds the database credentials, and nothing else translated them into a
 # connection string. It runs HERE, as its own process, because
 #
@@ -214,7 +214,7 @@ RUN test -f "$GATEWAY_DIR/dist/index.js" \
 # Setting it before either process starts removes both problems. And because it
 # is set INSIDE the container rather than passed with --env, the password never
 # appears in `container inspect` — the same rule the launcher keeps for the admin
-# password (see backendArgs in apps/launcher/internal/launcher/start.go).
+# password (see gatewayArgs in apps/launcher/internal/launcher/start.go).
 #
 # Required in the environment:
 #   JWT_SECRET     — >= 32 chars; `semiont start` generates one per KB and injects it

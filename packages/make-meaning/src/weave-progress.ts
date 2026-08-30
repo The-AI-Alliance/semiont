@@ -1,5 +1,5 @@
 /**
- * WeaveProgress — backend-local fold of `weave:applied` signals
+ * WeaveProgress — gateway-local fold of `weave:applied` signals
  * (GRAPH-PROJECTION-SYNC P2, D2 = push).
  *
  * The Weaver emits `weave:applied` after applying an event (or a batch's
@@ -15,7 +15,7 @@
  * WEAVER-ISOLATION the same channel arrives through the bus gateway and
  * this unit does not change.
  *
- * The map is ephemeral by design — on backend restart it rebuilds lazily
+ * The map is ephemeral by design — on gateway restart it rebuilds lazily
  * from live signals. That loses nothing: a waiter only ever waits for an
  * apply that has not happened yet, and those signals are still to come.
  */

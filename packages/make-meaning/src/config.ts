@@ -70,7 +70,7 @@ export interface MakeMeaningConfig {
   };
   /**
    * The KB's canonical identity domain — the SAME value `/api/tokens/agent`
-   * mints agent DIDs from (backend `site.domain`). The agent roster consumes
+   * mints agent DIDs from (gateway `site.domain`). The agent roster consumes
    * it verbatim, so directory DIDs and work-stamped `generator` DIDs are
    * equal by construction; it is never derived from service topology
    * (.plans/bugs/agent-did-host-skew.md).
@@ -142,7 +142,7 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
     },
     // The KB's canonical identity — the agent roster mints DIDs from this,
     // the SAME value /api/tokens/agent uses (agent-did-host-skew fix). The
-    // value, not JWTService, so make-meaning stays backend-agnostic.
+    // value, not JWTService, so make-meaning stays gateway-agnostic.
     ...(config.site?.domain ? { site: { domain: config.site.domain } } : {}),
     actors: meta?.actors,
     workers: meta?.workers,

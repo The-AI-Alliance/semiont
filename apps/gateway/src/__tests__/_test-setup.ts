@@ -2,7 +2,7 @@
  * Test Environment Setup Utilities
  *
  * Creates a minimal EnvironmentConfig and MakeMeaningConfig in memory
- * for backend integration tests.
+ * for gateway integration tests.
  */
 
 import { promises as fs } from 'fs';
@@ -12,7 +12,7 @@ import type { EnvironmentConfig } from '@semiont/core';
 
 const MINIMAL_SEMIONTCONFIG = `
 [environments.integration]
-[environments.integration.backend]
+[environments.integration.gateway]
 platform = "posix"
 port = 4000
 publicURL = "http://localhost:4000"
@@ -51,7 +51,7 @@ adminEmail = "admin@test.local"
 oauthAllowedDomains = ["test.local"]
 
 [environments.unit]
-[environments.unit.backend]
+[environments.unit.gateway]
 platform = "posix"
 port = 4000
 publicURL = "http://localhost:4000"
@@ -149,7 +149,7 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
 
   const config: EnvironmentConfig = {
     services: {
-      backend: {
+      gateway: {
         platform: { type: 'posix' },
         port: 4000,
         publicURL: 'http://localhost:4000',

@@ -2,7 +2,7 @@ import { test, expect } from '../fixtures/auth';
 import type { Page } from '@playwright/test';
 import { SemiontClient, resourceId as ridBrand } from '@semiont/sdk';
 import type { components } from '@semiont/core';
-import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 
 import { openResourceByName } from '../fixtures/discover';
 /**
@@ -65,7 +65,7 @@ const resourceIdFromUrl = (page: Page) => page.url().split('/').pop()!.split('?'
  *  still holds it. */
 async function storedAnnotations(resourceId: string) {
   const client = await SemiontClient.signInHttp({
-    baseUrl: BACKEND_URL,
+    baseUrl: GATEWAY_URL,
     email: E2E_EMAIL,
     password: E2E_PASSWORD,
   });

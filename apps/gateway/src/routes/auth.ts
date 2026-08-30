@@ -341,7 +341,7 @@ authRouter.get('/api/users/me', authMiddleware, async (c) => {
  *
  * Software-agent token exchange. A worker process presents the shared
  * `SEMIONT_WORKER_SECRET` along with the inference (provider, model)
- * the token is being issued for. The backend upserts a User row that
+ * the token is being issued for. The gateway upserts a User row that
  * backs the agent identity and returns a JWT carrying both the
  * synthetic User and the agent's DID.
  *

@@ -1,13 +1,13 @@
 /**
- * Backend API Security Tests
+ * Gateway API Security Tests
  * 
- * These tests verify that the backend API security measures are in place
+ * These tests verify that the gateway API security measures are in place
  * and resource the security requirements to prevent regression.
  */
 
 import { describe, it, expect } from 'vitest';
 
-describe('Backend API Security', () => {
+describe('Gateway API Security', () => {
   describe('Security Requirements Resourceation', () => {
     it('should resource admin endpoint protection requirements', () => {
       const securityRequirements = {
@@ -165,8 +165,8 @@ describe('Backend API Security', () => {
     it('should resource what was fixed', () => {
       const securityFix = {
         previousIssue: 'Frontend had 307 redirects with admin content leakage',
-        backendStatus: 'Backend was already secure with proper middleware',
-        currentState: 'Both frontend and backend now properly secured',
+        gatewayStatus: 'Gateway was already secure with proper middleware',
+        currentState: 'Both frontend and gateway now properly secured',
         testingAdded: 'Security tests added to prevent regression'
       };
 

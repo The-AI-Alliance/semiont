@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { SemiontClient, resourceId as ridBrand } from '@semiont/sdk';
-import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 
 /**
  * Phase 4 of `.plans/bugs/entity-extraction-truncates-large-docs.md` — the
@@ -153,7 +153,7 @@ test.describe('large-document assisted linking', () => {
     test.setTimeout(2_700_000);
 
     const client = await SemiontClient.signInHttp({
-      baseUrl: BACKEND_URL,
+      baseUrl: GATEWAY_URL,
       email: E2E_EMAIL,
       password: E2E_PASSWORD,
     });
@@ -270,7 +270,7 @@ test.describe('large-document assisted linking', () => {
     test.setTimeout(2_700_000);
 
     const client = await SemiontClient.signInHttp({
-      baseUrl: BACKEND_URL,
+      baseUrl: GATEWAY_URL,
       email: E2E_EMAIL,
       password: E2E_PASSWORD,
     });
@@ -350,7 +350,7 @@ test.describe('large-document assisted linking', () => {
     test.setTimeout(2_700_000);
 
     const client = await SemiontClient.signInHttp({
-      baseUrl: BACKEND_URL,
+      baseUrl: GATEWAY_URL,
       email: E2E_EMAIL,
       password: E2E_PASSWORD,
     });

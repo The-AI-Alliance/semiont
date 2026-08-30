@@ -482,7 +482,7 @@ export class Smelter {
       // The stored representation's bytes, untouched — the content route is a
       // pure pipe now (no negotiation), so getBinary returns exactly the bytes
       // the catalog's checksum was computed from (S12; the route-side half is
-      // the backend's resource-raw-mode lemma test). The checksum is computed
+      // the gateway's resource-raw-mode lemma test). The checksum is computed
       // before the media gate so `skipped` decisions stay content-keyed (D2).
       const { data, contentType } = await this.content.getBinary(makeResourceId(resourceId));
       const bytes = Buffer.from(data);

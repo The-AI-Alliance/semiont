@@ -47,8 +47,8 @@ const { stubBrowser, stubClient } = vi.hoisted(() => {
   const { SemiontClient, HttpTransport, HttpContentTransport } = require('@semiont/sdk');
   const { baseUrl } = require('@semiont/core');
   const transport = new HttpTransport({ baseUrl: baseUrl('http://localhost:4000') });
-  // HttpTransport implements both ITransport and IBackendOperations; pass it
-  // as backend so `client.auth` (used by useMediaToken) is wired.
+  // HttpTransport implements both ITransport and IGatewayOperations; pass it
+  // as gateway so `client.auth` (used by useMediaToken) is wired.
   const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
   const stubActiveSession$ = new BehaviorSubject({ client });
   const stubOpenResources$ = new BehaviorSubject([]);

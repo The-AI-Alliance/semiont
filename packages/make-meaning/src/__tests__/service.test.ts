@@ -177,7 +177,7 @@ describe('Make-Meaning Service', () => {
 
       // The graph projection is part of the graph stack, not the embedding
       // process — the Weaver runs via @semiont/make-meaning/weaver-main.
-      // The backend keeps only the weave:applied fold.
+      // The gateway keeps only the weave:applied fold.
       expect(kb.weaveProgress).toBeDefined();
       expect(typeof kb.weaveProgress.whenApplied).toBe('function');
       expect('weaver' in kb).toBe(false);
@@ -334,7 +334,7 @@ describe('startup dependency connects', () => {
       // at the point of use, not as a precondition of booting — and a memory
       // store needs no dimensionality at all. Eagerly probing here is what
       // made an unreachable provider fatal at startup: CI (postgres only,
-      // no Ollama) could not boot the backend even with a `memory` store.
+      // no Ollama) could not boot the gateway even with a `memory` store.
       expect(providerFetch).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();

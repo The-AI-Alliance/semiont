@@ -1,13 +1,13 @@
-# Semiont Backend
+# Semiont Gateway
 
-A type-safe Node.js backend API providing comprehensive document management, W3C Web Annotation support, and graph-based knowledge organization. Built with Hono framework, featuring spec-first OpenAPI validation, JWT authentication, and integration with graph databases for managing document relationships and entity references.
+A type-safe Node.js gateway API providing comprehensive document management, W3C Web Annotation support, and graph-based knowledge organization. Built with Hono framework, featuring spec-first OpenAPI validation, JWT authentication, and integration with graph databases for managing document relationships and entity references.
 
 ## Quick Links
 
 ### 📚 Documentation
 - **[Architecture](./docs/ARCHITECTURE.md)** - Infrastructure management patterns, design principles
 - **[Development Guide](./docs/DEVELOPMENT.md)** - Local development, CLI usage, manual setup
-- **[Semiont Protocol](../../docs/protocol/README.md)** - The eight verbs and the bus this backend serves
+- **[Semiont Protocol](../../docs/protocol/README.md)** - The eight verbs and the bus this gateway serves
 - **[Authentication](./docs/AUTHENTICATION.md)** - JWT tokens, OAuth, MCP authentication
 - **[Event-Bus Protocol](../../docs/protocol/EVENT-BUS.md)** - SSE streaming, channels, scoping, correlation
 - **[Logging](./docs/LOGGING.md)** - Winston logging, log levels, debugging 401s
@@ -15,8 +15,8 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 - **[Deployment Guide](../../docs/system/administration/DEPLOYMENT.md)** - Production deployment, rollbacks, monitoring
 
 ### 🔗 Related Resources
-- **[W3C Web Annotation Implementation](../../docs/protocol/W3C-WEB-ANNOTATION.md)** - How annotations flow through all backend layers (event store, materialized views, graph database)
-- **[API Client Package](../../packages/http-transport/)** - Type-safe TypeScript client for consuming the backend API
+- **[W3C Web Annotation Implementation](../../docs/protocol/W3C-WEB-ANNOTATION.md)** - How annotations flow through all gateway layers (event store, materialized views, graph database)
+- **[API Client Package](../../packages/http-transport/)** - Type-safe TypeScript client for consuming the gateway API
 - **[Core Package](../../packages/core/)** - Shared types, utilities, and business logic
 - **[OpenAPI Specification](../../specs/README.md)** - Hand-written OpenAPI 3.0 schema (spec-first, source in [../../specs/src/](../../specs/src/))
 
@@ -25,7 +25,7 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 [![npm version](https://img.shields.io/npm/v/@semiont/gateway.svg)](https://www.npmjs.com/package/@semiont/gateway)
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/gateway.svg)](https://www.npmjs.com/package/@semiont/gateway)
 
-The backend is published as `@semiont/gateway` on npm with pre-built dist and Prisma schema. The published backend image installs it at build time, pinned to `SEMIONT_VERSION`, and runs it directly — nothing installs it into a project.
+The gateway is published as `@semiont/gateway` on npm with pre-built dist and Prisma schema. The published gateway image installs it at build time, pinned to `SEMIONT_VERSION`, and runs it directly — nothing installs it into a project.
 
 ## Quick Start
 
@@ -40,7 +40,7 @@ semiont start
 
 **Your services are now running:**
 - **Browser**: http://localhost:3000
-- **Backend**: http://localhost:4000
+- **Gateway**: http://localhost:4000
 - **API Docs**: http://localhost:4000/api
 - **Database**: PostgreSQL in Docker container
 
@@ -63,7 +63,7 @@ npm run dev
 
 [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-gateway)
 
-Pull and run the published backend container image:
+Pull and run the published gateway container image:
 
 ```bash
 # Pull latest development build
@@ -188,7 +188,7 @@ See [System Documentation](../../docs/system/README.md) for complete details.
 
 Asynchronous job processing for long-running AI operations that can't block HTTP requests:
 
-**Current Status**: Prototype implementation embedded in backend process (not yet a standalone CLI-managed service)
+**Current Status**: Prototype implementation embedded in gateway process (not yet a standalone CLI-managed service)
 
 **Job Types**:
 - **Annotation Detection**: Detect annotations in documents using AI inference (highlights, assessments, comments, tags, entity references), emit `mark:added` events
@@ -224,7 +224,7 @@ See [Authentication Guide](./docs/AUTHENTICATION.md) for implementation details.
 ### API Routing Architecture
 
 Clean separation of concerns:
-- **Backend owns**: `/api/*` - all API endpoints, including the OAuth credential exchange and JWT minting (`POST /api/tokens/google`)
+- **Gateway owns**: `/api/*` - all API endpoints, including the OAuth credential exchange and JWT minting (`POST /api/tokens/google`)
 - **Browser**: the static Vite + React SPA - no server routes (#557 removed Next.js)
 - **No routing conflicts** - simple ALB host/path rules
 
@@ -235,7 +235,7 @@ Only `POST /bus/emit` and `GET /bus/subscribe` carry domain traffic; the rest of
 ```
 apps/gateway/
 ├── docs/                      # Documentation
-│   ├── ARCHITECTURE.md       # Backend architecture
+│   ├── ARCHITECTURE.md       # Gateway architecture
 │   ├── AUTHENTICATION.md     # Auth implementation
 │   ├── DEVELOPMENT.md        # Local development guide
 │   ├── LOGGING.md            # Logging guide
@@ -287,7 +287,7 @@ const content = new WorkingTreeStore(...);  // NEVER DO THIS
     - `kb.graph: GraphDatabase` - Graph database for relationships and traversal
     - `kb.weaver: Weaver` - Event-to-graph synchronization
   - `jobQueue: JobQueue` - Background job processing
-  - Inference clients are created per-actor inside make-meaning (Gatherer, Matcher) - never in backend code
+  - Inference clients are created per-actor inside make-meaning (Gatherer, Matcher) - never in gateway code
   - Background workers run in a separate worker-pool process (see [Architecture](./docs/ARCHITECTURE.md))
 
 **Implementation Pattern:**
@@ -345,9 +345,9 @@ Features:
 ### OpenAPI Specification
 - **Endpoint**: `/api/openapi.json` - Raw OpenAPI 3.0 spec (generated bundle)
 - **Source**: [../../specs/src/](../../specs/src/) - Hand-written specification files
-- **Spec-first approach** - Hand-written specification, backend validates against it
+- **Spec-first approach** - Hand-written specification, gateway validates against it
 - **Type generation** - Browser types generated from spec via `openapi-typescript`
-- **Validation** - Backend uses Ajv to validate requests against schemas
+- **Validation** - Gateway uses Ajv to validate requests against schemas
 
 ## Common Tasks
 
@@ -362,7 +362,7 @@ SEMIONT_ROOT=/path/to/kb npm run rebuild-graph -- <resourceId>
 
 The command reads the KB's `.semiont/semiontconfig/<name>.toml` for database credentials, graph, and vector store settings — the environment block named by its `[defaults] environment`.
 
-The vector store has no backend CLI: the smelter worker (`@semiont/make-meaning/smelter-main`) reconciles Qdrant against the KS catalog on every startup — re-embedding missing resources and annotations and deleting orphaned vectors. To recover from a wiped Qdrant volume, just restart the smelter; to force a full re-embed, wipe the Qdrant volume first and then restart it.
+The vector store has no gateway CLI: the smelter worker (`@semiont/make-meaning/smelter-main`) reconciles Qdrant against the KS catalog on every startup — re-embedding missing resources and annotations and deleting orphaned vectors. To recover from a wiped Qdrant volume, just restart the smelter; to force a full re-embed, wipe the Qdrant volume first and then restart it.
 
 ### Development
 ```bash
@@ -399,9 +399,9 @@ See [Testing Guide](./docs/TESTING.md) for testing patterns.
 
 ### Deployment
 
-The backend ships as the published `semiont-gateway` container image; a KB stack runs it via the
+The gateway ships as the published `semiont-gateway` container image; a KB stack runs it via the
 host-installed `semiont` launcher (see [apps/launcher](../launcher/README.md)) or
-`docker compose` against the KB's `.semiont/compose/backend.yml`.
+`docker compose` against the KB's `.semiont/compose/gateway.yml`.
 
 See [Deployment Guide](../../docs/system/administration/DEPLOYMENT.md) for complete procedures.
 
@@ -445,11 +445,11 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 
 ## Further Reading
 
-### Backend Documentation
-- [Local Setup](../../docs/system/LOCAL-BACKEND.md) - Run the backend locally (container or npm)
+### Gateway Documentation
+- [Local Setup](../../docs/system/LOCAL-GATEWAY.md) - Run the gateway locally (container or npm)
 - [Architecture](./docs/ARCHITECTURE.md) - **Infrastructure management patterns (REQUIRED READING)**
 - [Development Guide](./docs/DEVELOPMENT.md) - Complete local development setup
-- [Semiont Protocol](../../docs/protocol/README.md) - The eight verbs and the bus this backend serves
+- [Semiont Protocol](../../docs/protocol/README.md) - The eight verbs and the bus this gateway serves
 - [Authentication](./docs/AUTHENTICATION.md) - JWT, OAuth, MCP implementation
 - [Event-Bus Protocol](../../docs/protocol/EVENT-BUS.md) - SSE streaming, channels, scoping, correlation
 - [Database](../../docs/system/administration/DATABASE.md) - PostgreSQL setup for user authentication

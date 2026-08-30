@@ -21,7 +21,7 @@ import type { JobQueue } from './job-queue-interface';
  * connected and idle at that moment. Re-announcing every pending job
  * on an interval restores catch-up for everything that announcement
  * misses: all eligible workers busy, a worker offline or mid-SSE-
- * reconnect, or a backend restart with a pending backlog. Claim
+ * reconnect, or a gateway restart with a pending backlog. Claim
  * arbitration (the `job:claim` handler refuses non-pending jobs)
  * makes duplicate announcements harmless.
  */

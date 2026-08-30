@@ -1,10 +1,10 @@
 /**
- * Create or update a user. Invoked inside the backend container by
+ * Create or update a user. Invoked inside the gateway container by
  * `semiont useradd`, which execs it and passes every flag through verbatim.
  *
  * (No shebang — tsup's `banner` adds one to every entry.)
  *
- * Why this lives in the backend rather than the launcher: creating a user is a
+ * Why this lives in the gateway rather than the launcher: creating a user is a
  * schema-shaped operation. Two columns carry NO database-side default —
  *
  *   "id"        TEXT NOT NULL          -- @default(cuid()), applied client-side

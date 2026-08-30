@@ -2,7 +2,7 @@
 
 ## FsJobQueue
 
-`FsJobQueue` is the filesystem-backed implementation of the `JobQueue` interface. The interface contract (`initialize`, `destroy`, `createJob`, `getJob`, `updateJob`, `completeJob`, `failJob`, `recordProgress`, `cancelPendingJobs`, `cancelJob`, `getStats`) is the same across backends; `listJobs`, `cleanupOldJobs`, and `recoverStaleRunningJobs` are `FsJobQueue`-specific methods not on the interface.
+`FsJobQueue` is the filesystem-backed implementation of the `JobQueue` interface. The interface contract (`initialize`, `destroy`, `createJob`, `getJob`, `updateJob`, `completeJob`, `failJob`, `recordProgress`, `cancelPendingJobs`, `cancelJob`, `getStats`) is the same across gateways; `listJobs`, `cleanupOldJobs`, and `recoverStaleRunningJobs` are `FsJobQueue`-specific methods not on the interface.
 
 ### Constructor
 
@@ -236,9 +236,9 @@ emit mark:create per annotation; emit job:complete
 emit job:fail; adapter.failJob(jobId, message)
 ```
 
-A pending job whose announcement found no idle eligible worker (all busy, worker offline or mid-reconnect, backend restart) is re-announced every 30 seconds, so backlog drains as soon as a worker frees up. Duplicate announcements are harmless — claims on a job that already moved to `running` fail with "Job already claimed".
+A pending job whose announcement found no idle eligible worker (all busy, worker offline or mid-reconnect, gateway restart) is re-announced every 30 seconds, so backlog drains as soon as a worker frees up. Duplicate announcements are harmless — claims on a job that already moved to `running` fail with "Job already claimed".
 
-On the backend, the lifecycle events are mirrored into the queue files (see `@semiont/make-meaning`'s job command handlers): `job:complete` moves the file to `complete/`, `job:fail` retries or moves it to `failed/`, and `job:report-progress` is written into the running file as both live progress and a worker heartbeat.
+On the gateway, the lifecycle events are mirrored into the queue files (see `@semiont/make-meaning`'s job command handlers): `job:complete` moves the file to `complete/`, `job:fail` retries or moves it to `failed/`, and `job:report-progress` is written into the running file as both live progress and a worker heartbeat.
 
 Lifecycle and `mark:create` events are emitted via `session.client.transport.emit(...)`. The Stower actor in @semiont/make-meaning persists them.
 
