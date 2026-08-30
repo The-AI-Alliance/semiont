@@ -20,7 +20,8 @@ import { EventBus, resourceId, userId, type Logger, type ResourceId, type Stored
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore, calculateChecksum, type StoredResource } from '@semiont/content';
 import { createArchivistServer } from '../archivist-read-path';
-import { archivistContentReads, type ArchivistAddressConfig } from '@semiont/content';
+import { archivistContentReads } from '@semiont/content';
+import type { ArchivistAddressConfig } from '@semiont/core/node';
 import { createTestProject, type TestProject } from './helpers/test-project';
 
 const mockLogger: Logger = {

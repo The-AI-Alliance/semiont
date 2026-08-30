@@ -3,10 +3,10 @@
  * (SINGLE-KB-MOUNT): resource creation writes bytes (`putContent`) and the
  * content pipe reads them back (`getContent`).
  *
- * Where the Archivist is and how we prove who we are lives with the surface
- * itself, in `@semiont/make-meaning` — the address and the secret are
- * deployment facts, and a second copy of either is a second thing to get
- * wrong. The Smelter and the Librarian resolve them the same way (P4).
+ * Where the Archivist is and how we prove who we are lives in
+ * `@semiont/core/node` — the address and the secret are deployment facts, and
+ * a second copy of either is a second thing to get wrong. The Smelter, the
+ * Librarian and the Worker resolve them the same way (P4).
  *
  * Both fail loudly when absent. A missing host or secret is a
  * misconfiguration, never a reason to fall back to writing locally: the
@@ -15,7 +15,8 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { archivistEndpoint, type ArchivistAddressConfig, type StoredResource } from '@semiont/content';
+import type { StoredResource } from '@semiont/content';
+import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
 import { getLogger } from '../logger';
 
 /**

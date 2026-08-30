@@ -47,12 +47,10 @@ export {
 // it fails, and the Archivist-backed implementation the fleet uses when it
 // holds no KB mount (SINGLE-KB-MOUNT P4).
 export {
-  archivistEndpoint,
   archivistContentReads,
   RepresentationMissing,
   type ContentReads,
   type MissingReason,
-  type ArchivistAddressConfig,
 } from './representation-reads';
 
 // PDF text-layer extraction. The anchoring vocabulary these produce

@@ -9,16 +9,19 @@
  * Worker and can only reach the record over the wire. make-meaning depends on
  * jobs, so anything both need has to sit under both (SINGLE-KB-MOUNT P4).
  *
- * The address and the secret are resolved ONCE, here, and shared with the
- * gateway's own byte proxying. They are deployment facts; a second copy of
- * either is a second thing to get wrong.
+ * Where the Archivist IS lives in `@semiont/core/node` (`archivistEndpoint`),
+ * not here: an address is a config value plus an environment variable, and
+ * the gateway needs it without needing a byte reader. One resolution, shared
+ * with the gateway's own proxying — the address and the secret are deployment
+ * facts, and a second copy of either is a second thing to get wrong.
  *
  * Absence fails loudly. A missing host or secret is a misconfiguration, never
  * a reason to fall back to reading a tree locally — the point of
  * SINGLE-KB-MOUNT is that exactly one process touches it.
  */
 
-import type { ArchivistServiceConfig, IContentTransport, ResourceId } from '@semiont/core';
+import type { IContentTransport, ResourceId } from '@semiont/core';
+import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
 
 /**
  * The byte read, and nothing else — DERIVED from the transport contract so it
@@ -44,34 +47,6 @@ export class RepresentationMissing extends Error {
     );
     this.name = 'RepresentationMissing';
   }
-}
-
-/**
- * The slice of config the address needs — nothing wider, and DERIVED from the
- * schema's own service type rather than restating `host`/`port`.
- */
-export interface ArchivistAddressConfig {
-  services?: { archivist?: Pick<ArchivistServiceConfig, 'host' | 'port'> };
-}
-
-/**
- * Base URL and auth header for the Archivist, resolved together because they
- * are useless apart. Throws on either absence.
- */
-export function archivistEndpoint(config: ArchivistAddressConfig): {
-  base: string;
-  headers: { authorization: string };
-} {
-  const host = config.services?.archivist?.host;
-  if (!host) {
-    throw new Error('services.archivist.host is not configured — cannot reach the record');
-  }
-  const port = config.services?.archivist?.port ?? 9093;
-  const secret = process.env.SEMIONT_WORKER_SECRET;
-  if (!secret) {
-    throw new Error('SEMIONT_WORKER_SECRET is not set — cannot authenticate to the Archivist');
-  }
-  return { base: `http://${host}:${port}`, headers: { authorization: `Bearer ${secret}` } };
 }
 
 /**
