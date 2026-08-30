@@ -1,4 +1,4 @@
-import type { GraphServiceConfig, VectorsServiceConfig, EmbeddingServiceConfig, EnvironmentConfig } from '@semiont/core';
+import type { GraphServiceConfig, VectorsServiceConfig, EmbeddingServiceConfig, ArchivistServiceConfig, EnvironmentConfig } from '@semiont/core';
 
 /**
  * Inference configuration for a single actor or worker.
@@ -63,6 +63,10 @@ export interface MakeMeaningConfig {
     /** REQUIRED (same ruling): the embedding provider is the KB's semantic
      *  identity — always named, never detected or defaulted. */
     embedding: EmbeddingServiceConfig;
+    /** Where the record is. Optional in the type because the actors that
+     *  hold a KB mount never dial it; the Librarian does, and refuses at
+     *  boot when it is absent (SINGLE-KB-MOUNT P4). */
+    archivist?: ArchivistServiceConfig;
   };
   /**
    * The KB's canonical identity domain — the SAME value `/api/tokens/agent`
@@ -134,6 +138,7 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
       graph: config.services.graph,
       vectors: config.services.vectors,
       embedding: config.services.embedding,
+      archivist: config.services.archivist,
     },
     // The KB's canonical identity — the agent roster mints DIDs from this,
     // the SAME value /api/tokens/agent uses (agent-did-host-skew fix). The

@@ -22,7 +22,8 @@ import type { EventBus as EventBusType } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
 import { registerCreateResource } from '../../routes/resources/routes/create';
 import type { ResourcesRouterType } from '../../routes/resources/shared';
-import { putContent, type ArchivistAddressConfig } from '../../lib/archivist';
+import type { ArchivistAddressConfig } from '@semiont/make-meaning';
+import { putContent } from '../../lib/archivist';
 
 vi.mock('@semiont/make-meaning', () => ({
   ResourceOperations: {

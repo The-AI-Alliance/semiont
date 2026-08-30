@@ -1,12 +1,12 @@
 /**
- * The gateway's client for the Archivist's HTTP surface (SINGLE-KB-MOUNT).
+ * The gateway's two byte-proxying calls onto the Archivist's HTTP surface
+ * (SINGLE-KB-MOUNT): resource creation writes bytes (`putContent`) and the
+ * content pipe reads them back (`getContent`).
  *
- * Three callers: SSE resume reads the record (`fetchArchivistReplay`,
- * routes/bus.ts), resource creation writes bytes (`putContent`), and the
- * content pipe reads them back (`getContent`). They share ONE resolution of
- * where the Archivist is and how we prove who we are — the address and the
- * secret are deployment facts, and a second copy of either is a second thing
- * to get wrong.
+ * Where the Archivist is and how we prove who we are lives with the surface
+ * itself, in `@semiont/make-meaning` — the address and the secret are
+ * deployment facts, and a second copy of either is a second thing to get
+ * wrong. The Smelter and the Librarian resolve them the same way (P4).
  *
  * Both fail loudly when absent. A missing host or secret is a
  * misconfiguration, never a reason to fall back to writing locally: the
@@ -16,32 +16,8 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { StoredResource } from '@semiont/content';
+import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/make-meaning';
 import { getLogger } from '../logger';
-
-/** The slice of EnvironmentConfig this module reads — nothing wider. */
-export interface ArchivistAddressConfig {
-  services?: { archivist?: { host?: string; port?: number } };
-}
-
-/**
- * Base URL and auth header for the Archivist, resolved together because they
- * are useless apart. Throws on either absence.
- */
-export function archivistEndpoint(config: ArchivistAddressConfig): {
-  base: string;
-  headers: { authorization: string };
-} {
-  const host = config.services?.archivist?.host;
-  if (!host) {
-    throw new Error('services.archivist.host is not configured — cannot reach the record');
-  }
-  const port = config.services?.archivist?.port ?? 9093;
-  const secret = process.env.SEMIONT_WORKER_SECRET;
-  if (!secret) {
-    throw new Error('SEMIONT_WORKER_SECRET is not set — cannot authenticate to the Archivist');
-  }
-  return { base: `http://${host}:${port}`, headers: { authorization: `Bearer ${secret}` } };
-}
 
 /**
  * Write a representation's bytes to the record.

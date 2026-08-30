@@ -20,6 +20,7 @@ import { EventBus, resourceId, userId, type Logger, type ResourceId, type Stored
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore, calculateChecksum, type StoredResource } from '@semiont/content';
 import { createArchivistServer } from '../archivist-read-path';
+import { archivistContentReads, type ArchivistAddressConfig } from '../archivist-endpoint';
 import { createTestProject, type TestProject } from './helpers/test-project';
 
 const mockLogger: Logger = {
@@ -288,6 +289,56 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       } finally {
         await new Promise<void>((resolve, reject) => secretless.close((e) => (e ? reject(e) : resolve())));
       }
+    });
+
+    // The CLIENT of the route above (SINGLE-KB-MOUNT P4). Driven against the
+    // live server rather than a mock: this pair is the whole point of the two
+    // halves living in one package, and a mock would let either side drift.
+    describe('archivistContentReads (SINGLE-KB-MOUNT P4)', () => {
+      const addressOf = (url: string): ArchivistAddressConfig => {
+        const { hostname, port } = new URL(url);
+        return { services: { archivist: { host: hostname, port: Number(port) } } };
+      };
+
+      beforeEach(() => vi.stubEnv('SEMIONT_WORKER_SECRET', SECRET));
+      afterEach(() => vi.unstubAllEnvs());
+
+      it('reads the bytes and the stored media type — the same shape the in-process face returns', async () => {
+        const { data, contentType } = await archivistContentReads(addressOf(baseUrl)).getBinary(SERVED);
+        expect(Buffer.from(data).toString('utf-8')).toBe(CONTENT);
+        expect(contentType).toBe('text/markdown');
+      });
+
+      it('surfaces a miss as RepresentationMissing, carrying which half failed', async () => {
+        const reads = archivistContentReads(addressOf(baseUrl));
+
+        // Same error type the working-tree face throws for the same fact: a
+        // caller cannot tell whether the bytes were a hop away.
+        await expect(reads.getBinary(resourceId('res-nobody'))).rejects.toMatchObject({
+          name: 'RepresentationMissing',
+          reason: 'resource',
+        });
+
+        await eventStore.appendEvent({
+          type: 'yield:created',
+          resourceId: resourceId('res-clientless'),
+          userId: userId('user-d1'),
+          version: 1,
+          payload: { name: 'Bodiless', format: 'text/plain', contentChecksum: 'h4' },
+        });
+        await expect(reads.getBinary(resourceId('res-clientless'))).rejects.toMatchObject({
+          reason: 'representation',
+        });
+      });
+
+      it('refuses at CONSTRUCTION when the address or the secret is missing', () => {
+        // Boot-time, not first-read: a Smelter with no Archivist address must
+        // die while an operator is watching, not fail every resource quietly.
+        expect(() => archivistContentReads({})).toThrow(/services\.archivist\.host/);
+
+        vi.stubEnv('SEMIONT_WORKER_SECRET', '');
+        expect(() => archivistContentReads(addressOf(baseUrl))).toThrow(/SEMIONT_WORKER_SECRET/);
+      });
     });
   });
 });

@@ -797,9 +797,10 @@ func archivistArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []
 // its staged config. Env is the eager-interpolation set — the ${VAR}s a
 // committed KB config may reference, same as the other sidecars. NOT
 // ARCHIVIST_HOST: no config interpolates that var (the archivist address is
-// a literal patchArchivistTopology stages into backend.toml only). NO
+// a literal patchArchivistTopology stages into this service's own config —
+// it reads bytes from the record directly, SINGLE-KB-MOUNT P4). NO
 // JWT_SECRET, and no LIBRARIAN_HOST exists anywhere: nothing dials this
-// service; it dials the gateway.
+// service; it dials the gateway for the bus and the Archivist for bytes.
 func librarianArgs(stage, addr, secret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
 		"--memory", roles["librarian"].mem, "--publish", "9094:9094",

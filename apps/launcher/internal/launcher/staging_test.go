@@ -79,3 +79,43 @@ func TestPatchKBNameRespectsHandWrittenSection(t *testing.T) {
 		t.Fatalf("a hand-written [kb] section must pass through untouched")
 	}
 }
+
+// The whole per-service staging rule in one place. This is the test that
+// catches a boot break: the Smelter and the Librarian REFUSE to start
+// without an Archivist address (SINGLE-KB-MOUNT P4), and the Librarian
+// needs the [kb] name at the same time — a patch structure that assigned
+// rather than chained would silently drop one of the two.
+func TestStagedConfigPerService(t *testing.T) {
+	x := &liveExec{root: t.TempDir()}
+
+	for _, tc := range []struct {
+		svc       string
+		archivist bool
+		kbName    bool
+	}{
+		{"backend", true, false},
+		{"smelter", true, false},
+		{"librarian", true, true},
+		{"worker", false, false},
+		{"weaver", false, false},
+		{"archivist", false, false},
+	} {
+		out := x.stagedConfig(tc.svc, []byte(stagingFixture), "local", "192.168.64.1")
+
+		var doc map[string]any
+		if err := toml.Unmarshal(out, &doc); err != nil {
+			t.Fatalf("%s: staged config is not valid TOML: %v\n%s", tc.svc, err, out)
+		}
+
+		env, _ := doc["environments"].(map[string]any)["local"].(map[string]any)
+		_, hasArchivist := env["archivist"]
+		if hasArchivist != tc.archivist {
+			t.Errorf("%s: [environments.local.archivist] present = %v, want %v", tc.svc, hasArchivist, tc.archivist)
+		}
+
+		_, hasKB := doc["kb"]
+		if hasKB != tc.kbName {
+			t.Errorf("%s: [kb] present = %v, want %v", tc.svc, hasKB, tc.kbName)
+		}
+	}
+}

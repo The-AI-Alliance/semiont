@@ -264,8 +264,28 @@ func (x *liveExec) stageDir() (string, bool) {
 	return stage, true
 }
 
+// archivistDialers: the services that resolve the Archivist's address from
+// their staged config, and so must be handed it. The gateway proxies bytes
+// onto the record; the Smelter and the Librarian read bytes from it directly
+// (SINGLE-KB-MOUNT P4). All three refuse to boot without it, which is the
+// point — a process that cannot reach the record has nothing to do.
+var archivistDialers = map[string]bool{"backend": true, "smelter": true, "librarian": true}
+
+// stagedConfig applies every launcher-owned patch a service's config needs.
+// ONE decider: `stageAll` and `stageOne` stage the same services from the
+// same source and must agree on what each one gets.
+func (x *liveExec) stagedConfig(svc string, cfg []byte, envName, addr string) []byte {
+	if archivistDialers[svc] {
+		cfg = patchArchivistTopology(cfg, envName, addr)
+	}
+	if svc == "librarian" {
+		cfg = patchKBName(cfg, effectiveKBName(x.root))
+	}
+	return cfg
+}
+
 // patchArchivistTopology appends [environments.<env>.archivist] — with the
-// LITERAL address the launcher computed — to a staged BACKEND config.
+// LITERAL address the launcher computed — to a staged config.
 // Deployment topology is the launcher's to know, never the KB config's to
 // declare: a ${VAR} here would demand that var of every config consumer,
 // which is how ARCHIVIST_HOST briefly existed. A hand-written section wins —
@@ -319,13 +339,7 @@ func (x *liveExec) stageAll(configFile, envName, addr string) (string, bool) {
 		return "", false
 	}
 	for _, svc := range []string{"backend", "worker", "smelter", "weaver", "archivist", "librarian"} {
-		out := cfg
-		if svc == "backend" {
-			out = patchArchivistTopology(cfg, envName, addr)
-		}
-		if svc == "librarian" {
-			out = patchKBName(cfg, effectiveKBName(x.root))
-		}
+		out := x.stagedConfig(svc, cfg, envName, addr)
 		if err := os.WriteFile(filepath.Join(stage, svc+".toml"), out, 0o644); err != nil {
 			x.u.fail("Staging config for %s: %v", svc, err)
 			return "", false
@@ -344,13 +358,7 @@ func (x *liveExec) stageOne(svc, configFile, envName, addr string) (string, bool
 		x.u.fail("Reading %s: %v", configFile, err)
 		return "", false
 	}
-	if svc == "backend" {
-		cfg = patchArchivistTopology(cfg, envName, addr)
-	}
-	if svc == "librarian" {
-		cfg = patchKBName(cfg, effectiveKBName(x.root))
-	}
-	if err := os.WriteFile(filepath.Join(stage, svc+".toml"), cfg, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(stage, svc+".toml"), x.stagedConfig(svc, cfg, envName, addr), 0o644); err != nil {
 		x.u.fail("Staging config for %s: %v", svc, err)
 		return "", false
 	}
@@ -806,14 +814,16 @@ func (x *planExec) portChecks(ports []portNeed) bool {
 
 func (x *planExec) stageAll(_, envName, _ string) (string, bool) {
 	x.c("stage per-service config copies under <config-stage>: backend.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml")
-	x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to backend.toml", envName)
+	for _, svc := range []string{"backend", "smelter", "librarian"} {
+		x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to %s.toml", envName, svc)
+	}
 	return "<config-stage>", true
 }
 
 func (x *planExec) stageOne(svc, _, envName, _ string) (string, bool) {
 	x.c("stage a fresh private config copy under <config-stage>: %s.toml", svc)
-	if svc == "backend" {
-		x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to backend.toml", envName)
+	if archivistDialers[svc] {
+		x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to %s.toml", envName, svc)
 	}
 	return "<config-stage>", true
 }

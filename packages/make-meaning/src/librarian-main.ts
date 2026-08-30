@@ -11,9 +11,9 @@
  *
  * Its attachments are the bus (HttpTransport: SSE in, `/bus/emit` out),
  * Neo4j and Qdrant (the retrieval sources), an embedding provider (query
- * embedding), per-actor inference clients, content over
- * `HttpContentTransport` (D-CONTENT b — bytes ride the byte path; this
- * process reads them over the gateway like the smelter does), and views
+ * embedding), per-actor inference clients, content from the Archivist
+ * (D-CONTENT b — bytes ride the byte path; this process reads them from
+ * the record's storage authority, like the smelter does), and views
  * from the shared stateDir the Archivist materializes into (D6 — reader
  * mounts shared, never rebuilds). The weave/smelt progress folds run
  * locally, fed by the same `weave:applied` / `smelt:settled` signals over
@@ -46,7 +46,8 @@
 
 import { BehaviorSubject, Subscription } from 'rxjs';
 import { createServer } from 'http';
-import { HttpTransport, HttpContentTransport } from '@semiont/http-transport';
+import { HttpTransport } from '@semiont/http-transport';
+import { archivistContentReads } from './archivist-endpoint';
 import {
   EventBus,
   BUS_OPERATIONS,
@@ -237,14 +238,17 @@ async function main() {
     dimensions: () => embeddingProvider.dimensions(),
   });
 
-  // The transport is built before the actors: the Gatherer's content reads
-  // ride it (D-CONTENT b). Its pumps attach after the actors subscribe.
+  // The bus transport. Its pumps attach after the actors subscribe.
   const httpTransport = new HttpTransport({
     baseUrl: makeBaseUrl(baseUrl),
     token$: tokenSubject,
     tokenRefresher: refreshToken,
   });
-  const contentReads = new HttpContentTransport(httpTransport);
+  // Bytes from the Archivist, not the gateway (SINGLE-KB-MOUNT P4): the
+  // gateway's content routes proxy onto this same call, so dialing it added
+  // a hop and put the process that is meant to stop touching the KB tree on
+  // the path to it. Throws at boot if the address or worker secret is absent.
+  const contentReads = archivistContentReads(config);
 
   // The progress folds, fed by the signals INBOUND_CHANNELS pumps onto the
   // local bus — the graph grace and the settle barrier work exactly as

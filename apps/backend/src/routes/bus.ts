@@ -16,7 +16,7 @@ import {
   withTraceparent,
 } from '@semiont/observability';
 import { getLogger } from '../logger';
-import { archivistEndpoint, type ArchivistAddressConfig } from '../lib/archivist';
+import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/make-meaning';
 import type { startMakeMeaningGateway } from '@semiont/make-meaning';
 import { validators, formatErrors } from '@semiont/core/openapi';
 
@@ -37,8 +37,9 @@ const getBusLogger = () => getLogger().child({ component: 'bus' });
  * is how the two drift, which is precisely what happened to the version
  * this comment used to carry.
  *
- * Address and auth come from `archivistEndpoint` (lib/archivist.ts), shared
- * with the content write so the deployment fact has one home. A missing host
+ * Address and auth come from `archivistEndpoint` (@semiont/make-meaning),
+ * shared with the content proxying and with the fleet's own byte readers so
+ * the deployment fact has one home. A missing host
  * or secret throws — the caller's catch degrades to a scoped
  * `bus:resume-gap`, which is the honest answer when the record cannot be
  * reached.

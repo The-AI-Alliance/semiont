@@ -11,6 +11,10 @@ export type { MakeMeaningService, GatewayMakeMeaningService, MakeMeaningConfig }
 // has to cross.
 export { createArchivistServer } from './archivist-read-path';
 export type { ArchivistServerDeps } from './archivist-read-path';
+// Its address, and the byte read that rides it. The gateway shares this
+// resolution rather than keeping a second copy of two deployment facts.
+export { archivistEndpoint, archivistContentReads } from './archivist-endpoint';
+export type { ArchivistAddressConfig } from './archivist-endpoint';
 export { makeMeaningConfigFrom } from './config';
 
 // Knowledge System

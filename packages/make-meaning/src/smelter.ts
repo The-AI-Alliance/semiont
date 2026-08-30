@@ -3,8 +3,8 @@
  *
  * Consumes the smelter-relevant domain events surfaced by
  * `SmelterActorStateUnit.events$`, reads resource content via the injected
- * `IContentTransport` (HTTP verbatim mode in worker deployments — the
- * stored bytes, untouched), chunks and embeds it via the configured
+ * `ContentReads` (in the fleet, the Archivist's byte route — the stored
+ * bytes, untouched), chunks and embeds it via the configured
  * EmbeddingProvider, and indexes vectors into the VectorStore (Qdrant).
  * `smelter-main` is the container entry point that wires this up.
  *
@@ -38,7 +38,8 @@
 import { Observable, Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { burstBuffer, errField } from '@semiont/core';
-import type { Logger, Annotation, ResourceId, AnnotationId, ResourceDescriptor, IContentTransport, EventMap } from '@semiont/core';
+import type { Logger, Annotation, ResourceId, AnnotationId, ResourceDescriptor, EventMap } from '@semiont/core';
+import type { ContentReads } from './knowledge-base';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes, textExtractionOf } from '@semiont/core';
 import { calculateChecksum, EXTRACTORS, type AnchoredTextStore } from '@semiont/content';
@@ -171,7 +172,10 @@ export class Smelter {
     private rebuildAnchors$: Observable<EventMap['smelt:rebuild-anchors']>,
     private vectorStore: VectorStore,
     private embeddingProvider: EmbeddingProvider,
-    private content: IContentTransport,
+    /** Byte reads only — the Smelter never writes through this seam, so it
+     *  declares `ContentReads` and any implementation satisfies it: the
+     *  Archivist's client in the fleet, the working tree in-process. */
+    private content: ContentReads,
     /**
      * The anchored-text store, held DIRECTLY (ANCHORED-TEXT-TO-SMELTER P1).
      *

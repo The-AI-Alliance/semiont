@@ -385,6 +385,7 @@ export type {
   AnthropicProviderConfig,
   InferenceProvidersConfig,
   McpServiceConfig,
+  ArchivistServiceConfig,
   ServicesConfig,
   VectorsServiceConfig,
   EmbeddingServiceConfig,
