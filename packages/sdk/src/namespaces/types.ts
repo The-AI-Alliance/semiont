@@ -272,6 +272,9 @@ export interface BrowseNamespace {
   resourceGraph(resourceId: ResourceId): Promise<GetResourceResponse>;
   /** The resource's coordinate map, or null when none has been derived. */
   resourceAnchoredText(resourceId: ResourceId): Promise<ExtractionOutcome | null>;
+  /** Checksum-addressed consult of the same store — barrier-free, read-only
+   *  (ANCHORED-TEXT-TO-SMELTER D2). `null` means "extract it yourself". */
+  anchoredTextByChecksum(checksum: string): Promise<ExtractionOutcome | null>;
   resourceRepresentation(resourceId: ResourceId): Promise<{ data: ArrayBuffer; contentType: string }>;
   resourceRepresentationStream(resourceId: ResourceId): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }>;
   resourceEvents(resourceId: ResourceId): Promise<StoredEventResponse[]>;

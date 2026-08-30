@@ -15,7 +15,7 @@
 
 import { startWorkerProcess } from './worker-process';
 import type { WorkerVitals } from './job-claim-adapter';
-import { anchoredTextStoreOverTransport } from '@semiont/content';
+import { anchoredTextOverBus } from './anchored-text-over-bus';
 import type { InferenceClient } from '@semiont/inference';
 import { hostname } from 'os';
 import {
@@ -299,10 +299,11 @@ export async function startAgentWorker(
     jobTypes: group.jobTypes,
     inferenceClient: group.client,
     generator,
-    // The extraction seam's cache, over this worker's content transport
-    // (PERSIST-ANCHORS P2d). Built here because the client keeps its
-    // content transport private — this is where it is in hand.
-    anchoredTextStore: anchoredTextStoreOverTransport(content, logger),
+    // The extraction seam's cache, consulted over the bus and never written
+    // (ANCHORED-TEXT-TO-SMELTER D2): the Smelter owns this store, the
+    // Archivist answers the checksum-addressed read, and a worker that
+    // misses extracts locally and discards.
+    anchoredTextStore: anchoredTextOverBus(client, logger),
     logger,
   });
 
