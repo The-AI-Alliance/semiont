@@ -81,6 +81,12 @@ requireJwtSecret();
 // declared. `[kb]` sits beside `[defaults]`, out of that reach, and the
 // launcher stages NO domain when the KB declares none — so an undeclared
 // identity still arrives here as absent, and still refuses below.
+// Resolved out of the block below so JWTService.initialize can be handed the
+// values rather than re-deriving them from a config shape this process no
+// longer fully has.
+let effectiveDomain: string;
+let effectiveOAuthAllowedDomains: string[] | undefined;
+
 {
   const committedDomain = config.kb?.domain;
 
@@ -103,8 +109,16 @@ requireJwtSecret();
   // can mint agent identities elsewhere), so this warns rather than refuses.
   // What it must never do is happen silently: the KB would be did:web:A
   // while everything it generates is attributed to did:web:B:agents:… .
-  const effectiveDomain = config.site?.domain;
-  if (effectiveDomain !== committedDomain) {
+  // ABSENCE IS NOT DIVERGENCE. An environment `[site] domain` is an override,
+  // and most KBs declare none — so with no `[site]` at all the agents mint
+  // under the KB's own committed identity, which is what they did while this
+  // process still read the committed file directly. Treating absent as a
+  // divergence produced `agents will be minted under "undefined"` and then a
+  // refusal in JWTService, which is how a KB that was perfectly well-formed
+  // could not start.
+  effectiveDomain = config.site?.domain ?? committedDomain;
+
+  if (config.site?.domain !== undefined && config.site.domain !== committedDomain) {
     // eslint-disable-next-line no-console
     console.warn(
       `[identity] KB is "${committedDomain}" (committed .semiont/config) but agents will be minted under ` +
@@ -115,6 +129,13 @@ requireJwtSecret();
         "`site` section without a `domain` key silently resolves to 'localhost'.",
     );
   }
+
+  // Sign-in policy travels the same road as the domain: committed in the KB's
+  // `.semiont/config`, staged by the launcher under `[kb]` because this process
+  // no longer mounts the tree that holds it. An environment `[site]` may
+  // override it; absent both, JWTService refuses — which is correct, and is why
+  // nothing is defaulted here.
+  effectiveOAuthAllowedDomains = config.site?.oauthAllowedDomains ?? config.kb?.oauthAllowedDomains;
 }
 
 const gatewayService = config.services.gateway;
@@ -336,7 +357,11 @@ if (config.env?.NODE_ENV !== 'test') {
   // unconditionally), reported healthy in `semiont status` — and failed every
   // sign-in. Failing here instead makes the misconfiguration undeployable.
   const { JWTService } = await import('./auth/jwt');
-  JWTService.initialize(config);
+  // The RESOLVED pair, not `config`: both values may come from the staged
+  // `[kb]` identity rather than a `[site]` section, and the resolution above is
+  // their one home. Passing the raw config made JWTService reach for
+  // `config.site`, which a KB with no environment `[site]` does not have.
+  JWTService.initialize({ site: { domain: effectiveDomain, oauthAllowedDomains: effectiveOAuthAllowedDomains } });
 
   serve({
     fetch: app.fetch,

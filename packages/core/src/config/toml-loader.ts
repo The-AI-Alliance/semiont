@@ -109,6 +109,7 @@ interface SemiontConfigFile {
   kb?: {
     name?: string;
     domain?: string;
+    oauthAllowedDomains?: string[];
   };
   environments?: Record<string, EnvironmentSection>;
 }
@@ -578,7 +579,11 @@ export function loadTomlConfig(
     // From the GLOBAL file's root only — an [environments.X.kb] section is
     // inert by construction, which is what "not overridable" means here.
     ...(raw.kb?.name
-      ? { kb: { name: raw.kb.name, ...(raw.kb.domain ? { domain: raw.kb.domain } : {}) } }
+      ? { kb: {
+          name: raw.kb.name,
+          ...(raw.kb.domain ? { domain: raw.kb.domain } : {}),
+          ...(raw.kb.oauthAllowedDomains ? { oauthAllowedDomains: raw.kb.oauthAllowedDomains } : {}),
+        } }
       : {}),
     ...(inferenceProviders ? { inference: inferenceProviders } : {}),
     ...(Object.keys(topLevelWorkers).length > 0 ? { workers: topLevelWorkers } : {}),

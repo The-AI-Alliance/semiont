@@ -1121,6 +1121,11 @@
             },
             "domain": {
               "type": "string"
+            },
+            "oauthAllowedDomains": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Sign-in policy committed in the KB's .semiont/config, staged alongside the identity because the gateway no longer mounts the tree that holds it."
             }
           },
           "required": [
