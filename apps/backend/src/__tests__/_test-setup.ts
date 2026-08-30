@@ -109,22 +109,29 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
   // `[defaults] environment` is prepended rather than baked into the constant because the
   // constant declares BOTH sections and the caller picks one. This is how a real KB selects
   // its environment, so the fixture selects it the same way — no ambient SEMIONT_ENV.
+  //
+  // `[kb]` is the launcher-staged identity card (SINGLE-KB-MOUNT P5): the
+  // gateway mounts no KB tree, so this is the only place it can see the
+  // committed `name` and `domain`. Written into the PREPEND, beside
+  // `[defaults]`, because both are top-level and TOML assigns any key after
+  // the first `[environments…]` header to that table instead.
   const originalHome = process.env.HOME;
   await fs.writeFile(
     join(testDir, '.semiontconfig'),
-    `[defaults]\nenvironment = "${environment}"\n${MINIMAL_SEMIONTCONFIG}`,
+    `[defaults]\nenvironment = "${environment}"\n\n` +
+      `[kb]\nname = "semiont-backend-test"\ndomain = "test.local"\n` +
+      MINIMAL_SEMIONTCONFIG,
     'utf-8',
   );
   process.env.HOME = testDir;
 
-  // The KB's OWN committed config. Distinct from `.semiontconfig` above (that
-  // is the environment/machine config): `[site] domain` here is the KB's
-  // permanent identity, which boot now requires — a knowledge base declares
-  // its identity or does not run (KB-IDENTITY-VS-ADDRESS decision 8). A
-  // fixture without it is not a valid KB, so writing it is a correction, not
-  // an accommodation. The domain matches the environment's on purpose: these
-  // fixtures should represent the ordinary, non-diverged case and stay silent
-  // (a mismatch warns — decision 10).
+  // The KB's OWN committed config — the file the launcher READS to produce the
+  // staged `[kb]` above. The gateway no longer opens it (it has no KB mount),
+  // but the CLIs still do, and it is what makes this fixture a valid knowledge
+  // base rather than a directory. The domain matches the staged and
+  // environment values on purpose: these fixtures should represent the
+  // ordinary, non-diverged case and stay silent (a mismatch warns —
+  // KB-IDENTITY-VS-ADDRESS decision 10).
   await fs.mkdir(join(testDir, '.semiont'), { recursive: true });
   await fs.writeFile(
     join(testDir, '.semiont', 'config'),
