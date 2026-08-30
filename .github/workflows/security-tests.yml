@@ -13,8 +13,8 @@ on:
   workflow_dispatch: # Allow manual triggering
 
 jobs:
-  frontend-security:
-    name: Frontend Security Tests
+  browser-security:
+    name: Browser Security Tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -54,7 +54,7 @@ jobs:
           APP_PID=$!
           echo "APP_PID=$APP_PID" >> $GITHUB_ENV
           # Wait for app to start - check the root page instead of /api/health
-          timeout 60 bash -c 'until curl -f http://localhost:3000/ 2>/dev/null | grep -q "</html>"; do sleep 2; done' || echo "Frontend not ready yet, continuing..."
+          timeout 60 bash -c 'until curl -f http://localhost:3000/ 2>/dev/null | grep -q "</html>"; do sleep 2; done' || echo "Browser not ready yet, continuing..."
           sleep 5
 
       - name: Verify no admin content leakage
@@ -169,8 +169,8 @@ jobs:
         if: always()
         with:
           file: ./apps/browser/coverage/lcov.info
-          flags: frontend
-          name: frontend-coverage
+          flags: browser
+          name: browser-coverage
         continue-on-error: true
 
   gateway-security:
@@ -524,7 +524,7 @@ jobs:
   security-report:
     name: Security Test Report
     runs-on: ubuntu-latest
-    needs: [frontend-security, gateway-security]
+    needs: [browser-security, gateway-security]
     if: always()
 
     steps:
@@ -533,14 +533,14 @@ jobs:
           echo "## 🛡️ Security Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ "${{ needs.frontend-security.result }}" == "success" ]; then
-            echo "✅ **Frontend Security Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.browser-security.result }}" == "success" ]; then
+            echo "✅ **Browser Security Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
             echo "- SPA shell serves correctly for admin/moderate routes" >> $GITHUB_STEP_SUMMARY
             echo "- No server-rendered privileged content in SPA shell" >> $GITHUB_STEP_SUMMARY
             echo "- No sensitive data patterns in responses" >> $GITHUB_STEP_SUMMARY
             echo "- Client-side auth guards verified by unit tests" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ **Frontend Security Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **Browser Security Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
             echo "- **CRITICAL**: Security vulnerabilities detected!" >> $GITHUB_STEP_SUMMARY
           fi
           
@@ -560,7 +560,7 @@ jobs:
           
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ "${{ needs.frontend-security.result }}" == "success" ] && [ "${{ needs.gateway-security.result }}" == "success" ]; then
+          if [ "${{ needs.browser-security.result }}" == "success" ] && [ "${{ needs.gateway-security.result }}" == "success" ]; then
             echo "🎉 **Overall Status**: ALL SECURITY CHECKS PASSED" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "The application is secure and ready for deployment." >> $GITHUB_STEP_SUMMARY
@@ -571,7 +571,7 @@ jobs:
           fi
 
       - name: Fail if security tests failed
-        if: needs.frontend-security.result != 'success' || needs.gateway-security.result != 'success'
+        if: needs.browser-security.result != 'success' || needs.gateway-security.result != 'success'
         run: |
           echo "Security tests failed. Failing the workflow."
           exit 1
