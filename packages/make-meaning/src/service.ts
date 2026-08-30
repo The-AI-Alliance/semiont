@@ -7,7 +7,7 @@
 
 import { FsJobQueue, STALL_THRESHOLD_MS, type JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore } from '@semiont/event-sourcing';
-import type { SemiontProject } from '@semiont/core/node';
+import type { SemiontProject, SemiontState } from '@semiont/core/node';
 import { EventBus, type Logger, jobId } from '@semiont/core';
 import { registerJobQueueProvider, registerVectorIndexSizeProvider } from '@semiont/observability';
 import { resolveActorInference, type MakeMeaningConfig } from './config';
@@ -25,7 +25,7 @@ import { createLimitsDiscovery } from './limits-discovery';
 import { wireEnrichment } from './event-enrichment';
 import { CloneTokenManager } from './clone-token-manager';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
-import { stopKnowledgeSystem, type KnowledgeSystem, type GatewayKnowledgeSystem } from './knowledge-system';
+import { stopKnowledgeSystem, type KnowledgeSystem } from './knowledge-system';
 import { registerBusHandlers, registerGatewayBusHandlers } from './handlers';
 import type { Subscription } from 'rxjs';
 
@@ -51,12 +51,12 @@ export interface MakeMeaningService {
 // ─── Step helpers ─────────────────────────────────────────────────────────────
 
 async function createJobQueue(
-  project: SemiontProject,
+  state: SemiontState,
   eventBus: EventBus,
   logger: Logger,
 ): Promise<{ jobQueue: JobQueue; jobStatusSubscription: Subscription }> {
   const jobQueueLogger = logger.child({ component: 'job-queue' });
-  const jobQueue = new FsJobQueue(project, jobQueueLogger, eventBus);
+  const jobQueue = new FsJobQueue(state, jobQueueLogger, eventBus);
   await jobQueue.initialize();
 
   // Tier 3 observability: report queue size by status. The provider is
@@ -326,10 +326,11 @@ export async function startMakeMeaning(
 // ─── Gateway composition root (EXTRACT-ARCHIVIST P3) ─────────────────────────
 
 export interface GatewayMakeMeaningService {
-  knowledgeSystem: GatewayKnowledgeSystem;
-  jobQueue:        JobQueue;
-  project:         SemiontProject;
-  stop:            () => Promise<void>;
+  jobQueue: JobQueue;
+  /** Name + the state-mount paths. NOT a `SemiontProject`: the gateway
+   *  mounts no KB tree, and the type is what says so (SINGLE-KB-MOUNT P5). */
+  state:    SemiontState;
+  stop:     () => Promise<void>;
 }
 
 /**
@@ -337,44 +338,40 @@ export interface GatewayMakeMeaningService {
  * the actors, which have all left. The Archivist (archivist-main) owns
  * Stower/Browser/CloneTokenManager, enrichment, the entity-type bootstrap +
  * warm, and the view rebuild; the Librarian (librarian-main) owns Matcher
- * and Gatherer (EXTRACT-LIBRARIAN P1/P3). What remains here is `kb` reads
- * for the handler subset and the backend's routes, plus the job queue,
- * reading views from the shared stateDir (D6).
+ * and Gatherer (EXTRACT-LIBRARIAN P1/P3).
  *
- * Views are never rebuilt here — one rebuild owner, one writer (D4b).
+ * What remains is the JOB QUEUE, and nothing else. It used to call
+ * `connectStores` as well — a graph connection, a vector store, an embedding
+ * provider, an event store, a working tree and an anchored-text store — and
+ * SINGLE-KB-MOUNT P5 measured that **no consumer read any of it**: the whole
+ * `kb` bundle existed to be constructed. Deleting it is what lets the gateway
+ * take a `SemiontState` instead of a `SemiontProject`, and therefore what
+ * lets P6 drop the `/kb` mount: the type no longer HAS a KB root to want.
+ *
+ * The job queue lives on the shared state mount (D6), so what is left needs
+ * no tree at all.
  */
 export async function startMakeMeaningGateway(
-  project: SemiontProject,
+  state: SemiontState,
   config: MakeMeaningConfig,
   eventBus: EventBus,
   logger: Logger,
 ): Promise<GatewayMakeMeaningService> {
   assertMakeMeaningConfig(config);
 
-  const { jobQueue, jobStatusSubscription } = await createJobQueue(project, eventBus, logger);
-  const { kb } = await connectStores(project, config, eventBus, logger, true);
-
-  const knowledgeSystem: GatewayKnowledgeSystem = {
-    kb,
-    stop: async () => {
-      kb.weaveProgress.dispose();
-      await kb.graph.disconnect();
-    },
-  };
+  const { jobQueue, jobStatusSubscription } = await createJobQueue(state, eventBus, logger);
 
   // The gateway's handler subset: annotation-assembly moved into the
   // Archivist (D2 i) and gather-summary into the Librarian — each beside
   // the actor it calls.
-  registerGatewayBusHandlers(eventBus, kb, jobQueue, project, logger);
+  registerGatewayBusHandlers(eventBus, jobQueue, state, logger);
 
   return {
-    knowledgeSystem,
     jobQueue,
-    project,
+    state,
     stop: async () => {
       logger.info('Stopping gateway make-meaning');
       jobStatusSubscription.unsubscribe();
-      await knowledgeSystem.stop();
       logger.info('Gateway make-meaning stopped');
     },
   };

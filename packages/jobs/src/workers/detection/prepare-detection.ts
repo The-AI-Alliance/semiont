@@ -1,7 +1,6 @@
-import type { SemiontSession } from '@semiont/sdk';
 import type { ResourceId, components } from '@semiont/core';
 import { textExtractionOf } from '@semiont/core';
-import { EXTRACTORS, calculateChecksum, type AnchoredTextStore, type ExtractionDecline } from '@semiont/content';
+import { EXTRACTORS, calculateChecksum, type AnchoredTextStore, type ContentReads, type ExtractionDecline } from '@semiont/content';
 import { buildTextAnnotation, buildPdfAnnotation, type BuildAnnotation } from '../../processors';
 
 type Agent = components['schemas']['Agent'];
@@ -39,6 +38,11 @@ export type DetectionDecline = {
  * strategy), so detection and embedding always read a resource identically —
  * including scanned PDFs, which are read by OCR rather than declined.
  *
+ * Bytes come from the injected `ContentReads` — in the fleet, the Archivist's
+ * byte route rather than a hop through the gateway (SINGLE-KB-MOUNT P4). This
+ * takes the read seam and not the session because the read is all it ever
+ * wanted from one.
+ *
  * The anchoring model follows the geometry, not the media type: an extraction
  * that carries positioned runs anchors spatially (page + viewrect), one that
  * does not anchors by character offset. Detection processors stay
@@ -47,7 +51,7 @@ export type DetectionDecline = {
  */
 export async function prepareDetection(
   mediaType: string,
-  session: SemiontSession,
+  content: ContentReads,
   resourceId: ResourceId,
   userId: string,
   generator: Agent,
@@ -56,7 +60,7 @@ export async function prepareDetection(
   const extractor = EXTRACTORS[textExtractionOf(mediaType)];
   if (!extractor) return { declined: 'no-extractor' };
 
-  const { data } = await session.client.browse.resourceRepresentation(resourceId);
+  const { data } = await content.getBinary(resourceId);
   // Read through the anchored-text cache (PERSIST-ANCHORS P2d): a stored
   // outcome — success or decline — is served whole, so a second detection
   // pass over the same representation runs neither parser nor engine. The

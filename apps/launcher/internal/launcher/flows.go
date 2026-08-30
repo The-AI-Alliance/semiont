@@ -464,23 +464,18 @@ func flowBackend(x executor, fc flowCtx, addr, stage, secret string, otel []stri
 	if !ok {
 		return 1
 	}
-	// The backend's own persistent state (LAUNCHER-STATE.md's model, extended
-	// to a config consumer): same image-stamp check and same projection-clear
-	// as the dependency roles get, so the anchored-text store survives a stop.
-	img := image("backend", fc.version)
-	extra, ok := x.stateMounts("anchored-text", img, fc.root)
-	if !ok {
-		return 1
-	}
+	// No anchored-text mount: the gateway stopped reading and writing that
+	// store when its HTTP faces went (ANCHORED-TEXT-TO-SMELTER P4), and the
+	// stamp moved with the writer in P5. The Smelter owns it now.
+	//
 	// The shared XDG state tree (EXTRACT-ARCHIVIST D6): the Archivist
 	// rebuilds the views in here; the gateway's Gatherer reads them. Shared,
 	// not stamped — the Archivist owns this store's stamp.
-	state, ok := x.stateMountsShared("state", fc.root)
+	extra, ok := x.stateMountsShared("state", fc.root)
 	if !ok {
 		return 1
 	}
-	extra = append(extra, state...)
-	bArgs := backendArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, jwt, fc.version, port, fc.userEnv, otel, extra...)
+	bArgs := backendArgs(stage, addr, secret, jwt, fc.version, port, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
 		x.say(sayFail, "Backend failed to start.")
@@ -501,7 +496,25 @@ func flowBackend(x executor, fc flowCtx, addr, stage, secret string, otel []stri
 }
 
 func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage, secret string, otel []string) int {
-	args := sidecarArgs(sc.svc, sc.port, stage, addr, secret, fc.version, fc.userEnv, otel)
+	// The Smelter derives the anchored-text artifacts, so it HOLDS the store
+	// (ANCHORED-TEXT-TO-SMELTER P1) rather than reaching it over the content
+	// transport — and since P5 it owns the STAMP too, stamped with its own
+	// image. That pairing is the point: the stamp names the code whose output
+	// the store holds, so an image change clears and re-derives. The worker
+	// and weaver never touch anchored text.
+	//
+	// Exactly one service may pass the stamped path (D3.1) — the Archivist
+	// keeps a SHARED read-only mount (D5), and the backend dropped its mount
+	// in the same change that made this one stamped.
+	var extra []string
+	if sc.svc == "smelter" {
+		m, ok := x.stateMounts("anchored-text", image("smelter", fc.version), fc.root)
+		if !ok {
+			return 1
+		}
+		extra = m
+	}
+	args := sidecarArgs(sc.svc, sc.port, stage, addr, secret, fc.version, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "%s failed to start.", sc.label)
@@ -565,11 +578,7 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage, secret string, otel []st
 	if !ok {
 		return 1
 	}
-	anchored, ok := x.stateMountsShared("anchored-text", fc.root)
-	if !ok {
-		return 1
-	}
-	args := librarianArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, fc.version, fc.userEnv, otel, append(state, anchored...)...)
+	args := librarianArgs(stage, addr, secret, fc.version, fc.userEnv, otel, state...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Librarian failed to start.")

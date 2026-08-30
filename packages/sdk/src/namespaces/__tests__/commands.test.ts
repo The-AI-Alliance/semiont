@@ -74,10 +74,6 @@ function makeMockContent(): IContentTransport {
     getBinary: vi.fn(),
     getBinaryStream: vi.fn(),
     getResourceGraph: vi.fn(),
-    putAnchoredText: vi.fn(),
-    getAnchoredText: vi.fn(),
-    listAnchoredTextKeys: vi.fn().mockResolvedValue([]),
-    getAnchoredTextByChecksum: vi.fn().mockResolvedValue(null),
     dispose: vi.fn(),
   };
 }

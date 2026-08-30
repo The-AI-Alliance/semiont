@@ -1,6 +1,6 @@
 import { generateUuid, jobId, userId, resourceId, entityType, isGenerationJobParams } from '@semiont/core';
 import type { EventBus, Logger } from '@semiont/core';
-import type { SemiontProject } from '@semiont/core/node';
+import type { SemiontState } from '@semiont/core/node';
 import type { JobQueue } from '@semiont/jobs';
 import { readTagSchemasProjection } from '../views/tag-schemas-reader.js';
 import { readEntityTypesProjection } from '../views/entity-types-reader.js';
@@ -21,7 +21,7 @@ function parseDidUser(did: string): { userId: string; email: string; domain: str
 export function registerJobCommandHandlers(
   eventBus: EventBus,
   jobQueue: JobQueue,
-  project: SemiontProject,
+  state: SemiontState,
   parentLogger: Logger,
 ): void {
   const logger = parentLogger.child({ component: 'job-commands' });
@@ -122,7 +122,7 @@ export function registerJobCommandHandlers(
         Array.isArray(jobParams.entityTypes) &&
         jobParams.entityTypes.length > 0
       ) {
-        const registered = await readEntityTypesProjection(project);
+        const registered = await readEntityTypesProjection(state);
         const result = validateEntityTypes(registered, jobParams.entityTypes as string[]);
         if (!result.ok) {
           throw new Error(entityTypesNotRegisteredMessage(result.unknown));
@@ -137,7 +137,7 @@ export function registerJobCommandHandlers(
       // the per-KB tag-schema projection and embed the resolved schema in
       // the worker's params. Keeps the worker independent of the registry.
       if (jobType === 'tag-annotation') {
-        const schemas = await readTagSchemasProjection(project);
+        const schemas = await readTagSchemasProjection(state);
         const result = resolveTagSchema(schemas, jobParams.schemaId);
         if (result.error !== undefined) {
           throw new Error(result.error);

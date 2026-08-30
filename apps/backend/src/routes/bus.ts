@@ -16,6 +16,7 @@ import {
   withTraceparent,
 } from '@semiont/observability';
 import { getLogger } from '../logger';
+import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
 import type { startMakeMeaningGateway } from '@semiont/make-meaning';
 import { validators, formatErrors } from '@semiont/core/openapi';
 
@@ -27,32 +28,31 @@ const getBusLogger = () => getLogger().child({ component: 'bus' });
 /**
  * Fetch `Last-Event-ID` replay from the Archivist's D1 read path
  * (EXTRACT-ARCHIVIST): one narrow call — the events for one resource from
- * one sequence, inclusive. The gateway is this seam's ONLY customer; a
- * second one is the signal to re-examine the design, never to widen it.
- * Addressed as `host:port` like every internal service (the vectors
- * precedent) — the Archivist is not public. Auth is the shared worker
- * secret, the same deployment fact agent auth uses. A missing
- * `services.archivist.host` throws — the caller's catch degrades to a
- * scoped `bus:resume-gap`, which is the honest answer when the record
- * cannot be reached.
+ * one sequence, inclusive. The gateway is still this endpoint's only
+ * customer.
+ *
+ * What may live on the Archivist's HTTP surface at all is decided in ONE
+ * place — the standing rule in `archivist-read-path.ts`, rewritten when
+ * SINGLE-KB-MOUNT D1 re-examined it. Do not restate it here; a second copy
+ * is how the two drift, which is precisely what happened to the version
+ * this comment used to carry.
+ *
+ * Address and auth come from `archivistEndpoint` (@semiont/core/node),
+ * shared with the content proxying and with the fleet's own byte readers so
+ * the deployment fact has one home. A missing host
+ * or secret throws — the caller's catch degrades to a scoped
+ * `bus:resume-gap`, which is the honest answer when the record cannot be
+ * reached.
  */
 async function fetchArchivistReplay(
-  config: { services?: { archivist?: { host?: string; port?: number } } },
+  config: ArchivistAddressConfig,
   resourceId: string,
   fromSequence: number,
 ): Promise<StoredEvent[]> {
-  const host = config.services?.archivist?.host;
-  if (!host) {
-    throw new Error('services.archivist.host is not configured — cannot replay from the record');
-  }
-  const port = config.services?.archivist?.port ?? 9093;
-  const secret = process.env.SEMIONT_WORKER_SECRET;
-  if (!secret) {
-    throw new Error('SEMIONT_WORKER_SECRET is not set — cannot authenticate to the Archivist read path');
-  }
+  const { base, headers } = archivistEndpoint(config);
   const res = await fetch(
-    `http://${host}:${port}/events/${encodeURIComponent(resourceId)}?fromSequence=${fromSequence}`,
-    { headers: { authorization: `Bearer ${secret}` } },
+    `${base}/events/${encodeURIComponent(resourceId)}?fromSequence=${fromSequence}`,
+    { headers },
   );
   if (!res.ok) {
     throw new Error(`Archivist replay read failed: ${res.status} ${res.statusText}`);

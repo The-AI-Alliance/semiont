@@ -15,7 +15,7 @@ import type { EventBus, Logger } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
 
 import { AnnotationContext } from '../annotation-context.js';
-import type { ContentReads } from '../knowledge-base.js';
+import type { ContentReads } from '@semiont/content';
 import type { Gatherer } from '../gatherer.js';
 
 export function registerAnnotationContextHandler(

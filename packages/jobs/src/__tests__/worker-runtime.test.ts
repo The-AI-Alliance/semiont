@@ -106,6 +106,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
       group: makeGroup(),
       backendBaseUrl: DIAL_URL,
       workerSecret: 'test-secret',
+      contentReads: { getBinary: vi.fn() },
       logger: noopLogger,
     });
 
@@ -261,6 +262,7 @@ describe('worker-runtime — health vitals (WORKER-LIVENESS.md P1)', () => {
       group: makeGroup(),
       backendBaseUrl: DIAL_URL,
       workerSecret: 'test-secret',
+      contentReads: { getBinary: vi.fn() },
       logger: noopLogger,
     });
 
@@ -427,6 +429,7 @@ describe('worker-runtime — anchored-text store threading (PERSIST-ANCHORS P2d)
       group: makeGroup(),
       backendBaseUrl: DIAL_URL,
       workerSecret: 'test-secret',
+      contentReads: { getBinary: vi.fn() },
       logger: noopLogger,
     });
 

@@ -83,6 +83,16 @@ vi.mock('@semiont/core/node', async (importOriginal) => ({
       adminEmail: 'admin@test.local',
       oauthAllowedDomains: ['test.local'],
     },
+    // The KB's committed identity, as the launcher stages it (SINGLE-KB-MOUNT
+    // P5). The gateway mounts no KB tree, so this is the ONLY place it can see
+    // either value: `name` composes its state paths, `domain` is the committed
+    // side of the identity check. `domain` mirrors `site.domain` on purpose —
+    // matching keeps these fixtures in the ordinary, non-diverged case and
+    // therefore silent (a mismatch warns; KB-IDENTITY decision 10).
+    kb: {
+      name: 'semiont-backend-unit',
+      domain: 'localhost',
+    },
     env: {
       NODE_ENV: 'test' as const,
     },
@@ -108,12 +118,10 @@ process.env.JWT_SECRET = 'test-secret-key-for-testing-32char';
 // `beforeAll`: boot reads it when a test file imports the app, which for some
 // files happens at module load — before any hook has run.
 //
-// `[site] domain` is the KB's permanent identity, and boot now refuses a KB
-// without one (KB-IDENTITY-VS-ADDRESS decision 8), so a fixture lacking it is
-// not a valid knowledge base. The value mirrors the mocked environment
-// config's `site.domain` on purpose: matching keeps these fixtures in the
-// ordinary, non-diverged case and therefore silent (a mismatch warns —
-// decision 10).
+// The gateway no longer reads this file — it reads the staged `[kb]` above
+// (SINGLE-KB-MOUNT P5), which is where its boot refusal now turns. This
+// fixture remains for the CLIs, which run from a checkout with their own
+// SEMIONT_ROOT and still build a `SemiontProject` over it.
 mkdirSync(`${testDir}/.semiont`, { recursive: true });
 writeFileSync(
   `${testDir}/.semiont/config`,

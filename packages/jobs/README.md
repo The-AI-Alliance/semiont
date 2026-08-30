@@ -36,7 +36,9 @@ import { SemiontProject } from '@semiont/core/node';
 
 // Initialize — jobs are stored under project.jobsDir
 const eventBus = new EventBus();
-const project = new SemiontProject('/path/to/project');
+const project = new SemiontProject('/path/to/project', {
+  anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR!,
+});
 const jobQueue = new FsJobQueue(project, logger, eventBus);
 await jobQueue.initialize();
 

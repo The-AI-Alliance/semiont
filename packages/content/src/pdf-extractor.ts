@@ -232,9 +232,18 @@ export const pdfExtractor: ContentExtractor = {
     // Store failures stay silent — the store may make things faster, never
     // make them fail. The path that must insist on a write is the smelter's
     // re-anchor publish (P0), not this seam.
+    //
+    // The catch is HERE rather than inside the store: `write` throws, so this
+    // is where "best-effort" is chosen, by the seam that wants it. Previously
+    // the store swallowed for every caller and this comment described a
+    // property it did not own.
     if (cache) {
-      if (outcome.kind === 'declined') await cache.store.write(cache.key, outcome);
-      else if (outcome.items) await cache.store.write(cache.key, { ...outcome, items: outcome.items });
+      try {
+        if (outcome.kind === 'declined') await cache.store.write(cache.key, outcome);
+        else if (outcome.items) await cache.store.write(cache.key, { ...outcome, items: outcome.items });
+      } catch {
+        // Cached nothing; the outcome below is still correct.
+      }
     }
     return outcome;
   },

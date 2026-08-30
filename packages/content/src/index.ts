@@ -42,7 +42,16 @@ export {
 } from './anchored-text-store';
 // The out-of-process half of the same cache: the store contract over
 // IContentTransport, for the workers that consult it across the wire (P2c).
-export { anchoredTextStoreOverTransport } from './anchored-text-store-adapter';
+
+// Reading a resource's bytes — the contract every reader declares, the way
+// it fails, and the Archivist-backed implementation the fleet uses when it
+// holds no KB mount (SINGLE-KB-MOUNT P4).
+export {
+  archivistContentReads,
+  RepresentationMissing,
+  type ContentReads,
+  type MissingReason,
+} from './representation-reads';
 
 // PDF text-layer extraction. The anchoring vocabulary these produce
 // (AnchoredText, PdfTextItem) and the locate/textUnder pair that reads it are

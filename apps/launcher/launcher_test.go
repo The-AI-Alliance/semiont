@@ -638,8 +638,8 @@ func TestStatePersistsAcrossStarts(t *testing.T) {
 	}
 }
 
-// The backend keeps derived state of its own — the anchored-text store, a
-// coordinate map per representation that costs ~2.9s/page of OCR to rebuild.
+// The anchored-text store — a coordinate map per representation that costs
+// ~2.9s/page of OCR to rebuild — is mounted state, not container state.
 // Unmounted it lives in the container and dies with it on every `stop`, and
 // nothing re-derives it: reconcile plans work from Qdrant, which persists, so
 // it sees matching checksums and does nothing.
@@ -656,17 +656,28 @@ func TestBackendDataPersistsAcrossStarts(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "anchored-text")); err != nil {
 		t.Fatalf("anchored-text state dir after start: %v", err)
 	}
+	mount := dir + "/anchored-text:/anchored-text"
+	firstBoot := strings.Count(string(s.mustLog(t)), mount)
+
 	s.killServes()
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("second start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	// THREE mounts per boot: the backend (stamp owner), the Archivist and
-	// the Librarian (shared readers) all mount the store. The invariant
-	// under test is unchanged — the mount survives across starts — the
-	// multiplier is just fleet size.
-	mount := dir + "/anchored-text:/anchored-text"
-	if got := strings.Count(string(s.mustLog(t)), mount); got != 6 {
-		t.Errorf("anchored-text mount should appear thrice in both boots (want 6, got %d)", got)
+	// The invariant is PERSISTENCE — a restart mounts the store exactly as
+	// the first boot did — so it is asserted against the first boot rather
+	// than against a hard-coded total.
+	//
+	// A literal count would encode fleet size, which is not what this test is
+	// about and which keeps moving: two mounters, then three when the Smelter
+	// took the store (ANCHORED-TEXT-TO-SMELTER P1), and two again at that
+	// plan's P5 when the stamp follows the writer and the gateway's mount
+	// goes. Every one of those is a correct state, and none of them should
+	// make this test fail.
+	if firstBoot == 0 {
+		t.Fatalf("anchored-text mount absent from the first boot")
+	}
+	if total := strings.Count(string(s.mustLog(t)), mount); total != firstBoot*2 {
+		t.Errorf("anchored-text mount did not survive the restart: %d on the first boot, %d across both", firstBoot, total)
 	}
 }
 
@@ -4363,9 +4374,11 @@ func TestStartServiceBrowserNoClone(t *testing.T) {
 	}
 }
 
-// The Librarian restart path — the argv IS the contract: /kb read-only, the
-// shared state + anchored-text mounts, librarian.toml, 9094, and neither
-// JWT_SECRET (it signs nothing) nor LIBRARIAN_HOST (nothing dials it).
+// The Librarian restart path — the argv IS the contract: NO piece of the KB
+// tree (SINGLE-KB-MOUNT P1), just the shared state mount, librarian.toml,
+// 9094, and neither JWT_SECRET (it signs nothing) nor LIBRARIAN_HOST
+// (nothing dials it). The staged config carries the committed [kb] name —
+// the one fact the Librarian needs to find the Archivist's views.
 func TestStartServiceLibrarian(t *testing.T) {
 	s := newScenario(t, "container")
 	stdout, stderr, code := s.run(t, "start", "--service", "librarian")
@@ -4377,16 +4390,28 @@ func TestStartServiceLibrarian(t *testing.T) {
 	mustContain(t, "argv", log,
 		"--name semiont-librarian",
 		"--publish 9094:9094",
-		":/kb:ro",
 		"librarian.toml:/home/semiont/.semiontconfig:ro",
 		"state:/semiont-state",
-		"anchored-text:/anchored-text",
 		"--env SEMIONT_WORKER_SECRET=")
-	for _, banned := range []string{"JWT_SECRET", "LIBRARIAN_HOST"} {
+	for _, banned := range []string{"JWT_SECRET", "LIBRARIAN_HOST", ":/kb", "anchored-text:"} {
 		if strings.Contains(log, banned) {
 			t.Errorf("the Librarian must not receive %s:\n%s", banned, log)
 		}
 	}
+	// The staging wiring, asserted end to end: pull the stage dir back out of
+	// the argv and read the file the container would. Boot refuses without
+	// [kb] name, so a miss here is a librarian that never starts live.
+	m := regexp.MustCompile(`--volume (\S+)/librarian\.toml:`).FindStringSubmatch(log)
+	if m == nil {
+		t.Fatalf("no staged librarian.toml in argv:\n%s", log)
+	}
+	staged, err := os.ReadFile(filepath.Join(m[1], "librarian.toml"))
+	if err != nil {
+		t.Fatalf("reading staged librarian.toml: %v", err)
+	}
+	mustContain(t, "staged librarian.toml", string(staged),
+		"[kb]",
+		`name = "Test Knowledge Base"`)
 }
 
 // The Archivist restart path: teardown + port settle + staged config + run +

@@ -8,13 +8,13 @@
  * single-index reads; anything that FUSES sources belongs to the Matcher.
  */
 
-import { getPrimaryRepresentation, decodeRepresentation, getResourceEntityTypes, getResourceId, resourceId as makeResourceId } from '@semiont/core';
+import { decodeRepresentation, getResourceEntityTypes, getResourceId, resourceId as makeResourceId } from '@semiont/core';
+import { representationSource } from './representation.js';
 import type { Logger, ResourceId } from '@semiont/core';
 import { compareByRecencyThenId, type GraphDatabase } from '@semiont/graph';
 import { mergeByResource, type EmbeddingProvider, type VectorStore } from '@semiont/vectors';
 import type { ViewStorage } from '@semiont/event-sourcing';
-import type { WorkingTreeStore } from '@semiont/content';
-import type { ContentReads } from './knowledge-base';
+import type { ContentReads, WorkingTreeStore } from '@semiont/content';
 import { resourceWithViewGrace } from './graph-read-grace';
 
 import type { ResourceDescriptor } from '@semiont/core';
@@ -210,10 +210,13 @@ export class ResourceContext {
     return Promise.all(
       resources.map(async (doc) => {
         try {
-          if (doc.storageUri) {
-            const contentBuffer = await kb.content.retrieve(doc.storageUri);
-            const primaryRep = getPrimaryRepresentation(doc);
-            const contentPreview = decodeRepresentation(contentBuffer, primaryRep?.mediaType ?? 'text/plain').slice(0, 200);
+          // The descriptors are already in hand, so this takes the descriptor
+          // half of the one resolution rather than re-reading the view
+          // (SINGLE-KB-MOUNT P3).
+          const source = representationSource(doc);
+          if (source) {
+            const contentBuffer = await kb.content.retrieve(source.storageUri);
+            const contentPreview = decodeRepresentation(contentBuffer, source.mediaType).slice(0, 200);
             return { ...doc, content: contentPreview };
           }
           return { ...doc, content: '' };
@@ -236,10 +239,13 @@ export class ResourceContext {
     kb: { content: ContentReads }
   ): Promise<string | undefined> {
     const id = getResourceId(resource);
-    if (resource.storageUri && id) {
-      const { data } = await kb.content.getBinary(makeResourceId(id));
-      const primaryRep = getPrimaryRepresentation(resource);
-      return decodeRepresentation(Buffer.from(data), primaryRep?.mediaType ?? 'text/plain');
+    const source = representationSource(resource);
+    if (source && id) {
+      // The transport reports the media type it served; the descriptor's is
+      // the same fact by construction (both come from the one resolution),
+      // so this decodes with what came back rather than re-deriving it.
+      const { data, contentType } = await kb.content.getBinary(makeResourceId(id));
+      return decodeRepresentation(Buffer.from(data), contentType);
     }
     return undefined;
   }

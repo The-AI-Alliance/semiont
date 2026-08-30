@@ -12,7 +12,7 @@
  */
 
 import type { EventBus, Logger } from '@semiont/core';
-import type { SemiontProject } from '@semiont/core/node';
+import type { SemiontState } from '@semiont/core/node';
 import type { JobQueue } from '@semiont/jobs';
 
 import type { KnowledgeSystem } from '../knowledge-system.js';
@@ -38,7 +38,7 @@ export function registerBusHandlers(
   eventBus: EventBus,
   knowledgeSystem: KnowledgeSystem,
   jobQueue: JobQueue,
-  project: SemiontProject,
+  state: SemiontState,
   logger: Logger,
 ): void {
   const { kb } = knowledgeSystem;
@@ -50,31 +50,29 @@ export function registerBusHandlers(
   );
   registerGatherSummaryHandler(eventBus, knowledgeSystem.gatherer, logger);
   registerBindUpdateBodyHandler(eventBus, logger);
-  registerJobCommandHandlers(eventBus, jobQueue, project, logger);
+  registerJobCommandHandlers(eventBus, jobQueue, state, logger);
 }
 
 /**
- * The gateway's handler subset (EXTRACT-ARCHIVIST P3, EXTRACT-LIBRARIAN P3).
- * Annotation-assembly is deliberately ABSENT: it consumes the `mark:added`
- * facts Stower produces, so it registers in archivist-main beside that
- * Stower (D2 i) — registering it here too would double-emit `mark:create`
- * and double-append. Gather-summary is likewise ABSENT: it calls the
- * Gatherer, which lives in librarian-main; it registers there beside its
- * actor. The annotation-context read stays here because it reads BYTES, and
- * the gateway is the byte path (GATEWAY.md D4).
+ * The gateway's handler subset (EXTRACT-ARCHIVIST P3, EXTRACT-LIBRARIAN P3,
+ * SINGLE-KB-MOUNT P3). Every handler that reads the KB is ABSENT, each
+ * beside what it consumes: annotation-assembly follows the `mark:added` facts
+ * its Stower produces (D2 i — registering it here too would double-emit
+ * `mark:create` and double-append); gather-summary follows the Gatherer into
+ * librarian-main; and **annotation-context followed the BYTES into
+ * archivist-main** (SINGLE-KB-MOUNT D5). That last one sat here on the
+ * premise that "the gateway is the byte path" (GATEWAY.md D4) — D1 reversed
+ * the premise, so the conclusion went with it.
+ *
+ * What remains is what the gateway genuinely owns: the bind re-emit and the
+ * job queue it hosts.
  */
 export function registerGatewayBusHandlers(
   eventBus: EventBus,
-  kb: KnowledgeSystem['kb'],
   jobQueue: JobQueue,
-  project: SemiontProject,
+  state: SemiontState,
   logger: Logger,
 ): void {
-  registerAnnotationContextHandler(
-    eventBus,
-    { views: kb.views, content: workingTreeContentReads(kb.views, kb.content) },
-    logger,
-  );
   registerBindUpdateBodyHandler(eventBus, logger);
-  registerJobCommandHandlers(eventBus, jobQueue, project, logger);
+  registerJobCommandHandlers(eventBus, jobQueue, state, logger);
 }

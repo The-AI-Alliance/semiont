@@ -287,6 +287,48 @@ ${MINIMAL_TOML}`;
     expect(cfg.services.archivist).toBeUndefined();
   });
 
+  // SINGLE-KB-MOUNT D4: the launcher stages the KB's committed identity into
+  // the config it hands a container, under its own TOP-LEVEL key — never
+  // [site], whose domain an environment section can override into an identity
+  // the KB never declared. [kb] lives beside [defaults] in the file root, so
+  // an environment section cannot reach it by construction.
+  it('maps top-level [kb] to config.kb', () => {
+    const toml = `
+[kb]
+name = "example-kb"
+domain = "example.github.io:test-kb"
+${MINIMAL_TOML}`;
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+    expect(cfg.kb).toEqual({ name: 'example-kb', domain: 'example.github.io:test-kb' });
+  });
+
+  it('leaves config.kb undefined when no [kb] section is staged', () => {
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
+    expect(cfg.kb).toBeUndefined();
+  });
+
+  it('never populates config.kb from an environment section — the staged identity is not overridable', () => {
+    const toml = `
+[environments.local.kb]
+name = "some-other-kb"
+${MINIMAL_TOML}`;
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+    expect(cfg.kb).toBeUndefined();
+  });
+
+  // The Librarian loads config with NO project root at all — no /kb mount
+  // (SINGLE-KB-MOUNT P1). Everything it needs rides the staged global config.
+  it('loads with a null project root when the global config carries the environment', () => {
+    const toml = `
+[kb]
+name = "example-kb"
+${MINIMAL_TOML}`;
+    const cfg = loadTomlConfig(null, 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+    expect(cfg.kb?.name).toBe('example-kb');
+    expect(cfg.kb?.domain).toBeUndefined();
+    expect(cfg.services?.backend?.port).toBe(3001);
+  });
+
   it('lets an explicit environment win over [defaults]', () => {
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(DEFAULTS_STAGING), {});
     expect(config._metadata?.environment).toBe('local');

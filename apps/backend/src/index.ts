@@ -20,9 +20,9 @@ import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
-import { SemiontProject } from '@semiont/core/node';
+import { SemiontState } from '@semiont/core/node';
 import { type EnvironmentConfig, EventBus } from '@semiont/core';
-import { startMakeMeaningGateway, makeMeaningConfigFrom } from '@semiont/make-meaning';
+import { startMakeMeaningGateway, makeMeaningConfigFrom, requireKBName } from '@semiont/make-meaning';
 import { loadEnvironmentConfig } from '@semiont/core/node';
 
 import { User } from '@prisma/client';
@@ -33,27 +33,19 @@ import { User } from '@prisma/client';
 // both halves. Nothing is selected here — no environment variable, no 'local'
 // default: those disagreed across entry points and silently loaded the wrong
 // (empty) section.
-const projectRoot = process.env.SEMIONT_ROOT;
-if (!projectRoot) {
-  throw new Error('SEMIONT_ROOT environment variable is not set');
-}
-
-// Where this deployment keeps the anchored-text store. Read HERE, beside
-// SEMIONT_ROOT, because both are deployment facts the entry point owns —
-// SemiontProject receives values, it does not reach into the environment for
-// them. The backend image declares this as /anchored-text and `semiont start`
-// bind-mounts the KB's per-root store onto it.
-const anchoredTextDir = process.env.SEMIONT_ANCHORED_TEXT_DIR;
-if (!anchoredTextDir) {
-  throw new Error(
-    'SEMIONT_ANCHORED_TEXT_DIR environment variable is not set. It names the directory ' +
-    "holding this knowledge base's anchored-text store and has no default: the backend " +
-    'image declares it (SEMIONT_ANCHORED_TEXT_DIR=/anchored-text) and `semiont start` ' +
-    'mounts the per-root store onto it. Running outside a container means setting it.',
-  );
-}
-
-const config = loadEnvironmentConfig(projectRoot);
+// `null`, not a KB root: this process mounts no knowledge base (SINGLE-KB-MOUNT
+// P6). Everything it needs — the KB's own committed settings plus the
+// launcher's staged `[kb]` identity and archivist topology — arrives in the
+// per-service copy the launcher mounts at ~/.semiontconfig, which is exactly
+// what the loader reads when given no root. Every sidecar has loaded this way
+// since it was extracted; the gateway was the last holdout, and only because
+// it still had a tree to read from.
+//
+// SEMIONT_ROOT and SEMIONT_ANCHORED_TEXT_DIR are gone with the mounts they
+// named. The store the second one pointed at belongs to the Smelter
+// (ANCHORED-TEXT-TO-SMELTER P1) and the tree the first one pointed at belongs
+// to the Archivist; this process reaches both over HTTP.
+const config = loadEnvironmentConfig(null);
 
 if (!config.services?.backend) {
   throw new Error('services.backend is required in environment config');
@@ -73,18 +65,24 @@ requireJwtSecret();
 // same moment. Splitting them into separate passes is how one drifts from
 // the other.
 //
-//   committed  = `[site] domain` from <root>/.semiont/config — the KB's own
-//                permanent identity, the string the launcher turns into
-//                did:web and publishes, and what /api/status reports.
+//   committed  = the launcher-staged `[kb] domain` — the KB's own permanent
+//                identity, read off its `.semiont/config` by the launcher,
+//                turned into did:web and published, and what /api/status
+//                reports.
 //   effective  = config.site.domain — what THIS process will mint AGENT dids
 //                from (JWTService.getDomainForAgent).
 //
-// Deliberately NOT read from EnvironmentConfig for the committed side: the
-// TOML loader defaults a domain-less `[site]` to the literal 'localhost' and
-// lets the environment section override the project's, so it can report an
-// identity the KB never declared.
+// The committed side is the launcher-staged top-level `[kb] domain`
+// (SINGLE-KB-MOUNT P5) — read there and NOWHERE else. It used to come off
+// this process's own `/kb` mount, which it no longer has. `[site]` remains
+// the wrong source for it either way: the TOML loader defaults a domain-less
+// `[site]` to the literal 'localhost' and lets an environment section
+// override the project's, so it can report an identity the KB never
+// declared. `[kb]` sits beside `[defaults]`, out of that reach, and the
+// launcher stages NO domain when the KB declares none — so an undeclared
+// identity still arrives here as absent, and still refuses below.
 {
-  const committedDomain = new SemiontProject(projectRoot, { anchoredTextDir }).siteDomain();
+  const committedDomain = config.kb?.domain;
 
   // Decision 8 — a knowledge base declares its identity or does not run.
   // `semiont start` already refuses this; a backend launched another way
@@ -93,7 +91,8 @@ requireJwtSecret();
   // satisfiable by construction rather than conditionally true.
   if (!committedDomain) {
     throw new Error(
-      `This knowledge base declares no identity: [site] domain is missing from ${projectRoot}/.semiont/config.\n` +
+      'This knowledge base declares no identity: [site] domain is missing from its ' +
+        '.semiont/config, so the launcher staged no [kb] domain.\n' +
         'A knowledge base declares its identity or does not run — it is permanent, and has no safe default ' +
         "(inferring one from an address is how two KBs end up sharing a fabricated 'did:web:localhost').\n" +
         'Add:\n\n  [site]\n  domain = "your-org.github.io:your-kb-repo"\n',
@@ -152,7 +151,15 @@ const eventBus = new EventBus();
 
 // The gateway's make-meaning slice: job queue, kb reads, and the handler
 // subset — no actors. Actors run in the Archivist and Librarian services.
-const makeMeaning = await startMakeMeaningGateway(new SemiontProject(projectRoot, { anchoredTextDir }), makeMeaningConfigFrom(config), eventBus, logger);
+// A `SemiontState`, not a `SemiontProject`: name + the state-mount paths,
+// with no KB root. That is the type-level statement of P5 — the gateway
+// cannot reach a tree it does not have, and the compiler enforces it.
+const makeMeaning = await startMakeMeaningGateway(
+  new SemiontState({ name: requireKBName(config) }),
+  makeMeaningConfigFrom(config),
+  eventBus,
+  logger,
+);
 
 // Import route definitions
 import { rootRouter } from './routes/root';

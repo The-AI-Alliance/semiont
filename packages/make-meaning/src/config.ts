@@ -1,4 +1,4 @@
-import type { GraphServiceConfig, VectorsServiceConfig, EmbeddingServiceConfig, EnvironmentConfig } from '@semiont/core';
+import type { GraphServiceConfig, VectorsServiceConfig, EmbeddingServiceConfig, ArchivistServiceConfig, EnvironmentConfig } from '@semiont/core';
 
 /**
  * Inference configuration for a single actor or worker.
@@ -63,6 +63,10 @@ export interface MakeMeaningConfig {
     /** REQUIRED (same ruling): the embedding provider is the KB's semantic
      *  identity — always named, never detected or defaulted. */
     embedding: EmbeddingServiceConfig;
+    /** Where the record is. Optional in the type because the actors that
+     *  hold a KB mount never dial it; the Librarian does, and refuses at
+     *  boot when it is absent (SINGLE-KB-MOUNT P4). */
+    archivist?: ArchivistServiceConfig;
   };
   /**
    * The KB's canonical identity domain — the SAME value `/api/tokens/agent`
@@ -86,6 +90,24 @@ export interface MakeMeaningConfig {
  * make-meaning actors — the gateway's startMakeMeaning and the Archivist's
  * archivist-main — needs the identical mapping; two copies would drift.
  */
+/**
+ * The KB name a mountless service composes its state paths from —
+ * `[kb] name`, staged by the launcher (SINGLE-KB-MOUNT D4). Refusing is the
+ * point: a defaulted name composes a state path nobody writes to, and the
+ * service reads an empty view store forever, silently.
+ */
+export function requireKBName(config: EnvironmentConfig): string {
+  const name = config.kb?.name;
+  if (!name) {
+    throw new Error(
+      '[kb] name is missing from the environment config. The launcher stages the ' +
+        "KB's committed identity into each service's config (SINGLE-KB-MOUNT D4); " +
+        'without it this service cannot locate the state tree.',
+    );
+  }
+  return name;
+}
+
 export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningConfig {
   const meta = config._metadata as (EnvironmentConfig['_metadata'] & {
     actors?: MakeMeaningConfig['actors'];
@@ -116,6 +138,7 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
       graph: config.services.graph,
       vectors: config.services.vectors,
       embedding: config.services.embedding,
+      archivist: config.services.archivist,
     },
     // The KB's canonical identity — the agent roster mints DIDs from this,
     // the SAME value /api/tokens/agent uses (agent-did-host-skew fix). The

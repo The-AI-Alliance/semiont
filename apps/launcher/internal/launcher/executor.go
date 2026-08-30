@@ -264,8 +264,36 @@ func (x *liveExec) stageDir() (string, bool) {
 	return stage, true
 }
 
+// archivistDialers: the services that resolve the Archivist's address from
+// their staged config, and so must be handed it. The gateway proxies bytes
+// onto the record; the Smelter, the Librarian and the Worker read bytes from
+// it directly (SINGLE-KB-MOUNT P4). All four refuse to boot without it, which
+// is the point — a process that cannot reach the record has nothing to do.
+//
+// The Archivist itself is absent: it IS the record, and holds the mount.
+var archivistDialers = map[string]bool{"backend": true, "smelter": true, "librarian": true, "worker": true}
+
+// kbIdentityStaged: the services that describe a KB tree they do not mount,
+// and so must be handed its committed identity rather than reading it
+// (SINGLE-KB-MOUNT P5/P6). The Archivist is absent because it HOLDS the
+// tree; the Smelter and Worker are absent because they never name the KB.
+var kbIdentityStaged = map[string]bool{"backend": true, "librarian": true}
+
+// stagedConfig applies every launcher-owned patch a service's config needs.
+// ONE decider: `stageAll` and `stageOne` stage the same services from the
+// same source and must agree on what each one gets.
+func (x *liveExec) stagedConfig(svc string, cfg []byte, envName, addr string) []byte {
+	if archivistDialers[svc] {
+		cfg = patchArchivistTopology(cfg, envName, addr)
+	}
+	if kbIdentityStaged[svc] {
+		cfg = patchKBIdentity(cfg, effectiveKBName(x.root), committedDomain(x.root))
+	}
+	return cfg
+}
+
 // patchArchivistTopology appends [environments.<env>.archivist] — with the
-// LITERAL address the launcher computed — to a staged BACKEND config.
+// LITERAL address the launcher computed — to a staged config.
 // Deployment topology is the launcher's to know, never the KB config's to
 // declare: a ${VAR} here would demand that var of every config consumer,
 // which is how ARCHIVIST_HOST briefly existed. A hand-written section wins —
@@ -288,6 +316,40 @@ func patchArchivistTopology(cfg []byte, envName, addr string) []byte {
 	return append(cfg, []byte(stanza)...)
 }
 
+// patchKBIdentity appends a top-level [kb] — the KB's committed identity card
+// — to a staged config (SINGLE-KB-MOUNT D4/P5). Two facts, both read off
+// `<root>/.semiont/config`, for the two services that no longer mount the tree
+// they describe:
+//
+//	name   — how the Librarian and the gateway locate the views the Archivist
+//	         materializes under the shared state mount.
+//	domain — the KB's permanent did:web identity. The gateway REFUSES to boot
+//	         without it (KB-IDENTITY decision 8), and once it stops mounting
+//	         /kb this staged copy is the only way it can see the committed
+//	         value. Omitted when the KB declares none, so the refusal still
+//	         fires: staging a fabricated identity is the one thing worse than
+//	         failing loudly.
+//
+// Top-level deliberately: an environment section cannot override what sits
+// beside [defaults]. A hand-written [kb] wins — the escape hatch for an
+// operator whose state tree lives under a name the current root would not
+// derive. Invalid TOML passes through untouched; the consumer's own loader
+// owns that error.
+func patchKBIdentity(cfg []byte, name, domain string) []byte {
+	var doc map[string]any
+	if err := toml.Unmarshal(cfg, &doc); err != nil {
+		return cfg
+	}
+	if _, has := doc["kb"]; has {
+		return cfg
+	}
+	stanza := fmt.Sprintf("\n# Staged by the launcher: this KB's committed identity (SINGLE-KB-MOUNT D4).\n[kb]\nname = %q\n", name)
+	if domain != "" {
+		stanza += fmt.Sprintf("domain = %q\n", domain)
+	}
+	return append(cfg, []byte(stanza)...)
+}
+
 func (x *liveExec) stageAll(configFile, envName, addr string) (string, bool) {
 	stage, ok := x.stageDir()
 	if !ok {
@@ -299,10 +361,7 @@ func (x *liveExec) stageAll(configFile, envName, addr string) (string, bool) {
 		return "", false
 	}
 	for _, svc := range []string{"backend", "worker", "smelter", "weaver", "archivist", "librarian"} {
-		out := cfg
-		if svc == "backend" {
-			out = patchArchivistTopology(cfg, envName, addr)
-		}
+		out := x.stagedConfig(svc, cfg, envName, addr)
 		if err := os.WriteFile(filepath.Join(stage, svc+".toml"), out, 0o644); err != nil {
 			x.u.fail("Staging config for %s: %v", svc, err)
 			return "", false
@@ -321,10 +380,7 @@ func (x *liveExec) stageOne(svc, configFile, envName, addr string) (string, bool
 		x.u.fail("Reading %s: %v", configFile, err)
 		return "", false
 	}
-	if svc == "backend" {
-		cfg = patchArchivistTopology(cfg, envName, addr)
-	}
-	if err := os.WriteFile(filepath.Join(stage, svc+".toml"), cfg, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(stage, svc+".toml"), x.stagedConfig(svc, cfg, envName, addr), 0o644); err != nil {
 		x.u.fail("Staging config for %s: %v", svc, err)
 		return "", false
 	}
@@ -684,16 +740,23 @@ func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 }
 
 // stateMountsShared: a role's state mounts for a container that is NOT the
-// stamp's owner. Until the Archivist cutover the BACKEND owns the
-// anchored-text stamp (it mounts via stateMounts and clears on image
-// change); the Archivist mounts the same store as a peer. Running the
-// stamped path here with the archivist image would flip the stamp on every
-// start and — anchored-text being a projection — CLEAR the store each
-// alternation, at ~2.9s/page of OCR to rebuild. Ownership flips only when
-// the BACKEND stops mounting this store — which is EXTRACT-LIBRARIAN's
-// cutover (the Gatherer reads anchored text gateway-side until then), NOT
-// the Archivist's. Corrected 2026-08-27; the first version of this comment
-// said "at cutover" and meant the wrong one.
+// stamp's owner. The SMELTER owns the anchored-text stamp (it mounts via
+// stateMounts with the smelter image and clears on image change); the
+// Archivist mounts the same store as a peer, read-only.
+//
+// Running the stamped path here with a second image would flip the stamp on
+// every start and — anchored-text being a projection — CLEAR the store each
+// alternation, at ~2.9s/page of OCR to rebuild. Exactly one service may take
+// the stamped path per store.
+//
+// The stamp follows the WRITER, which is what makes an image-change clear
+// correct: the stamp names the code whose output the store holds. It moved
+// from the backend to the Smelter in ANCHORED-TEXT-TO-SMELTER P5, once P4
+// had removed the gateway's anchored-text faces.
+//
+// Two earlier versions of this comment predicted the wrong trigger — first
+// "the Archivist cutover", then EXTRACT-LIBRARIAN's. Neither happened; that
+// plan retired the flip entirely (the Gatherer reads no anchored text).
 func (x *liveExec) stateMountsShared(role, root string) ([]string, bool) {
 	args := stateMountArgs(role, root)
 	if len(args) == 0 {
@@ -773,14 +836,16 @@ func (x *planExec) portChecks(ports []portNeed) bool {
 
 func (x *planExec) stageAll(_, envName, _ string) (string, bool) {
 	x.c("stage per-service config copies under <config-stage>: backend.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml")
-	x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to backend.toml", envName)
+	for _, svc := range []string{"backend", "worker", "smelter", "librarian"} {
+		x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to %s.toml", envName, svc)
+	}
 	return "<config-stage>", true
 }
 
 func (x *planExec) stageOne(svc, _, envName, _ string) (string, bool) {
 	x.c("stage a fresh private config copy under <config-stage>: %s.toml", svc)
-	if svc == "backend" {
-		x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to backend.toml", envName)
+	if archivistDialers[svc] {
+		x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to %s.toml", envName, svc)
 	}
 	return "<config-stage>", true
 }

@@ -8,19 +8,23 @@
  * hands the SmelterActorStateUnit's event stream to the Smelter and runs
  * a startup reconcile. All event processing lives in `./smelter`.
  *
- * The smelter is a pure network peer: events arrive over SSE, content is
- * fetched over HTTP in verbatim mode (the stored bytes, untouched — the
- * checksum stamp depends on it; SMELTER-AXIOMS.md S12), and its single
- * privileged attachment beyond the bus is the vector store (Qdrant).
+ * Events arrive over SSE from the gateway; bytes come over HTTP from the
+ * ARCHIVIST (SINGLE-KB-MOUNT P4), verbatim — the stored bytes, untouched,
+ * because the checksum stamp depends on it (SMELTER-AXIOMS.md S12). Its
+ * privileged attachments beyond the bus are the vector store (Qdrant) and
+ * the anchored-text mount it owns outright (ANCHORED-TEXT-TO-SMELTER P1).
  *
  * Environment variables:
- *   SEMIONT_WORKER_SECRET — shared secret for JWT auth with the KS
+ *   SEMIONT_WORKER_SECRET      — shared secret; JWT auth with the KS, and
+ *                                the bearer this process shows the Archivist
+ *   SEMIONT_ANCHORED_TEXT_DIR  — the anchored-text store's mount; no default
  */
 
 import { BehaviorSubject } from 'rxjs';
+import { archivistContentReads, createAnchoredTextStore } from '@semiont/content';
 import { createSmelterActorStateUnit, type SmelterActorStateUnit } from './smelter-actor-state-unit';
 import { Smelter } from './smelter';
-import { HttpTransport, HttpContentTransport } from '@semiont/http-transport';
+import { HttpTransport } from '@semiont/http-transport';
 import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader, retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY } from '@semiont/core';
 import type { AccessToken } from '@semiont/core';
 import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
@@ -189,18 +193,31 @@ async function main() {
     bus: httpTransport.actor,
   });
 
-  // Same adapter the SDK wires for its content path; reuses the bus
-  // transport's ky instance, token$ auth, and trace propagation. The Smelter
-  // requests verbatim mode per read (see fetchEmbeddableText).
-  const contentTransport = new HttpContentTransport(httpTransport);
-  logger.info('Content transport ready', { mode: 'http' });
+  // Bytes come from the Archivist, not the gateway (SINGLE-KB-MOUNT P4).
+  // The gateway's own content routes are a proxy onto this same call, so
+  // going through it added a hop and put a process that is meant to stop
+  // touching the KB tree on the path to it. Throws here if the address or
+  // the worker secret is missing — a boot-time refusal, not a per-resource
+  // failure.
+  const contentReads = archivistContentReads(envConfig);
+  logger.info('Content reads ready', { via: 'archivist' });
+
+  // The anchored-text store, on this process's own mount (ANCHORED-TEXT-TO-SMELTER
+  // P1). The Smelter derives these artifacts, so it holds them: no gateway
+  // round-trip to reach its own output, and it is the sole writer.
+  const anchoredTextDir = process.env.SEMIONT_ANCHORED_TEXT_DIR;
+  if (!anchoredTextDir) {
+    throw new Error('SEMIONT_ANCHORED_TEXT_DIR is required — the Smelter owns the anchored-text store and has no default for where it lives');
+  }
+  const anchoredStore = createAnchoredTextStore(anchoredTextDir, logger.child({ component: 'anchored-text-store' }));
 
   const smelter = new Smelter(
     actorStateUnit.events$,
     actorStateUnit.rebuildAnchors$,
     vectorStore,
     embeddingProvider,
-    contentTransport,
+    contentReads,
+    anchoredStore,
     httpTransport,
     chunkingConfig,
     { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },

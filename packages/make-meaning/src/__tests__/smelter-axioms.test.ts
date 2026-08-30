@@ -39,8 +39,7 @@ import {
   resourceDescriptor,
   createContentTransport,
   createFakeKsBus,
-  type ContentEntry,
-} from './helpers/smelter-harness';
+  type ContentEntry, memoryAnchoredStore } from './helpers/smelter-harness';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 
 const CHUNKING: ChunkingConfig = { chunkSize: 512, overlap: 64 };
@@ -320,7 +319,7 @@ async function makeHarness(opts: {
   );
 
   const events$ = new Subject<SmelterEvent>();
-  const smelter = new Smelter(events$, EMPTY, store, createMockEmbeddingProvider(), transport, bus, CHUNKING, TIMING, mockLogger);
+  const smelter = new Smelter(events$, EMPTY, store, createMockEmbeddingProvider(), transport, memoryAnchoredStore(), bus, CHUNKING, TIMING, mockLogger);
   smelter.initialize();
 
   return {
@@ -885,8 +884,8 @@ describe('Smelter axioms', () => {
                 const i = rids.indexOf(rid);
                 return i >= 0 ? { bytes: PDFS[i], mediaType: 'application/pdf' } : undefined;
               },
-              anchored,
             }),
+            memoryAnchoredStore(anchored),
             createFakeKsBus(rids.map((rid, i) => resourceDescriptor(rid, 'application/pdf', CHECKSUMS[i]))),
             CHUNKING,
             TIMING,

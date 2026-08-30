@@ -14,11 +14,12 @@
  */
 
 import type { AccessToken, ExtractionOutcome, ResourceId, components } from '@semiont/core';
-import { busLog, getPrimaryRepresentation } from '@semiont/core';
+import { busLog } from '@semiont/core';
 import { SpanKind, withSpan } from '@semiont/observability';
 import type { IContentTransport, PutBinaryRequest, PutBinaryOptions } from '@semiont/core';
 
 import type { KnowledgeSystem } from './knowledge-system.js';
+import { workingTreeContentReads } from './knowledge-base.js';
 import { assembleResourceGraph } from './resource-graph.js';
 import { readAnchoredText } from './read-anchored-text.js';
 
@@ -130,18 +131,14 @@ export class LocalContentTransport implements IContentTransport {
     );
   }
 
-  private async loadBinary(
-    resourceId: ResourceId,
-  ): Promise<{ data: ArrayBuffer; contentType: string }> {
-    const view = await this.ks.kb.views.get(resourceId);
-    if (!view) throw new Error(`Resource not found: ${resourceId}`);
-    const rep = getPrimaryRepresentation(view.resource);
-    if (!rep?.storageUri) {
-      throw new Error(`Resource ${resourceId} has no representation with a storageUri`);
-    }
-    const buf = await this.ks.kb.content.retrieve(rep.storageUri);
-    const data = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
-    return { data, contentType: rep.mediaType };
+  /**
+   * The same resolution the wire path serves, buffered — local and hosted
+   * modes must answer identically, which they did not before
+   * SINGLE-KB-MOUNT P3: this resolved through `representations[].storageUri`,
+   * a field `ViewMaterializer` never writes, so every binary read here threw.
+   */
+  private loadBinary(resourceId: ResourceId): Promise<{ data: ArrayBuffer; contentType: string }> {
+    return workingTreeContentReads(this.ks.kb.views, this.ks.kb.content).getBinary(resourceId);
   }
 
   /**

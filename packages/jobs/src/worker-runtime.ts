@@ -15,7 +15,7 @@
 
 import { startWorkerProcess } from './worker-process';
 import type { WorkerVitals } from './job-claim-adapter';
-import { anchoredTextStoreOverTransport } from '@semiont/content';
+import { anchoredTextOverBus } from './anchored-text-over-bus';
 import type { InferenceClient } from '@semiont/inference';
 import { hostname } from 'os';
 import {
@@ -39,6 +39,7 @@ import {
   type KbTarget,
 } from '@semiont/sdk';
 import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
+import type { ContentReads } from '@semiont/content';
 import { BehaviorSubject } from 'rxjs';
 
 type Agent = components['schemas']['Agent'];
@@ -63,8 +64,16 @@ export interface WorkerRuntimeOptions {
   group: AgentGroup;
   /** The backend URL this worker dials — connection topology ONLY, never identity. */
   backendBaseUrl: string;
-  /** Shared secret for `/api/tokens/agent`. */
+  /** Shared secret for `/api/tokens/agent`, and the bearer the byte reads
+   *  below show the Archivist. */
   workerSecret: string;
+  /**
+   * The resource's bytes, for detection's extraction seam. Built by the
+   * entrypoint (`worker-main`) rather than here, so a worker with no
+   * Archivist configured refuses at boot instead of failing every job
+   * (SINGLE-KB-MOUNT P4).
+   */
+  contentReads: ContentReads;
   logger: Logger;
 }
 
@@ -226,7 +235,7 @@ export async function authenticateAgent(opts: {
 export async function startAgentWorker(
   opts: WorkerRuntimeOptions,
 ): Promise<AgentWorkerHandle> {
-  const { group, backendBaseUrl, workerSecret, logger } = opts;
+  const { group, backendBaseUrl, workerSecret, contentReads, logger } = opts;
   const { inference } = group;
 
   const { protocol, host, port } = parseBackendUrl(backendBaseUrl);
@@ -299,10 +308,12 @@ export async function startAgentWorker(
     jobTypes: group.jobTypes,
     inferenceClient: group.client,
     generator,
-    // The extraction seam's cache, over this worker's content transport
-    // (PERSIST-ANCHORS P2d). Built here because the client keeps its
-    // content transport private — this is where it is in hand.
-    anchoredTextStore: anchoredTextStoreOverTransport(content, logger),
+    // The extraction seam's cache, consulted over the bus and never written
+    // (ANCHORED-TEXT-TO-SMELTER D2): the Smelter owns this store, the
+    // Archivist answers the checksum-addressed read, and a worker that
+    // misses extracts locally and discards.
+    anchoredTextStore: anchoredTextOverBus(client, logger),
+    contentReads,
     logger,
   });
 

@@ -54,6 +54,7 @@ const FROZEN_BRIDGED = [
   'browse:resources-result', 'browse:resources-failed',
   'browse:resource-result', 'browse:resource-failed',
   'browse:anchored-text-result', 'browse:anchored-text-failed',
+  'browse:anchored-text-by-checksum-result', 'browse:anchored-text-by-checksum-failed',
   'browse:annotations-result', 'browse:annotations-failed',
   'browse:annotation-result', 'browse:annotation-failed',
   'browse:annotation-history-result', 'browse:annotation-history-failed',

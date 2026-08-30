@@ -22,7 +22,6 @@
 import { BehaviorSubject } from 'rxjs';
 import type {
   AccessToken,
-  ExtractionOutcome,
   IBackendOperations,
   IContentTransport,
   PutBinaryOptions,
@@ -59,7 +58,6 @@ export {
  */
 export function inMemoryContent(): IContentTransport {
   const store = new Map<string, { data: ArrayBuffer; contentType: string }>();
-  const anchoredText = new Map<string, ExtractionOutcome>();
   // The read-side stand-in for the backend's view index: the producer writes
   // under the checksum of the bytes it read, and this map lets a reader
   // holding only the resource id find that entry — same SHA-256 the real
@@ -113,30 +111,6 @@ export function inMemoryContent(): IContentTransport {
         }),
         contentType,
       };
-    },
-    // Writes are checksum-addressed (PERSIST-ANCHORS P1b); reads are
-    // rid-addressed and resolved through `ridToChecksum` — the double's
-    // stand-in for the backend's view index, fed by `putBinary`. A
-    // producer-path write is therefore readable back through the reader path,
-    // and a rid-keyed seed still reads back directly (the fallback).
-    async putAnchoredText(checksum: string, anchored: ExtractionOutcome): Promise<void> {
-      anchoredText.set(checksum, anchored);
-    },
-    async getAnchoredText(rId: ResourceId): Promise<ExtractionOutcome | null> {
-      const checksum = ridToChecksum.get(String(rId));
-      if (checksum) {
-        const resolved = anchoredText.get(checksum);
-        if (resolved) return resolved;
-      }
-      return anchoredText.get(String(rId)) ?? null;
-    },
-    // The cache-consult read (P2c): same map, checksum-keyed — coherent with
-    // putAnchoredText's writes, so a put-then-consult round-trip hits.
-    async getAnchoredTextByChecksum(checksum: string): Promise<ExtractionOutcome | null> {
-      return anchoredText.get(checksum) ?? null;
-    },
-    async listAnchoredTextKeys(): Promise<string[]> {
-      return [...anchoredText.keys()];
     },
     async getResourceGraph(rId: ResourceId): Promise<GetResourceResponse> {
       return { resource: { '@id': String(rId) } } as unknown as GetResourceResponse;

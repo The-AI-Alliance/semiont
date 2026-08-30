@@ -709,16 +709,21 @@ func tracesArgs() []string {
 // instead, so no password ever sits in the container's inspectable env.
 // jwt is the token-signing key — backend-only, deliberately not in sidecarArgs:
 // the sidecars present agent tokens the backend minted and never sign anything.
-// kbMountTarget is where the KB clone lands inside the backend container.
-// The value is HALF of an agreement: the backend image declares
+// kbMountTarget is where the KB clone lands inside the ARCHIVIST container —
+// the only container that mounts it (SINGLE-KB-MOUNT, the whole plan's point).
+// The value is HALF of an agreement: the archivist image declares
 // `ENV SEMIONT_ROOT=/kb`, and nothing at compile time makes the two match.
 // TestContainerPathsMatchTheImage is what makes them match.
 const kbMountTarget = "/kb"
 
-func backendArgs(kbRoot, stage, addr, secret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
+// backendArgs: the gateway mounts NO piece of the knowledge base (P6). It
+// reaches bytes and the record over HTTP through the Archivist, and everything
+// it once read off the tree — the KB name, the committed did:web domain — the
+// launcher stages into its config copy. What is left is that copy and the
+// gateway's own state.
+func backendArgs(stage, addr, secret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-backend", // no --rm: see providedRunArgs
 		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", roles["backend"].mem,
-		"--volume", kbRoot + ":" + kbMountTarget,
 		"--volume", stage + "/backend.toml:/home/semiont/.semiontconfig:ro"}
 	// Persistent state the backend itself owns (stateStores["backend"]).
 	a = append(a, state...)
@@ -741,7 +746,7 @@ func backendArgs(kbRoot, stage, addr, secret, jwt, version string, port int, use
 
 // sidecarArgs covers the three make-meaning sidecars (worker / smelter /
 // weaver) — identical in shape, differing only in name, port, and memory.
-func sidecarArgs(svc string, port int, stage, addr, secret, version string, userEnv, otel []string) []string {
+func sidecarArgs(svc string, port int, stage, addr, secret, version string, userEnv, otel []string, extra ...string) []string {
 	p := strconv.Itoa(port)
 	a := []string{"run", "-d", "--name", "semiont-" + svc, // no --rm: see providedRunArgs
 		"--memory", roles[svc].mem, "--publish", p + ":" + p,
@@ -758,6 +763,7 @@ func sidecarArgs(svc string, port int, stage, addr, secret, version string, user
 		// WHOLE TOML eagerly, so every consumer needs every ${VAR} defined
 		// (the same reason the Archivist gets POSTGRES_HOST).
 		"--env", "SEMIONT_WORKER_SECRET="+secret)
+	a = append(a, extra...)
 	return append(a, image(svc, version))
 }
 
@@ -789,21 +795,20 @@ func archivistArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []
 	return append(a, image("archivist", version))
 }
 
-// librarianArgs: the Librarian (Matcher — search and match) reads
-// everything and writes nothing durable, and its mounts say so: /kb
-// READ-ONLY (it is not the git writer; the clone invariant does not apply),
-// the shared state tree for views (D6 reader), the shared anchored-text dir
-// (unread until its P3, but the image declares the path and SemiontProject
-// requires it). Env is the eager-interpolation set — the ${VAR}s a
+// librarianArgs: the Librarian (Matcher — search and match) reads everything
+// and writes nothing durable, and its mounts say so: NO piece of the KB tree
+// (SINGLE-KB-MOUNT P1 — it locates the Archivist's views from the staged
+// [kb] name, see patchKBName), just the shared state tree (D6 reader) and
+// its staged config. Env is the eager-interpolation set — the ${VAR}s a
 // committed KB config may reference, same as the other sidecars. NOT
-// ARCHIVIST_HOST: no config interpolates that var (the archivist address
-// is a literal patchArchivistTopology stages into backend.toml only). NO
+// ARCHIVIST_HOST: no config interpolates that var (the archivist address is
+// a literal patchArchivistTopology stages into this service's own config —
+// it reads bytes from the record directly, SINGLE-KB-MOUNT P4). NO
 // JWT_SECRET, and no LIBRARIAN_HOST exists anywhere: nothing dials this
-// service; it dials the gateway.
-func librarianArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []string, state ...string) []string {
+// service; it dials the gateway for the bus and the Archivist for bytes.
+func librarianArgs(stage, addr, secret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
 		"--memory", roles["librarian"].mem, "--publish", "9094:9094",
-		"--volume", kbRoot + ":" + kbMountTarget + ":ro",
 		"--volume", stage + "/librarian.toml:/home/semiont/.semiontconfig:ro"}
 	a = append(a, state...)
 	a = append(a, userEnv...)

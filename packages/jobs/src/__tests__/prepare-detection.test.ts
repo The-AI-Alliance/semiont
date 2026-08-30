@@ -16,7 +16,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { resourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { PdfTextItem } from '@semiont/core';
-import type { SemiontSession } from '@semiont/sdk';
 
 vi.mock('@semiont/content', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@semiont/content')>();
@@ -29,7 +28,7 @@ vi.mock('@semiont/event-sourcing', () => ({
   generateAnnotationId: vi.fn(() => 'ann-prep-test'),
 }));
 
-import { EXTRACTORS, type AnchoredTextStore } from '@semiont/content';
+import { EXTRACTORS, type AnchoredTextStore, type ContentReads } from '@semiont/content';
 import { prepareDetection } from '../workers/detection/prepare-detection';
 
 /** Always-miss, write-blind: the dispatch layer runs uncached. */
@@ -62,15 +61,19 @@ const PDF_ITEMS: PdfTextItem[] = [
 /** The PDF slot, stubbed — the only extractor these tests fake. */
 const pdfExtract = vi.mocked(EXTRACTORS['pdf-text-layer']!.extract);
 
-function fakeSession(text = 'alpha beta gamma') {
+/**
+ * The byte read, serving `text`. A plain `ContentReads` rather than a
+ * hollowed-out session: since SINGLE-KB-MOUNT P4 the seam takes the read it
+ * actually wants, so the double needs no cast to claim it is something
+ * larger.
+ */
+function fakeReads(text = 'alpha beta gamma') {
   const bytes = new TextEncoder().encode(text);
   const data = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(data).set(bytes);
-  const resourceRepresentation = vi.fn(async () => ({ data, contentType: 'text/markdown' }));
-  const session = {
-    client: { browse: { resourceRepresentation } },
-  } as unknown as SemiontSession;
-  return { session, resourceRepresentation };
+  const getBinary = vi.fn(async () => ({ data, contentType: 'text/markdown' }));
+  const reads: ContentReads = { getBinary };
+  return { reads, getBinary };
 }
 
 type Sel = { type: string; start?: number; end?: number; value?: string };
@@ -81,12 +84,12 @@ describe('prepareDetection', () => {
   beforeEach(() => { pdfExtract.mockReset(); });
 
   it('text: decodes for real and anchors by character offsets in that SAME text', async () => {
-    const { session, resourceRepresentation } = fakeSession();
+    const { reads, getBinary } = fakeReads();
 
-    const source = await prepareDetection('text/markdown', session, RID, USER_DID, GENERATOR, MISS_STORE);
+    const source = await prepareDetection('text/markdown', reads, RID, USER_DID, GENERATOR, MISS_STORE);
     if ('declined' in source) throw new Error(`unexpected decline: ${source.declined}`);
 
-    expect(resourceRepresentation).toHaveBeenCalledOnce();
+    expect(getBinary).toHaveBeenCalledOnce();
     expect(source.text).toBe('alpha beta gamma');
 
     const ann = source.buildAnnotation('highlighting', { exact: 'alpha', start: 0, end: 5 }) as Record<string, unknown>;
@@ -101,10 +104,10 @@ describe('prepareDetection', () => {
   });
 
   it('positioned runs: anchors by viewrect geometry from the SAME extraction', async () => {
-    const { session } = fakeSession();
+    const { reads } = fakeReads();
     pdfExtract.mockResolvedValue({ kind: 'extracted', text: PDF_TEXT, items: PDF_ITEMS, method: 'pdf-text-layer', pdfClass: 'A' });
 
-    const source = await prepareDetection('application/pdf', session, RID, USER_DID, GENERATOR, MISS_STORE);
+    const source = await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, MISS_STORE);
     if ('declined' in source) throw new Error(`unexpected decline: ${source.declined}`);
     expect(source.text).toBe(PDF_TEXT);
 
@@ -118,36 +121,36 @@ describe('prepareDetection', () => {
   it('a scanned PDF that OCR read is anchored spatially, like any other geometry', async () => {
     // The point of #739: OCR'd words are ordinary positioned runs, so class B
     // takes the identical path a native text layer does.
-    const { session } = fakeSession();
+    const { reads } = fakeReads();
     pdfExtract.mockResolvedValue({ kind: 'extracted', text: PDF_TEXT, items: PDF_ITEMS, method: 'ocr', pdfClass: 'B' });
 
-    const source = await prepareDetection('application/pdf', session, RID, USER_DID, GENERATOR, MISS_STORE);
+    const source = await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, MISS_STORE);
     if ('declined' in source) throw new Error('unexpected decline');
     const ann = source.buildAnnotation('highlighting', { exact: 'gamma', start: 11, end: 16 }) as Record<string, unknown>;
     expect(selectors(ann).find((s) => s.type === 'FragmentSelector')?.value).toMatch(/^page=1&viewrect=/);
   });
 
   it("passes an extractor's own decline through by name", async () => {
-    const { session } = fakeSession();
+    const { reads } = fakeReads();
     pdfExtract.mockResolvedValue({ kind: 'declined', declined: 'encrypted' });
 
-    expect(await prepareDetection('application/pdf', session, RID, USER_DID, GENERATOR, MISS_STORE))
+    expect(await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, MISS_STORE))
       .toEqual({ kind: 'declined', declined: 'encrypted' });
   });
 
   it("declines 'no-extractor' for a media type that can never yield text", async () => {
-    const { session, resourceRepresentation } = fakeSession();
+    const { reads, getBinary } = fakeReads();
 
-    expect(await prepareDetection('application/zip', session, RID, USER_DID, GENERATOR, MISS_STORE))
+    expect(await prepareDetection('application/zip', reads, RID, USER_DID, GENERATOR, MISS_STORE))
       .toEqual({ declined: 'no-extractor' });
     // Nothing is fetched — the media type alone settles it.
-    expect(resourceRepresentation).not.toHaveBeenCalled();
+    expect(getBinary).not.toHaveBeenCalled();
   });
 
   it("declines 'empty' when extraction yields nothing to detect over", async () => {
-    const { session } = fakeSession('   \n  ');
+    const { reads } = fakeReads('   \n  ');
 
-    expect(await prepareDetection('text/markdown', session, RID, USER_DID, GENERATOR, MISS_STORE))
+    expect(await prepareDetection('text/markdown', reads, RID, USER_DID, GENERATOR, MISS_STORE))
       .toEqual({ declined: 'empty' });
   });
 });

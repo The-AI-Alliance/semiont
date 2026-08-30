@@ -49,8 +49,7 @@ import {
   resourceDescriptor,
   createMockContentTransport,
   createContentTransport,
-  createFakeKsBus,
-} from './helpers/smelter-harness';
+  createFakeKsBus, memoryAnchoredStore } from './helpers/smelter-harness';
 import { NATIVE_PDF, SCANNED_PDF, TABLE_PDF } from './helpers/pdf-fixtures';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -77,6 +76,7 @@ describe('Smelter', () => {
       vectorStore,
       embeddingProvider,
       createMockContentTransport(contentByResourceId),
+      memoryAnchoredStore(),
       createFakeKsBus([]),
       { chunkSize: 512, overlap: 64 },
       { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
@@ -244,6 +244,7 @@ describe('Smelter mark:unarchived', () => {
       vectorStore,
       embeddingProvider,
       createMockContentTransport(contentByResourceId),
+      memoryAnchoredStore(),
       createFakeKsBus(
         [resourceDescriptor('res-cycle', 'text/plain', calculateChecksum(text))],
         new Map([['res-cycle', [makeAnnotation('res-cycle', 'ann-cycle', 'exact text that returns')]]]),
@@ -298,6 +299,7 @@ describe('Smelter smelt:settled signal', () => {
       vectorStore,
       embeddingProvider,
       createMockContentTransport(content, contentType),
+      memoryAnchoredStore(),
       bus,
       { chunkSize: 512, overlap: 64 },
       { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
@@ -424,6 +426,7 @@ describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
       createContentTransport({
         read: (rid) => (entries[rid] ? { bytes: entries[rid], mediaType: 'application/pdf' } : undefined),
       }),
+      memoryAnchoredStore(),
       bus,
       { chunkSize: 512, overlap: 64 },
       { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
@@ -562,6 +565,7 @@ describe('Smelter entity-tag stamps', () => {
       vectorStore,
       embeddingProvider,
       createMockContentTransport(new Map([['res-tags', text]])),
+      memoryAnchoredStore(),
       createFakeKsBus([descriptor]),
       { chunkSize: 512, overlap: 64 },
       { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
@@ -624,6 +628,7 @@ describe('Smelter.reconcile', () => {
       vectorStore,
       embeddingProvider,
       createMockContentTransport(contentByResourceId),
+      memoryAnchoredStore(),
       createFakeKsBus(resources),
       { chunkSize: 512, overlap: 64 },
       { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
@@ -731,6 +736,7 @@ describe('Smelter.reconcile', () => {
           : rid === 'res-cov-pdf' ? { bytes: SCANNED_PDF, mediaType: 'application/pdf' }
           : undefined,
       }),
+      memoryAnchoredStore(),
       createFakeKsBus([
         resourceDescriptor('res-cov-md', 'text/markdown'),
         resourceDescriptor('res-cov-pdf', 'application/pdf'),
@@ -766,6 +772,7 @@ describe('Smelter.reconcile', () => {
       vectorStore,
       embeddingProvider,
       createMockContentTransport(contentByResourceId),
+      memoryAnchoredStore(),
       deadBus,
       { chunkSize: 512, overlap: 64 },
       { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
@@ -811,8 +818,8 @@ describe('Smelter.reconcile — anchored-text re-derivation (PERSIST-ANCHORS P0)
       embeddingProvider,
       createContentTransport({
         read: (rid) => (rid === 'res-lostmap' ? { bytes: NATIVE_PDF, mediaType: 'application/pdf' } : undefined),
-        anchored,
       }),
+      memoryAnchoredStore(anchored),
       createFakeKsBus([resourceDescriptor('res-lostmap', 'application/pdf', checksum)]),
       { chunkSize: 512, overlap: 64 },
       { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
@@ -891,8 +898,8 @@ describe('Smelter embed consults the artifact store before extracting (PERSIST-A
       embeddingProvider,
       createContentTransport({
         read: (rid) => (rid === 'res-cachehit' ? { bytes: NATIVE_PDF, mediaType: 'application/pdf' } : undefined),
-        anchored,
       }),
+      memoryAnchoredStore(anchored),
       createFakeKsBus([resourceDescriptor('res-cachehit', 'application/pdf', checksum)]),
       { chunkSize: 512, overlap: 64 },
       { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
@@ -959,8 +966,8 @@ describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHOR
           if (entry === undefined) return undefined;
           return entry === 'fail' ? 'fail' : { bytes: entry, mediaType: 'application/pdf' };
         },
-        anchored,
       }),
+      memoryAnchoredStore(anchored),
       bus,
       { chunkSize: 512, overlap: 64 },
       { burstWindowMs: 5, maxBatchSize: 100, idleTimeoutMs: 20 },

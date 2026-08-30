@@ -6,6 +6,8 @@
  *
  * Handles:
  * - browse:resource-requested — single resource metadata (materialized from events)
+ * - browse:anchored-text-by-checksum-requested — the detection workers' read-through
+ *   cache consult: a stored extraction outcome by content identity (ANCHORED-TEXT-TO-SMELTER P2)
  * - browse:resources-requested — list resources
  * - browse:annotations-requested — all annotations for a resource
  * - browse:annotation-requested — single annotation with resolved resource
@@ -74,6 +76,7 @@ export interface BrowserReads {
  */
 export const BROWSER_CHANNELS = [
   'browse:resource-requested', 'browse:anchored-text-requested',
+  'browse:anchored-text-by-checksum-requested',
   'browse:resources-requested', 'browse:annotations-requested',
   'browse:annotation-requested', 'browse:events-requested',
   'browse:annotation-history-requested', 'browse:referenced-by-requested',
@@ -129,6 +132,7 @@ export class Browser {
     this.subscriptions.push(
       pipe('browse:resource-requested',          (e) => this.handleBrowseResource(e)).subscribe({ error: errorHandler }),
       pipe('browse:anchored-text-requested',     (e) => this.handleAnchoredText(e)).subscribe({ error: errorHandler }),
+      pipe('browse:anchored-text-by-checksum-requested', (e) => this.handleAnchoredTextByChecksum(e)).subscribe({ error: errorHandler }),
       pipe('browse:resources-requested',         (e) => this.handleBrowseResources(e)).subscribe({ error: errorHandler }),
       pipe('browse:annotations-requested',       (e) => this.handleBrowseAnnotations(e)).subscribe({ error: errorHandler }),
       pipe('browse:annotation-requested',        (e) => this.handleBrowseAnnotation(e)).subscribe({ error: errorHandler }),
@@ -169,6 +173,31 @@ export class Browser {
     } catch (error) {
       this.logger.error('Browse anchored text failed', { resourceId: event.resourceId, error: errField(error) });
       this.eventBus.get('browse:anchored-text-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Serve the checksum-addressed consult (ANCHORED-TEXT-TO-SMELTER P2, D2) —
+   * the detection workers' read-through cache. The caller computed the key
+   * from bytes it already holds, so unlike the resource-addressed read there
+   * is nothing to resolve and no settle barrier: with no resourceId there is
+   * no content generation to wait on, and a miss means "extract it yourself".
+   * A hit — success or decline — is served whole, so the caller runs neither
+   * parser nor engine. Read-only over the wire: the Smelter is the sole
+   * writer and never answers here.
+   */
+  private async handleAnchoredTextByChecksum(event: EventMap['browse:anchored-text-by-checksum-requested']): Promise<void> {
+    try {
+      this.eventBus.get('browse:anchored-text-by-checksum-result').next({
+        correlationId: event.correlationId,
+        response: await this.kb.anchoredText.read(event.checksum),
+      });
+    } catch (error) {
+      this.logger.error('Browse anchored text by checksum failed', { checksum: event.checksum, error: errField(error) });
+      this.eventBus.get('browse:anchored-text-by-checksum-failed').next({
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });

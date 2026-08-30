@@ -11,7 +11,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { EnvironmentConfig } from '@semiont/core';
-import { makeMeaningConfigFrom } from '../config';
+import { makeMeaningConfigFrom, requireKBName } from '../config';
 
 const SERVICES = {
   graph: { platform: { type: 'posix' }, type: 'memory' },
@@ -72,5 +72,21 @@ describe('makeMeaningConfigFrom', () => {
     } as unknown as EnvironmentConfig);
     expect(withSite.site?.domain).toBe('kb.example.org');
     expect(makeMeaningConfigFrom(loaded()).site).toBeUndefined();
+  });
+});
+
+// SINGLE-KB-MOUNT P1: the Librarian has no /kb mount, so the KB name — the
+// one committed fact it needs, to find the views the Archivist materializes —
+// arrives as `[kb] name`, staged by the launcher. Boot refuses without it:
+// a defaulted name would compose a state path nobody writes to, and the
+// Librarian would answer every match from an empty view store forever.
+describe('requireKBName', () => {
+  it('returns the staged name', () => {
+    const config = { ...loaded(), kb: { name: 'example-kb' } } as unknown as EnvironmentConfig;
+    expect(requireKBName(config)).toBe('example-kb');
+  });
+
+  it('refuses to proceed without one, naming the key and who stages it', () => {
+    expect(() => requireKBName(loaded())).toThrow(/\[kb\] name.*launcher/s);
   });
 });

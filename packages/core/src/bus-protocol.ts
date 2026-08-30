@@ -277,6 +277,18 @@ export type EventMap = {
   'browse:anchored-text-result': { correlationId: string; response: components['schemas']['ExtractionOutcome'] | null };
   'browse:anchored-text-failed': { correlationId: string } & components['schemas']['CommandError'];
 
+  // The checksum-addressed consult: the stored extraction outcome for a
+  // content identity the caller already holds (ANCHORED-TEXT-TO-SMELTER P2).
+  //
+  // The detection workers' read-through cache: a hit — success or decline —
+  // is served whole and the caller skips extraction; `null` is a miss and
+  // the caller extracts locally. No settle barrier: with no resourceId there
+  // is no generation to wait for. Read-only over the wire: the Smelter is
+  // the sole writer and never answers here.
+  'browse:anchored-text-by-checksum-requested': components['schemas']['BrowseAnchoredTextByChecksumRequest'];
+  'browse:anchored-text-by-checksum-result': { correlationId: string; response: components['schemas']['ExtractionOutcome'] | null };
+  'browse:anchored-text-by-checksum-failed': { correlationId: string } & components['schemas']['CommandError'];
+
   'browse:resources-requested': components['schemas']['BrowseResourcesRequest'];
   'browse:resources-result': {
     correlationId: string;
@@ -655,6 +667,9 @@ export const CHANNEL_SCHEMAS = {
   'browse:anchored-text-requested':   'BrowseAnchoredTextRequest',
   'browse:anchored-text-result':      'BrowseAnchoredTextResult',
   'browse:anchored-text-failed':      null, // { correlationId } & CommandError
+  'browse:anchored-text-by-checksum-requested': 'BrowseAnchoredTextByChecksumRequest',
+  'browse:anchored-text-by-checksum-result': 'BrowseAnchoredTextResult',
+  'browse:anchored-text-by-checksum-failed': null, // { correlationId } & CommandError
   'browse:resources-requested':       'BrowseResourcesRequest',
   'browse:resources-result':          'BrowseResourcesResult',
   'browse:resources-failed':          null,

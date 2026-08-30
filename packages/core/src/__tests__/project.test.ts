@@ -9,11 +9,49 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { execFileSync } from 'child_process';
-import { SemiontProject } from '../project';
+import { SemiontProject, SemiontState } from '../project';
 
 async function makeTempDir(): Promise<string> {
   return fs.mkdtemp(join(tmpdir(), 'semiont-project-test-'));
 }
+
+describe('SemiontState — the half that needs no KB root', () => {
+  // SINGLE-KB-MOUNT P5 leaves the gateway with no readable KB root while it
+  // still legitimately needs the state paths. That is not a project with
+  // fields missing, it is a smaller thing: a KB's state tree, addressed by
+  // name. Split rather than made optional, so "needs a working tree" stays a
+  // COMPILE-time fact — passing a SemiontState where a SemiontProject is
+  // required is a type error, not a throw inside some later read.
+  const state = new SemiontState({ name: 'kb-under-test' });
+
+  it('resolves every name-derived path with no KB root in sight', () => {
+    expect(state.name).toBe('kb-under-test');
+    expect(state.stateDir).toContain('semiont/kb-under-test');
+    expect(state.projectionsDir).toBe(join(state.stateDir, 'projections'));
+    expect(state.jobsDir).toBe(join(state.stateDir, 'jobs'));
+    expect(state.backendLogsDir).toBe(join(state.stateDir, 'backend'));
+    expect(state.backendAppLogFile).toBe(join(state.backendLogsDir, 'app.log'));
+    expect(state.backendErrorLogFile).toBe(join(state.backendLogsDir, 'error.log'));
+    expect(state.backendPidFile).toBe(join(state.runtimeDir, 'backend.pid'));
+  });
+
+  it('takes NOTHING but the name — every path here derives from it', () => {
+    // SINGLE-KB-MOUNT P6 moved `anchoredTextDir` to SemiontProject: it is a
+    // SUPPLIED path rather than a derived one, and the gateway — the reason
+    // this type exists — neither mounts the store nor reads it. Requiring it
+    // here would have made the one consumer that cannot supply it supply it
+    // anyway, which is the shape this split exists to avoid.
+    expect(Object.keys(state)).not.toContain('anchoredTextDir');
+  });
+
+  it('has no working-tree surface at all', () => {
+    // The point of the split: these are absent from the TYPE, so a consumer
+    // that needs them cannot be handed a SemiontState by mistake.
+    expect('root' in state).toBe(false);
+    expect('eventsDir' in state).toBe(false);
+    expect('gitSync' in state).toBe(false);
+  });
+});
 
 describe('SemiontProject', () => {
   const dirs: string[] = [];

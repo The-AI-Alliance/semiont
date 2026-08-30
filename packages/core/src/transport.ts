@@ -35,7 +35,6 @@ import type {
   UserDID,
 } from './branded-types';
 import type { AnnotationId, ResourceId } from './identifiers';
-import type { ExtractionOutcome } from './pdf-anchoring';
 import type { EventMap } from './bus-protocol';
 import type { EventBus } from './event-bus';
 import type { SemiontError } from './errors';
@@ -312,90 +311,6 @@ export interface IContentTransport {
     options?: { auth?: AccessToken },
   ): Promise<GetResourceResponse>;
 
-  /**
-   * Store anchored text — the coordinate map a producer derived from a
-   * representation's bytes (OCR, a native text layer, a table or form
-   * reader) — under **the content checksum of those bytes** (PERSIST-ANCHORS
-   * decision A: one artifact per representation, and a representation IS its
-   * bytes).
-   *
-   * The producer supplies the checksum because it alone knows which bytes it
-   * actually read. That is a correctness rule, not a convenience: if the
-   * store derived the key from the resource's CURRENT representation at
-   * write time, a byte change racing the publish would file old geometry
-   * under the new checksum — wrong quotes served, and the reconcile diff
-   * sees "artifact present" so it never heals. Producer-supplied, the same
-   * race files the map under the OLD checksum: an unreachable orphan, and
-   * the new checksum's missing artifact is exactly what the third drift
-   * class re-derives (SMELTER-AXIOMS S15).
-   *
-   * Its own method rather than a `putBinary` of some derived media type: a
-   * coordinate map is not a *representation* of the resource, and dressing it
-   * as one would make a derived artifact indistinguishable from content a user
-   * uploaded.
-   *
-   * Whole-representation, like `getResourceGraph` is whole-resource. The
-   * producer iterates page by page; every consumer wants one map.
-   */
-  putAnchoredText(
-    checksum: string,
-    outcome: ExtractionOutcome,
-    options?: { auth?: AccessToken },
-  ): Promise<void>;
-
-  /**
-   * The resource's anchored text, or `null` when none has been derived.
-   *
-   * Deliberately resource-addressed while `putAnchoredText` is
-   * checksum-addressed: readers hold a resource id, and the server resolves
-   * it to the current representation's checksum through the view — the
-   * `resourceId → checksum` index of PERSIST-ANCHORS decision A. A reader
-   * therefore can never receive geometry for bytes the resource no longer
-   * has: the pointer moves, the artifacts stay, the index always follows
-   * the pointer.
-   *
-   * `null` is not an error and is the common case: a native text layer is read
-   * in the browser, and a resource whose media type has no extractor never
-   * produces a map at all. Callers degrade — for a PDF annotation that means
-   * geometry with no quoted text, which is the behaviour that shipped before
-   * any of this existed.
-   */
-  getAnchoredText(
-    resourceId: ResourceId,
-    options?: { auth?: AccessToken },
-  ): Promise<ExtractionOutcome | null>;
-
-  /**
-   * The stored extraction outcome for exactly this byte content, or `null`
-   * for a miss — the cache-consult read (PERSIST-ANCHORS P2c). Every cache
-   * consumer runs out of process (the smelter worker, the detection
-   * workers), so the `extract()` seam's consult crosses the wire through
-   * this method; without it the cache would be write-only from exactly the
-   * processes it exists to serve.
-   *
-   * Checksum-addressed and barrier-free, unlike `getAnchoredText`:
-   * presence at this instant is the question (the keys listing's
-   * semantics), and a caller holding the checksum already holds the
-   * content identity — nothing to resolve, nothing to wait for.
-   */
-  getAnchoredTextByChecksum(
-    checksum: string,
-    options?: { auth?: AccessToken },
-  ): Promise<ExtractionOutcome | null>;
-
-  /**
-   * Every key under which anchored text would currently be served — the
-   * reconcile planner's bulk existence read (PERSIST-ANCHORS P0). The
-   * Smelter diffs this against the catalog to find resources whose artifact
-   * was lost (a transient store, a failed publish) and plans re-derivation;
-   * one call per reconcile, never a `getAnchoredText` probe per resource,
-   * because each map is ~32 KB per scanned page and only presence is asked.
-   *
-   * Keys are resource ids today; after PERSIST-ANCHORS P1 they are content
-   * checksums. Callers compare against whichever handle the store is keyed
-   * by — the diff moves with the rekey, this contract does not.
-   */
-  listAnchoredTextKeys(options?: { auth?: AccessToken }): Promise<string[]>;
 
   dispose(): void;
 }

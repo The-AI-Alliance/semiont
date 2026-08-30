@@ -1112,6 +1112,22 @@
           "type": "string",
           "description": "Environment name"
         },
+        "kb": {
+          "type": "object",
+          "description": "The KB's committed identity, staged by the launcher (SINGLE-KB-MOUNT D4). Top-level in the staged file, out of any environment section's reach; never overridable.",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "domain": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
         "platform": {
           "type": "object",
           "properties": {

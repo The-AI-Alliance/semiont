@@ -32,8 +32,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { resourceId, type ExtractionOutcome, type PdfTextItem, type components } from '@semiont/core';
-import { calculateChecksum, type AnchoredTextStore } from '@semiont/content';
-import type { SemiontSession } from '@semiont/sdk';
+import { calculateChecksum, type AnchoredTextStore, type ContentReads } from '@semiont/content';
 import { prepareDetection } from '../workers/detection/prepare-detection';
 
 type Agent = components['schemas']['Agent'];
@@ -60,16 +59,19 @@ function memoryStore(seed: Record<string, ExtractionOutcome> = {}) {
   return { store, entries };
 }
 
-/** Fake session serving exactly these bytes for any representation fetch. */
-function sessionServing(bytes: Buffer): SemiontSession {
-  const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-  return {
-    client: {
-      browse: {
-        resourceRepresentation: vi.fn(async () => ({ data, contentType: 'application/pdf' })),
-      },
-    },
-  } as unknown as SemiontSession;
+/**
+ * The byte read, serving exactly these bytes for any resource.
+ *
+ * Copied into a fresh ArrayBuffer rather than sliced off `bytes.buffer`: the
+ * slice is typed `ArrayBuffer | SharedArrayBuffer`, which the transport
+ * contract does not accept. The old double hid that behind a cast to a
+ * hollowed-out session; taking the read seam directly (SINGLE-KB-MOUNT P4)
+ * left nowhere for it to hide.
+ */
+function readsServing(bytes: Buffer): ContentReads {
+  const data = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(data).set(bytes);
+  return { getBinary: vi.fn(async () => ({ data, contentType: 'application/pdf' })) };
 }
 
 /** One PdfTextItem per word of `block`, offsets global (shifted by `base`). */
@@ -121,7 +123,7 @@ describe('prepareDetection × ExtractionCache (PERSIST-ANCHORS P2d)', () => {
     } as ExtractionOutcome;
     const { store } = memoryStore({ [calculateChecksum(bytes)]: outcome });
 
-    const source = await prepareDetection('application/pdf', sessionServing(bytes), RID, USER, GENERATOR, store);
+    const source = await prepareDetection('application/pdf', readsServing(bytes), RID, USER, GENERATOR, store);
 
     expect('declined' in source).toBe(false);
     if ('declined' in source) return;
@@ -158,7 +160,7 @@ describe('prepareDetection × ExtractionCache (PERSIST-ANCHORS P2d)', () => {
 
     // Pass 1: real extraction, and the seam records its outcome under the
     // checksum of the bytes actually read.
-    const first = await prepareDetection('application/pdf', sessionServing(pdf), RID, USER, GENERATOR, store);
+    const first = await prepareDetection('application/pdf', readsServing(pdf), RID, USER, GENERATOR, store);
     expect('declined' in first).toBe(false);
     expect(entries.has(key)).toBe(true);
 
@@ -167,7 +169,7 @@ describe('prepareDetection × ExtractionCache (PERSIST-ANCHORS P2d)', () => {
     const stored = entries.get(key)!;
     entries.set(key, { ...stored, text: 'SENTINEL-FROM-STORE', items: [] } as ExtractionOutcome);
 
-    const second = await prepareDetection('application/pdf', sessionServing(pdf), RID, USER, GENERATOR, store);
+    const second = await prepareDetection('application/pdf', readsServing(pdf), RID, USER, GENERATOR, store);
     expect('declined' in second).toBe(false);
     if ('declined' in second) return;
     expect(second.text).toBe('SENTINEL-FROM-STORE');
@@ -179,7 +181,7 @@ describe('prepareDetection × ExtractionCache (PERSIST-ANCHORS P2d)', () => {
       [calculateChecksum(bytes)]: { kind: 'declined', declined: 'no-text-layer' },
     });
 
-    const source = await prepareDetection('application/pdf', sessionServing(bytes), RID, USER, GENERATOR, store);
+    const source = await prepareDetection('application/pdf', readsServing(bytes), RID, USER, GENERATOR, store);
 
     expect(source).toEqual({ kind: 'declined', declined: 'no-text-layer' });
   });

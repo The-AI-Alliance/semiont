@@ -405,7 +405,35 @@ export class BrowseNamespace implements IBrowseNamespace {
    * unmapped page carries geometry with no quoted text.
    */
   async resourceAnchoredText(resourceId: ResourceId): Promise<ExtractionOutcome | null> {
-    return this.content.getAnchoredText(resourceId);
+    // A bus operation, not an HTTP route: the Archivist answers it and the
+    // reply arrives on the bridged result channel like every other reply
+    // (ANCHORED-TEXT-TO-SMELTER P3). The gateway's proxy hop is gone.
+    return busRequest(
+      this.transport,
+      'browse:anchored-text-requested',
+      { resourceId },
+      this.busTimeoutMs,
+    );
+  }
+
+  /**
+   * The same map, addressed by the **content checksum** of the bytes it
+   * derives from rather than by resource — the detection workers' read-through
+   * consult (ANCHORED-TEXT-TO-SMELTER D2). Barrier-free and index-free: no
+   * `views` resolution, no settle wait, because the caller already holds the
+   * bytes it hashed.
+   *
+   * `null` is a miss and means "extract it yourself"; a stored decline is
+   * served whole so a second pass runs neither parser nor engine. Read-only by
+   * design — the Smelter is the only writer of this store.
+   */
+  async anchoredTextByChecksum(checksum: string): Promise<ExtractionOutcome | null> {
+    return busRequest(
+      this.transport,
+      'browse:anchored-text-by-checksum-requested',
+      { checksum },
+      this.busTimeoutMs,
+    );
   }
 
   async resourceGraph(resourceId: ResourceId): Promise<GetResourceResponse> {

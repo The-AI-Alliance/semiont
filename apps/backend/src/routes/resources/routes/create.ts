@@ -2,7 +2,8 @@
  * Create Resource Route
  *
  * Handles binary content upload via multipart/form-data.
- * Writes content to disk first, then emits yield:create with storageUri.
+ * Sends the content to the Archivist — the KB tree's one writer
+ * (SINGLE-KB-MOUNT) — then emits yield:create with storageUri.
  * Returns 202 with { resourceId } — frontend navigates using the ID
  * and reconciles full state via SSE domain events.
  */
@@ -12,6 +13,7 @@ import { busLog, userId, baseMediaType, isSupportedMediaType } from '@semiont/co
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
+import { putContent } from '../../../lib/archivist';
 import { SpanKind, withSpan, withTraceparent } from '@semiont/observability';
 
 type ContentFormat = components['schemas']['ContentFormat'];
@@ -98,14 +100,16 @@ export function registerCreateResource(router: ResourcesRouterType) {
               }
             : undefined;
 
-          // Write content to disk before emitting on the bus (no Buffer on
-          // bus). `noGit`: the gateway writes bytes but never touches the
-          // git index — the Archivist's `register` does the ONE `git add`
-          // on event apply (GATEWAY.md D4b, single-writer).
-          const arrayBuffer = await file.arrayBuffer();
-          const contentBuffer = Buffer.from(arrayBuffer);
-          const { knowledgeSystem: { kb } } = c.get('makeMeaning');
-          const stored = await kb.content.store(contentBuffer, storageUri, { noGit: true });
+          // The bytes go to the record over HTTP, never onto the bus (D2),
+          // and never onto a mount here: the Archivist is the KB tree's one
+          // writer (SINGLE-KB-MOUNT D1). `noGit` still holds on its side, so
+          // GATEWAY.md D4b is untouched — the Stower's `register` does the
+          // ONE `git add` when the event applies, exactly as before.
+          //
+          // The File goes to fetch as-is: undici streams a blob body, where
+          // the arrayBuffer()/Buffer.from() pair this replaces made two more
+          // full copies of every upload.
+          const stored = await putContent(c.get('config'), storageUri, file);
 
           const eventBus = c.get('eventBus');
 
