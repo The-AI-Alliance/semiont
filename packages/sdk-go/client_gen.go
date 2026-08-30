@@ -2187,7 +2187,7 @@ type DiscoveredKB struct {
 	// Placement Where the stack actually runs. "local": containers on this machine. "codespace": a GitHub-hosted VM whose KB is port-forwarded here.
 	Placement DiscoveredKBPlacement `json:"placement"`
 
-	// Port Local TCP port of the KB's API (the backend port for a local stack; the allocated forward port for a codespace stack)
+	// Port Local TCP port of the KB's API (the gateway port for a local stack; the allocated forward port for a codespace stack)
 	Port int `json:"port"`
 
 	// Repo owner/name GitHub slug — present for codespace placements, where the repo is the stack's identity
