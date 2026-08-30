@@ -238,9 +238,24 @@ jobs:
           # Write ~/.semiontconfig with ci environment so backend can start.
           # `[defaults] environment` is how the backend selects it — the same key a real
           # KB uses and the launcher reads. No SEMIONT_ENV export anywhere.
+          #
+          # This step stands in for the LAUNCHER, so it stages what the launcher
+          # stages: `[kb]`, the KB's committed identity, copied from the
+          # `.semiont/config` written just above (SINGLE-KB-MOUNT P5). The
+          # backend mounts no KB tree, so this is the only place it can see
+          # either value, and it refuses to boot without `domain`.
+          #
+          # TOP-LEVEL, and before the first `[environments…]` header: TOML
+          # assigns any key after a table header to that table, so appending it
+          # lower down would bury `[kb]` inside an environment section — with no
+          # parse error to notice.
           printf '%s\n' \
             '[defaults]' \
             'environment = "ci"' \
+            '' \
+            '[kb]' \
+            'name = "test-project"' \
+            'domain = "localhost"' \
             '' \
             '[environments.ci.backend]' \
             'platform = "posix"' \
@@ -319,13 +334,9 @@ jobs:
           # Start backend using the ci environment configuration
           # (selected by `[defaults] environment = "ci"` in ~/.semiontconfig)
           cd ../..
-          export SEMIONT_ROOT=$(pwd)
-          # Beside SEMIONT_ROOT because it is the same kind of thing: a
-          # deployment fact the backend refuses to boot without. The image
-          # declares it as /anchored-text and `semiont start` mounts the KB's
-          # store onto it; this smoke test runs the backend directly, so it
-          # supplies its own throwaway directory.
-          export SEMIONT_ANCHORED_TEXT_DIR=$(pwd)/.ci-anchored-text
+          # No SEMIONT_ROOT and no SEMIONT_ANCHORED_TEXT_DIR: the gateway mounts
+          # no piece of the knowledge base (SINGLE-KB-MOUNT P6), so it reads
+          # ~/.semiontconfig alone and neither variable names anything it opens.
           export NODE_ENV=test
           export DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb
           export JWT_SECRET=test-secret-key-for-testing-32char
