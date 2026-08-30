@@ -25,5 +25,5 @@ bundle:
   output: specs/openapi.json
 
   # Do not inline any schemas - keep all $ref references
-  # This prevents Redocly from removing "unused" schemas that are actually used by backend code
+  # This prevents Redocly from removing "unused" schemas that are actually used by gateway code
   dereferenceInlineSchemas: false

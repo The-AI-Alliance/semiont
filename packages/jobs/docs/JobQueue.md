@@ -198,7 +198,7 @@ interface JobQueryFilters {
 
 ## Job Announcement and Catch-up
 
-Workers never poll the queue. The queue *announces* pending jobs on the EventBus `job:queued` channel, and workers claim them over the bus (`job:claim`), which the backend's claim handler serves via `getJob` + `updateJob`.
+Workers never poll the queue. The queue *announces* pending jobs on the EventBus `job:queued` channel, and workers claim them over the bus (`job:claim`), which the gateway's claim handler serves via `getJob` + `updateJob`.
 
 A pending job is announced:
 
@@ -212,7 +212,7 @@ A pending job is announced:
 
 ## Job Lifecycle Sync
 
-The queue exposes transition methods that the backend's bus handlers (in `@semiont/make-meaning`) call when workers emit lifecycle events:
+The queue exposes transition methods that the gateway's bus handlers (in `@semiont/make-meaning`) call when workers emit lifecycle events:
 
 ### `completeJob(jobId, result): Promise<boolean>`
 

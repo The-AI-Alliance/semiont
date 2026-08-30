@@ -11,7 +11,7 @@
 # trailing `*` is a prefix wildcard (e.g. `Foo-*`). Matching is case-insensitive.
 #
 # Seeded 2026-07-15 from the actual union of the images' dependency trees
-# (`license-checker` over @semiont/backend + @semiont/jobs +
+# (`license-checker` over @semiont/gateway + @semiont/jobs +
 # @semiont/make-meaning + neo4j-driver + @qdrant/js-client-rest): MIT, Apache-2.0,
 # ISC, BSD-3-Clause, BSD-2-Clause, 0BSD, Unlicense, Python-2.0, and one
 # (MIT OR CC0-1.0) dual. All permissive; no copyleft present.
@@ -28,7 +28,7 @@ Python-2.0
 CC0-1.0
 BlueOak-1.0.0
 
-# Present because the backend image ships npm (for `npx prisma` at runtime), so
+# Present because the gateway image ships npm (for `npx prisma` at runtime), so
 # npm's own bundled tree is redistributed too. Both are permissive: Artistic-2.0
 # is npm's own OSI-approved license; CC-BY-3.0 is the SPDX data package
 # spdx-exceptions (attribution only). Added 2026-07-15.

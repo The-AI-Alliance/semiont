@@ -55,7 +55,7 @@ export const BUS_OPERATIONS = {
   'browse:tag-schemas-requested':        { result: 'browse:tag-schemas-result',      failure: 'browse:tag-schemas-failed' },
   'browse:agents-requested':             { result: 'browse:agents-result',           failure: 'browse:agents-failed' },
   'browse:directory-requested':          { result: 'browse:directory-result',        failure: 'browse:directory-failed' },
-  // dormant — backend handler complete, no client caller yet (annotation-detail capability)
+  // dormant — gateway handler complete, no client caller yet (annotation-detail capability)
   'browse:annotation-context-requested': { result: 'browse:annotation-context-result', failure: 'browse:annotation-context-failed' },
 
   // ── FRAME (KB schema writes) ────────────────────────────────────
@@ -66,7 +66,7 @@ export const BUS_OPERATIONS = {
   // streaming: take-1 result + failure plus an intermediate progress channel
   'gather:requested':                    { result: 'gather:complete',                failure: 'gather:failed', progress: 'gather:annotation-progress' },
   'gather:resource-requested':           { result: 'gather:resource-complete',       failure: 'gather:resource-failed' },
-  // dormant — backend handler complete, no client caller yet (annotation summary)
+  // dormant — gateway handler complete, no client caller yet (annotation summary)
   'gather:summary-requested':            { result: 'gather:summary-result',          failure: 'gather:summary-failed' },
 
   // ── JOB ─────────────────────────────────────────────────────────

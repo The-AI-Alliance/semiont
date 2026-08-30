@@ -67,7 +67,7 @@ console.log(context.semanticContext?.similar);       // (optional) vector-simila
 Under the hood: the namespace emits `gather:annotation-request` via
 `/bus/emit` with a correlationId, then filters `gather:complete` and
 `gather:annotation-progress` events coming back through the bus for
-that correlationId. The Gatherer actor on the backend handles the
+that correlationId. The Gatherer actor on the gateway handles the
 command. See [`EVENT-BUS.md`](../EVENT-BUS.md).
 
 ## Events
@@ -130,4 +130,4 @@ Current consumers:
 - **StateUnit**: [packages/sdk/src/state/flows/gather-state-unit.ts](../../../packages/sdk/src/state/flows/gather-state-unit.ts)
 - **Event definitions** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `GATHER FLOW` section
 - **API**: `getAnnotationLLMContext` in [@semiont/sdk](../../../packages/sdk/README.md)
-- **Backend**: Context assembly in [@semiont/make-meaning](../../../packages/make-meaning/docs/api-reference.md)
+- **Gateway**: Context assembly in [@semiont/make-meaning](../../../packages/make-meaning/docs/api-reference.md)

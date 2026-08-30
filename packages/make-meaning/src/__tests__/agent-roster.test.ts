@@ -17,7 +17,7 @@ const WORKERS = { default: { type: 'anthropic' as const, model: 'claude-haiku-4-
 
 describe('deriveAgentRoster — DID domain is site.domain (the mint), never topology', () => {
   it('mints did:web:<site.domain> — the host-skew pin (topology no longer exists to mint from)', () => {
-    // Pre-fix, the roster minted from services.backend.publicURL's hostname
+    // Pre-fix, the roster minted from services.gateway.publicURL's hostname
     // (→ did:web:localhost while identity said kb.example). That field is
     // deleted from MakeMeaningConfig — the skew is now unrepresentable, and
     // this pins the one remaining source.

@@ -8,7 +8,7 @@ import './StatusDisplay.css';
 interface StatusDisplayProps {
   isFullyAuthenticated?: boolean;
   isAuthenticated?: boolean;
-  hasValidBackendToken?: boolean;
+  hasValidGatewayToken?: boolean;
 }
 
 interface StatusData {
@@ -19,7 +19,7 @@ interface StatusData {
 export function StatusDisplay({
   isFullyAuthenticated = false,
   isAuthenticated = false,
-  hasValidBackendToken = false
+  hasValidGatewayToken = false
 }: StatusDisplayProps) {
   const semiont = useObservable(useSemiont().activeSession$)?.client;
   const [data, setData] = useState<StatusData | null>(null);
@@ -48,35 +48,35 @@ export function StatusDisplay({
   }, [semiont]);
 
   const getStatusContent = () => {
-    if (isAuthenticated && !hasValidBackendToken) {
-      return '🚀 Frontend Status: Ready • Backend: Please sign out and sign in again to reconnect';
+    if (isAuthenticated && !hasValidGatewayToken) {
+      return '🚀 Frontend Status: Ready • Gateway: Please sign out and sign in again to reconnect';
     }
 
     if (!isFullyAuthenticated) {
-      return '🚀 Frontend Status: Ready • Backend: Authentication required';
+      return '🚀 Frontend Status: Ready • Gateway: Authentication required';
     }
 
     if (data) {
-      return `🚀 Frontend Status: Ready • Backend: ${data.status} (v${data.version})`;
+      return `🚀 Frontend Status: Ready • Gateway: ${data.status} (v${data.version})`;
     }
 
     if (loading) {
-      return '🚀 Frontend Status: Ready • Backend: Connecting...';
+      return '🚀 Frontend Status: Ready • Gateway: Connecting...';
     }
 
     if (error) {
       const errorMessage = error.message;
       if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
-        return '🚀 Frontend Status: Ready • Backend: Please sign out and sign in again';
+        return '🚀 Frontend Status: Ready • Gateway: Please sign out and sign in again';
       }
-      return '🚀 Frontend Status: Ready • Backend: Connection failed';
+      return '🚀 Frontend Status: Ready • Gateway: Connection failed';
     }
 
-    return '🚀 Frontend Status: Ready • Backend: Unknown';
+    return '🚀 Frontend Status: Ready • Gateway: Unknown';
   };
 
   const getStatusType = (): 'warning' | 'info' | 'success' | 'loading' | 'error' => {
-    if (isAuthenticated && !hasValidBackendToken) {
+    if (isAuthenticated && !hasValidGatewayToken) {
       return 'warning';
     }
 
@@ -109,12 +109,12 @@ export function StatusDisplay({
       </p>
       {!isFullyAuthenticated ? (
         <p className="semiont-status-hint">
-          Sign in to view backend status
+          Sign in to view gateway status
         </p>
       ) : error ? (
         <p className="semiont-status-hint semiont-status-error-hint" role="alert">
           <span className="sr-only">Error: </span>
-          Check that the backend server is running and accessible
+          Check that the gateway server is running and accessible
         </p>
       ) : null}
     </section>

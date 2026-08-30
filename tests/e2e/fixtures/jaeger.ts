@@ -15,14 +15,14 @@
  *   - `JAEGER_QUERY_URL`  — Jaeger UI/Query base URL.
  *                           Default: `http://192.168.64.16:16686`
  *   - `JAEGER_SERVICES`   — Comma-separated services to query.
- *                           Default: `semiont-backend,semiont-worker,semiont-smelter,semiont-browser`
+ *                           Default: `semiont-gateway,semiont-worker,semiont-smelter,semiont-browser`
  *   - `JAEGER_ATTACH`     — `failure` (default), `always`, or `off`.
  *                           Controls when the fixture attaches spans
  *                           to the Playwright report.
  *
  * Limitations:
  *   - Browser doesn't currently emit OTel spans by default — the
- *     captured trace prefixes are mostly backend-originated. The
+ *     captured trace prefixes are mostly gateway-originated. The
  *     fixture still queries the browser service in case it's added
  *     later.
  *   - Trace-id prefixes have a small chance of collision (8 hex = 32
@@ -40,7 +40,7 @@ const JAEGER_QUERY_URL = process.env.JAEGER_QUERY_URL ?? 'http://192.168.64.16:1
 
 const JAEGER_SERVICES = (
   process.env.JAEGER_SERVICES ??
-  'semiont-backend,semiont-worker,semiont-smelter,semiont-browser'
+  'semiont-gateway,semiont-worker,semiont-smelter,semiont-browser'
 ).split(',').map((s) => s.trim()).filter(Boolean);
 
 type AttachMode = 'failure' | 'always' | 'off';

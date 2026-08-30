@@ -31,7 +31,7 @@ cd /path/to/your-kb
 SEMIONT_VERSION=local semiont start
 
 # 3. Iterate — rebuild only what changed
-./scripts/ci/local-build.sh --package backend --image backend
+./scripts/ci/local-build.sh --package gateway --image gateway
 
 # 4. Done for the day
 semiont stop
@@ -72,22 +72,22 @@ semiont stop --service browser   # stop one service
 | Service | Port | URL |
 |---------|------|-----|
 | Browser | 3000 | http://localhost:3000 |
-| Backend | 4000 | http://localhost:4000 |
+| Gateway | 4000 | http://localhost:4000 |
 | PostgreSQL | 5432 | postgresql://localhost:5432 |
 | Worker / Smelter / Weaver | 9090 / 9091 / 9092 | health endpoints |
 
 ## Database operations
 
-Prisma is driven from the backend workspace:
+Prisma is driven from the gateway workspace:
 
 ```bash
-cd apps/backend
+cd apps/gateway
 npx prisma studio          # database browser
 npx prisma migrate dev     # create + apply a migration
 npx prisma generate        # regenerate the client
 ```
 
-The backend container runs `npx prisma migrate deploy` itself at startup, so a fresh stack needs no
+The gateway container runs `npx prisma migrate deploy` itself at startup, so a fresh stack needs no
 manual migration step.
 
 ## Additional Documentation

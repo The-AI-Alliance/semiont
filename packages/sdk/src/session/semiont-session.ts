@@ -1,7 +1,7 @@
 /**
- * SemiontSession — per-backend session lifetime object. Owns the
+ * SemiontSession — per-gateway session lifetime object. Owns the
  * SemiontClient, the access token BehaviorSubject, and optionally
- * an authenticated user. One SemiontSession exists per active backend
+ * an authenticated user. One SemiontSession exists per active gateway
  * connection; lifetime is decoupled from React mount lifetime.
  *
  * Headless by design. Runs in browsers, CLIs, workers, and tests.
@@ -417,7 +417,7 @@ export class SemiontSession {
    * default; the consumer makes the choice.
    *
    * Named `signInHttp` because email+password authentication is
-   * inherently an HTTP-shaped operation in the current backend; an
+   * inherently an HTTP-shaped operation in the current gateway; an
    * in-process `LocalTransport` doesn't have a credentials login
    * path. Non-HTTP transports construct the session directly from
    * their package's transport instance.

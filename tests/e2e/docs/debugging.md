@@ -7,9 +7,9 @@ In order:
 1. **Run just that test with the bus log**: `-g '<title>' --repeat-each 3`.
    Three runs tells you flaky vs. deterministic in under a minute. See
    [running.md](running.md).
-2. **Tail backend logs during the run**: `container logs -f semiont-backend`.
-   If the event never reaches the backend, it's a Browser-side
-   emit/subscribe problem; if the backend logs the emit but no
+2. **Tail gateway logs during the run**: `container logs -f semiont-gateway`.
+   If the event never reaches the gateway, it's a Browser-side
+   emit/subscribe problem; if the gateway logs the emit but no
    response comes back through SSE, it's a result-channel or SSE
    wiring problem.
 3. **Open the trace report**: `npm run show-report`. Each failed test
@@ -115,21 +115,21 @@ different than you think.
 
 Delete the diagnostic as soon as you know.
 
-## Tailing backend logs during a test
+## Tailing gateway logs during a test
 
 ```sh
-container logs -f semiont-backend
+container logs -f semiont-gateway
 ```
 
 Useful columns in the JSONL log lines:
 
 - `"component":"bus"` — every emit goes through `/bus/emit` and logs
-  a line. Absent ⇒ the Browser didn't reach the backend.
+  a line. Absent ⇒ the Browser didn't reach the gateway.
 - `"correlationId"` — match with the `cid=...` in the Browser's bus
   log to trace one request end-to-end.
 - `"message":"Incoming request"` / `"Outgoing response"` — HTTP-level
   entries.
 
-If backend logs are unexpectedly a firehose of `401 Invalid token
+If gateway logs are unexpectedly a firehose of `401 Invalid token
 signature` when no test is running, a lingering browser tab from an
 earlier session is retrying SSE with an expired token. Close the tab.

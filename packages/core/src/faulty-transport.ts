@@ -111,13 +111,13 @@ export class FaultyTransport implements ITransport {
 
   /**
    * Queue responses for `op`, consumed FIFO — one per request that reaches
-   * the simulated backend — before falling back to `makeResponse`
-   * (SDK-TESTING-DOUBLE.md, gap 2). The queue scripts the BACKEND; the fault
+   * the simulated gateway — before falling back to `makeResponse`
+   * (SDK-TESTING-DOUBLE.md, gap 2). The queue scripts the GATEWAY; the fault
    * schedule scripts the WIRE. Consequences, deliberately: `duplicate-reply`
    * replays one entry's body twice, and a `drop-reply` still consumes its
-   * entry (the backend answered; the wire ate it) — so "first reply lost,
+   * entry (the gateway answered; the wire ate it) — so "first reply lost,
    * the retry sees the NEXT page" is expressible. `reject-emit` consumes
-   * nothing: that request never reached the backend.
+   * nothing: that request never reached the gateway.
    */
   queueReply(op: BusOperationKey, ...responses: unknown[]): void {
     const q = this.replyQueues.get(op) ?? [];
@@ -165,14 +165,14 @@ export class FaultyTransport implements ITransport {
     }
 
     // The request itself is observable (handlers-eye view), then the
-    // simulator plays backend: synthesize the registry reply per the action.
+    // simulator plays gateway: synthesize the registry reply per the action.
     this.bus.get(channel).next(payload);
 
-    // The backend's answer is computed ONCE per request that reaches it —
-    // the reply QUEUE scripts the backend, the fault schedule scripts the
+    // The gateway's answer is computed ONCE per request that reaches it —
+    // the reply QUEUE scripts the gateway, the fault schedule scripts the
     // wire (SDK-TESTING-DOUBLE.md Phase 2). So `duplicate-reply` replays the
     // same body twice, and a `drop-reply` still consumes its queue entry:
-    // the backend answered, the wire ate it.
+    // the gateway answered, the wire ate it.
     const queue = this.replyQueues.get(name);
     const response = queue && queue.length > 0 ? queue.shift() : this.makeResponse(name, record);
 

@@ -209,7 +209,7 @@ async function main() {
   }
   console.log('');
   console.log(`Done. ${toDelete.length} resource event streams removed.`);
-  console.log('Next backend start will rebuild views from the surviving events.');
+  console.log('Next gateway start will rebuild views from the surviving events.');
 }
 
 main().catch(err => {

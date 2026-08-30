@@ -320,7 +320,7 @@ export class QdrantVectorStore implements VectorStore {
     // with many chunks can fill several point-slots and crowd out resources
     // that belong in the top-`limit` after folding. Over-fetch per batch to
     // leave the merge material to work with; the memory store scores every
-    // candidate exhaustively, and without this the two backends disagree on
+    // candidate exhaustively, and without this the two gateways disagree on
     // recall. Headroom, not a guarantee: a resource whose chunks are all
     // outranked by OVER_FETCH×limit points in every batch is still missed.
     // Qdrant's group-by would make it exact, but only via the `search`-family

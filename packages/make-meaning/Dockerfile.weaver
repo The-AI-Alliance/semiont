@@ -8,7 +8,7 @@
 #
 # Base is node:24-alpine (not node:26): node 26's built-in undici breaks the
 # qdrant client's undici@6, which @semiont/make-meaning can load transitively at
-# connect time. Keep in sync with the backend image.
+# connect time. Keep in sync with the gateway image.
 FROM node:24-alpine AS installer
 ARG NPM_REGISTRY=https://registry.npmjs.org
 ARG SEMIONT_VERSION=latest

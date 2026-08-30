@@ -1,6 +1,6 @@
 # Direct Scripting Guide
 
-Use `@semiont/make-meaning` directly in TypeScript scripts without requiring a running HTTP backend.
+Use `@semiont/make-meaning` directly in TypeScript scripts without requiring a running HTTP gateway.
 
 ## When to Use Direct Scripting
 
@@ -244,7 +244,7 @@ Use the context modules directly (`ResourceContext`, `AnnotationContext`, `Graph
 | **Authentication** | JWT tokens via `getToken` | Not needed |
 | **Events** | Observable return types | EventBus subscriptions |
 | **Error handling** | HTTP status codes / Observable errors | Exceptions |
-| **Deployment** | Backend server required | Standalone script |
+| **Deployment** | Gateway server required | Standalone script |
 | **API surface** | Full (all 8 verbs + auth, admin) | Low-level KB access |
 
 ## Troubleshooting

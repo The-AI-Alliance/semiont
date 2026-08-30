@@ -3,8 +3,8 @@ set -euo pipefail
 
 # Audit A6 — exactly one ajv-over-the-spec validator, and it is generated.
 #
-# There used to be one hand-configured Ajv setup, in `apps/backend`, which
-# only the backend could reach. make-meaning needed the same validation for
+# There used to be one hand-configured Ajv setup, in `apps/gateway`, which
+# only the gateway could reach. make-meaning needed the same validation for
 # its consumer teeth, and writing a second setup would have hand-restated the
 # first's semantics — the OpenAPI-3.0 `nullable`→draft-07 conversion, the
 # `example`/`discriminator` keyword allowlist, `coerceTypes`, `addFormats`.

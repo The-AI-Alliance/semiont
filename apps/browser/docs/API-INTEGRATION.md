@@ -1,6 +1,6 @@
 # API Integration Guide
 
-How the Semiont Browser integrates with the backend through the
+How the Semiont Browser integrates with the gateway through the
 framework-agnostic `@semiont/react-ui` library, the `@semiont/sdk` client
 (`SemiontClient`, sessions, the namespace verb API), and the
 `@semiont/http-transport` wire adapter — including the provider model, bus
@@ -8,7 +8,7 @@ gateway transport, and W3C annotation model.
 
 ## Overview
 
-The Browser integrates with the backend through a layered architecture
+The Browser integrates with the gateway through a layered architecture
 that maintains framework independence:
 
 ```
@@ -61,7 +61,7 @@ All API interactions feature:
 - **Framework-agnostic react-ui** — plugs into any React framework via providers
 - **In-memory bearer auth** — the per-KB `SemiontSession` holds the access token in JS memory and feeds the client's `token$`; no cookies, no ambient credentials
 - **One bus connection** — `SemiontClient` maintains a single SSE subscription to `/bus/subscribe`
-- **Structured errors** — consistent error shape from the backend, surfaced through `APIError`
+- **Structured errors** — consistent error shape from the gateway, surfaced through `APIError`
 
 ## Provider Model
 
@@ -126,7 +126,7 @@ cookie, no ambient credential.
 
 - **Sign in** — `SemiontSession.signInHttp({ … })` exchanges credentials for the
   JWT (returned in the response body) and activates the session.
-- **Sign out** — `browser.signOut(kbId)` calls the backend logout, which bumps
+- **Sign out** — `browser.signOut(kbId)` calls the gateway logout, which bumps
   the user's `tokenVersion` — revoking the refresh token and every live access
   token **server-side, on all devices** — and clears `activeSession$`.
 
@@ -264,7 +264,7 @@ exports — any W3C-compliant consumer can ingest them.
 Two conceptual patterns:
 
 **Synchronous (request-response)** — commands that complete quickly on
-the backend handler: create annotation, delete annotation, browse
+the gateway handler: create annotation, delete annotation, browse
 queries. The Browser awaits a result event matched by correlationId.
 
 **Asynchronous (job-based)** — operations that run minutes to hours:
@@ -281,7 +281,7 @@ final result event arrives in the same HTTP turnaround as the command
 
 ### Error Shape
 
-Backend errors follow a consistent shape:
+Gateway errors follow a consistent shape:
 
 ```typescript
 {
@@ -332,9 +332,9 @@ like `browse:resources-failed`), raised from the promise returned by
 - [`@semiont/sdk/docs/Usage.md`](../../../packages/sdk/docs/Usage.md) — setup, bus subscription, namespace reference
 - [`@semiont/http-transport/docs/API-Reference.md`](../../../packages/http-transport/docs/API-Reference.md) — HTTP transport reference (`HttpTransport`, `TokenRefresher`, `APIError`)
 
-### Backend
+### Gateway
 
-- [Backend README](../../backend/README.md)
+- [Gateway README](../../gateway/README.md)
 
 ### Protocol
 

@@ -38,10 +38,10 @@ over HTTP+SSE or stay in-process.
 | `EMIT` | `LocalTransport.emit()` (make-meaning)                       |
 | `RECV` | HttpTransport's wire-parse (SSE-side fan-in inside actor-state-unit) |
 | `RECV` | `LocalTransport.bridgeInto` subscriber callback              |
-| `EMIT` | Backend `/bus/emit` HTTP route                               |
-| `SSE`  | Backend `writeBusEvent()` in `apps/backend/src/routes/bus.ts`|
-| `PUT`  | `HttpContentTransport.putBinary()` + matching backend route  |
-| `GET`  | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching backend route |
+| `EMIT` | Gateway `/bus/emit` HTTP route                               |
+| `SSE`  | Gateway `writeBusEvent()` in `apps/gateway/src/routes/bus.ts`|
+| `PUT`  | `HttpContentTransport.putBinary()` + matching gateway route  |
+| `GET`  | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching gateway route |
 | `GET`  | `LocalContentTransport.getBinary()` / `getBinaryStream()` (in-process)            |
 
 `ActorStateUnit` and namespace methods (`client.mark.assist`, etc.) are
@@ -60,7 +60,7 @@ window.__SEMIONT_BUS_LOG__ = true;
 
 Clears on refresh.
 
-### Node (backend, worker, smelter, MCP, tests)
+### Node (gateway, worker, smelter, MCP, tests)
 
 Process-env toggle, read once at module load:
 
@@ -68,9 +68,9 @@ Process-env toggle, read once at module load:
 SEMIONT_BUS_LOG=1 <command>
 ```
 
-The backend runs in a container, so the variable has to reach the
+The gateway runs in a container, so the variable has to reach the
 container: pass it with `semiont start --env SEMIONT_BUS_LOG=1`, or add it
-to the service's env list in a KB's `.semiont/compose/backend.yml`.
+to the service's env list in a KB's `.semiont/compose/gateway.yml`.
 
 ## A typical full-trace timeline
 
@@ -78,8 +78,8 @@ With both flags on, opening a resource produces a contiguous timeline:
 
 ```
 [browser] [bus EMIT] browse:resource-requested cid=a89a670a {resourceId, ...}
-[backend]  [bus EMIT] browse:resource-requested cid=a89a670a {resourceId, _userId, ...}
-[backend]  [bus SSE]  browse:resource-result    cid=a89a670a {correlationId, response}
+[gateway]  [bus EMIT] browse:resource-requested cid=a89a670a {resourceId, _userId, ...}
+[gateway]  [bus SSE]  browse:resource-result    cid=a89a670a {correlationId, response}
 [browser] [bus RECV] browse:resource-result    cid=a89a670a {correlationId, response}
 ```
 
@@ -87,17 +87,17 @@ A worker generation that uploads new content adds a content pair:
 
 ```
 [worker]  [bus PUT]  content size=14823 storageUri=...
-[backend] [bus PUT]  content size=14823 storageUri=...
+[gateway] [bus PUT]  content size=14823 storageUri=...
 ```
 
 Failure modes — each obvious from a missing line:
 
 | Missing line   | Diagnosis                                                          |
 |----------------|--------------------------------------------------------------------|
-| Backend `EMIT` | Client never reached the server (auth, CORS, network).             |
-| Backend `SSE`  | In-process handler never emitted a result, or no subscriber fired. |
-| Browser `RECV`| Backend wrote to the SSE stream but bytes never parsed client-side.|
-| Backend `PUT`  | Client started an upload but the body never reached the server.    |
+| Gateway `EMIT` | Client never reached the server (auth, CORS, network).             |
+| Gateway `SSE`  | In-process handler never emitted a result, or no subscriber fired. |
+| Browser `RECV`| Gateway wrote to the SSE stream but bytes never parsed client-side.|
+| Gateway `PUT`  | Client started an upload but the body never reached the server.    |
 
 ## E2E capture API
 

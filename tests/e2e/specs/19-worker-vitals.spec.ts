@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { SemiontClient } from '@semiont/sdk';
-import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 
 /**
  * Smoke test — WORKER-LIVENESS.md P1/T0: the worker's `/health` vitals
@@ -51,11 +51,11 @@ import { BACKEND_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
  */
 
 // The worker publishes its health server on port 9090 of the same host as
-// the backend in every stack shape this suite targets (compose
+// the gateway in every stack shape this suite targets (compose
 // `9090:9090`, `semiont start` publishing 9090) — derived from
-// E2E_BACKEND_URL rather than adding a config knob of its own.
+// E2E_GATEWAY_URL rather than adding a config knob of its own.
 const WORKER_HEALTH_URL = (() => {
-  const u = new URL(BACKEND_URL);
+  const u = new URL(GATEWAY_URL);
   return `${u.protocol}//${u.hostname}:9090/health`;
 })();
 
@@ -172,7 +172,7 @@ test.describe('worker vitals (/health)', () => {
 
     // ── 4. One real assist (self-seeded, spec-18 pattern) ──
     const client = await SemiontClient.signInHttp({
-      baseUrl: BACKEND_URL,
+      baseUrl: GATEWAY_URL,
       email: E2E_EMAIL,
       password: E2E_PASSWORD,
     });

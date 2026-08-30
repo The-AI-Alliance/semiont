@@ -7,10 +7,10 @@
  * `.plans/TAG-SCHEMAS-GAP.md`).
  *
  * Writes are **confirmed**: each method goes through `busRequest`, emitting the
- * command (with a generated `correlationId`) and awaiting the backend's
+ * command (with a generated `correlationId`) and awaiting the gateway's
  * correlation-keyed `*-add-ok` / `*-add-failed` reply. These tests pin the wire
  * shape of each write, the sequential batch behavior of `addEntityTypes`, and —
- * the reason the flow was made confirmed — that a backend failure **rejects**
+ * the reason the flow was made confirmed — that a gateway failure **rejects**
  * rather than being silently dropped (.plans/bugs/BRIDGE-GAPS.md).
  */
 
@@ -49,7 +49,7 @@ function createMockTransport(opts: { fail?: boolean } = {}): {
       // The subscription is already live (busRequest subscribes before emitting),
       // so a synchronous push is delivered to the awaiting take(1).
       subjectFor(target).next(
-        opts.fail ? { correlationId, message: 'backend add failed' } : { correlationId },
+        opts.fail ? { correlationId, message: 'gateway add failed' } : { correlationId },
       );
     }
   });
@@ -99,10 +99,10 @@ describe('FrameNamespace', () => {
     expect(emitSpy).not.toHaveBeenCalled();
   });
 
-  it('REJECTS when the backend replies *-add-failed — a remote add-failure is not silently dropped', async () => {
+  it('REJECTS when the gateway replies *-add-failed — a remote add-failure is not silently dropped', async () => {
     const { transport } = createMockTransport({ fail: true });
     const failing = new FrameNamespace(transport);
-    await expect(failing.addEntityType('Person')).rejects.toThrow(/backend add failed/);
+    await expect(failing.addEntityType('Person')).rejects.toThrow(/gateway add failed/);
   });
 
   describe('addTagSchema()', () => {

@@ -14,7 +14,7 @@ Semiont publishes a release in these steps:
    [Step 1b](#step-1b-publish-the-browser-container-image).
 3. **Publish Service Images** — a separate action
    ([`publish-service-images.yml`](../../.github/workflows/publish-service-images.yml))
-   that pushes the four service images (`semiont-backend`, `-worker`,
+   that pushes the four service images (`semiont-gateway`, `-worker`,
    `-smelter`, `-weaver`) to GHCR. Also run *after* the npm packages exist —
    the images bundle the published `@semiont/*` packages at the release
    version, gated by `npm view` per service. Same knobs as the Browser
@@ -83,7 +83,7 @@ gh run watch <run-id> --exit-status
 1. **Verifies version sync** across all `package.json` files
 2. **Creates and pushes a git tag** `v{version}` (skips if already exists)
 3. **Creates a GitHub Release** with auto-generated release notes from commits and merged PRs
-4. **Publishes npm packages** — all `@semiont/*` libraries, CLI, backend, and Browser
+4. **Publishes npm packages** — all `@semiont/*` libraries, CLI, gateway, and Browser
 5. **Builds and publishes the desktop apps** — only when the **Build and
    publish desktop apps** box (`desktop=true`) is checked; chains the
    `publish-desktop.yml` workflow for macOS (Intel + Apple Silicon) and
@@ -249,7 +249,7 @@ Workspace packages depend on each other (`@semiont/*` / `semiont-*`). The rule:
 There is exactly **one** implementation of that rewrite —
 `scripts/ci/stamp-internal-deps.mjs` (`stampInternalDeps`) — used by both
 publish paths: `scripts/ci/stamp-versions.mjs` (invoked by `publish.sh`, for the
-in-place libs + cli) and `publish-npm-apps.mjs` (for the staged backend/browser
+in-place libs + cli) and `publish-npm-apps.mjs` (for the staged gateway/browser
 tarballs). `version-bump.sh` and `version:sync` only stamp the `version` field;
 they do **not** pin internal deps — those stay `"*"`.
 
@@ -257,38 +257,38 @@ Do **not** hand-pin an internal dep to a concrete version in source: it adds a
 maintenance point that drifts and lets a stale published copy substitute for
 your workspace — the exact failure this convention removes.
 
-## External dependency ranges: derived at publish (backend)
+## External dependency ranges: derived at publish (gateway)
 
-The backend publishes from a staging directory, so it needs a publish-only
-manifest (`apps/backend/package.publish.json`) — the published package has a
-different `name` (`@semiont/backend` vs `semiont-backend`), adds `bin`/`files`/
+The gateway publishes from a staging directory, so it needs a publish-only
+manifest (`apps/gateway/package.publish.json`) — the published package has a
+different `name` (`@semiont/gateway` vs `semiont-gateway`), adds `bin`/`files`/
 `publishConfig`, and drops dev tooling. That template holds **only the publish
 metadata that differs from source**. It does **not** re-declare dependencies.
 
 The same single-source-of-truth rule as internal pinning applies to *external*
-runtime deps: **source `apps/backend/package.json` is the single source of truth
-for external version ranges.** At staging, `stageBackend`
+runtime deps: **source `apps/gateway/package.json` is the single source of truth
+for external version ranges.** At staging, `stageGateway`
 (`scripts/ci/publish-npm-apps.mjs`) builds the published `dependencies` by:
 
-1. Taking `apps/backend/package.json` `dependencies` verbatim — both the
+1. Taking `apps/gateway/package.json` `dependencies` verbatim — both the
    external ranges and the internal `@semiont/*` set. They are read from source,
    so they **can never drift** from it.
 2. Promoting the curated runtime deps that source keeps as `devDependencies`
-   (`BACKEND_RUNTIME_DEVDEPS` — currently just `prisma`, the migration CLI the
+   (`GATEWAY_RUNTIME_DEVDEPS` — currently just `prisma`, the migration CLI the
    deployed package runs). Their ranges also come from source.
 3. Pinning the internal `@semiont/*` deps to the exact release version via the
    shared `stampInternalDeps` (see **Internal dependency pinning** above).
 
 Do **not** add a `dependencies` block to `package.publish.json` — the staging
 script overwrites it, so hand-authored entries there are silently ignored. To
-add a runtime dependency, add it to `apps/backend/package.json`. If it must stay
+add a runtime dependency, add it to `apps/gateway/package.json`. If it must stay
 a `devDependency` in source but ship at runtime (like `prisma`), add it to
-`BACKEND_RUNTIME_DEVDEPS` in `scripts/ci/publish-npm-apps.mjs`.
+`GATEWAY_RUNTIME_DEVDEPS` in `scripts/ci/publish-npm-apps.mjs`.
 
 This replaced a hand-maintained copy of the dep ranges in
 `package.publish.json` that drifted from source on every dependency bump (it had
 shipped a `@hono/node-server` *major* behind source, and had dropped
-`@semiont/observability` entirely even though the built backend imports it at
+`@semiont/observability` entirely even though the built gateway imports it at
 startup).
 
 The **Browser** is deliberately different: `apps/browser/package.publish.json`
@@ -321,12 +321,12 @@ Each entry in `version.json.packages` looks like:
 ```
 
 Optional `stage` field for apps that publish from a staging directory
-(currently `semiont-backend` and `semiont-browser`):
+(currently `semiont-gateway` and `semiont-browser`):
 
 ```json
-"semiont-backend": {
-  "dir": "apps/backend",
-  "stage": ".npm-stage/backend",
+"semiont-gateway": {
+  "dir": "apps/gateway",
+  "stage": ".npm-stage/gateway",
   "version": "0.4.22",
   "publish": true
 }
@@ -402,14 +402,14 @@ gh workflow run launcher-release.yml --ref v<version>
 **Stable releases:**
 ```bash
 npm install @semiont/core@latest
-npm install @semiont/backend@latest
+npm install @semiont/gateway@latest
 npm install @semiont/browser@latest
 ```
 
 **Development builds:**
 ```bash
 npm install @semiont/core@dev
-npm install @semiont/backend@dev
+npm install @semiont/gateway@dev
 npm install @semiont/browser@dev
 ```
 
@@ -424,7 +424,7 @@ service images by `publish-service-images.yml`:
 
 ```bash
 docker pull ghcr.io/the-ai-alliance/semiont-browser:latest
-docker pull ghcr.io/the-ai-alliance/semiont-backend:latest
+docker pull ghcr.io/the-ai-alliance/semiont-gateway:latest
 docker pull ghcr.io/the-ai-alliance/semiont-worker:latest
 docker pull ghcr.io/the-ai-alliance/semiont-smelter:latest
 docker pull ghcr.io/the-ai-alliance/semiont-weaver:latest
@@ -542,10 +542,10 @@ Before releasing:
 - [ ] Version in `version.json` is correct
 
 After releasing:
-- [ ] Verify npm packages published (including `@semiont/backend` and `@semiont/browser`)
+- [ ] Verify npm packages published (including `@semiont/gateway` and `@semiont/browser`)
 - [ ] If desktop was checked, verify the desktop artifacts on the GitHub Release
 - [ ] Publish the Browser container image ([Step 1b](#step-1b-publish-the-browser-container-image)) and confirm the `:<version>` and `:latest` tags on GHCR
-- [ ] Publish the four service images (`publish-service-images.yml`) and confirm `semiont-backend`, `semiont-worker`, `semiont-smelter`, and `semiont-weaver` carry `:<version>` and `:latest` on GHCR
+- [ ] Publish the four service images (`publish-service-images.yml`) and confirm `semiont-gateway`, `semiont-worker`, `semiont-smelter`, and `semiont-weaver` carry `:<version>` and `:latest` on GHCR
 - [ ] Publish the launcher ([Step 1c](#step-1c-publish-the-launcher-homebrew--binaries), dispatched `--ref v<version>`) and confirm the four `semiont_<version>_*.tar.gz` archives on the GitHub Release and the updated formula in [`homebrew-semiont`](https://github.com/The-AI-Alliance/homebrew-semiont)
 - [ ] Test launcher installation: `brew install the-ai-alliance/semiont/semiont && semiont version` (upgrades: `brew upgrade semiont`). a long-deprecated npm package (no longer built from this repo) also installed a `semiont` bin — if `which semiont` does not resolve to the brew copy, that leftover is shadowing the launcher
 - [ ] Smoke-test a stack: from a KB directory, `semiont start && semiont status`, then `semiont stop`

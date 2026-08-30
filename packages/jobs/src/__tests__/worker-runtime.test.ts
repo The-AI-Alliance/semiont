@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Logger } from '@semiont/core';
-import { startAgentWorker, authenticateAgent, parseBackendUrl, buildHealthPayload, startStallWatchdog, STALL_THRESHOLD_MS, STALL_CHECK_INTERVAL_MS, type AgentGroup, type AgentVitals } from '../worker-runtime';
+import { startAgentWorker, authenticateAgent, parseGatewayUrl, buildHealthPayload, startStallWatchdog, STALL_THRESHOLD_MS, STALL_CHECK_INTERVAL_MS, type AgentGroup, type AgentVitals } from '../worker-runtime';
 import { startWorkerProcess } from '../worker-process';
 import type { InferenceClient } from '@semiont/inference';
 import { createServer, type Server } from 'http';
@@ -37,7 +37,7 @@ vi.mock('../worker-process', () => ({
 
 // The skew fixture: the worker DIALS a gateway IP…
 const DIAL_URL = 'http://192.168.64.1:4000';
-// …while the exchange mints the canonical identity from the backend's
+// …while the exchange mints the canonical identity from the gateway's
 // site.domain — a different host, deliberately.
 const CANONICAL_DID = 'did:web:kb.example:agents:anthropic:claude-haiku-4-5';
 
@@ -104,7 +104,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
 
     const worker = await startAgentWorker({
       group: makeGroup(),
-      backendBaseUrl: DIAL_URL,
+      gatewayBaseUrl: DIAL_URL,
       workerSecret: 'test-secret',
       contentReads: { getBinary: vi.fn() },
       logger: noopLogger,
@@ -130,7 +130,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     const { exchangeCalls } = installFetchStub();
 
     const result = await authenticateAgent({
-      backendBaseUrl: DIAL_URL,
+      gatewayBaseUrl: DIAL_URL,
       workerSecret: 'test-secret',
       provider: 'anthropic',
       model: 'claude-haiku-4-5',
@@ -146,23 +146,23 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 401, statusText: 'Unauthorized' })));
 
     await expect(
-      authenticateAgent({ backendBaseUrl: DIAL_URL, workerSecret: 'bad', provider: 'anthropic', model: 'm1' }),
+      authenticateAgent({ gatewayBaseUrl: DIAL_URL, workerSecret: 'bad', provider: 'anthropic', model: 'm1' }),
     ).rejects.toThrow(/anthropic:m1.*401/);
   });
 
   it('authenticateAgent refuses to run without a worker secret', async () => {
     await expect(
-      authenticateAgent({ backendBaseUrl: DIAL_URL, workerSecret: '', provider: 'anthropic', model: 'm1' }),
+      authenticateAgent({ gatewayBaseUrl: DIAL_URL, workerSecret: '', provider: 'anthropic', model: 'm1' }),
     ).rejects.toThrow(/SEMIONT_WORKER_SECRET/);
   });
 
-  // The blip that used to be fatal: any momentary backend unreachability
-  // at the instant the worker starts (backend restart, container-network
+  // The blip that used to be fatal: any momentary gateway unreachability
+  // at the instant the worker starts (gateway restart, container-network
   // warm-up) threw `TypeError: fetch failed` straight out of main() and
   // killed the process — with `--rm` and no restart policy, permanently.
-  it('retries startup auth while the backend is unreachable and succeeds once it comes up', async () => {
+  it('retries startup auth while the gateway is unreachable and succeeds once it comes up', async () => {
     // Reserve a port, then free it — the first attempts dial a closed port
-    // and fail at the connection level, exactly like a backend mid-restart.
+    // and fail at the connection level, exactly like a gateway mid-restart.
     const probe = createServer();
     probe.listen(0, '127.0.0.1');
     await once(probe, 'listening');
@@ -170,19 +170,19 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     probe.close();
     await once(probe, 'close');
 
-    let backend: Server | undefined;
+    let gateway: Server | undefined;
     const bringUp = setTimeout(() => {
-      backend = createServer((_req, res) => {
+      gateway = createServer((_req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ token: fakeJwt(), did: CANONICAL_DID }));
       });
-      backend.listen(port, '127.0.0.1');
+      gateway.listen(port, '127.0.0.1');
     }, 150);
 
     const warn = vi.fn();
     try {
       const result = await authenticateAgent({
-        backendBaseUrl: `http://127.0.0.1:${port}`,
+        gatewayBaseUrl: `http://127.0.0.1:${port}`,
         workerSecret: 'test-secret',
         provider: 'anthropic',
         model: 'claude-haiku-4-5',
@@ -191,19 +191,19 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
       });
       expect(result.did).toBe(CANONICAL_DID);
       expect(warn).toHaveBeenCalledWith(
-        'Backend unreachable, retrying agent authentication',
+        'Gateway unreachable, retrying agent authentication',
         expect.objectContaining({ agent: 'anthropic:claude-haiku-4-5', attempt: expect.any(Number) }),
       );
     } finally {
       clearTimeout(bringUp);
-      if (backend) {
-        backend.close();
-        await once(backend, 'close');
+      if (gateway) {
+        gateway.close();
+        await once(gateway, 'close');
       }
     }
   }, 15_000);
 
-  it('gives up after the retry budget when the backend never comes up', async () => {
+  it('gives up after the retry budget when the gateway never comes up', async () => {
     const calls = { count: 0 };
     vi.stubGlobal('fetch', vi.fn(async () => {
       calls.count++;
@@ -214,7 +214,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
 
     await expect(
       authenticateAgent({
-        backendBaseUrl: DIAL_URL,
+        gatewayBaseUrl: DIAL_URL,
         workerSecret: 'test-secret',
         provider: 'anthropic',
         model: 'm1',
@@ -224,13 +224,13 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     expect(calls.count).toBe(3);
   });
 
-  it('does NOT retry an HTTP-level rejection — the backend is up and said no', async () => {
+  it('does NOT retry an HTTP-level rejection — the gateway is up and said no', async () => {
     const fetchMock = vi.fn(async () => new Response('nope', { status: 401, statusText: 'Unauthorized' }));
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(
       authenticateAgent({
-        backendBaseUrl: DIAL_URL,
+        gatewayBaseUrl: DIAL_URL,
         workerSecret: 'bad',
         provider: 'anthropic',
         model: 'm1',
@@ -240,9 +240,9 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('parseBackendUrl keeps its connection role: host/port/protocol from the dial string', () => {
-    expect(parseBackendUrl('http://192.168.64.1:4000')).toEqual({ protocol: 'http', host: '192.168.64.1', port: 4000 });
-    expect(parseBackendUrl('https://kb.example')).toEqual({ protocol: 'https', host: 'kb.example', port: 443 });
+  it('parseGatewayUrl keeps its connection role: host/port/protocol from the dial string', () => {
+    expect(parseGatewayUrl('http://192.168.64.1:4000')).toEqual({ protocol: 'http', host: '192.168.64.1', port: 4000 });
+    expect(parseGatewayUrl('https://kb.example')).toEqual({ protocol: 'https', host: 'kb.example', port: 443 });
   });
 });
 
@@ -260,7 +260,7 @@ describe('worker-runtime — health vitals (WORKER-LIVENESS.md P1)', () => {
 
     const worker = await startAgentWorker({
       group: makeGroup(),
-      backendBaseUrl: DIAL_URL,
+      gatewayBaseUrl: DIAL_URL,
       workerSecret: 'test-secret',
       contentReads: { getBinary: vi.fn() },
       logger: noopLogger,
@@ -427,7 +427,7 @@ describe('worker-runtime — anchored-text store threading (PERSIST-ANCHORS P2d)
 
     const worker = await startAgentWorker({
       group: makeGroup(),
-      backendBaseUrl: DIAL_URL,
+      gatewayBaseUrl: DIAL_URL,
       workerSecret: 'test-secret',
       contentReads: { getBinary: vi.fn() },
       logger: noopLogger,

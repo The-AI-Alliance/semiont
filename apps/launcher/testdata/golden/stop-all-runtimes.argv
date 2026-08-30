@@ -8,8 +8,8 @@ container stop semiont-worker
 container rm semiont-worker
 container stop semiont-librarian
 container rm semiont-librarian
-container stop semiont-backend
-container rm semiont-backend
+container stop semiont-gateway
+container rm semiont-gateway
 container stop semiont-postgres
 container rm semiont-postgres
 container stop semiont-ollama
@@ -30,8 +30,8 @@ docker stop semiont-worker
 docker rm semiont-worker
 docker stop semiont-librarian
 docker rm semiont-librarian
-docker stop semiont-backend
-docker rm semiont-backend
+docker stop semiont-gateway
+docker rm semiont-gateway
 docker stop semiont-postgres
 docker rm semiont-postgres
 docker stop semiont-ollama
@@ -52,8 +52,8 @@ podman stop semiont-worker
 podman rm semiont-worker
 podman stop semiont-librarian
 podman rm semiont-librarian
-podman stop semiont-backend
-podman rm semiont-backend
+podman stop semiont-gateway
+podman rm semiont-gateway
 podman stop semiont-postgres
 podman rm semiont-postgres
 podman stop semiont-ollama

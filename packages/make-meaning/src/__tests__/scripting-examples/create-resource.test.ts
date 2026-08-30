@@ -2,7 +2,7 @@
  * Scripting Example: Basic Resource Creation
  *
  * Demonstrates how to:
- * - Start make-meaning service without HTTP backend
+ * - Start make-meaning service without HTTP gateway
  * - Create EventBus for event monitoring
  * - Create a resource directly using ResourceOperations
  * - Subscribe to resource-scoped events

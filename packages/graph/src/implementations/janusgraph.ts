@@ -288,7 +288,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     // Note: filtering is done client-side after retrieval. In production,
     // JanusGraph supports server-side text predicates via Elasticsearch,
     // but composing OR across multiple text properties requires the
-    // anonymous-traversal API; for a backend that's not the production
+    // anonymous-traversal API; for a gateway that's not the production
     // target today, JS post-filtering is simpler and adequate at our scale.
     const docs = await this.g!.V().hasLabel('Resource').toList();
     return queryResources(docs.map((v: any) => this.vertexToResource(v)), filter);

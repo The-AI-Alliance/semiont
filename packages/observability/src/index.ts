@@ -180,7 +180,7 @@ export function withTraceparent<T>(
  * `withSpan` calls across handler bodies.
  *
  * The span's parent is the active context at the time the handler
- * fires — which is the `bus.dispatch:<channel>` span on the backend
+ * fires — which is the `bus.dispatch:<channel>` span on the gateway
  * (Subject.next runs synchronously inside the dispatch span), or the
  * `bus.emit:<channel>` span when an actor emits to itself.
  */

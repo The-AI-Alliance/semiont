@@ -5,7 +5,7 @@
  * `gather:summary-requested`) to the underlying make-meaning pipeline
  * (Stower, Browser, Gatherer, JobQueue).
  *
- * These ran in `apps/backend` historically because the HTTP gateway was
+ * These ran in `apps/gateway` historically because the HTTP gateway was
  * the only consumer that needed them. They are not HTTP-specific — moving
  * them here means `LocalTransport` consumers (and any future transport)
  * get the same contract automatically.

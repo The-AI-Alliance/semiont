@@ -75,7 +75,7 @@ export interface JobClaimAdapterOptions {
  *
  * There is no poll loop in this architecture — the honest signals are:
  * `lastQueuedEventAt` (any `job:queued` received, matching or not —
- * transport liveness; the backend re-announces pending jobs every 30s,
+ * transport liveness; the gateway re-announces pending jobs every 30s,
  * so this advances whenever the queue is non-empty), and
  * `lastActivityAt` (claim, progress emission, or finish — processing
  * liveness; a job stuck mid-inference stops advancing it).

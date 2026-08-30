@@ -366,7 +366,7 @@ The Browser relies on multiple layers of quality assurance:
 4. **Performance Monitoring** - Real user experience validation
 5. **Error Boundaries** - Production error capture and recovery
 6. **Bundle Analysis** - Prevent performance regressions
-7. **API Contract Testing** - Backend tests validate shared interfaces
+7. **API Contract Testing** - Gateway tests validate shared interfaces
 
 ## Configuration
 
@@ -653,7 +653,7 @@ Planned improvements for higher test coverage:
 
 ### Testing Guides
 - [System Testing Guide](../../../docs/development/TESTING.md) - Testing across all services
-- [Backend Testing](../../backend/docs/TESTING.md) - Backend API tests
+- [Gateway Testing](../../gateway/docs/TESTING.md) - Gateway API tests
 
 ### Development Guides
 - [Development Guide](./DEVELOPMENT.md) - Local development workflows

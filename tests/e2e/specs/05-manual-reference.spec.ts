@@ -86,7 +86,7 @@ async function selectTextInReferenceMode(page: Page, bus: BusLogCapture, startAt
   // Adaptive selection — same shape as test 04. Short resources like
   // "test2" give us 5 chars; real resources give us more. `startAt` lets the
   // two tests anchor DIFFERENT ranges, so neither depends on whether the
-  // backend accepts two references over identical text.
+  // gateway accepts two references over identical text.
   await cmContent.evaluate((el, from) => {
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
     const textNodes: Text[] = [];

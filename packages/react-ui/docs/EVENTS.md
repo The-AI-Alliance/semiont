@@ -126,7 +126,7 @@ client.on('browse:resource-failed', ({ correlationId, message }) => {
 });
 ```
 
-The backend Browser actor subscribes to `*-requested`, handles the
+The gateway Browser actor subscribes to `*-requested`, handles the
 request, and fires either `*-result` or `*-failed` on the same bus
 with the same `correlationId`. The SSE subscription delivers it
 back to the client.
@@ -165,10 +165,10 @@ UI ended up right via a stale cache or a backfilled refetch.
 matching correlationId" fails the moment the wire protocol
 regresses, even if the UI eventually converges.
 
-Today's wire log covers the Browser-to-backend edge. An equivalent
-instrumentation on the backend's own bus — gated behind the same
+Today's wire log covers the Browser-to-gateway edge. An equivalent
+instrumentation on the gateway's own bus — gated behind the same
 flag — would extend a single trace from Browser EMIT through
-backend SSE-write to Browser RECV, eliminating the blind spot
+gateway SSE-write to Browser RECV, eliminating the blind spot
 where an event reaches `/bus/emit` but never produces a response
 (the shape of bug the SSE parser regression would have been
 detectable in seconds rather than hours, had it existed).
@@ -200,7 +200,7 @@ const state = useObservable(client.browse.annotations(rId)); // CacheState<Annot
 const annotations = state && readyValue(state); // readyValue from @semiont/sdk
 ```
 
-The bridge between backend-broadcast events and resource-scoped
+The bridge between gateway-broadcast events and resource-scoped
 subscriptions is implicit: subscribing to a `browse.*(rId)` live
 query acquires the resource's SSE scope (freshness follows
 observation), and the last unsubscribe releases it. The client

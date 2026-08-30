@@ -3,10 +3,10 @@
  *
  * The division of labor the queue introduces: the fault SCHEDULE scripts the
  * WIRE (deliver / drop / delay / duplicate / reject-emit), the reply QUEUE
- * scripts the BACKEND (what each request that reaches it answers). So a
- * queued entry is consumed by every request the backend sees — including one
+ * scripts the GATEWAY (what each request that reaches it answers). So a
+ * queued entry is consumed by every request the gateway sees — including one
  * whose reply the wire then drops — and `duplicate-reply` replays the SAME
- * body twice, the way a duplicated wire frame carries one backend response.
+ * body twice, the way a duplicated wire frame carries one gateway response.
  *
  * Replies are distinguished by `total` — a real field of the registry-typed
  * reply, so the assertions stay cast-free (`busRequest`'s return type is
@@ -39,7 +39,7 @@ describe('FaultyTransport.queueReply', () => {
     transport.dispose();
   });
 
-  it('duplicate-reply replays ONE queued body twice — the queue models the backend, not the wire', async () => {
+  it('duplicate-reply replays ONE queued body twice — the queue models the gateway, not the wire', async () => {
     const transport = new FaultyTransport({
       schedule: [{ kind: 'duplicate-reply' }, { kind: 'deliver' }],
       makeResponse: () => ({ resources: [], total: 99, offset: 0 }),
@@ -58,7 +58,7 @@ describe('FaultyTransport.queueReply', () => {
     transport.dispose();
   });
 
-  it('drop-reply consumes the entry: the backend answered, the wire ate it', async () => {
+  it('drop-reply consumes the entry: the gateway answered, the wire ate it', async () => {
     const transport = new FaultyTransport({
       schedule: [{ kind: 'drop-reply' }, { kind: 'deliver' }],
       makeResponse: () => ({ resources: [], total: 99, offset: 0 }),
@@ -77,7 +77,7 @@ describe('FaultyTransport.queueReply', () => {
     transport.dispose();
   });
 
-  it('composes with the attach gate: no emit reaches the backend until state$ reports open', async () => {
+  it('composes with the attach gate: no emit reaches the gateway until state$ reports open', async () => {
     const transport = new FaultyTransport({
       makeResponse: () => ({ resources: [], total: 7, offset: 0 }),
     });
@@ -85,7 +85,7 @@ describe('FaultyTransport.queueReply', () => {
 
     const promise = busRequest(transport, OP, {}, 5_000);
     await new Promise((r) => setTimeout(r, 20));
-    // The gate held the emit: the backend saw nothing.
+    // The gate held the emit: the gateway saw nothing.
     expect(transport.requestLog).toHaveLength(0);
 
     transport.state$.next('open');
@@ -141,7 +141,7 @@ describe('requestLog payloads', () => {
 
     await expect(busRequest(transport, OP, { limit: 3 }, 50)).rejects.toThrow();
 
-    // reject-emit never reached the backend, but the ATTEMPT is what a
+    // reject-emit never reached the gateway, but the ATTEMPT is what a
     // consumer asserting "did we send it?" needs to see.
     expect(transport.requestLog).toHaveLength(1);
     expect(transport.requestLog[0]!.action.kind).toBe('reject-emit');

@@ -71,9 +71,9 @@
       "version": "0.5.29",
       "publish": false
     },
-    "semiont-backend": {
-      "dir": "apps/backend",
-      "stage": ".npm-stage/backend",
+    "semiont-gateway": {
+      "dir": "apps/gateway",
+      "stage": ".npm-stage/gateway",
       "version": "0.5.29",
       "publish": true
     },

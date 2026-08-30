@@ -31,7 +31,7 @@ function idLabel(resourceId: string, annotationId?: string): string {
 }
 
 /**
- * The canonical backend default for maxTokens — a short-definition size. The
+ * The canonical gateway default for maxTokens — a short-definition size. The
  * UI also initialises its field to 500 as a UX convenience, but the
  * authoritative fallback lives here so direct API callers get a sensible
  * limit when they omit the parameter. Exported so error messages elsewhere

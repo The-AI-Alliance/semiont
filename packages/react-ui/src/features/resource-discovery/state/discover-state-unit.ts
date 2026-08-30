@@ -50,7 +50,7 @@ export function createDiscoverStateUnit(
 
   // Selected entity-type chip on the Discover page. Drives both the
   // `recent` list and the search results — filtering happens on the
-  // backend, not via post-fetch array filtering.
+  // gateway, not via post-fetch array filtering.
   const selectedEntityType$ = new BehaviorSubject<string>('');
   disposer.add(() => selectedEntityType$.complete());
 

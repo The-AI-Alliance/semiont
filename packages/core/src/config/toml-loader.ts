@@ -109,6 +109,7 @@ interface SemiontConfigFile {
   kb?: {
     name?: string;
     domain?: string;
+    oauthAllowedDomains?: string[];
   };
   environments?: Record<string, EnvironmentSection>;
 }
@@ -138,12 +139,21 @@ interface InferenceFlatSection {
   ollama?: { platform?: string; baseURL?: string; port?: number };
 }
 
+interface GatewaySection {
+  platform?: string;
+  port?: number;
+  publicURL?: string;
+}
+
 interface EnvironmentSection {
-  backend?: {
-    platform?: string;
-    port?: number;
-    publicURL?: string;
-  };
+  gateway?: GatewaySection;
+  /**
+   * The pre-rename spelling of `gateway`. Accepted so the KB fleet — whose
+   * TOMLs live in repos this build cannot reach — keeps loading across the
+   * rename. Retires when every fleet repo says `gateway`; that trigger is a
+   * release-checklist item, not something CI here can observe.
+   */
+  backend?: GatewaySection;
   archivist?: {
     host?: string;
     port?: number;
@@ -275,7 +285,7 @@ export function loadTomlConfig(
   const raw = globalContent ? (parseToml(globalContent) as SemiontConfigFile) : ({} as SemiontConfigFile);
 
   // 3. Resolve WHICH environment to load. `[defaults] environment` is the key the
-  //    launcher selects from (config.go: cfg.Defaults.Environment); the backend
+  //    launcher selects from (config.go: cfg.Defaults.Environment); the gateway
   //    resolves from the SAME key so one config selects the environment for both
   //    halves. TWO inputs only — an explicit argument (tests pass one) and the
   //    committed config — and they cannot contradict each other, because the
@@ -295,7 +305,8 @@ export function loadTomlConfig(
   // 4. A named environment with no [environments.X] section ANYWHERE is a config
   //    error, not a silent empty {}. The silent {} is what let a KB declaring
   //    `environment = "staging"` (with no [environments.staging]) load nothing and
-  //    let every downstream default fire — including site.domain -> 'localhost',
+  //    let every downstream default fire, back when a domain-less [site]
+  //    still resolved to 'localhost',
   //    the fabricated colliding did:web:localhost identity. Fail loud instead.
   const projectHasSection =
     projectConfig?.environments != null && resolvedEnvironment in projectConfig.environments;
@@ -403,7 +414,17 @@ export function loadTomlConfig(
   }
 
   // 6. Map to EnvironmentConfig
-  const backend = resolved.backend;
+  // `gateway` is the current spelling; `backend` is the pre-rename one, still
+  // accepted for the fleet. A file carrying BOTH is half-migrated — a mistake
+  // someone just made, not a state worth supporting — so it fails loudly here
+  // instead of picking a winner the next reader cannot identify.
+  if (resolved.gateway && resolved.backend) {
+    throw new Error(
+      `Environment '${resolvedEnvironment}' declares both [gateway] and [backend]. ` +
+      `They are one section under two spellings; keep [gateway] and delete [backend].`
+    );
+  }
+  const gateway = resolved.gateway ?? resolved.backend;
   const site = resolved.site ?? projectSite;
   const inferenceSection = resolved.inference;
 
@@ -503,11 +524,11 @@ export function loadTomlConfig(
     } as EnvironmentConfig['services']['embedding'],
   };
 
-  if (backend) {
-    services.backend = {
-      platform: { type: requirePlatform(backend.platform, 'backend') },
-      port: backend.port ?? 4000,
-      publicURL: backend.publicURL ?? `http://localhost:${backend.port ?? 4000}`,
+  if (gateway) {
+    services.gateway = {
+      platform: { type: requirePlatform(gateway.platform, 'gateway') },
+      port: gateway.port ?? 4000,
+      publicURL: gateway.publicURL ?? `http://localhost:${gateway.port ?? 4000}`,
     };
   }
 
@@ -559,13 +580,24 @@ export function loadTomlConfig(
     // From the GLOBAL file's root only — an [environments.X.kb] section is
     // inert by construction, which is what "not overridable" means here.
     ...(raw.kb?.name
-      ? { kb: { name: raw.kb.name, ...(raw.kb.domain ? { domain: raw.kb.domain } : {}) } }
+      ? { kb: {
+          name: raw.kb.name,
+          ...(raw.kb.domain ? { domain: raw.kb.domain } : {}),
+          ...(raw.kb.oauthAllowedDomains ? { oauthAllowedDomains: raw.kb.oauthAllowedDomains } : {}),
+        } }
       : {}),
     ...(inferenceProviders ? { inference: inferenceProviders } : {}),
     ...(Object.keys(topLevelWorkers).length > 0 ? { workers: topLevelWorkers } : {}),
     ...(Object.keys(topLevelActors).length > 0 ? { actors: topLevelActors } : {}),
     site: site ? {
-      domain: site.domain ?? 'localhost',
+      // NO 'localhost' default. A `[site]` section is routinely added for an
+      // unrelated key — `oauthAllowedDomains` is the usual one — and
+      // manufacturing a domain for it silently renamed the KB's agents to
+      // `did:web:localhost`, an identity that collides with every other
+      // domain-less KB on the machine. Absent now means absent, so a consumer
+      // either falls back to the committed `[kb] domain` or refuses; neither
+      // can be done on top of a fabricated value.
+      ...(site.domain ? { domain: site.domain } : {}),
       siteName: site.siteName,
       adminEmail: site.adminEmail,
       oauthAllowedDomains: site.oauthAllowedDomains as [string, ...string[]] | undefined,

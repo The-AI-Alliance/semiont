@@ -23,7 +23,7 @@
  *      .plans/bugs/valueless-key-terminal-failure-starves-observers.md.
  *      Keys WITH a stale value keep B6 stale-beats-error: never errored.)
  *
- * No backend: a fake transport drives `busRequest` to a deterministic
+ * No gateway: a fake transport drives `busRequest` to a deterministic
  * failure-channel rejection.
  */
 

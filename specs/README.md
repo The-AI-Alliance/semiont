@@ -30,7 +30,7 @@ The OpenAPI specification is the **source of truth** for the entire API:
 1. **Source**: `specs/src/openapi.json` and referenced files (tracked in git)
 2. **Build**: Bundled to `specs/openapi.json` by Redocly (generated, gitignored)
 3. **Types**: TypeScript types generated from bundled spec → `@semiont/core`
-4. **Consumption**: `@semiont/http-transport` and backend import types from `@semiont/core`
+4. **Consumption**: `@semiont/http-transport` and gateway import types from `@semiont/core`
 
 ```
 specs/src/openapi.json          (source - in git)
@@ -45,7 +45,7 @@ specs/openapi.json              (generated - gitignored)
         ↓
 @semiont/http-transport re-exports types (for convenience)
         ↓
-backend and Browser import from core
+gateway and Browser import from core
 ```
 
 ## Working with the Spec
@@ -59,7 +59,7 @@ backend and Browser import from core
 
 **Bundled spec** (generated, for consumption):
 - Generated: `specs/openapi.json` (create by running `npm run openapi:bundle`)
-- Live endpoint: `http://localhost:4000/api/openapi.json` (when backend is running)
+- Live endpoint: `http://localhost:4000/api/openapi.json` (when gateway is running)
 
 ### Edit the Specification
 
@@ -178,7 +178,7 @@ High-level guides in [docs/protocol/](../docs/protocol/):
 - **[W3C-SELECTORS.md](../docs/protocol/W3C-SELECTORS.md)** - Selector specifications
 
 For implementation details:
-- [Backend Documentation](../apps/backend/README.md) - Backend architecture
+- [Gateway Documentation](../apps/gateway/README.md) - Gateway architecture
 - [API Client Documentation](../packages/http-transport/README.md) - TypeScript SDK
 
 ## Decomposition Notes
@@ -230,7 +230,7 @@ Generated from `npm run openapi:stats`:
 
 - [Root README](../README.md) - Project overview
 - [System Documentation](../docs/system/README.md) - System architecture index
-- [Backend README](../apps/backend/README.md) - Backend implementation
+- [Gateway README](../apps/gateway/README.md) - Gateway implementation
 - [@semiont/http-transport](../packages/http-transport/README.md) - HTTP + SSE wire adapters
 - [@semiont/sdk](../packages/sdk/README.md) - The TypeScript client built over them
 

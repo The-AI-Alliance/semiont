@@ -128,7 +128,7 @@ const { mockAuthPassword, mockAdminStatus } = vi.hoisted(() => ({
   mockAdminStatus: vi.fn(),
 }));
 
-// The panel builds a real SemiontClient inside authenticateWithBackend; mock the
+// The panel builds a real SemiontClient inside authenticateWithGateway; mock the
 // class so the connect flow (auth → /api/status → register) is drivable.
 vi.mock('@semiont/sdk', async () => {
   const actual = await vi.importActual<typeof import('@semiont/sdk')>('@semiont/sdk');

@@ -160,7 +160,7 @@ func Mark(args []string) int {
 	}
 
 	// Motivation follows the body when the caller does not say otherwise —
-	// the W3C vocabulary the backend validates against.
+	// the W3C vocabulary the gateway validates against.
 	if motivation == "" {
 		switch {
 		case link != "":
@@ -176,7 +176,7 @@ func Mark(args []string) int {
 
 	// Built with the generated types and their union constructors: a
 	// selector or body assembled as a bare map is exactly how a wrong field
-	// name reaches the backend unnoticed.
+	// name reaches the gateway unnoticed.
 	target := semiont.AnnotationTarget{Source: resourceID}
 	switch {
 	case quote != "":
@@ -283,7 +283,7 @@ func Mark(args []string) int {
 
 // markBuildFail: a union constructor only fails on a programming error here
 // (the value cannot be encoded), so say so plainly rather than dressing it
-// as a backend problem.
+// as a gateway problem.
 func markBuildFail(err error) int {
 	newUI(false).fail("could not build the annotation: %v", err)
 	return 1

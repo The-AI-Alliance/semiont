@@ -116,17 +116,17 @@ import { AnnotationHistory } from '@semiont/react-ui';
 ### SignInForm
 
 Sign-in form with Google OAuth and optional credentials-based auth. The sign-in callbacks
-receive the target `backendUrl` (the form can prompt for it, or you can pre-fill + lock it via
-the `backendUrl` prop).
+receive the target `gatewayUrl` (the form can prompt for it, or you can pre-fill + lock it via
+the `gatewayUrl` prop).
 
 ```tsx
 import { SignInForm } from '@semiont/react-ui';
 import Link from 'next/link'; // or your router's Link
 
 <SignInForm
-  onGoogleSignIn={async (backendUrl) => signIn('google', { backendUrl })}
-  onCredentialsSignIn={async (backendUrl, email, password) => signIn('credentials', { backendUrl, email, password })}
-  backendUrl={lockedBackendUrl}   // optional: pre-fill + lock the backend-URL field
+  onGoogleSignIn={async (gatewayUrl) => signIn('google', { gatewayUrl })}
+  onCredentialsSignIn={async (gatewayUrl, email, password) => signIn('credentials', { gatewayUrl, email, password })}
+  gatewayUrl={lockedGatewayUrl}   // optional: pre-fill + lock the gateway-URL field
   showCredentialsAuth
   isLoading={submitting}
   error={errorMessage}
@@ -135,7 +135,7 @@ import Link from 'next/link'; // or your router's Link
 />
 ```
 
-**Required:** `onGoogleSignIn(backendUrl)`, `Link`, `translations`. **Optional:** `onCredentialsSignIn(backendUrl, email, password)`, `backendUrl`, `showCredentialsAuth`, `isLoading`, `error`. The full `translations` shape (21 keys) is the exported `SignInFormProps` type.
+**Required:** `onGoogleSignIn(gatewayUrl)`, `Link`, `translations`. **Optional:** `onCredentialsSignIn(gatewayUrl, email, password)`, `gatewayUrl`, `showCredentialsAuth`, `isLoading`, `error`. The full `translations` shape (21 keys) is the exported `SignInFormProps` type.
 
 ### SignUpForm
 
@@ -563,13 +563,13 @@ import { CodeMirrorRenderer } from '@semiont/react-ui';
 
 ### StatusDisplay
 
-Renders the backend-connection / auth health indicator. Takes the current auth flags (not a
+Renders the gateway-connection / auth health indicator. Takes the current auth flags (not a
 free-form status/message).
 
 ```tsx
 import { StatusDisplay } from '@semiont/react-ui';
 
-<StatusDisplay isAuthenticated={isAuthenticated} isFullyAuthenticated={isFullyAuthed} hasValidBackendToken={tokenValid} />
+<StatusDisplay isAuthenticated={isAuthenticated} isFullyAuthenticated={isFullyAuthed} hasValidGatewayToken={tokenValid} />
 ```
 
 ### ResourceTagsInline

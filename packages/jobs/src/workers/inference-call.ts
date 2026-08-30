@@ -8,7 +8,7 @@
  * `isProcessing`, so a single stuck call silenced the whole agent.
  * Bounding the call converts that silent hang into an ordinary job
  * failure that flows through the existing `job:fail` path (and the
- * backend's retry budget — a timeout is transient-shaped, so retrying
+ * gateway's retry budget — a timeout is transient-shaped, so retrying
  * is correct) and frees the claim loop.
  *
  * This is a timeout, not a cancellation: the `InferenceClient` surface has no
@@ -25,7 +25,7 @@ import { withSpan } from '@semiont/observability';
 /**
  * Generous single-call bound. Slow local models on large prompts run
  * minutes, not tens of minutes; the stall watchdog (P3) sits above
- * this at 15 minutes, and the backend's dead-worker janitor above
+ * this at 15 minutes, and the gateway's dead-worker janitor above
  * that at 30. Fixed by design — no env knob.
  */
 export const INFERENCE_TIMEOUT_MS = 10 * 60_000;

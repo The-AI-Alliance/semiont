@@ -26,7 +26,7 @@ semiont start
 semiont stop --service browser      # the browser is a stack-independent viewer; this closes it
 
 # Supported path 2 — compose, using the KB's own file
-docker compose -f .semiont/compose/backend.yml up
+docker compose -f .semiont/compose/gateway.yml up
 ```
 
 Pin a version with `SEMIONT_VERSION`. See [apps/launcher](../../launcher/README.md) and
@@ -42,7 +42,7 @@ For iterating on the Browser itself, run it from source rather than the image �
 Any container platform can schedule the image (ECS Fargate, Kubernetes, a VM with Docker). Nothing
 here does it for you. Browser-specific considerations:
 
-- **It needs to reach the backend.** The browser app discovers KBs by host/port; the backend must be
+- **It needs to reach the gateway.** The browser app discovers KBs by host/port; the gateway must be
   reachable from the *user's browser*, not merely from inside the cluster.
 - **Ingress and TLS** in front of port 3000 is platform work.
 - **No server-side session state** — the Browser is a static SPA served by a small Node server;

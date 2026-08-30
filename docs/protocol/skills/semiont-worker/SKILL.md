@@ -227,7 +227,7 @@ If your worker is doing custom work that doesn't match the standard job shapes, 
 Set `SEMIONT_BUS_LOG=1` to log every transport-level event (`EMIT`, `RECV`, `SSE`, `PUT`, `GET`) as a single grep-friendly line on stdout. This is the fastest way to confirm that:
 
 - `job:queued` events are arriving (the adapter widens the SSE channel set on `start()`, but only after `start()` is called — silently missing this is the most common worker bug).
-- Your `job:start` / `job:complete` emits are reaching the backend.
+- Your `job:start` / `job:complete` emits are reaching the gateway.
 - The correlation IDs line up between request and response.
 
 See [`tests/e2e/docs/bus-logging.md`](../../../../tests/e2e/docs/bus-logging.md) for the full guide. Tier 2 OpenTelemetry spans add a `trace=` suffix to every line when `OTEL_EXPORTER_OTLP_ENDPOINT` is configured, so the grep timeline correlates with the trace UI.

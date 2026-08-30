@@ -3,7 +3,7 @@
  *
  * The Playwright suite documents (in ``tests/e2e/README.md``) that it
  * "assumes the target KB has ≥2 resources and ≥1 entity type." Entity
- * types are auto-bootstrapped on backend startup
+ * types are auto-bootstrapped on gateway startup
  * (`packages/make-meaning/src/bootstrap/entity-types.ts`); resources are
  * not. A freshly-rebuilt template KB starts empty, which makes specs
  * 02-09 fail at the very first "open resource:" assertion.
@@ -325,8 +325,8 @@ const SEED_RESOURCES: readonly SeedSpec[] = [
 ];
 
 export interface SeedOptions {
-  /** Backend URL — the same value the suite passes as `E2E_BACKEND_URL`. */
-  backendUrl: string;
+  /** Gateway URL — the same value the suite passes as `E2E_GATEWAY_URL`. */
+  gatewayUrl: string;
   /** Admin email — same as `E2E_EMAIL`. */
   email: string;
   /** Admin password — same as `E2E_PASSWORD`. */
@@ -344,10 +344,10 @@ export interface SeedOptions {
  */
 export async function seedKb(opts: SeedOptions): Promise<{ created: number; existed: number }> {
   const log = opts.log ?? ((m: string) => { console.log(m); });
-  log(`[seed] backend=${opts.backendUrl} user=${opts.email}`);
+  log(`[seed] gateway=${opts.gatewayUrl} user=${opts.email}`);
 
   const client = await SemiontClient.signInHttp({
-    baseUrl: opts.backendUrl,
+    baseUrl: opts.gatewayUrl,
     email: opts.email,
     password: opts.password,
   });
@@ -358,9 +358,9 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
     // Which seeds are already here. Asked ONCE, up front, rather than relying on
     // the create failing.
     //
-    // This used to lean on the backend rejecting a duplicate `storageUri` and
+    // This used to lean on the gateway rejecting a duplicate `storageUri` and
     // catching that below. Nothing enforces `storageUri` uniqueness — not the
-    // backend, not make-meaning — so the create always succeeded, the catch never
+    // gateway, not make-meaning — so the create always succeeded, the catch never
     // fired, and every run logged "N created, 0 already present" no matter how
     // many times it had run before. Any KB grew by the full seed set per run; a
     // blank template degraded exactly as fast as a used one, just from a lower
@@ -388,7 +388,7 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
       }
       // `client.yield.resource(...)` returns an UploadObservable that
       // resolves to `{ resourceId }` on success. Errors come through
-      // as observable errors — typically APIError with the backend's
+      // as observable errors — typically APIError with the gateway's
       // status + code. The duplicate branch below is a BACKSTOP for a
       // race (two seeders at once); the pre-check above is what actually
       // makes re-runs idempotent. It is deliberately kept rather than
@@ -430,11 +430,11 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
 /**
  * Default export shaped for Playwright's `globalSetup` config option:
  * a function that takes the resolved `FullConfig` and returns a
- * promise. Reads the same env vars the suite uses (`E2E_BACKEND_URL`,
+ * promise. Reads the same env vars the suite uses (`E2E_GATEWAY_URL`,
  * `E2E_EMAIL`, `E2E_PASSWORD`).
  */
 export default async function globalSetup(): Promise<void> {
-  const backendUrl = process.env.E2E_BACKEND_URL ?? 'http://localhost:4000';
+  const gatewayUrl = process.env.E2E_GATEWAY_URL ?? 'http://localhost:4000';
   const email = process.env.E2E_EMAIL;
   const password = process.env.E2E_PASSWORD;
 
@@ -444,5 +444,5 @@ export default async function globalSetup(): Promise<void> {
     throw new Error('seed: E2E_EMAIL and E2E_PASSWORD must be set');
   }
 
-  await seedKb({ backendUrl, email, password });
+  await seedKb({ gatewayUrl, email, password });
 }

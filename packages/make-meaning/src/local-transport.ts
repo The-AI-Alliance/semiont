@@ -12,7 +12,7 @@
  *   - The bus reference flows client → transport, never the other way.
  *
  * LocalTransport implements `ITransport` only. Auth, admin, and exchange
- * (`IBackendOperations`) are HTTP-shaped concepts that don't apply
+ * (`IGatewayOperations`) are HTTP-shaped concepts that don't apply
  * in-process — local mode runs as a single host-process identity supplied
  * at construction, with no token/credential lifecycle. A `SemiontClient`
  * built over this transport has no `.auth` / `.admin` namespaces.
@@ -171,7 +171,7 @@ export class LocalTransport implements ITransport {
   }
 
   // LocalTransport implements `ITransport` only. It does not implement
-  // `IBackendOperations` — a SemiontClient built over LocalTransport has
+  // `IGatewayOperations` — a SemiontClient built over LocalTransport has
   // no `client.auth` / `client.admin` namespaces by design (no
   // credentials, no admin routes, no exchange machinery in-process).
 

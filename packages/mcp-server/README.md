@@ -18,7 +18,7 @@ See [Available tools](#available-tools) for each tool's parameters.
 
 ## Architecture
 
-The MCP server uses the `@semiont/sdk` `SemiontClient` (over `@semiont/http-transport` HTTP transports) to communicate with the Semiont backend:
+The MCP server uses the `@semiont/sdk` `SemiontClient` (over `@semiont/http-transport` HTTP transports) to communicate with the Semiont gateway:
 
 ```typescript
 import { SemiontClient } from '@semiont/sdk';
@@ -64,7 +64,7 @@ The server needs exactly two environment variables:
 
 | Variable | Meaning |
 |---|---|
-| `SEMIONT_API_URL` | Backend base URL, e.g. `http://localhost:4000` |
+| `SEMIONT_API_URL` | Gateway base URL, e.g. `http://localhost:4000` |
 | `SEMIONT_ACCESS_TOKEN` | A bearer access token |
 
 Both are required — the process exits at startup if either is missing.
@@ -124,7 +124,7 @@ environment variables:
 }
 ```
 
-The stack must be running (`semiont start`) for the server to reach the backend.
+The stack must be running (`semiont start`) for the server to reach the gateway.
 
 ### Programmatic usage
 
@@ -263,10 +263,10 @@ The access token expired. This server does not refresh tokens; get a new one
 **Connection refused**
 
 ```bash
-semiont status     # is the stack up, and is the backend healthy?
+semiont status     # is the stack up, and is the gateway healthy?
 ```
 
-Check that `SEMIONT_API_URL` matches the backend's port (4000 by default).
+Check that `SEMIONT_API_URL` matches the gateway's port (4000 by default).
 
 **Unknown tool**
 

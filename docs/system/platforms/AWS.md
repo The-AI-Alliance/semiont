@@ -15,7 +15,7 @@ Five published service images (GitHub Container Registry, tagged per release plu
 
 | Image | Role | Port |
 |---|---|---|
-| `ghcr.io/the-ai-alliance/semiont-backend` | API, auth, event log, projections | 4000 |
+| `ghcr.io/the-ai-alliance/semiont-gateway` | API, auth, event log, projections | 4000 |
 | `ghcr.io/the-ai-alliance/semiont-browser` | Browser UI | 3000 |
 | `ghcr.io/the-ai-alliance/semiont-worker` | Job / generation worker | 9090 |
 | `ghcr.io/the-ai-alliance/semiont-smelter` | Embedding / vector pipeline | 9091 |
@@ -29,7 +29,7 @@ inference — `ollama`.
 - **The `semiont` launcher** (host-installed via
   `brew install the-ai-alliance/semiont/semiont`) — `semiont start` from a KB directory. This is the
   supported path, local or GitHub Codespaces. See [apps/launcher](../../../apps/launcher/README.md).
-- **`docker compose`** against a KB's own `.semiont/compose/backend.yml`, which pulls the same
+- **`docker compose`** against a KB's own `.semiont/compose/gateway.yml`, which pulls the same
   published images — equivalent end state to `semiont start`.
 
 See [CONTAINER-TOPOLOGY.md](../CONTAINER-TOPOLOGY.md) for how the containers relate.
@@ -45,10 +45,10 @@ solve these yourself:
 - **Secrets.** `JWT_SECRET`, `SEMIONT_WORKER_SECRET`, and any inference API keys arrive as
   environment variables. Semiont does not read Secrets Manager or SSM — that mapping is yours.
 - **Service discovery.** Services address each other by URL from the config
-  (`services.backend.publicURL`, and so on), not by any AWS-specific mechanism.
+  (`services.gateway.publicURL`, and so on), not by any AWS-specific mechanism.
 - **Persistence.** PostgreSQL, Neo4j, and Qdrant need durable volumes. The KB's `.semiont/events/`
   directory is the system of record and must survive task replacement.
-- **The KB working tree.** The backend bind-mounts the KB repo at `/kb`. On a cluster you need a
+- **The KB working tree.** The gateway bind-mounts the KB repo at `/kb`. On a cluster you need a
   shared filesystem or a different content strategy.
 
 None of the above is tested or supported. Treat a cloud deployment as your own integration.

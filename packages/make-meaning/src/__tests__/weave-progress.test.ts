@@ -1,7 +1,7 @@
 /**
  * WeaveProgress Tests (GRAPH-PROJECTION-SYNC P2, D2 = push)
  *
- * The backend-local fold of `weave:applied` signals. `whenApplied` is the
+ * The gateway-local fold of `weave:applied` signals. `whenApplied` is the
  * applied-offset barrier: it resolves as soon as the Weaver's applied
  * sequence for a resource reaches the requested one, event-driven — no
  * polling quantum — and rejects with a distinct error on the bounded

@@ -3,7 +3,7 @@ import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import type { SemiontSession } from '@semiont/sdk';
 import { AuthNamespace } from '@semiont/sdk';
-import { createTestSession, stubBackend } from '@semiont/sdk/testing';
+import { createTestSession, stubGateway } from '@semiont/sdk/testing';
 import { createWelcomeStateUnit } from '../welcome-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 function makeSession(): SemiontSession {
-  return createTestSession({ backend: stubBackend() }).session;
+  return createTestSession({ gateway: stubGateway() }).session;
 }
 
 describe('createWelcomeStateUnit', () => {

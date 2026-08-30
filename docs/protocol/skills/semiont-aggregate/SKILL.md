@@ -40,7 +40,7 @@ If you are introducing a new aggregate kind that wasn't declared at ingest time,
 await semiont.frame.addEntityTypes(['SubsequentTreatment', 'Aggregate']);
 ```
 
-Skipping the declaration means the aggregate's entity-type stamps end up implicit rather than published — `browse.resources({ entityType: 'SubsequentTreatment' })` may still find the resource on a lenient backend, but the schema layer doesn't know the type exists.
+Skipping the declaration means the aggregate's entity-type stamps end up implicit rather than published — `browse.resources({ entityType: 'SubsequentTreatment' })` may still find the resource on a lenient gateway, but the schema layer doesn't know the type exists.
 
 ## Client setup
 

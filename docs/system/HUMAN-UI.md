@@ -37,7 +37,7 @@ graph TB
     class BUS1,BUS2,BUSN bus
 ```
 
-Human actors interact through the **Semiont Browser** — the `apps/browser` single-page app (Vite + React), packaged as the `ghcr.io/the-ai-alliance/semiont-browser` container image. A user connects to one or more Knowledge Bases (each a separate backend); DOM interactions become bus commands through the same `/bus/emit` + `/bus/subscribe` endpoints every other Semiont actor uses. Because it's a static SPA, it can equivalently be served from any file server or CDN — the container is the deployment-ready packaging for the "download and run" path.
+Human actors interact through the **Semiont Browser** — the `apps/browser` single-page app (Vite + React), packaged as the `ghcr.io/the-ai-alliance/semiont-browser` container image. A user connects to one or more Knowledge Bases (each a separate gateway); DOM interactions become bus commands through the same `/bus/emit` + `/bus/subscribe` endpoints every other Semiont actor uses. Because it's a static SPA, it can equivalently be served from any file server or CDN — the container is the deployment-ready packaging for the "download and run" path.
 
 For end-user-facing browser docs (running it locally, accessibility, keyboard shortcuts), see **[../browser/](../browser/)**.
 
@@ -53,7 +53,7 @@ The state unit layer is what makes the same SDK that drives the browser also dri
 
 ## Multi-KB sessions
 
-A Semiont Browser instance can connect to multiple knowledge bases concurrently — each a separate backend with its own JWT session, its own event-bus connection, and its own resource state. Per-KB authentication and state live in `SemiontSession` (defined in `@semiont/sdk`), the same abstraction workers and the smelter use.
+A Semiont Browser instance can connect to multiple knowledge bases concurrently — each a separate gateway with its own JWT session, its own event-bus connection, and its own resource state. Per-KB authentication and state live in `SemiontSession` (defined in `@semiont/sdk`), the same abstraction workers and the smelter use.
 
 Storage adapters thread the same `SemiontSession` through every host environment:
 

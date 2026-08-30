@@ -17,7 +17,7 @@ Ideas and architecture considerations for building alternative frontend clients 
 
 ## Overview
 
-The Semiont platform is designed with Browser flexibility in mind. The backend provides a comprehensive REST API following the W3C Web Annotation Data Model, enabling diverse client implementations while maintaining full interoperability.
+The Semiont platform is designed with Browser flexibility in mind. The gateway provides a comprehensive REST API following the W3C Web Annotation Data Model, enabling diverse client implementations while maintaining full interoperability.
 
 **Current Browser**: Vite + React Router v7 SPA (this repo)
 
@@ -150,7 +150,7 @@ function ResourceList({ semiont }: { semiont: SemiontClient }) {
 **Architecture**:
 - **Manifest**: V3 (Chrome) / V2 (Firefox)
 - **Content Script**: Inject annotation UI into web pages
-- **Background Service**: API calls to Semiont backend
+- **Background Service**: API calls to Semiont gateway
 - **API Client**: `@semiont/http-transport`
 - **Storage**: chrome.storage.sync for settings
 
@@ -191,7 +191,7 @@ const annotation = {
   ]
 };
 
-// POST to Semiont backend
+// POST to Semiont gateway
 await api.annotations.create(annotation);
 ```
 
@@ -250,7 +250,7 @@ document.addEventListener('mouseup', () => {
 **Architecture**:
 - **Framework**: Electron + React
 - **Renderer**: Reuse the Browser's React components
-- **Main Process**: Node.js backend access
+- **Main Process**: Node.js gateway access
 - **API Client**: `@semiont/http-transport`
 - **Storage**: SQLite for local cache
 
@@ -291,7 +291,7 @@ app.whenReady().then(createWindow);
 
 **Architecture**:
 - **Framework**: Tauri + React
-- **Backend**: Rust (lightweight)
+- **Gateway**: Rust (lightweight)
 - **Browser**: Reuse the SPA's React components
 - **API Client**: `@semiont/http-transport`
 
@@ -301,7 +301,7 @@ app.whenReady().then(createWindow);
 - More secure (no Node.js in renderer)
 
 **Challenges**:
-- Rust backend (learning curve)
+- Rust gateway (learning curve)
 - Less mature ecosystem than Electron
 
 ## Specialized Integrations
@@ -460,7 +460,7 @@ All clients communicate via REST API - no direct database access.
 
 **Benefits**:
 - Platform independence
-- Security (backend validates all operations)
+- Security (gateway validates all operations)
 - Versioning (API versions)
 - Scalability
 
@@ -536,8 +536,8 @@ Start simple, add features incrementally.
 - [API Integration](./API-INTEGRATION.md) - API client usage, W3C annotations
 - [Development Guide](./DEVELOPMENT.md) - Local development setup
 
-### Backend Documentation
-- [Backend README](../../backend/README.md) - REST API implementation
+### Gateway Documentation
+- [Gateway README](../../gateway/README.md) - REST API implementation
 - [Jobs Package](../../../packages/jobs/) - Async operations (for AI features)
 
 ### API Documentation

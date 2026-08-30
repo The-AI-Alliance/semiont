@@ -197,7 +197,7 @@ durability, and the asymmetry is the design, not a gap:
   exactly-once for the original requester *within its own deadline
   envelope* (retention TTL is 2× the default `busRequest` timeout;
   deterministic `e-<channel>:<cid>` ids dedup replay against any live
-  copy). NOT durable: retention is in-memory, so a backend restart —
+  copy). NOT durable: retention is in-memory, so a gateway restart —
   and, in a future multi-instance deployment, a reconnect landing on a
   different instance — loses it. Those residuals degrade to exactly the
   pre-retention outcome (the caller's timeout), never worse; the
@@ -210,7 +210,7 @@ caller's deadline; durability past the deadline buys nothing. Consumers
 keep their defense-in-depth (the cache's bounded retry and terminal
 `failed` state), but under this contract those paths should fire
 approximately never — a `bus.timeout` that does fire is a real signal
-that the backend is down or slow, not transport weather.
+that the gateway is down or slow, not transport weather.
 
 ## Connection state
 
@@ -232,7 +232,7 @@ reconnecting UI should treat the open state as terminal.
 The bus protocol (not the transport) classifies channels into three
 kinds. Every transport preserves the categorization:
 
-- **Command events** — Browser → backend handler. Arrive un-scoped.
+- **Command events** — Browser → gateway handler. Arrive un-scoped.
   Example: `mark:create-request`, `job:create`.
 - **Correlation-ID responses** — handler → originating caller. Arrive
   un-scoped. Example: `mark:create-ok`, `job:status-result`.

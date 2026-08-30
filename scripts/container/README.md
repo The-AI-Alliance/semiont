@@ -7,15 +7,15 @@ or Podman (in that order). Override with `CONTAINER_RUNTIME=docker` (or `podman`
 
 | Script | Purpose |
 |--------|---------|
-| `build-images.js` | Build container images for backend/Browser |
+| `build-images.js` | Build container images for gateway/Browser |
 | `container-utils.js` | List and clean semiont container images |
 
 ## Usage
 
 ```bash
 npm run container:build           # Build all images
-npm run container:build:backend   # Build backend only
-npm run container:build:Browser  # Build Browser only
+npm run container:build:gateway   # Build gateway only
+npm run container:build:browser   # Build browser only
 npm run container:images          # List semiont images
 npm run container:clean           # Remove semiont images
 ```

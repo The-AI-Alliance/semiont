@@ -407,7 +407,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
    * `range()` would order one page instead of the match set. JanusGraph
    * post-filters for the same reason. Both share `queryResources` with the
    * memory backend so search cannot mean three different things across three
-   * backends.
+   * gateways.
    *
    * The cost is explicit and accepted: this materializes every `Resource`
    * vertex per call, so it is O(N) in the size of the KB rather than in the
@@ -415,7 +415,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
    * query — filter, rank, page — into Cypher; Neptune and JanusGraph are not
    * deployment targets today. If either becomes one at scale, the fix is a
    * Gremlin rank expression (`choose` over `toLower`, engine-version
-   * permitting), not a return to per-backend search semantics.
+   * permitting), not a return to per-gateway search semantics.
    */
   async listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }> {
     try {

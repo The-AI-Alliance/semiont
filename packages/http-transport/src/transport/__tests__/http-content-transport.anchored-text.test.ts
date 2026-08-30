@@ -3,7 +3,7 @@
  * map crossing HTTP.
  *
  * This pair exists because the Smelter derives the map in its own process and
- * the backend serves it, so the two cannot share a store the way an in-process
+ * the gateway serves it, so the two cannot share a store the way an in-process
  * caller does. `LocalContentTransport` answers the same interface without any
  * of this, which is exactly why the HTTP half needs its own tests: the suites
  * in `@semiont/make-meaning` exercise the local implementation and would stay
@@ -113,7 +113,7 @@ describe('HttpContentTransport.getAnchoredText', () => {
 
   test('throws on a real failure rather than degrading to "no map"', async () => {
     // A 500 is not an answer about the document. Swallowing it here would make
-    // a broken backend look like a corpus of documents that simply have no
+    // a broken gateway look like a corpus of documents that simply have no
     // geometry — silently, and identically, for every resource.
     const { content, mockKy } = makeContent();
     vi.mocked(mockKy.get!).mockResolvedValue(response(500) as never);

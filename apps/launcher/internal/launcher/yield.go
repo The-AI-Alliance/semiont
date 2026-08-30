@@ -39,7 +39,7 @@ Generation from context: semiont yield --delegate --help
 `
 
 // extMediaTypes: the common cases, detected client-side like the npm CLI
-// does. Anything unknown uploads as octet-stream — the backend's create
+// does. Anything unknown uploads as octet-stream — the gateway's create
 // route stays the validator of record (big tent).
 var extMediaTypes = map[string]string{
 	".md": "text/markdown", ".markdown": "text/markdown",
@@ -155,7 +155,7 @@ func Yield(args []string) int {
 			return 1
 		}
 		if dopts.title == "" {
-			u.fail("--delegate needs --title: GenerationJobParams requires it, so the backend rejects a job without one.")
+			u.fail("--delegate needs --title: GenerationJobParams requires it, so the gateway rejects a job without one.")
 			return 1
 		}
 		t, ok := verbSession(u, "yield", repo, wantLocal)
@@ -197,7 +197,7 @@ func Yield(args []string) int {
 			fmt.Fprintln(os.Stderr, "  Start one first:  semiont start")
 			return 1
 		}
-		base = backendBase(local)
+		base = gatewayBase(local)
 		key = "local"
 		root = local.KBRoot
 		if root == "" {
@@ -298,7 +298,7 @@ func yieldOne(u *ui, cli *semiont.ClientWithResponses, key string, tok *tokenEnt
 			bytes.NewReader(body), bearer(tok.Token))
 		cancel()
 		if err != nil {
-			u.fail("Backend unreachable: %v", err)
+			u.fail("Gateway unreachable: %v", err)
 			fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
 			return 1
 		}
@@ -316,12 +316,12 @@ func yieldOne(u *ui, cli *semiont.ClientWithResponses, key string, tok *tokenEnt
 			} else {
 				// The refresh SUCCEEDED — saying it "could not renew" here
 				// would contradict the Session-refreshed line just printed.
-				u.fail("Session rejected even after a successful refresh — the backend no longer accepts this account's tokens.")
+				u.fail("Session rejected even after a successful refresh — the gateway no longer accepts this account's tokens.")
 			}
 			fmt.Fprintln(os.Stderr, "  Log in again:  semiont login --email <address>")
 			return 1
 		case resp.JSON400 != nil:
-			u.fail("Backend rejected %s: %s", up, resp.JSON400.Error)
+			u.fail("Gateway rejected %s: %s", up, resp.JSON400.Error)
 			return 1
 		default:
 			u.fail("Upload of %s failed: HTTP %d.", up, resp.HTTPResponse.StatusCode)
@@ -433,7 +433,7 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 	}
 	var jc semiont.JobCreatedResult
 	if json.Unmarshal(created, &jc) != nil || jc.Response.JobId == "" {
-		u.fail("yield --delegate: the backend accepted the job but named no jobId.")
+		u.fail("yield --delegate: the gateway accepted the job but named no jobId.")
 		return 1
 	}
 	jobID := jc.Response.JobId
@@ -548,7 +548,7 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 // of progressText below, and for the same reason: the wire carries a CODE, and
 // each client owns its words. react-ui translates these five reasons into 29
 // locales; a terminal is English-only by design, which is exactly why the
-// backend must not compose the sentence for both.
+// gateway must not compose the sentence for both.
 //
 // An unrecognized reason falls back to the raw code rather than an empty
 // string: for a CLI a bare token is still diagnostic, and a decline the user

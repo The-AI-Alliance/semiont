@@ -10,7 +10,7 @@
 #
 # Base is node:24-alpine (not node:26): node 26's built-in undici breaks the
 # qdrant client's undici@6, which @semiont/make-meaning can load transitively at
-# connect time. Keep in sync with the backend image.
+# connect time. Keep in sync with the gateway image.
 FROM node:24-alpine AS installer
 ARG NPM_REGISTRY=https://registry.npmjs.org
 ARG SEMIONT_VERSION=latest
@@ -30,7 +30,7 @@ RUN apk upgrade --no-cache
 # The Archivist shells out to git: WorkingTreeStore's register/move/remove and
 # the event store's appends all `git add` under the project root — this is the
 # single git writer (GATEWAY.md D4b). smelter/weaver carry no git; this image
-# must. Same as the backend image: when the mounted KB is owned by a host UID
+# must. Same as the gateway image: when the mounted KB is owned by a host UID
 # that differs from the in-container semiont user (UID 1001), git's
 # CVE-2022-24765 dubious-ownership check refuses to operate — --system writes
 # /etc/gitconfig, applied to all users including semiont.
@@ -63,7 +63,7 @@ USER semiont
 
 ENV NODE_ENV=production
 # The container-side paths are constants of the image, declared here the way
-# the backend image declares them (see rootstate.go's anchored-text comment):
+# the gateway image declares them (see rootstate.go's anchored-text comment):
 # the launcher mounts host dirs AT these targets and passes no path env.
 ENV SEMIONT_ROOT=/kb
 ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text

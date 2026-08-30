@@ -71,7 +71,7 @@ bytes.
 
 ### 3. API Caching
 
-Server data is cached by the SDK's `browse` observable caches — no per-call cache configuration. A live query is shared and deduplicated across all subscribers and revalidated by backend domain events:
+Server data is cached by the SDK's `browse` observable caches — no per-call cache configuration. A live query is shared and deduplicated across all subscribers and revalidated by gateway domain events:
 ```typescript
 // Shared, deduplicated cache; re-emits CacheState<ResourceList> as it revalidates
 const state = useObservable(client.browse.resources());

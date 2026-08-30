@@ -291,7 +291,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       if (!running) return;
 
       // Make-before-break handoff: the new connection is established (the
-      // backend has subscribed it and any `Last-Event-ID` replay is flowing),
+      // gateway has subscribed it and any `Last-Event-ID` replay is flowing),
       // so mark the previous connection(s) superseded and LINGER them — keep
       // them draining for LINGER_MS before the abort. Aborting immediately
       // here discarded replies already written to the old socket but not yet
@@ -366,7 +366,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
                 console.debug(`[bus LINGER] ${parsed.channel} delivered on superseded connection`);
               }
               // Tier 2: lift trace context off the SSE payload (the
-              // backend's writeBusEvent puts it there). The synchronous
+              // gateway's writeBusEvent puts it there). The synchronous
               // fan-out to subscribers happens inside the bus.recv span,
               // so handlers see the parent trace.
               const carrier = extractTraceparent(
@@ -514,7 +514,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     emit: async (channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<number> => {
       // EMIT logging + bus.emit span live at the transport contract layer
       // (`HttpTransport.emit`). ActorStateUnit is plumbing. We do propagate the
-      // active span's W3C traceparent on the outbound POST so the backend
+      // active span's W3C traceparent on the outbound POST so the gateway
       // can stitch the bus.dispatch server span as a child.
       const body: Record<string, unknown> = { channel, payload };
       if (emitScope) body.scope = emitScope;
@@ -535,7 +535,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // A refused emit (validation 400, auth 401…) must REJECT — busRequest's
       // contract detaches its doomed reply and propagates this to the caller.
       // Resolving a sentinel here instead leaves that caller waiting for a
-      // reply the backend will never send.
+      // reply the gateway will never send.
       if (!res.ok) {
         let detail = '';
         try {
@@ -545,7 +545,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         }
         throw new Error(`/bus/emit ${res.status}${detail ? `: ${detail}` : ''}`);
       }
-      // `-1` = count unknown (older backend / unreadable body) — never let a
+      // `-1` = count unknown (older gateway / unreadable body) — never let a
       // parse failure read as an empty room. Same sentinel as the Go client.
       try {
         const reply = (await res.json()) as { subscribers?: unknown };

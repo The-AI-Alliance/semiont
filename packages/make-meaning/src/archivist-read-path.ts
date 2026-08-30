@@ -14,7 +14,7 @@
  *
  * D1 (settled 2026-08-27): moving the event store out of the gateway breaks
  * `/bus/subscribe`'s `Last-Event-ID` replay, which reads the log in-process
- * (apps/backend/src/routes/bus.ts). The answer is one narrow call —
+ * (apps/gateway/src/routes/bus.ts). The answer is one narrow call —
  * the events for ONE resource from ONE sequence — which the gateway calls
  * directly:
  *

@@ -1,6 +1,6 @@
 /**
  * retryWithBackoff exists so a long-running peer whose first fetch to the
- * KS fails (backend restart, container-network warm-up) waits out the
+ * KS fails (gateway restart, container-network warm-up) waits out the
  * blip instead of dying — orchestration runs these processes with `--rm`
  * and no restart policy, so exit-on-first-failure is permanent death.
  */

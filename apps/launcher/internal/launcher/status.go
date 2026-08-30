@@ -45,7 +45,7 @@ health, name ONE stack:
 
   semiont status --root <path|name>    && echo local-up
   semiont status --repo <owner/name>   && echo remote-up
-  semiont status --service backend     && echo backend-up
+  semiont status --service gateway     && echo gateway-up
 
 Those forms exit 0 only when the named stack (or service) is healthy.
 
@@ -60,7 +60,7 @@ with a note, unless the codespace is already running.
 `
 
 // statusServices drives the report, in user-facing-first order with each
-// service beside its primary store (backend→database, worker→inference,
+// service beside its primary store (gateway→database, worker→inference,
 // weaver→graph, smelter→vectors), observability last. Deliberately unrelated
 // to start/stop ordering (which is dependency order). Names are the abstract
 // roles; the roles table maps them to containers. Health probes are
@@ -70,7 +70,7 @@ var statusServices = []struct {
 	endpoint string // http(s) URL, or "tcp:<port>"
 	core     bool   // counted toward the exit status
 }{
-	{"backend", "http://localhost:4000/api/health", true},
+	{"gateway", "http://localhost:4000/api/health", true},
 	{"database", "tcp:5432", true},
 	{"worker", "http://localhost:9090/health", true},
 	{"inference", "http://localhost:11434/api/version", true},
@@ -626,7 +626,7 @@ func printSessions(u *ui, ss *stackSet) {
 		base := ""
 		if k == "local" {
 			if st := ss.Stacks["local"]; st != nil {
-				base = backendBase(st)
+				base = gatewayBase(st)
 			}
 		} else if st := ss.Stacks[k]; st != nil && st.ForwardPort != 0 {
 			base = fmt.Sprintf("http://localhost:%d", st.ForwardPort)
@@ -797,23 +797,23 @@ func containerState(runtimes []string, name string) (state, rt string) {
 
 // roleHealthy probes one role of the stack.
 //
-// The BACKEND goes through the Go SDK. It is the only role in this table that
+// The GATEWAY goes through the Go SDK. It is the only role in this table that
 // is a semiont service with a generated client, and asking it directly was the
-// last application request the launcher made to the backend over a
+// last application request the launcher made to the gateway over a
 // hand-written path — the thing packages/sdk-go exists to own, and which the
-// TypeScript side has always covered (`healthCheck` on `IBackendOperations`).
+// TypeScript side has always covered (`healthCheck` on `IGatewayOperations`).
 //
 // Everything else keeps the generic prober, and that is not laziness: the
 // sidecars serve `/health` with no client of their own, and the rest are
 // third-party (Ollama, Qdrant, Neo4j, Jaeger) or not HTTP at all. One prober
 // spanning them is the point.
 func roleHealthy(role, endpoint string) bool {
-	if role != "backend" {
+	if role != "gateway" {
 		return probeHealth(endpoint)
 	}
 	base, ok := strings.CutSuffix(endpoint, "/api/health")
 	if !ok || base == "" {
-		// A backend endpoint that is not the health route is a record this
+		// A gateway endpoint that is not the health route is a record this
 		// function cannot speak for; the generic prober still can.
 		return probeHealth(endpoint)
 	}

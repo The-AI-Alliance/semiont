@@ -15,7 +15,7 @@ import (
 // transport seam exposes directly.
 //
 // What is deliberately NOT covered here, and stays end-to-end: that the built
-// binary speaks HTTP the backend understands. One wire test per verb family
+// binary speaks HTTP the gateway understands. One wire test per verb family
 // keeps that honest — see TestFrameOverTheWire.
 
 // withFake wires a fake transport plus the on-disk session state a verb needs,
@@ -67,7 +67,7 @@ func TestFrameStopsAtTheFirstRejectionInProcess(t *testing.T) {
 	defer restore()
 	// A rejection arrives on the operation's failure channel, which the client
 	// surfaces as *bus.RequestError — the type busFail unwraps to print the
-	// backend's own words. A plain error would take a different branch.
+	// gateway's own words. A plain error would take a different branch.
 	fake.RequestErr = &bus.RequestError{Channel: "frame:add-entity-type-failed", Message: "vocabulary is frozen"}
 
 	out, errOut := captureOutput(t, func() {

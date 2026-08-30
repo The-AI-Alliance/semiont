@@ -38,7 +38,7 @@ func verbFixture(t *testing.T) {
 	}
 	ss := &stackSet{Stacks: map[string]*stackState{
 		"local": {Runtime: "container", Services: map[string]serviceState{
-			"backend": {Endpoint: "http://localhost:4000/api/health"},
+			"gateway": {Endpoint: "http://localhost:4000/api/health"},
 		}},
 	}}
 	b, _ := json.MarshalIndent(ss, "", "  ")

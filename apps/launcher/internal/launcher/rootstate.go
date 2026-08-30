@@ -135,16 +135,16 @@ var stateStores = map[string]stateStoreSpec{
 		mode:       0o777,
 		projection: true,
 	},
-	// The backend's own derived state: the anchored-text store, one coordinate
+	// The gateway's own derived state: the anchored-text store, one coordinate
 	// map per representation, ~2.9s/page of OCR to rebuild. Unmounted it lives
 	// in the container and dies on every stop, and nothing re-derives it —
 	// reconcile plans from Qdrant, which persists, so it sees matching
 	// checksums and does nothing.
 	//
-	// The container path is a constant of the backend image, which declares it
+	// The container path is a constant of the gateway image, which declares it
 	// as SEMIONT_ANCHORED_TEXT_DIR exactly the way it declares SEMIONT_ROOT=/kb.
 	// So this side carries no KB identifier and nothing here has to know how
-	// the backend composes its own paths — the same arrangement every other
+	// the gateway composes its own paths — the same arrangement every other
 	// store already has (/qdrant/storage, /var/lib/postgresql/data).
 	//
 	// projection: reproducible from the resource's bytes, so an image change
@@ -277,7 +277,7 @@ func jwtSecretPath(root string) string {
 	return filepath.Join(dir, "jwt-secret")
 }
 
-// loadOrCreateJWTSecret resolves the backend's token-signing key for one root:
+// loadOrCreateJWTSecret resolves the gateway's token-signing key for one root:
 // $JWT_SECRET, else the persisted per-root secret, else a freshly generated one
 // that is persisted before use.
 //
@@ -295,20 +295,20 @@ func jwtSecretPath(root string) string {
 // nothing outlives it. Tokens DO outlive the stack. Hence the different rule.
 func loadOrCreateJWTSecret(u *ui, root string) (string, bool) {
 	if s := os.Getenv("JWT_SECRET"); s != "" {
-		// The backend reads this as an ordered RING: the first value signs,
+		// The gateway reads this as an ordered RING: the first value signs,
 		// every value verifies, so `<new>,<old>` keeps outstanding tokens
 		// working across a deliberate rotation (JWT-SECRET-ROTATION.md). The
-		// launcher only carries it — splitting is the backend's business, and
+		// launcher only carries it — splitting is the gateway's business, and
 		// re-joining a parsed ring here could only introduce a difference.
 		//
-		// Validate each MEMBER though. The backend refuses to boot on a short
+		// Validate each MEMBER though. The gateway refuses to boot on a short
 		// one, and a whole-string length check happily passes "<valid>,short"
 		// — so the trap is caught here, where the fix-it can be printed,
 		// rather than as a crash-loop inside a container.
 		keys := strings.Split(s, ",")
 		for i, k := range keys {
 			if len(strings.TrimSpace(k)) < 32 {
-				u.fail("JWT_SECRET key %d of %d is %d characters; the backend requires at least 32 and will refuse to start.",
+				u.fail("JWT_SECRET key %d of %d is %d characters; the gateway requires at least 32 and will refuse to start.",
 					i+1, len(keys), len(strings.TrimSpace(k)))
 				fmt.Fprintln(os.Stderr, "  JWT_SECRET is an ordered list: the first key signs, every key verifies.")
 				fmt.Fprintln(os.Stderr, "  Generate one:  openssl rand -hex 32")
@@ -322,7 +322,7 @@ func loadOrCreateJWTSecret(u *ui, root string) (string, bool) {
 
 	p := jwtSecretPath(root)
 	if p == "" {
-		u.fail("No home directory resolvable, so the backend's JWT secret cannot be persisted.")
+		u.fail("No home directory resolvable, so the gateway's JWT secret cannot be persisted.")
 		fmt.Fprintln(os.Stderr, "  Export one yourself:  export JWT_SECRET=$(openssl rand -hex 32)")
 		return "", false
 	}
@@ -334,9 +334,9 @@ func loadOrCreateJWTSecret(u *ui, root string) (string, bool) {
 		}
 	}
 
-	b := make([]byte, 32) // 64 hex chars — comfortably over the backend's 32 minimum
+	b := make([]byte, 32) // 64 hex chars — comfortably over the gateway's 32 minimum
 	if _, err := rand.Read(b); err != nil {
-		u.fail("Generating the backend's JWT secret: %v", err)
+		u.fail("Generating the gateway's JWT secret: %v", err)
 		return "", false
 	}
 	secret := hex.EncodeToString(b)

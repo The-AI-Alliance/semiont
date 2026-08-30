@@ -16,7 +16,7 @@ persisted ids built in `@semiont/core` — comes from that package's
 which is available in every context. So the suite needs no polyfill and
 none exists.
 
-(The backend still calls `crypto.randomUUID` in a few Node-only places —
+(The gateway still calls `crypto.randomUUID` in a few Node-only places —
 request ids, SSE connection ids. That is fine and deliberately left
 alone: Node always has it, and "secure context" is a browser notion with
 no Node equivalent. Only browser-reachable code is constrained here.)
@@ -48,13 +48,13 @@ If `npm install` upgrades `@playwright/test`, pull the matching
 produces a "please update docker image as well" error at test
 startup. See [containers.md](containers.md).
 
-## Stale browser tabs poison backend logs
+## Stale browser tabs poison gateway logs
 
-If `container logs semiont-backend` is a firehose of `Invalid token
+If `container logs semiont-gateway` is a firehose of `Invalid token
 signature` or `401` entries when no test is running, a lingering tab
 from an earlier dev session is still holding an SSE connection with
 an expired token and retrying. It won't break the tests directly, but
-it makes backend logs unreadable while diagnosing. Close the tab
+it makes gateway logs unreadable while diagnosing. Close the tab
 before debugging.
 
 ## Bus fixture order is load-bearing
@@ -69,7 +69,7 @@ that creates its own `page` context, re-attach the bus log there with
 
 Apple's container runtime assigns a fresh bridge IP on every
 `container run` and every `container start` — not just on rebuild.
-Re-grab both the Browser and backend IP before each test run. See
+Re-grab both the Browser and gateway IP before each test run. See
 [containers.md § IP refresh](containers.md#ip-refresh).
 
 ## `SEMIONT_VERSION=local` is load-bearing
@@ -78,5 +78,5 @@ Re-grab both the Browser and backend IP before each test run. See
 tags — but the KB stack consumes them only when started with
 `SEMIONT_VERSION=local semiont start`. Without it, the launcher pulls
 the **published** images and your local code changes are invisible.
-Forgetting this leads to "why isn't my backend code change visible?"
+Forgetting this leads to "why isn't my gateway code change visible?"
 confusion. See [containers.md § Restarting the stack on new images](containers.md#restarting-the-stack-on-new-images).

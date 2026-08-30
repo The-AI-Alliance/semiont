@@ -354,7 +354,7 @@ describe('ResourceDiscoveryPage', () => {
     });
 
     it('renders the recentDocuments prop as-is without applying any post-filter', () => {
-      // The component is now controlled — backend filtering means
+      // The component is now controlled — gateway filtering means
       // `recentDocuments` already contains only the resources matching the
       // active `selectedEntityType`. The component must not re-filter.
       const props = createMockProps({

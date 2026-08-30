@@ -350,7 +350,7 @@ describe('createYieldStateUnit', () => {
 describe('YieldStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
     const opts = { title: 'T', storageUri: 'file://x' };
-    // Backend stub errors synchronously: drive()'s error path runs (no throw) and
+    // Gateway stub errors synchronously: drive()'s error path runs (no throw) and
     // the timeout() timer is cleared on the sync error, so no timers leak across runs.
     const stub = () => new Observable((s) => s.error(new Error('axiom-stub')));
     assertStateUnitAxioms({

@@ -20,7 +20,7 @@ Beckoning is ephemeral — it produces no persistent state and coordinates trans
 
 Attention is primarily a Browser concern — in-browser hover/click
 signals coordinate through the local event bus without touching the
-backend. The annotations that attention targets are fetched via the
+gateway. The annotations that attention targets are fetched via the
 namespace API, and programmatic cross-participant beckoning goes
 through the `beckon` namespace:
 
@@ -110,9 +110,9 @@ the unified bus gateway:
 
 1. Originator calls `client.beckon.attention(resourceId, annotationId)`, which
    invokes `actor.emit('beckon:focus', ...)` → `POST /bus/emit`.
-2. Backend emits the event on the in-process EventBus.
+2. Gateway emits the event on the in-process EventBus.
 3. Every connected `SemiontClient` has `beckon:focus` and
-   `beckon:sparkle` in its bus-subscription channel list; the backend
+   `beckon:sparkle` in its bus-subscription channel list; the gateway
    broadcasts on these channels via `GET /bus/subscribe` (SSE).
 4. The client bridges the event into the local workspace EventBus —
    same delivery path as an in-browser click relay.
@@ -156,4 +156,4 @@ system can be built on.
 - **Event definitions** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `BECKON FLOW` section
 - **Bus bridge (client)**: [packages/sdk/src/client.ts](../../../packages/sdk/src/client.ts) — `ACTOR_TO_LOCAL_BRIDGES`
 - **Launcher command**: [apps/launcher/internal/launcher/beckon.go](../../../apps/launcher/internal/launcher/beckon.go) — `semiont beckon`
-- **Bus gateway**: [apps/backend/src/routes/bus.ts](../../../apps/backend/src/routes/bus.ts)
+- **Bus gateway**: [apps/gateway/src/routes/bus.ts](../../../apps/gateway/src/routes/bus.ts)

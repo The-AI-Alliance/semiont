@@ -13,8 +13,8 @@ on:
   workflow_dispatch: # Allow manual triggering
 
 jobs:
-  frontend-security:
-    name: Frontend Security Tests
+  browser-security:
+    name: Browser Security Tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -54,7 +54,7 @@ jobs:
           APP_PID=$!
           echo "APP_PID=$APP_PID" >> $GITHUB_ENV
           # Wait for app to start - check the root page instead of /api/health
-          timeout 60 bash -c 'until curl -f http://localhost:3000/ 2>/dev/null | grep -q "</html>"; do sleep 2; done' || echo "Frontend not ready yet, continuing..."
+          timeout 60 bash -c 'until curl -f http://localhost:3000/ 2>/dev/null | grep -q "</html>"; do sleep 2; done' || echo "Browser not ready yet, continuing..."
           sleep 5
 
       - name: Verify no admin content leakage
@@ -169,16 +169,16 @@ jobs:
         if: always()
         with:
           file: ./apps/browser/coverage/lcov.info
-          flags: frontend
-          name: frontend-coverage
+          flags: browser
+          name: browser-coverage
         continue-on-error: true
 
-  backend-security:
-    name: Backend Security Tests
+  gateway-security:
+    name: Gateway Security Tests
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./apps/backend
+        working-directory: ./apps/gateway
 
     services:
       postgres:
@@ -209,10 +209,10 @@ jobs:
       - name: Cache TypeScript incremental build info
         uses: actions/cache@v6.1.0
         with:
-          path: apps/backend/.tscache
-          key: ${{ runner.os }}-backend-tsc-${{ hashFiles('apps/backend/src/**/*.ts', 'apps/backend/tsconfig.json', 'packages/*/src/**/*.ts') }}
+          path: apps/gateway/.tscache
+          key: ${{ runner.os }}-gateway-tsc-${{ hashFiles('apps/gateway/src/**/*.ts', 'apps/gateway/tsconfig.json', 'packages/*/src/**/*.ts') }}
           restore-keys: |
-            ${{ runner.os }}-backend-tsc-
+            ${{ runner.os }}-gateway-tsc-
 
       - name: Install dependencies and build packages
         run: |
@@ -235,14 +235,14 @@ jobs:
             'adminEmail = "admin@localhost"' \
             'oauthAllowedDomains = ["localhost"]' \
             > .semiont/config
-          # Write ~/.semiontconfig with ci environment so backend can start.
-          # `[defaults] environment` is how the backend selects it — the same key a real
+          # Write ~/.semiontconfig with ci environment so gateway can start.
+          # `[defaults] environment` is how the gateway selects it — the same key a real
           # KB uses and the launcher reads. No SEMIONT_ENV export anywhere.
           #
           # This step stands in for the LAUNCHER, so it stages what the launcher
           # stages: `[kb]`, the KB's committed identity, copied from the
           # `.semiont/config` written just above (SINGLE-KB-MOUNT P5). The
-          # backend mounts no KB tree, so this is the only place it can see
+          # gateway mounts no KB tree, so this is the only place it can see
           # either value, and it refuses to boot without `domain`.
           #
           # TOP-LEVEL, and before the first `[environments…]` header: TOML
@@ -257,7 +257,7 @@ jobs:
             'name = "test-project"' \
             'domain = "localhost"' \
             '' \
-            '[environments.ci.backend]' \
+            '[environments.ci.gateway]' \
             'platform = "posix"' \
             'port = 4000' \
             'publicURL = "http://localhost:4000"' \
@@ -294,7 +294,7 @@ jobs:
             'model = "llama3"' \
             'baseURL = "http://localhost:11434"' \
             > ~/.semiontconfig
-          cd apps/backend
+          cd apps/gateway
           npx prisma db push --url "$DATABASE_URL"
         env:
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
@@ -329,9 +329,9 @@ jobs:
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
 
-      - name: Start backend for API security verification
+      - name: Start gateway for API security verification
         run: |
-          # Start backend using the ci environment configuration
+          # Start gateway using the ci environment configuration
           # (selected by `[defaults] environment = "ci"` in ~/.semiontconfig)
           cd ../..
           # No SEMIONT_ROOT and no SEMIONT_ANCHORED_TEXT_DIR: the gateway mounts
@@ -343,27 +343,27 @@ jobs:
           export GOOGLE_CLIENT_ID=test-client-id
           export GOOGLE_CLIENT_SECRET=test-client-secret
 
-          echo "Starting backend in the ci environment..."
-          cd apps/backend
-          nohup npm start > backend.log 2>&1 &
+          echo "Starting gateway in the ci environment..."
+          cd apps/gateway
+          nohup npm start > gateway.log 2>&1 &
           APP_PID=$!
-          echo "BACKEND_PID=$APP_PID" >> $GITHUB_ENV
+          echo "GATEWAY_PID=$APP_PID" >> $GITHUB_ENV
 
           # Give it a moment to start
           sleep 5
 
           # Check if process is still running
           if ! kill -0 $APP_PID 2>/dev/null; then
-            echo "Backend process died immediately. Logs:"
-            cat backend.log
+            echo "Gateway process died immediately. Logs:"
+            cat gateway.log
             exit 1
           fi
 
           # Try to curl the health endpoint (ci.json uses port 4000)
-          echo "Attempting to connect to backend health endpoint..."
+          echo "Attempting to connect to gateway health endpoint..."
           for i in {1..30}; do
             if curl -f -v http://localhost:4000/api/health 2>&1; then
-              echo "Backend is healthy!"
+              echo "Gateway is healthy!"
               break
             fi
             echo "Attempt $i failed, waiting..."
@@ -371,24 +371,24 @@ jobs:
 
             # Check if process is still alive
             if ! kill -0 $APP_PID 2>/dev/null; then
-              echo "Backend process died. Logs:"
-              cat backend.log
+              echo "Gateway process died. Logs:"
+              cat gateway.log
               exit 1
             fi
           done
 
           # Final check
           if ! curl -f http://localhost:4000/api/health 2>/dev/null; then
-            echo "Backend never became healthy. Process status:"
+            echo "Gateway never became healthy. Process status:"
             ps aux | grep -E "node|npm" || true
-            echo "Backend logs:"
-            cat backend.log
+            echo "Gateway logs:"
+            cat gateway.log
             exit 1
           fi
 
       - name: Verify API security
         run: |
-          echo "Testing backend API security..."
+          echo "Testing gateway API security..."
 
           # Test 1: Verify admin endpoints require authentication
           endpoints=("/api/admin/users" "/api/admin/users/stats")
@@ -501,13 +501,13 @@ jobs:
           fi
           echo "✅ Password endpoint appears protected against SQL injection"
 
-          echo "🎉 All backend API security checks passed!"
+          echo "🎉 All gateway API security checks passed!"
 
-      - name: Stop backend
+      - name: Stop gateway
         if: always()
         run: |
-          if [ ! -z "$BACKEND_PID" ]; then
-            kill $BACKEND_PID || true
+          if [ ! -z "$GATEWAY_PID" ]; then
+            kill $GATEWAY_PID || true
           fi
           # Kill any remaining Node.js processes
           pkill -f "node.*dist/index.js" || true
@@ -516,15 +516,15 @@ jobs:
         uses: codecov/codecov-action@v7.0.0
         if: always()
         with:
-          file: ./apps/backend/coverage/lcov.info
-          flags: backend
-          name: backend-coverage
+          file: ./apps/gateway/coverage/lcov.info
+          flags: gateway
+          name: gateway-coverage
         continue-on-error: true
 
   security-report:
     name: Security Test Report
     runs-on: ubuntu-latest
-    needs: [frontend-security, backend-security]
+    needs: [browser-security, gateway-security]
     if: always()
 
     steps:
@@ -533,34 +533,34 @@ jobs:
           echo "## 🛡️ Security Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ "${{ needs.frontend-security.result }}" == "success" ]; then
-            echo "✅ **Frontend Security Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.browser-security.result }}" == "success" ]; then
+            echo "✅ **Browser Security Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
             echo "- SPA shell serves correctly for admin/moderate routes" >> $GITHUB_STEP_SUMMARY
             echo "- No server-rendered privileged content in SPA shell" >> $GITHUB_STEP_SUMMARY
             echo "- No sensitive data patterns in responses" >> $GITHUB_STEP_SUMMARY
             echo "- Client-side auth guards verified by unit tests" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ **Frontend Security Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **Browser Security Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
             echo "- **CRITICAL**: Security vulnerabilities detected!" >> $GITHUB_STEP_SUMMARY
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ "${{ needs.backend-security.result }}" == "success" ]; then
-            echo "✅ **Backend Security Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.gateway-security.result }}" == "success" ]; then
+            echo "✅ **Gateway Security Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
             echo "- API authentication enforced" >> $GITHUB_STEP_SUMMARY
             echo "- Admin endpoints properly protected" >> $GITHUB_STEP_SUMMARY
             echo "- Password authentication secure (no email enumeration)" >> $GITHUB_STEP_SUMMARY
             echo "- SQL injection protection verified" >> $GITHUB_STEP_SUMMARY
             echo "- No sensitive data leakage" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ **Backend Security Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **Gateway Security Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
             echo "- **CRITICAL**: API security vulnerabilities detected!" >> $GITHUB_STEP_SUMMARY
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ "${{ needs.frontend-security.result }}" == "success" ] && [ "${{ needs.backend-security.result }}" == "success" ]; then
+          if [ "${{ needs.browser-security.result }}" == "success" ] && [ "${{ needs.gateway-security.result }}" == "success" ]; then
             echo "🎉 **Overall Status**: ALL SECURITY CHECKS PASSED" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "The application is secure and ready for deployment." >> $GITHUB_STEP_SUMMARY
@@ -571,7 +571,7 @@ jobs:
           fi
 
       - name: Fail if security tests failed
-        if: needs.frontend-security.result != 'success' || needs.backend-security.result != 'success'
+        if: needs.browser-security.result != 'success' || needs.gateway-security.result != 'success'
         run: |
           echo "Security tests failed. Failing the workflow."
           exit 1

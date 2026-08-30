@@ -18,7 +18,7 @@ Brief description of the changes in this PR.
 ## Areas Changed
 
 - [ ] Browser (`apps/browser`)
-- [ ] Backend (`apps/backend`)
+- [ ] Gateway (`apps/gateway`)
 - [ ] Launcher (`apps/launcher`)
 - [ ] HTTP Transport (`packages/http-transport`)
 - [ ] Core (`packages/core`)
@@ -49,7 +49,7 @@ Brief description of the changes in this PR.
 - [ ] No admin content rendered for unauthorized users
 - [ ] No sensitive information in error responses
 
-### API Security (Backend)
+### API Security (Gateway)
 
 - [ ] Admin endpoints protected with `adminMiddleware`
 - [ ] All endpoints return proper HTTP status codes (401/403/500)
@@ -84,10 +84,10 @@ cd apps/browser && npm run test:security
 # Paste results here
 ```
 
-### Backend Security Tests
+### Gateway Security Tests
 
 ```bash
-cd apps/backend && npm run test:security
+cd apps/gateway && npm run test:security
 # Paste results here
 ```
 

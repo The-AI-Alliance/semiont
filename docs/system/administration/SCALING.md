@@ -78,7 +78,7 @@ particularly `semiont.job.queue.size` (worker fan-out trigger),
 
 - Increase ECS task memory to 2048MB
 - Optimize CloudFront caching policies
-- Enable API response caching in backend
+- Enable API response caching in gateway
 - Monitor ALB response times
 
 **High Traffic (10,000-100,000 API calls/day)**
@@ -133,7 +133,7 @@ particularly `semiont.job.queue.size` (worker fan-out trigger),
 | Service | Configuration | Monthly Cost |
 |---------|--------------|--------------|
 | RDS PostgreSQL | t3.micro, single-AZ, 20GB GP2 | $20 |
-| ECS Fargate | 2 tasks (Browser + backend), 256 CPU, 512MB each | $18 |
+| ECS Fargate | 2 tasks (Browser + gateway), 256 CPU, 512MB each | $18 |
 | ALB | Standard configuration | $20 |
 | NAT Gateway | 2 AZs, minimal data transfer | $45 |
 | CloudFront | <1GB transfer, minimal requests | $5 |
@@ -270,7 +270,7 @@ particularly `semiont.job.queue.size` (worker fan-out trigger),
 **Request-Based Scaling:**
 
 - Browser: >500 requests/minute per task
-- Backend: >1000 API calls/minute per task
+- Gateway: >1000 API calls/minute per task
 - Scale in: <100 requests/minute per task
 
 **Database Scaling:**
@@ -307,7 +307,7 @@ particularly `semiont.job.queue.size` (worker fan-out trigger),
 - Single-AZ RDS for development/testing
 - Reserved Instances for predictable workloads
 - Implement automated start/stop for non-production
-- Share EFS between browser/backend services
+- Share EFS between browser/gateway services
 
 **100-1,000 Users:**
 
@@ -393,7 +393,7 @@ particularly `semiont.job.queue.size` (worker fan-out trigger),
 - Zero-downtime deployments for both services
 - Quick rollback capabilities
 - Suitable for 1,000+ users
-- Separate deployment for browser/backend
+- Separate deployment for browser/gateway
 
 ### Canary Deployments  
 

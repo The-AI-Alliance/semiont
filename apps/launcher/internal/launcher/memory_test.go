@@ -37,7 +37,7 @@ func TestMemCeilingGB(t *testing.T) {
 // obligation; ollama once whichever role provides it; traces with --observe.
 func TestStartCeilingsGB(t *testing.T) {
 	base := startCeilingsGB(nil, startOptions{})
-	// backend 8 + worker 2 + smelter 2 + weaver 3 + archivist 2 + librarian 2 + browser 1
+	// gateway 8 + worker 2 + smelter 2 + weaver 3 + archivist 2 + librarian 2 + browser 1
 	if base != 20 {
 		t.Fatalf("base ceilings = %vG, want 20G (did a service's ceiling change without this test?)", base)
 	}

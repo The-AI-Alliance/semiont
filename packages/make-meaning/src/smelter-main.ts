@@ -49,11 +49,11 @@ const envConfig = createTomlConfigLoader(
   process.env,
 )(null);
 
-const backendPublicURL = envConfig.services?.backend?.publicURL;
-if (!backendPublicURL) {
-  throw new Error('services.backend.publicURL is required in ~/.semiontconfig');
+const gatewayPublicURL = envConfig.services?.gateway?.publicURL;
+if (!gatewayPublicURL) {
+  throw new Error('services.gateway.publicURL is required in ~/.semiontconfig');
 }
-const baseUrl: string = backendPublicURL;
+const baseUrl: string = gatewayPublicURL;
 
 const embedding = envConfig.services?.embedding;
 if (!embedding?.type || !embedding?.model) {
@@ -100,11 +100,11 @@ async function authenticate(): Promise<string> {
   // the embedding config; two smelters with different embedding
   // providers run as different agents.
   //
-  // Connection-level failures are retried with backoff: the backend may be
+  // Connection-level failures are retried with backoff: the gateway may be
   // mid-restart or the container network still warming up when this process
   // starts, and orchestration runs it with `--rm` and no restart policy —
   // exiting on the first failed fetch is permanent death. HTTP-level
-  // rejections (bad secret) are NOT retried; the backend is up and said no.
+  // rejections (bad secret) are NOT retried; the gateway is up and said no.
   return retryWithBackoff(
     async () => {
       const response = await fetch(`${baseUrl}/api/tokens/agent`, {
@@ -127,7 +127,7 @@ async function authenticate(): Promise<string> {
     isTransientFetchError,
     STARTUP_FETCH_RETRY,
     ({ attempt, attempts, delayMs, error }) => {
-      logger.warn('Backend unreachable, retrying authentication', {
+      logger.warn('Gateway unreachable, retrying authentication', {
         attempt,
         attempts,
         retryInMs: delayMs,

@@ -15,9 +15,9 @@ A media token is a short-lived JWT with:
 | `exp` | 5 minutes from issuance |
 | `userId` | for audit |
 
-Signed with the same `JWT_SECRET` as session tokens. No backend state — validation is pure crypto.
+Signed with the same `JWT_SECRET` as session tokens. No gateway state — validation is pure crypto.
 
-The token is appended as a query parameter: `?token=<media-token>`. The backend validates it on resource endpoints and accepts it in place of a Bearer token (for elements that can't send a header).
+The token is appended as a query parameter: `?token=<media-token>`. The gateway validates it on resource endpoints and accepts it in place of a Bearer token (for elements that can't send a header).
 
 ### Threat model
 

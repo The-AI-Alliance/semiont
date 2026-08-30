@@ -1,10 +1,10 @@
 # Browser
 
-The Semiont browser is a Vite + React SPA that connects to a running knowledge-base backend. The fastest way to get one is the published container image; this section covers what to do once it's running, the alternatives, and how to verify the image you pulled.
+The Semiont browser is a Vite + React SPA that connects to a running knowledge-base gateway. The fastest way to get one is the published container image; this section covers what to do once it's running, the alternatives, and how to verify the image you pulled.
 
 ## Container runtime — local network access
 
-The browser container needs to reach a KB backend on your machine. The container runtime must have local network permission to do that.
+The browser container needs to reach a KB gateway on your machine. The container runtime must have local network permission to do that.
 
 - **macOS (Apple Container):** automatic on macOS 26+; no action required.
 - **macOS (Docker Desktop / Podman Desktop):** containers reach the host via `host.docker.internal`. The Semiont browser auto-detects and uses it.
@@ -37,10 +37,10 @@ If you'd rather not install a container runtime at all, Semiont ships a native d
 Once the browser is up at `http://localhost:3000`, open the **Knowledge Bases** panel and enter:
 
 - **Host:** `localhost`
-- **Port:** `4000` (the default backend port)
-- **Email** and **password** as configured when starting the backend
+- **Port:** `4000` (the default gateway port)
+- **Email** and **password** as configured when starting the gateway
 
-If you don't have a backend running yet, clone one of the [knowledge base repos](https://github.com/The-AI-Alliance/semiont-template-kb) listed in the top-level README and follow its setup script.
+If you don't have a gateway running yet, clone one of the [knowledge base repos](https://github.com/The-AI-Alliance/semiont-template-kb) listed in the top-level README and follow its setup script.
 
 ## Running locally — both install paths
 

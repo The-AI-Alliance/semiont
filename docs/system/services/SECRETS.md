@@ -1,13 +1,13 @@
 # Secrets Management
 
 Two kinds of secret reach a running stack, and the launcher treats them
-differently: it generates and keeps the backend's token-signing key, and it only
+differently: it generates and keeps the gateway's token-signing key, and it only
 *points at* everything else.
 
-## The backend's JWT secret
+## The gateway's JWT secret
 
 `JWT_SECRET` signs and validates bearer tokens. The Browser never sees it — it
-holds only the bearer token the backend returns. The backend refuses to start if
+holds only the bearer token the gateway returns. The gateway refuses to start if
 it is unset or shorter than 32 characters.
 
 `semiont start` resolves it in this order:
@@ -27,7 +27,7 @@ root's state directory and this secret with it — consistent, since the account
 those tokens name are in the PostgreSQL data being removed. A `--store` clean
 keeps it.
 
-`SEMIONT_WORKER_SECRET` (the backend/sidecar agent-token exchange) follows the
+`SEMIONT_WORKER_SECRET` (the gateway/sidecar agent-token exchange) follows the
 opposite rule: generated per run unless you export one, because every consumer is
 a container started in that same run and nothing outlives it.
 

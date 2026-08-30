@@ -6,7 +6,7 @@ This document describes the current security implementation in Semiont and provi
 
 ### Authentication
 
-For backend implementation details, see the [Backend Authentication Guide](../../../apps/backend/docs/AUTHENTICATION.md).
+For gateway implementation details, see the [Gateway Authentication Guide](../../../apps/gateway/docs/AUTHENTICATION.md).
 
 Semiont implements **bearer-only** authentication — an `Authorization: Bearer` JWT on every request, no session cookies (see [Authentication](./AUTHENTICATION.md)) — with OAuth sign-in support for:
 
@@ -19,7 +19,7 @@ Semiont implements **bearer-only** authentication — an `Authorization: Bearer`
 
 The current implementation includes:
 
-- **Router-Level Authentication**: Each backend router applies JWT authentication middleware to protected routes
+- **Router-Level Authentication**: Each gateway router applies JWT authentication middleware to protected routes
 - **JWT Token Validation**: Bearer token authentication for API access with HMAC SHA256 signature verification
 - **User Identification**: Each request includes user context (id, email, isAdmin, isModerator) for audit trails
 - **Role-Based Access Control**: Admin and moderator roles implemented with middleware enforcement (see [RBAC.md](../../protocol/RBAC.md))
@@ -37,7 +37,7 @@ The current implementation includes:
 
 Comprehensive security test coverage ensures no authentication regressions:
 
-- **route-auth-coverage.test.ts**: Tests ALL backend routes dynamically
+- **route-auth-coverage.test.ts**: Tests ALL gateway routes dynamically
   - Validates all non-public routes return 401 without authentication
   - Uses OpenAPI spec as single source of truth for public routes
   - Tests invalid tokens, malformed tokens, expired tokens
@@ -45,7 +45,7 @@ Comprehensive security test coverage ensures no authentication regressions:
   - Provides coverage statistics (tested vs skipped routes)
   - Runs in CI/CD via `npm run test:security`
 
-- **backend-security.test.ts**: Documents security requirements
+- **gateway-security.test.ts**: Documents security requirements
   - Admin endpoint protection patterns
   - Approved error messages (no sensitive data leakage)
   - HTTP status code standards
@@ -98,7 +98,7 @@ export OAUTH_ALLOWED_DOMAINS="example.com,example.org"
 1. **Use HTTPS**: Always deploy behind a reverse proxy with TLS termination
 2. **Set NODE_ENV**: Ensure `NODE_ENV=production` to disable development shortcuts
 3. **Secure Secrets**: Use a secrets management system for sensitive configuration
-4. **Network Security**: Deploy backend services in private networks when possible
+4. **Network Security**: Deploy gateway services in private networks when possible
 5. **Regular Updates**: Keep dependencies updated with security patches
 6. **Domain Restrictions**: Configure OAUTH_ALLOWED_DOMAINS to limit OAuth access
 

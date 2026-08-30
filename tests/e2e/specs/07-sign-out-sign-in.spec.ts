@@ -14,7 +14,7 @@ import { E2E_PASSWORD } from '../playwright.config';
  * of the new session wiring regresses — `client.emit` routing to a
  * dead bus, SSE not reconnecting on the new client, storage adapter
  * not writing the token — a post-sign-in action will silently fail
- * instead of round-tripping through the backend.
+ * instead of round-tripping through the gateway.
  *
  * This test asserts protocol-level health via
  * `bus.expectRequestResponse` on the second session, which is the

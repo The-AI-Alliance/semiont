@@ -1,7 +1,7 @@
 package launcher
 
 // login.go — `semiont login`: authenticate against a running stack's
-// backend (POST /api/tokens/password, via the generated packages/sdk-go
+// gateway (POST /api/tokens/password, via the generated packages/sdk-go
 // client — the launcher's first use of it) and store the session token per
 // stack (tokens.go). The password is read from STDIN only: prompted with
 // echo off on a terminal, one piped line otherwise — never argv (ps, shell
@@ -23,7 +23,7 @@ import (
 
 const loginUsage = `Usage: semiont login --email <address> [--repo <owner/name> | --runtime <rt>]
 
-Authenticate against a running stack's backend and store the session token
+Authenticate against a running stack's gateway and store the session token
 (launcher state home, mode 0600). The password is read from STDIN —
 prompted with echo off on a terminal, or piped for scripts:
 
@@ -92,7 +92,7 @@ func Login(args []string) int {
 			fmt.Fprintln(os.Stderr, "  Start one first:  semiont start")
 			return 1
 		}
-		base = backendBase(local)
+		base = gatewayBase(local)
 		key = "local"
 	}
 
@@ -113,7 +113,7 @@ func Login(args []string) int {
 		Password: pw,
 	})
 	if err != nil {
-		u.fail("Backend unreachable at %s: %v", base, err)
+		u.fail("Gateway unreachable at %s: %v", base, err)
 		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
 		return 1
 	}
@@ -138,11 +138,11 @@ func Login(args []string) int {
 	return 0
 }
 
-// backendBase derives the API base URL from the local stack's recorded
-// backend health endpoint — the record knows the real port even when the
+// gatewayBase derives the API base URL from the local stack's recorded
+// gateway health endpoint — the record knows the real port even when the
 // config moved it.
-func backendBase(st *stackState) string {
-	if e, ok := st.Services["backend"]; ok {
+func gatewayBase(st *stackState) string {
+	if e, ok := st.Services["gateway"]; ok {
 		if b, found := strings.CutSuffix(e.Endpoint, "/api/health"); found && b != "" {
 			return b
 		}

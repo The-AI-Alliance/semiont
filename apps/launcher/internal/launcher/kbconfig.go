@@ -21,6 +21,11 @@ type kbIdentity struct {
 	Version  string // [project] version
 	SiteName string // [site] siteName
 	Domain   string // [site] domain — did:web colon-path form
+	// [site] oauthAllowedDomains — the email domains permitted to sign in.
+	// Committed policy, not a machine fact, and the gateway REFUSES to start
+	// without it. It lives only in this file, so once the gateway stopped
+	// mounting /kb the launcher became the only thing that can carry it across.
+	OAuthAllowedDomains []string
 }
 
 // didWeb renders the full did:web identifier, "" when no domain is declared.
@@ -64,18 +69,20 @@ func parseKBIdentity(b []byte) *kbIdentity {
 			Version string `toml:"version"`
 		} `toml:"project"`
 		Site struct {
-			Domain   string `toml:"domain"`
-			SiteName string `toml:"siteName"`
+			Domain              string   `toml:"domain"`
+			SiteName            string   `toml:"siteName"`
+			OAuthAllowedDomains []string `toml:"oauthAllowedDomains"`
 		} `toml:"site"`
 	}
 	if toml.Unmarshal(b, &raw) != nil {
 		return nil
 	}
 	return &kbIdentity{
-		Name:     raw.Project.Name,
-		Version:  raw.Project.Version,
-		SiteName: raw.Site.SiteName,
-		Domain:   raw.Site.Domain,
+		Name:                raw.Project.Name,
+		Version:             raw.Project.Version,
+		SiteName:            raw.Site.SiteName,
+		Domain:              raw.Site.Domain,
+		OAuthAllowedDomains: raw.Site.OAuthAllowedDomains,
 	}
 }
 
@@ -85,6 +92,18 @@ func parseKBIdentity(b []byte) *kbIdentity {
 // staging "" is deliberate — a consumer that needs an identity must refuse,
 // and a fabricated one ('localhost', the dial address) is how two knowledge
 // bases end up sharing a did.
+// committedOAuthAllowedDomains is the sign-in policy the KB's own config
+// declares, nil when it declares none. Staged for the same reason the domain
+// is: the gateway refuses to start without it and no longer has the file.
+// Staging nil is deliberate — the refusal is the correct outcome for a KB that
+// declares no policy, and inventing one would silently widen who may sign in.
+func committedOAuthAllowedDomains(root string) []string {
+	if id := loadKBIdentity(root); id != nil {
+		return id.OAuthAllowedDomains
+	}
+	return nil
+}
+
 func committedDomain(root string) string {
 	if id := loadKBIdentity(root); id != nil {
 		return id.Domain

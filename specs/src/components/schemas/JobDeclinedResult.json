@@ -25,7 +25,7 @@
         "too-large",
         "empty"
       ],
-      "description": "Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed backend-side and was therefore English everywhere (ASSIST-PROGRESS-CONSOLIDATION P5)."
+      "description": "Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed gateway-side and was therefore English everywhere (ASSIST-PROGRESS-CONSOLIDATION P5)."
     }
   },
   "required": [

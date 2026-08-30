@@ -116,7 +116,7 @@ const FROZEN_BRIDGED = [
 
 describe('bus channel-classification invariants', () => {
   it('mark:update-entity-types is a registered operation with correlated -ok/-failed replies', () => {
-    // A resource's own entity-type classification is a confirmed backend write —
+    // A resource's own entity-type classification is a confirmed gateway write —
     // registered like its sibling metadata mutations (mark:delete/archive) so the
     // SDK's busRequest awaits the correlation-keyed reply and rejects on failure,
     // NOT a fire-and-forget local emit whose failure has nowhere to go
@@ -138,7 +138,7 @@ describe('bus channel-classification invariants', () => {
   });
 
   it('BRIDGED_CHANNELS has no duplicate entries', () => {
-    // A duplicate makes the backend SSE forwarder subscribe to the channel
+    // A duplicate makes the gateway SSE forwarder subscribe to the channel
     // twice — it maps `?channel=` entries 1:1 to subscriptions with no dedup —
     // so every event on it is delivered twice. The `BridgedChannel` *type*
     // can't catch this: a tuple with a repeated literal collapses in the

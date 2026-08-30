@@ -291,7 +291,7 @@ async function handleJobInner(
 
   const onProgress: OnProgress = (percentage, message, extra) => {
     // Progress doubles as the worker's liveness heartbeat: it feeds the
-    // stall watchdog here and refreshes the backend janitor's mtime
+    // stall watchdog here and refreshes the gateway janitor's mtime
     // heartbeat via the job:report-progress mirror.
     //
     // `message` is a code plus typed params, forwarded verbatim — the
@@ -393,7 +393,7 @@ async function handleJobInner(
     // Content never travels on the bus. Upload via the http-transport's
     // `client.yield.resource()` — same serializer the /know/compose
     // page uses, so the multipart wire shape has ONE definition.
-    // The backend writes content to disk and emits `yield:create`
+    // The gateway writes content to disk and emits `yield:create`
     // internally; we only learn the new resourceId from the response.
     const genParams = job.params as {
       prompt?: string;

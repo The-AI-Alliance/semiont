@@ -787,7 +787,7 @@ export class Weaver {
         this.logger.debug('Processing annotation.added event', {
           annotationId: event.payload.annotation.id
         });
-        // Idempotent fold: creation-by-id is not upsert on every backend, so
+        // Idempotent fold: creation-by-id is not upsert on every gateway, so
         // a redelivered mark:added (at-least-once delivery) must be refused
         // here — the same guard shape as the entity-tag fold below.
         const annId = makeAnnotationId(event.payload.annotation.id);

@@ -70,7 +70,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   private readonly annotationListCache: Cache<ResourceId, AnnotationsListResponse>;
   /**
    * Annotation-detail cache keyed by `annotationId` only — the resourceId
-   * is a routing hint for the backend fetch, not an identity component.
+   * is a routing hint for the gateway fetch, not an identity component.
    * We track the most recent resourceId per annotationId in a side-map
    * so `mark:delete-ok` (which carries only `annotationId`) can reach
    * the right cache entry. Aligns with the pre-refactor semantics.
@@ -361,7 +361,7 @@ export class BrowseNamespace implements IBrowseNamespace {
    * KB's worker/actor config, with `servesJobTypes` capabilities) and — once
    * Persons land — its members. KB-wide singleton, cached for the client's
    * lifetime; no membership-change event exists, so the only refresh triggers
-   * are `bus:resume-gap` (a backend restart with a changed roster necessarily
+   * are `bus:resume-gap` (a gateway restart with a changed roster necessarily
    * presents as an SSE gap) and a fresh `await` (which always fetches).
    */
   agents(): CacheObservable<CollaboratorEntry[]> {
@@ -709,7 +709,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       }
       // Entity-types, tag-schemas, and the collaborator directory are KB-wide
       // lists — always refetch on any gap. (For the directory, a gap is its one
-      // real staleness signal: a roster change means a backend restart, which
+      // real staleness signal: a roster change means a gateway restart, which
       // presents as an SSE gap.)
       this.invalidateEntityTypes();
       this.invalidateTagSchemas();

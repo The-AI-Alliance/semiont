@@ -1,7 +1,7 @@
 /**
  * The resource query — filtering, ranking and pagination — expressed in JS.
  *
- * Shared by every backend whose engine does not express it directly (memory,
+ * Shared by every gateway whose engine does not express it directly (memory,
  * JanusGraph, Neptune) so those three cannot drift apart. Neo4j expresses the
  * same semantics in Cypher, and the interface contract tests pin both shapes to
  * one behaviour.

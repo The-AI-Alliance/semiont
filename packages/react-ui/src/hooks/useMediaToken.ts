@@ -24,7 +24,7 @@ export function useMediaToken(client: SemiontClient | null, id: ResourceId): Use
     // can no longer mint, a leftover token would keep media URLs alive for
     // 5 minutes and then break them all at once with nothing explaining why.
     setToken(undefined);
-    // `auth` is only constructed when the client was given an IBackendOperations
+    // `auth` is only constructed when the client was given an IGatewayOperations
     // — a host on a bare transport has none, and cannot mint tokens at all.
     const auth = client?.auth;
     if (!auth || !id) { setLoading(false); return; }

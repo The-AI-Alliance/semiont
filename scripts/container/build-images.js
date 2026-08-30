@@ -6,7 +6,7 @@
  * 
  * Usage:
  *   npm run container:build              # Build all images
- *   npm run container:build backend      # Build backend only
+ *   npm run container:build gateway      # Build gateway only
  *   npm run container:build browser     # Build browser only
  * 
  * Legacy aliases:
@@ -115,8 +115,8 @@ async function buildImage(service, dockerfile, context, buildArgs = [], runtime)
   }
 }
 
-async function buildBackend(runtime) {
-  await buildImage('backend', 'apps/backend/Dockerfile', '.', [], runtime);
+async function buildGateway(runtime) {
+  await buildImage('gateway', 'apps/gateway/Dockerfile', '.', [], runtime);
 }
 
 async function buildBrowser(runtime) {
@@ -163,18 +163,18 @@ async function main() {
     switch (service) {
       case 'all':
         console.log('Building all services...');
-        await buildBackend(runtime);
+        await buildGateway(runtime);
         await buildBrowser(runtime);
         break;
-      case 'backend':
-        await buildBackend(runtime);
+      case 'gateway':
+        await buildGateway(runtime);
         break;
       case 'browser':
         await buildBrowser(runtime);
         break;
       default:
         log('red', `Unknown service: ${service}`);
-        console.log('Usage: npm run container:build [all|backend|browser]');
+        console.log('Usage: npm run container:build [all|gateway|browser]');
         process.exit(1);
     }
     

@@ -9,7 +9,7 @@
  * fresh (`cache.fetch`) rather than serving the memo. `.subscribe(...)` keeps
  * the stale-while-revalidate cached view.
  *
- * No backend: a fake transport returns an incrementing `browse:annotations-result`
+ * No gateway: a fake transport returns an incrementing `browse:annotations-result`
  * so a fresh fetch is observably different from the memo.
  */
 
@@ -75,11 +75,11 @@ describe('browse read — the one-shot .fresh() read is fresh (#847; D2 made it 
     bus.destroy();
   });
 
-  it('a re-read reflects the latest backend value (not the stale memo)', async () => {
+  it('a re-read reflects the latest gateway value (not the stale memo)', async () => {
     const first = await browse.annotations(rId).fresh();
     expect(first[0]!.id).toBe('a1');
 
-    // Simulates read → write → read: the backend now returns a newer value.
+    // Simulates read → write → read: the gateway now returns a newer value.
     const second = await browse.annotations(rId).fresh();
     expect(second[0]!.id).toBe('a2'); // fresh, not the cached 'a1'
   });

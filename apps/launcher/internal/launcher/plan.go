@@ -44,7 +44,7 @@ type rolePlan struct {
 
 type launchPlan struct {
 	Roles       map[string]rolePlan
-	BackendPort int
+	GatewayPort int
 	// EnvName is the [defaults]-selected environment — staging needs it to
 	// address the section it appends (see patchArchivistTopology).
 	EnvName string
@@ -299,7 +299,7 @@ func ollamaRunArgs(rp rolePlan, extra ...string) []string {
 
 // planPortChecks: the must-be-free ports, derived from the plan — only roles
 // the launcher actually provides claim ports. Order preserves the historical
-// check order (graph aux, graph, vectors, database, backend, sidecars,
+// check order (graph aux, graph, vectors, database, gateway, sidecars,
 // browser, traces-when-observing).
 func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 	var checks []portNeed
@@ -316,7 +316,7 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 	addRole("vectors")
 	addRole("database")
 	checks = append(checks,
-		portNeed{plan.BackendPort, "Backend"},
+		portNeed{plan.GatewayPort, "Gateway"},
 		portNeed{9090, "Worker"},
 		portNeed{9091, "Smelter"},
 		portNeed{9092, "Weaver"},
@@ -362,9 +362,9 @@ func parseHostPort(s string) (host string, port int) {
 
 // derivePlan maps the selected environment to per-role launch obligations.
 func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
-	plan := &launchPlan{Roles: map[string]rolePlan{}, BackendPort: 4000, EnvName: envName, OllamaModels: ollamaModels(env)}
-	if env.Backend != nil && env.Backend.Port != 0 {
-		plan.BackendPort = env.Backend.Port
+	plan := &launchPlan{Roles: map[string]rolePlan{}, GatewayPort: 4000, EnvName: envName, OllamaModels: ollamaModels(env)}
+	if env.Gateway != nil && env.Gateway.Port != 0 {
+		plan.GatewayPort = env.Gateway.Port
 	}
 	secErr := func(section, format string, a ...any) error {
 		return fmt.Errorf("%s: [environments.%s.%s] %s", path, envName, section, fmt.Sprintf(format, a...))
@@ -397,7 +397,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 	// the launcher itself injects — so honoring the declaration would stop
 	// launching Neo4j, Qdrant and PostgreSQL for every KB in the fleet.
 	// Reading it there is not a latent bug to fix: "external" in those files
-	// means external to the backend PROCESS, not "someone else runs it".
+	// means external to the gateway PROCESS, not "someone else runs it".
 	// Until that word means one thing in both places, the address shape is
 	// the authority. See GO-LAUNCHER.md follow-ups.
 	classify := func(host, injectedVar string) obligation {
@@ -449,7 +449,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 	}
 
 	// vectors — REQUIRED. Semantic search is always available, so the
-	// backend's TOML loader refuses a config that names no vector store; the
+	// gateway's TOML loader refuses a config that names no vector store; the
 	// launcher reads the same file with its own structs, so it refuses the
 	// same configs, one round trip earlier — before a single container is
 	// launched. Same rule, same words. platform defaults to "external" (the
@@ -461,13 +461,13 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 	if v.Type == "" {
 		return nil, secErr("vectors", "missing required key %q", "type")
 	}
-	// `memory` is a first-class store to the BACKEND, and unusable here: a
-	// launcher-managed stack runs the backend and the Smelter as separate
+	// `memory` is a first-class store to the GATEWAY, and unusable here: a
+	// launcher-managed stack runs the gateway and the Smelter as separate
 	// containers, and an in-process index cannot be shared across processes.
 	// Named explicitly so an operator who followed the loader's own advice is
 	// told WHY, rather than that the value is unknown.
 	if v.Type == "memory" {
-		return nil, secErr("vectors", `type "memory" keeps the index inside one process, and a launcher-managed stack runs the backend and the Smelter as separate containers — they cannot share it. Use type = "qdrant" here.`)
+		return nil, secErr("vectors", `type "memory" keeps the index inside one process, and a launcher-managed stack runs the gateway and the Smelter as separate containers — they cannot share it. Use type = "qdrant" here.`)
 	}
 	vspec, knownVectors := driverCatalog["vectors"][v.Type]
 	if !knownVectors {
@@ -543,7 +543,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 	// Ollama also serves embeddings (same process, same port — which is why
 	// embedding has no container of its own and never contends for a port),
 	// voyage means remote SaaS. Type AND model are both required, matching the
-	// backend loader exactly: half a rule enforced here is the drift this
+	// gateway loader exactly: half a rule enforced here is the drift this
 	// refusal exists to end.
 	if e := env.Embedding; e == nil {
 		return nil, envErr(`names no embedding provider — add [environments.%s.embedding] with type = "ollama" or "voyage" and a model. Semiont requires an embedding provider; nothing is defaulted.`, envName)

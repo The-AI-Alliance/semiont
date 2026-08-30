@@ -3,12 +3,12 @@
 Companion to [`bus-logging.md`](./bus-logging.md). Where `bus` captures
 the Browser's grep-friendly `[bus OP]` lines (Tier 1), the `jaeger`
 fixture pulls the **distributed spans** those events trigger across
-backend / worker / smelter / Browser (Tier 2) and attaches them to the
+gateway / worker / smelter / Browser (Tier 2) and attaches them to the
 Playwright report on teardown.
 
 A failing test's artifact bundle ends up with the cross-process trace
 tree alongside its trace.zip, video, and screenshot — so the developer
-can correlate a Browser bus event with the matching backend span tree
+can correlate a Browser bus event with the matching gateway span tree
 without manually fetching from the Jaeger UI.
 
 ## How it wires
@@ -17,7 +17,7 @@ The `jaeger` fixture depends on `bus`. At test entry, the bus fixture
 flips `globalThis.__SEMIONT_BUS_LOG__ = true` so Browser `busLog()`
 calls write `console.debug` lines that include a `trace=<8hex>` suffix
 when an OTel SDK is initialized in the page (or when the line was
-emitted from a backend handler whose response carried the propagated
+emitted from a gateway handler whose response carried the propagated
 traceparent).
 
 At test exit, the `jaeger` fixture:
@@ -36,7 +36,7 @@ Three env vars, all optional:
 | Variable | Default | Purpose |
 |---|---|---|
 | `JAEGER_QUERY_URL` | `http://192.168.64.16:16686` | Jaeger UI/Query base URL. |
-| `JAEGER_SERVICES` | `semiont-backend,semiont-worker,semiont-smelter,semiont-browser` | Comma-separated services to query. |
+| `JAEGER_SERVICES` | `semiont-gateway,semiont-worker,semiont-smelter,semiont-browser` | Comma-separated services to query. |
 | `JAEGER_ATTACH` | `failure` | When to attach evidence — `failure` (default), `always`, or `off`. |
 
 The default `failure` mode means passing tests don't pay the per-test
@@ -90,7 +90,7 @@ and writes a `<container>.log` slice into the test's output directory.
 python3 tests/e2e/scripts/slice-container-logs.py
 ```
 
-That writes `semiont-backend.log`, `semiont-worker.log`, and
+That writes `semiont-gateway.log`, `semiont-worker.log`, and
 `semiont-smelter.log` (when each has events in the test window) into
 every test directory next to the existing Jaeger artifacts. Combined
 with the `jaeger-*.json` artifacts and the Playwright trace.zip, a
@@ -98,7 +98,7 @@ failing test's directory ends up with the full cross-process record.
 
 Defaults:
 
-- **Containers**: `semiont-backend,semiont-worker,semiont-smelter`. The
+- **Containers**: `semiont-gateway,semiont-worker,semiont-smelter`. The
   Browser container is omitted because its log format is mostly
   unstructured stdout without timestamps. Override with
   `--containers <comma-list>`.
@@ -119,7 +119,7 @@ container's runtime.
 ## Limitations
 
 - **Browser doesn't currently emit OTel spans.** The captured prefixes
-  are mostly backend-originated; we still query the Browser service
+  are mostly gateway-originated; we still query the Browser service
   in case a Browser SDK is added later.
 - **Trace-id prefixes are 8 hex (32 bits).** Within a single test's
   time window collisions are unlikely but not impossible. The fixture

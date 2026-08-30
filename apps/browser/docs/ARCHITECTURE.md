@@ -20,7 +20,7 @@ This document describes the high-level architecture of the Semiont Browser appli
 The Semiont Browser is a Vite + React Router v7 SPA. The architecture emphasizes:
 
 - **Type Safety**: TypeScript throughout with strict mode enabled
-- **Server State Management**: RxJS observable caches on the SDK's verb-namespace client, invalidated automatically by backend domain events
+- **Server State Management**: RxJS observable caches on the SDK's verb-namespace client, invalidated automatically by gateway domain events
 - **Authentication**: bearer-only — the SDK session holds the JWT in memory and sends `Authorization: Bearer`; no cookie, no Browser-side auth server
 - **No Global Mutable State**: All state is managed through React hooks and contexts
 - **Fail-Fast Philosophy**: No default values - explicit configuration required
@@ -125,12 +125,12 @@ Static file server (Envoy/nginx serves index.html for all non-asset paths)
   ↓
 React Router v7 handles /:locale/* routes client-side
   ↓
-API calls go directly to backend (/api/*)
+API calls go directly to gateway (/api/*)
 ```
 
 **Path-Based Routing:**
 
-- **`/api/*`** → Backend API (called directly from browser)
+- **`/api/*`** → Gateway API (called directly from browser)
   - All REST API endpoints
   - WebSocket connections
   - SSE streams
@@ -142,7 +142,7 @@ API calls go directly to backend (/api/*)
 
 **Key Architecture Points:**
 - No Browser-side Node.js server process at runtime
-- Backend handles all OAuth callbacks and token issuance, returning JWTs the Browser stores per KB
+- Gateway handles all OAuth callbacks and token issuance, returning JWTs the Browser stores per KB
 - Each KB has its own JWT in `localStorage` keyed by KB id; the Browser includes the active KB's token on outgoing API calls
 
 ## Authentication Architecture
@@ -163,7 +163,7 @@ SemiontProvider (app root) → SemiontBrowser singleton (library-side, outside R
 ```
 
 **Authentication Flow:**
-1. User adds a KB and submits credentials → `SemiontSession.signInHttp` POSTs to that KB's backend → backend returns access + refresh tokens in the response body
+1. User adds a KB and submits credentials → `SemiontSession.signInHttp` POSTs to that KB's gateway → gateway returns access + refresh tokens in the response body
 2. The browser activates the session (`activeSession$`), marks the KB active (`activeKbId$`), and persists the session via the storage adapter
 3. On reload/switch the browser restores the stored session; the client uses its in-memory access token, re-minting from the refresh token as it nears expiry
 4. A 401 that can't be refreshed → the session's signals set the expiry flag → `SessionExpiredModal` surfaces
@@ -171,7 +171,7 @@ SemiontProvider (app root) → SemiontBrowser singleton (library-side, outside R
 **Token Management:**
 - Bearer-only: every request carries `Authorization: Bearer <jwt>` — there is no cookie and no ambient credential
 - The per-KB session (short-lived access token + long-lived refresh token — TTLs in [Authentication](../../../docs/system/administration/AUTHENTICATION.md)) is held in memory and persisted per-KB via the storage adapter (localStorage on web), so it survives reload
-- The browser exposes mutations (`addKnowledgeBase`, `signIn`, `signOut`); `signOut(kbId)` calls the backend logout, bumping `tokenVersion` to revoke the refresh token and all live access tokens server-side (all devices)
+- The browser exposes mutations (`addKnowledgeBase`, `signIn`, `signOut`); `signOut(kbId)` calls the gateway logout, bumping `tokenVersion` to revoke the refresh token and all live access tokens server-side (all devices)
 
 ### Authentication Hooks
 
@@ -206,7 +206,7 @@ High-churn entity data and browser-persistent application state are managed as o
 | Browse | `semiont.browse.annotations(id)` | Annotation lists per resource, updated in-place by enriched SSE events |
 | Browse | `semiont.browse.entityTypes()` | Entity types, updated via `frame:entity-type-added` bus channel |
 
-These update automatically when backend domain events arrive through the bus gateway (`mark:added`, `yield:updated`, etc.) — no manual cache-invalidation calls needed. Components subscribe via `useObservable(semiont.browse.annotations(resourceId))`. See [`@semiont/sdk` Usage.md](../../../packages/sdk/docs/Usage.md) for the full verb namespace API.
+These update automatically when gateway domain events arrive through the bus gateway (`mark:added`, `yield:updated`, etc.) — no manual cache-invalidation calls needed. Components subscribe via `useObservable(semiont.browse.annotations(resourceId))`. See [`@semiont/sdk` Usage.md](../../../packages/sdk/docs/Usage.md) for the full verb namespace API.
 
 **Application state stores** (live in `apps/browser/src/stores/`, browser-coupled):
 
@@ -288,7 +288,7 @@ semiont.frame.addEntityType(type);   // Promise<void>
 
 ### Caching and Invalidation
 
-There are no query keys to manage. Each live `browse.*` query is backed by an internal `Cache` primitive keyed by its resource id. Caches invalidate themselves in response to backend **domain events** delivered over the bus gateway — call sites never invalidate anything by hand:
+There are no query keys to manage. Each live `browse.*` query is backed by an internal `Cache` primitive keyed by its resource id. Caches invalidate themselves in response to gateway **domain events** delivered over the bus gateway — call sites never invalidate anything by hand:
 
 | Domain event | Cache effect |
 |---|---|
@@ -343,7 +343,7 @@ Component renders
 ```
 User action (e.g., create annotation)
     └── await semiont.mark.annotation(input)   (Bearer token attached)
-        └── backend applies the change, broadcasts a domain event (mark:create-ok)
+        └── gateway applies the change, broadcasts a domain event (mark:create-ok)
             └── event arrives over the bus gateway → browse Cache invalidates the affected query
                 └── live Observable re-emits → subscribed components re-render
 ```
@@ -356,7 +356,7 @@ No call site invalidates anything by hand — the domain event drives the cache 
 SemiontClient creates one ActorStateUnit (single SSE to /bus/subscribe)
     └── ResourceViewerPage mounts and subscribes to browse.*(id) live queries
         └── observing them acquires the resource scope (adds scoped channels; #847)
-            └── Backend emits domain events on scoped bus
+            └── Gateway emits domain events on scoped bus
                 └── ActorStateUnit bridges events into local EventBus
                     └── BrowseNamespace invalidates caches
                         └── Live query Observables re-emit
@@ -408,7 +408,7 @@ The provider tree has two distinct layers:
 
 - **Pre-app surfaces** (landing page, OAuth flow, static pages) do not need a validated session and should not surface auth-failure modals.
 - **Protected layouts** mount `AuthShell`, which surfaces the auth-failure modals from the active session's signals (`activeSignals$`). A 401 that can't be refreshed marks the session expired and `SessionExpiredModal` surfaces.
-- **Switching KBs swaps `activeSession$`** to the new KB's session (with its own `SemiontClient` pointing at that KB's backend) — the `SemiontBrowser` singleton handles it, with no per-layout provider or external bridge.
+- **Switching KBs swaps `activeSession$`** to the new KB's session (with its own `SemiontClient` pointing at that KB's gateway) — the `SemiontBrowser` singleton handles it, with no per-layout provider or external bridge.
 
 See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) for details on the Provider Pattern architecture.
 
@@ -512,7 +512,7 @@ const annotationManager: AnnotationManager = {
   createAnnotation: (params) => semiont.mark.annotation(params),
   deleteAnnotation: (params) => semiont.mark.delete(params.rId, params.aId),
 };
-// No manual cache invalidation: the backend's domain events (mark:create-ok,
+// No manual cache invalidation: the gateway's domain events (mark:create-ok,
 // mark:removed, …) drive the browse caches automatically.
 
 // Inject the implementation via the provider
@@ -550,7 +550,7 @@ if (!config?.apiUrl) {
 
 ```typescript
 // All API calls require authentication - no fallback
-if (!session?.backendToken) {
+if (!session?.gatewayToken) {
   throw new Error('Authentication required');
 }
 ```
@@ -573,12 +573,12 @@ function ResourceView({ resourceId }: { resourceId: ResourceId }) {
 
 ### 4. Event-Driven Invalidation Over Manual Refetch
 
-**Philosophy:** Let backend domain events drive cache invalidation automatically.
+**Philosophy:** Let gateway domain events drive cache invalidation automatically.
 
 ```typescript
 // A write is just a verb call — no onSuccess, no invalidate.
 await semiont.mark.annotation(input);
-// The backend broadcasts mark:create-ok over the bus; the browse cache
+// The gateway broadcasts mark:create-ok over the bus; the browse cache
 // invalidates the affected query and every subscriber re-renders.
 ```
 

@@ -1,7 +1,7 @@
 # HTTP Bus Gateway Contract
 
 **Purpose**: the HTTP-specific contract for the bus gateway between the
-browser (or any headless client) and the Semiont backend. If the code
+browser (or any headless client) and the Semiont gateway. If the code
 deviates from what's written here, the code is wrong — or this doc is
 wrong and needs updating, deliberately. No third option.
 
@@ -34,7 +34,7 @@ Neighboring docs:
 ## The two wire primitives
 
 ```
-Browser / headless client                         Backend
+Browser / headless client                         Gateway
   │                                                  │
   │    POST /bus/emit                                │
   │    { channel, payload, scope? }  →  202          │
@@ -70,7 +70,7 @@ health, and binary resources.
 Both endpoints require a valid JWT (`Authorization: Bearer …`).
 
 - 401: token missing, malformed, expired, or signed with a key the
-  backend doesn't recognize (e.g. the backend was restarted with a
+  gateway doesn't recognize (e.g. the gateway was restarted with a
   different secret, making earlier-issued tokens invalid).
 - 403: currently not used. All authenticated users see all channels.
   That's a known gap — see "Known gaps" below.
@@ -167,7 +167,7 @@ retry — has been closed in layers:
 - The **attach gate** (2026-07-29): no correlated emit leaves
   before the reply path is `'open'`.
 - **Correlated-reply retention** (2026-07-29):
-  the backend retains recent replies (bounded: 60s TTL / 1024 entries,
+  the gateway retains recent replies (bounded: 60s TTL / 1024 entries,
   keyed by correlationId), `busRequest` registers its cid with the
   transport BEFORE emitting, and every subscribe body carries the
   outstanding cids as `pendingReplies` — so a reply published while
@@ -177,7 +177,7 @@ retry — has been closed in layers:
 
 What remains lost: a reply older than the retention TTL (the caller's
 own 30s deadline passed long before), retention-cap eviction under
-pathological load, and a backend restart (in-memory buffer). A future
+pathological load, and a gateway restart (in-memory buffer). A future
 **multi-instance deployment is the named tripwire**: a reconnect landing
 on a different replica finds no buffer, so replicas must not ship
 without deciding sticky routing vs a shared retention store (see
@@ -317,7 +317,7 @@ connections. The client dedups by event id (`seenEventIds` in the
 actor-state-unit):
 
 - Persisted ids (`p-<scope>-<seq>`) are stable across connections → deduped to a single emission.
-- Correlation-reply ids (`e-<channel>:<cid>`) are deterministic → **also deduped**, so a reply landing on both the old and new connection is delivered once. (This closed a real duplicate-delivery bug: a per-connection id tagged the same reply differently on each connection and the dedup missed it — see the backend `writeBusEvent` rationale in `apps/backend/src/routes/bus.ts`.)
+- Correlation-reply ids (`e-<channel>:<cid>`) are deterministic → **also deduped**, so a reply landing on both the old and new connection is delivered once. (This closed a real duplicate-delivery bug: a per-connection id tagged the same reply differently on each connection and the dedup missed it — see the gateway `writeBusEvent` rationale in `apps/gateway/src/routes/bus.ts`.)
 - Other ephemeral ids (`e-<connectionId>-<counter>`) carry no `correlationId` and remain per-connection, so they aren't deduped — but their consumers tolerate a rare double (cache invalidations and job-completion are idempotent/terminal).
 
 ## Wire framing and client parser obligations
@@ -331,7 +331,7 @@ data: <JSON-stringified {channel, payload, scope?}>
 <blank line>
 ```
 
-The backend writes each event through Hono's `streamSSE` with no
+The gateway writes each event through Hono's `streamSSE` with no
 compression and no chunked-JSON framing — `data:` is always exactly
 one line, followed by one terminating blank line.
 
@@ -398,7 +398,7 @@ A consumer that wants correctness over HTTP must assume:
   retry on timeout, or (c) acceptance that the operation is
   fire-and-forget.
 - CorrelationIds are the only way to match a request to its response.
-  They must be UUIDs or equivalently-unique. The backend does not
+  They must be UUIDs or equivalently-unique. The gateway does not
   deduplicate them.
 
 ## Known gaps (deliberately surfaced)
@@ -480,7 +480,7 @@ above is the decision tree.
 
 ## Where the code implementing this contract lives
 
-- `apps/backend/src/routes/bus.ts` — the `/bus/emit` and
+- `apps/gateway/src/routes/bus.ts` — the `/bus/emit` and
   `/bus/subscribe` routes.
 - `specs/src/bus/registry.json` — the authority: channels, payloads, operations.
 - `packages/core/src/bus-protocol.ts` — GENERATED `EventMap`, `CHANNEL_SCHEMAS`,
@@ -498,7 +498,7 @@ above is the decision tree.
 A deliberate choice to keep this as a separate section so changes to
 the contract are visible.
 
-- **2026-07-29** — correlated-reply retention landed. The backend retains recent replies (60s TTL,
+- **2026-07-29** — correlated-reply retention landed. The gateway retains recent replies (60s TTL,
   1024-entry FIFO); the subscribe body's new `pendingReplies` field
   (cap 256) names the cids a client still awaits and the server replays
   matches with their deterministic ids. `busRequest` tracks its cid via

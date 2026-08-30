@@ -28,7 +28,7 @@ var depRoleTitles = map[string]string{
 
 // flowFullStart is THE full-start sequence: preflight → ports → staging →
 // pulls → traces → graph → vectors → inference → embedding → database →
-// backend → sidecars → Browser.
+// gateway → sidecars → Browser.
 //
 // embedding follows inference deliberately: an ollama-typed embedding is
 // served BY the Ollama inference just brought up, so probing it any earlier
@@ -56,7 +56,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	// The ports this start is about to claim — computed once and used twice:
 	// waited on here because the sweep may have just released any of them,
 	// then verified free below. Deriving the wait from a second, hand-rolled
-	// list is how the two drift: the earlier one missed the backend, the three
+	// list is how the two drift: the earlier one missed the gateway, the three
 	// sidecars and Neo4j's aux port (exactly what a torn-down stack still
 	// holds) while including ports for roles bound to a REMOTE service, which
 	// this start never binds.
@@ -135,10 +135,10 @@ func flowFullStart(x executor, fc flowCtx) int {
 		return 1
 	}
 
-	x.banner("Starting Backend")
-	x.say(sayLog, "http://localhost:%d", fc.plan.BackendPort)
+	x.banner("Starting Gateway")
+	x.say(sayLog, "http://localhost:%d", fc.plan.GatewayPort)
 	x.say(sayLog, "Worker secret: %s", x.dim("(generated)"))
-	if code := flowBackend(x, fc, addr, stage, secret, otel); code != 0 {
+	if code := flowGateway(x, fc, addr, stage, secret, otel); code != 0 {
 		return code
 	}
 
@@ -193,7 +193,7 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 		func() int {
 			if port != 3000 {
 				// Not a CORS warning: the API is bearer-only with `cors({origin:'*'})`
-				// (backend index.ts, SDK-AUTH-CORS Phase 4), so no backend rejects this
+				// (gateway index.ts, SDK-AUTH-CORS Phase 4), so no gateway rejects this
 				// origin. It used to name `frontendURL`, a config key that was read by
 				// nothing and has since been deleted (FRONTEND-IS-THE-BROWSER P6).
 				// What IS true is that anything holding the default origin literally —
@@ -455,11 +455,11 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 		})
 }
 
-// flowBackend: run + host-side health gate + container-gateway reachability
-// gate (the sidecars dial addr:port and fatally exit if their first backend
+// flowGateway: run + host-side health gate + container-gateway reachability
+// gate (the sidecars dial addr:port and fatally exit if their first gateway
 // fetch fails — host health alone doesn't prove the path they need).
-func flowBackend(x executor, fc flowCtx, addr, stage, secret string, otel []string) int {
-	port := fc.plan.BackendPort
+func flowGateway(x executor, fc flowCtx, addr, stage, secret string, otel []string) int {
+	port := fc.plan.GatewayPort
 	jwt, ok := x.jwtSecret(fc.root)
 	if !ok {
 		return 1
@@ -475,23 +475,23 @@ func flowBackend(x executor, fc flowCtx, addr, stage, secret string, otel []stri
 	if !ok {
 		return 1
 	}
-	bArgs := backendArgs(stage, addr, secret, jwt, fc.version, port, fc.userEnv, otel, extra...)
+	bArgs := gatewayArgs(stage, addr, secret, jwt, fc.version, port, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
-		x.say(sayFail, "Backend failed to start.")
+		x.say(sayFail, "Gateway failed to start.")
 		return 1
 	}
-	x.say(sayLog, "Waiting for backend health...")
-	d, ok := x.waitHTTP("Backend", fmt.Sprintf("http://localhost:%d/api/health", port), 120)
+	x.say(sayLog, "Waiting for gateway health...")
+	d, ok := x.waitHTTP("Gateway", fmt.Sprintf("http://localhost:%d/api/health", port), 120)
 	if !ok {
-		x.dumpLogs("semiont-backend", "backend")
+		x.dumpLogs("semiont-gateway", "gateway")
 		return 1
 	}
-	x.say(sayOK, "Backend healthy %s", x.dim("("+took(d)+")"))
-	if !x.backendReachable(addr, port) {
+	x.say(sayOK, "Gateway healthy %s", x.dim("("+took(d)+")"))
+	if !x.gatewayReachable(addr, port) {
 		return 1
 	}
-	x.record("backend", id, image("backend", fc.version), providedLauncher, fmt.Sprintf("http://localhost:%d/api/health", port), "")
+	x.record("gateway", id, image("gateway", fc.version), providedLauncher, fmt.Sprintf("http://localhost:%d/api/health", port), "")
 	return 0
 }
 
@@ -504,7 +504,7 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage, secret str
 	// and weaver never touch anchored text.
 	//
 	// Exactly one service may pass the stamped path (D3.1) — the Archivist
-	// keeps a SHARED read-only mount (D5), and the backend dropped its mount
+	// keeps a SHARED read-only mount (D5), and the gateway dropped its mount
 	// in the same change that made this one stamped.
 	var extra []string
 	if sc.svc == "smelter" {
@@ -530,14 +530,14 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage, secret str
 	return 0
 }
 
-// flowArchivist: the Archivist starts right after the backend and BEFORE
+// flowArchivist: the Archivist starts right after the gateway and BEFORE
 // the sidecars — since the P3 cutover it is the ONLY holder of the record
 // (the gateway constructs no actors; this service owns event appends, the
 // projection rebuild, and the git index, D4b), so the sidecars' boot-time
 // bus requests are answered here and must find the pumps attached.
 func flowArchivist(x executor, fc flowCtx, addr, stage, secret string, otel []string) int {
 	x.banner("Starting Archivist")
-	// anchored-text stays SHARED (the backend owns that stamp until
+	// anchored-text stays SHARED (the gateway owns that stamp until
 	// EXTRACT-LIBRARIAN moves the Gatherer); the XDG state tree is the
 	// inverse — the Archivist owns ITS stamp as the projection writer, and
 	// the gateway mounts it shared to read the views (D6).
@@ -722,8 +722,8 @@ func flowOneService(x executor, fc flowCtx) int {
 		if code := flowDepRole(x, "embedding", fc, addr); code != 0 {
 			return code
 		}
-	case "backend":
-		if code := flowBackend(x, fc, addr, stage, secret, otel); code != 0 {
+	case "gateway":
+		if code := flowGateway(x, fc, addr, stage, secret, otel); code != 0 {
 			return code
 		}
 	case "archivist":
@@ -756,15 +756,15 @@ func flowOneService(x executor, fc flowCtx) int {
 }
 
 // servicePortNeeds: one service's must-be-free ports. Claims follow the
-// plan for config-owned ports (dependency roles, backend); the static role
+// plan for config-owned ports (dependency roles, gateway); the static role
 // table covers only the launcher-fiat ports (sidecars, browser, traces).
 func servicePortNeeds(svc string, plan *launchPlan, opts startOptions) []portNeed {
 	ports := roles[svc].ports
 	switch {
 	case svc == "browser" && opts.port != 0:
 		ports = []portNeed{{opts.port, "Browser"}}
-	case svc == "backend" && plan != nil:
-		ports = []portNeed{{plan.BackendPort, "Backend"}}
+	case svc == "gateway" && plan != nil:
+		ports = []portNeed{{plan.GatewayPort, "Gateway"}}
 	case plan != nil:
 		if rp, ok := plan.Roles[svc]; ok && rp.Obligation == obligationProvided {
 			spec := driverCatalog[svc][rp.Driver]

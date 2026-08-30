@@ -1,7 +1,7 @@
 {
   "post": {
     "summary": "Create a resource",
-    "description": "Upload binary content + metadata as multipart/form-data. The backend writes content to disk, then emits yield:create on the bus; Stower persists it and returns a 202 with the new resourceId. Full reconciliation happens via SSE domain events (yield:created).\n\nGeneration workers and the /know/compose page both hit this route — bytes always travel on the HTTP wire, never on the bus.",
+    "description": "Upload binary content + metadata as multipart/form-data. The gateway writes content to disk, then emits yield:create on the bus; Stower persists it and returns a 202 with the new resourceId. Full reconciliation happens via SSE domain events (yield:created).\n\nGeneration workers and the /know/compose page both hit this route — bytes always travel on the HTTP wire, never on the bus.",
     "tags": ["Resources"],
     "security": [
       { "bearerAuth": [] }

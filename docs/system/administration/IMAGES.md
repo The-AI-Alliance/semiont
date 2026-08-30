@@ -10,7 +10,7 @@ This repo publishes **5 container images** to GitHub Container Registry
 
 - **semiont-browser** — Vite + React SPA (the Semiont Browser), served as a
   static container.
-- **semiont-backend** — the API server + unified bus gateway.
+- **semiont-gateway** — the API server + unified bus gateway.
 - **semiont-worker** — the annotation/generation worker pool.
 - **semiont-smelter** — the embedding/vector pipeline actor.
 - **semiont-weaver** — the graph-projection actor.
@@ -45,7 +45,7 @@ docker pull ghcr.io/the-ai-alliance/semiont-browser:latest
 ```
 
 **Environment variables:** `PORT` only (default `3000`). The container is a
-static-file server with no backend config and no config mount — the SPA
+static-file server with no gateway config and no config mount — the SPA
 connects to knowledge bases from the *browser* at runtime (the multi-KB
 session model; see [HUMAN-UI.md](../HUMAN-UI.md)).
 
@@ -63,7 +63,7 @@ session model; see [HUMAN-UI.md](../HUMAN-UI.md)).
 
 [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/orgs/The-AI-Alliance/packages?repo_name=semiont)
 
-The four backend-side services are published as runtime images that
+The four gateway-side services are published as runtime images that
 **bundle the published `@semiont/*` npm packages** at the requested version —
 the publish workflow refuses to build until the matching packages exist on
 npm (`npm view` gate), so an image version always equals the npm version it
@@ -71,7 +71,7 @@ carries. All four run `node:24-alpine` (the Browser runs `node:26-alpine`).
 
 | Image | What runs | Bundled packages | Port | Dockerfile |
 |---|---|---|---|---|
-| `semiont-backend` | API server + bus gateway | `@semiont/backend` | 4000 | [apps/backend/Dockerfile](../../../apps/backend/Dockerfile) |
+| `semiont-gateway` | API server + bus gateway | `@semiont/gateway` | 4000 | [apps/gateway/Dockerfile](../../../apps/gateway/Dockerfile) |
 | `semiont-worker` | annotation/generation worker pool | `@semiont/jobs` | 9090 | [packages/jobs/Dockerfile](../../../packages/jobs/Dockerfile) |
 | `semiont-smelter` | embedding/vector pipeline actor | `@semiont/make-meaning` | 9091 | [packages/make-meaning/Dockerfile.smelter](../../../packages/make-meaning/Dockerfile.smelter) |
 | `semiont-weaver` | graph-projection actor | `@semiont/make-meaning` | 9092 | [packages/make-meaning/Dockerfile.weaver](../../../packages/make-meaning/Dockerfile.weaver) |
@@ -113,7 +113,7 @@ Two workflows publish the images, both triggered manually with the desired
 version: [`publish-browser.yml`](../../../.github/workflows/publish-browser.yml)
 (the Browser) and
 [`publish-service-images.yml`](../../../.github/workflows/publish-service-images.yml)
-(a matrix over backend, worker, smelter, weaver). Each run, per image:
+(a matrix over gateway, worker, smelter, weaver). Each run, per image:
 
 1. Verifies the matching `@semiont/*` npm package version(s) exist —
    the image bundles published packages, never the working tree.
@@ -163,7 +163,7 @@ Requires the [GitHub CLI](https://cli.github.com/). No keys to
 manage — verification uses Sigstore's transparency log.
 
 ```bash
-# <image> is any of: semiont-browser, semiont-backend, semiont-worker,
+# <image> is any of: semiont-browser, semiont-gateway, semiont-worker,
 # semiont-smelter, semiont-weaver
 gh attestation verify \
   oci://ghcr.io/the-ai-alliance/<image>:VERSION \

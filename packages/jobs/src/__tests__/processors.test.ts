@@ -1386,7 +1386,7 @@ describe('annotation de-duplication', () => {
 
 // ─────────────────────────────────────────────────────────────────────
 // ASSIST-PROGRESS-CONSOLIDATION P2 (A6, producer half): a progress event
-// carries a CODE plus typed params, never a prose sentence. The backend
+// carries a CODE plus typed params, never a prose sentence. The gateway
 // reports what happened; each client renders it in the user's language.
 //
 // Pinned at the PROCESSOR call, deliberately: P1 already severed prose at

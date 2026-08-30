@@ -35,8 +35,8 @@ dependencies on the host beyond Python (which macOS ships with).
 One per container, filtered to errors and warnings:
 
 ```sh
-container logs --follow semiont-backend 2>&1 \
-  | python3 tests/e2e/scripts/log-filter.py --source backend &
+container logs --follow semiont-gateway 2>&1 \
+  | python3 tests/e2e/scripts/log-filter.py --source gateway &
 
 container logs --follow semiont-worker 2>&1 \
   | python3 tests/e2e/scripts/log-filter.py --source worker &
@@ -73,7 +73,7 @@ python3 tests/e2e/scripts/snapshot.py --seconds 300
 
 # Override Jaeger / containers if your stack isn't local-default
 python3 tests/e2e/scripts/snapshot.py --jaeger-url http://other:16686 \
-  --containers semiont-backend,semiont-other
+  --containers semiont-gateway,semiont-other
 ```
 
 Output: per-container log lines in the window, plus per-service Jaeger
@@ -106,7 +106,7 @@ full trace ID:
 
 ```sh
 # List recent traces from a service, get full IDs
-curl -s "http://192.168.64.16:16686/api/traces?service=semiont-backend&limit=20" \
+curl -s "http://192.168.64.16:16686/api/traces?service=semiont-gateway&limit=20" \
   | python3 -c "import json,sys; [print(t['traceID']) for t in json.load(sys.stdin)['data']]"
 ```
 

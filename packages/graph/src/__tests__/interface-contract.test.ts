@@ -254,7 +254,7 @@ describe('GraphDatabase Interface Contract', () => {
 
   describe('Result Ordering', () => {
     // Browse pages through these results, so the order must be total and stable:
-    // same query, same sequence, every call. Ordering on a property no backend
+    // same query, same sequence, every call. Ordering on a property no gateway
     // writes leaves SKIP/LIMIT free to repeat or drop rows between pages.
     const dated = (name: string, dateCreated: string, id: string) =>
       createTestResource({ '@id': resourceId(id), name, dateCreated });

@@ -124,9 +124,9 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('emit resolves -1 when the body is absent or unreadable (older backend ≠ empty room)', async () => {
+  it('emit resolves -1 when the body is absent or unreadable (older gateway ≠ empty room)', async () => {
     // A parse failure must NOT read as "nobody is listening": -1 (unknown,
-    // matching the Go client) keeps an older backend distinguishable from a
+    // matching the Go client) keeps an older gateway distinguishable from a
     // genuine zero-subscriber emit.
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => { throw new Error('no body'); } });
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
@@ -144,7 +144,7 @@ describe('createActorStateUnit', () => {
   });
 
   it('emit REJECTS on a non-2xx response — a refused emit must not read as success', async () => {
-    // The backend 400s an emit that fails request validation (e.g. a
+    // The gateway 400s an emit that fails request validation (e.g. a
     // MatchSearchRequest whose embedded annotations are malformed —
     // .plans/bugs/match-search-hangs-on-neo4j-datetime-annotations.md).
     // Resolving `-1` here swallows the refusal: the busRequest caller keeps
@@ -718,7 +718,7 @@ describe('createActorStateUnit', () => {
     c2.open();
     await new Promise((r) => setTimeout(r, 20));
 
-    // A correlated reply the backend wrote to the old socket around the
+    // A correlated reply the gateway wrote to the old socket around the
     // handover arrives on the OLD connection — it must still be delivered.
     c1.sse.push(sseChunkId(
       'bus-event',
@@ -733,7 +733,7 @@ describe('createActorStateUnit', () => {
   });
 
   it('dedupes a deterministic-id reply delivered by both connections during the linger overlap', async () => {
-    // The backend stamps correlated replies with deterministic ephemeral ids
+    // The gateway stamps correlated replies with deterministic ephemeral ids
     // (`e-<channel>:<correlationId>`, routes/bus.ts) precisely so both
     // connections tag the same reply identically — one emission, not two.
     const c1 = mockConn();

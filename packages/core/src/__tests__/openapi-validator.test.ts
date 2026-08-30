@@ -2,7 +2,7 @@
  * Spec validators — GRAPH-ANNOTATION-CODEC P4 (D8 = generate).
  *
  * There is exactly one ajv-over-the-spec validator in the repo. It used to live
- * in `apps/backend`, where `/bus/emit` could reach it and nothing else could;
+ * in `apps/gateway`, where `/bus/emit` could reach it and nothing else could;
  * make-meaning's P3 teeth need the same one, and a second setup would
  * hand-restate its semantics (3.0 `nullable` → draft-07, the
  * `example`/`discriminator` allowlist, `coerceTypes`, formats) — a drift in any

@@ -6,11 +6,11 @@ How a Semiont deployment splits into containers, how those containers communicat
 >
 > See [PACKAGE-ARCHITECTURE.md](PACKAGE-ARCHITECTURE.md) for the package layering that defines what each container actually contains.
 
-For the actor responsibilities running inside the backend / worker / smelter / weaver containers, see [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md). For the Semiont Browser SPA (served by the Browser container, executed in the user's web browser), see [HUMAN-UI.md](HUMAN-UI.md).
+For the actor responsibilities running inside the gateway / worker / smelter / weaver containers, see [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md). For the Semiont Browser SPA (served by the Browser container, executed in the user's web browser), see [HUMAN-UI.md](HUMAN-UI.md).
 
 ## Multi-container layout
 
-A local deployment runs four containers of Semiont code, five with the Browser, nine with the infrastructure dependencies — and ten with the Jaeger observability sidecar, which local KB stacks run **by default** (`--no-observe` skips it): the backend, worker, smelter, and weaver all export OTLP traces + metrics to it. All five Semiont containers are **published, attested images** (`ghcr.io/the-ai-alliance/semiont-*`) that knowledge-base stacks pull — selecting the version via `SEMIONT_VERSION` — and configure by bind-mounting per-KB TOML at runtime; KBs do not build images (see [Container Images](administration/IMAGES.md)):
+A local deployment runs four containers of Semiont code, five with the Browser, nine with the infrastructure dependencies — and ten with the Jaeger observability sidecar, which local KB stacks run **by default** (`--no-observe` skips it): the gateway, worker, smelter, and weaver all export OTLP traces + metrics to it. All five Semiont containers are **published, attested images** (`ghcr.io/the-ai-alliance/semiont-*`) that knowledge-base stacks pull — selecting the version via `SEMIONT_VERSION` — and configure by bind-mounting per-KB TOML at runtime; KBs do not build images (see [Container Images](administration/IMAGES.md)):
 
 ```mermaid
 graph TB
@@ -20,7 +20,7 @@ graph TB
         SPA["Static SPA server<br/>(serves the Semiont Browser)"]
     end
 
-    subgraph backend_c ["semiont-backend"]
+    subgraph gateway_c ["semiont-gateway"]
         HTTPD["HTTP Server<br/>(Hono)"]
         STOWER["Stower"]
         BROWSER["Browser<br/>(browse.* reads)"]
@@ -78,7 +78,7 @@ graph TB
     WEAVER --- NEO
     SMELTER --- QD
     HTTPD ---|"users / auth"| PG
-    backend_c -.- JAG
+    gateway_c -.- JAG
     WORKERS -.- JAG
     SMELTER -.- JAG
     WEAVER -.- JAG
@@ -104,13 +104,13 @@ graph TB
     class OL,JAG service
 ```
 
-Three reading notes on the diagram. First, the SPA *executes in the user's web browser* — `semiont-browser` only serves its static assets; the browser then talks to the backend directly (`localhost:4000`), which is why the Browser container needs no config and no backend connection of its own. Second, the rectangle the external edges terminate on is the backend's **HTTP server** — a [Hono](https://hono.dev/) app on `@hono/node-server` — and every one of those edges is event-bus traffic (`POST /bus/emit`, `GET /bus/subscribe` as SSE). The bus itself is deliberately **not** a box: it is connective fabric, not a component. Those two endpoints bridge external participants onto the same in-process `EventBus` (`@semiont/core`) that the backend's own actors — Stower, Browser, Gatherer, Matcher — subscribe to directly, with no HTTP hop. Third, the Ollama edges show the fully-local default: with the anthropic config, LLM inference for the workers, Gatherer, and Matcher goes to the Anthropic API instead, while embeddings stay on Ollama either way.
+Three reading notes on the diagram. First, the SPA *executes in the user's web browser* — `semiont-browser` only serves its static assets; the browser then talks to the gateway directly (`localhost:4000`), which is why the Browser container needs no config and no gateway connection of its own. Second, the rectangle the external edges terminate on is the gateway's **HTTP server** — a [Hono](https://hono.dev/) app on `@hono/node-server` — and every one of those edges is event-bus traffic (`POST /bus/emit`, `GET /bus/subscribe` as SSE). The bus itself is deliberately **not** a box: it is connective fabric, not a component. Those two endpoints bridge external participants onto the same in-process `EventBus` (`@semiont/core`) that the gateway's own actors — Stower, Browser, Gatherer, Matcher — subscribe to directly, with no HTTP hop. Third, the Ollama edges show the fully-local default: with the anthropic config, LLM inference for the workers, Gatherer, and Matcher goes to the Anthropic API instead, while embeddings stay on Ollama either way.
 
-The worker, smelter, and weaver communicate with the backend exclusively through the unified bus it exposes (`/bus/emit`, `/bus/subscribe`). Workers, the smelter, and the weaver authenticate via `POST /api/tokens/agent`, which exchanges a shared secret (`SEMIONT_WORKER_SECRET`) plus a `(provider, model)` identity for a JWT carrying a typed Software-agent DID (the smelter presents its embedding config; the weaver presents `(semiont, weaver)`); the existing auth middleware validates that JWT exactly as it would a user's. This split isolates long-running LLM, embedding, and graph-projection work from the request-serving event loop — the backend stays responsive to human users while workers, the smelter, and the weaver run in separate V8 isolates.
+The worker, smelter, and weaver communicate with the gateway exclusively through the unified bus it exposes (`/bus/emit`, `/bus/subscribe`). Workers, the smelter, and the weaver authenticate via `POST /api/tokens/agent`, which exchanges a shared secret (`SEMIONT_WORKER_SECRET`) plus a `(provider, model)` identity for a JWT carrying a typed Software-agent DID (the smelter presents its embedding config; the weaver presents `(semiont, weaver)`); the existing auth middleware validates that JWT exactly as it would a user's. This split isolates long-running LLM, embedding, and graph-projection work from the request-serving event loop — the gateway stays responsive to human users while workers, the smelter, and the weaver run in separate V8 isolates.
 
 ## Unified bus and SemiontSession
 
-Every actor that runs Semiont code — the Semiont Browser SPA, CLI, MCP, worker pool, smelter, and weaver — is a bus participant using the same primitives in `@semiont/sdk`. The backend exposes exactly two runtime endpoints that carry domain traffic: `POST /bus/emit` and `GET /bus/subscribe` (an SSE stream with dynamic channel subscriptions and Last-Event-ID replay on reconnect). Every other HTTP route exists for auth, admin, exchange, binary content, or infrastructure — not for domain commands. Commands and domain events flow through the bus.
+Every actor that runs Semiont code — the Semiont Browser SPA, CLI, MCP, worker pool, smelter, and weaver — is a bus participant using the same primitives in `@semiont/sdk`. The gateway exposes exactly two runtime endpoints that carry domain traffic: `POST /bus/emit` and `GET /bus/subscribe` (an SSE stream with dynamic channel subscriptions and Last-Event-ID replay on reconnect). Every other HTTP route exists for auth, admin, exchange, binary content, or infrastructure — not for domain commands. Commands and domain events flow through the bus.
 
 The common abstraction for "I am a Semiont actor" is `SemiontSession`, which lives in `@semiont/sdk` and carries per-KB authentication, token refresh, bus access, and cross-process state synchronization. A session is constructed against a storage adapter (`SessionStorage`): `WebBrowserStorage` in the browser, filesystem storage for CLI and MCP, in-memory storage in workers and tests. `SemiontClient` exposes namespace methods (e.g. `client.browse.resource(...)`, `client.mark.annotation(...)`) over the bus; raw `emit`/`on`/`stream` are internal to the SDK and not part of the consumer surface.
 
@@ -120,18 +120,18 @@ For the wire-level event protocol, see **[../protocol/EVENT-BUS.md](../protocol/
 
 ## Deployment platforms
 
-Services run on different platforms, configured per environment in the KB's `.semiont/semiontconfig/<name>.toml`. Each platform is a different adapter for hosting the same npm packages — the partition into "Browser / backend / worker / smelter" is a deployment choice (which adapter you pick), not an architectural one.
+Services run on different platforms, configured per environment in the KB's `.semiont/semiontconfig/<name>.toml`. Each platform is a different adapter for hosting the same npm packages — the partition into "Browser / gateway / worker / smelter" is a deployment choice (which adapter you pick), not an architectural one.
 
 ### How stacks are run
 
-Every Semiont service runs as a **container** — Docker, Podman, or Apple Container. The diagram above shows the layout. A KB stack is brought up either by the host-installed `semiont` launcher (any of the three runtimes, locally or in a GitHub Codespace) or by `docker compose` against the KB's `.semiont/compose/backend.yml`. See [platforms/README.md](platforms/README.md) and [LOCAL-SEMIONT.md](LOCAL-SEMIONT.md).
+Every Semiont service runs as a **container** — Docker, Podman, or Apple Container. The diagram above shows the layout. A KB stack is brought up either by the host-installed `semiont` launcher (any of the three runtimes, locally or in a GitHub Codespace) or by `docker compose` against the KB's `.semiont/compose/gateway.yml`. See [platforms/README.md](platforms/README.md) and [LOCAL-SEMIONT.md](LOCAL-SEMIONT.md).
 
 **There is no platform abstraction, and no cloud platform.** A retired CLI once carried a per-platform handler matrix (`posix`, `container`, `aws`, `external`, `mock`) plus `publish`/`update` for AWS; all of it has been deleted, the CLI included. The published images can of course be scheduled by a cloud container platform such as ECS Fargate, but that is your own integration — see [Running Semiont on AWS](platforms/AWS.md).
 
 Other deployment shapes are valid and require no architectural changes — they just don't have first-class CLI tooling yet:
 
 - **Kubernetes** — pods running the published Semiont images, with the same `/bus/emit` + `/bus/subscribe` contract between them.
-- **Cloud-native serverless** — short-lived flows (e.g. a Generator-Agent yield) could run as AWS Lambda, Cloud Run, or Cloud Functions invocations against a hosted backend; the SDK works the same against an HTTP transport regardless of where the caller lives.
+- **Cloud-native serverless** — short-lived flows (e.g. a Generator-Agent yield) could run as AWS Lambda, Cloud Run, or Cloud Functions invocations against a hosted gateway; the SDK works the same against an HTTP transport regardless of where the caller lives.
 - **Bare Node** — long-running services on any VM. The CLI's POSIX platform is essentially this, just with process supervision wired in.
 
 The constraint is the **port contracts** — the bus (`/bus/emit`, `/bus/subscribe`), the OpenAPI HTTP surface, and the in-process interfaces (`ITransport`, `SessionStorage`, the storage abstractions) — not which adapter implements them. Any compute substrate that can run Node and speak those ports can host a Semiont actor.
@@ -147,9 +147,9 @@ The constraint is the **port contracts** — the bus (`/bus/emit`, `/bus/subscri
 
 Two layers, easy to conflate:
 
-- **Operator entry points.** A KB stack is driven by the host-installed [`semiont` launcher](../../apps/launcher/README.md) — `semiont start` / `logs` / `status` / `stop` (runtime-portable, `--runtime` to force one) — or by `docker compose` against `.semiont/compose/backend.yml`.
+- **Operator entry points.** A KB stack is driven by the host-installed [`semiont` launcher](../../apps/launcher/README.md) — `semiont start` / `logs` / `status` / `stop` (runtime-portable, `--runtime` to force one) — or by `docker compose` against `.semiont/compose/gateway.yml`.
   In **Codespaces both are true at once**, at different layers: `semiont start --runtime codespace` drives the outside (create/resume the VM, wait for health, forward the KB, read credentials, stop or delete), while *inside* the codespace the devcontainer hooks bring the stack up with `docker compose` exactly as above. The launcher never reaches into the container to manage services.
-- **No CLI inside the containers.** Each published image runs its own service directly, as PID 1. The backend image derives `DATABASE_URL`, applies pending Prisma migrations, then `exec`s `node dist/index.js`; the Browser image runs `node node_modules/@semiont/browser/server.js`. Nothing in an image shells out to a Semiont CLI.
+- **No CLI inside the containers.** Each published image runs its own service directly, as PID 1. The gateway image derives `DATABASE_URL`, applies pending Prisma migrations, then `exec`s `node dist/index.js`; the Browser image runs `node node_modules/@semiont/browser/server.js`. Nothing in an image shells out to a Semiont CLI.
 
 See **[the launcher](../../apps/launcher/README.md)** and **[administration/CONFIGURATION.md](administration/CONFIGURATION.md)** for full configuration details.
 

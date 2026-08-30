@@ -69,7 +69,7 @@ For local-network access notes, supply-chain verification, and the native [deskt
 
 ## Automate
 
-Everything the browser does travels over one event bus, and the **[Semiont SDK](packages/sdk/README.md)** (`@semiont/sdk`) is how you speak it — a type-safe TypeScript client whose namespaces are the **[eight verbs](docs/protocol/flows/README.md)**: browse, bind, yield, mark, frame, gather, match, beckon. Your app never calls the backend's HTTP API directly; the SDK is the boundary.
+Everything the browser does travels over one event bus, and the **[Semiont SDK](packages/sdk/README.md)** (`@semiont/sdk`) is how you speak it — a type-safe TypeScript client whose namespaces are the **[eight verbs](docs/protocol/flows/README.md)**: browse, bind, yield, mark, frame, gather, match, beckon. Your app never calls the gateway's HTTP API directly; the SDK is the boundary.
 
 Here is a grounded answer — gather context by traversing the graph, then generate from it, with each claim cited back to its source:
 

@@ -50,7 +50,7 @@ fi
 G2B=$(grep -rnE "kb\.weaver\b|weaverEvents" packages apps --include='*.ts' 2>/dev/null \
   | grep -vE "/node_modules/|/dist/" || true)
 if [ -n "$G2B" ]; then
-  echo "❌ G2: kb.weaver / weaverEvents must not exist — the backend keeps only the weaveProgress fold:"
+  echo "❌ G2: kb.weaver / weaverEvents must not exist — the gateway keeps only the weaveProgress fold:"
   echo "$G2B"
   FAIL=1
 fi

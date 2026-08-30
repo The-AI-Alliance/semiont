@@ -81,7 +81,7 @@ model = "claude-sonnet-4-5-20250929"
 		sections[k] = v
 	}
 	var b strings.Builder
-	b.WriteString("[defaults]\nenvironment = \"local\"\n\n[environments.local.backend]\nplatform = \"posix\"\nport = 4000\n\n")
+	b.WriteString("[defaults]\nenvironment = \"local\"\n\n[environments.local.gateway]\nplatform = \"posix\"\nport = 4000\n\n")
 	for _, k := range []string{"graph", "vectors", "database", "embedding", "inference"} {
 		if s, ok := sections[k]; ok {
 			b.WriteString(s + "\n")
@@ -228,8 +228,8 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 					t.Errorf("%s roles: got %q want %q", m.Name, got, want)
 				}
 			}
-			if plan.BackendPort != 4000 {
-				t.Errorf("backend port: got %d want 4000", plan.BackendPort)
+			if plan.GatewayPort != 4000 {
+				t.Errorf("gateway port: got %d want 4000", plan.GatewayPort)
 			}
 			if len(plan.AuxPorts("graph")) != 1 || plan.AuxPorts("graph")[0].port != 7474 {
 				t.Errorf("graph aux ports: got %v", plan.AuxPorts("graph"))
@@ -268,7 +268,7 @@ password = "localpass"
 }
 
 // mustRefuse derives and requires a refusal naming the given fragments. The
-// message is the deliverable here: a config the backend will not boot must be
+// message is the deliverable here: a config the gateway will not boot must be
 // refused BEFORE anything is launched, and saying so is the whole value.
 func mustRefuse(t *testing.T, path string, want ...string) {
 	t.Helper()
@@ -278,7 +278,7 @@ func mustRefuse(t *testing.T, path string, want ...string) {
 	}
 	plan, err := derivePlan(env, envName, path)
 	if err == nil {
-		t.Fatalf("derivePlan accepted a config the backend refuses to boot: %+v", plan.Roles)
+		t.Fatalf("derivePlan accepted a config the gateway refuses to boot: %+v", plan.Roles)
 	}
 	for _, w := range want {
 		if !strings.Contains(err.Error(), w) {
@@ -288,10 +288,10 @@ func mustRefuse(t *testing.T, path string, want ...string) {
 }
 
 // Semantic search is always available (MANDATORY-EMBEDDING D0/D1), so the
-// backend's TOML loader refuses a config naming no vector store and no
+// gateway's TOML loader refuses a config naming no vector store and no
 // embedding provider. The launcher parses the same file with its own structs,
 // so it must refuse the same configs — otherwise `semiont start` launches
-// every container and the backend then dies at boot on a config the launcher
+// every container and the gateway then dies at boot on a config the launcher
 // already had in its hands. Same rule, same vocabulary, one round trip
 // earlier.
 func TestDerivePlanRefusesAConfigNamingNoVectorStore(t *testing.T) {
@@ -313,8 +313,8 @@ baseURL = "http://${OLLAMA_HOST}:11434"
 `}), "[environments.local.embedding]", `missing required key "model"`)
 }
 
-// `memory` is a first-class store to the BACKEND (D1) and unusable in a
-// launcher-managed stack, which runs the backend and the Smelter as separate
+// `memory` is a first-class store to the GATEWAY (D1) and unusable in a
+// launcher-managed stack, which runs the gateway and the Smelter as separate
 // containers. Refusing it is right; refusing it as an "unknown driver" is
 // not — the operator would read the loader's own advice, follow it, and be
 // told the value does not exist.
@@ -395,7 +395,7 @@ func TestRequiredVarsFromParse(t *testing.T) {
 	p := writeVariant(t, `[defaults]
 environment = "local"
 
-[environments.local.backend]
+[environments.local.gateway]
 platform = "posix"
 port = 4000
 

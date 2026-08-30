@@ -31,7 +31,7 @@ Three framings hold the SDK's surface together. Skim them once and the per-names
 
 | Shape | Naming | When to reach for it |
 |---|---|---|
-| `Promise<T>` | past-tense or short noun (`mark.annotation`, `auth.password`) | atomic backend ops — one round-trip, one value |
+| `Promise<T>` | past-tense or short noun (`mark.annotation`, `auth.password`) | atomic gateway ops — one round-trip, one value |
 | `StreamObservable<T>` | plain verb (`mark.assist`, `gather.annotation`) | long-running progress streams — `await` for the final value, `.subscribe(...)` for every emit |
 | `CacheObservable<T>` | plain noun (`browse.resource`, `browse.annotations`) | live queries — `.subscribe(...)` for `CacheState` emissions (`pending`/`ready`/`failed`, kept live), `.fresh()` for an explicit one-shot fetch |
 | `void` | imperative or progressive verb (`beckon.hover`, `mark.changeShape`) | collaboration signals — fire-and-forget onto the bus, observed by other participants |
@@ -95,7 +95,7 @@ const session = await SemiontSession.signInHttp({
 // storage-adapter wiring).
 ```
 
-`KnowledgeBase` is a uniform shape regardless of transport kind. The transport-specific connection details live in the nested `endpoint` discriminated union (`{ kind: 'http', host, port, protocol }` for HTTP backends, `{ kind: 'local', kbId }` for in-process). Code that doesn't construct transports never inspects `endpoint`.
+`KnowledgeBase` is a uniform shape regardless of transport kind. The transport-specific connection details live in the nested `endpoint` discriminated union (`{ kind: 'http', host, port, protocol }` for HTTP gateways, `{ kind: 'local', kbId }` for in-process). Code that doesn't construct transports never inspects `endpoint`.
 
 The default `refresh` callback uses the refresh token returned by `auth.password`. Override only for non-standard refresh flows (worker-pool shared secret, OAuth refresh-token grant, interactive re-prompt).
 
@@ -116,7 +116,7 @@ const semiont = SemiontClient.fromHttp({
 const session = SemiontSession.fromHttp({
   kb: {
     id: 'local',
-    label: 'Local Backend',
+    label: 'Local Gateway',
     email: 'me@example.com',
     endpoint: { kind: 'http', host: 'localhost', port: 4000, protocol: 'http' },
   },
@@ -141,7 +141,7 @@ import { BehaviorSubject } from 'rxjs';
 
 const token$ = new BehaviorSubject<AccessToken | null>(accessToken('your-jwt'));
 const transport = new HttpTransport({ baseUrl: baseUrl('http://localhost:4000'), token$ });
-// HttpTransport implements both ITransport and IBackendOperations; passing it
+// HttpTransport implements both ITransport and IGatewayOperations; passing it
 // as the third arg wires `client.auth` and `client.admin`. Non-HTTP transports
 // implement only ITransport — omit the third arg and `client.auth` / `.admin`
 // are `undefined`.
@@ -313,7 +313,7 @@ await semiont.yield.createFromToken({ token, name: 'Clone', content });
 
 ## Mark
 
-Commands return Promises that resolve on backend acceptance. Results appear on browse Observables via the bus gateway. `mark.annotation` takes the W3C-shaped annotation directly — `target.source` is the resource the annotation is anchored on, and the resulting `annotationId` is already branded so you can pass it to other namespace methods (`bind.body`, `gather.annotation`, etc.) without a manual cast.
+Commands return Promises that resolve on gateway acceptance. Results appear on browse Observables via the bus gateway. `mark.annotation` takes the W3C-shaped annotation directly — `target.source` is the resource the annotation is anchored on, and the resulting `annotationId` is already branded so you can pass it to other namespace methods (`bind.body`, `gather.annotation`, etc.) without a manual cast.
 
 For entity-type vocabulary writes, see [Frame](#frame) — those moved off Mark when Frame was promoted to flow status.
 
@@ -341,7 +341,7 @@ await semiont.mark.archive(resourceId);
 await semiont.mark.unarchive(resourceId);
 
 // Replace a resource's own entity-type classification — replace/diff:
-// pass the current types and the desired full set; the backend diffs
+// pass the current types and the desired full set; the gateway diffs
 // them into mark:entity-tag-added / -removed events, so the change
 // surfaces in browse.resources({ entityType }). (Stamps the resource
 // with types from the Frame vocabulary — defining the vocabulary
@@ -378,7 +378,7 @@ semiont.browse.entityTypes().subscribe((types) => {
 });
 ```
 
-Adding the same entity type twice is idempotent — the backend dedupes; the second `frame:add-entity-type` for an existing tag is a no-op.
+Adding the same entity type twice is idempotent — the gateway dedupes; the second `frame:add-entity-type` for an existing tag is a no-op.
 
 ### Tag schemas
 
@@ -493,7 +493,7 @@ in the same namespace and must stay local.
 
 ## Auth
 
-Like `admin`, the `auth` namespace lives on `IBackendOperations` and is `undefined` on a `SemiontClient` constructed without a backend. HTTP-context callers narrow with `!`:
+Like `admin`, the `auth` namespace lives on `IGatewayOperations` and is `undefined` on a `SemiontClient` constructed without a gateway. HTTP-context callers narrow with `!`:
 
 ```typescript
 const signedIn = await semiont.auth!.password('user@example.com', 'password');
@@ -509,7 +509,7 @@ For credentials-first construction, prefer `SemiontClient.signInHttp({ baseUrl, 
 
 ## Admin
 
-The `admin` namespace lives on `IBackendOperations`. A `SemiontClient` constructed with a backend (e.g. `fromHttp` / `signInHttp`) has `client.admin: AdminNamespace`; one constructed without a backend has `client.admin: undefined`. HTTP-context callers narrow with `!`:
+The `admin` namespace lives on `IGatewayOperations`. A `SemiontClient` constructed with a gateway (e.g. `fromHttp` / `signInHttp`) has `client.admin: AdminNamespace`; one constructed without a gateway has `client.admin: undefined`. HTTP-context callers narrow with `!`:
 
 ```typescript
 const users = await semiont.admin!.users();
@@ -623,7 +623,7 @@ The cast names the seam: today only HTTP workers exist. The adapter itself is tr
 
 ## Debugging the bus
 
-When something on the bus is silently not happening — a job-claim worker that isn't claiming, an SSE connection that dropped, a `mark:create` emit that didn't reach the backend — there are two complementary tools.
+When something on the bus is silently not happening — a job-claim worker that isn't claiming, an SSE connection that dropped, a `mark:create` emit that didn't reach the gateway — there are two complementary tools.
 
 **Wire-level event logging (Tier 1 of the observability stack).** Every event that crosses a transport boundary is logged as a single grep-friendly line on stdout / `console.debug`:
 
@@ -635,11 +635,11 @@ When something on the bus is silently not happening — a job-claim worker that 
 Toggle:
 
 ```bash
-SEMIONT_BUS_LOG=1 <command>          # Node (backend, workers, smelter, CLI, MCP, scripts)
+SEMIONT_BUS_LOG=1 <command>          # Node (gateway, workers, smelter, CLI, MCP, scripts)
 window.__SEMIONT_BUS_LOG__ = true;   # Browser (DevTools or e2e init)
 ```
 
-Cost when disabled: a single truthy check, zero allocations. Five op codes — `EMIT`, `RECV`, `SSE`, `PUT`, `GET` — cover every transport-level write and read. Failure modes are diagnosable from a missing line: backend `EMIT` missing → request never reached the server; backend `SSE` missing → handler emitted no result; Browser `RECV` missing → server wrote but bytes never parsed client-side. The full guide with the timeline format and e2e capture API is at [`tests/e2e/docs/bus-logging.md`](../../../tests/e2e/docs/bus-logging.md).
+Cost when disabled: a single truthy check, zero allocations. Five op codes — `EMIT`, `RECV`, `SSE`, `PUT`, `GET` — cover every transport-level write and read. Failure modes are diagnosable from a missing line: gateway `EMIT` missing → request never reached the server; gateway `SSE` missing → handler emitted no result; Browser `RECV` missing → server wrote but bytes never parsed client-side. The full guide with the timeline format and e2e capture API is at [`tests/e2e/docs/bus-logging.md`](../../../tests/e2e/docs/bus-logging.md).
 
 When OpenTelemetry is initialized (Tier 2), every bus-log line gets a `trace=<8hex>` suffix that correlates the grep timeline with the trace UI.
 
@@ -674,7 +674,7 @@ Transport-level errors (HTTP `APIError`, future gRPC `GrpcError`, etc.) all map 
 | `not-found` | resource missing | 404 |
 | `conflict` | concurrent modification, duplicate, etc. | 409 |
 | `bad-request` | request malformed | 400 |
-| `unavailable` | backend unreachable, network error | 5xx |
+| `unavailable` | gateway unreachable, network error | 5xx |
 | `error` | unclassified fallback | other |
 
 Bus-layer and session-layer errors keep their own code namespaces:
@@ -682,7 +682,7 @@ Bus-layer and session-layer errors keep their own code namespaces:
 | Class | Codes | Thrown by |
 |---|---|---|
 | `APIError` (extends `SemiontError`) | `TransportErrorCode` (above) — plus `APIError.status` for the original HTTP status | HTTP transport (`@semiont/http-transport`) |
-| `BusRequestError` | `bus.timeout`, `bus.rejected`, `bus.closed`, `bus.bad-payload`, `bus.unauthorized`, `bus.forbidden`, `bus.not-found` | bus-mediated commands inside namespaces. (`bus.timeout` should be rare: the emit is gated on an open connection, and a reply published during a disconnect replays from the server's retention buffer on reconnect — a timeout that does fire usually means the backend is genuinely down or slow.) |
+| `BusRequestError` | `bus.timeout`, `bus.rejected`, `bus.closed`, `bus.bad-payload`, `bus.unauthorized`, `bus.forbidden`, `bus.not-found` | bus-mediated commands inside namespaces. (`bus.timeout` should be rare: the emit is gated on an open connection, and a reply published during a disconnect replays from the server's retention buffer on reconnect — a timeout that does fire usually means the gateway is genuinely down or slow.) |
 | `SemiontSessionError` | `session.auth-failed`, `session.refresh-exhausted`, `session.construct-failed` | the session layer — surfaced on `SemiontBrowser.error$`, not as a per-call rejection |
 
 Catch broadly on `SemiontError` and route on `code`; reach for `APIError` (imported from `@semiont/http-transport`) only when a handler genuinely needs HTTP-specific fields like `status`.

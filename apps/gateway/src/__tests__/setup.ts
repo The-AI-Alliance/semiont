@@ -1,0 +1,165 @@
+/**
+ * Global test setup for gateway
+ * Clean, modern approach with lazy-loading
+ */
+
+import { vi, beforeAll, afterEach, afterAll } from 'vitest';
+import { setupServer } from 'msw/node';
+import { handlers } from './mocks/server';
+import { promises as fs, mkdirSync, writeFileSync } from 'fs';
+import { v4 as uuidv4 } from 'uuid';
+import type { EnvironmentConfig } from '@semiont/core';
+
+// Create mock Prisma client that will be used by all tests
+const mockPrismaClient = {
+  user: {
+    findUnique: vi.fn(),
+    findFirst: vi.fn(),
+    findMany: vi.fn(),
+    create: vi.fn(),
+    count: vi.fn(),
+    update: vi.fn(),
+    upsert: vi.fn(),
+    delete: vi.fn(),
+  },
+  $queryRaw: vi.fn(),
+  $disconnect: vi.fn().mockResolvedValue(undefined),
+};
+
+// Mock the database module before any imports
+vi.mock('../db', () => ({
+  DatabaseConnection: {
+    getClient: () => mockPrismaClient,
+    setClient: vi.fn(),
+    reset: vi.fn().mockResolvedValue(undefined),
+    disconnect: vi.fn().mockResolvedValue(undefined),
+    checkHealth: vi.fn().mockResolvedValue(true),
+  },
+  getDatabase: () => mockPrismaClient,
+  // Keep prisma export for any legacy tests
+  prisma: mockPrismaClient,
+}));
+
+// Use a unique directory per worker thread to avoid race conditions
+const testDir = `/tmp/semiont-test-${process.pid}-${uuidv4()}`;
+
+// Mock config LOADING to provide in-memory config (no filesystem needed) —
+// loadEnvironmentConfig moved to its owning package, @semiont/core/node
+// (EXTRACT-ARCHIVIST P2a); the mock spreads the real module so every other
+// export (SemiontProject, …) stays live. makeMeaningConfigFrom is NOT
+// mocked: the real mapping runs over this config, so `_metadata` carries
+// the gather/search sections the TOML loader would have set.
+vi.mock('@semiont/core/node', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@semiont/core/node')>()),
+  loadEnvironmentConfig: vi.fn((_projectRoot: string, _env: string): EnvironmentConfig => ({
+    services: {
+      gateway: {
+        platform: { type: 'posix' as const },
+        port: 4000,
+        publicURL: 'http://localhost:4000',
+      },
+      filesystem: {
+        platform: { type: 'posix' as const },
+        path: testDir,
+      },
+      graph: {
+        platform: { type: 'posix' as const },
+        type: 'memory' as const,
+      },
+      // Mandatory per MANDATORY-EMBEDDING D0+D1 — every config names both.
+      vectors: {
+        platform: { type: 'external' as const },
+        type: 'memory' as const,
+      },
+      embedding: {
+        platform: { type: 'external' as const },
+        type: 'ollama' as const,
+        model: 'nomic-embed-text',
+      },
+    },
+    site: {
+      siteName: 'Test Site',
+      domain: 'localhost',
+      adminEmail: 'admin@test.local',
+      oauthAllowedDomains: ['test.local'],
+    },
+    // The KB's committed identity, as the launcher stages it (SINGLE-KB-MOUNT
+    // P5). The gateway mounts no KB tree, so this is the ONLY place it can see
+    // either value: `name` composes its state paths, `domain` is the committed
+    // side of the identity check. `domain` mirrors `site.domain` on purpose —
+    // matching keeps these fixtures in the ordinary, non-diverged case and
+    // therefore silent (a mismatch warns; KB-IDENTITY decision 10).
+    kb: {
+      name: 'semiont-gateway-unit',
+      domain: 'localhost',
+    },
+    env: {
+      NODE_ENV: 'test' as const,
+    },
+    _metadata: {
+      environment: 'unit',
+      projectRoot: testDir,
+      gather: { settleTimeoutMs: 15_000 },
+      search: { semanticFloor: 0.6 },
+    },
+  })),
+}));
+
+// Set minimal required environment variables
+process.env.NODE_ENV = 'test';
+process.env.SEMIONT_ROOT = testDir;
+// Beside SEMIONT_ROOT because it is the same kind of thing: a deployment fact
+// index.ts reads and refuses to boot without. SemiontProject never reads it —
+// the entry point passes it in — so only the entry point's tests need it set.
+process.env.SEMIONT_ANCHORED_TEXT_DIR = `${testDir}/anchored-text`;
+process.env.JWT_SECRET = 'test-secret-key-for-testing-32char';
+
+// The KB's own committed config. Written SYNCHRONOUSLY here, not in
+// `beforeAll`: boot reads it when a test file imports the app, which for some
+// files happens at module load — before any hook has run.
+//
+// The gateway no longer reads this file — it reads the staged `[kb]` above
+// (SINGLE-KB-MOUNT P5), which is where its boot refusal now turns. This
+// fixture remains for the CLIs, which run from a checkout with their own
+// SEMIONT_ROOT and still build a `SemiontProject` over it.
+mkdirSync(`${testDir}/.semiont`, { recursive: true });
+writeFileSync(
+  `${testDir}/.semiont/config`,
+  '[project]\nname = "semiont-gateway-unit"\n\n[site]\ndomain = "localhost"\n',
+  'utf-8',
+);
+
+// Setup MSW server for mocking HTTP requests
+const server = setupServer(...handlers);
+
+beforeAll(async () => {
+  server.listen({ onUnhandledRequest: 'warn' });
+
+  // Create the directory structure that the mocked config references
+  // This ensures JobQueue initialization doesn't fail with ENOENT
+  try {
+    await fs.mkdir(`${testDir}/jobs/pending`, { recursive: true });
+    await fs.mkdir(`${testDir}/jobs/running`, { recursive: true });
+    await fs.mkdir(`${testDir}/jobs/complete`, { recursive: true });
+    await fs.mkdir(`${testDir}/jobs/failed`, { recursive: true });
+    await fs.mkdir(`${testDir}/jobs/cancelled`, { recursive: true });
+  } catch (error) {
+    // Ignore errors if directories already exist
+  }
+});
+
+afterEach(() => server.resetHandlers());
+
+afterAll(async () => {
+  server.close();
+
+  // Clean up the test directory
+  try {
+    await fs.rm(testDir, { recursive: true, force: true });
+  } catch (error) {
+    // Ignore cleanup errors
+  }
+});
+
+// Export mocks and testDir for tests that need direct access
+export { mockPrismaClient, server, testDir };

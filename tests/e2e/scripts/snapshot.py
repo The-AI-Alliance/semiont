@@ -17,14 +17,14 @@ Usage::
 
 Dumps:
 
-- Backend / worker / smelter log lines whose ``timestamp`` is in the
+- Gateway / worker / smelter log lines whose ``timestamp`` is in the
   window (full lines, not just errors, unless ``--errors-only``).
 - Jaeger trace counts per service + the first 20 trace deeplinks.
 
 Defaults:
 
 - ``--seconds 60`` — window size. Bump up for longer interactions.
-- ``--containers semiont-backend,semiont-worker,semiont-smelter`` —
+- ``--containers semiont-gateway,semiont-worker,semiont-smelter`` —
   matches the production stack's structured-log containers. Frontend
   is omitted (its logs are mostly unstructured static-server stdout).
 - ``--jaeger-url http://192.168.64.16:16686`` — local Jaeger from
@@ -45,7 +45,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument('--seconds', type=int, default=60)
 ap.add_argument('--errors-only', action='store_true')
 ap.add_argument('--jaeger-url', default='http://192.168.64.16:16686')
-ap.add_argument('--containers', default='semiont-backend,semiont-worker,semiont-smelter')
+ap.add_argument('--containers', default='semiont-gateway,semiont-worker,semiont-smelter')
 ap.add_argument('--max-lines-per-container', type=int, default=40)
 args = ap.parse_args()
 
@@ -115,7 +115,7 @@ for name in args.containers.split(','):
 
 # Jaeger traces in window
 print(f'\n--- Jaeger traces ({args.jaeger_url}) ---')
-services = ['semiont-backend', 'semiont-worker', 'semiont-smelter']
+services = ['semiont-gateway', 'semiont-worker', 'semiont-smelter']
 total = 0
 all_traces = []
 for svc in services:

@@ -3,8 +3,8 @@
  *
  * Exists for startup-critical network calls in long-running peers (worker,
  * smelter, weaver): each authenticates against the KS the moment its
- * container starts, and the backend may not be reachable for a few seconds
- * (backend restart, container-network warm-up). Orchestration runs these
+ * container starts, and the gateway may not be reachable for a few seconds
+ * (gateway restart, container-network warm-up). Orchestration runs these
  * processes with `--rm` and no restart policy, so a process that dies on
  * the first `TypeError: fetch failed` is dead for good — the retry window
  * here is the only recovery it gets.
@@ -30,7 +30,7 @@ export interface RetryAttemptInfo {
 }
 
 /**
- * Default policy for startup connections to the backend: 8 attempts with
+ * Default policy for startup connections to the gateway: 8 attempts with
  * delays 1s, 2s, 4s, then capped at 8s — ~39s of patience before giving up.
  */
 export const STARTUP_FETCH_RETRY: RetryPolicy = {
@@ -43,7 +43,7 @@ export const STARTUP_FETCH_RETRY: RetryPolicy = {
  * True for the errors `fetch` throws when the connection itself fails —
  * undici's `TypeError: fetch failed` (ECONNREFUSED, ENOTFOUND, reset,
  * timeout — the socket error rides in `cause`). Deliberately false for
- * HTTP-level failures (a 401 means the backend is UP and rejected us;
+ * HTTP-level failures (a 401 means the gateway is UP and rejected us;
  * retrying won't change its mind) and for programming errors.
  */
 export function isTransientFetchError(error: unknown): boolean {

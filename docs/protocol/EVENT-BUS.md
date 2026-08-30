@@ -90,7 +90,7 @@ pattern: TS gets it free from the `never` default; Go needs its census extended.
 Commands that mutate state need to know who's making them. The convention: clients **never** set `_userId` themselves. The HTTP gateway reads the authenticated user from the JWT and stamps `_userId` onto the payload before forwarding to the in-process bus:
 
 ```ts
-// apps/backend/src/routes/bus.ts
+// apps/gateway/src/routes/bus.ts
 const user = c.get('user') as User | undefined;
 if (user) {
   payload._userId = userToDid(user);
@@ -248,15 +248,15 @@ Five operations, all logged at transport-contract choke points (not in the SDK's
 
 | Op | Site |
 |---|---|
-| `EMIT` | `HttpTransport.emit()`, `LocalTransport.emit()`, backend `/bus/emit` route |
+| `EMIT` | `HttpTransport.emit()`, `LocalTransport.emit()`, gateway `/bus/emit` route |
 | `RECV` | HttpTransport SSE-side fan-in, `LocalTransport.bridgeInto` callback |
-| `SSE` | Backend `writeBusEvent()` in `apps/backend/src/routes/bus.ts` |
-| `PUT` | `HttpContentTransport.putBinary()` + matching backend route |
-| `GET` | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching backend route |
+| `SSE` | Gateway `writeBusEvent()` in `apps/gateway/src/routes/bus.ts` |
+| `PUT` | `HttpContentTransport.putBinary()` + matching gateway route |
+| `GET` | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching gateway route |
 
 The full capture API and per-test fixture are in **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)**.
 
-A clean round-trip across the wire shows a contiguous EMIT → EMIT → SSE → RECV pattern. Missing lines diagnose with surgical precision: no backend `EMIT` means the request never reached the server (auth, CORS, network); no backend `SSE` means the handler never produced a result; no Browser `RECV` means the SSE bytes never parsed.
+A clean round-trip across the wire shows a contiguous EMIT → EMIT → SSE → RECV pattern. Missing lines diagnose with surgical precision: no gateway `EMIT` means the request never reached the server (auth, CORS, network); no gateway `SSE` means the handler never produced a result; no Browser `RECV` means the SSE bytes never parsed.
 
 ## How the SDK shapes the protocol
 

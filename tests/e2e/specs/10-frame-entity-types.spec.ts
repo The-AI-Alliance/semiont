@@ -5,7 +5,7 @@ import { test, expect } from '../fixtures/auth';
  *
  * Two things are exercised:
  *
- * 1. **Server bootstrap.** On startup the backend's `bootstrapEntityTypes`
+ * 1. **Server bootstrap.** On startup the gateway's `bootstrapEntityTypes`
  *    seeds the KB with `DEFAULT_ENTITY_TYPES` from `@semiont/ontology` by
  *    emitting `frame:add-entity-type` for each type missing from the
  *    `__system__` event log. After that runs, `browse.entityTypes()`
@@ -14,7 +14,7 @@ import { test, expect } from '../fixtures/auth';
  *
  * 2. **Live add round-trip.** Typing a new tag and clicking Add invokes
  *    `client.frame.addEntityType(...)` which emits `frame:add-entity-type`
- *    over the wire. The backend's Stower handles it and broadcasts
+ *    over the wire. The gateway's Stower handles it and broadcasts
  *    `frame:entity-type-added` (a bridged channel — see
  *    `packages/core/src/bridged-channels.ts`); the frontend's
  *    `browse.entityTypes()` cache invalidates on receipt and the new

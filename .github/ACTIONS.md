@@ -15,7 +15,7 @@ This directory contains GitHub Actions workflows and automation configuration fo
 - ✅ Validates proper "Access Denied" messages
 - ✅ Checks for sensitive data patterns in responses
 
-**Backend Security Testing**:
+**Gateway Security Testing**:
 - ✅ Tests API authentication enforcement
 - ✅ Verifies admin endpoints require proper authorization
 - ✅ Confirms error responses don't leak sensitive data
@@ -28,7 +28,7 @@ This directory contains GitHub Actions workflows and automation configuration fo
 curl -I http://localhost:3000/admin  # Must return 200, not 307
 curl -s http://localhost:3000/admin | grep -i "admin\|dashboard"  # Must return empty
 
-# Backend verification  
+# Gateway verification  
 curl http://localhost:3001/api/admin/users  # Must return 401
 curl -H "Authorization: Bearer invalid" http://localhost:3001/api/admin/users  # Must return 401
 ```
@@ -36,7 +36,7 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/admin/users  #
 ### Continuous Integration (`ci.yml`)
 **General testing and building workflow**:
 - Browser: Tests, linting, type-checking, building
-- Backend: Tests, type-checking, building with PostgreSQL
+- Gateway: Tests, type-checking, building with PostgreSQL
 - CDK: Infrastructure tests and synthesis
 - Scripts: TypeScript compilation and validation
 
@@ -52,7 +52,7 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/admin/users  #
 ### Dependabot (`dependabot.yml`)
 **Automated dependency updates**:
 - Weekly dependency updates for all npm packages
-- Separate configurations for browser, backend, CDK, scripts
+- Separate configurations for browser, gateway, CDK, scripts
 - Security-focused updates with proper labeling
 - Automatic PR creation for dependency updates
 
@@ -69,7 +69,7 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/admin/users  #
 - **Security Checklist**: Authentication, authorization, information disclosure
 - **Testing Requirements**: Security tests, manual verification
 - **Admin Route Security**: Specific checks for admin functionality  
-- **API Security**: Backend endpoint protection verification
+- **API Security**: Gateway endpoint protection verification
 - **Reviewer Guidelines**: Security review requirements
 
 ## 🚀 Workflow Triggers
@@ -79,7 +79,7 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/admin/users  #
 # Runs on:
 - push: [main, develop]
 - pull_request: [main, develop]  
-- paths: apps/browser/**, apps/backend/**
+- paths: apps/browser/**, apps/gateway/**
 - workflow_dispatch: # Manual trigger
 ```
 
@@ -103,9 +103,9 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/admin/users  #
 ## 🛡️ Security Workflow Details
 
 ### Environment Setup
-Both Browser and backend security tests use:
+Both Browser and gateway security tests use:
 - **Node.js 20**: Latest LTS version
-- **PostgreSQL 15**: Test database for backend
+- **PostgreSQL 15**: Test database for gateway
 - **Environment Variables**: Test credentials and configuration
 - **Dependency Caching**: npm cache for faster builds
 
@@ -116,7 +116,7 @@ SERVER_API_URL=http://localhost:3001
 NEXT_PUBLIC_SITE_NAME=Semiont Test
 NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=example.com
 
-# Backend  
+# Gateway  
 DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb
 JWT_SECRET=test-secret-key-for-testing-32char   # requireJwtSecret() rejects < 32 chars
 GOOGLE_CLIENT_ID=test-client-id
@@ -142,7 +142,7 @@ echo "$response" | grep -q "Access Denied"
 echo "$response" | grep -qE "postgresql://|sk_[a-zA-Z0-9]+|@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
 ```
 
-**Backend API Security**:
+**Gateway API Security**:
 ```bash
 # Test authentication requirement
 curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/admin/users  # Must be 401
@@ -180,7 +180,7 @@ If security tests fail:
 1. **Run security tests locally** before pushing:
    ```bash
    cd apps/browser && npm run test:security
-   cd apps/backend && npm run test:security
+   cd apps/gateway && npm run test:security
    ```
 
 2. **Check admin route behavior** manually:

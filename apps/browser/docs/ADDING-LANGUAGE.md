@@ -253,7 +253,7 @@ describe('Language Support', () => {
 
 ## Integration Points
 
-### Backend Requirements
+### Gateway Requirements
 
 1. **Content Type Storage**
    ```sql

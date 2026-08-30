@@ -36,7 +36,7 @@ import { SpanKind, recordBusEmit, withSpan } from '@semiont/observability';
 import { createActorStateUnit, type ActorStateUnit } from './actor-state-unit';
 import type {
   ConnectionState,
-  IBackendOperations,
+  IGatewayOperations,
   ITransport,
   HealthCheckResponse,
   StatusResponse,
@@ -107,7 +107,7 @@ export interface HttpTransportConfig {
   saveLastEventId?: (scope: string, id: string) => void;
 }
 
-export class HttpTransport implements ITransport, IBackendOperations {
+export class HttpTransport implements ITransport, IGatewayOperations {
   readonly baseUrl: BaseUrl;
   private readonly http: KyInstance;
   private readonly token$: BehaviorSubject<AccessToken | null>;
@@ -263,7 +263,7 @@ export class HttpTransport implements ITransport, IBackendOperations {
       // One fan-in per channel, wired once for the actor's lifetime — the
       // globally-bridged set AND the resource-scoped set (disjoint by the
       // bus-invariants guard). Scoped events only arrive for scopes in the
-      // actor's matrix (backend-authoritative filtering), so an always-on
+      // actor's matrix (gateway-authoritative filtering), so an always-on
       // scoped fan-in delivers nothing while no scope is held — and exactly
       // ONCE per event however many scopes are held (the per-scope
       // bridge-subs design would have duplicated delivery N×).

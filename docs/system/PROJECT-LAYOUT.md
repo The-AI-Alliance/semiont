@@ -14,7 +14,7 @@ my-project/
 │   │   └── {ab}/{cd}/{resourceId}/   # Per-resource streams, sharded
 │   │       └── events-000001.jsonl
 │   ├── compose/                      # Optional Docker Compose files
-│   │   └── backend.yml
+│   │   └── gateway.yml
 │   └── semiontconfig/                # Inference/embedding configs (TOML)
 │       ├── anthropic.toml
 │       └── ollama-gemma.toml
@@ -52,11 +52,11 @@ browser survives as the machine-level viewer — `semiont stop --service
 browser` closes it).
 
 KB repos build no images: the Semiont services run from the published, attested
-`ghcr.io/the-ai-alliance/semiont-{backend,worker,smelter,weaver,browser}` images
+`ghcr.io/the-ai-alliance/semiont-{gateway,worker,smelter,weaver,browser}` images
 (version selected via `SEMIONT_VERSION`, default `latest`), with the KB's config
 bind-mounted at runtime.
 
-- **`compose/backend.yml`** — Docker Compose definition for the same service stack, for environments that prefer compose over the launcher's orchestration.
+- **`compose/gateway.yml`** — Docker Compose definition for the same service stack, for environments that prefer compose over the launcher's orchestration.
 - **`semiontconfig/*.toml`** — inference-provider presets the user selects at start time (e.g., `--config ollama-gemma` vs `--config anthropic`). Each file names the chat model, embedding model, and any provider-specific parameters.
 
 ### Resource files
@@ -93,7 +93,7 @@ scaffolding is in place:
 .semiont  authors  data  README.md
 
 % find .semiont -type f | sort
-.semiont/compose/backend.yml
+.semiont/compose/gateway.yml
 .semiont/config
 .semiont/events/50/fa/47488f8a27471bf16f33aba56af90d12/events-000001.jsonl
 .semiont/events/66/71/1ed8b4936cfad473c2a7b14c22a945c0/events-000001.jsonl

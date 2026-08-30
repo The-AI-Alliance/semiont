@@ -2,8 +2,8 @@
 
 ## Requirements
 
-- A running backend with a known user account.
-- A running Browser pointing at that backend.
+- A running gateway with a known user account.
+- A running Browser pointing at that gateway.
 - Both reachable from the host where Playwright runs.
 
 Bringing the stack up is covered in
@@ -20,9 +20,9 @@ local-dev defaults.
 | `E2E_EMAIL` | (required) | User to sign in as. |
 | `E2E_PASSWORD` | (required) | Password for that user. |
 | `E2E_BROWSER_URL` | `http://localhost:3000` | The Browser the tests drive. |
-| `E2E_BACKEND_URL` | `http://localhost:4000` | Backend the sign-in form points at. |
+| `E2E_GATEWAY_URL` | `http://localhost:4000` | Gateway the sign-in form points at. |
 
-The default test user seeded by the backend is
+The default test user seeded by the gateway is
 `admin@example.com` / `password`. Override via the env vars if you
 seeded something else.
 
@@ -31,7 +31,7 @@ seeded something else.
 The dev stack runs in Apple containers on the `192.168.64.0/24` bridge, with
 its ports published on the host. **Target the host bridge gateway,
 `192.168.64.1`** — it routes to every published port (`:3000` browser,
-`:4000` backend, `:9090` worker health) and is stable across restarts.
+`:4000` gateway, `:9090` worker health) and is stable across restarts.
 
 **Do not use the containers' own IPs.** An earlier version of this page said
 to `container ls | grep` them and re-grab before every run. Two things break
@@ -40,8 +40,8 @@ to `container ls | grep` them and re-grab before every run. Two things break
 - A stale address fails in `globalSetup` with `connect EHOSTUNREACH`, before
   any spec runs — and container IPs change on *every* stack restart.
 - `19-worker-vitals` derives the worker health endpoint as
-  `<backend-host>:9090`, which is only true when the published ports share a
-  host. Aim it at the backend container and you get `ECONNREFUSED`.
+  `<gateway-host>:9090`, which is only true when the published ports share a
+  host. Aim it at the gateway container and you get `ECONNREFUSED`.
 
 `--network host` is not an option either — a Docker flag; Apple's `container`
 rejects it with `Error: network host not found`.
@@ -57,7 +57,7 @@ container run --rm \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
   -e E2E_BROWSER_URL=http://192.168.64.1:3000 \
-  -e E2E_BACKEND_URL=http://192.168.64.1:4000 \
+  -e E2E_GATEWAY_URL=http://192.168.64.1:4000 \
   -e CI=1 \
   "mcr.microsoft.com/playwright:v$PW-noble" \
   npm test

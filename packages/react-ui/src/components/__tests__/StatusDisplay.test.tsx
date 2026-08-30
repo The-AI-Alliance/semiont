@@ -43,7 +43,7 @@ describe('StatusDisplay', () => {
     mockGetStatus.mockResolvedValue({ status: 'healthy', version: '1.2.3' });
 
     renderWithProviders(
-      <StatusDisplay isFullyAuthenticated={true} isAuthenticated={true} hasValidBackendToken={true} />
+      <StatusDisplay isFullyAuthenticated={true} isAuthenticated={true} hasValidGatewayToken={true} />
     );
 
     await waitFor(() => {
@@ -56,7 +56,7 @@ describe('StatusDisplay', () => {
     mockGetStatus.mockRejectedValue(new Error('Network error'));
 
     renderWithProviders(
-      <StatusDisplay isFullyAuthenticated={true} isAuthenticated={true} hasValidBackendToken={true} />
+      <StatusDisplay isFullyAuthenticated={true} isAuthenticated={true} hasValidGatewayToken={true} />
     );
 
     await waitFor(() => {
@@ -68,7 +68,7 @@ describe('StatusDisplay', () => {
     mockGetStatus.mockRejectedValue(new Error('401 Unauthorized'));
 
     renderWithProviders(
-      <StatusDisplay isFullyAuthenticated={true} isAuthenticated={true} hasValidBackendToken={true} />
+      <StatusDisplay isFullyAuthenticated={true} isAuthenticated={true} hasValidGatewayToken={true} />
     );
 
     await waitFor(() => {
@@ -76,11 +76,11 @@ describe('StatusDisplay', () => {
     });
   });
 
-  it('should show warning for authenticated users missing backend token', () => {
+  it('should show warning for authenticated users missing gateway token', () => {
     mockGetStatus.mockResolvedValue(undefined);
 
     renderWithProviders(
-      <StatusDisplay isFullyAuthenticated={false} isAuthenticated={true} hasValidBackendToken={false} />
+      <StatusDisplay isFullyAuthenticated={false} isAuthenticated={true} hasValidGatewayToken={false} />
     );
 
     expect(screen.getByText(/sign out and sign in again to reconnect/i)).toBeInTheDocument();
@@ -114,18 +114,18 @@ describe('StatusDisplay', () => {
       <StatusDisplay isFullyAuthenticated={false} isAuthenticated={false} />
     );
 
-    expect(screen.getByText('Sign in to view backend status')).toBeInTheDocument();
+    expect(screen.getByText('Sign in to view gateway status')).toBeInTheDocument();
   });
 
   it('should show error hint when there is an error', async () => {
     mockGetStatus.mockRejectedValue(new Error('Connection refused'));
 
     renderWithProviders(
-      <StatusDisplay isFullyAuthenticated={true} isAuthenticated={true} hasValidBackendToken={true} />
+      <StatusDisplay isFullyAuthenticated={true} isAuthenticated={true} hasValidGatewayToken={true} />
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Check that the backend server is running/)).toBeInTheDocument();
+      expect(screen.getByText(/Check that the gateway server is running/)).toBeInTheDocument();
     });
   });
 
@@ -133,7 +133,7 @@ describe('StatusDisplay', () => {
     mockGetStatus.mockResolvedValue({ status: 'healthy', version: '1.0.0' });
 
     renderWithProviders(
-      <StatusDisplay isFullyAuthenticated={true} isAuthenticated={true} hasValidBackendToken={true} />
+      <StatusDisplay isFullyAuthenticated={true} isAuthenticated={true} hasValidGatewayToken={true} />
     );
 
     await waitFor(() => {

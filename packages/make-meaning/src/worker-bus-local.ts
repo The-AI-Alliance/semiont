@@ -4,7 +4,7 @@
  *
  * `WorkerBus` is the transport seam actor fan-ins consume
  * (`SmelterActorStateUnit`, `WeaverActorStateUnit`): HTTP `ActorStateUnit`
- * in a standalone worker, this shim inside the backend process. The
+ * in a standalone worker, this shim inside the gateway process. The
  * smelter fan-in's doc anticipated exactly this ("an in-process bus shim
  * if/when one exists").
  *

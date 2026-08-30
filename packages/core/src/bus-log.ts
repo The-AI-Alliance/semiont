@@ -2,7 +2,7 @@
  * Bus logging — runtime-toggleable cross-wire visibility.
  *
  * One line per event that crosses a process boundary, in a grep-able
- * format that's symmetric across frontend and backend:
+ * format that's symmetric across frontend and gateway:
  *
  *   [bus EMIT] <channel> [scope=X] [cid=<first8>] <payload>
  *   [bus RECV] <channel> [scope=X] [cid=<first8>] <payload>
@@ -78,7 +78,7 @@ export function busLog(
 /**
  * Whether to run the unobserved-reply check on every local emit.
  *
- * On in Node (backend + worker + smelter), where a dropped reply is a real
+ * On in Node (gateway + worker + smelter), where a dropped reply is a real
  * delivery bug; off in the browser, where a 0-observer bridged reply just
  * means the awaiting `busRequest` already resolved/timed out (benign).
  *
@@ -99,7 +99,7 @@ const unobservedReplyWarned = new Set<string>();
  * The silent-dropped-reply detector.
  *
  * A correlation-bearing payload is a request/reply *reply* (`*-result`,
- * `*-complete`, `*-failed`, …). If one is emitted on the backend bus with
+ * `*-complete`, `*-failed`, …). If one is emitted on the gateway bus with
  * **zero local observers**, nothing forwards it — no SSE subscription, no
  * in-process consumer — so the awaiting client never receives it and times
  * out 30 s later with no error logged anywhere. That is exactly how

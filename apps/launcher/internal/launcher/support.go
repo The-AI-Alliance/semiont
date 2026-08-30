@@ -95,7 +95,7 @@ func (u *ui) stamp(event string) {
 // `-e` values like NEO4J_AUTH=neo4j/localpass stay visible: fixed,
 // well-known local-dev values the summary table prints anyway.)
 var echoEnvAllowlist = map[string]bool{
-	"BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
+	"GATEWAY_HOST": true, "BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
 	"OLLAMA_HOST": true, "POSTGRES_HOST": true,
 	"OTEL_EXPORTER_OTLP_ENDPOINT": true,
 }
@@ -253,7 +253,7 @@ func selectRuntime(u *ui, requested string) (string, bool) {
 // --- Health waits ---
 
 // healthProbeTimeout bounds ONE host-side probe. Shared with the SDK-backed
-// backend probe (roleHealthy) so the two cannot drift into a status report
+// gateway probe (roleHealthy) so the two cannot drift into a status report
 // where one role is allowed to stall longer than the rest.
 const healthProbeTimeout = 2 * time.Second
 

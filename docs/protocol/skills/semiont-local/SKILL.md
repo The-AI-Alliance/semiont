@@ -42,7 +42,7 @@ All run from the knowledge-base directory:
 ```bash
 semiont status                    # container state + per-service health
 semiont logs                      # follow service logs
-semiont logs --service backend    # one service
+semiont logs --service gateway    # one service
 semiont stop                      # tear the stack down
 semiont clean                     # remove persistent stack state (Postgres/Qdrant/Neo4j)
 semiont useradd --email you@example.com --generate-password --admin
@@ -55,7 +55,7 @@ Run `semiont <command> --help` for a command's options, and `semiont --help` for
 | Service | URL |
 |---------|-----|
 | Browser | http://localhost:3000 |
-| Backend API | http://localhost:4000 |
+| Gateway API | http://localhost:4000 |
 
 ## Key file locations
 

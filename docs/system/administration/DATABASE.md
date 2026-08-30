@@ -7,12 +7,12 @@ How Semiont manages its PostgreSQL database, including schema definition, migrat
 ## Overview
 
 - **Engine**: PostgreSQL 15 (`postgres:15.18-alpine` when the launcher provisions it)
-- **ORM**: [Prisma](https://www.prisma.io/) — [schema](../../../apps/backend/prisma/schema.prisma)
-- **Migrations**: versioned migration files under [`apps/backend/prisma/migrations/`](../../../apps/backend/prisma/migrations/), applied with `prisma migrate deploy` when the backend container starts
+- **ORM**: [Prisma](https://www.prisma.io/) — [schema](../../../apps/gateway/prisma/schema.prisma)
+- **Migrations**: versioned migration files under [`apps/gateway/prisma/migrations/`](../../../apps/gateway/prisma/migrations/), applied with `prisma migrate deploy` when the gateway container starts
 - **Connection**: pooled by Prisma Client
 - **Scope**: the `users` table, nothing else
 
-In a launcher-managed stack, PostgreSQL runs as the `semiont-postgres` container, and the backend reaches it over the stack network. See [Container Topology](../CONTAINER-TOPOLOGY.md).
+In a launcher-managed stack, PostgreSQL runs as the `semiont-postgres` container, and the gateway reaches it over the stack network. See [Container Topology](../CONTAINER-TOPOLOGY.md).
 
 ## Schema
 
@@ -42,16 +42,16 @@ model User {
 }
 ```
 
-[`schema.prisma`](../../../apps/backend/prisma/schema.prisma) is the authority — read it rather than this excerpt when it matters.
+[`schema.prisma`](../../../apps/gateway/prisma/schema.prisma) is the authority — read it rather than this excerpt when it matters.
 
 ## Migrations
 
-The backend container applies migrations on startup, before the server process starts. From [`apps/backend/Dockerfile`](../../../apps/backend/Dockerfile):
+The gateway container applies migrations on startup, before the server process starts. From [`apps/gateway/Dockerfile`](../../../apps/gateway/Dockerfile):
 
 ```dockerfile
 CMD set -e; \
-    (cd "$BACKEND_DIR" && npx prisma migrate deploy --schema=prisma/schema.prisma); \
-    exec node "$BACKEND_DIR/dist/index.js"
+    (cd "$GATEWAY_DIR" && npx prisma migrate deploy --schema=prisma/schema.prisma); \
+    exec node "$GATEWAY_DIR/dist/index.js"
 ```
 
 `migrate deploy` applies any migration in `prisma/migrations/` that the database has not recorded yet. It never generates migrations and never resets data. If it fails, the container exits — the server does not start against a database whose schema it does not match.
@@ -60,7 +60,7 @@ Because migrations ship inside the image, **the image version determines the sch
 
 ### Adding a migration
 
-Migrations are authored against a database, from `apps/backend/`:
+Migrations are authored against a database, from `apps/gateway/`:
 
 ```bash
 npx prisma migrate dev --name add_something
@@ -73,21 +73,21 @@ This writes a new timestamped directory under `prisma/migrations/`, applies it l
 The `semiont` launcher has no `exec` verb. Reach into a running container with your container engine directly. Containers are named `semiont-<service>`:
 
 ```bash
-container exec -it semiont-backend sh     # or: docker exec -it semiont-backend sh
+container exec -it semiont-gateway sh     # or: docker exec -it semiont-gateway sh
 container exec -it semiont-postgres psql -U postgres semiont
 ```
 
-Prisma lives inside the backend package, so prisma commands need its directory. `BACKEND_DIR` is set in the image:
+Prisma lives inside the gateway package, so prisma commands need its directory. `GATEWAY_DIR` is set in the image:
 
 ```bash
-# Confirm the backend can reach the database and see the expected schema
-container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma db pull --print'
+# Confirm the gateway can reach the database and see the expected schema
+container exec semiont-gateway sh -c 'cd "$GATEWAY_DIR" && npx prisma db pull --print'
 
 # Migration state: which migrations are applied, which are pending
-container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma migrate status'
+container exec semiont-gateway sh -c 'cd "$GATEWAY_DIR" && npx prisma migrate status'
 
 # The schema the image shipped with
-container exec semiont-backend sh -c 'cat "$BACKEND_DIR/prisma/schema.prisma"'
+container exec semiont-gateway sh -c 'cat "$GATEWAY_DIR/prisma/schema.prisma"'
 ```
 
 ### Prisma Studio
@@ -95,7 +95,7 @@ container exec semiont-backend sh -c 'cat "$BACKEND_DIR/prisma/schema.prisma"'
 Studio is a browser UI over the database. Run it from the host against the stack's PostgreSQL rather than from inside the container — the port is already exposed and you avoid a second port mapping:
 
 ```bash
-cd apps/backend
+cd apps/gateway
 DATABASE_URL="postgresql://postgres:localpass@localhost:5432/semiont" npx prisma studio
 ```
 
@@ -149,7 +149,7 @@ model User {
 }
 ```
 
-Then generate the migration (`npx prisma migrate dev --name add_audit_log`), commit it, and rebuild the backend image.
+Then generate the migration (`npx prisma migrate dev --name add_audit_log`), commit it, and rebuild the gateway image.
 
 ### Modifying existing tables
 
@@ -160,8 +160,8 @@ Adding a required column to a populated table needs the usual two-step: add it n
 ### Verifying a migration applied
 
 ```bash
-semiont logs --service backend | grep -i migrat
-container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma migrate status'
+semiont logs --service gateway | grep -i migrat
+container exec semiont-gateway sh -c 'cd "$GATEWAY_DIR" && npx prisma migrate status'
 ```
 
 ## Backup and recovery
@@ -179,13 +179,13 @@ Losing the database loses user accounts and their credentials; it does not lose 
 
 ## Health and monitoring
 
-The backend reports database reachability at `GET /api/health`:
+The gateway reports database reachability at `GET /api/health`:
 
 ```bash
 curl -s http://localhost:4000/api/health
 ```
 
-`database` is `connected` or `disconnected`, from a `SELECT 1` in `DatabaseConnection.checkHealth()` ([`apps/backend/src/db.ts`](../../../apps/backend/src/db.ts)). `semiont status` surfaces the same check per service.
+`database` is `connected` or `disconnected`, from a `SELECT 1` in `DatabaseConnection.checkHealth()` ([`apps/gateway/src/db.ts`](../../../apps/gateway/src/db.ts)). `semiont status` surfaces the same check per service.
 
 For query-level inspection:
 
@@ -194,18 +194,18 @@ For query-level inspection:
 container exec semiont-postgres psql -U postgres semiont \
   -c "SELECT pid, state, now() - query_start AS duration, query FROM pg_stat_activity WHERE state = 'active';"
 
-# Database-related backend logs
-semiont logs --service backend | grep -iE "prisma|database|connection"
+# Database-related gateway logs
+semiont logs --service gateway | grep -iE "prisma|database|connection"
 ```
 
 ## Troubleshooting
 
-### The backend container exits at startup
+### The gateway container exits at startup
 
 `migrate deploy` failed, so the server never started. The reason is in the logs:
 
 ```bash
-semiont logs --service backend
+semiont logs --service gateway
 ```
 
 Usual causes: PostgreSQL not up yet (the launcher orders startup, but a slow first boot can still race), wrong credentials, or a migration that conflicts with the database's recorded history.
@@ -223,8 +223,8 @@ semiont logs --service database
 A database changed outside migrations no longer matches the schema the image ships:
 
 ```bash
-container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma migrate status'
-container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma db pull --print'
+container exec semiont-gateway sh -c 'cd "$GATEWAY_DIR" && npx prisma migrate status'
+container exec semiont-gateway sh -c 'cd "$GATEWAY_DIR" && npx prisma db pull --print'
 ```
 
 Reconcile by writing a migration that captures the intended state. If the database is disposable, `semiont clean` and start fresh.
@@ -246,7 +246,7 @@ container exec semiont-postgres psql -U postgres semiont \
 ## Related
 
 - [Container Topology](../CONTAINER-TOPOLOGY.md) — where PostgreSQL sits among the containers
-- [CONFIGURATION.md](CONFIGURATION.md) — how the backend is told where the database is
+- [CONFIGURATION.md](CONFIGURATION.md) — how the gateway is told where the database is
 - [SECRETS.md](../services/SECRETS.md) — credential handling
 - [BACKUP.md](BACKUP.md) — backing up the knowledge, which is not in PostgreSQL
 - [Knowledge System](../KNOWLEDGE-SYSTEM.md) — where resource and annotation data actually lives

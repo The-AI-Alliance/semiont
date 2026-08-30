@@ -1,0 +1,76 @@
+/**
+ * Shared MakeMeaningService mock factory for gateway tests.
+ *
+ * Provides a structurally-verified stub so the compiler catches shape
+ * mismatches at the factory rather than at every call site.
+ *
+ * Usage:
+ *   startMakeMeaningGateway: vi.fn().mockResolvedValue(makeMeaningMock())
+ *   startMakeMeaningGateway: vi.fn().mockResolvedValue(makeMeaningMock({ jobQueue: myMockJobQueue }))
+ */
+
+import { vi } from 'vitest';
+import type {
+  MakeMeaningService,
+  KnowledgeSystem,
+} from '@semiont/make-meaning';
+import type { KnowledgeBase } from '@semiont/make-meaning';
+import type { JobQueue } from '@semiont/jobs';
+
+// ─── Leaf stubs ───────────────────────────────────────────────────────────────
+
+function inMemoryAnchoredText(): KnowledgeBase['anchoredText'] {
+  const maps = new Map<string, Awaited<ReturnType<KnowledgeBase['anchoredText']['read']>>>();
+  return {
+    read: async (key) => maps.get(key) ?? null,
+    write: async (key, anchored) => { maps.set(key, anchored); },
+    list: async () => [...maps.keys()],
+  };
+}
+
+export function stubKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
+  return {
+    eventStore:     { appendEvent: vi.fn() } as unknown as KnowledgeBase['eventStore'],
+    views:          {} as KnowledgeBase['views'],
+    content:        { store: vi.fn(), retrieve: vi.fn() } as unknown as KnowledgeBase['content'],
+    graph:          {} as KnowledgeBase['graph'],
+    // `anchoredText` is required, not optional: a KnowledgeSystem with nowhere
+    // to keep derived coordinate maps is not a configuration we support. This
+    // honours the contract — what is written comes back — it simply does not
+    // outlive the test.
+    anchoredText:   inMemoryAnchoredText(),
+    vectors:        {} as KnowledgeBase['vectors'],
+    weaveProgress: { dispose: vi.fn() } as unknown as KnowledgeBase['weaveProgress'],
+    smeltProgress: { settledAt: vi.fn(), whenSettled: vi.fn(async () => 'inert' as const), dispose: vi.fn() } as unknown as KnowledgeBase['smeltProgress'],
+    projectionsDir: '',
+    ...overrides,
+  };
+}
+
+export function stubKnowledgeSystem(kbOverrides: Partial<KnowledgeBase> = {}): KnowledgeSystem {
+  return {
+    kb:                stubKnowledgeBase(kbOverrides),
+    stower:            {} as KnowledgeSystem['stower'],
+    gatherer:          {} as KnowledgeSystem['gatherer'],
+    matcher:           {} as KnowledgeSystem['matcher'],
+    browser:           { stop: vi.fn().mockResolvedValue(undefined) } as unknown as KnowledgeSystem['browser'],
+    cloneTokenManager: {} as KnowledgeSystem['cloneTokenManager'],
+    stop:              vi.fn().mockResolvedValue(undefined),
+  };
+}
+
+// ─── Service stub ─────────────────────────────────────────────────────────────
+
+export function makeMeaningMock(overrides: Partial<MakeMeaningService> = {}): MakeMeaningService {
+  return {
+    knowledgeSystem: stubKnowledgeSystem(),
+    jobQueue:        { createJob: vi.fn(), getJob: vi.fn() } as unknown as JobQueue,
+    // The one project the service carries. Handlers read it (status for the
+    // KB's identity and branch, exchange for its projections dir) instead of
+    // rebuilding one per request from `config._metadata`, so the stub has to
+    // supply it. Overridable for tests that assert on what it holds.
+    project:         {} as MakeMeaningService['project'],
+    stop:            vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}

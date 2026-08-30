@@ -22,7 +22,7 @@
 import { BehaviorSubject } from 'rxjs';
 import type {
   AccessToken,
-  IBackendOperations,
+  IGatewayOperations,
   IContentTransport,
   PutBinaryOptions,
   PutBinaryRequest,
@@ -58,7 +58,7 @@ export {
  */
 export function inMemoryContent(): IContentTransport {
   const store = new Map<string, { data: ArrayBuffer; contentType: string }>();
-  // The read-side stand-in for the backend's view index: the producer writes
+  // The read-side stand-in for the gateway's view index: the producer writes
   // under the checksum of the bytes it read, and this map lets a reader
   // holding only the resource id find that entry — same SHA-256 the real
   // producer computes (@semiont/content calculateChecksum; not imported here
@@ -125,13 +125,13 @@ export interface TestClientOptions {
   /** FaultyTransport scripting: fault schedule, scope model, `makeResponse`. */
   transport?: FaultyTransportConfig;
   /**
-   * Backend operations for the `auth`/`admin` namespaces. Omitted = both are
+   * Gateway operations for the `auth`/`admin` namespaces. Omitted = both are
    * `undefined` (transport-only client, same as production LocalTransport
-   * setups). Pass `stubBackend()` when a unit under test touches
+   * setups). Pass `stubGateway()` when a unit under test touches
    * `client.auth` and the test scripts it via `AuthNamespace.prototype`
    * spies (the AuthShell precedent).
    */
-  backend?: IBackendOperations;
+  gateway?: IGatewayOperations;
   /**
    * `busRequest` timeout for the browse caches — the deterministic-time
    * knob (LIVENESS-AXIOMS P2a). Pass something small (e.g. 40) when a test
@@ -152,16 +152,16 @@ export interface TestClientOptions {
  * and account requests via `transport.requestLog`.
  */
 /**
- * A COMPLETE `IBackendOperations` whose every method rejects loudly with its
+ * A COMPLETE `IGatewayOperations` whose every method rejects loudly with its
  * own name — so a unit that touches an op the test didn't script fails with
  * "not scripted: <op>" instead of a fabricated success. Script behavior via
  * `AuthNamespace.prototype` / `AdminNamespace.prototype` spies, or spread
- * overrides over this stub. tsc enforces completeness: a new backend op is a
+ * overrides over this stub. tsc enforces completeness: a new gateway op is a
  * compile error HERE, not a silent gap.
  */
-export function stubBackend(): IBackendOperations {
+export function stubGateway(): IGatewayOperations {
   const notScripted = (name: string) => () =>
-    Promise.reject(new Error(`stubBackend: not scripted: ${name}`));
+    Promise.reject(new Error(`stubGateway: not scripted: ${name}`));
   return {
     authenticatePassword: notScripted('authenticatePassword'),
     authenticateGoogle: notScripted('authenticateGoogle'),
@@ -185,7 +185,7 @@ export function createTestClient(options: TestClientOptions = {}): {
   transport: FaultyTransport;
 } {
   const transport = new FaultyTransport(options.transport);
-  const client = new SemiontClient(transport, options.content ?? inMemoryContent(), options.backend, {
+  const client = new SemiontClient(transport, options.content ?? inMemoryContent(), options.gateway, {
     ...(options.busTimeoutMs !== undefined ? { busTimeoutMs: options.busTimeoutMs } : {}),
     ...(options.cachePersistence ? { cachePersistence: options.cachePersistence } : {}),
   });

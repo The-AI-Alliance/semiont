@@ -28,7 +28,7 @@ export const OPEN_RESOURCES_BY_KB_KEY = 'semiont.openResourcesByKb';
 /**
  * Per-KB "where was I": Record<kbId, resourceId>. Scoped like the tabs it
  * sits beside — a global last-viewed id sends the landing redirect into the
- * previously active KB's resource, which the new backend 404s.
+ * previously active KB's resource, which the new gateway 404s.
  */
 export const LAST_VIEWED_RESOURCE_BY_KB_KEY = 'semiont.lastViewedResourceByKb';
 
@@ -161,7 +161,7 @@ export function isValidHostname(host: string): boolean {
  * uniform `KnowledgeBase` should not call this; it should hand the KB
  * to a transport factory and let the factory inspect `endpoint.kind`.
  */
-export function kbBackendUrl(endpoint: HttpEndpoint): string {
+export function kbGatewayUrl(endpoint: HttpEndpoint): string {
   if (!isValidHostname(endpoint.host)) {
     throw new Error(`Invalid KB hostname: "${endpoint.host}"`);
   }

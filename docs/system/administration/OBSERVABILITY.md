@@ -9,7 +9,7 @@ toggleable:
    [Bus logging](../../../tests/e2e/docs/bus-logging.md) for the format,
    capture API, and e2e fixture integration.
 2. **OpenTelemetry traces** (this doc) — distributed tracing from
-   every process (backend, worker, smelter, SPA). Off by default; set
+   every process (gateway, worker, smelter, SPA). Off by default; set
    `OTEL_EXPORTER_OTLP_ENDPOINT` to enable.
 3. **OpenTelemetry metrics + log correlation** (this doc) — counters,
    histograms, and gauges across the same OTLP endpoint, plus
@@ -29,10 +29,10 @@ headers and SSE `_trace` payload fields.
 |------------------------|-------------------------------------------|----------|
 | `bus.emit:<channel>`   | `HttpTransport.emit` / `LocalTransport.emit` | producer |
 | `bus.recv:<channel>`   | Wire-parse / bridge subscriber            | consumer |
-| `bus.dispatch:<channel>` | Backend `/bus/emit` handler             | server   |
+| `bus.dispatch:<channel>` | Gateway `/bus/emit` handler             | server   |
 | `actor.<name>:<channel>` | In-process subscriber (Stower / Gatherer / Matcher / Browser / Smelter) | consumer |
 | `content.{put,get}`    | `HttpContentTransport.*` / `LocalContentTransport.*` | client / internal |
-| `content.{put,get}.server` | Backend `/resources*` routes          | server   |
+| `content.{put,get}.server` | Gateway `/resources*` routes          | server   |
 | `job:<type>`           | Worker `handleJob`                        | consumer |
 
 A typical "open resource" trace, parented by the SPA's transport call:
@@ -57,7 +57,7 @@ job:reference-annotation                        [worker handleJob]
 
 ## Configuring an exporter
 
-### Backend / worker / smelter (Node)
+### Gateway / worker / smelter (Node)
 
 Standard OTel env vars. Set them on the process — for local dev,
 inherit from your shell; for containers, add to compose / ECS task env.
@@ -66,7 +66,7 @@ inherit from your shell; for containers, add to compose / ECS task env.
 |-----------------------------------|----------------------------------------|------------------------------------|
 | `OTEL_EXPORTER_OTLP_ENDPOINT`     | (none — SDK does not initialize)       | OTLP HTTP collector URL            |
 | `OTEL_EXPORTER_OTLP_HEADERS`      | (none)                                 | Auth headers for SaaS APMs         |
-| `OTEL_SERVICE_NAME`               | `semiont-backend` / `-worker` / `-smelter` | Service identity                |
+| `OTEL_SERVICE_NAME`               | `semiont-gateway` / `-worker` / `-smelter` | Service identity                |
 | `OTEL_TRACES_SAMPLER`             | `parentbased_always_on`                | Sampler                            |
 | `OTEL_TRACES_SAMPLER_ARG`         | (n/a)                                  | Ratio for traceidratio samplers    |
 | `OTEL_CONSOLE_EXPORTER`           | `false`                                | Set `true` for stderr exporter (dev only) |
@@ -95,7 +95,7 @@ SDK — no spans emitted, no overhead.
 
 ## Recommended targets
 
-Semiont does not store traces; the operator picks a backend.
+Semiont does not store traces; the operator picks a gateway.
 
 | Deployment              | Recommended target                                                                              |
 |-------------------------|-------------------------------------------------------------------------------------------------|
@@ -117,8 +117,8 @@ docker run -d --name jaeger \
 
 # 2. Point Semiont at it
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
-export OTEL_SERVICE_NAME=semiont-backend
-semiont start --service backend
+export OTEL_SERVICE_NAME=semiont-gateway
+semiont start --service gateway
 
 # 3. Browse traces at http://localhost:16686
 ```
@@ -127,7 +127,7 @@ semiont start --service backend
 
 The [`semiont` launcher](../../../apps/launcher/README.md) brings up
 Jaeger as a sidecar and wires `OTEL_EXPORTER_OTLP_ENDPOINT` into
-backend / worker / smelter **by default**; pass `--no-observe` to skip
+gateway / worker / smelter **by default**; pass `--no-observe` to skip
 the sidecar:
 
 ```bash
@@ -144,10 +144,10 @@ cross-service trace propagation without standing Jaeger up by hand.
 curl -s http://localhost:16686/api/services | jq -r '.data[]'
 
 # Operations on a service
-curl -s http://localhost:16686/api/services/semiont-backend/operations | jq -r '.data[]'
+curl -s http://localhost:16686/api/services/semiont-gateway/operations | jq -r '.data[]'
 
 # Cross-service traces (most useful for debugging propagation)
-curl -s 'http://localhost:16686/api/traces?service=semiont-backend&limit=200&lookback=10m' \
+curl -s 'http://localhost:16686/api/traces?service=semiont-gateway&limit=200&lookback=10m' \
   | jq -r '.data[] | select(([.processes[].serviceName] | unique | length) > 1) | "\(.traceID) services=\([.processes[].serviceName] | unique | join(","))"'
 ```
 
@@ -155,11 +155,11 @@ If Jaeger only knows about itself (`jaeger-all-in-one`), no Semiont
 process has exported spans. Most likely causes:
 
 1. `OTEL_EXPORTER_OTLP_ENDPOINT` is set but unreachable — verify with
-   `container exec semiont-backend wget -qO- http://...:4318` from
-   inside the backend container.
-2. `@semiont/observability` isn't installed in the running backend.
-   Verify: `container exec semiont-backend ls /home/semiont/.local/share/semiont/node_modules/@semiont/`.
-3. Backend image was built before observability was bumped — rebuild
+   `container exec semiont-gateway wget -qO- http://...:4318` from
+   inside the gateway container.
+2. `@semiont/observability` isn't installed in the running gateway.
+   Verify: `container exec semiont-gateway ls /home/semiont/.local/share/semiont/node_modules/@semiont/`.
+3. Gateway image was built before observability was bumped — rebuild
    with `--no-cache`.
 
 If services appear but every trace is single-service (no cross-service
@@ -180,7 +180,7 @@ implicitly) — see `packages/observability/src/node.ts`.
 
 ## Relationship to the structured logger and `busLog`
 
-- **Structured logger** (`getLogger()` on backend,
+- **Structured logger** (`getLogger()` on gateway,
   `createProcessLogger()` in workers/smelter) — JSON-line,
   level-filtered, always on. Logs semantic events (validation failed,
   user authenticated). Goes to log aggregator. Every line is auto-
@@ -194,7 +194,7 @@ implicitly) — see `packages/observability/src/node.ts`.
   W3C trace-id, so a `busLog` timeline collates with traces in the
   APM UI.
 - **OTel spans + metrics** (this doc) — distributed tracing and
-  metrics over OTLP. Targets a collector + APM backend.
+  metrics over OTLP. Targets a collector + APM gateway.
 
 ## Metrics (Tier 3)
 
@@ -212,7 +212,7 @@ through the same OTLP endpoint. No extra config required — the
 | `semiont.inference.tokens`   | counter          | `inference.provider`, `inference.model`, `inference.direction` (`input`/`output`) | Anthropic + Ollama (when usage exposed) |
 | `semiont.inference.duration` | histogram        | `inference.provider`, `inference.model`, `inference.outcome` | Anthropic + Ollama clients               |
 | `semiont.sse.subscribers`    | up-down counter  | (none)                                                  | `/bus/subscribe` connect/disconnect           |
-| `semiont.job.queue.size`     | observable gauge | `job.status` (`pending`/`running`/`complete`/`failed`/`cancelled`) | Backend `FsJobQueue.getStats()` |
+| `semiont.job.queue.size`     | observable gauge | `job.status` (`pending`/`running`/`complete`/`failed`/`cancelled`) | Gateway `FsJobQueue.getStats()` |
 
 Additional vars:
 
@@ -226,7 +226,7 @@ metric snapshots also print to stderr at each export interval.
 
 ## Log correlation (Tier 3)
 
-Every structured log line emitted by the backend Winston logger
+Every structured log line emitted by the gateway Winston logger
 (`getLogger()`) and the worker/smelter Winston loggers
 (`createProcessLogger()`) is now tagged with `trace_id` and `span_id`
 when an active span exists. Log queries in CloudWatch / Loki / Datadog
@@ -252,7 +252,7 @@ When no SDK is initialized (or no span is active), the helper returns
   them so the dependency surface stays small.
 - **No vector-index-size metric yet.** Adding it requires a new
   `count()` method on the `VectorStore` interface implemented across
-  all backends (Qdrant, in-memory). Not urgent; deferred until
+  all gateways (Qdrant, in-memory). Not urgent; deferred until
   capacity-planning needs surface.
 - **Browser uses `XMLHttpRequest` / `fetch` directly** for the
   transport's underlying calls. Auto-instrumenting these is

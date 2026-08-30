@@ -3,7 +3,7 @@
  *
  * Written after an e2e failure where `ReferencesPanel` received
  * `allEntityTypes: []` even though the client provably received the
- * full 9-string array from the backend (verified by console-arg
+ * full 9-string array from the gateway (verified by console-arg
  * capture in Playwright traces).
  *
  * These tests articulate the "how the 9 strings should travel" theory

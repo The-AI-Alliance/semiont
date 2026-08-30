@@ -73,7 +73,7 @@ function createEventTracker() {
       eventBus.get('yield:clone').subscribe((payload: any) => {
         events.push({ event: 'yield:clone', payload });
       });
-      // `mark:archive` / `mark:unarchive` are backend-routed via `actor.emit`;
+      // `mark:archive` / `mark:unarchive` are gateway-routed via `actor.emit`;
       // spy on the namespace methods instead of subscribing to a local bus.
       const origArchive = client.mark.archive.bind(client.mark);
       const origUnarchive = client.mark.unarchive.bind(client.mark);

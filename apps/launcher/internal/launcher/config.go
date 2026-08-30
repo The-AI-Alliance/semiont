@@ -20,7 +20,7 @@ import (
 // (optional); only the required form is matched here. These are the ones the
 // launcher injects itself and never demands from the user.
 var injectedVars = map[string]bool{
-	"BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
+	"GATEWAY_HOST": true, "BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
 	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "SEMIONT_WORKER_SECRET": true,
 }
 
@@ -71,17 +71,26 @@ type semiontConfig struct {
 }
 
 type envConfig struct {
-	Backend   *backendCfg            `toml:"backend"`
-	Graph     *graphCfg              `toml:"graph"`
-	Vectors   *vectorsCfg            `toml:"vectors"`
-	Embedding *embeddingCfg          `toml:"embedding"`
-	Inference map[string]providerCfg `toml:"inference"`
-	Database  *databaseCfg           `toml:"database"`
-	Actors    map[string]bindingCfg  `toml:"actors"`
-	Workers   map[string]bindingCfg  `toml:"workers"`
+	// Two spellings of one section. `gateway` is current; `backend` is the
+	// pre-rename key the KB fleet still carries, accepted until every fleet
+	// repo has moved. loadConfig collapses them into Gateway and rejects a
+	// file that sets both — see resolveGatewaySection.
+	//
+	// Note this lane parses FEWER fields than the TypeScript one, which also
+	// reads publicURL. That asymmetry predates the alias: confgen writes
+	// publicURL and the launcher never reads it back. Do not "fix" it here.
+	Gateway    *gatewayCfg            `toml:"gateway"`
+	GatewayOld *gatewayCfg            `toml:"backend"`
+	Graph      *graphCfg              `toml:"graph"`
+	Vectors    *vectorsCfg            `toml:"vectors"`
+	Embedding  *embeddingCfg          `toml:"embedding"`
+	Inference  map[string]providerCfg `toml:"inference"`
+	Database   *databaseCfg           `toml:"database"`
+	Actors     map[string]bindingCfg  `toml:"actors"`
+	Workers    map[string]bindingCfg  `toml:"workers"`
 	// Site is read ONLY to detect that it exists (KB-IDENTITY-VS-ADDRESS P4).
 	// The launcher never writes one — confgen.go emits no [site] section — so
-	// its presence means a human added it, and the backend's TOML loader then
+	// its presence means a human added it, and the gateway's TOML loader then
 	// resolves the AGENTS' domain from it instead of the KB's committed
 	// .semiont/config. The launcher does not act on the value; it reports the
 	// divergence and lets the operator judge.
@@ -95,7 +104,7 @@ type siteCfg struct {
 	Domain *string `toml:"domain"`
 }
 
-type backendCfg struct {
+type gatewayCfg struct {
 	Platform string `toml:"platform"`
 	Port     int    `toml:"port"`
 }
@@ -176,5 +185,32 @@ func loadConfig(path string) (*envConfig, string, []string, error) {
 	if !ok {
 		return nil, "", nil, fmt.Errorf("%s: environment %q selected by [defaults] is not defined", path, envName)
 	}
+	if err := resolveGatewaySection(&env, path, envName); err != nil {
+		return nil, "", nil, err
+	}
 	return &env, envName, requiredVars(doc), nil
+}
+
+// resolveGatewaySection collapses the `gateway` / `backend` spellings of one
+// section into env.Gateway.
+//
+// A file that sets BOTH is half-migrated — a mistake someone just made, not a
+// state worth supporting — so it is rejected by name rather than resolved by
+// precedence. Silently preferring one would leave the next reader unable to
+// tell which section is live.
+//
+// The TypeScript loader implements the same four cases independently; neither
+// lane can see the other's schema, so both are pinned by parity tests.
+func resolveGatewaySection(env *envConfig, path, envName string) error {
+	if env.Gateway != nil && env.GatewayOld != nil {
+		return fmt.Errorf(
+			"%s: environment %q declares both [environments.%s.gateway] and [environments.%s.backend]; "+
+				"they are one section under two spellings — keep gateway and delete backend",
+			path, envName, envName, envName)
+	}
+	if env.Gateway == nil {
+		env.Gateway = env.GatewayOld
+	}
+	env.GatewayOld = nil
+	return nil
 }

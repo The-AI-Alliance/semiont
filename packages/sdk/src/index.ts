@@ -23,7 +23,7 @@
  * import { baseUrl } from '@semiont/core';
  *
  * const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/') });
- * // HttpTransport implements both ITransport and IBackendOperations;
+ * // HttpTransport implements both ITransport and IGatewayOperations;
  * // passing it as the third arg wires `client.auth` and `client.admin`.
  * const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
  * ```
@@ -151,7 +151,7 @@ export { type OpenResource } from './session/open-resource';
 export {
   defaultProtocol,
   isValidHostname,
-  kbBackendUrl,
+  kbGatewayUrl,
   setStoredSession,
   type StoredSession,
 } from './session/storage';

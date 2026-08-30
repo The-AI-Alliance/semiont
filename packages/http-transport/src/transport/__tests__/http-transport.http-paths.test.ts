@@ -2,7 +2,7 @@
  * HttpTransport / HttpContentTransport — HTTP wire-shape tests.
  *
  * Pins the URL paths, methods, headers, and multipart shape that the
- * backend's routes expect. Mocks `ky` at the module boundary; no
+ * gateway's routes expect. Mocks `ky` at the module boundary; no
  * SemiontClient involvement.
  *
  * Migrated from the pre-SDK-split `client.test.ts` (http-transport side):

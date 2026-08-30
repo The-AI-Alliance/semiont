@@ -78,11 +78,11 @@ import { makeMeaningConfigFrom, requireKBName, resolveActorInference } from './c
 // rides the staged config (~/.semiontconfig in the container).
 const envConfig = loadEnvironmentConfig(null);
 const kbName = requireKBName(envConfig);
-const backendPublicURL = envConfig.services?.backend?.publicURL;
-if (!backendPublicURL) {
-  throw new Error('services.backend.publicURL is required in environment config');
+const gatewayPublicURL = envConfig.services?.gateway?.publicURL;
+if (!gatewayPublicURL) {
+  throw new Error('services.gateway.publicURL is required in environment config');
 }
-const baseUrl: string = backendPublicURL;
+const baseUrl: string = gatewayPublicURL;
 
 const config = makeMeaningConfigFrom(envConfig);
 // One decider for the config's shape invariants (graph presence, the A4
@@ -179,7 +179,7 @@ async function authenticate(): Promise<string> {
     isTransientFetchError,
     STARTUP_FETCH_RETRY,
     ({ attempt, attempts, delayMs, error }) => {
-      logger.warn('Backend unreachable, retrying authentication', {
+      logger.warn('Gateway unreachable, retrying authentication', {
         attempt,
         attempts,
         retryInMs: delayMs,

@@ -644,10 +644,10 @@ func TestStatePersistsAcrossStarts(t *testing.T) {
 // nothing re-derives it: reconcile plans work from Qdrant, which persists, so
 // it sees matching checksums and does nothing.
 //
-// The container path is a constant of the backend image, declared as
+// The container path is a constant of the gateway image, declared as
 // SEMIONT_ANCHORED_TEXT_DIR the way SEMIONT_ROOT=/kb is — so this mount looks
 // like every other one: KB identity on the host side only.
-func TestBackendDataPersistsAcrossStarts(t *testing.T) {
+func TestGatewayDataPersistsAcrossStarts(t *testing.T) {
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("first start: exit %d\nstderr:\n%s", code, stderr)
@@ -683,7 +683,7 @@ func TestBackendDataPersistsAcrossStarts(t *testing.T) {
 
 // It is a projection — every entry is reproducible from the resource's bytes —
 // so `clean` may take it, and an image change clears rather than refuses.
-func TestCleanTakesBackendState(t *testing.T) {
+func TestCleanTakesGatewayState(t *testing.T) {
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
@@ -827,16 +827,23 @@ func TestStartWarnsWhenEnvConfigOverridesIdentity(t *testing.T) {
 		"elsewhere.example:other-kb",
 		"agent identities")
 
-	// 2. A [site] section with NO domain — the one nobody intends. The loader
-	// substitutes the literal 'localhost', so agents land under
-	// did:web:localhost and collide with every other such KB on the machine.
+	// 2. A [site] section with NO domain — the shape someone gets by adding the
+	// section for `oauthAllowedDomains` alone. This USED to be the one nobody
+	// intends: the loader substituted the literal 'localhost' and the agents
+	// collided with every other such KB on the machine. The loader no longer
+	// manufactures a domain, so the gateway falls back to the KB's committed
+	// identity, nothing diverges, and there is nothing to warn about.
 	s2 := newScenario(t, "container")
 	withSite(t, s2, "[environments.local.site]\noauthAllowedDomains = [\"example.com\"]\n")
 	stdout, stderr, code = s2.run(t, "start", "--config", "sited", "--dry-run")
 	if code != 0 {
-		t.Fatalf("domain-less site must warn, not refuse: exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("domain-less site must not refuse: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "localhost warning", stdout, "did:web:localhost", "declares no domain")
+	for _, absent := range []string{"did:web:localhost", "declares no domain", "overrides the KB's declared identity"} {
+		if strings.Contains(stdout, absent) {
+			t.Errorf("domain-less [site] no longer diverges, so %q must not appear:\n%s", absent, stdout)
+		}
+	}
 
 	// 3. No environment [site] at all — every launcher-generated config. This
 	// is the case that must stay SILENT; a warning here would be pure noise
@@ -877,10 +884,9 @@ func TestStartRefusesKBWithoutDid(t *testing.T) {
 	// A did:web is REQUIRED (KB-IDENTITY-VS-ADDRESS decision 8, 2026-07-27).
 	// The launcher publishes a discovery document in which `did` is a required
 	// field, so a KB with no [site] domain cannot be represented — and the
-	// alternative to refusing is worse than it looks: the backend's TOML
-	// loader defaults a domain-less [site] to the literal "localhost", so
-	// every such KB on a machine would report one fabricated, colliding
-	// did:web:localhost. An address wearing a name is the category error this
+	// alternative to refusing is worse than it looks: any default at all would
+	// have every such KB on a machine report one fabricated, colliding
+	// identity. An address wearing a name is the category error this
 	// whole plan is about. Identity is declared, never defaulted.
 	s := newScenario(t, "container")
 	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "config"),
@@ -1192,7 +1198,7 @@ func TestLoginWithoutStackRefuses(t *testing.T) {
 // --- yield (sdk-go glue) ---
 
 // yieldScenario boots the fake stack, logs in, and seeds docs/note.md.
-// extraEnv lands BEFORE start: the fake backend serve keeps its birth env,
+// extraEnv lands BEFORE start: the fake gateway serve keeps its birth env,
 // so per-run env set after start never reaches it (learned RED-first).
 func yieldScenario(t *testing.T, login bool, extraEnv ...string) *scenario {
 	t.Helper()
@@ -1224,7 +1230,7 @@ func TestYieldUploadsFile(t *testing.T) {
 		t.Fatalf("yield: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout, "Yielded", "docs/note.md", "fake-resource-id")
-	// What the backend actually received — the multipart per the spec's
+	// What the gateway actually received — the multipart per the spec's
 	// schema, the bearer token, the bytes.
 	b, err := os.ReadFile(filepath.Join(s.fakertDir, "yield-upload.json"))
 	if err != nil {
@@ -1250,7 +1256,7 @@ func TestYieldOutsideRootRefuses(t *testing.T) {
 	}
 	mustContain(t, "refusal", stdout+stderr, "KB root", "Copy it")
 	if _, err := os.ReadFile(filepath.Join(s.fakertDir, "yield-upload.json")); err == nil {
-		t.Error("refused upload still reached the backend")
+		t.Error("refused upload still reached the gateway")
 	}
 }
 
@@ -1417,12 +1423,12 @@ func serveHealth(t *testing.T, ports ...int) {
 }
 
 func TestStatusMixed(t *testing.T) {
-	// docker-only runtime; backend running+healthy, worker running but
+	// docker-only runtime; gateway running+healthy, worker running but
 	// unhealthy, smelter exited, everything else absent — except a host
 	// Ollama answering with no container, which must report runtime "host".
 	s := newScenario(t, "docker")
 	s.extraEnv = append(s.extraEnv,
-		"FAKERT_STATE_backend=running",
+		"FAKERT_STATE_gateway=running",
 		"FAKERT_STATE_worker=running",
 		"FAKERT_STATE_smelter=exited",
 	)
@@ -1466,8 +1472,8 @@ func TestStatusMixed(t *testing.T) {
 			continue // service-table rows only, not the host-dirs block
 		}
 		switch {
-		case strings.Contains(line, "backend"):
-			mustContain(t, "backend row", line, "running", "docker", "✓")
+		case strings.Contains(line, "gateway"):
+			mustContain(t, "gateway row", line, "running", "docker", "✓")
 		case strings.Contains(line, "worker"):
 			mustContain(t, "worker row", line, "running", "✗")
 		case strings.Contains(line, "inference"):
@@ -1482,7 +1488,7 @@ func TestStatusAllHealthy(t *testing.T) {
 	// Full stack running and healthy (Apple container JSON inspect path);
 	// Jaeger absent is fine — observability is optional, exit stays 0.
 	s := newScenario(t, "container")
-	for _, svc := range []string{"backend", "worker", "smelter", "weaver", "browser", "neo4j", "qdrant", "postgres", "ollama"} {
+	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "browser", "neo4j", "qdrant", "postgres", "ollama"} {
 		s.extraEnv = append(s.extraEnv, "FAKERT_STATE_"+svc+"=running")
 	}
 	serveHealth(t, 4000, 9090, 9091, 9092, 9093, 9094, 3000, 7474, 6333, 5432, 11434)
@@ -1492,8 +1498,8 @@ func TestStatusAllHealthy(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout, "traces")
 	for _, line := range strings.Split(stdout, "\n") {
-		if strings.Contains(line, "backend") && strings.Contains(line, "✗") {
-			t.Errorf("backend reported unhealthy:\n%s", stdout)
+		if strings.Contains(line, "gateway") && strings.Contains(line, "✗") {
+			t.Errorf("gateway reported unhealthy:\n%s", stdout)
 		}
 	}
 }
@@ -1548,23 +1554,23 @@ func TestInvocationLog(t *testing.T) {
 
 func TestUseradd(t *testing.T) {
 	// useradd is a thin exec bridge: launcher finds the stack's runtime and
-	// backend handle, execs the in-container CLI's useradd, and passes every
+	// gateway handle, execs the in-container CLI's useradd, and passes every
 	// flag through verbatim. The PASSWORD is the one thing that never rides in
 	// argv — it goes down the exec's stdin, because argv is visible in `ps`
 	// (host and container) and in the caller's shell history.
 	s := newScenario(t, "container", "docker")
 	const secret = "password123"
 
-	// No running backend anywhere: pointed failure.
+	// No running gateway anywhere: pointed failure.
 	s.stdin = secret + "\n"
 	_, stderr, code := s.run(t, "useradd", "--email", "a@b.co")
 	if code != 1 {
-		t.Fatalf("no-backend useradd: want exit 1, got %d", code)
+		t.Fatalf("no-gateway useradd: want exit 1, got %d", code)
 	}
 	mustContain(t, "stderr", stderr,
-		"useradd needs a running backend", "semiont start")
+		"useradd needs a running gateway", "semiont start")
 
-	// Name-scan fallback: the runtime whose listing shows semiont-backend.
+	// Name-scan fallback: the runtime whose listing shows semiont-gateway.
 	s.extraEnv = append(s.extraEnv, "FAKERT_STACK_RUNTIME=docker")
 	s.stdin = secret + "\n"
 	stdout, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--admin")
@@ -1572,11 +1578,11 @@ func TestUseradd(t *testing.T) {
 		t.Fatalf("useradd: exit %d\nstderr:\n%s", code, stderr)
 	}
 	log, _ := os.ReadFile(s.log)
-	// -i so the pipe reaches the container; --password-stdin tells the backend
+	// -i so the pipe reaches the container; --password-stdin tells the gateway
 	// to read it there.
 	mustContain(t, "argv log", string(log),
-		"docker exec -i semiont-backend semiont-useradd --email a@b.co --admin --password-stdin")
-	// The secret reached the backend — through the PIPE, not the command line.
+		"docker exec -i semiont-gateway semiont-useradd --email a@b.co --admin --password-stdin")
+	// The secret reached the gateway — through the PIPE, not the command line.
 	stdinSeen, err := os.ReadFile(filepath.Join(s.fakertDir, "exec-stdin.txt"))
 	if err != nil {
 		t.Fatalf("no exec stdin captured: %v", err)
@@ -1600,7 +1606,7 @@ func TestUseradd(t *testing.T) {
 	}
 
 	// Record-driven: recorded runtime + container ID beat the name scan. With
-	// --generate-password the backend invents one, so nothing is read or piped.
+	// --generate-password the gateway invents one, so nothing is read or piped.
 	writeStackState(t, s, "container")
 	if err := os.Truncate(s.log, 0); err != nil {
 		t.Fatal(err)
@@ -1611,14 +1617,14 @@ func TestUseradd(t *testing.T) {
 	}
 	log, _ = os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log),
-		"container exec fid-semiont-backend semiont-useradd --email b@c.co --generate-password")
+		"container exec fid-semiont-gateway semiont-useradd --email b@c.co --generate-password")
 	if strings.Contains(string(log), "--password-stdin") {
 		t.Error("--generate-password must not also ask for a password on stdin")
 	}
 
 	// Asking for both a supplied and a generated password is refused HERE. The
 	// launcher strips --password-stdin and re-adds it only when it actually
-	// read one, so forwarding alone would hand the backend just
+	// read one, so forwarding alone would hand the gateway just
 	// --generate-password — its own mutual-exclusion check would never fire and
 	// the user would silently get a password they did not ask to keep.
 	if _, stderr, code := s.run(t, "useradd", "--email", "b@c.co",
@@ -1628,7 +1634,7 @@ func TestUseradd(t *testing.T) {
 		mustContain(t, "stderr", stderr, "contradictory")
 	}
 
-	// --update on an existing user needs no password (the backend only
+	// --update on an existing user needs no password (the gateway only
 	// requires one to CREATE), so nothing is prompted or piped.
 	if err := os.Truncate(s.log, 0); err != nil {
 		t.Fatal(err)
@@ -2153,7 +2159,7 @@ func TestCodespaceHookFailureFailsFastWithTheCause(t *testing.T) {
 	// conclusion, and the eventual timeout blames the KB for a setup error.
 	//
 	// Failing FAST is only half of it: the marker is the announcement, not the
-	// reason. The cause sat ~18 lines above it (a backend refusing to boot),
+	// reason. The cause sat ~18 lines above it (a gateway refusing to boot),
 	// so the report must carry the run-up or it is merely quick and useless.
 	s := newCodespaceScenario(t)
 	s.extraEnv = append(s.extraEnv,
@@ -2523,7 +2529,7 @@ func TestUseraddCodespace(t *testing.T) {
 	remote := stdout[strings.Index(stdout, "remote-cmd: "):]
 	remote = remote[:strings.IndexByte(remote, '\n')]
 	mustContain(t, "remote command", remote,
-		"docker exec -i semiont-backend semiont-useradd", // -i keeps the pipe open through ssh
+		"docker exec -i semiont-gateway semiont-useradd", // -i keeps the pipe open through ssh
 		"'alice@example.com'", "'--admin'", "'--password-stdin'")
 	if strings.Contains(remote, "rm -rf") {
 		t.Fatalf("the password reached the remote COMMAND LINE:\n%s", remote)
@@ -2563,7 +2569,7 @@ func TestUseraddAmbiguousStacks(t *testing.T) {
 		t.Fatal(err)
 	}
 	both := `{"schema":3,"stacks":{` +
-		`"local":{"runtime":"container","services":{"backend":{"container":"semiont-backend","id":"fid-semiont-backend","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}},` +
+		`"local":{"runtime":"container","services":{"gateway":{"container":"semiont-gateway","id":"fid-semiont-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}},` +
 		`"codespace:` + csRepo + `":{"runtime":"codespace","codespace":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001,"services":{}}}}`
 	if err := os.WriteFile(p, []byte(both), 0o644); err != nil {
 		t.Fatal(err)
@@ -2850,7 +2856,7 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 		t.Fatal(err)
 	}
 	local := `{"schema":3,"stacks":{"local":{"runtime":"container","ports":[3000,4000,9090],` +
-		`"services":{"backend":{"container":"semiont-backend","id":"fid-semiont-backend","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}}}}`
+		`"services":{"gateway":{"container":"semiont-gateway","id":"fid-semiont-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}}}}`
 	if err := os.WriteFile(statePath, []byte(local), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -2877,7 +2883,7 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("codespace record + local dry-run: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "local plan stdout", stdout, "container run -d --name semiont-backend")
+	mustContain(t, "local plan stdout", stdout, "container run -d --name semiont-gateway")
 
 	// useradd now WORKS against a codespace stack (the generated admin is
 	// only the FIRST user; everything after it is useradd's job).
@@ -2888,7 +2894,7 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 	// status --service and stop --service don't apply.
 	// --repo and --root/--service name different stacks; combining them is
 	// a contradiction, not a silent preference.
-	if _, stderr, code := s2.run(t, "status", "--repo", csRepo, "--service", "backend"); code != 1 {
+	if _, stderr, code := s2.run(t, "status", "--repo", csRepo, "--service", "gateway"); code != 1 {
 		t.Error("--repo with --service should fail")
 	} else {
 		mustContain(t, "stderr", stderr, "--repo names a remote stack")
@@ -2945,14 +2951,14 @@ func TestCodespaceDryRunAndLogs(t *testing.T) {
 	if _, _, code := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo); code != 0 {
 		t.Fatal("create failed")
 	}
-	stdout, stderr, code = s.run(t, "logs", "--service", "backend")
+	stdout, stderr, code = s.run(t, "logs", "--service", "gateway")
 	if code != 0 {
 		t.Fatalf("logs: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "logs stdout", stdout, "[backend] backend out")
+	mustContain(t, "logs stdout", stdout, "[gateway] gateway out")
 	log, _ := os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log),
-		"gh codespace ssh -c fake-cs-1 -- docker logs --follow semiont-backend")
+		"gh codespace ssh -c fake-cs-1 -- docker logs --follow semiont-gateway")
 }
 
 func TestMultiStackCodespaces(t *testing.T) {
@@ -3008,14 +3014,14 @@ func TestMultiStackCodespaces(t *testing.T) {
 		"bar-cs-1  other/bar", "KB", "healthy", "http://localhost:4001/api/health")
 
 	// Bare logs can't guess between two forwarded stacks; --repo can.
-	_, stderr, code = s.run(t, "logs", "--service", "backend")
+	_, stderr, code = s.run(t, "logs", "--service", "gateway")
 	if code != 1 {
 		t.Fatalf("ambiguous logs: want exit 1, got %d", code)
 	}
 	if err := os.Truncate(s.log, 0); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, code := s.run(t, "logs", "--repo", "other/bar", "--service", "backend"); code != 0 {
+	if _, _, code := s.run(t, "logs", "--repo", "other/bar", "--service", "gateway"); code != 0 {
 		t.Fatal("targeted logs failed")
 	}
 	log, _ := os.ReadFile(s.log)
@@ -3117,10 +3123,10 @@ func TestBrowserPort(t *testing.T) {
 func TestMultiStackLocalPlusCodespace(t *testing.T) {
 	// A local stack and codespace stacks coexist in the record set: verbs
 	// that can't guess refuse with selectors; useradd targets the local
-	// backend; a targeted local stop leaves the codespace records alone.
+	// gateway; a targeted local stop leaves the codespace records alone.
 	s := newCodespaceScenario(t)
 	set := `{"schema":3,"stacks":{
-	  "local":{"runtime":"container","services":{"backend":{"container":"semiont-backend","id":"fid-semiont-backend","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}},
+	  "local":{"runtime":"container","services":{"gateway":{"container":"semiont-gateway","id":"fid-semiont-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}},
 	  "codespace:pingel-org/foo-kb":{"runtime":"codespace","codespace":"fake-cs-1","repo":"pingel-org/foo-kb","ports":[3000,4000,9090,9091,9092],"services":{}}}}`
 	p := statePathFor(s.home)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -3145,7 +3151,7 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 		t.Fatalf("useradd --runtime: exit %d\nstderr:\n%s", code, stderr)
 	}
 	log, _ := os.ReadFile(s.log)
-	mustContain(t, "argv log", string(log), "container exec fid-semiont-backend semiont-useradd")
+	mustContain(t, "argv log", string(log), "container exec fid-semiont-gateway semiont-useradd")
 
 	// A targeted local stop consumes the local record only.
 	if _, stderr, code := s.run(t, "stop", "--runtime", "container"); code != 0 {
@@ -3163,7 +3169,7 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 // writeKBConfig drops a variant semiontconfig into the scenario's KB.
 func writeKBConfig(t *testing.T, s *scenario, name, body string) {
 	t.Helper()
-	head := "[defaults]\nenvironment = \"local\"\n\n[environments.local.backend]\nplatform = \"posix\"\nport = 4000\n\n"
+	head := "[defaults]\nenvironment = \"local\"\n\n[environments.local.gateway]\nplatform = \"posix\"\nport = 4000\n\n"
 	p := filepath.Join(s.kb, ".semiont", "semiontconfig", name+".toml")
 	if err := os.WriteFile(p, []byte(head+body), 0o644); err != nil {
 		t.Fatal(err)
@@ -3173,7 +3179,7 @@ func writeKBConfig(t *testing.T, s *scenario, name, body string) {
 const stdVectors = "[environments.local.vectors]\ntype = \"qdrant\"\nhost = \"${QDRANT_HOST}\"\nport = 6333\n\n"
 
 // Every config must name a vector store and an embedding provider — the
-// launcher refuses one that does not, exactly as the backend's loader does.
+// launcher refuses one that does not, exactly as the gateway's loader does.
 // So these two are as standard as stdGraph/stdDatabase, and a variant that
 // wants no local Ollama reaches for stdEmbeddingVoyage rather than dropping
 // the section.
@@ -3230,7 +3236,7 @@ func TestStartExternalGraphBoot(t *testing.T) {
 	if strings.Contains(stopArgv, "semiont-neo4j") {
 		t.Errorf("stop touched the external graph:\n%s", stopArgv)
 	}
-	mustContain(t, "stop argv", stopArgv, "stop fid-semiont-backend")
+	mustContain(t, "stop argv", stopArgv, "stop fid-semiont-gateway")
 }
 
 func TestStartMovedDBPortBoot(t *testing.T) {
@@ -3305,19 +3311,19 @@ func TestStartServiceExternalIsNoop(t *testing.T) {
 	}
 }
 
-func TestServiceBackendPortFollowsConfig(t *testing.T) {
-	// --service backend port-claims the CONFIG's backend port, not a static
+func TestServiceGatewayPortFollowsConfig(t *testing.T) {
+	// --service gateway port-claims the CONFIG's gateway port, not a static
 	// 4000 (the last vestige of the pre-config-sync port table).
 	s := newScenario(t, "container")
-	writeKBConfig(t, s, "moved-backend",
+	writeKBConfig(t, s, "moved-gateway",
 		stdGraph+stdVectors+stdEmbedding+stdDatabase)
-	// writeKBConfig's header pins backend.port = 4000; rewrite it to 4001.
-	p := filepath.Join(s.kb, ".semiont", "semiontconfig", "moved-backend.toml")
+	// writeKBConfig's header pins gateway.port = 4000; rewrite it to 4001.
+	p := filepath.Join(s.kb, ".semiont", "semiontconfig", "moved-gateway.toml")
 	b, _ := os.ReadFile(p)
 	if err := os.WriteFile(p, []byte(strings.Replace(string(b), "port = 4000", "port = 4001", 1)), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	stdout, _, code := s.run(t, "start", "--service", "backend", "--config", "moved-backend", "--dry-run")
+	stdout, _, code := s.run(t, "start", "--service", "gateway", "--config", "moved-gateway", "--dry-run")
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, stdout)
 	}
@@ -3325,7 +3331,7 @@ func TestServiceBackendPortFollowsConfig(t *testing.T) {
 		"require free ports: 4001",
 		"wait: http://localhost:4001/api/health (120s)")
 	if strings.Contains(stdout, "4000") {
-		t.Errorf("static backend port leaked into the plan:\n%s", stdout)
+		t.Errorf("static gateway port leaked into the plan:\n%s", stdout)
 	}
 }
 
@@ -3577,13 +3583,13 @@ func TestLogsRecordAware(t *testing.T) {
 	// follow; a host-provided role explains itself instead of failing weirdly.
 	s := newScenario(t, "container", "docker")
 	writeStackState(t, s, "container")
-	stdout, _, code := s.run(t, "logs", "--service", "backend")
+	stdout, _, code := s.run(t, "logs", "--service", "gateway")
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, stdout)
 	}
-	mustContain(t, "stdout", stdout, "Using recorded stack state", "[backend]")
+	mustContain(t, "stdout", stdout, "Using recorded stack state", "[gateway]")
 	argv := s.argv(t)
-	mustContain(t, "argv", argv, "container logs --follow fid-semiont-backend")
+	mustContain(t, "argv", argv, "container logs --follow fid-semiont-gateway")
 	for _, absent := range []string{"container list", "docker ps"} {
 		if strings.Contains(argv, absent) {
 			t.Errorf("record-aware logs still name-scanned: %q", absent)
@@ -3663,7 +3669,7 @@ func TestStackStateLifecycle(t *testing.T) {
 	if set.Browser == nil || set.Browser.ID != "fid-semiont-browser" {
 		t.Errorf("browser record missing or wrong: %+v", set.Browser)
 	}
-	for _, role := range []string{"traces", "graph", "vectors", "inference", "database", "backend", "worker", "smelter", "weaver"} {
+	for _, role := range []string{"traces", "graph", "vectors", "inference", "database", "gateway", "worker", "smelter", "weaver"} {
 		e, ok := st.Services[role]
 		if !ok {
 			t.Errorf("service %q missing from record", role)
@@ -3690,7 +3696,7 @@ func TestStackStateLifecycle(t *testing.T) {
 	}
 	mustContain(t, "status header", statusOut, "images latest")
 	statusArgv := strings.TrimPrefix(s.argv(t), preStatus)
-	mustContain(t, "status argv", statusArgv, "container inspect fid-semiont-backend")
+	mustContain(t, "status argv", statusArgv, "container inspect fid-semiont-gateway")
 	for _, bad := range []string{"docker inspect", "podman inspect"} {
 		if strings.Contains(statusArgv, bad) {
 			t.Errorf("status queried a non-recorded runtime: %q", bad)
@@ -3713,7 +3719,7 @@ func TestStackStateLifecycle(t *testing.T) {
 	if strings.Contains(string(b), `"weaver"`) {
 		t.Error("weaver entry not forgotten after stop --service")
 	}
-	if !strings.Contains(string(b), `"backend"`) {
+	if !strings.Contains(string(b), `"gateway"`) {
 		t.Error("record lost other services on per-service stop")
 	}
 
@@ -3728,8 +3734,8 @@ func TestStackStateLifecycle(t *testing.T) {
 	mustContain(t, "stdout", stdout, "Using recorded stack state", "Semiont stack stopped.")
 	fullArgv := strings.TrimPrefix(s.argv(t), preFull)
 	mustContain(t, "full stop argv", fullArgv,
-		"container stop fid-semiont-backend",
-		"docker stop semiont-backend", "podman stop semiont-backend")
+		"container stop fid-semiont-gateway",
+		"docker stop semiont-gateway", "podman stop semiont-gateway")
 	// The Browser survives a full stop — never in the sweep.
 	if strings.Contains(fullArgv, "semiont-browser") {
 		t.Errorf("full stop touched the Browser:\n%s", fullArgv)
@@ -3777,7 +3783,7 @@ func TestStopTwiceIsHonest(t *testing.T) {
 func writeStackState(t *testing.T, s *scenario, runtime string) {
 	t.Helper()
 	st := `{"schema":2,"runtime":"` + runtime + `","services":{
-	  "backend":{"container":"semiont-backend","id":"fid-semiont-backend","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}}`
+	  "gateway":{"container":"semiont-gateway","id":"fid-semiont-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}}`
 	p := statePathFor(s.home)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		t.Fatal(err)
@@ -3850,8 +3856,8 @@ func TestStartPrefersRecordedRuntime(t *testing.T) {
 		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "stdout", stdout,
-		"docker pull ghcr.io/the-ai-alliance/semiont-backend:latest",
-		"docker run -d --name semiont-backend")
+		"docker pull ghcr.io/the-ai-alliance/semiont-gateway:latest",
+		"docker run -d --name semiont-gateway")
 	// The main flow must plan against docker; `container` may appear only in
 	// the cross-runtime stray sweep, never as the launching runtime.
 	if strings.Contains(stdout, "container run -d") {
@@ -3943,7 +3949,7 @@ func TestStartPreflightSweepsAllRuntimes(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout,
 		"# sweep stray Semiont containers under docker:",
-		"docker stop semiont-backend", "docker rm semiont-backend")
+		"docker stop semiont-gateway", "docker rm semiont-gateway")
 }
 
 func TestStopSweepsStrayRuntimes(t *testing.T) {
@@ -3963,7 +3969,7 @@ func TestStopSweepsStrayRuntimes(t *testing.T) {
 		t.Fatal(err)
 	}
 	mustContain(t, "argv log", string(log),
-		"docker stop semiont-backend", "docker rm semiont-backend")
+		"docker stop semiont-gateway", "docker rm semiont-gateway")
 
 	// An explicit --runtime keeps its narrow meaning: no cross-runtime sweep.
 	s.killServes()
@@ -4038,9 +4044,9 @@ func TestStartNamesWhereTheJWTSecretCameFrom(t *testing.T) {
 
 	// 2. A later start REUSES the persisted one, and says so. Distinguishing
 	// this from "generated" is the whole point: the incident looked exactly
-	// like a normal start. (--service backend, as the sibling test does: a
+	// like a normal start. (--service gateway, as the sibling test does: a
 	// second full start re-detects host Ollama and refuses, unrelated to this.)
-	stdout, stderr, code = s.run(t, "start", "--service", "backend")
+	stdout, stderr, code = s.run(t, "start", "--service", "gateway")
 	if code != 0 {
 		t.Fatalf("restart: exit %d\nstderr:\n%s", code, stderr)
 	}
@@ -4062,10 +4068,10 @@ func TestStartNamesAnOperatorSuppliedJWTSecret(t *testing.T) {
 	mustContain(t, "provenance", stdout, "Token-signing key", "JWT_SECRET")
 }
 
-// The backend now reads JWT_SECRET as an ordered, comma-separated RING: the
+// The gateway now reads JWT_SECRET as an ordered, comma-separated RING: the
 // first value signs, every value verifies (JWT-SECRET-ROTATION.md decision D).
 // The launcher only carries it — but carrying it correctly means passing a
-// ring through untouched, and refusing a member the backend would reject at
+// ring through untouched, and refusing a member the gateway would reject at
 // boot, where the launcher can still say what to do about it.
 func TestStartCarriesAJWTSecretRing(t *testing.T) {
 	const newKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -4079,7 +4085,7 @@ func TestStartCarriesAJWTSecretRing(t *testing.T) {
 		t.Fatalf("a rotation ring must start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	// Verbatim: re-joining or trimming would change what signs and what
-	// verifies, and the backend is the only component entitled to split it.
+	// verifies, and the gateway is the only component entitled to split it.
 	if got := jwtSecretFromArgv(t, s.argv(t)); got != newKey+","+oldKey {
 		t.Errorf("ring was not passed through verbatim:\ngot  %q\nwant %q", got, newKey+","+oldKey)
 	}
@@ -4094,7 +4100,7 @@ func TestStartCarriesAJWTSecretRing(t *testing.T) {
 }
 
 // A short MEMBER is the trap a whole-string length check misses — "<valid>,short"
-// passes trivially. The backend validates each key and refuses to boot, so
+// passes trivially. The gateway validates each key and refuses to boot, so
 // catching it here, where the fix-it can be printed, beats a crash-loop.
 // Its own scenario: the previous test's fake services hold the stack ports.
 func TestStartRefusesAShortJWTSecretRingMember(t *testing.T) {
@@ -4108,7 +4114,7 @@ func TestStartRefusesAShortJWTSecretRingMember(t *testing.T) {
 	mustContain(t, "stderr", stderr, "32", "JWT_SECRET", "openssl rand -hex 32")
 }
 
-// The backend signs every token with JWT_SECRET and is the only service that
+// The gateway signs every token with JWT_SECRET and is the only service that
 // reads it. Nothing in the image supplies it (the retired CLI's `provision`
 // used to generate one), so the launcher must — and must supply the SAME one
 // across restarts, because a changed secret silently invalidates every token
@@ -4124,7 +4130,7 @@ func TestStartInjectsPersistentJWTSecret(t *testing.T) {
 	argv := s.argv(t)
 	first := jwtSecretFromArgv(t, argv)
 	if len(first) < 32 {
-		t.Errorf("JWT_SECRET must be >= 32 chars (the backend rejects shorter); got %d", len(first))
+		t.Errorf("JWT_SECRET must be >= 32 chars (the gateway rejects shorter); got %d", len(first))
 	}
 
 	// Never printed — it is a signing key, not a status field.
@@ -4132,7 +4138,7 @@ func TestStartInjectsPersistentJWTSecret(t *testing.T) {
 		t.Error("JWT_SECRET leaked into stdout")
 	}
 
-	// Only the backend gets it: the sidecars authenticate via the worker
+	// Only the gateway gets it: the sidecars authenticate via the worker
 	// secret + agent-token exchange and never sign anything.
 	for _, svc := range []string{"worker", "smelter", "weaver", "browser"} {
 		for _, line := range strings.Split(argv, "\n") {
@@ -4159,12 +4165,12 @@ func TestStartInjectsPersistentJWTSecret(t *testing.T) {
 		t.Errorf("%s is %o, want 600 — it is a signing key", path, info.Mode().Perm())
 	}
 
-	// Restarting just the backend must rejoin the SAME key. This is the case
+	// Restarting just the gateway must rejoin the SAME key. This is the case
 	// that matters operationally: a re-minted secret here would invalidate
 	// every token the running stack's users already hold.
-	out2, err2, code := s.run(t, "start", "--service", "backend")
+	out2, err2, code := s.run(t, "start", "--service", "gateway")
 	if code != 0 {
-		t.Fatalf("start --service backend: exit %d\nstdout:\n%s\nstderr:\n%s", code, out2, err2)
+		t.Fatalf("start --service gateway: exit %d\nstdout:\n%s\nstderr:\n%s", code, out2, err2)
 	}
 	if second := jwtSecretFromArgv(t, s.argv(t)); second != first {
 		t.Errorf("JWT_SECRET changed on restart — every previously issued token is now invalid\nfirst:  %s\nsecond: %s", first, second)
@@ -4227,11 +4233,11 @@ func TestStartJWTSecretKeyedToResolvedRoot(t *testing.T) {
 	}
 }
 
-// jwtSecretFromArgv extracts the value the backend container was given.
+// jwtSecretFromArgv extracts the value the gateway container was given.
 func jwtSecretFromArgv(t *testing.T, argv string) string {
 	t.Helper()
 	for _, line := range strings.Split(argv, "\n") {
-		if !strings.Contains(line, "--name semiont-backend") {
+		if !strings.Contains(line, "--name semiont-gateway") {
 			continue
 		}
 		for _, f := range strings.Fields(line) {
@@ -4239,9 +4245,9 @@ func jwtSecretFromArgv(t *testing.T, argv string) string {
 				return v
 			}
 		}
-		t.Fatalf("backend run carries no JWT_SECRET:\n%s", line)
+		t.Fatalf("gateway run carries no JWT_SECRET:\n%s", line)
 	}
-	t.Fatalf("no backend run in argv:\n%s", argv)
+	t.Fatalf("no gateway run in argv:\n%s", argv)
 	return ""
 }
 
@@ -4261,13 +4267,13 @@ func findFile(t *testing.T, dir, name string) string {
 // --- start --service ---
 
 func TestStartServiceWorker(t *testing.T) {
-	// Backend already running with a secret in its env; Jaeger up on 16686.
+	// Gateway already running with a secret in its env; Jaeger up on 16686.
 	// Restarting the worker must rejoin the recovered secret (not the env
 	// one), auto-enable OTel, stage a fresh private config, and leave the
 	// rest of the stack untouched.
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv,
-		"FAKERT_STATE_backend=running",
+		"FAKERT_STATE_gateway=running",
 		// The worker is ALREADY RUNNING — this is a restart, and a restart is
 		// only a restart if there is something to replace. The teardown now
 		// lists before it acts, so a scenario that wants stop+rm asserted has
@@ -4284,7 +4290,7 @@ func TestStartServiceWorker(t *testing.T) {
 	mustContain(t, "stdout", stdout,
 		"Restarting worker",
 		"Jaeger detected — OTel export enabled",
-		"Worker secret: (recovered from semiont-backend)",
+		"Worker secret: (recovered from semiont-gateway)",
 		"SEMIONT_WORKER_SECRET=<redacted>",
 		"🚀 worker is up",
 		"semiont status",
@@ -4297,12 +4303,12 @@ func TestStartServiceWorker(t *testing.T) {
 		"stop semiont-worker",
 		"rm semiont-worker",
 		"image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
-		"inspect semiont-backend",
+		"inspect semiont-gateway",
 		"--env SEMIONT_WORKER_SECRET=recovered-secret-123",
 		"--env OTEL_EXPORTER_OTLP_ENDPOINT=http://",
 		"<config-stage>/worker.toml:/home/semiont/.semiontconfig:ro",
 	)
-	for _, absent := range []string{"run -d --name semiont-neo4j", "run -d --name semiont-backend", "semiont-browser"} {
+	for _, absent := range []string{"run -d --name semiont-neo4j", "run -d --name semiont-gateway", "semiont-browser"} {
 		if strings.Contains(argv, absent) {
 			t.Errorf("--service worker touched the wider stack: %q in argv", absent)
 		}
@@ -4353,10 +4359,10 @@ func TestStartServiceBrowserNoClone(t *testing.T) {
 		t.Fatalf("want exit 0 outside a clone, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout, "Restarting browser", "🚀 browser is up")
-	// The git-clone invariant is scoped to /kb-mount flows: backend still
+	// The git-clone invariant is scoped to /kb-mount flows: gateway still
 	// requires a clone; a sidecar needs only the .semiont/ tree.
-	if _, stderr, code := s.run(t, "start", "--service", "backend"); code != 1 {
-		t.Errorf("backend without git: want exit 1, got %d", code)
+	if _, stderr, code := s.run(t, "start", "--service", "gateway"); code != 1 {
+		t.Errorf("gateway without git: want exit 1, got %d", code)
 	} else {
 		mustContain(t, "stderr", stderr, "must be a git clone")
 	}
@@ -4415,7 +4421,7 @@ func TestStartServiceLibrarian(t *testing.T) {
 }
 
 // The Archivist restart path: teardown + port settle + staged config + run +
-// health gate, like any sidecar — but with the backend's mounts. The argv is
+// health gate, like any sidecar — but with the gateway's mounts. The argv is
 // the pin: /kb read-write, archivist.toml, the shared anchored-text store,
 // and NO JWT_SECRET (it signs nothing).
 func TestStartServiceArchivist(t *testing.T) {
@@ -4489,7 +4495,7 @@ func TestStartServiceSecretUnreadableIsLoud(t *testing.T) {
 	// break sidecar auth.
 	s := newScenario(t, "container")
 	s.noWorkerSecret = true
-	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running") // no FAKERT_SECRET
+	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_gateway=running") // no FAKERT_SECRET
 	_, stderr, code := s.run(t, "start", "--service", "worker")
 	if code != 1 {
 		t.Fatalf("want exit 1, got %d\nstderr:\n%s", code, stderr)
@@ -4509,7 +4515,7 @@ func TestStartServiceSecretUnreadableIsLoud(t *testing.T) {
 	// it modelled a foreign process squatting the port — fiction that only
 	// passed while the fake lsof lied about real listeners; now the launcher
 	// correctly refuses. serveHealth is for services the launcher does NOT
-	// start (an already-running backend, Jaeger, a host Ollama).
+	// start (an already-running gateway, Jaeger, a host Ollama).
 	stdout, stderr2, code := s.run(t, "start", "--service", "worker")
 	if code != 0 {
 		t.Fatalf("env-secret path: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr2)
@@ -4546,7 +4552,7 @@ func TestStopService(t *testing.T) {
 	for _, rt := range []string{"container", "docker", "podman"} {
 		mustContain(t, "argv", argv, rt+" stop semiont-weaver", rt+" rm semiont-weaver")
 	}
-	if strings.Contains(argv, "semiont-backend") {
+	if strings.Contains(argv, "semiont-gateway") {
 		t.Error("--service weaver touched other containers")
 	}
 }
@@ -4861,9 +4867,9 @@ func TestRemoteModelMetadataAndAvailability(t *testing.T) {
 
 // --- semantic search is mandatory (MANDATORY-EMBEDDING P4) ---
 
-// A config the backend refuses to boot must be refused HERE, before a single
+// A config the gateway refuses to boot must be refused HERE, before a single
 // container is launched. Otherwise start brings the whole stack up and the
-// backend dies seconds later on a file the launcher already had in its hands.
+// gateway dies seconds later on a file the launcher already had in its hands.
 func TestStartRefusesAConfigWithNoSemanticSearch(t *testing.T) {
 	for _, c := range []struct {
 		name  string
@@ -4886,7 +4892,7 @@ func TestStartRefusesAConfigWithNoSemanticSearch(t *testing.T) {
 			writeKBConfig(t, s, c.name, c.body)
 			stdout, stderr, code := s.run(t, "start", "--config", c.name)
 			if code == 0 {
-				t.Fatalf("start accepted a config the backend refuses to boot\nstdout:\n%s", stdout)
+				t.Fatalf("start accepted a config the gateway refuses to boot\nstdout:\n%s", stdout)
 			}
 			mustContain(t, "refusal", stdout+stderr, c.wants...)
 			// The refusal must precede every runtime invocation — root
@@ -5089,7 +5095,7 @@ func TestBareStopFollowsCwd(t *testing.T) {
 		t.Fatalf("local start: exit %d\nstderr:\n%s", code, stderr)
 	}
 
-	// useradd from the clone: local backend, no ssh, no refusal.
+	// useradd from the clone: local gateway, no ssh, no refusal.
 	before := s.mustLog(t)
 	if _, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--generate-password"); code != 0 {
 		t.Fatalf("bare useradd in clone: exit %d\nstderr:\n%s", code, stderr)
@@ -5924,7 +5930,7 @@ func templateFixture(t *testing.T, includeBad bool) string {
 	}
 	files := map[string]string{
 		"devcontainer.json":  `{"name": "Semiont Template KB", "dockerComposeFile": "docker-compose.yml"}`,
-		"docker-compose.yml": "services:\n  backend:\n    image: x\n",
+		"docker-compose.yml": "services:\n  gateway:\n    image: x\n",
 		"post-create.sh":     "#!/bin/sh\necho hi\n",
 	}
 	for n, c := range files {
@@ -6137,13 +6143,13 @@ func TestInitCopilotHardening(t *testing.T) {
 
 func TestStatusService(t *testing.T) {
 	s := newScenario(t, "container")
-	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_backend=running")
+	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_gateway=running")
 	serveHealth(t, 4000)
-	stdout, _, code := s.run(t, "status", "--service", "backend")
+	stdout, _, code := s.run(t, "status", "--service", "gateway")
 	if code != 0 {
-		t.Fatalf("healthy backend: want exit 0, got %d\nstdout:\n%s", code, stdout)
+		t.Fatalf("healthy gateway: want exit 0, got %d\nstdout:\n%s", code, stdout)
 	}
-	mustContain(t, "stdout", stdout, "backend", "✓ running", "http://localhost:4000/api/health")
+	mustContain(t, "stdout", stdout, "gateway", "✓ running", "http://localhost:4000/api/health")
 	for _, absent := range []string{"LOCAL ROOTS", "worker", "traces"} {
 		if strings.Contains(stdout, absent) {
 			t.Errorf("filtered status leaked %q:\n%s", absent, stdout)
@@ -6159,7 +6165,7 @@ func TestStatusService(t *testing.T) {
 	}
 	// --service narrows to one service; --verbose must not smuggle the
 	// launcher's own paths back into that answer.
-	vstdout, _, _ := s.run(t, "status", "--service", "backend", "--verbose")
+	vstdout, _, _ := s.run(t, "status", "--service", "gateway", "--verbose")
 	if strings.Contains(vstdout, "LAUNCHER PATHS") {
 		t.Errorf("--service --verbose leaked LAUNCHER PATHS:\n%s", vstdout)
 	}
@@ -6187,8 +6193,8 @@ func TestLogsDiscovery(t *testing.T) {
 	sort.Strings(follows)
 	want := []string{
 		"docker logs --follow semiont-archivist",
-		"docker logs --follow semiont-backend",
 		"docker logs --follow semiont-browser",
+		"docker logs --follow semiont-gateway",
 		"docker logs --follow semiont-librarian",
 		"docker logs --follow semiont-smelter",
 		"docker logs --follow semiont-weaver",
@@ -6199,9 +6205,9 @@ func TestLogsDiscovery(t *testing.T) {
 	}
 	// Streams: [svc]-prefixed, stderr kept in-stream (crash traces live there).
 	mustContain(t, "stdout", stdout,
-		"Following backend · worker · smelter · weaver · archivist · librarian · browser",
-		"[backend] backend out",
-		"[backend] backend err",
+		"Following gateway · worker · smelter · weaver · archivist · librarian · browser",
+		"[gateway] gateway out",
+		"[gateway] gateway err",
 		"[worker] worker out",
 		"[smelter] smelter err",
 		"[weaver] weaver out",
@@ -6437,7 +6443,7 @@ func TestMatchGathersThenSearches(t *testing.T) {
 
 // RETITLED (GUIDED-TOUR P1): the verb still claims no delivery, but it no
 // longer prints a bare ✓ over a signal that reached an empty room. Nothing is
-// subscribed to beckon:focus in this scenario, and the backend now says so, so
+// subscribed to beckon:focus in this scenario, and the gateway now says so, so
 // the honest line names that — the old "no delivery confirmation" wording is
 // reserved for the case where the count is genuinely unknown.
 // WIRE SMOKE TEST (beckon) — SDK-GO-TRANSPORT P2. This family's logic now runs
@@ -6540,7 +6546,7 @@ func TestYieldDelegateFollowsJobToCompletion(t *testing.T) {
 	// params.context.focus and REJECTS a caller-supplied one; referenceId left
 	// the params schema entirely. Sending either is now an error, so assert
 	// their ABSENCE — a payload that still carries them would be refused by a
-	// real backend while this fake accepted it.
+	// real gateway while this fake accepted it.
 	for _, gone := range []string{`"resourceId"`, `"referenceId"`} {
 		if strings.Contains(b, gone) {
 			t.Errorf("job:create still carries %s; the context's focus is authoritative now:\n%s", gone, b)
@@ -6615,7 +6621,7 @@ func TestYieldDelegateJSONSucceedsOnAGeneration(t *testing.T) {
 }
 
 // title joined storageUri as required when GenerationJobParams gained it
-// (generation-wire-context P1). Refused HERE rather than letting the backend
+// (generation-wire-context P1). Refused HERE rather than letting the gateway
 // reject the job: the caller has already paid for a gather by then.
 func TestYieldDelegateNeedsTitle(t *testing.T) {
 	s := busScenario(t)

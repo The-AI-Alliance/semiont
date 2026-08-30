@@ -14,7 +14,7 @@ import type { SemiontClient } from '@semiont/sdk';
  *   `<a download>` — none of which can attach an Authorization header. Auth is
  *   bearer + `?token=` only, no cookie, so a bare URL 401s.
  * - **It must be absolute.** react-ui embeds into a host app with its own
- *   origin, so a relative path resolves against the HOST, not the backend.
+ *   origin, so a relative path resolves against the HOST, not the gateway.
  *
  * Returns `undefined` when either input is missing — no client, or a token
  * that has not landed yet. There is no partially-correct URL worth rendering;

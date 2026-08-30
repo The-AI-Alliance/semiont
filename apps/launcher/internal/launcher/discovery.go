@@ -64,8 +64,8 @@ func writeDiscovery(ss *stackSet) {
 	if st := ss.Stacks["local"]; st != nil && st.KBDid != "" {
 		e := DiscoveredKB{Host: "localhost", Port: 4000, Placement: DiscoveredKBPlacementLocal,
 			Did: st.KBDid, ManagedBy: "semiont-launcher"}
-		// The backend endpoint carries the real port when the config moved it.
-		if b, ok := st.Services["backend"]; ok {
+		// The gateway endpoint carries the real port when the config moved it.
+		if b, ok := st.Services["gateway"]; ok {
 			if p := portFromEndpoint(b.Endpoint); p != 0 {
 				e.Port = p
 			}

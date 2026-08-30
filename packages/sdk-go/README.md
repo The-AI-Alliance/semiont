@@ -48,7 +48,7 @@ The launcher (`apps/launcher`) is the first consumer, via a `replace`
 directive on this module's relative path — see its `go.mod`. Its `login`
 and `yield` commands are thin glue over `PostApiTokensPasswordWithResponse`
 and `PostResourcesWithBodyWithResponse`; that's the intended pattern —
-knowledge-verb semantics live in the spec and the backend, not in Go code.
+knowledge-verb semantics live in the spec and the gateway, not in Go code.
 
 ## Publishing (later)
 

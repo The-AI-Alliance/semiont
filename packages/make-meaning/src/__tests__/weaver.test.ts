@@ -879,7 +879,7 @@ describe('Weaver', () => {
       expect(annotations).toHaveLength(1);
       // The graph must store the annotation under the event's id — the id is
       // the system of record's, not the store's to mint (Neo4j already
-      // honors this; the fold and every backend must agree).
+      // honors this; the fold and every gateway must agree).
       expect(String(annotations[0]!.id)).toBe('ann-dup-1');
       expect(createSpy).toHaveBeenCalledTimes(1);
     });

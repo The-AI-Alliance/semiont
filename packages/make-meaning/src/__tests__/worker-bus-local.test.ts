@@ -3,7 +3,7 @@
  *
  * The in-process WorkerBus shim over the core EventBus — the "in-process
  * bus shim" the smelter's fan-in anticipated. Lets any WorkerBus consumer
- * (WeaverActorStateUnit today) run inside the backend unchanged.
+ * (WeaverActorStateUnit today) run inside the gateway unchanged.
  */
 
 import { describe, it, expect } from 'vitest';

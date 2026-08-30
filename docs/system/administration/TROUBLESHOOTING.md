@@ -13,14 +13,14 @@ Almost every investigation starts here:
 ```bash
 semiont status                     # What is up, and what is healthy
 semiont logs                       # Follow all five Semiont services
-semiont logs --service backend     # Follow one
+semiont logs --service gateway     # Follow one
 ```
 
 `semiont status` reports container state per service (running / exited / absent, across every installed runtime) plus a health probe per role. Every role but `traces` counts toward its exit status, so it works as a script gate.
 
 `semiont status --verbose` adds the launcher's own paths on this host — config, cache, log, state, staging, model cache — plus each root's persistent stack state and its disk consumption. Orphaned state is called out with the `clean` command that removes it.
 
-`semiont logs` follows the five Semiont services as `[svc]`-prefixed streams. With `--service`, it follows any one service including the infrastructure roles: `backend`, `worker`, `smelter`, `weaver`, `browser`, `database`, `graph`, `vectors`, `inference`, `traces`. Ctrl-C stops *following* — it does not stop the stack.
+`semiont logs` follows the five Semiont services as `[svc]`-prefixed streams. With `--service`, it follows any one service including the infrastructure roles: `gateway`, `worker`, `smelter`, `weaver`, `browser`, `database`, `graph`, `vectors`, `inference`, `traces`. Ctrl-C stops *following* — it does not stop the stack.
 
 Containers run without `--rm`, deliberately: a crashed container stays inspectable and its logs survive. If a service shows as `exited`, its logs are still there.
 
@@ -29,15 +29,15 @@ Containers run without `--rm`, deliberately: a crashed container stays inspectab
 The launcher has no `exec` verb. Use your container engine; containers are named `semiont-<service>`:
 
 ```bash
-container exec -it semiont-backend sh        # or docker exec / podman exec
+container exec -it semiont-gateway sh        # or docker exec / podman exec
 container ps --all | grep semiont
-container inspect semiont-backend
+container inspect semiont-gateway
 ```
 
-The backend image sets `BACKEND_DIR` to the installed package, which prisma commands need:
+The gateway image sets `GATEWAY_DIR` to the installed package, which prisma commands need:
 
 ```bash
-container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma migrate status'
+container exec semiont-gateway sh -c 'cd "$GATEWAY_DIR" && npx prisma migrate status'
 ```
 
 ## Common failures
@@ -48,32 +48,32 @@ container exec semiont-backend sh -c 'cd "$BACKEND_DIR" && npx prisma migrate st
 semiont status
 ```
 
-Read which service is unhealthy before anything else. The Browser has no health probe — it is a static file server — so a "Browser problem" is usually a backend problem seen through the browser.
+Read which service is unhealthy before anything else. The Browser has no health probe — it is a static file server — so a "Browser problem" is usually a gateway problem seen through the browser.
 
-If the backend shows `exited`, the usual cause is that `prisma migrate deploy` failed at startup. The backend's `CMD` runs migrations *before* `exec node`, so a migration failure means the server never started:
+If the gateway shows `exited`, the usual cause is that `prisma migrate deploy` failed at startup. The gateway's `CMD` runs migrations *before* `exec node`, so a migration failure means the server never started:
 
 ```bash
-semiont logs --service backend
+semiont logs --service gateway
 ```
 
-### Backend container exits immediately
+### Gateway container exits immediately
 
 Its startup contract is strict, and each unmet requirement throws:
 
 | Missing | Symptom |
 |---|---|
 | `SEMIONT_ROOT` | `SEMIONT_ROOT environment variable is not set` |
-| `services.backend` in the environment config | `services.backend is required in environment config` |
+| `services.gateway` in the environment config | `services.gateway is required in environment config` |
 | `NODE_ENV` | `NODE_ENV environment variable is required` (thrown from `/api/health`) |
 | `DATABASE_URL` (or the `DB_*` set) | Prisma connection error during `migrate deploy` |
 | `JWT_SECRET` under 32 characters | Startup validation failure |
-| `SEMIONT_WORKER_SECRET` | Backend starts, but no agent can get a token — see below |
+| `SEMIONT_WORKER_SECRET` | Gateway starts, but no agent can get a token — see below |
 
 See [CONFIGURATION.md](CONFIGURATION.md) for where each of these comes from.
 
 ### Workers, smelter, or weaver never pick up work
 
-These three authenticate by exchanging `SEMIONT_WORKER_SECRET` at `POST /api/tokens/agent` for a JWT carrying a typed Software-agent DID. If the secret does not match the backend's, the exchange fails and they sit idle:
+These three authenticate by exchanging `SEMIONT_WORKER_SECRET` at `POST /api/tokens/agent` for a JWT carrying a typed Software-agent DID. If the secret does not match the gateway's, the exchange fails and they sit idle:
 
 ```bash
 semiont logs --service worker | grep -iE "token|auth|secret"
@@ -83,10 +83,10 @@ A service restarted with `semiont start --service worker` rejoins the running st
 
 ### A job sits in "Yielding" forever
 
-If `JWT_SECRET` changed between when a token was issued and when it was presented, the backend rejects the token with `Invalid token signature` — the generation job is never created, while the client polls for a result that will never arrive.
+If `JWT_SECRET` changed between when a token was issued and when it was presented, the gateway rejects the token with `Invalid token signature` — the generation job is never created, while the client polls for a result that will never arrive.
 
 ```bash
-semiont logs --service backend | grep -i "invalid token"
+semiont logs --service gateway | grep -i "invalid token"
 ```
 
 Reconnecting the knowledge base gets a fresh token. Rotating `JWT_SECRET` invalidates every token previously issued, so treat a rotation as requiring every client to re-authenticate.
@@ -97,14 +97,14 @@ Reconnecting the knowledge base gets a fresh token. Rotating `JWT_SECRET` invali
 container ps --all | grep semiont-postgres
 container exec semiont-postgres pg_isready -U postgres
 semiont logs --service database
-semiont logs --service backend | grep -iE "prisma|database|connection"
+semiont logs --service gateway | grep -iE "prisma|database|connection"
 ```
 
-A full `semiont start` should not race the database: it waits for PostgreSQL to open its port **and** to be reachable from inside a container before it starts anything that depends on it, and dumps the database's logs if that wait times out (20s). So on a launcher-managed start, "the backend came up before the database was ready" is a bug worth reporting, not a retry.
+A full `semiont start` should not race the database: it waits for PostgreSQL to open its port **and** to be reachable from inside a container before it starts anything that depends on it, and dumps the database's logs if that wait times out (20s). So on a launcher-managed start, "the gateway came up before the database was ready" is a bug worth reporting, not a retry.
 
 Two cases where you *are* on your own:
 
-- **`semiont start --service backend`** restarts one service without re-checking its dependencies. If you restart the backend while the database is down, it will fail to migrate.
+- **`semiont start --service gateway`** restarts one service without re-checking its dependencies. If you restart the gateway while the database is down, it will fail to migrate.
 - **An external database** (`platform = "external"` pointing off-stack) is verified for reachability but never waited on — the launcher does not own its lifecycle.
 
 For schema drift, migration state, and reset procedures, see the [Database Guide](DATABASE.md).
@@ -116,7 +116,7 @@ For schema drift, migration state, and reset procedures, see the [Database Guide
 | Port | Role |
 |---|---|
 | 3000 | browser |
-| 4000 | backend |
+| 4000 | gateway |
 | 5432 | database (PostgreSQL) |
 | 6333 | vectors (Qdrant) |
 | 7474, 7687 | graph (Neo4j HTTP, Bolt) |
@@ -160,8 +160,8 @@ semiont logs --service worker | grep -iE "inference|model"
 ### Authentication and sign-in failures
 
 ```bash
-semiont logs --service backend | grep -iE "oauth|auth|jwt"
-container exec semiont-backend sh -c 'env | grep -E "^(JWT_SECRET|GOOGLE)" | sed "s/=.*/=<set>/"'
+semiont logs --service gateway | grep -iE "oauth|auth|jwt"
+container exec semiont-gateway sh -c 'env | grep -E "^(JWT_SECRET|GOOGLE)" | sed "s/=.*/=<set>/"'
 ```
 
 Note the `sed` — do not print secret values to a terminal or into a bug report.
@@ -214,7 +214,7 @@ Neither touches the event log.
 ### Restart one service
 
 ```bash
-semiont start --service backend
+semiont start --service gateway
 ```
 
 `--service` takes exactly one name — there is no `--service all` and no comma list.
@@ -233,8 +233,8 @@ container exec semiont-postgres psql -U postgres semiont \
 
 ```bash
 semiont status --verbose > status.txt
-container inspect semiont-backend > backend-inspect.json
-semiont logs --service backend > backend.log 2>&1     # Ctrl-C when you have enough
+container inspect semiont-gateway > gateway-inspect.json
+semiont logs --service gateway > gateway.log 2>&1     # Ctrl-C when you have enough
 ```
 
 Scrub secrets before attaching any of it: `JWT_SECRET`, `SEMIONT_WORKER_SECRET`, `ANTHROPIC_API_KEY`, and database passwords all live in container environments.

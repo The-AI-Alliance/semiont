@@ -35,14 +35,14 @@ This is a broadcast signal: it has no reply, so the command can confirm only
 that the signal was sent — not that a participant is watching.
 `
 
-// audienceNote renders what the backend's subscriber count licenses this verb
+// audienceNote renders what the gateway's subscriber count licenses this verb
 // to say, and nothing more. The three cases are genuinely different answers:
 //
 //	n == 0   nobody was subscribed — the signal reached an empty room. Said
 //	         plainly, because a ✓ over this is the silent failure the whole
 //	         subscriber count exists to end.
-//	n < 0    the backend answered 2xx with a body we could not read (an older
-//	         backend). We know it was accepted and know nothing about reach —
+//	n < 0    the gateway answered 2xx with a body we could not read (an older
+//	         gateway). We know it was accepted and know nothing about reach —
 //	         so we claim nothing, which is what this verb used to always do.
 //	n > 0    n connections were listening at dispatch. Still not delivery: a
 //	         subscriber is a connection, not a pair of eyes, and beckon is a

@@ -2,7 +2,7 @@
  * SessionSignals — UI-facing notification state that belongs to the host
  * surface, not to the session itself.
  *
- * `SemiontSession` is a headless per-backend client + token + user
+ * `SemiontSession` is a headless per-gateway client + token + user
  * holder. It can run in any process: browser, worker, CLI, test. But
  * the session-expired / permission-denied *notifications* are inherently
  * a UI-host concern. Keeping those observables on `SemiontSession` meant

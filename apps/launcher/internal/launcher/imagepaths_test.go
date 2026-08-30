@@ -8,7 +8,7 @@ import (
 )
 
 // TestContainerPathsMatchTheImage gates a class of drift nothing else catches:
-// the launcher mounts a host directory ONTO a container path, and the backend
+// the launcher mounts a host directory ONTO a container path, and the gateway
 // image declares that same path in an ENV so the app knows where to look. Two
 // literals, in two languages, in two files, and no compiler that can see both.
 //
@@ -49,7 +49,7 @@ func declaredEnv(t *testing.T, parts ...string) map[string]string {
 func TestContainerPathsMatchTheImage(t *testing.T) {
 	// Each row: an image, the ENV it uses to find something, and the container
 	// path the launcher mounts onto for it. The row belongs to whichever image
-	// MOUNTS the store — anchored-text moved from the backend to the Smelter
+	// MOUNTS the store — anchored-text moved from the gateway to the Smelter
 	// with the mount and the stamp (ANCHORED-TEXT-TO-SMELTER P4/P5), and the
 	// Smelter was declaring no such ENV while `smelter-main` refused to boot
 	// without it. Add a row whenever a mount gains an ENV; move one whenever a
@@ -60,7 +60,7 @@ func TestContainerPathsMatchTheImage(t *testing.T) {
 		env    string
 		mounts string
 	}{
-		// The KB tree's row moved from the backend to the ARCHIVIST with the
+		// The KB tree's row moved from the gateway to the ARCHIVIST with the
 		// mount itself (SINGLE-KB-MOUNT P6): the gateway declares neither of
 		// these env vars now, because it mounts nothing they could name.
 		{"archivist", []string{"..", "..", "..", "..", "packages", "make-meaning", "Dockerfile.archivist"},
@@ -97,7 +97,7 @@ func TestExactlyOneContainerMountsTheKB(t *testing.T) {
 	// now — the others cannot mount it because they are not given it, which is
 	// the property expressed in the signatures themselves.
 	fleet := map[string][]string{
-		"backend":   backendArgs("/stage", "1.2.3.4", "secret", "jwt", "v", 4000, nil, nil),
+		"gateway":   gatewayArgs("/stage", "1.2.3.4", "secret", "jwt", "v", 4000, nil, nil),
 		"archivist": archivistArgs(kbRoot, "/stage", "1.2.3.4", "secret", "v", nil, nil),
 		"librarian": librarianArgs("/stage", "1.2.3.4", "secret", "v", nil, nil),
 		"worker":    sidecarArgs("worker", 9090, "/stage", "1.2.3.4", "secret", "v", nil, nil),

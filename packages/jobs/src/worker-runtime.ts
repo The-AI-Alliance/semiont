@@ -33,7 +33,7 @@ import {
   InMemorySessionStorage,
   SemiontClient,
   SemiontSession,
-  kbBackendUrl,
+  kbGatewayUrl,
   setStoredSession,
   type HttpEndpoint,
   type KbTarget,
@@ -62,8 +62,8 @@ export interface AgentGroup {
 
 export interface WorkerRuntimeOptions {
   group: AgentGroup;
-  /** The backend URL this worker dials — connection topology ONLY, never identity. */
-  backendBaseUrl: string;
+  /** The gateway URL this worker dials — connection topology ONLY, never identity. */
+  gatewayBaseUrl: string;
   /** Shared secret for `/api/tokens/agent`, and the bearer the byte reads
    *  below show the Archivist. */
   workerSecret: string;
@@ -123,7 +123,7 @@ export function buildHealthPayload(workers: ReadonlyArray<{ vitals(): AgentVital
  *
  * Thresholds are fixed by design (no env knobs) and deliberately
  * layered: inference timeout (10 min, P2) fires first; this watchdog
- * (15 min) catches the failure modes nobody predicted; the backend's
+ * (15 min) catches the failure modes nobody predicted; the gateway's
  * dead-worker janitor (30 min) re-queues the job regardless.
  */
 export const STALL_THRESHOLD_MS = 15 * 60_000;
@@ -169,7 +169,7 @@ export function startStallWatchdog(opts: StallWatchdogOptions): { dispose(): voi
   return { dispose: () => clearInterval(timer) };
 }
 
-export function parseBackendUrl(url: string): { protocol: 'http' | 'https'; host: string; port: number } {
+export function parseGatewayUrl(url: string): { protocol: 'http' | 'https'; host: string; port: number } {
   const parsed = new URL(url);
   const protocol = (parsed.protocol.replace(':', '') === 'https' ? 'https' : 'http') as 'http' | 'https';
   const host = parsed.hostname;
@@ -181,32 +181,32 @@ export function parseBackendUrl(url: string): { protocol: 'http' | 'https'; host
 
 /**
  * Exchange the worker secret for this agent's JWT and its canonical DID.
- * The DID is minted by the backend (from its `site.domain`) — the caller
+ * The DID is minted by the gateway (from its `site.domain`) — the caller
  * carries it verbatim.
  *
  * Connection-level failures (`TypeError: fetch failed`) are retried with
- * exponential backoff: the backend may be mid-restart or the container
+ * exponential backoff: the gateway may be mid-restart or the container
  * network still warming up when this process starts, and orchestration
  * runs workers with `--rm` and no restart policy — exiting on the first
  * failed fetch is permanent death. HTTP-level rejections (401 on a bad
- * secret) are NOT retried; the backend is up and said no.
+ * secret) are NOT retried; the gateway is up and said no.
  */
 export async function authenticateAgent(opts: {
-  backendBaseUrl: string;
+  gatewayBaseUrl: string;
   workerSecret: string;
   provider: string;
   model: string;
   logger?: Logger;
   retry?: RetryPolicy;
 }): Promise<{ token: string; did: string }> {
-  const { backendBaseUrl, workerSecret, provider, model, logger, retry = STARTUP_FETCH_RETRY } = opts;
+  const { gatewayBaseUrl, workerSecret, provider, model, logger, retry = STARTUP_FETCH_RETRY } = opts;
   if (!workerSecret) {
     throw new Error('SEMIONT_WORKER_SECRET is required to authenticate worker agents');
   }
 
   return retryWithBackoff(
     async () => {
-      const response = await fetch(`${backendBaseUrl}/api/tokens/agent`, {
+      const response = await fetch(`${gatewayBaseUrl}/api/tokens/agent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ secret: workerSecret, provider, model }),
@@ -221,7 +221,7 @@ export async function authenticateAgent(opts: {
     isTransientFetchError,
     retry,
     ({ attempt, attempts, delayMs, error }) => {
-      logger?.warn('Backend unreachable, retrying agent authentication', {
+      logger?.warn('Gateway unreachable, retrying agent authentication', {
         agent: `${provider}:${model}`,
         attempt,
         attempts,
@@ -235,19 +235,19 @@ export async function authenticateAgent(opts: {
 export async function startAgentWorker(
   opts: WorkerRuntimeOptions,
 ): Promise<AgentWorkerHandle> {
-  const { group, backendBaseUrl, workerSecret, contentReads, logger } = opts;
+  const { group, gatewayBaseUrl, workerSecret, contentReads, logger } = opts;
   const { inference } = group;
 
-  const { protocol, host, port } = parseBackendUrl(backendBaseUrl);
+  const { protocol, host, port } = parseGatewayUrl(gatewayBaseUrl);
   const { token: initialToken, did } = await authenticateAgent({
-    backendBaseUrl,
+    gatewayBaseUrl,
     workerSecret,
     provider: inference.type,
     model: inference.model,
     logger,
   });
 
-  // The exchange minted this worker's canonical DID (from the backend's
+  // The exchange minted this worker's canonical DID (from the gateway's
   // site.domain) and we carry it VERBATIM — never re-derive identity from
   // the URL we happen to dial (`host` is connection topology only). One
   // logical agent previously got two DIDs this way:
@@ -268,7 +268,7 @@ export async function startAgentWorker(
   const token$ = new BehaviorSubject<AccessToken | null>(null);
   let session!: SemiontSession;
   const transport = new HttpTransport({
-    baseUrl: baseUrl(kbBackendUrl(endpoint)),
+    baseUrl: baseUrl(kbGatewayUrl(endpoint)),
     token$,
     tokenRefresher: () => session.refresh().then((t) => t ?? null),
   });
@@ -282,7 +282,7 @@ export async function startAgentWorker(
     refresh: async () => {
       try {
         const { token } = await authenticateAgent({
-          backendBaseUrl,
+          gatewayBaseUrl,
           workerSecret,
           provider: inference.type,
           model: inference.model,

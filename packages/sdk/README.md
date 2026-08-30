@@ -59,7 +59,7 @@ client.browse.resource(rId).subscribe((st) => {               // live — same c
 const found = await client.match.search(rId, refId, ctx);     // bounded streams ARE awaitable
 ```
 
-Methods return one of: `Promise<T>` (atomic backend ops), `StreamObservable` /
+Methods return one of: `Promise<T>` (atomic gateway ops), `StreamObservable` /
 `UploadObservable` (bounded progress — thenable, `await` resolves the final value),
 `CacheObservable` (live queries — `.subscribe(...)` for `CacheState` emissions,
 `.fresh()` for the explicit network read; deliberately NOT thenable, so a cache read can
@@ -84,7 +84,7 @@ HTTP adapter is re-exported here for convenience; the in-process transport is
 ## What's in the box
 
 - **`SemiontClient`** — the verb-oriented coordinator: the eight flow namespaces, plus `job`
-  (always present) and `auth`/`admin` (present when constructed with backend operations).
+  (always present) and `auth`/`admin` (present when constructed with gateway operations).
 - **Session layer** — `SemiontSession` (per-KB auth, proactive token refresh, lifecycle),
   `SemiontBrowser` (multi-KB orchestration), `SessionStorage` adapters, and the `httpKb`
   helper for endpoint shapes.

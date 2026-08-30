@@ -4,7 +4,7 @@ Host-side post-process for e2e container logs.
 
 Walks ``tests/e2e/test-results/<test-dir>/jaeger-summary.json``, reads
 each test's ``startedAtIso`` / ``endedAtIso`` window, dumps logs from
-each configured container (default: semiont-backend, semiont-worker,
+each configured container (default: semiont-gateway, semiont-worker,
 semiont-smelter) via ``container logs``, filters lines whose JSON
 ``timestamp`` falls inside the window, and writes a ``<container>.log``
 slice into the test's output directory.
@@ -23,7 +23,7 @@ Usage::
     # Override the test-results root or container list
     python3 tests/e2e/scripts/slice-container-logs.py \\
         --results-dir tests/e2e/test-results \\
-        --containers semiont-backend,semiont-worker,semiont-smelter
+        --containers semiont-gateway,semiont-worker,semiont-smelter
 
 Limitations
 -----------
@@ -65,8 +65,8 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--results-dir', type=Path, default=default_results_dir,
                    help='Playwright test-results root (default: tests/e2e/test-results)')
-    p.add_argument('--containers', default='semiont-backend,semiont-worker,semiont-smelter',
-                   help='Comma-separated container names to slice (default: backend, worker, smelter)')
+    p.add_argument('--containers', default='semiont-gateway,semiont-worker,semiont-smelter',
+                   help='Comma-separated container names to slice (default: gateway, worker, smelter)')
     p.add_argument('--max-lines', type=int, default=0,
                    help='If >0, pass `-n N` to `container logs` to cap the dump from the tail')
     p.add_argument('--keep-full', action='store_true',

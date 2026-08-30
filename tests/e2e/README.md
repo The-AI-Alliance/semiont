@@ -1,7 +1,7 @@
 # End-to-End Smoke Tests
 
 Real-browser Playwright tests that drive the Browser against a locally
-running backend. Intended to catch cross-layer regressions (SSE timing,
+running gateway. Intended to catch cross-layer regressions (SSE timing,
 React lifecycle, bus round-trips) that unit and component tests can't.
 
 ## Quick start
@@ -19,7 +19,7 @@ container run --rm \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
   -e E2E_BROWSER_URL=http://192.168.64.1:3000 \
-  -e E2E_BACKEND_URL=http://192.168.64.1:4000 \
+  -e E2E_GATEWAY_URL=http://192.168.64.1:4000 \
   -e CI=1 \
   "mcr.microsoft.com/playwright:v$PW-noble" \
   npm test
@@ -30,7 +30,7 @@ container run --rm \
 > [Container networking](#container-networking-reaching-the-host) for why.
 >
 > An earlier version of this quickstart said to run
-> `container ls | grep semiont-` and paste the Browser/backend container IPs
+> `container ls | grep semiont-` and paste the Browser/gateway container IPs
 > here. That is wrong twice over, and both failures cost a full run each
 > (measured 2026-08-07):
 >
@@ -38,9 +38,9 @@ container run --rm \
 >   even minutes earlier fails in `globalSetup` with
 >   `connect EHOSTUNREACH <ip>:4000`, before a single spec executes.
 > - **It splits services across hosts.** `19-worker-vitals` derives the
->   worker's health endpoint as `<backend-host>:9090`, because the published
->   ports are co-located on the host. Point the suite at the *backend
->   container's* IP and that becomes the backend's own `:9090`, which nothing
+>   worker's health endpoint as `<gateway-host>:9090`, because the published
+>   ports are co-located on the host. Point the suite at the *gateway
+>   container's* IP and that becomes the gateway's own `:9090`, which nothing
 >   is listening on — `ECONNREFUSED`.
 >
 > `--network host` does not help: it is a Docker flag, and Apple's `container`
@@ -54,7 +54,7 @@ container run --rm \
 
 > If every test fails in the `signIn` fixture with *"Request failed due
 > to a network error"*, the Playwright container can't reach the
-> host-published backend — see [Container networking](#container-networking-reaching-the-host).
+> host-published gateway — see [Container networking](#container-networking-reaching-the-host).
 
 ## Version pinning: the image must match the installed library
 
@@ -82,7 +82,7 @@ dependencies for everyone else. The lockfile is tracked and is the authority.
 
 ## Container networking: reaching the host
 
-The suite runs in a Playwright **container**, but the Browser and backend
+The suite runs in a Playwright **container**, but the Browser and gateway
 are published on the **host**. A containerized browser **can't use
 `localhost`** — inside the container that resolves to the container itself,
 not the host. And pinning a container's bridge IP is fragile: container IPs
@@ -90,18 +90,18 @@ change on every restart.
 
 The robust target is the **host bridge gateway**, `192.168.64.1`: it's
 reachable from inside containers, routes to the host's *published* ports
-(`:3000`→browser, `:4000`→backend), and its address is **stable across
+(`:3000`→browser, `:4000`→gateway), and its address is **stable across
 restarts**.
 
-> **No CORS origin to configure.** The backend serves open CORS
+> **No CORS origin to configure.** The gateway serves open CORS
 > (`Access-Control-Allow-Origin: *`, bearer-only — no credentials), so the
 > browser signs in from *any* origin. This removed an earlier
 > `corsOrigin`-baked-into-the-image workaround; if you're following older
-> notes that tell you to set `services.backend.corsOrigin` and rebuild,
+> notes that tell you to set `services.gateway.corsOrigin` and rebuild,
 > that config field no longer exists.
 
 Run the suite against the gateway for **both** URLs, with the Browser
-published on host port 3000 (`-p 3000:3000`; the backend already publishes
+published on host port 3000 (`-p 3000:3000`; the gateway already publishes
 `4000`). No IP-grabbing needed — the gateway doesn't change between runs:
 
 ```sh
@@ -111,7 +111,7 @@ container run --rm \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
   -e E2E_BROWSER_URL=http://192.168.64.1:3000 \
-  -e E2E_BACKEND_URL=http://192.168.64.1:4000 \
+  -e E2E_GATEWAY_URL=http://192.168.64.1:4000 \
   -e CI=1 \
   "mcr.microsoft.com/playwright:v$PW-noble" \
   npm test
@@ -122,12 +122,12 @@ container run --rm \
 - [Running tests](docs/running.md) — invocation, single spec, headed,
   `--repeat-each`, host vs. container.
 - [Containers and rebuild flow](docs/containers.md) — Apple container
-  CLI, Verdaccio, rebuilding backend/Browser after code changes, IP
+  CLI, Verdaccio, rebuilding gateway/Browser after code changes, IP
   refresh, Playwright image tag.
 - [Writing tests](docs/writing.md) — spec template, fixture ordering,
   protocol-level assertions, seed assumptions, selector conventions.
 - [Debugging failures](docs/debugging.md) — traces, report UI, JSONL
-  extraction, diagnostic specs, backend-log tailing, instrument don't
+  extraction, diagnostic specs, gateway-log tailing, instrument don't
   speculate.
 - [Bus logging](docs/bus-logging.md) — the `__SEMIONT_BUS_LOG__` wire
   logger, the `bus` capture fixture, assertion helpers.
@@ -213,7 +213,7 @@ echo password | semiont useradd --email admin@example.com --admin
 ```
 
 The launcher brings up a Jaeger sidecar **by default** and wires
-`OTEL_EXPORTER_OTLP_ENDPOINT` for backend / worker / smelter — useful
+`OTEL_EXPORTER_OTLP_ENDPOINT` for gateway / worker / smelter — useful
 for inspecting cross-service traces while debugging an e2e failure
 (`--no-observe` to skip). Jaeger UI lands on http://localhost:16686.
 
@@ -223,7 +223,7 @@ for inspecting cross-service traces while debugging an e2e failure
   often linger and conflict on next start with `Error: container with
   id semiont-foo already exists`. Wipe with `container stop $name &&
   container rm $name` before retrying.
-- **Host Ollama needs `OLLAMA_HOST=0.0.0.0`.** Otherwise the backend
+- **Host Ollama needs `OLLAMA_HOST=0.0.0.0`.** Otherwise the gateway
   container can't reach it. Either configure Ollama Desktop with
   `launchctl setenv OLLAMA_HOST 0.0.0.0` (and quit/relaunch), or use
   `semiont start --config anthropic` to skip Ollama entirely.
@@ -231,7 +231,7 @@ for inspecting cross-service traces while debugging an e2e failure
   `./scripts/ci/local-build.sh`, then restart the stack with
   `SEMIONT_VERSION=local semiont start`. Without the rebuild + restart,
   you'll run yesterday's images with today's source.
-- **SPA tracing is not currently wired.** Backend / worker / smelter
+- **SPA tracing is not currently wired.** Gateway / worker / smelter
   produce traces; the Browser SPA does not. End-to-end traces
   therefore start at `bus.dispatch:*` (server-side EMIT receive)
   rather than the SPA's `bus.emit:*`. To enable SPA tracing in a

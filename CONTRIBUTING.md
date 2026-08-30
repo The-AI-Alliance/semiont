@@ -157,7 +157,7 @@ git checkout -b docs/improve-api-reference
 npm test
 
 # Run one workspace's tests
-npm test -w @semiont/backend
+npm test -w semiont-gateway
 npm test -w semiont-browser
 
 # Type check
@@ -173,7 +173,7 @@ Write clear, descriptive commit messages:
 
 ```bash
 git commit -m "Add GCP deployment support"
-git commit -m "Fix database connection timeout in backend"
+git commit -m "Fix database connection timeout in gateway"
 git commit -m "Clarify authentication flow in API docs"
 ```
 
@@ -199,13 +199,13 @@ Then create a Pull Request from your fork to `The-AI-Alliance/semiont:main` on G
 
 ## 🌍 Deployment Targets
 
-Semiont ships as container images (`semiont-backend`, `semiont-browser`, `semiont-worker`,
+Semiont ships as container images (`semiont-gateway`, `semiont-browser`, `semiont-worker`,
 `semiont-smelter`, `semiont-weaver`) plus the infrastructure containers a stack needs. There is no
 per-platform plugin system: the old `(platform × serviceType × command)` handler matrix has been
 removed.
 
 Stacks are brought up by the host-installed [`semiont` launcher](apps/launcher/README.md) or by
-`docker compose` against a KB's `.semiont/compose/backend.yml`. Running the images on another
+`docker compose` against a KB's `.semiont/compose/gateway.yml`. Running the images on another
 container platform (ECS Fargate, Kubernetes, Nomad) needs no code here — see
 [Running Semiont on AWS](docs/system/platforms/AWS.md) for the integration checklist and
 [Deployment](docs/system/administration/DEPLOYMENT.md) for the supported paths.
@@ -306,7 +306,7 @@ All contributions should include appropriate tests. We have comprehensive testin
 ### Testing Documentation
 
 - **[System Testing Guide](docs/development/TESTING.md)** - Overall testing strategy, Vitest, MSW v2, Browser testing
-- **[Backend Testing Guide](apps/backend/docs/TESTING.md)** - Jest, unit tests, Prisma database tests
+- **[Gateway Testing Guide](apps/gateway/docs/TESTING.md)** - Jest, unit tests, Prisma database tests
 
 ### Quick Start
 
@@ -317,7 +317,7 @@ npm test
 
 **Run service-specific tests:**
 ```bash
-cd apps/backend && npm test     # Backend tests (Jest)
+cd apps/gateway && npm test     # Gateway tests (Jest)
 cd apps/browser && npm test    # Browser tests (Vitest)
 ```
 
@@ -346,7 +346,7 @@ Update docs when you:
 ### Documentation Locations
 
 - **System-wide**: `docs/` - Architecture, deployment, testing
-- **Backend**: `apps/backend/docs/` - Backend-specific guides
+- **Gateway**: `apps/gateway/docs/` - Gateway-specific guides
 - **Browser**: `apps/browser/docs/` - Browser-specific guides
 - **Launcher**: `apps/launcher/README.md` - The host-installed `semiont` command
 - **Platforms**: `docs/system/platforms/` - Platform-specific deployment

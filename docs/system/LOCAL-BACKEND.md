@@ -1,6 +1,6 @@
-# Local Backend Setup
+# Local Gateway Setup
 
-Run the Semiont backend locally. Inference providers, database credentials, graph, and vector store settings all come from the KB's own `.semiont/semiontconfig/<name>.toml` — see the **[Configuration Guide](./administration/CONFIGURATION.md)**.
+Run the Semiont gateway locally. Inference providers, database credentials, graph, and vector store settings all come from the KB's own `.semiont/semiontconfig/<name>.toml` — see the **[Configuration Guide](./administration/CONFIGURATION.md)**.
 
 For a stack on GitHub's machine rather than your own, the launcher's codespace placement (`semiont start --runtime codespace`) is covered in **[Knowledge Bases](../KNOWLEDGE-BASES.md)**.
 
@@ -18,7 +18,7 @@ echo password | semiont useradd --email admin@example.com --admin
 ```
 
 The launcher pulls the published, attested Semiont service images
-(`ghcr.io/the-ai-alliance/semiont-{backend,worker,smelter,weaver,browser}`),
+(`ghcr.io/the-ai-alliance/semiont-{gateway,worker,smelter,weaver,browser}`),
 starts them alongside the infrastructure containers (Neo4j, Qdrant,
 PostgreSQL), and bind-mounts the KB's config at runtime — KB repos build no
 images. Nothing auto-creates an account: `semiont useradd` makes the first
@@ -38,7 +38,7 @@ The authoritative compose files and inference presets live in the [semiont-templ
 
 | Service | Port | URL |
 |---------|------|-----|
-| Backend | 4000 | http://localhost:4000 |
+| Gateway | 4000 | http://localhost:4000 |
 | PostgreSQL | 5432 | postgresql://localhost:5432 |
 | Neo4j | 7687 | bolt://localhost:7687 |
 | Qdrant | 6333 | http://localhost:6333 |

@@ -135,7 +135,7 @@ function syncVersions() {
       writeJSON(pkgPath, pkgJson);
     }
 
-    // Apps with a staging companion (apps/{backend,browser}/package.publish.json)
+    // Apps with a staging companion (apps/{gateway,browser}/package.publish.json)
     // are templates for the staged tarball — sync them the same way.
     const publishPath = publishJsonPath(entry);
     if (publishPath) {
@@ -239,7 +239,7 @@ try {
       if (!arg1 || !arg2) {
         console.error('Usage: npm run version:set <package|all> <version>');
         console.error('       npm run version:set all 0.2.0');
-        console.error('       npm run version:set semiont-backend 0.1.2');
+        console.error('       npm run version:set semiont-gateway 0.1.2');
         process.exit(1);
       }
       setVersion(arg1, arg2);
@@ -260,7 +260,7 @@ Examples:
   npm run version:show
   npm run version:bump patch
   npm run version:set all 0.2.0
-  npm run version:set semiont-backend 0.1.2
+  npm run version:set semiont-gateway 0.1.2
   npm run version:sync
 `);
       process.exit(command ? 1 : 0);

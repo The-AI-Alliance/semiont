@@ -127,7 +127,7 @@
       },
       "additionalProperties": false
     },
-    "BackendServiceConfig": {
+    "GatewayServiceConfig": {
       "type": "object",
       "properties": {
         "platform": {
@@ -947,8 +947,8 @@
     "ServicesConfig": {
       "type": "object",
       "properties": {
-        "backend": {
-          "$ref": "#/definitions/BackendServiceConfig"
+        "gateway": {
+          "$ref": "#/definitions/GatewayServiceConfig"
         },
         "database": {
           "$ref": "#/definitions/DatabaseServiceConfig"
@@ -1007,9 +1007,6 @@
           "description": "Email domains allowed for OAuth authentication"
         }
       },
-      "required": [
-        "domain"
-      ],
       "additionalProperties": false
     },
     "AppConfig": {
@@ -1121,6 +1118,11 @@
             },
             "domain": {
               "type": "string"
+            },
+            "oauthAllowedDomains": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Sign-in policy committed in the KB's .semiont/config, staged alongside the identity because the gateway no longer mounts the tree that holds it."
             }
           },
           "required": [

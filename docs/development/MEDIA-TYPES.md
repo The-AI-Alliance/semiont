@@ -158,7 +158,7 @@ exists because of one of those three declarations.
 
 ### Ingest
 
-1. **`yield.resource`** with the bytes. The backend appends to the event log —
+1. **`yield.resource`** with the bytes. The gateway appends to the event log —
    the system of record — and emits **`yield:created`**.
 2. **Three consumers take that event independently**, none waiting on the others:
    - **ViewMaterializer** builds the view projection. This makes the resource
@@ -224,7 +224,7 @@ A `spatial` type has three readiness moments, deliberately decoupled:
   persists — whether or not anything knows what is under it.
 - **Born-digital PDF, with quotes: immediately, with no server involvement.** The
   canvas calls `getTextContent()`, gets runs from pdf.js in the browser, and
-  builds the map locally with `anchorRuns`. It never asks the backend.
+  builds the map locally with `anchorRuns`. It never asks the gateway.
 - **Scanned PDF, with quotes: once smelt settles.** No runs, so the canvas calls
   `browse.resourceAnchoredText(resourceId)`. Server-side: resolve the view → take
   the primary representation's checksum → read the store → on a miss wait on
@@ -246,7 +246,7 @@ before any text recovery existed, so the failure mode is "no improvement", never
     12pt line pitch, so a few points of overshoot pulls in fragments of the lines
     above and below.
 11. **The canvas emits `mark:create-request`** with a `FragmentSelector`, plus a
-    `TextQuoteSelector` when `textUnder` found anything. The backend replies
+    `TextQuoteSelector` when `textUnder` found anything. The gateway replies
     `mark:create-ok` and appends **`mark:added`**.
 12. **Or AI detection.** `job:create` → a worker runs `prepareDetection`, which
     calls the same cached `extract()` — so on an already-smelted document it does

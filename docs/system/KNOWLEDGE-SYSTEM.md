@@ -7,7 +7,7 @@ The knowledge base itself is not an intelligent actor. It has no goals, preferen
 - **Five access actors** mediate every read and write: **Stower** (write), **Browser** (read), **Gatherer** (context assembly), **Matcher** (search), and **CloneTokenManager** (clone tokens). They are the bus-facing interface of the knowledge base — commands and requests in, replies out, correlated by `correlationId`.
 - **Two projection pipelines** keep the eventually-consistent read models in sync with the event log: the **Weaver** (events → graph) and the **Smelter** (events → vectors). Pipelines are addressed by no one and reply to nothing; they consume already-persisted domain events.
 
-All seven subscribe to the bus via RxJS pipelines and expose no public business methods — `initialize()` and `stop()` for lifecycle, plus a startup recovery entry point on the pipelines (`Weaver.catchUp()`, `Smelter.reconcile()`). Both pipelines run standalone (weaver-main, smelter-main): the projections are part of their stores' stacks, not of the backend process. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
+All seven subscribe to the bus via RxJS pipelines and expose no public business methods — `initialize()` and `stop()` for lifecycle, plus a startup recovery entry point on the pipelines (`Weaver.catchUp()`, `Smelter.reconcile()`). Both pipelines run standalone (weaver-main, smelter-main): the projections are part of their stores' stacks, not of the gateway process. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
 
 The third derived read model — the materialized views — is deliberately **not** pipeline-maintained: the EventStore's `ViewManager` materializes views synchronously inside `appendEvent()`, before the event is published, so subscribers get a read-your-writes guarantee that a fire-and-forget pipeline cannot provide.
 
@@ -29,7 +29,7 @@ title: Knowledge System
 graph TB
     subgraph top [" "]
         direction LR
-        API["HTTP API<br/>(backend)"]
+        API["HTTP API<br/>(gateway)"]
         DB[("Users DB<br/>(PostgreSQL)")]
     end
     BE["Event Bus<br/>(RxJS)"]
@@ -79,11 +79,11 @@ graph TB
     CTM -->|query| VIEWS
     CTM -->|read| CONTENT
 
-    classDef backend fill:#c4a020,stroke:#8b6914,stroke-width:2px,color:#000
+    classDef gateway fill:#c4a020,stroke:#8b6914,stroke-width:2px,color:#000
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef worker fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
-    class API,BE backend
+    class API,BE gateway
     class DB,EVENTLOG,VIEWS,CONTENT,GRAPH,VECTORS store
     class STOWER,GATHERER,MATCHER,BROWSER,CTM,WEAVER,SMELTER worker
 
@@ -128,11 +128,11 @@ That expiry is written down here and nowhere else — other docs say "short-live
 
 ### Weaver (projection pipeline)
 
-The Weaver follows the event log and keeps the graph projection in sync. It runs in its own container (`semiont-weaver`) — not in the backend process — and reaches the backend through the unified bus, the same way workers and the smelter do; beyond the bus its single privileged attachment is the graph database. It subscribes to the graph-relevant domain events, batches bursts per resource (`groupBy(resourceId)` + adaptive burst buffering + `concatMap`), and applies them to the graph. Every apply emits a `weave:applied` signal; the backend folds these into `kb.weaveProgress`, whose `whenApplied` barrier lets graph readers wait out projection lag. On startup it runs a **checkpointed catch-up** over the `browse:*` read channels (its only view of history — no event-store attachment), replaying just the gap since its persisted checkpoint; a full rebuild is the `weave:rebuild` bus command. A wiped graph volume recovers by command, or by wiping the checkpoint and restarting the weaver.
+The Weaver follows the event log and keeps the graph projection in sync. It runs in its own container (`semiont-weaver`) — not in the gateway process — and reaches the gateway through the unified bus, the same way workers and the smelter do; beyond the bus its single privileged attachment is the graph database. It subscribes to the graph-relevant domain events, batches bursts per resource (`groupBy(resourceId)` + adaptive burst buffering + `concatMap`), and applies them to the graph. Every apply emits a `weave:applied` signal; the gateway folds these into `kb.weaveProgress`, whose `whenApplied` barrier lets graph readers wait out projection lag. On startup it runs a **checkpointed catch-up** over the `browse:*` read channels (its only view of history — no event-store attachment), replaying just the gap since its persisted checkpoint; a full rebuild is the `weave:rebuild` bus command. A wiped graph volume recovers by command, or by wiping the checkpoint and restarting the weaver.
 
 ### Smelter (projection pipeline)
 
-The Smelter is the vector projection actor. It runs in its own container (`semiont-smelter`) — not in the backend process — and reaches the backend through the unified bus, the same way workers do. Beyond the bus it has two privileged attachments: the vector store (Qdrant, direct) and the content store (the KB working tree, bind-mounted; `SEMIONT_ROOT`). When a resource is created or an annotation is added, the Smelter receives the event, reads the content from the working tree, chunks the text into overlapping passages, computes embedding vectors via the configured embedding provider (Voyage AI or Ollama), and indexes them into the vector store. Vectors are a pure projection — nothing is written back to the event log. Because Qdrant is ephemeral, the Smelter reconciles it against the KS catalog on every startup: it lists what is indexed, lists what should be (via the `browse:*` channels), re-embeds what's missing or stale (each upsert is stamped with the embedded bytes' checksum, so content changed while the worker was down is detected), and deletes orphans — so a wiped Qdrant volume, or events missed while the worker was down, recover by restarting the smelter. The Smelter follows the same RxJS burst-buffer pattern as the Weaver for per-resource ordering and batch efficiency.
+The Smelter is the vector projection actor. It runs in its own container (`semiont-smelter`) — not in the gateway process — and reaches the gateway through the unified bus, the same way workers do. Beyond the bus it has two privileged attachments: the vector store (Qdrant, direct) and the content store (the KB working tree, bind-mounted; `SEMIONT_ROOT`). When a resource is created or an annotation is added, the Smelter receives the event, reads the content from the working tree, chunks the text into overlapping passages, computes embedding vectors via the configured embedding provider (Voyage AI or Ollama), and indexes them into the vector store. Vectors are a pure projection — nothing is written back to the event log. Because Qdrant is ephemeral, the Smelter reconciles it against the KS catalog on every startup: it lists what is indexed, lists what should be (via the `browse:*` channels), re-embeds what's missing or stale (each upsert is stamped with the embedded bytes' checksum, so content changed while the worker was down is detected), and deletes orphans — so a wiped Qdrant volume, or events missed while the worker was down, recover by restarting the smelter. The Smelter follows the same RxJS burst-buffer pattern as the Weaver for per-resource ordering and batch efficiency.
 
 ## See also
 

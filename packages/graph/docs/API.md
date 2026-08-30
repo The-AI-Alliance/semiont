@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `@semiont/graph` package provides a unified interface for graph databases with support for multiple backends: Neo4j, AWS Neptune, JanusGraph, and in-memory.
+The `@semiont/graph` package provides a unified interface for graph databases with support for multiple gateways: Neo4j, AWS Neptune, JanusGraph, and in-memory.
 
 ## GraphDatabase Interface
 
@@ -78,7 +78,7 @@ If `endpoint` is omitted, the cluster endpoint is discovered at connect time via
 
 ### JanusGraph
 
-Distributed graph database with pluggable backends.
+Distributed graph database with pluggable gateways.
 
 ```typescript
 import { JanusGraphDatabase } from '@semiont/graph';

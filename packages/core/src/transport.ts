@@ -9,11 +9,11 @@
  *
  *   ITransport          — bus primitives + lifecycle. Universal: every
  *                         concrete transport implements this.
- *   IBackendOperations  — auth, admin, and system endpoints.
+ *   IGatewayOperations  — auth, admin, and system endpoints.
  *                         HTTP-shaped today; an in-process transport may
  *                         implement none, some, or a different set.
  *                         Optional on `SemiontClient` — passed only when
- *                         the host has a backend that supports them.
+ *                         the host has a gateway that supports them.
  *   IContentTransport   — binary I/O (putBinary / getBinary). Narrow by
  *                         design because binary has different backpressure
  *                         and streaming characteristics.
@@ -112,7 +112,7 @@ export interface ITransport {
    *
    * Resolves with the number of subscribers the emit reached
    * (`/bus/emit` responds `{subscribers: n}`; GUIDED-TOUR P1), or `-1`
-   * when the count is unknown — an older backend, an unreadable body, or
+   * when the count is unknown — an older gateway, an unreadable body, or
    * an in-process transport where the question does not apply. `-1` is
    * the same sentinel the Go client uses: a parse failure must stay
    * distinguishable from a genuine empty room.
@@ -193,12 +193,12 @@ export interface ITransport {
   dispose(): void;
 }
 
-// ── IBackendOperations ──────────────────────────────────────────────────
+// ── IGatewayOperations ──────────────────────────────────────────────────
 
 /**
  * Auth, admin, and system endpoints. HTTP-shaped today —
  * `HttpTransport` implements both this and `ITransport`; the
- * `SemiontClient` constructor takes a `IBackendOperations` argument
+ * `SemiontClient` constructor takes a `IGatewayOperations` argument
  * separately from the bus transport so non-HTTP transports
  * (`LocalTransport`) can implement just the bus surface and the
  * SemiontClient cleanly omits `client.auth` / `client.admin`.
@@ -207,7 +207,7 @@ export interface ITransport {
  * `TransportErrorCode` (see `errors.ts`) so the routing layer
  * (`SemiontBrowser`) stays transport-neutral.
  */
-export interface IBackendOperations {
+export interface IGatewayOperations {
   // ── Auth ──────────────────────────────────────────────────────────────
 
   authenticatePassword(email: Email, password: string): Promise<AuthResponse>;

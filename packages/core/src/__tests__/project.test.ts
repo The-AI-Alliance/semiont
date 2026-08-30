@@ -29,10 +29,10 @@ describe('SemiontState — the half that needs no KB root', () => {
     expect(state.stateDir).toContain('semiont/kb-under-test');
     expect(state.projectionsDir).toBe(join(state.stateDir, 'projections'));
     expect(state.jobsDir).toBe(join(state.stateDir, 'jobs'));
-    expect(state.backendLogsDir).toBe(join(state.stateDir, 'backend'));
-    expect(state.backendAppLogFile).toBe(join(state.backendLogsDir, 'app.log'));
-    expect(state.backendErrorLogFile).toBe(join(state.backendLogsDir, 'error.log'));
-    expect(state.backendPidFile).toBe(join(state.runtimeDir, 'backend.pid'));
+    expect(state.gatewayLogsDir).toBe(join(state.stateDir, 'gateway'));
+    expect(state.gatewayAppLogFile).toBe(join(state.gatewayLogsDir, 'app.log'));
+    expect(state.gatewayErrorLogFile).toBe(join(state.gatewayLogsDir, 'error.log'));
+    expect(state.gatewayPidFile).toBe(join(state.runtimeDir, 'gateway.pid'));
   });
 
   it('takes NOTHING but the name — every path here derives from it', () => {
@@ -153,12 +153,9 @@ describe('SemiontProject', () => {
    * launcher turns into `did:web:<domain>` and calls "the permanent identity
    * in the committed event log" (KB-IDENTITY-VS-ADDRESS.md). It is read from
    * the committed `.semiont/config` and from nowhere else: the environment
-   * config's `site` section can override it in `EnvironmentConfig`, and the
-   * TOML loader defaults a domain-less `[site]` to the string `'localhost'`
-   * — either would make the backend report an identity the launcher never
-   * minted, or (worse) hand every domain-less KB on a machine the SAME
-   * fabricated `did:web:localhost`. Identity must be declared, never
-   * defaulted.
+   * config's `site` section can override it in `EnvironmentConfig`, which
+   * would make the gateway report an identity the launcher never minted.
+   * Identity must be declared, never defaulted.
    */
   describe('siteDomain()', () => {
     it('returns the declared [site] domain, colon-path form preserved verbatim', async () => {

@@ -2,7 +2,7 @@
 
 Native desktop application wrapping the Semiont browser SPA using [Tauri](https://tauri.app/). It bundles the same UI as the container image with a thin native shell, so there's no container runtime to install and no local network permission to grant.
 
-You still need a knowledge base backend running somewhere — point the app at it the same way you would the browser version.
+You still need a knowledge base gateway running somewhere — point the app at it the same way you would the browser version.
 
 ## Install
 
@@ -34,9 +34,9 @@ Two artifacts are published for x86_64:
   ./Semiont_*_amd64.AppImage
   ```
 
-## Connecting to a backend
+## Connecting to a gateway
 
-On first launch, enter the backend host and port (e.g. `localhost:4000`) in the Knowledge Bases panel. The app talks to the backend over plain HTTP — same as the browser version — so any backend reachable from your machine works.
+On first launch, enter the gateway host and port (e.g. `localhost:4000`) in the Knowledge Bases panel. The app talks to the gateway over plain HTTP — same as the browser version — so any gateway reachable from your machine works.
 
 ## Building from source
 
