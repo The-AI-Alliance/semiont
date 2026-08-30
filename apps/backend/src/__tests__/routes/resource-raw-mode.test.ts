@@ -9,17 +9,24 @@
  * mode is needed (or honored; Accept is never read). The smelter's S12
  * property runs against a mocked IContentTransport that is byte-faithful by
  * construction; this test makes that assumption executable on the real route.
+ *
+ * Since SINGLE-KB-MOUNT P3 the route proxies a real Archivist, so the lemma
+ * is now stronger than it was: byte fidelity has to survive the process hop
+ * and the streaming pipe, not merely a local `readFile`.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { Hono } from 'hono';
 import type { User } from '@prisma/client';
-import type { EventBus as EventBusType, Logger, ResourceId } from '@semiont/core';
+import type { Server } from 'http';
+import type { AddressInfo } from 'net';
+import type { EnvironmentConfig, EventBus as EventBusType, Logger, ResourceId } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { WorkingTreeStore, calculateChecksum } from '@semiont/content';
+import { createArchivistServer } from '@semiont/make-meaning';
 import { registerGetResourceUri } from '../../routes/resources/routes/get-uri';
 import type { ResourcesRouterType } from '../../routes/resources/shared';
 import { initializeLogger } from '../../logger';
@@ -33,7 +40,7 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger),
 };
 
-type Variables = { user: User; principalDid: string; eventBus: EventBusType; makeMeaning: unknown };
+type Variables = { user: User; principalDid: string; eventBus: EventBusType; makeMeaning: unknown; config: EnvironmentConfig };
 
 describe('GET /resources/:id byte fidelity (S12 transport-fidelity lemma)', () => {
   let testEnv: TestEnvironmentConfig;
@@ -41,7 +48,9 @@ describe('GET /resources/:id byte fidelity (S12 transport-fidelity lemma)', () =
   let views: FilesystemViewStorage;
   let content: WorkingTreeStore;
   let app: Hono<{ Variables: Variables }>;
+  let archivist: Server;
   let seq = 0;
+  const WORKER_SECRET = 'raw-mode-test-worker-secret';
 
   beforeAll(async () => {
     initializeLogger('error');
@@ -50,18 +59,34 @@ describe('GET /resources/:id byte fidelity (S12 transport-fidelity lemma)', () =
     views = new FilesystemViewStorage(project);
     content = new WorkingTreeStore(project, mockLogger);
 
-    // The pipe touches only kb.views and kb.content — same stubbing depth
-    // as routes/bus.test.ts.
+    // The bytes live behind a real Archivist (SINGLE-KB-MOUNT P3), so the
+    // property crosses the wire the deployment actually uses.
+    process.env.SEMIONT_WORKER_SECRET = WORKER_SECRET;
+    archivist = createArchivistServer({
+      events: { queryEvents: async () => [] },
+      content,
+      views,
+      workerSecret: WORKER_SECRET,
+      health: () => ({ status: 'ok' }),
+      logger: mockLogger,
+    });
+    await new Promise<void>((resolve) => archivist.listen(0, resolve));
+    const archivistPort = (archivist.address() as AddressInfo).port;
+
     const kb = { views, content };
     app = new Hono<{ Variables: Variables }>();
     app.use('*', async (c, next) => {
       c.set('makeMeaning', { knowledgeSystem: { kb } });
+      c.set('config', {
+        services: { archivist: { host: '127.0.0.1', port: archivistPort } },
+      } as unknown as EnvironmentConfig);
       await next();
     });
     registerGetResourceUri(app as unknown as ResourcesRouterType);
   });
 
   afterAll(async () => {
+    await new Promise<void>((resolve, reject) => archivist.close((e) => (e ? reject(e) : resolve())));
     await testEnv.cleanup();
   });
 

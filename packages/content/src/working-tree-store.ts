@@ -20,7 +20,7 @@
  *   {projectRoot}/docs/overview.md
  */
 
-import { promises as fs, createWriteStream } from 'fs';
+import { promises as fs, createReadStream, createWriteStream } from 'fs';
 import { execFileSync } from 'child_process';
 import { createHash, randomUUID } from 'crypto';
 import { Readable } from 'stream';
@@ -174,6 +174,22 @@ export class WorkingTreeStore {
    * @param storageUri - file:// URI
    * @returns Raw bytes
    */
+  /**
+   * The same bytes as `retrieve`, streamed — for the byte paths that must not
+   * hold a whole representation in memory (SINGLE-KB-MOUNT D7: the Archivist
+   * serves content for every reader now, so its memory cannot be bounded by
+   * the largest file anyone asks for).
+   *
+   * Lazy by construction: the stream is created here but nothing is read
+   * until the caller iterates, so a missing file surfaces as an `error` event
+   * on the stream rather than a rejected promise. Callers that need the
+   * distinction up front should resolve the descriptor first — which is what
+   * `resolveRepresentation` does.
+   */
+  retrieveStream(storageUri: string): Readable {
+    return createReadStream(this.resolveUri(storageUri));
+  }
+
   async retrieve(storageUri: string): Promise<Buffer> {
     const filePath = this.resolveUri(storageUri);
     try {

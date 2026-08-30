@@ -66,6 +66,8 @@ import { createLimitsDiscovery } from './limits-discovery';
 import { makeMeaningConfigFrom } from './config';
 import { createArchivistServer } from './archivist-read-path';
 import { registerAnnotationAssemblyHandler } from './handlers/annotation-assembly';
+import { registerAnnotationContextHandler } from './handlers/annotation-lookups';
+import { workingTreeContentReads } from './knowledge-base';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
 import { wireEnrichment } from './event-enrichment';
 
@@ -131,6 +133,8 @@ const INBOUND_CHANNELS = [
   ...CLONE_TOKEN_CHANNELS,
   'mark:create-request',
   'smelt:settled',
+  // The annotation-context read moved here with the bytes (SINGLE-KB-MOUNT D5).
+  'browse:annotation-context-requested',
 ] as const satisfies readonly (keyof EventMap)[];
 
 /**
@@ -286,6 +290,17 @@ async function main() {
   // mark:create-ok/-failed replies ride the outbound pump like every reply.
   registerAnnotationAssemblyHandler(localBus, { views }, logger);
 
+  // The annotation-context read follows the same rule (D5): it is a
+  // views+content read, and this is the process that holds both. It sat on
+  // the gateway only because "the gateway is the byte path" — a premise D1
+  // reversed. Here the byte read is the same in-process resolution the HTTP
+  // face serves, rather than a hop back to whoever holds the mount.
+  registerAnnotationContextHandler(
+    localBus,
+    { views, content: workingTreeContentReads(views, content) },
+    logger,
+  );
+
   // Vocabulary bootstrap emits frame:add-entity-type for missing defaults —
   // handled by our own Stower, in-process, no cross-service boot race (P3).
   await bootstrapEntityTypes(localBus, eventStore, logger.child({ component: 'entity-types-bootstrap' }));
@@ -366,6 +381,7 @@ async function main() {
   const server = createArchivistServer({
     events: eventStore.log,
     content,
+    views,
     workerSecret,
     health: () => ({
       status: 'ok',
@@ -374,7 +390,7 @@ async function main() {
     logger,
   });
   server.listen(healthPort, () => {
-    logger.info('Archivist HTTP surface ready', { port: healthPort, paths: ['/health', '/events/:resourceId', '/content/:storageUri'] });
+    logger.info('Archivist HTTP surface ready', { port: healthPort, paths: ['/health', '/events/:resourceId', '/content/:storageUri', '/resources/:id/content'] });
   });
 
   const shutdown = () => {

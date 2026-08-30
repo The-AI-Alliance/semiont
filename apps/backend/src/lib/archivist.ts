@@ -1,11 +1,12 @@
 /**
  * The gateway's client for the Archivist's HTTP surface (SINGLE-KB-MOUNT).
  *
- * Two callers: SSE resume reads the record (`fetchArchivistReplay`,
- * routes/bus.ts) and resource creation writes bytes (`putContent`, below).
- * They share ONE resolution of where the Archivist is and how we prove who
- * we are — the address and the secret are deployment facts, and a second
- * copy of either is a second thing to get wrong.
+ * Three callers: SSE resume reads the record (`fetchArchivistReplay`,
+ * routes/bus.ts), resource creation writes bytes (`putContent`), and the
+ * content pipe reads them back (`getContent`). They share ONE resolution of
+ * where the Archivist is and how we prove who we are — the address and the
+ * secret are deployment facts, and a second copy of either is a second thing
+ * to get wrong.
  *
  * Both fail loudly when absent. A missing host or secret is a
  * misconfiguration, never a reason to fall back to writing locally: the
@@ -92,4 +93,57 @@ export async function putContent(
   }
 
   return await res.json() as StoredResource;
+}
+
+/**
+ * Read a representation's bytes back from the record (SINGLE-KB-MOUNT P3).
+ *
+ * Returns the response body as a stream — the gateway pipes it to its client
+ * rather than buffering, so its memory is bounded by the chunk and not by the
+ * largest representation anyone requests (D7's compensating gain, and the
+ * half of it the read path can actually deliver end to end).
+ *
+ * Addressed by resourceId because the Archivist owns the resolution of
+ * *where a resource's bytes are and what type they are*; the gateway has
+ * deliberately stopped deciding that. `reason` on the 404 carries which half
+ * of the lookup failed, so the two client-visible messages this route has
+ * always served are preserved without the gateway reading a view.
+ */
+export async function getContent(
+  config: ArchivistAddressConfig,
+  resourceId: string,
+): Promise<{ body: ReadableStream<Uint8Array>; mediaType: string }> {
+  const { base, headers } = archivistEndpoint(config);
+  const url = `${base}/resources/${encodeURIComponent(resourceId)}/content`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, { headers });
+  } catch (error) {
+    getLogger().error('Archivist content read unreachable', {
+      component: 'archivist-client',
+      resourceId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw new HTTPException(503, { message: 'Content store unavailable' });
+  }
+
+  if (res.status === 404) {
+    const { reason } = await res.json().catch(() => ({})) as { reason?: string };
+    throw new HTTPException(404, {
+      message: reason === 'representation' ? 'Resource representation not found' : 'Resource not found',
+    });
+  }
+
+  if (!res.ok || !res.body) {
+    getLogger().error('Archivist content read failed', {
+      component: 'archivist-client',
+      resourceId,
+      status: res.status,
+      statusText: res.statusText,
+    });
+    throw new HTTPException(503, { message: 'Content store unavailable' });
+  }
+
+  return { body: res.body, mediaType: res.headers.get('content-type') || 'application/octet-stream' };
 }

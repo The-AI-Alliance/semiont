@@ -365,7 +365,7 @@ export async function startMakeMeaningGateway(
   // The gateway's handler subset: annotation-assembly moved into the
   // Archivist (D2 i) and gather-summary into the Librarian — each beside
   // the actor it calls.
-  registerGatewayBusHandlers(eventBus, kb, jobQueue, project, logger);
+  registerGatewayBusHandlers(eventBus, jobQueue, project, logger);
 
   return {
     knowledgeSystem,

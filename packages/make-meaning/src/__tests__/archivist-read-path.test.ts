@@ -66,6 +66,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
     const server = createArchivistServer({
       events: eventStore.log,
       content: new WorkingTreeStore(tp.project, mockLogger),
+      views: eventStore.viewStorage,
       workerSecret: SECRET,
       health: () => ({ status: 'ok' }),
       logger: mockLogger,
@@ -181,6 +182,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       const secretless = createArchivistServer({
         events: eventStore.log,
         content: new WorkingTreeStore(tp.project, mockLogger),
+        views: eventStore.viewStorage,
         workerSecret: '',
         health: () => ({ status: 'ok' }),
         logger: mockLogger,
@@ -205,6 +207,87 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
         headers: { authorization: `Bearer ${SECRET}` },
       });
       expect(res.status).toBe(400);
+    });
+  });
+
+  /**
+   * SINGLE-KB-MOUNT P3 — the Archivist serves bytes. Addressed by resourceId,
+   * because that is the key the one resolution takes and the key
+   * `IContentTransport.getBinary` will bring in P4; the caller never converts
+   * to a tree address only to have this side convert back.
+   */
+  describe('GET /resources/:id/content (SINGLE-KB-MOUNT P3)', () => {
+    const CONTENT = '# Served by the Archivist\n';
+    const CONTENT_URI = 'file://docs/served.md';
+    const SERVED = resourceId('res-served');
+
+    beforeEach(async () => {
+      await new WorkingTreeStore(tp.project, mockLogger).store(Buffer.from(CONTENT), CONTENT_URI, { noGit: true });
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: SERVED,
+        userId: userId('user-d1'),
+        version: 1,
+        payload: { name: 'Served', format: 'text/markdown', contentChecksum: 'h2', storageUri: CONTENT_URI },
+      });
+    });
+
+    // `null` means "send no Authorization header" — deliberately not
+    // `undefined`, which would silently trigger the default and test nothing.
+    const get = (id: string, auth: string | null = `Bearer ${SECRET}`) =>
+      fetch(`${baseUrl}/resources/${encodeURIComponent(id)}/content`, {
+        ...(auth !== null ? { headers: { authorization: auth } } : {}),
+      });
+
+    it('serves the stored bytes with the stored media type verbatim', async () => {
+      const res = await get(String(SERVED));
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toBe('text/markdown');
+      expect(await res.text()).toBe(CONTENT);
+    });
+
+    it('distinguishes an unknown resource from one with no representation', async () => {
+      expect((await get('res-nobody')).status).toBe(404);
+
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: resourceId('res-bodiless'),
+        userId: userId('user-d1'),
+        version: 1,
+        payload: { name: 'Bodiless', format: 'text/plain', contentChecksum: 'h3' },
+      });
+      const bodiless = await get('res-bodiless');
+      expect(bodiless.status).toBe(404);
+
+      // The gateway maps these to two different client-visible messages, so
+      // the wire must carry which case it is.
+      const unknownBody = await (await get('res-nobody')).json() as { reason?: string };
+      const bodilessBody = await bodiless.json() as { reason?: string };
+      expect(unknownBody.reason).toBe('resource');
+      expect(bodilessBody.reason).toBe('representation');
+    });
+
+    it('refuses an unauthenticated read', async () => {
+      expect((await get(String(SERVED), null)).status).toBe(401);
+    });
+
+    it('refuses to serve open when no secret is configured', async () => {
+      const secretless = createArchivistServer({
+        events: eventStore.log,
+        content: new WorkingTreeStore(tp.project, mockLogger),
+        views: eventStore.viewStorage,
+        workerSecret: '',
+        health: () => ({ status: 'ok' }),
+        logger: mockLogger,
+      });
+      await new Promise<void>((resolve) => secretless.listen(0, resolve));
+      const port = (secretless.address() as AddressInfo).port;
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/resources/${encodeURIComponent(String(SERVED))}/content`);
+        expect(res.status).toBe(503);
+      } finally {
+        await new Promise<void>((resolve, reject) => secretless.close((e) => (e ? reject(e) : resolve())));
+      }
     });
   });
 });

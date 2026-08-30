@@ -1,7 +1,7 @@
 /**
  * The Archivist's HTTP surface: the /health probe, the D1 sequence-ranged
- * event read path (EXTRACT-ARCHIVIST P2a), and the content write path
- * (SINGLE-KB-MOUNT P2).
+ * event read path (EXTRACT-ARCHIVIST P2a), and the content write and read
+ * paths (SINGLE-KB-MOUNT P2/P3).
  *
  * ⚠️ STANDING RULE, load-bearing: **this surface serves the KB tree, and
  * nothing else.** `browse:*`, `match:*`, `gather:*` stay on the bus. The
@@ -21,12 +21,22 @@
  *   GET /events/:resourceId?fromSequence=N   (inclusive, like the filter it
  *   mirrors: `queryEvents(rId, { fromSequence })`; the caller does the +1)
  *
- * SINGLE-KB-MOUNT P2: the gateway stops writing the shared mount and streams
- * upload bodies here instead —
+ * SINGLE-KB-MOUNT P2/P3: the gateway stops touching the shared mount for
+ * bytes and proxies both directions here —
  *
  *   PUT /content/:storageUri[?checksum=sha256hex]   (storageUri URI-encoded
  *   as one path segment; an optional checksum is verified BEFORE anything is
  *   written, and a disagreement is a 409)
+ *
+ *   GET /resources/:id/content                      (the bytes, streamed,
+ *   with the media type the record stores; the 404 carries `reason` so the
+ *   gateway can serve its two different not-found messages)
+ *
+ * **The addresses differ because the lifecycle does**, not by oversight: at
+ * write time neither the resource nor its view exists — bytes land before the
+ * event — so the write has only a tree address to be addressed by, while the
+ * read has a record. Both go through ONE resolution (`representation.ts`);
+ * neither restates where bytes live.
  *
  * The write is `noGit` and emits nothing: the event contract is untouched —
  * the Stower still `register`s the bytes from disk and does the one `git add`
@@ -40,17 +50,21 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from 'http';
+import { pipeline } from 'stream/promises';
 import type { Logger } from '@semiont/core';
 import { resourceId as makeResourceId, errField } from '@semiont/core';
-import type { EventLog } from '@semiont/event-sourcing';
+import type { EventLog, ViewStorage } from '@semiont/event-sourcing';
 import { ChecksumMismatchError, type WorkingTreeStore } from '@semiont/content';
+import { resolveRepresentation, RepresentationMissing } from './representation';
 
 export interface ArchivistServerDeps {
   /** The record's log — the read half only. */
   events: Pick<EventLog, 'queryEvents'>;
-  /** The KB tree's write path — `store` only; `register` and the git index
-   *  stay the Stower's on event apply. */
-  content: Pick<WorkingTreeStore, 'store'>;
+  /** The KB tree's byte paths. `register` and the git index stay the
+   *  Stower's on event apply; reads go through `resolveRepresentation`. */
+  content: Pick<WorkingTreeStore, 'store' | 'retrieveStream'>;
+  /** The record's views — the resource half of the one resolution. */
+  views: Pick<ViewStorage, 'get'>;
   /** Shared service secret; empty disables everything but /health (503), never opens it. */
   workerSecret: string;
   /** Liveness payload for /health — actor states, counters. */
@@ -64,7 +78,7 @@ const json = (res: ServerResponse, status: number, body: unknown): void => {
 };
 
 export function createArchivistServer(deps: ArchivistServerDeps): Server {
-  const { events, content, workerSecret, health, logger } = deps;
+  const { events, content, views, workerSecret, health, logger } = deps;
 
   /** The 503/401 posture every authenticated path shares. True = request may proceed. */
   const authorized = (req: IncomingMessage, res: ServerResponse): boolean => {
@@ -105,6 +119,41 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
         .catch((error: unknown) => {
           logger.error('D1 read path failed', { resourceId: rawId, fromSequence, error: errField(error) });
           json(res, 500, { error: 'event read failed' });
+        });
+      return;
+    }
+
+    // GET /resources/:id/content — the bytes, streamed, with the media type
+    // the record stores. Addressed by resourceId because that is the key the
+    // one resolution takes and the key `IContentTransport.getBinary` brings:
+    // a caller never converts to a tree address only to have this side
+    // convert back. Matched before the `/resources/` prefix is split so a
+    // resourceId containing '/' cannot masquerade as another route.
+    const contentMatch = req.method === 'GET' && /^\/resources\/(.+)\/content$/.exec(url.pathname);
+    if (contentMatch) {
+      if (!authorized(req, res)) return;
+
+      const rid = decodeURIComponent(contentMatch[1]!);
+      resolveRepresentation({ views, content }, makeResourceId(rid))
+        .then(async ({ stream, mediaType }) => {
+          res.writeHead(200, { 'Content-Type': mediaType });
+          // Streamed, never buffered (D7): this process serves content for
+          // every reader in the fleet, so its memory is bounded by the chunk.
+          await pipeline(stream, res);
+        })
+        .catch((error: unknown) => {
+          if (error instanceof RepresentationMissing) {
+            // `reason` rides the wire because the gateway serves two
+            // different client-visible messages for these two cases.
+            json(res, 404, { error: error.message, reason: error.reason });
+            return;
+          }
+          logger.error('Content read failed', { resourceId: rid, error: errField(error) });
+          // A stream that failed mid-flight has already sent 200 and some
+          // bytes; destroying the socket is the only honest signal left —
+          // a truncated body must not look like a complete one.
+          if (res.headersSent) res.destroy();
+          else json(res, 500, { error: 'content read failed' });
         });
       return;
     }

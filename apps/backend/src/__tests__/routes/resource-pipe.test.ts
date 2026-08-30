@@ -16,12 +16,15 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { Hono } from 'hono';
+import type { Server } from 'http';
+import type { AddressInfo } from 'net';
 import type { User } from '@prisma/client';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { EventBus as EventBusType, EventMap, Logger } from '@semiont/core';
+import type { EventBus as EventBusType, EnvironmentConfig, EventMap, Logger } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { WorkingTreeStore, calculateChecksum } from '@semiont/content';
+import { createArchivistServer } from '@semiont/make-meaning';
 import { registerGetResourceUri } from '../../routes/resources/routes/get-uri';
 import type { ResourcesRouterType } from '../../routes/resources/shared';
 import { initializeLogger } from '../../logger';
@@ -35,7 +38,7 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger),
 };
 
-type Variables = { user: User; principalDid: string; eventBus: EventBusType; makeMeaning: unknown };
+type Variables = { user: User; principalDid: string; eventBus: EventBusType; makeMeaning: unknown; config: EnvironmentConfig };
 
 describe('resource routes pipe contract (SIMPLER-JSON-LD.md Phase 1)', () => {
   let testEnv: TestEnvironmentConfig;
@@ -43,7 +46,9 @@ describe('resource routes pipe contract (SIMPLER-JSON-LD.md Phase 1)', () => {
   let content: WorkingTreeStore;
   let eventBus: EventBus;
   let app: Hono<{ Variables: Variables }>;
+  let archivist: Server;
   let seq = 0;
+  const WORKER_SECRET = 'pipe-test-worker-secret';
 
   beforeAll(async () => {
     initializeLogger('error');
@@ -53,17 +58,37 @@ describe('resource routes pipe contract (SIMPLER-JSON-LD.md Phase 1)', () => {
     content = new WorkingTreeStore(project, mockLogger);
     eventBus = new EventBus();
 
+    // The gateway no longer holds the bytes (SINGLE-KB-MOUNT P3): it proxies
+    // a REAL Archivist here, so this suite still proves the client-visible
+    // contract end to end — byte fidelity, media type, headers — across the
+    // process boundary the phase introduces rather than around it.
+    process.env.SEMIONT_WORKER_SECRET = WORKER_SECRET;
+    archivist = createArchivistServer({
+      events: { queryEvents: async () => [] },
+      content,
+      views,
+      workerSecret: WORKER_SECRET,
+      health: () => ({ status: 'ok' }),
+      logger: mockLogger,
+    });
+    await new Promise<void>((resolve) => archivist.listen(0, resolve));
+    const archivistPort = (archivist.address() as AddressInfo).port;
+
     const kb = { views, content };
     app = new Hono<{ Variables: Variables }>();
     app.use('*', async (c, next) => {
       c.set('makeMeaning', { knowledgeSystem: { kb } });
       c.set('eventBus', eventBus);
+      c.set('config', {
+        services: { archivist: { host: '127.0.0.1', port: archivistPort } },
+      } as unknown as EnvironmentConfig);
       await next();
     });
     registerGetResourceUri(app as unknown as ResourcesRouterType);
   });
 
   afterAll(async () => {
+    await new Promise<void>((resolve, reject) => archivist.close((e) => (e ? reject(e) : resolve())));
     await testEnv.cleanup();
   });
 
