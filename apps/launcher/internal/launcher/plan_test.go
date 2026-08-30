@@ -81,7 +81,7 @@ model = "claude-sonnet-4-5-20250929"
 		sections[k] = v
 	}
 	var b strings.Builder
-	b.WriteString("[defaults]\nenvironment = \"local\"\n\n[environments.local.backend]\nplatform = \"posix\"\nport = 4000\n\n")
+	b.WriteString("[defaults]\nenvironment = \"local\"\n\n[environments.local.gateway]\nplatform = \"posix\"\nport = 4000\n\n")
 	for _, k := range []string{"graph", "vectors", "database", "embedding", "inference"} {
 		if s, ok := sections[k]; ok {
 			b.WriteString(s + "\n")
@@ -395,7 +395,7 @@ func TestRequiredVarsFromParse(t *testing.T) {
 	p := writeVariant(t, `[defaults]
 environment = "local"
 
-[environments.local.backend]
+[environments.local.gateway]
 platform = "posix"
 port = 4000
 

@@ -127,7 +127,7 @@
       },
       "additionalProperties": false
     },
-    "BackendServiceConfig": {
+    "GatewayServiceConfig": {
       "type": "object",
       "properties": {
         "platform": {
@@ -947,8 +947,8 @@
     "ServicesConfig": {
       "type": "object",
       "properties": {
-        "backend": {
-          "$ref": "#/definitions/BackendServiceConfig"
+        "gateway": {
+          "$ref": "#/definitions/GatewayServiceConfig"
         },
         "database": {
           "$ref": "#/definitions/DatabaseServiceConfig"

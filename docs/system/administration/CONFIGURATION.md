@@ -51,7 +51,7 @@ oauthAllowedDomains = ["example.com"]
 
 `[site] domain` is identity, not addressing: it names the repository in
 did:web's colon-path form and must stay stable across deployments (the same
-invariant that keeps `BACKEND_HOST` off the backend container — `publicURL`
+invariant that keeps the gateway-host vars off the gateway container — `publicURL`
 derivation). The `semiont` launcher parses this file for display and its
 roots registry (`roots.json` records each root's did:web and siteName);
 environment wiring stays in the KB's `.semiont/semiontconfig/` variants.

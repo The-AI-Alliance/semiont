@@ -485,7 +485,7 @@ container at `/home/semiont/.semiontconfig`, which is the path the process reads
 - The environment block comes from `[defaults] environment` inside the config file.
 
 `loadEnvironmentConfig(projectRoot, env)` merges them into an `EnvironmentConfig`
-(`@semiont/core`). `services.backend` must be present or startup fails.
+(`@semiont/core`). `services.gateway` must be present or startup fails.
 
 Beyond that, the backend reads from the environment directly:
 

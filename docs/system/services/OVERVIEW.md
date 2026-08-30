@@ -88,7 +88,7 @@ environment = "local"
 [environments.local.backend]
 platform = "posix"
 port = 4000
-publicURL = "http://${BACKEND_HOST:-localhost}:4000"
+publicURL = "http://${GATEWAY_HOST:-localhost}:4000"
 
 [environments.local.graph]
 platform = "external"

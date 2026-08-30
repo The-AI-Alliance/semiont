@@ -703,7 +703,7 @@ func tracesArgs() []string {
 }
 
 // gatewayArgs: the gateway takes the four dependency hosts but must NOT
-// receive BACKEND_HOST (publicURL derives from it; see the DID/site.domain
+// receive the gateway-host vars (publicURL derives from them; see the DID/site.domain
 // history before ever changing this). Admin seeding deliberately does NOT
 // ride in here — `semiont useradd` execs the gateway's own `semiont-useradd`
 // instead, so no password ever sits in the container's inspectable env.
@@ -744,6 +744,22 @@ func gatewayArgs(stage, addr, secret, jwt, version string, port int, userEnv, ot
 	return append(a, image("gateway", version))
 }
 
+// gatewayHostEnv injects the gateway's address under BOTH spellings.
+//
+// A KB's TOML interpolates one of them into the gateway's publicURL, and which
+// one depends on whether that repo has migrated to `[gateway]` — a fact this
+// binary cannot observe. Injecting only the new name would leave an unmigrated
+// KB's `${BACKEND_HOST:-localhost}` falling back to `localhost`, which inside a
+// container means every sidecar dials ITSELF: a wrong-but-plausible value that
+// fails far from its cause. Injecting both costs one argv pair and cannot.
+//
+// Retires with the [backend] section alias — see resolveGatewaySection.
+// Defined once because three call sites spelling the same pair is three chances
+// to update two of them.
+func gatewayHostEnv(addr string) []string {
+	return []string{"--env", "GATEWAY_HOST=" + addr, "--env", "BACKEND_HOST=" + addr}
+}
+
 // sidecarArgs covers the three make-meaning sidecars (worker / smelter /
 // weaver) — identical in shape, differing only in name, port, and memory.
 func sidecarArgs(svc string, port int, stage, addr, secret, version string, userEnv, otel []string, extra ...string) []string {
@@ -753,8 +769,8 @@ func sidecarArgs(svc string, port int, stage, addr, secret, version string, user
 		"--volume", stage + "/" + svc + ".toml:/home/semiont/.semiontconfig:ro"}
 	a = append(a, userEnv...)
 	a = append(a, otel...)
+	a = append(a, gatewayHostEnv(addr)...)
 	a = append(a,
-		"--env", "BACKEND_HOST="+addr,
 		"--env", "OLLAMA_HOST="+addr,
 		"--env", "NEO4J_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
@@ -784,8 +800,8 @@ func archivistArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []
 	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
+	a = append(a, gatewayHostEnv(addr)...)
 	a = append(a,
-		"--env", "BACKEND_HOST="+addr,
 		"--env", "OLLAMA_HOST="+addr,
 		"--env", "NEO4J_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
@@ -813,8 +829,8 @@ func librarianArgs(stage, addr, secret, version string, userEnv, otel []string, 
 	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
+	a = append(a, gatewayHostEnv(addr)...)
 	a = append(a,
-		"--env", "BACKEND_HOST="+addr,
 		"--env", "OLLAMA_HOST="+addr,
 		"--env", "NEO4J_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,

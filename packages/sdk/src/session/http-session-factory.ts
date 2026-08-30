@@ -18,7 +18,7 @@ import { SemiontClient } from '../client';
 import { coupledLastEventId } from '../cache-persister';
 import { SemiontSession, type UserInfo } from './semiont-session';
 import { SemiontSessionError } from './errors';
-import { kbBackendUrl, getStoredSession, setStoredSession } from './storage';
+import { kbGatewayUrl, getStoredSession, setStoredSession } from './storage';
 import type { SessionFactory, SessionFactoryOptions } from './session-factory';
 
 export function createHttpSessionFactory(): SessionFactory {
@@ -50,7 +50,7 @@ export function createHttpSessionFactory(): SessionFactory {
       const promise = (async () => {
         const stored = getStoredSession(storage, kb.id);
         if (!stored) return null;
-        const throwawayTransport = new HttpTransport({ baseUrl: baseUrl(kbBackendUrl(endpoint)) });
+        const throwawayTransport = new HttpTransport({ baseUrl: baseUrl(kbGatewayUrl(endpoint)) });
         const throwaway = new SemiontClient(throwawayTransport, new HttpContentTransport(throwawayTransport), throwawayTransport);
         try {
           const response = await throwaway.auth!.refresh(stored.refresh);
@@ -82,7 +82,7 @@ export function createHttpSessionFactory(): SessionFactory {
     const performValidate = async (token: AccessToken): Promise<UserInfo | null> => {
       const tokenSubject = new BehaviorSubject<AccessToken | null>(token);
       const throwawayTransport = new HttpTransport({
-        baseUrl: baseUrl(kbBackendUrl(endpoint)),
+        baseUrl: baseUrl(kbGatewayUrl(endpoint)),
         token$: tokenSubject,
       });
       const throwaway = new SemiontClient(throwawayTransport, new HttpContentTransport(throwawayTransport), throwawayTransport);
@@ -109,7 +109,7 @@ export function createHttpSessionFactory(): SessionFactory {
     // but never lead them.
     const coupled = coupledLastEventId(storage, `semiont.lastEventId.${kb.id}`);
     const transport = new HttpTransport({
-      baseUrl: baseUrl(kbBackendUrl(endpoint)),
+      baseUrl: baseUrl(kbGatewayUrl(endpoint)),
       token$,
       tokenRefresher: () => session.refresh().then((t) => t ?? null),
       loadLastEventIds: coupled.loadLastEventIds,

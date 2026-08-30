@@ -79,7 +79,7 @@ solve:
 - **Secrets.** `JWT_SECRET`, `SEMIONT_WORKER_SECRET`, and inference API keys arrive as environment
   variables. Semiont reads no cloud secret store directly. See [SECRETS.md](../services/SECRETS.md).
 - **Service discovery.** Services address each other by URL from the config
-  (`services.backend.publicURL`, …), not by any platform-specific mechanism.
+  (`services.gateway.publicURL`, …), not by any platform-specific mechanism.
 - **Persistence.** PostgreSQL, Neo4j, and Qdrant need durable volumes. The KB's `.semiont/events/`
   directory is the **system of record** and must survive container replacement.
 - **The KB working tree.** The backend bind-mounts the KB repo at `/kb`. On a multi-node scheduler

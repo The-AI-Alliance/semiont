@@ -33,7 +33,7 @@ import {
   InMemorySessionStorage,
   SemiontClient,
   SemiontSession,
-  kbBackendUrl,
+  kbGatewayUrl,
   setStoredSession,
   type HttpEndpoint,
   type KbTarget,
@@ -63,7 +63,7 @@ export interface AgentGroup {
 export interface WorkerRuntimeOptions {
   group: AgentGroup;
   /** The backend URL this worker dials — connection topology ONLY, never identity. */
-  backendBaseUrl: string;
+  gatewayBaseUrl: string;
   /** Shared secret for `/api/tokens/agent`, and the bearer the byte reads
    *  below show the Archivist. */
   workerSecret: string;
@@ -169,7 +169,7 @@ export function startStallWatchdog(opts: StallWatchdogOptions): { dispose(): voi
   return { dispose: () => clearInterval(timer) };
 }
 
-export function parseBackendUrl(url: string): { protocol: 'http' | 'https'; host: string; port: number } {
+export function parseGatewayUrl(url: string): { protocol: 'http' | 'https'; host: string; port: number } {
   const parsed = new URL(url);
   const protocol = (parsed.protocol.replace(':', '') === 'https' ? 'https' : 'http') as 'http' | 'https';
   const host = parsed.hostname;
@@ -192,21 +192,21 @@ export function parseBackendUrl(url: string): { protocol: 'http' | 'https'; host
  * secret) are NOT retried; the backend is up and said no.
  */
 export async function authenticateAgent(opts: {
-  backendBaseUrl: string;
+  gatewayBaseUrl: string;
   workerSecret: string;
   provider: string;
   model: string;
   logger?: Logger;
   retry?: RetryPolicy;
 }): Promise<{ token: string; did: string }> {
-  const { backendBaseUrl, workerSecret, provider, model, logger, retry = STARTUP_FETCH_RETRY } = opts;
+  const { gatewayBaseUrl, workerSecret, provider, model, logger, retry = STARTUP_FETCH_RETRY } = opts;
   if (!workerSecret) {
     throw new Error('SEMIONT_WORKER_SECRET is required to authenticate worker agents');
   }
 
   return retryWithBackoff(
     async () => {
-      const response = await fetch(`${backendBaseUrl}/api/tokens/agent`, {
+      const response = await fetch(`${gatewayBaseUrl}/api/tokens/agent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ secret: workerSecret, provider, model }),
@@ -235,12 +235,12 @@ export async function authenticateAgent(opts: {
 export async function startAgentWorker(
   opts: WorkerRuntimeOptions,
 ): Promise<AgentWorkerHandle> {
-  const { group, backendBaseUrl, workerSecret, contentReads, logger } = opts;
+  const { group, gatewayBaseUrl, workerSecret, contentReads, logger } = opts;
   const { inference } = group;
 
-  const { protocol, host, port } = parseBackendUrl(backendBaseUrl);
+  const { protocol, host, port } = parseGatewayUrl(gatewayBaseUrl);
   const { token: initialToken, did } = await authenticateAgent({
-    backendBaseUrl,
+    gatewayBaseUrl,
     workerSecret,
     provider: inference.type,
     model: inference.model,
@@ -268,7 +268,7 @@ export async function startAgentWorker(
   const token$ = new BehaviorSubject<AccessToken | null>(null);
   let session!: SemiontSession;
   const transport = new HttpTransport({
-    baseUrl: baseUrl(kbBackendUrl(endpoint)),
+    baseUrl: baseUrl(kbGatewayUrl(endpoint)),
     token$,
     tokenRefresher: () => session.refresh().then((t) => t ?? null),
   });
@@ -282,7 +282,7 @@ export async function startAgentWorker(
     refresh: async () => {
       try {
         const { token } = await authenticateAgent({
-          backendBaseUrl,
+          gatewayBaseUrl,
           workerSecret,
           provider: inference.type,
           model: inference.model,

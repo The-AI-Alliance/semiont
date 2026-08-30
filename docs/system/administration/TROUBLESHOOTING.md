@@ -63,7 +63,7 @@ Its startup contract is strict, and each unmet requirement throws:
 | Missing | Symptom |
 |---|---|
 | `SEMIONT_ROOT` | `SEMIONT_ROOT environment variable is not set` |
-| `services.backend` in the environment config | `services.backend is required in environment config` |
+| `services.gateway` in the environment config | `services.gateway is required in environment config` |
 | `NODE_ENV` | `NODE_ENV environment variable is required` (thrown from `/api/health`) |
 | `DATABASE_URL` (or the `DB_*` set) | Prisma connection error during `migrate deploy` |
 | `JWT_SECRET` under 32 characters | Startup validation failure |

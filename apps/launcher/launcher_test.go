@@ -3163,7 +3163,7 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 // writeKBConfig drops a variant semiontconfig into the scenario's KB.
 func writeKBConfig(t *testing.T, s *scenario, name, body string) {
 	t.Helper()
-	head := "[defaults]\nenvironment = \"local\"\n\n[environments.local.backend]\nplatform = \"posix\"\nport = 4000\n\n"
+	head := "[defaults]\nenvironment = \"local\"\n\n[environments.local.gateway]\nplatform = \"posix\"\nport = 4000\n\n"
 	p := filepath.Join(s.kb, ".semiont", "semiontconfig", name+".toml")
 	if err := os.WriteFile(p, []byte(head+body), 0o644); err != nil {
 		t.Fatal(err)

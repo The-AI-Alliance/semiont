@@ -14,12 +14,12 @@ model = "nomic-embed-text"
 `;
 
 const MINIMAL_TOML = `
-[environments.local.backend]
+[environments.local.gateway]
 platform = "posix"
 port = 3001
 publicURL = "http://localhost:3001"
 # Deliberately left after FRONTEND-IS-THE-BROWSER P6: frontendURL was declared
-# on the backend section and read by nothing, so it was deleted rather than
+# on the gateway section and read by nothing, so it was deleted rather than
 # renamed. Keeping it here means every test below also pins that an unknown KEY
 # inside a known section stays inert, the way the [browser] and [frontend]
 # tests pin it for a whole section.
@@ -73,11 +73,11 @@ function makeReader(globalContent: string | null, projectContent?: string): { re
 }
 
 describe('loadTomlConfig', () => {
-  it('maps backend section to EnvironmentConfig.services.backend', () => {
+  it('maps gateway section to EnvironmentConfig.services.gateway', () => {
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
 
-    expect(config.services?.backend?.port).toBe(3001);
-    expect(config.services?.backend?.publicURL).toBe('http://localhost:3001');
+    expect(config.services?.gateway?.port).toBe(3001);
+    expect(config.services?.gateway?.publicURL).toBe('http://localhost:3001');
   });
 
   it('maps graph section to EnvironmentConfig.services.graph', () => {
@@ -201,7 +201,7 @@ semanticFloor = 0.75
     // selected environment — here the project's .semiont/config does.
     const projectWithLocal = `[project]\nname = "test-project"\n${MINIMAL_TOML}`;
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(null, projectWithLocal), {});
-    expect(config.services?.backend?.port).toBe(3001);
+    expect(config.services?.gateway?.port).toBe(3001);
     expect(config._metadata?.environment).toBe('local');
   });
 
@@ -224,18 +224,18 @@ semanticFloor = 0.75
 
 describe('loadTomlConfig — environment resolution (one config selects it)', () => {
   // `[defaults] environment` is the key the launcher reads (config.go:
-  // cfg.Defaults.Environment). The backend must resolve from the SAME key so a
+  // cfg.Defaults.Environment). The gateway must resolve from the SAME key so a
   // KB's declared environment selects the section for BOTH halves.
   const DEFAULTS_STAGING = `
 [defaults]
 environment = "staging"
 
-[environments.staging.backend]
+[environments.staging.gateway]
 platform = "posix"
 port = 5005
 publicURL = "http://localhost:5005"
 
-[environments.local.backend]
+[environments.local.gateway]
 platform = "posix"
 port = 3001
 publicURL = "http://localhost:3001"
@@ -251,7 +251,7 @@ ${SERVICES_LOCAL}`;
   it('resolves the environment from [defaults] environment when none is passed', () => {
     const config = loadTomlConfig('/project', undefined, '/home/user/.semiontconfig', makeReader(DEFAULTS_STAGING), {});
     expect(config._metadata?.environment).toBe('staging');
-    expect(config.services?.backend?.port).toBe(5005);
+    expect(config.services?.gateway?.port).toBe(5005);
   });
 
   // `SEMIONT_ENV` is NOT an input. It was removed as a resolution input because an
@@ -262,7 +262,7 @@ ${SERVICES_LOCAL}`;
   it('ignores SEMIONT_ENV entirely — it is not an input to resolution', () => {
     const config = loadTomlConfig('/project', undefined, '/home/user/.semiontconfig', makeReader(DEFAULTS_STAGING), { SEMIONT_ENV: 'local' });
     expect(config._metadata?.environment).toBe('staging');
-    expect(config.services?.backend?.port).toBe(5005);
+    expect(config.services?.gateway?.port).toBe(5005);
   });
 
   // EXTRACT-ARCHIVIST P3: the gateway replays SSE resumes from the Archivist
@@ -326,13 +326,13 @@ ${MINIMAL_TOML}`;
     const cfg = loadTomlConfig(null, 'local', '/home/user/.semiontconfig', makeReader(toml), {});
     expect(cfg.kb?.name).toBe('example-kb');
     expect(cfg.kb?.domain).toBeUndefined();
-    expect(cfg.services?.backend?.port).toBe(3001);
+    expect(cfg.services?.gateway?.port).toBe(3001);
   });
 
   it('lets an explicit environment win over [defaults]', () => {
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(DEFAULTS_STAGING), {});
     expect(config._metadata?.environment).toBe('local');
-    expect(config.services?.backend?.port).toBe(3001);
+    expect(config.services?.gateway?.port).toBe(3001);
   });
 
   it('refuses a config naming no vector store, config-actionably (MANDATORY-EMBEDDING D1)', () => {
@@ -355,5 +355,74 @@ ${MINIMAL_TOML}`;
     expect(() =>
       loadTomlConfig('/project', undefined, '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), { SEMIONT_ENV: 'local' })
     ).toThrow(/environment/i);
+  });
+});
+
+// The gateway/backend alias, pinned row for row. `resolveGatewaySection` in
+// apps/launcher/internal/launcher/config.go implements these SAME four cases
+// against an independently-written Go struct — no schema is shared between the
+// lanes, so the pair of test blocks is what keeps them honest. Change one, change
+// the other.
+describe('loadTomlConfig — the gateway/backend section alias', () => {
+  const withSection = (key: 'gateway' | 'backend') => `
+[defaults]
+environment = "local"
+
+[environments.local.${key}]
+platform = "posix"
+port = 3001
+publicURL = "http://localhost:3001"
+
+[environments.local.make-meaning.graph]
+type = "memory"
+${SERVICES_LOCAL}`;
+
+  it('row 1 — gateway only: used', () => {
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(withSection('gateway')), {});
+    expect(config.services?.gateway?.port).toBe(3001);
+    expect(config.services?.gateway?.publicURL).toBe('http://localhost:3001');
+  });
+
+  it('row 2 — backend only: used, and lands on services.gateway (the compat path)', () => {
+    // The whole point of the alias: a fleet KB that still says `backend` loads,
+    // and every consumer downstream reads the ONE current name.
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(withSection('backend')), {});
+    expect(config.services?.gateway?.port).toBe(3001);
+    expect(config.services?.gateway?.publicURL).toBe('http://localhost:3001');
+  });
+
+  it('row 3 — both: throws, naming both keys', () => {
+    // Not "gateway wins". A file with both is half-migrated, and picking a
+    // winner silently leaves the next reader unable to tell which one is live.
+    const both = `
+[defaults]
+environment = "local"
+
+[environments.local.gateway]
+platform = "posix"
+port = 3001
+
+[environments.local.backend]
+platform = "posix"
+port = 4001
+
+[environments.local.make-meaning.graph]
+type = "memory"
+${SERVICES_LOCAL}`;
+    expect(() =>
+      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(both), {})
+    ).toThrow(/both \[gateway\] and \[backend\]/);
+  });
+
+  it('row 4 — neither: services.gateway is absent, and nothing is invented', () => {
+    const neither = `
+[defaults]
+environment = "local"
+
+[environments.local.make-meaning.graph]
+type = "memory"
+${SERVICES_LOCAL}`;
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(neither), {});
+    expect(config.services?.gateway).toBeUndefined();
   });
 });

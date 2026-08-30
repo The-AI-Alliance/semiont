@@ -10,7 +10,7 @@ import (
 const stagingFixture = `[defaults]
 environment = "local"
 
-[environments.local.backend]
+[environments.local.gateway]
 platform = "container"
 port = 4000
 `

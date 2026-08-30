@@ -5,7 +5,7 @@ email = ""
 [defaults]
 environment = "local"
 
-[environments.local.backend]
+[environments.local.gateway]
 platform = "posix"
 port = 4000
 publicURL = "http://${BACKEND_HOST:-localhost}:4000"

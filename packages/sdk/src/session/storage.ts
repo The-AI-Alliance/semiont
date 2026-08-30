@@ -161,7 +161,7 @@ export function isValidHostname(host: string): boolean {
  * uniform `KnowledgeBase` should not call this; it should hand the KB
  * to a transport factory and let the factory inspect `endpoint.kind`.
  */
-export function kbBackendUrl(endpoint: HttpEndpoint): string {
+export function kbGatewayUrl(endpoint: HttpEndpoint): string {
   if (!isValidHostname(endpoint.host)) {
     throw new Error(`Invalid KB hostname: "${endpoint.host}"`);
   }

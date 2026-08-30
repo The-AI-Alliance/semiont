@@ -97,7 +97,7 @@ restarts**.
 > (`Access-Control-Allow-Origin: *`, bearer-only — no credentials), so the
 > browser signs in from *any* origin. This removed an earlier
 > `corsOrigin`-baked-into-the-image workaround; if you're following older
-> notes that tell you to set `services.backend.corsOrigin` and rebuild,
+> notes that tell you to set `services.gateway.corsOrigin` and rebuild,
 > that config field no longer exists.
 
 Run the suite against the gateway for **both** URLs, with the Browser

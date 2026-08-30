@@ -82,11 +82,11 @@ function resolveWorker(jobType: string): ResolvedInference {
   );
 }
 
-const backendPublicURL = envConfig.services?.backend?.publicURL;
-if (!backendPublicURL) {
-  throw new Error('services.backend.publicURL is required in ~/.semiontconfig');
+const gatewayPublicURL = envConfig.services?.gateway?.publicURL;
+if (!gatewayPublicURL) {
+  throw new Error('services.gateway.publicURL is required in ~/.semiontconfig');
 }
-const backendBaseUrl: string = backendPublicURL;
+const gatewayBaseUrl: string = gatewayPublicURL;
 
 const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
 
@@ -144,7 +144,7 @@ async function main() {
   initObservabilityNode({ serviceName: 'semiont-worker' });
 
   logger.info('Starting agents', {
-    baseUrl: backendBaseUrl,
+    baseUrl: gatewayBaseUrl,
     agents: Array.from(groups.values()).map((g) => ({
       provider: g.inference.type,
       model: g.inference.model,
@@ -154,7 +154,7 @@ async function main() {
 
   const workers = await Promise.all(
     Array.from(groups.values()).map((group) =>
-      startAgentWorker({ group, backendBaseUrl, workerSecret, contentReads, logger }),
+      startAgentWorker({ group, gatewayBaseUrl, workerSecret, contentReads, logger }),
     ),
   );
 

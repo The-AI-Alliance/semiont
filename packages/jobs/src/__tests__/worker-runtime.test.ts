@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Logger } from '@semiont/core';
-import { startAgentWorker, authenticateAgent, parseBackendUrl, buildHealthPayload, startStallWatchdog, STALL_THRESHOLD_MS, STALL_CHECK_INTERVAL_MS, type AgentGroup, type AgentVitals } from '../worker-runtime';
+import { startAgentWorker, authenticateAgent, parseGatewayUrl, buildHealthPayload, startStallWatchdog, STALL_THRESHOLD_MS, STALL_CHECK_INTERVAL_MS, type AgentGroup, type AgentVitals } from '../worker-runtime';
 import { startWorkerProcess } from '../worker-process';
 import type { InferenceClient } from '@semiont/inference';
 import { createServer, type Server } from 'http';
@@ -104,7 +104,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
 
     const worker = await startAgentWorker({
       group: makeGroup(),
-      backendBaseUrl: DIAL_URL,
+      gatewayBaseUrl: DIAL_URL,
       workerSecret: 'test-secret',
       contentReads: { getBinary: vi.fn() },
       logger: noopLogger,
@@ -130,7 +130,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     const { exchangeCalls } = installFetchStub();
 
     const result = await authenticateAgent({
-      backendBaseUrl: DIAL_URL,
+      gatewayBaseUrl: DIAL_URL,
       workerSecret: 'test-secret',
       provider: 'anthropic',
       model: 'claude-haiku-4-5',
@@ -146,13 +146,13 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 401, statusText: 'Unauthorized' })));
 
     await expect(
-      authenticateAgent({ backendBaseUrl: DIAL_URL, workerSecret: 'bad', provider: 'anthropic', model: 'm1' }),
+      authenticateAgent({ gatewayBaseUrl: DIAL_URL, workerSecret: 'bad', provider: 'anthropic', model: 'm1' }),
     ).rejects.toThrow(/anthropic:m1.*401/);
   });
 
   it('authenticateAgent refuses to run without a worker secret', async () => {
     await expect(
-      authenticateAgent({ backendBaseUrl: DIAL_URL, workerSecret: '', provider: 'anthropic', model: 'm1' }),
+      authenticateAgent({ gatewayBaseUrl: DIAL_URL, workerSecret: '', provider: 'anthropic', model: 'm1' }),
     ).rejects.toThrow(/SEMIONT_WORKER_SECRET/);
   });
 
@@ -182,7 +182,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     const warn = vi.fn();
     try {
       const result = await authenticateAgent({
-        backendBaseUrl: `http://127.0.0.1:${port}`,
+        gatewayBaseUrl: `http://127.0.0.1:${port}`,
         workerSecret: 'test-secret',
         provider: 'anthropic',
         model: 'claude-haiku-4-5',
@@ -214,7 +214,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
 
     await expect(
       authenticateAgent({
-        backendBaseUrl: DIAL_URL,
+        gatewayBaseUrl: DIAL_URL,
         workerSecret: 'test-secret',
         provider: 'anthropic',
         model: 'm1',
@@ -230,7 +230,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
 
     await expect(
       authenticateAgent({
-        backendBaseUrl: DIAL_URL,
+        gatewayBaseUrl: DIAL_URL,
         workerSecret: 'bad',
         provider: 'anthropic',
         model: 'm1',
@@ -240,9 +240,9 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('parseBackendUrl keeps its connection role: host/port/protocol from the dial string', () => {
-    expect(parseBackendUrl('http://192.168.64.1:4000')).toEqual({ protocol: 'http', host: '192.168.64.1', port: 4000 });
-    expect(parseBackendUrl('https://kb.example')).toEqual({ protocol: 'https', host: 'kb.example', port: 443 });
+  it('parseGatewayUrl keeps its connection role: host/port/protocol from the dial string', () => {
+    expect(parseGatewayUrl('http://192.168.64.1:4000')).toEqual({ protocol: 'http', host: '192.168.64.1', port: 4000 });
+    expect(parseGatewayUrl('https://kb.example')).toEqual({ protocol: 'https', host: 'kb.example', port: 443 });
   });
 });
 
@@ -260,7 +260,7 @@ describe('worker-runtime — health vitals (WORKER-LIVENESS.md P1)', () => {
 
     const worker = await startAgentWorker({
       group: makeGroup(),
-      backendBaseUrl: DIAL_URL,
+      gatewayBaseUrl: DIAL_URL,
       workerSecret: 'test-secret',
       contentReads: { getBinary: vi.fn() },
       logger: noopLogger,
@@ -427,7 +427,7 @@ describe('worker-runtime — anchored-text store threading (PERSIST-ANCHORS P2d)
 
     const worker = await startAgentWorker({
       group: makeGroup(),
-      backendBaseUrl: DIAL_URL,
+      gatewayBaseUrl: DIAL_URL,
       workerSecret: 'test-secret',
       contentReads: { getBinary: vi.fn() },
       logger: noopLogger,

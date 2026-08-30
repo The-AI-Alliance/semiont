@@ -37,7 +37,7 @@ interface SiteConfig {
  * (`semiont start`) and the documented manual recipe is `openssl rand -hex 32`.
  *
  * Exported so index.ts can check it among its other module-scope requirements
- * (SEMIONT_ROOT, services.backend) — i.e. before startMakeMeaning dials the
+ * (SEMIONT_ROOT, services.gateway) — i.e. before startMakeMeaning dials the
  * graph and vector stores. Failing a millisecond in beats failing after those
  * connections are up, and both paths enforce the same rule because there is
  * only one copy of it.

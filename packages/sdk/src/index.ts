@@ -151,7 +151,7 @@ export { type OpenResource } from './session/open-resource';
 export {
   defaultProtocol,
   isValidHostname,
-  kbBackendUrl,
+  kbGatewayUrl,
   setStoredSession,
   type StoredSession,
 } from './session/storage';

@@ -12,7 +12,7 @@
  *   npm run rebuild-graph <resourceId> # Rebuild specific resource
  *
  * Configuration:
- *   ~/.semiontconfig       — services.backend.publicURL
+ *   ~/.semiontconfig       — services.gateway.publicURL
  *   SEMIONT_WORKER_SECRET  — shared secret for the token exchange
  */
 
@@ -46,9 +46,9 @@ async function rebuildGraph(rId?: string) {
   // which read the wrong section for any non-local KB.
   const envConfig = createTomlConfigLoader(tomlReader, configPath, process.env)(null);
 
-  const backendPublicURL = envConfig.services?.backend?.publicURL;
-  if (!backendPublicURL) {
-    throw new Error('services.backend.publicURL is required in ~/.semiontconfig');
+  const gatewayPublicURL = envConfig.services?.gateway?.publicURL;
+  if (!gatewayPublicURL) {
+    throw new Error('services.gateway.publicURL is required in ~/.semiontconfig');
   }
 
   const workerSecret = process.env.SEMIONT_WORKER_SECRET;
@@ -56,7 +56,7 @@ async function rebuildGraph(rId?: string) {
     throw new Error('SEMIONT_WORKER_SECRET is required to authenticate with the backend');
   }
 
-  const response = await fetch(`${backendPublicURL}/api/tokens/agent`, {
+  const response = await fetch(`${gatewayPublicURL}/api/tokens/agent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ secret: workerSecret, provider: 'semiont', model: 'rebuild-graph' }),
@@ -68,7 +68,7 @@ async function rebuildGraph(rId?: string) {
 
   const tokenSubject = new BehaviorSubject<AccessToken | null>(makeAccessToken(token));
   const transport = new HttpTransport({
-    baseUrl: makeBaseUrl(backendPublicURL),
+    baseUrl: makeBaseUrl(gatewayPublicURL),
     token$: tokenSubject,
   });
 

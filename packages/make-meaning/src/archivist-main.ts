@@ -85,11 +85,11 @@ if (!maybeAnchoredTextDir) {
 const anchoredTextDir: string = maybeAnchoredTextDir;
 
 const envConfig = loadEnvironmentConfig(projectRoot);
-const backendPublicURL = envConfig.services?.backend?.publicURL;
-if (!backendPublicURL) {
-  throw new Error('services.backend.publicURL is required in environment config');
+const gatewayPublicURL = envConfig.services?.gateway?.publicURL;
+if (!gatewayPublicURL) {
+  throw new Error('services.gateway.publicURL is required in environment config');
 }
-const baseUrl: string = backendPublicURL;
+const baseUrl: string = gatewayPublicURL;
 
 const config = makeMeaningConfigFrom(envConfig);
 

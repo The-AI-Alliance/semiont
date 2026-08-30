@@ -47,8 +47,8 @@ import { User } from '@prisma/client';
 // to the Archivist; this process reaches both over HTTP.
 const config = loadEnvironmentConfig(null);
 
-if (!config.services?.backend) {
-  throw new Error('services.backend is required in environment config');
+if (!config.services?.gateway) {
+  throw new Error('services.gateway is required in environment config');
 }
 
 // Checked HERE, with the other startup requirements, rather than only in
@@ -117,7 +117,7 @@ requireJwtSecret();
   }
 }
 
-const backendService = config.services.backend;
+const gatewayService = config.services.gateway;
 
 // Import logging utilities
 import { initializeLogger, getLogger } from './logger';
@@ -264,8 +264,8 @@ app.get('/api/openapi.json', (c) => {
   openApiSpec.info = { ...openApiSpec.info, version: __SEMIONT_VERSION__ };
 
   // Update server URL dynamically
-  const port = backendService.port || 4000;
-  const apiUrl = backendService.publicURL || `http://localhost:${port}`;
+  const port = gatewayService.port || 4000;
+  const apiUrl = gatewayService.publicURL || `http://localhost:${port}`;
   if (apiUrl) {
     openApiSpec.servers = [
       {
@@ -316,7 +316,7 @@ app.all('/api/*', (c) => {
 });
 
 // Start server
-const port = backendService.port || 4000;
+const port = gatewayService.port || 4000;
 
 // Only start server if not in test environment
 if (config.env?.NODE_ENV !== 'test') {

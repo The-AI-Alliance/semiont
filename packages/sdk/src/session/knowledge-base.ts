@@ -16,7 +16,7 @@
  * `SemiontBrowser`, the frontend KB list UI) treats `KnowledgeBase` as
  * uniform and never inspects `endpoint`. Code that *does* construct
  * transports (the transport-factory passed to `SemiontBrowser`,
- * `kbBackendUrl` for HTTP URL construction) inspects `endpoint.kind`
+ * `kbGatewayUrl` for HTTP URL construction) inspects `endpoint.kind`
  * and dispatches.
  *
  * Each KB has its own session, its own credentials (where applicable),
