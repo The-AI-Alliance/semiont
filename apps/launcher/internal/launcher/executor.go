@@ -23,10 +23,10 @@ import (
 type executor interface {
 	// --- effects ---
 	snapshotLogs(root string, names []string) // crash evidence: capture container logs into the root's state area before a teardown deletes them
-	stopRm(name string) bool        // teardown; reports whether anything existed
-	sweepStray(names []string) bool // stop+rm the names under every OTHER installed runtime; reports whether anything existed
-	settle(ports ...int)            // wait for torn-down ports to be released
-	sweepStaging()                  // /tmp/semiont-config.* removal (+ state forget)
+	stopRm(name string) bool                  // teardown; reports whether anything existed
+	sweepStray(names []string) bool           // stop+rm the names under every OTHER installed runtime; reports whether anything existed
+	settle(ports ...int)                      // wait for torn-down ports to be released
+	sweepStaging()                            // /tmp/semiont-config.* removal (+ state forget)
 	portChecks(ports []portNeed) bool
 	portCheck(p portNeed) bool    // singular wording in plan mode
 	recordPorts(ports []portNeed) // note claimed host ports in the belief record
@@ -825,8 +825,8 @@ func (x *planExec) snapshotLogs(string, []string) {
 	x.c("snapshot container logs into <state-root>/logs/<timestamp>/ before removal")
 }
 func (x *planExec) stopRm(name string) bool { x.p("stop", name); x.p("rm", name); return false }
-func (x *planExec) settle(...int)             {} // plan mode tears nothing down
-func (x *planExec) sweepStaging()             { x.c("remove staged config copies: /tmp/semiont-config.*") }
+func (x *planExec) settle(...int)           {} // plan mode tears nothing down
+func (x *planExec) sweepStaging()           { x.c("remove staged config copies: /tmp/semiont-config.*") }
 
 func (x *planExec) sweepStray(names []string) bool {
 	for _, rt := range installedRuntimes() {
