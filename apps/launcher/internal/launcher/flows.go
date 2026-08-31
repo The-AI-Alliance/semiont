@@ -537,10 +537,9 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage, secret str
 // bus requests are answered here and must find the pumps attached.
 func flowArchivist(x executor, fc flowCtx, addr, stage, secret string, otel []string) int {
 	x.banner("Starting Archivist")
-	// anchored-text stays SHARED (the gateway owns that stamp until
-	// EXTRACT-LIBRARIAN moves the Gatherer); the XDG state tree is the
-	// inverse — the Archivist owns ITS stamp as the projection writer, and
-	// the gateway mounts it shared to read the views (D6).
+	// anchored-text is a shared read (the Smelter holds that stamp); the
+	// state tree is the inverse — the Archivist holds it as the projection
+	// writer.
 	extra, ok := x.stateMountsShared("anchored-text", fc.root)
 	if !ok {
 		return 1

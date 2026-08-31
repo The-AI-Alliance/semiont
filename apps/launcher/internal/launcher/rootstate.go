@@ -154,14 +154,9 @@ var stateStores = map[string]stateStoreSpec{
 		mounts:     []stateMount{{"", "/anchored-text"}},
 		projection: true,
 	},
-	// The XDG state tree, SHARED between the gateway and the Archivist
-	// (EXTRACT-ARCHIVIST D6): the Archivist rebuilds and maintains the view
-	// projections under <state>/semiont/<name>/projections, and the
-	// gateway's Gatherer READS them — without one host dir mounted into
-	// both, the gateway sees only its own boot-stale, never-rebuilt copies.
-	// Everything under it is derived ("recomputation rather than
-	// information" — project.ts), so a stamp mismatch clears. The ARCHIVIST
-	// owns the stamp: it is the projection writer.
+	// The XDG state tree, shared across the Archivist (projection writer —
+	// owns the stamp), the librarian (reads views), and the gateway (jobs
+	// queue + logs).
 	"state": {
 		dir:        "state",
 		mounts:     []stateMount{{"", "/semiont-state"}},
