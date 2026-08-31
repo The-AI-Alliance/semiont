@@ -36,15 +36,13 @@ async function rebuildProjections(rId?: string, environment?: string) {
   // Create EventBus
   const eventBus = new EventBus();
 
-  // Same deployment fact the server entry point reads, for the same reason:
-  // SemiontProject receives it, never reaches for it. This CLI rebuilds
-  // projections only and never touches the anchored-text store, but the
-  // project it constructs is the real one and is required to be complete.
+  // This CLI never touches the anchored-text store, but SemiontProject
+  // requires the path to be complete.
   const anchoredTextDir = process.env.SEMIONT_ANCHORED_TEXT_DIR;
   if (!anchoredTextDir) {
     throw new Error(
-      'SEMIONT_ANCHORED_TEXT_DIR environment variable is not set (the gateway image ' +
-      'declares it as /anchored-text; set it when running this outside a container).',
+      'SEMIONT_ANCHORED_TEXT_DIR environment variable is not set (the Archivist and ' +
+      'Smelter images declare it as /anchored-text).',
     );
   }
 
