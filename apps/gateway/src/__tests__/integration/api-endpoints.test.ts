@@ -202,10 +202,20 @@ describe('API Endpoints Integration Tests', () => {
     // Set required environment variables before importing app
     process.env.NODE_ENV = 'test';
 
-    // Load config and initialize JWT Service
-    const projectRoot = process.env.SEMIONT_ROOT;
-    if (!projectRoot) throw new Error("SEMIONT_ROOT not set");
-    const config = loadEnvironmentConfig(projectRoot, 'integration');
+    // Load config and initialize JWT Service.
+    //
+    // `null`, not SEMIONT_ROOT: the gateway mounts no knowledge base and reads
+    // its whole config from ~/.semiontconfig — index.ts:48 loads exactly this
+    // way. The fixture redirects HOME to its temp dir and writes the file
+    // there, and `[environments.integration.site]` carries the `domain` and
+    // `oauthAllowedDomains` JWTService.initialize requires, so no project root
+    // is involved in reaching them.
+    //
+    // The SEMIONT_ROOT read this replaces outlived its requirement: both
+    // gateway test setups stopped exporting the variable once nothing in
+    // production read it (SINGLE-KB-MOUNT P5/P6), and the test-env hygiene
+    // gate exists to stop tests fabricating deployment facts like that one.
+    const config = loadEnvironmentConfig(null, 'integration');
     JWTService.initialize(config);
 
     // Import app after test setup has set DATABASE_URL to avoid Prisma validation errors
