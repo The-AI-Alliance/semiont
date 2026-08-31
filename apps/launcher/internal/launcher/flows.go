@@ -41,6 +41,9 @@ func flowFullStart(x executor, fc flowCtx) int {
 	x.say(sayLog, "Host address: %s", x.dim(addr))
 
 	x.banner("Preflight")
+	// Crash evidence first: the runtime's log capture is the only copy of the
+	// prior stack's story, and the stop+rm below deletes it.
+	x.snapshotLogs(fc.root, preflightNames)
 	x.say(sayLog, "Removing prior containers %s", x.dim(fmt.Sprintf("(stop+rm, %d names; exact commands: semiont start --dry-run)", len(preflightNames))))
 	removed := 0
 	for _, c := range preflightNames {

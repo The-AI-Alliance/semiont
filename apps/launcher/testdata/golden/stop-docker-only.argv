@@ -1,22 +1,33 @@
 docker stop semiont-archivist
-docker rm semiont-archivist
 docker stop semiont-weaver
-docker rm semiont-weaver
 docker stop semiont-smelter
-docker rm semiont-smelter
 docker stop semiont-worker
-docker rm semiont-worker
 docker stop semiont-librarian
-docker rm semiont-librarian
 docker stop semiont-gateway
-docker rm semiont-gateway
 docker stop semiont-postgres
-docker rm semiont-postgres
 docker stop semiont-ollama
-docker rm semiont-ollama
 docker stop semiont-qdrant
-docker rm semiont-qdrant
 docker stop semiont-neo4j
-docker rm semiont-neo4j
 docker stop semiont-jaeger
+docker logs --tail 5000 semiont-archivist
+docker logs --tail 5000 semiont-weaver
+docker logs --tail 5000 semiont-smelter
+docker logs --tail 5000 semiont-worker
+docker logs --tail 5000 semiont-librarian
+docker logs --tail 5000 semiont-gateway
+docker logs --tail 5000 semiont-postgres
+docker logs --tail 5000 semiont-ollama
+docker logs --tail 5000 semiont-qdrant
+docker logs --tail 5000 semiont-neo4j
+docker logs --tail 5000 semiont-jaeger
+docker rm semiont-archivist
+docker rm semiont-weaver
+docker rm semiont-smelter
+docker rm semiont-worker
+docker rm semiont-librarian
+docker rm semiont-gateway
+docker rm semiont-postgres
+docker rm semiont-ollama
+docker rm semiont-qdrant
+docker rm semiont-neo4j
 docker rm semiont-jaeger

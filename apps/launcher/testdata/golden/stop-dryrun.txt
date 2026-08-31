@@ -1,5 +1,6 @@
 # semiont stop --dry-run — the exact runtime commands a real run would
 # execute, in order.
+# snapshot container logs into <state-root>/logs/<timestamp>/ before removal
 container stop semiont-archivist
 container rm semiont-archivist
 container stop semiont-weaver

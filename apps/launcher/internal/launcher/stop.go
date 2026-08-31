@@ -315,9 +315,24 @@ func Stop(args []string) int {
 		}
 	}
 
+	// Where a log snapshot would land: the recorded root when the record is
+	// in use, else the KB clone we're standing in. "" (neither) skips the
+	// snapshot — evidence capture is best-effort and never blocks a stop.
+	snapRoot := ""
+	if useState && st != nil && st.KBRoot != "" {
+		snapRoot = st.KBRoot
+	} else if r := cwdKBRoot(); r != "" {
+		snapRoot = r
+	}
+
 	if dryRun {
 		fmt.Println("# semiont stop --dry-run — the exact runtime commands a real run would")
 		fmt.Println("# execute, in order.")
+		// Placeholder, not the resolved path: goldens and users both read
+		// this, and the concrete dir is printed by a real run's snapshot.
+		if snapRoot != "" {
+			fmt.Println("# snapshot container logs into <state-root>/logs/<timestamp>/ before removal")
+		}
 		for _, rt := range runtimes {
 			for _, c := range targets {
 				fmt.Println(renderCmd(rt, "stop", c))
@@ -351,11 +366,22 @@ func Stop(args []string) int {
 	totalRemoved := 0
 	for _, rt := range runtimes {
 		t0 := time.Now()
+		// stop all → snapshot → rm all: the snapshot sits between so it
+		// captures shutdown lines but still precedes the deletion of the
+		// runtime's log store.
+		stopped := make(map[string]bool, len(targets))
+		for _, c := range targets {
+			stopped[c] = runSilent(rt, "stop", c) == nil
+		}
+		if snapRoot != "" {
+			if dir, n := writeLogSnapshot(rt, snapRoot, targets); n > 0 {
+				u.log("Snapshotted %d container log(s) %s", n, u.dim("("+dir+")"))
+			}
+		}
 		removed := 0
 		for _, c := range targets {
-			stopped := runSilent(rt, "stop", c) == nil
 			rmed := runSilent(rt, "rm", c) == nil
-			if stopped || rmed {
+			if stopped[c] || rmed {
 				removed++
 			}
 		}

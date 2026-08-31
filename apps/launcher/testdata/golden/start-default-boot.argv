@@ -1,5 +1,15 @@
 git -C <kb-root> rev-parse --show-toplevel
 container run --rm busybox:1.38.0 sh -c ip route | awk '/default/{print $3}'
+container logs semiont-jaeger
+container logs semiont-neo4j
+container logs semiont-qdrant
+container logs semiont-postgres
+container logs semiont-gateway
+container logs semiont-worker
+container logs semiont-smelter
+container logs semiont-weaver
+container logs semiont-archivist
+container logs semiont-librarian
 container list -a
 docker ps -a --format {{.Names}}
 podman ps -a --format {{.Names}}

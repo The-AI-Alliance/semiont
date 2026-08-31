@@ -3890,7 +3890,7 @@ func TestStartPrefersRecordedRuntime(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout,
 		"docker pull ghcr.io/the-ai-alliance/semiont-gateway:latest",
-		"docker run -d --name semiont-gateway")
+		"docker run --log-opt max-size=10m --log-opt max-file=3 -d --name semiont-gateway")
 	// The main flow must plan against docker; `container` may appear only in
 	// the cross-runtime stray sweep, never as the launching runtime.
 	if strings.Contains(stdout, "container run -d") {
