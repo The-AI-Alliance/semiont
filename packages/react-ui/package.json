@@ -93,7 +93,7 @@
   "devDependencies": {
     "@headlessui/react": "^2.2.10",
     "@testing-library/jest-dom": "^7.0.1",
-    "@testing-library/react": "^16.1.0",
+    "@testing-library/react": "^16.3.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@vitest/coverage-v8": "^4.1.11",
@@ -104,7 +104,7 @@
     "jest-axe": "^11.0.0",
     "jsdom": "^29.1.1",
     "postcss-import": "^16.2.0",
-    "rollup": "^4.62.5",
+    "rollup": "^4.63.0",
     "rollup-plugin-dts": "^6.4.1",
     "styled-components": "^6.5.2",
     "tsup": "^8.0.1",
