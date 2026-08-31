@@ -2,348 +2,71 @@
 
 This document describes the architectural patterns and design principles that govern the Semiont gateway.
 
-## Infrastructure Management
+## Composition Root
 
-### Centralized Infrastructure Pattern
+**All long-lived state is created once at startup in [src/index.ts](../src/index.ts); routes construct nothing.**
 
-**All infrastructure components are created once and managed by MakeMeaningService.**
+Startup builds four things:
 
-This is a **critical architectural constraint** that must be followed throughout the gateway codebase.
+1. **Config** — `loadEnvironmentConfig(null)`. No KB root: the gateway mounts no knowledge-base tree. Everything it needs — the KB's committed settings, the launcher-staged `[kb]` identity, the archivist address — arrives in the per-service config mounted at `~/.semiontconfig`.
+2. **EventBus** — the in-process bus that `POST /bus/emit` and the SSE subscription bridge to the other containers.
+3. **Make-meaning slice** — `startMakeMeaningGateway(state, config, eventBus, logger)` returns `{ jobQueue, state, stop }`: the filesystem job queue on the shared state mount, plus the gateway's bus-handler subset (the `job:*` command channels and the `bind:update-body` relay). No knowledge system, no stores, no actors. It takes a `SemiontState` — name plus state-mount paths, not a `SemiontProject` — so the type itself guarantees this process cannot reach a KB tree.
+4. **Identity** — `JWTService` and the PostgreSQL connection ([src/db.ts](../src/db.ts)), the one datastore the gateway owns.
 
-#### The Rule
-
-```typescript
-// ✅ CORRECT: Access infrastructure via MakeMeaningService
-const { knowledgeSystem: { kb } } = c.get('makeMeaning');
-
-// ❌ WRONG: NEVER create infrastructure in routes or services
-const graphDb = await getGraphDatabase(config);              // VIOLATION
-const content = new WorkingTreeStore(...);                   // VIOLATION
-const eventStore = createEventStore(...);                    // VIOLATION
-const inferenceClient = await getInferenceClient(config);   // VIOLATION
-```
-
-#### What MakeMeaningService Owns
-
-The `MakeMeaningService` created in [src/index.ts:104](../src/index.ts#L104) via `startMakeMeaning()` owns **all infrastructure**.
-
-See [@semiont/make-meaning](../../../packages/make-meaning/) for the implementation of `startMakeMeaning()` and detailed infrastructure ownership documentation.
-
-**Infrastructure Components:**
-
-1. **EventStore** - Event log and materialized views
-   - Single source of truth for all data
-   - Manages event subscription and view materialization
-   - Created once, shared across entire application
-
-2. **GraphDatabase** - Graph database connection
-   - Provides relationship traversal and backlinks
-   - Single connection pool shared across requests
-   - Automatically synchronized via Weaver
-
-3. **WorkingTreeStore** - Working-tree file content (`kb.content`)
-   - The project working tree is the source of truth for file content
-   - Resources are identified by stable `file://` URIs
-   - SHA-256 checksums recorded and verified for integrity
-
-4. **InferenceClient** - LLM inference client
-   - Connection to AI model provider (OpenAI, Anthropic, etc.)
-   - Request pooling and rate limiting
-   - Shared configuration and API keys
-
-5. **JobQueue** - Background job processing
-   - Filesystem-based job queue behind a `JobQueue` interface
-   - Exposes three HTTP endpoints for the worker pool (see below)
-
-6. **Worker Pool** - Separate process running 6 worker types
-   - ReferenceDetectionWorker
-   - GenerationWorker
-   - HighlightDetectionWorker
-   - AssessmentDetectionWorker
-   - CommentDetectionWorker
-   - TagDetectionWorker
-   - Workers connect to the KS over HTTP/SSE via WorkerStateUnit (from @semiont/http-transport), not via the in-process EventBus
-
-7. **Weaver** - Event-to-graph synchronization
-   - Subscribes to event store
-   - Updates graph database on resource/annotation changes
-   - Maintains graph consistency
-
-#### Implementation Pattern
-
-**Gateway Initialization** ([src/index.ts:104](../src/index.ts#L104)):
+Routes read `config` and `eventBus` from Hono context (auth middleware adds `user` and `principalDid`) and reach everything KB-shaped remotely — content bytes through [src/lib/archivist.ts](../src/lib/archivist.ts), domain reads over the bus:
 
 ```typescript
-// Create MakeMeaningService ONCE at startup
-const makeMeaning = await startMakeMeaning(project, config, eventBus, logger);
+// The pipe: bytes proxied from the archivist
+const { body, mediaType } = await getContent(c.get('config'), id);
 
-// Inject into Hono context for all routes
-app.use('*', async (c, next) => {
-  c.set('makeMeaning', makeMeaning);
-  await next();
-});
+// A domain read: one bus round-trip, answered in another container
+const response = await eventBusRequest(
+  c.get('eventBus'),
+  'browse:resource-requested', { correlationId, resourceId: resourceId(id) },
+  'browse:resource-result', 'browse:resource-failed',
+);
 ```
 
-**Route Pattern**:
+Graph, vectors, embedding, inference, the event store, and the working tree belong to other services. [package.json](../package.json) enforces this: `@semiont/graph`, `@semiont/vectors`, `@semiont/inference`, and `@semiont/event-sourcing` are not dependencies, so a route cannot import a store client at all.
 
-```typescript
-router.get('/resources/:id', async (c) => {
-  // ✅ Get infrastructure from context
-  const { knowledgeSystem: { kb } } = c.get('makeMeaning');
+## Process Split
 
-  // Use infrastructure
-  const resource = await kb.graph.getResource(resourceId);
-  const content = await kb.content.retrieve(storageUri);
-
-  return c.json(response);
-});
-```
-
-**Service Pattern** (injected parameters):
-
-```typescript
-// Service receives infrastructure as parameters
-export class ResourceOperations {
-  static async createResource(
-    input: CreateResourceInput,
-    userId: UserId,
-    eventBus: EventBus,  // Injected — emits yield:create; the Stower actor persists
-  ): Promise<ResourceId> {
-    // ...
-  }
-}
-
-// Route writes content to the working tree, then calls the service
-router.post('/resources', async (c) => {
-  const { knowledgeSystem: { kb } } = c.get('makeMeaning');
-  const eventBus = c.get('eventBus');
-
-  const stored = await kb.content.store(contentBuffer, storageUri);
-  const resourceId = await ResourceOperations.createResource(
-    { name, storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format },
-    userId,
-    eventBus,
-  );
-  return c.json({ resourceId }, 202);
-});
-```
-
-#### Why This Pattern Matters
-
-**1. Prevents Resource Leaks**
-- Single database connection instead of one per request
-- No duplicate file handles or network sockets
-- Controlled lifecycle with `makeMeaning.stop()`
-
-**2. Ensures Consistent State**
-- All components use the same configuration
-- No configuration drift between instances
-- Centralized connection pooling
-
-**3. Simplifies Testing**
-- Single injection point for mocking
-- Consistent test setup across all tests
-- Easy to swap implementations
-
-**4. Clear Ownership**
-- No ambiguity about who creates/destroys resources
-- Explicit dependency flow through constructor/parameters
-- Easier to reason about system initialization
-
-**5. Performance**
-- Connection pooling and reuse
-- Shared caches across requests
-- Reduced initialization overhead
-
-#### Verification
-
-To verify compliance with this pattern:
-
-```bash
-# Check for violations in routes
-grep -r "new WorkingTreeStore\|await getGraphDatabase\|await getInferenceClient\|createEventStore(" \
-  apps/gateway/src/routes --include="*.ts"
-
-# Check for violations in services
-grep -r "new WorkingTreeStore\|await getGraphDatabase\|await getInferenceClient\|createEventStore(" \
-  apps/gateway/src/services --include="*.ts"
-
-# Should return no results (all matches should be in test files only)
-```
-
-#### Common Violations and Fixes
-
-**❌ Violation 1: Creating GraphDatabase in route**
-```typescript
-// WRONG
-router.get('/resources/:id/references', async (c) => {
-  const graphDb = await getGraphDatabase(config);  // VIOLATION
-  const refs = await graphDb.getResourceReferences(id);
-});
-```
-
-**✅ Fix: Access from context**
-```typescript
-// CORRECT
-router.get('/resources/:id/references', async (c) => {
-  const { graphDb } = c.get('makeMeaning');  // ✅
-  const refs = await graphDb.getResourceReferences(id);
-});
-```
-
-**❌ Violation 2: Creating WorkingTreeStore in service**
-```typescript
-// WRONG
-class MyService {
-  static async process(input: Input, config: EnvironmentConfig) {
-    const content = new WorkingTreeStore(...);  // VIOLATION
-    await content.store(buffer, storageUri);
-  }
-}
-```
-
-**✅ Fix: Accept as parameter**
-```typescript
-// CORRECT
-class MyService {
-  static async process(
-    input: Input,
-    content: WorkingTreeStore,  // Injected parameter
-    config: EnvironmentConfig
-  ) {
-    await content.store(buffer, storageUri);
-  }
-}
-
-// Route passes from context
-router.post('/process', async (c) => {
-  const { knowledgeSystem: { kb } } = c.get('makeMeaning');
-  await MyService.process(input, kb.content, config);  // ✅
-});
-```
-
-**❌ Violation 3: Creating InferenceClient for one-off use**
-```typescript
-// WRONG
-async function generateSummary(text: string, config: EnvironmentConfig) {
-  const client = await getInferenceClient(config);  // VIOLATION
-  return await client.generateText(prompt);
-}
-```
-
-**✅ Fix: Accept as parameter**
-```typescript
-// CORRECT
-async function generateSummary(
-  text: string,
-  inferenceClient: InferenceClient,  // Injected parameter
-  config: EnvironmentConfig
-) {
-  return await inferenceClient.generateText(prompt);
-}
-
-// Route passes from context
-router.post('/summarize', async (c) => {
-  const { inferenceClient } = c.get('makeMeaning');
-  const summary = await generateSummary(text, inferenceClient, config);  // ✅
-});
-```
-
-## KS/Worker Process Split
-
-The gateway runs as two processes:
-
-1. **Knowledge System (KS)** -- the main process. Runs all KB actors (Stower, Browser, Gatherer, Matcher, Smelter), all stores, the RxJS EventBus, SSE streaming, the HTTP API, and the job queue.
-
-2. **Worker Pool** -- a separate process external. Runs the Generator and the five annotation detection workers. Workers do not share the in-process EventBus. Instead, they use `WorkerStateUnit` from `@semiont/http-transport` to connect to the KS over HTTP and SSE -- the same transport the Browser uses.
-
-### Worker Endpoints
-
-The KS exposes three endpoints for worker communication:
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/jobs/stream?type=...` | GET (SSE) | Push job assignments to workers as they become available |
-| `/jobs/:id/claim` | POST | Atomic job claim -- ensures exactly one worker processes each job |
-| `/jobs/:id/events` | POST | Workers emit domain events back to the KS EventBus |
-
-### Why Two Processes
-
-- CPU-heavy LLM inference and annotation detection run in a separate V8 isolate, keeping the KS event loop responsive to user requests.
-- Workers are stateless with respect to the KB. They receive job assignments, do inference, and emit events back. All durable state lives in the KS.
-- The worker pool can crash and restart without affecting the KS or connected Browser clients.
+The gateway is one process among seven service containers (see [CONTAINER-TOPOLOGY.md](../../../docs/system/CONTAINER-TOPOLOGY.md)). It hosts **no actors**: the archivist runs the record actors (Stower, Browser, CloneTokenManager), the librarian the LLM-bound ones (Gatherer, Matcher), and the smelter and weaver run the vector and graph projections. What remains here is HTTP/SSE termination, identity (PostgreSQL, JWT), bus-frame validation and relay, reply retention, the job queue, and the content proxy. Every other service connects over the same bus the Browser uses; a sidecar can crash and restart without affecting the gateway or connected clients.
 
 ### Job Queue
 
-The job queue is filesystem-based, behind a `JobQueue` interface that allows future backing store swaps (Postgres, Redis, etc.) without changing the HTTP contract or the SDK. Jobs are created by the KS, streamed to workers via SSE, and completed via the claim/events endpoints above.
+The job queue is filesystem-based, behind a `JobQueue` interface that allows future backing store swaps (Postgres, Redis, etc.) without changing the SDK. Jobs are created here, announced on `job:queued`, claimed via the `job:claim` handler (which refuses non-pending jobs, so exactly one worker wins), and completed by events emitted back on the bus. Workers are stateless with respect to the KB.
 
-## EventBus-Delegated Routes
+## Domain Traffic Rides the Bus
 
-All knowledge-domain read routes delegate to the EventBus rather than accessing KB stores directly. This makes the EventBus a complete interface for all system behavior — HTTP is just one transport.
+Domain reads and commands have no per-route HTTP faces: clients emit bus operations (`POST /bus/emit`, replies over the SSE subscription) via the SDK, and the answering actors live in other containers — the archivist's Browser answers `browse:*`, the librarian's Matcher and Gatherer answer `bind:*` and `gather:*`. The one delegating HTTP route left is `GET /resources/:id/jsonld`, which wraps `browse:resource-requested` via the `eventBusRequest()` helper (`src/utils/event-bus-request.ts`) for machine clients arriving over plain HTTP.
 
-### Pattern
+### The Content Plane
 
-Routes use the `eventBusRequest()` helper from `src/utils/event-bus-request.ts`:
+| Route | Behavior |
+|-------|----------|
+| `GET /resources/:id` | The pipe: stored bytes, verbatim, stored media type in `Content-Type`. The `Accept` header is never read — no negotiation, no transcoding — so byte fidelity holds on every response. A `Link: rel="describedby"` header points at the JSON-LD description. |
+| `GET /resources/:id/jsonld` | The JSON-LD description (descriptor + annotations + inbound references), via the bus. |
+| `GET /api/resources/:id` | Browser-friendly alias of the pipe; exists only as the `?token=` auth affordance for `<img>`, PDF.js, and download links. |
+| `POST /resources` | Multipart upload: bytes stream to the archivist (`PUT /content/:storageUri`), then the creation event rides the bus. |
 
-```typescript
-import { eventBusRequest } from '../utils/event-bus-request';
-
-router.get('/resources', async (c) => {
-  const eventBus = c.get('eventBus');
-  const correlationId = crypto.randomUUID();
-
-  const response = await eventBusRequest(
-    eventBus,
-    'browse:resources-requested',    // emit this event
-    { correlationId, limit: 20 },    // with this payload
-    'browse:resources-result',       // await this success event
-    'browse:resources-failed',       // or this failure event
-  );
-  return c.json(response);
-});
-```
-
-The helper:
-1. Subscribes to success and failure events filtered by `correlationId`
-2. Emits the request event
-3. Returns the `response` field from the success event, or throws the `error` from failure
-4. Times out after 30 seconds
-
-### What Delegates to EventBus
-
-| Route | Event | Actor |
-|-------|-------|-------|
-| `GET /resources` | `browse:resources-requested` | Gatherer |
-| `GET /resources/:id` (JSON-LD) | `browse:resource-requested` | Gatherer |
-| `GET /resources/:id/annotations` | `browse:annotations-requested` | Gatherer |
-| `GET /resources/:resourceId/annotations/:annotationId` | `browse:annotation-requested` | Gatherer |
-| `GET /resources/:id/events` | `browse:events-requested` | Gatherer |
-| `GET /resources/:resourceId/annotations/:annotationId/history` | `browse:annotation-history-requested` | Gatherer |
-| `GET /resources/:id/referenced-by` | `bind:referenced-by-requested` | Matcher |
-| `GET /api/entity-types` | `mark:entity-types-requested` | Gatherer |
-| `GET /api/jobs/:id` | `job:status-requested` | Job subscription |
-| `GET /resources/:id/llm-context` | `gather:resource-requested` | Gatherer |
-| `GET /.../llm-context` (annotation) | `gather:requested` | Gatherer |
-| `POST /resources/:id/clone-with-token` | `yield:clone-token-requested` | CloneTokenManager |
-| `GET /api/clone-tokens/:token` | `yield:clone-resource-requested` | CloneTokenManager |
-| `POST /api/clone-tokens/create-resource` | `yield:clone-create` | CloneTokenManager |
+The gateway holds no bytes — both directions stream through the archivist's HTTP byte surface.
 
 ### What Stays HTTP-Only
 
+- **Bus bridge** — `POST /bus/emit`, `POST /bus/subscribe` (SSE): the transport every domain command and reply rides
+- **Content plane** — the four routes above
 - **Auth routes** — PostgreSQL/Prisma, JWT, OAuth (orthogonal to knowledge domain)
 - **Admin routes** — PostgreSQL/Prisma (orthogonal to knowledge domain)
 - **Health/Status** — infrastructure monitoring
-- **Binary content** — `GET /resources/:id` with `Accept: text/*`, `image/*`, `application/pdf`
-- **Resource upload** — `POST /resources` with multipart form data
 
 ## Related Documentation
 
-- [Make-Meaning Package](../../../packages/make-meaning/) - Implementation of MakeMeaningService
-- [Event Sourcing Package](../../../packages/event-sourcing/) - EventStore implementation
-- [Graph Package](../../../packages/graph/) - GraphDatabase implementation
-- [Content Package](../../../packages/content/) - WorkingTreeStore implementation
-- [Inference Package](../../../packages/inference/) - InferenceClient implementation
+- [Make-Meaning Package](../../../packages/make-meaning/) - `startMakeMeaningGateway` and the bus handlers
+- [Jobs Package](../../../packages/jobs/) - `JobQueue` implementation and the worker pool
+- [Container Topology](../../../docs/system/CONTAINER-TOPOLOGY.md) - what runs where
+- [AUTHENTICATION.md](AUTHENTICATION.md) - the identity plane
 
 ---
 
-**Last Updated**: 2026-03-11
+**Last Updated**: 2026-08-31

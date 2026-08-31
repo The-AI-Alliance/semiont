@@ -81,20 +81,21 @@ failing most of the time.
 
 ```
 ingest    Smelter reads the bytes once, extracts to embed
-          └─ carries geometry? → content.putAnchoredText(resourceId, map)
-store     KnowledgeSystem, beside WorkingTreeStore
-read      GET /resources/:id/anchored-text  →  bus  →  readAnchoredText
+          └─ carries geometry? → writes its anchored-text store (checksum-keyed)
+store     the Smelter's — it owns the stamp; the Archivist holds a read-only mount
+read      browse:anchored-text-requested  →  bus  →  Archivist's Browser  →  readAnchoredText
           └─ miss → whenSettled(resourceId, checksum) → re-read
 browser   getTextContent() has runs?  yes → anchorRuns(...)      (born-digital)
                                       no  → browse.resourceAnchoredText()  (scanned)
 drag      textUnder(map, rect) → [FragmentSelector, TextQuoteSelector]
 ```
 
-**The Smelter is the sole producer.** It is the only process that reads a
-resource's bytes at ingest, so it is the only one positioned to derive a map
-cheaply — it has already decoded the document and run the engine in order to
-embed. Five detection jobs and the browser all arrive later and would each have
-to redo that work.
+**The Smelter is the sole producer, and the store is its.** It is the only
+process that reads a resource's bytes at ingest, so it is the only one
+positioned to derive a map cheaply — it has already decoded the document and
+run the engine in order to embed. It writes the store directly; the Archivist
+mounts it read-only and answers the bus reads. Five detection jobs and the
+browser all arrive later and would each have to redo that work.
 
 **Reading never derives.** A read that finds nothing waits for that resource's
 content generation to settle and then answers "no map". OCR in a request path is

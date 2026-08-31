@@ -6,11 +6,11 @@ How a Semiont deployment splits into containers, how those containers communicat
 >
 > See [PACKAGE-ARCHITECTURE.md](PACKAGE-ARCHITECTURE.md) for the package layering that defines what each container actually contains.
 
-For the actor responsibilities running inside the gateway / worker / smelter / weaver containers, see [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md). For the Semiont Browser SPA (served by the Browser container, executed in the user's web browser), see [HUMAN-UI.md](HUMAN-UI.md).
+For the actor responsibilities running inside the archivist / librarian / worker / smelter / weaver containers, see [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md). For the Semiont Browser SPA (served by the Browser container, executed in the user's web browser), see [HUMAN-UI.md](HUMAN-UI.md).
 
 ## Multi-container layout
 
-A local deployment runs four containers of Semiont code, five with the Browser, nine with the infrastructure dependencies — and ten with the Jaeger observability sidecar, which local KB stacks run **by default** (`--no-observe` skips it): the gateway, worker, smelter, and weaver all export OTLP traces + metrics to it. All five Semiont containers are **published, attested images** (`ghcr.io/the-ai-alliance/semiont-*`) that knowledge-base stacks pull — selecting the version via `SEMIONT_VERSION` — and configure by bind-mounting per-KB TOML at runtime; KBs do not build images (see [Container Images](administration/IMAGES.md)):
+A local deployment runs six containers of Semiont code, seven with the Browser, eleven with the infrastructure dependencies — and twelve with the Jaeger observability sidecar, which local KB stacks run **by default** (`--no-observe` skips it): the gateway, archivist, librarian, worker, smelter, and weaver all export OTLP traces + metrics to it. All seven Semiont containers are **published, attested images** (`ghcr.io/the-ai-alliance/semiont-*`) that knowledge-base stacks pull — selecting the version via `SEMIONT_VERSION` — and configure by bind-mounting per-KB TOML at runtime; KBs do not build images (see [Container Images](administration/IMAGES.md)):
 
 ```mermaid
 graph TB
@@ -22,11 +22,18 @@ graph TB
 
     subgraph gateway_c ["semiont-gateway"]
         HTTPD["HTTP Server<br/>(Hono)"]
+    end
+
+    subgraph archivist_c ["semiont-archivist"]
+        AHTTP["HTTP byte surface<br/>(content + event reads)"]
         STOWER["Stower"]
         BROWSER["Browser<br/>(browse.* reads)"]
+        VIEWS[("Materialized Views")]
+    end
+
+    subgraph librarian_c ["semiont-librarian"]
         GATHERER["Gatherer"]
         MATCHER["Matcher"]
-        VIEWS[("Materialized Views")]
     end
 
     GIT[("KB Git Repo<br/>(event log + content)")]
@@ -68,17 +75,27 @@ graph TB
     WORKERS --- HTTPD
     SMELTER --- HTTPD
     WEAVER --- HTTPD
+    archivist_c --- HTTPD
+    librarian_c --- HTTPD
+
+    HTTPD ---|"content proxy"| AHTTP
+    SMELTER --- AHTTP
+    GATHERER --- AHTTP
+    WORKERS --- AHTTP
 
     STOWER --- GIT
     STOWER --- VIEWS
     VIEWS --- GIT
     BROWSER --- VIEWS
-    GATHERER --- VIEWS
-    GATHERER --- GIT
+    GATHERER ---|"shared mount"| VIEWS
     WEAVER --- NEO
     SMELTER --- QD
+    BROWSER --- NEO
+    BROWSER --- OL
     HTTPD ---|"users / auth"| PG
     gateway_c -.- JAG
+    archivist_c -.- JAG
+    librarian_c -.- JAG
     WORKERS -.- JAG
     SMELTER -.- JAG
     WEAVER -.- JAG
@@ -97,30 +114,44 @@ graph TB
     classDef spa fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
     classDef service fill:#c97d5d,stroke:#8b4513,stroke-width:2px,color:#fff
 
-    class HTTPD http
+    class HTTPD,AHTTP http
     class STOWER,BROWSER,GATHERER,MATCHER,WEAVER,WORKERS,SMELTER actor
     class GIT,VIEWS,PG,NEO,QD store
     class SPA,UB spa
     class OL,JAG service
 ```
 
-Three reading notes on the diagram. First, the SPA *executes in the user's web browser* — `semiont-browser` only serves its static assets; the browser then talks to the gateway directly (`localhost:4000`), which is why the Browser container needs no config and no gateway connection of its own. Second, the rectangle the external edges terminate on is the gateway's **HTTP server** — a [Hono](https://hono.dev/) app on `@hono/node-server` — and every one of those edges is event-bus traffic (`POST /bus/emit`, `GET /bus/subscribe` as SSE). The bus itself is deliberately **not** a box: it is connective fabric, not a component. Those two endpoints bridge external participants onto the same in-process `EventBus` (`@semiont/core`) that the gateway's own actors — Stower, Browser, Gatherer, Matcher — subscribe to directly, with no HTTP hop. Third, the Ollama edges show the fully-local default: with the anthropic config, LLM inference for the workers, Gatherer, and Matcher goes to the Anthropic API instead, while embeddings stay on Ollama either way.
+Four reading notes on the diagram. First, the SPA *executes in the user's web browser* — `semiont-browser` only serves its static assets; the browser then talks to the gateway directly (`localhost:4000`), which is why the Browser container needs no config and no gateway connection of its own. Second, the rectangle the external edges terminate on is the gateway's **HTTP server** — a [Hono](https://hono.dev/) app on `@hono/node-server` — and every one of those edges is event-bus traffic (`POST /bus/emit`, `POST /bus/subscribe` as SSE). The bus itself is deliberately **not** a box: it is connective fabric, not a component, and the gateway hosts **no actors** — the archivist's (Stower, Browser, CloneTokenManager) and librarian's (Gatherer, Matcher) subscribe over the same two endpoints as every other participant. Third, two edge families are *not* bus traffic: content bytes ride HTTP from the archivist's byte surface (the gateway proxies them for external clients; the smelter, librarian, and workers dial it directly), and the librarian reads the views the archivist materializes off a shared state mount. Fourth, the Ollama edges show the fully-local default: with the anthropic config, LLM inference for the workers, Gatherer, and Matcher goes to the Anthropic API instead, while embeddings stay on Ollama either way.
 
-The worker, smelter, and weaver communicate with the gateway exclusively through the unified bus it exposes (`/bus/emit`, `/bus/subscribe`). Workers, the smelter, and the weaver authenticate via `POST /api/tokens/agent`, which exchanges a shared secret (`SEMIONT_WORKER_SECRET`) plus a `(provider, model)` identity for a JWT carrying a typed Software-agent DID (the smelter presents its embedding config; the weaver presents `(semiont, weaver)`); the existing auth middleware validates that JWT exactly as it would a user's. This split isolates long-running LLM, embedding, and graph-projection work from the request-serving event loop — the gateway stays responsive to human users while workers, the smelter, and the weaver run in separate V8 isolates.
+The worker, smelter, weaver, archivist, and librarian communicate with the gateway through the unified bus it exposes (`/bus/emit`, `/bus/subscribe`); only content bytes and the archivist's event read path ride plain HTTP, by design. All five authenticate via `POST /api/tokens/agent`, which exchanges a shared secret (`SEMIONT_WORKER_SECRET`) plus a `(provider, model)` identity for a JWT carrying a typed Software-agent DID (the smelter presents its embedding config; the weaver presents `(semiont, weaver)`); the existing auth middleware validates that JWT exactly as it would a user's. This split isolates the record, retrieval, LLM, embedding, and graph-projection work from the request-serving event loop — the gateway stays responsive to human users while the other services run in separate V8 isolates.
+
+### Who mounts what
+
+Exactly one container mounts the KB tree — pinned by a launcher test; every other byte crosses HTTP or the bus. Shared stores have exactly one stamp holder, whose image change clears and rebuilds them.
+
+| Container | `/kb` (git tree) | anchored-text | state (views · jobs · logs) |
+|---|---|---|---|
+| archivist | **rw — sole owner** | read | **stamp holder** — writes views |
+| gateway | — | — | shared — jobs queue, logs |
+| librarian | — | — | shared — reads views |
+| smelter | — | **stamp holder** — writes | — |
+| worker · weaver · browser | — | — | — |
+
+Every service also mounts its launcher-staged config TOML read-only; the infrastructure containers own their private data dirs.
 
 ## Unified bus and SemiontSession
 
-Every actor that runs Semiont code — the Semiont Browser SPA, CLI, MCP, worker pool, smelter, and weaver — is a bus participant using the same primitives in `@semiont/sdk`. The gateway exposes exactly two runtime endpoints that carry domain traffic: `POST /bus/emit` and `GET /bus/subscribe` (an SSE stream with dynamic channel subscriptions and Last-Event-ID replay on reconnect). Every other HTTP route exists for auth, admin, exchange, binary content, or infrastructure — not for domain commands. Commands and domain events flow through the bus.
+Every actor that runs Semiont code — the Semiont Browser SPA, CLI, MCP, worker pool, smelter, weaver, archivist, and librarian — is a bus participant using the same primitives in `@semiont/sdk`. The gateway exposes exactly two runtime endpoints that carry domain traffic: `POST /bus/emit` and `POST /bus/subscribe` (an SSE stream with dynamic channel subscriptions and Last-Event-ID replay on reconnect). Every other HTTP route exists for auth, admin, exchange, binary content, or infrastructure — not for domain commands. Commands and domain events flow through the bus.
 
 The common abstraction for "I am a Semiont actor" is `SemiontSession`, which lives in `@semiont/sdk` and carries per-KB authentication, token refresh, bus access, and cross-process state synchronization. A session is constructed against a storage adapter (`SessionStorage`): `WebBrowserStorage` in the browser, filesystem storage for CLI and MCP, in-memory storage in workers and tests. `SemiontClient` exposes namespace methods (e.g. `client.browse.resource(...)`, `client.mark.annotation(...)`) over the bus; raw `emit`/`on`/`stream` are internal to the SDK and not part of the consumer surface.
 
-A new kind of actor slots in the same way in every environment: construct a session with the right storage adapter, authenticate, subscribe to the channels it cares about, emit the commands it produces. The worker, smelter, and weaver containers are the clearest demonstration — same session, same bus primitives, same authentication pattern as the Browser; just different storage and different channels. (The weaver is also the proof by induction: it was added as a standalone actor after the pattern existed, and slotted in without any new plumbing.)
+A new kind of actor slots in the same way in every environment: construct a session with the right storage adapter, authenticate, subscribe to the channels it cares about, emit the commands it produces. The worker, smelter, weaver, archivist, and librarian containers are the clearest demonstration — same session, same bus primitives, same authentication pattern as the Browser; just different storage and different channels. (The weaver was the proof by induction — added as a standalone actor after the pattern existed, with no new plumbing — and the archivist and librarian extractions repeated it.)
 
 For the wire-level event protocol, see **[../protocol/EVENT-BUS.md](../protocol/EVENT-BUS.md)**.
 
 ## Deployment platforms
 
-Services run on different platforms, configured per environment in the KB's `.semiont/semiontconfig/<name>.toml`. Each platform is a different adapter for hosting the same npm packages — the partition into "Browser / gateway / worker / smelter" is a deployment choice (which adapter you pick), not an architectural one.
+Services run on different platforms, configured per environment in the KB's `.semiont/semiontconfig/<name>.toml`. Each platform is a different adapter for hosting the same npm packages — the container-per-service partition is a deployment choice (which adapter you pick), not an architectural one.
 
 ### How stacks are run
 
