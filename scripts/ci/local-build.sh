@@ -538,6 +538,57 @@ for img in $IMAGES; do
   fanout_image "ghcr.io/the-ai-alliance/semiont-${img}:local"
 done
 
+# --- Image-store accounting ---
+#
+# Every run writes a fresh layer set into every store it reaches, and nothing
+# ever reclaims them: :local is a mutable tag, so yesterday's image is not
+# deleted, just untagged and invisible. Neither engine volunteers the number,
+# so report it here — measured 2026-08-28, a few weeks of runs had reached 83
+# images under `container` and 118 / 77 GB under docker. Reporting only; a
+# failure here must never fail a build that already succeeded.
+store_report() {
+  local rt="$1" line
+  case "$rt" in
+    docker|podman)
+      # The engine's own accounting, including what a prune would reclaim.
+      line=$("$rt" system df 2>/dev/null | awk '/^Images/{print $4" in "$2" images, "$5" reclaimable"}') || line=""
+      ;;
+    container)
+      # Apple container has no `system df`; sum the per-image sizes it reports
+      # as human strings ("56.3 MB"). Decimal units, as the engine prints them.
+      line=$(container image list --format json 2>/dev/null | python3 -c '
+import sys, json
+units = {"B": 1, "KB": 1e3, "kB": 1e3, "MB": 1e6, "GB": 1e9, "TB": 1e12}
+try:
+    imgs = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+total = 0.0
+for i in imgs:
+    p = str(i.get("fullSize", "")).split()
+    if len(p) == 2 and p[1] in units:
+        try:
+            total += float(p[0]) * units[p[1]]
+        except ValueError:
+            pass
+print(f"{total/1e9:.1f}GB in {len(imgs)} images")
+' 2>/dev/null) || line=""
+      ;;
+  esac
+  [[ -z "$line" ]] && return 0
+  echo -e "  ${BOLD}${rt}${RESET}: ${line}"
+  echo -e "      ${DIM}prune unused: ${rt} image prune -a${RESET}"
+}
+
+echo ""
+step "Image stores after fan-out"
+for rt in $RT $FANOUT_RTS; do
+  store_report "$rt"
+done
+echo -e "  ${DIM}:local is a MUTABLE tag — each run untags the previous image rather than${RESET}"
+echo -e "  ${DIM}deleting it, so these stores grow every run until pruned. Nothing running${RESET}"
+echo -e "  ${DIM}is at risk: prune -a removes only images no container references.${RESET}"
+
 if [[ "$IMAGES_ONLY" == true ]]; then
   # Deliberately stops here. The drift gates and the launcher are unrelated to
   # image contents, and paying for them would undo the point of the flag — a
