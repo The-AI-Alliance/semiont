@@ -1296,15 +1296,15 @@ func formatUptime(d time.Duration) string {
 	return fmt.Sprintf("%dh%dm", h, m)
 }
 
-// printRemoteKBs: the REMOTE KNOWLEDGE BASES section — codespace-hosted KBs this
-// machine knows about. A repo is the durable thing (the identity); the
+// printRemoteKBs: the codespace-hosted half of the KNOWLEDGE BASES section —
+// the KBs this machine knows about. A repo is the durable thing (the identity); the
 // codespace instance and its state are status layered on it, which is why
 // the repo leads each entry and the instance name is a dimmed detail.
-func printRemoteKBs(u *ui, cs []*stackState) {
-	u.section("REMOTE KNOWLEDGE BASES")
+// Reports how many it printed: the KNOWLEDGE BASES section is shared with the
+// local half, so only the caller can know whether it came out empty.
+func printRemoteKBs(u *ui, cs []*stackState) int {
 	if len(cs) == 0 {
-		fmt.Printf("  %s\n", u.dim("(none — semiont start --runtime codespace --repo <owner>/<name>)"))
-		return
+		return 0
 	}
 	states := map[string]string{}
 	var facts map[string]codespaceFacts
@@ -1321,15 +1321,30 @@ func printRemoteKBs(u *ui, cs []*stackState) {
 			}
 		}
 	}
+	// Addressed as the repo's https URL — the durable identity, and a real
+	// address a reader can follow, which is what makes it a peer of the
+	// local file:// entries in the same section rather than a bare slug.
+	// Repos under one owner then share a prefix exactly as KB clones under
+	// one checkout directory do, and collapse by the same rule.
+	items := make([]treeItem, 0, len(cs))
+	byAddr := map[string]*stackState{}
 	for _, c := range cs {
-		fmt.Printf("  %s\n", u.bold(c.Repo))
+		a := "https://github.com/" + c.Repo
+		items = append(items, treeItem{full: a, rest: a})
+		byAddr[a] = c
+	}
+	treePrint(u, items, 0, func(it treeItem, depth int) {
+		c := byAddr[it.full]
+		lead := strings.Repeat("  ", depth+1)
+		pad := lead + "  "
+		fmt.Printf("%s%s\n", lead, u.bold(it.rest))
 		// ONLY the did recorded at creation, read from the very clone whose
 		// origin named this repo. Matching a local root by directory name
 		// would attach one fork's identity to another's — and did:web is the
 		// permanent identity stamped into the committed event log, so a wrong
 		// one is worse than none.
 		if c.KBDid != "" {
-			fmt.Printf("    %s\n", u.dim(c.KBDid))
+			fmt.Printf("%s%s\n", pad, u.dim(c.KBDid))
 		}
 		state := states[c.Codespace]
 		switch {
@@ -1352,7 +1367,7 @@ func printRemoteKBs(u *ui, cs []*stackState) {
 				}
 			}
 		}
-		fmt.Printf("    %s %s\n", u.dim("codespace "+c.Codespace), u.dim("("+detail+")"))
+		fmt.Printf("%s%s %s\n", pad, u.dim("codespace "+c.Codespace), u.dim("("+detail+")"))
 		// Status layered on top: where its KB is reachable, or what to run.
 		switch {
 		case forwardAlive(c.ForwardPID, c.ForwardPort):
@@ -1360,19 +1375,20 @@ func printRemoteKBs(u *ui, cs []*stackState) {
 			if httpOK(fmt.Sprintf("http://localhost:%d/api/health", c.ForwardPort)) {
 				mark = u.wrap(ansiGreen, "✓")
 			}
-			fmt.Printf("    KB %s  %s\n", mark, u.dim(fmt.Sprintf("http://localhost:%d", c.ForwardPort)))
+			fmt.Printf("%sKB %s  %s\n", pad, mark, u.dim(fmt.Sprintf("http://localhost:%d", c.ForwardPort)))
 		case state == "Available":
-			fmt.Printf("    %s\n", u.dim("not forwarded — semiont start --runtime codespace --repo "+c.Repo))
+			fmt.Printf("%s%s\n", pad, u.dim("not forwarded — semiont start --runtime codespace --repo "+c.Repo))
 		case state == "Shutdown":
 			bill := "stopped (storage still bills"
 			if f, ok := facts[c.Codespace]; ok && f.AutoDel != "" {
 				bill += "; auto-deletes " + f.AutoDel + ", state and all"
 			}
-			fmt.Printf("    %s\n", u.dim(bill+") — resume: semiont start --runtime codespace --repo "+c.Repo))
+			fmt.Printf("%s%s\n", pad, u.dim(bill+") — resume: semiont start --runtime codespace --repo "+c.Repo))
 		default:
-			fmt.Printf("    %s\n", u.dim("details: semiont status --repo "+c.Repo))
+			fmt.Printf("%s%s\n", pad, u.dim("details: semiont status --repo "+c.Repo))
 		}
-	}
+	})
+	return len(cs)
 }
 
 // captureBoth: trimmed stdout+stderr combined — gh writes diagnostics (auth
