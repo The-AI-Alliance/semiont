@@ -3596,7 +3596,7 @@ type Representation struct {
 	// Rel Semantics of this rendition relative to the resource (e.g., original, thumbnail, preview, derived).
 	Rel *RepresentationRel `json:"rel,omitempty"`
 
-	// StorageUri Working-tree URI identifying where the bytes live. Only file:// is supported (e.g. file://docs/overview.md).
+	// StorageUri Working-tree URI identifying where this rendition's bytes live. Only file:// is supported (e.g. file://docs/overview.md). The single home of the storage location: maintained across moves (yield:moved relocates it), absent when the resource has no stored bytes.
 	StorageUri *string   `json:"storageUri,omitempty"`
 	Tags       *[]string `json:"tags,omitempty"`
 
@@ -3751,10 +3751,7 @@ type ResourceDescriptor struct {
 
 	// SourceResourceId Application-specific: ID of source resource for clones/derivatives
 	SourceResourceId *string `json:"sourceResourceId,omitempty"`
-
-	// StorageUri Working-tree URI for this resource (e.g. file://docs/overview.md). Stable across updates and moves.
-	StorageUri *string `json:"storageUri,omitempty"`
-	Version    *string `json:"version,omitempty"`
+	Version          *string `json:"version,omitempty"`
 
 	// WasAttributedTo W3C PROV - agents responsible for this resource
 	WasAttributedTo *ResourceDescriptor_WasAttributedTo `json:"wasAttributedTo,omitempty"`
@@ -3961,10 +3958,7 @@ type ScoredResource struct {
 
 	// SourceResourceId Application-specific: ID of source resource for clones/derivatives
 	SourceResourceId *string `json:"sourceResourceId,omitempty"`
-
-	// StorageUri Working-tree URI for this resource (e.g. file://docs/overview.md). Stable across updates and moves.
-	StorageUri *string `json:"storageUri,omitempty"`
-	Version    *string `json:"version,omitempty"`
+	Version          *string `json:"version,omitempty"`
 
 	// WasAttributedTo W3C PROV - agents responsible for this resource
 	WasAttributedTo *ScoredResource_WasAttributedTo `json:"wasAttributedTo,omitempty"`
@@ -5527,14 +5521,6 @@ func (a *ResourceDescriptor) UnmarshalJSON(b []byte) error {
 		delete(object, "sourceResourceId")
 	}
 
-	if raw, found := object["storageUri"]; found {
-		err = json.Unmarshal(raw, &a.StorageUri)
-		if err != nil {
-			return fmt.Errorf("error reading 'storageUri': %w", err)
-		}
-		delete(object, "storageUri")
-	}
-
 	if raw, found := object["version"]; found {
 		err = json.Unmarshal(raw, &a.Version)
 		if err != nil {
@@ -5735,13 +5721,6 @@ func (a ResourceDescriptor) MarshalJSON() ([]byte, error) {
 		object["sourceResourceId"], err = json.Marshal(a.SourceResourceId)
 		if err != nil {
 			return nil, fmt.Errorf("error marshaling 'sourceResourceId': %w", err)
-		}
-	}
-
-	if a.StorageUri != nil {
-		object["storageUri"], err = json.Marshal(a.StorageUri)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'storageUri': %w", err)
 		}
 	}
 
@@ -6106,14 +6085,6 @@ func (a *ScoredResource) UnmarshalJSON(b []byte) error {
 		delete(object, "sourceResourceId")
 	}
 
-	if raw, found := object["storageUri"]; found {
-		err = json.Unmarshal(raw, &a.StorageUri)
-		if err != nil {
-			return fmt.Errorf("error reading 'storageUri': %w", err)
-		}
-		delete(object, "storageUri")
-	}
-
 	if raw, found := object["version"]; found {
 		err = json.Unmarshal(raw, &a.Version)
 		if err != nil {
@@ -6328,13 +6299,6 @@ func (a ScoredResource) MarshalJSON() ([]byte, error) {
 		object["sourceResourceId"], err = json.Marshal(a.SourceResourceId)
 		if err != nil {
 			return nil, fmt.Errorf("error marshaling 'sourceResourceId': %w", err)
-		}
-	}
-
-	if a.StorageUri != nil {
-		object["storageUri"], err = json.Marshal(a.StorageUri)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'storageUri': %w", err)
 		}
 	}
 

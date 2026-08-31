@@ -41,10 +41,10 @@ service_files() {
 }
 
 dockerfile_for() {
+  # One image recipe per app directory — the package a service installs is no
+  # longer implied by where its Dockerfile lives.
   case "$1" in
-    gateway)   echo apps/gateway/Dockerfile ;;
-    worker)    echo packages/jobs/Dockerfile ;;
-    *)         echo "packages/make-meaning/Dockerfile.$1" ;;
+    *) echo "apps/$1/Dockerfile" ;;
   esac
 }
 

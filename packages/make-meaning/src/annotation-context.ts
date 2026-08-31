@@ -12,7 +12,7 @@
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
 import { generateResourceSummary } from './generation/resource-generation';
-import { getBodySource, getTargetSource, getTargetSelector, getResourceEntityTypes, getResourceId, getTextPositionSelector, getPrimaryRepresentation, decodeRepresentation, deriveViews } from '@semiont/core';
+import { getBodySource, getTargetSource, getTargetSelector, getResourceEntityTypes, getResourceId, getTextPositionSelector, getPrimaryRepresentation, getStorageUri, decodeRepresentation, deriveViews } from '@semiont/core';
 import type { components, GatheredContext } from '@semiont/core';
 
 import type {
@@ -155,7 +155,7 @@ export class AnnotationContext {
     // Build source context if requested
     let sourceContext;
     if (includeSourceContext) {
-      if (!sourceDoc.storageUri) {
+      if (!getStorageUri(sourceDoc)) {
         throw new Error('Source content not found: no storageUri');
       }
       const primaryRep = getPrimaryRepresentation(sourceDoc);
@@ -210,7 +210,7 @@ export class AnnotationContext {
     // Build target context if requested and available
     let targetContext;
     if (includeTargetContext && targetDoc) {
-      if (targetDoc.storageUri && bodySource) {
+      if (getStorageUri(targetDoc) && bodySource) {
         const targetRep = getPrimaryRepresentation(targetDoc);
         const { data: targetContent } = await kb.content.getBinary(createResourceId(bodySource));
         const contentStr = decodeRepresentation(Buffer.from(targetContent), targetRep?.mediaType ?? 'text/plain');
@@ -584,15 +584,15 @@ Summary:`;
 
   /**
    * Get resource content as string. ResourceId-keyed (D-CONTENT b): the
-   * descriptor's `storageUri` stays the has-content signal, the fetch goes
-   * by id.
+   * primary representation's `storageUri` stays the has-content signal, the
+   * fetch goes by id.
    */
   private static async getResourceContent(
     resource: ResourceDescriptor,
     content: ContentReads
   ): Promise<string> {
     const id = getResourceId(resource);
-    if (!resource.storageUri || !id) {
+    if (!getStorageUri(resource) || !id) {
       throw new Error('Resource content not found: no storageUri');
     }
     const primaryRep = getPrimaryRepresentation(resource);

@@ -27,7 +27,7 @@ import type {
   AnnotationId,
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
-import { getBodySource, getTargetSource, getPrimaryRepresentation, getResourceId } from '@semiont/core';
+import { getBodySource, getTargetSource, getPrimaryRepresentation, getResourceId, getStorageUri } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
 
@@ -94,6 +94,7 @@ function vertexToResource(vertex: any): ResourceDescriptor {
       mediaType,
       checksum,
       rel: 'original',
+      storageUri: getValue('storageUri') || undefined,
     }],
     archived: archived === 'true' || archived === true,
     dateCreated,
@@ -102,9 +103,6 @@ function vertexToResource(vertex: any): ResourceDescriptor {
 
   const sourceResourceId = getValue('sourceResourceId');
   if (sourceResourceId) resource.sourceResourceId = sourceResourceId;
-
-  const storageUri = getValue('storageUri');
-  if (storageUri) resource.storageUri = storageUri;
 
   return resource;
 }
@@ -321,8 +319,9 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       if (resource.sourceResourceId) {
         vertex.property('sourceResourceId', resource.sourceResourceId);
       }
-      if (resource.storageUri) {
-        vertex.property('storageUri', resource.storageUri);
+      const storageUri = getStorageUri(resource);
+      if (storageUri) {
+        vertex.property('storageUri', storageUri);
       }
 
       await vertex.next();

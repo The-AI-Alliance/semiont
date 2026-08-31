@@ -7,7 +7,7 @@
  * one behaviour.
  */
 
-import { getResourceEntityTypes } from '@semiont/core';
+import { getResourceEntityTypes, getStorageUri } from '@semiont/core';
 import type { ResourceDescriptor, ResourceFilter } from '@semiont/core';
 import { compareByRecencyThenId } from './interface';
 
@@ -45,7 +45,7 @@ export function searchRank(resource: ResourceDescriptor, query: string): number 
  */
 function matchesSearch(resource: ResourceDescriptor, terms: string[]): boolean {
   const name = (resource.name ?? '').toLowerCase();
-  const uri = resource.storageUri?.toLowerCase() ?? '';
+  const uri = getStorageUri(resource)?.toLowerCase() ?? '';
   const types = getResourceEntityTypes(resource).map((t) => t.toLowerCase());
   return terms.every((term) =>
     name.includes(term) || uri.includes(term) || types.some((t) => t.includes(term)));

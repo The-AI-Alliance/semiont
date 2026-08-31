@@ -6,7 +6,7 @@ import { assertMutableResourceUpdate } from '../interface';
 import { queryResources } from '../resource-query';
 import type { Logger } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
-import { getBodySource, getPrimaryRepresentation, getResourceId } from '@semiont/core';
+import { getBodySource, getPrimaryRepresentation, getResourceId, getStorageUri } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import type {
   AnnotationCategory,
@@ -159,6 +159,7 @@ export class JanusGraphDatabase implements GraphDatabase {
         mediaType,
         checksum: contentChecksum,
         rel: 'original',
+        storageUri: getPropertyValue(props, 'storageUri') || undefined,
       }],
       archived: getPropertyValue(props, 'archived') === 'true',
       dateCreated: getPropertyValue(props, 'created'),
@@ -167,11 +168,9 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     const sourceAnnotationId = getPropertyValue(props, 'sourceAnnotationId');
     const sourceResourceId = getPropertyValue(props, 'sourceResourceId');
-    const storageUri = getPropertyValue(props, 'storageUri');
 
     if (sourceAnnotationId) resource.sourceAnnotationId = sourceAnnotationId;
     if (sourceResourceId) resource.sourceResourceId = sourceResourceId;
-    if (storageUri) resource.storageUri = storageUri;
 
     return resource;
   }
@@ -227,8 +226,9 @@ export class JanusGraphDatabase implements GraphDatabase {
     if (resource.sourceResourceId) {
       vertex.property('sourceResourceId', resource.sourceResourceId);
     }
-    if (resource.storageUri) {
-      vertex.property('storageUri', resource.storageUri);
+    const storageUri = getStorageUri(resource);
+    if (storageUri) {
+      vertex.property('storageUri', storageUri);
     }
 
     await vertex.next();

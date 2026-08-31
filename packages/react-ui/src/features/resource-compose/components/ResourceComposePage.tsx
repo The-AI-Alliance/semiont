@@ -8,7 +8,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { capabilitiesOf, AUTHORABLE_MEDIA_TYPES, MEDIA_TYPES, mediaTypeForExtension, isSupportedMediaType, LOCALES, folderOf, proposeStoragePath } from '@semiont/core';
+import { capabilitiesOf, AUTHORABLE_MEDIA_TYPES, MEDIA_TYPES, mediaTypeForExtension, isSupportedMediaType, LOCALES, folderOf, proposeStoragePath, getStorageUri } from '@semiont/core';
 import type { SupportedMediaType } from '@semiont/core';
 import type { UploadProgress } from '@semiont/sdk';
 import { type CloneData } from '../state/compose-page-state-unit';
@@ -178,7 +178,7 @@ export function ResourceComposePage({
   const effectivePath = pathTouched
     ? storagePath
     : proposeStoragePath(
-        mode === 'clone' && cloneData ? folderOf(cloneData.sourceResource.storageUri) : '',
+        mode === 'clone' && cloneData ? folderOf(getStorageUri(cloneData.sourceResource)) : '',
         newResourceName,
         composeFormat,
       );

@@ -31,27 +31,23 @@ export interface RepresentationSource {
 /**
  * The descriptor half of the decision, for callers that already hold one.
  *
- * `storageUri` is read from the descriptor's own field because that is the
- * only one anything writes: `ViewMaterializer` sets `resource.storageUri` on
- * `yield:created` and `yield:moved`, while the `Representation` it builds
- * carries mediaType, checksum, byteSize, rel and language — never a URI.
- * (`Representation.storageUri` also exists in the schema and is dead; the
- * two-homed field is deferred, see SINGLE-KB-MOUNT P3.)
+ * URI and mediaType come from the same object: the primary representation is
+ * `storageUri`'s ONE home (STORAGE-URI-ONE-HOME P1 — bytes are a fact about a
+ * rendition, and `ViewMaterializer` writes the URI there on `yield:created`
+ * and relocates it on `yield:moved`). The old descriptor-level field, and the
+ * octet-stream fallback for the URI-without-representation mismatch it made
+ * possible, are gone — the mismatch is no longer representable.
  *
  * `null` means "no bytes", which is a fact about the resource and not an
- * error — a descriptor without a URI is the has-content signal every caller
- * used before, kept.
+ * error — a primary representation without a URI is the has-content signal
+ * every caller used before, kept.
  */
 export function representationSource(resource: ResourceDescriptor | undefined): RepresentationSource | null {
-  if (!resource?.storageUri) return null;
+  const primary = getPrimaryRepresentation(resource);
+  if (!primary?.storageUri) return null;
   return {
-    storageUri: resource.storageUri,
-    // A representation always declares its mediaType (the schema requires
-    // it), so this fallback fires only for a descriptor carrying a URI and no
-    // representation at all. One fallback, stated once: octet-stream is what
-    // the wire serves for unknown bytes, and `decodeRepresentation` reads
-    // only `charset=` so text callers decode identically either way.
-    mediaType: getPrimaryRepresentation(resource)?.mediaType ?? 'application/octet-stream',
+    storageUri: primary.storageUri,
+    mediaType: primary.mediaType,
   };
 }
 

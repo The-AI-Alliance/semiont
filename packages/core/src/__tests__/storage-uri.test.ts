@@ -66,8 +66,8 @@ describe('folderOf — where a form proposes to save, read off the source', () =
   });
 
   it('answers "" for a resource carrying no storageUri', () => {
-    // ResourceViewerPage passes `resource.storageUri` straight through, and
-    // the type admits undefined — so the absent case is a caller reality,
+    // ResourceViewerPage passes `getStorageUri(resource)` straight through,
+    // and the type admits undefined — so the absent case is a caller reality,
     // not a defensive branch.
     expect(folderOf(undefined)).toBe('');
     expect(folderOf('')).toBe('');

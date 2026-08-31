@@ -32,7 +32,7 @@
     },
     "storageUri": {
       "type": "string",
-      "description": "Working-tree URI identifying where the bytes live. Only file:// is supported (e.g. file://docs/overview.md)."
+      "description": "Working-tree URI identifying where this rendition's bytes live. Only file:// is supported (e.g. file://docs/overview.md). The single home of the storage location: maintained across moves (yield:moved relocates it), absent when the resource has no stored bytes."
     },
     "filename": {
       "type": "string"

@@ -1061,6 +1061,108 @@ describe('ViewMaterializer', () => {
     });
   });
 
+  describe('storageUri lives on the representation (STORAGE-URI-ONE-HOME P1)', () => {
+    // A storage URI names where bytes live, and bytes are a fact about a
+    // rendition. The descriptor-level field is gone; the materializer writes
+    // the URI into the representation it builds, and yield:moved relocates it
+    // there. The descriptor object must NOT grow a shadow copy (one home).
+    const URI = 'file://docs/note.md';
+
+    it('yield:created puts the storage URI on the primary representation', async () => {
+      const rid = resourceId('doc-uri');
+      const events: any[] = [
+        {
+          id: 'event1',
+          type: 'yield:created',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 1,
+          payload: {
+            name: 'Note',
+            format: 'text/markdown' as const,
+            contentChecksum: 'chk1',
+            storageUri: URI,
+          },
+          metadata: createEventMetadata(1),
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      const reps = Array.isArray(view?.resource.representations) ? view.resource.representations : [view?.resource.representations];
+      expect(reps[0]?.storageUri).toBe(URI);
+      // One home: no descriptor-level copy.
+      expect((view?.resource as Record<string, unknown>).storageUri).toBeUndefined();
+    });
+
+    it('yield:moved relocates the primary representation\'s storage URI', async () => {
+      const rid = resourceId('doc-mv');
+      const events: any[] = [
+        {
+          id: 'event1',
+          type: 'yield:created',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 1,
+          payload: {
+            name: 'Note',
+            format: 'text/markdown' as const,
+            contentChecksum: 'chk1',
+            storageUri: URI,
+          },
+          metadata: createEventMetadata(1),
+        },
+        {
+          id: 'event2',
+          type: 'yield:moved',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 2,
+          payload: {
+            fromUri: URI,
+            toUri: 'file://docs/renamed.md',
+          },
+          metadata: createEventMetadata(2),
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      const reps = Array.isArray(view?.resource.representations) ? view.resource.representations : [view?.resource.representations];
+      expect(reps[0]?.storageUri).toBe('file://docs/renamed.md');
+      expect((view?.resource as Record<string, unknown>).storageUri).toBeUndefined();
+    });
+
+    it('a bytes-less creation leaves the representation without a URI', async () => {
+      const rid = resourceId('doc-bodiless');
+      const events: any[] = [
+        {
+          id: 'event1',
+          type: 'yield:created',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 1,
+          payload: {
+            name: 'Bodiless',
+            format: 'text/plain' as const,
+            contentChecksum: 'chk1',
+          },
+          metadata: createEventMetadata(1),
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      const reps = Array.isArray(view?.resource.representations) ? view.resource.representations : [view?.resource.representations];
+      expect(reps[0]?.mediaType).toBe('text/plain');
+      expect(reps[0]?.storageUri).toBeUndefined();
+    });
+  });
+
   describe('rebuildAll() - full startup rebuild', () => {
     /**
      * Build a fake RebuildEventSource (mirrors the EventLog interface that

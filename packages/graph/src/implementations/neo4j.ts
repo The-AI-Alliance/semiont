@@ -18,7 +18,7 @@ import type {
   AnnotationId,
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
-import { getPrimaryRepresentation } from '@semiont/core';
+import { getPrimaryRepresentation, getStorageUri } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import {
   buildAnnotation,
@@ -230,7 +230,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           contentChecksum: primaryRep.checksum,
           sourceAnnotationId: resource.sourceAnnotationId ?? null,
           sourceResourceId: resource.sourceResourceId ?? null,
-          storageUri: resource.storageUri ?? null,
+          storageUri: getStorageUri(resource) ?? null,
         }
       );
 
@@ -995,7 +995,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           contentChecksum: primaryRep.checksum,
           sourceAnnotationId: resource.sourceAnnotationId ?? null,
           sourceResourceId: resource.sourceResourceId ?? null,
-          storageUri: resource.storageUri ?? null,
+          storageUri: getStorageUri(resource) ?? null,
         };
       });
 
@@ -1151,6 +1151,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         mediaType: props.format,
         checksum: props.contentChecksum,
         rel: 'original',
+        storageUri: props.storageUri ?? undefined,
       }],
       archived: props.archived,
       dateCreated: props.created.toString(),
@@ -1158,7 +1159,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     };
 
     if (props.sourceResourceId) resource.sourceResourceId = props.sourceResourceId;
-    if (props.storageUri) resource.storageUri = props.storageUri;
 
     return resource;
   }

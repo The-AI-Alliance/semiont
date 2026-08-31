@@ -344,8 +344,7 @@ describe('CloneTokenManager constructs from capability doubles (EXTRACT-ARCHIVIS
           resource: {
             '@id': String(rid),
             name: 'Source',
-            storageUri: `file://${tmpFile}`,
-            representations: [{ mediaType: 'text/plain', checksum: 'c1' }],
+            representations: [{ mediaType: 'text/plain', checksum: 'c1', storageUri: `file://${tmpFile}` }],
           },
           annotations: { resourceId: rid, version: 1, updatedAt: 't', annotations: [] },
         }),
@@ -380,7 +379,7 @@ describe('CloneTokenManager constructs from capability doubles (EXTRACT-ARCHIVIS
     const stores = {
       views: {
         get: vi.fn().mockResolvedValue({
-          resource: { '@id': String(rid), name: 'Held', storageUri: `file://${tmpFile}` },
+          resource: { '@id': String(rid), name: 'Held', representations: [{ mediaType: 'text/plain', storageUri: `file://${tmpFile}` }] },
           annotations: { resourceId: rid, version: 1, updatedAt: 't', annotations: [] },
         }),
       },

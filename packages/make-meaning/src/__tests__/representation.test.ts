@@ -34,24 +34,20 @@ const BODY = 'the stored bytes';
 const URI = 'file://docs/note.md';
 
 describe('representationSource — the one decision', () => {
-  it('reads the URI from the field the materializer actually writes', () => {
-    // Top-level `storageUri` is the only one ViewMaterializer populates; the
-    // representation carries mediaType/checksum/byteSize and no URI.
+  it('reads URI and mediaType together from the primary representation — the one home', () => {
+    // STORAGE-URI-ONE-HOME P1: the URI lives where the bytes' other facts
+    // live. No descriptor-level field, so no URI/mediaType mismatch case and
+    // no fallback for it.
     const resource = {
-      storageUri: URI,
-      representations: [{ mediaType: 'text/markdown', checksum: 'abc' }],
+      representations: [{ mediaType: 'text/markdown', checksum: 'abc', storageUri: URI }],
     } as unknown as ResourceDescriptor;
 
     expect(representationSource(resource)).toEqual({ storageUri: URI, mediaType: 'text/markdown' });
   });
 
-  it('falls back to octet-stream once, for a representation-less descriptor', () => {
-    const resource = { storageUri: URI } as unknown as ResourceDescriptor;
-    expect(representationSource(resource)?.mediaType).toBe('application/octet-stream');
-  });
-
-  it('is null when there is no URI — the has-content signal, not an error', () => {
+  it('is null when the primary representation carries no URI — the has-content signal, not an error', () => {
     expect(representationSource({ representations: [{ mediaType: 'text/plain' }] } as unknown as ResourceDescriptor)).toBeNull();
+    expect(representationSource({ representations: [] } as unknown as ResourceDescriptor)).toBeNull();
     expect(representationSource(undefined)).toBeNull();
   });
 });
