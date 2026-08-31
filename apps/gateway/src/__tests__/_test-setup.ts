@@ -88,8 +88,9 @@ export interface TestEnvironmentConfig {
  * Create a test environment with:
  * - Temporary directory for event store data
  * - In-memory EnvironmentConfig (no filesystem config files)
- * - SEMIONT_ROOT set in process.env; the environment selected by `[defaults]`
- *   in the generated .semiontconfig (as a real KB does)
+ * - HOME redirected to the temp dir, with a generated `.semiontconfig` in it,
+ *   so `loadEnvironmentConfig(null, …)` finds it exactly as the gateway does
+ * - The environment selected by `[defaults]` in that file, as a real KB does
  *
  * @param envName - Optional environment name (defaults to 'unit')
  */
@@ -139,14 +140,10 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
     'utf-8',
   );
 
-  process.env.SEMIONT_ROOT = testDir;
-  // Beside SEMIONT_ROOT because it is the same kind of thing: a deployment
-  // fact index.ts reads and refuses to boot without. Set HERE rather than in a
-  // suite's setup file because this helper is what both suites share — the
-  // unit setup, the integration setup, and the test files that call it
-  // directly. A suite-level copy covers one of those.
-  process.env.SEMIONT_ANCHORED_TEXT_DIR = join(testDir, 'anchored-text');
-
+  // No SEMIONT_ROOT and no SEMIONT_ANCHORED_TEXT_DIR here: nothing in the
+  // gateway reads them anymore (SINGLE-KB-MOUNT P5/P6; the rebuild CLIs
+  // moved to make-meaning), and the test-env hygiene gate rejects exports
+  // nothing reads.
   const config: EnvironmentConfig = {
     services: {
       gateway: {
@@ -190,7 +187,6 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
       } else {
         delete process.env.HOME;
       }
-      delete process.env.SEMIONT_ROOT;
       await fs.rm(testDir, { recursive: true, force: true });
     },
   };

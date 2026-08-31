@@ -22,10 +22,11 @@ import (
 
 type executor interface {
 	// --- effects ---
-	stopRm(name string) bool        // teardown; reports whether anything existed
-	sweepStray(names []string) bool // stop+rm the names under every OTHER installed runtime; reports whether anything existed
-	settle(ports ...int)            // wait for torn-down ports to be released
-	sweepStaging()                  // /tmp/semiont-config.* removal (+ state forget)
+	snapshotLogs(root string, names []string) // crash evidence: capture container logs into the root's state area before a teardown deletes them
+	stopRm(name string) bool                  // teardown; reports whether anything existed
+	sweepStray(names []string) bool           // stop+rm the names under every OTHER installed runtime; reports whether anything existed
+	settle(ports ...int)                      // wait for torn-down ports to be released
+	sweepStaging()                            // /tmp/semiont-config.* removal (+ state forget)
 	portChecks(ports []portNeed) bool
 	portCheck(p portNeed) bool    // singular wording in plan mode
 	recordPorts(ports []portNeed) // note claimed host ports in the belief record
@@ -135,6 +136,12 @@ func (x *liveExec) present(rt string) map[string]bool {
 	// old code spent 18 spawns learning nothing.
 	x.existing[rt] = names
 	return names
+}
+
+func (x *liveExec) snapshotLogs(root string, names []string) {
+	if dir, n := writeLogSnapshot(x.rt, root, names); n > 0 {
+		x.u.log("Snapshotted %d container log(s) %s", n, x.u.dim("("+dir+")"))
+	}
 }
 
 func (x *liveExec) stopRm(name string) bool {
@@ -416,6 +423,7 @@ func (x *liveExec) pull(img string) bool {
 }
 
 func (x *liveExec) runDetached(args []string) (string, bool) {
+	args = withLogOpts(x.rt, args)
 	x.u.echoCmd(x.rt, args...)
 	id, err := runDetached(x.rt, args...)
 	if err != nil {
@@ -813,9 +821,12 @@ type planExec struct {
 
 func (x *planExec) p(args ...string)          { fmt.Println(renderCmd(x.rt, args...)) }
 func (x *planExec) c(format string, a ...any) { fmt.Printf("# "+format+"\n", a...) }
-func (x *planExec) stopRm(name string) bool   { x.p("stop", name); x.p("rm", name); return false }
-func (x *planExec) settle(...int)             {} // plan mode tears nothing down
-func (x *planExec) sweepStaging()             { x.c("remove staged config copies: /tmp/semiont-config.*") }
+func (x *planExec) snapshotLogs(string, []string) {
+	x.c("snapshot container logs into <state-root>/logs/<timestamp>/ before removal")
+}
+func (x *planExec) stopRm(name string) bool { x.p("stop", name); x.p("rm", name); return false }
+func (x *planExec) settle(...int)           {} // plan mode tears nothing down
+func (x *planExec) sweepStaging()           { x.c("remove staged config copies: /tmp/semiont-config.*") }
 
 func (x *planExec) sweepStray(names []string) bool {
 	for _, rt := range installedRuntimes() {
@@ -868,7 +879,7 @@ func (x *planExec) pull(img string) bool {
 }
 
 func (x *planExec) runDetached(args []string) (string, bool) {
-	x.p(args...)
+	x.p(withLogOpts(x.rt, args)...)
 	return "", true
 }
 

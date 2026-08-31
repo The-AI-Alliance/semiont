@@ -27,11 +27,9 @@ describe('SemiontState — the half that needs no KB root', () => {
   it('resolves every name-derived path with no KB root in sight', () => {
     expect(state.name).toBe('kb-under-test');
     expect(state.stateDir).toContain('semiont/kb-under-test');
+    expect(state.resourcesDir).toBe(join(state.stateDir, 'resources'));
     expect(state.projectionsDir).toBe(join(state.stateDir, 'projections'));
     expect(state.jobsDir).toBe(join(state.stateDir, 'jobs'));
-    expect(state.gatewayLogsDir).toBe(join(state.stateDir, 'gateway'));
-    expect(state.gatewayAppLogFile).toBe(join(state.gatewayLogsDir, 'app.log'));
-    expect(state.gatewayErrorLogFile).toBe(join(state.gatewayLogsDir, 'error.log'));
     expect(state.gatewayPidFile).toBe(join(state.runtimeDir, 'gateway.pid'));
   });
 

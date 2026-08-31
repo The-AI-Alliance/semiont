@@ -1,6 +1,7 @@
 # semiont start --dry-run — the exact runtime commands a real run would
 # execute, in order. Values known only at runtime appear as <placeholders>.
 # probe: container run --rm busybox:1.38.0 sh -c "ip route | awk '/default/{print $3}'" → <host-addr>
+# snapshot container logs into <state-root>/logs/<timestamp>/ before removal
 container stop semiont-jaeger
 container rm semiont-jaeger
 container stop semiont-neo4j

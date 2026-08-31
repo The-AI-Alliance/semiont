@@ -40,7 +40,9 @@
     "clean": "rm -rf dist dist-types",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "rebuild-projections": "tsx src/cli/rebuild-projections.ts",
+    "rebuild-graph": "tsx src/cli/rebuild-graph.ts"
   },
   "dependencies": {
     "@semiont/content": "*",
@@ -61,6 +63,7 @@
     "rollup": "^4.63.0",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.0.1",
+    "tsx": "^4.23.12",
     "typescript": "^6.0.2",
     "vitest": "^4.1.11"
   },

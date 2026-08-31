@@ -7,7 +7,7 @@ The knowledge base itself is not an intelligent actor. It has no goals, preferen
 - **Five access actors** mediate every read and write: **Stower** (write), **Browser** (read), **Gatherer** (context assembly), **Matcher** (search), and **CloneTokenManager** (clone tokens). They are the bus-facing interface of the knowledge base — commands and requests in, replies out, correlated by `correlationId`.
 - **Two projection pipelines** keep the eventually-consistent read models in sync with the event log: the **Weaver** (events → graph) and the **Smelter** (events → vectors). Pipelines are addressed by no one and reply to nothing; they consume already-persisted domain events.
 
-All seven subscribe to the bus via RxJS pipelines and expose no public business methods — `initialize()` and `stop()` for lifecycle, plus a startup recovery entry point on the pipelines (`Weaver.catchUp()`, `Smelter.reconcile()`). Both pipelines run standalone (weaver-main, smelter-main): the projections are part of their stores' stacks, not of the gateway process. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
+All seven subscribe to the bus via RxJS pipelines and expose no public business methods — `initialize()` and `stop()` for lifecycle, plus a startup recovery entry point on the pipelines (`Weaver.catchUp()`, `Smelter.reconcile()`). All seven run standalone, none in the gateway, split by store affinity: the record's actors (Stower, Browser, CloneTokenManager) in `archivist-main`, the LLM-bound pair (Gatherer, Matcher) in `librarian-main`, and each projection as part of its store's stack (`weaver-main`, `smelter-main`). Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
 
 The third derived read model — the materialized views — is deliberately **not** pipeline-maintained: the EventStore's `ViewManager` materializes views synchronously inside `appendEvent()`, before the event is published, so subscribers get a read-your-writes guarantee that a fire-and-forget pipeline cannot provide.
 
@@ -96,7 +96,7 @@ graph TB
 |-------|---------|---------------|
 | **Event Log** | Immutable append-only log of all domain events; system of record, committed to version control | Stower appends; startup rebuilds and pipelines replay it |
 | **Materialized Views** | Denormalized projections for fast reads; materialized **synchronously on append** by the EventStore's ViewManager (read-your-writes) | Gatherer/Matcher/Browser/CloneTokenManager query by resource id |
-| **Content Store** | Working-tree files addressed by `storageUri` (documents, images, PDFs) | Stower registers; Gatherer/Browser/Smelter read |
+| **Content Store** | Working-tree files addressed by `storageUri` (documents, images, PDFs); the Archivist's container is the only one that mounts the tree | Stower registers; all other byte reads ride the Archivist's HTTP surface (the gateway proxies for external clients) |
 | **Graph** | Eventually consistent relationship projection for traversal queries (backlinks, entity networks) | Weaver projects; Gatherer/Matcher traverse and search |
 | **Vectors** | Embedding vectors in Qdrant for semantic similarity search; eventually consistent | Smelter projects; Gatherer/Matcher search |
 

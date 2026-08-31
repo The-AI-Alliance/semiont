@@ -5,17 +5,21 @@
  * Rebuilds materialized views from Event Store event streams.
  * Proves that events are the source of truth.
  *
+ * Lives beside the record's owner (the Archivist): a checkout-run operator
+ * tool over the event log, never an image binary.
+ *
  * Usage:
- *   npm run rebuild-projections              # Rebuild all projections
- *   npm run rebuild-projections <resourceId> # Rebuild specific resource
+ *   npm run rebuild-projections --workspace=@semiont/make-meaning -- [resourceId] [--environment <env>]
  */
 
-import { startMakeMeaning, makeMeaningConfigFrom } from '@semiont/make-meaning';
+import { startMakeMeaning } from '../service';
+import { makeMeaningConfigFrom } from '../config';
 import { EventQuery } from '@semiont/event-sourcing';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 import { resourceId as makeResourceId, EventBus } from '@semiont/core';
+import { createProcessLogger } from '@semiont/observability/process-logger';
 
-import { initializeLogger, getLogger } from '../logger';
+const logger = createProcessLogger('rebuild-projections');
 
 async function rebuildProjections(rId?: string, environment?: string) {
   const projectRoot = process.env.SEMIONT_ROOT;
@@ -27,24 +31,18 @@ async function rebuildProjections(rId?: string, environment?: string) {
   // the gateway's 'local' and hid the wrong-section load.
   const config = loadEnvironmentConfig(projectRoot, environment);
 
-  // Initialize logger
-  initializeLogger(config.logLevel);
-  const logger = getLogger();
-
   logger.info('Rebuilding annotation projections from events');
 
   // Create EventBus
   const eventBus = new EventBus();
 
-  // Same deployment fact the server entry point reads, for the same reason:
-  // SemiontProject receives it, never reaches for it. This CLI rebuilds
-  // projections only and never touches the anchored-text store, but the
-  // project it constructs is the real one and is required to be complete.
+  // This CLI never touches the anchored-text store, but SemiontProject
+  // requires the path to be complete.
   const anchoredTextDir = process.env.SEMIONT_ANCHORED_TEXT_DIR;
   if (!anchoredTextDir) {
     throw new Error(
-      'SEMIONT_ANCHORED_TEXT_DIR environment variable is not set (the gateway image ' +
-      'declares it as /anchored-text; set it when running this outside a container).',
+      'SEMIONT_ANCHORED_TEXT_DIR environment variable is not set (the Archivist and ' +
+      'Smelter images declare it as /anchored-text).',
     );
   }
 
@@ -110,7 +108,6 @@ const rId = args.find((_, i) => i !== envFlagIdx && i !== envFlagIdx + 1);
 
 rebuildProjections(rId, envArg)
   .catch(err => {
-    const logger = getLogger();
     logger.error('Rebuild projections failed', {
       error: err.message,
       stack: err.stack

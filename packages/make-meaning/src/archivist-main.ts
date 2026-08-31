@@ -5,11 +5,12 @@
  * own the file-backed state — `Stower` (accessions: events + projections),
  * `Browser` (serves: `browse:*` reads), `CloneTokenManager` (resource
  * lifecycle) — against LOCAL stores: the event log, materialized views, the
- * git working tree, anchored text. Its network attachments are the bus
- * (HttpTransport: SSE in, `/bus/emit` out), Neo4j (one query —
- * `browse:referenced-by`), and the embedding provider (Browser's semantic
- * search fallback). Per GATEWAY.md D4a it serves NO bytes: the gateway is
- * the content server; this process only registers/moves/removes/resolves.
+ * git working tree, and anchored text (read-only; the Smelter writes it).
+ * Its network attachments are the bus (HttpTransport: SSE in, `/bus/emit`
+ * out), Neo4j (one query — `browse:referenced-by`), and the embedding
+ * provider (Browser's semantic search fallback). Its HTTP surface serves
+ * the KB's bytes: the gateway proxies external content requests through
+ * it, and internal readers dial it directly.
  *
  * Bus wiring is two disjoint pumps, deliberately NOT `bridgeInto`:
  *   in  — the actors' channel rosters (STOWER/BROWSER/CLONE_TOKEN_CHANNELS,
@@ -20,13 +21,6 @@
  *         set, plus three strays whose operations are keyed under gateway
  *         handler channels (see OUTBOUND_STRAYS). Requests and replies never
  *         overlap, so nothing echoes.
- *
- * ⚠️ Known cutover gap, deliberate at P2a ("an image nothing launches yet"):
- * domain events appended here publish on the LOCAL core bus only — they do
- * not yet reach the gateway's SSE feed (that seam is EXTRACT-BUS's terrain).
- * Until the cutover lands, the gateway keeps running its own in-process
- * actors; running this service beside it duplicates replies, which clients
- * dedup by deterministic e-ids.
  *
  * Environment variables:
  *   SEMIONT_ROOT              — project root (the KB directory). Required.
