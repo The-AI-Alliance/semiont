@@ -26,6 +26,7 @@ import { startMakeMeaningGateway, makeMeaningConfigFrom, requireKBName } from '@
 import { loadEnvironmentConfig } from '@semiont/core/node';
 
 import { User } from '@prisma/client';
+import { DatabaseConnection } from './db';
 
 // Load configuration from .semiont/config + ~/.semiontconfig (TOML).
 // The environment is resolved by the loader from `[defaults] environment` — the
@@ -174,9 +175,7 @@ const eventBus = new EventBus();
 // A `SemiontState`, not a `SemiontProject`: name + the state-mount paths,
 // with no KB root. That is the type-level statement of P5 — the gateway
 // cannot reach a tree it does not have, and the compiler enforces it.
-// Not bound: nothing reads the returned handle. The CALL is what matters —
-// it builds the job queue and registers the gateway's bus handlers.
-await startMakeMeaningGateway(
+const makeMeaning = await startMakeMeaningGateway(
   new SemiontState({ name: requireKBName(config) }),
   makeMeaningConfigFrom(config),
   eventBus,
@@ -361,7 +360,7 @@ if (config.env?.NODE_ENV !== 'test') {
   // `config.site`, which a KB with no environment `[site]` does not have.
   JWTService.initialize({ site: { domain: effectiveDomain, oauthAllowedDomains: effectiveOAuthAllowedDomains } });
 
-  serve({
+  const server = serve({
     fetch: app.fetch,
     port: port,
     hostname: '0.0.0.0'
@@ -384,6 +383,45 @@ if (config.env?.NODE_ENV !== 'test') {
     // moved into archivist-main with the rest of the record's startup
     // (EXTRACT-ARCHIVIST P3).
   });
+
+  // Graceful shutdown, matching every sidecar (archivist/librarian/smelter/
+  // weaver/worker `-main`). The gateway was the ONLY Semiont service without
+  // one: on `semiont stop` the runtime's SIGTERM fell through to the default
+  // handler, so the process died mid-request with its Postgres pool still
+  // open and the job-status subscription still live.
+  //
+  // Registered inside the non-test guard with `serve()`: a test importing this
+  // module must not install process-wide signal handlers.
+  //
+  // Order is stop-taking-work first, then release: close the listener so no new
+  // request is accepted, unsubscribe the job-status pump, tear down the bus,
+  // and disconnect the one datastore the gateway owns.
+  let shuttingDown = false;
+  const shutdown = (signal: string) => {
+    // A second signal during teardown would double-close the listener and race
+    // the disconnect. The sidecars do not guard this; here it is two lines.
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info('Shutting down', { signal });
+    void (async () => {
+      try {
+        server.close();
+        await makeMeaning.stop();
+        eventBus.destroy();
+        await DatabaseConnection.disconnect();
+        logger.info('Shutdown complete');
+        process.exit(0);
+      } catch (error) {
+        // Exit non-zero: a teardown that failed halfway is not a clean stop,
+        // and the runtime should see that rather than a success code.
+        logger.error('Shutdown failed', { error: error instanceof Error ? error.message : String(error) });
+        process.exit(1);
+      }
+    })();
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 export type AppType = typeof app;
