@@ -174,7 +174,9 @@ const eventBus = new EventBus();
 // A `SemiontState`, not a `SemiontProject`: name + the state-mount paths,
 // with no KB root. That is the type-level statement of P5 — the gateway
 // cannot reach a tree it does not have, and the compiler enforces it.
-const makeMeaning = await startMakeMeaningGateway(
+// Not bound: nothing reads the returned handle. The CALL is what matters —
+// it builds the job queue and registers the gateway's bus handlers.
+await startMakeMeaningGateway(
   new SemiontState({ name: requireKBName(config) }),
   makeMeaningConfigFrom(config),
   eventBus,
@@ -200,7 +202,6 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Graph database and inference client are accessed via makeMeaning service
 // Import security headers middleware
 import { securityHeaders } from './middleware/security-headers';
 // Import logging middleware
@@ -212,7 +213,6 @@ type Variables = {
   user: User;
   config: EnvironmentConfig;
   eventBus: EventBus;
-  makeMeaning: Awaited<ReturnType<typeof startMakeMeaningGateway>>;
 };
 
 // Create Hono app with proper typing
@@ -231,11 +231,10 @@ app.use('*', requestIdMiddleware);       // Generate request ID first
 app.use('*', errorLoggerMiddleware);     // Catch errors second
 app.use('*', requestLoggerMiddleware);   // Log requests third
 
-// Inject config and makeMeaning into context for all routes
+// Inject config and the event bus into context for all routes
 app.use('*', async (c, next) => {
   c.set('config', config);
   c.set('eventBus', eventBus);
-  c.set('makeMeaning', makeMeaning);
   await next();
 });
 

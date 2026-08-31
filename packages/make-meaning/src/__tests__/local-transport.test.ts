@@ -86,11 +86,10 @@ async function bootHarness(): Promise<Harness> {
   try {
     service = await startMakeMeaning(project, config, eventBus, silentLogger);
     const transport = new LocalTransport({
-      knowledgeSystem: service.knowledgeSystem,
       eventBus,
       userId: TEST_USER_DID,
     });
-    const content = new LocalContentTransport(service.knowledgeSystem);
+    const content = new LocalContentTransport(service.knowledgeSystem.kb);
     client = new SemiontClient(transport, content);
 
     const seedResource = async (input: {

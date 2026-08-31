@@ -1,10 +1,17 @@
 /**
- * LocalTransport — `ITransport` for an in-process `KnowledgeSystem`.
+ * LocalTransport — `ITransport` onto an in-process make-meaning `EventBus`.
+ *
+ * It takes NO knowledge system. This is a bus transport: it publishes emits
+ * onto the bus and bridges the reply channels back. It never touched a
+ * `KnowledgeSystem` — the field that used to be here was declared and never
+ * read, which made the transport look coupled to the monolith's shape when it
+ * is coupled only to the bus. Whatever process hosts the actors on that bus
+ * satisfies it.
  *
  * Bus-ownership pattern (see `docs/protocol/TRANSPORT-CONTRACT.md`):
  *   - The caller owns a make-meaning `EventBus` and passes it to both
  *     `startMakeMeaning` and `LocalTransport` so the transport can publish
- *     directly onto the bus the `KnowledgeSystem` actors are listening on.
+ *     directly onto the bus the actors are listening on.
  *   - `SemiontClient` constructs its own `clientBus` and calls
  *     `bridgeInto(clientBus)` during construction. `LocalTransport`
  *     subscribes to every `BRIDGED_CHANNELS` entry on the make-meaning bus
@@ -36,18 +43,12 @@ import {
   type ITransport,
 } from '@semiont/core';
 
-import type { KnowledgeSystem } from './knowledge-system.js';
 
 export interface LocalTransportConfig {
   /**
-   * The in-process knowledge system. Lifetime is owned by the caller —
-   * `dispose()` on this transport does not stop the KnowledgeSystem.
-   */
-  knowledgeSystem: KnowledgeSystem;
-  /**
    * The make-meaning `EventBus`. Must be the same instance passed to
-   * `startMakeMeaning` so that emits land on the bus KnowledgeSystem
-   * actors are subscribed to.
+   * `startMakeMeaning` so that emits land on the bus the actors are
+   * subscribed to.
    */
   eventBus: EventBus;
   /**

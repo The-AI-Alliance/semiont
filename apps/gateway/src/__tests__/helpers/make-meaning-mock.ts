@@ -1,8 +1,14 @@
 /**
- * Shared MakeMeaningService mock factory for gateway tests.
+ * Shared mock factory for `startMakeMeaningGateway` in gateway tests.
  *
  * Provides a structurally-verified stub so the compiler catches shape
  * mismatches at the factory rather than at every call site.
+ *
+ * It returns `GatewayMakeMeaningService` — `{ jobQueue, state, stop }` — which
+ * is what the gateway's composition root actually returns. It used to return
+ * the MONOLITH's `MakeMeaningService`, supplying a `knowledgeSystem` (five
+ * fabricated actors) and a `project` that the real function stopped returning
+ * when the thin connector landed, while omitting the `state` it does return.
  *
  * Usage:
  *   startMakeMeaningGateway: vi.fn().mockResolvedValue(makeMeaningMock())
@@ -10,11 +16,8 @@
  */
 
 import { vi } from 'vitest';
-import type {
-  MakeMeaningService,
-  KnowledgeSystem,
-} from '@semiont/make-meaning';
-import type { KnowledgeBase } from '@semiont/make-meaning';
+import type { GatewayMakeMeaningService, KnowledgeBase } from '@semiont/make-meaning';
+import { SemiontState } from '@semiont/core/node';
 import type { JobQueue } from '@semiont/jobs';
 
 // ─── Leaf stubs ───────────────────────────────────────────────────────────────
@@ -47,30 +50,17 @@ export function stubKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): Knowl
   };
 }
 
-export function stubKnowledgeSystem(kbOverrides: Partial<KnowledgeBase> = {}): KnowledgeSystem {
-  return {
-    kb:                stubKnowledgeBase(kbOverrides),
-    stower:            {} as KnowledgeSystem['stower'],
-    gatherer:          {} as KnowledgeSystem['gatherer'],
-    matcher:           {} as KnowledgeSystem['matcher'],
-    browser:           { stop: vi.fn().mockResolvedValue(undefined) } as unknown as KnowledgeSystem['browser'],
-    cloneTokenManager: {} as KnowledgeSystem['cloneTokenManager'],
-    stop:              vi.fn().mockResolvedValue(undefined),
-  };
-}
-
 // ─── Service stub ─────────────────────────────────────────────────────────────
 
-export function makeMeaningMock(overrides: Partial<MakeMeaningService> = {}): MakeMeaningService {
+export function makeMeaningMock(
+  overrides: Partial<GatewayMakeMeaningService> = {},
+): GatewayMakeMeaningService {
   return {
-    knowledgeSystem: stubKnowledgeSystem(),
-    jobQueue:        { createJob: vi.fn(), getJob: vi.fn() } as unknown as JobQueue,
-    // The one project the service carries. Handlers read it (status for the
-    // KB's identity and branch, exchange for its projections dir) instead of
-    // rebuilding one per request from `config._metadata`, so the stub has to
-    // supply it. Overridable for tests that assert on what it holds.
-    project:         {} as MakeMeaningService['project'],
-    stop:            vi.fn().mockResolvedValue(undefined),
+    jobQueue: { createJob: vi.fn(), getJob: vi.fn() } as unknown as JobQueue,
+    // A REAL SemiontState, not a stub: it takes `{ name }` and derives every
+    // path, so there is nothing to fake and nothing to drift.
+    state: new SemiontState({ name: 'test-kb' }),
+    stop: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

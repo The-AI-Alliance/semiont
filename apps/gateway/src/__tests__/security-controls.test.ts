@@ -13,7 +13,6 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig, EventBus } from '@semiont/core';
-import type { GatewayMakeMeaningService } from '@semiont/make-meaning';
 import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
 import { makeMeaningMock } from './helpers/make-meaning-mock';
 
@@ -39,7 +38,6 @@ type Variables = {
   user: User;
   config: EnvironmentConfig;
   eventBus: EventBus;
-  makeMeaning: GatewayMakeMeaningService;
 };
 
 type ErrorResponse = {

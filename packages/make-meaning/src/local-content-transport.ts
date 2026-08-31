@@ -1,6 +1,11 @@
 /**
- * LocalContentTransport — `IContentTransport` for an in-process
- * `KnowledgeSystem`.
+ * LocalContentTransport — `IContentTransport` over an in-process
+ * `KnowledgeBase`.
+ *
+ * Takes the KB, not the whole `KnowledgeSystem`: every read below goes through
+ * `kb.*` and no actor is ever touched. The wider parameter forced callers that
+ * legitimately hold only a KB to cast (`representation.test.ts` used
+ * `as never`), which is a cast hiding nothing but an over-wide signature.
  *
  * Reads go straight to `kb.views` (resource lookup) + `kb.content`
  * (byte retrieval). No network, no auth — local mode runs as a single
@@ -18,7 +23,7 @@ import { busLog } from '@semiont/core';
 import { SpanKind, withSpan } from '@semiont/observability';
 import type { IContentTransport, PutBinaryRequest, PutBinaryOptions } from '@semiont/core';
 
-import type { KnowledgeSystem } from './knowledge-system.js';
+import type { KnowledgeBase } from './knowledge-base.js';
 import { workingTreeContentReads } from './knowledge-base.js';
 import { assembleResourceGraph } from './resource-graph.js';
 import { readAnchoredText } from './read-anchored-text.js';
@@ -26,7 +31,7 @@ import { readAnchoredText } from './read-anchored-text.js';
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
 export class LocalContentTransport implements IContentTransport {
-  constructor(private readonly ks: KnowledgeSystem) {}
+  constructor(private readonly kb: KnowledgeBase) {}
 
   async putBinary(
     _request: PutBinaryRequest,
@@ -54,7 +59,7 @@ export class LocalContentTransport implements IContentTransport {
     _options?: { auth?: AccessToken },
   ): Promise<void> {
     busLog('PUT', 'anchored-text', { checksum });
-    await this.ks.kb.anchoredText.write(checksum, outcome);
+    await this.kb.anchoredText.write(checksum, outcome);
   }
 
   /** The stored outcome, or null when nothing has derived one — the common case. */
@@ -65,7 +70,7 @@ export class LocalContentTransport implements IContentTransport {
     busLog('GET', 'anchored-text', { resourceId });
     // The same barrier the wire path applies, from the same function: local and
     // hosted modes must answer identically at the same moment.
-    return readAnchoredText(this.ks.kb, resourceId as unknown as string);
+    return readAnchoredText(this.kb, resourceId as unknown as string);
   }
 
   /**
@@ -78,7 +83,7 @@ export class LocalContentTransport implements IContentTransport {
     _options?: { auth?: AccessToken },
   ): Promise<ExtractionOutcome | null> {
     busLog('GET', 'anchored-text-by-checksum', { checksum });
-    return this.ks.kb.anchoredText.read(checksum);
+    return this.kb.anchoredText.read(checksum);
   }
 
   /**
@@ -88,7 +93,7 @@ export class LocalContentTransport implements IContentTransport {
    */
   async listAnchoredTextKeys(_options?: { auth?: AccessToken }): Promise<string[]> {
     busLog('GET', 'anchored-text-keys', {});
-    return this.ks.kb.anchoredText.list();
+    return this.kb.anchoredText.list();
   }
 
   async getBinary(
@@ -138,7 +143,7 @@ export class LocalContentTransport implements IContentTransport {
    * a field `ViewMaterializer` never writes, so every binary read here threw.
    */
   private loadBinary(resourceId: ResourceId): Promise<{ data: ArrayBuffer; contentType: string }> {
-    return workingTreeContentReads(this.ks.kb.views, this.ks.kb.content).getBinary(resourceId);
+    return workingTreeContentReads(this.kb.views, this.kb.content).getBinary(resourceId);
   }
 
   /**
@@ -150,12 +155,12 @@ export class LocalContentTransport implements IContentTransport {
     resourceId: ResourceId,
     _options?: { auth?: AccessToken },
   ): Promise<GetResourceResponse> {
-    const graph = await assembleResourceGraph(this.ks.kb, resourceId);
+    const graph = await assembleResourceGraph(this.kb, resourceId);
     if (!graph) throw new Error(`Resource not found: ${resourceId}`);
     return graph;
   }
 
   dispose(): void {
-    // KnowledgeSystem lifetime is owned by the caller. Nothing to release.
+    // KnowledgeBase lifetime is owned by the caller. Nothing to release.
   }
 }

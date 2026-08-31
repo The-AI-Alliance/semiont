@@ -38,7 +38,7 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger),
 };
 
-type Variables = { user: User; principalDid: string; eventBus: EventBusType; makeMeaning: unknown; config: EnvironmentConfig };
+type Variables = { user: User; principalDid: string; eventBus: EventBusType; config: EnvironmentConfig };
 
 describe('resource routes pipe contract (SIMPLER-JSON-LD.md Phase 1)', () => {
   let testEnv: TestEnvironmentConfig;
@@ -75,10 +75,8 @@ describe('resource routes pipe contract (SIMPLER-JSON-LD.md Phase 1)', () => {
     await new Promise<void>((resolve) => archivist.listen(0, resolve));
     const archivistPort = (archivist.address() as AddressInfo).port;
 
-    const kb = { views, content };
     app = new Hono<{ Variables: Variables }>();
     app.use('*', async (c, next) => {
-      c.set('makeMeaning', { knowledgeSystem: { kb } });
       c.set('eventBus', eventBus);
       c.set('config', {
         services: { archivist: { host: '127.0.0.1', port: archivistPort } },

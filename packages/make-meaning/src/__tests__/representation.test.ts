@@ -130,9 +130,12 @@ describe('resolveRepresentation — every face agrees', () => {
     // `getPrimaryRepresentation(...).storageUri`, which ViewMaterializer never
     // populates, so this threw for EVERY resource in local mode.
     const { LocalContentTransport } = await import('../local-content-transport');
-    const transport = new LocalContentTransport({
-      kb: { views: eventStore.viewStorage, content },
-    } as never);
+    // Still a cast, but a far smaller lie: a two-field stand-in for a
+    // KnowledgeBase, which is all `getBinary` reads. It used to have to stand
+    // in for a whole KnowledgeSystem — five actors this code never touches.
+    const transport = new LocalContentTransport(
+      { views: eventStore.viewStorage, content } as never,
+    );
 
     const { data, contentType } = await transport.getBinary(rid);
     expect(Buffer.from(data).toString()).toBe(BODY);

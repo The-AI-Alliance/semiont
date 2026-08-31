@@ -77,7 +77,7 @@ describe('anchored text over IContentTransport', () => {
     await fs.mkdir(testDir, { recursive: true });
     eventBus = new EventBus();
     service = await startMakeMeaning(new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` }), config, eventBus, silentLogger);
-    content = new LocalContentTransport(service.knowledgeSystem);
+    content = new LocalContentTransport(service.knowledgeSystem.kb);
 
     ({ rid, checksum } = await seedPdf('scan'));
   }, 30_000);
