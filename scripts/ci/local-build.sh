@@ -182,11 +182,11 @@ done
 image_dockerfile() {
   case "$1" in
     gateway)  echo "apps/gateway/Dockerfile" ;;
-    worker)   echo "packages/jobs/Dockerfile" ;;
-    smelter)  echo "packages/make-meaning/Dockerfile.smelter" ;;
-    weaver)   echo "packages/make-meaning/Dockerfile.weaver" ;;
-    archivist) echo "packages/make-meaning/Dockerfile.archivist" ;;
-    librarian) echo "packages/make-meaning/Dockerfile.librarian" ;;
+    worker)   echo "apps/worker/Dockerfile" ;;
+    smelter)  echo "apps/smelter/Dockerfile" ;;
+    weaver)   echo "apps/weaver/Dockerfile" ;;
+    archivist) echo "apps/archivist/Dockerfile" ;;
+    librarian) echo "apps/librarian/Dockerfile" ;;
     browser) echo "apps/browser/Dockerfile" ;;
     *) return 1 ;;
   esac

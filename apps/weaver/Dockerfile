@@ -1,12 +1,20 @@
+# weaver image.
+#
+# THE ENTRYPOINT SOURCE IS NOT IN THIS DIRECTORY. This image installs the
+# published @semiont/make-meaning and runs `dist/weaver-main.js` out of it; the
+# source is packages/make-meaning/src/weaver-main.ts. Only the image
+# recipe lives here — the entrypoint stayed in its package deliberately, so
+# that moving it out would not have to promote ~18 of that package's
+# internals to public API just to satisfy a directory layout. If you change
+# the CMD, change it against that file.
+#
 # Stage 1: install (npm runs here, then is discarded).
 #
-# The Archivist is a separate image from the shared @semiont/make-meaning
-# package, like smelter and weaver — separate because their dependency
-# footprints differ. The Archivist's Browser serves `browse:referenced-by`
-# from the graph (one call site, browser.ts — a settled decision, see
-# .plans/EXTRACT-ARCHIVIST.md), so neo4j-driver is bundled here like the
-# weaver's. It never dials Qdrant directly beyond the vector SEARCH the
-# qdrant client in @semiont/make-meaning already carries — no extra install.
+# smelter and weaver are separate images from the shared @semiont/make-meaning
+# package. neo4j-driver is a lazy peer of @semiont/graph (loaded at connect
+# time, per graph sink) — the weaver is the one make-meaning entry point that
+# actually dials the graph, so it is bundled here explicitly (the smelter image
+# omits it).
 #
 # Base is node:24-alpine (not node:26): node 26's built-in undici breaks the
 # qdrant client's undici@6, which @semiont/make-meaning can load transitively at
@@ -19,23 +27,13 @@ RUN npm config set registry $NPM_REGISTRY && \
     npm cache clean --force
 
 # Stage 2: minimal runtime — node only, no npm. The runtime entrypoint is
-# `node archivist-main.js`, so npm is build-only baggage. Removing it also drops
+# `node weaver-main.js`, so npm is build-only baggage. Removing it also drops
 # the picomatch / glob / etc. CVE surface that ships inside npm's bundled
 # node_modules.
 FROM node:24-alpine
 # Patch base-image OS packages so alpine security fixes apply even when the
 # node:24-alpine snapshot hasn't been rebuilt against them yet.
 RUN apk upgrade --no-cache
-
-# The Archivist shells out to git: WorkingTreeStore's register/move/remove and
-# the event store's appends all `git add` under the project root — this is the
-# single git writer (GATEWAY.md D4b). smelter/weaver carry no git; this image
-# must. Same as the gateway image: when the mounted KB is owned by a host UID
-# that differs from the in-container semiont user (UID 1001), git's
-# CVE-2022-24765 dubious-ownership check refuses to operate — --system writes
-# /etc/gitconfig, applied to all users including semiont.
-RUN apk add --no-cache git && \
-    git config --system --add safe.directory /kb
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 semiont
@@ -55,21 +53,16 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
       -type d \( -name typescript -o -name '@typescript' \) -prune -exec rm -rf {} +
 
 COPY LICENSE /home/semiont/LICENSE
-COPY packages/make-meaning/NOTICE.archivist /home/semiont/NOTICE
+COPY apps/weaver/NOTICE /home/semiont/NOTICE
 
 WORKDIR /kb
 RUN chown semiont:nodejs /kb
 USER semiont
 
 ENV NODE_ENV=production
-# The container-side paths are constants of the image, declared here the way
-# the gateway image declares them (see rootstate.go's anchored-text comment):
-# the launcher mounts host dirs AT these targets and passes no path env.
-ENV SEMIONT_ROOT=/kb
-ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
-EXPOSE 9093
+EXPOSE 9092
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:9093/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
+  CMD node -e "require('http').get('http://localhost:9092/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
-CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/archivist-main.js"]
+CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/weaver-main.js"]

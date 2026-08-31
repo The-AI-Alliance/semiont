@@ -1,10 +1,18 @@
+# smelter image.
+#
+# THE ENTRYPOINT SOURCE IS NOT IN THIS DIRECTORY. This image installs the
+# published @semiont/make-meaning and runs `dist/smelter-main.js` out of it; the
+# source is packages/make-meaning/src/smelter-main.ts. Only the image
+# recipe lives here — the entrypoint stayed in its package deliberately, so
+# that moving it out would not have to promote ~18 of that package's
+# internals to public API just to satisfy a directory layout. If you change
+# the CMD, change it against that file.
+#
 # Stage 1: install (npm runs here, then is discarded).
 #
 # smelter and weaver are separate images from the shared @semiont/make-meaning
-# package. neo4j-driver is a lazy peer of @semiont/graph (loaded at connect
-# time, per graph sink) — the weaver is the one make-meaning entry point that
-# actually dials the graph, so it is bundled here explicitly (the smelter image
-# omits it).
+# package. The smelter does not dial the graph, so — unlike weaver — it bundles
+# no neo4j-driver.
 #
 # Base is node:24-alpine (not node:26): node 26's built-in undici breaks the
 # qdrant client's undici@6, which @semiont/make-meaning can load transitively at
@@ -13,11 +21,11 @@ FROM node:24-alpine AS installer
 ARG NPM_REGISTRY=https://registry.npmjs.org
 ARG SEMIONT_VERSION=latest
 RUN npm config set registry $NPM_REGISTRY && \
-    npm install -g @semiont/make-meaning@${SEMIONT_VERSION} neo4j-driver && \
+    npm install -g @semiont/make-meaning@${SEMIONT_VERSION} && \
     npm cache clean --force
 
 # Stage 2: minimal runtime — node only, no npm. The runtime entrypoint is
-# `node weaver-main.js`, so npm is build-only baggage. Removing it also drops
+# `node smelter-main.js`, so npm is build-only baggage. Removing it also drops
 # the picomatch / glob / etc. CVE surface that ships inside npm's bundled
 # node_modules.
 FROM node:24-alpine
@@ -28,7 +36,7 @@ RUN apk upgrade --no-cache
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 semiont
 
-# The global @semiont/make-meaning + neo4j-driver (with hoisted deps) and bins.
+# The global @semiont/make-meaning (with its hoisted deps) and its bin symlinks.
 COPY --from=installer /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=installer /usr/local/bin /usr/local/bin
 
@@ -43,16 +51,23 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
       -type d \( -name typescript -o -name '@typescript' \) -prune -exec rm -rf {} +
 
 COPY LICENSE /home/semiont/LICENSE
-COPY packages/make-meaning/NOTICE.weaver /home/semiont/NOTICE
+COPY apps/smelter/NOTICE /home/semiont/NOTICE
 
 WORKDIR /kb
 RUN chown semiont:nodejs /kb
 USER semiont
 
 ENV NODE_ENV=production
-EXPOSE 9092
+# Where this deployment keeps the anchored-text store. The Smelter DERIVES
+# these artifacts and holds the store directly (ANCHORED-TEXT-TO-SMELTER P1),
+# owning its stamp since P5 — so the path it reads must match the path the
+# launcher mounts onto. `smelter-main` refuses to boot without it rather than
+# defaulting: a default would write a full OCR pass per representation into a
+# directory nobody mounted, lose it on the next stop, and re-derive forever.
+ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
+EXPOSE 9091
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:9092/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
+  CMD node -e "require('http').get('http://localhost:9091/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
-CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/weaver-main.js"]
+CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/smelter-main.js"]
