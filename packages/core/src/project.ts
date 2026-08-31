@@ -23,7 +23,8 @@ import { execFileSync } from 'child_process';
  * Ephemeral paths (outside the project root, never committed) — `SemiontState`:
  *   configDir      — $XDG_CONFIG_HOME/semiont/{name}/  (generated config for managed processes)
  *   stateDir        — $XDG_STATE_HOME/semiont/{name}/
- *   projectionsDir  — stateDir/projections/
+ *   resourcesDir    — stateDir/resources/  (the per-resource materialized views)
+ *   projectionsDir  — stateDir/projections/  (KB-global projections + the storage-uri index)
  *   jobsDir         — stateDir/jobs/
  *   anchoredTextDir — supplied by the caller; required, no default
  *   runtimeDir      — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
@@ -63,10 +64,10 @@ export function stateDirFor(name: string): string {
 /**
  * A KB's state tree, addressed by NAME — everything that needs no working tree.
  *
- * This exists because a consumer appeared that genuinely needs half of
+ * This exists because consumers appeared that genuinely need half of
  * `SemiontProject` and cannot supply the other half: the gateway reads
- * `projectionsDir` and `jobsDir`, both of which live on the shared state
- * mount, while having no readable KB root at all (SINGLE-KB-MOUNT P5).
+ * `jobsDir` and the Librarian reads `resourcesDir`, both on the shared
+ * state mount, with no readable KB root at all (SINGLE-KB-MOUNT P1/P5).
  *
  * **Split rather than made optional, deliberately.** Relaxing
  * `SemiontProject`'s root-derived fields to optional-and-throw-on-read would
@@ -90,6 +91,7 @@ export class SemiontState {
 
   // Ephemeral — state
   readonly stateDir: string;
+  readonly resourcesDir: string;
   readonly projectionsDir: string;
   readonly jobsDir: string;
 
@@ -104,6 +106,7 @@ export class SemiontState {
     this.configDir = path.join(xdgConfig, 'semiont', this.name);
 
     this.stateDir = stateDirFor(this.name);
+    this.resourcesDir = path.join(this.stateDir, 'resources');
     this.projectionsDir = path.join(this.stateDir, 'projections');
     this.jobsDir = path.join(this.stateDir, 'jobs');
 

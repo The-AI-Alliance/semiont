@@ -59,7 +59,7 @@ import {
   type AccessToken,
   type EventMap,
 } from '@semiont/core';
-import { loadEnvironmentConfig, stateDirFor } from '@semiont/core/node';
+import { loadEnvironmentConfig, SemiontState } from '@semiont/core/node';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { getGraphDatabase } from '@semiont/graph';
 import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
@@ -219,7 +219,7 @@ async function main() {
   // by the staged KB name alone — no SemiontProject, no KB root. The
   // Archivist materializes them; this process NEVER rebuilds.
   const views = new FilesystemViewStorage(
-    { stateDir: stateDirFor(kbName) },
+    new SemiontState({ name: kbName }),
     logger.child({ component: 'view-storage' }),
   );
 

@@ -34,26 +34,27 @@ export interface ViewStorage {
 }
 
 export class FilesystemViewStorage implements ViewStorage {
-  private basePath: string;
+  private resourcesDir: string;
   private logger?: Logger;
 
-  // Takes only the state root it reads under — not a full SemiontProject.
-  // The Librarian resolves this from the staged `[kb] name` with no KB mount
+  // Takes only the views' own directory — not a full SemiontProject, and not
+  // the whole state tree: this store can name nothing outside resourcesDir.
+  // The Librarian resolves it from the staged `[kb] name` with no KB mount
   // (SINGLE-KB-MOUNT P1); in-process callers pass their SemiontProject, which
   // satisfies the slice structurally.
-  constructor(project: { stateDir: string }, logger?: Logger) {
+  constructor(state: { resourcesDir: string }, logger?: Logger) {
     this.logger = logger;
-    this.basePath = project.stateDir;
+    this.resourcesDir = state.resourcesDir;
   }
 
-  private getProjectionPath(resourceId: ResourceId): string {
+  private viewPath(resourceId: ResourceId): string {
     // Use 4-hex Jump Consistent Hash sharding (65,536 shards)
     const [ab, cd] = getShardPath(resourceId);
-    return path.join(this.basePath, 'resources', ab, cd, `${resourceId}.json`);
+    return path.join(this.resourcesDir, ab, cd, `${resourceId}.json`);
   }
 
   async save(resourceId: ResourceId, projection: ResourceView): Promise<void> {
-    const projPath = this.getProjectionPath(resourceId);
+    const projPath = this.viewPath(resourceId);
     const projDir = path.dirname(projPath);
 
     // Ensure shard directory exists
@@ -76,7 +77,7 @@ export class FilesystemViewStorage implements ViewStorage {
   }
 
   async get(resourceId: ResourceId): Promise<ResourceView | null> {
-    const projPath = this.getProjectionPath(resourceId);
+    const projPath = this.viewPath(resourceId);
 
     try {
       const content = await fs.readFile(projPath, 'utf-8');
@@ -106,7 +107,7 @@ export class FilesystemViewStorage implements ViewStorage {
   }
 
   async delete(resourceId: ResourceId): Promise<void> {
-    const projPath = this.getProjectionPath(resourceId);
+    const projPath = this.viewPath(resourceId);
 
     try {
       await fs.unlink(projPath);
@@ -119,7 +120,7 @@ export class FilesystemViewStorage implements ViewStorage {
   }
 
   async exists(resourceId: ResourceId): Promise<boolean> {
-    const projPath = this.getProjectionPath(resourceId);
+    const projPath = this.viewPath(resourceId);
 
     try {
       await fs.access(projPath);
@@ -131,7 +132,7 @@ export class FilesystemViewStorage implements ViewStorage {
 
   async getAll(): Promise<ResourceView[]> {
     const views: ResourceView[] = [];
-    const annotationsPath = path.join(this.basePath, 'resources');
+    const annotationsPath = this.resourcesDir;
 
     try {
       // Recursively walk through all shard directories
