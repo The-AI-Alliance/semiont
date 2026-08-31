@@ -282,6 +282,74 @@ describe('bus routes', () => {
       await expect(res.json()).resolves.toEqual({ subscribers: 0 });
     });
 
+    // ── TOUR-CLICK P6: the gateway's validation of `browse:click` ──────────
+    //
+    // P1 bound the channel to `BrowseClickEvent` in the registry
+    // (`validate: "BrowseClickEvent"`), which is what makes /bus/emit willing
+    // to accept it. Nothing proved the gateway HONORS that binding: the TS and
+    // Go surfaces are pinned, `browse.click()`/`beckon.click()` are pinned at
+    // the SDK, the viewer is pinned in react-ui — and a payload wrongly
+    // accepted or rejected at this route fails none of them.
+    //
+    // These are regression pins, not discoveries. All three pass on landing;
+    // that is the point. The wire boundary was simply unpinned.
+    describe('browse:click validation (TOUR-CLICK P6)', () => {
+      it('accepts a well-formed payload and reports the subscriber count', async () => {
+        eventBus.get('browse:click').subscribe(() => {});
+
+        const res = await app.request('/bus/emit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            channel: 'browse:click',
+            payload: { annotationId: 'ann-1' },
+          }),
+        });
+
+        expect(res.status).toBe(202);
+        await expect(res.json()).resolves.toEqual({ subscribers: 1 });
+      });
+
+      // A 400 here means the binding is live. If this ever returns 202, the
+      // registry's `validate` entry has stopped being enforced — which is the
+      // regression this pin exists to catch, and the only way the binding's
+      // deadness would ever show.
+      it('rejects a payload missing annotationId', async () => {
+        const res = await app.request('/bus/emit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel: 'browse:click', payload: {} }),
+        });
+
+        expect(res.status).toBe(400);
+      });
+
+      // Pins what the wire ACTUALLY does, not what one might wish it did.
+      //
+      // TOUR-CLICK D2 deleted `motivation` from this payload — the viewer
+      // derives it from the annotation the id names. But `BrowseClickEvent`
+      // declares no `additionalProperties: false`, so an extra field rides
+      // through accepted. That is deliberate, not an oversight to fix here:
+      // the registry's own TS binding is
+      // `BrowseClickEvent & { anchorRect?: AnchorRect }` — the channel
+      // deliberately carries a runtime-only local extra — so tightening the
+      // schema is a wire change needing its own decision about how a
+      // local-extra channel expresses that. Asserting the wish instead would
+      // leave a failing or skipped test standing in for a decision nobody made.
+      it('accepts an unknown extra field — the schema sets no additionalProperties bound', async () => {
+        const res = await app.request('/bus/emit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            channel: 'browse:click',
+            payload: { annotationId: 'ann-1', motivation: 'linking' },
+          }),
+        });
+
+        expect(res.status).toBe(202);
+      });
+    });
+
     it('reports how many subscribers an emit reached', async () => {
       eventBus.get('beckon:focus').subscribe(() => {});
       eventBus.get('beckon:focus').subscribe(() => {});
