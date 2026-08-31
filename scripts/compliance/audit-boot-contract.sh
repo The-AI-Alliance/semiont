@@ -26,12 +26,12 @@ EXECUTOR_GO="apps/launcher/internal/launcher/executor.go"
 FAIL=0
 
 # Per-service runtime file sets. Approximations are deliberate and named:
-# the gateway excludes cli/rebuild-* (checkout-run tools, not in the image
-# CMD chain — SINGLE-KB-MOUNT D6); the make-meaning services are scoped to
-# their entry files, where every env read of theirs lives today.
+# the make-meaning services are scoped to their entry files, where every env
+# read of theirs lives today (the checkout-run rebuild CLIs under
+# make-meaning/src/cli are out of scope — they never ride an image).
 service_files() {
   case "$1" in
-    gateway)   find apps/gateway/src -name '*.ts' ! -path '*__tests__*' ! -path '*cli/rebuild-*' ;;
+    gateway)   find apps/gateway/src -name '*.ts' ! -path '*__tests__*' ;;
     worker)    find packages/jobs/src -name '*.ts' ! -path '*__tests__*' ;;
     smelter)   echo packages/make-meaning/src/smelter-main.ts ;;
     weaver)    echo packages/make-meaning/src/weaver-main.ts ;;

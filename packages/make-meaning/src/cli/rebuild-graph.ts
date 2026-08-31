@@ -7,9 +7,11 @@
  * event log. Proves that events are the source of truth and the graph is a
  * projection. Requires the gateway and weaver to be running.
  *
+ * Lives beside the record's owner (the Archivist): a checkout-run operator
+ * tool, never an image binary. It is a pure network peer — bus in, bus out.
+ *
  * Usage:
- *   npm run rebuild-graph              # Rebuild entire graph
- *   npm run rebuild-graph <resourceId> # Rebuild specific resource
+ *   npm run rebuild-graph --workspace=@semiont/make-meaning -- [resourceId]
  *
  * Configuration:
  *   ~/.semiontconfig       — services.gateway.publicURL
@@ -28,15 +30,14 @@ import {
 import { readFileSync, existsSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
-import { initializeLogger, getLogger } from '../logger';
+import { createProcessLogger } from '@semiont/observability/process-logger';
+
+const logger = createProcessLogger('rebuild-graph');
 
 /** Rebuilds replay full histories — allow far more than the 30 s bus default. */
 const REBUILD_TIMEOUT_MS = 10 * 60 * 1000;
 
 async function rebuildGraph(rId?: string) {
-  initializeLogger();
-  const logger = getLogger();
-
   const configPath = join(homedir(), '.semiontconfig');
   const tomlReader = {
     readIfExists: (p: string): string | null => existsSync(p) ? readFileSync(p, 'utf-8') : null,
@@ -97,7 +98,6 @@ const rId = args.find((_, i) => i !== envFlagIdx && i !== envFlagIdx + 1);
 
 rebuildGraph(rId)
   .catch(err => {
-    const logger = getLogger();
     logger.error('Rebuild graph failed', {
       error: err.message,
       stack: err.stack

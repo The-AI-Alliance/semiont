@@ -5,17 +5,21 @@
  * Rebuilds materialized views from Event Store event streams.
  * Proves that events are the source of truth.
  *
+ * Lives beside the record's owner (the Archivist): a checkout-run operator
+ * tool over the event log, never an image binary.
+ *
  * Usage:
- *   npm run rebuild-projections              # Rebuild all projections
- *   npm run rebuild-projections <resourceId> # Rebuild specific resource
+ *   npm run rebuild-projections --workspace=@semiont/make-meaning -- [resourceId] [--environment <env>]
  */
 
-import { startMakeMeaning, makeMeaningConfigFrom } from '@semiont/make-meaning';
+import { startMakeMeaning } from '../service';
+import { makeMeaningConfigFrom } from '../config';
 import { EventQuery } from '@semiont/event-sourcing';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 import { resourceId as makeResourceId, EventBus } from '@semiont/core';
+import { createProcessLogger } from '@semiont/observability/process-logger';
 
-import { initializeLogger, getLogger } from '../logger';
+const logger = createProcessLogger('rebuild-projections');
 
 async function rebuildProjections(rId?: string, environment?: string) {
   const projectRoot = process.env.SEMIONT_ROOT;
@@ -26,10 +30,6 @@ async function rebuildProjections(rId?: string, environment?: string) {
   // `[defaults] environment`. No local 'development' default — that disagreed with
   // the gateway's 'local' and hid the wrong-section load.
   const config = loadEnvironmentConfig(projectRoot, environment);
-
-  // Initialize logger
-  initializeLogger(config.logLevel);
-  const logger = getLogger();
 
   logger.info('Rebuilding annotation projections from events');
 
@@ -108,7 +108,6 @@ const rId = args.find((_, i) => i !== envFlagIdx && i !== envFlagIdx + 1);
 
 rebuildProjections(rId, envArg)
   .catch(err => {
-    const logger = getLogger();
     logger.error('Rebuild projections failed', {
       error: err.message,
       stack: err.stack

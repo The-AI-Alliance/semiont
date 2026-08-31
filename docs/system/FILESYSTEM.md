@@ -114,11 +114,11 @@ it. So wiping views and restarting the service is the rebuild:
 semiont start --service gateway
 ```
 
-To rebuild deliberately without a restart, the gateway ships scripts for each
-derived read model:
+To rebuild deliberately without a restart, make-meaning ships an operator
+script for each derived read model (checkout-run, beside the record's owner):
 
 ```bash
-cd apps/gateway
+cd packages/make-meaning
 npm run rebuild-projections    # materialized views
 npm run rebuild-graph          # graph projection
 ```
