@@ -126,6 +126,20 @@ export class EventBus {
   }
 
   /**
+   * Channel names with at least one live observer right now. Introspection
+   * for composition-parity gates: `get()` creates subjects lazily, so mere
+   * access does not count — only real subscriptions do. Scoped channels
+   * appear under their namespaced key (`<scope>:<channel>`).
+   */
+  observedChannels(): string[] {
+    const out: string[] = [];
+    for (const [name, subject] of this.subjects) {
+      if (subject.observed) out.push(String(name));
+    }
+    return out;
+  }
+
+  /**
    * Destroy the event bus and complete all subjects
    *
    * After calling destroy(), no new events can be emitted or subscribed to.

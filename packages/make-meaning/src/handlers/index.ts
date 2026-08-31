@@ -11,7 +11,7 @@
  * get the same contract automatically.
  */
 
-import type { EventBus, Logger } from '@semiont/core';
+import type { EventBus, EventMap, Logger } from '@semiont/core';
 import type { SemiontState } from '@semiont/core/node';
 import type { JobQueue } from '@semiont/jobs';
 
@@ -29,6 +29,23 @@ export {
   registerBindUpdateBodyHandler,
   registerJobCommandHandlers,
 };
+
+/**
+ * Every channel the handlers above SUBSCRIBE, maintained beside them — the
+ * handlers' half of the root-parity gate (root-parity.test.ts), which
+ * asserts the in-process composition root observes all of these.
+ */
+export const HANDLER_CHANNELS = [
+  // annotation-assembly
+  'mark:create-request', 'mark:added', 'mark:create-failed',
+  // annotation-lookups
+  'browse:annotation-context-requested', 'gather:summary-requested',
+  // bind-update-body
+  'bind:update-body', 'mark:body-updated', 'mark:body-update-failed',
+  // job-commands
+  'job:create', 'job:claim', 'job:cancel-requested',
+  'job:report-progress', 'job:complete', 'job:fail',
+] as const satisfies readonly (keyof EventMap)[];
 
 /**
  * Register all bus command handlers on the make-meaning EventBus. Called
