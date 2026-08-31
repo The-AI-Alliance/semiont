@@ -60,37 +60,35 @@ KB's did:web identity over ssh to confirm the recorded one — it is skipped,
 with a note, unless the codespace is already running.
 `
 
-// statusServices drives the report, in user-facing-first order with each
-// service beside its primary store (gateway→database, worker→inference,
-// weaver→graph, smelter→vectors), then the services that own no store in
-// this table, observability last. Deliberately unrelated to start/stop
-// ordering (which is dependency order). Names are the abstract roles; the
-// roles table maps them to containers. Health probes are host-side: the same
-// endpoints start's health gates poll.
+// statusServices drives the report in three bands: Semiont's own processes,
+// then the infrastructure they run on, then the model providers. Deliberately
+// unrelated to start/stop ordering (which is dependency order) and to the
+// roles table's order. Names are the abstract roles; the roles table maps
+// them to containers. Health probes are host-side: the same endpoints
+// start's health gates poll.
 //
-// Keep the pairs ADJACENT when adding a row. Archivist and Librarian were
-// first appended in the middle, which silently separated weaver from graph —
-// the pairing is the only thing this order promises, and nothing but reading
-// the output enforces it.
+// The order within each band is a chosen reading order, not a derived one,
+// and nothing but reading the output enforces it — put a new row where it
+// belongs in the report rather than appending it.
 var statusServices = []struct {
 	name     string // abstract role (keys the roles table)
 	endpoint string // http(s) URL, or "tcp:<port>"
 	core     bool   // counted toward the exit status
 }{
-	{"gateway", "http://localhost:4000/api/health", true},
-	{"database", "tcp:5432", true},
 	{"worker", "http://localhost:9090/health", true},
-	{"inference", "http://localhost:11434/api/version", true},
-	{"embedding", "http://localhost:11434/api/version", true},
-	{"weaver", "http://localhost:9092/health", true},
-	{"graph", "http://localhost:7474", true},
-	{"smelter", "http://localhost:9091/health", true},
-	{"vectors", "http://localhost:6333/readyz", true},
-	// Storeless here: the Archivist's store is the KB tree and the shared
-	// state mount, and the Librarian mounts neither (SINGLE-KB-MOUNT P1).
+	{"gateway", "http://localhost:4000/api/health", true},
 	{"archivist", "http://localhost:9093/health", true},
 	{"librarian", "http://localhost:9094/health", true},
+	{"weaver", "http://localhost:9092/health", true},
+	{"smelter", "http://localhost:9091/health", true},
+
+	{"database", "tcp:5432", true},
+	{"graph", "http://localhost:7474", true},
+	{"vectors", "http://localhost:6333/readyz", true},
 	{"traces", "http://localhost:16686", false},
+
+	{"inference", "http://localhost:11434/api/version", true},
+	{"embedding", "http://localhost:11434/api/version", true},
 }
 
 // Status implements `semiont status`.
