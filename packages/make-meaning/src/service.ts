@@ -289,6 +289,12 @@ export function assertMakeMeaningConfig(config: MakeMeaningConfig): void {
   }
 }
 
+/**
+ * The in-process composition root: every access actor and handler on one
+ * caller-owned bus, for `LocalTransport` consumers — the SDK test seam and
+ * embedding. Production composes the same actors as extracted services
+ * (archivist-main, librarian-main); this second root is supported, not legacy.
+ */
 export async function startMakeMeaning(
   project: SemiontProject,
   config: MakeMeaningConfig,
