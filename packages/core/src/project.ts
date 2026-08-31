@@ -26,9 +26,6 @@ import { execFileSync } from 'child_process';
  *   projectionsDir  — stateDir/projections/
  *   jobsDir         — stateDir/jobs/
  *   anchoredTextDir — supplied by the caller; required, no default
- *   gatewayLogsDir      — stateDir/gateway/
- *   gatewayAppLogFile   — gatewayLogsDir/app.log
- *   gatewayErrorLogFile — gatewayLogsDir/error.log
  *   runtimeDir      — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
  *   gatewayPidFile  — runtimeDir/gateway.pid
  *
@@ -68,9 +65,8 @@ export function stateDirFor(name: string): string {
  *
  * This exists because a consumer appeared that genuinely needs half of
  * `SemiontProject` and cannot supply the other half: the gateway reads
- * `projectionsDir`, `jobsDir` and the gateway log paths, all of which live on
- * the shared state mount, while having no readable KB root at all
- * (SINGLE-KB-MOUNT P5).
+ * `projectionsDir` and `jobsDir`, both of which live on the shared state
+ * mount, while having no readable KB root at all (SINGLE-KB-MOUNT P5).
  *
  * **Split rather than made optional, deliberately.** Relaxing
  * `SemiontProject`'s root-derived fields to optional-and-throw-on-read would
@@ -96,9 +92,6 @@ export class SemiontState {
   readonly stateDir: string;
   readonly projectionsDir: string;
   readonly jobsDir: string;
-  readonly gatewayLogsDir: string;
-  readonly gatewayAppLogFile: string;
-  readonly gatewayErrorLogFile: string;
 
   // Ephemeral — runtime
   readonly runtimeDir: string;
@@ -113,9 +106,6 @@ export class SemiontState {
     this.stateDir = stateDirFor(this.name);
     this.projectionsDir = path.join(this.stateDir, 'projections');
     this.jobsDir = path.join(this.stateDir, 'jobs');
-    this.gatewayLogsDir = path.join(this.stateDir, 'gateway');
-    this.gatewayAppLogFile = path.join(this.gatewayLogsDir, 'app.log');
-    this.gatewayErrorLogFile = path.join(this.gatewayLogsDir, 'error.log');
 
     const xdgRuntime = process.env.XDG_RUNTIME_DIR;
     const runtimeBase = xdgRuntime ?? process.env.TMPDIR ?? '/tmp';

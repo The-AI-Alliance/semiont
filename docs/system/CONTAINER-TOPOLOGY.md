@@ -129,10 +129,10 @@ The worker, smelter, weaver, archivist, and librarian communicate with the gatew
 
 Exactly one container mounts the KB tree — pinned by a launcher test; every other byte crosses HTTP or the bus. Shared stores have exactly one stamp holder, whose image change clears and rebuilds them.
 
-| Container | `/kb` (git tree) | anchored-text | state (views · jobs · logs) |
+| Container | `/kb` (git tree) | anchored-text | state (views · jobs) |
 |---|---|---|---|
 | archivist | **rw — sole owner** | read | **stamp holder** — writes views |
-| gateway | — | — | shared — jobs queue, logs |
+| gateway | — | — | shared — jobs queue |
 | librarian | — | — | shared — reads views |
 | smelter | — | **stamp holder** — writes | — |
 | worker · weaver · browser | — | — | — |

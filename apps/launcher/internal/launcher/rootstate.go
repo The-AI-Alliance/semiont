@@ -156,7 +156,7 @@ var stateStores = map[string]stateStoreSpec{
 	},
 	// The XDG state tree, shared across the Archivist (projection writer —
 	// owns the stamp), the librarian (reads views), and the gateway (jobs
-	// queue + logs).
+	// queue).
 	"state": {
 		dir:        "state",
 		mounts:     []stateMount{{"", "/semiont-state"}},
