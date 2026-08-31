@@ -17,11 +17,9 @@ import {
 } from '@semiont/observability';
 import { getLogger } from '../logger';
 import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
-import type { startMakeMeaningGateway } from '@semiont/make-meaning';
 import { validators, formatErrors } from '@semiont/core/openapi';
 
 type AuthMiddleware = (c: Context, next: Next) => Promise<Response | void>;
-type MakeMeaning = Awaited<ReturnType<typeof startMakeMeaningGateway>>;
 
 const getBusLogger = () => getLogger().child({ component: 'bus' });
 
@@ -242,7 +240,7 @@ function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSub
 }
 
 export function createBusRouter(authMiddleware: AuthMiddleware) {
-  const busRouter = new Hono<{ Variables: { user: User; principalDid: string; eventBus: EventBus; makeMeaning: MakeMeaning; config: EnvironmentConfig } }>();
+  const busRouter = new Hono<{ Variables: { user: User; principalDid: string; eventBus: EventBus; config: EnvironmentConfig } }>();
 
   busRouter.use('/bus/*', authMiddleware);
 

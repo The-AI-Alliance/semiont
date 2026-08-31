@@ -23,9 +23,10 @@ Reports what this machine knows about:
   BROWSER        the machine-level viewer (not a stack member) — first,
                  because it sits architecturally above everything it views
   LOCAL STACK    the one stack running here, and the root it belongs to
-  LOCAL ROOTS    every KB clone the launcher has used (roots.json)
-  REMOTE KNOWLEDGE BASES
-                 codespace-hosted KBs, their state, and their KB port
+  KNOWLEDGE BASES
+                 every KB this machine knows — file:// clones the launcher
+                 has used (roots.json), and https:// codespace-hosted repos
+                 with their state and KB port
 
 --verbose adds LAUNCHER PATHS: the launcher's own config, cache, log, state,
 staging and model-cache paths on this host, plus the persistent per-root
@@ -59,38 +60,45 @@ KB's did:web identity over ssh to confirm the recorded one — it is skipped,
 with a note, unless the codespace is already running.
 `
 
-// statusServices drives the report, in user-facing-first order with each
-// service beside its primary store (gateway→database, worker→inference,
-// weaver→graph, smelter→vectors), observability last. Deliberately unrelated
-// to start/stop ordering (which is dependency order). Names are the abstract
-// roles; the roles table maps them to containers. Health probes are
-// host-side: the same endpoints start's health gates poll.
+// statusServices drives the report in three bands: Semiont's own processes,
+// then the infrastructure they run on, then the model providers. Deliberately
+// unrelated to start/stop ordering (which is dependency order) and to the
+// roles table's order. Names are the abstract roles; the roles table maps
+// them to containers. Health probes are host-side: the same endpoints
+// start's health gates poll.
+//
+// The order within each band is a chosen reading order, not a derived one,
+// and nothing but reading the output enforces it — put a new row where it
+// belongs in the report rather than appending it.
 var statusServices = []struct {
 	name     string // abstract role (keys the roles table)
 	endpoint string // http(s) URL, or "tcp:<port>"
 	core     bool   // counted toward the exit status
 }{
-	{"gateway", "http://localhost:4000/api/health", true},
-	{"database", "tcp:5432", true},
 	{"worker", "http://localhost:9090/health", true},
-	{"inference", "http://localhost:11434/api/version", true},
-	{"embedding", "http://localhost:11434/api/version", true},
-	{"weaver", "http://localhost:9092/health", true},
+	{"gateway", "http://localhost:4000/api/health", true},
 	{"archivist", "http://localhost:9093/health", true},
 	{"librarian", "http://localhost:9094/health", true},
-	{"graph", "http://localhost:7474", true},
+	{"weaver", "http://localhost:9092/health", true},
 	{"smelter", "http://localhost:9091/health", true},
+
+	{"database", "tcp:5432", true},
+	{"graph", "http://localhost:7474", true},
 	{"vectors", "http://localhost:6333/readyz", true},
 	{"traces", "http://localhost:16686", false},
+
+	{"inference", "http://localhost:11434/api/version", true},
+	{"embedding", "http://localhost:11434/api/version", true},
 }
 
 // Status implements `semiont status`.
 //
-// Layout follows the concepts, not the machinery: LOCAL ROOTS and REMOTE
-// REPOS are the durable things a user owns; a stack is transient status
-// layered on one of them (a local stack belongs to zero or one local root).
-// So the report always opens with LOCAL STACK — present or not — then REMOTE
-// REPOS, then the registries beneath both.
+// Layout follows the concepts, not the machinery. BROWSER opens the report:
+// the viewer sits architecturally above every stack it views (see
+// printBrowser). Then LOCAL STACK — present or not — because a stack is
+// transient status layered on one root. Then the durable things a user owns,
+// in one KNOWLEDGE BASES section, local before remote.
+// --verbose appends SESSIONS and LAUNCHER PATHS.
 func Status(args []string) int {
 	u := newUI(false)
 	runtime, service, repoFlag, rootFlag := "", "", "", ""
@@ -220,11 +228,20 @@ func Status(args []string) int {
 	if code != 0 {
 		return code
 	}
+	// ONE section: local and remote KBs are the same kind of thing, told
+	// apart by the scheme on their address (file:// vs https://) rather than
+	// by living under separate headings. Only the caller sees both halves,
+	// so the "nothing here" line belongs here too.
 	if service == "" {
-		printRoots(u, st)
-	}
-	if service == "" && rootFlag == "" {
-		printRemoteKBs(u, cs)
+		u.section("KNOWLEDGE BASES")
+		found := printRoots(u, st)
+		if rootFlag == "" {
+			found += printRemoteKBs(u, cs)
+		}
+		if found == 0 {
+			fmt.Printf("  %s\n", u.dim("(none — cd into a KB clone, set SEMIONT_ROOT, start with --root, "+
+				"or --runtime codespace --repo <owner>/<name>)"))
+		}
 	}
 	if service == "" && verbose {
 		printSessions(u, ss)
@@ -537,8 +554,9 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 // resolvable from here (SEMIONT_ROOT or cwd discovery) and the running
 // stack's, each annotated with everything true about it. Vanished paths are
 // flagged, not hidden.
-func printRoots(u *ui, st *stackState) {
-	u.section("LOCAL ROOTS")
+// Reports how many it printed: the KNOWLEDGE BASES section is shared with
+// the remote half, so only the caller can know whether it came out empty.
+func printRoots(u *ui, st *stackState) int {
 	order := []string{}
 	labels := map[string][]string{}
 	add := func(path, label string) {
@@ -571,14 +589,12 @@ func printRoots(u *ui, st *stackState) {
 	}
 
 	if len(order) == 0 {
-		fmt.Printf("  %s\n", u.dim("(none — cd into a KB clone, set SEMIONT_ROOT, or start with --root)"))
-		return
+		return 0
 	}
 	// Identity per root: the registry's stored did/siteName (survives the
 	// path vanishing), refreshed by a live read when the root is present.
 	reg := loadRoots()
-	for _, p := range order {
-		fmt.Printf("  %s %s\n", p, u.dim("("+strings.Join(labels[p], "; ")+")"))
+	detail := func(p, indent string) {
 		did, site, cfg := "", "", ""
 		for _, e := range reg.Roots {
 			if e.Path == p {
@@ -595,14 +611,34 @@ func printRoots(u *ui, st *stackState) {
 		}
 		switch {
 		case did != "" && site != "":
-			fmt.Printf("    %s %s\n", u.dim(did), u.dim("— "+site))
+			fmt.Printf("%s%s %s\n", indent, u.dim(did), u.dim("— "+site))
 		case did != "":
-			fmt.Printf("    %s\n", u.dim(did))
+			fmt.Printf("%s%s\n", indent, u.dim(did))
 		}
 		if cfg != "" {
-			fmt.Printf("    %s\n", u.dim("config: "+cfg+" (used when --config is omitted)"))
+			fmt.Printf("%s%s\n", indent, u.dim("config: "+cfg+" (used when --config is omitted)"))
 		}
 	}
+	// Addressed as file:// URLs, so a local KB and a github.com one read as
+	// the same kind of thing in one section — each a real address you can
+	// follow. Clones of different KBs sit under the same checkout directory,
+	// so a repeated stem is the half that says nothing and the leaf is the
+	// half that identifies: print such a stem once and hang its KBs under
+	// it, while a root sharing its stem with nobody stays on one line.
+	items := make([]treeItem, 0, len(order))
+	rootOf := map[string]string{}
+	for _, p := range order {
+		d := "file://" + p
+		items = append(items, treeItem{full: d, rest: d})
+		rootOf[d] = p
+	}
+	treePrint(u, items, 0, func(it treeItem, depth int) {
+		p := rootOf[it.full]
+		lead := strings.Repeat("  ", depth+1)
+		fmt.Printf("%s%s %s\n", lead, it.rest, u.dim("("+strings.Join(labels[p], "; ")+")"))
+		detail(p, lead+"  ")
+	})
+	return len(order)
 }
 
 // printSessions reports login sessions under --verbose: each stored token

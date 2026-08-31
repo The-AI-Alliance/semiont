@@ -76,10 +76,95 @@ func (u *ui) banner(s string) {
 	fmt.Printf("\n%s\n", u.bold(s))
 }
 
+// treeItem carries a name through treePrint: full is what the caller keys its
+// own data by, rest is what is left to print once enclosing headings have
+// taken their share.
+type treeItem struct{ full, rest string }
+
+// commonSlashPrefix is the longest prefix every name shares, cut back to a
+// whole path segment. "abc-1/x" and "abc-2/y" share "abc-" and get nothing —
+// half a directory name is not a place.
+func commonSlashPrefix(names []string) string {
+	if len(names) < 2 {
+		return ""
+	}
+	p := names[0]
+	for _, n := range names[1:] {
+		i := 0
+		for i < len(p) && i < len(n) && p[i] == n[i] {
+			i++
+		}
+		if p = p[:i]; p == "" {
+			return ""
+		}
+	}
+	if i := strings.LastIndex(p, "/"); i >= 0 {
+		return p[:i+1]
+	}
+	return ""
+}
+
+// firstSegment is the text up to and including the first "/", or "" when the
+// name has none left — the key that partitions siblings.
+func firstSegment(s string) string {
+	if i := strings.Index(s, "/"); i >= 0 {
+		return s[:i+1]
+	}
+	return ""
+}
+
+// treePrint renders names as a compressed prefix tree: a prefix shared by two
+// or more names is printed once as a heading and indented under, at EVERY
+// level, so three KBs under .../gh.c/AIA/ and one under .../gh.c/pingel-org/
+// print the checkout directory once and the owners beneath it. Chains with a
+// single child collapse onto one line — a lone KB never costs a heading that
+// shares nothing.
+//
+// Order is by first appearance, of both branches and leaves, so callers whose
+// order carries meaning (the cwd root leads) keep it.
+func treePrint(u *ui, items []treeItem, depth int, leaf func(treeItem, int)) {
+	if len(items) == 1 {
+		leaf(items[0], depth)
+		return
+	}
+	rests := make([]string, len(items))
+	for i, it := range items {
+		rests[i] = it.rest
+	}
+	if lcp := commonSlashPrefix(rests); lcp != "" {
+		fmt.Printf("%s%s\n", strings.Repeat("  ", depth+1), u.dim(lcp))
+		depth++
+		for i := range items {
+			items[i].rest = strings.TrimPrefix(items[i].rest, lcp)
+		}
+	}
+	keys := []string{}
+	groups := map[string][]treeItem{}
+	for _, it := range items {
+		k := firstSegment(it.rest)
+		if _, seen := groups[k]; !seen {
+			keys = append(keys, k)
+		}
+		groups[k] = append(groups[k], it)
+	}
+	// Nothing left to branch on: siblings that are all leaves. This is the
+	// recursion's floor, reached whenever names differ only in their final
+	// segment.
+	if len(keys) == 1 && keys[0] == "" {
+		for _, it := range items {
+			leaf(it, depth)
+		}
+		return
+	}
+	for _, k := range keys {
+		treePrint(u, groups[k], depth, leaf)
+	}
+}
+
 // section renders a status-report section header: bold, flush left, ruled —
-// the three top-level groupings (LOCAL STACK / LOCAL ROOTS / REMOTE KNOWLEDGE
-// BASES, plus LAUNCHER PATHS under --verbose) must be findable at a glance in
-// a report whose content lines are all indented and dense.
+// the top-level groupings (LOCAL STACK / KNOWLEDGE BASES, plus LAUNCHER PATHS
+// under --verbose) must be findable at a glance in a report whose content
+// lines are all indented and dense.
 func (u *ui) section(title string) {
 	fmt.Printf("\n%s\n%s\n", u.bold(title), u.dim(strings.Repeat("─", 60)))
 }

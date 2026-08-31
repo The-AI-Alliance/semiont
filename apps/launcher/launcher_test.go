@@ -1446,7 +1446,7 @@ func TestStatusMixed(t *testing.T) {
 		"SERVICE", "RUNTIME", "STATUS",
 		"LOCAL STACK", "database (PostgreSQL)", // tech rides in the SERVICE cell now
 		"PostgreSQL", "Neo4j", "Qdrant", "Ollama", "Jaeger",
-		"LOCAL ROOTS",
+		"KNOWLEDGE BASES",
 		"(discovered from cwd)",
 		// The merged STATUS cell: mark + word, probe dimmed after. The
 		// diagnostic matrix each word pins: running-and-healthy, running-
@@ -2818,7 +2818,7 @@ func TestCodespaceStatus(t *testing.T) {
 		t.Fatalf("status: exit %d\nstdout:\n%s", code, stdout)
 	}
 	mustContain(t, "status stdout", stdout,
-		"LOCAL STACK", "REMOTE KNOWLEDGE BASES", csRepo, "codespace fake-cs-1", "LOCAL ROOTS")
+		"LOCAL STACK", "KNOWLEDGE BASES", csRepo, "codespace fake-cs-1", "KNOWLEDGE BASES")
 
 	// --repo names ONE stack: full detail, health-coded, credentials fresh.
 	stdout, _, code = s.run(t, "status", "--repo", csRepo)
@@ -3001,7 +3001,7 @@ func TestMultiStackCodespaces(t *testing.T) {
 		t.Fatalf("fleet status: exit %d\n%s", code, stdout)
 	}
 	mustContain(t, "status stdout", stdout,
-		"REMOTE KNOWLEDGE BASES",
+		"KNOWLEDGE BASES",
 		csRepo, "codespace fake-cs-1", "http://localhost:4000",
 		"other/bar", "codespace bar-cs-1", "http://localhost:4001")
 
@@ -3462,7 +3462,7 @@ func TestRootsRegistryAndRootFlag(t *testing.T) {
 
 	// status shows the registered root, with its did:web identity line.
 	stdout, _, _ = s.run(t, "status")
-	mustContain(t, "status stdout", stdout, "LOCAL ROOTS", s.kb, "last used ",
+	mustContain(t, "status stdout", stdout, "KNOWLEDGE BASES", s.kb, "last used ",
 		"did:web:example.github.io:test-kb — Test Knowledge Base")
 }
 
@@ -3669,10 +3669,46 @@ func TestStackStateLifecycle(t *testing.T) {
 	if set.Browser == nil || set.Browser.ID != "fid-semiont-browser" {
 		t.Errorf("browser record missing or wrong: %+v", set.Browser)
 	}
-	for _, role := range []string{"traces", "graph", "vectors", "inference", "database", "gateway", "worker", "smelter", "weaver"} {
+	// EXACTLY these roles, not merely at-least: this list is a hand-written
+	// mirror of the fleet, and as an at-least check it silently stopped
+	// covering the Archivist and the Librarian when they joined. Asserting
+	// the set makes growth fail here — the census gate the roster needs,
+	// since `main_test` cannot reach the roles table to derive one.
+	wantRoles := []string{"traces", "graph", "vectors", "inference", "embedding", "database",
+		"gateway", "worker", "smelter", "weaver", "archivist", "librarian"}
+	if len(st.Services) != len(wantRoles) {
+		got := make([]string, 0, len(st.Services))
+		for role := range st.Services {
+			got = append(got, role)
+		}
+		sort.Strings(got)
+		t.Errorf("recorded roles = %v, want exactly %d roles %v — a service joined or left the fleet",
+			got, len(wantRoles), wantRoles)
+	}
+	// inference and embedding are the two DRIVER-dependent roles: each may be
+	// a container, a host Ollama, a remote API — or, for embedding, the
+	// Ollama container `inference` launched. In that last case the record is
+	// deliberately Provided:launcher with NO container, id or image: the
+	// launching role alone is stamped as owner, because that stamp is what
+	// stop's ownership check keys on. So the invariant is about OWNERSHIP,
+	// not the provider string.
+	driverDependent := map[string]bool{"inference": true, "embedding": true}
+	for _, role := range wantRoles {
 		e, ok := st.Services[role]
 		if !ok {
 			t.Errorf("service %q missing from record", role)
+			continue
+		}
+		if e.Endpoint == "" {
+			t.Errorf("%s: endpoint not recorded", role)
+		}
+		if e.Container == "" {
+			if !driverDependent[role] {
+				t.Errorf("%s: no container recorded — only a driver-dependent role may run without one", role)
+			} else if e.ID != "" || e.Image != "" {
+				t.Errorf("%s: owns no container (provided %q) yet carries id %q / image %q",
+					role, e.Provided, e.ID, e.Image)
+			}
 			continue
 		}
 		if e.ID != "fid-"+e.Container {
@@ -3683,9 +3719,6 @@ func TestStackStateLifecycle(t *testing.T) {
 		}
 		if e.Provided != "launcher" {
 			t.Errorf("%s: provided = %q, want launcher", role, e.Provided)
-		}
-		if e.Endpoint == "" {
-			t.Errorf("%s: endpoint not recorded", role)
 		}
 	}
 
@@ -6150,7 +6183,7 @@ func TestStatusService(t *testing.T) {
 		t.Fatalf("healthy gateway: want exit 0, got %d\nstdout:\n%s", code, stdout)
 	}
 	mustContain(t, "stdout", stdout, "gateway", "✓ running", "http://localhost:4000/api/health")
-	for _, absent := range []string{"LOCAL ROOTS", "worker", "traces"} {
+	for _, absent := range []string{"KNOWLEDGE BASES", "worker", "traces"} {
 		if strings.Contains(stdout, absent) {
 			t.Errorf("filtered status leaked %q:\n%s", absent, stdout)
 		}

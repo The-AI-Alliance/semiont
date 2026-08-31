@@ -77,7 +77,7 @@ describe('anchored text over IContentTransport', () => {
     await fs.mkdir(testDir, { recursive: true });
     eventBus = new EventBus();
     service = await startMakeMeaning(new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` }), config, eventBus, silentLogger);
-    content = new LocalContentTransport(service.knowledgeSystem);
+    content = new LocalContentTransport(service.knowledgeSystem.kb);
 
     ({ rid, checksum } = await seedPdf('scan'));
   }, 30_000);
@@ -178,5 +178,52 @@ describe('anchored text over IContentTransport', () => {
     });
 
     expect(await content.getAnchoredText(target)).toBeNull();
+  });
+
+  // ── The two barrier-FREE reads (PERSIST-ANCHORS P0 + P2c) ─────────────────
+  //
+  // `getAnchoredText` above applies a read-your-writes barrier: a miss waits
+  // for the Smelter to finish the resource's current content generation. These
+  // two deliberately do not, and that asymmetry is the whole point of them
+  // being separate methods rather than options on the first.
+  //
+  // Both tests below therefore emit NO `smelt:settled`. Under the barrier that
+  // omission is what makes a miss block for the full timeout — so if either
+  // read ever acquires one, these stop returning promptly and start hanging,
+  // which is exactly the regression worth catching. The smelter's cache
+  // consult runs on every ingest.
+
+  it('reads a map by checksum with no settle barrier — the caller already holds the identity', async () => {
+    // Checksum-addressed: no view resolution, nothing to wait for. Written
+    // under a checksum belonging to no resource in this KB at all, so a read
+    // that resolved views or awaited a generation could not answer it.
+    const orphanChecksum = uuidv4().replace(/-/g, '');
+    await content.putAnchoredText(orphanChecksum, MAP);
+
+    expect(await content.getAnchoredTextByChecksum(orphanChecksum)).toEqual(MAP);
+  });
+
+  it('answers null for a checksum nothing has derived, rather than waiting', async () => {
+    // The common case at ingest — most content has no map. A miss is an
+    // answer here, not a reason to block.
+    expect(await content.getAnchoredTextByChecksum(uuidv4().replace(/-/g, ''))).toBeNull();
+  });
+
+  it('lists the store keys for the reconcile diff', async () => {
+    // Planning data (P0): presence is being asked, not content at a moment.
+    // Written under a REAL content checksum, which is what the planner diffs
+    // against — the store shards by key and only entries under the current
+    // stamp are listed, so a synthetic key proves nothing about either.
+    const { checksum: realChecksum } = await seedPdf('listed');
+    await content.putAnchoredText(realChecksum, MAP);
+
+    const keys = await content.listAnchoredTextKeys();
+    expect(keys).toContain(realChecksum);
+
+    // The equivalence the planner depends on: every listed key must read back,
+    // or the diff plans re-anchors for artifacts the store already holds.
+    for (const key of keys) {
+      expect(await content.getAnchoredTextByChecksum(key)).not.toBeNull();
+    }
   });
 });

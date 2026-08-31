@@ -36,7 +36,10 @@ export {
  */
 export function registerBusHandlers(
   eventBus: EventBus,
-  knowledgeSystem: KnowledgeSystem,
+  // Narrowed to what this actually reaches for — the KB and one actor — rather
+  // than the whole bundle. DERIVED from KnowledgeSystem with Pick, so it cannot
+  // drift from that definition, and a full KnowledgeSystem still satisfies it.
+  knowledgeSystem: Pick<KnowledgeSystem, 'kb' | 'gatherer'>,
   jobQueue: JobQueue,
   state: SemiontState,
   logger: Logger,

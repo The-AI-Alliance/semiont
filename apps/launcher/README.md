@@ -200,7 +200,8 @@ semiont stop
   execute — the legibility answer to "what does this binary actually do".
 - **`semiont status` reports in three layers** — LOCAL STACK (the one stack
   running here, headed by the root it belongs to and its did:web), LOCAL
-  ROOTS, REMOTE KNOWLEDGE BASES (codespace-hosted KBs, their state, and each
+  ROOTS, KNOWLEDGE BASES (local file:// clones plus codespace-hosted
+  https:// repos, their state, and each
   KB's local port). `--verbose` adds LAUNCHER PATHS — the launcher's own
   config, cache, log, state, staging and model-cache paths, plus the
   persistent per-root stack state with its disk consumption: a `data` row
@@ -373,14 +374,14 @@ semiont stop
   else the root is found by walking up from cwd for `.semiont/`. git is not
   part of discovery — the must-be-a-git-clone invariant applies only where
   `/kb` is mounted (full start, `--service gateway`); sidecars need only the
-  `.semiont/` tree. `semiont status` reports the root(s) in its LOCAL ROOTS
-  section.
+  `.semiont/` tree. `semiont status` reports the root(s) in its
+  KNOWLEDGE BASES section.
 - The launcher remembers every root a real start used in `roots.json` (beside
   `stack.json`; entries survive stops, vanished paths are flagged not
   dropped). `semiont start --root <path|name>` selects a root explicitly — a
   directory, or the basename of a registered root — winning over
-  `SEMIONT_ROOT` and cwd discovery; the LOCAL ROOTS status section lists
-  the registry with last-used annotations.
+  `SEMIONT_ROOT` and cwd discovery; the KNOWLEDGE BASES status section
+  lists the registry with last-used annotations.
 - **`--config` is sticky per KB**: a successful start with an explicit
   `--config` records the name on the root's `roots.json` entry, and later
   starts without the flag use it (banner says `Config: anthropic (recorded

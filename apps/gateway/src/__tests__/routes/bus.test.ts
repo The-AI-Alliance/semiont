@@ -69,7 +69,7 @@ function fakeStoredYieldCreated(
 }
 
 
-type Variables = { user: User; principalDid: string; eventBus: EventBusType; logger: ReturnType<typeof initializeLogger>; makeMeaning: unknown; config: unknown };
+type Variables = { user: User; principalDid: string; eventBus: EventBusType; logger: ReturnType<typeof initializeLogger>; config: unknown };
 
 beforeAll(() => {
   process.env.NODE_ENV = 'test';
@@ -116,7 +116,6 @@ function withArchivistReplay(queryEvents: QueryEventsStub = async () => []) {
 
 function buildApp(
   eventBus: EventBus,
-  makeMeaning: unknown = {},
   options: { principalDid?: string } = {},
 ) {
   const passthrough = async (_c: unknown, next: () => Promise<void>) => next();
@@ -130,7 +129,6 @@ function buildApp(
     c.set('principalDid', principalDid);
     c.set('eventBus', eventBus);
     c.set('logger', logger);
-    c.set('makeMeaning', makeMeaning);
     c.set('config', { services: { archivist: { host: ARCHIVIST_HOST, port: 9093 } } });
     await next();
   });
@@ -332,7 +330,7 @@ describe('bus routes', () => {
       const received: any[] = [];
       eventBus.get('mark:added' as any).subscribe((v) => received.push(v));
 
-      const humanApp = buildApp(eventBus, {}, {
+      const humanApp = buildApp(eventBus, {
         principalDid: 'did:web:test.local:users:alice%40test.local',
       });
       const res = await humanApp.request('/bus/emit', {
@@ -351,7 +349,7 @@ describe('bus routes', () => {
       eventBus.get('mark:added' as any).subscribe((v) => received.push(v));
 
       const agentDid = 'did:web:test.local:agents:ollama:gemma2%3A27b';
-      const agentApp = buildApp(eventBus, {}, { principalDid: agentDid });
+      const agentApp = buildApp(eventBus, { principalDid: agentDid });
       const res = await agentApp.request('/bus/emit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

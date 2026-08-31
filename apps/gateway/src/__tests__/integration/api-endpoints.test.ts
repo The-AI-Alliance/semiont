@@ -12,7 +12,6 @@ import { fileURLToPath } from 'url';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig, EventBus } from '@semiont/core';
-import type { GatewayMakeMeaningService } from '@semiont/make-meaning';
 import { loadEnvironmentConfig } from '@semiont/core/node';
 import { JWTService } from '../../auth/jwt';
 
@@ -30,7 +29,6 @@ type Variables = {
   user: User;
   config: EnvironmentConfig;
   eventBus: EventBus;
-  makeMeaning: GatewayMakeMeaningService;
 };
 
 // Delay app import until after test setup to avoid Prisma validation errors
