@@ -139,6 +139,42 @@ jobs:
       - name: License policy gate
         run: node .github/scripts/check-licenses.mjs sbom.spdx.json .github/licenses/allowlist.txt .github/licenses/exceptions.txt
 
+      # Boot smoke: run the image built above for the scan and require that it
+      # gets as far as CONFIG RESOLUTION. Every defect this catches died in
+      # milliseconds, before any dependency mattered — a missing dist entry
+      # point, an unresolved import, a native module absent for the platform —
+      # and every one of them would otherwise be published and only discovered
+      # when a stack refused to come up.
+      #
+      # Run BARE, with no config and no env, deliberately: the assertion is
+      # about how FAR the process gets, and inventing a config or an env set
+      # here would restate a contract the launcher owns (its args builders) in
+      # a place nothing keeps in sync. Reaching the loader's own refusal is
+      # proof the entry point resolved, every import resolved, and @semiont/core
+      # ran — without standing up a single dependency.
+      #
+      # This is the cheap half. It does NOT prove the service reaches a healthy
+      # state with real config; that needs the launcher-derived env (and a
+      # --check-config entry point would make it exact).
+      - name: Boot smoke (reaches config resolution)
+        run: |
+          set +e
+          out=$(docker run --rm semiont-${{ matrix.service }}:scan 2>&1)
+          set -e
+          echo "$out"
+          if echo "$out" | grep -qE "Cannot find module|Cannot find package|ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND"; then
+            echo "::error::${{ matrix.service }} image died at module load — the entry point or a dependency is missing from the image."
+            exit 1
+          fi
+          # The refusal @semiont/core's config loader raises when no environment
+          # is staged. Every service in this matrix reaches it; a change to that
+          # message should fail here loudly rather than pass silently.
+          if ! echo "$out" | grep -q "No environment selected"; then
+            echo "::error::${{ matrix.service }} image did not reach config resolution. Expected the loader's \"No environment selected\" refusal; see the output above for where it stopped instead."
+            exit 1
+          fi
+          echo "${{ matrix.service }}: entry point and imports resolved, reached config resolution"
+
       - name: Build and push Docker image
         id: build-push
         uses: docker/build-push-action@v7
