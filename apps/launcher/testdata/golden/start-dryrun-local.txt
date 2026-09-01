@@ -32,6 +32,14 @@ container rm semiont-librarian
 # SEMIONT_VERSION=local — using locally-built :local images (no pull)
 container run -d --name semiont-jaeger --memory 1G -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:1.76.0
 # wait: http://localhost:16686 (30s)
+# database state: <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres (created if absent; reused across restarts)
+container run -d --name semiont-postgres --memory 1G -p 5432:5432 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
+# wait: tcp localhost:5432 (20s)
+# probe: container run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432
+# mount state state (shared; the stamp stays with its owning service)
+container run -d --name semiont-gateway --publish 4000:4000 --memory 8G --volume <config-stage>/gateway.toml:/home/semiont/.semiontconfig:ro -v <home>/.local/share/semiont/roots/example.github.io-test-kb/state:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env POSTGRES_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env XDG_STATE_HOME=/semiont-state --env SEMIONT_WORKER_SECRET=<worker-secret> --env JWT_SECRET=<jwt-secret> ghcr.io/the-ai-alliance/semiont-gateway:local
+# wait: http://localhost:4000/api/health (120s)
+# probe: container run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:4000/api/health" (up to 20 tries)
 # graph state: <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j (created if absent; reused across restarts)
 container run -d --name semiont-neo4j --memory 2G -p 7474:7474 -p 7687:7687 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j/data:/data -v <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j/logs:/logs -e NEO4J_AUTH=neo4j/localpass -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes neo4j:5.26.28-community
 # wait: http://localhost:7474 (30s)
@@ -49,14 +57,6 @@ container run -d --name semiont-ollama --memory 8G -p 11434:11434 -m 24G -v <oll
 # wait: http://localhost:11434/api/version (30s)
 # ensure inference, embedding models present at http://localhost:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
 # embedding: externally provided at localhost:11434 — verify reachability, launch nothing
-# database state: <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres (created if absent; reused across restarts)
-container run -d --name semiont-postgres --memory 1G -p 5432:5432 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
-# wait: tcp localhost:5432 (20s)
-# probe: container run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432
-# mount state state (shared; the stamp stays with its owning service)
-container run -d --name semiont-gateway --publish 4000:4000 --memory 8G --volume <config-stage>/gateway.toml:/home/semiont/.semiontconfig:ro -v <home>/.local/share/semiont/roots/example.github.io-test-kb/state:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env POSTGRES_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env XDG_STATE_HOME=/semiont-state --env SEMIONT_WORKER_SECRET=<worker-secret> --env JWT_SECRET=<jwt-secret> ghcr.io/the-ai-alliance/semiont-gateway:local
-# wait: http://localhost:4000/api/health (120s)
-# probe: container run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:4000/api/health" (up to 20 tries)
 # mount anchored-text state (shared; the stamp stays with its owning service)
 # state state: <home>/.local/share/semiont/roots/example.github.io-test-kb/state (created if absent; reused across restarts)
 container run -d --name semiont-archivist --memory 2G --publish 9093:9093 --volume <kb-root>:/kb --volume <config-stage>/archivist.toml:/home/semiont/.semiontconfig:ro -v <home>/.local/share/semiont/roots/example.github.io-test-kb/anchored-text:/anchored-text -v <home>/.local/share/semiont/roots/example.github.io-test-kb/state:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env GATEWAY_HOST=<host-addr> --env BACKEND_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env POSTGRES_HOST=<host-addr> --env XDG_STATE_HOME=/semiont-state --env SEMIONT_WORKER_SECRET=<worker-secret> ghcr.io/the-ai-alliance/semiont-archivist:local
