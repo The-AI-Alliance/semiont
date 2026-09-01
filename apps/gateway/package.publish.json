@@ -1,6 +1,6 @@
 {
   "name": "@semiont/gateway",
-  "version": "0.5.29",
+  "version": "0.5.30",
   "type": "module",
   "description": "Semiont gateway server - pre-built for npm consumption",
   "main": "dist/index.js",
