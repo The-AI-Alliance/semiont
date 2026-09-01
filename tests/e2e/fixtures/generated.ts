@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
 import { SemiontClient } from '@semiont/sdk';
-import { getPrimaryMediaType } from '@semiont/core';
+import { getPrimaryMediaType, getStorageUri } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 
@@ -56,7 +56,7 @@ export async function expectGeneratedAt(
 ): Promise<ResourceDescriptor> {
   const descriptor = await generatedDescriptor(name);
   expect(
-    descriptor.storageUri,
+    getStorageUri(descriptor),
     'the artifact landed at the path typed into Save location, not one derived from the title (D6)',
   ).toBe(`file://${storagePath}`);
   expect(

@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/auth';
 import { SemiontClient, resourceId as rid } from '@semiont/sdk';
-import { proposeStoragePath, folderOf } from '@semiont/core';
+import { proposeStoragePath, folderOf, getStorageUri } from '@semiont/core';
 import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { expectGeneratedAt } from '../fixtures/generated';
 import { openConfigureStep, runGeneration } from '../fixtures/generate';
@@ -34,8 +34,9 @@ async function sourceStorageUri(id: string): Promise<string> {
   });
   try {
     const descriptor = await client.browse.resource(rid(id)).fresh();
-    if (!descriptor.storageUri) throw new Error(`source ${id} has no storageUri`);
-    return descriptor.storageUri;
+    const uri = getStorageUri(descriptor);
+    if (!uri) throw new Error(`source ${id} has no storageUri`);
+    return uri;
   } finally {
     client.dispose();
   }

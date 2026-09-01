@@ -1,7 +1,6 @@
 import { test, expect } from '../fixtures/auth';
 import type { Page } from '@playwright/test';
 import { SemiontClient, resourceId as ridBrand } from '@semiont/sdk';
-import type { components } from '@semiont/core';
 import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 
 import { openResourceByName } from '../fixtures/discover';
@@ -33,30 +32,14 @@ import { openResourceByName } from '../fixtures/discover';
 const IMG = '.semiont-pdf-annotation-canvas__image';
 const SVG = '.semiont-pdf-annotation-canvas__svg';
 const CONTAINER = '.semiont-pdf-annotation-canvas__container';
-const ANCHORED_TEXT = '**/anchored-text';
 
-/** The seeded scan is 612x792pt; a map placed here sits on the upper-left. */
-const QUOTE = 'recovered from the pixels';
-
-// Typed against the wire schema so fixture drift fails typecheck, not a live
-// run: an untyped version silently stopped matching when the wire gained
-// `kind`, and the canvas discards anything not `kind: 'extracted'`.
-const MAP: components['schemas']['ExtractedText'] = {
-  kind: 'extracted',
-  method: 'ocr',
-  text: QUOTE,
-  items: QUOTE.split(' ').reduce<{
-    items: components['schemas']['PdfTextItem'][];
-    x: number;
-    at: number;
-  }>((acc, word) => {
-    acc.items.push({
-      start: acc.at, end: acc.at + word.length,
-      page: 1, x: acc.x, y: 700, width: word.length * 7, height: 12,
-    });
-    return { items: acc.items, x: acc.x + word.length * 7 + 5, at: acc.at + word.length + 1 };
-  }, { items: [], x: 72, at: 0 }).items,
-};
+/**
+ * What the Smelter's OCR returns for the Legible Scan fixture. Asserted as two
+ * high-confidence WORDS rather than the exact string: the fixture measures at
+ * 95.8% mean confidence with 0 low-confidence words, but pinning punctuation
+ * and line breaks would pin the engine's formatting rather than the seam.
+ */
+const QUOTE_WORDS = ['RECOVERED', 'PIXELS'];
 
 const resourceIdFromUrl = (page: Page) => page.url().split('/').pop()!.split('?')[0];
 
@@ -78,6 +61,15 @@ async function storedAnnotations(resourceId: string) {
 
 /** PDF points -> canvas pixels for a 792pt-tall page rendered 1:1. */
 const toCanvas = (y: number, height: number) => 792 - y - height;
+
+async function openLegibleScanInAnnotateMode(page: Page) {
+  await openResourceByName(page, 'Legible Scan PDF');
+
+  await page.getByRole('button', { name: /^mode$/i }).click();
+  await page.getByRole('menuitem', { name: /^annotate$/i }).click();
+  await expect(page.locator(IMG)).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator(SVG)).toBeVisible({ timeout: 15_000 });
+}
 
 async function openScannedPdfInAnnotateMode(page: Page) {
   await openResourceByName(page, 'Scanned Smoke PDF');
@@ -103,87 +95,91 @@ async function armRectangleDrawing(page: Page) {
 }
 
 /** Drag in canvas pixels; jsdom-free here, so use the image's own box. */
-async function drawOver(page: Page, top: number, height: number) {
+async function drawOver(page: Page, top: number, height: number, left = 60, right = 380) {
   const box = await page.locator(IMG).boundingBox();
   if (!box) throw new Error('PDF image has no bounding box');
   const scale = box.height / 792;
-  await page.mouse.move(box.x + 60 * scale, box.y + top * scale);
+  await page.mouse.move(box.x + left * scale, box.y + top * scale);
   await page.mouse.down();
-  await page.mouse.move(box.x + 380 * scale, box.y + (top + height) * scale, { steps: 10 });
+  await page.mouse.move(box.x + right * scale, box.y + (top + height) * scale, { steps: 10 });
   await page.mouse.up();
 }
 
 test.describe('scanned PDF annotations quote the server-derived map', () => {
-  test('the canvas asks the server for a map when the page has no text layer', async ({ signedInPage: page }) => {
+  test('the canvas asks the server for a map when the page has no text layer', async ({ signedInPage: page, bus }) => {
     test.setTimeout(120_000);
 
-    // Armed before opening, so the request cannot be missed: the canvas fetches
-    // at page load, not at drag.
-    const asked = page.waitForRequest(
-      (r) => r.url().includes('/anchored-text') && r.method() === 'GET',
-      { timeout: 60_000 },
-    );
-
+    // The ask is a BUS request, not an HTTP GET. `browse.resourceAnchoredText`
+    // became `browse:anchored-text-requested` in #1256 ("the gateway's proxy
+    // hop is gone"); this test kept waiting for the deleted
+    // `GET /resources/:id/anchored-text` and timed out at 60s while the canvas
+    // was asking correctly the whole time.
+    bus.clear();
     await openScannedPdfInAnnotateMode(page);
 
-    const request = await asked;
-    expect(request.url()).toMatch(/\/resources\/[^/]+\/anchored-text$/);
-
-    // And the answer is served, not 404 — the route, the bus trio and the
-    // correlation reply all have to work for this to arrive at all.
-    //
-    // Either success code proves that, and which one arrives is a fact about
-    // the seeded scan, not about the seam under test: 200 carries a map, 204
-    // says none was derived. Pinning one would re-assert what tesseract made
-    // of a fixture nobody intended it to read — the thing this file's header
-    // is at pains not to do.
-    const response = await request.response();
-    expect([200, 204]).toContain(response?.status());
+    // Request AND reply: the round trip is what proves the channel pair, the
+    // Archivist's handler and the correlation reply all work. Which outcome
+    // comes back — a map or a decline — is a fact about the seeded scan, not
+    // about the seam under test, so it is deliberately not pinned.
+    await bus.expectRequestResponse(
+      'browse:anchored-text-requested',
+      'browse:anchored-text-result',
+      60_000,
+    );
   });
 
   test('a rectangle quotes the map the server returned', async ({ signedInPage: page, bus }) => {
     test.setTimeout(120_000);
 
-    // The seeded scan recognizes as nothing by design, so serve a known map for
-    // this resource. Everything downstream — the SDK accessor, `textUnder`, the
-    // selector pair, the panel — is the real code path.
-    await page.route(ANCHORED_TEXT, (route) =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MAP) }));
-
-    await openScannedPdfInAnnotateMode(page);
+    // NOTHING IS MOCKED. The Smelter OCR'd this fixture at ingest and the
+    // canvas fetches that map over the bus; the rectangle then quotes it.
+    //
+    // The previous version injected a map with `page.route('**\/anchored-text')`.
+    // #1256 moved the read onto the bus, so the interception silently stopped
+    // matching — and because the assertion ran over EVERY stored annotation,
+    // leftovers from earlier runs kept it green for a week. Depending on the
+    // real OCR removes the mock, and scoping to this run's annotations removes
+    // the residue.
+    await openLegibleScanInAnnotateMode(page);
+    const idsBefore = new Set(
+      (await storedAnnotations(resourceIdFromUrl(page))).map((a) => String(a.id)),
+    );
     await armRectangleDrawing(page);
     bus.clear();
 
-    // The map's words sit at y=700..712 in PDF points.
-    await drawOver(page, toCanvas(700, 12) - 4, 20);
+    // The OCR'd words occupy y=543..642 and x=58..450 in PDF points (measured
+    // from the map the Smelter returns). Cover both lines, with margin.
+    await drawOver(page, toCanvas(642, 0) - 6, 112, 40, 470);
 
     await bus.expectRequestResponse('mark:create-request', 'mark:create-ok', 30_000);
 
-    // The contract, asserted where it is unambiguous: the STORED annotation
-    // carries a quote built from a map the browser could not have read. A
-    // panel renders `getExactText` off this; the selector is the thing that
-    // has to be right.
-    const stored = await storedAnnotations(resourceIdFromUrl(page));
-    expect(stored.length, 'the drawn rectangle persisted an annotation').toBeGreaterThan(0);
+    const after = await storedAnnotations(resourceIdFromUrl(page));
+    const stored = after.filter((a) => !idsBefore.has(String(a.id)));
+    expect(stored.length, 'the drawn rectangle persisted a NEW annotation').toBeGreaterThan(0);
 
     const quotes = stored.flatMap((a) => {
       const sel = (a.target as { selector?: unknown }).selector;
       const all = Array.isArray(sel) ? sel : sel ? [sel] : [];
       return all
-        .filter((s): s is { type: string; exact: string } =>
-          typeof s === 'object' && s !== null && (s as { type?: string }).type === 'TextQuoteSelector')
-        .map((s) => s.exact);
+        .filter((x): x is { type: string; exact: string } =>
+          typeof x === 'object' && x !== null && (x as { type?: string }).type === 'TextQuoteSelector')
+        .map((x) => x.exact);
     });
-    expect(
-      quotes,
-      'a TextQuoteSelector quoting the SERVER-derived map — text the browser never had',
-    ).toContain(QUOTE);
 
-    // And the same text reaches the reader. The annotations panel is already
-    // open in annotate mode — clicking the toolbar button would CLOSE it.
+    expect(quotes.length, 'the rectangle produced a TextQuoteSelector').toBeGreaterThan(0);
+    const quoted = quotes.join(' ').toUpperCase();
+    for (const word of QUOTE_WORDS) {
+      expect(
+        quoted,
+        `the quote carries "${word}" — text that exists ONLY in the server's OCR map, never in the browser`,
+      ).toContain(word);
+    }
+
+    // And the same text reaches the reader.
     await expect(page.locator('.semiont-unified-panel')).toBeVisible();
     await expect
-      .poll(async () => (await page.locator('.semiont-unified-panel').innerText()).includes(QUOTE), { timeout: 30_000 })
+      .poll(async () => (await page.locator('.semiont-unified-panel').innerText()).toUpperCase().includes('PIXELS'),
+        { timeout: 30_000 })
       .toBe(true);
   });
 });
