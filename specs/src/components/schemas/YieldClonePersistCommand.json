@@ -1,0 +1,56 @@
+{
+  "type": "object",
+  "description": "Command: stow an already-uploaded clone's bytes and append `yield:cloned`.\n\nThe INNER half of the clone flow. `yield:clone-create` reaches the CloneTokenManager, which alone can validate the token and read the source's entity types; it then emits this so the Stower \u2014 the only appendEvent caller \u2014 writes the domain event.\n\nDistinct from `yield:create` because a clone is a distinct operation, not a creation with an extra field. It REQUIRES a parent, and that requirement is what a separate command expresses: an optional `parentResourceId` on the create command could not say that a clone without a parent is not a clone. `ResourceClonedPayload` requires it for the same reason.\n\nGenerated resources are NOT clones: they carry provenance in `generatedFrom` and stay on `yield:create`.",
+  "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Correlation id so busRequest can match the reply."
+    },
+    "_userId": {
+      "type": "string",
+      "description": "Injected by the gateway from the authenticated principal; never supplied by a wire caller."
+    },
+    "name": {
+      "type": "string"
+    },
+    "storageUri": {
+      "type": "string",
+      "description": "The caller's instruction for WHERE the bytes are \u2014 the uploader wrote them before emitting this. The stored location lives on the clone's primary Representation (STORAGE-URI-ONE-HOME)."
+    },
+    "contentChecksum": {
+      "type": "string"
+    },
+    "byteSize": {
+      "type": "integer"
+    },
+    "format": {
+      "$ref": "ContentFormat.json"
+    },
+    "language": {
+      "type": "string"
+    },
+    "entityTypes": {
+      "type": "array",
+      "description": "Inherited from the source resource by the CloneTokenManager, which is the only party that knows the token is valid.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "parentResourceId": {
+      "type": "string",
+      "description": "The resource this one is cloned FROM. Required: it is what makes this a clone rather than a creation."
+    },
+    "noGit": {
+      "type": "boolean",
+      "description": "The bytes were already written by the uploader; the Stower's register does the one `git add` on apply (GATEWAY.md D4b)."
+    }
+  },
+  "required": [
+    "name",
+    "storageUri",
+    "contentChecksum",
+    "byteSize",
+    "format",
+    "parentResourceId"
+  ]
+}

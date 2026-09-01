@@ -3662,6 +3662,9 @@ type ResourceClonedPayload struct {
 	Language         *string       `json:"language,omitempty"`
 	Name             string        `json:"name"`
 	ParentResourceId string        `json:"parentResourceId"`
+
+	// StorageUri Where the clone's bytes are, on the resource's primary Representation — the same single home `yield:created` writes to (STORAGE-URI-ONE-HOME).
+	StorageUri *string `json:"storageUri,omitempty"`
 }
 
 // ResourceCreatedPayload Payload for yield:created domain event
@@ -3717,13 +3720,10 @@ type ResourceDescriptor struct {
 	AvailableFormats *[]string `json:"availableFormats,omitempty"`
 
 	// ConformsTo Profile/shape URI this resource description conforms to.
-	ConformsTo *ResourceDescriptor_ConformsTo `json:"conformsTo,omitempty"`
-
-	// CurrentChecksum SHA-256 hex hash of the current content. Updated on resource.created, resource.updated, resource.cloned events.
-	CurrentChecksum *string    `json:"currentChecksum,omitempty"`
-	DateCreated     *time.Time `json:"dateCreated,omitempty"`
-	DateModified    *time.Time `json:"dateModified,omitempty"`
-	Description     *string    `json:"description,omitempty"`
+	ConformsTo   *ResourceDescriptor_ConformsTo `json:"conformsTo,omitempty"`
+	DateCreated  *time.Time                     `json:"dateCreated,omitempty"`
+	DateModified *time.Time                     `json:"dateModified,omitempty"`
+	Description  *string                        `json:"description,omitempty"`
 
 	// EntityTypes Application-specific: Entity types for this resource
 	EntityTypes *[]string `json:"entityTypes,omitempty"`
@@ -3918,13 +3918,10 @@ type ScoredResource struct {
 	AvailableFormats *[]string `json:"availableFormats,omitempty"`
 
 	// ConformsTo Profile/shape URI this resource description conforms to.
-	ConformsTo *ScoredResource_ConformsTo `json:"conformsTo,omitempty"`
-
-	// CurrentChecksum SHA-256 hex hash of the current content. Updated on resource.created, resource.updated, resource.cloned events.
-	CurrentChecksum *string    `json:"currentChecksum,omitempty"`
-	DateCreated     *time.Time `json:"dateCreated,omitempty"`
-	DateModified    *time.Time `json:"dateModified,omitempty"`
-	Description     *string    `json:"description,omitempty"`
+	ConformsTo   *ScoredResource_ConformsTo `json:"conformsTo,omitempty"`
+	DateCreated  *time.Time                 `json:"dateCreated,omitempty"`
+	DateModified *time.Time                 `json:"dateModified,omitempty"`
+	Description  *string                    `json:"description,omitempty"`
 
 	// EntityTypes Application-specific: Entity types for this resource
 	EntityTypes *[]string `json:"entityTypes,omitempty"`
@@ -4429,6 +4426,51 @@ type YieldCloneCreateCommand struct {
 type YieldCloneCreated struct {
 	CorrelationId string `json:"correlationId"`
 	Response      struct {
+		ResourceId string `json:"resourceId"`
+	} `json:"response"`
+}
+
+// YieldClonePersistCommand Command: stow an already-uploaded clone's bytes and append `yield:cloned`.
+//
+// The INNER half of the clone flow. `yield:clone-create` reaches the CloneTokenManager, which alone can validate the token and read the source's entity types; it then emits this so the Stower — the only appendEvent caller — writes the domain event.
+//
+// Distinct from `yield:create` because a clone is a distinct operation, not a creation with an extra field. It REQUIRES a parent, and that requirement is what a separate command expresses: an optional `parentResourceId` on the create command could not say that a clone without a parent is not a clone. `ResourceClonedPayload` requires it for the same reason.
+//
+// Generated resources are NOT clones: they carry provenance in `generatedFrom` and stay on `yield:create`.
+type YieldClonePersistCommand struct {
+	// UnderscoreUserId Injected by the gateway from the authenticated principal; never supplied by a wire caller.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+	ByteSize         int     `json:"byteSize"`
+	ContentChecksum  string  `json:"contentChecksum"`
+
+	// CorrelationId Correlation id so busRequest can match the reply.
+	CorrelationId *string `json:"correlationId,omitempty"`
+
+	// EntityTypes Inherited from the source resource by the CloneTokenManager, which is the only party that knows the token is valid.
+	EntityTypes *[]string `json:"entityTypes,omitempty"`
+
+	// Format Content format as a MIME type, optionally with parameters. The base type (everything before the first ';') MUST be a SupportedMediaType; parameters such as charset are preserved as metadata. Semantic validation happens in code at the create/yield boundary — there is deliberately no pattern here, the vocabulary lives in SupportedMediaType. Examples: text/plain, text/plain; charset=iso-8859-1, text/markdown; charset=windows-1252, image/png, application/pdf
+	Format   ContentFormat `json:"format"`
+	Language *string       `json:"language,omitempty"`
+	Name     string        `json:"name"`
+
+	// NoGit The bytes were already written by the uploader; the Stower's register does the one `git add` on apply (GATEWAY.md D4b).
+	NoGit *bool `json:"noGit,omitempty"`
+
+	// ParentResourceId The resource this one is cloned FROM. Required: it is what makes this a clone rather than a creation.
+	ParentResourceId string `json:"parentResourceId"`
+
+	// StorageUri The caller's instruction for WHERE the bytes are — the uploader wrote them before emitting this. The stored location lives on the clone's primary Representation (STORAGE-URI-ONE-HOME).
+	StorageUri string `json:"storageUri"`
+}
+
+// YieldClonePersistOk Success reply after cloning a resource, matched to the originating command by correlationId.
+type YieldClonePersistOk struct {
+	// CorrelationId Correlation id echoed from the yield:clone-persist command so busRequest can match the reply.
+	CorrelationId *string `json:"correlationId,omitempty"`
+
+	// Response The clone's identity — a new resource, distinct from its parent.
+	Response struct {
 		ResourceId string `json:"resourceId"`
 	} `json:"response"`
 }
@@ -5395,14 +5437,6 @@ func (a *ResourceDescriptor) UnmarshalJSON(b []byte) error {
 		delete(object, "conformsTo")
 	}
 
-	if raw, found := object["currentChecksum"]; found {
-		err = json.Unmarshal(raw, &a.CurrentChecksum)
-		if err != nil {
-			return fmt.Errorf("error reading 'currentChecksum': %w", err)
-		}
-		delete(object, "currentChecksum")
-	}
-
 	if raw, found := object["dateCreated"]; found {
 		err = json.Unmarshal(raw, &a.DateCreated)
 		if err != nil {
@@ -5616,13 +5650,6 @@ func (a ResourceDescriptor) MarshalJSON() ([]byte, error) {
 		object["conformsTo"], err = json.Marshal(a.ConformsTo)
 		if err != nil {
 			return nil, fmt.Errorf("error marshaling 'conformsTo': %w", err)
-		}
-	}
-
-	if a.CurrentChecksum != nil {
-		object["currentChecksum"], err = json.Marshal(a.CurrentChecksum)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'currentChecksum': %w", err)
 		}
 	}
 
@@ -5943,14 +5970,6 @@ func (a *ScoredResource) UnmarshalJSON(b []byte) error {
 		delete(object, "conformsTo")
 	}
 
-	if raw, found := object["currentChecksum"]; found {
-		err = json.Unmarshal(raw, &a.CurrentChecksum)
-		if err != nil {
-			return fmt.Errorf("error reading 'currentChecksum': %w", err)
-		}
-		delete(object, "currentChecksum")
-	}
-
 	if raw, found := object["dateCreated"]; found {
 		err = json.Unmarshal(raw, &a.DateCreated)
 		if err != nil {
@@ -6180,13 +6199,6 @@ func (a ScoredResource) MarshalJSON() ([]byte, error) {
 		object["conformsTo"], err = json.Marshal(a.ConformsTo)
 		if err != nil {
 			return nil, fmt.Errorf("error marshaling 'conformsTo': %w", err)
-		}
-	}
-
-	if a.CurrentChecksum != nil {
-		object["currentChecksum"], err = json.Marshal(a.CurrentChecksum)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'currentChecksum': %w", err)
 		}
 	}
 

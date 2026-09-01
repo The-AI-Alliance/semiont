@@ -16,6 +16,7 @@
  *
  * Subscriptions:
  * - yield:create       → resource.created (+ content store)   → yield:created / yield:create-failed
+ * - yield:clone-persist → resource.cloned (+ content store)   → yield:cloned / yield:clone-persist-failed
  * - yield:update       → resource.updated (+ content store)   → yield:updated / yield:update-failed
  * - yield:mv           → resource.moved (+ working tree move) → yield:moved / yield:move-failed
  * - mark:create        → annotation.added                     → mark:created / mark:create-failed
@@ -72,7 +73,7 @@ export interface StowerStores {
  * grow one, and the gate fails until the other moves with it.
  */
 export const STOWER_CHANNELS = [
-  'yield:create', 'yield:update', 'yield:mv',
+  'yield:create', 'yield:clone-persist', 'yield:update', 'yield:mv',
   'mark:create', 'mark:delete', 'mark:update-body',
   'frame:add-entity-type', 'frame:add-tag-schema',
   'mark:archive', 'mark:unarchive', 'mark:update-entity-types',
@@ -104,6 +105,7 @@ export class Stower {
 
     this.subscription = merge(
       pipe('yield:create', (e) => this.handleYieldCreate(e)),
+      pipe('yield:clone-persist', (e) => this.handleYieldClonePersist(e)),
       pipe('yield:update', (e) => this.handleYieldUpdate(e)),
       pipe('yield:mv', (e) => this.handleYieldMv(e)),
       pipe('mark:create', (e) => this.handleMarkCreate(e)),
@@ -205,6 +207,65 @@ export class Stower {
     } catch (error) {
       this.logger.error('Failed to create resource', { error: errField(error) });
       this.eventBus.get('yield:create-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Persist a clone (the CloneTokenManager's second half).
+   *
+   * A clone is its own domain fact, not a creation with an extra field: it
+   * NAMES the resource it came from, and `ResourceClonedPayload` requires
+   * that name. So it gets its own command and appends its own event, rather
+   * than an optional parent turning `yield:created` into something else at
+   * runtime.
+   *
+   * The token was already validated and the source's entity types already
+   * read by the CloneTokenManager — the one party that can do either. What
+   * happens here is what only the Stower may do: register the bytes and
+   * append the event (single-writer, GATEWAY.md D4b).
+   *
+   * Generated resources do NOT come through here. Their provenance is
+   * `generatedFrom` on `yield:created`, which is a different relation: a
+   * generated resource is derived from a source, a clone IS a copy of one.
+   */
+  private async handleYieldClonePersist(event: EventMap['yield:clone-persist']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('yield:clone-persist missing _userId (gateway injection)');
+    }
+    try {
+      const rId = resourceId(generateUuid());
+
+      // Same contract as create: the uploader wrote the bytes, register
+      // verifies they are there and match the checksum.
+      const stored = await this.stores.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
+
+      await this.stores.eventStore.appendEvent({
+        type: 'yield:cloned',
+        resourceId: rId,
+        userId: makeUserId(event._userId),
+        version: 1,
+        payload: {
+          name: event.name,
+          format: event.format,
+          contentChecksum: stored.checksum,
+          contentByteSize: event.byteSize,
+          storageUri: event.storageUri,
+          parentResourceId: event.parentResourceId,
+          entityTypes: event.entityTypes || [],
+          language: event.language || undefined,
+        },
+      });
+
+      this.eventBus.get('yield:clone-persist-ok').next({
+        correlationId: event.correlationId,
+        response: { resourceId: rId },
+      });
+    } catch (error) {
+      this.logger.error('Failed to persist clone', { error: errField(error) });
+      this.eventBus.get('yield:clone-persist-failed').next({
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });

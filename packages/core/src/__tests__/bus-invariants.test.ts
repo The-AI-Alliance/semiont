@@ -84,6 +84,7 @@ const FROZEN_BRIDGED = [
   'job:claimed', 'job:claim-failed',
   'job:cancel-ok', 'job:cancel-failed',
   'yield:create-ok', 'yield:create-failed',
+  'yield:clone-persist-ok', 'yield:clone-persist-failed',
   'yield:update-ok', 'yield:update-failed',
   'yield:clone-token-generated', 'yield:clone-token-failed',
   'yield:clone-resource-result', 'yield:clone-resource-failed',

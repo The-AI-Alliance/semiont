@@ -71,6 +71,48 @@ export class ResourceOperations {
   }
 
   /**
+   * Persist a CLONE via EventBus → Stower.
+   *
+   * Separate from `createResource` because a clone is a separate fact: it
+   * names its parent, and `yield:cloned` requires that name. Callers reach
+   * this only after the CloneTokenManager has validated the token — it is the
+   * inner half of the flow, not a public entry point.
+   */
+  static async persistClone(
+    input: {
+      name: string;
+      storageUri: string;
+      contentChecksum: string;
+      byteSize: number;
+      format: ContentFormat;
+      parentResourceId: string;
+      entityTypes?: string[];
+      language?: string;
+    },
+    userId: UserId,
+    eventBus: EventBus,
+  ): Promise<ResourceId> {
+    const { resourceId: rId } = await busRequest(
+      asBusRequestPrimitive(eventBus),
+      'yield:clone-persist',
+      {
+        name: input.name,
+        storageUri: input.storageUri,
+        contentChecksum: input.contentChecksum,
+        byteSize: input.byteSize,
+        format: input.format,
+        parentResourceId: input.parentResourceId,
+        entityTypes: input.entityTypes,
+        language: input.language,
+        _userId: userId,
+      },
+      30_000,
+    );
+
+    return makeResourceId(rId);
+  }
+
+  /**
    * Create a resource from a clone token via EventBus → CloneTokenManager.
    * The bytes are already stored (the gateway's upload path, `noGit` — the
    * Archivist's register does the one `git add`, D4b); the command carries
