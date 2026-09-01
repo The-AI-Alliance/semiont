@@ -154,7 +154,7 @@ func exportLocal(u *ui, rootFlag, output string, force, withGit bool) int {
 		}
 	}
 
-	n, bytes, err := writeArchive(root, output, id, withGit)
+	n, bytes, changed, err := writeArchive(root, output, id, withGit)
 	if err != nil {
 		u.fail("export failed: %v", err)
 		// A half-written archive is worse than none: it looks restorable.
@@ -162,6 +162,24 @@ func exportLocal(u *ui, rootFlag, output string, force, withGit bool) int {
 		return 1
 	}
 	u.ok("Exported %s %s", output, u.dim(fmt.Sprintf("(%d entries, %s)", n, humanBytes(bytes))))
+	// The archive is a point-in-time snapshot. Anything a running stack wrote
+	// mid-walk is captured as of its header, or was gone before it could be —
+	// either way it is named, because a restore that surprises someone should
+	// have a recorded cause. Stop the stack for an archive with no such note.
+	if len(changed) > 0 {
+		u.warn("%d file(s) changed while being archived — the snapshot holds them as of the moment they were read:", len(changed))
+		show := changed
+		if len(show) > 5 {
+			show = show[:5]
+		}
+		for _, c := range show {
+			fmt.Printf("    %s\n", u.dim(c))
+		}
+		if len(changed) > len(show) {
+			fmt.Printf("    %s\n", u.dim(fmt.Sprintf("… and %d more", len(changed)-len(show))))
+		}
+		fmt.Printf("  %s\n", u.dim("`semiont stop` before exporting for a quiescent archive."))
+	}
 	fmt.Printf("  %s\n", u.dim("tar -xzf "+filepath.Base(output)+"  → a working KB directory"))
 	return 0
 }
@@ -236,10 +254,10 @@ func exportRemote(u *ui, repo, output string, force, withGit bool) int {
 //
 // Entries are SORTED, so the same tree produces the same archive — a property
 // worth having for something people diff, checksum and store.
-func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, total int64, err error) {
+func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, total int64, changed []string, err error) {
 	f, err := os.Create(out)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 	gz := gzip.NewWriter(f)
 	tw := tar.NewWriter(gz)
@@ -295,20 +313,40 @@ func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, to
 		return nil
 	})
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 	sort.Strings(paths)
 
+	// A KB is a LIVE tree: exporting one while its stack runs races the
+	// Archivist appending to .semiont/events. Two ways that used to end the
+	// export, both now survivable, because refusing to archive a running KB
+	// would be a worse answer than archiving a coherent snapshot of it:
+	//
+	//   grew   — the header's size came from one stat and the body from a
+	//            later read, so tar was handed more bytes than it was told to
+	//            expect: "archive/tar: write too long". Fixed by taking BOTH
+	//            from one observation (fstat on the open handle) and copying
+	//            exactly that many bytes. The tail written after the stat is
+	//            not in the archive, which is what a snapshot means.
+	//   went   — a file present during the walk was gone by the time we
+	//            opened it (git's temp files do this constantly). Skipped.
+	//
+	// Either way the file is NAMED, never silently dropped: the caller warns
+	// with the list, so a surprising restore has a recorded cause.
 	for _, rel := range paths {
 		abs := filepath.Join(root, rel)
 		fi, lerr := os.Lstat(abs)
 		if lerr != nil {
-			return 0, 0, lerr
+			if os.IsNotExist(lerr) {
+				changed = append(changed, rel)
+				continue
+			}
+			return 0, 0, nil, lerr
 		}
 		link := ""
 		if fi.Mode()&os.ModeSymlink != 0 {
 			if link, err = os.Readlink(abs); err != nil {
-				return 0, 0, err
+				return 0, 0, nil, err
 			}
 		} else if !fi.Mode().IsRegular() && !fi.IsDir() {
 			// Sockets, fifos and devices cannot be KB content and cannot be
@@ -316,26 +354,71 @@ func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, to
 			// half of that; the caller sees the count not match.
 			continue
 		}
-		h, herr := tar.FileInfoHeader(fi, link)
+
+		if !fi.Mode().IsRegular() {
+			h, herr := tar.FileInfoHeader(fi, link)
+			if herr != nil {
+				return 0, 0, nil, herr
+			}
+			h.Name = filepath.ToSlash(rel)
+			if err := tw.WriteHeader(h); err != nil {
+				return 0, 0, nil, err
+			}
+			count++
+			continue
+		}
+
+		src, oerr := os.Open(abs)
+		if oerr != nil {
+			if os.IsNotExist(oerr) {
+				changed = append(changed, rel)
+				continue
+			}
+			return 0, 0, nil, oerr
+		}
+		// The size tar is promised and the bytes tar is given must come from
+		// ONE observation of the file — the open handle's own stat.
+		sfi, serr := src.Stat()
+		if serr != nil {
+			src.Close()
+			return 0, 0, nil, serr
+		}
+		h, herr := tar.FileInfoHeader(sfi, "")
 		if herr != nil {
-			return 0, 0, herr
+			src.Close()
+			return 0, 0, nil, herr
 		}
 		h.Name = filepath.ToSlash(rel)
 		if err := tw.WriteHeader(h); err != nil {
-			return 0, 0, err
-		}
-		if fi.Mode().IsRegular() {
-			src, oerr := os.Open(abs)
-			if oerr != nil {
-				return 0, 0, oerr
-			}
-			n, cerr := io.Copy(tw, src)
 			src.Close()
-			if cerr != nil {
-				return 0, 0, cerr
-			}
-			total += n
+			return 0, 0, nil, err
 		}
+		n, cerr := io.CopyN(tw, src, h.Size)
+		total += n
+		switch {
+		case cerr == io.EOF:
+			// Shrank after the fstat. tar was already promised h.Size, so the
+			// entry must be filled to keep every later offset valid — the one
+			// place this writes bytes the file did not supply, and the reason
+			// the caller names the file.
+			if _, perr := tw.Write(make([]byte, h.Size-n)); perr != nil {
+				src.Close()
+				return 0, 0, nil, perr
+			}
+			changed = append(changed, rel)
+		case cerr != nil:
+			src.Close()
+			return 0, 0, nil, cerr
+		default:
+			// Grew after the fstat: a byte still readable past what we copied.
+			// The archive holds the snapshot; say so rather than let a short
+			// file look intact.
+			var probe [1]byte
+			if m, _ := src.Read(probe[:]); m > 0 {
+				changed = append(changed, rel)
+			}
+		}
+		src.Close()
 		count++
 	}
 
@@ -352,12 +435,12 @@ func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, to
 		Name: ".semiont/export.json", Mode: 0o644,
 		Size: int64(len(blob)), ModTime: time.Now(), Typeflag: tar.TypeReg,
 	}); err != nil {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 	if _, err := tw.Write(blob); err != nil {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
-	return count, total, nil
+	return count, total, changed, nil
 }
 
 // readKBIdentity reads .semiont/config for the marker. Best-effort: a KB with
