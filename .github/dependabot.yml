@@ -19,8 +19,6 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 20
-    reviewers:
-      - "The-AI-Alliance/maintainers"
     labels:
       - "dependencies"
     commit-message:
@@ -75,8 +73,6 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
-    reviewers:
-      - "The-AI-Alliance/maintainers"
     labels:
       - "dependencies"
       - "tests"
@@ -97,8 +93,6 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
-    reviewers:
-      - "The-AI-Alliance/maintainers"
     labels:
       - "dependencies"
       - "launcher"
@@ -119,8 +113,6 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
-    reviewers:
-      - "The-AI-Alliance/maintainers"
     labels:
       - "dependencies"
       - "github-actions"
@@ -137,8 +129,6 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
-    reviewers:
-      - "The-AI-Alliance/maintainers"
     labels:
       - "dependencies"
       - "browser"
@@ -155,12 +145,44 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
-    reviewers:
-      - "The-AI-Alliance/maintainers"
     labels:
       - "dependencies"
       - "desktop"
       - "docker"
     commit-message:
       prefix: "desktop-docker"
+      include: "scope"
+
+  # Service image base images (apps/<svc>/Dockerfile). Grouped into one PR:
+  # they share a base image, so an ungrouped bump opens six PRs for one
+  # upgrade. Major node updates are ignored because node 26's undici breaks
+  # the qdrant client's undici@6; drop the ignore when qdrant ships a fix.
+  # apps/browser has its own entry and stays on node:26 — it never dials Qdrant.
+  - package-ecosystem: "docker"
+    directories:
+      - "/apps/gateway"
+      - "/apps/worker"
+      - "/apps/smelter"
+      - "/apps/weaver"
+      - "/apps/archivist"
+      - "/apps/librarian"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "services"
+      - "docker"
+    groups:
+      service-base-images:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "node"
+        update-types:
+          - "version-update:semver-major"
+    commit-message:
+      prefix: "service-docker"
       include: "scope"
