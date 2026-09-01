@@ -33,6 +33,9 @@ const (
 	// payload: YieldCreateCommand
 	YieldCreate Channel = "yield:create"
 
+	// payload: YieldClonePersistCommand
+	YieldClonePersist Channel = "yield:clone-persist"
+
 	// payload: YieldUpdateCommand
 	YieldUpdate Channel = "yield:update"
 
@@ -56,6 +59,12 @@ const (
 
 	// payload: CommandError
 	YieldCreateFailed Channel = "yield:create-failed"
+
+	// payload: YieldClonePersistOk
+	YieldClonePersistOk Channel = "yield:clone-persist-ok"
+
+	// not emittable (no registered schema)
+	YieldClonePersistFailed Channel = "yield:clone-persist-failed"
 
 	// payload: YieldUpdateOk
 	YieldUpdateOk Channel = "yield:update-ok"
@@ -558,6 +567,7 @@ const (
 // A channel absent from this map is not emittable.
 var ChannelSchemas = map[Channel]string{
 	YieldCreate:                           "YieldCreateCommand",
+	YieldClonePersist:                     "YieldClonePersistCommand",
 	YieldUpdate:                           "YieldUpdateCommand",
 	YieldMv:                               "YieldMvCommand",
 	YieldCloneTokenRequested:              "YieldCloneTokenRequest",
@@ -565,6 +575,7 @@ var ChannelSchemas = map[Channel]string{
 	YieldCloneCreate:                      "YieldCloneCreateCommand",
 	YieldCreateOk:                         "YieldCreateOk",
 	YieldCreateFailed:                     "CommandError",
+	YieldClonePersistOk:                   "YieldClonePersistOk",
 	YieldUpdateOk:                         "YieldUpdateOk",
 	YieldCloneCreated:                     "YieldCloneCreated",
 	MarkCreateRequest:                     "MarkCreateRequest",

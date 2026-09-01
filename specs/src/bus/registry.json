@@ -9,6 +9,7 @@
       "yield:representation-added",
       "yield:representation-removed",
       "yield:create",
+      "yield:clone-persist",
       "yield:update",
       "yield:mv",
       "yield:clone",
@@ -17,6 +18,8 @@
       "yield:clone-create",
       "yield:create-ok",
       "yield:create-failed",
+      "yield:clone-persist-ok",
+      "yield:clone-persist-failed",
       "yield:update-ok",
       "yield:update-failed",
       "yield:move-failed",
@@ -193,6 +196,7 @@
       "yield:representation-added",
       "yield:representation-removed",
       "yield:create",
+      "yield:clone-persist",
       "yield:update",
       "yield:mv",
       "yield:clone",
@@ -201,6 +205,8 @@
       "yield:clone-create",
       "yield:create-ok",
       "yield:create-failed",
+      "yield:clone-persist-ok",
+      "yield:clone-persist-failed",
       "yield:update-ok",
       "yield:update-failed",
       "yield:move-failed",
@@ -496,6 +502,21 @@
       }
     },
     {
+      "channel": "yield:clone-persist",
+      "shape": "schema",
+      "schema": "YieldClonePersistCommand",
+      "validate": "YieldClonePersistCommand",
+      "ts": "components['schemas']['YieldClonePersistCommand']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
       "channel": "yield:update",
       "shape": "schema",
       "schema": "YieldUpdateCommand",
@@ -615,6 +636,36 @@
       "schemaDocs": {
         "lead": [],
         "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:clone-persist-ok",
+      "shape": "schema",
+      "schema": "YieldClonePersistOk",
+      "validate": "YieldClonePersistOk",
+      "ts": "components['schemas']['YieldClonePersistOk']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "yield:clone-persist-failed",
+      "shape": "corrIntersect",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": "// { correlationId } & CommandError"
       }
     },
     {
@@ -3694,6 +3745,15 @@
           "  // live in-process (resource-operations.ts emits + awaits via race()); the",
           "  // client also .on()-subscribes -ok for cache invalidation"
         ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "yield:clone-persist",
+      "result": "yield:clone-persist-ok",
+      "failure": "yield:clone-persist-failed",
+      "docs": {
+        "lead": [],
         "trailing": ""
       }
     },
