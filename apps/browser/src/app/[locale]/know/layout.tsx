@@ -1,4 +1,4 @@
-import { useContext } from 'react';
+import { useContext, useEffect, useRef } from 'react';
 import { Outlet } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
@@ -81,6 +81,21 @@ function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: strin
   const browseStateUnit = useShellStateUnit();
   const activePanel = useObservable(browseStateUnit.activePanel$) ?? null;
   const { theme } = useTheme();
+
+  // The Account panel needs a session. Restored from a previous signed-in visit it
+  // is a dead end — "Sign in to a knowledge base to view your account" — while the
+  // empty state beside it says to sign in using the Knowledge Base panel. Open the
+  // panel we are pointing at. Decided once, not reactively: a deliberate click on
+  // Account while signed out should still show its message, not snap away.
+  const panelCorrected = useRef(false);
+  useEffect(() => {
+    // useObservable yields null on the first render, before the BehaviorSubject's
+    // current value arrives. Spending the one-shot on that null would let the
+    // restored panel through on the render that actually carries it.
+    if (panelCorrected.current || activePanel === null) return;
+    panelCorrected.current = true;
+    if (activePanel === 'user') browseStateUnit.openPanel('knowledge-base');
+  }, [activePanel, browseStateUnit]);
 
   return (
     <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
