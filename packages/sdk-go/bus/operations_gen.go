@@ -16,7 +16,7 @@ type Operation struct {
 	Progress Channel // "" when the operation is not streaming
 }
 
-// Operations is the request→reply registry: 37 operations.
+// Operations is the request→reply registry: 38 operations.
 var Operations = map[Channel]Operation{
 	"bind:update-body":                           {Result: "bind:body-updated", Failure: "bind:body-update-failed"},
 	"browse:resource-requested":                  {Result: "browse:resource-result", Failure: "browse:resource-failed"},
@@ -51,6 +51,7 @@ var Operations = map[Channel]Operation{
 	"weave:rebuild":                              {Result: "weave:rebuild-ok", Failure: "weave:rebuild-failed"},
 	"smelt:rebuild-anchors":                      {Result: "smelt:rebuild-anchors-ok", Failure: "smelt:rebuild-anchors-failed"},
 	"yield:create":                               {Result: "yield:create-ok", Failure: "yield:create-failed"},
+	"yield:clone-persist":                        {Result: "yield:clone-persist-ok", Failure: "yield:clone-persist-failed"},
 	"yield:update":                               {Result: "yield:update-ok", Failure: "yield:update-failed"},
 	"yield:clone-create":                         {Result: "yield:clone-created", Failure: "yield:clone-create-failed"},
 	"yield:clone-resource-requested":             {Result: "yield:clone-resource-result", Failure: "yield:clone-resource-failed"},

@@ -39,6 +39,20 @@ type roleSpec struct {
 	// read it. Floors deliberately do not exist here — single-host runtimes
 	// have no real reservation, and the apps size themselves from the
 	// ceiling (node:24 cgroup-aware heap, Neo4j auto-config).
+	//
+	// The numbers are MEASURED, not guessed. On a stack idle 2.5h
+	// (2026-08-31, `container stats`): gateway 305 MiB, weaver 240, qdrant
+	// 281, archivist 255, worker 226, librarian 223, smelter 213, browser
+	// 131, jaeger 78, postgres 58 — and neo4j 922 MiB, the only one growing
+	// into its room. So every service sits at ~2G, leaving the smallest of
+	// them ~6x headroom, and neo4j keeps 2G because it earns it.
+	//
+	// The gateway was 8G and the weaver 3G, both sized for work that has
+	// since moved out: the gateway hosted every actor, dialed the graph and
+	// vector stores, and buffered whole representations, and now proxies
+	// bytes and holds none of that. An 8G ceiling on Apple container is an
+	// 8G VM — measure before trusting a number that predates a service's
+	// scope changing.
 	mem string
 }
 
@@ -50,17 +64,17 @@ var roles = map[string]roleSpec{
 	"vectors": {"Qdrant", "semiont-qdrant", []portNeed{{6333, "Qdrant"}}, "2G"},
 	// inference 8G: a loaded small model (gemma-class) needs 4-5G; the
 	// silent 1G default cannot even load one.
-	"inference": {"Ollama", "semiont-ollama", nil, "8G"},
+	"inference": {"Ollama", "semiont-ollama", nil, "24G"},
 	// embedding is a role with no container of its own: its platform is
 	// always "external" in practice — either the Ollama the inference role
 	// already provides, or a remote SaaS (Voyage). Like every external role
 	// it participates in status but supports no start/stop.
 	"embedding": {"", "", nil, ""},
 	"database":  {"PostgreSQL", "semiont-postgres", []portNeed{{5432, "PostgreSQL"}}, "1G"},
-	"gateway":   {"", "semiont-gateway", []portNeed{{4000, "Gateway"}}, "8G"},
+	"gateway":   {"", "semiont-gateway", []portNeed{{4000, "Gateway"}}, "2G"},
 	"worker":    {"", "semiont-worker", []portNeed{{9090, "Worker"}}, "2G"},
 	"smelter":   {"", "semiont-smelter", []portNeed{{9091, "Smelter"}}, "2G"},
-	"weaver":    {"", "semiont-weaver", []portNeed{{9092, "Weaver"}}, "3G"},
+	"weaver":    {"", "semiont-weaver", []portNeed{{9092, "Weaver"}}, "2G"},
 	"archivist": {"", "semiont-archivist", []portNeed{{9093, "Archivist"}}, "2G"},
 	"librarian": {"", "semiont-librarian", []portNeed{{9094, "Librarian"}}, "2G"},
 	// browser: the Browser owns its port inside flowBrowser — an empty

@@ -747,8 +747,14 @@
       "YieldCreateCommand": {
         "$ref": "components/schemas/YieldCreateCommand.json"
       },
+      "YieldClonePersistCommand": {
+        "$ref": "components/schemas/YieldClonePersistCommand.json"
+      },
       "YieldCreateOk": {
         "$ref": "components/schemas/YieldCreateOk.json"
+      },
+      "YieldClonePersistOk": {
+        "$ref": "components/schemas/YieldClonePersistOk.json"
       },
       "YieldMvCommand": {
         "$ref": "components/schemas/YieldMvCommand.json"

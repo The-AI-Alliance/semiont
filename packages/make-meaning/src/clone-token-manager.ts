@@ -230,13 +230,20 @@ export class CloneTokenManager {
       // clone-format gate (core `cloneFormat`) when deriving the upload.
       // This actor contributes what only it knows: token validity and the
       // source's entity types.
-      const newResourceId = await ResourceOperations.createResource(
+      //
+      // `persistClone`, not `createResource`: a clone is recorded as
+      // `yield:cloned` carrying its `parentResourceId`. Routing it through
+      // create appended `yield:created` and dropped the parent entirely,
+      // leaving a clone indistinguishable from a fresh upload in the record
+      // (.plans/bugs/anchored-text-stale-primary-checksum.md, Loose thread).
+      const newResourceId = await ResourceOperations.persistClone(
         {
           name: event.name,
           storageUri: event.storageUri,
           contentChecksum: event.contentChecksum,
           byteSize: event.byteSize,
           format: event.format,
+          parentResourceId: String(tokenData.resourceId),
           entityTypes: getResourceEntityTypes(sourceDoc),
         },
         makeUserId(event._userId),

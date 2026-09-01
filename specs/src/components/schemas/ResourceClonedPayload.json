@@ -2,13 +2,39 @@
   "type": "object",
   "description": "Payload for yield:cloned domain event",
   "properties": {
-    "name": { "type": "string" },
-    "format": { "$ref": "ContentFormat.json" },
-    "contentChecksum": { "type": "string" },
-    "contentByteSize": { "type": "integer" },
-    "parentResourceId": { "type": "string" },
-    "entityTypes": { "type": "array", "items": { "type": "string" } },
-    "language": { "type": "string" }
+    "name": {
+      "type": "string"
+    },
+    "format": {
+      "$ref": "ContentFormat.json"
+    },
+    "contentChecksum": {
+      "type": "string"
+    },
+    "contentByteSize": {
+      "type": "integer"
+    },
+    "storageUri": {
+      "type": "string",
+      "description": "Where the clone's bytes are, on the resource's primary Representation \u2014 the same single home `yield:created` writes to (STORAGE-URI-ONE-HOME)."
+    },
+    "parentResourceId": {
+      "type": "string"
+    },
+    "entityTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "language": {
+      "type": "string"
+    }
   },
-  "required": ["name", "format", "contentChecksum", "parentResourceId"]
+  "required": [
+    "name",
+    "format",
+    "contentChecksum",
+    "parentResourceId"
+  ]
 }

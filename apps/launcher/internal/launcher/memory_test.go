@@ -37,9 +37,9 @@ func TestMemCeilingGB(t *testing.T) {
 // obligation; ollama once whichever role provides it; traces with --observe.
 func TestStartCeilingsGB(t *testing.T) {
 	base := startCeilingsGB(nil, startOptions{})
-	// gateway 8 + worker 2 + smelter 2 + weaver 3 + archivist 2 + librarian 2 + browser 1
-	if base != 20 {
-		t.Fatalf("base ceilings = %vG, want 20G (did a service's ceiling change without this test?)", base)
+	// gateway 2 + worker 2 + smelter 2 + weaver 2 + archivist 2 + librarian 2 + browser 1
+	if base != 13 {
+		t.Fatalf("base ceilings = %vG, want 13G (did a service's ceiling change without this test?)", base)
 	}
 	plan := &launchPlan{Roles: map[string]rolePlan{
 		"graph":     {Obligation: obligationProvided},
@@ -48,21 +48,21 @@ func TestStartCeilingsGB(t *testing.T) {
 		"inference": {Driver: "ollama", Obligation: obligationProvided},
 	}}
 	full := startCeilingsGB(plan, startOptions{observe: true})
-	// + graph 2 + vectors 2 + database 1 + ollama 8 + traces 1
-	if full != 34 {
-		t.Fatalf("full ceilings = %vG, want 34G", full)
+	// + graph 2 + vectors 2 + database 1 + ollama 24 + traces 1
+	if full != 43 {
+		t.Fatalf("full ceilings = %vG, want 43G", full)
 	}
 	// An external inference (anthropic) runs no Ollama container.
 	plan.Roles["inference"] = rolePlan{Driver: "anthropic", Obligation: obligationExternal}
-	if got := startCeilingsGB(plan, startOptions{}); got != 25 {
-		t.Fatalf("external-inference ceilings = %vG, want 25G", got)
+	if got := startCeilingsGB(plan, startOptions{}); got != 18 {
+		t.Fatalf("external-inference ceilings = %vG, want 18G", got)
 	}
 	// THE DEFAULT: host-process Ollama (models get Metal on the host; the
 	// container is the fallback). Its host RAM is outside this sum — the
-	// launcher neither sets nor sees it — so the default stack is 23G too.
+	// launcher neither sets nor sees it — so the default stack is 18G too.
 	plan.Roles["inference"] = rolePlan{Driver: "ollama", Obligation: obligationHostProcess}
-	if got := startCeilingsGB(plan, startOptions{}); got != 25 {
-		t.Fatalf("host-ollama (default) ceilings = %vG, want 25G — the host process must not be counted", got)
+	if got := startCeilingsGB(plan, startOptions{}); got != 18 {
+		t.Fatalf("host-ollama (default) ceilings = %vG, want 18G — the host process must not be counted", got)
 	}
 }
 

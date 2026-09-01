@@ -52,6 +52,14 @@ export async function kbBranch(config: ArchivistAddressConfig): Promise<string |
  * here is the removal of the old `arrayBuffer()` + `Buffer.from()` pair, not
  * the whole of D7. Bounding the multipart parse itself is separate work.
  *
+ * The full ledger, so nobody reads "it streams" as more than it is: of the
+ * three hops an upload takes, **two stream** (this one, and the Archivist's
+ * body → temp file) and **one does not** (`formData()` above). The Archivist
+ * used to add a fourth materialization on top — `register` re-read the whole
+ * file off disk to verify it on event apply — which is now streamed too
+ * (2026-08-31), so exactly one full copy of an upload is held anywhere, in
+ * this process, by the multipart parser.
+ *
  * No `?checksum` is sent: the gateway has no independent checksum to assert
  * (its old one came FROM the local `store` call this replaces), and the
  * response carries the authoritative one. The query parameter exists for

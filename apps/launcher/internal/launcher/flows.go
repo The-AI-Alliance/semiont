@@ -27,8 +27,11 @@ var depRoleTitles = map[string]string{
 }
 
 // flowFullStart is THE full-start sequence: preflight → ports → staging →
-// pulls → traces → graph → vectors → inference → embedding → database →
-// gateway → sidecars → Browser.
+// pulls → traces → database → gateway → graph → vectors → inference →
+// embedding → archivist → librarian → sidecars → Browser.
+//
+// The gateway sits above the actors' stores because it needs none of them
+// (see the note at that step); everything after it does need the gateway.
 //
 // embedding follows inference deliberately: an ollama-typed embedding is
 // served BY the Ollama inference just brought up, so probing it any earlier
@@ -117,18 +120,23 @@ func flowFullStart(x executor, fc flowCtx) int {
 		otel = otelArgs(addr)
 	}
 
-	if code := flowDepRole(x, "graph", fc, addr); code != 0 {
-		return code
-	}
-	if code := flowDepRole(x, "vectors", fc, addr); code != 0 {
-		return code
-	}
-	if code := flowInferenceRole(x, fc, addr); code != 0 {
-		return code
-	}
-	if code := flowDepRole(x, "embedding", fc, addr); code != 0 {
-		return code
-	}
+	// Database, then Gateway, AHEAD of the stores the actors use.
+	//
+	// Measured 2026-08-31: nothing under apps/gateway/src constructs a graph,
+	// vector or embedding client. Those dials left with the actors, and the
+	// ones that remain live in startMakeMeaning — the standalone root, which
+	// this process is not. So the Gateway's boot needs Postgres and nothing
+	// else (its CMD runs `prisma migrate deploy` first, which is what its
+	// long health budget pays for).
+	//
+	// Waiting on Neo4j, Qdrant and Ollama ahead of it therefore bought
+	// nothing and cost the launcher its fastest signal: the Gateway has by
+	// far the most ways to fail — JWT secret, DATABASE_URL, the migration,
+	// and both identity refusals — and every one of them used to surface a
+	// minute late, behind infrastructure it never touches.
+	//
+	// The invariant this order now states: everything started BELOW needs the
+	// Gateway, and nothing started ABOVE it does.
 	if code := flowDepRole(x, "database", fc, addr); code != 0 {
 		return code
 	}
@@ -142,6 +150,23 @@ func flowFullStart(x executor, fc flowCtx) int {
 	x.say(sayLog, "http://localhost:%d", fc.plan.GatewayPort)
 	x.say(sayLog, "Worker secret: %s", x.dim("(generated)"))
 	if code := flowGateway(x, fc, addr, stage, secret, otel); code != 0 {
+		return code
+	}
+
+	// The stores the ACTORS dial. Every one of them gates something below —
+	// the Archivist and Librarian take graph + vectors + embedding, the
+	// Smelter vectors + embedding, the Weaver the graph, the Worker
+	// inference — and none of them gated the Gateway above.
+	if code := flowDepRole(x, "graph", fc, addr); code != 0 {
+		return code
+	}
+	if code := flowDepRole(x, "vectors", fc, addr); code != 0 {
+		return code
+	}
+	if code := flowInferenceRole(x, fc, addr); code != 0 {
+		return code
+	}
+	if code := flowDepRole(x, "embedding", fc, addr); code != 0 {
 		return code
 	}
 
@@ -435,7 +460,7 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 			volume := x.ollamaVolume(fc.opts)
 			// The container is semiont-ollama whichever role owns it — the
 			// process is the same; only the accounting differs.
-			args := ollamaRunArgs(rp, "-m", "24G", "-v", volume+":/root/.ollama")
+			args := ollamaRunArgs(rp, "-v", volume+":/root/.ollama")
 			id, ok := x.runDetached(args)
 			if !ok {
 				x.say(sayFail, "Ollama container failed to start.")

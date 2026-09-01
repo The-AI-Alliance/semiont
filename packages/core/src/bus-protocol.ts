@@ -91,6 +91,7 @@ export type EventMap = {
 
   // Commands
   'yield:create': components['schemas']['YieldCreateCommand'];
+  'yield:clone-persist': components['schemas']['YieldClonePersistCommand'];
   'yield:update': components['schemas']['YieldUpdateCommand'];
   'yield:mv': components['schemas']['YieldMvCommand'];
   'yield:clone': void;
@@ -101,6 +102,8 @@ export type EventMap = {
   // Command results
   'yield:create-ok': components['schemas']['YieldCreateOk'];
   'yield:create-failed': components['schemas']['CommandError'];
+  'yield:clone-persist-ok': components['schemas']['YieldClonePersistOk'];
+  'yield:clone-persist-failed': { correlationId: string } & components['schemas']['CommandError'];
   'yield:update-ok': components['schemas']['YieldUpdateOk'];
   'yield:update-failed': components['schemas']['CommandError'];
   'yield:move-failed': { fromUri: string } & components['schemas']['CommandError'];
@@ -571,6 +574,7 @@ export const CHANNEL_SCHEMAS = {
   'yield:representation-added':       null,
   'yield:representation-removed':     null,
   'yield:create':                     'YieldCreateCommand',
+  'yield:clone-persist':              'YieldClonePersistCommand',
   'yield:update':                     'YieldUpdateCommand',
   'yield:mv':                         'YieldMvCommand',
   'yield:clone':                      null, // void
@@ -579,6 +583,8 @@ export const CHANNEL_SCHEMAS = {
   'yield:clone-create':               'YieldCloneCreateCommand',
   'yield:create-ok':                  'YieldCreateOk',
   'yield:create-failed':              'CommandError',
+  'yield:clone-persist-ok':           'YieldClonePersistOk',
+  'yield:clone-persist-failed':       null, // { correlationId } & CommandError
   'yield:update-ok':                  'YieldUpdateOk',
   'yield:update-failed':              null, // { correlationId } & CommandError
   'yield:move-failed':                null, // { fromUri } & CommandError

@@ -120,13 +120,13 @@ export class ViewMaterializer {
   /**
    * Update the storage-uri index in response to an event.
    *
-   * Only yield:created (with storageUri), yield:moved, need index changes.
-   * resource.archived / resource.unarchived do NOT modify the index.
+   * Only yield:created / yield:cloned (with storageUri), and yield:moved,
+   * need index changes. resource.archived / unarchived do NOT modify it.
    */
   private async materializeStorageUriIndex(resourceId: ResourceId, event: PersistedEvent): Promise<void> {
     const projectionsDir = path.join(this.config.basePath, 'projections');
 
-    if (event.type === 'yield:created' && event.payload.storageUri) {
+    if ((event.type === 'yield:created' || event.type === 'yield:cloned') && event.payload.storageUri) {
       await writeStorageUriEntry(projectionsDir, event.payload.storageUri, resourceId as string);
     } else if (event.type === 'yield:moved') {
       // Remove old URI, add new URI
@@ -206,8 +206,6 @@ export class ViewMaterializer {
         resource.isDraft = event.payload.isDraft;
         if (event.payload.generatedFrom) resource.wasDerivedFrom = event.payload.generatedFrom.resourceId;
         if (event.payload.generator) resource.generator = event.payload.generator;
-
-        resource.currentChecksum = event.payload.contentChecksum;
         break;
 
       case 'yield:cloned':
@@ -226,14 +224,31 @@ export class ViewMaterializer {
           byteSize: event.payload.contentByteSize,
           rel: 'original',
           language: event.payload.language,
+          storageUri: event.payload.storageUri,
         } as Representation);
         resource.representations = reps2;
         break;
 
-      case 'yield:updated':
-        resource.currentChecksum = event.payload.contentChecksum;
+      case 'yield:updated': {
+        // Re-stamp the primary representation's bytes IN PLACE, exactly as
+        // `yield:moved` re-stamps their location. The checksum has one home —
+        // the rendition it identifies — and this is the event that changes it.
+        //
+        // This used to write a second field (`resource.currentChecksum`) and
+        // leave the representation untouched, so every reader keyed off a
+        // checksum that was correct only until the first update. The
+        // anchored-text read then looked for geometry under the ORIGINAL
+        // bytes' key and either served coordinates for content the resource no
+        // longer had, or stalled the full settle timeout and reported no map
+        // for a document that had one.
+        const updated = getPrimaryRepresentation(resource);
+        if (updated) {
+          updated.checksum = event.payload.contentChecksum;
+          updated.byteSize = event.payload.contentByteSize;
+        }
         resource.dateModified = event.timestamp;
         break;
+      }
 
       case 'yield:moved': {
         // Relocate the primary representation's bytes. The move renames the

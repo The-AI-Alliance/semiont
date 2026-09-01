@@ -53,9 +53,10 @@ if (!config.services?.gateway) {
 }
 
 // Checked HERE, with the other startup requirements, rather than only in
-// JWTService.initialize below: this runs before startMakeMeaning dials the graph
-// and vector stores, so a missing secret costs a millisecond instead of a full
-// make-meaning startup. Same rule either way — requireJwtSecret is the one copy.
+// JWTService.initialize below: this runs before startMakeMeaningGateway builds
+// the job queue and its subscriptions, so a missing secret costs a millisecond
+// instead of a startup that has to be torn down again. Same rule either way —
+// requireJwtSecret is the one copy.
 const { requireJwtSecret } = await import('./auth/jwt');
 requireJwtSecret();
 

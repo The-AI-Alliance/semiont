@@ -99,6 +99,7 @@ export const BUS_OPERATIONS = {
   // live in-process (resource-operations.ts emits + awaits via race()); the
   // client also .on()-subscribes -ok for cache invalidation
   'yield:create':                        { result: 'yield:create-ok',                failure: 'yield:create-failed' },
+  'yield:clone-persist':                 { result: 'yield:clone-persist-ok',         failure: 'yield:clone-persist-failed' },
   // dormant — handler in stower exists, no request emitter; client pre-subscribes -ok
   'yield:update':                        { result: 'yield:update-ok',                failure: 'yield:update-failed' },
   'yield:clone-create':                  { result: 'yield:clone-created',            failure: 'yield:clone-create-failed' },
