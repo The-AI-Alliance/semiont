@@ -460,7 +460,7 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 			volume := x.ollamaVolume(fc.opts)
 			// The container is semiont-ollama whichever role owns it — the
 			// process is the same; only the accounting differs.
-			args := ollamaRunArgs(rp, "-m", "24G", "-v", volume+":/root/.ollama")
+			args := ollamaRunArgs(rp, "-v", volume+":/root/.ollama")
 			id, ok := x.runDetached(args)
 			if !ok {
 				x.say(sayFail, "Ollama container failed to start.")

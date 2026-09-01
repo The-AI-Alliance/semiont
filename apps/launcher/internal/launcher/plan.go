@@ -290,7 +290,10 @@ func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
 func ollamaRunArgs(rp rolePlan, extra ...string) []string {
 	spec := driverCatalog["inference"]["ollama"]
 	// The ceiling is the INFERENCE role's whichever role owns the container
-	// (an all-remote embedding config still runs one Ollama).
+	// (an all-remote embedding config still runs one Ollama) — and it comes
+	// from the roles table ALONE. A caller passing a second `-m` here would
+	// win by flag order and silently contradict both the table and the
+	// memory preflight that sums it; one did, for 16G.
 	a := []string{"run", "-d", "--name", "semiont-ollama", "--memory", roles["inference"].mem} // no --rm: see providedRunArgs
 	a = append(a, "-p", fmt.Sprintf("%d:%d", rp.Port, spec.defaultPort))
 	a = append(a, extra...)
