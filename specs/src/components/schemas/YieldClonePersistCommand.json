@@ -46,6 +46,7 @@
     }
   },
   "required": [
+    "correlationId",
     "name",
     "storageUri",
     "contentChecksum",
