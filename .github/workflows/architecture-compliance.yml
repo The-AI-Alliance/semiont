@@ -89,6 +89,13 @@ jobs:
           echo "::endgroup::"
           exit $fail
 
+      - name: Run Storage-URI One-Home Audit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          echo "::group::Storage-URI One-Home Audit (storageUri lives on Representation; descriptor access is invisible to tsc)"
+          ./scripts/compliance/audit-storage-uri-one-home.sh
+          echo "::endgroup::"
+
       - name: Run React-UI Compliance Audit
         id: react-ui-audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}

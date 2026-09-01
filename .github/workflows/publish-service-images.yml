@@ -45,19 +45,19 @@ jobs:
             dockerfile: apps/gateway/Dockerfile
             verify_packages: '@semiont/gateway'
           - service: worker
-            dockerfile: packages/jobs/Dockerfile
+            dockerfile: apps/worker/Dockerfile
             verify_packages: '@semiont/jobs'
           - service: smelter
-            dockerfile: packages/make-meaning/Dockerfile.smelter
+            dockerfile: apps/smelter/Dockerfile
             verify_packages: '@semiont/make-meaning'
           - service: weaver
-            dockerfile: packages/make-meaning/Dockerfile.weaver
+            dockerfile: apps/weaver/Dockerfile
             verify_packages: '@semiont/make-meaning'
           - service: archivist
-            dockerfile: packages/make-meaning/Dockerfile.archivist
+            dockerfile: apps/archivist/Dockerfile
             verify_packages: '@semiont/make-meaning'
           - service: librarian
-            dockerfile: packages/make-meaning/Dockerfile.librarian
+            dockerfile: apps/librarian/Dockerfile
             verify_packages: '@semiont/make-meaning'
 
     steps:

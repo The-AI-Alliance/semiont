@@ -191,6 +191,60 @@ describe('Weaver', () => {
     stopServing = null;
   });
 
+  // STORAGE-URI-ONE-HOME D1/D6: the weaver builds its OWN descriptor from the
+  // event before handing it to the graph — a third construction site that P1's
+  // census missed, because `additionalProperties: true` lets a top-level
+  // storageUri typecheck and then read back undefined. The P2 live gate caught
+  // it only after a full rebuild wrote 57 nulls.
+  describe('descriptor handed to the graph', () => {
+    it('puts storageUri on the primary representation, never at the top level', async () => {
+      const docId = resourceId(`storage-uri-home-${Date.now()}`);
+
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: docId,
+        userId: userId('user1'),
+        version: 1,
+        payload: {
+          name: 'Has bytes',
+          format: 'text/plain',
+          contentChecksum: 'h1',
+          storageUri: 'file://docs/has-bytes.md',
+        },
+      });
+
+      await tick();
+
+      const [descriptor] = (graphDb.createResource as unknown as {
+        mock: { calls: Array<[Record<string, unknown>]> };
+      }).mock.calls.at(-1)!;
+      const reps = descriptor.representations as Array<Record<string, unknown>>;
+      expect(reps[0]!.storageUri).toBe('file://docs/has-bytes.md');
+      expect(descriptor).not.toHaveProperty('storageUri');
+    });
+
+    it('omits the URI entirely for a bytes-less creation', async () => {
+      const docId = resourceId(`storage-uri-none-${Date.now()}`);
+
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: docId,
+        userId: userId('user1'),
+        version: 1,
+        payload: { name: 'No bytes', format: 'text/plain', contentChecksum: 'h2' },
+      });
+
+      await tick();
+
+      const [descriptor] = (graphDb.createResource as unknown as {
+        mock: { calls: Array<[Record<string, unknown>]> };
+      }).mock.calls.at(-1)!;
+      const reps = descriptor.representations as Array<Record<string, unknown>>;
+      expect(reps[0]).not.toHaveProperty('storageUri');
+      expect(descriptor).not.toHaveProperty('storageUri');
+    });
+  });
+
   describe('event type filtering', () => {
     it('should process graph-relevant events', async () => {
       const docId = resourceId(`filter-relevant-${Date.now()}`);

@@ -63,9 +63,9 @@ func TestContainerPathsMatchTheImage(t *testing.T) {
 		// The KB tree's row moved from the gateway to the ARCHIVIST with the
 		// mount itself (SINGLE-KB-MOUNT P6): the gateway declares neither of
 		// these env vars now, because it mounts nothing they could name.
-		{"archivist", []string{"..", "..", "..", "..", "packages", "make-meaning", "Dockerfile.archivist"},
+		{"archivist", []string{"..", "..", "..", "archivist", "Dockerfile"},
 			"SEMIONT_ROOT", kbMountTarget},
-		{"smelter", []string{"..", "..", "..", "..", "packages", "make-meaning", "Dockerfile.smelter"},
+		{"smelter", []string{"..", "..", "..", "smelter", "Dockerfile"},
 			"SEMIONT_ANCHORED_TEXT_DIR", stateStores["anchored-text"].mounts[0].target},
 	} {
 		declared := declaredEnv(t, c.file...)

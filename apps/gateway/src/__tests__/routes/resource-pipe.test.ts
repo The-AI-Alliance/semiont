@@ -102,7 +102,6 @@ describe('resource routes pipe contract (SIMPLER-JSON-LD.md Phase 1)', () => {
         '@id': rid,
         name: rid,
         archived: false,
-        storageUri: uri,
         representations: [{ mediaType, storageUri: uri, checksum: stored.checksum }],
       },
       annotations: { resourceId: rid, annotations: [], version: 0, updatedAt: '' },

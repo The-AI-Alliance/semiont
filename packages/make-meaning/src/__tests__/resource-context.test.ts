@@ -76,6 +76,7 @@ describe('ResourceContext', () => {
         {
           mediaType: 'text/plain',
           checksum: 'abc123',
+          storageUri: 'abc123',
           byteSize: 100,
           rel: 'original',
         },
@@ -285,11 +286,11 @@ describe('ResourceContext', () => {
       archived: false,
       entityTypes: ['Document'],
       dateCreated: '2024-01-01T00:00:00Z',
-      storageUri: 'abc123',
       representations: [
         {
           mediaType: 'text/plain',
           checksum: 'abc123',
+          storageUri: 'abc123',
           byteSize: 100,
           rel: 'original',
         },
@@ -302,6 +303,7 @@ describe('ResourceContext', () => {
       vi.mocked(getPrimaryRepresentation).mockReturnValue({
         mediaType: 'text/plain',
         checksum: 'abc123',
+        storageUri: 'abc123',
         byteSize: 100,
         rel: 'original',
       });
@@ -330,6 +332,7 @@ describe('ResourceContext', () => {
             {
               mediaType: 'text/plain',
               checksum: 'def456',
+              storageUri: 'def456',
               byteSize: 50,
               rel: 'original',
             },
@@ -360,7 +363,6 @@ describe('ResourceContext', () => {
     test('should handle resources without representations', async () => {
       const resourceWithoutReps: ResourceDescriptor = {
         ...mockResource,
-        storageUri: undefined,
         representations: [],
       };
 
@@ -382,7 +384,6 @@ describe('ResourceContext', () => {
 
       const resourceNoChecksum: ResourceDescriptor = {
         ...mockResource,
-        storageUri: undefined,
         representations: [repWithoutChecksum],
       };
 
@@ -399,6 +400,7 @@ describe('ResourceContext', () => {
       vi.mocked(getPrimaryRepresentation).mockReturnValue({
         mediaType: 'text/plain',
         checksum: 'abc123',
+        storageUri: 'abc123',
         byteSize: 100,
         rel: 'original',
       });
@@ -424,6 +426,7 @@ describe('ResourceContext', () => {
       vi.mocked(getPrimaryRepresentation).mockReturnValue({
         mediaType: 'text/plain',
         checksum: 'abc123',
+        storageUri: 'abc123',
         byteSize: 500,
         rel: 'original',
       });

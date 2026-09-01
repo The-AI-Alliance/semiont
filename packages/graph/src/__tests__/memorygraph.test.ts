@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MemoryGraphDatabase } from '../implementations/memorygraph';
-import { annotationId, resourceId } from '@semiont/core';
+import { annotationId, resourceId, getStorageUri } from '@semiont/core';
 import {
   createTestResource,
   createTestHighlight,
@@ -193,7 +193,7 @@ describe('MemoryGraphDatabase Implementation', () => {
     it('search should match against storageUri', async () => {
       const resource = createTestResource({
         name: 'Greek Victory',
-        storageUri: 'file://authors/Herodotus/places/Marathon.md',
+        representations: [{ mediaType: 'text/plain', storageUri: 'file://authors/Herodotus/places/Marathon.md' }],
       });
       await db.createResource(resource);
 
@@ -206,7 +206,7 @@ describe('MemoryGraphDatabase Implementation', () => {
     it('search against storageUri is case-insensitive', async () => {
       const resource = createTestResource({
         name: 'Plays',
-        storageUri: 'file://authors/Aeschylus/plays.md',
+        representations: [{ mediaType: 'text/plain', storageUri: 'file://authors/Aeschylus/plays.md' }],
       });
       await db.createResource(resource);
 
@@ -219,7 +219,7 @@ describe('MemoryGraphDatabase Implementation', () => {
     it('search returns a single result when query matches both name and storageUri', async () => {
       const resource = createTestResource({
         name: 'Marathon',
-        storageUri: 'file://places/Marathon.md',
+        representations: [{ mediaType: 'text/plain', storageUri: 'file://places/Marathon.md' }],
       });
       await db.createResource(resource);
 
@@ -231,11 +231,11 @@ describe('MemoryGraphDatabase Implementation', () => {
     it('listResources({ search }) matches storageUri the same way', async () => {
       await db.createResource(createTestResource({
         name: 'Resource A',
-        storageUri: 'file://authors/Plato/republic.md',
+        representations: [{ mediaType: 'text/plain', storageUri: 'file://authors/Plato/republic.md' }],
       }));
       await db.createResource(createTestResource({
         name: 'Resource B',
-        storageUri: 'file://authors/Aristotle/ethics.md',
+        representations: [{ mediaType: 'text/plain', storageUri: 'file://authors/Aristotle/ethics.md' }],
       }));
 
       const result = await db.listResources({ search: 'plato' });
@@ -244,15 +244,16 @@ describe('MemoryGraphDatabase Implementation', () => {
       expect(result.resources[0]?.name).toBe('Resource A');
     });
 
-    it('createResource persists storageUri so it round-trips through getResource', async () => {
+    it('createResource persists the representation storageUri so it round-trips through getResource', async () => {
+      // The URI's one home is the representation (STORAGE-URI-ONE-HOME).
       const resource = createTestResource({
-        storageUri: 'file://docs/overview.md',
+        representations: [{ mediaType: 'text/plain', storageUri: 'file://docs/overview.md' }],
       });
       await db.createResource(resource);
 
       const loaded = await db.getResource(resourceId(resource['@id']));
 
-      expect(loaded?.storageUri).toBe('file://docs/overview.md');
+      expect(getStorageUri(loaded ?? undefined)).toBe('file://docs/overview.md');
     });
   });
 

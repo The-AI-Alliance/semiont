@@ -36,6 +36,12 @@ bash "$COMPLIANCE_DIR/audit-fire-and-forget-promise-void.sh"
 bash "$COMPLIANCE_DIR/audit-session-typed-factories.sh"
 echo ""
 
+# storageUri one-home check — the field lives on Representation, and the
+# descriptor's index signature means the compiler can't police revivals
+echo "📦 Checking storageUri stays on the Representation (one home)..."
+bash "$COMPLIANCE_DIR/audit-storage-uri-one-home.sh"
+echo ""
+
 # Toolbar prefs are controlled props; persistence only in the policy layer
 echo "🎛️  Checking toolbar-pref storage stays in useToolbarPrefs()..."
 bash "$COMPLIANCE_DIR/audit-toolbar-pref-storage.sh"

@@ -29,7 +29,7 @@ import type { SemiontProject } from '@semiont/core/node';
 import type { EventMap, Logger, components } from '@semiont/core';
 import { EventBus, resourceId, annotationId, errField } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
-import { getExactText, getTargetSource, getTargetSelector, getBodySource } from '@semiont/core';
+import { getExactText, getTargetSource, getTargetSelector, getBodySource, getStorageUri } from '@semiont/core';
 import { EventQuery } from '@semiont/event-sourcing';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { GraphDatabase } from '@semiont/graph';
@@ -575,8 +575,11 @@ export class Browser {
     const prefix = `file://${resolved}`;
     const viewsByUri = new Map(
       allViews
-        .filter((v) => v.resource.storageUri?.startsWith(prefix + '/') || v.resource.storageUri?.startsWith(prefix + path.sep))
-        .map((v) => [v.resource.storageUri!, v]),
+        .filter((v) => {
+          const uri = getStorageUri(v.resource);
+          return uri?.startsWith(prefix + '/') || uri?.startsWith(prefix + path.sep);
+        })
+        .map((v) => [getStorageUri(v.resource)!, v]),
     );
 
     // Build entries

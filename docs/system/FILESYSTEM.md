@@ -25,7 +25,12 @@ $XDG_STATE_HOME/semiont/{project}/      (~/.local/state/semiont/{project}/)
     └── cancelled/
 ```
 
-Resources reference their content via `storageUri` (e.g. `file://README.md`) — Semiont reads files where they live in the working tree rather than copying them into a separate store.
+Resources reference their content via a **representation's** `storageUri` (e.g.
+`file://README.md`) — Semiont reads files where they live in the working tree rather than
+copying them into a separate store. The URI lives on the representation, not on the
+resource, because bytes are a fact about a *rendition*: a resource may carry an original,
+a thumbnail and a preview, each with its own location. Read it with
+`getStorageUri(resource)` rather than reaching into `representations[...]` by hand.
 
 ## Event Storage
 
@@ -53,7 +58,15 @@ Materialized views stored as JSON files — derived from the event log, rebuilda
   "@context": "https://schema.org/",
   "@id": "http://localhost:4000/resources/doc-123",
   "name": "Document Title",
-  "storageUri": "file://README.md",
+  "representations": [
+    {
+      "rel": "original",
+      "mediaType": "text/markdown",
+      "storageUri": "file://README.md",
+      "checksum": "sha256:…",
+      "byteSize": 1234
+    }
+  ],
   "annotations": [...]
 }
 ```
@@ -122,6 +135,16 @@ cd packages/make-meaning
 npm run rebuild-projections    # materialized views
 npm run rebuild-graph          # graph projection
 ```
+
+**After a change to what a projection stores, both must be re-run — and the graph
+does not restamp itself.** Views rematerialize on every start (`rebuildAll` at
+`knowledge-base.ts` / `archivist-main.ts`), so a restart is enough for them. The graph
+only rebuilds on the `weave:rebuild` command above, so a stack that restarts but skips
+it serves the OLD shape from the graph while views serve the new one — and a flat copy
+the graph denormalizes for query (`d.storageUri`, which path search substring-matches)
+silently keeps stale or empty values until the command runs. Re-run both, in that order,
+and verify the projection actually carries what you expect rather than assuming the
+command's success line means the shape is right.
 
 ## Disaster Recovery
 

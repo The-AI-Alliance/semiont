@@ -1,3 +1,13 @@
+# librarian image.
+#
+# THE ENTRYPOINT SOURCE IS NOT IN THIS DIRECTORY. This image installs the
+# published @semiont/make-meaning and runs `dist/librarian-main.js` out of it; the
+# source is packages/make-meaning/src/librarian-main.ts. Only the image
+# recipe lives here — the entrypoint stayed in its package deliberately, so
+# that moving it out would not have to promote ~18 of that package's
+# internals to public API just to satisfy a directory layout. If you change
+# the CMD, change it against that file.
+#
 # Stage 1: install (npm runs here, then is discarded).
 #
 # The Librarian is a separate image from the shared @semiont/make-meaning
@@ -45,7 +55,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
       -type d \( -name typescript -o -name '@typescript' \) -prune -exec rm -rf {} +
 
 COPY LICENSE /home/semiont/LICENSE
-COPY packages/make-meaning/NOTICE.librarian /home/semiont/NOTICE
+COPY apps/librarian/NOTICE /home/semiont/NOTICE
 
 WORKDIR /home/semiont
 USER semiont

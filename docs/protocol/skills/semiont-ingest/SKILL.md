@@ -204,5 +204,9 @@ ingest().catch((e) => {
 - **Re-running creates duplicate resources.** This skill does not deduplicate. To re-ingest cleanly, restart the gateway stack, or query existing resources via `browse.resources({ search: '<name>' })` and skip ones already present.
 - **Classify carefully by entity type.** A markdown contract should be `entityTypes: ['Contract']` not `['Document']`; a judicial opinion should be `['Case', 'JudicialOpinion', 'StateCourt']` not just `['Case']`. Downstream skills filter the corpus by these tags; ambiguous classification at ingest produces ambiguous queries later.
 - **PDFs are cataloged, not analyzed.** A resource with `format: 'application/pdf'` is queryable via `browse.resources(...)` but cannot be the target of `mark.assist`. PDF-to-markdown conversion is a separate operation; if the user needs body-content analysis on PDFs, ingest a markdown sibling alongside the PDF.
-- **`storageUri` is a stable identifier.** Use `file://<path>` for files in the repo, or another scheme for content from external sources. The URI is preserved across re-runs and is what other skills can use to trace a resource back to its origin.
+- **Choose a `storageUri` that stays put.** Use `file://<path>` for files in the repo, or
+  another scheme for content from external sources. Nothing rewrites it behind you — the
+  value is maintained across moves (`yield:moved` relocates it) — so reusing the same URI
+  across re-runs is what lets other skills trace a resource back to its origin. It lands on
+  the resource's primary representation; read it back with `getStorageUri(resource)`.
 - **Errors** — every SDK throw extends `SemiontError` (re-exported from `@semiont/sdk`). Catch on it broadly, or narrow to `APIError` (HTTP, with `status`) or `BusRequestError` (bus-mediated). See [Error Handling in Usage.md](../../../../packages/sdk/docs/Usage.md#error-handling).

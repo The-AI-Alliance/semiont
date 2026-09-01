@@ -55,7 +55,7 @@ function makeViews(views: Array<{ storageUri: string; resourceId: string; entity
       views.map((v) => ({
         resource: {
           '@id':           v.resourceId,
-          storageUri:      v.storageUri,
+          representations: [{ mediaType: 'text/plain', storageUri: v.storageUri }],
           entityTypes:     v.entityTypes ?? [],
           wasAttributedTo: { '@id': 'did:user:test' },
         },

@@ -9,7 +9,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { didToAgent } from '@semiont/core';
+import { didToAgent, getPrimaryRepresentation } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { applyEntityTypeAdded, applyTagSchemaAdded } from './projection-reducers';
 
@@ -187,7 +187,9 @@ export class ViewMaterializer {
         resource.dateCreated = event.timestamp;
         resource.wasAttributedTo = didToAgent(event.userId);
 
-        // Create representation from format and checksum
+        // Create representation from format and checksum. The storage URI
+        // lives here — on the rendition whose bytes it locates — and nowhere
+        // else (STORAGE-URI-ONE-HOME); absent when the resource has no bytes.
         if (!resource.representations) resource.representations = [];
         const reps = Array.isArray(resource.representations) ? resource.representations : [resource.representations];
         reps.push({
@@ -196,6 +198,7 @@ export class ViewMaterializer {
           byteSize: event.payload.contentByteSize,
           rel: 'original',
           language: event.payload.language,
+          storageUri: event.payload.storageUri,
         } as Representation);
         resource.representations = reps;
 
@@ -204,10 +207,6 @@ export class ViewMaterializer {
         if (event.payload.generatedFrom) resource.wasDerivedFrom = event.payload.generatedFrom.resourceId;
         if (event.payload.generator) resource.generator = event.payload.generator;
 
-        // Working-tree URI and current checksum
-        if (event.payload.storageUri) {
-          resource.storageUri = event.payload.storageUri;
-        }
         resource.currentChecksum = event.payload.contentChecksum;
         break;
 
@@ -236,10 +235,16 @@ export class ViewMaterializer {
         resource.dateModified = event.timestamp;
         break;
 
-      case 'yield:moved':
-        resource.storageUri = event.payload.toUri;
+      case 'yield:moved': {
+        // Relocate the primary representation's bytes. The move renames the
+        // working-tree file; the rendition it backs is unchanged.
+        const primary = getPrimaryRepresentation(resource);
+        if (primary) {
+          primary.storageUri = event.payload.toUri;
+        }
         resource.dateModified = event.timestamp;
         break;
+      }
 
       case 'mark:archived':
         resource.archived = true;

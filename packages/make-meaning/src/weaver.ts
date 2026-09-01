@@ -740,11 +740,16 @@ export class Weaver {
         mediaType: event.payload.format,
         checksum: event.payload.contentChecksum,
         rel: 'original',
+        // The URI lives on the REPRESENTATION (STORAGE-URI-ONE-HOME D1).
+        // `ResourceDescriptor` is `additionalProperties: true`, so writing it
+        // at the top level typechecks and then reads back as undefined
+        // through `getStorageUri` — which is how the graph projection silently
+        // lost all 57 of its URIs until the P2 live gate caught it.
+        ...(event.payload.storageUri ? { storageUri: event.payload.storageUri } : {}),
       }],
       archived: false,
       dateCreated: new Date().toISOString(),
       wasAttributedTo: didToAgent(event.userId),
-      ...(event.payload.storageUri ? { storageUri: event.payload.storageUri } : {}),
     };
   }
 

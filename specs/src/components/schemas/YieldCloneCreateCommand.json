@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Bus command to create a cloned resource from a clone token. Bytes are stored gateway-side BEFORE this command is emitted (GATEWAY.md D4a: the Archivist serves no bytes) — the command carries the storage coordinates, never content.",
+  "description": "Bus command to create a cloned resource from a clone token. Bytes are stored gateway-side BEFORE this command is emitted (GATEWAY.md D4a: the Archivist serves no bytes) \u2014 the command carries the storage coordinates, never content.",
   "properties": {
     "correlationId": {
       "type": "string"
@@ -16,7 +16,8 @@
       "type": "string"
     },
     "storageUri": {
-      "type": "string"
+      "type": "string",
+      "description": "Where the caller already wrote the clone's bytes \u2014 an instruction, not a copy of the stored fact (that lives on the primary Representation). Bytes are stored through the byte door BEFORE this command is sent, so this names an existing file. Working-tree URI, only file:// is supported."
     },
     "contentChecksum": {
       "type": "string"
@@ -31,5 +32,13 @@
       "type": "boolean"
     }
   },
-  "required": ["correlationId", "token", "name", "storageUri", "contentChecksum", "byteSize", "format"]
+  "required": [
+    "correlationId",
+    "token",
+    "name",
+    "storageUri",
+    "contentChecksum",
+    "byteSize",
+    "format"
+  ]
 }

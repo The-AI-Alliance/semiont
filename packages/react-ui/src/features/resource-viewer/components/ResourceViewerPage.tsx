@@ -11,7 +11,7 @@ import type { components, ResourceDescriptor, ResourceId, EventMap } from '@semi
 import type { ConnectionState } from '@semiont/core';
 import { annotationId, folderOf } from '@semiont/core';
 import type { ComposeParams } from '../../../components/modals/ComposeStep';
-import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, capabilitiesOf, extensionForMediaType } from '@semiont/core';
+import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, getStorageUri, capabilitiesOf, extensionForMediaType } from '@semiont/core';
 import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
 import { AnnotationHistory } from '@semiont/react-ui';
@@ -349,7 +349,7 @@ export function ResourceViewerPage({
   useEffect(() => {
     if (resource && rUri) {
       const mediaType = getPrimaryMediaType(resource);
-      browser.addOpenResource(rUri, resource.name, mediaType || undefined, resource.storageUri);
+      browser.addOpenResource(rUri, resource.name, mediaType || undefined, getStorageUri(resource));
       browser.setLastViewedResource(rUri);
     }
   }, [resource, rUri, browser]);
@@ -656,7 +656,7 @@ export function ResourceViewerPage({
                 documentLocale={getLanguage(resource)}
                 primaryMediaType={primaryMediaType}
                 primaryByteSize={primaryByteSize}
-                storageUri={resource.storageUri}
+                storageUri={getStorageUri(resource)}
                 isArchived={resource.archived ?? false}
                 dateCreated={resource.dateCreated}
                 dateModified={resource.dateModified}
@@ -709,7 +709,7 @@ export function ResourceViewerPage({
         annotationId={wizardAnnotationId}
         resourceId={wizardResourceId}
         defaultTitle={wizardDefaultTitle}
-        defaultFolder={folderOf(resource.storageUri)}
+        defaultFolder={folderOf(getStorageUri(resource))}
         entityTypes={wizardEntityTypes}
         resourceName={resource.name}
         locale={locale}
@@ -785,7 +785,7 @@ export function ResourceViewerPage({
         // Seed the proposed title from the source resource's name (GFR D4/A4);
         // the field stays editable and required.
         defaultTitle={resource.name}
-        defaultFolder={folderOf(resource.storageUri)}
+        defaultFolder={folderOf(getStorageUri(resource))}
         locale={locale}
         entityTypeOptions={allEntityTypes}
         onGenerateSubmit={handleResourceGenerateSubmit}

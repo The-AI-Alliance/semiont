@@ -18,7 +18,7 @@ import { Subscription, from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import type { EventMap, Logger, ResourceId } from '@semiont/core';
 import { type EventBus, cloneToken as makeCloneToken, type CloneToken, resourceId, userId as makeUserId } from '@semiont/core';
-import { getResourceEntityTypes } from '@semiont/core';
+import { getResourceEntityTypes, getStorageUri } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { WorkingTreeStore } from '@semiont/content';
 import { ResourceContext } from './resource-context';
@@ -95,7 +95,8 @@ export class CloneTokenManager {
       }
 
       // Verify content exists
-      if (!resource.storageUri) {
+      const storageUri = getStorageUri(resource);
+      if (!storageUri) {
         this.eventBus.get('yield:clone-token-failed').next({
           correlationId: event.correlationId,
           message: 'Resource content not found',
@@ -105,7 +106,7 @@ export class CloneTokenManager {
 
       // Existence check only: resolve + stat, never a byte read (D4a).
       try {
-        await fs.access(this.stores.content.resolveUri(resource.storageUri));
+        await fs.access(this.stores.content.resolveUri(storageUri));
       } catch {
         this.eventBus.get('yield:clone-token-failed').next({
           correlationId: event.correlationId,

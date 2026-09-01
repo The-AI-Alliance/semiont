@@ -50,7 +50,11 @@ export function getLanguage(resource: ResourceDescriptor | undefined): string | 
 }
 
 /**
- * Get storage URI from primary representation
+ * Get the storage URI from the primary representation — the field's ONE home
+ * (STORAGE-URI-ONE-HOME): bytes are a fact about a rendition, so their
+ * location lives on the Representation, never on the descriptor. This is the
+ * accessor every descriptor-holding read goes through; `undefined` means the
+ * resource has no stored bytes.
  *
  * @param resource - ResourceDescriptor
  * @returns Storage URI or undefined

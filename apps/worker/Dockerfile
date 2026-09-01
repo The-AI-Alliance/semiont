@@ -1,3 +1,13 @@
+# worker image.
+#
+# THE ENTRYPOINT SOURCE IS NOT IN THIS DIRECTORY. This image installs the
+# published @semiont/jobs and runs `dist/worker-main.js` out of it; the
+# source is packages/jobs/src/worker-main.ts. Only the image
+# recipe lives here — the entrypoint stayed in its package deliberately, so
+# that moving it out would not have to promote ~18 of that package's
+# internals to public API just to satisfy a directory layout. If you change
+# the CMD, change it against that file.
+#
 # Stage 1: install (npm runs here, then is discarded).
 #
 # Base is node:24-alpine (not node:26): node 26's built-in undici breaks the
@@ -44,7 +54,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
            /usr/local/bin/npm \
            /usr/local/bin/npx
 
-COPY LICENSE packages/jobs/NOTICE /home/semiont/
+COPY LICENSE apps/worker/NOTICE /home/semiont/
 
 WORKDIR /kb
 RUN chown semiont:nodejs /kb

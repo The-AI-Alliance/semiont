@@ -72,9 +72,9 @@ carries. All four run `node:24-alpine` (the Browser runs `node:26-alpine`).
 | Image | What runs | Bundled packages | Port | Dockerfile |
 |---|---|---|---|---|
 | `semiont-gateway` | API server + bus gateway | `@semiont/gateway` | 4000 | [apps/gateway/Dockerfile](../../../apps/gateway/Dockerfile) |
-| `semiont-worker` | annotation/generation worker pool | `@semiont/jobs` | 9090 | [packages/jobs/Dockerfile](../../../packages/jobs/Dockerfile) |
-| `semiont-smelter` | embedding/vector pipeline actor | `@semiont/make-meaning` | 9091 | [packages/make-meaning/Dockerfile.smelter](../../../packages/make-meaning/Dockerfile.smelter) |
-| `semiont-weaver` | graph-projection actor | `@semiont/make-meaning` | 9092 | [packages/make-meaning/Dockerfile.weaver](../../../packages/make-meaning/Dockerfile.weaver) |
+| `semiont-worker` | annotation/generation worker pool | `@semiont/jobs` | 9090 | [apps/worker/Dockerfile](../../../apps/worker/Dockerfile) |
+| `semiont-smelter` | embedding/vector pipeline actor | `@semiont/make-meaning` | 9091 | [apps/smelter/Dockerfile](../../../apps/smelter/Dockerfile) |
+| `semiont-weaver` | graph-projection actor | `@semiont/make-meaning` | 9092 | [apps/weaver/Dockerfile](../../../apps/weaver/Dockerfile) |
 
 **Configuration is runtime, not build-time.** The images contain no KB
 config; consuming stacks bind-mount their per-service TOML at run time.
