@@ -401,9 +401,18 @@ func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, to
 			// entry must be filled to keep every later offset valid — the one
 			// place this writes bytes the file did not supply, and the reason
 			// the caller names the file.
-			if _, perr := tw.Write(make([]byte, h.Size-n)); perr != nil {
-				src.Close()
-				return 0, 0, nil, perr
+			rem := h.Size - n
+			var zero [32 * 1024]byte
+			for rem > 0 {
+				chunk := int64(len(zero))
+				if rem < chunk {
+					chunk = rem
+				}
+				if _, perr := tw.Write(zero[:int(chunk)]); perr != nil {
+					src.Close()
+					return 0, 0, nil, perr
+				}
+				rem -= chunk
 			}
 			changed = append(changed, rel)
 		case cerr != nil:
