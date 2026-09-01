@@ -15,6 +15,7 @@ import {
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
+import { useKbPanelOnLogin } from '@/hooks/useKbPanelOnLogin';
 import { Link, routes } from '@/lib/routing';
 
 function GlobalEventsConnector() {
@@ -137,6 +138,10 @@ function KnowledgeLayoutBody() {
   // any `signOut`, which also leaves `activeKbId` set but `session`
   // null.
   const isLoading = activeKbId != null && session == null && sessionActivating;
+
+  // A session that has just become live — restored at launch or signed in just
+  // now — opens the Knowledge Base panel, whatever panel was showing before.
+  useKbPanelOnLogin(Boolean(activeKnowledgeBase && token), semiont);
 
   if (isLoading) {
     return (
