@@ -416,17 +416,34 @@ done
 FANOUT_FAILURES=""
 [[ -n "$FANOUT_RTS" ]] && step "Fan-out: images will also be loaded into${BOLD}$FANOUT_RTS${RESET}"
 
-fanout_image() {
-  local tag="$1" rt tmp
+# TMPDIR ends in a slash on macOS; joining with another one yields `T//path`.
+TMP_DIR="${TMPDIR:-/tmp}"; TMP_DIR="${TMP_DIR%/}"
+
+# Copies every :local image into each OTHER responsive runtime. Loops runtime
+# OUTSIDE image so the happy path is one line per destination rather than one
+# per image — a per-image ✓ said the same thing seven times. Failures stay
+# per-image, because that is when you need to know WHICH.
+#
+# `image save` prints the tag it wrote; without the redirect that echo lands
+# between the log lines and reads like stray output.
+fanout_all() {
+  local rt tmp tag img n
   for rt in $FANOUT_RTS; do
-    tmp=$(mktemp "${TMPDIR:-/tmp}/semiont-fanout.XXXXXX")
-    if $RT image save "$tag" -o "$tmp" && "$rt" image load -i "$tmp" >/dev/null 2>&1; then
-      ok "$tag → $rt image store"
-    else
-      warn "Fan-out of $tag to $rt failed (build unaffected; manual: $RT image save $tag -o /tmp/img.tar && $rt image load -i /tmp/img.tar)"
-      FANOUT_FAILURES="$FANOUT_FAILURES $rt:$tag"
+    n=0
+    for img in $IMAGES; do
+      tag="ghcr.io/the-ai-alliance/semiont-${img}:local"
+      tmp=$(mktemp "$TMP_DIR/semiont-fanout.XXXXXX")
+      if $RT image save "$tag" -o "$tmp" >/dev/null 2>&1 && "$rt" image load -i "$tmp" >/dev/null 2>&1; then
+        n=$((n + 1))
+      else
+        warn "Fan-out of $tag to $rt failed (build unaffected; manual: $RT image save $tag -o /tmp/img.tar && $rt image load -i /tmp/img.tar)"
+        FANOUT_FAILURES="$FANOUT_FAILURES $rt:$tag"
+      fi
+      rm -f "$tmp"
+    done
+    if [ "$n" -gt 0 ]; then
+      ok "$n image(s) → $rt image store"
     fi
-    rm -f "$tmp"
   done
 }
 
@@ -486,6 +503,11 @@ for img in $IMAGES; do
 done
 if [[ ${#BUILD_IMGS[@]} -eq 0 ]]; then
   ok "All images unchanged — nothing to build"
+else
+  # The per-build log path was on every "Building" line and was ~90 characters
+  # of noise on the happy path; a failure tails its own log, and this glob is
+  # how you watch one live.
+  step "Building ${#BUILD_IMGS[@]} image(s), 3 at a time ${DIM}(logs: $TMP_DIR/semiont-build-*)${RESET}"
 fi
 
 # Three builds at a time: ~30s of EVERY build is fixed buildkit-shim latency
@@ -496,15 +518,15 @@ fi
 # Fan-out happens after all builds, keeping the builder VM to itself.
 i=0
 while [ $i -lt ${#BUILD_IMGS[@]} ]; do
-  PIDS=(); TAGS=(); LOGS=(); IMGS=()
+  PIDS=(); TAGS=(); LOGS=(); IMGS=(); STARTS=()
   for j in 0 1 2; do
     idx=$((i + j))
     [ $idx -ge ${#BUILD_IMGS[@]} ] && break
     img=${BUILD_IMGS[$idx]}
     DF=$(image_dockerfile "$img")
     TAG="ghcr.io/the-ai-alliance/semiont-${img}:local"
-    LOG=$(mktemp "${TMPDIR:-/tmp}/semiont-build-${img}.XXXXXX")
-    step "Building ${TAG} from ${DF}... ${DIM}(log: $LOG)${RESET}"
+    LOG=$(mktemp "$TMP_DIR/semiont-build-${img}.XXXXXX")
+    step "Building ${TAG} from ${DF}..."
     $RT build --no-cache --tag "$TAG" \
       --build-arg NPM_REGISTRY="$BUILD_REGISTRY" \
       --file "$REPO_ROOT/$DF" \
@@ -513,6 +535,7 @@ while [ $i -lt ${#BUILD_IMGS[@]} ]; do
     TAGS+=("$TAG")
     LOGS+=("$LOG")
     IMGS+=("$idx")
+    STARTS+=("$(date +%s)")
   done
   for j in "${!PIDS[@]}"; do
     st=0
@@ -522,7 +545,7 @@ while [ $i -lt ${#BUILD_IMGS[@]} ]; do
       tail -40 "${LOGS[$j]}"
       exit 1
     fi
-    ok "${TAGS[$j]} built"
+    ok "${TAGS[$j]} built ${DIM}($(( $(date +%s) - ${STARTS[$j]} ))s)${RESET}"
     rm -f "${LOGS[$j]}"
     idx=${IMGS[$j]}
     if [[ -n "${BUILD_SIGS[$idx]}" ]]; then
@@ -534,9 +557,7 @@ done
 
 # Fan-out covers skipped images too: it heals the case where another runtime
 # was down when the image was last built.
-for img in $IMAGES; do
-  fanout_image "ghcr.io/the-ai-alliance/semiont-${img}:local"
-done
+fanout_all
 
 # --- Image-store accounting ---
 #
