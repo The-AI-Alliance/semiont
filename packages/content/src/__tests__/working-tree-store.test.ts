@@ -5,7 +5,7 @@
  * URI resolution, and git index staging when the project has gitSync enabled.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import { execFileSync } from 'child_process';
 import { tmpdir } from 'os';
@@ -211,6 +211,40 @@ describe('WorkingTreeStore', () => {
 
     it('should throw when the file does not exist', async () => {
       await expect(store.register('file://no-such-file.txt')).rejects.toThrow();
+    });
+  });
+
+  /**
+   * SINGLE-KB-MOUNT: `register` runs on the event-apply path, in the SAME
+   * process that streamed the upload in. A whole-file read here would
+   * re-materialize the bytes the write path was careful to keep
+   * chunk-bounded (D7) — the memory win would last exactly until the event
+   * applied. It verifies by streaming instead.
+   */
+  describe('register verifies without materializing', () => {
+    it('hashes a large file without reading it whole', async () => {
+      const big = Buffer.alloc(3 * 1024 * 1024, 0x5a);
+      await store.store(big, 'file://verify/big.bin', { noGit: true });
+
+      const readFileSpy = vi.spyOn(fs, 'readFile');
+      try {
+        const registered = await store.register('file://verify/big.bin', calculateChecksum(big));
+
+        expect(registered.checksum).toBe(calculateChecksum(big));
+        expect(registered.byteSize).toBe(big.length);
+        // The property, stated directly: no whole-file read on this path.
+        expect(readFileSpy).not.toHaveBeenCalled();
+      } finally {
+        readFileSpy.mockRestore();
+      }
+    });
+
+    it('still refuses a file whose bytes disagree with the expected checksum', async () => {
+      await store.store(Buffer.from('actual'), 'file://verify/mismatch.bin', { noGit: true });
+
+      await expect(
+        store.register('file://verify/mismatch.bin', calculateChecksum('claimed')),
+      ).rejects.toBeInstanceOf(ChecksumMismatchError);
     });
   });
 

@@ -9,9 +9,11 @@
  * Two write paths:
  * - store(content, storageUri): Write bytes to disk (API/GUI/AI path).
  *   Used when the file does not yet exist and the caller provides content.
- * - register(storageUri, expectedChecksum?): Read an existing file and
- *   return its metadata (CLI path). The file is already on disk; we just
- *   verify and record it. If expectedChecksum is provided, throws on mismatch.
+ * - register(storageUri, expectedChecksum?): Adopt a file already on disk and
+ *   return its metadata. The CLI path (the file arrived by other means) and
+ *   the event-apply path (the Stower staging bytes an event names) both use
+ *   it. Streams the file to hash it — never holds it. If expectedChecksum is
+ *   provided, throws on mismatch.
  *
  * Storage layout:
  *   {projectRoot}/{path-from-uri}
@@ -28,7 +30,6 @@ import { pipeline } from 'stream/promises';
 import path from 'path';
 import type { SemiontProject } from '@semiont/core/node';
 import type { Logger } from '@semiont/core';
-import { calculateChecksum, verifyChecksum } from './checksum';
 
 /**
  * Result of store() or register()
@@ -38,6 +39,29 @@ export interface StoredResource {
   checksum: string;      // SHA-256 hex of content
   byteSize: number;      // Size in bytes
   created: string;       // ISO 8601 timestamp
+}
+
+/**
+ * sha256 + byte count over a chunk stream, held in one place because both
+ * write paths need exactly this and neither may hold the file: `store` taps
+ * bytes on their way to disk, `register` taps them on the way back off it.
+ * Two copies would be two chances to disagree about what a checksum is.
+ */
+function hashingTap() {
+    const hash = createHash('sha256');
+    let byteSize = 0;
+    return {
+        update(chunk: Buffer): void {
+            hash.update(chunk);
+            byteSize += chunk.length;
+        },
+        get byteSize(): number {
+            return byteSize;
+        },
+        digest(): string {
+            return hash.digest('hex');
+        },
+    };
 }
 
 /**
@@ -90,23 +114,22 @@ export class WorkingTreeStore {
 
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     const tempPath = `${filePath}.${randomUUID()}.tmp`;
-    const hash = createHash('sha256');
-    let byteSize = 0;
+    const tap = hashingTap();
 
     try {
       await pipeline(
         source,
         async function* (chunks: AsyncIterable<Buffer>) {
           for await (const chunk of chunks) {
-            hash.update(chunk);
-            byteSize += chunk.length;
+            tap.update(chunk);
             yield chunk;
           }
         },
         createWriteStream(tempPath),
       );
 
-      const checksum = hash.digest('hex');
+      const checksum = tap.digest();
+      const byteSize = tap.byteSize;
       if (options?.expectedChecksum !== undefined && options.expectedChecksum !== checksum) {
         throw new ChecksumMismatchError(storageUri, options.expectedChecksum, checksum);
       }
@@ -133,8 +156,9 @@ export class WorkingTreeStore {
   /**
    * Read an existing file and return its metadata.
    *
-   * CLI path: the file is already on disk. We read it to compute the checksum.
-   * If expectedChecksum is provided, throws ChecksumMismatchError on mismatch.
+   * The file is already on disk; this hashes it by streaming to confirm what
+   * it is, then stages it. If expectedChecksum is provided, throws
+   * ChecksumMismatchError on mismatch.
    *
    * @param storageUri - file:// URI (e.g. "file://docs/overview.md")
    * @param expectedChecksum - Optional SHA-256 to verify against
@@ -147,10 +171,20 @@ export class WorkingTreeStore {
 
     this.logger?.debug('Registering resource', { storageUri });
 
-    const content = await fs.readFile(filePath);
-    const checksum = calculateChecksum(content);
+    // Hashed by streaming, never read whole. This runs on the event-apply
+    // path in the SAME process that streamed the upload in, so a `readFile`
+    // here would re-materialize bytes the write path was careful to keep
+    // chunk-bounded — the D7 memory bound would hold only until the event
+    // applied. The second hash itself is kept deliberately: it is the moment
+    // the record commits to "these bytes are what this event says", and the
+    // CLI path writes files this process never saw.
+    const tap = hashingTap();
+    for await (const chunk of createReadStream(filePath)) {
+      tap.update(chunk as Buffer);
+    }
+    const checksum = tap.digest();
 
-    if (expectedChecksum !== undefined && !verifyChecksum(content, expectedChecksum)) {
+    if (expectedChecksum !== undefined && checksum !== expectedChecksum) {
       throw new ChecksumMismatchError(storageUri, expectedChecksum, checksum);
     }
 
@@ -158,12 +192,13 @@ export class WorkingTreeStore {
       execFileSync('git', ['add', filePath], { cwd: this.projectRoot });
     }
 
-    this.logger?.info('Resource registered', { storageUri, checksum, byteSize: content.length });
+    const byteSize = tap.byteSize;
+    this.logger?.info('Resource registered', { storageUri, checksum, byteSize });
 
     return {
       storageUri,
       checksum,
-      byteSize: content.length,
+      byteSize,
       created: new Date().toISOString(),
     };
   }
