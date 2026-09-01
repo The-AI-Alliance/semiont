@@ -288,7 +288,8 @@ describe('GraphDatabase Interface Contract', () => {
       }));
       await db.createResource(createTestResource({
         '@id': resourceId('rank-path'), name: 'Greek victory',
-        storageUri: 'file://places/Marathon.md', dateCreated: '2026-03-01T00:00:00.000Z',
+        representations: [{ mediaType: 'text/plain', storageUri: 'file://places/Marathon.md' }],
+        dateCreated: '2026-03-01T00:00:00.000Z',
       }));
       await db.createResource(createTestResource({
         '@id': resourceId('rank-exact'), name: 'Marathon',
@@ -342,12 +343,12 @@ describe('GraphDatabase Interface Contract', () => {
     it('requires every query term to match, across name and path together', async () => {
       await db.createResource(createTestResource({
         '@id': resourceId('tok-split'), name: 'Greek victory',
-        storageUri: 'file://authors/Aeschylus/places/Marathon.md',
+        representations: [{ mediaType: 'text/plain', storageUri: 'file://authors/Aeschylus/places/Marathon.md' }],
       }));
       // Has one term but not the other — AND, not OR.
       await db.createResource(createTestResource({
         '@id': resourceId('tok-partial'), name: 'Aeschylus alone',
-        storageUri: 'file://authors/Aeschylus/index.md',
+        representations: [{ mediaType: 'text/plain', storageUri: 'file://authors/Aeschylus/index.md' }],
       }));
 
       const { resources: results } = await db.listResources({ search: 'Aeschylus Marathon' });
@@ -368,7 +369,7 @@ describe('GraphDatabase Interface Contract', () => {
     it('ranks a name-only match above one the path had to complete', async () => {
       await db.createResource(createTestResource({
         '@id': resourceId('tok-path'), name: 'Marathon notes',
-        storageUri: 'file://authors/Aeschylus/notes.md',
+        representations: [{ mediaType: 'text/plain', storageUri: 'file://authors/Aeschylus/notes.md' }],
         dateCreated: '2026-01-01T00:00:00.000Z',
       }));
       await db.createResource(createTestResource({

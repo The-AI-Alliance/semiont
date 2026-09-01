@@ -86,6 +86,39 @@ def siblings(lines, i, indent):
             if ind == indent:
                 yield j, l
 
+def factory_hits(lines, sf):
+    """Check 3b: `storageUri:` at brace depth 1 inside a descriptor factory
+    call (createTestResource({...})). The override object IS a descriptor
+    literal, but it usually has no `representations:` sibling for check 3 to
+    anchor on — this shape escaped to CI twice (memorygraph, then the graph
+    interface-contract suite). Depth 1 = top level of the override; a URI
+    inside `representations: [{ ... }]` sits at depth 2+ and is the correct
+    shape."""
+    for i, l in enumerate(lines):
+        if "createTestResource(" not in l:
+            continue
+        depth = 0
+        started = False
+        for j in range(i, min(len(lines), i + 40)):
+            seg = lines[j]
+            if not started:
+                idx = seg.find("createTestResource(")
+                seg = seg[idx + len("createTestResource("):]
+                started = True
+            for ch in seg:
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+            if "storageUri:" in lines[j]:
+                rep_inline = "representations:" in lines[j]
+                # depth AFTER the line ~ depth of its content for the
+                # one-property-per-line style this codebase uses.
+                if depth == 1 and not rep_inline:
+                    yield j, lines[j]
+            if started and depth <= 0 and j > i:
+                break
+
 hits = []
 for base in ("packages", "apps"):
     for f in pathlib.Path(base).rglob("*.ts*"):
@@ -105,6 +138,8 @@ for base in ("packages", "apps"):
                     continue
                 if re.search(r"(storageUri:|\.\.\.\(.*storageUri)", sib):
                     hits.append(f"{sf}:{j+1}:{sib.strip()}")
+        for j, l in factory_hits(lines, sf):
+            hits.append(f"{sf}:{j+1}:{l.strip()}")
 for h in sorted(set(hits)):
     print(h)
 PY
