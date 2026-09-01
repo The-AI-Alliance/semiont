@@ -4444,7 +4444,7 @@ type YieldClonePersistCommand struct {
 	ContentChecksum  string  `json:"contentChecksum"`
 
 	// CorrelationId Correlation id so busRequest can match the reply.
-	CorrelationId *string `json:"correlationId,omitempty"`
+	CorrelationId string `json:"correlationId"`
 
 	// EntityTypes Inherited from the source resource by the CloneTokenManager, which is the only party that knows the token is valid.
 	EntityTypes *[]string `json:"entityTypes,omitempty"`
