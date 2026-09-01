@@ -14,8 +14,14 @@
  * management need a live store and are not covered here.
  */
 import { describe, it, expect } from 'vitest';
-import { annotationId } from '@semiont/core';
-import type { Annotation, AnnotationId, CreateAnnotationInternal } from '@semiont/core';
+import { annotationId, getStorageUri, resourceId } from '@semiont/core';
+import type {
+  Annotation,
+  AnnotationId,
+  CreateAnnotationInternal,
+  ResourceDescriptor,
+  ResourceId,
+} from '@semiont/core';
 import { Neo4jGraphDatabase } from '../implementations/neo4j';
 import { NeptuneGraphDatabase } from '../implementations/neptune';
 import { JanusGraphDatabase } from '../implementations/janusgraph';
@@ -40,6 +46,28 @@ const HIGHLIGHT: CreateAnnotationInternal = {
   creator: CREATOR,
 };
 
+const STORAGE_URI = 'file:///kb/res-1.md';
+
+/** The storage URI belongs to the representation, not to the resource. */
+const RESOURCE: ResourceDescriptor = {
+  '@context': 'https://schema.org/',
+  '@id': resourceId('res-1'),
+  name: 'Cedar County, Iowa',
+  entityTypes: ['Place'],
+  representations: [
+    { mediaType: 'text/markdown', checksum: 'sha256:abc', rel: 'original', storageUri: STORAGE_URI },
+  ],
+  archived: false,
+  dateCreated: '2026-08-22T10:00:00.000Z',
+  wasAttributedTo: CREATOR,
+};
+
+/** The same resource whose representation was never stored anywhere. */
+const RESOURCE_WITHOUT_STORAGE: ResourceDescriptor = {
+  ...RESOURCE,
+  representations: [{ mediaType: 'text/markdown', checksum: 'sha256:abc', rel: 'original' }],
+};
+
 // ---------------------------------------------------------------------------
 // neo4j — a fake session that stores the bag and hands it back the way the
 // driver would, `created` included: as a native temporal, not a string.
@@ -56,8 +84,26 @@ function neo4jStore(): { db: Neo4jGraphDatabase; recorded: Recorded[] } {
       const props = { ...(params.props as Record<string, string> | undefined) };
       recorded.push({ cypher, params, props });
 
-      // Only a write carries a property bag; a read gets an empty result, which
-      // is enough to see the query it asked for.
+      // A resource write names its properties in the query rather than passing
+      // a bag, so the params ARE the stored node — `created` excepted, which
+      // the query stores as a native temporal.
+      if (cypher.includes('UNWIND $resources')) {
+        const batch = params.resources as Array<Record<string, unknown>>;
+        return {
+          records: batch.map(r => ({
+            get: (key: string) =>
+              key === 'd' ? { properties: { ...r, created: { toString: () => String(r.created) } } } : [],
+          })),
+        };
+      }
+
+      if (cypher.includes('MERGE (d:Resource')) {
+        const stored = { ...params, created: { toString: () => String(params.created) } };
+        return { records: [{ get: (key: string) => (key === 'd' ? { properties: stored } : []) }] };
+      }
+
+      // Only an annotation write carries a property bag; a read gets an empty
+      // result, which is enough to see the query it asked for.
       if (!params.props) return { records: [] };
 
       // `SET a.created = datetime($created)` — what comes back out is a
@@ -117,6 +163,31 @@ describe('neo4j write path', () => {
     expect(query.params.type).toBe(recorded[0]!.props.type);
   });
 
+  it("carries the representation's storage URI through the write and back out of the read", async () => {
+    const { db, recorded } = neo4jStore();
+    const stored = await db.createResource(RESOURCE);
+
+    expect(recorded[0]!.params.storageUri).toBe(STORAGE_URI);
+    expect(getStorageUri(stored)).toBe(STORAGE_URI);
+  });
+
+  it('stores null and reads back no storage URI when the representation has none', async () => {
+    const { db, recorded } = neo4jStore();
+    const stored = await db.createResource(RESOURCE_WITHOUT_STORAGE);
+
+    expect(recorded[0]!.params.storageUri).toBeNull();
+    expect(getStorageUri(stored)).toBeUndefined();
+  });
+
+  it('carries the storage URI through the batch write too, one resource per row', async () => {
+    const { db, recorded } = neo4jStore();
+    const stored = await db.batchCreateResources([RESOURCE, RESOURCE_WITHOUT_STORAGE]);
+
+    const rows = recorded[0]!.params.resources as Array<Record<string, unknown>>;
+    expect(rows.map(r => r.storageUri)).toEqual([STORAGE_URI, null]);
+    expect(stored.map(getStorageUri)).toEqual([STORAGE_URI, undefined]);
+  });
+
   it('fails loudly when the resource the annotation belongs to is not in the graph', async () => {
     const db = new Neo4jGraphDatabase({ database: 'neo4j' });
     const session = { run: async () => ({ records: [] }), close: async () => {} };
@@ -166,6 +237,8 @@ interface GremlinStore {
     createAnnotation(input: CreateAnnotationInternal): Promise<unknown>;
     listAnnotations(filter: { type?: 'highlight' | 'reference' }): Promise<unknown>;
     updateAnnotation(id: AnnotationId, updates: Partial<Annotation>): Promise<unknown>;
+    createResource(resource: ResourceDescriptor): Promise<unknown>;
+    getResource(id: ResourceId): Promise<ResourceDescriptor | null>;
   };
   written: Record<string, string>;
   filtered: Record<string, string>;
@@ -224,6 +297,24 @@ describe.each(GREMLIN_STORES)('%s write path', (_name, makeStore) => {
     await read.db.listAnnotations({ type: 'highlight' });
 
     expect(read.filtered.type).toBe(write.written.type);
+  });
+
+  it("carries the representation's storage URI through its own write/read seam", async () => {
+    const { db, written } = makeStore();
+    await db.createResource(RESOURCE);
+    expect(written.storageUri).toBe(STORAGE_URI);
+
+    const read = await db.getResource(resourceId('res-1'));
+    expect(getStorageUri(read!)).toBe(STORAGE_URI);
+  });
+
+  it('writes no storage URI property at all when the representation has none', async () => {
+    const { db, written } = makeStore();
+    await db.createResource(RESOURCE_WITHOUT_STORAGE);
+    expect('storageUri' in written).toBe(false);
+
+    const read = await db.getResource(resourceId('res-1'));
+    expect(getStorageUri(read!)).toBeUndefined();
   });
 
   it('persists BOTH properties of a selector update — neptune used to write only the quoted text', async () => {
