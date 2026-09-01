@@ -14,8 +14,11 @@
       "type": "string"
     },
     "storageUri": {
-      "type": "string"
+      "type": "string",
+      "description": "Optional: where the resource's bytes are expected to be. When present the handler VERIFIES the file exists and fails loudly if it does not, rather than succeeding as a no-op. An instruction, not a copy of the stored fact (that lives on the primary Representation). Working-tree URI, only file:// is supported."
     }
   },
-  "required": ["resourceId"]
+  "required": [
+    "resourceId"
+  ]
 }

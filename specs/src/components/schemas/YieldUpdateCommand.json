@@ -14,7 +14,8 @@
       "type": "string"
     },
     "storageUri": {
-      "type": "string"
+      "type": "string",
+      "description": "The caller's instruction for WHERE the bytes are \u2014 not a copy of the stored fact. The stored location lives on the resource's primary Representation (`Representation.storageUri`), which is its single home; this field is the message that puts it there. Working-tree URI, only file:// is supported (e.g. file://docs/overview.md)."
     },
     "contentChecksum": {
       "type": "string"

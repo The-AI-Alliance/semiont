@@ -77,7 +77,11 @@ Real KBs organise their content however suits the domain. Two examples:
   photos/
   ```
 
-Neither layout is prescribed by Semiont. The only constraint is that the path you choose at creation time becomes the resource's immutable `storageUri` in the event log (changeable later only via an explicit `yield:moved` event).
+Neither layout is prescribed by Semiont. The only constraint is that the path you choose
+at creation time is recorded as the `storageUri` on the resource's primary representation.
+The event log is append-only, so the creating event's path never changes — but the location
+the projection serves is **maintained across moves**: a later `yield:moved` relocates it,
+and reads through `getStorageUri(resource)` follow.
 
 ## What lives outside the project
 

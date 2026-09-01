@@ -3294,7 +3294,9 @@ type MarkArchiveCommand struct {
 	KeepFile      *bool   `json:"keepFile,omitempty"`
 	NoGit         *bool   `json:"noGit,omitempty"`
 	ResourceId    string  `json:"resourceId"`
-	StorageUri    *string `json:"storageUri,omitempty"`
+
+	// StorageUri Optional: where the resource's bytes live, so the archive can act on the file. An instruction to this handler, not a copy of the stored fact (that lives on the primary Representation). Working-tree URI, only file:// is supported.
+	StorageUri *string `json:"storageUri,omitempty"`
 }
 
 // MarkAssistRequestEvent Emitted when the user requests AI assistance for a mark
@@ -3439,7 +3441,9 @@ type MarkUnarchiveCommand struct {
 	// CorrelationId Correlation id for request/reply matching, set by the SDK's busRequest so the confirmed-write ack/failure routes back.
 	CorrelationId *string `json:"correlationId,omitempty"`
 	ResourceId    string  `json:"resourceId"`
-	StorageUri    *string `json:"storageUri,omitempty"`
+
+	// StorageUri Optional: where the resource's bytes are expected to be. When present the handler VERIFIES the file exists and fails loudly if it does not, rather than succeeding as a no-op. An instruction, not a copy of the stored fact (that lives on the primary Representation). Working-tree URI, only file:// is supported.
+	StorageUri *string `json:"storageUri,omitempty"`
 }
 
 // MarkUpdateBodyCommand Bus command to update an annotation's body with patch operations.
@@ -3680,7 +3684,7 @@ type ResourceCreatedPayload struct {
 	Language         *string                           `json:"language,omitempty"`
 	Name             string                            `json:"name"`
 
-	// StorageUri Working-tree URI (e.g. file://docs/overview.md)
+	// StorageUri The creating instruction's URI, recorded on the event. Append-only, so this value never changes — the LOCATION the projection serves is maintained across moves and lives on the resource's primary Representation, relocated by yield:moved. Optional: a resource may have no bytes. Working-tree URI, only file:// is supported (e.g. file://docs/overview.md).
 	StorageUri *string `json:"storageUri,omitempty"`
 }
 
@@ -4413,10 +4417,12 @@ type YieldCloneCreateCommand struct {
 	CorrelationId    string  `json:"correlationId"`
 
 	// Format Content format as a MIME type, optionally with parameters. The base type (everything before the first ';') MUST be a SupportedMediaType; parameters such as charset are preserved as metadata. Semantic validation happens in code at the create/yield boundary — there is deliberately no pattern here, the vocabulary lives in SupportedMediaType. Examples: text/plain, text/plain; charset=iso-8859-1, text/markdown; charset=windows-1252, image/png, application/pdf
-	Format     ContentFormat `json:"format"`
-	Name       string        `json:"name"`
-	StorageUri string        `json:"storageUri"`
-	Token      string        `json:"token"`
+	Format ContentFormat `json:"format"`
+	Name   string        `json:"name"`
+
+	// StorageUri Where the caller already wrote the clone's bytes — an instruction, not a copy of the stored fact (that lives on the primary Representation). Bytes are stored through the byte door BEFORE this command is sent, so this names an existing file. Working-tree URI, only file:// is supported.
+	StorageUri string `json:"storageUri"`
+	Token      string `json:"token"`
 }
 
 // YieldCloneCreated Success response after creating a cloned resource.
@@ -4462,7 +4468,9 @@ type YieldCreateCommand struct {
 	Language         *string                       `json:"language,omitempty"`
 	Name             string                        `json:"name"`
 	NoGit            *bool                         `json:"noGit,omitempty"`
-	StorageUri       string                        `json:"storageUri"`
+
+	// StorageUri The caller's instruction for WHERE the bytes are — not a copy of the stored fact. The stored location lives on the resource's primary Representation (`Representation.storageUri`), which is its single home; this field is the message that puts it there. Working-tree URI, only file:// is supported (e.g. file://docs/overview.md).
+	StorageUri string `json:"storageUri"`
 }
 
 // YieldCreateCommandGenerator1 defines model for .
@@ -4504,7 +4512,9 @@ type YieldUpdateCommand struct {
 	CorrelationId *string `json:"correlationId,omitempty"`
 	NoGit         *bool   `json:"noGit,omitempty"`
 	ResourceId    string  `json:"resourceId"`
-	StorageUri    string  `json:"storageUri"`
+
+	// StorageUri The caller's instruction for WHERE the bytes are — not a copy of the stored fact. The stored location lives on the resource's primary Representation (`Representation.storageUri`), which is its single home; this field is the message that puts it there. Working-tree URI, only file:// is supported (e.g. file://docs/overview.md).
+	StorageUri string `json:"storageUri"`
 }
 
 // YieldUpdateOk Success reply after updating a yielded resource, matched to the originating command by correlationId.
