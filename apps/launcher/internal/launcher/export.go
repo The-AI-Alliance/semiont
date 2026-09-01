@@ -346,6 +346,10 @@ func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, to
 		link := ""
 		if fi.Mode()&os.ModeSymlink != 0 {
 			if link, err = os.Readlink(abs); err != nil {
+				if os.IsNotExist(err) {
+					changed = append(changed, rel)
+					continue
+				}
 				return 0, 0, nil, err
 			}
 		} else if !fi.Mode().IsRegular() && !fi.IsDir() {
