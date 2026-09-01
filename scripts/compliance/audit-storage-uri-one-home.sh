@@ -15,6 +15,11 @@ set -euo pipefail
 # the schema is the source of truth, and keeping the field dead there is what
 # makes every other regression read undefined.
 # Check 2 (heuristic): no descriptor-shaped receiver dereferences .storageUri.
+# Check 3 (heuristic): no descriptor LITERAL assigns storageUri as a sibling of
+# `representations:`. Checks 1-2 caught reads and the schema, but the P2 live
+# gate found a third shape they both miss — weaver.ts BUILDING a descriptor
+# with the URI at the top level. It typechecked, and rebuilt the whole graph
+# projection with 57 nulls.
 # The receiver names cover every shape the P1 sweep found; a novel alias can
 # evade grep, but with check 1 holding it reads undefined and its own tests
 # catch it.
@@ -58,9 +63,67 @@ if [ -n "$VIOLATIONS" ]; then
   FAIL=1
 fi
 
+# Check 3: a descriptor literal that assigns storageUri as a SIBLING of
+# `representations:` is building the dead shape. Same indentation = same object
+# literal, which is the cheap structural proxy for "top level of a descriptor".
+CONSTRUCTIONS=$(python3 - <<'PY'
+import pathlib, re
+
+def siblings(lines, i, indent):
+    """Lines in the SAME object literal as lines[i]: same indentation, walking
+    out in both directions until a shallower line closes the enclosing object.
+    A window-based scan instead catches unrelated literals that merely sit
+    nearby at the same depth (it flagged a Representation inside a
+    mockReturnValue)."""
+    for rng in (range(i - 1, -1, -1), range(i + 1, len(lines))):
+        for j in rng:
+            l = lines[j]
+            if not l.strip():
+                continue
+            ind = len(l) - len(l.lstrip())
+            if ind < indent:
+                break
+            if ind == indent:
+                yield j, l
+
+hits = []
+for base in ("packages", "apps"):
+    for f in pathlib.Path(base).rglob("*.ts*"):
+        sf = str(f)
+        if any(x in sf for x in ("/node_modules/", "/dist/", "/coverage/")):
+            continue
+        try:
+            lines = f.read_text().splitlines()
+        except Exception:
+            continue
+        for i, l in enumerate(lines):
+            if not re.match(r"\s*representations:", l):
+                continue
+            indent = len(l) - len(l.lstrip())
+            for j, sib in siblings(lines, i, indent):
+                if "storageUri" not in sib or "representations:" in sib:
+                    continue
+                if re.search(r"(storageUri:|\.\.\.\(.*storageUri)", sib):
+                    hits.append(f"{sf}:{j+1}:{sib.strip()}")
+for h in sorted(set(hits)):
+    print(h)
+PY
+) || true
+
+if [ -n "$CONSTRUCTIONS" ]; then
+  echo "❌ ONE-HOME: a descriptor literal assigns storageUri beside representations: — the URI belongs INSIDE the representation (STORAGE-URI-ONE-HOME D1):"
+  echo ""
+  echo "$CONSTRUCTIONS"
+  echo ""
+  echo "additionalProperties:true means this compiles and then reads back undefined"
+  echo "through getStorageUri(). weaver.ts shipped exactly this and rebuilt the graph"
+  echo "projection with 57 null URIs; only a live rebuild caught it."
+  FAIL=1
+fi
+
 if [ "$FAIL" -ne 0 ]; then
   exit 1
 fi
 
-echo "✅ ONE-HOME: storageUri lives only on Representation; no descriptor-level access"
+echo "✅ ONE-HOME: storageUri lives only on Representation; no descriptor-level access or construction"
 exit 0

@@ -100,7 +100,6 @@ describe('GET /resources/:id byte fidelity (S12 transport-fidelity lemma)', () =
         '@id': rid,
         name: rid,
         archived: false,
-        storageUri: uri,
         representations: [{ mediaType, storageUri: uri, checksum: stored.checksum }],
       },
       annotations: { resourceId: rid, annotations: [], version: 0, updatedAt: '' },
