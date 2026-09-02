@@ -10,20 +10,33 @@
 
 This package implements the actor model from [ACTOR-MODEL.md](../../docs/system/ACTOR-MODEL.md). It owns the **Knowledge Base** and the seven actors that serve it.
 
-Five **access actors** mediate every read and write — the bus-facing interface of the Knowledge Base:
+**The actors no longer run in one process.** Each container entry point in this package starts the subset it owns, and the gateway constructs **none** of them — it keeps the HTTP surface, the bus door, and the job queue.
 
-- **Stower** (write) — the single write gateway to the Knowledge Base; handles all resource and annotation mutations and job lifecycle events
-- **Browser** (read) — handles all KB read queries: resources, annotations, events, annotation history, referenced-by lookups, entity type and tag-schema listing, the collaborator directory (the KB's declared software agents, derived from the workers/actors inference config), and directory browse (merging filesystem listings with KB metadata)
-- **Gatherer** (context assembly) — assembles gathered context for annotations (`gather:requested`) and resources (`gather:resource-requested`); searches vectors for semantically similar passages (adds `semanticContext` to `GatheredContext`)
-- **Matcher** (search/link) — context-driven candidate search with multi-source retrieval, composite structural scoring, and optional LLM semantic scoring
-- **CloneTokenManager** (yield) — manages clone token lifecycle for resource cloning
+| Service | Entry point | Actors |
+| --- | --- | --- |
+| **Archivist** | `@semiont/make-meaning/archivist-main` | Stower, Browser, CloneTokenManager |
+| **Librarian** | `@semiont/make-meaning/librarian-main` | Gatherer, Matcher |
+| **Smelter** | `@semiont/make-meaning/smelter-main` | Smelter |
+| **Weaver** | `@semiont/make-meaning/weaver-main` | Weaver |
 
-Two **projection pipelines** follow the event log to keep the eventually-consistent read models in sync — addressed by no one, replying to nothing:
+`startMakeMeaning()` still assembles the **whole** set in one process — that is what `LocalTransport`, scripts and tests use, and it is unchanged. `startMakeMeaningGateway()` is the split-topology root: same stores, no actors, a handler subset.
 
-- **Weaver** (project) — subscribes to graph-relevant domain events and projects them into the graph database; carried on the KB record (`kb.weaver`) and rebuilt from the event log at startup (`rebuildAll()`)
-- **Smelter** (embed) — standalone embedding pipeline run via `@semiont/make-meaning/smelter-main` (not started by `startMakeMeaning`); subscribes to domain events, reads content from the KB working tree via `WorkerContentTransport`, chunks text, embeds via `@semiont/vectors`, and indexes into the vector store (Qdrant). On startup it reconciles Qdrant against the KS catalog — re-embedding what's missing or stale (every upsert is stamped with the embedded bytes' checksum, so changed content is detected) and deleting orphans — so a wiped Qdrant volume, or events missed while the worker was down, recover by restarting the smelter
+### The access actors — the bus-facing interface of the Knowledge Base
 
-(The third derived read model — the materialized views — is not pipeline-maintained: the EventStore's `ViewManager` materializes views synchronously inside `appendEvent()` for a read-your-writes guarantee.)
+- **Stower** (write, *Archivist*) — the single write gateway to the Knowledge Base; handles all resource and annotation mutations and job lifecycle events. The only caller that appends events
+- **Browser** (read, *Archivist*) — handles all KB read queries: resources, annotations, events, annotation history, referenced-by lookups, entity type and tag-schema listing, the collaborator directory (the KB's declared software agents, derived from the workers/actors inference config), and directory browse (merging filesystem listings with KB metadata)
+- **Gatherer** (context assembly, *Librarian*) — assembles gathered context for annotations (`gather:requested`) and resources (`gather:resource-requested`); searches vectors for semantically similar passages (adds `semanticContext` to `GatheredContext`)
+- **Matcher** (search/link, *Librarian*) — context-driven candidate search with multi-source retrieval, composite structural scoring, and optional LLM semantic scoring
+- **CloneTokenManager** (yield, *Archivist*) — manages clone token lifecycle for resource cloning
+
+**Stower and Browser stay together on purpose:** Stower writes the events and projections that Browser reads, so splitting them would open a cross-process read-after-write window over the same state. Git is single-writer for the same reason — the Archivist owns the working tree.
+
+### The projection pipelines — addressed by no one, replying to nothing
+
+- **Weaver** (project, *Weaver service*) — subscribes to graph-relevant domain events and projects them into the graph database. It rebuilds from the event log only on an explicit `weave:rebuild`, so a projection-shape change needs that command, not just a restart
+- **Smelter** (embed, *Smelter service*) — subscribes to domain events, reads content through `WorkerContentTransport`, chunks text, embeds via `@semiont/vectors`, and indexes into the vector store (Qdrant). It also owns anchored-text extraction. On startup it reconciles Qdrant against the KS catalog — re-embedding what's missing or stale (every upsert is stamped with the embedded bytes' checksum, so changed content is detected) and deleting orphans — so a wiped Qdrant volume, or events missed while it was down, recover by restarting it
+
+(The third derived read model — the materialized views — is not pipeline-maintained: the EventStore's `ViewManager` materializes views synchronously inside `appendEvent()` for a read-your-writes guarantee. The Archivist rebuilds them at startup; unlike the graph, they need no explicit command.)
 
 All seven actors subscribe to the EventBus via RxJS pipelines and expose no public business methods — only `initialize()` and `stop()`, plus a startup recovery entry point on the pipelines (`rebuildAll()` / `reconcile()`). Callers communicate with the access actors by putting events on the bus.
 

@@ -1,7 +1,8 @@
 # semiont launcher
 
 A host-installed CLI that runs a local Semiont stack — Neo4j, Qdrant, Ollama,
-PostgreSQL, the Semiont API server, worker, smelter, weaver, and the Browser —
+PostgreSQL, the Semiont gateway, worker, smelter, weaver, archivist,
+librarian, and the Browser —
 by driving your container runtime (Apple `container`, Docker, or Podman)
 directly. It replaces the `.semiont/scripts/{start,logs,stop}.sh` trio that
 used to be synced into every KB repository.
@@ -411,8 +412,8 @@ semiont stop
   machine's stack) falls back to the historical name sweep; the record is
   belief — `status` still verifies every claim against the runtime.
 - `start`, `stop`, and `status` take `--service <name>` to act on one service
-  (named by role: gateway, worker, smelter, weaver, browser,
-  database, graph, vectors, inference, embedding, traces — the concrete products PostgreSQL,
+  (named by role: gateway, worker, smelter, weaver, archivist, librarian,
+  browser, database, graph, vectors, inference, embedding, traces — the concrete products PostgreSQL,
   Neo4j, Qdrant, Ollama, and Jaeger appear as detail alongside). A `--service` start rejoins the running stack's
   worker secret automatically (recovered from a running container's env via
   the runtime's inspect), auto-enables OTel iff Jaeger is up, and stages a

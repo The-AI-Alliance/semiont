@@ -14,8 +14,8 @@ Semiont publishes a release in these steps:
    [Step 1b](#step-1b-publish-the-browser-container-image).
 3. **Publish Service Images** — a separate action
    ([`publish-service-images.yml`](../../.github/workflows/publish-service-images.yml))
-   that pushes the four service images (`semiont-gateway`, `-worker`,
-   `-smelter`, `-weaver`) to GHCR. Also run *after* the npm packages exist —
+   that pushes the six service images (`semiont-gateway`, `-worker`,
+   `-smelter`, `-weaver`, `-archivist`, `-librarian`) to GHCR. Also run *after* the npm packages exist —
    the images bundle the published `@semiont/*` packages at the release
    version, gated by `npm view` per service. Same knobs as the Browser
    image (Trivy vuln + license gates, `dry_run`, `tag_latest`, provenance +
@@ -545,7 +545,7 @@ After releasing:
 - [ ] Verify npm packages published (including `@semiont/gateway` and `@semiont/browser`)
 - [ ] If desktop was checked, verify the desktop artifacts on the GitHub Release
 - [ ] Publish the Browser container image ([Step 1b](#step-1b-publish-the-browser-container-image)) and confirm the `:<version>` and `:latest` tags on GHCR
-- [ ] Publish the four service images (`publish-service-images.yml`) and confirm `semiont-gateway`, `semiont-worker`, `semiont-smelter`, and `semiont-weaver` carry `:<version>` and `:latest` on GHCR
+- [ ] Publish the six service images (`publish-service-images.yml`) and confirm `semiont-gateway`, `semiont-worker`, `semiont-smelter`, `semiont-weaver`, `semiont-archivist`, and `semiont-librarian` carry `:<version>` and `:latest` on GHCR
 - [ ] Publish the launcher ([Step 1c](#step-1c-publish-the-launcher-homebrew--binaries), dispatched `--ref v<version>`) and confirm the four `semiont_<version>_*.tar.gz` archives on the GitHub Release and the updated formula in [`homebrew-semiont`](https://github.com/The-AI-Alliance/homebrew-semiont)
 - [ ] Test launcher installation: `brew install the-ai-alliance/semiont/semiont && semiont version` (upgrades: `brew upgrade semiont`). a long-deprecated npm package (no longer built from this repo) also installed a `semiont` bin — if `which semiont` does not resolve to the brew copy, that leftover is shadowing the launcher
 - [ ] Smoke-test a stack: from a KB directory, `semiont start && semiont status`, then `semiont stop`

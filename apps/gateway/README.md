@@ -127,18 +127,21 @@ router.get('/resources', async (c) => {
 });
 ```
 
-**EventBus-delegated routes** (read operations via request-response):
-- Resource listing, metadata, annotations, events, history → `browse:*` events (Gatherer handles)
-- Referenced-by queries → `bind:referenced-by-requested` (Matcher handles)
-- Entity type listing → `mark:entity-types-requested` (Gatherer handles)
-- Clone token operations → `yield:clone-*` events (CloneTokenManager handles)
-- Job status → `job:status-requested` (job queue subscription handles)
-- LLM context → `gather:*` events (Gatherer handles)
+**EventBus-delegated routes** (read operations via request-response). The gateway
+constructs **no actors** — it emits onto the bus and the owning service answers:
 
-**Fire-and-forget mutations** (already event-driven):
-- Annotation create/delete/update → `mark:*` events (Stower handles)
-- Resource create → `yield:create` (Stower handles)
-- Entity type addition → `frame:add-entity-type` (Stower handles)
+- Resource listing, metadata, annotations, events, history → `browse:*` (**Browser**, in the Archivist)
+- Referenced-by queries → `browse:referenced-by-requested` (**Browser**, in the Archivist)
+- Entity type and tag-schema listing → `browse:entity-types-requested` / `browse:tag-schemas-requested` (**Browser**, in the Archivist)
+- Clone token operations → `yield:clone-*` (**CloneTokenManager**, in the Archivist)
+- LLM context → `gather:*` (**Gatherer**, in the Librarian)
+- Candidate search → `match:search-requested` (**Matcher**, in the Librarian)
+- Job status → `job:status-requested` (the gateway's own job-queue subscription — one of the few things it still answers itself)
+
+**Fire-and-forget mutations** (already event-driven) — all handled by **Stower**, in the Archivist:
+- Annotation create/delete/update → `mark:*`
+- Resource create → `yield:create`
+- Entity type addition → `frame:add-entity-type`
 
 **HTTP-only routes** (excluded from EventBus by design):
 - Auth (password, Google, refresh, MCP, terms, logout) — PostgreSQL/Prisma dependent

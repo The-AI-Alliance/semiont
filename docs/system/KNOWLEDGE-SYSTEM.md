@@ -1,6 +1,6 @@
 # Knowledge System
 
-The **Knowledge System** binds the Knowledge Base to its seven reactive actors. Nothing outside the Knowledge System reads or writes the Knowledge Base directly.
+The **Knowledge System** binds the Knowledge Base to its seven reactive actors. Nothing outside the Knowledge System reads or writes the Knowledge Base directly. Operationally, a knowledge base is everything behind a gateway — the actors and stores on this page; clients see only the bus.
 
 The knowledge base itself is inert — no goals, no decisions, never initiating an event; it is the durable record of what intelligent actors decide. Seven reactive sub-actors serve it, in two categories:
 
@@ -27,68 +27,75 @@ For the broader actor model that frames these seven, see [ACTOR-MODEL.md](ACTOR-
 title: Knowledge System
 ---
 graph TB
-    subgraph top [" "]
-        direction LR
-        API["HTTP API<br/>(gateway)"]
-        DB[("Users DB<br/>(PostgreSQL)")]
+    BE["Event bus<br/>(reached via the gateway)"]
+
+    subgraph ARCHG ["semiont-archivist"]
+        STOWER["Stower"]
+        BROWSER["Browser"]
+        CTM["CloneTokenManager"]
     end
-    BE["Event Bus<br/>(RxJS)"]
 
-    API --> BE
-    API --> DB
+    subgraph LIBG ["semiont-librarian"]
+        GATHERER["Gatherer"]
+        MATCHER["Matcher"]
+    end
 
-    BE -->|"mark, yield"| STOWER["Stower<br/>(archivist)"]
-    BE -->|"gather"| GATHERER["Gatherer<br/>(librarian)"]
-    BE -->|"match"| MATCHER["Matcher<br/>(librarian)"]
-    BE -->|"browse"| BROWSER["Browser<br/>(archivist)"]
-    BE -->|"clone"| CTM["CloneTokenManager<br/>(archivist)"]
-    BE -->|"domain events"| WEAVER["Weaver<br/>(pipeline)"]
-    BE -->|"domain events"| SMELTER["Smelter<br/>(pipeline)"]
+    subgraph WEAVG ["semiont-weaver"]
+        WEAVER["Weaver"]
+    end
+    subgraph SMELG ["semiont-smelter"]
+        SMELT["Smelter"]
+    end
 
-    STOWER -->|append| EVENTLOG
-    STOWER -->|store| CONTENT
+    TREE[("KB working tree<br/>event log · content · git state<br/>— the system of record")]
+    VIEWS[("views<br/>resources/ · projections/")]
+    ANCH[("anchored text")]
+    GRAPH[("graph<br/>Neo4j")]
+    VECTORS[("vectors<br/>Qdrant")]
 
+    BE -->|"mark · yield"| STOWER
+    BE -->|browse| BROWSER
+    BE -->|clone| CTM
+    BE -->|gather| GATHERER
+    BE -->|match| MATCHER
+    BE -->|"domain events"| WEAVER
+    BE -->|"domain events"| SMELT
+
+    STOWER -->|append| TREE
+    TREE -->|"materialize (sync, on append)"| VIEWS
+    BROWSER --> VIEWS
+    BROWSER --> TREE
+    BROWSER -->|fallback| VECTORS
+    BROWSER --> ANCH
+    CTM --> VIEWS
+    CTM --> TREE
+    GATHERER --> VIEWS
+    GATHERER --> TREE
+    GATHERER --> GRAPH
+    GATHERER --> VECTORS
+    MATCHER --> VIEWS
+    MATCHER --> GRAPH
+    MATCHER --> VECTORS
     WEAVER -->|project| GRAPH
-    SMELTER -->|embed| VECTORS
-    CONTENT -->|read| SMELTER
+    SMELT --> TREE
+    SMELT -->|embed| VECTORS
+    SMELT -->|write| ANCH
 
-    subgraph kb ["Knowledge Base"]
-        subgraph sor ["System of Record (git-tracked)"]
-            EVENTLOG["Event Log<br/>(append-only)"]
-            CONTENT["Content Store<br/>(files in directories)"]
-        end
-        VIEWS["Materialized Views<br/>(fast single-doc queries)"]
-        GRAPH["Graph<br/>(eventually consistent)"]
-        VECTORS["Vectors<br/>(Qdrant)"]
-
-        EVENTLOG -->|"materialize<br/>(sync, on append)"| VIEWS
-    end
-
-    GATHERER -->|query| VIEWS
-    GATHERER -->|read| CONTENT
-    GATHERER -->|traverse| GRAPH
-    GATHERER -->|search| VECTORS
-
-    MATCHER -->|query| VIEWS
-    MATCHER -->|traverse| GRAPH
-    MATCHER -->|search| VECTORS
-
-    BROWSER -->|query| VIEWS
-    BROWSER -->|read| CONTENT
-
-    CTM -->|query| VIEWS
-    CTM -->|read| CONTENT
-
-    classDef gateway fill:#c4a020,stroke:#8b6914,stroke-width:2px,color:#000
+    classDef hub fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000
+    classDef svc fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
-    classDef worker fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
-    class API,BE gateway
-    class DB,EVENTLOG,VIEWS,CONTENT,GRAPH,VECTORS store
-    class STOWER,GATHERER,MATCHER,BROWSER,CTM,WEAVER,SMELTER worker
+    class BE hub
+    class STOWER,BROWSER,CTM,GATHERER,MATCHER,WEAVER,SMELT svc
+    class TREE,VIEWS,ANCH,GRAPH,VECTORS store
 
-    style top fill:none,stroke:none
+    style ARCHG fill:none,stroke:#3d6644,stroke-width:1.5px,stroke-dasharray:6 4
+    style LIBG fill:none,stroke:#3d6644,stroke-width:1.5px,stroke-dasharray:6 4
+    style WEAVG fill:none,stroke:#3d6644,stroke-width:1.5px,stroke-dasharray:6 4
+    style SMELG fill:none,stroke:#3d6644,stroke-width:1.5px,stroke-dasharray:6 4
 ```
+
+Same grammar as [CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md)'s state view: rectangles act, cylinders persist, and each actor sits inside the dashed frame of the service container that hosts it. The working-tree cylinder is the system of record; every other store is derived from it.
 
 ## Storage layout
 
