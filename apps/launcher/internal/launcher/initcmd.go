@@ -33,7 +33,6 @@ With --yes and neither source, init refuses rather than guessing.
   --name <n>          Project name (default: directory basename)
   --domain <d>        did:web domain (colon-path form, e.g. owner.github.io:repo)
   --site-name <s>     Human-readable site name (default: the project name)
-  --admin-email <e>   Admin email recorded in the site config
   --inference <p>     Build a config: anthropic or ollama
   --model <id>        The heavy model (gatherer, matcher, workers.default)
   --model-light <id>  Emitted as a commented per-worker example, not a binding
@@ -58,7 +57,7 @@ With --yes and neither source, init refuses rather than guessing.
 // Init implements `semiont init`.
 func Init(args []string) int {
 	u := newUI(false)
-	var name, domain, siteName, adminEmail string
+	var name, domain, siteName string
 	var inference, model, modelLight, embedding, configName string
 	var fromTemplate, templateRef string
 	var devcontainer bool
@@ -95,13 +94,6 @@ func Init(args []string) int {
 				return 1
 			}
 			siteName = v
-			i++
-		case "--admin-email":
-			v, ok := need()
-			if !ok {
-				return 1
-			}
-			adminEmail = v
 			i++
 		case "--inference":
 			v, ok := need()
@@ -305,22 +297,31 @@ func Init(args []string) int {
 			siteName = prompt("Site name", name)
 		}
 	}
-	if adminEmail == "" && !yes {
-		adminEmail = prompt("Admin email", "")
-	}
-
+	// The shape every KB in the fleet already carries, comments included: a
+	// KB born here should be indistinguishable from one forked off the
+	// template. Two fields the fleet does NOT carry are not written —
+	// `[project] version`, which nothing bumps and which the gateway renders
+	// only if present, and `[site] adminEmail`, which the config loader
+	// carries to no reader at all.
 	cfg := fmt.Sprintf(`[project]
 name = %q
-version = "0.1.0"
 
 [git]
 sync = %t
 
 [site]
+# Permanent did:web identity for everything this KB mints (stamped into the
+# committed event log). Names the repo, not a deployment — a committed literal,
+# never env-templated, never a machine address.
 domain = %q
 siteName = %q
-adminEmail = %q
-`, name, !noGit, domain, siteName, adminEmail)
+# Google-OAuth sign-in allowlist: an email's domain must match this list
+# exactly. Local password sign-in does not consult it. RFC 2606 reserved, so
+# it admits nobody — widen it deliberately. NOT `+"`[]`"+`: the launcher stages this
+# key only when the list is non-empty, and the gateway refuses to start
+# without it.
+oauthAllowedDomains = ["example.com"]
+`, name, !noGit, domain, siteName)
 
 	if dryRun {
 		fmt.Println("# semiont init --dry-run — what a real run would create. Nothing is written.")

@@ -13,6 +13,27 @@ The gateway and Browser also ship as published, attested container images
 (`ghcr.io/the-ai-alliance/semiont-{gateway,browser}`) that bundle these
 packages — see [Container Images](../docs/system/administration/IMAGES.md).
 
+## Container images only
+
+These ship as attested images and are **not** published to npm — their code lives in
+`@semiont/make-meaning` (the actors) and `@semiont/jobs` (the processors), and each app
+directory is the container entry point plus its Dockerfile.
+
+| Service | Source | Port | What it runs |
+| --- | --- | --- | --- |
+| `semiont-archivist` | [archivist](./archivist/README.md) | 9093 | **Keeps the system of record** — Stower (writes events + projections), Browser (serves `browse:*` reads), CloneTokenManager. The only service that mounts the working tree |
+| `semiont-librarian` | [librarian](./librarian/README.md) | 9094 | **Searches the record** — Gatherer (context assembly) and Matcher (candidate search + scoring) |
+| `semiont-smelter` | [smelter](./smelter/README.md) | 9091 | Chunks and embeds content into the vector store; owns anchored-text extraction |
+| `semiont-weaver` | [weaver](./weaver/README.md) | 9092 | Projects the event log into the graph |
+| `semiont-worker` | [worker](./worker/README.md) | 9090 | Claims queued jobs (detection, generation) and runs inference |
+
+All six service images (the five above plus the gateway) are built by
+[`publish-service-images.yml`](../.github/workflows/publish-service-images.yml).
+
+**The Archivist and the Librarian are a deliberate pair.** The Archivist holds the record
+and answers *"what is there?"*; the Librarian searches it and answers *"what is relevant to
+my question?"* — the distinction the professions themselves draw.
+
 ## Host-installed binaries
 
 | App | Source | Distribution | Description |

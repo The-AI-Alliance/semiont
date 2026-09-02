@@ -16,7 +16,7 @@ A knowledge-base stack is brought up in one of two supported ways:
 - **The `semiont` launcher** — `brew install the-ai-alliance/semiont/semiont`, then `semiont start`
   from a KB directory. Works locally against Docker / Podman / Apple Container, and in GitHub
   Codespaces. See [apps/launcher](../../../apps/launcher/README.md).
-- **`docker compose`** against the KB's own `.semiont/compose/gateway.yml`.
+- **`docker compose`** against the KB's own `.semiont/compose/backend.yml`.
 
 ## Where to read next
 

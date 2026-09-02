@@ -113,7 +113,7 @@ echo "This will:"
 echo "  1. Bump version from ${CURRENT} to ${NEXT} (${BUMP_TYPE})"
 echo "  2. Update all package.json files"
 echo "  3. Regenerate package-lock.json (npm, in ${RUNTIME})"
-echo "  4. Commit and push to main"
+echo "  4. Commit and push to $(git rev-parse --abbrev-ref HEAD)"
 echo ""
 read -rp "Proceed? (y/N): " confirm
 [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Cancelled."; exit 0; }
@@ -193,7 +193,9 @@ Version bump type: ${BUMP_TYPE}
 
 git add "${FILES[@]}"
 git commit --signoff --gpg-sign -m "$COMMIT_MSG"
-git push
+# -u origin HEAD so the first push of a fresh bump branch sets its upstream
+# instead of failing with "has no upstream branch"; a no-op once tracking exists.
+git push -u origin HEAD
 
 echo ""
 echo "Done. Version bumped from ${CURRENT} to ${NEXT}."

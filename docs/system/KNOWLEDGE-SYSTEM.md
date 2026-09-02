@@ -1,8 +1,8 @@
 # Knowledge System
 
-The **Knowledge System** binds the Knowledge Base to its seven reactive actors. Nothing outside the Knowledge System reads or writes the Knowledge Base directly.
+The **Knowledge System** binds the Knowledge Base to its seven reactive actors. Nothing outside the Knowledge System reads or writes the Knowledge Base directly. Operationally, a knowledge base is everything behind a gateway — the actors and stores on this page; clients see only the bus.
 
-The knowledge base itself is not an intelligent actor. It has no goals, preferences, or decisions. It never initiates an event. It is inert storage — the durable record of what intelligent actors decide. Seven reactive sub-actors serve it, in two categories:
+The knowledge base itself is inert — no goals, no decisions, never initiating an event; it is the durable record of what intelligent actors decide. Seven reactive sub-actors serve it, in two categories:
 
 - **Five access actors** mediate every read and write: **Stower** (write), **Browser** (read), **Gatherer** (context assembly), **Matcher** (search), and **CloneTokenManager** (clone tokens). They are the bus-facing interface of the knowledge base — commands and requests in, replies out, correlated by `correlationId`.
 - **Two projection pipelines** keep the eventually-consistent read models in sync with the event log: the **Weaver** (events → graph) and the **Smelter** (events → vectors). Pipelines are addressed by no one and reply to nothing; they consume already-persisted domain events.
@@ -16,7 +16,7 @@ The third derived read model — the materialized views — is deliberately **no
 1. **Eventual** — the read tolerates projection lag. Say so, and say why lag is acceptable for that consumer.
 2. **Read-your-writes** — via the projection's progress fold: `weaveProgress.whenApplied(...)` for the graph, `smeltProgress.whenSettled(...)` for the vectors — with a **bounded, observable degrade** when the barrier times out (a breadcrumb plus a counter, never a silent thin result and never an unbounded wait).
 
-"Undeclared" is not an option. Both existing seams paid for its absence: the graph race shipped as a product bug (`gather.resource` "Resource not found", fixed by the `whenApplied` barrier), and the vector race was caught only by review diligence (EXCLUDE-VECTORS → the `whenSettled` barrier and its config-owned settle bound). The per-unit axiom suites (W\*, S\*) cannot own this property — every unit-level axiom holds *while* the race happens; ordering across an actor boundary belongs to the seam, and this rule is where the seam's obligations live. Views are exempt (synchronous by construction); any future projection inherits this rule on day one.
+"Undeclared" is not an option — both existing seams paid for its absence (a graph race shipped as a product bug; a vector race was caught only in review). Unit-level axioms cannot own this property: every one of them holds *while* the race happens, so ordering across an actor boundary belongs to the seam. Views are exempt (synchronous by construction); any future projection inherits this rule on day one.
 
 For the broader actor model that frames these seven, see [ACTOR-MODEL.md](ACTOR-MODEL.md). For the deployment layout (which actors live in which container), see [CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md).
 
@@ -27,68 +27,75 @@ For the broader actor model that frames these seven, see [ACTOR-MODEL.md](ACTOR-
 title: Knowledge System
 ---
 graph TB
-    subgraph top [" "]
-        direction LR
-        API["HTTP API<br/>(gateway)"]
-        DB[("Users DB<br/>(PostgreSQL)")]
+    BE["Event bus<br/>(reached via the gateway)"]
+
+    subgraph ARCHG ["semiont-archivist"]
+        STOWER["Stower"]
+        BROWSER["Browser"]
+        CTM["CloneTokenManager"]
     end
-    BE["Event Bus<br/>(RxJS)"]
 
-    API --> BE
-    API --> DB
+    subgraph LIBG ["semiont-librarian"]
+        GATHERER["Gatherer"]
+        MATCHER["Matcher"]
+    end
 
-    BE -->|"mark, yield"| STOWER["Stower"]
-    BE -->|"gather"| GATHERER["Gatherer"]
-    BE -->|"match"| MATCHER["Matcher"]
-    BE -->|"browse"| BROWSER["Browser"]
-    BE -->|"clone"| CTM["CloneTokenManager"]
-    BE -->|"domain events"| WEAVER["Weaver<br/>(pipeline)"]
-    BE -->|"domain events"| SMELTER["Smelter<br/>(pipeline)"]
+    subgraph WEAVG ["semiont-weaver"]
+        WEAVER["Weaver"]
+    end
+    subgraph SMELG ["semiont-smelter"]
+        SMELT["Smelter"]
+    end
 
-    STOWER -->|append| EVENTLOG
-    STOWER -->|store| CONTENT
+    TREE[("KB working tree<br/>event log · content · git state<br/>— the system of record")]
+    VIEWS[("views<br/>resources/ · projections/")]
+    ANCH[("anchored text")]
+    GRAPH[("graph<br/>Neo4j")]
+    VECTORS[("vectors<br/>Qdrant")]
 
+    BE -->|"mark · yield"| STOWER
+    BE -->|browse| BROWSER
+    BE -->|clone| CTM
+    BE -->|gather| GATHERER
+    BE -->|match| MATCHER
+    BE -->|"domain events"| WEAVER
+    BE -->|"domain events"| SMELT
+
+    STOWER -->|append| TREE
+    TREE -->|"materialize (sync, on append)"| VIEWS
+    BROWSER --> VIEWS
+    BROWSER --> TREE
+    BROWSER -->|fallback| VECTORS
+    BROWSER --> ANCH
+    CTM --> VIEWS
+    CTM --> TREE
+    GATHERER --> VIEWS
+    GATHERER --> TREE
+    GATHERER --> GRAPH
+    GATHERER --> VECTORS
+    MATCHER --> VIEWS
+    MATCHER --> GRAPH
+    MATCHER --> VECTORS
     WEAVER -->|project| GRAPH
-    SMELTER -->|embed| VECTORS
-    CONTENT -->|read| SMELTER
+    SMELT --> TREE
+    SMELT -->|embed| VECTORS
+    SMELT -->|write| ANCH
 
-    subgraph kb ["Knowledge Base"]
-        subgraph sor ["System of Record (git-tracked)"]
-            EVENTLOG["Event Log<br/>(append-only)"]
-            CONTENT["Content Store<br/>(files in directories)"]
-        end
-        VIEWS["Materialized Views<br/>(fast single-doc queries)"]
-        GRAPH["Graph<br/>(eventually consistent)"]
-        VECTORS["Vectors<br/>(Qdrant)"]
-
-        EVENTLOG -->|"materialize<br/>(sync, on append)"| VIEWS
-    end
-
-    GATHERER -->|query| VIEWS
-    GATHERER -->|read| CONTENT
-    GATHERER -->|traverse| GRAPH
-    GATHERER -->|search| VECTORS
-
-    MATCHER -->|query| VIEWS
-    MATCHER -->|traverse| GRAPH
-    MATCHER -->|search| VECTORS
-
-    BROWSER -->|query| VIEWS
-    BROWSER -->|read| CONTENT
-
-    CTM -->|query| VIEWS
-    CTM -->|read| CONTENT
-
-    classDef gateway fill:#c4a020,stroke:#8b6914,stroke-width:2px,color:#000
+    classDef hub fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000
+    classDef svc fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
-    classDef worker fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
-    class API,BE gateway
-    class DB,EVENTLOG,VIEWS,CONTENT,GRAPH,VECTORS store
-    class STOWER,GATHERER,MATCHER,BROWSER,CTM,WEAVER,SMELTER worker
+    class BE hub
+    class STOWER,BROWSER,CTM,GATHERER,MATCHER,WEAVER,SMELT svc
+    class TREE,VIEWS,ANCH,GRAPH,VECTORS store
 
-    style top fill:none,stroke:none
+    style ARCHG fill:none,stroke:#3d6644,stroke-width:1.5px,stroke-dasharray:6 4
+    style LIBG fill:none,stroke:#3d6644,stroke-width:1.5px,stroke-dasharray:6 4
+    style WEAVG fill:none,stroke:#3d6644,stroke-width:1.5px,stroke-dasharray:6 4
+    style SMELG fill:none,stroke:#3d6644,stroke-width:1.5px,stroke-dasharray:6 4
 ```
+
+Same grammar as [CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md)'s state view: rectangles act, cylinders persist, and each actor sits inside the dashed frame of the service container that hosts it. The working-tree cylinder is the system of record; every other store is derived from it.
 
 ## Storage layout
 
@@ -99,40 +106,39 @@ graph TB
 | **Content Store** | Working-tree files addressed by `storageUri` (documents, images, PDFs); the Archivist's container is the only one that mounts the tree | Stower registers; all other byte reads ride the Archivist's HTTP surface (the gateway proxies for external clients) |
 | **Graph** | Eventually consistent relationship projection for traversal queries (backlinks, entity networks) | Weaver projects; Gatherer/Matcher traverse and search |
 | **Vectors** | Embedding vectors in Qdrant for semantic similarity search; eventually consistent | Smelter projects; Gatherer/Matcher search |
+| **Anchored text** | Per-representation geometry maps from PDF/OCR extraction, keyed by content checksum (see [ANCHORING.md](ANCHORING.md)) | Smelter writes (sole producer); Archivist answers the `browse:anchored-text-*` bus reads |
 
 ## The seven KB actors
 
-Five access actors mediate reads and writes; two projection pipelines follow the event log.
+Five access actors mediate reads and writes — the record's three (Stower, Browser, CloneTokenManager) run in the **archivist**, the LLM-bound pair (Gatherer, Matcher) in the **librarian**. The two projection pipelines run in their stores' own containers.
 
-### Stower
+### Stower (archivist)
 
-The Stower is the single write gateway to the knowledge base. It subscribes to command events on the bus (`mark:create`, `yield:create`, `mark:delete`, `mark:update-body`, `job:start`, `job:complete`, etc.) and translates them into domain events on the event log and content registrations in the content store. It emits reply events back onto the bus (`yield:create-ok`, `mark:delete-ok`, `*-failed`, etc.) so callers can confirm completion; the appended domain events themselves (`yield:created`, `mark:added`, ...) are republished onto the bus by the EventStore. No other code calls `eventStore.appendEvent()` or writes to the content store.
+The single write gateway. Bus commands (`mark:create`, `yield:create`, `job:complete`, …) become domain events on the event log and content registrations; replies (`*-ok` / `*-failed`) confirm completion, and the EventStore republishes the appended domain events. No other code calls `eventStore.appendEvent()` or writes the content store.
 
-### Gatherer
+### Browser (archivist)
 
-The Gatherer is the read actor for context assembly. When a Generator Agent or Linker Agent emits a **gather** event, the Gatherer receives it from the bus, queries the relevant KB stores (materialized views, content store, graph, vectors), and assembles the context needed for downstream work. It emits the assembled context back onto the bus.
+The read actor for deterministic single-index queries — resources, annotations, events, history, referenced-by, entity-type and tag-schema listings, the collaborator directory, directory browse — plus the semantic fallback when lexical search finds nothing. Multi-source fusion belongs to the Matcher. Directory browse prefix-scans the views and merges untracked entries, under a path-confinement invariant: every resolved path stays within `project.root`.
 
-### Matcher
+### CloneTokenManager (archivist)
 
-The Matcher is the read actor for entity resolution. When an Analyst or Linker Agent emits a **match** event (`match:search-requested`), the Matcher receives it from the bus, retrieves candidates from multiple KB sources (name match, entity types, graph neighborhood, vector similarity), scores them against the supplied `GatheredContext`, and emits ranked results back onto the bus — the search half of resolving a mention to its referent. (The **bind** flow that records the chosen referent is a write, handled through the Stower.) The Matcher does not need the content store directly; it works with metadata, relationships, and embeddings to find the right target.
+The clone-token lifecycle in the yield flow: issue a 15-minute in-memory token, validate it, create the clone through the normal write path. Tokens never touch durable storage — losing them on restart is harmless. That expiry is written down here and nowhere else; it is minted at [`packages/make-meaning/src/clone-token-manager.ts:96`](../../packages/make-meaning/src/clone-token-manager.ts#L96) — check this paragraph against that literal, not against another document.
 
-### Browser
+### Gatherer (librarian)
 
-The Browser is the read actor for all deterministic KB queries — resources, annotations, events, annotation history, referenced-by lookups, entity-type and tag-schema listings, the collaborator directory (the KB's declared software agents) — plus directory browse: everything the UI and CLI need to present the knowledge base to a user. If a question can be answered by one query against one index, the Browser answers it; multi-source fusion and scoring belong to the Matcher. For directory requests, it performs a prefix scan of the materialized views for tracked resources under the requested path, reads their content from the content store, and merges the result with untracked entries. Each entry is either bare (`tracked: false`) or enriched with KB metadata (resource ID, entity types, annotation count, creator). It enforces a path confinement invariant: all resolved paths must remain within `project.root`.
+Context assembly for the gather flows: queries views, graph, and vectors, reads content bytes from the archivist, and emits the assembled context back onto the bus for the Generator and Linker Agents.
 
-### CloneTokenManager
+### Matcher (librarian)
 
-The CloneTokenManager handles the clone-token lifecycle in the yield flow. On `yield:clone-token-requested` it validates the source resource and its content, then issues a short-lived token (15-minute expiry, held in an in-memory map). `yield:clone-resource-requested` validates a token and returns the source resource; `yield:clone-create` validates the token and creates the cloned resource through the normal write path. Tokens never touch durable storage — losing them on restart is harmless.
-
-That expiry is written down here and nowhere else — other docs say "short-lived" and link back. It is minted at [`packages/make-meaning/src/clone-token-manager.ts:96`](../../packages/make-meaning/src/clone-token-manager.ts#L96) as `Date.now() + 15 * 60 * 1000`; check this paragraph against that literal, not against another document.
+Candidate search and scoring for the match flow: retrieves candidates by name, entity types, graph neighborhood, and vector similarity, scores them against the supplied `GatheredContext`, and emits ranked results. The **bind** that records a chosen referent is a write, handled through the Stower.
 
 ### Weaver (projection pipeline)
 
-The Weaver follows the event log and keeps the graph projection in sync. It runs in its own container (`semiont-weaver`) — not in the gateway process — and reaches the gateway through the unified bus, the same way workers and the smelter do; beyond the bus its single privileged attachment is the graph database. It subscribes to the graph-relevant domain events, batches bursts per resource (`groupBy(resourceId)` + adaptive burst buffering + `concatMap`), and applies them to the graph. Every apply emits a `weave:applied` signal; the gateway folds these into `kb.weaveProgress`, whose `whenApplied` barrier lets graph readers wait out projection lag. On startup it runs a **checkpointed catch-up** over the `browse:*` read channels (its only view of history — no event-store attachment), replaying just the gap since its persisted checkpoint; a full rebuild is the `weave:rebuild` bus command. A wiped graph volume recovers by command, or by wiping the checkpoint and restarting the weaver.
+Follows the domain events and keeps the graph projection in sync; beyond the bus its single privileged attachment is Neo4j. Bursts are batched per resource (`groupBy` + burst buffer + `concatMap`), every apply emits `weave:applied`, and the `whenApplied` barrier lets graph readers wait out projection lag. Startup runs a checkpointed catch-up over `browse:*` (no event-store attachment); `weave:rebuild` is the full rebuild command.
 
 ### Smelter (projection pipeline)
 
-The Smelter is the vector projection actor. It runs in its own container (`semiont-smelter`) — not in the gateway process — and reaches the gateway through the unified bus, the same way workers do. Beyond the bus it has two privileged attachments: the vector store (Qdrant, direct) and the content store (the KB working tree, bind-mounted; `SEMIONT_ROOT`). When a resource is created or an annotation is added, the Smelter receives the event, reads the content from the working tree, chunks the text into overlapping passages, computes embedding vectors via the configured embedding provider (Voyage AI or Ollama), and indexes them into the vector store. Vectors are a pure projection — nothing is written back to the event log. Because Qdrant is ephemeral, the Smelter reconciles it against the KS catalog on every startup: it lists what is indexed, lists what should be (via the `browse:*` channels), re-embeds what's missing or stale (each upsert is stamped with the embedded bytes' checksum, so content changed while the worker was down is detected), and deletes orphans — so a wiped Qdrant volume, or events missed while the worker was down, recover by restarting the smelter. The Smelter follows the same RxJS burst-buffer pattern as the Weaver for per-resource ordering and batch efficiency.
+The vector pipeline, and a pure network peer: events arrive over SSE, content bytes are fetched from the archivist verbatim (the checksum stamped onto every upsert must hash exactly the stored bytes), chunks are embedded (Voyage AI or Ollama) and indexed into Qdrant. It is also the sole producer of the anchored-text store, derived during the same ingest read. On every startup it reconciles Qdrant against the catalog — membership *and* content freshness via the checksum stamps — re-embedding what's missing or stale and purging orphans, so a wiped volume or missed events recover by restart. Same per-resource burst-buffer pattern as the Weaver.
 
 ## See also
 

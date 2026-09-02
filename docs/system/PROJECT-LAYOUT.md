@@ -14,7 +14,7 @@ my-project/
 │   │   └── {ab}/{cd}/{resourceId}/   # Per-resource streams, sharded
 │   │       └── events-000001.jsonl
 │   ├── compose/                      # Optional Docker Compose files
-│   │   └── gateway.yml
+│   │   └── backend.yml
 │   └── semiontconfig/                # Inference/embedding configs (TOML)
 │       ├── anthropic.toml
 │       └── ollama-gemma.toml
@@ -44,7 +44,7 @@ The stack itself is run by the host-installed
 (`brew install the-ai-alliance/semiont/semiont`) — a single static binary,
 not a file in the KB repo. From inside the project: `semiont start` brings up
 the infrastructure (Neo4j, Qdrant, Ollama if not already running, PostgreSQL)
-and the five Semiont services, all in containers, pulling the published
+and the six Semiont services, all in containers, pulling the published
 images and bind-mounting the `.semiont/semiontconfig/{name}.toml` config of
 your choice (`--config`); `semiont logs` follows all services, `[svc]`-prefixed;
 `semiont status` health-checks them; `semiont stop` removes the stack (the
@@ -52,11 +52,11 @@ browser survives as the machine-level viewer — `semiont stop --service
 browser` closes it).
 
 KB repos build no images: the Semiont services run from the published, attested
-`ghcr.io/the-ai-alliance/semiont-{gateway,worker,smelter,weaver,browser}` images
+`ghcr.io/the-ai-alliance/semiont-{gateway,archivist,librarian,worker,smelter,weaver,browser}` images
 (version selected via `SEMIONT_VERSION`, default `latest`), with the KB's config
 bind-mounted at runtime.
 
-- **`compose/gateway.yml`** — Docker Compose definition for the same service stack, for environments that prefer compose over the launcher's orchestration.
+- **`compose/backend.yml`** — Docker Compose definition for the same service stack, for environments that prefer compose over the launcher's orchestration.
 - **`semiontconfig/*.toml`** — inference-provider presets the user selects at start time (e.g., `--config ollama-gemma` vs `--config anthropic`). Each file names the chat model, embedding model, and any provider-specific parameters.
 
 ### Resource files
@@ -97,7 +97,7 @@ scaffolding is in place:
 .semiont  authors  data  README.md
 
 % find .semiont -type f | sort
-.semiont/compose/gateway.yml
+.semiont/compose/backend.yml
 .semiont/config
 .semiont/events/50/fa/47488f8a27471bf16f33aba56af90d12/events-000001.jsonl
 .semiont/events/66/71/1ed8b4936cfad473c2a7b14c22a945c0/events-000001.jsonl
