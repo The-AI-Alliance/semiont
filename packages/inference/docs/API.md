@@ -89,8 +89,10 @@ interface InferenceResponse {
 
 ```typescript
 interface InferenceLimits {
-  contextTokens: number;    // context window in tokens
-  maxOutputTokens: number;  // max output tokens per generation
+  contextTokens: number;         // context window in tokens
+  maxOutputTokens: number;       // max output tokens per generation
+  outputTokensPerHour?: number;  // provider's worst-case output-rate model,
+                                 // when it publishes one (Anthropic: 128_000)
 }
 ```
 
@@ -98,6 +100,8 @@ interface InferenceLimits {
 
 - **Anthropic** (separate ceilings): `contextTokens` = maximum *input* tokens, `maxOutputTokens` = the output ceiling — both from the Models API (`models.retrieve`).
 - **Ollama** (shared window): input and output draw from one window, published as both fields — so `maxOutputTokens === contextTokens` signals a shared window to budget-derivation consumers.
+
+`outputTokensPerHour` is the one **duration** statement a provider surface makes: Anthropic's SDK projects a call's maximum duration as `max_tokens / rate` (the `calculateNonstreamingTimeout` constant, 128K/hour) and detection derives its duration-safe output budget from it. Absent for providers whose rates are unknowable (Ollama — local hardware), where no duration bound applies. Note the modeled rate is a ceiling estimate, not a floor: generation measured live at roughly half that rate (2026-09-02), which is why consumers spend only part of their call bound against it.
 
 Discovery is lazy (first call) and cached for the client's lifetime; a failed discovery is **not** cached, so the next call retries. `limits()` **throws** when the ceilings cannot be determined (unknown model, discovery endpoint unreachable) — fail-loud, never a guessed floor.
 
@@ -112,7 +116,7 @@ interface StructuredResponse<T> {
 }
 ```
 
-`generateStructured` returns **parsed elements** — the JSON guarantee lives in the return type, not in a comment. There is no representable value meaning "here is some text I could not read": an implementation that cannot deliver the array **throws** (`Structured response could not be read: …`). Empty (`{ items: [] }`) is a legitimate, distinct outcome and is never conflated with a read failure — the conflation is precisely what silently discarded 202 real entities as a green empty job (STRUCTURED-INFERENCE).
+`generateStructured` returns **parsed elements** — the JSON guarantee lives in the return type, not in a comment. There is no representable value meaning "here is some text I could not read": an implementation that cannot deliver the array **throws a typed `StructuredReadError`** (message `Structured response could not be read: …`, one class across all three implementations) carrying the provider's `stopReason` — because the cause classifies differently downstream: `max_tokens` means the JSON was cut off by the output budget (a retry of the same request truncates the same way — deterministic), anything else is model misbehavior a retry may fix. It is never coerced to `[]`: empty (`{ items: [] }`) is a legitimate, distinct outcome and is never conflated with a read failure — the conflation is precisely what silently discarded 202 real entities as a green empty job (STRUCTURED-INFERENCE).
 
 Provider mechanisms:
 
@@ -121,7 +125,7 @@ Provider mechanisms:
 
 `T` is a **caller assertion, not a runtime guarantee** — nothing verifies the element schema and `T` agree, and the type parameter is erased. Declare the schema and `T` adjacently at the call site, and keep per-element structural guards on the consuming side.
 
-Truncation still surfaces via `stopReason: 'max_tokens'` — a truncated structured response can carry a valid partial array, so consumers gate on the stop reason before consuming `items`.
+Truncation surfaces on two paths, and consumers must handle both: a truncated response that still parses carries a valid partial array with `stopReason: 'max_tokens'` (gate on the stop reason before consuming `items`); one cut off mid-JSON throws `StructuredReadError` with `stopReason: 'max_tokens'`. Either way the stop reason names the cause.
 
 ## AnthropicInferenceClient
 

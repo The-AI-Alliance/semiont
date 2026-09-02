@@ -98,10 +98,12 @@ interface JobMetadata {
   created: string;
   retryCount: number;
   maxRetries: number;
+  completedUnits?: string[];  // Checkpoint: work units (entity types) already
+                              // persisted by a failed attempt — the retry skips them
 }
 ```
 
-The `userName`, `userEmail`, and `userDomain` fields are an audit-only snapshot of the requesting user, persisted in the on-disk job file. Workers derive annotation `creator` attribution from `userId` via `didToAgent()`.
+The `userName`, `userEmail`, and `userDomain` fields are an audit-only snapshot of the requesting user, persisted in the on-disk job file. Workers derive annotation `creator` attribution from `userId` via `didToAgent()`. `completedUnits` is written only by `failJob`, unioned across attempts, and carried on the `job:fail` event — see Failure discipline below.
 
 ## Annotation Workers
 
@@ -118,7 +120,17 @@ The worker process (`worker-main.ts` → `startWorkerProcess` in `worker-process
 
 Detection logic lives in the `AnnotationDetection` class (`src/workers/annotation-detection.ts`); generation synthesis in `generateResourceFromTopic()` (`src/workers/generation/resource-generation.ts`). Processors never fetch content themselves — the worker process fetches it via `session.client.browse.resourceContent(resourceId)` and passes it in.
 
-Workers emit bus events via `session.client.transport.emit('mark:create' | 'job:start' | 'job:report-progress' | 'job:complete' | 'job:fail', payload)` — the Stower actor in @semiont/make-meaning handles persistence to the event log, and the job command handlers mirror the same events into the queue files (completion, retry-on-failure with `maxRetries`, progress-as-heartbeat).
+Workers emit bus events via `session.client.transport.emit('mark:create' | 'job:start' | 'job:report-progress' | 'job:complete' | 'job:fail', payload)` — the Stower actor in @semiont/make-meaning handles persistence to the event log, and the job command handlers mirror the same events into the queue files (completion, retry-on-failure with `maxRetries`, progress-as-heartbeat). `job:fail` carries two optional fields the worker computes: `completedUnits` (the checkpoint) and `failureClass` (the retry decision) — see Failure discipline.
+
+## Failure discipline
+
+Long inference work fails in bounded, classified, resumable ways — every piece below was built against a measured production failure, not a hypothetical:
+
+- **Every inference call is bounded and truly cancelled.** A call gets 10 minutes (`INFERENCE_TIMEOUT_MS`); at the bound the worker aborts it at the transport (`AbortSignal` through the provider SDK to the socket — milliseconds to rejection, no zombie billing on) and fails the job with a typed `InferenceTimeoutError`. An in-flight heartbeat reports elapsed-time liveness every 15 s during long calls.
+- **Budgets are derived, never tuned** (`workers/detection/detection-chunking.ts`). Input:output allocation is 1:2 per entity type asked for (`input ≤ outputBudget / (2 × typesPerCall)`), and when the provider publishes a worst-case output rate, per-call output is capped at what that rate finishes in HALF the bound — so the slowest legitimate call still clears the guillotine with margin.
+- **Size-shaped failures subdivide in place** (`callChunkSubdividing`). A chunk call that hits the duration bound or truncates is split in half and retried smaller (then quartered, then fail-fast with the original error). The attempt is not burned; sub-piece overlap duplicates fall to the existing span-keyed dedupe.
+- **Failures are classified at the worker, where errors are still typed** (`failure-class.ts`). Only KNOWN-deterministic failures — truncation at the subdivision floor, unsupported media, non-throttle 4xx — skip the retry budget; everything unrecognized stays retryable. The class rides `job:fail` as `failureClass`.
+- **Retries resume from the checkpoint.** Reference-annotation persists each entity type's annotations as that unit completes; completed units ride `job:fail` into `metadata.completedUnits`, and the retry processes only what's left.
 
 ## Adding a Job Type
 

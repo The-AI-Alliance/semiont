@@ -31,6 +31,9 @@ interface JobMetadata {
   created: string;        // ISO 8601
   retryCount: number;
   maxRetries: number;
+  completedUnits?: string[];  // Checkpoint: units a failed attempt persisted
+                              // (entity types, for reference-annotation);
+                              // written only by failJob, the retry skips them
 }
 ```
 

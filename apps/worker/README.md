@@ -38,6 +38,24 @@ The bus (SSE in for `job:queued`, `POST /bus/emit` out for lifecycle), an infere
 and the Archivist's HTTP surface for bytes. It claims jobs atomically, so several workers can
 run against one queue without coordination.
 
+## Nothing wedges, nothing restarts from zero
+
+Layered time bounds, each with one owner: an inference call gets **10 minutes**, and at the
+bound it is **aborted at the socket** (measured: milliseconds to rejection — no zombie
+requests billing against dead jobs) with an in-flight heartbeat every 15 s while it runs; a
+worker whose activity goes quiet for **15 minutes** crashes loudly (stall watchdog) rather
+than wedging; a running job untouched for **30 minutes** is recovered by the queue's janitor.
+
+Detection budgets derive from the provider's published limits — chunk sizes follow the 1:2
+input:output allocation and a duration cap at half the call bound, so no call is planned to
+outlive its own timeout. A chunk that still fails on size (duration, truncation) is
+**subdivided in place and retried smaller** before it is allowed to fail the job.
+
+When a job does fail, the worker classifies it: deterministic failures (an identical retry
+cannot succeed) skip the retry budget; transient ones retry — and the retry **resumes from
+the checkpoint** of entity types the failed attempt already persisted, paying only for what
+is left.
+
 ## Related
 
 - [`@semiont/jobs`](../../packages/jobs/) — the queue, the processors, and this entry point

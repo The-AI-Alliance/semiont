@@ -102,8 +102,10 @@ Every generation method takes a trailing optional `AbortSignal`: aborting tears 
 ```typescript
 
 interface InferenceLimits {
-  contextTokens: number;     // context window (Anthropic: max input; Ollama: shared input+output)
-  maxOutputTokens: number;   // max output per generation (Ollama mirrors the shared window here)
+  contextTokens: number;         // context window (Anthropic: max input; Ollama: shared input+output)
+  maxOutputTokens: number;       // max output per generation (Ollama mirrors the shared window here)
+  outputTokensPerHour?: number;  // provider's worst-case output-rate model, when it
+                                 // publishes one (Anthropic: 128_000; absent for Ollama)
 }
 
 interface InferenceResponse {
@@ -129,7 +131,7 @@ Each implementation honors the contract with its provider's mechanism:
 - **Ollama**: grammar-constrained sampling — the request's `format` field carries the caller's element schema wrapped in an array schema.
 - **Anthropic**: response-level structured output — `output_config.format` carries the caller's element schema under an **array root** (accepted on both live-config models; `.plans/spikes/output-config-array-root.md`), so the response text IS the schema-conforming JSON. No tools, no wrapper, no unwrap.
 
-A response that cannot be read as an array — the SDK delivering unparsed tool input as a string, a missing array, an unhonoured grammar — **throws** (`Structured response could not be read: …`). It is never coerced to `[]`: an empty extraction is a legitimate, distinct outcome, and conflating the two silently discards real data (STRUCTURED-INFERENCE).
+A response that cannot be read as an array — the SDK delivering unparsed tool input as a string, a missing array, an unhonoured grammar — **throws a typed `StructuredReadError`** carrying the provider's `stopReason`, because the cause classifies differently downstream: `max_tokens` is truncation (an identical retry truncates identically), anything else is model misbehavior a retry may fix. It is never coerced to `[]`: an empty extraction is a legitimate, distinct outcome, and conflating the two silently discards real data (STRUCTURED-INFERENCE).
 
 Current callers all expect arrays (entity extraction, motivation detection). If an object-emitting caller appears, `generateStructured` grows a sibling, not an option — see the notes in [src/interface.ts](src/interface.ts).
 
@@ -137,8 +139,8 @@ Current callers all expect arrays (entity extraction, motivation detection). If 
 
 `limits()` publishes the provider's **actual** context/output ceilings for the configured model — discovered from the provider itself, never hand-maintained constants:
 
-- **Anthropic**: the Models API (`models.retrieve`) — `max_input_tokens` / `max_tokens`.
-- **Ollama**: `POST /api/show` — the model's context window. Input and output share that window, so it is published as both fields (`maxOutputTokens === contextTokens` signals a shared window).
+- **Anthropic**: the Models API (`models.retrieve`) — `max_input_tokens` / `max_tokens` — plus `outputTokensPerHour: 128_000`, the SDK's own worst-case rate model (the `calculateNonstreamingTimeout` constant): the one duration statement the provider surface makes, which detection's duration-safe budgets derive from.
+- **Ollama**: `POST /api/show` — the model's context window. Input and output share that window, so it is published as both fields (`maxOutputTokens === contextTokens` signals a shared window). No rate is published — local hardware's rate is unknowable, so no duration bound applies.
 
 Discovery is lazy and cached per client; a failed discovery is **not** cached — the next call retries. When ceilings cannot be determined (unknown model, endpoint unreachable), `limits()` **throws**: fail-loud, never a guessed floor.
 
