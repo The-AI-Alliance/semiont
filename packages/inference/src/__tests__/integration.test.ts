@@ -211,6 +211,30 @@ describe('@semiont/inference - integration', () => {
     });
   });
 
+  describe('MockInferenceClient honors AbortSignal (no accept-and-drop)', () => {
+    // The A1 trap: an adapter that accepts the signal and ignores it is worse
+    // than one that lacks it, because cancellation tests pass against it while
+    // proving nothing. The mock must behave like a real adapter here.
+    it('rejects with AbortError when called with an already-aborted signal', async () => {
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        mockClient.generateText('p', 100, 0, controller.signal),
+      ).rejects.toMatchObject({ name: 'AbortError' });
+      await expect(
+        mockClient.generateStructured('p', 100, 0, { type: 'object' }, controller.signal),
+      ).rejects.toMatchObject({ name: 'AbortError' });
+    });
+
+    it('resolves normally under a live (un-aborted) signal', async () => {
+      const controller = new AbortController();
+      mockClient.setResponses(['fine']);
+
+      await expect(mockClient.generateText('p', 100, 0, controller.signal)).resolves.toBe('fine');
+    });
+  });
+
   describe('MockInferenceClient.limits', () => {
     it('defaults to generous limits so existing consumers never chunk', async () => {
       const limits = await mockClient.limits();

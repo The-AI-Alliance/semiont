@@ -779,4 +779,71 @@ describe('JobQueue', () => {
       expect((await jobQueue.getJob(jobId('job-heartbeat')))?.status).toBe('running');
     });
   });
+
+  describe('failJob checkpoint (ABANDONED-INFERENCE P2, A3 iv)', () => {
+    test('records completedUnits on the retried job — the checkpoint survives the rebuild', async () => {
+      await jobQueue.createJob(createRunningDetectionJob('job-ckpt'));
+
+      const outcome = await jobQueue.failJob(jobId('job-ckpt'), 'Location stalled', ['Person', 'Date']);
+
+      expect(outcome).toBe('retried');
+      const retried = await jobQueue.getJob(jobId('job-ckpt'));
+      expect(retried?.status).toBe('pending');
+      expect(retried?.metadata.completedUnits).toEqual(['Person', 'Date']);
+    });
+
+    test('unions with units recorded by earlier attempts — attempt 3 keeps attempt 1', async () => {
+      const job = createRunningDetectionJob('job-ckpt-union');
+      job.metadata.completedUnits = ['Person'];
+      await jobQueue.createJob(job);
+
+      await jobQueue.failJob(jobId('job-ckpt-union'), 'Date stalled', ['Date']);
+
+      const retried = await jobQueue.getJob(jobId('job-ckpt-union'));
+      expect(retried?.metadata.completedUnits?.slice().sort()).toEqual(['Date', 'Person']);
+    });
+
+    test('the terminal failed record carries the units too — the waste is visible (D3)', async () => {
+      const job = createRunningDetectionJob('job-ckpt-terminal');
+      job.metadata.retryCount = 3; // maxRetries is 3 — exhausted
+      await jobQueue.createJob(job);
+
+      const outcome = await jobQueue.failJob(jobId('job-ckpt-terminal'), 'stalled again', ['Person']);
+
+      expect(outcome).toBe('failed');
+      const failed = await jobQueue.getJob(jobId('job-ckpt-terminal'));
+      expect(failed?.metadata.completedUnits).toEqual(['Person']);
+    });
+  });
+
+  describe('failJob classification (ABANDONED-INFERENCE P3, A4)', () => {
+    test('a deterministic failure goes straight to failed — budget remaining or not', async () => {
+      // retryCount 0, maxRetries 3: plenty of budget, and it must not be spent.
+      await jobQueue.createJob(createRunningDetectionJob('job-det'));
+
+      const outcome = await jobQueue.failJob(jobId('job-det'), 'request exceeds size limits', undefined, 'deterministic');
+
+      expect(outcome).toBe('failed');
+      expect((await jobQueue.getJob(jobId('job-det')))?.status).toBe('failed');
+    });
+
+    test('an explicit transient failure retries exactly as an unclassified one does', async () => {
+      await jobQueue.createJob(createRunningDetectionJob('job-transient'));
+
+      const outcome = await jobQueue.failJob(jobId('job-transient'), 'timed out', undefined, 'transient');
+
+      expect(outcome).toBe('retried');
+      expect((await jobQueue.getJob(jobId('job-transient')))?.status).toBe('pending');
+    });
+
+    test('a deterministic failure still keeps its checkpoint on the terminal record (D3)', async () => {
+      await jobQueue.createJob(createRunningDetectionJob('job-det-ckpt'));
+
+      const outcome = await jobQueue.failJob(jobId('job-det-ckpt'), 'schema rejected', ['Person', 'Date'], 'deterministic');
+
+      expect(outcome).toBe('failed');
+      const failed = await jobQueue.getJob(jobId('job-det-ckpt'));
+      expect(failed?.metadata.completedUnits).toEqual(['Person', 'Date']);
+    });
+  });
 });

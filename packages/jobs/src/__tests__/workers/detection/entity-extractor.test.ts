@@ -8,6 +8,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { MockInferenceClient, type InferenceClient } from '@semiont/inference';
 import { extractEntities } from '../../../workers/detection/entity-extractor';
+import { DeterministicJobError } from '../../../failure-class';
 
 // Create mock client directly
 const mockInferenceClient = new MockInferenceClient(['[]']);
@@ -117,9 +118,14 @@ describe('extractEntities', () => {
 
     mockInferenceClient.setResponses([JSON.stringify(mockResponse)], ['max_tokens']);
 
-    await expect(
-      extractEntities(text, ['Person'], mockInferenceClient, false, LOGGER),
-    ).rejects.toThrow(/truncat/i);
+    // Same input truncates the same way, so the throw must carry the
+    // deterministic class — a plain Error here classifies as retryable and
+    // burns the retry budget re-issuing a guaranteed-to-truncate request
+    // (ABANDONED-INFERENCE P3; the annotation-detection path already does
+    // this and the two must not diverge).
+    const pending = extractEntities(text, ['Person'], mockInferenceClient, false, LOGGER);
+    await expect(pending).rejects.toThrow(/truncat/i);
+    await expect(pending).rejects.toBeInstanceOf(DeterministicJobError);
   });
 
   it('should handle entity types with examples', async () => {
@@ -266,9 +272,9 @@ describe('extractEntities', () => {
         SMALL_SHARED_LIMITS,
       );
 
-      await expect(
-        extractEntities(bigText, ['Person'], client, false, LOGGER),
-      ).rejects.toThrow(/truncat/i);
+      const pending = extractEntities(bigText, ['Person'], client, false, LOGGER);
+      await expect(pending).rejects.toThrow(/truncat/i);
+      await expect(pending).rejects.toBeInstanceOf(DeterministicJobError);
     });
 
     it('passes duplicate entities from adjacent chunks through — dedupe stays in the processor', async () => {

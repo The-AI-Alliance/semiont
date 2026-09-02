@@ -12,6 +12,7 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { AnnotationDetection } from '../../workers/annotation-detection';
 import { MockInferenceClient, type InferenceClient } from '@semiont/inference';
+import { DeterministicJobError } from '../../failure-class';
 import type { TagSchema } from '@semiont/core';
 
 // Test schema — supplied directly to detectTags (the dispatcher resolves
@@ -367,9 +368,11 @@ describe('AnnotationDetection', () => {
         ['max_tokens'],
       );
 
-      await expect(
-        AnnotationDetection.detectHighlights(testContent, mockClient)
-      ).rejects.toThrow(/truncat/i);
+      const pending = AnnotationDetection.detectHighlights(testContent, mockClient);
+      await expect(pending).rejects.toThrow(/truncat/i);
+      // Deterministic class pinned on BOTH detection paths — see the matching
+      // pin in entity-extractor.test.ts.
+      await expect(pending).rejects.toBeInstanceOf(DeterministicJobError);
     });
   });
 
@@ -469,9 +472,9 @@ describe('AnnotationDetection', () => {
         SMALL_SHARED_LIMITS,
       );
 
-      await expect(
-        AnnotationDetection.detectHighlights(bigContent, client),
-      ).rejects.toThrow(/truncat/i);
+      const pending = AnnotationDetection.detectHighlights(bigContent, client);
+      await expect(pending).rejects.toThrow(/truncat/i);
+      await expect(pending).rejects.toBeInstanceOf(DeterministicJobError);
     });
 
     it('makes one call with a derived (non-literal) output budget when content fits', async () => {

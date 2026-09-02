@@ -276,3 +276,47 @@ describe('createJobClaimAdapter', () => {
     });
   });
 });
+
+// ── Checkpoint surfaces on the claimed job (ABANDONED-INFERENCE P2) ───
+
+describe('claimed-job checkpoint (A3)', () => {
+  let h: ReturnType<typeof fakeBus>;
+
+  beforeEach(() => {
+    h = fakeBus();
+  });
+
+  it('surfaces metadata.completedUnits on the ActiveJob', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    adapter.start();
+
+    h.pushEvent('job:queued', { jobId: 'jc1', jobType: 'reference-annotation', resourceId: 'r1' });
+    await new Promise((r) => setTimeout(r, 0));
+    h.pushEvent('job:claimed', {
+      correlationId: h.emits[0]!.payload.correlationId,
+      response: { params: {}, metadata: { userId: 'u1', completedUnits: ['Person', 'Date'] } },
+    });
+
+    const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
+    expect(active?.completedUnits).toEqual(['Person', 'Date']);
+
+    adapter.dispose();
+  });
+
+  it('defaults completedUnits to empty when the record carries none', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    adapter.start();
+
+    h.pushEvent('job:queued', { jobId: 'jc2', jobType: 'reference-annotation', resourceId: 'r1' });
+    await new Promise((r) => setTimeout(r, 0));
+    h.pushEvent('job:claimed', {
+      correlationId: h.emits[0]!.payload.correlationId,
+      response: { params: {}, metadata: { userId: 'u1' } },
+    });
+
+    const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
+    expect(active?.completedUnits).toEqual([]);
+
+    adapter.dispose();
+  });
+});

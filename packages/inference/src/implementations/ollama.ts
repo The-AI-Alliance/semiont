@@ -74,13 +74,13 @@ export class OllamaInferenceClient implements InferenceClient {
     return { contextTokens, maxOutputTokens: contextTokens };
   }
 
-  async generateText(prompt: string, maxTokens: number, temperature: number): Promise<string> {
-    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature);
+  async generateText(prompt: string, maxTokens: number, temperature: number, signal?: AbortSignal): Promise<string> {
+    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature, signal);
     return response.text;
   }
 
-  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number): Promise<InferenceResponse> {
-    return this.generate(prompt, maxTokens, temperature, undefined);
+  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number, signal?: AbortSignal): Promise<InferenceResponse> {
+    return this.generate(prompt, maxTokens, temperature, undefined, signal);
   }
 
   async generateStructured<T>(
@@ -88,6 +88,7 @@ export class OllamaInferenceClient implements InferenceClient {
     maxTokens: number,
     temperature: number,
     elementSchema: ElementSchema,
+    signal?: AbortSignal,
   ): Promise<StructuredResponse<T>> {
     // Grammar-constrained sampling: the schema goes to Ollama's `format`
     // parameter, which constrains generation itself — same mechanism as the
@@ -95,7 +96,7 @@ export class OllamaInferenceClient implements InferenceClient {
     // parsed here, and anything that does not read as an array is a THROW,
     // never a coerced [] — "could not read the model" must stay distinct
     // from "the model found nothing."
-    const response = await this.generate(prompt, maxTokens, temperature, elementSchema);
+    const response = await this.generate(prompt, maxTokens, temperature, elementSchema, signal);
 
     let parsed: unknown;
     try {
@@ -130,6 +131,7 @@ export class OllamaInferenceClient implements InferenceClient {
     maxTokens: number,
     temperature: number,
     elementSchema: ElementSchema | undefined,
+    signal?: AbortSignal,
   ): Promise<InferenceResponse> {
     this.logger?.debug('Generating text with Ollama', {
       model: this.modelId,
@@ -184,10 +186,14 @@ export class OllamaInferenceClient implements InferenceClient {
 
     let res: Response;
     try {
+      // True cancellation (ABANDONED-INFERENCE P1): the signal tears down the
+      // socket, so an aborted call cannot keep generating on the server's
+      // dime after its job is gone.
       res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal,
       });
     } catch (err) {
       recordInferenceUsage({

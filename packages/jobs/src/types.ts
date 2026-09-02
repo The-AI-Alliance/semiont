@@ -40,6 +40,16 @@ export interface JobMetadata {
   created: string;
   retryCount: number;
   maxRetries: number;
+  /**
+   * Checkpointed resume (ABANDONED-INFERENCE P2, HD1): the entity-type
+   * units whose annotations were fully emitted by earlier failed
+   * attempts. Written only by `failJob`, unioned across attempts — and
+   * because `failJob` rebuilds the retried record by spreading metadata,
+   * the checkpoint survives every subsequent rebuild for free. A retried
+   * claim skips these units, so completed work is neither redone nor
+   * duplicated.
+   */
+  completedUnits?: string[];
 }
 
 /**

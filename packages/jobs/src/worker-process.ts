@@ -34,6 +34,7 @@ import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
 import { extractPdfTextLayer, type AnchoredTextStore, type ContentReads } from '@semiont/content';
 import { prepareDetection } from './workers/detection/prepare-detection';
+import { classifyFailure, DeterministicJobError } from './failure-class';
 import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
 import {
   processHighlightJob,
@@ -142,24 +143,42 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
     jobTypes: config.jobTypes,
   });
 
+  // Checkpointed resume (ABANDONED-INFERENCE P2): units a reference run
+  // completes are accumulated here so the failure path can carry them on
+  // job:fail — the queue records them and a retry skips them. Shared
+  // between handleJob (which fills it) and the catch below (which reads
+  // it); cleared on every terminal outcome.
+  const completedUnitsByJob = new Map<string, string[]>();
+
   adapter.activeJob$.subscribe((job) => {
     if (!job) return;
     logger.info('Processing job', { jobId: job.jobId, type: job.type, resourceId: job.resourceId });
-    handleJob(adapter, config, job).catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      logger.error('Job failed', { jobId: job.jobId, error: message, stack: error instanceof Error ? error.stack : undefined });
-      const failAnnotationId = referenceIdOf(job);
-      if (isJobType(job.type)) {
-        emitEvent(session, 'job:fail', {
-          resourceId: job.resourceId,
-          jobId: job.jobId,
-          jobType: job.type,
-          ...(failAnnotationId ? { annotationId: failAnnotationId } : {}),
-          error: message,
-        }).catch(() => {});
-      }
-      adapter.failJob(job.jobId, message);
-    });
+    handleJob(adapter, config, job, completedUnitsByJob)
+      .then(() => {
+        completedUnitsByJob.delete(job.jobId);
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        // Classify HERE, while the error is still typed — on the wire it is
+        // only a string (ABANDONED-INFERENCE P3; taxonomy in failure-class.ts).
+        const failureClass = classifyFailure(error);
+        logger.error('Job failed', { jobId: job.jobId, error: message, failureClass, stack: error instanceof Error ? error.stack : undefined });
+        const completedUnits = completedUnitsByJob.get(job.jobId);
+        completedUnitsByJob.delete(job.jobId);
+        const failAnnotationId = referenceIdOf(job);
+        if (isJobType(job.type)) {
+          emitEvent(session, 'job:fail', {
+            resourceId: job.resourceId,
+            jobId: job.jobId,
+            jobType: job.type,
+            ...(failAnnotationId ? { annotationId: failAnnotationId } : {}),
+            error: message,
+            ...(completedUnits && completedUnits.length > 0 ? { completedUnits } : {}),
+            ...(failureClass !== undefined ? { failureClass } : {}),
+          }).catch(() => {});
+        }
+        adapter.failJob(job.jobId, message);
+      });
   });
 
   adapter.start();
@@ -173,13 +192,18 @@ export async function handleJob(
   adapter: JobClaimAdapter,
   config: WorkerProcessConfig,
   job: ActiveJob,
+  // The subscription in startWorkerProcess passes its shared accumulator so
+  // the failure path can read what the reference branch committed
+  // (checkpointed resume); standalone callers may omit it — a fresh map
+  // changes no behavior, only discards the checkpoint on return.
+  completedUnitsByJob: Map<string, string[]> = new Map(),
 ): Promise<void> {
   const start = performance.now();
   let outcome: 'completed' | 'failed' = 'completed';
   try {
     return await withSpan(
       `job:${job.type}`,
-      () => handleJobInner(adapter, config, job),
+      () => handleJobInner(adapter, config, job, completedUnitsByJob),
       {
         kind: SpanKind.CONSUMER,
         attrs: {
@@ -201,6 +225,7 @@ async function handleJobInner(
   adapter: JobClaimAdapter,
   config: WorkerProcessConfig,
   job: ActiveJob,
+  completedUnitsByJob: Map<string, string[]>,
 ): Promise<void> {
   const { session, inferenceClient, generator } = config;
   const { userId, jobId } = job;
@@ -273,7 +298,9 @@ async function handleJobInner(
 
     if ('declined' in source) {
       if (source.declined === 'no-extractor') {
-        throw new Error(`Cannot run ${jobType} on resource ${resourceId}: media type '${mediaType ?? 'unknown'}' has no extractable text to analyze`);
+        // A media type with nothing to extract is a user error, not weather —
+        // retrying cannot change it (ABANDONED-INFERENCE P3, A4).
+        throw new DeterministicJobError(`Cannot run ${jobType} on resource ${resourceId}: media type '${mediaType ?? 'unknown'}' has no extractable text to analyze`);
       }
       await emitEvent(session, 'job:complete', {
         ...lifecycleBase,
@@ -351,12 +378,30 @@ async function handleJobInner(
     adapter.completeJob();
 
   } else if (jobType === 'reference-annotation') {
-    const { annotations, result } = await processReferenceJob(
-      ready!.text, inferenceClient, asJobParams<DetectionParams>(job.params), ready!.buildAnnotation, onProgress, config.logger,
+    // Checkpointed resume (ABANDONED-INFERENCE P2). A retried claim skips
+    // the units earlier attempts completed; every remaining unit commits
+    // through the callback the moment it finishes — the awaited emissions
+    // ARE the acceptance that lets the unit count as complete, and the
+    // accumulator feeds the job:fail payload if a later unit dies. The
+    // post-run batch this replaces was N2's discard-everything mechanism.
+    const params = asJobParams<DetectionParams>(job.params);
+    const skip = new Set(job.completedUnits);
+    const remaining = {
+      ...params,
+      entityTypes: params.entityTypes.filter((t) => !skip.has(String(t))),
+    };
+    const committed: string[] = [];
+    completedUnitsByJob.set(job.jobId, committed);
+
+    const { result } = await processReferenceJob(
+      ready!.text, inferenceClient, remaining, ready!.buildAnnotation, onProgress, config.logger,
+      async (unit, annotations) => {
+        for (const ann of annotations) {
+          await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
+        }
+        committed.push(unit);
+      },
     );
-    for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
-    }
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result,

@@ -258,26 +258,45 @@ export class FsJobQueue implements JobQueue {
    * re-announced); after that it lands in `failed` with the error.
    * Returns null (and changes nothing) if the job isn't running.
    */
-  async failJob(jobId: JobId, error: string): Promise<'retried' | 'failed' | null> {
+  async failJob(jobId: JobId, error: string, completedUnits?: string[], failureClass?: 'transient' | 'deterministic'): Promise<'retried' | 'failed' | null> {
     const job = await this.getJob(jobId);
     if (!job || job.status !== 'running') {
       return null;
     }
 
     this.lastProgressWrite.delete(jobId);
-    if (job.metadata.retryCount < job.metadata.maxRetries) {
+
+    // Checkpointed resume (ABANDONED-INFERENCE P2): union this attempt's
+    // completed units with earlier attempts' — attempt 3 must keep what
+    // attempt 1 finished. Stored in metadata so the spread below (and in
+    // every later rebuild) carries it forward; the terminal failed record
+    // keeps it too, so the waste of a discarded run stays visible (D3).
+    const checkpoint = [...new Set([...(job.metadata.completedUnits ?? []), ...(completedUnits ?? [])])];
+    const metadata = checkpoint.length > 0
+      ? { ...job.metadata, completedUnits: checkpoint }
+      : job.metadata;
+
+    // A known-deterministic failure skips the budget outright: the same
+    // request cannot succeed on a second attempt, so a retry is guaranteed
+    // waste at full price (ABANDONED-INFERENCE P3, A4). Unclassified and
+    // transient failures retry as before.
+    if (failureClass !== 'deterministic' && job.metadata.retryCount < job.metadata.maxRetries) {
       const retried: PendingJob<any> = {
         status: 'pending',
-        metadata: { ...job.metadata, retryCount: job.metadata.retryCount + 1 },
+        metadata: { ...metadata, retryCount: job.metadata.retryCount + 1 },
         params: job.params,
       };
       await this.updateJob(retried, 'running');
       return 'retried';
     }
 
+    if (failureClass === 'deterministic' && job.metadata.retryCount < job.metadata.maxRetries) {
+      this.logger.info('Job failed without retry — deterministic failure', { jobId, error });
+    }
+
     const failed: FailedJob<any> = {
       status: 'failed',
-      metadata: job.metadata,
+      metadata,
       params: job.params,
       startedAt: job.startedAt,
       completedAt: new Date().toISOString(),

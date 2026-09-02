@@ -11,15 +11,19 @@
  * gateway's retry budget — a timeout is transient-shaped, so retrying
  * is correct) and frees the claim loop.
  *
- * This is a timeout, not a cancellation: the `InferenceClient` surface has no
- * AbortSignal support, so on timeout the underlying HTTP request is
- * abandoned, not aborted — it settles (or dies at the socket level)
- * in the background, with its eventual rejection swallowed. Adding
- * `signal` to `@semiont/inference` would upgrade this to a true
- * abort; the timeout stays either way as the last line.
+ * This is a timeout AND a cancellation (ABANDONED-INFERENCE P1): on expiry
+ * the bound aborts the underlying request through the `InferenceClient`
+ * signal, so the transport — and, on the Anthropic path, the SDK's internal
+ * retry loop — is torn down rather than left running as a billed zombie
+ * (P0 caught one completing 24–34 minutes after its job was gone). The
+ * timeout stays as the last line either way, exactly as before; the abort is
+ * the addition, not the replacement (D1). The eventual settlement of the
+ * aborted promise is still swallowed so it cannot surface as an unhandled
+ * rejection.
  */
 
 import type { ElementSchema, InferenceClient, InferenceResponse, StructuredResponse } from '@semiont/inference';
+import type { Logger } from '@semiont/core';
 import { withSpan } from '@semiont/observability';
 
 /**
@@ -29,6 +33,15 @@ import { withSpan } from '@semiont/observability';
  * that at 30. Fixed by design — no env knob.
  */
 export const INFERENCE_TIMEOUT_MS = 10 * 60_000;
+
+/**
+ * The bound's own rejection, typed so classification (ABANDONED-INFERENCE
+ * P3) never string-matches our own error message. A timeout says nothing
+ * about the request — it classifies transient.
+ */
+export class InferenceTimeoutError extends Error {
+  override readonly name = 'InferenceTimeoutError';
+}
 
 /**
  * How often an in-flight call reports that it is still alive
@@ -71,12 +84,29 @@ function spanned<T>(client: InferenceClient, kind: string, maxTokens: number, wo
   });
 }
 
-async function withTimeout<T>(work: Promise<T>, label: string, onHeartbeat?: InferenceHeartbeat): Promise<T> {
+async function withTimeout<T>(
+  work: (signal: AbortSignal) => Promise<T>,
+  meta: { provider: string; model: string; label: string },
+  onHeartbeat?: InferenceHeartbeat,
+  logger?: Logger,
+): Promise<T> {
+  const controller = new AbortController();
   let timer!: ReturnType<typeof setTimeout>;
   const timedOut = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
-      reject(new Error(
-        `Inference call timed out after ${INFERENCE_TIMEOUT_MS / 60_000} minutes (${label}) — failing the job to keep the claim loop live`,
+      // True cancellation: tear the request down at the transport so it
+      // cannot keep running (and billing) against a job that no longer
+      // exists — and name the abort in the log, because an invisible
+      // abandonment is what let a zombie burn 24+ minutes unrecorded (D3).
+      logger?.warn('Aborting in-flight inference call at the timeout bound', {
+        provider: meta.provider,
+        model: meta.model,
+        label: meta.label,
+        boundMs: INFERENCE_TIMEOUT_MS,
+      });
+      controller.abort();
+      reject(new InferenceTimeoutError(
+        `Inference call timed out after ${INFERENCE_TIMEOUT_MS / 60_000} minutes (${meta.label}) — failing the job to keep the claim loop live`,
       ));
     }, INFERENCE_TIMEOUT_MS);
     timer.unref?.();
@@ -98,13 +128,15 @@ async function withTimeout<T>(work: Promise<T>, label: string, onHeartbeat?: Inf
     heartbeat.unref?.();
   }
 
+  const pending = work(controller.signal);
   try {
-    return await Promise.race([work, timedOut]);
+    return await Promise.race([pending, timedOut]);
   } catch (err) {
-    // If the timeout won, the abandoned call may still settle later —
-    // swallow its eventual rejection so it can't surface as an
-    // unhandled one and kill the process.
-    work.catch(() => {});
+    // The aborted call settles promptly now (AbortError from the transport)
+    // rather than minutes later — but its rejection still lands after the
+    // race is lost, so it is still swallowed here to keep it from surfacing
+    // as an unhandled one and killing the process.
+    pending.catch(() => {});
     throw err;
   } finally {
     clearTimeout(timer);
@@ -120,11 +152,13 @@ export function boundedGenerateWithMetadata(
   maxTokens: number,
   temperature: number,
   onHeartbeat?: InferenceHeartbeat,
+  logger?: Logger,
 ): Promise<InferenceResponse> {
   return spanned(client, 'text', maxTokens, () => withTimeout(
-    client.generateTextWithMetadata(prompt, maxTokens, temperature),
-    `${client.type}:${client.modelId}`,
+    (signal) => client.generateTextWithMetadata(prompt, maxTokens, temperature, signal),
+    { provider: client.type, model: client.modelId, label: `${client.type}:${client.modelId}` },
     onHeartbeat,
+    logger,
   ));
 }
 
@@ -135,10 +169,12 @@ export function boundedGenerateStructured<T>(
   temperature: number,
   elementSchema: ElementSchema,
   onHeartbeat?: InferenceHeartbeat,
+  logger?: Logger,
 ): Promise<StructuredResponse<T>> {
   return spanned(client, 'structured', maxTokens, () => withTimeout(
-    client.generateStructured<T>(prompt, maxTokens, temperature, elementSchema),
-    `${client.type}:${client.modelId}`,
+    (signal) => client.generateStructured<T>(prompt, maxTokens, temperature, elementSchema, signal),
+    { provider: client.type, model: client.modelId, label: `${client.type}:${client.modelId}` },
     onHeartbeat,
+    logger,
   ));
 }

@@ -21,7 +21,7 @@
  */
 
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
-import { busRequest, type BusRequestPrimitive, type EventMap } from '@semiont/core';
+import { busRequest, isArray, isString, type BusRequestPrimitive, type EventMap } from '@semiont/core';
 import type { WorkerBus } from '@semiont/sdk';
 
 /**
@@ -56,6 +56,13 @@ export interface ActiveJob {
   resourceId: string;
   userId: string;
   params: Record<string, unknown>;
+  /**
+   * Entity-type units earlier failed attempts fully emitted
+   * (ABANDONED-INFERENCE P2 checkpointed resume) — carried on the claimed
+   * record's metadata by `failJob`. The worker skips them, so a retry
+   * neither redoes nor duplicates completed work. Empty on first attempts.
+   */
+  completedUnits: string[];
 }
 
 export interface JobClaimAdapterOptions {
@@ -162,8 +169,12 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
       // it to the claimed-job shape the worker reads.
       const job = (await busRequest(requestBus, 'job:claim', { jobId: assignment.jobId }, 10_000)) as {
         params?: Record<string, unknown>;
-        metadata?: { userId?: string };
+        metadata?: { userId?: string; completedUnits?: unknown };
       };
+
+      const completedUnits = isArray(job.metadata?.completedUnits)
+        ? job.metadata.completedUnits.filter(isString)
+        : [];
 
       return {
         jobId: assignment.jobId,
@@ -171,6 +182,7 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
         resourceId: assignment.resourceId,
         userId: (job.metadata?.userId ?? '') as string,
         params: (job.params ?? {}) as Record<string, unknown>,
+        completedUnits,
       };
     } catch {
       // A claim-failed reply (job not pending / already claimed / queue error)

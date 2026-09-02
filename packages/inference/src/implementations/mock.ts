@@ -28,12 +28,13 @@ export class MockInferenceClient implements InferenceClient {
     return this.injectedLimits;
   }
 
-  async generateText(prompt: string, maxTokens: number, temperature: number): Promise<string> {
-    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature);
+  async generateText(prompt: string, maxTokens: number, temperature: number, signal?: AbortSignal): Promise<string> {
+    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature, signal);
     return response.text;
   }
 
-  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number): Promise<InferenceResponse> {
+  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number, signal?: AbortSignal): Promise<InferenceResponse> {
+    throwIfAborted(signal);
     this.calls.push({ prompt, maxTokens, temperature });
     return this.nextResponse();
   }
@@ -50,7 +51,9 @@ export class MockInferenceClient implements InferenceClient {
     maxTokens: number,
     temperature: number,
     elementSchema: ElementSchema,
+    signal?: AbortSignal,
   ): Promise<StructuredResponse<T>> {
+    throwIfAborted(signal);
     this.calls.push({ prompt, maxTokens, temperature, elementSchema });
     const { text, stopReason } = this.nextResponse();
 
@@ -92,5 +95,18 @@ export class MockInferenceClient implements InferenceClient {
     this.responses = responses;
     this.stopReasons = stopReasons || responses.map(() => 'end_turn');
     this.responseIndex = 0;
+  }
+}
+
+/**
+ * The mock honors the signal like a real adapter (ABANDONED-INFERENCE P1's
+ * accept-and-drop trap: an adapter that takes the parameter and ignores it
+ * lets cancellation tests pass while proving nothing). The mock resolves
+ * synchronously, so an entry check is the whole contract — rejecting the way
+ * an aborted `fetch` does, with an `AbortError`-named DOMException.
+ */
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new DOMException('This operation was aborted', 'AbortError');
   }
 }

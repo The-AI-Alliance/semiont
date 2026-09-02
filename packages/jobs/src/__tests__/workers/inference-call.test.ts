@@ -26,6 +26,7 @@ vi.mock('@semiont/observability', async (importOriginal) => ({
   withSpan: withSpanMock,
 }));
 import {
+  InferenceTimeoutError,
   boundedGenerateStructured,
   boundedGenerateWithMetadata,
   INFERENCE_TIMEOUT_MS,
@@ -65,8 +66,10 @@ describe('bounded inference calls', () => {
       boundedGenerateStructured(client, 'p', 100, 0.1, ELEMENT),
     ).resolves.toEqual({ items: [], stopReason: 'end_turn' });
 
-    expect(client.generateTextWithMetadata).toHaveBeenCalledWith('p', 100, 0.1);
-    expect(client.generateStructured).toHaveBeenCalledWith('p', 100, 0.1, ELEMENT);
+    // The trailing AbortSignal is part of the pass-through now: every call
+    // carries one so the bound can cancel it (ABANDONED-INFERENCE P1).
+    expect(client.generateTextWithMetadata).toHaveBeenCalledWith('p', 100, 0.1, expect.any(AbortSignal));
+    expect(client.generateStructured).toHaveBeenCalledWith('p', 100, 0.1, ELEMENT, expect.any(AbortSignal));
   });
 
   it('rejects with a timeout error when the model call never resolves', async () => {
@@ -223,12 +226,120 @@ describe('bounded inference calls', () => {
     });
   });
 
+  // ABANDONED-INFERENCE P1: a bound that cannot cancel is half a bound. The
+  // 10-minute guillotine used to free only the claim loop — the request it
+  // abandoned kept running (and billing) as a zombie, one of which was caught
+  // completing 24–34 minutes after abandonment (P0, 2026-08-24).
+  describe('true cancellation (A1/A2)', () => {
+    it('A1: the bound aborts the underlying request on expiry — not merely abandons it', async () => {
+      vi.useFakeTimers();
+      let captured: AbortSignal | undefined;
+      const client = clientWith({
+        generateTextWithMetadata: vi.fn((_p: string, _m: number, _t: number, signal?: AbortSignal) => {
+          captured = signal;
+          return never();
+        }),
+      });
+
+      const pending = boundedGenerateWithMetadata(client, 'p', 100, 0.1);
+      const assertion = expect(pending).rejects.toThrow(/timed out/);
+      await vi.advanceTimersByTimeAsync(INFERENCE_TIMEOUT_MS + 1);
+      await assertion;
+
+      // The signal must exist (threaded through the client surface) AND have
+      // fired — an adapter that was never handed one cannot abort anything.
+      expect(captured).toBeDefined();
+      expect(captured!.aborted).toBe(true);
+    });
+
+    it('A1: the structured path threads and fires the signal too', async () => {
+      vi.useFakeTimers();
+      let captured: AbortSignal | undefined;
+      const client = clientWith({
+        generateStructured: vi.fn((_p: string, _m: number, _t: number, _s: unknown, signal?: AbortSignal) => {
+          captured = signal;
+          return never();
+        }),
+      });
+
+      const pending = boundedGenerateStructured(client, 'p', 100, 0.1, { type: 'object' });
+      const assertion = expect(pending).rejects.toThrow(/timed out/);
+      await vi.advanceTimersByTimeAsync(INFERENCE_TIMEOUT_MS + 1);
+      await assertion;
+
+      expect(captured).toBeDefined();
+      expect(captured!.aborted).toBe(true);
+    });
+
+    it('A1: a call that answers in time gets a signal that never fires', async () => {
+      let captured: AbortSignal | undefined;
+      const client = clientWith({
+        generateTextWithMetadata: vi.fn(async (_p: string, _m: number, _t: number, signal?: AbortSignal) => {
+          captured = signal;
+          return { text: 'ok', stopReason: 'end_turn' };
+        }),
+      });
+
+      await expect(boundedGenerateWithMetadata(client, 'p', 100, 0.1)).resolves.toEqual({ text: 'ok', stopReason: 'end_turn' });
+      expect(captured).toBeDefined();
+      expect(captured!.aborted).toBe(false);
+    });
+
+    it('A2: aborting is logged, naming what was aborted and its bound (D3: cost belongs in the log)', async () => {
+      vi.useFakeTimers();
+      const warn = vi.fn();
+      const logger = { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn(), child: vi.fn() };
+      const client = clientWith({ generateTextWithMetadata: vi.fn(never) });
+
+      const pending = boundedGenerateWithMetadata(
+        client, 'p', 100, 0.1, undefined,
+        logger as unknown as Parameters<typeof boundedGenerateWithMetadata>[5],
+      );
+      const assertion = expect(pending).rejects.toThrow(/timed out/);
+      await vi.advanceTimersByTimeAsync(INFERENCE_TIMEOUT_MS + 1);
+      await assertion;
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      const [message, fields] = warn.mock.calls[0] as [string, Record<string, unknown>];
+      expect(message).toMatch(/abort/i);
+      expect(fields).toMatchObject({
+        provider: 'test',
+        model: 'test-model',
+        boundMs: INFERENCE_TIMEOUT_MS,
+      });
+    });
+
+    it('A2: nothing is logged for a call that completes inside the bound', async () => {
+      const warn = vi.fn();
+      const logger = { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn(), child: vi.fn() };
+      const client = clientWith({});
+
+      await boundedGenerateWithMetadata(
+        client, 'p', 100, 0.1, undefined,
+        logger as unknown as Parameters<typeof boundedGenerateWithMetadata>[5],
+      );
+      expect(warn).not.toHaveBeenCalled();
+    });
+  });
+
   it('detection call sites route through the bound (never-resolving model → timeout, not a wedged worker)', async () => {
     vi.useFakeTimers();
     const client = clientWith({ generateStructured: vi.fn(never) });
 
     const pending = AnnotationDetection.detectHighlights('some content', client);
     const assertion = expect(pending).rejects.toThrow(/timed out/);
+    await vi.advanceTimersByTimeAsync(INFERENCE_TIMEOUT_MS + 1);
+    await assertion;
+  });
+});
+
+describe('typed timeout (ABANDONED-INFERENCE P3)', () => {
+  it('the bound rejects with InferenceTimeoutError so classification never string-matches our own error', async () => {
+    vi.useFakeTimers();
+    const client = clientWith({ generateTextWithMetadata: vi.fn(never) });
+
+    const pending = boundedGenerateWithMetadata(client, 'p', 100, 0.1);
+    const assertion = expect(pending).rejects.toBeInstanceOf(InferenceTimeoutError);
     await vi.advanceTimersByTimeAsync(INFERENCE_TIMEOUT_MS + 1);
     await assertion;
   });

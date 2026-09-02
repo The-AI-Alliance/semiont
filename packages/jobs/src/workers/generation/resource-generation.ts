@@ -343,7 +343,7 @@ ${formatRequirements}`;
     temperature: finalTemperature,
     maxTokens: finalMaxTokens
   });
-  const response = await boundedGenerateWithMetadata(client, prompt, finalMaxTokens, finalTemperature);
+  const response = await boundedGenerateWithMetadata(client, prompt, finalMaxTokens, finalTemperature, undefined, logger);
   logger.debug('Got response from inference', { responseLength: response.text.length, stopReason: response.stopReason });
 
   const result = parseResponse(response.text);

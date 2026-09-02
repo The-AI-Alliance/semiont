@@ -3,8 +3,8 @@
  * provider's published limits. No hand-tuned chunk constants, no density or
  * yield modeling: document content never enters this arithmetic. The guard
  * for the pathological tail (a chunk whose annotation JSON still overflows
- * the output budget) is the per-chunk fail-loud `max_tokens` throw in the
- * callers, not a prediction here.
+ * the output budget) is `assertNotTruncated` below — invoked per chunk by
+ * the callers on every response, not a prediction here.
  *
  * Provider shapes (see `@semiont/inference` interface.ts):
  * - Shared window (Ollama): the provider publishes
@@ -21,6 +21,26 @@
 
 import type { ChunkingConfig } from '@semiont/core';
 import type { InferenceLimits } from '@semiont/inference';
+import { DeterministicJobError } from '../../failure-class';
+import { INFERENCE_TIMEOUT_MS } from '../inference-call';
+
+/**
+ * A `max_tokens` stop reason means the model's JSON was cut off mid-stream.
+ * Structured output serializes whatever was generated, so that still yields
+ * a syntactically-valid but incomplete array — it would parse cleanly and
+ * silently under-report. Fail the job loudly instead. With derived budgets
+ * this fires only on pathological annotation density.
+ *
+ * ONE decider for every detection path (entity extraction and the four
+ * motivations) — the classification must not diverge between them: same
+ * input truncates the same way, so a retry is guaranteed waste and the
+ * throw carries the deterministic class (ABANDONED-INFERENCE P3, A4).
+ */
+export function assertNotTruncated(response: { stopReason: string }, label: string, chunk: number, totalChunks: number, outputBudget: number): void {
+  if (response.stopReason === 'max_tokens') {
+    throw new DeterministicJobError(`${label} response truncated (max_tokens) on chunk ${chunk}/${totalChunks} despite the derived output budget of ${outputBudget} tokens — failing the job rather than under-reporting annotations.`);
+  }
+}
 
 /**
  * `reconcileSelector` disambiguates a span with up to 64 chars of prefix and
@@ -75,6 +95,27 @@ export function deriveDetectionBudget(
       // window): fall back to the shared split rather than starving input.
       inputBudget = Math.floor(available / 3);
       outputBudget = available - inputBudget;
+    }
+  }
+
+  // Duration floor (ABANDONED-INFERENCE P4, HD3): when the provider
+  // publishes its worst-case output rate, cap each call's output at what
+  // that rate finishes inside our own inference bound — a call projected
+  // past the 10-minute guillotine is planned-to-fail — and scale input by
+  // the same factor, so the input:output ratio (and with it the per-chunk
+  // truncation risk profile) is exactly the capacity solution's. Capacity
+  // says what CAN fit in one call; this says what SHOULD. Derived end to
+  // end — rate from `limits()`, deadline from INFERENCE_TIMEOUT_MS — so
+  // #1121's no-hand-tuned-caps principle is extended, not violated; it is
+  // a floor on chunk count, never a raise (a tighter capacity budget is
+  // left alone). Side effect worth knowing: on Anthropic this lands every
+  // detection call at or under the SDK's non-streaming threshold — off the
+  // MessageStream path the original `terminated` failure arrived on.
+  if (limits.outputTokensPerHour !== undefined) {
+    const durationSafeOutput = Math.floor(limits.outputTokensPerHour * (INFERENCE_TIMEOUT_MS / 3_600_000));
+    if (outputBudget > durationSafeOutput) {
+      inputBudget = Math.floor(inputBudget * (durationSafeOutput / outputBudget));
+      outputBudget = durationSafeOutput;
     }
   }
 

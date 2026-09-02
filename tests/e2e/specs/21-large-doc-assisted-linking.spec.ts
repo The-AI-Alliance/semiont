@@ -247,19 +247,31 @@ test.describe('large-document assisted linking', () => {
   /**
    * Forces the CHUNK LOOP — the half the 170 KB case cannot reach.
    *
-   * Measured provider input bounds (both read live, not assumed):
-   *   - ollama `gemma4:26b`: context 262,144 (`/api/show`), shared window, so
-   *     the 1:2 split gives ~87K tokens of input per chunk ≈ ~340 KB of text.
-   *   - anthropic sonnet-4-5: 200K context − 64K output − scaffold
-   *     ≈ 135K tokens ≈ ~540 KB.
+   * Per-chunk input bounds under the DURATION bound (ABANDONED-INFERENCE P4;
+   * repointed from the pre-P4 capacity-only sizing, which needed ~750 KB):
+   *   - ollama `gemma4:26b`: unchanged — no published rate, capacity governs:
+   *     context 262,144 (`/api/show`), shared window, 1:2 split →
+   *     ~87K tokens of input per chunk ≈ ~340 KB of text.
+   *   - anthropic sonnet-4-5 (200K context): capacity would allow ~135K
+   *     tokens ≈ ~540 KB, but the duration bound scales it by
+   *     21,333/64,000 (the SDK's 128K-tokens/hour rate × the worker's
+   *     10-minute call bound) → ~45K tokens ≈ ~180 KB.
    *
-   * ~750 KB exceeds BOTH, so chunking is forced regardless of which provider
-   * serves `reference-annotation`. That is what makes the assertion below
-   * legitimate: the plan says never to assert chunk counts *because* chunking
-   * is provider-dependent at e2e-realistic sizes — true at 170 KB, where this
-   * spec's first test correctly asserts outcome only. Sized deliberately past
-   * both bounds, "chunking occurred" stops being provider-dependent, so this
-   * asserts it as a DELIBERATE, reasoned deviation rather than an oversight.
+   * ~400 KB exceeds BOTH, so chunking is forced regardless of which provider
+   * serves `reference-annotation` — on Anthropic via the DURATION bound (the
+   * bound that actually fires in production), on Ollama via capacity. That is
+   * what makes the assertion below legitimate: the plan says never to assert
+   * chunk counts *because* chunking is provider-dependent at e2e-realistic
+   * sizes — true at 170 KB, where this spec's first test correctly asserts
+   * outcome only. Sized deliberately past both bounds, "chunking occurred"
+   * stops being provider-dependent, so this asserts it as a DELIBERATE,
+   * reasoned deviation rather than an oversight.
+   *
+   * Caveat, recorded so a model swap doesn't silently re-inert this test: on
+   * a 1M-context Anthropic model the duration-scaled input bound is ~312K
+   * tokens ≈ ~1.25 MB, and 400 KB would go as one call there. The CHUNKED
+   * log line below prints the fixture size against the live budget — check
+   * it when the fleet's detection model changes.
    *
    * The signal: Phase 3's `onChunk` emits N−1 boundary events, surfaced as
    * interpolated progress strictly between the 20% and 100% milestones. A
@@ -276,8 +288,9 @@ test.describe('large-document assisted linking', () => {
     });
 
     try {
-      // ~750 KB — past both providers' measured per-chunk input bounds.
-      const content = buildLargeDocument(750_000);
+      // ~400 KB — past both providers' per-chunk input bounds (duration-scaled
+      // ~180 KB on anthropic sonnet-4-5/200K, capacity ~340 KB on ollama).
+      const content = buildLargeDocument(400_000);
       // eslint-disable-next-line no-console
       console.log(`CHUNKED: fixture ${content.length} bytes (~${Math.round(content.length / 4)} tokens)`);
 
