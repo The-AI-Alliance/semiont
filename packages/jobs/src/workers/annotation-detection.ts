@@ -13,7 +13,7 @@
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
 import { chunkText, estimateTokens } from '@semiont/core';
 import { boundedGenerateStructured } from './inference-call';
-import { assertNotTruncated, deriveDetectionBudget } from './detection/detection-chunking';
+import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget } from './detection/detection-chunking';
 import { MotivationPrompts } from './detection/motivation-prompts';
 import {
   MotivationParsers,
@@ -65,14 +65,19 @@ async function detectInChunks<T>(
   const collected: T[] = [];
   for (let i = 0; i < chunks.length; i++) {
     // Structured surface: parsed elements or a throw — an unreadable model
-    // response fails the job rather than reading as an empty detection.
-    const response = await boundedGenerateStructured<unknown>(
-      client, buildPrompt(chunks[i]!), outputBudget, temperature, elementSchema,
-      // Still alive, same position (a long single call is otherwise silent).
-      () => onActivity?.(i, chunks.length),
-    );
-    assertNotTruncated(response, `${motivation} detection`, i + 1, chunks.length, outputBudget);
-    collected.push(...parse(response.items));
+    // response fails the job rather than reading as an empty detection. A
+    // size-shaped failure (duration bound, truncation) subdivides in place
+    // and retries smaller before it is allowed to fail the job.
+    const items = await callChunkSubdividing<unknown>(chunks[i]!, chunking, async (piece) => {
+      const response = await boundedGenerateStructured<unknown>(
+        client, buildPrompt(piece), outputBudget, temperature, elementSchema,
+        // Still alive, same position (a long single call is otherwise silent).
+        () => onActivity?.(i, chunks.length),
+      );
+      assertNotTruncated(response, `${motivation} detection`, i + 1, chunks.length, outputBudget);
+      return response.items;
+    });
+    collected.push(...parse(items));
     if (i < chunks.length - 1) {
       onActivity?.(i + 1, chunks.length);
     }

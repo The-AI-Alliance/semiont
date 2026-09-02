@@ -94,7 +94,7 @@ describe('deriveDetectionBudget — duration bound (A5)', () => {
   it('caps per-call output at the provider rate × the inference bound', () => {
     const budget = deriveDetectionBudget(anthropic1M, 1_000, 1);
 
-    expect(budget.outputBudget).toBe(Math.floor(128_000 * (INFERENCE_TIMEOUT_MS / 3_600_000)));
+    expect(budget.outputBudget).toBe(Math.floor(128_000 * (INFERENCE_TIMEOUT_MS / 2) / 3_600_000));
   });
 
   it('scales input by the same factor — ratio preserved, so a capacity-sized document now splits (A5)', () => {
@@ -142,7 +142,7 @@ describe('deriveDetectionBudget — input never exceeds half the output budget',
     const anthropic1M = { contextTokens: 1_000_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 };
     const { chunking, outputBudget } = deriveDetectionBudget(anthropic1M, 1_000, 1);
 
-    expect(outputBudget).toBe(Math.floor(128_000 * (INFERENCE_TIMEOUT_MS / 3_600_000)));
+    expect(outputBudget).toBe(Math.floor(128_000 * (INFERENCE_TIMEOUT_MS / 2) / 3_600_000));
     expect(chunking.chunkSize).toBe(Math.floor(outputBudget / 2));
   });
 
@@ -178,5 +178,93 @@ describe('deriveDetectionBudget — input never exceeds half the output budget',
     expect(three.outputBudget).toBe(one.outputBudget);
     expect(three.chunking.chunkSize).toBe(Math.floor(one.outputBudget / (2 * 3)));
     expect(one.chunking.chunkSize).toBe(Math.floor(one.outputBudget / 2));
+  });
+});
+
+// ── Duration margin + subdivision (user direction, 2026-09-02 night) ──
+// DoD attempt #4 measured the zero-margin residual firing: the output cap
+// equalled rate × the FULL bound, so a chunk that goes exhaustive at the
+// provider's own worst-case rate collides with the guillotine by
+// construction (chunk 3 died at exactly 600 s, twice). The cap now spends
+// HALF the bound — the slowest legitimate full-cap generation finishes at
+// ~300 s, and the guillotine only fires on calls at least 2× slower than
+// the provider's own worst-case model, i.e. genuinely wedged. And when a
+// chunk call still hits a size-shaped failure, it subdivides in place
+// instead of burning the attempt.
+
+import { callChunkSubdividing } from '../../../workers/detection/detection-chunking';
+import { InferenceTimeoutError } from '../../../workers/inference-call';
+import { DeterministicJobError } from '../../../failure-class';
+import { StructuredReadError } from '@semiont/inference';
+
+describe('callChunkSubdividing', () => {
+  const CHUNKING = { chunkSize: 1_000, overlap: 16 };
+  // ~8K chars ≈ 2K tokens: splits into multiple sub-pieces at half size.
+  const CHUNK = 'lorem ipsum dolor sit amet consectetur '.repeat(200);
+
+  it('passes a successful call through untouched — one invocation, no subdivision', async () => {
+    const calls: string[] = [];
+    const result = await callChunkSubdividing(CHUNK, CHUNKING, async (piece) => {
+      calls.push(piece);
+      return ['a', 'b'];
+    });
+    expect(result).toEqual(['a', 'b']);
+    expect(calls).toEqual([CHUNK]);
+  });
+
+  it('a timeout on the full chunk retries with smaller pieces and collects their results', async () => {
+    const calls: string[] = [];
+    const result = await callChunkSubdividing(CHUNK, CHUNKING, async (piece) => {
+      calls.push(piece);
+      if (piece.length === CHUNK.length) throw new InferenceTimeoutError('bound');
+      return [`ok:${piece.length}`];
+    });
+    // First call was the full chunk; the rest are strictly smaller pieces.
+    expect(calls[0]).toBe(CHUNK);
+    expect(calls.length).toBeGreaterThan(1);
+    for (const c of calls.slice(1)) expect(c.length).toBeLessThan(CHUNK.length);
+    expect(result.length).toBe(calls.length - 1);
+  });
+
+  it('truncation-shaped failures subdivide too: DeterministicJobError and StructuredReadError(max_tokens)', async () => {
+    for (const boom of [
+      new DeterministicJobError('truncated despite budget'),
+      new StructuredReadError('response is not valid JSON', 'max_tokens'),
+    ]) {
+      let first = true;
+      const result = await callChunkSubdividing(CHUNK, CHUNKING, async (piece) => {
+        if (first) { first = false; throw boom; }
+        return [piece.length];
+      });
+      expect(result.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('does NOT subdivide on failures size cannot fix — unreadable end_turn, plain errors', async () => {
+    for (const boom of [
+      new StructuredReadError('parsed to object, not an array', 'end_turn'),
+      new Error('model exploded'),
+    ]) {
+      const calls: string[] = [];
+      await expect(callChunkSubdividing(CHUNK, CHUNKING, async (piece) => {
+        calls.push(piece);
+        throw boom;
+      })).rejects.toBe(boom);
+      expect(calls).toEqual([CHUNK]);
+    }
+  });
+
+  it('is depth-bounded: a chunk that fails at every size rethrows the ORIGINAL failure', async () => {
+    const boom = new InferenceTimeoutError('bound');
+    let calls = 0;
+    await expect(callChunkSubdividing(CHUNK, CHUNKING, async () => {
+      calls++;
+      throw boom;
+    })).rejects.toBe(boom);
+    // Fail-fast: full chunk, first half-piece, first quarter-piece — then
+    // the original error propagates without trying siblings. A quarter-size
+    // piece still failing is not a size problem, and exhaustively probing
+    // every sibling would multiply a wedged provider's cost.
+    expect(calls).toBe(3);
   });
 });

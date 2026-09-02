@@ -24,10 +24,10 @@
  *   not a cost.
  */
 
-import type { ChunkingConfig } from '@semiont/core';
-import type { InferenceLimits } from '@semiont/inference';
+import { chunkText, type ChunkingConfig, type Logger } from '@semiont/core';
+import { StructuredReadError, type InferenceLimits } from '@semiont/inference';
 import { DeterministicJobError } from '../../failure-class';
-import { INFERENCE_TIMEOUT_MS } from '../inference-call';
+import { INFERENCE_TIMEOUT_MS, InferenceTimeoutError } from '../inference-call';
 
 /**
  * A `max_tokens` stop reason means the model's JSON was cut off mid-stream.
@@ -122,7 +122,15 @@ export function deriveDetectionBudget(
   // detection call at or under the SDK's non-streaming threshold — off the
   // MessageStream path the original `terminated` failure arrived on.
   if (limits.outputTokensPerHour !== undefined) {
-    const durationSafeOutput = Math.floor(limits.outputTokensPerHour * (INFERENCE_TIMEOUT_MS / 3_600_000));
+    // HALF the bound, not all of it: the cap's job is to keep every
+    // legitimate call clearly inside the guillotine, and a cap equal to
+    // rate × the FULL bound put the slowest legitimate call exactly ON it
+    // — measured firing on DoD attempt #4 (2026-09-02: chunk 3 died at
+    // 600.0 s, twice). At half, a full-cap generation at the provider's
+    // own worst-case rate finishes at ~300 s, so the guillotine fires only
+    // on calls at least 2× slower than the provider's worst-case model —
+    // genuinely wedged, not working.
+    const durationSafeOutput = Math.floor(limits.outputTokensPerHour * (INFERENCE_TIMEOUT_MS / 2) / 3_600_000);
     if (outputBudget > durationSafeOutput) {
       inputBudget = Math.floor(inputBudget * (durationSafeOutput / outputBudget));
       outputBudget = durationSafeOutput;
@@ -150,4 +158,66 @@ export function deriveDetectionBudget(
     chunking: { chunkSize: inputBudget, overlap: OVERLAP_TOKENS },
     outputBudget,
   };
+}
+
+/**
+ * Subdivision depth: halve, then quarter, then stop. A policy constant
+ * (user direction, 2026-09-02): "at least one retry with a smaller chunk"
+ * after a size-shaped failure, bounded — a call still failing on a
+ * quarter-sized chunk is not a size problem, and the ORIGINAL failure must
+ * reach the job-level machinery (classification, retry budget) untouched.
+ */
+const MAX_SUBDIVISION_DEPTH = 2;
+
+/** The failures a smaller chunk can plausibly fix: our duration bound
+ * (generation outran the guillotine), and truncation in either of its two
+ * surfaces — caught by `assertNotTruncated` after a parseable response
+ * (`DeterministicJobError`), or thrown by the adapter when the cut-off JSON
+ * would not parse (`StructuredReadError` with `max_tokens`). An unreadable
+ * response that STOPPED NATURALLY is model misbehavior, not size. */
+function subdividable(error: unknown): boolean {
+  return (
+    error instanceof InferenceTimeoutError ||
+    error instanceof DeterministicJobError ||
+    (error instanceof StructuredReadError && error.stopReason === 'max_tokens')
+  );
+}
+
+/**
+ * Run one chunk's inference call, subdividing IN PLACE when it fails in a
+ * way a smaller chunk can fix — instead of burning the whole attempt to
+ * come back at the same size (DoD attempt #4: the same chunk killed both
+ * attempts identically). Sub-pieces re-use the caller's overlap, so spans
+ * straddling a split are caught twice and fall to the downstream span-keyed
+ * dedupe, same as ordinary adjacent chunks. On a failure subdivision cannot
+ * fix — wrong shape, or still failing at the depth floor — the ORIGINAL
+ * error propagates so classification sees what actually happened.
+ */
+export async function callChunkSubdividing<T>(
+  chunk: string,
+  chunking: ChunkingConfig,
+  call: (piece: string) => Promise<T[]>,
+  logger?: Logger,
+): Promise<T[]> {
+  async function attempt(piece: string, chunkSize: number, depth: number): Promise<T[]> {
+    try {
+      return await call(piece);
+    } catch (error) {
+      if (depth >= MAX_SUBDIVISION_DEPTH || !subdividable(error)) throw error;
+      const half = Math.floor(chunkSize / 2);
+      logger?.warn('Chunk call failed at a size-shaped bound — subdividing and retrying smaller', {
+        depth: depth + 1,
+        pieceChars: piece.length,
+        nextChunkSizeTokens: half,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      const pieces = chunkText(piece, { chunkSize: half, overlap: chunking.overlap });
+      const collected: T[] = [];
+      for (const p of pieces) {
+        collected.push(...(await attempt(p, half, depth + 1)));
+      }
+      return collected;
+    }
+  }
+  return attempt(chunk, chunking.chunkSize, 0);
 }

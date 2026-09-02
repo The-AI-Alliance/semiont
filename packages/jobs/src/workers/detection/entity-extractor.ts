@@ -1,7 +1,7 @@
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
 import { chunkText, estimateTokens, getLocaleEnglishName, isObject, isString, type Logger } from '@semiont/core';
 import { boundedGenerateStructured } from '../inference-call';
-import { assertNotTruncated, deriveDetectionBudget } from './detection-chunking';
+import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget } from './detection-chunking';
 
 /**
  * Entity reference extracted from text — pre-reconciliation.
@@ -167,32 +167,36 @@ Example output:
   const collected: ExtractedEntity[] = [];
   for (let i = 0; i < chunks.length; i++) {
     // The structured surface returns parsed elements or THROWS — an
-    // unreadable model response is a job failure, never a silent []. The
-    // old JSON.parse + isArray blocks are unreachable by construction now:
-    // the type says T[].
-    const response = await boundedGenerateStructured<unknown>(
-      client,
-      buildPrompt(chunks[i]!),
-      outputBudget,
-      0.3, // Lower temperature for more consistent extraction
-      ENTITY_ELEMENT_SCHEMA,
-      // Still alive, same position: a long single call would otherwise emit
-      // nothing at all between start and finish.
-      () => onActivity?.(i, chunks.length),
-      logger,
-    );
-    logger.debug('Got entity extraction response', {
-      chunk: i + 1,
-      chunks: chunks.length,
-      items: response.items.length,
-    });
+    // unreadable model response is a job failure, never a silent []. A
+    // size-shaped failure (duration bound, truncation) subdivides in place
+    // and retries smaller before it is allowed to fail the job.
+    const items = await callChunkSubdividing<unknown>(chunks[i]!, chunking, async (piece) => {
+      const response = await boundedGenerateStructured<unknown>(
+        client,
+        buildPrompt(piece),
+        outputBudget,
+        0.3, // Lower temperature for more consistent extraction
+        ENTITY_ELEMENT_SCHEMA,
+        // Still alive, same position: a long single call would otherwise emit
+        // nothing at all between start and finish.
+        () => onActivity?.(i, chunks.length),
+        logger,
+      );
+      logger.debug('Got entity extraction response', {
+        chunk: i + 1,
+        chunks: chunks.length,
+        pieceChars: piece.length,
+        items: response.items.length,
+      });
 
-    // Truncation is data loss, not "no entities" — check it BEFORE consuming:
-    // a truncated structured response can still carry a valid partial array,
-    // so the items themselves cannot signal the loss.
-    assertNotTruncated(response, 'Entity extraction', i + 1, chunks.length, outputBudget);
+      // Truncation is data loss, not "no entities" — check it BEFORE
+      // consuming: a truncated structured response can still carry a valid
+      // partial array, so the items themselves cannot signal the loss.
+      assertNotTruncated(response, 'Entity extraction', i + 1, chunks.length, outputBudget);
+      return response.items;
+    }, logger);
 
-    for (const e of response.items) {
+    for (const e of items) {
       // No dedupe here: overlap duplicates from adjacent chunks pass through
       // to the processor's span-keyed dedupeAnnotations — the single dedupe
       // point.
