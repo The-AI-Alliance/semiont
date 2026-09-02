@@ -599,6 +599,24 @@ func (e JobDeclinedResultReason) Valid() bool {
 	}
 }
 
+// Defines values for JobFailCommandFailureClass.
+const (
+	Deterministic JobFailCommandFailureClass = "deterministic"
+	Transient     JobFailCommandFailureClass = "transient"
+)
+
+// Valid indicates whether the value is a known member of the JobFailCommandFailureClass enum.
+func (e JobFailCommandFailureClass) Valid() bool {
+	switch e {
+	case Deterministic:
+		return true
+	case Transient:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for JobGenerationResultKind.
 const (
 	Generation JobGenerationResultKind = "generation"
@@ -2911,13 +2929,22 @@ type JobFailCommand struct {
 
 	// AnnotationId Annotation this job is attached to, when applicable. Lets the UI route failure feedback (error toast, revert state) to a specific annotation.
 	AnnotationId *string `json:"annotationId,omitempty"`
-	Error        string  `json:"error"`
-	JobId        string  `json:"jobId"`
+
+	// CompletedUnits Entity-type units whose annotations were fully emitted before this failure (checkpointed resume). The queue records them on the retried job's metadata; a retried claim skips them so completed work is neither redone nor duplicated.
+	CompletedUnits *[]string `json:"completedUnits,omitempty"`
+	Error          string    `json:"error"`
+
+	// FailureClass Worker-side classification of the failure, made where the error is still typed. 'deterministic' — the same request cannot succeed on a second attempt — skips the retry budget; absent or 'transient' retries as before. Only KNOWN-deterministic failures carry the class.
+	FailureClass *JobFailCommandFailureClass `json:"failureClass,omitempty"`
+	JobId        string                      `json:"jobId"`
 
 	// JobType Type of background job
 	JobType    JobType `json:"jobType"`
 	ResourceId string  `json:"resourceId"`
 }
+
+// JobFailCommandFailureClass Worker-side classification of the failure, made where the error is still typed. 'deterministic' — the same request cannot succeed on a second attempt — skips the retry budget; absent or 'transient' retries as before. Only KNOWN-deterministic failures carry the class.
+type JobFailCommandFailureClass string
 
 // JobFailedPayload Payload for job:failed domain event
 type JobFailedPayload struct {
