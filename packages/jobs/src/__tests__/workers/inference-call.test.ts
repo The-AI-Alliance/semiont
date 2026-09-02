@@ -32,6 +32,7 @@ import {
   INFERENCE_TIMEOUT_MS,
 } from '../../workers/inference-call';
 import { AnnotationDetection } from '../../workers/annotation-detection';
+import { MAX_SUBDIVISION_DEPTH } from '../../workers/detection/detection-chunking';
 
 const never = () => new Promise<never>(() => {});
 
@@ -322,14 +323,26 @@ describe('bounded inference calls', () => {
     });
   });
 
-  it('detection call sites route through the bound (never-resolving model → timeout, not a wedged worker)', async () => {
+  it('detection call sites route through the bound (never-resolving model → bounded ladder, not a wedged worker)', async () => {
     vi.useFakeTimers();
-    const client = clientWith({ generateStructured: vi.fn(never) });
+    const generateStructured = vi.fn(never);
+    const client = clientWith({ generateStructured });
 
     const pending = AnnotationDetection.detectHighlights('some content', client);
     const assertion = expect(pending).rejects.toThrow(/timed out/);
-    await vi.advanceTimersByTimeAsync(INFERENCE_TIMEOUT_MS + 1);
+    // The bound is per CALL, and a bound that fires is size-shaped, so
+    // `callChunkSubdividing` retries smaller — the detection promise settles
+    // only once the whole ladder is spent. Content this small is one piece at
+    // every depth, so that is exactly one call per level: the first plus one
+    // retry per subdivision depth. Derived from the policy constant, not
+    // restated — the ladder growing must move this number with it.
+    const attempts = MAX_SUBDIVISION_DEPTH + 1;
+    await vi.advanceTimersByTimeAsync(INFERENCE_TIMEOUT_MS * attempts + 1);
     await assertion;
+    // The point of the test: the ladder TERMINATES. Without this, a
+    // subdivision that never stopped retrying would still satisfy the
+    // rejection above once the clock ran far enough.
+    expect(generateStructured).toHaveBeenCalledTimes(attempts);
   });
 });
 

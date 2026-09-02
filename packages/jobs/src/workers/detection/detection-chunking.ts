@@ -167,7 +167,7 @@ export function deriveDetectionBudget(
  * quarter-sized chunk is not a size problem, and the ORIGINAL failure must
  * reach the job-level machinery (classification, retry budget) untouched.
  */
-const MAX_SUBDIVISION_DEPTH = 2;
+export const MAX_SUBDIVISION_DEPTH = 2;
 
 /** The failures a smaller chunk can plausibly fix: our duration bound
  * (generation outran the guillotine), and truncation in either of its two
