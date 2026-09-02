@@ -57,7 +57,9 @@ async function detectInChunks<T>(
 ): Promise<T[]> {
   const limits = await client.limits();
   const scaffoldTokens = estimateTokens(buildPrompt(''));
-  const { chunking, outputBudget } = deriveDetectionBudget(limits, scaffoldTokens);
+  // One motivation's spans per call — the single span family this prompt
+  // asks for, the motivation-path analogue of one entity type.
+  const { chunking, outputBudget } = deriveDetectionBudget(limits, scaffoldTokens, 1);
   const chunks = chunkText(content, chunking);
 
   const collected: T[] = [];

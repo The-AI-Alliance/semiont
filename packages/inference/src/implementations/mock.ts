@@ -1,6 +1,6 @@
 // Mock implementation of InferenceClient for testing
 
-import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredResponse } from '../interface.js';
+import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredReadError, StructuredResponse } from '../interface.js';
 
 // Generous defaults so existing consumers never trip chunking or window
 // guards unless a test injects tighter limits deliberately.
@@ -61,15 +61,10 @@ export class MockInferenceClient implements InferenceClient {
     try {
       parsed = JSON.parse(text);
     } catch (err) {
-      throw new Error(
-        `Structured response could not be read: response is not valid JSON (stop_reason: ${stopReason})`,
-        { cause: err },
-      );
+      throw new StructuredReadError('response is not valid JSON', stopReason, { cause: err });
     }
     if (!Array.isArray(parsed)) {
-      throw new Error(
-        `Structured response could not be read: parsed to ${typeof parsed}, not an array (stop_reason: ${stopReason})`,
-      );
+      throw new StructuredReadError(`parsed to ${typeof parsed}, not an array`, stopReason);
     }
     return { items: parsed as T[], stopReason };
   }

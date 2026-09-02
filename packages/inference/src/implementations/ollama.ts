@@ -4,7 +4,7 @@
 import { estimateTokens, isNumber, isObject } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
-import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredResponse } from '../interface.js';
+import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredReadError, StructuredResponse } from '../interface.js';
 
 // Slack added to the chars/4 prompt estimate when sizing `num_ctx`:
 // proportional to the estimate (the heuristic's error grows with prompt size)
@@ -107,10 +107,7 @@ export class OllamaInferenceClient implements InferenceClient {
         textLength: response.text.length,
         stopReason: response.stopReason,
       });
-      throw new Error(
-        `Structured response could not be read: response is not valid JSON (stop_reason: ${response.stopReason})`,
-        { cause: err },
-      );
+      throw new StructuredReadError('response is not valid JSON', response.stopReason, { cause: err });
     }
     if (!Array.isArray(parsed)) {
       this.logger?.error('Structured response could not be read', {
@@ -118,9 +115,7 @@ export class OllamaInferenceClient implements InferenceClient {
         parsedType: typeof parsed,
         stopReason: response.stopReason,
       });
-      throw new Error(
-        `Structured response could not be read: parsed to ${typeof parsed}, not an array (stop_reason: ${response.stopReason})`,
-      );
+      throw new StructuredReadError(`parsed to ${typeof parsed}, not an array`, response.stopReason);
     }
 
     return { items: parsed as T[], stopReason: response.stopReason };

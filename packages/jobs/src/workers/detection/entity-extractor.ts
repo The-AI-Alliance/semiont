@@ -152,7 +152,9 @@ Example output:
   // before.
   const limits = await client.limits();
   const scaffoldTokens = estimateTokens(buildPrompt(''));
-  const { chunking, outputBudget } = deriveDetectionBudget(limits, scaffoldTokens);
+  // One call asks for every type in `entityTypes` — the processor's per-type
+  // loop passes one, so this is 1 in production today.
+  const { chunking, outputBudget } = deriveDetectionBudget(limits, scaffoldTokens, entityTypes.length);
   const chunks = chunkText(exact, chunking);
 
   logger.debug('Sending entity extraction request', {

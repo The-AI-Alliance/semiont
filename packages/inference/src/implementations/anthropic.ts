@@ -3,7 +3,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { isObject, type Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
-import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredResponse } from '../interface.js';
+import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredReadError, StructuredResponse } from '../interface.js';
 
 // The SDK's worst-case output-rate model: client.js's
 // calculateNonstreamingTimeout projects a call's maximum duration as
@@ -255,10 +255,7 @@ export class AnthropicInferenceClient implements InferenceClient {
         textLength: textContent.text.length,
         stopReason: response.stop_reason,
       });
-      throw new Error(
-        `Structured response could not be read: response is not valid JSON (stop_reason: ${response.stop_reason})`,
-        { cause: err },
-      );
+      throw new StructuredReadError('response is not valid JSON', response.stop_reason || 'unknown', { cause: err });
     }
     if (!Array.isArray(parsed)) {
       this.recordError(start, response);
@@ -267,9 +264,7 @@ export class AnthropicInferenceClient implements InferenceClient {
         parsedType: typeof parsed,
         stopReason: response.stop_reason,
       });
-      throw new Error(
-        `Structured response could not be read: parsed to ${typeof parsed}, not an array (stop_reason: ${response.stop_reason})`,
-      );
+      throw new StructuredReadError(`parsed to ${typeof parsed}, not an array`, response.stop_reason || 'unknown');
     }
 
     recordInferenceUsage({

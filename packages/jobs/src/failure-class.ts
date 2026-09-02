@@ -15,6 +15,7 @@
  */
 
 import { isNumber, isObject, isString } from '@semiont/core';
+import { StructuredReadError } from '@semiont/inference';
 import { InferenceTimeoutError } from './workers/inference-call';
 
 export type FailureClass = 'transient' | 'deterministic';
@@ -43,13 +44,17 @@ export class DeterministicJobError extends Error {
  * - Ollama surfaces plain `Error`s (no status) and network failures as
  *   `TypeError: fetch failed`; the SDK's `MessageStream terminated` is a
  *   dropped connection. All land `undefined` → retryable, the safe default.
- * - `@semiont/inference` throws plain `Error`s for its own validation paths
- *   today, so those stay unclassified; if it ever grows typed errors, they
- *   belong in this mapping.
+ * - `@semiont/inference`'s `StructuredReadError` carries the stop reason
+ *   because the cause classifies differently: `max_tokens` is truncation of
+ *   an over-demanded answer — the adapter throws before the caller's
+ *   `assertNotTruncated` can see the stop reason, so the classification
+ *   must happen on the typed error itself (measured live 2026-09-02) —
+ *   while any other reason is model misbehavior a retry may fix.
  */
 export function classifyFailure(error: unknown): FailureClass | undefined {
   if (error instanceof DeterministicJobError) return 'deterministic';
   if (error instanceof InferenceTimeoutError) return 'transient';
+  if (error instanceof StructuredReadError && error.stopReason === 'max_tokens') return 'deterministic';
   if (!isObject(error)) return undefined;
 
   const name = isString(error.name) ? error.name : '';

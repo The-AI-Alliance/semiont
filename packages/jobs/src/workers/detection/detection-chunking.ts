@@ -14,9 +14,14 @@
  *   key/context envelope, so output needs the larger share). The 1:2 ratio
  *   is the plan's one allocation policy — doc-independent, tuned only on
  *   live evidence.
- * - Separate ceilings (Anthropic): output takes its full ceiling and input
- *   gets the rest of the window. For realistic documents the input bound is
- *   enormous and no chunking occurs.
+ * - Separate ceilings (Anthropic): output takes its full ceiling (duration-
+ *   capped below), and input follows the same 1:2 allocation — never more
+ *   than half the output budget. Input does NOT get "the rest of the
+ *   window": measured 2026-09-02, a window-sized chunk of entity-dense text
+ *   demands more output than any budget holds, so the model grinds toward
+ *   max_tokens for minutes (killed at the call bound as a "stall") or
+ *   collapses to the degenerate []. Large documents chunk; that is the fix,
+ *   not a cost.
  */
 
 import type { ChunkingConfig } from '@semiont/core';
@@ -70,12 +75,17 @@ export interface DetectionBudget {
  * @param limits - the provider's published ceilings (`client.limits()`)
  * @param scaffoldTokens - tokens of the prompt template around the content,
  *   measured from the actually-built template (e.g. `estimateTokens(build(''))`)
+ * @param typesPerCall - how many entity types (or equivalent span families)
+ *   ONE call asks for: output demand scales with it, so the allocation
+ *   divides by it. The per-type loop passes 1; a future multi-type batch
+ *   passes its batch size.
  * @throws when the window is too small to hold the scaffold plus a useful
  *   chunk — fail-loud, same family as the truncation and window guards.
  */
 export function deriveDetectionBudget(
   limits: InferenceLimits,
   scaffoldTokens: number,
+  typesPerCall: number,
 ): DetectionBudget {
   const { contextTokens, maxOutputTokens } = limits;
   const available = contextTokens - scaffoldTokens;
@@ -118,6 +128,17 @@ export function deriveDetectionBudget(
       outputBudget = durationSafeOutput;
     }
   }
+
+  // The 1:2 allocation policy, applied to every provider shape (the shared
+  // split satisfies it by construction; separate ceilings did not). Output
+  // must hold an annotation echo of every span in the chunk plus its
+  // key/context envelope, so a chunk larger than half the output budget is
+  // a call whose honest answer cannot fit — the failure measured live on
+  // 2026-09-02 (silent multi-minute grinds to max_tokens, degenerate []).
+  // The demand is PER TYPE ASKED FOR, so a K-type call divides the input
+  // share by K. Still no density modeling: same one policy, content never
+  // enters.
+  inputBudget = Math.min(inputBudget, Math.floor(outputBudget / (2 * typesPerCall)));
 
   if (inputBudget <= OVERLAP_TOKENS) {
     throw new Error(

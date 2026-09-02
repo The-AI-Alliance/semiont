@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { StructuredReadError } from '@semiont/inference';
 import { classifyFailure, DeterministicJobError } from '../failure-class';
 import { InferenceTimeoutError } from '../workers/inference-call';
 
@@ -36,6 +37,19 @@ describe('classifyFailure (A4)', () => {
     for (const status of [400, 401, 403, 413, 422]) {
       expect(classifyFailure(Object.assign(new Error(`http ${status}`), { status }))).toBe('deterministic');
     }
+  });
+
+  it('an unreadable structured response CUT OFF by max_tokens is deterministic — same input truncates the same way', () => {
+    // Measured live 2026-09-02 (repro-real.log run 3): the truncated JSON of
+    // an over-demanded answer surfaces as StructuredReadError from the
+    // adapter BEFORE the caller's assertNotTruncated can see the stop
+    // reason — without this rule it classified retryable and burned the
+    // budget re-issuing a guaranteed truncation.
+    expect(classifyFailure(new StructuredReadError('response is not valid JSON', 'max_tokens'))).toBe('deterministic');
+  });
+
+  it('an unreadable structured response with any other stop reason stays retryable — sampling may fix it', () => {
+    expect(classifyFailure(new StructuredReadError('parsed to object, not an array', 'end_turn'))).toBeUndefined();
   });
 
   it('everything unrecognized is unclassified — retryable by default (HD2 gates only KNOWN-deterministic)', () => {
