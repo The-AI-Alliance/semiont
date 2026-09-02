@@ -1,303 +1,96 @@
 # Semiont Browser
 
-A type-safe React SPA built with Vite + React Router, featuring W3C Web Annotation support, real-time document collaboration, and AI-powered annotation detection and generation.
-
-## Overview
-
-The Semiont browser provides a rich annotation experience for building semantic knowledge graphs. Users can annotate documents with highlights, entity tags, and document links - all following the W3C Web Annotation Data Model for full interoperability.
-
-**Key Features**:
-- W3C Web Annotation compliance
-- Multi-format document support (text, markdown, images, PDFs)
-- Text-based annotations for text/markdown documents
-- Spatial annotations for images and PDFs
-- AI-powered annotation detection for text (asynchronous)
-- AI-powered document generation (asynchronous)
-- Type-safe API integration with `@semiont/http-transport`
-- Real-time progress tracking via Server-Sent Events (SSE)
-
-## npm Package
-
 [![npm version](https://img.shields.io/npm/v/@semiont/browser.svg)](https://www.npmjs.com/package/@semiont/browser)
-[![npm downloads](https://img.shields.io/npm/dm/@semiont/browser.svg)](https://www.npmjs.com/package/@semiont/browser)
+[![ghcr](https://img.shields.io/badge/ghcr-semiont--browser-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-browser)
 
-The Browser is published as `@semiont/browser` on npm as a pre-built Vite SPA with a minimal Node.js static file server. It also ships as the `semiont-browser` container image, which is how a stack actually serves it — the launcher runs that image, and `server.js` serves the pre-built SPA inside it.
+The human entry point to Semiont: a React single-page app for browsing, annotating, and
+generating resources in a knowledge base.
 
-## Quick Start
+It is a client and nothing more. It stores no data, owns no schema, and has no backend of its
+own — everything it displays comes from a knowledge base it has connected to. In a running
+stack it is a container: the launcher starts `semiont-browser`, which serves the pre-built SPA
+on port 3000.
 
-### Using the `semiont` launcher (recommended)
+## What this app owns
+
+The shell, and little else — routes, locale, providers, page assembly, and the few components
+that make sense nowhere else (navigation, toolbar wiring, cookie preferences).
+
+| | |
+|---|---|
+| `@semiont/react-ui` | the annotation UI itself — components, panels, state units |
+| `@semiont/sdk` | every knowledge-base operation |
+| this app | routes, i18n, providers, page assembly |
+
+The boundary is real, not aspirational: this app is a fraction the size of `react-ui`, and
+contains **no `fetch` calls at all**. The browser never reaches an API directly; it goes
+through the SDK.
+
+Route surfaces are `know/` (browse, annotate, compose, generate), `admin/`, `moderate/`,
+`auth/`, and the static `about`, `privacy` and `terms` pages.
+
+## Knowledge bases are a runtime choice
+
+The browser is not built against a backend. It holds a registry of knowledge bases and
+activates one at a time, with its own session and its own sign-in per knowledge base. Adding
+one is something a person does in the Knowledge Base panel, not something an operator
+configures.
+
+`server.js` also serves `/discovery/*` from a read-only directory the launcher mounts, so the
+app can offer the knowledge bases already running on the machine. That prefix returns its file
+or a 404 and never falls back to `index.html` — a 200 carrying the SPA would be
+indistinguishable from data.
+
+## How it ships
+
+One build, three consumers:
+
+- **Container** — `semiont-browser`, the usual case. Entrypoint `node server.js`; npm is
+  removed from the runtime image.
+- **npm** — `@semiont/browser`: the built `dist/` plus `server.js`, with no runtime
+  dependencies.
+- **Desktop** — `apps/desktop` uses this app's `dist/` as its Tauri frontend.
+
+`server.js` is a static file server: files out of `dist/`, SPA fallback to `index.html` for
+non-file routes, directory-traversal guards on both paths, and the `/discovery` prefix above.
+
+## Configuration
+
+Almost none, deliberately.
+
+| | | |
+|---|---|---|
+| `PORT` | runtime | port `server.js` listens on (default `3000`) |
+| `/discovery` | runtime | read-only mount for the launcher's KB discovery document |
+| `VITE_OTEL_OTLP_ENDPOINT` | build time | OTLP endpoint, baked into the bundle |
+
+`VITE_` values are compile-time substitutions. Changing one needs a rebuild, not a restart.
+
+## Development
 
 ```bash
-# From inside a knowledge-base repo — start everything
-semiont start
-
-# Your services are now running:
-# - Browser: http://localhost:3000
-# - Gateway: http://localhost:4000
-# - Database: PostgreSQL in Docker container
+npm run dev          # Vite dev server (expects a gateway)
+npm run dev:mock     # ...against a mock API instead
+npm run build        # typecheck, then vite build
+npm run typecheck    # tsc --noEmit
+npm test             # vitest
+npm run test:a11y    # accessibility suite
 ```
 
-### Manual Setup
-
-```bash
-# Install dependencies
-npm install
-
-# Start development server (requires gateway running)
-npm run dev
-
-# Start with mock API (no gateway required)
-npm run dev:mock
-```
-
-**See**: [Development Guide](./docs/DEVELOPMENT.md) for complete setup and workflows.
-
-## 🐳 Container Image
-
-[![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-browser)
-[![Accessibility Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml)
-[![WCAG 2.1 AA](https://img.shields.io/badge/WCAG-2.1%20AA-blue.svg)](https://www.w3.org/WAI/WCAG2AA-Conformance)
-
-Pull and run the published Browser container image:
-
-```bash
-# Pull latest development build
-docker pull ghcr.io/the-ai-alliance/semiont-browser:dev
-
-# Run Browser container
-docker run -d \
-  -p 3000:3000 \
-  --name semiont-browser \
-  ghcr.io/the-ai-alliance/semiont-browser:dev
-```
-
-**Multi-platform Support:** linux/amd64, linux/arm64
-
-**Docker Compose Example:** See [docs/system/administration/IMAGES.md](../../docs/system/administration/IMAGES.md#docker-compose-example) for complete setup with gateway and database.
-
-## Technology Stack
-
-- **Framework**: [Vite](https://vitejs.dev/) + [React Router v7](https://reactrouter.com/)
-- **UI**: React 18 with TypeScript
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **i18n**: [i18next](https://www.i18next.com/) + react-i18next
-- **State Management**: [TanStack Query](https://tanstack.com/query) (React Query)
-- **API Client**: Type-safe client generated from OpenAPI spec
-- **Testing**: [Vitest](https://vitest.dev/) + React Testing Library + [MSW v2](https://mswjs.io/)
-- **Performance**: Bundle analysis
-
-**Full stack details**: [Browser Architecture](./docs/ARCHITECTURE.md)
-
-### Component Library
-
-The browser uses **[@semiont/react-ui](../../packages/react-ui)** - a framework-agnostic React component library providing:
-
-- **Authentication Components**: SignInForm, SignUpForm, AuthErrorDisplay, WelcomePage
-- **Layout Components**: PageLayout, UnifiedHeader, LeftSidebar, Footer
-- **Resource Components**: ResourceViewer, BrowseView, AnnotateView
-- **Format-Specific Viewers**: PdfViewer, PdfAnnotationCanvas for PDF documents
-- **Annotation Components**: Annotation panels, toolbars, and widgets
-- **React Query Hooks**: Type-safe API integration hooks
-- **Built-in Translations**: English and Spanish included with dynamic loading
-
-The library is framework-independent, accepting framework-specific implementations (like Link components) as props. This allows the same components to work with Vite, or any React framework.
-
-### Internationalization
-
-The browser supports multiple languages through a hybrid approach:
-
-- **Browser-specific translations**: `apps/browser/messages-source/*.json` (source of truth)
-- **Component translations**: `packages/react-ui/translations/*.json` (source of truth)
-- **Generated output**: `scripts/merge-translations.js` merges both into `messages/` and `public/messages/` before every build/test/dev run
-- **Dynamic loading**: Non-English locales are loaded on-demand via `i18next-http-backend`
-
-Current supported languages:
-- English (en)
-- Spanish (es)
-- 27+ additional languages (partial coverage)
-
-**See**: [@semiont/react-ui documentation](../../packages/react-ui/README.md)
-
-## Project Structure
-
-```
-src/
-├── App.tsx             # React Router route tree
-├── main.tsx            # Entry point
-├── app/[locale]/       # Locale-prefixed page components
-│   ├── auth/          # Authentication pages
-│   ├── know/          # Document management pages
-│   ├── moderate/      # Moderation pages
-│   └── admin/         # Admin pages
-├── components/         # Reusable UI components
-├── hooks/             # Custom React hooks
-├── i18n/              # i18next config and routing wrappers
-├── lib/               # Core utilities
-├── mocks/             # MSW mock handlers
-└── types/             # TypeScript type definitions
-```
-
-## Core Features
-
-### Document Management
-- Create, search, and view markdown documents
-- Wiki-style links (`[[page name]]`) for internal navigation
-- Full-text search with real-time results
-- Document archiving and cloning
-
-**See**: [Features Guide](../../docs/browser/FEATURES.md)
-
-### W3C Web Annotations
-- **Highlights**: Mark important text passages
-- **Document References**: Link text to other documents (citation, definition, elaboration, etc.)
-- **Entity Tags**: Tag text with entity types (Person, Organization, Location, etc.)
-- **Multi-body support**: Combine entity tags and document links in one annotation
-- **JSON-LD export**: Full W3C compliance for data portability
-
-**See**: [Annotations Guide](./docs/ANNOTATIONS.md), [API Integration Guide](./docs/API-INTEGRATION.md#w3c-web-annotation-model)
-
-### Asynchronous AI Features
-
-Some operations run asynchronously via background job workers:
-
-**Annotation Detection** - Detect annotations in documents using AI:
-- Multiple detection types: highlights, assessments, comments, tags, entity references
-- Real-time progress via SSE
-- Automatic annotation creation
-
-**Document Generation** - AI-generated documents from annotations:
-- Generate document based on annotation context
-- Real-time progress via SSE
-- Automatic document linking
-
-**See**: [API Integration Guide](./docs/API-INTEGRATION.md#asynchronous-operations) for implementation details.
+Translations are generated. `messages-source/` holds this app's strings;
+`scripts/merge-translations.js` merges them with `@semiont/react-ui`'s on the `pre*` hooks and
+writes `messages/` (untracked) and `public/messages/`. Edit `messages-source/`, never
+`messages/`.
 
 ## Documentation
 
-### Getting Started
-- **[Local Setup](../../docs/browser/LOCAL.md)** - Run the browser locally (container, npm, or desktop app)
-- **[Development Guide](./docs/DEVELOPMENT.md)** - Local development, CLI usage, common tasks, debugging
-- **[Testing Guide](./docs/TESTING.md)** - Test structure, running tests, writing tests
-- **[Deployment Guide](./docs/DEPLOYMENT.md)** - Publishing and deployment workflows
+[Architecture](./docs/ARCHITECTURE.md) ·
+[Development](./docs/DEVELOPMENT.md) ·
+[Container](./docs/CONTAINER.md) ·
+[Deployment](./docs/DEPLOYMENT.md) ·
+[Testing](./docs/TESTING.md) ·
+[Authentication](./docs/AUTHENTICATION.md) ·
+[Internationalization](./docs/INTERNATIONALIZATION.md) ·
+[Accessibility](./docs/ACCESSIBILITY.md)
 
-### Architecture & Design
-- **[Browser Architecture](./docs/ARCHITECTURE.md)** - High-level system design, state management, routing
-- **[Rendering Architecture](../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md)** - Document rendering pipeline
-- **[API Integration](./docs/API-INTEGRATION.md)** - API client usage, async operations, W3C annotations
-
-### Features & UI
-- **[Features](../../docs/browser/FEATURES.md)** - Document management, annotations, search, AI features
-- **[Annotations](./docs/ANNOTATIONS.md)** - W3C annotation system and UI components
-- **[Style Guide](./docs/style-guide.md)** - UI/UX patterns and component guidelines
-
-### Security & Auth
-- **[Authentication](./docs/AUTHENTICATION.md)** - OAuth, JWT, session management, 401 handling
-- **[Authorization](./docs/AUTHORIZATION.md)** - Permission system, 403 error handling
-
-### Performance & Accessibility
-- **[Performance Optimization](./docs/PERFORMANCE.md)** - Bundle optimization, monitoring
-- **[Accessibility](./docs/ACCESSIBILITY.md)** - Implementation patterns, ARIA, focus management, automated testing (user-facing claim: [docs/browser/ACCESSIBILITY.md](../../docs/browser/ACCESSIBILITY.md))
-- **[Keyboard Navigation](./docs/KEYBOARD-NAV.md)** - Implementation: hooks, focus traps, roving tabindex (user-facing reference: [docs/browser/KEYBOARD-NAV.md](../../docs/browser/KEYBOARD-NAV.md))
-
-### Specialized Topics
-- **[CodeMirror Integration](../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md)** - Editor implementation details
-- **[CodeMirror Widgets](../../packages/react-ui/docs/CODEMIRROR-WIDGETS.md)** - Custom editor widgets
-- **[Annotation Rendering](../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md)** - Annotation rendering principles
-- **[Adding Languages](./docs/ADDING-LANGUAGE.md)** - Internationalization
-- **[Archive & Clone](./docs/ARCHIVE-CLONE.md)** - Document archiving and cloning
-- **[Future Implementations](./docs/FUTURE.md)** - Mobile apps, browser extensions, desktop apps, integrations
-
-## Common Commands
-
-From `apps/browser/`:
-
-```bash
-# Development
-npm run dev              # Vite dev server
-npm run dev:mock         # Against a mock API (no gateway needed)
-npm run dev:fast         # Skip the prebuild typecheck
-npm run build            # Production build (typechecks first)
-
-# Testing
-npm test                 # Everything
-npm run test:unit        # Excludes integration
-npm run test:integration # Integration only
-npm run test:security    # Admin page/layout + validation
-npm run test:a11y        # Accessibility assertions
-npm run test:coverage    # With an HTML report in coverage/
-npm run test:watch       # Watch mode
-
-# Types
-npm run typecheck        # tsc --noEmit
-npm run typecheck:all    # Source + test tsconfigs
-```
-
-Running the whole stack is the launcher's job, not npm's:
-
-```bash
-semiont start                       # Bring the stack up
-semiont status                      # Container state + per-service health
-semiont start --service browser    # Restart just this service
-semiont logs --service browser
-```
-
-**See**: [Development Guide](./docs/DEVELOPMENT.md) and
-[docs/development/TESTING.md](../../docs/development/TESTING.md).
-
-## Contributing
-
-We welcome contributions! Please read:
-
-1. **[Development Guide](./docs/DEVELOPMENT.md)** - Setting up local environment
-2. **[Testing Guide](./docs/TESTING.md)** - Writing and running tests
-3. **[Style Guide](./docs/style-guide.md)** - UI/UX patterns
-
-**Key Requirements**:
-- **Functional, side-effect free code is strongly preferred**
-- TypeScript must compile without errors (strict mode)
-- All tests must pass
-- Include tests for new functionality
-- Follow existing patterns in the codebase
-
-### Code Style
-
-- Use functional components with hooks
-- Avoid class components and mutations
-- Prefer pure functions
-- Use descriptive component and variable names
-- No unnecessary comments - code should be self-documenting
-
-### Pull Request Requirements
-
-- Tests must pass (all test suites)
-- TypeScript must compile without errors (strict mode)
-- Follow functional programming principles
-- Include tests for new components
-- Update documentation if UI changes significantly
-- Check bundle size impact with `npm run analyze`
-
-## Quick Links
-
-### System Documentation
-- [System Documentation](../../docs/system/README.md) - Overall platform architecture
-- [W3C Web Annotation](../../docs/protocol/W3C-WEB-ANNOTATION.md) - Annotation data flow across all layers
-- [Jobs Package](../../packages/jobs/) - Background job processing (async operations)
-
-### Other Services
-- [Gateway README](../gateway/README.md) - Gateway API server
-- [MCP Server README](../../packages/mcp-server/README.md) - AI integration via Model Context Protocol
-- [API Client README](../../packages/http-transport/README.md) - Type-safe TypeScript client
-- [Launcher README](../launcher/README.md) - The host-installed `semiont` command
-
-### External Resources
-- [Vite Documentation](https://vitejs.dev/)
-- [React Router v7 Documentation](https://reactrouter.com/)
-- [i18next Documentation](https://www.i18next.com/)
-- [TanStack Query Documentation](https://tanstack.com/query)
-- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
-- [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/)
-
----
-
-**Last Updated**: 2026-03-29
-**For Help**: See [Documentation](./docs/) or file an issue
+The full set is in [`docs/`](./docs/).

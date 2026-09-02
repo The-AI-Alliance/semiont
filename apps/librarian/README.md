@@ -12,6 +12,9 @@ concluding is the Generator's job.
 | Code | [`packages/make-meaning`](../../packages/make-meaning/) |
 | npm | not published — container only |
 
+Only the image recipe lives in this directory; the entry-point source is
+[`librarian-main.ts`](../../packages/make-meaning/src/librarian-main.ts).
+
 ## What it runs
 
 The two LLM-bound actors:
@@ -22,33 +25,44 @@ The two LLM-bound actors:
 - **Matcher** — context-driven candidate search for the bind flow: multi-source retrieval,
   composite structural scoring, and optional LLM semantic scoring.
 
-Plus the gather-summary handler, which registers here **beside the actor it calls** rather
-than in the gateway — the same fact-consumers-follow-the-actor rule the Archivist's
+Plus the gather-summary handler, which registers here beside the actor it calls rather than
+in the gateway — the same fact-consumers-follow-the-actor rule the Archivist's
 annotation-assembly handler follows.
 
 ## What it talks to
 
-The bus (SSE in, `POST /bus/emit` out), Neo4j and Qdrant as the retrieval sources, and an
-embedding provider for query embedding.
+- **The gateway** — agent auth, then the bus: SSE in, `POST /bus/emit` out. Requests arrive
+  and replies leave this way; nothing dials the Librarian (its only HTTP route is
+  `/health`).
+- **The Archivist** — content bytes, fetched on demand during gather. Bytes ride the byte
+  path; this process never opens the working tree.
+- **Neo4j and Qdrant** — the retrieval sources.
+- **An embedding provider** (query embedding) and **per-actor inference clients**
+  (Gatherer and Matcher each resolve their own from `actors.*` config).
 
-**It mounts no knowledge base.** Unlike the Archivist it holds no file-backed state — every
-byte it needs arrives over the bus or from the two datastores, which is what makes it
-independently scalable if retrieval ever becomes the bottleneck.
+The `weave:applied` / `smelt:settled` progress signals arrive over the same SSE feed and
+drive local folds, so the graph-lag grace and the vector settle barrier behave exactly as
+they did in-process.
+
+## What it owns on disk
+
+Nothing. It appends no events, serves no bytes, and never mounts the KB tree. Its one
+filesystem read is the materialized views the Archivist maintains, through the shared state
+mount — read-only, never rebuilt here — located by the `[kb] name` in the staged config.
+The whole environment contract is two variables: `SEMIONT_WORKER_SECRET` (agent auth) and
+`XDG_STATE_HOME` (the shared state mount).
 
 ## Why it is separate from the Archivist
 
-The two are a deliberate pair, and the distinction is the one the professions themselves
-draw. **The Archivist preserves and serves unique records; the Librarian helps seekers find
-and use material.** Naming them as a pair is also what keeps "Librarian" honest — contrasted
-with the Archivist it names one half of a real division of labour, rather than reducing a
-whole profession to retrieval.
-
-Practically: these two actors are the LLM-bound ones. Their latency and failure modes are
-inference-shaped, not storage-shaped, and keeping them off the record-keeping service means
-a slow model never blocks a write.
+The two are a deliberate pair: the Archivist preserves and serves unique records; the
+Librarian helps seekers find and use material. These two actors are the LLM-bound ones —
+their latency and failure modes are inference-shaped, not storage-shaped — so a slow model
+never blocks a write, and retrieval capacity scales with request volume while the Archivist
+scales with corpus.
 
 ## Related
 
 - [`@semiont/make-meaning`](../../packages/make-meaning/) — the actors and this entry point
-- [Archivist](../archivist/) — the other half of the pair
+- [Archivist](../archivist/) — the other half of the pair: it holds the record and answers
+  *"what is there?"*; the Librarian searches it and answers *"what is relevant?"*
 - [Gather flow](../../docs/protocol/flows/GATHER.md) · [Match flow](../../docs/protocol/flows/MATCHER.md)

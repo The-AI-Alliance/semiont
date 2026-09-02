@@ -1,8 +1,8 @@
 # Semiont Desktop
 
-Native desktop application wrapping the Semiont browser SPA using [Tauri](https://tauri.app/). It bundles the same UI as the container image with a thin native shell, so there's no container runtime to install and no local network permission to grant.
+An installable native build of the Semiont browser UI. A thin [Tauri](https://tauri.app/) shell wraps the same SPA that runs in the web build — a native window and menu around the compiled UI — so Semiont launches from the OS like any other app, no browser tab required.
 
-You still need a knowledge base gateway running somewhere — point the app at it the same way you would the browser version.
+The desktop build ships only the UI. It holds no data and no application logic: like the web build, it talks to a knowledge base **gateway** over HTTP, which you point it at on first launch.
 
 ## Install
 
@@ -10,21 +10,19 @@ Download the latest build for your platform from the [Releases page](https://git
 
 ### macOS
 
-The macOS DMGs are not signed with an Apple Developer ID, so Gatekeeper quarantines them on download. Before opening the DMG, strip the quarantine attribute:
+DMGs are published for both Apple Silicon (`aarch64`) and Intel (`x86_64`). They are not signed with an Apple Developer ID, so Gatekeeper quarantines them on download. Strip the quarantine attribute before opening:
 
 ```bash
 xattr -cr ~/Downloads/Semiont_*.dmg
 ```
 
-Then open the DMG normally and drag Semiont.app to Applications. Without this step you'll see "Semiont is damaged and can't be opened" — that's Gatekeeper, not actual damage.
-
-Builds are published for both Apple Silicon (`aarch64`) and Intel (`x86_64`) Macs.
+Then open the DMG and drag Semiont.app to Applications. Without this step you'll see "Semiont is damaged and can't be opened" — that's Gatekeeper, not actual damage.
 
 ### Linux
 
-Two artifacts are published for x86_64:
+Two x86_64 artifacts are published:
 
-- **`.deb`** — for Debian, Ubuntu, and derivatives:
+- **`.deb`** — Debian, Ubuntu, and derivatives:
   ```bash
   sudo apt install ./Semiont_*_amd64.deb
   ```
@@ -36,69 +34,63 @@ Two artifacts are published for x86_64:
 
 ## Connecting to a gateway
 
-On first launch, enter the gateway host and port (e.g. `localhost:4000`) in the Knowledge Bases panel. The app talks to the gateway over plain HTTP — same as the browser version — so any gateway reachable from your machine works.
+On first launch, enter the gateway host and port (e.g. `localhost:4000`) in the Knowledge Bases panel. The app talks to the gateway over plain HTTP, so any gateway reachable from your machine works.
 
 ## Building from source
 
-The rest of this document covers developing and building the desktop app from source. Most users only need the [Install](#install) section above.
+Most users only need the installers above. To build locally:
 
 ### Prerequisites
 
-For local development (without containers):
-- [Rust](https://rustup.rs/)
+- [Rust](https://rustup.rs/) and the Tauri CLI (`cargo install tauri-cli`)
 - Xcode Command Line Tools (macOS)
-- Tauri CLI: `cargo install tauri-cli`
+- Or, for the containerized path: just a container runtime (Apple Container, Docker, or Podman)
 
-For containerized builds: just a container runtime (Apple Container, Docker, or Podman).
+### Develop
 
-### Development
-
-Start the Browser dev server in one terminal, then the desktop shell in another:
+Run the browser dev server, then open the desktop shell against it:
 
 ```bash
-# Terminal 1: Browser
+# Terminal 1: browser UI
 cd apps/browser && npm run dev
 
-# Terminal 2: desktop
+# Terminal 2: desktop shell
 cd apps/desktop && cargo tauri dev
 ```
 
-The desktop app opens a native window pointing at the Vite dev server.
-Hot reload works — changes to the browser are reflected immediately.
+The window points at the Vite dev server, so hot reload works.
 
 ### Build
 
-#### Containerized (no Rust on host)
+The bundler emits installers for the platform it runs on:
 
-```bash
-apps/desktop/build.sh
-```
+- **macOS** (Rust on host) → `.dmg`
+  ```bash
+  npm run build -w semiont-browser
+  cd apps/desktop && cargo tauri build
+  # → src-tauri/target/release/bundle/dmg/Semiont_x.y.z_aarch64.dmg
+  ```
+- **Linux** → `.deb` and `.AppImage`, from the same two commands on a Linux host, or without Rust via the containerized build:
+  ```bash
+  apps/desktop/build.sh
+  # → src-tauri/target/release/bundle/{deb,appimage}/
+  ```
 
-#### Local (Rust required)
-
-```bash
-cd apps/browser && npm run build
-cd apps/desktop && cargo tauri build
-```
-
-Output: `src-tauri/target/release/bundle/dmg/Semiont_x.y.z_aarch64.dmg`
+Official multi-platform builds — both Mac architectures and Linux — come from CI and land on the Releases page.
 
 ## Architecture
 
-The desktop app is a thin native shell around `apps/browser/dist/`. No browser
-code lives here — this directory only contains the Tauri configuration, Rust entry
-point, and build scripts.
+A thin native shell around `apps/browser/dist/`. No UI code lives here — only the Tauri configuration, the Rust entry point, and the build scripts.
 
 ```
 apps/desktop/
 ├── src-tauri/
-│   ├── Cargo.toml          # Rust dependencies
-│   ├── tauri.conf.json     # Window config, build paths, app identity
+│   ├── Cargo.toml          # Rust dependencies (tauri + opener)
+│   ├── tauri.conf.json     # window config, bundle targets, app identity
 │   ├── build.rs            # Tauri build hook
-│   ├── src/
-│   │   └── main.rs         # Entry point (opens window, loads SPA)
-│   └── icons/              # App icons (.icns, .ico, .png)
-├── build.sh                # Containerized build script
+│   ├── src/main.rs         # entry point: opens the window + native menu, loads the SPA
+│   └── icons/              # app icons (.icns, .ico, .png)
+├── build.sh                # containerized Linux build
 ├── package.json
 └── README.md
 ```
