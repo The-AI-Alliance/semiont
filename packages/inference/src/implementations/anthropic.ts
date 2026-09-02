@@ -98,19 +98,26 @@ export class AnthropicInferenceClient implements InferenceClient {
     };
   }
 
-  private requestMessage(params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message> {
+  private requestMessage(params: Anthropic.MessageCreateParamsNonStreaming, signal?: AbortSignal): Promise<Anthropic.Message> {
+    // The signal rides the SDK's RequestOptions: an abort tears down the live
+    // attempt AND is checked between the SDK's internal retries, so a
+    // cancelled call cannot survive as a background zombie inside the SDK's
+    // own retry/backoff loop (ABANDONED-INFERENCE P0 caught one completing
+    // 24–34 minutes after abandonment). For visibility into those internal
+    // retries themselves, the SDK's ANTHROPIC_LOG=debug env knob logs every
+    // attempt — nothing to re-implement here.
     if (params.max_tokens > NONSTREAMING_MAX_OUTPUT_TOKENS) {
-      return this.client.messages.stream(params).finalMessage();
+      return this.client.messages.stream(params, { signal }).finalMessage();
     }
-    return this.client.messages.create(params);
+    return this.client.messages.create(params, { signal });
   }
 
-  async generateText(prompt: string, maxTokens: number, temperature: number): Promise<string> {
-    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature);
+  async generateText(prompt: string, maxTokens: number, temperature: number, signal?: AbortSignal): Promise<string> {
+    const response = await this.generateTextWithMetadata(prompt, maxTokens, temperature, signal);
     return response.text;
   }
 
-  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number): Promise<InferenceResponse> {
+  async generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number, signal?: AbortSignal): Promise<InferenceResponse> {
     this.logger?.debug('Generating text with inference client', {
       model: this.modelId,
       promptLength: prompt.length,
@@ -126,7 +133,7 @@ export class AnthropicInferenceClient implements InferenceClient {
     };
 
     const start = performance.now();
-    const response = await this.recordedRequest(params, start);
+    const response = await this.recordedRequest(params, start, signal);
 
     const textContent = response.content.find(c => c.type === 'text');
     if (!textContent || textContent.type !== 'text') {
@@ -151,7 +158,8 @@ export class AnthropicInferenceClient implements InferenceClient {
     this.logger?.info('Text generation completed', {
       model: this.modelId,
       textLength: text.length,
-      stopReason: response.stop_reason
+      stopReason: response.stop_reason,
+      requestId: requestIdOf(response),
     });
 
     return {
@@ -165,6 +173,7 @@ export class AnthropicInferenceClient implements InferenceClient {
     maxTokens: number,
     temperature: number,
     elementSchema: ElementSchema,
+    signal?: AbortSignal,
   ): Promise<StructuredResponse<T>> {
     // Capability gate (D3/D4): model choice is deployment config, so the
     // client asks the provider whether the configured model can honour
@@ -207,7 +216,7 @@ export class AnthropicInferenceClient implements InferenceClient {
     };
 
     const start = performance.now();
-    const response = await this.recordedRequest(params, start);
+    const response = await this.recordedRequest(params, start, signal);
 
     const textContent = response.content.find(c => c.type === 'text');
     if (!textContent || textContent.type !== 'text') {
@@ -263,7 +272,8 @@ export class AnthropicInferenceClient implements InferenceClient {
     this.logger?.info('Structured generation completed', {
       model: this.modelId,
       items: parsed.length,
-      stopReason: response.stop_reason
+      stopReason: response.stop_reason,
+      requestId: requestIdOf(response),
     });
 
     return {
@@ -273,9 +283,9 @@ export class AnthropicInferenceClient implements InferenceClient {
   }
 
   /** Issue the request, recording an error metric if the transport throws. */
-  private async recordedRequest(params: Anthropic.MessageCreateParamsNonStreaming, start: number): Promise<Anthropic.Message> {
+  private async recordedRequest(params: Anthropic.MessageCreateParamsNonStreaming, start: number, signal?: AbortSignal): Promise<Anthropic.Message> {
     try {
-      return await this.requestMessage(params);
+      return await this.requestMessage(params, signal);
     } catch (err) {
       recordInferenceUsage({
         provider: this.type,
@@ -297,4 +307,17 @@ export class AnthropicInferenceClient implements InferenceClient {
       outputTokens: response.usage?.output_tokens,
     });
   }
+}
+
+/**
+ * The provider's request id, for correlating our logs with Anthropic's and
+ * telling one attempt from another. The SDK attaches `_request_id` to the
+ * returned message at runtime but does not declare it on the `Message` type,
+ * so it is read through a guard rather than a cast.
+ */
+function requestIdOf(response: unknown): string | undefined {
+  if (isObject(response) && typeof response['_request_id'] === 'string') {
+    return response['_request_id'];
+  }
+  return undefined;
 }

@@ -99,6 +99,20 @@ describe('OllamaInferenceClient - limits() discovery', () => {
   });
 });
 
+describe('OllamaInferenceClient - cancellation threads to the transport (ABANDONED-INFERENCE P1)', () => {
+  it('passes the AbortSignal into the generate fetch', async () => {
+    const fetchMock = stubRoutedFetch();
+    const controller = new AbortController();
+
+    const client = new OllamaInferenceClient('llama3', 'http://localhost:11434');
+    await client.generateText('p', 100, 0, controller.signal);
+
+    const generateCall = callsTo(fetchMock, '/api/generate')[0];
+    const init = generateCall[1] as { signal?: AbortSignal };
+    expect(init.signal).toBe(controller.signal);
+  });
+});
+
 describe('OllamaInferenceClient - managed num_ctx', () => {
   it('sets num_ctx explicitly, covering prompt estimate + output budget within the window', async () => {
     const fetchMock = stubRoutedFetch();

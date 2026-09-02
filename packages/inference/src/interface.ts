@@ -8,8 +8,8 @@ export interface InferenceResponse {
 /**
  * Raw JSON Schema for ONE array element of a structured generation — a plain
  * object, not a TS type and not a validator instance. Both providers consume
- * JSON Schema directly (Anthropic nests it under the forced tool's
- * `input_schema`; Ollama sends it as `format: { type: 'array', items: … }`),
+ * JSON Schema directly (Anthropic as the array-root schema under
+ * `output_config.format`; Ollama as `format: { type: 'array', items: … }`),
  * so anything richer would abstract one shape with two consumers.
  *
  * Constrain it to what both providers enforce: objects,
@@ -74,14 +74,24 @@ export interface InferenceClient {
   limits(): Promise<InferenceLimits>;
 
   /**
-   * Generate text from a prompt (simple interface)
+   * Generate text from a prompt (simple interface).
+   *
+   * `signal` (here and on every generation method — a trailing optional
+   * parameter, deliberately not an options bag; STRUCTURED-INFERENCE removed
+   * that shape on purpose): true cancellation, ABANDONED-INFERENCE P1.
+   * Implementations MUST thread it to their transport so an abort tears down
+   * the underlying request — and, for SDKs with internal retry loops, ends
+   * those too — rejecting promptly. Accepting the parameter and ignoring it
+   * is a defect worse than not having it: cancellation tests pass against
+   * such an adapter while zombie requests keep running (and billing) in
+   * production.
    */
-  generateText(prompt: string, maxTokens: number, temperature: number): Promise<string>;
+  generateText(prompt: string, maxTokens: number, temperature: number, signal?: AbortSignal): Promise<string>;
 
   /**
    * Generate text with detailed response information
    */
-  generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number): Promise<InferenceResponse>;
+  generateTextWithMetadata(prompt: string, maxTokens: number, temperature: number, signal?: AbortSignal): Promise<InferenceResponse>;
 
   /**
    * Generate a JSON array whose elements satisfy `elementSchema`, as parsed
@@ -101,5 +111,6 @@ export interface InferenceClient {
     maxTokens: number,
     temperature: number,
     elementSchema: ElementSchema,
+    signal?: AbortSignal,
   ): Promise<StructuredResponse<T>>;
 }

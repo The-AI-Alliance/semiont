@@ -91,9 +91,15 @@ interface InferenceClient {
   readonly modelId: string;  // configured model name
 
   limits(): Promise<InferenceLimits>;
-  generateText(prompt, maxTokens, temperature, options?): Promise<string>;
-  generateTextWithMetadata(prompt, maxTokens, temperature, options?): Promise<InferenceResponse>;
+  generateText(prompt, maxTokens, temperature, signal?): Promise<string>;
+  generateTextWithMetadata(prompt, maxTokens, temperature, signal?): Promise<InferenceResponse>;
+  generateStructured<T>(prompt, maxTokens, temperature, elementSchema, signal?): Promise<StructuredResponse<T>>;
 }
+```
+
+Every generation method takes a trailing optional `AbortSignal`: aborting tears down the underlying transport (and, on Anthropic, the SDK's internal retry loop) so a cancelled call rejects promptly instead of surviving as a billed background request. Implementations must honor it — accepting and ignoring the signal is a defect.
+
+```typescript
 
 interface InferenceLimits {
   contextTokens: number;     // context window (Anthropic: max input; Ollama: shared input+output)

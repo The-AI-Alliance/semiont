@@ -55,20 +55,23 @@ interface InferenceClient {
   generateText(
     prompt: string,
     maxTokens: number,
-    temperature: number
+    temperature: number,
+    signal?: AbortSignal
   ): Promise<string>;
 
   generateTextWithMetadata(
     prompt: string,
     maxTokens: number,
-    temperature: number
+    temperature: number,
+    signal?: AbortSignal
   ): Promise<InferenceResponse>;
 
   generateStructured<T>(
     prompt: string,
     maxTokens: number,
     temperature: number,
-    elementSchema: ElementSchema
+    elementSchema: ElementSchema,
+    signal?: AbortSignal
   ): Promise<StructuredResponse<T>>;
 }
 
@@ -79,6 +82,8 @@ interface InferenceResponse {
 ```
 
 `generateText` is `generateTextWithMetadata` with the metadata dropped.
+
+**Cancellation** (`signal`, trailing optional on every generation method): aborting tears down the underlying transport — Ollama's `fetch`, or the Anthropic SDK request on both its paths, where the SDK also checks the signal between its internal retries — so a cancelled call rejects promptly (`AbortError` / `APIUserAbortError`) rather than surviving as a billed background request. Implementations must honor the signal; accepting and ignoring it is a defect (the mock rejects on an aborted signal for exactly this reason). `limits()` takes no signal — discovery is quick and isn't wrapped by any caller timeout.
 
 ### InferenceLimits / limits()
 

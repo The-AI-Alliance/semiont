@@ -118,6 +118,65 @@ describe('AnthropicInferenceClient - plain text mode unchanged', () => {
   });
 });
 
+describe('AnthropicInferenceClient - cancellation threads to the SDK (ABANDONED-INFERENCE P1)', () => {
+  beforeEach(() => {
+    createMock.mockReset();
+    retrieveMock.mockReset();
+    streamMock.mockReset();
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
+  });
+
+  it('forwards the AbortSignal into the SDK request options (create path)', async () => {
+    createMock.mockResolvedValue({
+      content: [{ type: 'text', text: 'ok' }],
+      stop_reason: 'end_turn',
+      usage: {},
+    });
+    const controller = new AbortController();
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+    await client.generateText('p', 100, 0, controller.signal);
+
+    // The SDK aborts the live attempt AND checks the signal between its own
+    // internal retries — forwarding it is what turns our timeout from an
+    // abandonment into a cancellation.
+    const opts = createMock.mock.calls[0][1] as { signal?: AbortSignal } | undefined;
+    expect(opts?.signal).toBe(controller.signal);
+  });
+
+  it('forwards the AbortSignal on the structured path too', async () => {
+    createMock.mockResolvedValue({
+      content: [{ type: 'text', text: '[]' }],
+      stop_reason: 'end_turn',
+      usage: {},
+    });
+    const controller = new AbortController();
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+    await client.generateStructured('p', 100, 0, TEST_ELEMENT, controller.signal);
+
+    const opts = createMock.mock.calls[0][1] as { signal?: AbortSignal } | undefined;
+    expect(opts?.signal).toBe(controller.signal);
+  });
+
+  it('forwards the AbortSignal on the internal-streaming path (large budgets)', async () => {
+    streamMock.mockReturnValue({
+      finalMessage: async () => ({
+        content: [{ type: 'text', text: '[]' }],
+        stop_reason: 'end_turn',
+        usage: {},
+      }),
+    });
+    const controller = new AbortController();
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+    await client.generateStructured('p', 64_000, 0, TEST_ELEMENT, controller.signal);
+
+    const opts = streamMock.mock.calls[0][1] as { signal?: AbortSignal } | undefined;
+    expect(opts?.signal).toBe(controller.signal);
+  });
+});
+
 describe('AnthropicInferenceClient - limits() discovery', () => {
   beforeEach(() => {
     createMock.mockReset();

@@ -177,6 +177,7 @@ Example output:
       // Still alive, same position: a long single call would otherwise emit
       // nothing at all between start and finish.
       () => onActivity?.(i, chunks.length),
+      logger,
     );
     logger.debug('Got entity extraction response', {
       chunk: i + 1,
