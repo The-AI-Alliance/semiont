@@ -14,11 +14,14 @@ A local deployment runs six containers of Semiont code, seven with the Browser, 
 
 ### Who talks to whom
 
-The communication plane: the user, the SPA server, and every process-to-process edge — bus and bytes.
+The communication plane: the SDK clients, the SPA server, and every process-to-process edge — bus and bytes.
 
 ```mermaid
 graph TB
-    USER["User's desktop<br/>web browser — runs the SPA"]
+    USER["User's desktop<br/>web browser — runs the SPA · @semiont/sdk"]
+    INGEST["Content ingestion<br/>@semiont/sdk"]
+    CURATE["Content curation<br/>@semiont/sdk"]
+    AGENT["Agentic workflows<br/>@semiont/sdk"]
 
     BROWSERC["semiont-browser<br/>static SPA server"]
     GW["semiont-gateway<br/>bus relay · identity · job queue · content proxy"]
@@ -31,6 +34,9 @@ graph TB
 
     USER -->|assets| BROWSERC
     USER <-->|bus| GW
+    INGEST <--> GW
+    CURATE <--> GW
+    AGENT <--> GW
 
     GW <--> LIB
     GW <--> WORKER
@@ -43,16 +49,16 @@ graph TB
     WORKER --> ARCH
     SMELT --> ARCH
 
-    classDef user fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
+    classDef client fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
     classDef svc fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
     classDef hub fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000
 
-    class USER,BROWSERC user
+    class USER,INGEST,CURATE,AGENT,BROWSERC client
     class LIB,WORKER,SMELT,WEAVE,ARCH svc
     class GW hub
 ```
 
-The bidirectional edges are the bus (`POST /bus/emit`, `POST /bus/subscribe` as SSE) — connective fabric, not a box, and the gateway hosts **no actors**: every service subscribes over those two endpoints like any other participant, with each rectangle enumerating what runs inside it. The archivist-pointing edges are the byte plane: the gateway proxies content for external clients; the smelter, librarian, and workers dial the archivist directly. The SPA *executes in the user's web browser* — `semiont-browser` only serves its static assets, which is why it needs no config and no gateway connection of its own.
+The bidirectional edges are the bus (`POST /bus/emit`, `POST /bus/subscribe` as SSE) — connective fabric, not a box, and the gateway hosts **no actors**: every service subscribes over those two endpoints like any other participant, with each rectangle enumerating what runs inside it. The blue rectangles are the bus's clients, and every one of them speaks `@semiont/sdk` — the SPA in the user's browser, and the same client shape without a UI for content ingestion, content curation, and agentic workflows (scripts and agents driving the KB; the CLI and MCP server are instances of it). The archivist-pointing edges are the byte plane: the gateway proxies content for external clients; the smelter, librarian, and workers dial the archivist directly. The SPA *executes in the user's web browser* — `semiont-browser` only serves its static assets, which is why it needs no config and no gateway connection of its own.
 
 ### What attaches to what
 

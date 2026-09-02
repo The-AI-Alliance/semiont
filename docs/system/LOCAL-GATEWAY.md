@@ -18,7 +18,7 @@ echo password | semiont useradd --email admin@example.com --admin
 ```
 
 The launcher pulls the published, attested Semiont service images
-(`ghcr.io/the-ai-alliance/semiont-{gateway,worker,smelter,weaver,browser}`),
+(`ghcr.io/the-ai-alliance/semiont-{gateway,archivist,librarian,worker,smelter,weaver,browser}`),
 starts them alongside the infrastructure containers (Neo4j, Qdrant,
 PostgreSQL), and bind-mounts the KB's config at runtime — KB repos build no
 images. Nothing auto-creates an account: `semiont useradd` makes the first

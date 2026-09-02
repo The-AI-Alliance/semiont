@@ -29,7 +29,7 @@ inference — `ollama`.
 - **The `semiont` launcher** (host-installed via
   `brew install the-ai-alliance/semiont/semiont`) — `semiont start` from a KB directory. This is the
   supported path, local or GitHub Codespaces. See [apps/launcher](../../../apps/launcher/README.md).
-- **`docker compose`** against a KB's own `.semiont/compose/gateway.yml`, which pulls the same
+- **`docker compose`** against a KB's own `.semiont/compose/backend.yml`, which pulls the same
   published images — equivalent end state to `semiont start`.
 
 See [CONTAINER-TOPOLOGY.md](../CONTAINER-TOPOLOGY.md) for how the containers relate.

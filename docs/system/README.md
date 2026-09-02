@@ -22,8 +22,8 @@ The deeper story splits across the docs below — each focused on one diagram an
 |---|---|
 | **[ACTOR-MODEL.md](ACTOR-MODEL.md)** | The actor topology, six actor categories (Reader, Analyst, Author, Marker, Generator, Linker), Feeder + content streams, and why human ↔ AI peer collaboration falls out of the design. *Diagram: actor topology.* |
 | **[HUMAN-UI.md](HUMAN-UI.md)** | The Semiont Browser SPA — Vite + React, state-unit split, RxJS SDK client, multi-KB session model. How human actors connect to the bus. *Diagram: SPA architecture.* |
-| **[KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md)** | The five reactive KB actors (Stower, Gatherer, Matcher, Browser, Smelter) that mediate every read and write to the knowledge base, plus the storage layout (event log, materialized views, content store, graph, vectors). *Diagram: knowledge system.* |
-| **[CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md)** | Multi-container deployment: how the four Semiont-code containers (browser, gateway, worker, smelter) and four infrastructure containers (postgres, neo4j, qdrant, ollama) fit together; the unified bus contract and `SemiontSession`; deployment platforms (POSIX / Container / AWS). *Diagram: container topology.* |
+| **[KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md)** | The seven reactive KB actors — five access actors (Stower, Browser, Gatherer, Matcher, CloneTokenManager) and two projection pipelines (Weaver, Smelter) — that mediate every read and write to the knowledge base, plus the storage layout (event log, materialized views, content store, graph, vectors, anchored text). *Diagram: knowledge system.* |
+| **[CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md)** | Multi-container deployment: how the seven Semiont containers (gateway, archivist, librarian, worker, smelter, weaver, browser) and the infrastructure containers (postgres, neo4j, qdrant, ollama, jaeger) fit together; the unified bus contract and `SemiontSession`; deployment platforms. *Diagrams: who talks to whom · what attaches to what.* |
 | **[ANCHORING.md](ANCHORING.md)** | How an annotation knows *where* it points: the shared `AnchoredText` vocabulary, the `locate`/`textUnder` inverse pair, and the pipeline that gives a scanned page a coordinate map — derived once at ingest, stored, served behind the settle barrier, and read by the canvas. Why annotation targets are fixed at birth. |
 | **[PACKAGE-ARCHITECTURE.md](PACKAGE-ARCHITECTURE.md)** | The workspace packages organized by layer (foundation → wire → SDK → AI → application logic), the actual `package.json` dependency graph, and the five architectural principles that govern dependency direction. *Diagram: layered package dependencies.* |
 
@@ -38,6 +38,7 @@ Day-2 concerns — deploying, securing, observing, scaling, troubleshooting:
 ## Project layout & local-run
 
 - **[PROJECT-LAYOUT.md](PROJECT-LAYOUT.md)** — `.semiont/config` and the project-anchor convention.
+- **[LOCAL-GATEWAY.md](LOCAL-GATEWAY.md)** — running the full local stack with the `semiont` launcher: start, useradd, logs, status, stop.
 - **[LOCAL-SEMIONT.md](LOCAL-SEMIONT.md)** — installing and running Semiont locally; per-platform local-network notes the browser container needs.
 
 ## Cross-references

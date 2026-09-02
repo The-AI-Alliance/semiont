@@ -58,8 +58,8 @@ Each KB repo ships its own compose file that pulls the same published images:
 
 ```bash
 cd /path/to/your-kb
-docker compose -f .semiont/compose/gateway.yml up
-docker compose -f .semiont/compose/gateway.yml pull    # refresh a cached :latest
+docker compose -f .semiont/compose/backend.yml up
+docker compose -f .semiont/compose/backend.yml pull    # refresh a cached :latest
 ```
 
 Equivalent end state to `semiont start`. Pin a version with `SEMIONT_VERSION`; select an inference

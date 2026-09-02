@@ -1,6 +1,6 @@
 # Package Architecture
 
-Semiont is a monorepo. Workspace packages are organized in layers from low-level primitives to high-level application logic; consumers (`apps/gateway`, `apps/browser`) sit on top.
+Semiont is a monorepo. Workspace packages are organized in layers from low-level primitives to high-level application logic; consumers (`apps/gateway`, `apps/browser`) sit on top. The other service images (archivist, librarian, worker, smelter, weaver) run entry points that live inside the packages themselves — `@semiont/make-meaning`'s `*-main` modules and `@semiont/jobs`' worker; their `apps/<svc>/` directories hold only the Dockerfile.
 
 For the per-package descriptions and npm metadata, see **[../../packages/README.md](../../packages/README.md)** — alphabetized table with one-line descriptions of every published `@semiont/*` package.
 
@@ -39,7 +39,6 @@ graph BT
     %% Application dependencies
     gateway --> meaning
     gateway --> jobs
-    gateway --> event
     gateway --> obs
     gateway --> core
     Browser --> react
