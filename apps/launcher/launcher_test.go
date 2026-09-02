@@ -5622,7 +5622,7 @@ func TestInitBirthsIdentity(t *testing.T) {
 	s.cwd = t.TempDir()
 	stdout, stderr, code := s.run(t, "init",
 		"--name", "family-kb", "--domain", "pingel-org.github.io:family-kb",
-		"--site-name", "Family KB", "--admin-email", "a@b.co", "--yes")
+		"--site-name", "Family KB", "--yes")
 	if code != 0 {
 		t.Fatalf("init: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
@@ -5634,8 +5634,20 @@ func TestInitBirthsIdentity(t *testing.T) {
 		`name = "family-kb"`,
 		`domain = "pingel-org.github.io:family-kb"`,
 		`siteName = "Family KB"`,
-		`adminEmail = "a@b.co"`,
-		`sync = true`)
+		`sync = true`,
+		// The gateway REFUSES to boot without an allowlist (jwt.ts:
+		// "site.oauthAllowedDomains is required"), and nothing else supplies
+		// one — confgen emits no [site]. A KB born without this key could
+		// never start, which is what shipped until 2026-09-01. Reserved
+		// (RFC 2606), so it admits nobody until widened deliberately.
+		`oauthAllowedDomains = ["example.com"]`)
+	// Two fields the fleet's KBs do not carry, so a born KB must not either:
+	// `version` is bumped by nothing, and `adminEmail` reaches no reader.
+	for _, dead := range []string{"version =", "adminEmail"} {
+		if strings.Contains(string(cfg), dead) {
+			t.Errorf("init wrote %q — the fleet's committed configs carry neither:\n%s", dead, cfg)
+		}
+	}
 	// The launcher runs git with -C <dir>; assert the subcommands.
 	mustContain(t, "argv", s.argv(t), " init", " add .semiont")
 	roots, _ := os.ReadFile(filepath.Join(s.home, ".local", "state", "semiont", "roots.json"))
@@ -5716,7 +5728,7 @@ func TestInitInteractivePrompts(t *testing.T) {
 	s := newScenario(t, "container")
 	s.cwd = t.TempDir()
 	s.stdin = "d.example.org:kb\nMy KB\n"
-	stdout, stderr, code := s.run(t, "init", "--name", "kb", "--admin-email", "a@b.co")
+	stdout, stderr, code := s.run(t, "init", "--name", "kb")
 	if code != 0 {
 		t.Fatalf("interactive init: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
