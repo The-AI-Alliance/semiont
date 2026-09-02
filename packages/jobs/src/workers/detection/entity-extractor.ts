@@ -1,7 +1,7 @@
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
 import { chunkText, estimateTokens, getLocaleEnglishName, isObject, isString, type Logger } from '@semiont/core';
 import { boundedGenerateStructured } from '../inference-call';
-import { deriveDetectionBudget } from './detection-chunking';
+import { assertNotTruncated, deriveDetectionBudget } from './detection-chunking';
 
 /**
  * Entity reference extracted from text — pre-reconciliation.
@@ -185,15 +185,10 @@ Example output:
       items: response.items.length,
     });
 
-    // Truncation is data loss, not "no entities" — check it BEFORE consuming.
-    // A truncated structured response can still carry a valid partial array,
-    // so the items themselves cannot signal the loss. Fail loudly; with
-    // derived budgets this fires only on pathological density.
-    if (response.stopReason === 'max_tokens') {
-      const errorMsg = `Entity extraction response truncated (max_tokens) on chunk ${i + 1}/${chunks.length} despite the derived output budget of ${outputBudget} tokens — failing the job rather than dropping annotations.`;
-      logger.error(errorMsg, { items: response.items.length });
-      throw new Error(errorMsg);
-    }
+    // Truncation is data loss, not "no entities" — check it BEFORE consuming:
+    // a truncated structured response can still carry a valid partial array,
+    // so the items themselves cannot signal the loss.
+    assertNotTruncated(response, 'Entity extraction', i + 1, chunks.length, outputBudget);
 
     for (const e of response.items) {
       // No dedupe here: overlap duplicates from adjacent chunks pass through

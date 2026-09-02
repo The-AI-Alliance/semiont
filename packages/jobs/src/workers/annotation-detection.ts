@@ -13,8 +13,7 @@
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
 import { chunkText, estimateTokens } from '@semiont/core';
 import { boundedGenerateStructured } from './inference-call';
-import { DeterministicJobError } from '../failure-class';
-import { deriveDetectionBudget } from './detection/detection-chunking';
+import { assertNotTruncated, deriveDetectionBudget } from './detection/detection-chunking';
 import { MotivationPrompts } from './detection/motivation-prompts';
 import {
   MotivationParsers,
@@ -28,22 +27,6 @@ import {
   type TagMatch,
 } from './detection/motivation-parsers';
 import type { TagSchema } from '@semiont/core';
-
-/**
- * A `max_tokens` stop reason means the model's JSON was cut off mid-stream.
- * Post-tool-use that still yields a syntactically-valid but incomplete array
- * (structured output serializes whatever was generated), so it would parse
- * cleanly and silently under-report. Fail the job loudly instead — parity
- * with the entity-extractor path. With derived budgets this fires only on
- * pathological annotation density.
- */
-function assertNotTruncated(response: { stopReason: string }, motivation: string, chunk: number, totalChunks: number, outputBudget: number): void {
-  if (response.stopReason === 'max_tokens') {
-    // Same input truncates the same way — a retry is guaranteed waste, so
-    // this is a DeterministicJobError (ABANDONED-INFERENCE P3, A4).
-    throw new DeterministicJobError(`${motivation} detection response truncated (max_tokens) on chunk ${chunk}/${totalChunks} despite the derived output budget of ${outputBudget} tokens — failing the job rather than under-reporting annotations.`);
-  }
-}
 
 /**
  * Per-chunk detection loop shared by the four motivations.
@@ -86,7 +69,7 @@ async function detectInChunks<T>(
       // Still alive, same position (a long single call is otherwise silent).
       () => onActivity?.(i, chunks.length),
     );
-    assertNotTruncated(response, motivation, i + 1, chunks.length, outputBudget);
+    assertNotTruncated(response, `${motivation} detection`, i + 1, chunks.length, outputBudget);
     collected.push(...parse(response.items));
     if (i < chunks.length - 1) {
       onActivity?.(i + 1, chunks.length);
