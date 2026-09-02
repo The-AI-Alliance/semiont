@@ -21,6 +21,13 @@
     },
     "error": {
       "type": "string"
+    },
+    "completedUnits": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Entity-type units whose annotations were fully emitted before this failure (checkpointed resume). The queue records them on the retried job's metadata; a retried claim skips them so completed work is neither redone nor duplicated."
     }
   },
   "required": [

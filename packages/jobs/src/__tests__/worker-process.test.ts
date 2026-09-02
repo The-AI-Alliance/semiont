@@ -169,7 +169,11 @@ function makeConfig(session: SemiontSession): WorkerProcessConfig {
   };
 }
 
-function makeJob(type: ActiveJob['type'], paramsOverride: Record<string, unknown> = {}): ActiveJob {
+function makeJob(
+  type: ActiveJob['type'],
+  paramsOverride: Record<string, unknown> = {},
+  completedUnits: string[] = [],
+): ActiveJob {
   return {
     jobId: JID,
     type,
@@ -178,6 +182,7 @@ function makeJob(type: ActiveJob['type'], paramsOverride: Record<string, unknown
     // Generation params must satisfy the wire's required trio (the worker
     // guard enforces it); overrides still win.
     params: { resourceId: RID, ...(type === 'generation' ? GEN_REQUIRED : {}), ...paramsOverride },
+    completedUnits,
   } as ActiveJob;
 }
 
@@ -266,21 +271,9 @@ describe('handleJob orchestration', () => {
     });
   });
 
-  describe('reference-annotation', () => {
-    it('emits job:start, mark:create per annotation, then job:complete', async () => {
-      vi.mocked(processReferenceJob).mockResolvedValue({
-        annotations: [{ id: 'r1' }, { id: 'r2' }, { id: 'r3' }] as never,
-        result: { totalFound: 3, totalEmitted: 3, errors: 0 } as never,
-      });
-      const h = makeFakeSessionAndAdapter();
-
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('reference-annotation'));
-
-      expect(h.busEmits.map(e => e.channel))
-        .toEqual(['job:start', 'mark:create', 'mark:create', 'mark:create', 'job:complete']);
-      expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
-    });
-  });
+  // The reference-annotation branch commits per unit through
+  // `onUnitComplete` — covered by the 'checkpointed resume' describes at
+  // the end of this file, which superseded the old post-run-batch test.
 
   describe('tag-annotation', () => {
     it('emits job:start, mark:create per annotation, then job:complete', async () => {
@@ -745,7 +738,7 @@ describe('handleJob orchestration', () => {
       const h = makeFakeSessionAndAdapter();
 
       await expect(
-        handleJob(h.adapter, makeConfig(h.session), makeJob('reference-annotation'))
+        handleJob(h.adapter, makeConfig(h.session), makeJob('reference-annotation', { entityTypes: ['Person'] }))
       ).rejects.toThrow('inference blew up');
 
       // On failure, handleJob itself does NOT emit job:complete.
@@ -769,7 +762,7 @@ describe('handleJob orchestration', () => {
       } as never);
 
       await expect(
-        handleJob(h.adapter, makeConfig(h.session), makeJob('reference-annotation'))
+        handleJob(h.adapter, makeConfig(h.session), makeJob('reference-annotation', { entityTypes: ['Person'] }))
       ).rejects.toThrow(/has no extractable text/);
 
       expect(h.session.client.browse.resourceContent).not.toHaveBeenCalled();
@@ -800,7 +793,7 @@ describe('handleJob orchestration', () => {
         arm: () => { vi.mocked(processAssessmentJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
         lastCall: () => vi.mocked(processAssessmentJob).mock.calls[0] },
       { jobType: 'reference-annotation',
-        arm: () => { vi.mocked(processReferenceJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
+        arm: () => { vi.mocked(processReferenceJob).mockResolvedValue({ result: {} as never }); },
         lastCall: () => vi.mocked(processReferenceJob).mock.calls[0] },
       { jobType: 'tag-annotation',
         arm: () => { vi.mocked(processTagJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
@@ -819,7 +812,13 @@ describe('handleJob orchestration', () => {
       }),
       } as never);
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob(jobType));
+      await handleJob(
+        h.adapter,
+        makeConfig(h.session),
+        // The reference branch reads entityTypes before dispatching to the
+        // (mocked) processor — give it the params a real job always carries.
+        makeJob(jobType, jobType === 'reference-annotation' ? { entityTypes: ['Person'] } : {}),
+      );
 
       // pdf-text-layer fetches the representation bytes, never resourceContent.
       expect(getBinary).toHaveBeenCalled();
@@ -1060,7 +1059,7 @@ describe('startWorkerProcess', () => {
     const h = makeFakeSessionAndAdapter();
     startWorkerProcess(makeConfig(h.session));
 
-    activeJob$.next(makeJob('reference-annotation', { referenceId: 'ann-1' }));
+    activeJob$.next(makeJob('reference-annotation', { referenceId: 'ann-1', entityTypes: ['Person'] }));
     await new Promise((r) => setTimeout(r, 10));
 
     // Outer handler emits job:fail on the bus and calls adapter.failJob.
@@ -1097,3 +1096,102 @@ describe('referenceIdOf', () => {
   });
 });
 
+
+// ── Checkpointed resume (ABANDONED-INFERENCE P2, A3) ──────────────────
+// The worker owns the unit commit: it passes `onUnitComplete` into
+// `processReferenceJob`, emits the unit's mark:creates as they complete
+// (the post-run batch was N2's mechanism), accumulates the completed unit
+// names, carries them on job:fail, and skips checkpointed units on a
+// retried claim.
+
+describe('reference-annotation — checkpointed resume', () => {
+  it('emits per unit through the commit callback, with no post-run re-emission', async () => {
+    vi.mocked(processReferenceJob).mockImplementation(
+      async (_content, _client, _params, _build, _progress, _logger, onUnitComplete) => {
+        await onUnitComplete('Person', [{ id: 'r1' }] as never);
+        await onUnitComplete('Date', [] as never);
+        await onUnitComplete('Location', [{ id: 'r2' }, { id: 'r3' }] as never);
+        return { result: { kind: 'reference-annotation', totalFound: 3, totalEmitted: 3, errors: 0 } as never };
+      },
+    );
+    const h = makeFakeSessionAndAdapter();
+
+    await handleJob(h.adapter, makeConfig(h.session), makeJob('reference-annotation', { entityTypes: ['Person', 'Date', 'Location'] }));
+
+    // Exactly the callback's emissions — one per annotation, in unit order,
+    // and nothing re-emitted after the processor returns.
+    expect(h.busEmits.map(e => e.channel))
+      .toEqual(['job:start', 'mark:create', 'mark:create', 'mark:create', 'job:complete']);
+    expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
+  });
+
+  it('a retried claim skips checkpointed units — the processor never sees them (A3 ii)', async () => {
+    vi.mocked(processReferenceJob).mockImplementation(
+      async () => ({ result: { kind: 'reference-annotation', totalFound: 0, totalEmitted: 0, errors: 0 } as never }),
+    );
+    const h = makeFakeSessionAndAdapter();
+
+    await handleJob(
+      h.adapter,
+      makeConfig(h.session),
+      makeJob('reference-annotation', { entityTypes: ['Person', 'Date', 'Location'] }, ['Person', 'Date']),
+    );
+
+    const params = vi.mocked(processReferenceJob).mock.calls[0]![2] as { entityTypes: unknown[] };
+    expect(params.entityTypes.map(String)).toEqual(['Location']);
+  });
+});
+
+describe('startWorkerProcess — job:fail carries the checkpoint (A3 i/iv feed)', () => {
+  it('accumulates committed units and puts them on the job:fail payload', async () => {
+    const { BehaviorSubject } = await import('rxjs');
+    const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
+    const failJob = vi.fn();
+
+    vi.doMock('../job-claim-adapter', () => ({
+      createJobClaimAdapter: vi.fn(() => ({
+        activeJob$: activeJob$.asObservable(),
+        isProcessing$: { subscribe: vi.fn() },
+        jobsCompleted$: { subscribe: vi.fn() },
+        errors$: { subscribe: vi.fn() },
+        start: vi.fn(),
+        stop: vi.fn(),
+        completeJob: vi.fn(),
+        failJob,
+        dispose: vi.fn(),
+        vitals: vi.fn(),
+        touchActivity: vi.fn(),
+      })),
+    }));
+    vi.resetModules();
+    const { startWorkerProcess } = await import('../worker-process');
+
+    // Two units commit, then the third stalls — the failure payload must
+    // name what completed so the retry can skip it.
+    vi.mocked(processReferenceJob).mockImplementation(
+      async (_content, _client, _params, _build, _progress, _logger, onUnitComplete) => {
+        await onUnitComplete('Person', [{ id: 'a1' }] as never);
+        await onUnitComplete('Date', [] as never);
+        throw new Error('Location stalled');
+      },
+    );
+
+    const h = makeFakeSessionAndAdapter();
+    startWorkerProcess(makeConfig(h.session));
+
+    activeJob$.next(makeJob('reference-annotation', { entityTypes: ['Person', 'Date', 'Location'] }));
+    await new Promise((r) => setTimeout(r, 10));
+
+    const failEmit = h.busEmits.find((e) => e.channel === 'job:fail');
+    expect(failEmit).toBeDefined();
+    expect(failEmit!.payload).toMatchObject({
+      jobId: JID,
+      error: 'Location stalled',
+      completedUnits: ['Person', 'Date'],
+    });
+    expect(failJob).toHaveBeenCalledWith(JID, 'Location stalled');
+
+    vi.doUnmock('../job-claim-adapter');
+    vi.resetModules();
+  });
+});

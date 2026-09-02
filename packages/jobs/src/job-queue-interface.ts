@@ -12,9 +12,11 @@ export interface JobQueue {
   /**
    * Move a running job back to `pending` (retry, re-announced) while
    * `retryCount < maxRetries`, else to `failed`. Returns what happened,
-   * or null if the job isn't running.
+   * or null if the job isn't running. `completedUnits` — the units the
+   * failing attempt fully emitted — are unioned into the record's
+   * checkpoint (ABANDONED-INFERENCE P2) so a retry skips them.
    */
-  failJob(jobId: JobId, error: string): Promise<'retried' | 'failed' | null>;
+  failJob(jobId: JobId, error: string, completedUnits?: string[]): Promise<'retried' | 'failed' | null>;
   /** Write progress into a running job's file (throttled, best-effort). */
   recordProgress(jobId: JobId, progress: Record<string, unknown>): Promise<void>;
   /**

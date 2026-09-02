@@ -260,26 +260,30 @@ describe('processReferenceJob', () => {
     ]);
 
     const progress = vi.fn();
-    const result = await processReferenceJob(
+    const committed: unknown[] = [];
+    const outcome = await processReferenceJob(
       'Paris and Berlin',
       makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild('Paris and Berlin'),
       progress,
       LOGGER,
+      async (_unit, annotations) => {
+        committed.push(...annotations);
+      },
     );
 
-    expect(result.annotations).toHaveLength(2);
-    expect((result.annotations[0] as any).motivation).toBe('linking');
+    expect(committed).toHaveLength(2);
+    expect((committed[0] as any).motivation).toBe('linking');
     // Canonical unresolved-linking body — single-item array with the
     // entity type as a tagging TextualBody, stamped with format and the
     // body locale (defaults to 'en'). The bind flow later appends a
     // SpecificResource to resolve. Do not emit `[]` — that breaks the
     // append contract and trips the Annotation.body oneOf.
-    expect((result.annotations[0] as any).body).toEqual([
+    expect((committed[0] as any).body).toEqual([
       { type: 'TextualBody', value: 'Location', purpose: 'tagging', format: 'text/plain', language: 'en' },
     ]);
-    expect(result.result).toEqual({ kind: 'reference-annotation', totalFound: 2, totalEmitted: 2, errors: 0 });
+    expect(outcome.result).toEqual({ kind: 'reference-annotation', totalFound: 2, totalEmitted: 2, errors: 0 });
   });
 
   it('counts errors when reconciliation drops an entity (text not in source)', async () => {
@@ -290,33 +294,40 @@ describe('processReferenceJob', () => {
       { exact: 'BADTEXT', start: 99, end: 106, entityType: 'Thing' } as any,
     ]);
 
-    const result = await processReferenceJob(
+    const committed: unknown[] = [];
+    const outcome = await processReferenceJob(
       'good stuff',
       makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Thing')] },
       textBuild('good stuff'),
       vi.fn(),
       LOGGER,
+      async (_unit, annotations) => {
+        committed.push(...annotations);
+      },
     );
 
-    expect(result.annotations).toHaveLength(1);
-    expect(result.result).toEqual({ kind: 'reference-annotation', totalFound: 2, totalEmitted: 1, errors: 1 });
+    expect(committed).toHaveLength(1);
+    expect(outcome.result).toEqual({ kind: 'reference-annotation', totalFound: 2, totalEmitted: 1, errors: 1 });
   });
 
-  it('returns zero counts when no entities are found', async () => {
+  it('returns zero counts when no entities are found — and still commits the empty unit', async () => {
     vi.mocked(extractEntities).mockResolvedValue([]);
 
-    const result = await processReferenceJob(
+    const onUnitComplete = vi.fn(async () => {});
+    const outcome = await processReferenceJob(
       'content',
       makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild('content'),
       vi.fn(),
       LOGGER,
+      onUnitComplete,
     );
 
-    expect(result.annotations).toHaveLength(0);
-    expect(result.result).toEqual({ kind: 'reference-annotation', totalFound: 0, totalEmitted: 0, errors: 0 });
+    // Legitimately-empty is a completed unit (A3 v) — a retry must skip it.
+    expect(onUnitComplete).toHaveBeenCalledExactlyOnceWith('Location', []);
+    expect(outcome.result).toEqual({ kind: 'reference-annotation', totalFound: 0, totalEmitted: 0, errors: 0 });
   });
 });
 
@@ -794,15 +805,21 @@ describe('annotation attribution composition', () => {
       { exact: 'x', start: 0, end: 1, category: 'c' },
     ]);
 
+    const referenceCommitted: unknown[] = [];
     const sources = await Promise.all([
       processCommentJob('x', makeInferenceClient(), { resourceId: RID, density: 1 }, textBuild('x'), vi.fn()),
       processAssessmentJob('x', makeInferenceClient(), { resourceId: RID, density: 1 }, textBuild('x'), vi.fn()),
-      processReferenceJob('x', makeInferenceClient(), { resourceId: RID, entityTypes: [entityType('Person')] }, textBuild('x'), vi.fn(), LOGGER),
+      processReferenceJob('x', makeInferenceClient(), { resourceId: RID, entityTypes: [entityType('Person')] }, textBuild('x'), vi.fn(), LOGGER,
+        async (_unit, annotations) => { referenceCommitted.push(...annotations); }),
       processTagJob('x', makeInferenceClient(), { resourceId: RID, schema: 'schema-1', categories: ['c'], sourceLanguage: 'en' } as never, textBuild('x'), vi.fn()),
     ]);
 
-    for (const result of sources) {
-      const ann = result.annotations[0] as Record<string, unknown>;
+    const firstAnnotations = [
+      ...sources.flatMap((s) => ('annotations' in s ? [s.annotations[0]] : [])),
+      referenceCommitted[0],
+    ];
+    for (const first of firstAnnotations) {
+      const ann = first as Record<string, unknown>;
       expect(ann['creator']).toBeDefined();
       expect(ann['generator']).toBeDefined();
       expect(Array.isArray(ann['wasAttributedTo'])).toBe(true);
@@ -870,16 +887,20 @@ describe('locale threading', () => {
         { exact: 'Paris', start: 0, end: 5, entityType: 'Location' } as any,
       ]);
 
-      const result = await processReferenceJob(
+      const committed: unknown[] = [];
+      await processReferenceJob(
         'Paris',
         makeInferenceClient(),
         { resourceId: RID, entityTypes: [entityType('Location')], language: 'fr' },
         textBuild('Paris'),
         vi.fn(),
         LOGGER,
+        async (_unit, annotations) => {
+          committed.push(...annotations);
+        },
       );
 
-      expect((result.annotations[0] as any).body).toEqual([
+      expect((committed[0] as any).body).toEqual([
         { type: 'TextualBody', value: 'Location', purpose: 'tagging', format: 'text/plain', language: 'fr' },
       ]);
     });
@@ -982,7 +1003,7 @@ describe('locale threading', () => {
         'content', client,
         { resourceId: RID, entityTypes: [entityType('Location')], sourceLanguage: 'fr' },
         textBuild('content'), vi.fn(),
-        LOGGER,
+        LOGGER, async () => {},
       );
 
       expect(extractEntities).toHaveBeenCalledWith(
@@ -1215,18 +1236,22 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
       { exact: 'NoSuchPerson', start: 99, end: 111, entityType: 'Person' } as any,
     ]);
 
-    const result = await processReferenceJob(
+    const committed: unknown[] = [];
+    const outcome = await processReferenceJob(
       'Alice went to Paris.',
       makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Person')] },
       textBuild('Alice went to Paris.'),
       vi.fn(),
       LOGGER,
+      async (_unit, annotations) => {
+        committed.push(...annotations);
+      },
     );
 
-    expect(result.result).toEqual({ kind: 'reference-annotation', totalFound: 2, totalEmitted: 1, errors: 1 });
-    expect(result.annotations).toHaveLength(1);
-    const ann = result.annotations[0] as any;
+    expect(outcome.result).toEqual({ kind: 'reference-annotation', totalFound: 2, totalEmitted: 1, errors: 1 });
+    expect(committed).toHaveLength(1);
+    const ann = committed[0] as any;
     const posSel = ann.target.selector.find((s: any) => s.type === 'TextPositionSelector');
     const quoteSel = ann.target.selector.find((s: any) => s.type === 'TextQuoteSelector');
     expect((ann.target.source as string)).toBe(RID);
@@ -1309,18 +1334,22 @@ describe('annotation de-duplication', () => {
       { exact: 'Paris', entityType: 'Location' },
     ] as any);
 
-    const result = await processReferenceJob(
+    const committed: unknown[] = [];
+    const outcome = await processReferenceJob(
       'A trip to Paris.',
       makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild('A trip to Paris.'),
       vi.fn(),
       LOGGER,
+      async (_unit, annotations) => {
+        committed.push(...annotations);
+      },
     );
 
-    expect(result.annotations).toHaveLength(1);
-    expect(result.result.totalEmitted).toBe(1);
-    expect(result.result.totalFound).toBe(3);
+    expect(committed).toHaveLength(1);
+    expect(outcome.result.totalEmitted).toBe(1);
+    expect(outcome.result.totalFound).toBe(3);
   });
 
   it('reference: same span but different entity types are kept (not duplicates)', async () => {
@@ -1330,17 +1359,21 @@ describe('annotation de-duplication', () => {
       .mockResolvedValueOnce([{ exact: 'Mercury', entityType: 'Planet' }] as any)
       .mockResolvedValueOnce([{ exact: 'Mercury', entityType: 'Element' }] as any);
 
-    const result = await processReferenceJob(
+    const committed: unknown[] = [];
+    const outcome = await processReferenceJob(
       'The metal Mercury is dense.',
       makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Planet'), entityType('Element')] },
       textBuild('The metal Mercury is dense.'),
       vi.fn(),
       LOGGER,
+      async (_unit, annotations) => {
+        committed.push(...annotations);
+      },
     );
 
-    expect(result.annotations).toHaveLength(2);
-    expect(result.result.totalEmitted).toBe(2);
+    expect(committed).toHaveLength(2);
+    expect(outcome.result.totalEmitted).toBe(2);
   });
 
   it('highlight: duplicate identical highlights collapse to one', async () => {
@@ -1438,7 +1471,7 @@ describe('progress messages are codes, not prose (A6)', () => {
     await processReferenceJob(
       'Paris', makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Location')] },
-      textBuild('Paris'), progress, LOGGER,
+      textBuild('Paris'), progress, LOGGER, async () => {},
     );
 
     const messages = messagesFrom(progress);
@@ -1578,7 +1611,7 @@ describe('request parameters ride every event', () => {
     await processReferenceJob(
       'Paris', makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Location')] },
-      textBuild('Paris'), progress, LOGGER,
+      textBuild('Paris'), progress, LOGGER, async () => {},
     );
 
     const extras = extrasFrom(progress);
@@ -1608,7 +1641,7 @@ describe('what is in flight is reported one way (CLEAN-PROGRESS A4/A5)', () => {
     await processReferenceJob(
       'Paris', makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Location'), entityType('Person')] },
-      textBuild('Paris'), progress, LOGGER,
+      textBuild('Paris'), progress, LOGGER, async () => {},
     );
 
     const detecting = extrasFrom(progress).filter((e) => e?.current);
@@ -1654,7 +1687,7 @@ describe('what is in flight is reported one way (CLEAN-PROGRESS A4/A5)', () => {
     await processReferenceJob(
       'Paris', makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Location')] },
-      textBuild('Paris'), progress, LOGGER,
+      textBuild('Paris'), progress, LOGGER, async () => {},
     );
 
     const dead = ['processedEntityTypes', 'totalEntityTypes', 'currentEntityType',
@@ -1662,5 +1695,91 @@ describe('what is in flight is reported one way (CLEAN-PROGRESS A4/A5)', () => {
     for (const extra of extrasFrom(progress)) {
       for (const field of dead) expect(extra ?? {}).not.toHaveProperty(field);
     }
+  });
+});
+
+// ── Checkpointed resume (ABANDONED-INFERENCE P2, A3) ──────────────────
+// The unit is the entity type. A unit either completed — its annotations
+// handed to `onUnitComplete` and accepted — or it contributes nothing.
+// Emission moves INTO the loop via the callback (the post-run batch was
+// N2's mechanism); the processor returns only the result.
+
+describe('processReferenceJob — unit commits (A3)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('commits each completed unit through onUnitComplete — including empty ones — and stops at the failing unit', async () => {
+    vi.mocked(extractEntities).mockImplementation(async (_c, types) => {
+      const t = String(types[0]);
+      if (t === 'Person') return [{ exact: 'Greeley', start: 0, end: 7, entityType: 'Person' }] as never;
+      if (t === 'Date') return [] as never; // legitimately-empty unit (RED v)
+      throw new Error('Location stalled');
+    });
+
+    const committed: Array<{ unit: string; count: number }> = [];
+    const onUnitComplete = vi.fn(async (unit: string, annotations: unknown[]) => {
+      committed.push({ unit, count: annotations.length });
+    });
+
+    await expect(
+      processReferenceJob(
+        'Greeley went west',
+        makeInferenceClient(),
+        { resourceId: RID, entityTypes: [entityType('Person'), entityType('Date'), entityType('Location')] },
+        textBuild('Greeley went west'),
+        vi.fn(),
+        LOGGER,
+        onUnitComplete,
+      ),
+    ).rejects.toThrow('Location stalled');
+
+    // Units 1..k committed in order, the failing unit contributed nothing.
+    expect(committed).toEqual([
+      { unit: 'Person', count: 1 },
+      { unit: 'Date', count: 0 },
+    ]);
+  });
+
+  it('a rejected unit commit fails the run — the unit is not silently kept', async () => {
+    vi.mocked(extractEntities).mockResolvedValue([
+      { exact: 'Greeley', start: 0, end: 7, entityType: 'Person' },
+    ] as never);
+
+    await expect(
+      processReferenceJob(
+        'Greeley went west',
+        makeInferenceClient(),
+        { resourceId: RID, entityTypes: [entityType('Person')] },
+        textBuild('Greeley went west'),
+        vi.fn(),
+        LOGGER,
+        vi.fn(async () => {
+          throw new Error('emit refused');
+        }),
+      ),
+    ).rejects.toThrow('emit refused');
+  });
+
+  it('returns only the result — the callback owns emission, nothing is returned twice', async () => {
+    vi.mocked(extractEntities).mockResolvedValue([
+      { exact: 'Greeley', start: 0, end: 7, entityType: 'Person' },
+    ] as never);
+
+    const seen: unknown[][] = [];
+    const outcome = await processReferenceJob(
+      'Greeley went west',
+      makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Person')] },
+      textBuild('Greeley went west'),
+      vi.fn(),
+      LOGGER,
+      vi.fn(async (_unit: string, annotations: unknown[]) => {
+        seen.push(annotations);
+      }),
+    );
+
+    expect(Object.keys(outcome)).toEqual(['result']);
+    expect(outcome.result).toEqual({ kind: 'reference-annotation', totalFound: 1, totalEmitted: 1, errors: 0 });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toHaveLength(1);
   });
 });

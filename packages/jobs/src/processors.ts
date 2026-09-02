@@ -458,6 +458,15 @@ export async function processAssessmentJob(
   };
 }
 
+/**
+ * Reference detection commits per UNIT — one entity type — through
+ * `onUnitComplete` (ABANDONED-INFERENCE P2, checkpointed resume): the
+ * callback receives the unit's deduped annotations, and only after it
+ * resolves does the unit count as complete. Emission belongs to the
+ * callback alone; the processor returns only the result — returning the
+ * annotations as well would recreate the post-run batch that N2 showed
+ * discards completed work wholesale.
+ */
 export async function processReferenceJob(
   content: string,
   inferenceClient: InferenceClient,
@@ -465,14 +474,14 @@ export async function processReferenceJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
   logger: Logger,
-): Promise<ProcessorResult<DetectionResult>> {
+  onUnitComplete: (entityType: string, annotations: Annotation[]) => Promise<void>,
+): Promise<{ result: DetectionResult }> {
   const entityTypeNames = params.entityTypes.map(String);
   const requestParams = [{ label: 'entity-types' as const, value: entityTypeNames.join(', ') }];
   const completedItems: Array<{ value: string; foundCount: number }> = [];
   let totalFound = 0;
   let totalEmitted = 0;
   let errors = 0;
-  const allAnnotations: Annotation[] = [];
 
   onProgress(10, { code: 'loading' }, { requestParams });
 
@@ -518,9 +527,6 @@ export async function processReferenceJob(
       },
     );
 
-    totalFound += extractedEntities.length;
-    completedItems.push({ value: entityTypeName, foundCount: extractedEntities.length });
-
     // Unresolved reference body: the entity type as a tagging TextualBody,
     // stamped with the body locale to match the comment/assess/tag pattern.
     // The bind flow later appends a SpecificResource (purpose: 'linking')
@@ -530,6 +536,7 @@ export async function processReferenceJob(
       { type: 'TextualBody' as const, value: entityTypeName, purpose: 'tagging' as const, format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
     ];
 
+    const built: Annotation[] = [];
     for (const entity of extractedEntities) {
       const reconciled = reconcileSelector(content, {
         exact: entity.exact,
@@ -552,22 +559,26 @@ export async function processReferenceJob(
         });
       }
       const ann = buildAnnotation('linking', toMatch(reconciled), unresolvedBody);
-      allAnnotations.push(ann);
-      totalEmitted++;
+      built.push(ann);
     }
+
+    // De-dupe within the unit — identical spans under the same entity type
+    // collapse; cross-unit duplicates cannot exist, because the body
+    // carries the type name. Then COMMIT: the awaited callback emits the
+    // unit's annotations, and only after it resolves does the unit count
+    // anywhere — a unit whose commit fails contributes nothing (unit
+    // atomicity, A3).
+    const unitAnnotations = dedupeAnnotations(built);
+    await onUnitComplete(entityTypeName, unitAnnotations);
+    totalEmitted += unitAnnotations.length;
+    totalFound += extractedEntities.length;
+    completedItems.push({ value: entityTypeName, foundCount: extractedEntities.length });
   }
 
-  // De-dupe identical events before reporting. `totalEmitted` was the
-  // running per-push count used for mid-loop progress; the stored/reported
-  // count is the deduped length — repeated entities that collapsed onto
-  // the same span (same entity type) become a single annotation.
-  const annotations = dedupeAnnotations(allAnnotations);
-
-  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'reference' }, { requestParams });
+  onProgress(100, { code: 'complete-created', count: totalEmitted, kind: 'reference' }, { requestParams });
 
   return {
-    annotations,
-    result: { kind: 'reference-annotation', totalFound, totalEmitted: annotations.length, errors },
+    result: { kind: 'reference-annotation', totalFound, totalEmitted, errors },
   };
 }
 

@@ -488,7 +488,21 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
     } as never);
 
     await vi.waitFor(() => {
-      expect(jobQueue.failJob).toHaveBeenCalledWith('job-f1', 'boom');
+      expect(jobQueue.failJob).toHaveBeenCalledWith('job-f1', 'boom', undefined);
+    });
+  });
+
+  it('passes the checkpoint through to failJob (ABANDONED-INFERENCE P2, A3)', async () => {
+    eventBus.get('job:fail').next({
+      resourceId: 'rid-1',
+      jobId: 'job-f2',
+      jobType: 'reference-annotation',
+      error: 'Location stalled',
+      completedUnits: ['Person', 'Date'],
+    } as never);
+
+    await vi.waitFor(() => {
+      expect(jobQueue.failJob).toHaveBeenCalledWith('job-f2', 'Location stalled', ['Person', 'Date']);
     });
   });
 
