@@ -225,7 +225,7 @@ export function registerJobCommandHandlers(
 
   eventBus.get('job:fail').subscribe(async (event) => {
     try {
-      const outcome = await jobQueue.failJob(jobId(event.jobId), event.error, event.completedUnits);
+      const outcome = await jobQueue.failJob(jobId(event.jobId), event.error, event.completedUnits, event.failureClass);
       if (outcome === 'retried') {
         logger.info('Job re-queued for retry', { jobId: event.jobId });
       } else if (outcome === null) {

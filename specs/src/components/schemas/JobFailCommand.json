@@ -28,6 +28,11 @@
         "type": "string"
       },
       "description": "Entity-type units whose annotations were fully emitted before this failure (checkpointed resume). The queue records them on the retried job's metadata; a retried claim skips them so completed work is neither redone nor duplicated."
+    },
+    "failureClass": {
+      "type": "string",
+      "enum": ["transient", "deterministic"],
+      "description": "Worker-side classification of the failure, made where the error is still typed. 'deterministic' — the same request cannot succeed on a second attempt — skips the retry budget; absent or 'transient' retries as before. Only KNOWN-deterministic failures carry the class."
     }
   },
   "required": [

@@ -34,6 +34,7 @@ import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
 import { extractPdfTextLayer, type AnchoredTextStore, type ContentReads } from '@semiont/content';
 import { prepareDetection } from './workers/detection/prepare-detection';
+import { classifyFailure, DeterministicJobError } from './failure-class';
 import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
 import {
   processHighlightJob,
@@ -158,7 +159,10 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
       })
       .catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
-        logger.error('Job failed', { jobId: job.jobId, error: message, stack: error instanceof Error ? error.stack : undefined });
+        // Classify HERE, while the error is still typed — on the wire it is
+        // only a string (ABANDONED-INFERENCE P3; taxonomy in failure-class.ts).
+        const failureClass = classifyFailure(error);
+        logger.error('Job failed', { jobId: job.jobId, error: message, failureClass, stack: error instanceof Error ? error.stack : undefined });
         const completedUnits = completedUnitsByJob.get(job.jobId);
         completedUnitsByJob.delete(job.jobId);
         const failAnnotationId = referenceIdOf(job);
@@ -170,6 +174,7 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
             ...(failAnnotationId ? { annotationId: failAnnotationId } : {}),
             error: message,
             ...(completedUnits && completedUnits.length > 0 ? { completedUnits } : {}),
+            ...(failureClass !== undefined ? { failureClass } : {}),
           }).catch(() => {});
         }
         adapter.failJob(job.jobId, message);
@@ -293,7 +298,9 @@ async function handleJobInner(
 
     if ('declined' in source) {
       if (source.declined === 'no-extractor') {
-        throw new Error(`Cannot run ${jobType} on resource ${resourceId}: media type '${mediaType ?? 'unknown'}' has no extractable text to analyze`);
+        // A media type with nothing to extract is a user error, not weather —
+        // retrying cannot change it (ABANDONED-INFERENCE P3, A4).
+        throw new DeterministicJobError(`Cannot run ${jobType} on resource ${resourceId}: media type '${mediaType ?? 'unknown'}' has no extractable text to analyze`);
       }
       await emitEvent(session, 'job:complete', {
         ...lifecycleBase,

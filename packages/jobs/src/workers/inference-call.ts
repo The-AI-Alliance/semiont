@@ -35,6 +35,15 @@ import { withSpan } from '@semiont/observability';
 export const INFERENCE_TIMEOUT_MS = 10 * 60_000;
 
 /**
+ * The bound's own rejection, typed so classification (ABANDONED-INFERENCE
+ * P3) never string-matches our own error message. A timeout says nothing
+ * about the request — it classifies transient.
+ */
+export class InferenceTimeoutError extends Error {
+  override readonly name = 'InferenceTimeoutError';
+}
+
+/**
  * How often an in-flight call reports that it is still alive
  * (DETECTION-HEARTBEAT D2).
  *
@@ -96,7 +105,7 @@ async function withTimeout<T>(
         boundMs: INFERENCE_TIMEOUT_MS,
       });
       controller.abort();
-      reject(new Error(
+      reject(new InferenceTimeoutError(
         `Inference call timed out after ${INFERENCE_TIMEOUT_MS / 60_000} minutes (${meta.label}) — failing the job to keep the claim loop live`,
       ));
     }, INFERENCE_TIMEOUT_MS);

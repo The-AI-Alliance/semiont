@@ -815,4 +815,35 @@ describe('JobQueue', () => {
       expect(failed?.metadata.completedUnits).toEqual(['Person']);
     });
   });
+
+  describe('failJob classification (ABANDONED-INFERENCE P3, A4)', () => {
+    test('a deterministic failure goes straight to failed — budget remaining or not', async () => {
+      // retryCount 0, maxRetries 3: plenty of budget, and it must not be spent.
+      await jobQueue.createJob(createRunningDetectionJob('job-det'));
+
+      const outcome = await jobQueue.failJob(jobId('job-det'), 'request exceeds size limits', undefined, 'deterministic');
+
+      expect(outcome).toBe('failed');
+      expect((await jobQueue.getJob(jobId('job-det')))?.status).toBe('failed');
+    });
+
+    test('an explicit transient failure retries exactly as an unclassified one does', async () => {
+      await jobQueue.createJob(createRunningDetectionJob('job-transient'));
+
+      const outcome = await jobQueue.failJob(jobId('job-transient'), 'timed out', undefined, 'transient');
+
+      expect(outcome).toBe('retried');
+      expect((await jobQueue.getJob(jobId('job-transient')))?.status).toBe('pending');
+    });
+
+    test('a deterministic failure still keeps its checkpoint on the terminal record (D3)', async () => {
+      await jobQueue.createJob(createRunningDetectionJob('job-det-ckpt'));
+
+      const outcome = await jobQueue.failJob(jobId('job-det-ckpt'), 'schema rejected', ['Person', 'Date'], 'deterministic');
+
+      expect(outcome).toBe('failed');
+      const failed = await jobQueue.getJob(jobId('job-det-ckpt'));
+      expect(failed?.metadata.completedUnits).toEqual(['Person', 'Date']);
+    });
+  });
 });

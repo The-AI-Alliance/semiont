@@ -13,6 +13,7 @@
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
 import { chunkText, estimateTokens } from '@semiont/core';
 import { boundedGenerateStructured } from './inference-call';
+import { DeterministicJobError } from '../failure-class';
 import { deriveDetectionBudget } from './detection/detection-chunking';
 import { MotivationPrompts } from './detection/motivation-prompts';
 import {
@@ -38,7 +39,9 @@ import type { TagSchema } from '@semiont/core';
  */
 function assertNotTruncated(response: { stopReason: string }, motivation: string, chunk: number, totalChunks: number, outputBudget: number): void {
   if (response.stopReason === 'max_tokens') {
-    throw new Error(`${motivation} detection response truncated (max_tokens) on chunk ${chunk}/${totalChunks} despite the derived output budget of ${outputBudget} tokens — failing the job rather than under-reporting annotations.`);
+    // Same input truncates the same way — a retry is guaranteed waste, so
+    // this is a DeterministicJobError (ABANDONED-INFERENCE P3, A4).
+    throw new DeterministicJobError(`${motivation} detection response truncated (max_tokens) on chunk ${chunk}/${totalChunks} despite the derived output budget of ${outputBudget} tokens — failing the job rather than under-reporting annotations.`);
   }
 }
 

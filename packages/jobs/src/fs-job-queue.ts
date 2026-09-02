@@ -258,7 +258,7 @@ export class FsJobQueue implements JobQueue {
    * re-announced); after that it lands in `failed` with the error.
    * Returns null (and changes nothing) if the job isn't running.
    */
-  async failJob(jobId: JobId, error: string, completedUnits?: string[]): Promise<'retried' | 'failed' | null> {
+  async failJob(jobId: JobId, error: string, completedUnits?: string[], failureClass?: 'transient' | 'deterministic'): Promise<'retried' | 'failed' | null> {
     const job = await this.getJob(jobId);
     if (!job || job.status !== 'running') {
       return null;
@@ -276,7 +276,11 @@ export class FsJobQueue implements JobQueue {
       ? { ...job.metadata, completedUnits: checkpoint }
       : job.metadata;
 
-    if (job.metadata.retryCount < job.metadata.maxRetries) {
+    // A known-deterministic failure skips the budget outright: the same
+    // request cannot succeed on a second attempt, so a retry is guaranteed
+    // waste at full price (ABANDONED-INFERENCE P3, A4). Unclassified and
+    // transient failures retry as before.
+    if (failureClass !== 'deterministic' && job.metadata.retryCount < job.metadata.maxRetries) {
       const retried: PendingJob<any> = {
         status: 'pending',
         metadata: { ...metadata, retryCount: job.metadata.retryCount + 1 },
@@ -284,6 +288,10 @@ export class FsJobQueue implements JobQueue {
       };
       await this.updateJob(retried, 'running');
       return 'retried';
+    }
+
+    if (failureClass === 'deterministic' && job.metadata.retryCount < job.metadata.maxRetries) {
+      this.logger.info('Job failed without retry — deterministic failure', { jobId, error });
     }
 
     const failed: FailedJob<any> = {

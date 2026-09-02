@@ -26,6 +26,7 @@ vi.mock('@semiont/observability', async (importOriginal) => ({
   withSpan: withSpanMock,
 }));
 import {
+  InferenceTimeoutError,
   boundedGenerateStructured,
   boundedGenerateWithMetadata,
   INFERENCE_TIMEOUT_MS,
@@ -327,6 +328,18 @@ describe('bounded inference calls', () => {
 
     const pending = AnnotationDetection.detectHighlights('some content', client);
     const assertion = expect(pending).rejects.toThrow(/timed out/);
+    await vi.advanceTimersByTimeAsync(INFERENCE_TIMEOUT_MS + 1);
+    await assertion;
+  });
+});
+
+describe('typed timeout (ABANDONED-INFERENCE P3)', () => {
+  it('the bound rejects with InferenceTimeoutError so classification never string-matches our own error', async () => {
+    vi.useFakeTimers();
+    const client = clientWith({ generateTextWithMetadata: vi.fn(never) });
+
+    const pending = boundedGenerateWithMetadata(client, 'p', 100, 0.1);
+    const assertion = expect(pending).rejects.toBeInstanceOf(InferenceTimeoutError);
     await vi.advanceTimersByTimeAsync(INFERENCE_TIMEOUT_MS + 1);
     await assertion;
   });

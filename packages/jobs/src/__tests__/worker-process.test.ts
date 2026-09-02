@@ -1195,3 +1195,51 @@ describe('startWorkerProcess — job:fail carries the checkpoint (A3 i/iv feed)'
     vi.resetModules();
   });
 });
+
+describe('startWorkerProcess — job:fail carries the failure class (ABANDONED-INFERENCE P3, A4)', () => {
+  it('a provider request-rejection is classified deterministic on the payload', async () => {
+    const { BehaviorSubject } = await import('rxjs');
+    const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
+
+    vi.doMock('../job-claim-adapter', () => ({
+      createJobClaimAdapter: vi.fn(() => ({
+        activeJob$: activeJob$.asObservable(),
+        isProcessing$: { subscribe: vi.fn() },
+        jobsCompleted$: { subscribe: vi.fn() },
+        errors$: { subscribe: vi.fn() },
+        start: vi.fn(),
+        stop: vi.fn(),
+        completeJob: vi.fn(),
+        failJob: vi.fn(),
+        dispose: vi.fn(),
+        vitals: vi.fn(),
+        touchActivity: vi.fn(),
+      })),
+    }));
+    vi.resetModules();
+    const { startWorkerProcess } = await import('../worker-process');
+
+    // The SDK shape for "your request is the problem": an Error carrying a
+    // 4xx status. Attempt 2 of this exact request cannot succeed.
+    vi.mocked(processReferenceJob).mockRejectedValueOnce(
+      Object.assign(new Error('request exceeds size limits'), { status: 413 }),
+    );
+
+    const h = makeFakeSessionAndAdapter();
+    startWorkerProcess(makeConfig(h.session));
+
+    activeJob$.next(makeJob('reference-annotation', { entityTypes: ['Person'] }));
+    await new Promise((r) => setTimeout(r, 10));
+
+    const failEmit = h.busEmits.find((e) => e.channel === 'job:fail');
+    expect(failEmit).toBeDefined();
+    expect(failEmit!.payload).toMatchObject({
+      jobId: JID,
+      error: 'request exceeds size limits',
+      failureClass: 'deterministic',
+    });
+
+    vi.doUnmock('../job-claim-adapter');
+    vi.resetModules();
+  });
+});
