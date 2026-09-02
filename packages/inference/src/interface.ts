@@ -55,6 +55,17 @@ export interface InferenceLimits {
   contextTokens: number;
   /** Maximum output tokens per generation. */
   maxOutputTokens: number;
+  /**
+   * The provider's own worst-case output-rate model, in output tokens per
+   * hour, when it publishes one. Anthropic's SDK projects a call's maximum
+   * duration as `max_tokens / rate` (client.js `calculateNonstreamingTimeout`,
+   * 128_000/hour) and refuses non-streaming calls projected past 10 minutes —
+   * the one duration statement that provider surface makes. Consumers with
+   * their own call deadline derive a duration-safe output budget from it
+   * (ABANDONED-INFERENCE P4). Absent for providers whose rates are
+   * unknowable (Ollama — local hardware), where no duration bound applies.
+   */
+  outputTokensPerHour?: number;
 }
 
 export interface InferenceClient {

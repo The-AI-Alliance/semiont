@@ -5,13 +5,21 @@ import { isObject, type Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
 import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredResponse } from '../interface.js';
 
-// The SDK refuses non-streaming create() calls whose projected duration
-// exceeds its 10-minute timeout: it throws when
-// (60min × max_tokens) / 128_000 > 10min, i.e. above 128_000/6 ≈ 21,333
-// output tokens (client.js, calculateNonstreamingTimeout). Above that we
-// stream internally and assemble the final message — same request shape,
-// same response handling, same interface.
-const NONSTREAMING_MAX_OUTPUT_TOKENS = Math.floor(128_000 / 6);
+// The SDK's worst-case output-rate model: client.js's
+// calculateNonstreamingTimeout projects a call's maximum duration as
+// (60min × max_tokens) / 128_000 and refuses non-streaming create() calls
+// projected past its 10-minute timeout. ONE constant, two derivations: the
+// streaming switch below, and `limits().outputTokensPerHour` — the single
+// duration statement this provider surface makes, which detection's
+// duration budget derives from (ABANDONED-INFERENCE P4). Invalidated if
+// the SDK revises its rate model: check calculateNonstreamingTimeout on
+// SDK upgrades.
+const OUTPUT_TOKENS_PER_HOUR = 128_000;
+
+// Above ~21,333 output tokens (the 10-minute projection) we stream
+// internally and assemble the final message — same request shape, same
+// response handling, same interface.
+const NONSTREAMING_MAX_OUTPUT_TOKENS = Math.floor(OUTPUT_TOKENS_PER_HOUR / 6);
 
 // Structured generation rides `output_config.format` — response-level
 // structured output: the response TEXT is the schema-conforming JSON, with a
@@ -93,7 +101,11 @@ export class AnthropicInferenceClient implements InferenceClient {
       isObject(raw['capabilities']['structured_outputs']) &&
       raw['capabilities']['structured_outputs']['supported'] === true;
     return {
-      limits: { contextTokens: info.max_input_tokens, maxOutputTokens: info.max_tokens },
+      limits: {
+        contextTokens: info.max_input_tokens,
+        maxOutputTokens: info.max_tokens,
+        outputTokensPerHour: OUTPUT_TOKENS_PER_HOUR,
+      },
       structuredOutputsSupported,
     };
   }

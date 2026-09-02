@@ -188,8 +188,8 @@ describe('AnthropicInferenceClient - limits() discovery', () => {
     retrieveMock.mockResolvedValue({ max_input_tokens: 200_000, max_tokens: 64_000 });
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
-    expect(await client.limits()).toEqual({ contextTokens: 200_000, maxOutputTokens: 64_000 });
-    expect(await client.limits()).toEqual({ contextTokens: 200_000, maxOutputTokens: 64_000 });
+    expect(await client.limits()).toEqual({ contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 });
+    expect(await client.limits()).toEqual({ contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 });
 
     // Discovered once, cached across calls.
     expect(retrieveMock).toHaveBeenCalledTimes(1);
@@ -204,7 +204,7 @@ describe('AnthropicInferenceClient - limits() discovery', () => {
 
     // A later call retries instead of replaying the cached rejection.
     retrieveMock.mockResolvedValueOnce({ max_input_tokens: 1000, max_tokens: 100 });
-    expect(await client.limits()).toEqual({ contextTokens: 1000, maxOutputTokens: 100 });
+    expect(await client.limits()).toEqual({ contextTokens: 1000, maxOutputTokens: 100, outputTokensPerHour: 128_000 });
     expect(retrieveMock).toHaveBeenCalledTimes(2);
   });
 
