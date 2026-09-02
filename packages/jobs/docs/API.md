@@ -88,12 +88,12 @@ Moves a running job to `complete` with the result and `completedAt`. Returns `fa
 const moved = await queue.completeJob(jobId('job-abc123'), { totalFound: 3, totalEmitted: 3, errors: 0 });
 ```
 
-### `failJob(jobId: JobId, error): Promise<'retried' | 'failed' | null>`
+### `failJob(jobId: JobId, error, completedUnits?, failureClass?): Promise<'retried' | 'failed' | null>`
 
-Retry-or-fail a running job. While `retryCount < maxRetries` the job moves back to `pending` with the count bumped (and is re-announced for another worker to claim); after that it moves to `failed` with the error. Returns `null` if the job isn't running.
+Retry-or-fail a running job. While `retryCount < maxRetries` **and the failure is not classified `'deterministic'`**, the job moves back to `pending` with the count bumped (and is re-announced for another worker to claim); a deterministic failure — one the worker knows cannot succeed on an identical second attempt — moves straight to `failed` without spending the budget. `completedUnits` (work units the failed attempt already persisted) is unioned into `metadata.completedUnits`, surviving the retry rebuild so the next attempt resumes rather than restarts. Returns `null` if the job isn't running.
 
 ```typescript
-const outcome = await queue.failJob(jobId('job-abc123'), 'inference timeout');
+const outcome = await queue.failJob(jobId('job-abc123'), 'inference timeout', ['Person'], 'transient');
 // 'retried' | 'failed' | null
 ```
 

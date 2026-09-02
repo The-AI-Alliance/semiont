@@ -218,9 +218,9 @@ The queue exposes transition methods that the gateway's bus handlers (in `@semio
 
 `job:complete` → moves `running/` → `complete/` with the result and `completedAt`. Returns `false` if the job isn't running (duplicate events are harmless).
 
-### `failJob(jobId, error): Promise<'retried' | 'failed' | null>`
+### `failJob(jobId, error, completedUnits?, failureClass?): Promise<'retried' | 'failed' | null>`
 
-`job:fail` → retry-or-fail. While `metadata.retryCount < metadata.maxRetries`, the job moves back to `pending/` with the count bumped and is re-announced for another worker. After that it moves to `failed/` with the error.
+`job:fail` → retry-or-fail. While `metadata.retryCount < metadata.maxRetries` and the failure is not classified `'deterministic'`, the job moves back to `pending/` with the count bumped and is re-announced for another worker; a deterministic failure lands in `failed/` immediately (an identical retry is guaranteed waste). `completedUnits` from the event is unioned into the job's checkpoint, so the retry resumes where the failed attempt left off. After the budget it moves to `failed/` with the error.
 
 ### `recordProgress(jobId, progress): Promise<void>`
 

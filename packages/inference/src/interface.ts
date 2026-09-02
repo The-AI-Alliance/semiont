@@ -68,6 +68,25 @@ export interface InferenceLimits {
   outputTokensPerHour?: number;
 }
 
+/**
+ * Thrown when a structured generation's response cannot be read as the
+ * requested array — never coerced to `[]` (empty is a legitimate, distinct
+ * outcome). One class for every implementation, because the message shape
+ * and the classification contract must not diverge between providers.
+ *
+ * Carries the provider's stop reason because the cause classifies
+ * differently downstream: `max_tokens` means the JSON was cut off by the
+ * output budget — the same input truncates the same way, so a retry is
+ * guaranteed waste — while any other reason is model misbehavior a retry
+ * may legitimately fix.
+ */
+export class StructuredReadError extends Error {
+  override readonly name = 'StructuredReadError';
+  constructor(detail: string, readonly stopReason: string, options?: ErrorOptions) {
+    super(`Structured response could not be read: ${detail} (stop_reason: ${stopReason})`, options);
+  }
+}
+
 export interface InferenceClient {
   /** Provider type identifier (e.g. 'anthropic', 'ollama') */
   readonly type: string;

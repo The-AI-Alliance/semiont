@@ -40,7 +40,10 @@ import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
  *     pre-fix `truncated (max_tokens) — increase max_tokens…`, post-fix
  *     completes. Also proves the fail-loud guard at the pathological tail
  *     (`truncated … on chunk 1/1 despite the derived output budget of 64000`).
- *     Does NOT prove chunking: at 170 KB it runs as chunk 1/1.
+ *     Under the output-demand allocation (input ≤ outputBudget/2, landed
+ *     2026-09-02 after the live diagnosis) this path chunks at ~42 KB, so
+ *     at 170 KB it ALSO exercises the chunk loop on Anthropic — but this
+ *     test still asserts outcome only, because on Ollama it does not.
  *
  *   ollama (gemma4:26b): context_length 262,144 (read live from POST
  *     /api/show — NOT the ~8K the plan's worked example assumes), shared
@@ -252,10 +255,11 @@ test.describe('large-document assisted linking', () => {
    *   - ollama `gemma4:26b`: unchanged — no published rate, capacity governs:
    *     context 262,144 (`/api/show`), shared window, 1:2 split →
    *     ~87K tokens of input per chunk ≈ ~340 KB of text.
-   *   - anthropic sonnet-4-5 (200K context): capacity would allow ~135K
-   *     tokens ≈ ~540 KB, but the duration bound scales it by
-   *     21,333/64,000 (the SDK's 128K-tokens/hour rate × the worker's
-   *     10-minute call bound) → ~45K tokens ≈ ~180 KB.
+   *   - anthropic sonnet-4-5: the duration bound caps output at 21,333
+   *     tokens (the SDK's 128K-tokens/hour rate × the worker's 10-minute
+   *     call bound), and the output-demand allocation (2026-09-02) caps
+   *     input at HALF that → ~10.6K tokens ≈ ~42 KB per chunk, regardless
+   *     of context size (200K and 1M models alike).
    *
    * ~400 KB exceeds BOTH, so chunking is forced regardless of which provider
    * serves `reference-annotation` — on Anthropic via the DURATION bound (the
@@ -267,11 +271,13 @@ test.describe('large-document assisted linking', () => {
    * stops being provider-dependent, so this asserts it as a DELIBERATE,
    * reasoned deviation rather than an oversight.
    *
-   * Caveat, recorded so a model swap doesn't silently re-inert this test: on
-   * a 1M-context Anthropic model the duration-scaled input bound is ~312K
-   * tokens ≈ ~1.25 MB, and 400 KB would go as one call there. The CHUNKED
-   * log line below prints the fixture size against the live budget — check
-   * it when the fleet's detection model changes.
+   * The output-demand allocation (input ≤ outputBudget/2, 2026-09-02) made
+   * the Anthropic chunk size context-independent (~42 KB on 200K and 1M
+   * models alike), so the earlier caveat about a 1M-context model re-inerting
+   * this test no longer applies. The CHUNKED log line below still prints the
+   * fixture size against the live budget — check it when the fleet's
+   * detection model or provider changes (Ollama's ~340 KB capacity bound is
+   * the binding one now).
    *
    * The signal: Phase 3's `onChunk` emits N−1 boundary events, surfaced as
    * interpolated progress strictly between the 20% and 100% milestones. A
