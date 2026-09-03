@@ -18,6 +18,7 @@ import {
 import { getLogger } from '../logger';
 import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
 import { validators, formatErrors } from '@semiont/core/openapi';
+import type { HttpBindings } from '@hono/node-server';
 
 type AuthMiddleware = (c: Context, next: Next) => Promise<Response | void>;
 
@@ -122,6 +123,26 @@ interface ScopedSubscription {
 const MAX_SCOPES = 512;
 const SCOPE_WARN_THRESHOLD = 128;
 
+/**
+ * Outbound flow-control bound, per SSE connection. `writeSSE` resolves only
+ * when the connection's consumer accepts the chunk, so the bytes held by
+ * unresolved writes measure exactly what this subscriber forces the gateway
+ * to buffer. A half-open socket — a client container torn down without a
+ * FIN — never errors and never closes, so without a bound its bus
+ * subscriptions accumulate every fan-out payload as a pending write until
+ * the heap bursts (gateway OOM, 2026-09-03: ~8 such subscribers each
+ * holding the full `browse:*-result` stream). Past the bound the subscriber
+ * is disconnected: a live client reconnects with Last-Event-ID /
+ * `pendingReplies` and resumes; a dead one stops costing memory.
+ */
+export const MAX_PENDING_WRITE_BYTES = 16 * 1024 * 1024;
+
+/**
+ * Same protection for the buffer-during-replay window: a connection that
+ * stalls mid-replay must not queue live fan-out without limit either.
+ */
+export const MAX_REPLAY_BUFFER_EVENTS = 1_000;
+
 // ── Correlated-reply retention (BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1) ──
 
 /** Every reply channel a busRequest can await, derived from the registry. */
@@ -146,15 +167,15 @@ interface RetainedReply {
  * reconnect (`pendingReplies` in the subscribe body) instead of burning its
  * timeout. Subscribes every registry reply channel on the given bus; keeps
  * `correlationId → reply` in an insertion-ordered map with FIFO cap
- * eviction and lazy TTL expiry (no timers). Entries are NOT consumed by
- * lookup — a repeat replay carries the same deterministic id and dedups
- * client-side. Retention adds no exposure: reply channels are global
- * fan-out already (channel-level authz is CHANNEL-AUTHZ.md's gap).
+ * eviction and TTL expiry swept at insert time (no timers). Entries are NOT
+ * consumed by lookup — a repeat replay carries the same deterministic id
+ * and dedups client-side. Retention adds no exposure: reply channels are
+ * global fan-out already (channel-level authz is CHANNEL-AUTHZ.md's gap).
  */
 export function createReplyRetention(
   eventBus: EventBus,
   opts: { ttlMs?: number; max?: number; now?: () => number } = {},
-): { lookup(correlationId: string): RetainedReply | undefined; dispose(): void } {
+): { lookup(correlationId: string): RetainedReply | undefined; size(): number; dispose(): void } {
   const ttlMs = opts.ttlMs ?? REPLY_RETENTION_TTL_MS;
   const max = opts.max ?? REPLY_RETENTION_MAX;
   const now = opts.now ?? Date.now;
@@ -165,6 +186,16 @@ export function createReplyRetention(
       if (typeof cid !== 'string' || cid.length === 0) return;
       buffer.delete(cid); // refresh insertion order on re-publish
       buffer.set(cid, { channel, payload, retainedAt: now() });
+      // Sweep expired entries eagerly — the map is insertion-ordered, so
+      // expired means a prefix. Lookup-only expiry let the buffer pin up
+      // to `max` full reply payloads indefinitely under sustained traffic:
+      // with `browse:*-result` payloads that is hundreds of MB held for
+      // nobody (co-culprit in the 2026-09-03 gateway OOM).
+      const cutoff = now() - ttlMs;
+      for (const [key, entry] of buffer) {
+        if (entry.retainedAt > cutoff) break;
+        buffer.delete(key);
+      }
       while (buffer.size > max) {
         const oldest = buffer.keys().next().value;
         if (oldest === undefined) break;
@@ -181,6 +212,9 @@ export function createReplyRetention(
         return undefined;
       }
       return entry;
+    },
+    size() {
+      return buffer.size;
     },
     dispose() {
       for (const s of subs) s.unsubscribe();
@@ -297,7 +331,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       });
 
       // Tier 3: track active SSE subscribers via UpDownCounter. Connect
-      // increments; disconnect (stream.onAbort) decrements. The gauge
+      // increments; disconnect (teardown below) decrements. The gauge
       // reflects current concurrent SSE connections per service instance.
       //
       // The same two moments are PRESENCE (GUIDED-TOUR D5): the gateway
@@ -314,11 +348,70 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       const presence = { participant: subscriberDid ?? '', connectionId };
       recordSubscriberConnect();
       eventBus.get('session:joined').next(presence);
-      stream.onAbort(() => {
+
+      // ── Connection teardown ───────────────────────────────────────────
+      //
+      // One idempotent teardown, whichever detector notices the death
+      // first: the stream abort (socket closed and the adapter cancelled
+      // our readable), the request signal (socket closed but the readable
+      // cancel path did not run), or the pending-write bound in
+      // `boundedWrite` (the socket never closed at all).
+      const subs: Subscription[] = [];
+      let pendingBytes = 0;
+      let tornDown = false;
+      const { outgoing } = (c.env ?? {}) as Partial<HttpBindings>;
+      const teardown = (reason: string) => {
+        if (tornDown) return;
+        tornDown = true;
+        for (const s of subs) s.unsubscribe();
         recordSubscriberDisconnect();
         eventBus.get('session:left').next(presence);
-        getBusLogger().info('SSE disconnect', { connectionId });
-      });
+        getBusLogger().info('SSE disconnect', { connectionId, reason, pendingBytes });
+        // abort() rejects the pending writer.write()s, releasing the
+        // frames they hold; destroy() closes the socket itself so the OS
+        // send buffer goes too. Both are no-ops on an already-dead
+        // connection (and `outgoing` is absent outside the node adapter).
+        stream.abort();
+        outgoing?.destroy();
+      };
+      stream.onAbort(() => teardown('stream-abort'));
+      // Hono forwards the request signal to the stream only on old Bun; on
+      // Node the adapter aborts the signal when the response socket closes
+      // and nothing tells the stream. Forward it ourselves so socket close
+      // reaps this connection even when the readable-cancel path is wedged.
+      c.req.raw.signal.addEventListener('abort', () => stream.abort(), { once: true });
+      if (c.req.raw.signal.aborted) {
+        teardown('pre-aborted');
+        return;
+      }
+
+      /**
+       * Every frame leaves through here so `pendingBytes` counts exactly
+       * what this connection forces the gateway to hold: `writeSSE`
+       * resolves only when the consumer accepts the chunk, so a dead or
+       * stalled subscriber accumulates unresolved writes, each retaining
+       * its serialized frame. Past MAX_PENDING_WRITE_BYTES the subscriber
+       * is disconnected.
+       */
+      const boundedWrite = async (frame: { event: string; data: string; id?: string }): Promise<void> => {
+        if (tornDown) return;
+        const cost = frame.data.length;
+        pendingBytes += cost;
+        if (pendingBytes > MAX_PENDING_WRITE_BYTES) {
+          getBusLogger().warn('SSE pending-write overflow — disconnecting dead or stalled subscriber', {
+            connectionId,
+            pendingBytes,
+            cap: MAX_PENDING_WRITE_BYTES,
+          });
+          teardown('pending-write-overflow');
+          return;
+        }
+        try {
+          await stream.writeSSE(frame);
+        } finally {
+          pendingBytes -= cost;
+        }
+      };
 
       /** Tracks last persisted seq delivered per scope, for replay→live dedup. */
       const lastDeliveredSeq = new Map<string, number>();
@@ -378,7 +471,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
             ? JSON.stringify({ channel, payload, scope: eventScope })
             : JSON.stringify({ channel, payload });
           busLog('SSE', channel, payload, eventScope);
-          await stream.writeSSE({ event: 'bus-event', data, id }).catch(() => {});
+          await boundedWrite({ event: 'bus-event', data, id });
         };
         if (typeof cid === 'string' && cid.length > 0) {
           await withSpan(`sse.deliver:${channel}`, doWrite, {
@@ -398,11 +491,11 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         const payload: { scope?: string; lastSeenId?: string; reason: string } = { reason };
         if (gapScope !== undefined) payload.scope = gapScope;
         if (lastSeenId !== undefined) payload.lastSeenId = lastSeenId;
-        await stream.writeSSE({
+        await boundedWrite({
           event: 'bus-event',
           data: JSON.stringify({ channel: 'bus:resume-gap', payload }),
           id: nextEphemeralId(),
-        }).catch(() => {});
+        });
       };
 
       // ── Subscribe-first, buffer-during-replay, drain-then-live ────────
@@ -428,6 +521,14 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
 
       const emitOrBuffer = (channel: string, payload: unknown, eventScope: string | undefined) => {
         if (mode === 'buffering') {
+          if (liveBuffer.length >= MAX_REPLAY_BUFFER_EVENTS) {
+            getBusLogger().warn('SSE replay-buffer overflow — disconnecting stalled subscriber', {
+              connectionId,
+              cap: MAX_REPLAY_BUFFER_EVENTS,
+            });
+            teardown('replay-buffer-overflow');
+            return;
+          }
           liveBuffer.push({ channel, payload, scope: eventScope });
         } else {
           void writeBusEvent(channel, payload, eventScope);
@@ -437,11 +538,13 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       const willReplay = scoped.some((entry) => entry.lastEventId !== undefined);
       if (willReplay) mode = 'buffering';
 
-      const subs = channels.map((channel) =>
-        eventBus.get(channel as keyof EventMap).subscribe((payload) => {
-          emitOrBuffer(channel, payload, undefined);
-        }),
-      );
+      for (const channel of channels) {
+        subs.push(
+          eventBus.get(channel as keyof EventMap).subscribe((payload) => {
+            emitOrBuffer(channel, payload, undefined);
+          }),
+        );
+      }
       for (const entry of scoped) {
         const scopedBus = eventBus.scope(entry.scope);
         for (const channel of entry.channels) {
@@ -452,7 +555,6 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
           );
         }
       }
-      stream.onAbort(() => subs.forEach((s) => s.unsubscribe()));
 
       // ── Replay phase (per scope) ──────────────────────────────────────
       //
@@ -470,6 +572,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       //     outside the retention window. Replay what we have and emit the
       //     scoped `bus:resume-gap`.
       for (const entry of scoped) {
+        if (tornDown) break;
         if (entry.lastEventId === undefined) continue;
         const parsed = parsePersistedId(entry.lastEventId);
         if (!parsed) {
@@ -512,6 +615,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // also arrived live during a connection overlap dedups client-side.
       // Entries are not consumed: a repeat replay is idempotent by id.
       for (const cid of pendingReplies) {
+        if (tornDown) break;
         const retained = replyRetention.lookup(cid);
         if (retained) {
           await writeBusEvent(retained.channel, retained.payload, undefined);
@@ -519,15 +623,18 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       }
 
       // ── Drain buffer and switch to live mode ─────────────────────────
-      while (liveBuffer.length > 0) {
+      while (liveBuffer.length > 0 && !tornDown) {
         const next = liveBuffer.shift()!;
         await writeBusEvent(next.channel, next.payload, next.scope);
       }
       mode = 'live';
 
-      // Heartbeat loop — runs for the lifetime of the connection.
-      while (true) {
-        await stream.writeSSE({ event: 'ping', data: '' });
+      // Heartbeat loop — runs until the connection dies. The exit
+      // condition is what lets this closure (and everything it captures)
+      // be collected: an unconditional loop would keep every connection's
+      // context alive for the life of the process.
+      while (!tornDown && !stream.aborted && !stream.closed) {
+        await boundedWrite({ event: 'ping', data: '' });
         await stream.sleep(15_000);
       }
     });

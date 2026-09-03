@@ -219,6 +219,49 @@ describe('bus routes', () => {
     // joined and left must name the SAME connection, or a guide watching two
     // viewers cannot tell which one left. The DID alone cannot do it: one
     // person with two tabs is two connections under one DID.
+    // The 2026-09-03 OOM: a half-open socket (client container torn down
+    // without a FIN) never errors and never closes, so no abort ever fires
+    // — but its bus subscriptions keep fanning out, and every writeSSE
+    // pends forever holding its full serialized frame. The pending-write
+    // bound is the detector of last resort: past MAX_PENDING_WRITE_BYTES
+    // the subscriber is torn down — unsubscribed, counted out of presence,
+    // and its socket destroyed.
+    it('disconnects a subscriber whose pending writes exceed the byte bound (dead consumer)', async () => {
+      const left: unknown[] = [];
+      eventBus.get('session:left').subscribe((v) => left.push(v));
+      const destroy = vi.fn();
+
+      const res = await app.request(
+        '/bus/subscribe',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ global: ['test:event'] }),
+        },
+        // Stands in for @hono/node-server's HttpBindings: teardown must
+        // hard-destroy the response socket, not just abandon the stream.
+        { outgoing: { destroy } },
+      );
+      expect(res.status).toBe(200);
+      // Let the stream callback run to its subscription setup.
+      await new Promise((r) => setTimeout(r, 20));
+      expect(eventBus.get('test:event' as never).observers.length).toBe(1);
+
+      // Nobody ever reads res.body — the consumer is dead. Fan out
+      // payloads until the pending-write bound trips (16 MiB cap; a
+      // couple of early chunks may clear before backpressure builds).
+      const chunk = 'x'.repeat(1024 * 1024);
+      for (let i = 0; i < 25; i++) {
+        eventBus.get('test:event' as never).next({ chunk } as never);
+      }
+
+      await vi.waitFor(() => expect(left).toHaveLength(1));
+      expect(destroy).toHaveBeenCalled();
+      // The dead connection's bus subscriptions are gone — fan-out to it
+      // has stopped costing anything.
+      expect(eventBus.get('test:event' as never).observers.length).toBe(0);
+    });
+
     it('pairs joined and left by connectionId', async () => {
       const joined: any[] = [];
       const left: any[] = [];
@@ -956,6 +999,30 @@ describe('createReplyRetention (unit — bounds with an injected clock)', () => 
     expect(retention.lookup('c1')).toBeUndefined(); // evicted (FIFO)
     expect(retention.lookup('c2')).toBeDefined();
     expect(retention.lookup('c3')).toBeDefined();
+    retention.dispose();
+    bus.destroy();
+  });
+
+  // Expiry must run at INSERT time, not only inside lookup: replies whose
+  // cid nobody ever asks about again (the common case) would otherwise sit
+  // in the buffer until FIFO eviction at `max` — up to 1024 full reply
+  // payloads pinned indefinitely under sustained traffic (co-culprit in
+  // the 2026-09-03 gateway OOM).
+  it('sweeps expired entries on insert, without any lookup', () => {
+    let clock = 1_000;
+    const bus = new EventBus();
+    const retention = createReplyRetention(bus, { ttlMs: 100, now: () => clock });
+
+    for (const cid of ['c1', 'c2', 'c3']) {
+      bus.get('gather:resource-complete').next({ correlationId: cid, response: {} } as never);
+    }
+    expect(retention.size()).toBe(3);
+
+    clock += 101;
+    bus.get('gather:resource-complete').next({ correlationId: 'c4', response: {} } as never);
+    // c1–c3 are past the TTL and were swept by c4's insert; only c4 remains.
+    expect(retention.size()).toBe(1);
+    expect(retention.lookup('c4')).toBeDefined();
     retention.dispose();
     bus.destroy();
   });
