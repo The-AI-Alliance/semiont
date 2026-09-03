@@ -11,8 +11,14 @@ import type {
   EventMetadata,
   components,
 } from '@semiont/core';
+const observed = vi.hoisted(() => ({ replySuppressed: vi.fn() }));
+vi.mock('@semiont/observability', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@semiont/observability')>()),
+  recordReplySuppressed: (...args: unknown[]) => observed.replySuppressed(...args),
+}));
+
 import { createBusRouter, createCorrelationRegistry } from '../../routes/bus';
-import { initializeLogger } from '../../logger';
+import { initializeLogger, getLogger } from '../../logger';
 
 const TEST_USER_ID = 'did:web:test:users:test' as UserId;
 
@@ -1065,6 +1071,139 @@ describe('bus routes', () => {
       });
       expect(res.status).toBe(400);
       expect(await res.text()).toMatch(/clientId/i);
+    });
+  });
+
+  // ── CORRELATED-REPLY-ROUTING P5 — observability ───────────────────────
+  //
+  // A counter that is wired but never incremented is exactly the defect an
+  // observability phase exists to prevent, and nothing else in the stack
+  // would notice. Same for a breadcrumb: unpinned, it is one refactor from
+  // silence, and these three are the plan's entire L4 story.
+  describe('observability (P5)', () => {
+    const REQ = 'gather:resource-requested';
+    const RES = 'gather:resource-complete';
+    const OPTS = { depth: 1, maxResources: 1, includeContent: false, includeSummary: false };
+
+    /**
+     * Intercept every `getBusLogger()` call. The suite initializes the logger
+     * at `error`, so a real `warn` would be filtered before reaching any
+     * transport — spying on the child is what makes these observable at all.
+     */
+    const captureBusWarnings = () => {
+      const warn = vi.fn();
+      vi.spyOn(getLogger(), 'child').mockReturnValue({
+        warn, info: vi.fn(), error: vi.fn(), debug: vi.fn(),
+      } as never);
+      return warn;
+    };
+
+    const emit = (body: unknown) =>
+      app.request('/bus/emit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    it('counts a suppression when a reply is withheld from a non-owner', async () => {
+      observed.replySuppressed.mockClear();
+      await subscribe(app, { clientId: 'client-owner', global: [RES] });
+      const other = await subscribe(app, { clientId: 'client-other', global: [RES, 'test:event'] });
+      await new Promise((r) => setTimeout(r, 20));
+
+      await emit({ channel: REQ, clientId: 'client-owner', payload: { correlationId: 'c-count', resourceId: 'r-1', options: OPTS } });
+      setTimeout(() => {
+        eventBus.get(RES).next({ correlationId: 'c-count', response: { ok: 1 } } as never);
+        eventBus.get('test:event' as never).next({ marker: 'alive' } as never);
+      }, 10);
+      await readSSE(other, (b) => b.includes('alive'));
+
+      expect(observed.replySuppressed).toHaveBeenCalled();
+      expect(observed.replySuppressed.mock.calls[0]?.[0]).toBe(RES);
+    });
+
+    // The owner's own delivery is not a suppression. Counting it would make
+    // the metric a channel-traffic gauge rather than the amplification signal.
+    it('does not count the owner\'s own delivery', async () => {
+      const owner = await subscribe(app, { clientId: 'client-solo', global: [RES] });
+      await new Promise((r) => setTimeout(r, 20));
+      await emit({ channel: REQ, clientId: 'client-solo', payload: { correlationId: 'c-solo', resourceId: 'r-1', options: OPTS } });
+      observed.replySuppressed.mockClear();
+      setTimeout(() => eventBus.get(RES).next({ correlationId: 'c-solo', response: { ok: 1 } } as never), 10);
+      await readSSE(owner, (b) => b.includes('c-solo'));
+
+      expect(observed.replySuppressed).not.toHaveBeenCalled();
+    });
+
+    // The structural case: an in-process requester never claims, so its reply
+    // reaches no connection. That fires constantly and is not the
+    // amplification being removed — counting it would drown the signal P6
+    // reads, the same reason D3 refuses to breadcrumb it.
+    it('does not count a never-claimed cid', async () => {
+      const sub = await subscribe(app, { clientId: 'client-x', global: [RES, 'test:event'] });
+      await new Promise((r) => setTimeout(r, 20));
+      observed.replySuppressed.mockClear();
+      setTimeout(() => {
+        eventBus.get(RES).next({ correlationId: 'never-claimed', response: {} } as never);
+        eventBus.get('test:event' as never).next({ marker: 'alive' } as never);
+      }, 10);
+      await readSSE(sub, (b) => b.includes('alive'));
+
+      expect(observed.replySuppressed).not.toHaveBeenCalled();
+    });
+
+    it('the emit log line carries the clientId', async () => {
+      const warn = captureBusWarnings();
+      const infoed: unknown[] = [];
+      vi.spyOn(getLogger(), 'child').mockReturnValue({
+        warn, error: vi.fn(), debug: vi.fn(),
+        info: (msg: string, meta: unknown) => { infoed.push({ msg, meta }); },
+      } as never);
+
+      await emit({ channel: REQ, clientId: 'client-logged', payload: { correlationId: 'c-log', resourceId: 'r-1', options: OPTS } });
+      const emitLine = infoed.find((e) => (e as { msg?: string }).msg === 'emit') as { meta?: Record<string, unknown> } | undefined;
+      expect(emitLine?.meta?.clientId).toBe('client-logged');
+    });
+
+    // ── The three L4 breadcrumbs, inherited unpinned from P3 ─────────────
+
+    it('[bus REPLY-NO-CID] fires for a result frame with no correlationId', async () => {
+      const warn = captureBusWarnings();
+      await subscribe(app, { clientId: 'client-nocid', global: [RES] });
+      await new Promise((r) => setTimeout(r, 20));
+      eventBus.get(RES).next({ response: { ok: 1 } } as never); // no cid
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(warn.mock.calls.some((c) => String(c[0]).includes('REPLY-NO-CID'))).toBe(true);
+    });
+
+    it('[bus CLAIM-EXPIRED] fires when a claim is swept with no reply', () => {
+      const warn = captureBusWarnings();
+      let clock = 1_000;
+      const bus = new EventBus();
+      const registry = createCorrelationRegistry(bus, { claimTtlMs: 100, now: () => clock });
+      registry.claim('c-silent', 'client-1', 'did:web:x');
+
+      clock += 101;
+      registry.claim('c-next', 'client-1', 'did:web:x'); // any claim sweeps first
+
+      expect(warn.mock.calls.some((c) => String(c[0]).includes('CLAIM-EXPIRED'))).toBe(true);
+      registry.dispose();
+      bus.destroy();
+    });
+
+    it('[bus CLAIM-EVICTED] fires when the global cap forces an eviction', () => {
+      const warn = captureBusWarnings();
+      const bus = new EventBus();
+      const registry = createCorrelationRegistry(bus, { now: () => 1 });
+      // Fill past the global backstop, spread across clients so the per-client
+      // cap refuses nothing — the global cap is what must trip.
+      for (let i = 0; i <= 4096; i++) {
+        registry.claim(`g-${i}`, `client-${Math.floor(i / 100)}`, 'did:web:x');
+      }
+      expect(warn.mock.calls.some((c) => String(c[0]).includes('CLAIM-EVICTED'))).toBe(true);
+      registry.dispose();
+      bus.destroy();
     });
   });
 

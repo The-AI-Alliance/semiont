@@ -10,6 +10,7 @@ import {
   SpanKind,
   injectTraceparent,
   recordBusEmit,
+  recordReplySuppressed,
   recordSubscriberConnect,
   recordSubscriberDisconnect,
   withSpan,
@@ -697,8 +698,14 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
           return false;
         }
         const owner = correlations.owner(cid);
+        // Never claimed: the structural in-process case. Not counted — it
+        // fires on every in-process operation and would drown the signal.
         if (!owner) return false;
-        return owner.clientId === clientId && owner.principalDid === subscriberDid;
+        if (owner.clientId === clientId && owner.principalDid === subscriberDid) return true;
+        // Owned by someone else. THIS is the amplification the filter removes,
+        // and the only one of the three refusals worth a counter.
+        recordReplySuppressed(channel);
+        return false;
       };
 
       const willReplay = scoped.some((entry) => entry.lastEventId !== undefined);
@@ -831,6 +838,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     const eventBus = c.get('eventBus');
     const body = await c.req.json();
     const { channel, payload, scope } = body;
+    const emitterClientId = typeof body.clientId === 'string' && body.clientId !== '' ? body.clientId : undefined;
 
     if (!channel || typeof channel !== 'string') {
       throw new HTTPException(400, { message: 'channel is required' });
@@ -876,8 +884,8 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     // and emit directly) are covered with no SDK change.
     const claimCid = channel in BUS_OPERATIONS ? correlationIdOf(payload) : undefined;
     if (claimCid) {
-      const clientId = (body as { clientId?: unknown }).clientId;
-      if (typeof clientId !== 'string' || clientId === '') {
+      const clientId = emitterClientId;
+      if (clientId === undefined) {
         // Loud, not lenient: a mis-wired client would otherwise burn every
         // busRequest's 30 s timeout with no server-side signal. We control
         // every emitter, so there is no compat path to keep open.
@@ -919,7 +927,12 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
 
     // How many observers the target subject had AT DISPATCH. Zero means the
     // signal reached nobody — the failure this route could not previously
-    // express. `/bus/subscribe` enforces no channel allowlist and this
+    // express.
+    //
+    // It is EXACT for a broadcast and an UPPER BOUND for a correlated channel:
+    // since P3, a subscriber on a reply channel receives the frame only if it
+    // owns the correlationId, so observers counts who was eligible to be
+    // considered, not who was written to. `/bus/subscribe` enforces no channel allowlist and this
     // handler publishes unconditionally, so a client can emit a channel no
     // participant subscribes to and otherwise get a clean 202 back.
     // `warnIfUnobservedReply` does not cover it: that detector requires a
@@ -942,7 +955,18 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
 
           busLog('EMIT', channel, payload, scope);
           recordBusEmit(channel, scope);
-          getBusLogger().info('emit', { channel, scope, subscribers, correlationId: (payload as Record<string, unknown>).correlationId });
+          // `clientId` rides the STRUCTURED line, not `busLog`: busLog's
+          // signature is @semiont/core's and shared by every emitter, so
+          // widening it for a field only the gateway knows would be a core
+          // change in a phase that makes none. This is the line an operator
+          // greps to tie an emit to the client that made it.
+          getBusLogger().info('emit', {
+            channel,
+            scope,
+            subscribers,
+            clientId: emitterClientId,
+            correlationId: (payload as Record<string, unknown>).correlationId,
+          });
           if (subscribers === 0) {
             // The caller is told in the response body too; this is for the
             // operator reading logs after the fact, when nobody was watching

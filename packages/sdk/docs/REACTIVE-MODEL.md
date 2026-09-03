@@ -197,7 +197,7 @@ These produce no return value at the call site — observation happens on the bu
 
 - `beckon.attention`, `beckon.openResource`, `beckon.sparkleAll`
 
-These are the guided-tour moves: they drive *other* participants' viewers, and they resolve with the `/bus/emit` subscriber count (`-1` = unknown — an older gateway or in-process transport, never conflated with a genuine zero). Neither fire-and-forget nor an ack: the count is *information* — a tour script can tell an empty room from a full one before its next move.
+These are the guided-tour moves: they drive *other* participants' viewers, and they resolve with the `/bus/emit` subscriber count (`-1` = unknown — an older gateway or in-process transport, never conflated with a genuine zero). Neither fire-and-forget nor an ack: the count is *information* — a tour script can tell an empty room from a full one before its next move. The count is **exact for a broadcast and an upper bound for a correlated channel**: a reply is delivered only to the client that issued the request, so on those channels the number says how many subscribers were eligible to be considered, not how many were written to.
 
 **Plain `Observable<T>` / `BehaviorSubject<T>`** (no thenable wrapper, by design — observed continuously, not awaited):
 

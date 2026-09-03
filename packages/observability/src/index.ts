@@ -231,6 +231,7 @@ const METER_NAME = 'semiont';
 const meter = () => metrics.getMeter(METER_NAME);
 
 let _busEmitCounter: Counter | undefined;
+let _replySuppressedCounter: Counter | undefined;
 let _handlerDurationHistogram: Histogram | undefined;
 let _jobOutcomeCounter: Counter | undefined;
 let _jobDurationHistogram: Histogram | undefined;
@@ -326,6 +327,28 @@ function sseSubscribersCounter(): UpDownCounter {
     });
   }
   return _sseSubscribers;
+}
+
+function replySuppressedCounter(): Counter {
+  if (!_replySuppressedCounter) {
+    _replySuppressedCounter = meter().createCounter('semiont.bus.reply.suppressed', {
+      description: 'Correlated replies withheld from a non-owning subscriber',
+    });
+  }
+  return _replySuppressedCounter;
+}
+
+/**
+ * A correlated reply was withheld from a subscriber that does not own its
+ * correlationId (CORRELATED-REPLY-ROUTING P5).
+ *
+ * Counts ONLY that case. A frame with no correlationId is a shape violation
+ * (warned, not counted), and a cid nobody claimed is the structural in-process
+ * case that fires constantly — counting either would drown the signal this
+ * metric exists to show: the fan-out amplification the delivery filter removes.
+ */
+export function recordReplySuppressed(channel: string): void {
+  replySuppressedCounter().add(1, { 'bus.channel': channel });
 }
 
 /** Increment the bus-emit counter. Called at every transport `emit` site. */
