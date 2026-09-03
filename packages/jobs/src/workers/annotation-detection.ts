@@ -13,7 +13,7 @@
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
 import { chunkText, estimateTokens } from '@semiont/core';
 import { boundedGenerateStructured } from './inference-call';
-import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget } from './detection/detection-chunking';
+import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, DETECTION_TEMPERATURE } from './detection/detection-chunking';
 import { MotivationPrompts } from './detection/motivation-prompts';
 import {
   MotivationParsers,
@@ -49,7 +49,6 @@ async function detectInChunks<T>(
   client: InferenceClient,
   content: string,
   buildPrompt: (chunk: string) => string,
-  temperature: number,
   motivation: string,
   elementSchema: ElementSchema,
   parse: (items: unknown[]) => T[],
@@ -70,7 +69,7 @@ async function detectInChunks<T>(
     // and retries smaller before it is allowed to fail the job.
     const items = await callChunkSubdividing<unknown>(chunks[i]!, chunking, async (piece) => {
       const response = await boundedGenerateStructured<unknown>(
-        client, buildPrompt(piece), outputBudget, temperature, elementSchema,
+        client, buildPrompt(piece), outputBudget, DETECTION_TEMPERATURE, elementSchema,
         // Still alive, same position (a long single call is otherwise silent).
         () => onActivity?.(i, chunks.length),
       );
@@ -108,7 +107,7 @@ export class AnnotationDetection {
     return detectInChunks(
       client, content,
       (chunk) => MotivationPrompts.buildCommentPrompt(chunk, instructions, tone, density, language, sourceLanguage),
-      0.4, 'comment', COMMENT_ELEMENT_SCHEMA,
+      'comment', COMMENT_ELEMENT_SCHEMA,
       (items) => MotivationParsers.parseComments(items, content),
       onActivity,
     );
@@ -132,7 +131,7 @@ export class AnnotationDetection {
     return detectInChunks(
       client, content,
       (chunk) => MotivationPrompts.buildHighlightPrompt(chunk, instructions, density, sourceLanguage),
-      0.3, 'highlight', HIGHLIGHT_ELEMENT_SCHEMA,
+      'highlight', HIGHLIGHT_ELEMENT_SCHEMA,
       (items) => MotivationParsers.parseHighlights(items, content),
       onActivity,
     );
@@ -158,7 +157,7 @@ export class AnnotationDetection {
     return detectInChunks(
       client, content,
       (chunk) => MotivationPrompts.buildAssessmentPrompt(chunk, instructions, tone, density, language, sourceLanguage),
-      0.3, 'assessment', ASSESSMENT_ELEMENT_SCHEMA,
+      'assessment', ASSESSMENT_ELEMENT_SCHEMA,
       (items) => MotivationParsers.parseAssessments(items, content),
       onActivity,
     );
@@ -202,7 +201,7 @@ export class AnnotationDetection {
         categoryInfo.examples,
         sourceLanguage
       ),
-      0.2, 'tag', TAG_ELEMENT_SCHEMA,
+      'tag', TAG_ELEMENT_SCHEMA,
       (items) => MotivationParsers.parseTags(items),
       onActivity,
     );

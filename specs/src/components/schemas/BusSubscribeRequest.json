@@ -4,12 +4,16 @@
   "properties": {
     "global": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "Unscoped channels to subscribe to."
     },
     "pendingReplies": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "maxItems": 256,
       "description": "Correlation ids of busRequest replies this client still awaits (BUS-RESUMPTION Phase 2). The server replays any matching replies from its bounded retention buffer (TTL 60s) as normal frames with their deterministic `e-<channel>:<cid>` ids, so a reply that ALSO arrived live dedups client-side. At most 256 entries."
     },
@@ -18,7 +22,10 @@
       "description": "Per-resource-scope subscriptions. Scopes must be unique across entries.",
       "items": {
         "type": "object",
-        "required": ["scope", "channels"],
+        "required": [
+          "scope",
+          "channels"
+        ],
         "additionalProperties": false,
         "properties": {
           "scope": {
@@ -27,7 +34,9 @@
           },
           "channels": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "Channels to subscribe within this scope."
           },
           "lastEventId": {
@@ -36,7 +45,14 @@
           }
         }
       }
+    },
+    "clientId": {
+      "type": "string",
+      "description": "Routing address for correlated replies (CORRELATED-REPLY-ROUTING D1): a UUID minted once per bus-client lifetime \u2014 per actor, NOT per connection, so it survives a make-before-break reconnect and both overlap connections share it. Required: a subscriber without one could never receive a correlated frame, and that must fail loudly here rather than silently at delivery. Not authentication \u2014 the JWT stays that; this is an unguessable routing address, never echoed into any payload or broadcast frame."
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "required": [
+    "clientId"
+  ]
 }

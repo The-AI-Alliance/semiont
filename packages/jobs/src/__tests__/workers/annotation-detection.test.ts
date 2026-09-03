@@ -582,3 +582,11 @@ describe('AnnotationDetection', () => {
     });
   });
 });
+
+describe('temperature', () => {
+  it('every motivation detects at temperature 0 — one constant, no per-motivation tuning', async () => {
+    const client = new MockInferenceClient(['[]']);
+    await AnnotationDetection.detectHighlights('Some content here.', client as unknown as InferenceClient);
+    expect(client.calls[0]!.temperature).toBe(0);
+  });
+});

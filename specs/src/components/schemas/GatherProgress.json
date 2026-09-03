@@ -2,6 +2,10 @@
   "type": "object",
   "description": "Progress payload emitted on the gather:annotation-progress SSE channel during LLM context gathering.",
   "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "The request this progress belongs to (CORRELATED-REPLY-ROUTING D3). Required: `CORRELATED_CHANNELS` derives every operation's progress channel into the delivery filter, so a frame without it cannot be matched to a claim and is silently dropped."
+    },
     "message": {
       "type": "string"
     },
@@ -10,5 +14,8 @@
       "minimum": 0,
       "maximum": 100
     }
-  }
+  },
+  "required": [
+    "correlationId"
+  ]
 }

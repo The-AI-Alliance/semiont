@@ -200,7 +200,9 @@ import { StructuredReadError } from '@semiont/inference';
 describe('callChunkSubdividing', () => {
   const CHUNKING = { chunkSize: 1_000, overlap: 16 };
   // ~8K chars ≈ 2K tokens: splits into multiple sub-pieces at half size.
-  const CHUNK = 'lorem ipsum dolor sit amet consectetur '.repeat(200);
+  // APERIODIC on purpose: with repeated text, different sub-pieces can be
+  // identical strings, which breaks tests that count invocations per piece.
+  const CHUNK = Array.from({ length: 200 }, (_, i) => `passage ${i} lorem ipsum dolor sit amet `).join('');
 
   it('passes a successful call through untouched — one invocation, no subdivision', async () => {
     const calls: string[] = [];
@@ -264,7 +266,58 @@ describe('callChunkSubdividing', () => {
     // Fail-fast: full chunk, first half-piece, first quarter-piece — then
     // the original error propagates without trying siblings. A quarter-size
     // piece still failing is not a size problem, and exhaustively probing
-    // every sibling would multiply a wedged provider's cost.
+    // every sibling would multiply a wedged provider's cost. (No re-roll for
+    // TIMEOUTS at the floor: those classify transient, so the job-level
+    // retry is their second chance.)
     expect(calls).toBe(3);
+  });
+
+  it('truncation descends by SIZE, past the timeout depth cap — register-dense text completes', async () => {
+    // List-dense text (a register: every line several entities, each
+    // echoing ~130 chars of context) honestly demands several times its
+    // input in output — deeper than any fixed depth. Demand halves with
+    // each subdivision, so size-based descent terminates; the depth cap is
+    // for timeouts only.
+    // Bigger scale than the shared fixture so the success threshold sits
+    // BELOW the depth-2 quarter size (~4,000 chars here) but ABOVE the
+    // overlap-derived size floor — only size-based descent can get there.
+    const BIG = Array.from({ length: 400 }, (_, i) => `entry ${i} lorem ipsum dolor sit amet `).join('');
+    const succeededAt: number[] = [];
+    const result = await callChunkSubdividing(BIG, { chunkSize: 4_000, overlap: 16 }, async (piece) => {
+      if (piece.length > 1_200) throw new StructuredReadError('response is not valid JSON', 'max_tokens');
+      succeededAt.push(piece.length);
+      return [piece.length];
+    });
+    expect(result.length).toBeGreaterThan(0);
+    for (const len of succeededAt) expect(len).toBeLessThanOrEqual(1_200);
+  });
+
+  it('truncation at the floor gets ONE same-size re-roll — a repetition loop is a sampling accident', async () => {
+    // Measured live (DoD attempt #5, 21:45:58): a ~1,330-token floor piece
+    // "truncated" a 10,666-token output budget — 8× its input, impossible as
+    // an honest answer, a degeneration loop filling max_tokens. Subdivision
+    // rightly can't fix it (not size-shaped), but the deterministic rethrow
+    // killed a job the same piece would have passed on a re-roll.
+    const seen = new Map<string, number>();
+    const result = await callChunkSubdividing(CHUNK, CHUNKING, async (piece) => {
+      const n = (seen.get(piece) ?? 0) + 1;
+      seen.set(piece, n);
+      if (n === 1) throw new StructuredReadError('response is not valid JSON', 'max_tokens');
+      return [piece.length];
+    });
+    expect(result.length).toBeGreaterThan(0);
+    // Some floor piece was re-rolled — same text, second invocation.
+    expect(Math.max(...seen.values())).toBe(2);
+  });
+
+  it('a re-roll that truncates AGAIN rethrows — twice on the same piece is real pathology', async () => {
+    const boom = new StructuredReadError('response is not valid JSON', 'max_tokens');
+    let calls = 0;
+    await expect(callChunkSubdividing(CHUNK, CHUNKING, async () => {
+      calls++;
+      throw boom;
+    })).rejects.toBe(boom);
+    // Full, first half, first quarter, quarter's one re-roll — then done.
+    expect(calls).toBe(4);
   });
 });
