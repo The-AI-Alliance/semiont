@@ -12,6 +12,7 @@ import type { AnyJob, JobStatus, JobQueryFilters, CancelledJob, CompleteJob, Fai
 import type { SemiontState } from '@semiont/core/node';
 import { jobId as toJobId, type JobId, type Logger, type EventBus } from '@semiont/core';
 import type { JobQueue } from './job-queue-interface';
+import { willRetryAfter } from './will-retry';
 
 /**
  * How often pending jobs are re-announced on `job:queued` and stale
@@ -280,7 +281,7 @@ export class FsJobQueue implements JobQueue {
     // request cannot succeed on a second attempt, so a retry is guaranteed
     // waste at full price (ABANDONED-INFERENCE P3, A4). Unclassified and
     // transient failures retry as before.
-    if (failureClass !== 'deterministic' && job.metadata.retryCount < job.metadata.maxRetries) {
+    if (willRetryAfter(job.metadata, failureClass)) {
       const retried: PendingJob<any> = {
         status: 'pending',
         metadata: { ...metadata, retryCount: job.metadata.retryCount + 1 },

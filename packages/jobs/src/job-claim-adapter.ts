@@ -21,7 +21,7 @@
  */
 
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
-import { busRequest, isArray, isString, type BusRequestPrimitive, type EventMap } from '@semiont/core';
+import { busRequest, isArray, isNumber, isString, type BusRequestPrimitive, type EventMap } from '@semiont/core';
 import type { WorkerBus } from '@semiont/sdk';
 
 /**
@@ -67,6 +67,14 @@ export interface ActiveJob {
    * neither redoes nor duplicates completed work. Empty on first attempts.
    */
   completedUnits: string[];
+  /**
+   * The claimed record's retry budget, carried so the worker can report
+   * `willRetry` on `job:fail` (JOB-RESTART-SAFETY P5). It is the same budget
+   * the queue re-reads at `failJob`, and only `failJob` changes it, so the
+   * two evaluations of `willRetryAfter` agree.
+   */
+  retryCount: number;
+  maxRetries: number;
 }
 
 export interface JobClaimAdapterOptions {
@@ -173,7 +181,7 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
       // it to the claimed-job shape the worker reads.
       const job = (await busRequest(requestBus, 'job:claim', { jobId: assignment.jobId }, 10_000)) as {
         params?: Record<string, unknown>;
-        metadata?: { userId?: string; completedUnits?: unknown };
+        metadata?: { userId?: string; completedUnits?: unknown; retryCount?: unknown; maxRetries?: unknown };
       };
 
       const completedUnits = isArray(job.metadata?.completedUnits)
@@ -187,6 +195,10 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
         userId: (job.metadata?.userId ?? '') as string,
         params: (job.params ?? {}) as Record<string, unknown>,
         completedUnits,
+        // Absent or malformed metadata reads as "no budget left" — a worker
+        // that cannot see the budget must not claim a retry is coming.
+        retryCount: isNumber(job.metadata?.retryCount) ? job.metadata.retryCount : 0,
+        maxRetries: isNumber(job.metadata?.maxRetries) ? job.metadata.maxRetries : 0,
       };
     } catch {
       // A claim-failed reply (job not pending / already claimed / queue error)

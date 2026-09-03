@@ -175,12 +175,16 @@ function makeJob(
   type: ActiveJob['type'],
   paramsOverride: Record<string, unknown> = {},
   completedUnits: string[] = [],
+  // Default: no retries budgeted, so a failure is terminal unless a test
+  // says otherwise (JOB-RESTART-SAFETY P5).
+  budget: { retryCount: number; maxRetries: number } = { retryCount: 0, maxRetries: 0 },
 ): ActiveJob {
   return {
     jobId: JID,
     type,
     resourceId: RID,
     userId: UID,
+    ...budget,
     // Generation params must satisfy the wire's required trio (the worker
     // guard enforces it); overrides still win.
     params: { resourceId: RID, ...(type === 'generation' ? GEN_REQUIRED : {}), ...paramsOverride },
@@ -1075,8 +1079,52 @@ describe('startWorkerProcess', () => {
       jobType: 'reference-annotation',
       annotationId: 'ann-1',
       error: 'inference blew up',
+      // JOB-RESTART-SAFETY P5: the failure reports whether it is the END.
+      // makeJob's default budget is 0/0, so this one is terminal — a client
+      // watching the job may close its stream here.
+      willRetry: false,
     });
     expect(failJob).toHaveBeenCalledWith(JID, 'inference blew up');
+
+    vi.doUnmock('../job-claim-adapter');
+    vi.resetModules();
+  });
+
+  it('reports willRetry:true when the budget still has room — the failure is not the end', async () => {
+    const { BehaviorSubject } = await import('rxjs');
+    const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
+    vi.doMock('../job-claim-adapter', () => ({
+      createJobClaimAdapter: vi.fn(() => ({
+        activeJob$: activeJob$.asObservable(),
+        isProcessing$: { subscribe: vi.fn() },
+        jobsCompleted$: { subscribe: vi.fn() },
+        errors$: { subscribe: vi.fn() },
+        start: vi.fn(),
+        stop: vi.fn(),
+        completeJob: vi.fn(),
+        failJob: vi.fn(),
+        dispose: vi.fn(),
+      })),
+    }));
+    vi.resetModules();
+
+    const startWorkerProcess = await loadStartWorkerProcess();
+    vi.mocked(processReferenceJob).mockRejectedValueOnce(new Error('transient blip'));
+
+    const h = makeFakeSessionAndAdapter();
+    startWorkerProcess(makeConfig(h.session));
+
+    // A first attempt with one retry budgeted — the queue WILL re-queue this.
+    // `entityTypes` matters: without it the processor is never invoked, the
+    // queued rejection is never consumed, and it leaks into a later test —
+    // which is exactly what happened on the first draft of this pin.
+    activeJob$.next(
+      makeJob('reference-annotation', { referenceId: 'ann-1', entityTypes: ['Person'] }, [], { retryCount: 0, maxRetries: 1 }),
+    );
+    await new Promise((r) => setTimeout(r, 10));
+
+    const failEmit = h.busEmits.find((e) => e.channel === 'job:fail')!;
+    expect(failEmit.payload).toMatchObject({ jobId: JID, willRetry: true });
 
     vi.doUnmock('../job-claim-adapter');
     vi.resetModules();

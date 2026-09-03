@@ -163,8 +163,12 @@ export class MarkNamespace implements IMarkNamespace {
         filter((e) => e.jobId === activeJobId),
       );
 
+      // Only a TERMINAL failure ends the progress stream. `takeUntil(fail$)`
+      // silenced progress on a retryable failure too, so a run that recovered
+      // went quiet even when the stream itself survived (P5).
+      const terminalFail$ = fail$.pipe(filter((e) => e.willRetry !== true));
       const progressSub = progress$
-        .pipe(takeUntil(merge(complete$, fail$)))
+        .pipe(takeUntil(merge(complete$, terminalFail$)))
         .subscribe((e) => {
           if (e.progress) subscriber.next({ kind: 'progress', data: e.progress });
           if (activeJobId) resetPollTimer(activeJobId);
@@ -177,6 +181,20 @@ export class MarkNamespace implements IMarkNamespace {
       });
 
       const failSub = fail$.subscribe((e) => {
+        // A retryable failure is an EVENT: the queue re-queues the job and a
+        // fresh worker continues it, so ending the stream here would report a
+        // recovering run as a failed one. `willRetry` is the worker's report
+        // of what the queue will do, from the queue's own predicate. Absent
+        // (an older worker) reads as terminal — the safe direction: a stream
+        // that ends early is visible, one that never ends is not (L1).
+        if (e.willRetry === true) {
+          subscriber.next({ kind: 'failed', data: e });
+          // The poll fallback must not fire for the dead attempt; the retried
+          // attempt re-arms it on its first progress frame.
+          if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+          if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+          return;
+        }
         cleanup();
         subscriber.error(new Error(e.error));
       });

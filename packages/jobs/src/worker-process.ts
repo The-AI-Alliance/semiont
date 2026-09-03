@@ -16,6 +16,7 @@
  */
 
 import { createJobClaimAdapter, type JobClaimAdapter, type ActiveJob } from './job-claim-adapter';
+import { willRetryAfter } from './will-retry';
 import {
   asJobParams,
   isJobType,
@@ -195,6 +196,12 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
             error: message,
             ...(completedUnits && completedUnits.length > 0 ? { completedUnits } : {}),
             ...(failureClass !== undefined ? { failureClass } : {}),
+            // Whether this failure is the END, answered by the same predicate
+            // the queue applies at failJob (JOB-RESTART-SAFETY P5). Without
+            // it a client cannot tell a recovering run from a dead one: it
+            // sees job:fail either way and would end its stream on a job the
+            // queue is about to re-run.
+            willRetry: willRetryAfter(job, failureClass),
           }).catch(() => {});
         }
         adapter.failJob(job.jobId, message);

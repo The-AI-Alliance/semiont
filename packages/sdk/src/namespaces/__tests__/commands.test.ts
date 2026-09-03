@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { resourceContextFor, annotationContextFor } from '../../__tests__/fixtures/gathered-context';
 import { BehaviorSubject } from 'rxjs';
-import { EventBus, resourceId, annotationId } from '@semiont/core';
+import { EventBus, resourceId, annotationId, jobId } from '@semiont/core';
 import { MarkNamespace } from '../mark';
 import { BindNamespace } from '../bind';
 import { GatherNamespace } from '../gather';
@@ -281,6 +281,120 @@ describe('MarkNamespace', () => {
 
     bus.destroy();
     vi.useRealTimers();
+  });
+
+  // ── JOB-RESTART-SAFETY P5: cancelling ONE job ───────────────────────
+  // `cancelByType` is category-wide; a UI cancelling one running detection
+  // needs to say WHICH. The gateway already targets by jobId (P4) — this is
+  // the missing client verb. Awaited, like its category sibling: the caller
+  // learns whether anything was cancelled.
+
+  it('cancel(jobId) targets one job and resolves the cancelled count', async () => {
+    const bus = new EventBus();
+    const mock = createMockTransport({
+      'job:cancel-requested': () => ({ resultChannel: 'job:cancel-ok', response: { cancelled: 1 } }),
+    });
+    const j = new JobNamespace(mock.transport, bus);
+
+    await expect(j.cancel(jobId('j-42'))).resolves.toBe(1);
+    expect(mock.emitSpy).toHaveBeenCalledWith(
+      'job:cancel-requested',
+      expect.objectContaining({ jobId: 'j-42' }),
+    );
+    // Category-only cancellation is a different request; targeting must not
+    // smuggle a jobType in and cancel the user's other work.
+    const payload = mock.emitSpy.mock.calls.find(([ch]) => ch === 'job:cancel-requested')![1] as Record<string, unknown>;
+    expect(payload).not.toHaveProperty('jobType');
+    bus.destroy();
+  });
+
+  // ── JOB-RESTART-SAFETY P5: a retryable failure is not the end ────────
+  // The queue re-queues a transient failure while the budget has room, and
+  // the work continues on a fresh worker. A stream that ended on `job:fail`
+  // reported a RECOVERING run as a failed one — and the consumer never saw
+  // the completion that followed. `willRetry` (stamped by the worker from
+  // the same predicate the queue applies) is what separates the two.
+
+  it('assist() survives a retryable failure and completes on the later terminal', async () => {
+    const bus = new EventBus();
+    const mock = createMockTransport({
+      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+    });
+    const m = new MarkNamespace(mock.transport, bus);
+
+    const events: string[] = [];
+    let errored: Error | null = null;
+    let completed = false;
+    m.assist(RID, 'highlighting', {}).subscribe({
+      next: (e) => events.push(e.kind),
+      error: (e: Error) => { errored = e; },
+      complete: () => { completed = true; },
+    });
+    await new Promise((r) => setTimeout(r, 0));
+
+    const fail = (willRetry: boolean) => bus.get('job:fail').next({
+      jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
+      error: 'transient blip', willRetry,
+    } as never);
+
+    fail(true);
+    expect(errored).toBeNull();          // the run is not over
+    expect(completed).toBe(false);
+
+    // Progress must keep flowing on the retried attempt, too — the old
+    // takeUntil(fail$) silenced it even when the stream survived.
+    bus.get('job:report-progress').next({
+      jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
+      percentage: 20, progress: { percentage: 20 },
+    } as never);
+
+    bus.get('job:complete').next({
+      jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
+    } as never);
+
+    expect(errored).toBeNull();
+    expect(completed).toBe(true);
+    expect(events).toContain('failed');   // surfaced as an EVENT, not a throw
+    expect(events).toContain('progress'); // and the retry's progress arrived
+    expect(events).toContain('complete');
+
+    bus.destroy();
+  });
+
+  it('assist() still errors when the failure IS terminal', async () => {
+    const bus = new EventBus();
+    const mock = createMockTransport({
+      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+    });
+    const m = new MarkNamespace(mock.transport, bus);
+
+    const err = await new Promise<Error>((resolve) => {
+      m.assist(RID, 'highlighting', {}).subscribe({ error: resolve });
+      setTimeout(() => bus.get('job:fail').next({
+        jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
+        error: 'budget spent', willRetry: false,
+      } as never), 0);
+    });
+    expect(err.message).toBe('budget spent');
+    bus.destroy();
+  });
+
+  it('assist() treats an ABSENT willRetry as terminal — an older worker must not hang the stream', async () => {
+    const bus = new EventBus();
+    const mock = createMockTransport({
+      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+    });
+    const m = new MarkNamespace(mock.transport, bus);
+
+    const err = await new Promise<Error>((resolve) => {
+      m.assist(RID, 'highlighting', {}).subscribe({ error: resolve });
+      setTimeout(() => bus.get('job:fail').next({
+        jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
+        error: 'no field',
+      } as never), 0);
+    });
+    expect(err.message).toBe('no field');
+    bus.destroy();
   });
 
   // Tagging validation: dispatchAssist throws synchronously when
