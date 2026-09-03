@@ -4,7 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import type { Context, Next } from 'hono';
 import type { EventBus, EventMap, StoredEvent, EnvironmentConfig } from '@semiont/core';
-import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, resourceId as makeResourceId } from '@semiont/core';
+import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, replyChannelsFor, resourceId as makeResourceId } from '@semiont/core';
 import type { Subscription } from 'rxjs';
 import {
   SpanKind,
@@ -143,17 +143,45 @@ export const MAX_PENDING_WRITE_BYTES = 16 * 1024 * 1024;
  */
 export const MAX_REPLAY_BUFFER_EVENTS = 1_000;
 
-// ── Correlated-reply retention (BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1) ──
+// ── The correlation registry (CORRELATED-REPLY-ROUTING P3; absorbs the
+//    reply retention of BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1) ──────────
+//
+// Claims and retention answer the same question — *who may see the reply for
+// this correlationId* — so they are one module rather than two (D4).
 
-/** Every reply channel a busRequest can await, derived from the registry. */
-const REPLY_CHANNELS = [
-  ...new Set(Object.values(BUS_OPERATIONS).flatMap((op) => [op.result, op.failure])),
-];
+/**
+ * Every correlated channel: result, failure and progress of every registered
+ * operation. Derived with the SHARED helper — `replyChannelsFor` is the one
+ * home for this derivation (`packages/core/src/bus-request.ts`), already used
+ * by the worker's `WORKER_CHANNELS` and all four make-meaning service rosters.
+ * A hand-rolled union here would be the fifth restatement of it, and its own
+ * docstring names that as the recurring unbridged-reply bug class.
+ */
+const CORRELATED_CHANNELS = new Set<string>(replyChannelsFor(Object.keys(BUS_OPERATIONS)));
 
-/** A reply older than the caller's 30 s deadline is useless — 2× headroom. */
+/**
+ * The progress subset of the above. A partition of one derived set, not a
+ * restatement of it: progress frames refresh a claim's TTL (a streaming op
+ * that is still reporting cannot expire mid-flight) but are never retained —
+ * they are a stream, not an answer.
+ */
+const PROGRESS_CHANNELS = new Set<string>(
+  Object.values(BUS_OPERATIONS).flatMap((op) =>
+    'progress' in op && op.progress ? [op.progress as string] : [],
+  ),
+);
+
+/** Retained reply payloads: older than the caller's 30 s deadline is useless — 2× headroom. */
 export const REPLY_RETENTION_TTL_MS = 60_000;
 export const REPLY_RETENTION_MAX = 1024;
+/** Per-client claim capacity, and the cap on a subscribe body's `pendingReplies`. */
 export const PENDING_REPLIES_MAX = 256;
+/**
+ * Claims are cheap (two strings and a timestamp) and long-lived; reply
+ * payloads are expensive and short-lived. Deliberately different budgets.
+ */
+export const CLAIM_TTL_MS = 15 * 60_000;
+export const CLAIM_MAX_GLOBAL = 4096;
 
 interface RetainedReply {
   channel: string;
@@ -161,64 +189,167 @@ interface RetainedReply {
   retainedAt: number;
 }
 
+interface Claim {
+  clientId: string;
+  principalDid: string | undefined;
+  claimedAt: number;
+  reply?: RetainedReply;
+}
+
+const correlationIdOf = (payload: unknown): string | undefined => {
+  const cid = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
+  return typeof cid === 'string' && cid.length > 0 ? cid : undefined;
+};
+
 /**
- * Bounded retention of correlated replies, so a client whose connection
- * dropped between its emit and the reply frame can fetch the reply on
- * reconnect (`pendingReplies` in the subscribe body) instead of burning its
- * timeout. Subscribes every registry reply channel on the given bus; keeps
- * `correlationId → reply` in an insertion-ordered map with FIFO cap
- * eviction and TTL expiry swept at insert time (no timers). Entries are NOT
- * consumed by lookup — a repeat replay carries the same deterministic id
- * and dedups client-side. Retention adds no exposure: reply channels are
- * global fan-out already (channel-level authz is CHANNEL-AUTHZ.md's gap).
+ * The correlation registry: one home for "who may see the reply for this cid".
+ *
+ * `claim` records ownership at the request emit, BEFORE the payload dispatches
+ * — no handler, in-process or remote, can publish a reply for a cid that is not
+ * yet claimed. `owner` backs the delivery filter; `lookupReply` backs the
+ * `pendingReplies` reconnect probe, gated by the same ownership.
+ *
+ * Retention keeps only CLAIMED cids, with the old bounds (60 s TTL, FIFO cap,
+ * eager sweep at insert — lookup-only expiry once pinned hundreds of MB of
+ * reply payloads for nobody). Claims carry their own, longer budget.
+ *
+ * Exposure: replies were global fan-out when this buffer was written, so
+ * retention "added no exposure" and the probe was ungated. Routing ends that,
+ * and an ungated probe would become the one remaining way to fish for another
+ * user's replies — hence the owner check in `lookupReply`.
  */
-export function createReplyRetention(
+export function createCorrelationRegistry(
   eventBus: EventBus,
-  opts: { ttlMs?: number; max?: number; now?: () => number } = {},
-): { lookup(correlationId: string): RetainedReply | undefined; size(): number; dispose(): void } {
+  opts: { ttlMs?: number; max?: number; claimTtlMs?: number; now?: () => number } = {},
+): {
+  claim(cid: string, clientId: string, principalDid: string | undefined): 'ok' | 'conflict' | 'at-capacity';
+  owner(cid: string): { clientId: string; principalDid: string | undefined } | undefined;
+  lookupReply(cid: string, clientId: string, principalDid: string | undefined): RetainedReply | undefined;
+  size(): number;
+  dispose(): void;
+} {
   const ttlMs = opts.ttlMs ?? REPLY_RETENTION_TTL_MS;
   const max = opts.max ?? REPLY_RETENTION_MAX;
+  const claimTtlMs = opts.claimTtlMs ?? CLAIM_TTL_MS;
   const now = opts.now ?? Date.now;
-  const buffer = new Map<string, RetainedReply>();
-  const subs: Subscription[] = REPLY_CHANNELS.map((channel) =>
+
+  /** Insertion-ordered: expired is always a prefix, so sweeping is a walk. */
+  const claims = new Map<string, Claim>();
+  const perClient = new Map<string, number>();
+
+  const forget = (cid: string) => {
+    const claim = claims.get(cid);
+    if (!claim) return;
+    claims.delete(cid);
+    const n = (perClient.get(claim.clientId) ?? 1) - 1;
+    if (n <= 0) perClient.delete(claim.clientId);
+    else perClient.set(claim.clientId, n);
+  };
+
+  /**
+   * Sweep expired claims. A claim that never saw a retained reply is the
+   * moment a lossy mode begins — its future reply becomes undeliverable — so
+   * it is breadcrumbed (L4: no silent lossy mode). One that already delivered
+   * is ordinary cleanup and stays quiet.
+   */
+  const sweepClaims = () => {
+    const cutoff = now() - claimTtlMs;
+    for (const [cid, claim] of claims) {
+      if (claim.claimedAt > cutoff) break;
+      if (!claim.reply) {
+        getBusLogger().warn('[bus CLAIM-EXPIRED] claim swept with no reply', {
+          correlationId: cid,
+          clientId: claim.clientId,
+          ageMs: now() - claim.claimedAt,
+        });
+      }
+      forget(cid);
+    }
+  };
+
+  /** Retained reply payloads expire on their own, far shorter, budget. */
+  const sweepReplies = () => {
+    const cutoff = now() - ttlMs;
+    let retained = 0;
+    for (const claim of claims.values()) {
+      if (!claim.reply) continue;
+      if (claim.reply.retainedAt <= cutoff) delete claim.reply;
+      else retained++;
+    }
+    if (retained <= max) return;
+    // FIFO over insertion order: drop the oldest payloads, keeping the claims
+    // themselves — a claim without its payload still routes a live reply.
+    let excess = retained - max;
+    for (const claim of claims.values()) {
+      if (excess === 0) break;
+      if (claim.reply) {
+        delete claim.reply;
+        excess--;
+      }
+    }
+  };
+
+  const subs: Subscription[] = [...CORRELATED_CHANNELS].map((channel) =>
     eventBus.get(channel as keyof EventMap).subscribe((payload) => {
-      const cid = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
-      if (typeof cid !== 'string' || cid.length === 0) return;
-      buffer.delete(cid); // refresh insertion order on re-publish
-      buffer.set(cid, { channel, payload, retainedAt: now() });
-      // Sweep expired entries eagerly — the map is insertion-ordered, so
-      // expired means a prefix. Lookup-only expiry let the buffer pin up
-      // to `max` full reply payloads indefinitely under sustained traffic:
-      // with `browse:*-result` payloads that is hundreds of MB held for
-      // nobody (co-culprit in the 2026-09-03 gateway OOM).
-      const cutoff = now() - ttlMs;
-      for (const [key, entry] of buffer) {
-        if (entry.retainedAt > cutoff) break;
-        buffer.delete(key);
-      }
-      while (buffer.size > max) {
-        const oldest = buffer.keys().next().value;
-        if (oldest === undefined) break;
-        buffer.delete(oldest);
-      }
+      const cid = correlationIdOf(payload);
+      if (!cid) return;
+      const claim = claims.get(cid);
+      if (!claim) return; // never claimed: in-process requester, nothing to retain
+      // Any activity on the cid refreshes the claim, so a streaming op that is
+      // still reporting progress cannot expire mid-flight.
+      claim.claimedAt = now();
+      if (PROGRESS_CHANNELS.has(channel)) return; // refresh only; a stream is not an answer
+      claim.reply = { channel, payload, retainedAt: now() };
+      sweepClaims();
+      sweepReplies();
     }),
   );
+
   return {
-    lookup(correlationId) {
-      const entry = buffer.get(correlationId);
-      if (!entry) return undefined;
-      if (now() - entry.retainedAt > ttlMs) {
-        buffer.delete(correlationId);
+    claim(cid, clientId, principalDid) {
+      sweepClaims();
+      const existing = claims.get(cid);
+      if (existing) return 'conflict';
+      if ((perClient.get(clientId) ?? 0) >= PENDING_REPLIES_MAX) return 'at-capacity';
+      if (claims.size >= CLAIM_MAX_GLOBAL) {
+        // A backstop correct clients cannot reach. Oldest-first, breadcrumbed
+        // per entry — never silent (L4).
+        const oldest = claims.keys().next().value;
+        if (oldest !== undefined) {
+          getBusLogger().warn('[bus CLAIM-EVICTED] global claim cap reached', {
+            correlationId: oldest,
+            cap: CLAIM_MAX_GLOBAL,
+          });
+          forget(oldest);
+        }
+      }
+      claims.set(cid, { clientId, principalDid, claimedAt: now() });
+      perClient.set(clientId, (perClient.get(clientId) ?? 0) + 1);
+      return 'ok';
+    },
+    owner(cid) {
+      const claim = claims.get(cid);
+      if (!claim) return undefined;
+      if (now() - claim.claimedAt > claimTtlMs) return undefined;
+      return { clientId: claim.clientId, principalDid: claim.principalDid };
+    },
+    lookupReply(cid, clientId, principalDid) {
+      const claim = claims.get(cid);
+      if (!claim?.reply) return undefined;
+      if (claim.clientId !== clientId || claim.principalDid !== principalDid) return undefined;
+      if (now() - claim.reply.retainedAt > ttlMs) {
+        delete claim.reply;
         return undefined;
       }
-      return entry;
+      return claim.reply;
     },
     size() {
-      return buffer.size;
+      return claims.size;
     },
     dispose() {
-      for (const s of subs) s.unsubscribe();
-      buffer.clear();
+      for (const sub of subs) sub.unsubscribe();
+      claims.clear();
+      perClient.clear();
     },
   };
 }
@@ -231,15 +362,22 @@ const isStringArray = (v: unknown): v is string[] =>
  * Returns an error message rather than throwing so the route can wrap it
  * in a single HTTPException site.
  */
-function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSubscription[]; pendingReplies: string[] } | { error: string } {
+function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSubscription[]; pendingReplies: string[]; clientId: string } | { error: string } {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     return { error: 'body must be a JSON object' };
   }
-  const { global: rawGlobal, scoped: rawScoped, pendingReplies: rawPending } = raw as {
+  const { global: rawGlobal, scoped: rawScoped, pendingReplies: rawPending, clientId } = raw as {
     global?: unknown;
     scoped?: unknown;
     pendingReplies?: unknown;
+    clientId?: unknown;
   };
+  // Required by BusSubscribeRequest (P1). It is the routing address the
+  // delivery filter matches on; without it a client would silently receive no
+  // correlated replies at all, which is the failure this rejects up front.
+  if (typeof clientId !== 'string' || clientId === '') {
+    return { error: '`clientId` is required (BusSubscribeRequest)' };
+  }
   const global = rawGlobal === undefined ? [] : rawGlobal;
   if (!isStringArray(global)) return { error: '`global` must be an array of channel names' };
 
@@ -270,7 +408,7 @@ function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSub
   if (scoped.length > MAX_SCOPES) {
     return { error: `scope count ${scoped.length} exceeds the per-connection cap of ${MAX_SCOPES}` };
   }
-  return { global, scoped, pendingReplies };
+  return { global, scoped, pendingReplies, clientId };
 }
 
 export function createBusRouter(authMiddleware: AuthMiddleware) {
@@ -282,7 +420,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
   // subscribe. Lazy-on-first-subscribe is not a coverage hole: the attach
   // gate guarantees a client holds an open connection before any busRequest
   // emit, so a reply can only exist after some subscribe has run.
-  const retentionByBus = new WeakMap<EventBus, ReturnType<typeof createReplyRetention>>();
+  const registryByBus = new WeakMap<EventBus, ReturnType<typeof createCorrelationRegistry>>();
 
   busRouter.post('/bus/subscribe', async (c) => {
     const raw: unknown = await c.req.json().catch(() => null);
@@ -290,18 +428,18 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     if ('error' in parsed) {
       throw new HTTPException(400, { message: parsed.error });
     }
-    const { global: channels, scoped, pendingReplies } = parsed;
+    const { global: channels, scoped, pendingReplies, clientId } = parsed;
     const eventBus = c.get('eventBus');
     // Read OUTSIDE the stream callback: `c` is the request context, and the
     // presence pair below must name the principal on this connection.
     const subscriberDid = c.get('principalDid') as string | undefined;
 
-    let retention = retentionByBus.get(eventBus);
-    if (!retention) {
-      retention = createReplyRetention(eventBus);
-      retentionByBus.set(eventBus, retention);
+    let registry = registryByBus.get(eventBus);
+    if (!registry) {
+      registry = createCorrelationRegistry(eventBus);
+      registryByBus.set(eventBus, registry);
     }
-    const replyRetention = retention;
+    const correlations = registry;
 
     if (scoped.length >= SCOPE_WARN_THRESHOLD) {
       getBusLogger().warn('large scope matrix', { scopeCount: scoped.length, cap: MAX_SCOPES });
@@ -535,12 +673,44 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         }
       };
 
+      /**
+       * Ownership check for a frame on a correlated channel.
+       *
+       * Three negatives, deliberately distinguished:
+       *  - a result/failure with NO correlationId violates REPLY-SHAPE-STANDARD
+       *    → drop and warn (loud absence; never a manufactured broadcast);
+       *  - a NEVER-CLAIMED cid → drop silently. This is the structural
+       *    in-process case (`ResourceOperations` runs busRequest on the
+       *    gateway's own bus and consumes the reply in-process), not a lossy
+       *    mode — a warn here would fire on every in-process operation;
+       *  - a cid owned by someone else → drop silently. That is the routing
+       *    working.
+       * The genuinely lossy case, claimed-then-expired, is breadcrumbed at
+       * sweep time instead, which needs no tombstone here.
+       */
+      const mayDeliver = (channel: string, payload: unknown): boolean => {
+        const cid = correlationIdOf(payload);
+        if (!cid) {
+          if (!PROGRESS_CHANNELS.has(channel)) {
+            getBusLogger().warn('[bus REPLY-NO-CID] correlated frame without a correlationId', { channel });
+          }
+          return false;
+        }
+        const owner = correlations.owner(cid);
+        if (!owner) return false;
+        return owner.clientId === clientId && owner.principalDid === subscriberDid;
+      };
+
       const willReplay = scoped.some((entry) => entry.lastEventId !== undefined);
       if (willReplay) mode = 'buffering';
 
       for (const channel of channels) {
+        const correlated = CORRELATED_CHANNELS.has(channel);
         subs.push(
           eventBus.get(channel as keyof EventMap).subscribe((payload) => {
+            // The whole amplification win: a non-owner returns after one Map
+            // lookup — no stringify, no pending-write bytes, no buffer slot.
+            if (correlated && !mayDeliver(channel, payload)) return;
             emitOrBuffer(channel, payload, undefined);
           }),
         );
@@ -616,7 +786,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // Entries are not consumed: a repeat replay is idempotent by id.
       for (const cid of pendingReplies) {
         if (tornDown) break;
-        const retained = replyRetention.lookup(cid);
+        const retained = correlations.lookupReply(cid, clientId, subscriberDid);
         if (retained) {
           await writeBusEvent(retained.channel, retained.payload, undefined);
         }
@@ -691,6 +861,50 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     const principalDid = c.get('principalDid') as string | undefined;
     if (principalDid) {
       payload._userId = principalDid;
+    }
+
+    // ── Emit-as-claim (CORRELATED-REPLY-ROUTING D2) ────────────────────
+    //
+    // A request emit carrying a fresh correlationId records who owns the
+    // reply, BEFORE `subject.next` dispatches it. Ordering is safe by
+    // construction: no handler — in-process (subscribed synchronously on this
+    // bus) or remote (over SSE) — can publish a reply for a cid that has not
+    // dispatched yet.
+    //
+    // Claims are emit-derived rather than trackReply-derived, so the
+    // hand-rolled correlated flows (gather.ts, match.ts mint their own uuid
+    // and emit directly) are covered with no SDK change.
+    const claimCid = channel in BUS_OPERATIONS ? correlationIdOf(payload) : undefined;
+    if (claimCid) {
+      const clientId = (body as { clientId?: unknown }).clientId;
+      if (typeof clientId !== 'string' || clientId === '') {
+        // Loud, not lenient: a mis-wired client would otherwise burn every
+        // busRequest's 30 s timeout with no server-side signal. We control
+        // every emitter, so there is no compat path to keep open.
+        throw new HTTPException(400, {
+          message: `clientId is required to emit ${channel} with a correlationId`,
+        });
+      }
+      let registry = registryByBus.get(eventBus);
+      if (!registry) {
+        registry = createCorrelationRegistry(eventBus);
+        registryByBus.set(eventBus, registry);
+      }
+      const outcome = registry.claim(claimCid, clientId, principalDid);
+      if (outcome === 'conflict') {
+        // A live cid claimed twice is a client bug — UUID collision is not a
+        // real event — so it is refused rather than silently re-pointed.
+        getBusLogger().warn('[bus CLAIM-CONFLICT] correlationId already claimed', { channel, correlationId: claimCid });
+        throw new HTTPException(409, { message: `correlationId ${claimCid} is already claimed` });
+      }
+      if (outcome === 'at-capacity') {
+        // Refused HERE, where busRequest's emit-rejection path settles
+        // immediately and loudly. Evicting a live claim instead would turn
+        // that request's future reply into a silent drop (LIVENESS-AXIOMS L2).
+        throw new HTTPException(429, {
+          message: `client has ${PENDING_REPLIES_MAX} unanswered requests; retry when one settles`,
+        });
+      }
     }
 
     // Tier 2: parent span comes from the W3C traceparent on the request.

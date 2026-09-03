@@ -319,7 +319,6 @@ func TestReadSSEParsesFrames(t *testing.T) {
 	}
 }
 
-
 // CORRELATED-REPLY-ROUTING P2 — the routing address, Go side.
 
 func TestSubscribeAndEmitCarryOneClientID(t *testing.T) {
