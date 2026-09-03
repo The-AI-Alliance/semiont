@@ -68,6 +68,13 @@ export interface ActorStateUnit extends StateUnit {
   state$: Observable<ConnectionState>;
   /** With `scope`: upsert channels into that scope's matrix entry. Without: global channels. */
   addChannels(channels: string[], scope?: string): void;
+  /**
+   * Whether `channel` is in the current GLOBAL subscription set — i.e. the
+   * gateway delivers it on this connection. Correlated replies always ride
+   * global channels, so this is `busRequest`'s fail-fast probe on a
+   * narrowed-subscription transport (see `BusRequestPrimitive.isSubscribed`).
+   */
+  isSubscribed(channel: string): boolean;
   /** With `scope`: remove channels from that scope's entry (empty entry drops the scope). Without: global channels. */
   removeChannels(channels: string[], scope?: string): void;
   /**
@@ -318,7 +325,21 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = '';
+
+      /**
+       * Segments of the current, still-incomplete line. A single `data:`
+       * line carries a whole JSON payload — a browse reply can run to
+       * megabytes — delivered across many `reader.read()` chunks. The
+       * previous `buffer += chunk` + `buffer.split('\n')` re-flattened and
+       * re-scanned the ENTIRE accumulated buffer on every read: O(frame² /
+       * chunkSize) bytes of large-string allocation per frame, all landing
+       * in V8's large-object space, which only major GC reclaims. Under the
+       * reply fan-out burst (~85 multi-MB `browse:*-result` frames/min)
+       * that allocation rate outran mark-compact and OOM'd the worker
+       * (2026-09-03, DoD #7). Segments are joined exactly once, when the
+       * line's newline arrives; each read scans only its own chunk.
+       */
+      let lineSegments: string[] = [];
 
       // SSE parse state is declared OUTSIDE the read loop: a single
       // event can span many `reader.read()` chunks when the payload is
@@ -334,12 +355,24 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         const { done, value } = await reader.read();
         if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
+        const text = decoder.decode(value, { stream: true });
 
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
+        let searchFrom = 0;
+        while (searchFrom <= text.length) {
+          const nl = text.indexOf('\n', searchFrom);
+          if (nl === -1) {
+            if (searchFrom < text.length) {
+              lineSegments.push(searchFrom === 0 ? text : text.slice(searchFrom));
+            }
+            break;
+          }
+          let line = text.slice(searchFrom, nl);
+          searchFrom = nl + 1;
+          if (lineSegments.length > 0) {
+            lineSegments.push(line);
+            line = lineSegments.join('');
+            lineSegments = [];
+          }
           if (line.startsWith('event: ')) {
             currentEvent = line.slice(7);
           } else if (line.startsWith('data: ')) {
@@ -556,6 +589,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     },
 
     state$: state$.asObservable(),
+
+    isSubscribed: (channel: string) => globalChannels.has(channel),
 
     addChannels: (channels: string[], scope?: string) => {
       let changed = false;

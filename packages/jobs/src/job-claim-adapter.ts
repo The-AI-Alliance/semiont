@@ -41,6 +41,10 @@ function workerBusAsPrimitive(bus: WorkerBus): BusRequestPrimitive {
     // fires right after connect — exactly the attach-window emit the gate
     // exists for (.plans/BUS-ATTACH-GATE.md).
     state$: bus.state$,
+    // Pass the subscription probe through so a `job:claim` against a
+    // transport whose narrowed channel set omits the claim replies fails
+    // fast (`bus.unsubscribed`) instead of timing out.
+    ...(bus.isSubscribed ? { isSubscribed: (channel: string) => bus.isSubscribed!(channel) } : {}),
   };
 }
 

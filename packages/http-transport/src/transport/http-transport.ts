@@ -105,6 +105,19 @@ export interface HttpTransportConfig {
    */
   loadLastEventIds?: () => Record<string, string> | null;
   saveLastEventId?: (scope: string, id: string) => void;
+  /**
+   * The global SSE channel set this transport subscribes. Absent means the
+   * full `BRIDGED_CHANNELS` — a full client must receive every operation's
+   * reply channel, or its `busRequest`s time out. A narrow-profile process
+   * (the worker) passes exactly the reply channels for the operations it
+   * awaits: reply channels are global fan-out on the gateway, so a full
+   * subscription receives every OTHER client's replies too — measured at
+   * ~85 multi-MB `browse:annotations-result` frames/min during the
+   * 2026-09-03 worker OOM, all parsed and dropped by cid filtering.
+   * A `busRequest` on an operation whose replies are outside this set
+   * fails fast with `bus.unsubscribed` (see `BusRequestPrimitive`).
+   */
+  channels?: readonly string[];
 }
 
 export class HttpTransport implements ITransport, IGatewayOperations {
@@ -253,21 +266,22 @@ export class HttpTransport implements ITransport, IGatewayOperations {
 
   get actor(): ActorStateUnit {
     if (!this._actor) {
+      const globalChannels = this.config.channels ?? BRIDGED_CHANNELS;
       this._actor = createActorStateUnit({
         baseUrl: this.baseUrl,
         token: () => this.token$.getValue() ?? '',
-        channels: [...BRIDGED_CHANNELS],
+        channels: [...globalChannels],
         ...(this.config.loadLastEventIds ? { loadLastEventIds: this.config.loadLastEventIds } : {}),
         ...(this.config.saveLastEventId ? { saveLastEventId: this.config.saveLastEventId } : {}),
       });
       // One fan-in per channel, wired once for the actor's lifetime — the
-      // globally-bridged set AND the resource-scoped set (disjoint by the
+      // globally-subscribed set AND the resource-scoped set (disjoint by the
       // bus-invariants guard). Scoped events only arrive for scopes in the
       // actor's matrix (gateway-authoritative filtering), so an always-on
       // scoped fan-in delivers nothing while no scope is held — and exactly
       // ONCE per event however many scopes are held (the per-scope
       // bridge-subs design would have duplicated delivery N×).
-      for (const channel of [...BRIDGED_CHANNELS, ...RESOURCE_SCOPED_CHANNELS]) {
+      for (const channel of [...globalChannels, ...RESOURCE_SCOPED_CHANNELS]) {
         this._actor.on$<Record<string, unknown>>(channel).subscribe((payload) => {
           for (const bus of this.bridges) {
             (bus.get(channel as keyof EventMap) as { next(v: unknown): void }).next(payload);
@@ -369,6 +383,17 @@ export class HttpTransport implements ITransport, IGatewayOperations {
    */
   trackReply(correlationId: string): () => void {
     return this.actor.trackReply(correlationId);
+  }
+
+  /**
+   * `busRequest`'s fail-fast probe (`BusRequestPrimitive.isSubscribed`):
+   * whether the actor's global subscription set delivers `channel`. On a
+   * full client (no `channels` config) every bridged reply channel is
+   * subscribed and this never gates; on a narrowed transport it turns a
+   * doomed request into an immediate `bus.unsubscribed` error.
+   */
+  isSubscribed(channel: string): boolean {
+    return this.actor.isSubscribed(channel);
   }
 
   dispose(): void {

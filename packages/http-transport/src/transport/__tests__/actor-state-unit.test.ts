@@ -278,6 +278,77 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
+  it('reassembles a large frame delivered in many small chunks, and a chunk carrying several complete events', async () => {
+    // Companion to the spanning test above, pinned against the segment-
+    // accumulating line splitter (worker OOM, 2026-09-03): the old
+    // `buffer += chunk; buffer.split('\n')` re-flattened the whole
+    // accumulated buffer per read — O(frame²/chunk) large-string churn on
+    // multi-MB reply frames. The splitter must (a) survive a data line
+    // split across dozens of reads, including cuts exactly on '\n', and
+    // (b) dispatch several complete events arriving inside ONE read.
+    const sse = mockSSEResponse();
+
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['test:big'],
+    });
+
+    const results: unknown[] = [];
+    stateUnit.on$<{ n?: number; blob?: string }>('test:big').subscribe((v) => results.push(v));
+    stateUnit.start();
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+
+    const payload = { blob: 'y'.repeat(50_000) };
+    const frame = sseChunk('bus-event', JSON.stringify({ channel: 'test:big', payload }));
+    // Many small slices; 599 is coprime with the frame length's structure,
+    // so cuts land mid-line, on header boundaries, and inside the trailer.
+    for (let i = 0; i < frame.length; i += 599) {
+      sse.push(frame.slice(i, i + 599));
+    }
+    // A boundary exactly on the newline that terminates the data line.
+    const two = sseChunk('bus-event', JSON.stringify({ channel: 'test:big', payload: { n: 1 } }));
+    const cut = two.indexOf('\n', two.indexOf('data: ')) + 1;
+    sse.push(two.slice(0, cut));
+    sse.push(two.slice(cut));
+    // Two complete events plus the head of a third in one read; the tail
+    // of the third arrives separately.
+    const third = sseChunk('bus-event', JSON.stringify({ channel: 'test:big', payload: { n: 2 } }));
+    const fourth = sseChunk('bus-event', JSON.stringify({ channel: 'test:big', payload: { n: 3 } }));
+    const fifth = sseChunk('bus-event', JSON.stringify({ channel: 'test:big', payload: { n: 4 } }));
+    sse.push(third + fourth + fifth.slice(0, 10));
+    sse.push(fifth.slice(10));
+
+    await vi.waitFor(() => expect(results).toHaveLength(5));
+    expect(results[0]).toEqual(payload);
+    expect(results.slice(1)).toEqual([{ n: 1 }, { n: 2 }, { n: 3 }, { n: 4 }]);
+
+    stateUnit.dispose();
+  });
+
+  it('isSubscribed reflects the global channel set through add/removeChannels', () => {
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['job:claimed', 'job:claim-failed'],
+    });
+
+    expect(stateUnit.isSubscribed('job:claimed')).toBe(true);
+    expect(stateUnit.isSubscribed('browse:annotations-result')).toBe(false);
+
+    stateUnit.addChannels(['job:queued']);
+    expect(stateUnit.isSubscribed('job:queued')).toBe(true);
+
+    stateUnit.removeChannels(['job:queued']);
+    expect(stateUnit.isSubscribed('job:queued')).toBe(false);
+
+    // Scoped entries are NOT global subscriptions — replies never ride scopes.
+    stateUnit.addChannels(['mark:added'], 'res-1');
+    expect(stateUnit.isSubscribed('mark:added')).toBe(false);
+
+    stateUnit.dispose();
+  });
+
   it('ignores ping events', async () => {
     const sse = mockSSEResponse();
 
