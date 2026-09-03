@@ -45,9 +45,10 @@ vi.mock('../workers/generation/typst-compiler', async (importOriginal) => ({
   compileTypst: vi.fn(),
 }));
 
-vi.mock('@semiont/event-sourcing', () => ({
-  generateAnnotationId: vi.fn(() => 'ann-test-123'),
-}));
+// No `@semiont/event-sourcing` mock: annotation ids are content-addressed
+// (JOB-RESTART-SAFETY P3), so the real function is already deterministic. The
+// mock existed only to buy that determinism, and keeping it would hide the
+// identity these builders now compute — which is the thing worth exercising.
 
 // No `@semiont/core` mock — these tests exercise the real `reconcileSelector`
 // against synthetic content. The processor's `buildTextAnnotation` invariant

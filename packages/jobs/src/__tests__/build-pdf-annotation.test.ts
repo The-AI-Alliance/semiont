@@ -8,9 +8,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { resourceId, type components } from '@semiont/core';
 import type { PdfTextLayer } from '@semiont/content';
 
-vi.mock('@semiont/event-sourcing', () => ({
-  generateAnnotationId: vi.fn(() => 'ann-pdf-test'),
-}));
+// No `@semiont/event-sourcing` mock: annotation ids are content-addressed
+// (JOB-RESTART-SAFETY P3), so the real function is already deterministic. The
+// mock existed only to buy that determinism, and keeping it would hide the
+// identity these builders now compute — which is the thing worth exercising.
 
 import { buildPdfAnnotation } from '../processors';
 

@@ -24,9 +24,10 @@ vi.mock('@semiont/content', async (importOriginal) => {
     EXTRACTORS: { ...actual.EXTRACTORS, 'pdf-text-layer': { extract: vi.fn() } },
   };
 });
-vi.mock('@semiont/event-sourcing', () => ({
-  generateAnnotationId: vi.fn(() => 'ann-prep-test'),
-}));
+// No `@semiont/event-sourcing` mock: annotation ids are content-addressed
+// (JOB-RESTART-SAFETY P3), so the real function is already deterministic. The
+// mock existed only to buy that determinism, and keeping it would hide the
+// identity these builders now compute — which is the thing worth exercising.
 
 import { EXTRACTORS, type AnchoredTextStore, type ContentReads } from '@semiont/content';
 import { prepareDetection } from '../workers/detection/prepare-detection';
