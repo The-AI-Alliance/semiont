@@ -181,16 +181,12 @@ describe('deriveDetectionBudget — input never exceeds half the output budget',
   });
 });
 
-// ── Duration margin + subdivision (user direction, 2026-09-02 night) ──
-// DoD attempt #4 measured the zero-margin residual firing: the output cap
-// equalled rate × the FULL bound, so a chunk that goes exhaustive at the
-// provider's own worst-case rate collides with the guillotine by
-// construction (chunk 3 died at exactly 600 s, twice). The cap now spends
-// HALF the bound — the slowest legitimate full-cap generation finishes at
-// ~300 s, and the guillotine only fires on calls at least 2× slower than
-// the provider's own worst-case model, i.e. genuinely wedged. And when a
-// chunk call still hits a size-shaped failure, it subdivides in place
-// instead of burning the attempt.
+// ── Duration margin + subdivision ─────────────────────────────────────
+// The output cap spends HALF the call bound: at the full bound, a chunk
+// generating at the provider's own worst-case rate collides with the
+// guillotine by construction. And when a chunk call still hits a
+// size-shaped failure, it subdivides in place instead of burning the
+// attempt.
 
 import { callChunkSubdividing } from '../../../workers/detection/detection-chunking';
 import { InferenceTimeoutError } from '../../../workers/inference-call';
@@ -293,11 +289,10 @@ describe('callChunkSubdividing', () => {
   });
 
   it('truncation at the floor gets ONE same-size re-roll — a repetition loop is a sampling accident', async () => {
-    // Measured live (DoD attempt #5, 21:45:58): a ~1,330-token floor piece
-    // "truncated" a 10,666-token output budget — 8× its input, impossible as
-    // an honest answer, a degeneration loop filling max_tokens. Subdivision
-    // rightly can't fix it (not size-shaped), but the deterministic rethrow
-    // killed a job the same piece would have passed on a re-roll.
+    // A floor-size piece cannot honestly overflow the output budget, so a
+    // truncation there is a degeneration loop — a sampling accident a
+    // re-roll usually escapes; the deterministic rethrow alone would kill
+    // a job the same piece passes on the next roll.
     const seen = new Map<string, number>();
     const result = await callChunkSubdividing(CHUNK, CHUNKING, async (piece) => {
       const n = (seen.get(piece) ?? 0) + 1;

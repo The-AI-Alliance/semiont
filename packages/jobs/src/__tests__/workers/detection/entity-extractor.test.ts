@@ -386,10 +386,9 @@ describe('extractEntities', () => {
 });
 
 describe('temperature', () => {
-  it('detection calls run at temperature 0 — a fidelity task, not a generative one (user decision 2026-09-03)', async () => {
-    // The A/B (temp-ab.log) measured 0.0/0.3/1.0 identically consistent at
-    // production call sizes, so determinism-direction is free; enumeration
-    // copies spans verbatim and benefits from reproducible re-runs.
+  it('detection calls run at temperature 0 — a fidelity task, not a generative one', async () => {
+    // Enumeration copies spans verbatim; determinism buys reproducible
+    // re-runs and was measured equal to hotter settings on consistency.
     const client = new MockInferenceClient(['[]']);
     await extractEntities('Alice went to Paris.', ['Person'], client as unknown as InferenceClient, false, LOGGER);
     expect(client.calls[0]!.temperature).toBe(0);

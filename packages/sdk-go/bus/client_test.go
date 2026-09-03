@@ -18,10 +18,11 @@ import (
 // a reply is only produced once a request has been emitted — which is what
 // makes the subscribe-before-emit ordering testable.
 type fakeGateway struct {
-	mu        sync.Mutex
-	emitted   []map[string]any
-	replies   chan string // raw SSE frames to write to any open stream
-	subscribe func(r *http.Request)
+	mu                 sync.Mutex
+	emitted            []map[string]any
+	replies            chan string // raw SSE frames to write to any open stream
+	subscribe          func(r *http.Request)
+	subscribedClientID string
 }
 
 func newFakeGateway() *fakeGateway { return &fakeGateway{replies: make(chan string, 8)} }
@@ -47,8 +48,9 @@ func (f *fakeGateway) server(t *testing.T) *httptest.Server {
 			return
 		}
 		var matrix struct {
-			Global []string `json:"global"`
-			Scoped []struct {
+			Global   []string `json:"global"`
+			ClientID string   `json:"clientId"`
+			Scoped   []struct {
 				Scope    string   `json:"scope"`
 				Channels []string `json:"channels"`
 			} `json:"scoped"`
@@ -61,6 +63,17 @@ func (f *fakeGateway) server(t *testing.T) *httptest.Server {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		// CORRELATED-REPLY-ROUTING D5: clientId is REQUIRED on subscribe, and
+		// the real gateway 400s without it. The fake refuses too, so a Go
+		// client that forgets the field fails here rather than at the P3
+		// cutover as "this client silently receives nothing".
+		if matrix.ClientID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		f.mu.Lock()
+		f.subscribedClientID = matrix.ClientID
+		f.mu.Unlock()
 		for _, e := range matrix.Scoped {
 			if e.Scope == "" || len(e.Channels) == 0 {
 				w.WriteHeader(http.StatusBadRequest)
@@ -303,5 +316,70 @@ func TestReadSSEParsesFrames(t *testing.T) {
 	}
 	if got[0].Channel != "mark:added" || got[1].Channel != "mark:removed" || got[1].ID != "42" {
 		t.Errorf("parsed wrong: %+v", got)
+	}
+}
+
+
+// CORRELATED-REPLY-ROUTING P2 — the routing address, Go side.
+
+func TestSubscribeAndEmitCarryOneClientID(t *testing.T) {
+	f := newFakeGateway()
+	srv := f.server(t)
+	c := NewClient(srv.URL, "tok")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	sub, err := c.Subscribe(ctx, []Channel{"browse:resources-result"}, nil, "")
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+	defer sub.Close()
+
+	if _, err := c.Emit(ctx, "browse:resources-requested", map[string]any{"correlationId": "c-1"}, ""); err != nil {
+		t.Fatalf("emit: %v", err)
+	}
+
+	f.mu.Lock()
+	subscribed := f.subscribedClientID
+	f.mu.Unlock()
+	if subscribed == "" {
+		t.Fatal("subscribe body carried no clientId")
+	}
+
+	emitted, _ := f.lastEmit(t)["clientId"].(string)
+	if emitted != subscribed {
+		t.Fatalf("emit clientId %q != subscribe clientId %q — one client, one address", emitted, subscribed)
+	}
+	if payload, ok := f.lastEmit(t)["payload"].(map[string]any); ok {
+		if _, leaked := payload["clientId"]; leaked {
+			t.Fatal("clientId leaked into payload — it is a wire field, like scope")
+		}
+	}
+}
+
+func TestTwoClientsAreTwoAddresses(t *testing.T) {
+	f := newFakeGateway()
+	srv := f.server(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	a := NewClient(srv.URL, "tok")
+	if _, err := a.Emit(ctx, "browse:resources-requested", map[string]any{}, ""); err != nil {
+		t.Fatalf("emit a: %v", err)
+	}
+	first, _ := f.lastEmit(t)["clientId"].(string)
+
+	b := NewClient(srv.URL, "tok")
+	if _, err := b.Emit(ctx, "browse:resources-requested", map[string]any{}, ""); err != nil {
+		t.Fatalf("emit b: %v", err)
+	}
+	second, _ := f.lastEmit(t)["clientId"].(string)
+
+	if first == "" || second == "" {
+		t.Fatalf("missing clientId: %q / %q", first, second)
+	}
+	if first == second {
+		t.Fatalf("two clients shared one address %q", first)
 	}
 }

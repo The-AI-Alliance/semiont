@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, type ConnectionState, type StateUnit } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, type components, type ConnectionState, type StateUnit } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -123,6 +123,20 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   );
   /** Outstanding busRequest correlationIds — ride every connect body (S1). */
   const pendingReplies = new Set<string>();
+  /**
+   * This bus client's routing address for correlated replies
+   * (CORRELATED-REPLY-ROUTING D1). Minted once per ACTOR — deliberately not
+   * per connection: a make-before-break handover runs two connections at
+   * once and a reconnect replaces one, so a per-connection id would strand
+   * the reply on the dying socket. Both overlap connections present this
+   * same address, and the deterministic `e-<channel>:<cid>` id dedups the
+   * double delivery exactly as it does today.
+   *
+   * Not persisted: "stable" means across transport reconnects, not across
+   * page reloads. A reload builds a new actor, and its `pendingReplies`
+   * replay is what recovers in-flight replies (S1).
+   */
+  const clientId = uuidV4();
 
   const events$ = new Subject<BusEvent>();
   const state$ = new BehaviorSubject<ConnectionState>('initial');
@@ -264,6 +278,11 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
     // POST subscription matrix (MULTI-RESOURCE-SCOPE): global channels plus
     // one entry per scope, each carrying its own resumption watermark.
+    // `satisfies` is the drift-lock (the MEDIA_TYPES idiom): the body is
+    // hand-written while the schema owns the shape, so the compiler — not a
+    // reviewer — is what notices a required field going missing. That is
+    // what makes `clientId` required in BusSubscribeRequest worth anything
+    // on this side of the wire (CORRELATED-REPLY-ROUTING P2).
     const body = JSON.stringify({
       global: [...globalChannels],
       scoped: [...scopedSubscriptions.entries()].map(([scope, chans]) => {
@@ -275,7 +294,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         };
       }),
       ...(pendingReplies.size > 0 ? { pendingReplies: [...pendingReplies] } : {}),
-    });
+      clientId,
+    } satisfies components['schemas']['BusSubscribeRequest']);
     const url = `${baseUrl}/bus/subscribe`;
 
     const controller = new AbortController();
@@ -549,7 +569,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // (`HttpTransport.emit`). ActorStateUnit is plumbing. We do propagate the
       // active span's W3C traceparent on the outbound POST so the gateway
       // can stitch the bus.dispatch server span as a child.
-      const body: Record<string, unknown> = { channel, payload };
+      const body: Record<string, unknown> = { channel, payload, clientId };
       if (emitScope) body.scope = emitScope;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
