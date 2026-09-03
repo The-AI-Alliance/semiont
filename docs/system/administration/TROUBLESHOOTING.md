@@ -120,7 +120,7 @@ For schema drift, migration state, and reset procedures, see the [Database Guide
 | 5432 | database (PostgreSQL) |
 | 6333 | vectors (Qdrant) |
 | 7474, 7687 | graph (Neo4j HTTP, Bolt) |
-| 9090, 9091, 9092 | worker, smelter, weaver |
+| 24100, 24101, 24102 | worker, smelter, weaver |
 | 11434 | inference (Ollama) |
 | 16686, 4318 | traces (Jaeger UI, OTLP) |
 

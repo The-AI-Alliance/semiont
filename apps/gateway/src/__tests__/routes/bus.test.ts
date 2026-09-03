@@ -135,7 +135,7 @@ function buildApp(
     c.set('principalDid', principalDid);
     c.set('eventBus', eventBus);
     c.set('logger', logger);
-    c.set('config', { services: { archivist: { host: ARCHIVIST_HOST, port: 9093 } } });
+    c.set('config', { services: { archivist: { host: ARCHIVIST_HOST, port: 9999 } } });
     await next();
   });
   app.route('/', router);
