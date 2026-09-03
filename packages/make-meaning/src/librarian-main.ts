@@ -111,8 +111,8 @@ if (config.services.vectors.type === 'memory') {
 
 const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
 
-/** Claimed as a portNeed in the launcher: worker 9090, smelter 9091, weaver 9092, archivist 9093. */
-const healthPort = 9094;
+/** Claimed as a portNeed in the launcher: worker 24100, smelter 24101, weaver 24102, archivist 24103. */
+const healthPort = 24104;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
 const logger = createProcessLogger('librarian');

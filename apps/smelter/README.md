@@ -6,7 +6,7 @@ embeds it, and keeps the vector store reconciled with reality.
 | | |
 | --- | --- |
 | Image | `ghcr.io/the-ai-alliance/semiont-smelter` |
-| Port | 9091 (`/health`, and nothing else — all real traffic is the bus) |
+| Port | 24101 (`/health`, and nothing else — all real traffic is the bus) |
 | Entry point | `@semiont/make-meaning/dist/smelter-main.js` |
 | Code | [`packages/make-meaning`](../../packages/make-meaning/) |
 | npm | not published — container only |

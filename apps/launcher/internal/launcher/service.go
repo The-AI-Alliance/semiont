@@ -41,11 +41,18 @@ type roleSpec struct {
 	mem string
 }
 
+// Port policy: (1) contract-standard ports keep the standard (4318 OTLP);
+// (2) third-party products keep their product ports (5432, 7474/7687, 6333,
+// 11434, 16686); (3) user-facing Semiont stays memorable (3000 Browser,
+// 4000 Gateway); (4) Semiont-internal services listen in 241xx — nobody's
+// default, below both ephemeral floors (Linux 32768, macOS 49152). The
+// 909x block they used to squat is Prometheus/Pushgateway/Kafka/
+// Alertmanager territory.
 var roles = map[string]roleSpec{
 	// The collector owns 4318 (the port services target); Jaeger's own OTLP
 	// ingest sits behind it on 14318.
 	"traces":    {"Jaeger", "semiont-jaeger", []portNeed{{16686, "Jaeger UI"}, {14318, "Jaeger OTLP"}}, "1G"},
-	"collector": {"OTel", "semiont-otel-collector", []portNeed{{4318, "Collector OTLP"}, {8889, "Collector metrics"}}, "1G"},
+	"collector": {"OTel", "semiont-otel-collector", []portNeed{{4318, "Collector OTLP"}, {24110, "Collector metrics"}}, "1G"},
 	// graph 2G: a JVM auto-sizing its heap from visible memory — the silent
 	// 1G VM default was the known-tight spot on Apple container.
 	"graph":   {"Neo4j", "semiont-neo4j", []portNeed{{7474, "Neo4j HTTP"}, {7687, "Neo4j Bolt"}}, "2G"},
@@ -60,11 +67,11 @@ var roles = map[string]roleSpec{
 	"embedding": {"", "", nil, ""},
 	"database":  {"PostgreSQL", "semiont-postgres", []portNeed{{5432, "PostgreSQL"}}, "1G"},
 	"gateway":   {"", "semiont-gateway", []portNeed{{4000, "Gateway"}}, "2G"},
-	"worker":    {"", "semiont-worker", []portNeed{{9090, "Worker"}}, "2G"},
-	"smelter":   {"", "semiont-smelter", []portNeed{{9091, "Smelter"}}, "2G"},
-	"weaver":    {"", "semiont-weaver", []portNeed{{9092, "Weaver"}}, "2G"},
-	"archivist": {"", "semiont-archivist", []portNeed{{9093, "Archivist"}}, "2G"},
-	"librarian": {"", "semiont-librarian", []portNeed{{9094, "Librarian"}}, "2G"},
+	"worker":    {"", "semiont-worker", []portNeed{{24100, "Worker"}}, "2G"},
+	"smelter":   {"", "semiont-smelter", []portNeed{{24101, "Smelter"}}, "2G"},
+	"weaver":    {"", "semiont-weaver", []portNeed{{24102, "Weaver"}}, "2G"},
+	"archivist": {"", "semiont-archivist", []portNeed{{24103, "Archivist"}}, "2G"},
+	"librarian": {"", "semiont-librarian", []portNeed{{24104, "Librarian"}}, "2G"},
 	// browser: the Browser owns its port inside flowBrowser — an empty
 	// ports list here keeps 3000 out of every stack-level claim and sweep.
 	"browser": {"", "semiont-browser", nil, "1G"},
@@ -256,17 +263,17 @@ func serviceEndpoint(svc string, plan *launchPlan) string {
 	case "traces":
 		return "http://localhost:16686"
 	case "collector":
-		return "http://localhost:8889/metrics"
+		return "http://localhost:24110/metrics"
 	case "browser":
 		return "http://localhost:3000"
 	case "gateway":
 		return fmt.Sprintf("http://localhost:%d/api/health", plan.GatewayPort)
 	case "worker":
-		return "http://localhost:9090/health"
+		return "http://localhost:24100/health"
 	case "smelter":
-		return "http://localhost:9091/health"
+		return "http://localhost:24101/health"
 	case "weaver":
-		return "http://localhost:9092/health"
+		return "http://localhost:24102/health"
 	case "graph":
 		return fmt.Sprintf("http://localhost:%d", plan.AuxPorts("graph")[0].port)
 	case "vectors":

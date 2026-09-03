@@ -126,13 +126,13 @@ func flowFullStart(x executor, fc flowCtx) int {
 		x.say(sayFail, "collector failed to start.")
 		return 1
 	}
-	cd, cok := x.waitHTTP("collector", "http://localhost:8889/metrics", 30)
+	cd, cok := x.waitHTTP("collector", "http://localhost:24110/metrics", 30)
 	if !cok {
 		x.dumpLogs(roles["collector"].container, "collector")
 		return 1
 	}
-	x.say(sayOK, "collector — OTLP on %s:4318, metrics on http://localhost:8889/metrics %s", addr, x.dim("("+took(cd)+")"))
-	x.record("collector", cid, cargs[len(cargs)-1], providedLauncher, "http://localhost:8889/metrics", "otel")
+	x.say(sayOK, "collector — OTLP on %s:4318, metrics on http://localhost:24110/metrics %s", addr, x.dim("("+took(cd)+")"))
+	x.record("collector", cid, cargs[len(cargs)-1], providedLauncher, "http://localhost:24110/metrics", "otel")
 	otel := otelArgs(addr)
 
 	// Database, then Gateway, AHEAD of the stores the actors use. The gateway
@@ -584,13 +584,13 @@ func flowArchivist(x executor, fc flowCtx, addr, stage, secret string, otel []st
 		x.say(sayFail, "Archivist failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("Archivist", "http://localhost:9093/health", 30)
+	d, ok := x.waitHTTP("Archivist", "http://localhost:24103/health", 30)
 	if !ok {
 		x.dumpLogs("semiont-archivist", "archivist")
 		return 1
 	}
-	x.say(sayOK, "Archivist healthy (http://localhost:9093) %s", x.dim("("+took(d)+")"))
-	x.record("archivist", id, image("archivist", fc.version), providedLauncher, "http://localhost:9093/health", "")
+	x.say(sayOK, "Archivist healthy (http://localhost:24103) %s", x.dim("("+took(d)+")"))
+	x.record("archivist", id, image("archivist", fc.version), providedLauncher, "http://localhost:24103/health", "")
 	return 0
 }
 
@@ -612,13 +612,13 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage, secret string, otel []st
 		x.say(sayFail, "Librarian failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("Librarian", "http://localhost:9094/health", 30)
+	d, ok := x.waitHTTP("Librarian", "http://localhost:24104/health", 30)
 	if !ok {
 		x.dumpLogs("semiont-librarian", "librarian")
 		return 1
 	}
-	x.say(sayOK, "Librarian healthy (http://localhost:9094) %s", x.dim("("+took(d)+")"))
-	x.record("librarian", id, image("librarian", fc.version), providedLauncher, "http://localhost:9094/health", "")
+	x.say(sayOK, "Librarian healthy (http://localhost:24104) %s", x.dim("("+took(d)+")"))
+	x.record("librarian", id, image("librarian", fc.version), providedLauncher, "http://localhost:24104/health", "")
 	return 0
 }
 
@@ -704,7 +704,7 @@ func flowOneService(x executor, fc flowCtx) int {
 			x.say(sayFail, "collector failed to start.")
 			return 1
 		}
-		if d, ok = x.waitHTTP("collector", "http://localhost:8889/metrics", 30); !ok {
+		if d, ok = x.waitHTTP("collector", "http://localhost:24110/metrics", 30); !ok {
 			x.dumpLogs(roles["collector"].container, "collector")
 			return 1
 		}

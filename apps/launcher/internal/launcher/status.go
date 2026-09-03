@@ -70,19 +70,19 @@ var statusServices = []struct {
 	endpoint string // http(s) URL, or "tcp:<port>"
 	core     bool   // counted toward the exit status
 }{
-	{"worker", "http://localhost:9090/health", true},
+	{"worker", "http://localhost:24100/health", true},
 	{"gateway", "http://localhost:4000/api/health", true},
-	{"archivist", "http://localhost:9093/health", true},
-	{"librarian", "http://localhost:9094/health", true},
-	{"weaver", "http://localhost:9092/health", true},
-	{"smelter", "http://localhost:9091/health", true},
+	{"archivist", "http://localhost:24103/health", true},
+	{"librarian", "http://localhost:24104/health", true},
+	{"weaver", "http://localhost:24102/health", true},
+	{"smelter", "http://localhost:24101/health", true},
 
 	{"database", "tcp:5432", true},
 	{"graph", "http://localhost:7474", true},
 	{"vectors", "http://localhost:6333/readyz", true},
 	{"traces", "http://localhost:16686", false},
 	// core, unlike traces: the collector runs on every start.
-	{"collector", "http://localhost:8889/metrics", true},
+	{"collector", "http://localhost:24110/metrics", true},
 
 	{"inference", "http://localhost:11434/api/version", true},
 	{"embedding", "http://localhost:11434/api/version", true},

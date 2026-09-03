@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { createTomlConfigLoader } from './toml-loader.js';
+import { createTomlConfigLoader, DEFAULT_ARCHIVIST_PORT } from './toml-loader.js';
 import type { ArchivistServiceConfig, EnvironmentConfig } from './config.types.js';
 
 export { SemiontProject, SemiontState, stateDirFor } from '../project.js';
@@ -68,7 +68,7 @@ export function archivistEndpoint(config: ArchivistAddressConfig): {
   if (!host) {
     throw new Error('services.archivist.host is not configured — cannot reach the record');
   }
-  const port = config.services?.archivist?.port ?? 9093;
+  const port = config.services?.archivist?.port ?? DEFAULT_ARCHIVIST_PORT;
   const secret = process.env.SEMIONT_WORKER_SECRET;
   if (!secret) {
     throw new Error('SEMIONT_WORKER_SECRET is not set — cannot authenticate to the Archivist');

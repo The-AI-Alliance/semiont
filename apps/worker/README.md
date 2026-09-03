@@ -6,7 +6,7 @@ long-running work that a request cannot wait on.
 | | |
 | --- | --- |
 | Image | `ghcr.io/the-ai-alliance/semiont-worker` |
-| Port | 9090 |
+| Port | 24100 |
 | Entry point | `@semiont/jobs/dist/worker-main.js` |
 | Code | [`packages/jobs`](../../packages/jobs/) |
 | npm | not published — container only |

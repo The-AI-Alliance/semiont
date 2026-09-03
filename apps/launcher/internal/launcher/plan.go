@@ -319,13 +319,13 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 	addRole("database")
 	checks = append(checks,
 		portNeed{plan.GatewayPort, "Gateway"},
-		portNeed{9090, "Worker"},
-		portNeed{9091, "Smelter"},
-		portNeed{9092, "Weaver"},
-		portNeed{9093, "Archivist"},
-		portNeed{9094, "Librarian"},
+		portNeed{24100, "Worker"},
+		portNeed{24101, "Smelter"},
+		portNeed{24102, "Weaver"},
+		portNeed{24103, "Archivist"},
+		portNeed{24104, "Librarian"},
 		// The collector runs on every start, observed or not.
-		portNeed{4318, "Collector OTLP"}, portNeed{8889, "Collector metrics"},
+		portNeed{4318, "Collector OTLP"}, portNeed{24110, "Collector metrics"},
 		// No browser port here: the Browser is not a stack member — its
 		// port is checked inside flowBrowser, and only when (re)starting.
 	)

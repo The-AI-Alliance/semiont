@@ -38,9 +38,9 @@ container run --rm \
 >   even minutes earlier fails in `globalSetup` with
 >   `connect EHOSTUNREACH <ip>:4000`, before a single spec executes.
 > - **It splits services across hosts.** `19-worker-vitals` derives the
->   worker's health endpoint as `<gateway-host>:9090`, because the published
+>   worker's health endpoint as `<gateway-host>:24100`, because the published
 >   ports are co-located on the host. Point the suite at the *gateway
->   container's* IP and that becomes the gateway's own `:9090`, which nothing
+>   container's* IP and that becomes the gateway's own `:24100`, which nothing
 >   is listening on — `ECONNREFUSED`.
 >
 > `--network host` does not help: it is a Docker flag, and Apple's `container`
@@ -208,7 +208,7 @@ ANTHROPIC_API_KEY="$(op read op://OSS/Anthropic/credential)" \
 echo password | semiont useradd --email admin@example.com --admin
 
 # 3. Run the e2e suite (see Quick start above). The stack publishes
-#    :3000 / :4000 / :9090 on the host — reach them from the Playwright
+#    :3000 / :4000 / :24100 on the host — reach them from the Playwright
 #    container via the gateway 192.168.64.1, never a container's own IP.
 ```
 

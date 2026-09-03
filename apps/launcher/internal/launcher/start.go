@@ -105,7 +105,7 @@ Options:
                         largest it can; only applies when creating)
   --no-observe          Skip Jaeger (trace storage + UI). The OTel collector
                         is stack furniture and always runs: metrics stay
-                        readable at :8889/metrics; traces are accepted and
+                        readable at :24110/metrics; traces are accepted and
                         discarded
   --ollama-cache <c>    Model cache when starting an Ollama container: 'host'
                         (~/.ollama) or 'volume' (named volume) — skips the prompt
@@ -726,9 +726,9 @@ func collectorConfig(addr string, traces bool) string {
 
 exporters:
 %s
-  # Metrics readout: curl :8889/metrics (no storage runs).
+  # Metrics readout: curl :24110/metrics (no storage runs).
   prometheus:
-    endpoint: 0.0.0.0:8889
+    endpoint: 0.0.0.0:24110
 
 service:
   pipelines:
@@ -744,7 +744,7 @@ service:
 func collectorArgs(stage string) []string {
 	return []string{"run", "-d", "--name", "semiont-otel-collector", // no --rm: see providedRunArgs
 		"--memory", roles["collector"].mem,
-		"-p", "4318:4318", "-p", "8889:8889",
+		"-p", "4318:4318", "-p", "24110:24110",
 		"--volume", stage + "/collector.yaml:/etc/otelcol/config.yaml:ro",
 		"otel/opentelemetry-collector:0.137.0"}
 }
@@ -848,7 +848,7 @@ func sidecarArgs(svc string, port int, stage, addr, secret, version string, user
 // auth presents the worker secret (the same fact D1's read path relies on).
 func archivistArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
-		"--memory", roles["archivist"].mem, "--publish", "9093:9093",
+		"--memory", roles["archivist"].mem, "--publish", "24103:24103",
 		"--volume", kbRoot + ":" + kbMountTarget,
 		"--volume", stage + "/archivist.toml:/home/semiont/.semiontconfig:ro"}
 	a = append(a, state...)
@@ -878,7 +878,7 @@ func archivistArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []
 // service; it dials the gateway for the bus and the Archivist for bytes.
 func librarianArgs(stage, addr, secret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
-		"--memory", roles["librarian"].mem, "--publish", "9094:9094",
+		"--memory", roles["librarian"].mem, "--publish", "24104:24104",
 		"--volume", stage + "/librarian.toml:/home/semiont/.semiontconfig:ro"}
 	a = append(a, state...)
 	a = append(a, userEnv...)
@@ -939,9 +939,9 @@ type sidecarSpec struct {
 }
 
 var sidecarSpecs = []sidecarSpec{
-	{"worker", "Worker pool", "Starting Worker Pool", 9090},
-	{"smelter", "Smelter", "Starting Smelter", 9091},
-	{"weaver", "Weaver", "Starting Weaver", 9092},
+	{"worker", "Worker pool", "Starting Worker Pool", 24100},
+	{"smelter", "Smelter", "Starting Smelter", 24101},
+	{"weaver", "Weaver", "Starting Weaver", 24102},
 }
 
 // --- The real run ---
@@ -981,7 +981,7 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	if opts.observe {
 		fmt.Println("  Jaeger UI          http://localhost:16686")
 	}
-	fmt.Println("  Metrics            http://localhost:8889/metrics")
+	fmt.Println("  Metrics            http://localhost:24110/metrics")
 	fmt.Println()
 	fmt.Printf("  Add a user:    %s\n", u.bold("semiont useradd --email <email> --admin"))
 	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))

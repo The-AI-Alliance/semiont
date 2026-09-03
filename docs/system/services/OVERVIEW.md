@@ -10,11 +10,11 @@ Seven services run Semiont code. Each is a published container image; see [Conta
 |---|---|---|---|---|
 | **browser** | 3000 | Static server for the Semiont Browser SPA | `semiont-browser` | [README](../../../apps/browser/README.md) |
 | **gateway** | 4000 | Auth, the bus relay, and the content proxy. **Hosts no actors** | `semiont-gateway` | [README](../../../apps/gateway/README.md) |
-| **archivist** | 9093 | Keeps the system of record — Stower, Browser, CloneTokenManager | `@semiont/make-meaning` | [README](../../../apps/archivist/README.md) |
-| **librarian** | 9094 | Searches it — Gatherer, Matcher | `@semiont/make-meaning` | [README](../../../apps/librarian/README.md) |
-| **worker** | 9090 | Annotation/generation worker pool | `@semiont/jobs` | [README](../../../apps/worker/README.md) |
-| **smelter** | 9091 | Embedding/vector pipeline; owns anchored-text extraction | `@semiont/make-meaning` | [README](../../../apps/smelter/README.md) |
-| **weaver** | 9092 | Graph-projection pipeline | `@semiont/make-meaning` | [README](../../../apps/weaver/README.md) |
+| **archivist** | 24103 | Keeps the system of record — Stower, Browser, CloneTokenManager | `@semiont/make-meaning` | [README](../../../apps/archivist/README.md) |
+| **librarian** | 24104 | Searches it — Gatherer, Matcher | `@semiont/make-meaning` | [README](../../../apps/librarian/README.md) |
+| **worker** | 24100 | Annotation/generation worker pool | `@semiont/jobs` | [README](../../../apps/worker/README.md) |
+| **smelter** | 24101 | Embedding/vector pipeline; owns anchored-text extraction | `@semiont/make-meaning` | [README](../../../apps/smelter/README.md) |
+| **weaver** | 24102 | Graph-projection pipeline | `@semiont/make-meaning` | [README](../../../apps/weaver/README.md) |
 
 **The gateway holds no part of the knowledge base.** It authenticates callers, relays the
 bus, and proxies content bytes to the Archivist; its only datastore is PostgreSQL. The five
@@ -204,11 +204,11 @@ See [Container Topology](../CONTAINER-TOPOLOGY.md) for the full picture.
 | Role | Probe |
 |---|---|
 | gateway | `http://localhost:4000/api/health` |
-| worker | `http://localhost:9090/health` |
-| smelter | `http://localhost:9091/health` |
-| weaver | `http://localhost:9092/health` |
-| archivist | `http://localhost:9093/health` |
-| librarian | `http://localhost:9094/health` |
+| worker | `http://localhost:24100/health` |
+| smelter | `http://localhost:24101/health` |
+| weaver | `http://localhost:24102/health` |
+| archivist | `http://localhost:24103/health` |
+| librarian | `http://localhost:24104/health` |
 | database | TCP connect on 5432 |
 | graph | `http://localhost:7474` |
 | vectors | `http://localhost:6333/readyz` |

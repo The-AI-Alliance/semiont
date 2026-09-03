@@ -105,10 +105,10 @@ const removed = await queue.cleanupOldJobs(168); // 1 week in hours
 
 ### Health Checks
 
-The worker process exposes an HTTP `/health` endpoint (port `9090`) that reports the number of running agents:
+The worker process exposes an HTTP `/health` endpoint (port `24100`) that reports the number of running agents:
 
 ```bash
-curl -s http://localhost:9090/health
+curl -s http://localhost:24100/health
 # {"status":"ok","agents":2}
 ```
 

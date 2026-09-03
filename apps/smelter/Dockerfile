@@ -65,9 +65,9 @@ ENV NODE_ENV=production
 # defaulting: a default would write a full OCR pass per representation into a
 # directory nobody mounted, lose it on the next stop, and re-derive forever.
 ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
-EXPOSE 9091
+EXPOSE 24101
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:9091/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
+  CMD node -e "require('http').get('http://localhost:24101/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
 CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/smelter-main.js"]

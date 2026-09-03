@@ -67,7 +67,7 @@ const graphConfig = maybeGraphConfig;
 
 const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
 
-const healthPort = 9092;
+const healthPort = 24102;
 
 // The checkpoint is an optimization, never a correctness input — losing it
 // degrades the next catch-up to a full replay. XDG state dir, matching the

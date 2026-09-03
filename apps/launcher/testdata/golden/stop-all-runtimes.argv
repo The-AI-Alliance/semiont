@@ -106,8 +106,12 @@ podman rm semiont-qdrant
 podman rm semiont-neo4j
 podman rm semiont-otel-collector
 podman rm semiont-jaeger
-lsof -nP -iTCP:9090 -sTCP:LISTEN
-lsof -nP -iTCP:9091 -sTCP:LISTEN
-lsof -nP -iTCP:9092 -sTCP:LISTEN
-lsof -nP -iTCP:16686 -sTCP:LISTEN
+lsof -nP -iTCP:24100 -sTCP:LISTEN
+lsof -nP -iTCP:24101 -sTCP:LISTEN
+lsof -nP -iTCP:24102 -sTCP:LISTEN
+lsof -nP -iTCP:24103 -sTCP:LISTEN
+lsof -nP -iTCP:24104 -sTCP:LISTEN
 lsof -nP -iTCP:4318 -sTCP:LISTEN
+lsof -nP -iTCP:24110 -sTCP:LISTEN
+lsof -nP -iTCP:16686 -sTCP:LISTEN
+lsof -nP -iTCP:14318 -sTCP:LISTEN

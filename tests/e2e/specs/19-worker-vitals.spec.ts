@@ -13,7 +13,7 @@ import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
  * per-agent vitals so a stalled worker is visible, not just alive. This
  * spec pins that payload as a cross-process **contract** — the consumers
  * (image HEALTHCHECK, compose `service_healthy`, `semiont start` waits, and any
- * operator's `curl :9090/health`) live outside the jobs package, so unit
+ * operator's `curl :24100/health`) live outside the jobs package, so unit
  * tests on `buildHealthPayload` can't catch a regression in the
  * worker-main shell wiring that serves it. The payload shape is
  * deliberately re-declared here rather than imported from
@@ -50,13 +50,13 @@ import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
  * lifecycle leg waits on a real LLM highlight pass (spec-06/11 class).
  */
 
-// The worker publishes its health server on port 9090 of the same host as
+// The worker publishes its health server on port 24100 of the same host as
 // the gateway in every stack shape this suite targets (compose
-// `9090:9090`, `semiont start` publishing 9090) — derived from
+// `24100:24100`, `semiont start` publishing 24100) — derived from
 // E2E_GATEWAY_URL rather than adding a config knob of its own.
 const WORKER_HEALTH_URL = (() => {
   const u = new URL(GATEWAY_URL);
-  return `${u.protocol}//${u.hostname}:9090/health`;
+  return `${u.protocol}//${u.hostname}:24100/health`;
 })();
 
 /** The six concrete job types (JobType enum, specs/src/components/schemas/JobType.json). */

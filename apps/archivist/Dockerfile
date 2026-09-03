@@ -77,9 +77,9 @@ ENV NODE_ENV=production
 # the launcher mounts host dirs AT these targets and passes no path env.
 ENV SEMIONT_ROOT=/kb
 ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
-EXPOSE 9093
+EXPOSE 24103
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:9093/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
+  CMD node -e "require('http').get('http://localhost:24103/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
 CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/archivist-main.js"]

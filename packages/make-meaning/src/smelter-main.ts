@@ -81,7 +81,7 @@ const chunkingConfig: ChunkingConfig = {
 
 const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
 
-const healthPort = 9091;
+const healthPort = 24101;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
 import { registerVectorIndexSizeProvider } from '@semiont/observability';

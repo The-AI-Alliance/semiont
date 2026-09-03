@@ -112,8 +112,8 @@ if (config.services.vectors.type === 'memory') {
 const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
 const skipRebuild = process.env.SEMIONT_SKIP_REBUILD === 'true';
 
-/** Claimed as a portNeed in the launcher (P2b): worker 9090, smelter 9091, weaver 9092. */
-const healthPort = 9093;
+/** Claimed as a portNeed in the launcher (P2b): worker 24100, smelter 24101, weaver 24102. */
+const healthPort = 24103;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
 const logger = createProcessLogger('archivist');

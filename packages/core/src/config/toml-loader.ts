@@ -93,6 +93,9 @@ export interface WorkerInferenceConfig {
 
 // ── Types for ~/.semiontconfig ────────────────────────────────────────────────
 
+/** The archivist's default port — the ONE home; node-config-loader imports it. */
+export const DEFAULT_ARCHIVIST_PORT = 24103;
+
 interface SemiontConfigFile {
   user?: {
     name?: string;
@@ -543,7 +546,7 @@ export function loadTomlConfig(
     services.archivist = {
       platform: { type: 'external' as PlatformType },
       host: resolved.archivist.host,
-      port: resolved.archivist.port ?? 9093,
+      port: resolved.archivist.port ?? DEFAULT_ARCHIVIST_PORT,
     } as EnvironmentConfig['services']['archivist'];
   }
 

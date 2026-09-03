@@ -44,7 +44,7 @@ func TestPatchArchivistTopologyRespectsHandWrittenSection(t *testing.T) {
 
 func TestPatchArchivistTopologyOtherEnvSectionDoesNotBlock(t *testing.T) {
 	// A remote env's hand-written section must not suppress the local append.
-	other := stagingFixture + "\n[environments.production.archivist]\nhost = \"archivist.example.com\"\nport = 9093\n"
+	other := stagingFixture + "\n[environments.production.archivist]\nhost = \"archivist.example.com\"\nport = 9999\n"
 	out := patchArchivistTopology([]byte(other), "local", "192.168.64.1")
 	if !strings.Contains(string(out), "[environments.local.archivist]") {
 		t.Fatalf("section for a different env suppressed the local append:\n%s", out)

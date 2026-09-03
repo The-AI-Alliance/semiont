@@ -527,9 +527,9 @@ func (x *liveExec) either(cond func() bool, then, els func() int) int {
 }
 
 func (x *liveExec) otelDetect(addr string) []string {
-	// Probe the COLLECTOR — it owns the port services export to. Its :8889
+	// Probe the COLLECTOR — it owns the port services export to. Its :24110
 	// readout is a plain 200 when up; the OTLP receiver rejects GETs.
-	if httpOK("http://localhost:8889/metrics") {
+	if httpOK("http://localhost:24110/metrics") {
 		x.u.log("OTel collector detected — export enabled")
 		return otelArgs(addr)
 	}
