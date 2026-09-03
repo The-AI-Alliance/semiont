@@ -61,6 +61,19 @@ const OVERLAP_CHARS =
 /** ~4 chars/token — the same heuristic `estimateTokens`/`chunkText` use. */
 const OVERLAP_TOKENS = Math.ceil(OVERLAP_CHARS / 4);
 
+/**
+ * ONE temperature for every detection call (user decision, 2026-09-03).
+ * Detection is a fidelity task — verbatim span copying against a closed
+ * type vocabulary — not a generative one, so determinism-direction is the
+ * right default: reproducible re-runs, auditable behavior. Measured free:
+ * the temperature A/B (0.0/0.3/1.0 × 5, `temp-ab.log`) was identically
+ * consistent at production call sizes, and the historical per-motivation
+ * values (0.2-0.4) were untuned folk constants. The loop risk classically
+ * attributed to greedy decoding has zero confirmed instances in our data
+ * and is insured by the subdivision floor re-roll regardless.
+ */
+export const DETECTION_TEMPERATURE = 0;
+
 export interface DetectionBudget {
   /** Feed to `chunkText` — `chunkSize` is the derived input budget (tokens). */
   chunking: ChunkingConfig;
@@ -161,11 +174,14 @@ export function deriveDetectionBudget(
 }
 
 /**
- * Subdivision depth: halve, then quarter, then stop. A policy constant
- * (user direction, 2026-09-02): "at least one retry with a smaller chunk"
- * after a size-shaped failure, bounded — a call still failing on a
- * quarter-sized chunk is not a size problem, and the ORIGINAL failure must
- * reach the job-level machinery (classification, retry budget) untouched.
+ * Subdivision depth cap for TIMEOUTS: halve, then quarter, then stop — a
+ * call still timing out on a quarter-sized chunk is not a size problem,
+ * timeouts classify transient (the job-level retry is their second
+ * chance), and probing a wedged provider ever-smaller multiplies cost.
+ * Truncations are NOT depth-capped — they descend by SIZE (see the catch
+ * below): their demand provably halves with each subdivision, and
+ * register-dense content needs the descent to go as deep as it honestly
+ * demands (user direction, 2026-09-02, both halves).
  */
 export const MAX_SUBDIVISION_DEPTH = 2;
 
@@ -176,8 +192,17 @@ export const MAX_SUBDIVISION_DEPTH = 2;
  * would not parse (`StructuredReadError` with `max_tokens`). An unreadable
  * response that STOPPED NATURALLY is model misbehavior, not size. */
 function subdividable(error: unknown): boolean {
+  return error instanceof InferenceTimeoutError || truncation(error);
+}
+
+/** Truncation in either surface — parsed-partial (`assertNotTruncated`'s
+ * `DeterministicJobError`) or cut-off-mid-JSON (`StructuredReadError` with
+ * `max_tokens`). Distinguished from timeouts because at the subdivision
+ * floor the two get different second chances: a timeout classifies
+ * transient (the job-level retry re-rolls it), while a truncation would
+ * classify deterministic — so the floor re-roll below is its only one. */
+function truncation(error: unknown): boolean {
   return (
-    error instanceof InferenceTimeoutError ||
     error instanceof DeterministicJobError ||
     (error instanceof StructuredReadError && error.stopReason === 'max_tokens')
   );
@@ -203,8 +228,34 @@ export async function callChunkSubdividing<T>(
     try {
       return await call(piece);
     } catch (error) {
-      if (depth >= MAX_SUBDIVISION_DEPTH || !subdividable(error)) throw error;
+      if (!subdividable(error)) throw error;
       const half = Math.floor(chunkSize / 2);
+      // Truncation descends by SIZE, not depth: annotation demand halves
+      // with each subdivision (fewer spans, fewer context echoes), so
+      // descent provably terminates — and it must go as deep as the content
+      // demands, because register-dense text (a measured marriage register:
+      // ~200 Person entities in 5,222 chars, each echoing ~130 chars of
+      // prefix/suffix) honestly yields 4-5× its input in output tokens,
+      // far past the 1:2 allocation's planning assumption. The floor
+      // derives from the overlap constant — below ~2× overlap, even solid
+      // names fit the budget. Timeouts stay DEPTH-capped and fail fast:
+      // they classify transient, so the job-level retry is their second
+      // chance, and probing a wedged provider ever-smaller multiplies cost.
+      const canDescend = truncation(error)
+        ? half > 2 * OVERLAP_TOKENS
+        : depth < MAX_SUBDIVISION_DEPTH;
+      if (!canDescend) {
+        // At the size floor honest overflow is impossible, so a truncation
+        // here is a degeneration loop — a sampling accident. One same-size
+        // re-roll; a second truncation on the same piece is real pathology
+        // and propagates (deterministic). Timeouts get no re-roll.
+        if (!truncation(error)) throw error;
+        logger?.warn('Floor-size piece truncated — re-rolling once before giving up', {
+          pieceChars: piece.length,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return await call(piece);
+      }
       logger?.warn('Chunk call failed at a size-shaped bound — subdividing and retrying smaller', {
         depth: depth + 1,
         pieceChars: piece.length,
