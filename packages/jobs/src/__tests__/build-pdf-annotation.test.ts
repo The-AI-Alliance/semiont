@@ -4,7 +4,7 @@
  * FragmentSelectors + a TextQuoteSelector, no TextPositionSelector, with the
  * geometry<->text containment invariant.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { resourceId, type components } from '@semiont/core';
 import type { PdfTextLayer } from '@semiont/content';
 
