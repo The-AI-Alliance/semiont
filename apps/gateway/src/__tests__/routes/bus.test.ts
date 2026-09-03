@@ -1374,6 +1374,37 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     bus.destroy();
   });
 
+  it('an answered claim frees its per-client capacity while staying retained', () => {
+    // The weaver's boot heal-storm: hundreds of sequential busRequests, each
+    // answered within milliseconds. The cap counts UNANSWERED requests — its
+    // own 429 message says so — so a client whose questions are all answered
+    // must never be refused, no matter how many it has asked.
+    const { bus, registry } = setup({ now: () => 1 });
+    for (let i = 0; i < 256; i++) {
+      registry.claim(`a-${i}`, OWNER, DID);
+      bus.get('gather:resource-complete').next({ correlationId: `a-${i}`, response: {} } as never);
+    }
+    expect(registry.claim('a-256', OWNER, DID)).toBe('ok');
+    // Retention is untouched: answered claims still route and replay.
+    expect(registry.owner('a-0')).toBeDefined();
+    expect(registry.lookupReply('a-0', OWNER, DID)).toBeDefined();
+    registry.dispose();
+    bus.destroy();
+  });
+
+  it('sweeping an answered claim does not free its capacity twice', () => {
+    let clock = 1_000;
+    const { bus, registry } = setup({ claimTtlMs: 100, now: () => clock });
+    registry.claim('c1', OWNER, DID);
+    bus.get('gather:resource-complete').next({ correlationId: 'c1', response: {} } as never);
+    clock += 200; // c1's claim expires; the sweep must not decrement again
+    for (let i = 0; i < 256; i++) expect(registry.claim(`u-${i}`, OWNER, DID)).toBe('ok');
+    // A double-free would leave the counter at -1 and admit a 257th.
+    expect(registry.claim('u-256', OWNER, DID)).toBe('at-capacity');
+    registry.dispose();
+    bus.destroy();
+  });
+
   it('a progress frame refreshes the claim without being retained as the answer', () => {
     let clock = 1_000;
     const { bus, registry } = setup({ claimTtlMs: 100, now: () => clock });

@@ -194,6 +194,10 @@ interface Claim {
   clientId: string;
   principalDid: string | undefined;
   claimedAt: number;
+  /** First reply seen: the claim no longer counts against the per-client cap.
+   *  A flag rather than reply-presence, because sweepReplies drops payloads
+   *  while the claim (and its answered-ness) must persist. */
+  answered?: boolean;
   reply?: RetainedReply;
 }
 
@@ -238,13 +242,20 @@ export function createCorrelationRegistry(
   const claims = new Map<string, Claim>();
   const perClient = new Map<string, number>();
 
+  // perClient counts UNANSWERED claims — the thing the 429 message names.
+  // Decremented once per claim, on whichever comes first: the answer, or the
+  // TTL sweep of a claim that never got one.
+  const release = (clientId: string) => {
+    const n = (perClient.get(clientId) ?? 1) - 1;
+    if (n <= 0) perClient.delete(clientId);
+    else perClient.set(clientId, n);
+  };
+
   const forget = (cid: string) => {
     const claim = claims.get(cid);
     if (!claim) return;
     claims.delete(cid);
-    const n = (perClient.get(claim.clientId) ?? 1) - 1;
-    if (n <= 0) perClient.delete(claim.clientId);
-    else perClient.set(claim.clientId, n);
+    if (!claim.answered) release(claim.clientId);
   };
 
   /**
@@ -300,6 +311,10 @@ export function createCorrelationRegistry(
       // still reporting progress cannot expire mid-flight.
       claim.claimedAt = now();
       if (PROGRESS_CHANNELS.has(channel)) return; // refresh only; a stream is not an answer
+      if (!claim.answered) {
+        claim.answered = true;
+        release(claim.clientId);
+      }
       claim.reply = { channel, payload, retainedAt: now() };
       sweepClaims();
       sweepReplies();
