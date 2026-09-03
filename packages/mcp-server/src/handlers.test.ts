@@ -352,7 +352,7 @@ describe('gatherAnnotation', () => {
 
   it('throws when the stream ends without a context payload', async () => {
     const { client, gather } = createStub();
-    gather.annotation.mockResolvedValue({ message: 'still gathering', percentage: 50 });
+    gather.annotation.mockResolvedValue({ correlationId: 'corr-1', message: 'still gathering', percentage: 50 });
 
     await expect(gatherAnnotation(client, { resourceId: 'res-iliad', annotationId: 'anno-reference' }))
       .rejects.toThrow('Gather finished without a context payload');

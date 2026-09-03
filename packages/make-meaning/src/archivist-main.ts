@@ -12,15 +12,19 @@
  * the KB's bytes: the gateway proxies external content requests through
  * it, and internal readers dial it directly.
  *
- * Bus wiring is two disjoint pumps, deliberately NOT `bridgeInto`:
- *   in  — the actors' channel rosters (STOWER/BROWSER/CLONE_TOKEN_CHANNELS,
- *         each pinned to its actor's real subscriptions by a census gate)
- *         plus `smelt:settled` for the anchored-text barrier fold; SSE
- *         frames are pushed onto the local bus the actors subscribe to.
- *   out — every reply channel DERIVED from BUS_OPERATIONS over the inbound
- *         set, plus three strays whose operations are keyed under gateway
- *         handler channels (see OUTBOUND_STRAYS). Requests and replies never
- *         overlap, so nothing echoes.
+ * Bus wiring is two disjoint pumps, deliberately NOT `bridgeInto`; both
+ * rosters live in `service-channels.ts`:
+ *   in  — ARCHIVIST_INBOUND_CHANNELS (the actors' rosters, each pinned to
+ *         its actor's real subscriptions by a census gate, plus
+ *         `smelt:settled` for the anchored-text barrier fold), which is also
+ *         the transport's whole SSE subscription — never the full bridged
+ *         set; SSE frames are pushed onto the local bus the actors
+ *         subscribe to.
+ *   out — ARCHIVIST_OUTBOUND_CHANNELS: every reply channel DERIVED from
+ *         BUS_OPERATIONS over the inbound set, plus the strays whose
+ *         operations are keyed under gateway handler channels
+ *         (ARCHIVIST_OUTBOUND_STRAYS). Requests and replies never overlap,
+ *         so nothing echoes.
  *
  * Environment variables:
  *   SEMIONT_ROOT              — project root (the KB directory). Required.
@@ -35,7 +39,6 @@ import { concatMap } from 'rxjs/operators';
 import { HttpTransport } from '@semiont/http-transport';
 import {
   EventBus,
-  BUS_OPERATIONS,
   PERSISTED_EVENT_TYPES,
   baseUrl as makeBaseUrl,
   accessToken as makeAccessToken,
@@ -52,9 +55,10 @@ import { createEventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore, createAnchoredTextStore, type AnchoredTextStore } from '@semiont/content';
 import { getGraphDatabase } from '@semiont/graph';
 import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
-import { Stower, STOWER_CHANNELS } from './stower';
-import { Browser, BROWSER_CHANNELS } from './browser';
-import { CloneTokenManager, CLONE_TOKEN_CHANNELS } from './clone-token-manager';
+import { Stower } from './stower';
+import { Browser } from './browser';
+import { CloneTokenManager } from './clone-token-manager';
+import { ARCHIVIST_INBOUND_CHANNELS, ARCHIVIST_OUTBOUND_CHANNELS } from './service-channels';
 import { createSmeltProgress } from './smelt-progress';
 import { createLimitsDiscovery } from './limits-discovery';
 import { makeMeaningConfigFrom } from './config';
@@ -108,51 +112,11 @@ if (config.services.vectors.type === 'memory') {
 const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
 const skipRebuild = process.env.SEMIONT_SKIP_REBUILD === 'true';
 
-/** Claimed as a portNeed in the launcher (P2b): worker 9090, smelter 9091, weaver 9092. */
-const healthPort = 9093;
+/** Claimed as a portNeed in the launcher (P2b): worker 24100, smelter 24101, weaver 24102. */
+const healthPort = 24103;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
 const logger = createProcessLogger('archivist');
-
-// ── Bus roster ───────────────────────────────────────────────────────
-
-/**
- * Everything the actors subscribe to, plus the smelt barrier's fold input,
- * plus `mark:create-request` — annotation-assembly registers HERE beside the
- * Stower whose `mark:added` facts it consumes (EXTRACT-ARCHIVIST P3, D2 i).
- */
-const INBOUND_CHANNELS = [
-  ...STOWER_CHANNELS,
-  ...BROWSER_CHANNELS,
-  ...CLONE_TOKEN_CHANNELS,
-  'mark:create-request',
-  'smelt:settled',
-  // The annotation-context read moved here with the bytes (SINGLE-KB-MOUNT D5).
-  'browse:annotation-context-requested',
-] as const satisfies readonly (keyof EventMap)[];
-
-/**
- * Reply channels the Archivist emits for operations whose REGISTRY KEY is a
- * gateway-handler channel, not one of our inbound channels — so the
- * BUS_OPERATIONS derivation below cannot see them. Each is named with its
- * owner; anything else belongs in the derivation, never here.
- */
-const OUTBOUND_STRAYS = [
-  'mark:body-update-failed', // op keyed 'bind:update-body' (gateway handler re-emits mark:update-body)
-  'yield:move-failed',       // yield:mv has no registered operation; failure is direct-subscribed
-] as const satisfies readonly (keyof EventMap)[];
-
-function outboundChannels(): (keyof EventMap)[] {
-  const out = new Set<keyof EventMap>(OUTBOUND_STRAYS);
-  for (const ch of INBOUND_CHANNELS) {
-    const op = BUS_OPERATIONS[ch as keyof typeof BUS_OPERATIONS];
-    if (!op) continue;
-    out.add(op.result);
-    out.add(op.failure);
-    if ('progress' in op && op.progress) out.add(op.progress);
-  }
-  return [...out];
-}
 
 // ── Auth ─────────────────────────────────────────────────────────────
 
@@ -310,12 +274,16 @@ async function main() {
     baseUrl: makeBaseUrl(baseUrl),
     token$: tokenSubject,
     tokenRefresher: refreshToken,
+    // Exactly the inbound roster — never the full bridged set, whose global
+    // reply fan-out is the worker-OOM failure mode. This process awaits no
+    // wire replies (busRequest's isSubscribed gate fails fast if one is ever
+    // added without growing the roster), so inbound IS the subscription.
+    channels: ARCHIVIST_INBOUND_CHANNELS,
   });
 
   const pumps: Subscription[] = [];
 
-  httpTransport.actor.addChannels([...INBOUND_CHANNELS]);
-  for (const channel of INBOUND_CHANNELS) {
+  for (const channel of ARCHIVIST_INBOUND_CHANNELS) {
     pumps.push(
       httpTransport.stream(channel).subscribe((payload) => {
         localBus.get(channel).next(payload as never);
@@ -323,7 +291,7 @@ async function main() {
     );
   }
 
-  const outbound = outboundChannels();
+  const outbound = ARCHIVIST_OUTBOUND_CHANNELS;
   for (const channel of outbound) {
     pumps.push(
       localBus.get(channel).subscribe((payload) => {
@@ -369,7 +337,7 @@ async function main() {
       .subscribe(),
   );
 
-  logger.info('Bus pumps attached', { inbound: INBOUND_CHANNELS.length, outbound: outbound.length, facts: PERSISTED_EVENT_TYPES.length });
+  logger.info('Bus pumps attached', { inbound: ARCHIVIST_INBOUND_CHANNELS.length, outbound: outbound.length, facts: PERSISTED_EVENT_TYPES.length });
 
   // ── The HTTP surface: health, the D1 read path, the content write path ──
   const server = createArchivistServer({
@@ -405,7 +373,7 @@ async function main() {
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 
-  logger.info('Archivist serving', { channels: INBOUND_CHANNELS.length });
+  logger.info('Archivist serving', { channels: ARCHIVIST_INBOUND_CHANNELS.length });
 }
 
 main().catch((error) => {

@@ -2016,6 +2016,9 @@ type BusEmitRequest struct {
 	// Channel Channel name from bus-protocol.ts EventMap
 	Channel string `json:"channel"`
 
+	// ClientId Routing address for this request's reply (CORRELATED-REPLY-ROUTING D1/D2): the emit doubles as a claim on the correlationId, and delivery matches BOTH this and the emitting principal. Top-level, not inside `payload` — a wire concern like `scope`, so it never enters a channel's domain type. Optional in the schema because a plain broadcast needs no return address; the route requires it when the channel is a registered request channel and the payload carries a correlationId.
+	ClientId *string `json:"clientId,omitempty"`
+
 	// Payload Channel-specific payload, validated against CHANNEL_SCHEMAS
 	Payload map[string]interface{} `json:"payload"`
 
@@ -2025,6 +2028,9 @@ type BusEmitRequest struct {
 
 // BusSubscribeRequest Subscription matrix for the bus SSE stream (MULTI-RESOURCE-SCOPE). `global` channels are delivered unscoped; each `scoped` entry subscribes the connection to one resource scope's channels, optionally resuming replay from that scope's last-seen persisted event id. At least one global channel or one scoped entry is required.
 type BusSubscribeRequest struct {
+	// ClientId Routing address for correlated replies (CORRELATED-REPLY-ROUTING D1): a UUID minted once per bus-client lifetime — per actor, NOT per connection, so it survives a make-before-break reconnect and both overlap connections share it. Required: a subscriber without one could never receive a correlated frame, and that must fail loudly here rather than silently at delivery. Not authentication — the JWT stays that; this is an unguessable routing address, never echoed into any payload or broadcast frame.
+	ClientId string `json:"clientId"`
+
 	// Global Unscoped channels to subscribe to.
 	Global *[]string `json:"global,omitempty"`
 
@@ -2462,8 +2468,10 @@ type GatherAnnotationRequest struct {
 
 // GatherProgress Progress payload emitted on the gather:annotation-progress SSE channel during LLM context gathering.
 type GatherProgress struct {
-	Message    *string  `json:"message,omitempty"`
-	Percentage *float32 `json:"percentage,omitempty"`
+	// CorrelationId The request this progress belongs to (CORRELATED-REPLY-ROUTING D3). Required: `CORRELATED_CHANNELS` derives every operation's progress channel into the delivery filter, so a frame without it cannot be matched to a claim and is silently dropped.
+	CorrelationId string   `json:"correlationId"`
+	Message       *string  `json:"message,omitempty"`
+	Percentage    *float32 `json:"percentage,omitempty"`
 }
 
 // GatherResourceComplete Completion payload emitted on the gather:resource-complete bus channel when resource context gathering finishes.

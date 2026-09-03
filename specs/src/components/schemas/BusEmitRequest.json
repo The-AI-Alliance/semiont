@@ -15,6 +15,10 @@
       "type": "string",
       "description": "Optional resource scope for broadcast channels (e.g. resourceId). Publishers only \u2014 clients must never set this.",
       "minLength": 1
+    },
+    "clientId": {
+      "type": "string",
+      "description": "Routing address for this request's reply (CORRELATED-REPLY-ROUTING D1/D2): the emit doubles as a claim on the correlationId, and delivery matches BOTH this and the emitting principal. Top-level, not inside `payload` \u2014 a wire concern like `scope`, so it never enters a channel's domain type. Optional in the schema because a plain broadcast needs no return address; the route requires it when the channel is a registered request channel and the payload carries a correlationId."
     }
   },
   "required": [

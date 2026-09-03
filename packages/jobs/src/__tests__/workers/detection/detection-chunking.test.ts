@@ -181,16 +181,12 @@ describe('deriveDetectionBudget — input never exceeds half the output budget',
   });
 });
 
-// ── Duration margin + subdivision (user direction, 2026-09-02 night) ──
-// DoD attempt #4 measured the zero-margin residual firing: the output cap
-// equalled rate × the FULL bound, so a chunk that goes exhaustive at the
-// provider's own worst-case rate collides with the guillotine by
-// construction (chunk 3 died at exactly 600 s, twice). The cap now spends
-// HALF the bound — the slowest legitimate full-cap generation finishes at
-// ~300 s, and the guillotine only fires on calls at least 2× slower than
-// the provider's own worst-case model, i.e. genuinely wedged. And when a
-// chunk call still hits a size-shaped failure, it subdivides in place
-// instead of burning the attempt.
+// ── Duration margin + subdivision ─────────────────────────────────────
+// The output cap spends HALF the call bound: at the full bound, a chunk
+// generating at the provider's own worst-case rate collides with the
+// guillotine by construction. And when a chunk call still hits a
+// size-shaped failure, it subdivides in place instead of burning the
+// attempt.
 
 import { callChunkSubdividing } from '../../../workers/detection/detection-chunking';
 import { InferenceTimeoutError } from '../../../workers/inference-call';
@@ -200,7 +196,9 @@ import { StructuredReadError } from '@semiont/inference';
 describe('callChunkSubdividing', () => {
   const CHUNKING = { chunkSize: 1_000, overlap: 16 };
   // ~8K chars ≈ 2K tokens: splits into multiple sub-pieces at half size.
-  const CHUNK = 'lorem ipsum dolor sit amet consectetur '.repeat(200);
+  // APERIODIC on purpose: with repeated text, different sub-pieces can be
+  // identical strings, which breaks tests that count invocations per piece.
+  const CHUNK = Array.from({ length: 200 }, (_, i) => `passage ${i} lorem ipsum dolor sit amet `).join('');
 
   it('passes a successful call through untouched — one invocation, no subdivision', async () => {
     const calls: string[] = [];
@@ -264,7 +262,57 @@ describe('callChunkSubdividing', () => {
     // Fail-fast: full chunk, first half-piece, first quarter-piece — then
     // the original error propagates without trying siblings. A quarter-size
     // piece still failing is not a size problem, and exhaustively probing
-    // every sibling would multiply a wedged provider's cost.
+    // every sibling would multiply a wedged provider's cost. (No re-roll for
+    // TIMEOUTS at the floor: those classify transient, so the job-level
+    // retry is their second chance.)
     expect(calls).toBe(3);
+  });
+
+  it('truncation descends by SIZE, past the timeout depth cap — register-dense text completes', async () => {
+    // List-dense text (a register: every line several entities, each
+    // echoing ~130 chars of context) honestly demands several times its
+    // input in output — deeper than any fixed depth. Demand halves with
+    // each subdivision, so size-based descent terminates; the depth cap is
+    // for timeouts only.
+    // Bigger scale than the shared fixture so the success threshold sits
+    // BELOW the depth-2 quarter size (~4,000 chars here) but ABOVE the
+    // overlap-derived size floor — only size-based descent can get there.
+    const BIG = Array.from({ length: 400 }, (_, i) => `entry ${i} lorem ipsum dolor sit amet `).join('');
+    const succeededAt: number[] = [];
+    const result = await callChunkSubdividing(BIG, { chunkSize: 4_000, overlap: 16 }, async (piece) => {
+      if (piece.length > 1_200) throw new StructuredReadError('response is not valid JSON', 'max_tokens');
+      succeededAt.push(piece.length);
+      return [piece.length];
+    });
+    expect(result.length).toBeGreaterThan(0);
+    for (const len of succeededAt) expect(len).toBeLessThanOrEqual(1_200);
+  });
+
+  it('truncation at the floor gets ONE same-size re-roll — a repetition loop is a sampling accident', async () => {
+    // A floor-size piece cannot honestly overflow the output budget, so a
+    // truncation there is a degeneration loop — a sampling accident a
+    // re-roll usually escapes; the deterministic rethrow alone would kill
+    // a job the same piece passes on the next roll.
+    const seen = new Map<string, number>();
+    const result = await callChunkSubdividing(CHUNK, CHUNKING, async (piece) => {
+      const n = (seen.get(piece) ?? 0) + 1;
+      seen.set(piece, n);
+      if (n === 1) throw new StructuredReadError('response is not valid JSON', 'max_tokens');
+      return [piece.length];
+    });
+    expect(result.length).toBeGreaterThan(0);
+    // Some floor piece was re-rolled — same text, second invocation.
+    expect(Math.max(...seen.values())).toBe(2);
+  });
+
+  it('a re-roll that truncates AGAIN rethrows — twice on the same piece is real pathology', async () => {
+    const boom = new StructuredReadError('response is not valid JSON', 'max_tokens');
+    let calls = 0;
+    await expect(callChunkSubdividing(CHUNK, CHUNKING, async () => {
+      calls++;
+      throw boom;
+    })).rejects.toBe(boom);
+    // Full, first half, first quarter, quarter's one re-roll — then done.
+    expect(calls).toBe(4);
   });
 });

@@ -65,9 +65,9 @@ ENV NODE_ENV=production
 # piece of the KB tree (SINGLE-KB-MOUNT P1). The Librarian locates the views
 # it reads from the staged `[kb] name` under the shared state mount, and
 # everything else reaches it over the wire.
-EXPOSE 9094
+EXPOSE 24104
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:9094/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
+  CMD node -e "require('http').get('http://localhost:24104/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
 CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/librarian-main.js"]

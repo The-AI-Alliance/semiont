@@ -460,6 +460,44 @@ describe('BrowseNamespace', () => {
       expect(emitSpy).toHaveBeenCalledWith('browse:resource-requested', expect.objectContaining({ resourceId: RID }));
     });
 
+    // ── CORRELATED-REPLY-ROUTING P4 ───────────────────────────────────
+    // After P3, `yield:*-ok` reaches ONLY the client that made the request,
+    // so a reply can no longer double as a cross-client invalidation signal.
+    // The persisted domain events carry that job instead — the
+    // `frame:entity-type-added` precedent. These four cases are written from
+    // the NON-requester's seat: nothing here emits a request.
+
+    it('yield:created → a non-requesting client invalidates its list and detail', async () => {
+      await firstDefined(browse.resource(RID));
+      expect(emitSpy).toHaveBeenCalledTimes(1);
+      eventBus.get('yield:created').next(stored({ resourceId: RID }));
+      await firstDefined(browse.resource(RID));
+      expect(emitSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('yield:updated → a non-requesting client invalidates', async () => {
+      await firstDefined(browse.resource(RID));
+      eventBus.get('yield:updated').next(stored({ resourceId: RID }));
+      await firstDefined(browse.resource(RID));
+      expect(emitSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('yield:cloned → invalidates — a clone created a resource nobody was told about', async () => {
+      // Pre-existing gap: nothing subscribed `yield:clone-persist-ok`, so a
+      // clone-persist created a resource and no list ever learned of it.
+      await firstDefined(browse.resource(RID));
+      eventBus.get('yield:cloned').next(stored({ resourceId: RID }));
+      await firstDefined(browse.resource(RID));
+      expect(emitSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('yield:moved → invalidates — a rename went stale in every other list', async () => {
+      await firstDefined(browse.resource(RID));
+      eventBus.get('yield:moved').next(stored({ resourceId: RID }));
+      await firstDefined(browse.resource(RID));
+      expect(emitSpy).toHaveBeenCalledTimes(2);
+    });
+
     it('mark:archived → invalidates resource detail + lists', async () => {
       await firstDefined(browse.resource(RID));
       expect(emitSpy).toHaveBeenCalledTimes(1);

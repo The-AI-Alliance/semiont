@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Logger } from '@semiont/core';
-import { startAgentWorker, authenticateAgent, parseGatewayUrl, buildHealthPayload, startStallWatchdog, STALL_THRESHOLD_MS, STALL_CHECK_INTERVAL_MS, type AgentGroup, type AgentVitals } from '../worker-runtime';
+import { startAgentWorker, authenticateAgent, parseGatewayUrl, buildHealthPayload, startStallWatchdog, STALL_THRESHOLD_MS, STALL_CHECK_INTERVAL_MS, WORKER_CHANNELS, type AgentGroup, type AgentVitals } from '../worker-runtime';
 import { startWorkerProcess } from '../worker-process';
 import type { InferenceClient } from '@semiont/inference';
 import { createServer, type Server } from 'http';
@@ -444,5 +444,30 @@ describe('worker-runtime — anchored-text store threading (PERSIST-ANCHORS P2d)
     expect(typeof config.anchoredTextStore!.write).toBe('function');
 
     await worker.dispose();
+  });
+});
+
+describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)', () => {
+  it('WORKER_CHANNELS carries exactly the reply channels of the operations the worker awaits', () => {
+    expect([...WORKER_CHANNELS].sort()).toEqual([
+      'browse:anchored-text-by-checksum-failed',
+      'browse:anchored-text-by-checksum-result',
+      'browse:resource-failed',
+      'browse:resource-result',
+      'job:claim-failed',
+      'job:claimed',
+    ]);
+  });
+
+  it('every worker channel is a bridged reply channel — the derivation cannot drift from the registry', async () => {
+    const { BRIDGED_CHANNELS } = await import('@semiont/core');
+    for (const channel of WORKER_CHANNELS) {
+      expect(BRIDGED_CHANNELS).toContain(channel);
+    }
+  });
+
+  it('the fat fan-out channels that OOMed the worker are NOT subscribed', () => {
+    expect(WORKER_CHANNELS).not.toContain('browse:annotations-result');
+    expect(WORKER_CHANNELS).not.toContain('browse:resources-result');
   });
 });

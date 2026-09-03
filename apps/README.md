@@ -21,11 +21,11 @@ directory is the container entry point plus its Dockerfile.
 
 | Service | Source | Port | What it runs |
 | --- | --- | --- | --- |
-| `semiont-archivist` | [archivist](./archivist/README.md) | 9093 | **Keeps the system of record** — Stower (writes events + projections), Browser (serves `browse:*` reads), CloneTokenManager. The only service that mounts the working tree |
-| `semiont-librarian` | [librarian](./librarian/README.md) | 9094 | **Searches the record** — Gatherer (context assembly) and Matcher (candidate search + scoring) |
-| `semiont-smelter` | [smelter](./smelter/README.md) | 9091 | Chunks and embeds content into the vector store; owns anchored-text extraction |
-| `semiont-weaver` | [weaver](./weaver/README.md) | 9092 | Projects the event log into the graph |
-| `semiont-worker` | [worker](./worker/README.md) | 9090 | Claims queued jobs (detection, generation) and runs inference |
+| `semiont-archivist` | [archivist](./archivist/README.md) | 24103 | **Keeps the system of record** — Stower (writes events + projections), Browser (serves `browse:*` reads), CloneTokenManager. The only service that mounts the working tree |
+| `semiont-librarian` | [librarian](./librarian/README.md) | 24104 | **Searches the record** — Gatherer (context assembly) and Matcher (candidate search + scoring) |
+| `semiont-smelter` | [smelter](./smelter/README.md) | 24101 | Chunks and embeds content into the vector store; owns anchored-text extraction |
+| `semiont-weaver` | [weaver](./weaver/README.md) | 24102 | Projects the event log into the graph |
+| `semiont-worker` | [worker](./worker/README.md) | 24100 | Claims queued jobs (detection, generation) and runs inference |
 
 All six service images (the five above plus the gateway) are built by
 [`publish-service-images.yml`](../.github/workflows/publish-service-images.yml).

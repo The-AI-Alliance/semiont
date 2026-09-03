@@ -384,3 +384,13 @@ describe('extractEntities', () => {
     });
   });
 });
+
+describe('temperature', () => {
+  it('detection calls run at temperature 0 — a fidelity task, not a generative one', async () => {
+    // Enumeration copies spans verbatim; determinism buys reproducible
+    // re-runs and was measured equal to hotter settings on consistency.
+    const client = new MockInferenceClient(['[]']);
+    await extractEntities('Alice went to Paris.', ['Person'], client as unknown as InferenceClient, false, LOGGER);
+    expect(client.calls[0]!.temperature).toBe(0);
+  });
+});

@@ -1433,14 +1433,26 @@ func serve(ports []string) {
 					// POST subscription matrix (MULTI-RESOURCE-SCOPE); the GET
 					// query form is gone. Delivery here stays flat by channel —
 					// this fake never scope-gates, same as before.
+					// ClientID is REQUIRED on the real route
+					// (CORRELATED-REPLY-ROUTING D5) and this fake is the
+					// SERVER half of the pair, so it PARSES the field rather
+					// than minting one. It stays contract-true by refusing a
+					// subscribe without it, exactly as the gateway will —
+					// otherwise a client regression passes the launcher tests
+					// and surfaces at the P3 cutover.
 					var matrix struct {
-						Global []string `json:"global"`
-						Scoped []struct {
+						Global   []string `json:"global"`
+						ClientID string   `json:"clientId"`
+						Scoped   []struct {
 							Scope    string   `json:"scope"`
 							Channels []string `json:"channels"`
 						} `json:"scoped"`
 					}
 					_ = json.NewDecoder(r.Body).Decode(&matrix)
+					if matrix.ClientID == "" {
+						w.WriteHeader(http.StatusBadRequest)
+						return
+					}
 					chans := append([]string{}, matrix.Global...)
 					for _, e := range matrix.Scoped {
 						chans = append(chans, e.Channels...)

@@ -68,7 +68,7 @@ container ls | grep -E 'semiont-(browser|gateway)'    # inspection only
 
 > Useful for *seeing* what is running. Do **not** feed these IPs to the e2e
 > suite — they change on every restart, and pointing the suite at the gateway
-> container also breaks `19-worker-vitals`, which expects the worker's `:9090`
+> container also breaks `19-worker-vitals`, which expects the worker's `:24100`
 > on the same host as the gateway. Use `192.168.64.1` for both URLs.
 
 ## Building the `:local` images

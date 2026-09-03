@@ -25,7 +25,8 @@ export type BusRequestErrorCode =
   | 'bus.bad-payload'
   | 'bus.unauthorized'
   | 'bus.forbidden'
-  | 'bus.not-found';
+  | 'bus.not-found'
+  | 'bus.unsubscribed';
 
 export class BusRequestError extends SemiontError {
   declare code: BusRequestErrorCode;
@@ -34,6 +35,30 @@ export class BusRequestError extends SemiontError {
     super(message, code, details);
     this.name = 'BusRequestError';
   }
+}
+
+/**
+ * The reply channels — result, failure, and (for streaming operations)
+ * progress — of every operation in `channels`, deduplicated. Entries that
+ * are not operation request channels (broadcast signals, domain events)
+ * contribute nothing.
+ *
+ * This is THE derivation for a narrowed-subscription transport profile
+ * (`HttpTransportConfig.channels`: subscribe exactly the reply channels of
+ * the operations a process awaits) and for a service's outbound reply pump
+ * (forward exactly the replies of the operations it answers). Restating a
+ * reply channel by hand was the recurring unbridged-reply bug class.
+ */
+export function replyChannelsFor(channels: readonly string[]): EventName[] {
+  const out = new Set<EventName>();
+  for (const ch of channels) {
+    const op = BUS_OPERATIONS[ch as BusOperationKey];
+    if (!op) continue;
+    out.add(op.result);
+    out.add(op.failure);
+    if ('progress' in op && op.progress) out.add(op.progress);
+  }
+  return [...out];
 }
 
 /**
@@ -69,6 +94,16 @@ export interface BusRequestPrimitive {
    * lose replies omits the surface and `busRequest` behaves as before.
    */
   trackReply?(correlationId: string): () => void;
+  /**
+   * Whether this transport's receive path delivers `channel` — i.e. a reply
+   * published there can actually reach this process. Wire transports whose
+   * subscription set is configurable (a worker subscribing only the reply
+   * channels it awaits) implement this so `busRequest` on a channel outside
+   * the set fails fast with `bus.unsubscribed` instead of burning its
+   * timeout on a reply that could never arrive. OPTIONAL: an in-process
+   * transport delivers every channel and omits it.
+   */
+  isSubscribed?(channel: string): boolean;
 }
 
 /**
@@ -97,6 +132,22 @@ export async function busRequest<Op extends BusOperationKey>(
   const correlationId = uuidV4();
   const fullPayload = { ...payload, correlationId };
   const { result: resultChannel, failure: failureChannel } = BUS_OPERATIONS[operation];
+
+  // A transport with a narrowed subscription set (a worker) that is not
+  // subscribed to this operation's reply channels can never deliver the
+  // reply — fail loudly NOW, naming the fix, instead of a 30 s timeout
+  // that reads as network weather.
+  if (bus.isSubscribed) {
+    for (const replyChannel of [resultChannel, failureChannel]) {
+      if (!bus.isSubscribed(replyChannel as string)) {
+        throw new BusRequestError(
+          `Transport is not subscribed to reply channel ${replyChannel as string} — a reply to ${operation} can never arrive. Add this operation's reply channels to the transport's channel set.`,
+          'bus.unsubscribed',
+          { channel: operation, resultChannel, failureChannel },
+        );
+      }
+    }
+  }
 
   const result$ = merge(
     (bus.stream(resultChannel as keyof EventMap) as Observable<Record<string, unknown>>).pipe(

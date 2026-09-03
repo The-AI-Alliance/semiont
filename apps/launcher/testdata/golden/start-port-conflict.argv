@@ -1,5 +1,7 @@
 git -C <kb-root> rev-parse --show-toplevel
 container run --rm busybox:1.38.0 sh -c ip route | awk '/default/{print $3}'
+container logs semiont-otel-collector
+container logs semiont-prometheus
 container logs semiont-jaeger
 container logs semiont-neo4j
 container logs semiont-qdrant

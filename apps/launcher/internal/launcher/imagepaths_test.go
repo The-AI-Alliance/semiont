@@ -100,9 +100,9 @@ func TestExactlyOneContainerMountsTheKB(t *testing.T) {
 		"gateway":   gatewayArgs("/stage", "1.2.3.4", "secret", "jwt", "v", 4000, nil, nil),
 		"archivist": archivistArgs(kbRoot, "/stage", "1.2.3.4", "secret", "v", nil, nil),
 		"librarian": librarianArgs("/stage", "1.2.3.4", "secret", "v", nil, nil),
-		"worker":    sidecarArgs("worker", 9090, "/stage", "1.2.3.4", "secret", "v", nil, nil),
-		"smelter":   sidecarArgs("smelter", 9091, "/stage", "1.2.3.4", "secret", "v", nil, nil),
-		"weaver":    sidecarArgs("weaver", 9092, "/stage", "1.2.3.4", "secret", "v", nil, nil),
+		"worker":    sidecarArgs("worker", 24100, "/stage", "1.2.3.4", "secret", "v", nil, nil),
+		"smelter":   sidecarArgs("smelter", 24101, "/stage", "1.2.3.4", "secret", "v", nil, nil),
+		"weaver":    sidecarArgs("weaver", 24102, "/stage", "1.2.3.4", "secret", "v", nil, nil),
 	}
 
 	var mounters []string

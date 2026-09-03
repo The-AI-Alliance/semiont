@@ -34,4 +34,12 @@ export interface WorkerBus {
    */
   state$: Observable<ConnectionState>;
   addChannels?(channels: readonly string[]): void;
+  /**
+   * Whether the receive path delivers `channel` (see
+   * `BusRequestPrimitive.isSubscribed` in `@semiont/core`). HTTP
+   * `ActorStateUnit` exposes it so worker-side `busRequest`s on a
+   * narrowed subscription fail fast; in-process shims deliver every
+   * channel and omit it.
+   */
+  isSubscribed?(channel: string): boolean;
 }

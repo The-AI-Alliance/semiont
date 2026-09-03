@@ -25,9 +25,9 @@ Five published service images, plus the infrastructure containers a stack needs
 |---|---|---|
 | `ghcr.io/the-ai-alliance/semiont-gateway` | API, auth, event log, projections | 4000 |
 | `ghcr.io/the-ai-alliance/semiont-browser` | Browser UI | 3000 |
-| `ghcr.io/the-ai-alliance/semiont-worker` | Job / generation worker | 9090 |
-| `ghcr.io/the-ai-alliance/semiont-smelter` | Embedding / vector pipeline | 9091 |
-| `ghcr.io/the-ai-alliance/semiont-weaver` | Graph projection | 9092 |
+| `ghcr.io/the-ai-alliance/semiont-worker` | Job / generation worker | 24100 |
+| `ghcr.io/the-ai-alliance/semiont-smelter` | Embedding / vector pipeline | 24101 |
+| `ghcr.io/the-ai-alliance/semiont-weaver` | Graph projection | 24102 |
 
 Images are built and published by CI, not by the CLI — see [IMAGES.md](./IMAGES.md).
 

@@ -72,7 +72,7 @@ app.use('*', async (c, next) => {
   c.set('user', fakeUser());
   c.set('principalDid', 'did:web:test.local:users:test%40test.local');
   c.set('eventBus', new EventBus());
-  c.set('config', { services: { archivist: { host: 'archivist.test', port: 9093 } } });
+  c.set('config', { services: { archivist: { host: 'archivist.test', port: 9999 } } });
   await next();
 });
 registerCreateResource(app as unknown as ResourcesRouterType);

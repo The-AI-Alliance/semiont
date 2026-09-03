@@ -61,6 +61,14 @@ const OVERLAP_CHARS =
 /** ~4 chars/token — the same heuristic `estimateTokens`/`chunkText` use. */
 const OVERLAP_TOKENS = Math.ceil(OVERLAP_CHARS / 4);
 
+/**
+ * One temperature for every detection call. Detection copies spans verbatim
+ * against a closed type vocabulary — a fidelity task, so determinism is the
+ * right default (reproducible re-runs). Measured equal to hotter settings
+ * on yield and consistency at production call sizes.
+ */
+export const DETECTION_TEMPERATURE = 0;
+
 export interface DetectionBudget {
   /** Feed to `chunkText` — `chunkSize` is the derived input budget (tokens). */
   chunking: ChunkingConfig;
@@ -122,14 +130,10 @@ export function deriveDetectionBudget(
   // detection call at or under the SDK's non-streaming threshold — off the
   // MessageStream path the original `terminated` failure arrived on.
   if (limits.outputTokensPerHour !== undefined) {
-    // HALF the bound, not all of it: the cap's job is to keep every
-    // legitimate call clearly inside the guillotine, and a cap equal to
-    // rate × the FULL bound put the slowest legitimate call exactly ON it
-    // — measured firing on DoD attempt #4 (2026-09-02: chunk 3 died at
-    // 600.0 s, twice). At half, a full-cap generation at the provider's
-    // own worst-case rate finishes at ~300 s, so the guillotine fires only
-    // on calls at least 2× slower than the provider's worst-case model —
-    // genuinely wedged, not working.
+    // Half the bound, not all of it: at the full bound the slowest
+    // legitimate full-budget generation lands exactly on the guillotine.
+    // At half, the guillotine fires only on calls at least 2× slower than
+    // the provider's own worst-case model — wedged, not working.
     const durationSafeOutput = Math.floor(limits.outputTokensPerHour * (INFERENCE_TIMEOUT_MS / 2) / 3_600_000);
     if (outputBudget > durationSafeOutput) {
       inputBudget = Math.floor(inputBudget * (durationSafeOutput / outputBudget));
@@ -161,23 +165,24 @@ export function deriveDetectionBudget(
 }
 
 /**
- * Subdivision depth: halve, then quarter, then stop. A policy constant
- * (user direction, 2026-09-02): "at least one retry with a smaller chunk"
- * after a size-shaped failure, bounded — a call still failing on a
- * quarter-sized chunk is not a size problem, and the ORIGINAL failure must
- * reach the job-level machinery (classification, retry budget) untouched.
+ * Depth cap for TIMEOUTS only: a call still timing out on a quarter-sized
+ * chunk is not a size problem, and timeouts classify transient — the
+ * job-level retry is their second chance. Truncations descend by size
+ * instead (see `callChunkSubdividing`).
  */
 export const MAX_SUBDIVISION_DEPTH = 2;
 
-/** The failures a smaller chunk can plausibly fix: our duration bound
- * (generation outran the guillotine), and truncation in either of its two
- * surfaces — caught by `assertNotTruncated` after a parseable response
- * (`DeterministicJobError`), or thrown by the adapter when the cut-off JSON
- * would not parse (`StructuredReadError` with `max_tokens`). An unreadable
- * response that STOPPED NATURALLY is model misbehavior, not size. */
+/** The failures a smaller chunk can plausibly fix. An unreadable response
+ * that stopped naturally is model misbehavior, not size. */
 function subdividable(error: unknown): boolean {
+  return error instanceof InferenceTimeoutError || truncation(error);
+}
+
+/** Truncation in either surface: parsed-but-flagged (`assertNotTruncated`'s
+ * `DeterministicJobError`) or cut off mid-JSON (`StructuredReadError` with
+ * `max_tokens`). */
+function truncation(error: unknown): boolean {
   return (
-    error instanceof InferenceTimeoutError ||
     error instanceof DeterministicJobError ||
     (error instanceof StructuredReadError && error.stopReason === 'max_tokens')
   );
@@ -186,11 +191,9 @@ function subdividable(error: unknown): boolean {
 /**
  * Run one chunk's inference call, subdividing IN PLACE when it fails in a
  * way a smaller chunk can fix — instead of burning the whole attempt to
- * come back at the same size (DoD attempt #4: the same chunk killed both
- * attempts identically). Sub-pieces re-use the caller's overlap, so spans
- * straddling a split are caught twice and fall to the downstream span-keyed
- * dedupe, same as ordinary adjacent chunks. On a failure subdivision cannot
- * fix — wrong shape, or still failing at the depth floor — the ORIGINAL
+ * come back at the same size. Sub-pieces re-use the caller's overlap, so
+ * spans straddling a split are caught twice and fall to the downstream
+ * span-keyed dedupe. On a failure subdivision cannot fix, the ORIGINAL
  * error propagates so classification sees what actually happened.
  */
 export async function callChunkSubdividing<T>(
@@ -203,8 +206,28 @@ export async function callChunkSubdividing<T>(
     try {
       return await call(piece);
     } catch (error) {
-      if (depth >= MAX_SUBDIVISION_DEPTH || !subdividable(error)) throw error;
+      if (!subdividable(error)) throw error;
       const half = Math.floor(chunkSize / 2);
+      // Truncation descends by SIZE: demand halves with each subdivision,
+      // so descent terminates — and list-dense text (registers, indexes)
+      // honestly yields several times its input in annotation output, so
+      // the descent must go as deep as the content demands. The floor
+      // derives from the overlap constant; below it even solid names fit
+      // the budget. Timeouts stay depth-capped and fail fast.
+      const canDescend = truncation(error)
+        ? half > 2 * OVERLAP_TOKENS
+        : depth < MAX_SUBDIVISION_DEPTH;
+      if (!canDescend) {
+        // At the size floor honest overflow is impossible, so truncation
+        // here is a degeneration loop — a sampling accident. One same-size
+        // re-roll; a second truncation propagates. Timeouts get no re-roll.
+        if (!truncation(error)) throw error;
+        logger?.warn('Floor-size piece truncated — re-rolling once before giving up', {
+          pieceChars: piece.length,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return await call(piece);
+      }
       logger?.warn('Chunk call failed at a size-shaped bound — subdividing and retrying smaller', {
         depth: depth + 1,
         pieceChars: piece.length,

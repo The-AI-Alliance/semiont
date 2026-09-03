@@ -24,6 +24,7 @@ import { BehaviorSubject } from 'rxjs';
 import { archivistContentReads, createAnchoredTextStore } from '@semiont/content';
 import { createSmelterActorStateUnit, type SmelterActorStateUnit } from './smelter-actor-state-unit';
 import { Smelter } from './smelter';
+import { SMELTER_REPLY_CHANNELS } from './service-channels';
 import { HttpTransport } from '@semiont/http-transport';
 import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader, retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY } from '@semiont/core';
 import type { AccessToken } from '@semiont/core';
@@ -80,7 +81,7 @@ const chunkingConfig: ChunkingConfig = {
 
 const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
 
-const healthPort = 9091;
+const healthPort = 24101;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
 import { registerVectorIndexSizeProvider } from '@semiont/observability';
@@ -188,6 +189,11 @@ async function main() {
     baseUrl: makeBaseUrl(baseUrl),
     token$: tokenSubject,
     tokenRefresher: refreshToken,
+    // Only the reply channels this process awaits — not the full bridged
+    // set, whose global reply fan-out is the worker-OOM failure mode. See
+    // SMELTER_AWAITED_OPERATIONS. The domain-event channels are added by
+    // the actor state unit's start() below.
+    channels: SMELTER_REPLY_CHANNELS,
   });
   const actorStateUnit: SmelterActorStateUnit = createSmelterActorStateUnit({
     bus: httpTransport.actor,

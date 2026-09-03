@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, type ConnectionState, type StateUnit } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, type components, type ConnectionState, type StateUnit } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -68,6 +68,13 @@ export interface ActorStateUnit extends StateUnit {
   state$: Observable<ConnectionState>;
   /** With `scope`: upsert channels into that scope's matrix entry. Without: global channels. */
   addChannels(channels: string[], scope?: string): void;
+  /**
+   * Whether `channel` is in the current GLOBAL subscription set — i.e. the
+   * gateway delivers it on this connection. Correlated replies always ride
+   * global channels, so this is `busRequest`'s fail-fast probe on a
+   * narrowed-subscription transport (see `BusRequestPrimitive.isSubscribed`).
+   */
+  isSubscribed(channel: string): boolean;
   /** With `scope`: remove channels from that scope's entry (empty entry drops the scope). Without: global channels. */
   removeChannels(channels: string[], scope?: string): void;
   /**
@@ -116,6 +123,20 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   );
   /** Outstanding busRequest correlationIds — ride every connect body (S1). */
   const pendingReplies = new Set<string>();
+  /**
+   * This bus client's routing address for correlated replies
+   * (CORRELATED-REPLY-ROUTING D1). Minted once per ACTOR — deliberately not
+   * per connection: a make-before-break handover runs two connections at
+   * once and a reconnect replaces one, so a per-connection id would strand
+   * the reply on the dying socket. Both overlap connections present this
+   * same address, and the deterministic `e-<channel>:<cid>` id dedups the
+   * double delivery exactly as it does today.
+   *
+   * Not persisted: "stable" means across transport reconnects, not across
+   * page reloads. A reload builds a new actor, and its `pendingReplies`
+   * replay is what recovers in-flight replies (S1).
+   */
+  const clientId = uuidV4();
 
   const events$ = new Subject<BusEvent>();
   const state$ = new BehaviorSubject<ConnectionState>('initial');
@@ -257,6 +278,11 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
     // POST subscription matrix (MULTI-RESOURCE-SCOPE): global channels plus
     // one entry per scope, each carrying its own resumption watermark.
+    // `satisfies` is the drift-lock (the MEDIA_TYPES idiom): the body is
+    // hand-written while the schema owns the shape, so the compiler — not a
+    // reviewer — is what notices a required field going missing. That is
+    // what makes `clientId` required in BusSubscribeRequest worth anything
+    // on this side of the wire (CORRELATED-REPLY-ROUTING P2).
     const body = JSON.stringify({
       global: [...globalChannels],
       scoped: [...scopedSubscriptions.entries()].map(([scope, chans]) => {
@@ -268,7 +294,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         };
       }),
       ...(pendingReplies.size > 0 ? { pendingReplies: [...pendingReplies] } : {}),
-    });
+      clientId,
+    } satisfies components['schemas']['BusSubscribeRequest']);
     const url = `${baseUrl}/bus/subscribe`;
 
     const controller = new AbortController();
@@ -318,7 +345,21 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = '';
+
+      /**
+       * Segments of the current, still-incomplete line. A single `data:`
+       * line carries a whole JSON payload — a browse reply can run to
+       * megabytes — delivered across many `reader.read()` chunks. The
+       * previous `buffer += chunk` + `buffer.split('\n')` re-flattened and
+       * re-scanned the ENTIRE accumulated buffer on every read: O(frame² /
+       * chunkSize) bytes of large-string allocation per frame, all landing
+       * in V8's large-object space, which only major GC reclaims. Under the
+       * reply fan-out burst (~85 multi-MB `browse:*-result` frames/min)
+       * that allocation rate outran mark-compact and OOM'd the worker
+       * (2026-09-03, DoD #7). Segments are joined exactly once, when the
+       * line's newline arrives; each read scans only its own chunk.
+       */
+      let lineSegments: string[] = [];
 
       // SSE parse state is declared OUTSIDE the read loop: a single
       // event can span many `reader.read()` chunks when the payload is
@@ -334,12 +375,24 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         const { done, value } = await reader.read();
         if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
+        const text = decoder.decode(value, { stream: true });
 
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
+        let searchFrom = 0;
+        while (searchFrom <= text.length) {
+          const nl = text.indexOf('\n', searchFrom);
+          if (nl === -1) {
+            if (searchFrom < text.length) {
+              lineSegments.push(searchFrom === 0 ? text : text.slice(searchFrom));
+            }
+            break;
+          }
+          let line = text.slice(searchFrom, nl);
+          searchFrom = nl + 1;
+          if (lineSegments.length > 0) {
+            lineSegments.push(line);
+            line = lineSegments.join('');
+            lineSegments = [];
+          }
           if (line.startsWith('event: ')) {
             currentEvent = line.slice(7);
           } else if (line.startsWith('data: ')) {
@@ -516,7 +569,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // (`HttpTransport.emit`). ActorStateUnit is plumbing. We do propagate the
       // active span's W3C traceparent on the outbound POST so the gateway
       // can stitch the bus.dispatch server span as a child.
-      const body: Record<string, unknown> = { channel, payload };
+      const body: Record<string, unknown> = { channel, payload, clientId };
       if (emitScope) body.scope = emitScope;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -556,6 +609,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     },
 
     state$: state$.asObservable(),
+
+    isSubscribed: (channel: string) => globalChannels.has(channel),
 
     addChannels: (channels: string[], scope?: string) => {
       let changed = false;

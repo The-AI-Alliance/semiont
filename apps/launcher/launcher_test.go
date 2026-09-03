@@ -572,6 +572,28 @@ func TestStartCleanOllama(t *testing.T) {
 
 // --- start: --dry-run goldens (the legibility seam) ---
 
+// The per-service dry-runs for the two observability backends: the exact
+// `container run` an operator would get, pinned so the rendering cannot
+// silently regress (the full-start dry-runs are pinned; per-service ones
+// mostly are not).
+func TestStartDryRunServiceTraces(t *testing.T) {
+	s := newScenario(t, "container")
+	stdout, stderr, code := s.run(t, "start", "--service", "traces", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	checkGolden(t, "start-dryrun-service-traces.txt", s.norm(stdout))
+}
+
+func TestStartDryRunServiceMetrics(t *testing.T) {
+	s := newScenario(t, "container")
+	stdout, stderr, code := s.run(t, "start", "--service", "metrics", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	checkGolden(t, "start-dryrun-service-metrics.txt", s.norm(stdout))
+}
+
 func TestStartDryRunDefault(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
 	stdout, stderr, code := s.run(t, "start", "--dry-run")
@@ -1362,7 +1384,7 @@ func TestStopSweepsAllRuntimes(t *testing.T) {
 	}
 	checkGolden(t, "stop-all-runtimes.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"Sweeping 11 container(s) across container, docker, podman",
+		"Sweeping 13 container(s) across container, docker, podman",
 		"container: none found",
 		"docker: none found",
 		"podman: none found",
@@ -1453,7 +1475,7 @@ func TestStatusMixed(t *testing.T) {
 		// but-unhealthy, crashed, absent, host-provided.
 		"✓ running", "✗ running", "✗ exited", "✗ absent", "✓ reachable",
 		"http://localhost:4000/api/health",
-		"http://localhost:9090/health",
+		"http://localhost:24100/health",
 		"tcp://localhost:5432",
 	)
 	// LAUNCHER PATHS describes the launcher, not any KB — asked for, not shown.
@@ -1491,7 +1513,7 @@ func TestStatusAllHealthy(t *testing.T) {
 	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "browser", "neo4j", "qdrant", "postgres", "ollama"} {
 		s.extraEnv = append(s.extraEnv, "FAKERT_STATE_"+svc+"=running")
 	}
-	serveHealth(t, 4000, 9090, 9091, 9092, 9093, 9094, 3000, 7474, 6333, 5432, 11434)
+	serveHealth(t, 4000, 24100, 24101, 24102, 24103, 24104, 3000, 7474, 6333, 5432, 11434)
 	stdout, stderr, code := s.run(t, "status")
 	if code != 0 {
 		t.Fatalf("want exit 0 with all core healthy, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -2855,7 +2877,7 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(statePath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	local := `{"schema":3,"stacks":{"local":{"runtime":"container","ports":[3000,4000,9090],` +
+	local := `{"schema":3,"stacks":{"local":{"runtime":"container","ports":[3000,4000,24100],` +
 		`"services":{"gateway":{"container":"semiont-gateway","id":"fid-semiont-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}}}}`
 	if err := os.WriteFile(statePath, []byte(local), 0o644); err != nil {
 		t.Fatal(err)
@@ -3127,7 +3149,7 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 	s := newCodespaceScenario(t)
 	set := `{"schema":3,"stacks":{
 	  "local":{"runtime":"container","services":{"gateway":{"container":"semiont-gateway","id":"fid-semiont-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}},
-	  "codespace:pingel-org/foo-kb":{"runtime":"codespace","codespace":"fake-cs-1","repo":"pingel-org/foo-kb","ports":[3000,4000,9090,9091,9092],"services":{}}}}`
+	  "codespace:pingel-org/foo-kb":{"runtime":"codespace","codespace":"fake-cs-1","repo":"pingel-org/foo-kb","ports":[3000,4000,24100,24101,24102],"services":{}}}}`
 	p := statePathFor(s.home)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		t.Fatal(err)
@@ -3669,12 +3691,9 @@ func TestStackStateLifecycle(t *testing.T) {
 	if set.Browser == nil || set.Browser.ID != "fid-semiont-browser" {
 		t.Errorf("browser record missing or wrong: %+v", set.Browser)
 	}
-	// EXACTLY these roles, not merely at-least: this list is a hand-written
-	// mirror of the fleet, and as an at-least check it silently stopped
-	// covering the Archivist and the Librarian when they joined. Asserting
-	// the set makes growth fail here — the census gate the roster needs,
-	// since `main_test` cannot reach the roles table to derive one.
-	wantRoles := []string{"traces", "graph", "vectors", "inference", "embedding", "database",
+	// EXACTLY these roles, not at-least: fleet growth must fail here (a
+	// census gate; main_test cannot reach the roles table to derive one).
+	wantRoles := []string{"traces", "metrics", "collector", "graph", "vectors", "inference", "embedding", "database",
 		"gateway", "worker", "smelter", "weaver", "archivist", "librarian"}
 	if len(st.Services) != len(wantRoles) {
 		got := make([]string, 0, len(st.Services))
@@ -3685,13 +3704,10 @@ func TestStackStateLifecycle(t *testing.T) {
 		t.Errorf("recorded roles = %v, want exactly %d roles %v — a service joined or left the fleet",
 			got, len(wantRoles), wantRoles)
 	}
-	// inference and embedding are the two DRIVER-dependent roles: each may be
-	// a container, a host Ollama, a remote API — or, for embedding, the
-	// Ollama container `inference` launched. In that last case the record is
-	// deliberately Provided:launcher with NO container, id or image: the
-	// launching role alone is stamped as owner, because that stamp is what
-	// stop's ownership check keys on. So the invariant is about OWNERSHIP,
-	// not the provider string.
+	// inference and embedding are driver-dependent (container, host Ollama,
+	// remote API — or the Ollama `inference` launched, recorded with NO
+	// container: only the launching role is stamped owner, which stop keys
+	// on). The invariant is ownership, not the provider string.
 	driverDependent := map[string]bool{"inference": true, "embedding": true}
 	for _, role := range wantRoles {
 		e, ok := st.Services[role]
@@ -4030,7 +4046,7 @@ func TestStopVerifiesPortsReleased(t *testing.T) {
 		t.Fatalf("worker start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	b, _ := os.ReadFile(statePathFor(s.home))
-	mustContain(t, "stack.json", string(b), `"ports"`, "9090")
+	mustContain(t, "stack.json", string(b), `"ports"`, "24100")
 
 	// Happy path: ports free → clean announcement.
 	stdout, _, code := s.run(t, "stop")
@@ -4045,13 +4061,13 @@ func TestStopVerifiesPortsReleased(t *testing.T) {
 	if _, _, code := s.run(t, "start", "--service", "worker"); code != 0 {
 		t.Fatal("restart failed")
 	}
-	s.extraEnv = append(s.extraEnv, "FAKERT_LSOF_9090=777", "FAKERT_PS_777=node")
+	s.extraEnv = append(s.extraEnv, "FAKERT_LSOF_24100=777", "FAKERT_PS_777=node")
 	stdout, _, code = s.run(t, "stop")
 	if code != 0 {
 		t.Fatalf("stop with held port: exit %d", code)
 	}
 	mustContain(t, "stop stdout", stdout,
-		"Port 9090 is still held by 777 (node)", "the next start will fail on it")
+		"Port 24100 is still held by 777 (node)", "the next start will fail on it")
 }
 
 // --- JWT_SECRET supply ---
@@ -4315,14 +4331,16 @@ func TestStartServiceWorker(t *testing.T) {
 		"FAKERT_STATE_worker=running",
 		"FAKERT_SECRET=recovered-secret-123",
 	)
-	serveHealth(t, 16686)
+	// 24110: --service OTel keys off the collector (the export target), not
+	// Jaeger's UI.
+	serveHealth(t, 24110)
 	stdout, stderr, code := s.run(t, "start", "--service", "worker")
 	if code != 0 {
 		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout,
 		"Restarting worker",
-		"Jaeger detected — OTel export enabled",
+		"OTel collector detected — export enabled",
 		"Worker secret: (recovered from semiont-gateway)",
 		"SEMIONT_WORKER_SECRET=<redacted>",
 		"🚀 worker is up",
@@ -4415,7 +4433,7 @@ func TestStartServiceBrowserNoClone(t *testing.T) {
 
 // The Librarian restart path — the argv IS the contract: NO piece of the KB
 // tree (SINGLE-KB-MOUNT P1), just the shared state mount, librarian.toml,
-// 9094, and neither JWT_SECRET (it signs nothing) nor LIBRARIAN_HOST
+// 24104, and neither JWT_SECRET (it signs nothing) nor LIBRARIAN_HOST
 // (nothing dials it). The staged config carries the committed [kb] name —
 // the one fact the Librarian needs to find the Archivist's views.
 func TestStartServiceLibrarian(t *testing.T) {
@@ -4424,11 +4442,11 @@ func TestStartServiceLibrarian(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Restarting librarian", "Librarian healthy (http://localhost:9094)")
+	mustContain(t, "stdout", stdout, "Restarting librarian", "Librarian healthy (http://localhost:24104)")
 	log := string(s.mustLog(t))
 	mustContain(t, "argv", log,
 		"--name semiont-librarian",
-		"--publish 9094:9094",
+		"--publish 24104:24104",
 		"librarian.toml:/home/semiont/.semiontconfig:ro",
 		"state:/semiont-state",
 		"--env SEMIONT_WORKER_SECRET=")
@@ -4463,11 +4481,11 @@ func TestStartServiceArchivist(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Restarting archivist", "Archivist healthy (http://localhost:9093)")
+	mustContain(t, "stdout", stdout, "Restarting archivist", "Archivist healthy (http://localhost:24103)")
 	log := string(s.mustLog(t))
 	mustContain(t, "argv", log,
 		"--name semiont-archivist",
-		"--publish 9093:9093",
+		"--publish 24103:24103",
 		":/kb",
 		"archivist.toml:/home/semiont/.semiontconfig:ro",
 		"anchored-text:/anchored-text",
@@ -4489,7 +4507,7 @@ func TestStartServiceDryRunWorker(t *testing.T) {
 		"container image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
 		"worker secret: recovered from a running Semiont container's env",
 		"<config-stage>/worker.toml",
-		"wait: http://localhost:9090/health (30s)",
+		"wait: http://localhost:24100/health (30s)",
 	)
 	if strings.Contains(stdout, "semiont-neo4j") {
 		t.Error("service plan leaked the wider stack")
@@ -4542,7 +4560,7 @@ func TestStartServiceSecretUnreadableIsLoud(t *testing.T) {
 	// With an explicit env secret: proceeds, but warns about the mismatch
 	// risk instead of pretending recovery worked.
 	s.noWorkerSecret = false
-	// NO serveHealth(9090) here: 9090 is the WORKER's own port, and the
+	// NO serveHealth(24100) here: 24100 is the WORKER's own port, and the
 	// launcher must find it free to start the container that then serves it
 	// (the fake run -d binds it, as in TestStartServiceWorker). Pre-binding
 	// it modelled a foreign process squatting the port — fiction that only
@@ -5635,11 +5653,8 @@ func TestInitBirthsIdentity(t *testing.T) {
 		`domain = "pingel-org.github.io:family-kb"`,
 		`siteName = "Family KB"`,
 		`sync = true`,
-		// The gateway REFUSES to boot without an allowlist (jwt.ts:
-		// "site.oauthAllowedDomains is required"), and nothing else supplies
-		// one — confgen emits no [site]. A KB born without this key could
-		// never start, which is what shipped until 2026-09-01. Reserved
-		// (RFC 2606), so it admits nobody until widened deliberately.
+		// Required: the gateway refuses to boot without an allowlist, and
+		// nothing else supplies one. example.com (RFC 2606) admits nobody.
 		`oauthAllowedDomains = ["example.com"]`)
 	// Two fields the fleet's KBs do not carry, so a born KB must not either:
 	// `version` is bumped by nothing, and `adminEmail` reaches no reader.

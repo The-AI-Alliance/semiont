@@ -7,7 +7,7 @@ concluding is the Generator's job.
 | | |
 | --- | --- |
 | Image | `ghcr.io/the-ai-alliance/semiont-librarian` |
-| Port | 9094 |
+| Port | 24104 |
 | Entry point | `@semiont/make-meaning/dist/librarian-main.js` |
 | Code | [`packages/make-meaning`](../../packages/make-meaning/) |
 | npm | not published — container only |

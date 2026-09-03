@@ -6,7 +6,7 @@ half of what the Smelter does for vectors.
 | | |
 | --- | --- |
 | Image | `ghcr.io/the-ai-alliance/semiont-weaver` |
-| Port | 9092 (`/health`, and nothing else — all real traffic is the bus) |
+| Port | 24102 (`/health`, and nothing else — all real traffic is the bus) |
 | Entry point | `@semiont/make-meaning/dist/weaver-main.js` |
 | Code | [`packages/make-meaning`](../../packages/make-meaning/) |
 | npm | not published — container only |

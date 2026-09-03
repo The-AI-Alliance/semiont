@@ -90,6 +90,12 @@ const FROZEN_BRIDGED = [
   'yield:clone-resource-result', 'yield:clone-resource-failed',
   'yield:clone-created', 'yield:clone-create-failed',
   'frame:entity-type-added', 'frame:tag-schema-added',
+  // CORRELATED-REPLY-ROUTING P4: the resource domain events, bridged so a
+  // NON-requesting client learns that a resource appeared, changed, was
+  // cloned or was renamed. They used to reach other clients only as a side
+  // effect of `yield:*-ok` reply fan-out; once replies became owner-routed
+  // (P3), a reply could no longer double as a broadcast.
+  'yield:created', 'yield:updated', 'yield:cloned', 'yield:moved',
   'frame:entity-type-add-ok', 'frame:entity-type-add-failed',
   'frame:tag-schema-add-ok', 'frame:tag-schema-add-failed',
   'beckon:focus', 'beckon:sparkle',
@@ -159,8 +165,27 @@ describe('bus channel-classification invariants', () => {
     // A NEW entry here is a conscious design decision, not an oversight: confirm
     // the channel is genuinely KB-global, confirm http-transport still excludes
     // it from RESOURCE_SCOPED_CHANNELS, then add it to the expected set below.
+    //
+    // The `yield:*` four were added deliberately (CORRELATED-REPLY-ROUTING
+    // P4), and the three confirmations that gate this list were made:
+    //  1. KB-global? YES. Their consumer is the resource LIST cache, which is
+    //     unscoped by construction (`resources()` never calls `withScope`) —
+    //     and a CREATE cannot be scoped at all, since no client can hold a
+    //     scope on a resource that does not exist yet. Scoped delivery
+    //     therefore could never have served this use case.
+    //  2. Still excluded from RESOURCE_SCOPED_CHANNELS? YES, by construction:
+    //     that set is `PERSISTED_EVENT_TYPES − BRIDGED_CHANNELS`, and
+    //     http-transport's own bus-invariants test enforces the exclusion.
+    //  3. What it costs: broadcasts carry no Last-Event-ID replay, so a
+    //     client disconnected across one of these misses the invalidation and
+    //     shows a stale list until its next fetch. Measured before choosing:
+    //     nothing consumed these four channels live, so no existing delivery
+    //     was lost — and this is the same property `frame:*` already has.
     const persisted = new Set<string>(PERSISTED_EVENT_TYPES);
     const overlap = BRIDGED_CHANNELS.filter((c) => persisted.has(c)).sort();
-    expect(overlap).toEqual(['frame:entity-type-added', 'frame:tag-schema-added']);
+    expect(overlap).toEqual([
+      'frame:entity-type-added', 'frame:tag-schema-added',
+      'yield:cloned', 'yield:created', 'yield:moved', 'yield:updated',
+    ]);
   });
 });

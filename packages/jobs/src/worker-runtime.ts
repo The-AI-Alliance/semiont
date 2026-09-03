@@ -19,11 +19,13 @@ import { anchoredTextOverBus } from './anchored-text-over-bus';
 import type { InferenceClient } from '@semiont/inference';
 import { hostname } from 'os';
 import {
+  replyChannelsFor,
   didToAgent,
   baseUrl,
   retryWithBackoff,
   isTransientFetchError,
   STARTUP_FETCH_RETRY,
+  type BusOperationKey,
   type RetryPolicy,
   type components,
   type Logger,
@@ -169,6 +171,30 @@ export function startStallWatchdog(opts: StallWatchdogOptions): { dispose(): voi
   return { dispose: () => clearInterval(timer) };
 }
 
+/**
+ * The bus operations a worker process ever AWAITS a reply to. Reply channels
+ * are global fan-out on the gateway, so a full `BRIDGED_CHANNELS`
+ * subscription made every worker receive every other client's reply traffic
+ * — measured at ~85 multi-MB `browse:annotations-result` frames/min during
+ * the 2026-09-03 worker OOM, all parsed and dropped by cid filtering. The
+ * worker subscribes exactly its own operations' reply channels instead.
+ *
+ * This list restates a fact the code owns (which operations worker code
+ * paths call `busRequest` on); its gate is `busRequest`'s `isSubscribed`
+ * probe — an operation missing here fails IMMEDIATELY with
+ * `bus.unsubscribed` naming the channel, never a silent 30 s timeout.
+ * (`job:queued` is not here: it is a broadcast, added by the claim
+ * adapter via `addChannels`.)
+ */
+export const WORKER_AWAITED_OPERATIONS = [
+  'job:claim',
+  'browse:resource-requested',
+  'browse:anchored-text-by-checksum-requested',
+] as const satisfies readonly BusOperationKey[];
+
+/** The derived global SSE channel set for a worker's transport. */
+export const WORKER_CHANNELS: readonly string[] = replyChannelsFor(WORKER_AWAITED_OPERATIONS);
+
 export function parseGatewayUrl(url: string): { protocol: 'http' | 'https'; host: string; port: number } {
   const parsed = new URL(url);
   const protocol = (parsed.protocol.replace(':', '') === 'https' ? 'https' : 'http') as 'http' | 'https';
@@ -271,6 +297,9 @@ export async function startAgentWorker(
     baseUrl: baseUrl(kbGatewayUrl(endpoint)),
     token$,
     tokenRefresher: () => session.refresh().then((t) => t ?? null),
+    // Only the reply channels this process awaits — not the full bridged
+    // set. See WORKER_AWAITED_OPERATIONS.
+    channels: WORKER_CHANNELS,
   });
   const content = new HttpContentTransport(transport);
   const client = new SemiontClient(transport, content, transport);

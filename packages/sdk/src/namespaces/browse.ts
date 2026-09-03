@@ -751,8 +751,16 @@ export class BrowseNamespace implements IBrowseNamespace {
       }
     });
 
-    this.on('yield:create-ok', (event) => this.invalidateMutatedResource(event.response.resourceId));
-    this.on('yield:update-ok', (event) => this.invalidateMutatedResource(event.response.resourceId));
+    // Cross-client resource invalidation rides the PERSISTED DOMAIN EVENTS,
+    // not the request replies (CORRELATED-REPLY-ROUTING D6, the
+    // `frame:entity-type-added` precedent). A `yield:*-ok` reply reaches only
+    // the client that made the request, so using it here would have left
+    // every other viewer's list stale — and `cloned`/`moved` had no consumer
+    // at all, so a clone-persist or a rename went unnoticed everywhere.
+    this.on('yield:created', (event) => this.invalidateMutatedResource(event.resourceId));
+    this.on('yield:updated', (event) => this.invalidateMutatedResource(event.resourceId));
+    this.on('yield:cloned', (event) => this.invalidateMutatedResource(event.resourceId));
+    this.on('yield:moved', (event) => this.invalidateMutatedResource(event.resourceId));
 
     this.on('mark:archived', this.onArchiveToggled);
     this.on('mark:unarchived', this.onArchiveToggled);

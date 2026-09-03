@@ -60,35 +60,36 @@ KB's did:web identity over ssh to confirm the recorded one — it is skipped,
 with a note, unless the codespace is already running.
 `
 
-// statusServices drives the report in three bands: Semiont's own processes,
-// then the infrastructure they run on, then the model providers. Deliberately
-// unrelated to start/stop ordering (which is dependency order) and to the
-// roles table's order. Names are the abstract roles; the roles table maps
-// them to containers. Health probes are host-side: the same endpoints
-// start's health gates poll.
-//
-// The order within each band is a chosen reading order, not a derived one,
-// and nothing but reading the output enforces it — put a new row where it
-// belongs in the report rather than appending it.
+// statusServices drives the report in four groups, rendered with a blank
+// line between them: Semiont's own services; the infrastructure they run on
+// (the collector included — it runs on every start); the model providers;
+// and the optional observability backends, which --no-observe omits. A
+// chosen reading order, unrelated to start order and enforced by nothing;
+// place new rows where they belong. Names key the roles table; probes are
+// host-side, the same endpoints start gates on.
 var statusServices = []struct {
 	name     string // abstract role (keys the roles table)
 	endpoint string // http(s) URL, or "tcp:<port>"
 	core     bool   // counted toward the exit status
+	group    int    // rendering group; a change inserts a blank line
 }{
-	{"worker", "http://localhost:9090/health", true},
-	{"gateway", "http://localhost:4000/api/health", true},
-	{"archivist", "http://localhost:9093/health", true},
-	{"librarian", "http://localhost:9094/health", true},
-	{"weaver", "http://localhost:9092/health", true},
-	{"smelter", "http://localhost:9091/health", true},
+	{"worker", "http://localhost:24100/health", true, 1},
+	{"gateway", "http://localhost:4000/api/health", true, 1},
+	{"archivist", "http://localhost:24103/health", true, 1},
+	{"librarian", "http://localhost:24104/health", true, 1},
+	{"weaver", "http://localhost:24102/health", true, 1},
+	{"smelter", "http://localhost:24101/health", true, 1},
 
-	{"database", "tcp:5432", true},
-	{"graph", "http://localhost:7474", true},
-	{"vectors", "http://localhost:6333/readyz", true},
-	{"traces", "http://localhost:16686", false},
+	{"database", "tcp:5432", true, 2},
+	{"graph", "http://localhost:7474", true, 2},
+	{"vectors", "http://localhost:6333/readyz", true, 2},
+	{"collector", "http://localhost:24110/metrics", true, 2},
 
-	{"inference", "http://localhost:11434/api/version", true},
-	{"embedding", "http://localhost:11434/api/version", true},
+	{"inference", "http://localhost:11434/api/version", true, 3},
+	{"embedding", "http://localhost:11434/api/version", true, 3},
+
+	{"traces", "http://localhost:16686", false, 4},
+	{"metrics", "http://localhost:9090/-/healthy", false, 4},
 }
 
 // Status implements `semiont status`.
@@ -415,10 +416,15 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 	// stack with none.
 	var ceilings modelCeilings
 	ceilingsFetched := false
+	lastGroup := 0
 	for _, svc := range statusServices {
 		if service != "" && svc.name != service {
 			continue
 		}
+		if service == "" && lastGroup != 0 && svc.group != lastGroup {
+			fmt.Println()
+		}
+		lastGroup = svc.group
 		handle := roles[svc.name].container
 		endpoint := svc.endpoint
 		var rec *serviceState

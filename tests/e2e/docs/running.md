@@ -31,7 +31,7 @@ seeded something else.
 The dev stack runs in Apple containers on the `192.168.64.0/24` bridge, with
 its ports published on the host. **Target the host bridge gateway,
 `192.168.64.1`** — it routes to every published port (`:3000` browser,
-`:4000` gateway, `:9090` worker health) and is stable across restarts.
+`:4000` gateway, `:24100` worker health) and is stable across restarts.
 
 **Do not use the containers' own IPs.** An earlier version of this page said
 to `container ls | grep` them and re-grab before every run. Two things break
@@ -40,7 +40,7 @@ to `container ls | grep` them and re-grab before every run. Two things break
 - A stale address fails in `globalSetup` with `connect EHOSTUNREACH`, before
   any spec runs — and container IPs change on *every* stack restart.
 - `19-worker-vitals` derives the worker health endpoint as
-  `<gateway-host>:9090`, which is only true when the published ports share a
+  `<gateway-host>:24100`, which is only true when the published ports share a
   host. Aim it at the gateway container and you get `ECONNREFUSED`.
 
 `--network host` is not an option either — a Docker flag; Apple's `container`

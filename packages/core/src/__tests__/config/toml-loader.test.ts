@@ -270,7 +270,7 @@ ${SERVICES_LOCAL}`;
   // at services.archivist.{host,port}. The mapping was the missing middle —
   // the cutover added the schema and the consumer, and a section that parses
   // but never reaches services means every resume silently degrades to a gap.
-  it('maps [archivist] to services.archivist with the 9093 default', () => {
+  it('maps [archivist] to services.archivist with the 24103 default', () => {
     const toml = `
 [environments.local.archivist]
 host = "192.168.64.1"
@@ -279,7 +279,7 @@ ${MINIMAL_TOML}`;
     expect(cfg.services.archivist).toEqual({
       platform: { type: 'external' },
       host: '192.168.64.1',
-      port: 9093,
+      port: 24103,
     });
   });
 

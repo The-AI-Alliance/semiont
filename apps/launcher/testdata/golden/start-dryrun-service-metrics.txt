@@ -1,0 +1,8 @@
+# semiont start --service metrics --dry-run — the exact runtime commands a real
+# run would execute, in order. Values known only at runtime appear as <placeholders>.
+container stop semiont-prometheus
+container rm semiont-prometheus
+# require free ports: 9090
+# write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)
+container run -d --name semiont-prometheus --memory 1G -p 9090:9090 --volume <config-stage>/prometheus.yml:/etc/prometheus/prometheus.yml:ro prom/prometheus:v3.9.1
+# wait: http://localhost:9090/-/healthy (30s)

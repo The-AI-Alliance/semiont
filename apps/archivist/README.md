@@ -9,7 +9,7 @@ that touches the knowledge base tree**. Every other service reaches it over the 
 | | |
 | --- | --- |
 | Image | `ghcr.io/the-ai-alliance/semiont-archivist` |
-| Port | 9093 |
+| Port | 24103 |
 | Entry point | `@semiont/make-meaning/dist/archivist-main.js` |
 | Code | [`packages/make-meaning`](../../packages/make-meaning/) |
 | npm | not published — container only |

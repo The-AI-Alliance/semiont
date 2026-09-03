@@ -74,7 +74,7 @@ semiont stop --service browser   # stop one service
 | Browser | 3000 | http://localhost:3000 |
 | Gateway | 4000 | http://localhost:4000 |
 | PostgreSQL | 5432 | postgresql://localhost:5432 |
-| Worker / Smelter / Weaver | 9090 / 9091 / 9092 | health endpoints |
+| Worker / Smelter / Weaver | 24100 / 24101 / 24102 | health endpoints |
 
 ## Database operations
 

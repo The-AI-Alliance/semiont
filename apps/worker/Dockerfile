@@ -61,9 +61,9 @@ RUN chown semiont:nodejs /kb
 USER semiont
 
 ENV NODE_ENV=production
-EXPOSE 9090
+EXPOSE 24100
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:9090/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
+  CMD node -e "require('http').get('http://localhost:24100/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
 CMD ["node", "/usr/local/lib/node_modules/@semiont/jobs/dist/worker-main.js"]

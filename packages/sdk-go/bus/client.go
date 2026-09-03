@@ -5,8 +5,12 @@ package bus
 // (channels, operations) is generated from specs/src/bus/registry.json.
 //
 // Wire shape, as the gateway implements it (apps/gateway/src/routes/bus.ts):
-//   POST /bus/emit          {channel, payload, scope?}
-//   POST /bus/subscribe     {global: [...], scoped: [{scope, channels, lastEventId?}, ...]}
+//   POST /bus/emit          {channel, payload, clientId, scope?}
+//   POST /bus/subscribe     the generated semiont.BusSubscribeRequest — this
+//     file marshals that type rather than restating its fields, so a schema
+//     change is a compile error here instead of a silently missing field
+//     (CORRELATED-REPLY-ROUTING P2; the same reason the TS client's body
+//     carries `satisfies BusSubscribeRequest`).
 //     (SSE response, bearer; MULTI-RESOURCE-SCOPE — the GET query form is gone)
 //     every frame is `event: bus-event` with `data: {channel, payload, scope?}`
 //     — the SSE event name is NOT the channel; the channel is inside the data.
@@ -24,6 +28,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
 // Event is one delivered bus event.
@@ -36,9 +42,10 @@ type Event struct {
 
 // Client talks to one stack's gateway.
 type Client struct {
-	base  string
-	token string
-	hc    *http.Client
+	base     string
+	token    string
+	hc       *http.Client
+	clientID string
 }
 
 // NewClient targets a gateway base URL (e.g. http://localhost:4000) with a
@@ -47,6 +54,11 @@ func NewClient(base, token string) *Client {
 	return &Client{
 		base:  strings.TrimSuffix(base, "/"),
 		token: token,
+		// Routing address for correlated replies (CORRELATED-REPLY-ROUTING
+		// D1): one per bus-client lifetime, presented on every subscribe and
+		// every emit. This client does not reconnect or replay pendingReplies
+		// (D7), so its lifetime is simply the Client's.
+		clientID: uuid.NewString(),
 		// No global timeout: SSE connections are long-lived by design, and a
 		// client-level timeout would sever them mid-stream. Per-request
 		// deadlines ride the context instead.
@@ -98,7 +110,7 @@ func (c *Client) Emit(ctx context.Context, ch Channel, payload any, scope string
 	if !ch.Emittable() {
 		return -1, fmt.Errorf("channel %q is not emittable (no registered schema)", ch)
 	}
-	body := map[string]any{"channel": string(ch), "payload": payload}
+	body := map[string]any{"channel": string(ch), "payload": payload, "clientId": c.clientID}
 	if scope != "" {
 		body["scope"] = scope
 	}
@@ -150,23 +162,21 @@ func (c *Client) Subscribe(ctx context.Context, channels, scoped []Channel, scop
 	// POST subscription matrix (MULTI-RESOURCE-SCOPE). This client's signature
 	// is a single-scope convenience — it produces a one-entry matrix over a
 	// wire that composes N scopes.
-	type scopedEntry struct {
-		Scope    string   `json:"scope"`
-		Channels []string `json:"channels"`
-	}
-	body := struct {
-		Global []string      `json:"global"`
-		Scoped []scopedEntry `json:"scoped"`
-	}{Global: make([]string, 0, len(channels)), Scoped: []scopedEntry{}}
+	global := make([]string, 0, len(channels))
 	for _, ch := range channels {
-		body.Global = append(body.Global, string(ch))
+		global = append(global, string(ch))
 	}
+	body := semiont.BusSubscribeRequest{ClientId: c.clientID, Global: &global}
 	if len(scoped) > 0 {
-		entry := scopedEntry{Scope: scope, Channels: make([]string, 0, len(scoped))}
+		entryChannels := make([]string, 0, len(scoped))
 		for _, ch := range scoped {
-			entry.Channels = append(entry.Channels, string(ch))
+			entryChannels = append(entryChannels, string(ch))
 		}
-		body.Scoped = append(body.Scoped, entry)
+		body.Scoped = &[]struct {
+			Channels    []string `json:"channels"`
+			LastEventId *string  `json:"lastEventId,omitempty"`
+			Scope       string   `json:"scope"`
+		}{{Scope: scope, Channels: entryChannels}}
 	}
 
 	sctx, cancel := context.WithCancel(ctx)

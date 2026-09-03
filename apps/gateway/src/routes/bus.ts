@@ -4,12 +4,13 @@ import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import type { Context, Next } from 'hono';
 import type { EventBus, EventMap, StoredEvent, EnvironmentConfig } from '@semiont/core';
-import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, resourceId as makeResourceId } from '@semiont/core';
+import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, replyChannelsFor, resourceId as makeResourceId } from '@semiont/core';
 import type { Subscription } from 'rxjs';
 import {
   SpanKind,
   injectTraceparent,
   recordBusEmit,
+  recordReplySuppressed,
   recordSubscriberConnect,
   recordSubscriberDisconnect,
   withSpan,
@@ -18,6 +19,7 @@ import {
 import { getLogger } from '../logger';
 import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
 import { validators, formatErrors } from '@semiont/core/openapi';
+import type { HttpBindings } from '@hono/node-server';
 
 type AuthMiddleware = (c: Context, next: Next) => Promise<Response | void>;
 
@@ -122,17 +124,65 @@ interface ScopedSubscription {
 const MAX_SCOPES = 512;
 const SCOPE_WARN_THRESHOLD = 128;
 
-// ── Correlated-reply retention (BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1) ──
+/**
+ * Outbound flow-control bound, per SSE connection. `writeSSE` resolves only
+ * when the connection's consumer accepts the chunk, so the bytes held by
+ * unresolved writes measure exactly what this subscriber forces the gateway
+ * to buffer. A half-open socket — a client container torn down without a
+ * FIN — never errors and never closes, so without a bound its bus
+ * subscriptions accumulate every fan-out payload as a pending write until
+ * the heap bursts (gateway OOM, 2026-09-03: ~8 such subscribers each
+ * holding the full `browse:*-result` stream). Past the bound the subscriber
+ * is disconnected: a live client reconnects with Last-Event-ID /
+ * `pendingReplies` and resumes; a dead one stops costing memory.
+ */
+export const MAX_PENDING_WRITE_BYTES = 16 * 1024 * 1024;
 
-/** Every reply channel a busRequest can await, derived from the registry. */
-const REPLY_CHANNELS = [
-  ...new Set(Object.values(BUS_OPERATIONS).flatMap((op) => [op.result, op.failure])),
-];
+/**
+ * Same protection for the buffer-during-replay window: a connection that
+ * stalls mid-replay must not queue live fan-out without limit either.
+ */
+export const MAX_REPLAY_BUFFER_EVENTS = 1_000;
 
-/** A reply older than the caller's 30 s deadline is useless — 2× headroom. */
+// ── The correlation registry (CORRELATED-REPLY-ROUTING P3; absorbs the
+//    reply retention of BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1) ──────────
+//
+// Claims and retention answer the same question — *who may see the reply for
+// this correlationId* — so they are one module rather than two (D4).
+
+/**
+ * Every correlated channel: result, failure and progress of every registered
+ * operation. Derived with the SHARED helper — `replyChannelsFor` is the one
+ * home for this derivation (`packages/core/src/bus-request.ts`), already used
+ * by the worker's `WORKER_CHANNELS` and all four make-meaning service rosters.
+ * A hand-rolled union here would be the fifth restatement of it, and its own
+ * docstring names that as the recurring unbridged-reply bug class.
+ */
+const CORRELATED_CHANNELS = new Set<string>(replyChannelsFor(Object.keys(BUS_OPERATIONS)));
+
+/**
+ * The progress subset of the above. A partition of one derived set, not a
+ * restatement of it: progress frames refresh a claim's TTL (a streaming op
+ * that is still reporting cannot expire mid-flight) but are never retained —
+ * they are a stream, not an answer.
+ */
+const PROGRESS_CHANNELS = new Set<string>(
+  Object.values(BUS_OPERATIONS).flatMap((op) =>
+    'progress' in op && op.progress ? [op.progress as string] : [],
+  ),
+);
+
+/** Retained reply payloads: older than the caller's 30 s deadline is useless — 2× headroom. */
 export const REPLY_RETENTION_TTL_MS = 60_000;
 export const REPLY_RETENTION_MAX = 1024;
+/** Per-client claim capacity, and the cap on a subscribe body's `pendingReplies`. */
 export const PENDING_REPLIES_MAX = 256;
+/**
+ * Claims are cheap (two strings and a timestamp) and long-lived; reply
+ * payloads are expensive and short-lived. Deliberately different budgets.
+ */
+export const CLAIM_TTL_MS = 15 * 60_000;
+export const CLAIM_MAX_GLOBAL = 4096;
 
 interface RetainedReply {
   channel: string;
@@ -140,51 +190,182 @@ interface RetainedReply {
   retainedAt: number;
 }
 
+interface Claim {
+  clientId: string;
+  principalDid: string | undefined;
+  claimedAt: number;
+  /** First reply seen: the claim no longer counts against the per-client cap.
+   *  A flag rather than reply-presence, because sweepReplies drops payloads
+   *  while the claim (and its answered-ness) must persist. */
+  answered?: boolean;
+  reply?: RetainedReply;
+}
+
+const correlationIdOf = (payload: unknown): string | undefined => {
+  const cid = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
+  return typeof cid === 'string' && cid.length > 0 ? cid : undefined;
+};
+
 /**
- * Bounded retention of correlated replies, so a client whose connection
- * dropped between its emit and the reply frame can fetch the reply on
- * reconnect (`pendingReplies` in the subscribe body) instead of burning its
- * timeout. Subscribes every registry reply channel on the given bus; keeps
- * `correlationId → reply` in an insertion-ordered map with FIFO cap
- * eviction and lazy TTL expiry (no timers). Entries are NOT consumed by
- * lookup — a repeat replay carries the same deterministic id and dedups
- * client-side. Retention adds no exposure: reply channels are global
- * fan-out already (channel-level authz is CHANNEL-AUTHZ.md's gap).
+ * The correlation registry: one home for "who may see the reply for this cid".
+ *
+ * `claim` records ownership at the request emit, BEFORE the payload dispatches
+ * — no handler, in-process or remote, can publish a reply for a cid that is not
+ * yet claimed. `owner` backs the delivery filter; `lookupReply` backs the
+ * `pendingReplies` reconnect probe, gated by the same ownership.
+ *
+ * Retention keeps only CLAIMED cids, with the old bounds (60 s TTL, FIFO cap,
+ * eager sweep at insert — lookup-only expiry once pinned hundreds of MB of
+ * reply payloads for nobody). Claims carry their own, longer budget.
+ *
+ * Exposure: replies were global fan-out when this buffer was written, so
+ * retention "added no exposure" and the probe was ungated. Routing ends that,
+ * and an ungated probe would become the one remaining way to fish for another
+ * user's replies — hence the owner check in `lookupReply`.
  */
-export function createReplyRetention(
+export function createCorrelationRegistry(
   eventBus: EventBus,
-  opts: { ttlMs?: number; max?: number; now?: () => number } = {},
-): { lookup(correlationId: string): RetainedReply | undefined; dispose(): void } {
+  opts: { ttlMs?: number; max?: number; claimTtlMs?: number; now?: () => number } = {},
+): {
+  claim(cid: string, clientId: string, principalDid: string | undefined): 'ok' | 'conflict' | 'at-capacity';
+  owner(cid: string): { clientId: string; principalDid: string | undefined } | undefined;
+  lookupReply(cid: string, clientId: string, principalDid: string | undefined): RetainedReply | undefined;
+  size(): number;
+  dispose(): void;
+} {
   const ttlMs = opts.ttlMs ?? REPLY_RETENTION_TTL_MS;
   const max = opts.max ?? REPLY_RETENTION_MAX;
+  const claimTtlMs = opts.claimTtlMs ?? CLAIM_TTL_MS;
   const now = opts.now ?? Date.now;
-  const buffer = new Map<string, RetainedReply>();
-  const subs: Subscription[] = REPLY_CHANNELS.map((channel) =>
-    eventBus.get(channel as keyof EventMap).subscribe((payload) => {
-      const cid = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
-      if (typeof cid !== 'string' || cid.length === 0) return;
-      buffer.delete(cid); // refresh insertion order on re-publish
-      buffer.set(cid, { channel, payload, retainedAt: now() });
-      while (buffer.size > max) {
-        const oldest = buffer.keys().next().value;
-        if (oldest === undefined) break;
-        buffer.delete(oldest);
+
+  /** Insertion-ordered: expired is always a prefix, so sweeping is a walk. */
+  const claims = new Map<string, Claim>();
+  const perClient = new Map<string, number>();
+
+  // perClient counts UNANSWERED claims — the thing the 429 message names.
+  // Decremented once per claim, on whichever comes first: the answer, or the
+  // TTL sweep of a claim that never got one.
+  const release = (clientId: string) => {
+    const n = (perClient.get(clientId) ?? 1) - 1;
+    if (n <= 0) perClient.delete(clientId);
+    else perClient.set(clientId, n);
+  };
+
+  const forget = (cid: string) => {
+    const claim = claims.get(cid);
+    if (!claim) return;
+    claims.delete(cid);
+    if (!claim.answered) release(claim.clientId);
+  };
+
+  /**
+   * Sweep expired claims. A claim that never saw a retained reply is the
+   * moment a lossy mode begins — its future reply becomes undeliverable — so
+   * it is breadcrumbed (L4: no silent lossy mode). One that already delivered
+   * is ordinary cleanup and stays quiet.
+   */
+  const sweepClaims = () => {
+    const cutoff = now() - claimTtlMs;
+    for (const [cid, claim] of claims) {
+      if (claim.claimedAt > cutoff) break;
+      if (!claim.reply) {
+        getBusLogger().warn('[bus CLAIM-EXPIRED] claim swept with no reply', {
+          correlationId: cid,
+          clientId: claim.clientId,
+          ageMs: now() - claim.claimedAt,
+        });
       }
+      forget(cid);
+    }
+  };
+
+  /** Retained reply payloads expire on their own, far shorter, budget. */
+  const sweepReplies = () => {
+    const cutoff = now() - ttlMs;
+    let retained = 0;
+    for (const claim of claims.values()) {
+      if (!claim.reply) continue;
+      if (claim.reply.retainedAt <= cutoff) delete claim.reply;
+      else retained++;
+    }
+    if (retained <= max) return;
+    // FIFO over insertion order: drop the oldest payloads, keeping the claims
+    // themselves — a claim without its payload still routes a live reply.
+    let excess = retained - max;
+    for (const claim of claims.values()) {
+      if (excess === 0) break;
+      if (claim.reply) {
+        delete claim.reply;
+        excess--;
+      }
+    }
+  };
+
+  const subs: Subscription[] = [...CORRELATED_CHANNELS].map((channel) =>
+    eventBus.get(channel as keyof EventMap).subscribe((payload) => {
+      const cid = correlationIdOf(payload);
+      if (!cid) return;
+      const claim = claims.get(cid);
+      if (!claim) return; // never claimed: in-process requester, nothing to retain
+      // Any activity on the cid refreshes the claim, so a streaming op that is
+      // still reporting progress cannot expire mid-flight.
+      claim.claimedAt = now();
+      if (PROGRESS_CHANNELS.has(channel)) return; // refresh only; a stream is not an answer
+      if (!claim.answered) {
+        claim.answered = true;
+        release(claim.clientId);
+      }
+      claim.reply = { channel, payload, retainedAt: now() };
+      sweepClaims();
+      sweepReplies();
     }),
   );
+
   return {
-    lookup(correlationId) {
-      const entry = buffer.get(correlationId);
-      if (!entry) return undefined;
-      if (now() - entry.retainedAt > ttlMs) {
-        buffer.delete(correlationId);
+    claim(cid, clientId, principalDid) {
+      sweepClaims();
+      const existing = claims.get(cid);
+      if (existing) return 'conflict';
+      if ((perClient.get(clientId) ?? 0) >= PENDING_REPLIES_MAX) return 'at-capacity';
+      if (claims.size >= CLAIM_MAX_GLOBAL) {
+        // A backstop correct clients cannot reach. Oldest-first, breadcrumbed
+        // per entry — never silent (L4).
+        const oldest = claims.keys().next().value;
+        if (oldest !== undefined) {
+          getBusLogger().warn('[bus CLAIM-EVICTED] global claim cap reached', {
+            correlationId: oldest,
+            cap: CLAIM_MAX_GLOBAL,
+          });
+          forget(oldest);
+        }
+      }
+      claims.set(cid, { clientId, principalDid, claimedAt: now() });
+      perClient.set(clientId, (perClient.get(clientId) ?? 0) + 1);
+      return 'ok';
+    },
+    owner(cid) {
+      const claim = claims.get(cid);
+      if (!claim) return undefined;
+      if (now() - claim.claimedAt > claimTtlMs) return undefined;
+      return { clientId: claim.clientId, principalDid: claim.principalDid };
+    },
+    lookupReply(cid, clientId, principalDid) {
+      const claim = claims.get(cid);
+      if (!claim?.reply) return undefined;
+      if (claim.clientId !== clientId || claim.principalDid !== principalDid) return undefined;
+      if (now() - claim.reply.retainedAt > ttlMs) {
+        delete claim.reply;
         return undefined;
       }
-      return entry;
+      return claim.reply;
+    },
+    size() {
+      return claims.size;
     },
     dispose() {
-      for (const s of subs) s.unsubscribe();
-      buffer.clear();
+      for (const sub of subs) sub.unsubscribe();
+      claims.clear();
+      perClient.clear();
     },
   };
 }
@@ -197,15 +378,22 @@ const isStringArray = (v: unknown): v is string[] =>
  * Returns an error message rather than throwing so the route can wrap it
  * in a single HTTPException site.
  */
-function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSubscription[]; pendingReplies: string[] } | { error: string } {
+function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSubscription[]; pendingReplies: string[]; clientId: string } | { error: string } {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     return { error: 'body must be a JSON object' };
   }
-  const { global: rawGlobal, scoped: rawScoped, pendingReplies: rawPending } = raw as {
+  const { global: rawGlobal, scoped: rawScoped, pendingReplies: rawPending, clientId } = raw as {
     global?: unknown;
     scoped?: unknown;
     pendingReplies?: unknown;
+    clientId?: unknown;
   };
+  // Required by BusSubscribeRequest (P1). It is the routing address the
+  // delivery filter matches on; without it a client would silently receive no
+  // correlated replies at all, which is the failure this rejects up front.
+  if (typeof clientId !== 'string' || clientId === '') {
+    return { error: '`clientId` is required (BusSubscribeRequest)' };
+  }
   const global = rawGlobal === undefined ? [] : rawGlobal;
   if (!isStringArray(global)) return { error: '`global` must be an array of channel names' };
 
@@ -236,7 +424,7 @@ function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSub
   if (scoped.length > MAX_SCOPES) {
     return { error: `scope count ${scoped.length} exceeds the per-connection cap of ${MAX_SCOPES}` };
   }
-  return { global, scoped, pendingReplies };
+  return { global, scoped, pendingReplies, clientId };
 }
 
 export function createBusRouter(authMiddleware: AuthMiddleware) {
@@ -248,7 +436,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
   // subscribe. Lazy-on-first-subscribe is not a coverage hole: the attach
   // gate guarantees a client holds an open connection before any busRequest
   // emit, so a reply can only exist after some subscribe has run.
-  const retentionByBus = new WeakMap<EventBus, ReturnType<typeof createReplyRetention>>();
+  const registryByBus = new WeakMap<EventBus, ReturnType<typeof createCorrelationRegistry>>();
 
   busRouter.post('/bus/subscribe', async (c) => {
     const raw: unknown = await c.req.json().catch(() => null);
@@ -256,18 +444,18 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     if ('error' in parsed) {
       throw new HTTPException(400, { message: parsed.error });
     }
-    const { global: channels, scoped, pendingReplies } = parsed;
+    const { global: channels, scoped, pendingReplies, clientId } = parsed;
     const eventBus = c.get('eventBus');
     // Read OUTSIDE the stream callback: `c` is the request context, and the
     // presence pair below must name the principal on this connection.
     const subscriberDid = c.get('principalDid') as string | undefined;
 
-    let retention = retentionByBus.get(eventBus);
-    if (!retention) {
-      retention = createReplyRetention(eventBus);
-      retentionByBus.set(eventBus, retention);
+    let registry = registryByBus.get(eventBus);
+    if (!registry) {
+      registry = createCorrelationRegistry(eventBus);
+      registryByBus.set(eventBus, registry);
     }
-    const replyRetention = retention;
+    const correlations = registry;
 
     if (scoped.length >= SCOPE_WARN_THRESHOLD) {
       getBusLogger().warn('large scope matrix', { scopeCount: scoped.length, cap: MAX_SCOPES });
@@ -297,7 +485,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       });
 
       // Tier 3: track active SSE subscribers via UpDownCounter. Connect
-      // increments; disconnect (stream.onAbort) decrements. The gauge
+      // increments; disconnect (teardown below) decrements. The gauge
       // reflects current concurrent SSE connections per service instance.
       //
       // The same two moments are PRESENCE (GUIDED-TOUR D5): the gateway
@@ -314,11 +502,70 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       const presence = { participant: subscriberDid ?? '', connectionId };
       recordSubscriberConnect();
       eventBus.get('session:joined').next(presence);
-      stream.onAbort(() => {
+
+      // ── Connection teardown ───────────────────────────────────────────
+      //
+      // One idempotent teardown, whichever detector notices the death
+      // first: the stream abort (socket closed and the adapter cancelled
+      // our readable), the request signal (socket closed but the readable
+      // cancel path did not run), or the pending-write bound in
+      // `boundedWrite` (the socket never closed at all).
+      const subs: Subscription[] = [];
+      let pendingBytes = 0;
+      let tornDown = false;
+      const { outgoing } = (c.env ?? {}) as Partial<HttpBindings>;
+      const teardown = (reason: string) => {
+        if (tornDown) return;
+        tornDown = true;
+        for (const s of subs) s.unsubscribe();
         recordSubscriberDisconnect();
         eventBus.get('session:left').next(presence);
-        getBusLogger().info('SSE disconnect', { connectionId });
-      });
+        getBusLogger().info('SSE disconnect', { connectionId, reason, pendingBytes });
+        // abort() rejects the pending writer.write()s, releasing the
+        // frames they hold; destroy() closes the socket itself so the OS
+        // send buffer goes too. Both are no-ops on an already-dead
+        // connection (and `outgoing` is absent outside the node adapter).
+        stream.abort();
+        outgoing?.destroy();
+      };
+      stream.onAbort(() => teardown('stream-abort'));
+      // Hono forwards the request signal to the stream only on old Bun; on
+      // Node the adapter aborts the signal when the response socket closes
+      // and nothing tells the stream. Forward it ourselves so socket close
+      // reaps this connection even when the readable-cancel path is wedged.
+      c.req.raw.signal.addEventListener('abort', () => stream.abort(), { once: true });
+      if (c.req.raw.signal.aborted) {
+        teardown('pre-aborted');
+        return;
+      }
+
+      /**
+       * Every frame leaves through here so `pendingBytes` counts exactly
+       * what this connection forces the gateway to hold: `writeSSE`
+       * resolves only when the consumer accepts the chunk, so a dead or
+       * stalled subscriber accumulates unresolved writes, each retaining
+       * its serialized frame. Past MAX_PENDING_WRITE_BYTES the subscriber
+       * is disconnected.
+       */
+      const boundedWrite = async (frame: { event: string; data: string; id?: string }): Promise<void> => {
+        if (tornDown) return;
+        const cost = frame.data.length;
+        pendingBytes += cost;
+        if (pendingBytes > MAX_PENDING_WRITE_BYTES) {
+          getBusLogger().warn('SSE pending-write overflow — disconnecting dead or stalled subscriber', {
+            connectionId,
+            pendingBytes,
+            cap: MAX_PENDING_WRITE_BYTES,
+          });
+          teardown('pending-write-overflow');
+          return;
+        }
+        try {
+          await stream.writeSSE(frame);
+        } finally {
+          pendingBytes -= cost;
+        }
+      };
 
       /** Tracks last persisted seq delivered per scope, for replay→live dedup. */
       const lastDeliveredSeq = new Map<string, number>();
@@ -378,7 +625,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
             ? JSON.stringify({ channel, payload, scope: eventScope })
             : JSON.stringify({ channel, payload });
           busLog('SSE', channel, payload, eventScope);
-          await stream.writeSSE({ event: 'bus-event', data, id }).catch(() => {});
+          await boundedWrite({ event: 'bus-event', data, id });
         };
         if (typeof cid === 'string' && cid.length > 0) {
           await withSpan(`sse.deliver:${channel}`, doWrite, {
@@ -398,11 +645,11 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         const payload: { scope?: string; lastSeenId?: string; reason: string } = { reason };
         if (gapScope !== undefined) payload.scope = gapScope;
         if (lastSeenId !== undefined) payload.lastSeenId = lastSeenId;
-        await stream.writeSSE({
+        await boundedWrite({
           event: 'bus-event',
           data: JSON.stringify({ channel: 'bus:resume-gap', payload }),
           id: nextEphemeralId(),
-        }).catch(() => {});
+        });
       };
 
       // ── Subscribe-first, buffer-during-replay, drain-then-live ────────
@@ -428,20 +675,68 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
 
       const emitOrBuffer = (channel: string, payload: unknown, eventScope: string | undefined) => {
         if (mode === 'buffering') {
+          if (liveBuffer.length >= MAX_REPLAY_BUFFER_EVENTS) {
+            getBusLogger().warn('SSE replay-buffer overflow — disconnecting stalled subscriber', {
+              connectionId,
+              cap: MAX_REPLAY_BUFFER_EVENTS,
+            });
+            teardown('replay-buffer-overflow');
+            return;
+          }
           liveBuffer.push({ channel, payload, scope: eventScope });
         } else {
           void writeBusEvent(channel, payload, eventScope);
         }
       };
 
+      /**
+       * Ownership check for a frame on a correlated channel.
+       *
+       * Three negatives, deliberately distinguished:
+       *  - a result/failure with NO correlationId violates REPLY-SHAPE-STANDARD
+       *    → drop and warn (loud absence; never a manufactured broadcast);
+       *  - a NEVER-CLAIMED cid → drop silently. This is the structural
+       *    in-process case (`ResourceOperations` runs busRequest on the
+       *    gateway's own bus and consumes the reply in-process), not a lossy
+       *    mode — a warn here would fire on every in-process operation;
+       *  - a cid owned by someone else → drop silently. That is the routing
+       *    working.
+       * The genuinely lossy case, claimed-then-expired, is breadcrumbed at
+       * sweep time instead, which needs no tombstone here.
+       */
+      const mayDeliver = (channel: string, payload: unknown): boolean => {
+        const cid = correlationIdOf(payload);
+        if (!cid) {
+          if (!PROGRESS_CHANNELS.has(channel)) {
+            getBusLogger().warn('[bus REPLY-NO-CID] correlated frame without a correlationId', { channel });
+          }
+          return false;
+        }
+        const owner = correlations.owner(cid);
+        // Never claimed: the structural in-process case. Not counted — it
+        // fires on every in-process operation and would drown the signal.
+        if (!owner) return false;
+        if (owner.clientId === clientId && owner.principalDid === subscriberDid) return true;
+        // Owned by someone else. THIS is the amplification the filter removes,
+        // and the only one of the three refusals worth a counter.
+        recordReplySuppressed(channel);
+        return false;
+      };
+
       const willReplay = scoped.some((entry) => entry.lastEventId !== undefined);
       if (willReplay) mode = 'buffering';
 
-      const subs = channels.map((channel) =>
-        eventBus.get(channel as keyof EventMap).subscribe((payload) => {
-          emitOrBuffer(channel, payload, undefined);
-        }),
-      );
+      for (const channel of channels) {
+        const correlated = CORRELATED_CHANNELS.has(channel);
+        subs.push(
+          eventBus.get(channel as keyof EventMap).subscribe((payload) => {
+            // The whole amplification win: a non-owner returns after one Map
+            // lookup — no stringify, no pending-write bytes, no buffer slot.
+            if (correlated && !mayDeliver(channel, payload)) return;
+            emitOrBuffer(channel, payload, undefined);
+          }),
+        );
+      }
       for (const entry of scoped) {
         const scopedBus = eventBus.scope(entry.scope);
         for (const channel of entry.channels) {
@@ -452,7 +747,6 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
           );
         }
       }
-      stream.onAbort(() => subs.forEach((s) => s.unsubscribe()));
 
       // ── Replay phase (per scope) ──────────────────────────────────────
       //
@@ -470,6 +764,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       //     outside the retention window. Replay what we have and emit the
       //     scoped `bus:resume-gap`.
       for (const entry of scoped) {
+        if (tornDown) break;
         if (entry.lastEventId === undefined) continue;
         const parsed = parsePersistedId(entry.lastEventId);
         if (!parsed) {
@@ -512,22 +807,26 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // also arrived live during a connection overlap dedups client-side.
       // Entries are not consumed: a repeat replay is idempotent by id.
       for (const cid of pendingReplies) {
-        const retained = replyRetention.lookup(cid);
+        if (tornDown) break;
+        const retained = correlations.lookupReply(cid, clientId, subscriberDid);
         if (retained) {
           await writeBusEvent(retained.channel, retained.payload, undefined);
         }
       }
 
       // ── Drain buffer and switch to live mode ─────────────────────────
-      while (liveBuffer.length > 0) {
+      while (liveBuffer.length > 0 && !tornDown) {
         const next = liveBuffer.shift()!;
         await writeBusEvent(next.channel, next.payload, next.scope);
       }
       mode = 'live';
 
-      // Heartbeat loop — runs for the lifetime of the connection.
-      while (true) {
-        await stream.writeSSE({ event: 'ping', data: '' });
+      // Heartbeat loop — runs until the connection dies. The exit
+      // condition is what lets this closure (and everything it captures)
+      // be collected: an unconditional loop would keep every connection's
+      // context alive for the life of the process.
+      while (!tornDown && !stream.aborted && !stream.closed) {
+        await boundedWrite({ event: 'ping', data: '' });
         await stream.sleep(15_000);
       }
     });
@@ -554,6 +853,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     const eventBus = c.get('eventBus');
     const body = await c.req.json();
     const { channel, payload, scope } = body;
+    const emitterClientId = typeof body.clientId === 'string' && body.clientId !== '' ? body.clientId : undefined;
 
     if (!channel || typeof channel !== 'string') {
       throw new HTTPException(400, { message: 'channel is required' });
@@ -586,6 +886,50 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       payload._userId = principalDid;
     }
 
+    // ── Emit-as-claim (CORRELATED-REPLY-ROUTING D2) ────────────────────
+    //
+    // A request emit carrying a fresh correlationId records who owns the
+    // reply, BEFORE `subject.next` dispatches it. Ordering is safe by
+    // construction: no handler — in-process (subscribed synchronously on this
+    // bus) or remote (over SSE) — can publish a reply for a cid that has not
+    // dispatched yet.
+    //
+    // Claims are emit-derived rather than trackReply-derived, so the
+    // hand-rolled correlated flows (gather.ts, match.ts mint their own uuid
+    // and emit directly) are covered with no SDK change.
+    const claimCid = channel in BUS_OPERATIONS ? correlationIdOf(payload) : undefined;
+    if (claimCid) {
+      const clientId = emitterClientId;
+      if (clientId === undefined) {
+        // Loud, not lenient: a mis-wired client would otherwise burn every
+        // busRequest's 30 s timeout with no server-side signal. We control
+        // every emitter, so there is no compat path to keep open.
+        throw new HTTPException(400, {
+          message: `clientId is required to emit ${channel} with a correlationId`,
+        });
+      }
+      let registry = registryByBus.get(eventBus);
+      if (!registry) {
+        registry = createCorrelationRegistry(eventBus);
+        registryByBus.set(eventBus, registry);
+      }
+      const outcome = registry.claim(claimCid, clientId, principalDid);
+      if (outcome === 'conflict') {
+        // A live cid claimed twice is a client bug — UUID collision is not a
+        // real event — so it is refused rather than silently re-pointed.
+        getBusLogger().warn('[bus CLAIM-CONFLICT] correlationId already claimed', { channel, correlationId: claimCid });
+        throw new HTTPException(409, { message: `correlationId ${claimCid} is already claimed` });
+      }
+      if (outcome === 'at-capacity') {
+        // Refused HERE, where busRequest's emit-rejection path settles
+        // immediately and loudly. Evicting a live claim instead would turn
+        // that request's future reply into a silent drop (LIVENESS-AXIOMS L2).
+        throw new HTTPException(429, {
+          message: `client has ${PENDING_REPLIES_MAX} unanswered requests; retry when one settles`,
+        });
+      }
+    }
+
     // Tier 2: parent span comes from the W3C traceparent on the request.
     // Subscribers fire synchronously inside Subject.next, so they run
     // under the active bus.dispatch span (and any in-process spans
@@ -598,7 +942,12 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
 
     // How many observers the target subject had AT DISPATCH. Zero means the
     // signal reached nobody — the failure this route could not previously
-    // express. `/bus/subscribe` enforces no channel allowlist and this
+    // express.
+    //
+    // It is EXACT for a broadcast and an UPPER BOUND for a correlated channel:
+    // since P3, a subscriber on a reply channel receives the frame only if it
+    // owns the correlationId, so observers counts who was eligible to be
+    // considered, not who was written to. `/bus/subscribe` enforces no channel allowlist and this
     // handler publishes unconditionally, so a client can emit a channel no
     // participant subscribes to and otherwise get a clean 202 back.
     // `warnIfUnobservedReply` does not cover it: that detector requires a
@@ -621,7 +970,18 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
 
           busLog('EMIT', channel, payload, scope);
           recordBusEmit(channel, scope);
-          getBusLogger().info('emit', { channel, scope, subscribers, correlationId: (payload as Record<string, unknown>).correlationId });
+          // `clientId` rides the STRUCTURED line, not `busLog`: busLog's
+          // signature is @semiont/core's and shared by every emitter, so
+          // widening it for a field only the gateway knows would be a core
+          // change in a phase that makes none. This is the line an operator
+          // greps to tie an emit to the client that made it.
+          getBusLogger().info('emit', {
+            channel,
+            scope,
+            subscribers,
+            clientId: emitterClientId,
+            correlationId: (payload as Record<string, unknown>).correlationId,
+          });
           if (subscribers === 0) {
             // The caller is told in the response body too; this is for the
             // operator reading logs after the fact, when nobody was watching

@@ -95,7 +95,7 @@ const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
 // worker secret to show it — dies here, while an operator is watching,
 // rather than failing every detection job for the life of the process.
 const contentReads = archivistContentReads(envConfig);
-const healthPort = 9090;
+const healthPort = 24100;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
 

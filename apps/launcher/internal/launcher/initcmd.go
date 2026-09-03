@@ -297,12 +297,8 @@ func Init(args []string) int {
 			siteName = prompt("Site name", name)
 		}
 	}
-	// The shape every KB in the fleet already carries, comments included: a
-	// KB born here should be indistinguishable from one forked off the
-	// template. Two fields the fleet does NOT carry are not written —
-	// `[project] version`, which nothing bumps and which the gateway renders
-	// only if present, and `[site] adminEmail`, which the config loader
-	// carries to no reader at all.
+	// The template KB's exact shape, comments included. No `[project] version`
+	// (nothing bumps it) and no `adminEmail` (no reader).
 	cfg := fmt.Sprintf(`[project]
 name = %q
 

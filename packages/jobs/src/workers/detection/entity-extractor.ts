@@ -1,7 +1,7 @@
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
 import { chunkText, estimateTokens, getLocaleEnglishName, isObject, isString, type Logger } from '@semiont/core';
 import { boundedGenerateStructured } from '../inference-call';
-import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget } from './detection-chunking';
+import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, DETECTION_TEMPERATURE } from './detection-chunking';
 
 /**
  * Entity reference extracted from text — pre-reconciliation.
@@ -175,7 +175,7 @@ Example output:
         client,
         buildPrompt(piece),
         outputBudget,
-        0.3, // Lower temperature for more consistent extraction
+        DETECTION_TEMPERATURE,
         ENTITY_ELEMENT_SCHEMA,
         // Still alive, same position: a long single call would otherwise emit
         // nothing at all between start and finish.

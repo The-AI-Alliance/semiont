@@ -11,8 +11,14 @@ import type {
   EventMetadata,
   components,
 } from '@semiont/core';
-import { createBusRouter, createReplyRetention } from '../../routes/bus';
-import { initializeLogger } from '../../logger';
+const observed = vi.hoisted(() => ({ replySuppressed: vi.fn() }));
+vi.mock('@semiont/observability', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@semiont/observability')>()),
+  recordReplySuppressed: (...args: unknown[]) => observed.replySuppressed(...args),
+}));
+
+import { createBusRouter, createCorrelationRegistry } from '../../routes/bus';
+import { initializeLogger, getLogger } from '../../logger';
 
 const TEST_USER_ID = 'did:web:test:users:test' as UserId;
 
@@ -129,7 +135,7 @@ function buildApp(
     c.set('principalDid', principalDid);
     c.set('eventBus', eventBus);
     c.set('logger', logger);
-    c.set('config', { services: { archivist: { host: ARCHIVIST_HOST, port: 9093 } } });
+    c.set('config', { services: { archivist: { host: ARCHIVIST_HOST, port: 9999 } } });
     await next();
   });
   app.route('/', router);
@@ -193,7 +199,7 @@ describe('bus routes', () => {
       const res = await app.request('/bus/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ global: ['mark:added'], scoped: [] }),
+        body: JSON.stringify({ clientId: 'test-client', global: ['mark:added'], scoped: [] }),
       });
       await readSSE(res, () => joined.length > 0);
 
@@ -208,7 +214,7 @@ describe('bus routes', () => {
       const res = await app.request('/bus/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ global: ['mark:added'], scoped: [] }),
+        body: JSON.stringify({ clientId: 'test-client', global: ['mark:added'], scoped: [] }),
       });
       // readSSE cancels the reader on the way out, which aborts the stream.
       await readSSE(res, () => false, 150);
@@ -219,6 +225,49 @@ describe('bus routes', () => {
     // joined and left must name the SAME connection, or a guide watching two
     // viewers cannot tell which one left. The DID alone cannot do it: one
     // person with two tabs is two connections under one DID.
+    // The 2026-09-03 OOM: a half-open socket (client container torn down
+    // without a FIN) never errors and never closes, so no abort ever fires
+    // — but its bus subscriptions keep fanning out, and every writeSSE
+    // pends forever holding its full serialized frame. The pending-write
+    // bound is the detector of last resort: past MAX_PENDING_WRITE_BYTES
+    // the subscriber is torn down — unsubscribed, counted out of presence,
+    // and its socket destroyed.
+    it('disconnects a subscriber whose pending writes exceed the byte bound (dead consumer)', async () => {
+      const left: unknown[] = [];
+      eventBus.get('session:left').subscribe((v) => left.push(v));
+      const destroy = vi.fn();
+
+      const res = await app.request(
+        '/bus/subscribe',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId: 'test-client', global: ['test:event'] }),
+        },
+        // Stands in for @hono/node-server's HttpBindings: teardown must
+        // hard-destroy the response socket, not just abandon the stream.
+        { outgoing: { destroy } },
+      );
+      expect(res.status).toBe(200);
+      // Let the stream callback run to its subscription setup.
+      await new Promise((r) => setTimeout(r, 20));
+      expect(eventBus.get('test:event' as never).observers.length).toBe(1);
+
+      // Nobody ever reads res.body — the consumer is dead. Fan out
+      // payloads until the pending-write bound trips (16 MiB cap; a
+      // couple of early chunks may clear before backpressure builds).
+      const chunk = 'x'.repeat(1024 * 1024);
+      for (let i = 0; i < 25; i++) {
+        eventBus.get('test:event' as never).next({ chunk } as never);
+      }
+
+      await vi.waitFor(() => expect(left).toHaveLength(1));
+      expect(destroy).toHaveBeenCalled();
+      // The dead connection's bus subscriptions are gone — fan-out to it
+      // has stopped costing anything.
+      expect(eventBus.get('test:event' as never).observers.length).toBe(0);
+    });
+
     it('pairs joined and left by connectionId', async () => {
       const joined: any[] = [];
       const left: any[] = [];
@@ -228,7 +277,7 @@ describe('bus routes', () => {
       const res = await app.request('/bus/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ global: ['mark:added'], scoped: [] }),
+        body: JSON.stringify({ clientId: 'test-client', global: ['mark:added'], scoped: [] }),
       });
       await readSSE(res, () => joined.length > 0);
       await vi.waitFor(() => expect(left).toHaveLength(1));
@@ -526,11 +575,14 @@ describe('bus routes', () => {
 
   // ── BUS-RESUMPTION.md behavior ────────────────────────────────────────
 
-  const subscribe = (target: ReturnType<typeof buildApp>, body: unknown) =>
+  // `clientId` is required on the subscribe body (P1 schema, enforced by P3).
+  // Defaulted here so each test states only what it is about; a test that cares
+  // passes its own, and the missing-clientId case calls `app.request` directly.
+  const subscribe = (target: ReturnType<typeof buildApp>, body: Record<string, unknown>) =>
     target.request('/bus/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ clientId: 'test-client', ...body }),
     });
 
   describe('SSE event-id stamping', () => {
@@ -888,15 +940,299 @@ describe('bus routes', () => {
 
   // ── BUS-RESUMPTION.md Phase 2 (SDK-DEBT S1): correlated-reply retention ──
 
+  // ── CORRELATED-REPLY-ROUTING P3 — the gateway claims and filters ──────
+  //
+  // A correlated reply must reach only the connection whose client issued
+  // the request. Today every subscriber on the channel receives it and all
+  // but one drop it after parsing — N x the serialization and N x the
+  // buffered bytes, and every authenticated subscriber passively sees every
+  // other user's reply payloads.
+  describe('correlated-reply routing (P3)', () => {
+    const REQ = 'gather:resource-requested'; // a registered request channel
+    const RES = 'gather:resource-complete';  // its result channel
+
+    const emit = (body: unknown) =>
+      app.request('/bus/emit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    // D2 — the claim
+    it('rejects a request-channel emit that carries a correlationId but no clientId (400)', async () => {
+      const res = await emit({ channel: REQ, payload: { correlationId: 'c-1', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } } });
+      expect(res.status).toBe(400);
+      expect(await res.text()).toMatch(/clientId/i);
+    });
+
+    it('rejects a second claim on a live correlationId (409)', async () => {
+      const payload = { correlationId: 'c-dup', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } };
+      expect((await emit({ channel: REQ, payload, clientId: 'client-a' })).status).toBe(202);
+      const second = await emit({ channel: REQ, payload, clientId: 'client-b' });
+      expect(second.status).toBe(409);
+    });
+
+    // D2 — capacity is refused at the emit, never by evicting a live claim
+    // (LIVENESS-AXIOMS L2: evicting a claim turns its future reply into a
+    // silent drop, and the requester burns its whole timeout).
+    it('refuses a claim beyond the per-client cap with 429 rather than evicting', async () => {
+      for (let i = 0; i < 256; i++) {
+        const res = await emit({
+          channel: REQ,
+          payload: { correlationId: `cap-${i}`, resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } },
+          clientId: 'client-full',
+        });
+        expect(res.status).toBe(202);
+      }
+      const overflow = await emit({
+        channel: REQ,
+        payload: { correlationId: 'cap-256', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } },
+        clientId: 'client-full',
+      });
+      expect(overflow.status).toBe(429);
+      // The first claim is still live — nothing was evicted to make room.
+      expect((await emit({
+        channel: REQ,
+        payload: { correlationId: 'cap-0', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } },
+        clientId: 'client-full',
+      })).status).toBe(409);
+    });
+
+    // D3 — the delivery filter
+    it('delivers a correlated reply only to the claiming client', async () => {
+      const owner = await subscribe(app, { clientId: 'client-owner', global: [RES, 'test:event'] });
+      const other = await subscribe(app, { clientId: 'client-other', global: [RES, 'test:event'] });
+      await new Promise((r) => setTimeout(r, 20));
+
+      await emit({ channel: REQ, payload: { correlationId: 'c-routed', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, clientId: 'client-owner' });
+
+      setTimeout(() => {
+        eventBus.get(RES).next({ correlationId: 'c-routed', response: { ok: 1 } } as never);
+        // A marker on an uncorrelated channel proves the non-owner's stream
+        // is alive — otherwise "no reply" and "no connection" look alike.
+        eventBus.get('test:event' as never).next({ marker: 'alive' } as never);
+      }, 10);
+
+      const ownerBody = await readSSE(owner, (b) => b.includes('c-routed'));
+      const otherBody = await readSSE(other, (b) => b.includes('alive'));
+
+      expect(ownerBody).toContain('c-routed');
+      expect(otherBody).toContain('alive');
+      expect(otherBody).not.toContain('c-routed');
+    });
+
+    it('still fans a broadcast out to every subscriber', async () => {
+      const a = await subscribe(app, { clientId: 'client-a', global: ['test:event'] });
+      const b = await subscribe(app, { clientId: 'client-b', global: ['test:event'] });
+      await new Promise((r) => setTimeout(r, 20));
+      setTimeout(() => eventBus.get('test:event' as never).next({ marker: 'broadcast' } as never), 10);
+      expect(await readSSE(a, (x) => x.includes('broadcast'))).toContain('broadcast');
+      expect(await readSSE(b, (x) => x.includes('broadcast'))).toContain('broadcast');
+    });
+
+    // D4 — the pendingReplies probe is owner-gated. Before this phase, reply
+    // channels were global fan-out, so retention "added no exposure"; once
+    // replies are routed, an ungated probe would be the one remaining way to
+    // fish for another user's reply.
+    it('refuses to replay a retained reply to a client that does not own the cid', async () => {
+      await subscribe(app, { clientId: 'client-owner', global: [RES] });
+      await emit({ channel: REQ, payload: { correlationId: 'c-mine', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, clientId: 'client-owner' });
+      eventBus.get(RES).next({ correlationId: 'c-mine', response: { ok: 1 } } as never);
+
+      const thief = await subscribe(app, {
+        clientId: 'client-thief',
+        global: [RES, 'test:event'],
+        pendingReplies: ['c-mine'],
+      });
+      setTimeout(() => eventBus.get('test:event' as never).next({ marker: 'alive' } as never), 10);
+      const body = await readSSE(thief, (x) => x.includes('alive'));
+      expect(body).not.toContain('c-mine');
+    });
+
+    it('replays a retained reply to the client that does own it', async () => {
+      await subscribe(app, { clientId: 'client-owner', global: [RES] });
+      await emit({ channel: REQ, payload: { correlationId: 'c-ours', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, clientId: 'client-owner' });
+      eventBus.get(RES).next({ correlationId: 'c-ours', response: { ok: 2 } } as never);
+
+      const back = await subscribe(app, {
+        clientId: 'client-owner',
+        global: [RES],
+        pendingReplies: ['c-ours'],
+      });
+      const body = await readSSE(back, (x) => x.includes('c-ours'));
+      expect(body).toContain(`id: e-${RES}:c-ours`);
+    });
+
+    it('requires clientId on the subscribe body (400)', async () => {
+      const res = await app.request('/bus/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ global: ['test:event'] }),   // deliberately absent
+      });
+      expect(res.status).toBe(400);
+      expect(await res.text()).toMatch(/clientId/i);
+    });
+  });
+
+  // ── CORRELATED-REPLY-ROUTING P5 — observability ───────────────────────
+  //
+  // A counter that is wired but never incremented is exactly the defect an
+  // observability phase exists to prevent, and nothing else in the stack
+  // would notice. Same for a breadcrumb: unpinned, it is one refactor from
+  // silence, and these three are the plan's entire L4 story.
+  describe('observability (P5)', () => {
+    const REQ = 'gather:resource-requested';
+    const RES = 'gather:resource-complete';
+    const OPTS = { depth: 1, maxResources: 1, includeContent: false, includeSummary: false };
+
+    /**
+     * Intercept every `getBusLogger()` call. The suite initializes the logger
+     * at `error`, so a real `warn` would be filtered before reaching any
+     * transport — spying on the child is what makes these observable at all.
+     */
+    const captureBusWarnings = () => {
+      const warn = vi.fn();
+      vi.spyOn(getLogger(), 'child').mockReturnValue({
+        warn, info: vi.fn(), error: vi.fn(), debug: vi.fn(),
+      } as never);
+      return warn;
+    };
+
+    const emit = (body: unknown) =>
+      app.request('/bus/emit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    it('counts a suppression when a reply is withheld from a non-owner', async () => {
+      observed.replySuppressed.mockClear();
+      await subscribe(app, { clientId: 'client-owner', global: [RES] });
+      const other = await subscribe(app, { clientId: 'client-other', global: [RES, 'test:event'] });
+      await new Promise((r) => setTimeout(r, 20));
+
+      await emit({ channel: REQ, clientId: 'client-owner', payload: { correlationId: 'c-count', resourceId: 'r-1', options: OPTS } });
+      setTimeout(() => {
+        eventBus.get(RES).next({ correlationId: 'c-count', response: { ok: 1 } } as never);
+        eventBus.get('test:event' as never).next({ marker: 'alive' } as never);
+      }, 10);
+      await readSSE(other, (b) => b.includes('alive'));
+
+      expect(observed.replySuppressed).toHaveBeenCalled();
+      expect(observed.replySuppressed.mock.calls[0]?.[0]).toBe(RES);
+    });
+
+    // The owner's own delivery is not a suppression. Counting it would make
+    // the metric a channel-traffic gauge rather than the amplification signal.
+    it('does not count the owner\'s own delivery', async () => {
+      const owner = await subscribe(app, { clientId: 'client-solo', global: [RES] });
+      await new Promise((r) => setTimeout(r, 20));
+      await emit({ channel: REQ, clientId: 'client-solo', payload: { correlationId: 'c-solo', resourceId: 'r-1', options: OPTS } });
+      observed.replySuppressed.mockClear();
+      setTimeout(() => eventBus.get(RES).next({ correlationId: 'c-solo', response: { ok: 1 } } as never), 10);
+      await readSSE(owner, (b) => b.includes('c-solo'));
+
+      expect(observed.replySuppressed).not.toHaveBeenCalled();
+    });
+
+    // The structural case: an in-process requester never claims, so its reply
+    // reaches no connection. That fires constantly and is not the
+    // amplification being removed — counting it would drown the signal P6
+    // reads, the same reason D3 refuses to breadcrumb it.
+    it('does not count a never-claimed cid', async () => {
+      const sub = await subscribe(app, { clientId: 'client-x', global: [RES, 'test:event'] });
+      await new Promise((r) => setTimeout(r, 20));
+      observed.replySuppressed.mockClear();
+      setTimeout(() => {
+        eventBus.get(RES).next({ correlationId: 'never-claimed', response: {} } as never);
+        eventBus.get('test:event' as never).next({ marker: 'alive' } as never);
+      }, 10);
+      await readSSE(sub, (b) => b.includes('alive'));
+
+      expect(observed.replySuppressed).not.toHaveBeenCalled();
+    });
+
+    it('the emit log line carries the clientId', async () => {
+      const warn = captureBusWarnings();
+      const infoed: unknown[] = [];
+      vi.spyOn(getLogger(), 'child').mockReturnValue({
+        warn, error: vi.fn(), debug: vi.fn(),
+        info: (msg: string, meta: unknown) => { infoed.push({ msg, meta }); },
+      } as never);
+
+      await emit({ channel: REQ, clientId: 'client-logged', payload: { correlationId: 'c-log', resourceId: 'r-1', options: OPTS } });
+      const emitLine = infoed.find((e) => (e as { msg?: string }).msg === 'emit') as { meta?: Record<string, unknown> } | undefined;
+      expect(emitLine?.meta?.clientId).toBe('client-logged');
+    });
+
+    // ── The three L4 breadcrumbs, inherited unpinned from P3 ─────────────
+
+    it('[bus REPLY-NO-CID] fires for a result frame with no correlationId', async () => {
+      const warn = captureBusWarnings();
+      await subscribe(app, { clientId: 'client-nocid', global: [RES] });
+      await new Promise((r) => setTimeout(r, 20));
+      eventBus.get(RES).next({ response: { ok: 1 } } as never); // no cid
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(warn.mock.calls.some((c) => String(c[0]).includes('REPLY-NO-CID'))).toBe(true);
+    });
+
+    it('[bus CLAIM-EXPIRED] fires when a claim is swept with no reply', () => {
+      const warn = captureBusWarnings();
+      let clock = 1_000;
+      const bus = new EventBus();
+      const registry = createCorrelationRegistry(bus, { claimTtlMs: 100, now: () => clock });
+      registry.claim('c-silent', 'client-1', 'did:web:x');
+
+      clock += 101;
+      registry.claim('c-next', 'client-1', 'did:web:x'); // any claim sweeps first
+
+      expect(warn.mock.calls.some((c) => String(c[0]).includes('CLAIM-EXPIRED'))).toBe(true);
+      registry.dispose();
+      bus.destroy();
+    });
+
+    it('[bus CLAIM-EVICTED] fires when the global cap forces an eviction', () => {
+      const warn = captureBusWarnings();
+      const bus = new EventBus();
+      const registry = createCorrelationRegistry(bus, { now: () => 1 });
+      // Fill past the global backstop, spread across clients so the per-client
+      // cap refuses nothing — the global cap is what must trip.
+      for (let i = 0; i <= 4096; i++) {
+        registry.claim(`g-${i}`, `client-${Math.floor(i / 100)}`, 'did:web:x');
+      }
+      expect(warn.mock.calls.some((c) => String(c[0]).includes('CLAIM-EVICTED'))).toBe(true);
+      registry.dispose();
+      bus.destroy();
+    });
+  });
+
   describe('correlated-reply retention + pendingReplies replay', () => {
     it('replays a retained reply to a reconnecting subscriber that names its cid, with the deterministic id', async () => {
       // conn1 is the first subscription on this eventBus — it wires the
       // retention buffer. (The attach gate guarantees a real client has a
       // live connection before any busRequest emit, so first-subscribe
       // wiring is not a coverage hole.)
-      const res1 = await subscribe(app, { global: ['gather:resource-complete'] });
+      const res1 = await subscribe(app, { clientId: 'client-lost', global: ['gather:resource-complete'] });
       expect(res1.status).toBe(200);
       await new Promise((r) => setTimeout(r, 20));
+
+      // The request is claimed first — since P3, retention holds only claimed
+      // cids, because "who may see this reply" is the same question retention
+      // was always answering implicitly.
+      await app.request('/bus/emit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: 'gather:resource-requested',
+          clientId: 'client-lost',
+          payload: {
+            correlationId: 'cid-lost',
+            resourceId: 'r-1',
+            options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false },
+          },
+        }),
+      });
 
       // The reply is published while the (conceptual) requester is
       // disconnected — nothing but retention holds it now.
@@ -907,6 +1243,7 @@ describe('bus routes', () => {
 
       // The requester reconnects, naming its outstanding cid.
       const res2 = await subscribe(app, {
+        clientId: 'client-lost',
         global: ['gather:resource-complete'],
         pendingReplies: ['cid-lost'],
       });
@@ -932,43 +1269,155 @@ describe('bus routes', () => {
   });
 });
 
-describe('createReplyRetention (unit — bounds with an injected clock)', () => {
-  it('expires entries past the TTL, checked lazily on lookup', () => {
-    let clock = 1_000;
-    const bus = new EventBus();
-    const retention = createReplyRetention(bus, { ttlMs: 100, now: () => clock });
+describe('createCorrelationRegistry (unit — bounds with an injected clock)', () => {
+  const OWNER = 'client-1';
+  const DID = 'did:web:test:users:alice';
 
-    bus.get('gather:resource-complete').next({ correlationId: 'c1', response: {} } as never);
-    expect(retention.lookup('c1')).toBeDefined();
-    clock += 101;
-    expect(retention.lookup('c1')).toBeUndefined();
-    retention.dispose();
+  // D4 absorbed createReplyRetention into this registry, so these pin the same
+  // bounds — plus the new rule that only a CLAIMED cid is retained at all.
+  const setup = (opts: Parameters<typeof createCorrelationRegistry>[1] = {}) => {
+    const bus = new EventBus();
+    const registry = createCorrelationRegistry(bus, opts);
+    return { bus, registry };
+  };
+
+  it('retains a reply only for a claimed cid', () => {
+    const { bus, registry } = setup({ now: () => 1 });
+    registry.claim('claimed', OWNER, DID);
+
+    bus.get('gather:resource-complete').next({ correlationId: 'claimed', response: {} } as never);
+    bus.get('gather:resource-complete').next({ correlationId: 'unclaimed', response: {} } as never);
+
+    expect(registry.lookupReply('claimed', OWNER, DID)).toBeDefined();
+    // The in-process case: nobody claimed it, so nothing is held for it. Not a
+    // lossy mode — the requester is the gateway and consumed it in-process.
+    expect(registry.lookupReply('unclaimed', OWNER, DID)).toBeUndefined();
+    registry.dispose();
     bus.destroy();
   });
 
-  it('evicts the oldest entry beyond the cap', () => {
-    const bus = new EventBus();
-    const retention = createReplyRetention(bus, { max: 2, now: () => 1 });
+  it('refuses a lookup from a client that does not own the cid', () => {
+    const { bus, registry } = setup({ now: () => 1 });
+    registry.claim('c1', OWNER, DID);
+    bus.get('gather:resource-complete').next({ correlationId: 'c1', response: {} } as never);
 
+    expect(registry.lookupReply('c1', 'client-2', DID)).toBeUndefined();
+    expect(registry.lookupReply('c1', OWNER, 'did:web:test:users:mallory')).toBeUndefined();
+    expect(registry.lookupReply('c1', OWNER, DID)).toBeDefined();
+    registry.dispose();
+    bus.destroy();
+  });
+
+  it('expires a retained reply past the TTL while the claim survives', () => {
+    let clock = 1_000;
+    const { bus, registry } = setup({ ttlMs: 100, now: () => clock });
+    registry.claim('c1', OWNER, DID);
+    bus.get('gather:resource-complete').next({ correlationId: 'c1', response: {} } as never);
+    expect(registry.lookupReply('c1', OWNER, DID)).toBeDefined();
+
+    clock += 101;
+    expect(registry.lookupReply('c1', OWNER, DID)).toBeUndefined();
+    // Claims are cheap and long-lived; payloads are expensive and short-lived.
+    expect(registry.owner('c1')).toBeDefined();
+    registry.dispose();
+    bus.destroy();
+  });
+
+  // Expiry must run at INSERT, not only on lookup: replies nobody asks about
+  // again (the common case) would otherwise sit until FIFO eviction at `max` —
+  // up to 1024 full payloads pinned indefinitely (co-culprit in the
+  // 2026-09-03 gateway OOM).
+  it('sweeps expired reply payloads on insert, without any lookup', () => {
+    let clock = 1_000;
+    const { bus, registry } = setup({ ttlMs: 100, now: () => clock });
     for (const cid of ['c1', 'c2', 'c3']) {
+      registry.claim(cid, OWNER, DID);
       bus.get('gather:resource-complete').next({ correlationId: cid, response: {} } as never);
     }
-    expect(retention.lookup('c1')).toBeUndefined(); // evicted (FIFO)
-    expect(retention.lookup('c2')).toBeDefined();
-    expect(retention.lookup('c3')).toBeDefined();
-    retention.dispose();
+
+    clock += 101;
+    registry.claim('c4', OWNER, DID);
+    bus.get('gather:resource-complete').next({ correlationId: 'c4', response: {} } as never);
+
+    for (const cid of ['c1', 'c2', 'c3']) {
+      expect(registry.lookupReply(cid, OWNER, DID)).toBeUndefined();
+    }
+    expect(registry.lookupReply('c4', OWNER, DID)).toBeDefined();
+    registry.dispose();
     bus.destroy();
   });
 
-  it('retains only correlationId-bearing payloads, on reply channels only', () => {
-    const bus = new EventBus();
-    const retention = createReplyRetention(bus, { now: () => 1 });
+  it('drops the oldest reply payloads beyond the cap, keeping their claims', () => {
+    const { bus, registry } = setup({ max: 2, now: () => 1 });
+    for (const cid of ['c1', 'c2', 'c3']) {
+      registry.claim(cid, OWNER, DID);
+      bus.get('gather:resource-complete').next({ correlationId: cid, response: {} } as never);
+    }
+    expect(registry.lookupReply('c1', OWNER, DID)).toBeUndefined(); // FIFO
+    expect(registry.lookupReply('c3', OWNER, DID)).toBeDefined();
+    // A claim without its payload still routes a LIVE reply — dropping the
+    // payload is not the same as forgetting who owns the cid.
+    expect(registry.owner('c1')).toBeDefined();
+    registry.dispose();
+    bus.destroy();
+  });
 
-    bus.get('gather:resource-complete').next({ response: {} } as never); // no cid
-    // A REQUEST channel also carries a cid — it must not be retained.
-    bus.get('gather:resource-requested' as any).next({ correlationId: 'req-1' });
-    expect(retention.lookup('req-1')).toBeUndefined();
-    retention.dispose();
+  it('refuses a duplicate claim and a per-client flood, without evicting', () => {
+    const { bus, registry } = setup({ now: () => 1 });
+    expect(registry.claim('dup', OWNER, DID)).toBe('ok');
+    expect(registry.claim('dup', 'client-2', DID)).toBe('conflict');
+
+    for (let i = 1; i < 256; i++) expect(registry.claim(`f-${i}`, OWNER, DID)).toBe('ok');
+    expect(registry.claim('f-256', OWNER, DID)).toBe('at-capacity');
+    expect(registry.owner('dup')).toBeDefined(); // nothing evicted to make room
+    registry.dispose();
+    bus.destroy();
+  });
+
+  it('an answered claim frees its per-client capacity while staying retained', () => {
+    // The weaver's boot heal-storm: hundreds of sequential busRequests, each
+    // answered within milliseconds. The cap counts UNANSWERED requests — its
+    // own 429 message says so — so a client whose questions are all answered
+    // must never be refused, no matter how many it has asked.
+    const { bus, registry } = setup({ now: () => 1 });
+    for (let i = 0; i < 256; i++) {
+      registry.claim(`a-${i}`, OWNER, DID);
+      bus.get('gather:resource-complete').next({ correlationId: `a-${i}`, response: {} } as never);
+    }
+    expect(registry.claim('a-256', OWNER, DID)).toBe('ok');
+    // Retention is untouched: answered claims still route and replay.
+    expect(registry.owner('a-0')).toBeDefined();
+    expect(registry.lookupReply('a-0', OWNER, DID)).toBeDefined();
+    registry.dispose();
+    bus.destroy();
+  });
+
+  it('sweeping an answered claim does not free its capacity twice', () => {
+    let clock = 1_000;
+    const { bus, registry } = setup({ claimTtlMs: 100, now: () => clock });
+    registry.claim('c1', OWNER, DID);
+    bus.get('gather:resource-complete').next({ correlationId: 'c1', response: {} } as never);
+    clock += 200; // c1's claim expires; the sweep must not decrement again
+    for (let i = 0; i < 256; i++) expect(registry.claim(`u-${i}`, OWNER, DID)).toBe('ok');
+    // A double-free would leave the counter at -1 and admit a 257th.
+    expect(registry.claim('u-256', OWNER, DID)).toBe('at-capacity');
+    registry.dispose();
+    bus.destroy();
+  });
+
+  it('a progress frame refreshes the claim without being retained as the answer', () => {
+    let clock = 1_000;
+    const { bus, registry } = setup({ claimTtlMs: 100, now: () => clock });
+    registry.claim('c-stream', OWNER, DID);
+
+    clock += 80;
+    bus.get('gather:annotation-progress').next({ correlationId: 'c-stream', done: 1, total: 9 } as never);
+    clock += 80;
+    // Without the refresh this claim would have expired at t+100.
+    expect(registry.owner('c-stream')).toBeDefined();
+    // A stream is not an answer: nothing is retained for replay.
+    expect(registry.lookupReply('c-stream', OWNER, DID)).toBeUndefined();
+    registry.dispose();
     bus.destroy();
   });
 });

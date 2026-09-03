@@ -581,3 +581,36 @@ describe('busRequest reply tracking (correlated-reply retention, client side)', 
     expect(await promise).toEqual({ ok: 1 });
   });
 });
+
+describe('busRequest subscription fail-fast gate', () => {
+  const EMIT = 'gather:resource-requested';
+  const RESULT = 'gather:resource-complete';
+  const FAILURE = 'gather:resource-failed';
+
+  it('rejects bus.unsubscribed without emitting when the result channel is outside the subscription set', async () => {
+    const bus = makeBus(RESULT, FAILURE);
+    bus.isSubscribed = (channel) => channel !== RESULT;
+    await expect(busRequest(bus, EMIT, {})).rejects.toMatchObject({
+      code: 'bus.unsubscribed',
+      details: { channel: EMIT, resultChannel: RESULT },
+    });
+    expect(bus.emit).not.toHaveBeenCalled();
+  });
+
+  it('gates the failure channel too — a lost rejection hangs the caller as surely as a lost result', async () => {
+    const bus = makeBus(RESULT, FAILURE);
+    bus.isSubscribed = (channel) => channel !== FAILURE;
+    await expect(busRequest(bus, EMIT, {})).rejects.toMatchObject({ code: 'bus.unsubscribed' });
+    expect(bus.emit).not.toHaveBeenCalled();
+  });
+
+  it('does not gate when both reply channels are subscribed', async () => {
+    const bus = makeBus(RESULT, FAILURE);
+    bus.isSubscribed = () => true;
+    const promise = busRequest(bus, EMIT, {});
+    await Promise.resolve();
+    const cid = bus.emitPayload!.correlationId as string;
+    bus.resultSubject.next({ correlationId: cid, response: { ok: 1 } });
+    expect(await promise).toEqual({ ok: 1 });
+  });
+});

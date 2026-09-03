@@ -26,38 +26,37 @@ type roleSpec struct {
 	product   string // concrete product behind an infra role; "" = a Semiont service
 	container string
 	ports     []portNeed // must-be-free ports (inference: owned by flowInference)
-	// mem is the container's memory CEILING (--memory), and it means
-	// different things per runtime: on Apple container it sizes the
-	// per-container VM (close to a commitment — the guest kernel and page
-	// cache grow into it), on docker/podman it is a cgroup cap inside one
-	// shared VM (caps are not reservations; their sum exceeding the VM is
-	// normal). It is set EXPLICITLY for every containered role because the
-	// silent default is the worst value on both sides: Apple container
-	// quietly gives 1G (a JVM graph or a loaded model dies in that), docker
-	// gives unlimited-within-the-VM (one runaway starves the stack). This
-	// table is the ONE home; every args builder and the memory preflight
-	// read it. Floors deliberately do not exist here — single-host runtimes
-	// have no real reservation, and the apps size themselves from the
-	// ceiling (node:24 cgroup-aware heap, Neo4j auto-config).
+	// mem is the container's memory CEILING (--memory). On Apple container it
+	// sizes the per-container VM (≈ a commitment); on docker/podman it is a
+	// cgroup cap inside one shared VM (caps are not reservations). Explicit
+	// for every containered role — the silent default is 1G on Apple
+	// container and unlimited on docker. This table is the ONE home; every
+	// args builder and the memory preflight read it. No floors: apps size
+	// themselves from the ceiling (node cgroup-aware heap, Neo4j auto-config).
 	//
-	// The numbers are MEASURED, not guessed. On a stack idle 2.5h
-	// (2026-08-31, `container stats`): gateway 305 MiB, weaver 240, qdrant
-	// 281, archivist 255, worker 226, librarian 223, smelter 213, browser
-	// 131, jaeger 78, postgres 58 — and neo4j 922 MiB, the only one growing
-	// into its room. So every service sits at ~2G, leaving the smallest of
-	// them ~6x headroom, and neo4j keeps 2G because it earns it.
-	//
-	// The gateway was 8G and the weaver 3G, both sized for work that has
-	// since moved out: the gateway hosted every actor, dialed the graph and
-	// vector stores, and buffered whole representations, and now proxies
-	// bytes and holds none of that. An 8G ceiling on Apple container is an
-	// 8G VM — measure before trusting a number that predates a service's
-	// scope changing.
+	// Sized from `container stats` on an idle stack (2026-08-31/09-03):
+	// every Node service ≤ ~310 MiB, collector 153, neo4j 922 — so 2G ≈ 6x
+	// headroom for the services, and neo4j keeps the 2G it actually uses.
+	// Re-measure before trusting a ceiling after a service's scope changes.
 	mem string
 }
 
+// Port policy: (1) contract-standard ports keep the standard (4318 OTLP);
+// (2) third-party products keep their product ports (5432, 7474/7687, 6333,
+// 11434, 16686); (3) user-facing Semiont stays memorable (3000 Browser,
+// 4000 Gateway); (4) Semiont-internal services listen in 241xx — nobody's
+// default, below both ephemeral floors (Linux 32768, macOS 49152). The
+// 909x block they used to squat is Prometheus/Pushgateway/Kafka/
+// Alertmanager territory.
 var roles = map[string]roleSpec{
-	"traces": {"Jaeger", "semiont-jaeger", []portNeed{{16686, "Jaeger UI"}, {4318, "Jaeger OTLP"}}, "1G"},
+	// The collector owns 4318 (the port services target); Jaeger's own OTLP
+	// ingest sits behind it on 14318.
+	"traces":    {"Jaeger", "semiont-jaeger", []portNeed{{16686, "Jaeger UI"}, {14318, "Jaeger OTLP"}}, "1G"},
+	"collector": {"OTel", "semiont-otel-collector", []portNeed{{4318, "Collector OTLP"}, {24110, "Collector metrics"}}, "1G"},
+	// Prometheus keeps its product port (tier 2) — free since the worker
+	// moved to 24100. Ephemeral like Jaeger: observability data is
+	// disposable in a dev stack.
+	"metrics": {"Prometheus", "semiont-prometheus", []portNeed{{9090, "Prometheus UI"}}, "1G"},
 	// graph 2G: a JVM auto-sizing its heap from visible memory — the silent
 	// 1G VM default was the known-tight spot on Apple container.
 	"graph":   {"Neo4j", "semiont-neo4j", []portNeed{{7474, "Neo4j HTTP"}, {7687, "Neo4j Bolt"}}, "2G"},
@@ -72,17 +71,17 @@ var roles = map[string]roleSpec{
 	"embedding": {"", "", nil, ""},
 	"database":  {"PostgreSQL", "semiont-postgres", []portNeed{{5432, "PostgreSQL"}}, "1G"},
 	"gateway":   {"", "semiont-gateway", []portNeed{{4000, "Gateway"}}, "2G"},
-	"worker":    {"", "semiont-worker", []portNeed{{9090, "Worker"}}, "2G"},
-	"smelter":   {"", "semiont-smelter", []portNeed{{9091, "Smelter"}}, "2G"},
-	"weaver":    {"", "semiont-weaver", []portNeed{{9092, "Weaver"}}, "2G"},
-	"archivist": {"", "semiont-archivist", []portNeed{{9093, "Archivist"}}, "2G"},
-	"librarian": {"", "semiont-librarian", []portNeed{{9094, "Librarian"}}, "2G"},
+	"worker":    {"", "semiont-worker", []portNeed{{24100, "Worker"}}, "2G"},
+	"smelter":   {"", "semiont-smelter", []portNeed{{24101, "Smelter"}}, "2G"},
+	"weaver":    {"", "semiont-weaver", []portNeed{{24102, "Weaver"}}, "2G"},
+	"archivist": {"", "semiont-archivist", []portNeed{{24103, "Archivist"}}, "2G"},
+	"librarian": {"", "semiont-librarian", []portNeed{{24104, "Librarian"}}, "2G"},
 	// browser: the Browser owns its port inside flowBrowser — an empty
 	// ports list here keeps 3000 out of every stack-level claim and sweep.
 	"browser": {"", "semiont-browser", nil, "1G"},
 }
 
-const roleList = "gateway, worker, smelter, weaver, archivist, librarian, browser, database, graph, vectors, inference, embedding, or traces"
+const roleList = "gateway, worker, smelter, weaver, archivist, librarian, browser, database, graph, vectors, inference, embedding, traces, metrics, or collector"
 
 // roleByContainer inverts the roles table (container name → role).
 var roleByContainer = func() map[string]string {
@@ -267,16 +266,20 @@ func serviceEndpoint(svc string, plan *launchPlan) string {
 	switch svc {
 	case "traces":
 		return "http://localhost:16686"
+	case "collector":
+		return "http://localhost:24110/metrics"
+	case "metrics":
+		return "http://localhost:9090/-/healthy"
 	case "browser":
 		return "http://localhost:3000"
 	case "gateway":
 		return fmt.Sprintf("http://localhost:%d/api/health", plan.GatewayPort)
 	case "worker":
-		return "http://localhost:9090/health"
+		return "http://localhost:24100/health"
 	case "smelter":
-		return "http://localhost:9091/health"
+		return "http://localhost:24101/health"
 	case "weaver":
-		return "http://localhost:9092/health"
+		return "http://localhost:24102/health"
 	case "graph":
 		return fmt.Sprintf("http://localhost:%d", plan.AuxPorts("graph")[0].port)
 	case "vectors":
