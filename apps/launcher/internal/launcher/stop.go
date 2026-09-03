@@ -48,7 +48,7 @@ var stopNames = []string{
 	"semiont-archivist", "semiont-weaver", "semiont-smelter", "semiont-worker",
 	"semiont-librarian",
 	"semiont-gateway", "semiont-postgres", "semiont-ollama", "semiont-qdrant",
-	"semiont-neo4j", "semiont-jaeger",
+	"semiont-neo4j", "semiont-otel-collector", "semiont-jaeger",
 }
 
 // Stop implements `semiont stop` — the port of the fleet's stop.sh.

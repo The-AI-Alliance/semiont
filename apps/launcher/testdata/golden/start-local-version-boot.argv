@@ -1,5 +1,6 @@
 git -C <kb-root> rev-parse --show-toplevel
 container run --rm busybox:1.38.0 sh -c ip route | awk '/default/{print $3}'
+container logs semiont-otel-collector
 container logs semiont-jaeger
 container logs semiont-neo4j
 container logs semiont-qdrant
@@ -21,9 +22,12 @@ lsof -nP -iTCP:9091 -sTCP:LISTEN
 lsof -nP -iTCP:9092 -sTCP:LISTEN
 lsof -nP -iTCP:9093 -sTCP:LISTEN
 lsof -nP -iTCP:9094 -sTCP:LISTEN
-lsof -nP -iTCP:16686 -sTCP:LISTEN
 lsof -nP -iTCP:4318 -sTCP:LISTEN
-container run -d --name semiont-jaeger --memory 1G -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:1.76.0
+lsof -nP -iTCP:8889 -sTCP:LISTEN
+lsof -nP -iTCP:16686 -sTCP:LISTEN
+lsof -nP -iTCP:14318 -sTCP:LISTEN
+container run -d --name semiont-jaeger --memory 1G -p 16686:16686 -p 14318:4318 jaegertracing/all-in-one:1.76.0
+container run -d --name semiont-otel-collector --memory 1G -p 4318:4318 -p 8889:8889 --volume <config-stage>/collector.yaml:/etc/otelcol/config.yaml:ro otel/opentelemetry-collector:0.137.0
 container run -d --name semiont-postgres --memory 1G -p 5432:5432 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
 container run --rm busybox:1.38.0 nc -z -w 2 192.168.64.1 5432
 container run -d --name semiont-gateway --publish 4000:4000 --memory 2G --volume <config-stage>/gateway.toml:/home/semiont/.semiontconfig:ro -v <home>/.local/share/semiont/roots/example.github.io-test-kb/state:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://192.168.64.1:4318 --env POSTGRES_HOST=192.168.64.1 --env NEO4J_HOST=192.168.64.1 --env QDRANT_HOST=192.168.64.1 --env OLLAMA_HOST=192.168.64.1 --env XDG_STATE_HOME=/semiont-state --env SEMIONT_WORKER_SECRET=test-worker-secret --env JWT_SECRET=test-jwt-secret-0123456789abcdef ghcr.io/the-ai-alliance/semiont-gateway:local

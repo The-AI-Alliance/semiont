@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 interface NodeModule {
   initObservabilityNode: (config: { serviceName: string; serviceVersion?: string }) => boolean;
   shutdownObservabilityNode: () => Promise<void>;
+  metricsExporterKind: (endpoint: string | undefined, requested: string | undefined) => 'otlp' | 'console';
 }
 
 async function loadFresh(): Promise<NodeModule> {
@@ -28,6 +29,7 @@ const PRESERVED_ENVS = [
   'OTEL_CONSOLE_EXPORTER',
   'OTEL_SERVICE_NAME',
   'OTEL_METRIC_EXPORT_INTERVAL',
+  'OTEL_METRICS_EXPORTER',
 ] as const;
 
 let savedEnv: Record<string, string | undefined>;
@@ -153,5 +155,33 @@ describe('shutdownObservabilityNode', () => {
     await mod.shutdownObservabilityNode();
     // After shutdown, init should once again return true.
     expect(mod.initObservabilityNode({ serviceName: 'svc' })).toBe(true);
+  });
+});
+
+// OTEL_METRICS_EXPORTER decides the metrics exporter independently of the
+// endpoint. Tested as a pure function: asserting which class was instantiated
+// would need the exporter modules mocked.
+describe('metricsExporterKind', () => {
+  it('is otlp when an endpoint is set and nothing overrides it', async () => {
+    const { metricsExporterKind } = await loadFresh();
+    expect(metricsExporterKind('http://collector.test', undefined)).toBe('otlp');
+  });
+
+  it('is console when there is no endpoint — the pre-existing fallback', async () => {
+    const { metricsExporterKind } = await loadFresh();
+    expect(metricsExporterKind(undefined, undefined)).toBe('console');
+  });
+
+  it('is console when OTEL_METRICS_EXPORTER says so, EVEN with an endpoint set', async () => {
+    const { metricsExporterKind } = await loadFresh();
+    expect(metricsExporterKind('http://collector.test', 'console')).toBe('console');
+  });
+
+  it('ignores values it does not implement rather than silently exporting nowhere', async () => {
+    const { metricsExporterKind } = await loadFresh();
+    // 'none' and 'otlp' are also standard; only 'console' changes the outcome
+    // here, and an unknown value must not disable metrics by accident.
+    expect(metricsExporterKind('http://collector.test', 'otlp')).toBe('otlp');
+    expect(metricsExporterKind('http://collector.test', 'wat')).toBe('otlp');
   });
 });

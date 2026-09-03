@@ -162,10 +162,8 @@ func exportLocal(u *ui, rootFlag, output string, force, withGit bool) int {
 		return 1
 	}
 	u.ok("Exported %s %s", output, u.dim(fmt.Sprintf("(%d entries, %s)", n, humanBytes(bytes))))
-	// The archive is a point-in-time snapshot. Anything a running stack wrote
-	// mid-walk is captured as of its header, or was gone before it could be —
-	// either way it is named, because a restore that surprises someone should
-	// have a recorded cause. Stop the stack for an archive with no such note.
+	// Files a running stack changed mid-walk are named, so a surprising
+	// restore has a recorded cause.
 	if len(changed) > 0 {
 		u.warn("%d file(s) changed while being archived — the snapshot holds them as of the moment they were read:", len(changed))
 		show := changed
@@ -317,22 +315,10 @@ func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, to
 	}
 	sort.Strings(paths)
 
-	// A KB is a LIVE tree: exporting one while its stack runs races the
-	// Archivist appending to .semiont/events. Two ways that used to end the
-	// export, both now survivable, because refusing to archive a running KB
-	// would be a worse answer than archiving a coherent snapshot of it:
-	//
-	//   grew   — the header's size came from one stat and the body from a
-	//            later read, so tar was handed more bytes than it was told to
-	//            expect: "archive/tar: write too long". Fixed by taking BOTH
-	//            from one observation (fstat on the open handle) and copying
-	//            exactly that many bytes. The tail written after the stat is
-	//            not in the archive, which is what a snapshot means.
-	//   went   — a file present during the walk was gone by the time we
-	//            opened it (git's temp files do this constantly). Skipped.
-	//
-	// Either way the file is NAMED, never silently dropped: the caller warns
-	// with the list, so a surprising restore has a recorded cause.
+	// A KB is a live tree (the Archivist appends mid-walk). A file that GREW
+	// gets header size and bytes from one observation (fstat on the open
+	// handle, copy exactly that many); a file GONE by open time is skipped.
+	// Both are recorded in `changed` so the caller can name them.
 	for _, rel := range paths {
 		abs := filepath.Join(root, rel)
 		fi, lerr := os.Lstat(abs)
@@ -380,8 +366,7 @@ func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, to
 			}
 			return 0, 0, nil, oerr
 		}
-		// The size tar is promised and the bytes tar is given must come from
-		// ONE observation of the file — the open handle's own stat.
+		// Header size and copied bytes must come from one observation.
 		sfi, serr := src.Stat()
 		if serr != nil {
 			src.Close()
@@ -401,10 +386,8 @@ func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, to
 		total += n
 		switch {
 		case cerr == io.EOF:
-			// Shrank after the fstat. tar was already promised h.Size, so the
-			// entry must be filled to keep every later offset valid — the one
-			// place this writes bytes the file did not supply, and the reason
-			// the caller names the file.
+			// Shrank after the fstat: pad to the promised size (tar offsets
+			// depend on it) and name the file.
 			rem := h.Size - n
 			var zero [32 * 1024]byte
 			for rem > 0 {
@@ -423,9 +406,7 @@ func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, to
 			src.Close()
 			return 0, 0, nil, cerr
 		default:
-			// Grew after the fstat: a byte still readable past what we copied.
-			// The archive holds the snapshot; say so rather than let a short
-			// file look intact.
+			// Grew after the fstat: detect via one extra read, and name it.
 			var probe [1]byte
 			if m, _ := src.Read(probe[:]); m > 0 {
 				changed = append(changed, rel)

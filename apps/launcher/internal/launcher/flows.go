@@ -27,11 +27,9 @@ var depRoleTitles = map[string]string{
 }
 
 // flowFullStart is THE full-start sequence: preflight → ports → staging →
-// pulls → traces → database → gateway → graph → vectors → inference →
-// embedding → archivist → librarian → sidecars → Browser.
-//
-// The gateway sits above the actors' stores because it needs none of them
-// (see the note at that step); everything after it does need the gateway.
+// pulls → traces (--observe) → collector → database → gateway → graph →
+// vectors → inference → embedding → archivist → librarian → sidecars →
+// Browser.
 //
 // embedding follows inference deliberately: an ollama-typed embedding is
 // served BY the Ollama inference just brought up, so probing it any earlier
@@ -81,7 +79,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 	x.say(sayOK, "Required ports are free")
 
-	stage, ok := x.stageAll(fc.configFile, fc.plan.EnvName, addr)
+	stage, ok := x.stageAll(fc.configFile, fc.plan.EnvName, addr, fc.opts.observe)
 	if !ok {
 		return 1
 	}
@@ -101,7 +99,6 @@ func flowFullStart(x executor, fc flowCtx) int {
 		x.say(sayOK, "Images pulled")
 	}
 
-	var otel []string
 	if fc.opts.observe {
 		x.banner("Traces (Jaeger)")
 		args := tracesArgs()
@@ -115,28 +112,34 @@ func flowFullStart(x executor, fc flowCtx) int {
 			x.dumpLogs(roles["traces"].container, "traces")
 			return 1
 		}
-		x.say(sayOK, "traces — Jaeger UI on http://localhost:16686 (OTLP collector: %s:4318) %s", addr, x.dim("("+took(d)+")"))
+		x.say(sayOK, "traces — Jaeger UI on http://localhost:16686 %s", x.dim("("+took(d)+")"))
 		x.record("traces", id, args[len(args)-1], providedLauncher, "http://localhost:16686", "jaeger")
-		otel = otelArgs(addr)
 	}
 
-	// Database, then Gateway, AHEAD of the stores the actors use.
-	//
-	// Measured 2026-08-31: nothing under apps/gateway/src constructs a graph,
-	// vector or embedding client. Those dials left with the actors, and the
-	// ones that remain live in startMakeMeaning — the standalone root, which
-	// this process is not. So the Gateway's boot needs Postgres and nothing
-	// else (its CMD runs `prisma migrate deploy` first, which is what its
-	// long health budget pays for).
-	//
-	// Waiting on Neo4j, Qdrant and Ollama ahead of it therefore bought
-	// nothing and cost the launcher its fastest signal: the Gateway has by
-	// far the most ways to fail — JWT secret, DATABASE_URL, the migration,
-	// and both identity refusals — and every one of them used to surface a
-	// minute late, behind infrastructure it never touches.
-	//
-	// The invariant this order now states: everything started BELOW needs the
-	// Gateway, and nothing started ABOVE it does.
+	// The collector always runs; --no-observe declines only trace storage
+	// (Jaeger, above), and the staged config then routes traces to `nop`.
+	// After Jaeger, so a first trace export has somewhere to land.
+	x.banner("Telemetry (OTel Collector)")
+	cargs := collectorArgs(stage)
+	cid, cok := x.runDetached(cargs)
+	if !cok {
+		x.say(sayFail, "collector failed to start.")
+		return 1
+	}
+	cd, cok := x.waitHTTP("collector", "http://localhost:8889/metrics", 30)
+	if !cok {
+		x.dumpLogs(roles["collector"].container, "collector")
+		return 1
+	}
+	x.say(sayOK, "collector — OTLP on %s:4318, metrics on http://localhost:8889/metrics %s", addr, x.dim("("+took(cd)+")"))
+	x.record("collector", cid, cargs[len(cargs)-1], providedLauncher, "http://localhost:8889/metrics", "otel")
+	otel := otelArgs(addr)
+
+	// Database, then Gateway, AHEAD of the stores the actors use. The gateway
+	// dials no graph/vector/embedding client — its boot needs Postgres alone
+	// (its CMD runs `prisma migrate deploy`, which the 120s health budget
+	// pays for) — and it has the most ways to fail, so it goes first.
+	// Invariant: everything below needs the Gateway; nothing above it does.
 	if code := flowDepRole(x, "database", fc, addr); code != 0 {
 		return code
 	}
@@ -153,10 +156,8 @@ func flowFullStart(x executor, fc flowCtx) int {
 		return code
 	}
 
-	// The stores the ACTORS dial. Every one of them gates something below —
-	// the Archivist and Librarian take graph + vectors + embedding, the
-	// Smelter vectors + embedding, the Weaver the graph, the Worker
-	// inference — and none of them gated the Gateway above.
+	// The stores the actors dial: each gates the Archivist/Librarian/sidecars
+	// below; none gates the Gateway above.
 	if code := flowDepRole(x, "graph", fc, addr); code != 0 {
 		return code
 	}
@@ -692,6 +693,22 @@ func flowOneService(x executor, fc flowCtx) int {
 
 	var d time.Duration
 	switch svc {
+	case "collector":
+		cstage, ok := x.stageCollector(addr)
+		if !ok {
+			return 1
+		}
+		args := collectorArgs(cstage)
+		id, ok := x.runDetached(args)
+		if !ok {
+			x.say(sayFail, "collector failed to start.")
+			return 1
+		}
+		if d, ok = x.waitHTTP("collector", "http://localhost:8889/metrics", 30); !ok {
+			x.dumpLogs(roles["collector"].container, "collector")
+			return 1
+		}
+		x.record(svc, id, args[len(args)-1], providedLauncher, serviceEndpoint(svc, fc.plan), "otel")
 	case "traces":
 		args := tracesArgs()
 		id, ok := x.runDetached(args)

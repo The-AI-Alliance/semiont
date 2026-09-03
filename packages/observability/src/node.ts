@@ -63,6 +63,21 @@ let meterProviderInstance: MeterProvider | undefined;
 const DEFAULT_METRIC_EXPORT_INTERVAL_MS = 30_000;
 
 /**
+ * Which exporter metrics use. `console` wins even with an OTLP endpoint set —
+ * the readout for a bare process or CI with no collector; traces unaffected.
+ * Any other value (incl. unrecognised) leaves the endpoint to decide, so an
+ * unknown value cannot silently disable metrics. Exported and pure so tests
+ * assert the choice without mocking the exporter modules.
+ */
+export function metricsExporterKind(
+  endpoint: string | undefined,
+  requested: string | undefined,
+): 'otlp' | 'console' {
+  if (requested === 'console') return 'console';
+  return endpoint ? 'otlp' : 'console';
+}
+
+/**
  * Initialize OTel for the current process. Wires up both tracing and
  * metrics. Idempotent — calling twice is a no-op. Returns `true` if the
  * SDK started, `false` if disabled, no exporter is configured, or
@@ -110,8 +125,11 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
   // BasicTracerProvider does not.
   propagation.setGlobalPropagator(new W3CTraceContextPropagator());
 
-  // Metric SDK — same exporter selection as traces.
-  const metricExporter = endpoint ? new OTLPMetricExporter() : new ConsoleMetricExporter();
+  // Traces follow the endpoint; metrics additionally honour OTEL_METRICS_EXPORTER.
+  const metricExporter =
+    metricsExporterKind(endpoint, process.env['OTEL_METRICS_EXPORTER']) === 'console'
+      ? new ConsoleMetricExporter()
+      : new OTLPMetricExporter();
   const intervalRaw = process.env['OTEL_METRIC_EXPORT_INTERVAL'];
   const exportIntervalMillis = intervalRaw
     ? Number.parseInt(intervalRaw, 10)

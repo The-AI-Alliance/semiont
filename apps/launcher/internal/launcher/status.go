@@ -61,15 +61,10 @@ with a note, unless the codespace is already running.
 `
 
 // statusServices drives the report in three bands: Semiont's own processes,
-// then the infrastructure they run on, then the model providers. Deliberately
-// unrelated to start/stop ordering (which is dependency order) and to the
-// roles table's order. Names are the abstract roles; the roles table maps
-// them to containers. Health probes are host-side: the same endpoints
-// start's health gates poll.
-//
-// The order within each band is a chosen reading order, not a derived one,
-// and nothing but reading the output enforces it — put a new row where it
-// belongs in the report rather than appending it.
+// the infrastructure they run on, then the model providers — a chosen reading
+// order, unrelated to start order and enforced by nothing; place new rows
+// where they belong. Names key the roles table; probes are host-side, the
+// same endpoints start gates on.
 var statusServices = []struct {
 	name     string // abstract role (keys the roles table)
 	endpoint string // http(s) URL, or "tcp:<port>"
@@ -86,6 +81,8 @@ var statusServices = []struct {
 	{"graph", "http://localhost:7474", true},
 	{"vectors", "http://localhost:6333/readyz", true},
 	{"traces", "http://localhost:16686", false},
+	// core, unlike traces: the collector runs on every start.
+	{"collector", "http://localhost:8889/metrics", true},
 
 	{"inference", "http://localhost:11434/api/version", true},
 	{"embedding", "http://localhost:11434/api/version", true},

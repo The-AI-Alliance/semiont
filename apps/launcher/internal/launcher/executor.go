@@ -31,9 +31,10 @@ type executor interface {
 	portCheck(p portNeed) bool    // singular wording in plan mode
 	recordPorts(ports []portNeed) // note claimed host ports in the belief record
 	hostOllamaReachable(addr string, port int) bool
-	stageAll(configFile, envName, addr string) (string, bool)      // per-service config copies; returns stage dir
-	stageOne(svc, configFile, envName, addr string) (string, bool) // one service's fresh private copy
-	initStack(root, config, version, addr, stage string)           // begin the belief record
+	stageAll(configFile, envName, addr string, traces bool) (string, bool) // per-service config copies + the collector's own; returns stage dir
+	stageOne(svc, configFile, envName, addr string) (string, bool)         // one service's fresh private copy
+	stageCollector(addr string) (string, bool)                             // the collector's own config: launcher-owned, no KB config involved
+	initStack(root, config, version, addr, stage string)                   // begin the belief record
 	pull(img string) bool
 	runDetached(args []string) (string, bool)                      // echo + run -d; returns runtime-reported id
 	waitHTTP(label, url string, seconds int) (time.Duration, bool) // wall-clock budget, not attempts
@@ -42,7 +43,7 @@ type executor interface {
 	gatewayReachable(addr string, port int) bool
 	resolveAddr() (string, bool) // container→host address ("<host-addr>" in plan mode)
 	either(cond func() bool, then, els func() int) int
-	otelDetect(addr string) []string       // --service: OTel iff traces is up
+	otelDetect(addr string) []string       // --service: OTel iff the collector is up
 	recoverSecret() (string, bool)         // --service: rejoin the running stack's secret
 	workerSecret() (string, bool)          // full start: env or generated
 	jwtSecret(root string) (string, bool)  // gateway token-signing key: env, else persisted per-root, else generated
@@ -367,7 +368,7 @@ func patchKBIdentity(cfg []byte, name, domain string, oauthAllowedDomains []stri
 	return append(cfg, []byte(stanza)...)
 }
 
-func (x *liveExec) stageAll(configFile, envName, addr string) (string, bool) {
+func (x *liveExec) stageAll(configFile, envName, addr string, traces bool) (string, bool) {
 	stage, ok := x.stageDir()
 	if !ok {
 		return "", false
@@ -383,6 +384,27 @@ func (x *liveExec) stageAll(configFile, envName, addr string) (string, bool) {
 			x.u.fail("Staging config for %s: %v", svc, err)
 			return "", false
 		}
+	}
+	// The collector's config is launcher-owned, not a KB copy; the variant
+	// follows --observe (traces → Jaeger or nop).
+	if err := os.WriteFile(filepath.Join(stage, "collector.yaml"), []byte(collectorConfig(addr, traces)), 0o644); err != nil {
+		x.u.fail("Staging the collector config: %v", err)
+		return "", false
+	}
+	return stage, true
+}
+
+// stageCollector: --service collector cannot use stageOne (no KB config to
+// copy); it stages only the launcher-written YAML. Traces route to Jaeger
+// iff Jaeger is actually up — the otelDetect rule.
+func (x *liveExec) stageCollector(addr string) (string, bool) {
+	stage, ok := x.stageDir()
+	if !ok {
+		return "", false
+	}
+	if err := os.WriteFile(filepath.Join(stage, "collector.yaml"), []byte(collectorConfig(addr, httpOK("http://localhost:16686"))), 0o644); err != nil {
+		x.u.fail("Staging the collector config: %v", err)
+		return "", false
 	}
 	return stage, true
 }
@@ -505,8 +527,10 @@ func (x *liveExec) either(cond func() bool, then, els func() int) int {
 }
 
 func (x *liveExec) otelDetect(addr string) []string {
-	if httpOK("http://localhost:16686") {
-		x.u.log("Jaeger detected — OTel export enabled")
+	// Probe the COLLECTOR — it owns the port services export to. Its :8889
+	// readout is a plain 200 when up; the OTLP receiver rejects GETs.
+	if httpOK("http://localhost:8889/metrics") {
+		x.u.log("OTel collector detected — export enabled")
 		return otelArgs(addr)
 	}
 	return nil
@@ -855,8 +879,14 @@ func (x *planExec) portChecks(ports []portNeed) bool {
 	return true
 }
 
-func (x *planExec) stageAll(_, envName, _ string) (string, bool) {
+func (x *planExec) stageCollector(string) (string, bool) {
+	x.c("write <config-stage>/collector.yaml (launcher-owned; traces exporter iff Jaeger is up)")
+	return "<config-stage>", true
+}
+
+func (x *planExec) stageAll(_, envName, _ string, _ bool) (string, bool) {
 	x.c("stage per-service config copies under <config-stage>: gateway.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml")
+	x.c("write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)")
 	for _, svc := range []string{"gateway", "worker", "smelter", "librarian"} {
 		x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to %s.toml", envName, svc)
 	}

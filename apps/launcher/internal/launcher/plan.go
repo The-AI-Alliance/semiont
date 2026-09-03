@@ -290,10 +290,9 @@ func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
 func ollamaRunArgs(rp rolePlan, extra ...string) []string {
 	spec := driverCatalog["inference"]["ollama"]
 	// The ceiling is the INFERENCE role's whichever role owns the container
-	// (an all-remote embedding config still runs one Ollama) — and it comes
-	// from the roles table ALONE. A caller passing a second `-m` here would
-	// win by flag order and silently contradict both the table and the
-	// memory preflight that sums it; one did, for 16G.
+	// (an all-remote embedding config still runs one Ollama), and it comes
+	// from the roles table ALONE — a second -m from a caller wins by flag
+	// order and desyncs the memory preflight.
 	a := []string{"run", "-d", "--name", "semiont-ollama", "--memory", roles["inference"].mem} // no --rm: see providedRunArgs
 	a = append(a, "-p", fmt.Sprintf("%d:%d", rp.Port, spec.defaultPort))
 	a = append(a, extra...)
@@ -325,11 +324,14 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 		portNeed{9092, "Weaver"},
 		portNeed{9093, "Archivist"},
 		portNeed{9094, "Librarian"},
+		// The collector runs on every start, observed or not.
+		portNeed{4318, "Collector OTLP"}, portNeed{8889, "Collector metrics"},
 		// No browser port here: the Browser is not a stack member — its
 		// port is checked inside flowBrowser, and only when (re)starting.
 	)
 	if observe {
-		checks = append(checks, portNeed{16686, "Jaeger UI"}, portNeed{4318, "Jaeger OTLP"})
+		// --no-observe declines trace storage (Jaeger) only.
+		checks = append(checks, portNeed{16686, "Jaeger UI"}, portNeed{14318, "Jaeger OTLP"})
 	}
 	return checks
 }

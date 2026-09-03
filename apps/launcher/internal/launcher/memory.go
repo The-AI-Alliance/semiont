@@ -11,9 +11,8 @@ package launcher
 // and their sum exceeding the VM is normal. So: warn on `container`, stay
 // quiet elsewhere.
 //
-// A WARNING, never a refusal. The launcher cannot know what else the host is
-// doing, and macOS handles pressure by compressing and swapping — degraded,
-// not broken. What the operator needs is the arithmetic, before the slowdown.
+// A WARNING, never a refusal: macOS degrades under pressure rather than
+// breaking, and the launcher cannot know what else the host runs.
 //
 // Known boundary: a HOST-run Ollama (the default — host-process is preferred
 // so models get Metal) uses host RAM this sum cannot see. The ollama ceiling
@@ -52,7 +51,7 @@ func memCeilingGB(m string) float64 {
 // inference or the embedding role provides it as a container.
 func startCeilingsGB(plan *launchPlan, opts startOptions) float64 {
 	sum := 0.0
-	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "browser"} {
+	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "browser", "collector"} {
 		sum += memCeilingGB(roles[svc].mem)
 	}
 	if opts.observe {

@@ -24,8 +24,14 @@ const (
 // member (BROWSER-LIFECYCLE.md) — its keep-or-refresh lifecycle lives in
 // flowBrowser, and the preflight must not sweep a viewer the user keeps
 // open across stacks.
+// configFreeService: services that read no KB config — --service <name>
+// needs neither a config nor a root.
+func configFreeService(svc string) bool {
+	return svc == "browser" || svc == "traces" || svc == "collector"
+}
+
 var preflightNames = []string{
-	"semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-postgres",
+	"semiont-otel-collector", "semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-postgres",
 	"semiont-gateway", "semiont-worker", "semiont-smelter", "semiont-weaver",
 	"semiont-archivist", "semiont-librarian",
 }
@@ -69,9 +75,9 @@ Options:
   --service <name>      Start (restart) just this one service, leaving the rest
                         of the stack untouched: gateway, worker, smelter, weaver,
                         archivist, librarian, browser, database, graph, vectors,
-                        inference, or traces.
+                        inference, traces, or collector.
                         Rejoins a running stack's worker secret automatically;
-                        OTel export is enabled iff traces (Jaeger) is up.
+                        OTel export is enabled iff the collector is up.
   --port <n>            Browser port (--service browser only; default 3000).
                         The one port a flag may move — every other port
                         belongs to the KB's config
@@ -97,7 +103,10 @@ Options:
   --machine <class>     Codespace placement: VM class (default: premiumLinux
                         when your account can use it for the repo, else the
                         largest it can; only applies when creating)
-  --no-observe          Skip the Jaeger sidecar (OTel traces + metrics run by default)
+  --no-observe          Skip Jaeger (trace storage + UI). The OTel collector
+                        is stack furniture and always runs: metrics stay
+                        readable at :8889/metrics; traces are accepted and
+                        discarded
   --ollama-cache <c>    Model cache when starting an Ollama container: 'host'
                         (~/.ollama) or 'volume' (named volume) — skips the prompt
   --dry-run             Print the exact runtime commands a run would execute, then exit
@@ -317,15 +326,15 @@ func Start(args []string) int {
 			u.fail("--clean-ollama cannot be combined with --service.")
 			return 1
 		case opts.noObserveSet:
-			u.fail("--no-observe does not apply to --service: OTel export is enabled iff traces (Jaeger) is already running.")
+			u.fail("--no-observe does not apply to --service: OTel export is enabled iff the collector is already running.")
 			return 1
 		case opts.ollamaCache != "" && opts.service != "inference":
 			u.fail("--ollama-cache only applies to --service inference.")
 			return 1
-		case opts.configSet && (opts.service == "browser" || opts.service == "traces"):
+		case opts.configSet && configFreeService(opts.service):
 			u.fail("--config does not apply to --service %s (it reads no config).", opts.service)
 			return 1
-		case opts.root != "" && (opts.service == "browser" || opts.service == "traces"):
+		case opts.root != "" && configFreeService(opts.service):
 			u.fail("--root only applies to services that read the KB config (--service %s does not).", opts.service)
 			return 1
 		}
@@ -394,7 +403,7 @@ func Start(args []string) int {
 	// roles need the config to know their OBLIGATION (provided / external /
 	// host-process / absent), so they need the KB root too. browser (absent
 	// from the config) and traces (launcher-owned) keep the no-clone freedom.
-	configNeeded := opts.service == "" || (opts.service != "browser" && opts.service != "traces")
+	configNeeded := opts.service == "" || !configFreeService(opts.service)
 	rootNeeded := configNeeded
 	root := ""
 	if rootNeeded {
@@ -695,10 +704,56 @@ func image(svc, version string) string {
 	return fmt.Sprintf("%s/semiont-%s:%s", imageRegistry, svc, version)
 }
 
+// collectorConfig: the OTel Collector's config — launcher-owned, not the
+// KB's (LOCAL-METRICS D4). `traces` says whether Jaeger is running: without
+// it the traces pipeline ends in `nop`, so services export identically and
+// the collector accepts and discards. Every component here is in the CORE
+// collector image (`components` on 0.137.0); contrib is not needed.
+func collectorConfig(addr string, traces bool) string {
+	tracesExporter := "nop"
+	tracesNote := "  # No Jaeger this run: traces are accepted and discarded.\n  nop: {}"
+	if traces {
+		tracesExporter = "otlphttp/jaeger"
+		tracesNote = fmt.Sprintf(`  # Traces → Jaeger (its OTLP ingest is on 14318; the collector owns 4318).
+  otlphttp/jaeger:
+    endpoint: http://%s:14318`, addr)
+	}
+	return fmt.Sprintf(`receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+%s
+  # Metrics readout: curl :8889/metrics (no storage runs).
+  prometheus:
+    endpoint: 0.0.0.0:8889
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [%s]
+    metrics:
+      receivers: [otlp]
+      exporters: [prometheus]
+`, tracesNote, tracesExporter)
+}
+
+func collectorArgs(stage string) []string {
+	return []string{"run", "-d", "--name", "semiont-otel-collector", // no --rm: see providedRunArgs
+		"--memory", roles["collector"].mem,
+		"-p", "4318:4318", "-p", "8889:8889",
+		"--volume", stage + "/collector.yaml:/etc/otelcol/config.yaml:ro",
+		"otel/opentelemetry-collector:0.137.0"}
+}
+
 func tracesArgs() []string {
 	return []string{"run", "-d", "--name", "semiont-jaeger", // no --rm: see providedRunArgs
 		"--memory", roles["traces"].mem,
-		"-p", "16686:16686", "-p", "4318:4318", "jaegertracing/all-in-one:1.76.0"}
+		// 14318: the collector owns 4318 and exports traces here.
+		"-p", "16686:16686", "-p", "14318:4318", "jaegertracing/all-in-one:1.76.0"}
 }
 
 // gatewayArgs: the gateway takes the four dependency hosts but must NOT
@@ -926,6 +981,7 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	if opts.observe {
 		fmt.Println("  Jaeger UI          http://localhost:16686")
 	}
+	fmt.Println("  Metrics            http://localhost:8889/metrics")
 	fmt.Println()
 	fmt.Printf("  Add a user:    %s\n", u.bold("semiont useradd --email <email> --admin"))
 	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))

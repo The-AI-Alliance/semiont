@@ -2,6 +2,8 @@
 # execute, in order. Values known only at runtime appear as <placeholders>.
 # probe: container run --rm busybox:1.38.0 sh -c "ip route | awk '/default/{print $3}'" → <host-addr>
 # snapshot container logs into <state-root>/logs/<timestamp>/ before removal
+container stop semiont-otel-collector
+container rm semiont-otel-collector
 container stop semiont-jaeger
 container rm semiont-jaeger
 container stop semiont-neo4j
@@ -23,15 +25,18 @@ container rm semiont-archivist
 container stop semiont-librarian
 container rm semiont-librarian
 # remove staged config copies: /tmp/semiont-config.*
-# require free ports: 7474 7687 6333 5432 4000 9090 9091 9092 9093 9094 16686 4318
+# require free ports: 7474 7687 6333 5432 4000 9090 9091 9092 9093 9094 4318 8889 16686 14318
 # stage per-service config copies under <config-stage>: gateway.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml
+# write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)
 # append [environments.local.archivist] host/port (launcher-staged topology) to gateway.toml
 # append [environments.local.archivist] host/port (launcher-staged topology) to worker.toml
 # append [environments.local.archivist] host/port (launcher-staged topology) to smelter.toml
 # append [environments.local.archivist] host/port (launcher-staged topology) to librarian.toml
 # SEMIONT_VERSION=local — using locally-built :local images (no pull)
-container run -d --name semiont-jaeger --memory 1G -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:1.76.0
+container run -d --name semiont-jaeger --memory 1G -p 16686:16686 -p 14318:4318 jaegertracing/all-in-one:1.76.0
 # wait: http://localhost:16686 (30s)
+container run -d --name semiont-otel-collector --memory 1G -p 4318:4318 -p 8889:8889 --volume <config-stage>/collector.yaml:/etc/otelcol/config.yaml:ro otel/opentelemetry-collector:0.137.0
+# wait: http://localhost:8889/metrics (30s)
 # database state: <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres (created if absent; reused across restarts)
 container run -d --name semiont-postgres --memory 1G -p 5432:5432 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
 # wait: tcp localhost:5432 (20s)
