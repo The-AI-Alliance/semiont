@@ -471,6 +471,9 @@ const (
 	// payload: JobFailCommand
 	JobFail Channel = "job:fail"
 
+	// payload: JobCheckpointCommand
+	JobCheckpoint Channel = "job:checkpoint"
+
 	// payload: JobQueuedEvent
 	JobQueued Channel = "job:queued"
 
@@ -660,6 +663,7 @@ var ChannelSchemas = map[Channel]string{
 	JobReportProgress:                     "JobReportProgressCommand",
 	JobComplete:                           "JobCompleteCommand",
 	JobFail:                               "JobFailCommand",
+	JobCheckpoint:                         "JobCheckpointCommand",
 	JobQueued:                             "JobQueuedEvent",
 	JobCancelRequested:                    "JobCancelRequest",
 	JobStatusRequested:                    "JobStatusRequest",

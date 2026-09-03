@@ -1118,10 +1118,22 @@ describe('reference-annotation — checkpointed resume', () => {
 
     await handleJob(h.adapter, makeConfig(h.session), makeJob('reference-annotation', { entityTypes: ['Person', 'Date', 'Location'] }));
 
-    // Exactly the callback's emissions — one per annotation, in unit order,
-    // and nothing re-emitted after the processor returns.
+    // Exactly the callback's emissions, in unit order: each unit's
+    // mark:create(s) followed by a durable job:checkpoint (JOB-RESTART-SAFETY
+    // P2) — Date emits a checkpoint even with no annotations (an empty unit
+    // is still complete) — and nothing re-emitted after the processor returns.
     expect(h.busEmits.map(e => e.channel))
-      .toEqual(['job:start', 'mark:create', 'mark:create', 'mark:create', 'job:complete']);
+      .toEqual([
+        'job:start',
+        'mark:create', 'job:checkpoint',   // Person
+        'job:checkpoint',                   // Date (no annotations)
+        'mark:create', 'mark:create', 'job:checkpoint', // Location
+        'job:complete',
+      ]);
+    // Each checkpoint carries the cumulative completed-unit set, so recovery
+    // after a crash between any two units resumes from the right place.
+    expect(h.busEmits.filter(e => e.channel === 'job:checkpoint').map(e => (e.payload as { completedUnits: string[] }).completedUnits))
+      .toEqual([['Person'], ['Person', 'Date'], ['Person', 'Date', 'Location']]);
     expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
   });
 

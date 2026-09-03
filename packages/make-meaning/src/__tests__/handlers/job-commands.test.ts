@@ -53,6 +53,7 @@ interface MockJobQueue {
   updateJob: ReturnType<typeof vi.fn>;
   completeJob: ReturnType<typeof vi.fn>;
   failJob: ReturnType<typeof vi.fn>;
+  checkpointUnits: ReturnType<typeof vi.fn>;
   recordProgress: ReturnType<typeof vi.fn>;
   cancelPendingJobs: ReturnType<typeof vi.fn>;
 }
@@ -64,6 +65,7 @@ function makeJobQueue(): MockJobQueue {
     updateJob: vi.fn().mockResolvedValue(undefined),
     completeJob: vi.fn().mockResolvedValue(true),
     failJob: vi.fn().mockResolvedValue('failed'),
+    checkpointUnits: vi.fn().mockResolvedValue(undefined),
     recordProgress: vi.fn().mockResolvedValue(undefined),
     cancelPendingJobs: vi.fn().mockResolvedValue(0),
   };
@@ -547,6 +549,17 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
 
     await vi.waitFor(() => {
       expect(jobQueue.recordProgress).toHaveBeenCalledWith('job-p2', { percentage: 55 });
+    });
+  });
+
+  it('checkpoints completed units into the queue on job:checkpoint (JOB-RESTART-SAFETY P2)', async () => {
+    eventBus.get('job:checkpoint').next({
+      jobId: 'job-ckpt',
+      completedUnits: ['Person', 'Location'],
+    } as never);
+
+    await vi.waitFor(() => {
+      expect(jobQueue.checkpointUnits).toHaveBeenCalledWith('job-ckpt', ['Person', 'Location']);
     });
   });
 

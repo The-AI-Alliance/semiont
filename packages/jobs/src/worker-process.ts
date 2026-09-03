@@ -400,6 +400,16 @@ async function handleJobInner(
           await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
         }
         committed.push(unit);
+        // Durable checkpoint the moment the unit lands (JOB-RESTART-SAFETY
+        // P2): if this worker dies before the next unit — or before any
+        // job:fail — the janitor recovers a job that already records this
+        // unit, so the retry skips it. The in-memory `committed` still
+        // feeds the job:fail payload on a clean failure; this makes the
+        // crash path durable too.
+        await emitEvent(session, 'job:checkpoint', {
+          jobId: job.jobId,
+          completedUnits: [...committed],
+        });
       },
     );
     await emitEvent(session, 'job:complete', {

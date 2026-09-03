@@ -307,6 +307,31 @@ export class FsJobQueue implements JobQueue {
   }
 
   /**
+   * Persist a running job's completed-unit checkpoint at unit completion
+   * (JOB-RESTART-SAFETY P2). `failJob` writes this checkpoint on a clean
+   * failure, but a worker that dies without emitting `job:fail` would lose
+   * its finished units — so the janitor's recovery (which re-queues with
+   * whatever `metadata.completedUnits` the running file holds) would redo
+   * them. Writing it HERE, as each unit lands, makes a crash lose at most
+   * the in-flight unit. Unioned with any existing checkpoint, unthrottled
+   * (a unit completion is rare and must never be dropped), a no-op for
+   * non-running jobs. Written directly, like `recordProgress`, so it also
+   * refreshes the mtime heartbeat.
+   */
+  async checkpointUnits(jobId: JobId, completedUnits: string[]): Promise<void> {
+    const job = await this.getJob(jobId);
+    if (!job || job.status !== 'running') {
+      return;
+    }
+    const merged = [...new Set([...(job.metadata.completedUnits ?? []), ...completedUnits])];
+    const updated: RunningJob<any, any> = {
+      ...job,
+      metadata: { ...job.metadata, completedUnits: merged },
+    };
+    await fs.writeFile(this.getJobPath(jobId, 'running'), JSON.stringify(updated, null, 2), 'utf-8');
+  }
+
+  /**
    * Write progress into a running job's file. Throttled per job, and
    * a no-op for jobs that aren't running. Beyond surfacing live
    * progress to `job:status-requested`, each write refreshes the

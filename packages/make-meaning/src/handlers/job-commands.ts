@@ -253,6 +253,22 @@ export function registerJobCommandHandlers(
     }
   });
 
+  // Durable checkpoint at unit completion (JOB-RESTART-SAFETY P2): persist the
+  // finished units into the running job's metadata now, so a worker that dies
+  // without emitting job:fail still leaves them for the janitor's recovery to
+  // resume from. failJob carries the same checkpoint on a CLEAN failure; this
+  // covers the crash path failJob never sees.
+  eventBus.get('job:checkpoint').subscribe(async (event) => {
+    try {
+      await jobQueue.checkpointUnits(jobId(event.jobId), event.completedUnits);
+    } catch (error) {
+      logger.error('Failed to checkpoint job units', {
+        jobId: event.jobId,
+        error: (error as Error).message,
+      });
+    }
+  });
+
   eventBus.get('job:cancel-requested').subscribe(async (event) => {
     try {
       const cancelled = await jobQueue.cancelPendingJobs(event.jobType);

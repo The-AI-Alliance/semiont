@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "description": "Command to persist a running job's completed-unit checkpoint AT unit completion (JOB-RESTART-SAFETY P2). Distinct from JobFailCommand's checkpoint, which lands only on a clean failure: a worker that dies (crash/OOM/kill) never emits job:fail, so this durable, unthrottled write is what lets the janitor's stale-running recovery resume a dead worker's job rather than redo its finished units.",
+  "properties": {
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    },
+    "jobId": {
+      "type": "string"
+    },
+    "completedUnits": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Entity-type units whose annotations have been fully emitted so far. Unioned into the running job's metadata checkpoint; a retry after recovery skips them."
+    }
+  },
+  "required": [
+    "jobId",
+    "completedUnits"
+  ]
+}

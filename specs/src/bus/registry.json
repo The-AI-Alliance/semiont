@@ -157,6 +157,7 @@
       "job:report-progress",
       "job:complete",
       "job:fail",
+      "job:checkpoint",
       "job:queued",
       "job:cancel-requested",
       "job:status-requested",
@@ -344,6 +345,7 @@
       "job:report-progress",
       "job:complete",
       "job:fail",
+      "job:checkpoint",
       "job:queued",
       "job:cancel-requested",
       "job:status-requested",
@@ -2875,6 +2877,21 @@
       "schema": "JobFailCommand",
       "validate": "JobFailCommand",
       "ts": "components['schemas']['JobFailCommand']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:checkpoint",
+      "shape": "schema",
+      "schema": "JobCheckpointCommand",
+      "validate": "JobCheckpointCommand",
+      "ts": "components['schemas']['JobCheckpointCommand']",
       "docs": {
         "lead": [],
         "trailing": ""

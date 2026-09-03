@@ -780,6 +780,50 @@ describe('JobQueue', () => {
     });
   });
 
+  describe('checkpointUnits() — durable resume without a job:fail (JOB-RESTART-SAFETY P2)', () => {
+    test('a checkpoint written at unit completion survives a worker death into janitor recovery', async () => {
+      // The worker completes unit 1 and checkpoints it, then DIES without
+      // ever emitting job:fail (crash / OOM / kill). Today completedUnits
+      // rides only the job:fail event, so this checkpoint would be lost and
+      // the retry would redo unit 1. The janitor's stale-running recovery
+      // must re-queue the job STILL carrying the checkpoint.
+      await jobQueue.createJob(createRunningDetectionJob('job-ckpt'));
+      await jobQueue.checkpointUnits(jobId('job-ckpt'), ['Person']);
+
+      // The running file itself carries it — the crash-durable state, on disk
+      // before any failure event.
+      const running = await jobQueue.getJob(jobId('job-ckpt'));
+      expect(running?.metadata.completedUnits).toEqual(['Person']);
+
+      // Worker died > stale window ago; no job:fail was sent.
+      const filePath = path.join(project.jobsDir, 'running', 'job-ckpt.json');
+      const past = new Date(Date.now() - 31 * 60_000);
+      await fs.utimes(filePath, past, past);
+
+      expect(await jobQueue.recoverStaleRunningJobs()).toBe(1);
+      const requeued = await jobQueue.getJob(jobId('job-ckpt'));
+      expect(requeued?.status).toBe('pending');
+      expect(requeued?.metadata.completedUnits).toEqual(['Person']);
+    });
+
+    test('unions successive checkpoints, never dropping earlier units', async () => {
+      await jobQueue.createJob(createRunningDetectionJob('job-ckpt2'));
+      await jobQueue.checkpointUnits(jobId('job-ckpt2'), ['Person']);
+      await jobQueue.checkpointUnits(jobId('job-ckpt2'), ['Location']);
+
+      const j = await jobQueue.getJob(jobId('job-ckpt2'));
+      expect(new Set(j?.metadata.completedUnits)).toEqual(new Set(['Person', 'Location']));
+    });
+
+    test('is a no-op for a job that is not running', async () => {
+      await jobQueue.createJob(createPendingDetectionJob('job-ckpt3'));
+      await jobQueue.checkpointUnits(jobId('job-ckpt3'), ['Person']);
+
+      const j = await jobQueue.getJob(jobId('job-ckpt3'));
+      expect(j?.metadata.completedUnits).toBeUndefined();
+    });
+  });
+
   describe('persistence across process restart (JOB-RESTART-SAFETY P1)', () => {
     // Job state lives on disk, so a job outlives the process that created it:
     // a SECOND queue instance over the SAME directory recovers a job the first

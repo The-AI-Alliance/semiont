@@ -474,6 +474,9 @@
       "JobFailCommand": {
         "$ref": "components/schemas/JobFailCommand.json"
       },
+      "JobCheckpointCommand": {
+        "$ref": "components/schemas/JobCheckpointCommand.json"
+      },
       "JobDeclinedResult": {
         "$ref": "components/schemas/JobDeclinedResult.json"
       },

@@ -397,6 +397,7 @@ export type EventMap = {
   'job:report-progress': components['schemas']['JobReportProgressCommand'];
   'job:complete': components['schemas']['JobCompleteCommand'];
   'job:fail': components['schemas']['JobFailCommand'];
+  'job:checkpoint': components['schemas']['JobCheckpointCommand'];
   'job:queued': components['schemas']['JobQueuedEvent'];
   'job:cancel-requested': components['schemas']['JobCancelRequest'];
   'job:status-requested': components['schemas']['JobStatusRequest'];
@@ -738,6 +739,7 @@ export const CHANNEL_SCHEMAS = {
   'job:report-progress':              'JobReportProgressCommand',
   'job:complete':                     'JobCompleteCommand',
   'job:fail':                         'JobFailCommand',
+  'job:checkpoint':                   'JobCheckpointCommand',
   'job:queued':                       'JobQueuedEvent',
   'job:cancel-requested':             'JobCancelRequest',
   'job:status-requested':             'JobStatusRequest',
