@@ -780,6 +780,37 @@ describe('JobQueue', () => {
     });
   });
 
+  describe('persistence across process restart (JOB-RESTART-SAFETY P1)', () => {
+    // Job state lives on disk, so a job outlives the process that created it:
+    // a SECOND queue instance over the SAME directory recovers a job the first
+    // left running. In production `jobsDir` rides a launcher-mounted host
+    // volume (asserted by the launcher's mount census), so "second instance"
+    // is a restarted gateway container — this pins that the recovery logic
+    // holds no in-memory handoff a restart would drop.
+    test("a fresh queue over the same dir recovers the previous instance's orphaned running job", async () => {
+      const dead = new JobQueue(project, mockLogger, new EventBus());
+      await dead.initialize();
+      await dead.createJob(createRunningDetectionJob('job-across-restart'));
+      dead.destroy();
+
+      // The worker died > STALE_RUNNING_MS ago: age the running file's mtime
+      // (the janitor's liveness heartbeat) past the stale window.
+      const runningPath = path.join(project.jobsDir, 'running', 'job-across-restart.json');
+      const past = new Date(Date.now() - 31 * 60_000);
+      await fs.utimes(runningPath, past, past);
+
+      // A brand-new instance — no shared state with `dead` beyond the directory.
+      const reborn = new JobQueue(project, mockLogger, new EventBus());
+      const recovered = await reborn.recoverStaleRunningJobs();
+      reborn.destroy();
+
+      expect(recovered).toBe(1);
+      const requeued = await reborn.getJob(jobId('job-across-restart'));
+      expect(requeued?.status).toBe('pending');
+      expect(requeued?.metadata.retryCount).toBe(1);
+    });
+  });
+
   describe('failJob checkpoint (ABANDONED-INFERENCE P2, A3 iv)', () => {
     test('records completedUnits on the retried job — the checkpoint survives the rebuild', async () => {
       await jobQueue.createJob(createRunningDetectionJob('job-ckpt'));
