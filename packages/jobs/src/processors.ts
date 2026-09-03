@@ -490,6 +490,7 @@ export async function processReferenceJob(
   onProgress: OnProgress,
   logger: Logger,
   onUnitComplete: (entityType: string, annotations: Annotation[]) => Promise<void>,
+  signal?: AbortSignal,
 ): Promise<{ result: DetectionResult }> {
   const entityTypeNames = params.entityTypes.map(String);
   const requestParams = [{ label: 'entity-types' as const, value: entityTypeNames.join(', ') }];
@@ -503,6 +504,12 @@ export async function processReferenceJob(
   const bodyLanguage = params.language ?? 'en';
 
   for (let i = 0; i < entityTypeNames.length; i++) {
+    // Cooperative cancellation at the unit boundary (JOB-RESTART-SAFETY P4):
+    // a cancel requested mid-run stops the loop cleanly here, between units.
+    // Units already committed stay checkpointed; the in-flight unit is never
+    // started. The caller reads `signal.aborted` to move the job to
+    // cancelled/ rather than complete/.
+    if (signal?.aborted) break;
     const entityTypeName = entityTypeNames[i];
     if (!entityTypeName) continue;
     const pct = 20 + Math.round((i / entityTypeNames.length) * 60);

@@ -108,7 +108,9 @@ function makeFakeSessionAndAdapter() {
       transport: {
         emit: transportEmit,
         // `startWorkerProcess` reads `transport.actor` to attach the job-claim
-        // adapter; test needs a minimal ActorStateUnit-shaped stand-in.
+        // adapter, and `transport.on` to subscribe the cancel signal
+        // (JOB-RESTART-SAFETY P4); test needs minimal stand-ins for both.
+        on: vi.fn(() => () => {}),
         actor: {
           on$: vi.fn(() => ({ subscribe: () => ({ unsubscribe: () => {} }) })),
           emit: transportEmit,
@@ -1134,6 +1136,39 @@ describe('reference-annotation — checkpointed resume', () => {
     // after a crash between any two units resumes from the right place.
     expect(h.busEmits.filter(e => e.channel === 'job:checkpoint').map(e => (e.payload as { completedUnits: string[] }).completedUnits))
       .toEqual([['Person'], ['Person', 'Date'], ['Person', 'Date', 'Location']]);
+    expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
+  });
+
+  it('cancellation stops at a unit boundary: emits job:cancel with the checkpoint, not job:complete (JOB-RESTART-SAFETY P4)', async () => {
+    // The signal is aborted (a cancel was requested for this job). The real
+    // processReferenceJob breaks its loop at the next unit boundary; the mock
+    // commits one unit and returns. handleJobInner must then announce
+    // job:cancel — carrying the committed unit — instead of job:complete, so
+    // the queue moves the still-running job to cancelled/ rather than mark it
+    // done, and never fails it.
+    vi.mocked(processReferenceJob).mockImplementation(
+      async (_content, _client, _params, _build, _progress, _logger, onUnitComplete) => {
+        await onUnitComplete('Person', [{ id: 'r1' }] as never);
+        return { result: { kind: 'reference-annotation', totalFound: 1, totalEmitted: 1, errors: 0 } as never };
+      },
+    );
+    const h = makeFakeSessionAndAdapter();
+    const controller = new AbortController();
+    controller.abort();
+
+    await handleJob(
+      h.adapter,
+      makeConfig(h.session),
+      makeJob('reference-annotation', { entityTypes: ['Person', 'Location'] }),
+      new Map(),
+      controller.signal,
+    );
+
+    const channels = h.busEmits.map(e => e.channel);
+    expect(channels).toContain('job:cancel');
+    expect(channels).not.toContain('job:complete');
+    const cancel = h.busEmits.find(e => e.channel === 'job:cancel');
+    expect((cancel!.payload as { completedUnits: string[] }).completedUnits).toEqual(['Person']);
     expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
   });
 

@@ -160,6 +160,7 @@
       "job:checkpoint",
       "job:queued",
       "job:cancel-requested",
+      "job:cancel",
       "job:status-requested",
       "job:create",
       "job:claim",
@@ -348,6 +349,7 @@
       "job:checkpoint",
       "job:queued",
       "job:cancel-requested",
+      "job:cancel",
       "job:status-requested",
       "job:create",
       "job:claim",
@@ -2922,6 +2924,21 @@
       "schema": "JobCancelRequest",
       "validate": "JobCancelRequest",
       "ts": "components['schemas']['JobCancelRequest']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:cancel",
+      "shape": "schema",
+      "schema": "JobCancelCommand",
+      "validate": "JobCancelCommand",
+      "ts": "components['schemas']['JobCancelCommand']",
       "docs": {
         "lead": [],
         "trailing": ""

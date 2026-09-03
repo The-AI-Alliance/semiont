@@ -56,6 +56,7 @@ interface MockJobQueue {
   checkpointUnits: ReturnType<typeof vi.fn>;
   recordProgress: ReturnType<typeof vi.fn>;
   cancelPendingJobs: ReturnType<typeof vi.fn>;
+  cancelJob: ReturnType<typeof vi.fn>;
 }
 
 function makeJobQueue(): MockJobQueue {
@@ -68,6 +69,7 @@ function makeJobQueue(): MockJobQueue {
     checkpointUnits: vi.fn().mockResolvedValue(undefined),
     recordProgress: vi.fn().mockResolvedValue(undefined),
     cancelPendingJobs: vi.fn().mockResolvedValue(0),
+    cancelJob: vi.fn().mockResolvedValue(true),
   };
 }
 
@@ -568,6 +570,40 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
 
     await vi.waitFor(() => {
       expect(jobQueue.cancelPendingJobs).toHaveBeenCalledWith('annotation');
+    });
+  });
+
+  it('cancels a PENDING job immediately when job:cancel-requested targets a jobId (JOB-RESTART-SAFETY P4)', async () => {
+    jobQueue.getJob.mockResolvedValueOnce({ status: 'pending', metadata: { id: 'job-x' } });
+    eventBus.get('job:cancel-requested').next({ jobId: 'job-x' } as never);
+
+    await vi.waitFor(() => {
+      expect(jobQueue.cancelJob).toHaveBeenCalledWith('job-x');
+    });
+  });
+
+  it('does NOT cancel a RUNNING job queue-side on job:cancel-requested — the worker stops it cooperatively (P4)', async () => {
+    jobQueue.getJob.mockResolvedValueOnce({ status: 'running', metadata: { id: 'job-r' } });
+    eventBus.get('job:cancel-requested').next({ jobId: 'job-r' } as never);
+
+    // getJob is consulted, but cancelJob is NOT called — yanking a running job
+    // out from under its live worker is the roach-motel race this avoids.
+    await vi.waitFor(() => {
+      expect(jobQueue.getJob).toHaveBeenCalledWith('job-r');
+    });
+    expect(jobQueue.cancelJob).not.toHaveBeenCalled();
+  });
+
+  it('moves a job to cancelled/ on job:cancel — the worker\'s cooperative-stop confirmation (P4)', async () => {
+    eventBus.get('job:cancel').next({
+      resourceId: 'rid-1',
+      jobId: 'job-r',
+      jobType: 'reference-annotation',
+      completedUnits: ['Person'],
+    } as never);
+
+    await vi.waitFor(() => {
+      expect(jobQueue.cancelJob).toHaveBeenCalledWith('job-r');
     });
   });
 

@@ -480,6 +480,9 @@ const (
 	// payload: JobCancelRequest
 	JobCancelRequested Channel = "job:cancel-requested"
 
+	// payload: JobCancelCommand
+	JobCancel Channel = "job:cancel"
+
 	// payload: JobStatusRequest
 	JobStatusRequested Channel = "job:status-requested"
 
@@ -666,6 +669,7 @@ var ChannelSchemas = map[Channel]string{
 	JobCheckpoint:                         "JobCheckpointCommand",
 	JobQueued:                             "JobQueuedEvent",
 	JobCancelRequested:                    "JobCancelRequest",
+	JobCancel:                             "JobCancelCommand",
 	JobStatusRequested:                    "JobStatusRequest",
 	JobCreate:                             "JobCreateCommand",
 	JobClaim:                              "JobClaimCommand",

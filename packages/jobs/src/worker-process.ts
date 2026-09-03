@@ -150,10 +150,30 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
   // it); cleared on every terminal outcome.
   const completedUnitsByJob = new Map<string, string[]>();
 
+  // Cooperative cancellation (JOB-RESTART-SAFETY P4): a job:cancel-requested
+  // targeting the ACTIVE job aborts its signal; the reference loop stops at
+  // its next unit boundary and the job moves to cancelled/ carrying its
+  // checkpoint — no worker kill. The worker processes one job at a time (the
+  // adapter's isProcessing gate), so a single controller keyed by jobId is
+  // enough. A pending job's cancel is handled gateway-side; a running
+  // job's must be cooperative, or it would be yanked out from under a live
+  // worker (the roach-motel race).
+  let activeCancel: { jobId: string; controller: AbortController } | null = null;
+  httpTransport.actor.addChannels?.(['job:cancel-requested']);
+  httpTransport.on('job:cancel-requested', (event) => {
+    const targetId = (event as { jobId?: string }).jobId;
+    if (targetId && activeCancel?.jobId === targetId) {
+      logger.info('Cancel requested for active job — stopping at next unit boundary', { jobId: targetId });
+      activeCancel.controller.abort();
+    }
+  });
+
   adapter.activeJob$.subscribe((job) => {
     if (!job) return;
     logger.info('Processing job', { jobId: job.jobId, type: job.type, resourceId: job.resourceId });
-    handleJob(adapter, config, job, completedUnitsByJob)
+    const controller = new AbortController();
+    activeCancel = { jobId: job.jobId, controller };
+    handleJob(adapter, config, job, completedUnitsByJob, controller.signal)
       .then(() => {
         completedUnitsByJob.delete(job.jobId);
       })
@@ -178,6 +198,9 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
           }).catch(() => {});
         }
         adapter.failJob(job.jobId, message);
+      })
+      .finally(() => {
+        if (activeCancel?.jobId === job.jobId) activeCancel = null;
       });
   });
 
@@ -197,13 +220,18 @@ export async function handleJob(
   // (checkpointed resume); standalone callers may omit it — a fresh map
   // changes no behavior, only discards the checkpoint on return.
   completedUnitsByJob: Map<string, string[]> = new Map(),
+  // Cancellation signal (JOB-RESTART-SAFETY P4): aborted when a
+  // job:cancel-requested targets this job; the reference loop stops at its
+  // next unit boundary and the job moves to cancelled/. Standalone callers
+  // omit it — an undefined signal never aborts.
+  signal?: AbortSignal,
 ): Promise<void> {
   const start = performance.now();
   let outcome: 'completed' | 'failed' = 'completed';
   try {
     return await withSpan(
       `job:${job.type}`,
-      () => handleJobInner(adapter, config, job, completedUnitsByJob),
+      () => handleJobInner(adapter, config, job, completedUnitsByJob, signal),
       {
         kind: SpanKind.CONSUMER,
         attrs: {
@@ -226,6 +254,7 @@ async function handleJobInner(
   config: WorkerProcessConfig,
   job: ActiveJob,
   completedUnitsByJob: Map<string, string[]>,
+  signal?: AbortSignal,
 ): Promise<void> {
   const { session, inferenceClient, generator } = config;
   const { userId, jobId } = job;
@@ -411,7 +440,22 @@ async function handleJobInner(
           completedUnits: [...committed],
         });
       },
+      signal,
     );
+    // Cooperative cancellation (JOB-RESTART-SAFETY P4): the loop stopped
+    // because a cancel was requested for this job. Announce it so the queue
+    // moves the (still-running) job to cancelled/ — never yanked out from
+    // under this worker — carrying the units it did finish (already
+    // checkpointed above). completeJob releases the claim; a cancel is a
+    // clean terminal, not a failure.
+    if (signal?.aborted) {
+      await emitEvent(session, 'job:cancel', {
+        ...lifecycleBase,
+        ...(committed.length > 0 ? { completedUnits: [...committed] } : {}),
+      });
+      adapter.completeJob();
+      return;
+    }
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result,

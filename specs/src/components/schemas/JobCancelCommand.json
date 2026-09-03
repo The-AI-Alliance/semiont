@@ -1,0 +1,35 @@
+{
+  "type": "object",
+  "description": "A worker's confirmation that it has cooperatively stopped a running job at a unit boundary (JOB-RESTART-SAFETY P4) — the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client→worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).",
+  "properties": {
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    },
+    "resourceId": {
+      "type": "string"
+    },
+    "jobId": {
+      "type": "string"
+    },
+    "jobType": {
+      "$ref": "./JobType.json"
+    },
+    "annotationId": {
+      "type": "string",
+      "description": "Annotation this job is attached to, when applicable. Lets the UI route cancellation feedback to a specific annotation."
+    },
+    "completedUnits": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Entity-type units whose annotations were fully emitted before cancellation. Recorded on the cancelled job's metadata so the work already done stays visible."
+    }
+  },
+  "required": [
+    "resourceId",
+    "jobId",
+    "jobType"
+  ]
+}

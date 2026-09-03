@@ -400,6 +400,7 @@ export type EventMap = {
   'job:checkpoint': components['schemas']['JobCheckpointCommand'];
   'job:queued': components['schemas']['JobQueuedEvent'];
   'job:cancel-requested': components['schemas']['JobCancelRequest'];
+  'job:cancel': components['schemas']['JobCancelCommand'];
   'job:status-requested': components['schemas']['JobStatusRequest'];
   'job:create': components['schemas']['JobCreateCommand'];
   'job:claim': components['schemas']['JobClaimCommand'];
@@ -742,6 +743,7 @@ export const CHANNEL_SCHEMAS = {
   'job:checkpoint':                   'JobCheckpointCommand',
   'job:queued':                       'JobQueuedEvent',
   'job:cancel-requested':             'JobCancelRequest',
+  'job:cancel':                       'JobCancelCommand',
   'job:status-requested':             'JobStatusRequest',
   'job:create':                       'JobCreateCommand',
   'job:claim':                        'JobClaimCommand',
