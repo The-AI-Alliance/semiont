@@ -19,7 +19,7 @@ import { anchoredTextOverBus } from './anchored-text-over-bus';
 import type { InferenceClient } from '@semiont/inference';
 import { hostname } from 'os';
 import {
-  BUS_OPERATIONS,
+  replyChannelsFor,
   didToAgent,
   baseUrl,
   retryWithBackoff,
@@ -193,12 +193,7 @@ export const WORKER_AWAITED_OPERATIONS = [
 ] as const satisfies readonly BusOperationKey[];
 
 /** The derived global SSE channel set for a worker's transport. */
-export const WORKER_CHANNELS: readonly string[] = WORKER_AWAITED_OPERATIONS.flatMap((op) => {
-  const spec: { result: string; failure: string; progress?: string } = BUS_OPERATIONS[op];
-  return spec.progress !== undefined
-    ? [spec.result, spec.failure, spec.progress]
-    : [spec.result, spec.failure];
-});
+export const WORKER_CHANNELS: readonly string[] = replyChannelsFor(WORKER_AWAITED_OPERATIONS);
 
 export function parseGatewayUrl(url: string): { protocol: 'http' | 'https'; host: string; port: number } {
   const parsed = new URL(url);

@@ -38,6 +38,30 @@ export class BusRequestError extends SemiontError {
 }
 
 /**
+ * The reply channels — result, failure, and (for streaming operations)
+ * progress — of every operation in `channels`, deduplicated. Entries that
+ * are not operation request channels (broadcast signals, domain events)
+ * contribute nothing.
+ *
+ * This is THE derivation for a narrowed-subscription transport profile
+ * (`HttpTransportConfig.channels`: subscribe exactly the reply channels of
+ * the operations a process awaits) and for a service's outbound reply pump
+ * (forward exactly the replies of the operations it answers). Restating a
+ * reply channel by hand was the recurring unbridged-reply bug class.
+ */
+export function replyChannelsFor(channels: readonly string[]): EventName[] {
+  const out = new Set<EventName>();
+  for (const ch of channels) {
+    const op = BUS_OPERATIONS[ch as BusOperationKey];
+    if (!op) continue;
+    out.add(op.result);
+    out.add(op.failure);
+    if ('progress' in op && op.progress) out.add(op.progress);
+  }
+  return [...out];
+}
+
+/**
  * Subset of ITransport that `busRequest` needs: a way to send a command and
  * a way to observe channels. Generic enough that an in-process transport
  * can satisfy it without round-tripping through HTTP.

@@ -20,15 +20,17 @@
  * SSE, so the graph grace and the settle barrier work unchanged. This
  * process appends nothing, serves no bytes, and owns no store.
  *
- * Bus wiring is two disjoint pumps on the archivist-main pattern:
- *   in  — MATCHER_CHANNELS + GATHERER_CHANNELS (each pinned to its actor's
- *         real subscriptions by a census gate) + `gather:summary-requested`
- *         (the handler's channel) + the two progress signals; SSE frames
- *         are pushed onto the local bus.
- *   out — every reply channel DERIVED from BUS_OPERATIONS over the inbound
- *         set. No strays: every operation here is keyed under its own
- *         request channel, and the progress signals have no operations so
- *         nothing echoes.
+ * Bus wiring is two disjoint pumps on the archivist-main pattern; both
+ * rosters live in `service-channels.ts`:
+ *   in  — LIBRARIAN_INBOUND_CHANNELS (the actor rosters, each pinned to its
+ *         actor's real subscriptions by a census gate, plus the handler's
+ *         channel and the two progress signals), which is also the
+ *         transport's whole SSE subscription — never the full bridged set;
+ *         SSE frames are pushed onto the local bus.
+ *   out — LIBRARIAN_OUTBOUND_CHANNELS: every reply channel DERIVED from
+ *         BUS_OPERATIONS over the inbound set. No strays: every operation
+ *         here is keyed under its own request channel, and the progress
+ *         signals have no operations so nothing echoes.
  *
  * No fact pump (nothing here persists events), no second HTTP route
  * (nothing dials the Librarian — it dials the gateway), and no view
@@ -50,22 +52,21 @@ import { HttpTransport } from '@semiont/http-transport';
 import { archivistContentReads } from '@semiont/content';
 import {
   EventBus,
-  BUS_OPERATIONS,
   baseUrl as makeBaseUrl,
   accessToken as makeAccessToken,
   retryWithBackoff,
   isTransientFetchError,
   STARTUP_FETCH_RETRY,
   type AccessToken,
-  type EventMap,
 } from '@semiont/core';
 import { loadEnvironmentConfig, SemiontState } from '@semiont/core/node';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { getGraphDatabase } from '@semiont/graph';
 import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
 import { createInferenceClient } from '@semiont/inference';
-import { Matcher, MATCHER_CHANNELS } from './matcher';
-import { Gatherer, GATHERER_CHANNELS } from './gatherer';
+import { Matcher } from './matcher';
+import { Gatherer } from './gatherer';
+import { LIBRARIAN_INBOUND_CHANNELS, LIBRARIAN_OUTBOUND_CHANNELS } from './service-channels';
 import { createWeaveProgress } from './weave-progress';
 import { createSmeltProgress } from './smelt-progress';
 import { registerGatherSummaryHandler } from './handlers/annotation-lookups';
@@ -115,35 +116,6 @@ const healthPort = 9094;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
 const logger = createProcessLogger('librarian');
-
-// ── Bus roster ───────────────────────────────────────────────────────
-
-/**
- * The actors' rosters, the gather-summary handler's channel, and the two
- * progress SIGNALS the local folds consume (`weave:applied` for the graph
- * grace, `smelt:settled` for the settle barrier — the archivist-main
- * precedent). Signals have no BUS_OPERATIONS entries, so the outbound
- * derivation ignores them and nothing echoes.
- */
-const INBOUND_CHANNELS = [
-  ...MATCHER_CHANNELS,
-  ...GATHERER_CHANNELS,
-  'gather:summary-requested',
-  'weave:applied',
-  'smelt:settled',
-] as const satisfies readonly (keyof EventMap)[];
-
-function outboundChannels(): (keyof EventMap)[] {
-  const out = new Set<keyof EventMap>();
-  for (const ch of INBOUND_CHANNELS) {
-    const op = BUS_OPERATIONS[ch as keyof typeof BUS_OPERATIONS];
-    if (!op) continue;
-    out.add(op.result);
-    out.add(op.failure);
-    if ('progress' in op && op.progress) out.add(op.progress);
-  }
-  return [...out];
-}
 
 // ── Auth ─────────────────────────────────────────────────────────────
 
@@ -243,6 +215,11 @@ async function main() {
     baseUrl: makeBaseUrl(baseUrl),
     token$: tokenSubject,
     tokenRefresher: refreshToken,
+    // Exactly the inbound roster — never the full bridged set, whose global
+    // reply fan-out is the worker-OOM failure mode. This process awaits no
+    // wire replies (busRequest's isSubscribed gate fails fast if one is ever
+    // added without growing the roster), so inbound IS the subscription.
+    channels: LIBRARIAN_INBOUND_CHANNELS,
   });
   // Bytes from the Archivist, not the gateway (SINGLE-KB-MOUNT P4): the
   // gateway's content routes proxy onto this same call, so dialing it added
@@ -250,7 +227,7 @@ async function main() {
   // the path to it. Throws at boot if the address or worker secret is absent.
   const contentReads = archivistContentReads(config);
 
-  // The progress folds, fed by the signals INBOUND_CHANNELS pumps onto the
+  // The progress folds, fed by the signals LIBRARIAN_INBOUND_CHANNELS pumps onto the
   // local bus — the graph grace and the settle barrier work exactly as
   // in-process.
   const weaveProgress = createWeaveProgress(localBus);
@@ -283,8 +260,7 @@ async function main() {
   // ── Bus pumps ──────────────────────────────────────────────────────
   const pumps: Subscription[] = [];
 
-  httpTransport.actor.addChannels([...INBOUND_CHANNELS]);
-  for (const channel of INBOUND_CHANNELS) {
+  for (const channel of LIBRARIAN_INBOUND_CHANNELS) {
     pumps.push(
       httpTransport.stream(channel).subscribe((payload) => {
         localBus.get(channel).next(payload as never);
@@ -292,7 +268,7 @@ async function main() {
     );
   }
 
-  const outbound = outboundChannels();
+  const outbound = LIBRARIAN_OUTBOUND_CHANNELS;
   for (const channel of outbound) {
     pumps.push(
       localBus.get(channel).subscribe((payload) => {
@@ -306,7 +282,7 @@ async function main() {
     );
   }
 
-  logger.info('Bus pumps attached', { inbound: INBOUND_CHANNELS.length, outbound: outbound.length });
+  logger.info('Bus pumps attached', { inbound: LIBRARIAN_INBOUND_CHANNELS.length, outbound: outbound.length });
 
   // ── Health — listens only AFTER the pumps attach, so the launcher's
   // health gate proves the service is answering, not merely booted (the
@@ -342,7 +318,7 @@ async function main() {
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 
-  logger.info('Librarian serving', { channels: INBOUND_CHANNELS.length });
+  logger.info('Librarian serving', { channels: LIBRARIAN_INBOUND_CHANNELS.length });
 }
 
 main().catch((error) => {
