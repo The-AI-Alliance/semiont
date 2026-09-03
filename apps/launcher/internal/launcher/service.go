@@ -53,6 +53,10 @@ var roles = map[string]roleSpec{
 	// ingest sits behind it on 14318.
 	"traces":    {"Jaeger", "semiont-jaeger", []portNeed{{16686, "Jaeger UI"}, {14318, "Jaeger OTLP"}}, "1G"},
 	"collector": {"OTel", "semiont-otel-collector", []portNeed{{4318, "Collector OTLP"}, {24110, "Collector metrics"}}, "1G"},
+	// Prometheus keeps its product port (tier 2) — free since the worker
+	// moved to 24100. Ephemeral like Jaeger: observability data is
+	// disposable in a dev stack.
+	"metrics": {"Prometheus", "semiont-prometheus", []portNeed{{9090, "Prometheus UI"}}, "1G"},
 	// graph 2G: a JVM auto-sizing its heap from visible memory — the silent
 	// 1G VM default was the known-tight spot on Apple container.
 	"graph":   {"Neo4j", "semiont-neo4j", []portNeed{{7474, "Neo4j HTTP"}, {7687, "Neo4j Bolt"}}, "2G"},
@@ -77,7 +81,7 @@ var roles = map[string]roleSpec{
 	"browser": {"", "semiont-browser", nil, "1G"},
 }
 
-const roleList = "gateway, worker, smelter, weaver, archivist, librarian, browser, database, graph, vectors, inference, embedding, traces, or collector"
+const roleList = "gateway, worker, smelter, weaver, archivist, librarian, browser, database, graph, vectors, inference, embedding, traces, metrics, or collector"
 
 // roleByContainer inverts the roles table (container name → role).
 var roleByContainer = func() map[string]string {
@@ -264,6 +268,8 @@ func serviceEndpoint(svc string, plan *launchPlan) string {
 		return "http://localhost:16686"
 	case "collector":
 		return "http://localhost:24110/metrics"
+	case "metrics":
+		return "http://localhost:9090/-/healthy"
 	case "browser":
 		return "http://localhost:3000"
 	case "gateway":

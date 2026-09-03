@@ -23,6 +23,8 @@ container stop semiont-neo4j
 container rm semiont-neo4j
 container stop semiont-otel-collector
 container rm semiont-otel-collector
+container stop semiont-prometheus
+container rm semiont-prometheus
 container stop semiont-jaeger
 container rm semiont-jaeger
 docker stop semiont-archivist
@@ -47,6 +49,8 @@ docker stop semiont-neo4j
 docker rm semiont-neo4j
 docker stop semiont-otel-collector
 docker rm semiont-otel-collector
+docker stop semiont-prometheus
+docker rm semiont-prometheus
 docker stop semiont-jaeger
 docker rm semiont-jaeger
 podman stop semiont-archivist
@@ -71,6 +75,8 @@ podman stop semiont-neo4j
 podman rm semiont-neo4j
 podman stop semiont-otel-collector
 podman rm semiont-otel-collector
+podman stop semiont-prometheus
+podman rm semiont-prometheus
 podman stop semiont-jaeger
 podman rm semiont-jaeger
 # remove staged config copies: /tmp/semiont-config.*

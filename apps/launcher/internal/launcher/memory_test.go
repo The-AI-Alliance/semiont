@@ -48,9 +48,9 @@ func TestStartCeilingsGB(t *testing.T) {
 		"inference": {Driver: "ollama", Obligation: obligationProvided},
 	}}
 	full := startCeilingsGB(plan, startOptions{observe: true})
-	// + graph 2 + vectors 2 + database 1 + ollama 24 + traces 1
-	if full != 44 {
-		t.Fatalf("full ceilings = %vG, want 44G", full)
+	// + graph 2 + vectors 2 + database 1 + ollama 24 + traces 1 + metrics 1
+	if full != 45 {
+		t.Fatalf("full ceilings = %vG, want 45G", full)
 	}
 	// An external inference (anthropic) runs no Ollama container.
 	plan.Roles["inference"] = rolePlan{Driver: "anthropic", Obligation: obligationExternal}

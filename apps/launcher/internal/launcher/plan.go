@@ -330,8 +330,9 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 		// port is checked inside flowBrowser, and only when (re)starting.
 	)
 	if observe {
-		// --no-observe declines trace storage (Jaeger) only.
-		checks = append(checks, portNeed{16686, "Jaeger UI"}, portNeed{14318, "Jaeger OTLP"})
+		// --no-observe declines the observability BACKENDS (Jaeger, Prometheus).
+		checks = append(checks, portNeed{16686, "Jaeger UI"}, portNeed{14318, "Jaeger OTLP"},
+			portNeed{9090, "Prometheus UI"})
 	}
 	return checks
 }

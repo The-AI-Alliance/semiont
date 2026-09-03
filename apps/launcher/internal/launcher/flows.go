@@ -114,6 +114,21 @@ func flowFullStart(x executor, fc flowCtx) int {
 		}
 		x.say(sayOK, "traces — Jaeger UI on http://localhost:16686 %s", x.dim("("+took(d)+")"))
 		x.record("traces", id, args[len(args)-1], providedLauncher, "http://localhost:16686", "jaeger")
+
+		x.banner("Metrics (Prometheus)")
+		pargs := prometheusArgs(stage)
+		pid, pok := x.runDetached(pargs)
+		if !pok {
+			x.say(sayFail, "metrics (Prometheus) failed to start.")
+			return 1
+		}
+		pd, pok := x.waitHTTP("metrics (Prometheus)", "http://localhost:9090/-/healthy", 30)
+		if !pok {
+			x.dumpLogs(roles["metrics"].container, "metrics")
+			return 1
+		}
+		x.say(sayOK, "metrics — Prometheus on http://localhost:9090 %s", x.dim("("+took(pd)+")"))
+		x.record("metrics", pid, pargs[len(pargs)-1], providedLauncher, "http://localhost:9090/-/healthy", "")
 	}
 
 	// The collector always runs; --no-observe declines only trace storage
@@ -132,7 +147,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 		return 1
 	}
 	x.say(sayOK, "collector — OTLP on %s:4318, metrics on http://localhost:24110/metrics %s", addr, x.dim("("+took(cd)+")"))
-	x.record("collector", cid, cargs[len(cargs)-1], providedLauncher, "http://localhost:24110/metrics", "otel")
+	x.record("collector", cid, cargs[len(cargs)-1], providedLauncher, "http://localhost:24110/metrics", "")
 	otel := otelArgs(addr)
 
 	// Database, then Gateway, AHEAD of the stores the actors use. The gateway
@@ -708,7 +723,23 @@ func flowOneService(x executor, fc flowCtx) int {
 			x.dumpLogs(roles["collector"].container, "collector")
 			return 1
 		}
-		x.record(svc, id, args[len(args)-1], providedLauncher, serviceEndpoint(svc, fc.plan), "otel")
+		x.record(svc, id, args[len(args)-1], providedLauncher, serviceEndpoint(svc, fc.plan), "")
+	case "metrics":
+		mstage, ok := x.stageMetrics(addr)
+		if !ok {
+			return 1
+		}
+		args := prometheusArgs(mstage)
+		id, ok := x.runDetached(args)
+		if !ok {
+			x.say(sayFail, "metrics (Prometheus) failed to start.")
+			return 1
+		}
+		if d, ok = x.waitHTTP("metrics (Prometheus)", "http://localhost:9090/-/healthy", 30); !ok {
+			x.dumpLogs(roles["metrics"].container, "metrics")
+			return 1
+		}
+		x.record(svc, id, args[len(args)-1], providedLauncher, serviceEndpoint(svc, fc.plan), "")
 	case "traces":
 		args := tracesArgs()
 		id, ok := x.runDetached(args)

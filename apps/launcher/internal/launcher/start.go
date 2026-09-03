@@ -27,11 +27,11 @@ const (
 // configFreeService: services that read no KB config — --service <name>
 // needs neither a config nor a root.
 func configFreeService(svc string) bool {
-	return svc == "browser" || svc == "traces" || svc == "collector"
+	return svc == "browser" || svc == "traces" || svc == "metrics" || svc == "collector"
 }
 
 var preflightNames = []string{
-	"semiont-otel-collector", "semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-postgres",
+	"semiont-otel-collector", "semiont-prometheus", "semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-postgres",
 	"semiont-gateway", "semiont-worker", "semiont-smelter", "semiont-weaver",
 	"semiont-archivist", "semiont-librarian",
 }
@@ -75,7 +75,7 @@ Options:
   --service <name>      Start (restart) just this one service, leaving the rest
                         of the stack untouched: gateway, worker, smelter, weaver,
                         archivist, librarian, browser, database, graph, vectors,
-                        inference, traces, or collector.
+                        inference, traces, metrics, or collector.
                         Rejoins a running stack's worker secret automatically;
                         OTel export is enabled iff the collector is up.
   --port <n>            Browser port (--service browser only; default 3000).
@@ -103,10 +103,11 @@ Options:
   --machine <class>     Codespace placement: VM class (default: premiumLinux
                         when your account can use it for the repo, else the
                         largest it can; only applies when creating)
-  --no-observe          Skip Jaeger (trace storage + UI). The OTel collector
-                        is stack furniture and always runs: metrics stay
-                        readable at :24110/metrics; traces are accepted and
-                        discarded
+  --no-observe          Skip the observability backends — Jaeger (traces
+                        store + UI) and Prometheus (metrics history). The
+                        OTel collector always runs: current metric totals
+                        stay readable at :24110/metrics; traces are accepted
+                        and discarded
   --ollama-cache <c>    Model cache when starting an Ollama container: 'host'
                         (~/.ollama) or 'volume' (named volume) — skips the prompt
   --dry-run             Print the exact runtime commands a run would execute, then exit
@@ -709,6 +710,28 @@ func image(svc, version string) string {
 // it the traces pipeline ends in `nop`, so services export identically and
 // the collector accepts and discards. Every component here is in the CORE
 // collector image (`components` on 0.137.0); contrib is not needed.
+// prometheusConfig: launcher-owned, like the collector's (LOCAL-METRICS D4).
+// One live value: the collector's readout, which Prometheus scrapes — the
+// pull model is why adding this backend changes no service and no collector.
+func prometheusConfig(addr string) string {
+	return fmt.Sprintf(`global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: semiont
+    static_configs:
+      - targets: ["%s:24110"]
+`, addr)
+}
+
+func prometheusArgs(stage string) []string {
+	return []string{"run", "-d", "--name", "semiont-prometheus", // no --rm: see providedRunArgs
+		"--memory", roles["metrics"].mem,
+		"-p", "9090:9090",
+		"--volume", stage + "/prometheus.yml:/etc/prometheus/prometheus.yml:ro",
+		"prom/prometheus:v3.9.1"}
+}
+
 func collectorConfig(addr string, traces bool) string {
 	tracesExporter := "nop"
 	tracesNote := "  # No Jaeger this run: traces are accepted and discarded.\n  nop: {}"
@@ -980,8 +1003,9 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	fmt.Println("  Qdrant Dashboard   http://localhost:6333/dashboard")
 	if opts.observe {
 		fmt.Println("  Jaeger UI          http://localhost:16686")
+		fmt.Println("  Prometheus         http://localhost:9090")
 	}
-	fmt.Println("  Metrics            http://localhost:24110/metrics")
+	fmt.Println("  Metrics readout    http://localhost:24110/metrics")
 	fmt.Println()
 	fmt.Printf("  Add a user:    %s\n", u.bold("semiont useradd --email <email> --admin"))
 	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))

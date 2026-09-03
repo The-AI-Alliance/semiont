@@ -1,6 +1,7 @@
 git -C <kb-root> rev-parse --show-toplevel
 docker run --rm busybox:1.38.0 nslookup host.docker.internal
 docker logs --tail 5000 semiont-otel-collector
+docker logs --tail 5000 semiont-prometheus
 docker logs --tail 5000 semiont-jaeger
 docker logs --tail 5000 semiont-neo4j
 docker logs --tail 5000 semiont-qdrant
@@ -28,6 +29,7 @@ lsof -nP -iTCP:4318 -sTCP:LISTEN
 lsof -nP -iTCP:24110 -sTCP:LISTEN
 lsof -nP -iTCP:16686 -sTCP:LISTEN
 lsof -nP -iTCP:14318 -sTCP:LISTEN
+lsof -nP -iTCP:9090 -sTCP:LISTEN
 docker pull ghcr.io/the-ai-alliance/semiont-gateway:latest
 docker pull ghcr.io/the-ai-alliance/semiont-worker:latest
 docker pull ghcr.io/the-ai-alliance/semiont-smelter:latest
@@ -35,6 +37,7 @@ docker pull ghcr.io/the-ai-alliance/semiont-weaver:latest
 docker pull ghcr.io/the-ai-alliance/semiont-archivist:latest
 docker pull ghcr.io/the-ai-alliance/semiont-librarian:latest
 docker run --log-opt max-size=10m --log-opt max-file=3 -d --name semiont-jaeger --memory 1G -p 16686:16686 -p 14318:4318 jaegertracing/all-in-one:1.76.0
+docker run --log-opt max-size=10m --log-opt max-file=3 -d --name semiont-prometheus --memory 1G -p 9090:9090 --volume <config-stage>/prometheus.yml:/etc/prometheus/prometheus.yml:ro prom/prometheus:v3.9.1
 docker run --log-opt max-size=10m --log-opt max-file=3 -d --name semiont-otel-collector --memory 1G -p 4318:4318 -p 24110:24110 --volume <config-stage>/collector.yaml:/etc/otelcol/config.yaml:ro otel/opentelemetry-collector:0.137.0
 docker run --log-opt max-size=10m --log-opt max-file=3 -d --name semiont-postgres --memory 1G -p 5432:5432 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
 docker run --rm busybox:1.38.0 nc -z -w 2 host.docker.internal 5432

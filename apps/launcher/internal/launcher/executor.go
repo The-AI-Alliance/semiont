@@ -34,6 +34,7 @@ type executor interface {
 	stageAll(configFile, envName, addr string, traces bool) (string, bool) // per-service config copies + the collector's own; returns stage dir
 	stageOne(svc, configFile, envName, addr string) (string, bool)         // one service's fresh private copy
 	stageCollector(addr string) (string, bool)                             // the collector's own config: launcher-owned, no KB config involved
+	stageMetrics(addr string) (string, bool)                               // Prometheus's scrape config: same launcher-owned pattern
 	initStack(root, config, version, addr, stage string)                   // begin the belief record
 	pull(img string) bool
 	runDetached(args []string) (string, bool)                      // echo + run -d; returns runtime-reported id
@@ -389,6 +390,22 @@ func (x *liveExec) stageAll(configFile, envName, addr string, traces bool) (stri
 	// follows --observe (traces → Jaeger or nop).
 	if err := os.WriteFile(filepath.Join(stage, "collector.yaml"), []byte(collectorConfig(addr, traces)), 0o644); err != nil {
 		x.u.fail("Staging the collector config: %v", err)
+		return "", false
+	}
+	if err := os.WriteFile(filepath.Join(stage, "prometheus.yml"), []byte(prometheusConfig(addr)), 0o644); err != nil {
+		x.u.fail("Staging the Prometheus config: %v", err)
+		return "", false
+	}
+	return stage, true
+}
+
+func (x *liveExec) stageMetrics(addr string) (string, bool) {
+	stage, ok := x.stageDir()
+	if !ok {
+		return "", false
+	}
+	if err := os.WriteFile(filepath.Join(stage, "prometheus.yml"), []byte(prometheusConfig(addr)), 0o644); err != nil {
+		x.u.fail("Staging the Prometheus config: %v", err)
 		return "", false
 	}
 	return stage, true
@@ -879,6 +896,11 @@ func (x *planExec) portChecks(ports []portNeed) bool {
 	return true
 }
 
+func (x *planExec) stageMetrics(string) (string, bool) {
+	x.c("write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)")
+	return "<config-stage>", true
+}
+
 func (x *planExec) stageCollector(string) (string, bool) {
 	x.c("write <config-stage>/collector.yaml (launcher-owned; traces exporter iff Jaeger is up)")
 	return "<config-stage>", true
@@ -887,6 +909,7 @@ func (x *planExec) stageCollector(string) (string, bool) {
 func (x *planExec) stageAll(_, envName, _ string, _ bool) (string, bool) {
 	x.c("stage per-service config copies under <config-stage>: gateway.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml")
 	x.c("write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)")
+	x.c("write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)")
 	for _, svc := range []string{"gateway", "worker", "smelter", "librarian"} {
 		x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to %s.toml", envName, svc)
 	}

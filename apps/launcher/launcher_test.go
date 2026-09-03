@@ -572,6 +572,28 @@ func TestStartCleanOllama(t *testing.T) {
 
 // --- start: --dry-run goldens (the legibility seam) ---
 
+// The per-service dry-runs for the two observability backends: the exact
+// `container run` an operator would get, pinned so the rendering cannot
+// silently regress (the full-start dry-runs are pinned; per-service ones
+// mostly are not).
+func TestStartDryRunServiceTraces(t *testing.T) {
+	s := newScenario(t, "container")
+	stdout, stderr, code := s.run(t, "start", "--service", "traces", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	checkGolden(t, "start-dryrun-service-traces.txt", s.norm(stdout))
+}
+
+func TestStartDryRunServiceMetrics(t *testing.T) {
+	s := newScenario(t, "container")
+	stdout, stderr, code := s.run(t, "start", "--service", "metrics", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	checkGolden(t, "start-dryrun-service-metrics.txt", s.norm(stdout))
+}
+
 func TestStartDryRunDefault(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
 	stdout, stderr, code := s.run(t, "start", "--dry-run")
@@ -1362,7 +1384,7 @@ func TestStopSweepsAllRuntimes(t *testing.T) {
 	}
 	checkGolden(t, "stop-all-runtimes.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"Sweeping 12 container(s) across container, docker, podman",
+		"Sweeping 13 container(s) across container, docker, podman",
 		"container: none found",
 		"docker: none found",
 		"podman: none found",
@@ -3671,7 +3693,7 @@ func TestStackStateLifecycle(t *testing.T) {
 	}
 	// EXACTLY these roles, not at-least: fleet growth must fail here (a
 	// census gate; main_test cannot reach the roles table to derive one).
-	wantRoles := []string{"traces", "collector", "graph", "vectors", "inference", "embedding", "database",
+	wantRoles := []string{"traces", "metrics", "collector", "graph", "vectors", "inference", "embedding", "database",
 		"gateway", "worker", "smelter", "weaver", "archivist", "librarian"}
 	if len(st.Services) != len(wantRoles) {
 		got := make([]string, 0, len(st.Services))

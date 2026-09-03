@@ -56,6 +56,7 @@ func startCeilingsGB(plan *launchPlan, opts startOptions) float64 {
 	}
 	if opts.observe {
 		sum += memCeilingGB(roles["traces"].mem)
+		sum += memCeilingGB(roles["metrics"].mem)
 	}
 	if plan == nil {
 		return sum
