@@ -2819,15 +2819,47 @@ type JobAssessmentAnnotationResult struct {
 // JobAssessmentAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
 type JobAssessmentAnnotationResultKind string
 
-// JobCancelRequest Request to cancel a job
-type JobCancelRequest struct {
-	// CorrelationId Correlation id for request/reply matching, set by the SDK's busRequest so the confirmed-write ack/failure routes back. Absent for the local cancelRequest UI signal.
-	CorrelationId *string                 `json:"correlationId,omitempty"`
-	JobType       JobCancelRequestJobType `json:"jobType"`
+// JobCancelCommand A worker's confirmation that it has cooperatively stopped a running job at a unit boundary (JOB-RESTART-SAFETY P4) — the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client→worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).
+type JobCancelCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// AnnotationId Annotation this job is attached to, when applicable. Lets the UI route cancellation feedback to a specific annotation.
+	AnnotationId *string `json:"annotationId,omitempty"`
+
+	// CompletedUnits Entity-type units whose annotations were fully emitted before cancellation. Recorded on the cancelled job's metadata so the work already done stays visible.
+	CompletedUnits *[]string `json:"completedUnits,omitempty"`
+	JobId          string    `json:"jobId"`
+
+	// JobType Type of background job
+	JobType    JobType `json:"jobType"`
+	ResourceId string  `json:"resourceId"`
 }
 
-// JobCancelRequestJobType defines model for JobCancelRequest.JobType.
+// JobCancelRequest Request to cancel a job. Target one running or pending job by `jobId` (JOB-RESTART-SAFETY P4), or a whole category of pending jobs by `jobType`. A `jobId`-targeted request that names a RUNNING job is honoured cooperatively by the owning worker, which stops at its next unit boundary and emits JobCancelCommand — the queue is never made to yank a running job out from under a live worker.
+type JobCancelRequest struct {
+	// CorrelationId Correlation id for request/reply matching, set by the SDK's busRequest so the confirmed-write ack/failure routes back. Absent for the local cancelRequest UI signal.
+	CorrelationId *string `json:"correlationId,omitempty"`
+
+	// JobId Cancel this one job. A pending job is cancelled immediately by the gateway; a running job is cancelled cooperatively by its worker. Takes precedence over jobType.
+	JobId *string `json:"jobId,omitempty"`
+
+	// JobType Cancel all PENDING jobs in this category — the bulk UI signal. Ignored when jobId is present.
+	JobType *JobCancelRequestJobType `json:"jobType,omitempty"`
+}
+
+// JobCancelRequestJobType Cancel all PENDING jobs in this category — the bulk UI signal. Ignored when jobId is present.
 type JobCancelRequestJobType string
+
+// JobCheckpointCommand Command to persist a running job's completed-unit checkpoint AT unit completion (JOB-RESTART-SAFETY P2). Distinct from JobFailCommand's checkpoint, which lands only on a clean failure: a worker that dies (crash/OOM/kill) never emits job:fail, so this durable, unthrottled write is what lets the janitor's stale-running recovery resume a dead worker's job rather than redo its finished units.
+type JobCheckpointCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// CompletedUnits Entity-type units whose annotations have been fully emitted so far. Unioned into the running job's metadata checkpoint; a retry after recovery skips them.
+	CompletedUnits []string `json:"completedUnits"`
+	JobId          string   `json:"jobId"`
+}
 
 // JobClaimCommand Command to claim a pending job (atomic CAS: pending → running)
 type JobClaimCommand struct {
@@ -2949,6 +2981,9 @@ type JobFailCommand struct {
 	// JobType Type of background job
 	JobType    JobType `json:"jobType"`
 	ResourceId string  `json:"resourceId"`
+
+	// WillRetry Whether the queue will re-queue this job for another attempt. Computed by the worker from the SAME predicate the queue applies at failJob (one decision site, `willRetryAfter` in @semiont/jobs) using the retry budget carried on the claimed record. FALSE (or absent) means this failure is TERMINAL: a client's job-watch stream ends here. TRUE means the work continues on a fresh attempt — the failure is an event, not the end, and a stream that terminated on it would report a recovering run as a failed one (JOB-RESTART-SAFETY P5).
+	WillRetry *bool `json:"willRetry,omitempty"`
 }
 
 // JobFailCommandFailureClass Worker-side classification of the failure, made where the error is still typed. 'deterministic' — the same request cannot succeed on a second attempt — skips the retry budget; absent or 'transient' retries as before. Only KNOWN-deterministic failures carry the class.
