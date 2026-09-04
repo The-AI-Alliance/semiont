@@ -124,6 +124,23 @@ describe('SemiontSession — construction & initial token', () => {
     await session.dispose();
   });
 
+  it('survives a THROWN refresh during startup — `ready` resolves, it does not reject', async () => {
+    // The startup path refreshes an expired stored token before validating
+    // (SSE-AUTH-RESILIENCE P0). A throw there used to escape `validate()` and
+    // reject `ready`, so an unreachable gateway did not merely fail to
+    // sign in — it broke session CONSTRUCTION for every caller awaiting it.
+    const expired = freshJwt(-3600);
+    seedStoredSession(storage, KB.id, expired, 'refresh-tok');
+    refresh.mockRejectedValue(new Error('ECONNREFUSED'));
+
+    const session = newSession();
+    await expect(session.ready).resolves.toBeUndefined();
+    expect(session.user$.getValue()).toBeNull();
+    expect(getStoredSession(storage, KB.id)).toBeNull();
+
+    await session.dispose();
+  });
+
   it('stays with null user$ if stored token is expired and refresh returns null', async () => {
     const expired = freshJwt(-3600);
     seedStoredSession(storage, KB.id, expired, 'refresh-tok');
@@ -167,6 +184,57 @@ describe('SemiontSession — refresh', () => {
     await session.refresh();
     expect(onAuthFailed).toHaveBeenCalledWith(expect.stringContaining('session has expired'));
     expect(session.token$.getValue()).toBeNull();
+
+    await session.dispose();
+  });
+
+  // ── SSE-AUTH-RESILIENCE P0 ──────────────────────────────────────────
+  // A refresh callback makes an HTTP call, so it can THROW as easily as it can
+  // return null — a network blip, DNS failure, or gateway 5xx. Both mean the
+  // same thing to the session (this token cannot be renewed), so both must
+  // land on the same terminal path. Before this, a throw escaped `refresh()`
+  // and skipped all four terminal behaviours; via the proactive timer's
+  // `void this.refresh()` it became an unhandled rejection with no further
+  // refresh ever scheduled — a session holding an expired token forever,
+  // which is the shape of the 401-loop incident.
+
+  it('a THROWN refresh terminates the session exactly like one that returns null', async () => {
+    const jwt = freshJwt();
+    seedStoredSession(storage, KB.id, jwt, 'refresh-tok');
+    refresh.mockRejectedValue(new Error('ECONNREFUSED'));
+    const onAuthFailed = vi.fn();
+    const onError = vi.fn();
+
+    const session = newSession({ onAuthFailed, onError });
+    await session.ready;
+
+    // It must not propagate: the caller (and the proactive timer) treat this
+    // as "no token", not as an exception to handle.
+    await expect(session.refresh()).resolves.toBeNull();
+
+    expect(session.token$.getValue()).toBeNull();
+    expect(getStoredSession(storage, KB.id)).toBeNull();
+    expect(onAuthFailed).toHaveBeenCalledWith(expect.stringContaining('session has expired'));
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'session.refresh-exhausted' }),
+    );
+
+    await session.dispose();
+  });
+
+  it('names the cause when a refresh throws — a network failure must not read as a revoked session', async () => {
+    const jwt = freshJwt();
+    seedStoredSession(storage, KB.id, jwt, 'refresh-tok');
+    refresh.mockRejectedValue(new Error('ECONNREFUSED'));
+    const onError = vi.fn();
+
+    const session = newSession({ onError });
+    await session.ready;
+    await session.refresh();
+
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('ECONNREFUSED') }),
+    );
 
     await session.dispose();
   });
