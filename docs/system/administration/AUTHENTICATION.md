@@ -72,7 +72,7 @@ row against the literal, not against another document:
 
 | Token | Minted at | Literal |
 |---|---|---|
-| Access | [`apps/gateway/src/routes/auth.ts:128`](../../../apps/gateway/src/routes/auth.ts#L128) | `generateToken(jwtPayload, '10m')` |
+| Access | `apps/gateway/src/routes/auth.ts` (password sign-in and refresh) and `apps/gateway/src/auth/oauth.ts` (OAuth) — **three call sites, all `'10m'`; check all three when changing it** | `generateToken(jwtPayload, '10m')` |
 | Refresh | [`apps/gateway/src/routes/auth.ts:129`](../../../apps/gateway/src/routes/auth.ts#L129) | `generateToken(jwtPayload, '30d')` |
 | Agent | [`apps/gateway/src/routes/auth.ts:430`](../../../apps/gateway/src/routes/auth.ts#L430) | `}, '24h')` |
 | Media | [`apps/gateway/src/auth/jwt.ts:189`](../../../apps/gateway/src/auth/jwt.ts#L189) | `expiresIn: '5m'` |

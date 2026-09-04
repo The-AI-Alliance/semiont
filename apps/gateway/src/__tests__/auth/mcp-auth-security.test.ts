@@ -69,15 +69,16 @@ describe('MCP Authentication security', () => {
 
     it('security: should reject access tokens used as refresh tokens', () => {
       // This test resources that access and refresh tokens are differentiated by expiration time
-      // Access tokens: short-lived (1 hour)
-      // Refresh tokens: long-lived (30 days)
+      // What is under test is the DIFFERENTIATION, not the production TTLs — the
+      // literals below are this test's own. Real lifetimes live in one table:
+      // docs/system/administration/AUTHENTICATION.md (access is minutes, not hours).
       const accessToken = JWTService.generateToken({ tokenVersion: 0,
         userId: userId('clh0vssng0002356tmf4mt8fb'),
         email: email('test@example.com'),
         domain: 'example.com',
         provider: 'google',
         isAdmin: false
-      }, '1h'); // Access token: 1 hour expiry
+      }, '1h'); // arbitrary: any access-shorter-than-refresh pair proves the point
       
       const refreshToken = JWTService.generateToken({ tokenVersion: 0,
         userId: userId('clh0vssng0002356tmf4mt8fb'),
@@ -96,7 +97,7 @@ describe('MCP Authentication security', () => {
       const refreshExp = refreshPayload.exp!;
       const now = Math.floor(Date.now() / 1000);
       
-      // Access token expires in ~1 hour
+      // This test's access token expires well before its refresh token
       expect(accessExp - now).toBeLessThanOrEqual(3600 + 5); // 1 hour + 5s margin
       // Refresh token expires in ~30 days  
       expect(refreshExp - now).toBeGreaterThan(86400 * 29); // At least 29 days
@@ -246,7 +247,7 @@ describe('MCP Authentication security', () => {
     it('security: should separate refresh and access token permissions', () => {
       // Resource the separation of refresh and access tokens by expiration time
       // Refresh tokens: long-lived (30 days), used only to get new access tokens
-      // Access tokens: short-lived (1 hour), used for API calls
+      // Access tokens are short-lived and used for API calls (TTL: see AUTHENTICATION.md)
       
       const refreshToken = JWTService.generateToken({ tokenVersion: 0,
         userId: userId('clh0vssng0005356tmf4mt8fb'),
