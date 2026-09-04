@@ -8,7 +8,14 @@
  * the arithmetic.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Observe the telemetry surface without losing the real module.
+const { recordDetectionCallMock } = vi.hoisted(() => ({ recordDetectionCallMock: vi.fn() }));
+vi.mock('@semiont/observability', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@semiont/observability')>()),
+  recordDetectionCall: recordDetectionCallMock,
+}));
 import { deriveDetectionBudget } from '../../../workers/detection/detection-chunking';
 import { INFERENCE_TIMEOUT_MS } from '../../../workers/inference-call';
 
@@ -202,9 +209,9 @@ describe('callChunkSubdividing', () => {
 
   it('passes a successful call through untouched — one invocation, no subdivision', async () => {
     const calls: string[] = [];
-    const result = await callChunkSubdividing(CHUNK, CHUNKING, async (piece) => {
+    const result = await callChunkSubdividing('entity', CHUNK, CHUNKING, async (piece) => {
       calls.push(piece);
-      return ['a', 'b'];
+      return { items: ['a', 'b'] };
     });
     expect(result).toEqual(['a', 'b']);
     expect(calls).toEqual([CHUNK]);
@@ -212,10 +219,10 @@ describe('callChunkSubdividing', () => {
 
   it('a timeout on the full chunk retries with smaller pieces and collects their results', async () => {
     const calls: string[] = [];
-    const result = await callChunkSubdividing(CHUNK, CHUNKING, async (piece) => {
+    const result = await callChunkSubdividing('entity', CHUNK, CHUNKING, async (piece) => {
       calls.push(piece);
       if (piece.length === CHUNK.length) throw new InferenceTimeoutError('bound');
-      return [`ok:${piece.length}`];
+      return { items: [`ok:${piece.length}`] };
     });
     // First call was the full chunk; the rest are strictly smaller pieces.
     expect(calls[0]).toBe(CHUNK);
@@ -230,9 +237,9 @@ describe('callChunkSubdividing', () => {
       new StructuredReadError('response is not valid JSON', 'max_tokens'),
     ]) {
       let first = true;
-      const result = await callChunkSubdividing(CHUNK, CHUNKING, async (piece) => {
+      const result = await callChunkSubdividing('entity', CHUNK, CHUNKING, async (piece) => {
         if (first) { first = false; throw boom; }
-        return [piece.length];
+        return { items: [piece.length] };
       });
       expect(result.length).toBeGreaterThan(0);
     }
@@ -244,7 +251,7 @@ describe('callChunkSubdividing', () => {
       new Error('model exploded'),
     ]) {
       const calls: string[] = [];
-      await expect(callChunkSubdividing(CHUNK, CHUNKING, async (piece) => {
+      await expect(callChunkSubdividing('entity', CHUNK, CHUNKING, async (piece) => {
         calls.push(piece);
         throw boom;
       })).rejects.toBe(boom);
@@ -255,7 +262,7 @@ describe('callChunkSubdividing', () => {
   it('is depth-bounded: a chunk that fails at every size rethrows the ORIGINAL failure', async () => {
     const boom = new InferenceTimeoutError('bound');
     let calls = 0;
-    await expect(callChunkSubdividing(CHUNK, CHUNKING, async () => {
+    await expect(callChunkSubdividing('entity', CHUNK, CHUNKING, async () => {
       calls++;
       throw boom;
     })).rejects.toBe(boom);
@@ -279,10 +286,10 @@ describe('callChunkSubdividing', () => {
     // overlap-derived size floor — only size-based descent can get there.
     const BIG = Array.from({ length: 400 }, (_, i) => `entry ${i} lorem ipsum dolor sit amet `).join('');
     const succeededAt: number[] = [];
-    const result = await callChunkSubdividing(BIG, { chunkSize: 4_000, overlap: 16 }, async (piece) => {
+    const result = await callChunkSubdividing('entity', BIG, { chunkSize: 4_000, overlap: 16 }, async (piece) => {
       if (piece.length > 1_200) throw new StructuredReadError('response is not valid JSON', 'max_tokens');
       succeededAt.push(piece.length);
-      return [piece.length];
+      return { items: [piece.length] };
     });
     expect(result.length).toBeGreaterThan(0);
     for (const len of succeededAt) expect(len).toBeLessThanOrEqual(1_200);
@@ -294,11 +301,11 @@ describe('callChunkSubdividing', () => {
     // re-roll usually escapes; the deterministic rethrow alone would kill
     // a job the same piece passes on the next roll.
     const seen = new Map<string, number>();
-    const result = await callChunkSubdividing(CHUNK, CHUNKING, async (piece) => {
+    const result = await callChunkSubdividing('entity', CHUNK, CHUNKING, async (piece) => {
       const n = (seen.get(piece) ?? 0) + 1;
       seen.set(piece, n);
       if (n === 1) throw new StructuredReadError('response is not valid JSON', 'max_tokens');
-      return [piece.length];
+      return { items: [piece.length] };
     });
     expect(result.length).toBeGreaterThan(0);
     // Some floor piece was re-rolled — same text, second invocation.
@@ -308,11 +315,92 @@ describe('callChunkSubdividing', () => {
   it('a re-roll that truncates AGAIN rethrows — twice on the same piece is real pathology', async () => {
     const boom = new StructuredReadError('response is not valid JSON', 'max_tokens');
     let calls = 0;
-    await expect(callChunkSubdividing(CHUNK, CHUNKING, async () => {
+    await expect(callChunkSubdividing('entity', CHUNK, CHUNKING, async () => {
       calls++;
       throw boom;
     })).rejects.toBe(boom);
     // Full, first half, first quarter, quarter's one re-roll — then done.
     expect(calls).toBe(4);
+  });
+});
+
+// ── P1: yield telemetry (DETECTION-QUALITY-THROUGHPUT) ──────────────────
+//
+// Every optimization phase after this one is judged by measurement, and the
+// facts that judge it are per-CALL, not per-job: how big the piece was, how
+// long it took, how many items came back, and — the two the adapters cannot
+// know — how deep subdivision had descended and whether this was the floor
+// re-roll. `callChunkSubdividing` is the only place those last two exist, so
+// it is the only place one complete record can be written.
+describe('callChunkSubdividing telemetry', () => {
+  const CHUNKING = { chunkSize: 1_000, overlap: 16 };
+  const CHUNK = Array.from({ length: 200 }, (_, i) => `passage ${i} lorem ipsum dolor sit amet `).join('');
+
+  beforeEach(() => { recordDetectionCallMock.mockClear(); });
+
+  it('records one call at depth 0 on the happy path, carrying the provider usage', async () => {
+    await callChunkSubdividing('highlight', CHUNK, CHUNKING, async () => ({
+      items: ['a', 'b'],
+      usage: { inputTokens: 1200, outputTokens: 340 },
+    }));
+
+    expect(recordDetectionCallMock).toHaveBeenCalledTimes(1);
+    expect(recordDetectionCallMock).toHaveBeenCalledWith(expect.objectContaining({
+      label: 'highlight',
+      pieceChars: CHUNK.length,
+      items: 2,
+      depth: 0,
+      reroll: false,
+      outcome: 'success',
+      inputTokens: 1200,
+      outputTokens: 340,
+    }));
+    // Duration is measured, not passed in — assert it exists and is sane
+    // rather than pinning a number a fast machine would make zero.
+    const { durationMs } = recordDetectionCallMock.mock.calls[0]![0] as { durationMs: number };
+    expect(durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('records the FAILED attempt and each smaller retry — the descent is the data', async () => {
+    // A truncation at full size, then success on the sub-pieces. Without a
+    // record for the failure, the cost of a descent is invisible: the calls
+    // that were paid for and thrown away are exactly what P2 must avoid.
+    await callChunkSubdividing<string>('reference', CHUNK, CHUNKING, async (piece) => {
+      if (piece.length === CHUNK.length) throw new DeterministicJobError('truncated (max_tokens)');
+      return { items: ['x'] };
+    });
+
+    const records = recordDetectionCallMock.mock.calls.map(c => c[0] as { depth: number; outcome: string });
+    expect(records.length).toBeGreaterThan(1);
+    expect(records[0]).toMatchObject({ depth: 0, outcome: 'truncated' });
+    expect(records.slice(1).every(r => r.depth === 1 && r.outcome === 'success')).toBe(true);
+  });
+
+  it('marks the floor re-roll, so a degeneration loop is distinguishable from honest overflow', async () => {
+    // At the size floor a truncation is a sampling accident, not size — and
+    // the re-roll is the same piece at the same size. Only the flag tells the
+    // two apart in the history.
+    const small = 'a'.repeat(400);
+    let attempts = 0;
+    await callChunkSubdividing<string>('tag', small, { chunkSize: 8, overlap: 16 }, async () => {
+      if (++attempts === 1) throw new DeterministicJobError('truncated (max_tokens)');
+      return { items: ['ok'] };
+    });
+
+    const records = recordDetectionCallMock.mock.calls.map(c => c[0] as { reroll: boolean; outcome: string });
+    expect(records).toHaveLength(2);
+    expect(records[0]).toMatchObject({ reroll: false, outcome: 'truncated' });
+    expect(records[1]).toMatchObject({ reroll: true, outcome: 'success' });
+  });
+
+  it('classifies a timeout distinctly from a truncation — they demand opposite responses', async () => {
+    await expect(
+      callChunkSubdividing<string>('comment', CHUNK, CHUNKING, async () => {
+        throw new InferenceTimeoutError('bound');
+      }),
+    ).rejects.toThrow(InferenceTimeoutError);
+
+    const outcomes = recordDetectionCallMock.mock.calls.map(c => (c[0] as { outcome: string }).outcome);
+    expect(new Set(outcomes)).toEqual(new Set(['timeout']));
   });
 });

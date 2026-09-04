@@ -3,7 +3,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { isObject, type Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
-import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredReadError, StructuredResponse } from '../interface.js';
+import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredReadError, StructuredResponse, TokenUsage } from '../interface.js';
 
 // The SDK's worst-case output-rate model: client.js's
 // calculateNonstreamingTimeout projects a call's maximum duration as
@@ -286,6 +286,7 @@ export class AnthropicInferenceClient implements InferenceClient {
     return {
       items: parsed as T[],
       stopReason: response.stop_reason || 'unknown',
+      ...usageOf(response),
     };
   }
 
@@ -327,4 +328,15 @@ function requestIdOf(response: unknown): string | undefined {
     return response['_request_id'];
   }
   return undefined;
+}
+
+/**
+ * The provider's own token counts, shaped for `TokenUsage`. Absent when the
+ * SDK reports none — never zero-filled: a zero would read as "this call cost
+ * nothing", which is a different claim from "we do not know".
+ */
+function usageOf(response: { usage?: { input_tokens?: number; output_tokens?: number } }): { usage?: TokenUsage } {
+  const { input_tokens, output_tokens } = response.usage ?? {};
+  if (input_tokens === undefined || output_tokens === undefined) return {};
+  return { usage: { inputTokens: input_tokens, outputTokens: output_tokens } };
 }

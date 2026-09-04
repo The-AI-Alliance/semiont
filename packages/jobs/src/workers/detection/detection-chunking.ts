@@ -25,7 +25,8 @@
  */
 
 import { chunkText, type ChunkingConfig, type Logger } from '@semiont/core';
-import { StructuredReadError, type InferenceLimits } from '@semiont/inference';
+import { StructuredReadError, type InferenceLimits, type TokenUsage } from '@semiont/inference';
+import { recordDetectionCall } from '@semiont/observability';
 import { DeterministicJobError } from '../../failure-class';
 import { INFERENCE_TIMEOUT_MS, InferenceTimeoutError } from '../inference-call';
 
@@ -196,15 +197,55 @@ function truncation(error: unknown): boolean {
  * span-keyed dedupe. On a failure subdivision cannot fix, the ORIGINAL
  * error propagates so classification sees what actually happened.
  */
+export interface ChunkCallResult<T> {
+  items: T[];
+  /** The provider's own token counts, when it reported any. Never estimated. */
+  usage?: TokenUsage;
+}
+
+/** Which shape of failure this was — they demand opposite responses, so the
+ * history must tell them apart: truncation descends by size, a timeout fails
+ * fast, anything else is not size-shaped at all. */
+function outcomeOf(error: unknown): 'truncated' | 'timeout' | 'error' {
+  if (truncation(error)) return 'truncated';
+  if (error instanceof InferenceTimeoutError) return 'timeout';
+  return 'error';
+}
+
 export async function callChunkSubdividing<T>(
+  label: string,
   chunk: string,
   chunking: ChunkingConfig,
-  call: (piece: string) => Promise<T[]>,
+  call: (piece: string) => Promise<ChunkCallResult<T>>,
   logger?: Logger,
 ): Promise<T[]> {
+  // One telemetry record per model call, successes AND failures
+  // (DETECTION-QUALITY-THROUGHPUT P1). This is the only place `depth` and
+  // `reroll` exist, so it is the only place a complete record can be written.
+  async function recorded(piece: string, depth: number, reroll: boolean): Promise<ChunkCallResult<T>> {
+    const start = performance.now();
+    try {
+      const result = await call(piece);
+      recordDetectionCall({
+        label, pieceChars: piece.length, durationMs: performance.now() - start,
+        items: result.items.length, depth, reroll, outcome: 'success',
+        ...(result.usage ? { inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens } : {}),
+      });
+      return result;
+    } catch (error) {
+      // A failed call still cost its input and its wall time — the descent's
+      // price is invisible without it.
+      recordDetectionCall({
+        label, pieceChars: piece.length, durationMs: performance.now() - start,
+        items: 0, depth, reroll, outcome: outcomeOf(error),
+      });
+      throw error;
+    }
+  }
+
   async function attempt(piece: string, chunkSize: number, depth: number): Promise<T[]> {
     try {
-      return await call(piece);
+      return (await recorded(piece, depth, false)).items;
     } catch (error) {
       if (!subdividable(error)) throw error;
       const half = Math.floor(chunkSize / 2);
@@ -226,7 +267,7 @@ export async function callChunkSubdividing<T>(
           pieceChars: piece.length,
           error: error instanceof Error ? error.message : String(error),
         });
-        return await call(piece);
+        return (await recorded(piece, depth, true)).items;
       }
       logger?.warn('Chunk call failed at a size-shaped bound — subdividing and retrying smaller', {
         depth: depth + 1,

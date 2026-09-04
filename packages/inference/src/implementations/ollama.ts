@@ -118,7 +118,7 @@ export class OllamaInferenceClient implements InferenceClient {
       throw new StructuredReadError(`parsed to ${typeof parsed}, not an array`, response.stopReason);
     }
 
-    return { items: parsed as T[], stopReason: response.stopReason };
+    return { items: parsed as T[], stopReason: response.stopReason, ...(response.usage ? { usage: response.usage } : {}) };
   }
 
   private async generate(
@@ -251,6 +251,9 @@ export class OllamaInferenceClient implements InferenceClient {
     return {
       text: data.response,
       stopReason,
+      ...(data.prompt_eval_count !== undefined && data.eval_count !== undefined
+        ? { usage: { inputTokens: data.prompt_eval_count, outputTokens: data.eval_count } }
+        : {}),
     };
   }
 }

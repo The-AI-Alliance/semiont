@@ -1,8 +1,20 @@
 // Inference client interface - all implementations must follow this contract
 
+/**
+ * What the call actually cost, as the PROVIDER counted it — never estimated
+ * here. Optional because a provider may not report it (and a call that fails
+ * before generating has nothing to report); absent means unknown, and a
+ * consumer must treat it as unknown rather than substituting a guess.
+ */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface InferenceResponse {
   text: string;
   stopReason: 'end_turn' | 'max_tokens' | 'stop_sequence' | string;
+  usage?: TokenUsage;
 }
 
 /**
@@ -37,6 +49,7 @@ export type ElementSchema = Record<string, unknown>;
 export interface StructuredResponse<T> {
   items: T[];
   stopReason: 'end_turn' | 'max_tokens' | 'stop_sequence' | string;
+  usage?: TokenUsage;
 }
 
 /**

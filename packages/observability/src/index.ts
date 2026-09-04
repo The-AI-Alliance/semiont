@@ -642,6 +642,124 @@ export function recordInferenceUsage(opts: {
   }
 }
 
+let _detectionCallCounter: Counter | undefined;
+let _detectionDurationHistogram: Histogram | undefined;
+let _detectionItemsHistogram: Histogram | undefined;
+let _detectionTokensHistogram: Histogram | undefined;
+
+function detectionCallCounter(): Counter {
+  if (!_detectionCallCounter) {
+    _detectionCallCounter = meter().createCounter('semiont.detection.calls', {
+      description: 'Detection model calls, labeled by motivation, outcome, subdivision depth and whether this was the floor re-roll.',
+    });
+  }
+  return _detectionCallCounter;
+}
+
+function detectionDurationHistogram(): Histogram {
+  if (!_detectionDurationHistogram) {
+    _detectionDurationHistogram = meter().createHistogram('semiont.detection.call.duration', {
+      description: 'Wall time of one detection model call, including the attempts that failed and were retried smaller.',
+      unit: 'ms',
+    });
+  }
+  return _detectionDurationHistogram;
+}
+
+function detectionItemsHistogram(): Histogram {
+  if (!_detectionItemsHistogram) {
+    _detectionItemsHistogram = meter().createHistogram('semiont.detection.call.items', {
+      description: 'Annotations returned by one detection call. Against the input size on the same record, this is yield.',
+    });
+  }
+  return _detectionItemsHistogram;
+}
+
+function detectionTokensHistogram(): Histogram {
+  if (!_detectionTokensHistogram) {
+    _detectionTokensHistogram = meter().createHistogram('semiont.detection.call.tokens', {
+      description: "Provider-reported tokens for one detection call, by direction. Deliberately separate from semiont.inference.tokens: that series is the authoritative total but carries no subdivision depth, and 'what does a depth-2 call cost' is the question every sizing decision asks.",
+    });
+  }
+  return _detectionTokensHistogram;
+}
+
+/**
+ * Record one detection model call (DETECTION-QUALITY-THROUGHPUT P1).
+ *
+ * The adapters already record provider/model/duration/tokens for every
+ * inference call. What they cannot know is the detection shape around it:
+ * which motivation asked, how big the piece was, how many annotations came
+ * back, how deep subdivision had descended, and whether this was the floor
+ * re-roll. Those are the facts that distinguish a healthy call from a
+ * expensive descent, and without them a slow detection run is one
+ * undifferentiated number.
+ *
+ * FAILED attempts are recorded too, and that is the point: the calls paid for
+ * and thrown away during a descent are exactly the cost later phases exist to
+ * avoid, so a record only of successes would hide the thing being optimized.
+ *
+ * Tokens are the PROVIDER's counts, passed through — never estimated. Absent
+ * means the provider did not report them.
+ */
+export function recordDetectionCall(opts: {
+  label: string;
+  pieceChars: number;
+  durationMs: number;
+  items: number;
+  depth: number;
+  reroll: boolean;
+  outcome: 'success' | 'truncated' | 'timeout' | 'error';
+  inputTokens?: number;
+  outputTokens?: number;
+}): void {
+  const attrs = {
+    'detection.label': opts.label,
+    'detection.outcome': opts.outcome,
+    'detection.depth': opts.depth,
+    'detection.reroll': opts.reroll,
+  };
+  detectionCallCounter().add(1, attrs);
+  detectionDurationHistogram().record(opts.durationMs, attrs);
+  detectionItemsHistogram().record(opts.items, attrs);
+  if (opts.inputTokens !== undefined) {
+    detectionTokensHistogram().record(opts.inputTokens, { ...attrs, 'detection.direction': 'input' });
+  }
+  if (opts.outputTokens !== undefined) {
+    detectionTokensHistogram().record(opts.outputTokens, { ...attrs, 'detection.direction': 'output' });
+  }
+}
+
+let _anchorOutcomeCounter: Counter | undefined;
+function anchorOutcomeCounter(): Counter {
+  if (!_anchorOutcomeCounter) {
+    _anchorOutcomeCounter = meter().createCounter('semiont.detection.anchors', {
+      description: 'Every annotation anchoring, labeled by the method that resolved it. EVERY outcome is counted, not just the risky ones, because a bare count of degraded anchors has no denominator — the rate is the precision signal.',
+    });
+  }
+  return _anchorOutcomeCounter;
+}
+
+/**
+ * Record how one annotation got anchored (DETECTION-QUALITY-THROUGHPUT P5).
+ *
+ * The selector-vs-source check is already a WRITE-TIME INVARIANT — both
+ * `buildTextAnnotation` and `buildPdfAnnotation` throw on a selector that does
+ * not match its source — so mechanical correctness is guaranteed rather than
+ * sampled, and auditing it would measure a constant.
+ *
+ * What is genuinely uncertain is which anchoring METHOD got there. An `exact`
+ * the model quoted verbatim and that appears once is certain; one resolved by
+ * `first-of-many` (several occurrences, no usable context) or `fuzzy-match`
+ * picked a plausible occurrence and may have picked wrong. Those were visible
+ * only as log warnings — countable by a human reading worker output, which is
+ * how 47 of them went unreviewed. As a rate they are the precision number that
+ * sits beside the yield numbers.
+ */
+export function recordAnchorOutcome(label: string, method: string): void {
+  anchorOutcomeCounter().add(1, { 'detection.label': label, 'anchor.method': method });
+}
+
 // ── Re-exports from @opentelemetry/api ─────────────────────────────────
 
 export { SpanKind, SpanStatusCode, type Attributes, type Span } from '@opentelemetry/api';

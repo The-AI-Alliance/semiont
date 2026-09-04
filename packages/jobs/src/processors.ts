@@ -32,6 +32,7 @@ import type {
   TagDetectionResult,
   GenerationResult,
 } from './types';
+import { noteAnchor } from './workers/detection/anchor-audit';
 
 type Agent = components['schemas']['Agent'];
 
@@ -91,6 +92,10 @@ export type OnProgress = (
 ) => void;
 
 type JobProgress = components['schemas']['JobProgress'];
+/** Derived from the wire, never restated: the per-unit entry's shape is the
+ * spec's, so a field added there reaches these accumulators by regeneration
+ * rather than by someone remembering two places. */
+type CompletedItem = NonNullable<JobProgress['completedItems']>[number];
 type JobProgressMessage = components['schemas']['JobProgressMessage'];
 
 /** The five W3C motivations this system mints — a closed vocabulary, so it is
@@ -494,7 +499,7 @@ export async function processReferenceJob(
 ): Promise<{ result: DetectionResult }> {
   const entityTypeNames = params.entityTypes.map(String);
   const requestParams = [{ label: 'entity-types' as const, value: entityTypeNames.join(', ') }];
-  const completedItems: Array<{ value: string; foundCount: number }> = [];
+  const completedItems: CompletedItem[] = [];
   let totalFound = 0;
   let totalEmitted = 0;
   let errors = 0;
@@ -573,13 +578,7 @@ export async function processReferenceJob(
         errors++;
         continue;
       }
-      if (reconciled.anchorMethod === 'first-of-many' || reconciled.anchorMethod === 'fuzzy-match') {
-        logger.warn('Entity anchored via degraded method', {
-          text: entity.exact,
-          entityType: entity.entityType,
-          anchorMethod: reconciled.anchorMethod,
-        });
-      }
+      noteAnchor('reference', entity.exact, reconciled.anchorMethod, logger);
       const ann = buildAnnotation('linking', toMatch(reconciled), unresolvedBody);
       built.push(ann);
     }
@@ -594,10 +593,25 @@ export async function processReferenceJob(
     await onUnitComplete(entityTypeName, unitAnnotations);
     totalEmitted += unitAnnotations.length;
     totalFound += extractedEntities.length;
-    completedItems.push({ value: entityTypeName, foundCount: extractedEntities.length });
+    // Found vs persisted, per unit: the model proposed `extractedEntities`,
+    // the log holds `unitAnnotations` after dedupe and the commit ack. The gap
+    // between them is this flow's yield, and it was previously only
+    // reconstructible by reading logs (DETECTION-QUALITY-THROUGHPUT P1).
+    completedItems.push({
+      value: entityTypeName,
+      foundCount: extractedEntities.length,
+      persistedCount: unitAnnotations.length,
+    });
   }
 
-  onProgress(100, { code: 'complete-created', count: totalEmitted, kind: 'reference' }, { requestParams });
+  // The terminal frame carries the completed set, and it is the only frame
+  // that can: the per-unit entries ride the progress emitted at the START of
+  // each unit, so the LAST unit's entry — and on a single-type job, every
+  // entry — was never reported anywhere (DETECTION-QUALITY-THROUGHPUT P1).
+  onProgress(100, { code: 'complete-created', count: totalEmitted, kind: 'reference' }, {
+    completedItems: [...completedItems],
+    requestParams,
+  });
 
   return {
     result: { kind: 'reference-annotation', totalFound, totalEmitted, errors },
@@ -615,7 +629,7 @@ export async function processTagJob(
   onProgress(30, { code: 'analyzing-tags' });
 
   const allTags = [];
-  const completedItems: Array<{ value: string; foundCount: number }> = [];
+  const completedItems: CompletedItem[] = [];
   for (let c = 0; c < params.categories.length; c++) {
     const category = params.categories[c]!;
     // The loop always existed; it just never reported itself, so the tag flow

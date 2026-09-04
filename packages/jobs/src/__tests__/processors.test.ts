@@ -346,6 +346,42 @@ describe('processReferenceJob', () => {
 describe('processReferenceJob — unit completion gates on the commit (P6)', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  // DETECTION-QUALITY-THROUGHPUT P1. The baseline's headline number — "Person
+  // 935 found / 844 persisted" — had to be reconstructed by reading logs,
+  // because the per-unit result reported only what the model PROPOSED. The gap
+  // is dedupe plus the commit ack, and it is the yield every sizing decision is
+  // judged against, so it belongs on the result rather than in an operator's
+  // head.
+  it('reports found AND persisted per unit — the gap between them is the yield', async () => {
+    // Three proposals, two distinct spans: the duplicate collapses in dedupe,
+    // so found and persisted must differ here or the test proves nothing.
+    vi.mocked(extractEntities).mockResolvedValue([
+      { exact: 'Paris', start: 0, end: 5, entityType: 'Location' } as any,
+      { exact: 'Paris', start: 0, end: 5, entityType: 'Location' } as any,
+      { exact: 'Berlin', start: 10, end: 16, entityType: 'Location' } as any,
+    ]);
+    const onProgress = vi.fn();
+
+    await processReferenceJob(
+      'Paris and Berlin',
+      makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild('Paris and Berlin'),
+      onProgress,
+      LOGGER,
+      vi.fn(async () => {}),
+    );
+
+    const completed = onProgress.mock.calls
+      .map(c => (c[2] as { completedItems?: Array<{ value: string; foundCount: number; persistedCount?: number }> } | undefined)?.completedItems)
+      .filter((items): items is Array<{ value: string; foundCount: number; persistedCount?: number }> => !!items?.length)
+      .at(-1);
+
+    expect(completed).toEqual([
+      { value: 'Location', foundCount: 3, persistedCount: 2 },
+    ]);
+  });
+
   it('a rejecting sink stops the unit counting, and the failure reaches the caller', async () => {
     vi.mocked(extractEntities).mockResolvedValue([
       { exact: 'Paris', start: 0, end: 5, entityType: 'Location' } as any,
