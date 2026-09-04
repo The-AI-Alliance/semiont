@@ -150,6 +150,57 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
+  // ── SSE-AUTH-RESILIENCE P1: don't ask without a credential ──────────
+  // Shape A: a session that exhausts refresh pushes `null` to `token$`, and
+  // HttpTransport renders that as `''`. The actor used to send
+  // `Authorization: Bearer ` and retry forever — a guaranteed-failing request
+  // generated on a timer, which is the 401 storm. A connect with no
+  // credential cannot succeed, so it must not be attempted.
+
+  it('makes NO request while it has no credential', async () => {
+    vi.useFakeTimers();
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: () => '',              // the shape `token$.getValue() ?? ''` produces
+      channels: ['test:event'],
+    });
+
+    stateUnit.start();
+    // Well past several reconnect cadences: still nothing on the wire.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
+  it('connects as soon as a credential arrives — the gate waits, it does not give up', async () => {
+    // The other half of the absence assertion above: without this, a gate that
+    // NEVER connects would pass that test. Same actor, same getter, a token
+    // appearing between ticks.
+    vi.useFakeTimers();
+    mockSSEResponse();
+    let token = '';
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: () => token,
+      channels: ['test:event'],
+    });
+
+    stateUnit.start();
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    token = 'fresh-tok';
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [, opts] = mockFetch.mock.calls[0] as [string, { headers: Record<string, string> }];
+    expect(opts.headers['Authorization']).toBe('Bearer fresh-tok');
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
   it('emit resolves with the subscriber count from the response body', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ subscribers: 3 }) });
 

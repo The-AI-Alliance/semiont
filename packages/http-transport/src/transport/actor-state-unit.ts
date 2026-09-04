@@ -269,6 +269,36 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   };
 
   const connect = async (keepPrevious = false) => {
+    // ── The credential gate (SSE-AUTH-RESILIENCE P1, shape A) ───────────
+    //
+    // A connect with no bearer CANNOT succeed, so it must not be attempted.
+    // `HttpTransport` renders a null `token$` as `''` (its getter is
+    // `token$.getValue() ?? ''`), which is exactly what a session that has
+    // exhausted refresh produces — so without this gate the actor sends
+    // `Authorization: Bearer ` on every tick, forever. That is a
+    // guaranteed-failing request generated on a timer, and it is the 401
+    // storm in .plans/bugs/stale-sse-actor-401-loops-after-token-expiry.md.
+    //
+    // We WAIT rather than give up: the credential may arrive (a re-login, a
+    // service's first token). The existing reconnect tick is the poll — no
+    // push subscription, so the actor keeps taking its token as a getter and
+    // does not require the source to be an observable. Nothing reaches the
+    // network, so there is no load to bound here.
+    //
+    // Deliberately NOT transitioning to a new state: whether "waiting for a
+    // credential" deserves its own connection state (and how it differs from
+    // auth-exhausted) is D6a/D3, still open, and user-visible. Until then we
+    // stay in whatever state we were in and simply do not attempt.
+    if (!getToken()) {
+      if (running) {
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(() => {
+          if (running) connect(keepPrevious);
+        }, reconnectMs);
+      }
+      return;
+    }
+
     // Transition to `connecting` from whichever reconnect-ish state
     // we're currently in (`initial`, `reconnecting`, `degraded`).
     transition('connecting');
