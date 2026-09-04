@@ -1024,6 +1024,57 @@ describe('startWorkerProcess', () => {
   // through by calling the activeJob$ subscriber from inside the
   // adapter. Easiest path: mock `createJobClaimAdapter` to return
   // a controllable fake.
+  // The cancel SIGNAL's routing, distinct from what the loop does once aborted.
+  // A worker holds one active job; a `job:cancel-requested` naming a different
+  // one must not touch it. Getting this wrong cancels a stranger's work, and
+  // the failure is invisible — the wrong job simply stops.
+  it('aborts the active job only when the cancel names it (JOB-RESTART-SAFETY P4)', async () => {
+    const { BehaviorSubject } = await import('rxjs');
+    const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
+    vi.doMock('../job-claim-adapter', () => ({
+      createJobClaimAdapter: vi.fn(() => ({
+        activeJob$,
+        isProcessing$: { subscribe: vi.fn() },
+        jobsCompleted$: { subscribe: vi.fn() },
+        errors$: { subscribe: vi.fn() },
+        start: vi.fn(), stop: vi.fn(),
+        completeJob: vi.fn(), failJob: vi.fn(), dispose: vi.fn(),
+      })),
+    }));
+    vi.resetModules();
+    const startWorkerProcess = await loadStartWorkerProcess();
+
+    let seenSignal: AbortSignal | undefined;
+    let release: (() => void) | undefined;
+    vi.mocked(processReferenceJob).mockImplementation(
+      async (_c, _cl, _p, _b, _pr, _l, _onUnit, signal) => {
+        seenSignal = signal;
+        await new Promise<void>((r) => { release = r; });
+        return { result: { kind: 'reference-annotation', totalFound: 0, totalEmitted: 0, errors: 0 } as never };
+      },
+    );
+
+    const h = makeFakeSessionAndAdapter();
+    startWorkerProcess(makeConfig(h.session));
+    activeJob$.next(makeJob('reference-annotation', { entityTypes: ['Person'] }));
+    await vi.waitFor(() => expect(seenSignal).toBeDefined());
+
+    const fireCancel = h.transportHandlers.get('job:cancel-requested');
+    expect(fireCancel).toBeDefined();
+
+    // A cancel for some other job leaves this one running.
+    fireCancel!({ jobId: 'some-other-job' });
+    expect(seenSignal!.aborted).toBe(false);
+
+    // A cancel naming the active job aborts it.
+    fireCancel!({ jobId: JID });
+    expect(seenSignal!.aborted).toBe(true);
+
+    release?.();
+    vi.doUnmock('../job-claim-adapter');
+    vi.resetModules();
+  });
+
   it('subscribes to activeJob$ and dispatches handleJob on each emitted job', async () => {
     const { BehaviorSubject } = await import('rxjs');
     const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
@@ -1234,39 +1285,6 @@ describe('reference-annotation — checkpointed resume', () => {
     expect(h.busEmits.filter(e => e.channel === 'job:checkpoint').map(e => (e.payload as { completedUnits: string[] }).completedUnits))
       .toEqual([['Person'], ['Person', 'Date'], ['Person', 'Date', 'Location']]);
     expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
-  });
-
-  // The cancel SIGNAL's routing, distinct from what the loop does once aborted.
-  // A worker holds one active job; a `job:cancel-requested` naming a different
-  // one must not touch it. Getting this wrong cancels a stranger's work, and
-  // the failure is invisible — the wrong job simply stops.
-  it('aborts the active job only when the cancel names it', async () => {
-    let seenSignal: AbortSignal | undefined;
-    let release: (() => void) | undefined;
-    vi.mocked(processReferenceJob).mockImplementation(
-      async (_c, _cl, _p, _b, _pr, _l, _onUnit, signal) => {
-        seenSignal = signal;
-        await new Promise<void>((r) => { release = r; });
-        return { result: { kind: 'reference-annotation', totalFound: 0, totalEmitted: 0, errors: 0 } as never };
-      },
-    );
-    const h = makeFakeSessionAndAdapter();
-    startWorkerProcess(makeConfig(h.session));
-    activeJob$.next(makeJob('reference-annotation', { entityTypes: ['Person'] }));
-    await vi.waitFor(() => expect(seenSignal).toBeDefined());
-
-    const fireCancel = h.transportHandlers.get('job:cancel-requested');
-    expect(fireCancel).toBeDefined();
-
-    // A cancel for some other job leaves this one running.
-    fireCancel!({ jobId: 'some-other-job' });
-    expect(seenSignal!.aborted).toBe(false);
-
-    // A cancel naming the active job aborts it.
-    fireCancel!({ jobId: JID });
-    expect(seenSignal!.aborted).toBe(true);
-
-    release?.();
   });
 
   it('cancellation stops at a unit boundary: emits job:cancel with the checkpoint, not job:complete (JOB-RESTART-SAFETY P4)', async () => {
