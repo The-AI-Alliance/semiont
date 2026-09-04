@@ -60,7 +60,7 @@
     "react-dom": "^19.2.8",
     "react-i18next": "^17.0.12",
     "react-markdown": "^10.1.0",
-    "react-router": "^8.3.0",
+    "react-router": "^8.3.1",
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
@@ -80,7 +80,7 @@
     "cross-env": "^10.1.0",
     "fast-check": "^4.9.0",
     "jest-axe": "^11.0.0",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.0",
     "msw": "^2.15.0",
     "postcss": "^8.5.25",
     "tailwindcss": "^4.2.1",

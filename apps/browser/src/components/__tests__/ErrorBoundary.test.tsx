@@ -343,8 +343,8 @@ describe('AsyncErrorBoundary', () => {
     );
     
     // Check for SVG warning icon by class and viewBox
-    const svgIcon = container.querySelector('svg[viewBox="0 0 20 20"]');
-    expect(svgIcon).toBeTruthy();
+    const svgIcon = container.querySelector('svg[viewBox]');
+    expect(svgIcon).toHaveAttribute('viewBox', '0 0 20 20');
     expect(svgIcon).toHaveClass('semiont-icon-warning');
   });
 });

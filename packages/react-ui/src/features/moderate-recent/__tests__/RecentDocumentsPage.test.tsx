@@ -368,8 +368,8 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const svg = container.querySelector('svg[viewBox="0 0 24 24"]');
-      expect(svg).toBeInTheDocument();
+      const svg = container.querySelector('svg[viewBox]');
+      expect(svg).toHaveAttribute('viewBox', '0 0 24 24');
     });
 
     it('renders SVG path with correct attributes', () => {
