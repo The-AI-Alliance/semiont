@@ -26,6 +26,7 @@
  */
 
 import { monitorEventLoopDelay } from 'node:perf_hooks';
+import { heapStats } from './runtime-stats';
 import { context, metrics, propagation, trace } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
@@ -159,8 +160,8 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
   // `browse:*` read waits, and nothing else in the stack says so.
   const loopDelay = monitorEventLoopDelay({ resolution: 10 });
   loopDelay.enable();
-  const loopMeter = meterProviderInstance.getMeter('semiont-runtime');
-  loopMeter
+  const runtimeMeter = meterProviderInstance.getMeter('semiont-runtime');
+  runtimeMeter
     .createObservableGauge('semiont.runtime.event_loop.lag', {
       description: 'Event-loop delay percentiles over the last export interval. Time the process could not serve anything.',
       unit: 'ms',
@@ -170,6 +171,28 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
       observer.observe(loopDelay.percentile(99) / 1e6, { 'lag.stat': 'p99' });
       observer.observe(loopDelay.max / 1e6, { 'lag.stat': 'max' });
       loopDelay.reset();
+    });
+
+  // Heap (ARCHIVIST-STAYS-UP P4), on the SAME registration as lag rather than
+  // a second mechanism — they are read together when diagnosing a process
+  // that stopped answering, and splitting them would mean two things to wire.
+  //
+  // `limit` is the field that repays the effort: the Archivist died at
+  // ~1016 MB inside a 2048 MB container because V8's own default ceiling sits
+  // well under the container's. `used` alone cannot say how close to death a
+  // process is, and `limit` is what a configured --max-old-space-size changes
+  // — so this is also how that setting is VERIFIED rather than assumed.
+  runtimeMeter
+    .createObservableGauge('semiont.runtime.heap', {
+      description: "Process memory by kind. `limit` is V8's own ceiling, which is what the process dies at — not the container's allocation.",
+      unit: 'By',
+    })
+    .addCallback((observer) => {
+      const s = heapStats();
+      observer.observe(s.heapUsed, { 'heap.stat': 'used' });
+      observer.observe(s.heapTotal, { 'heap.stat': 'total' });
+      observer.observe(s.heapLimit, { 'heap.stat': 'limit' });
+      observer.observe(s.rss, { 'heap.stat': 'rss' });
     });
 
   // Flush traces + metrics on shutdown so nothing is lost on SIGTERM/SIGINT.

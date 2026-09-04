@@ -73,6 +73,15 @@ paths; the image fixes the container-side paths so the launcher passes no path e
 `SEMIONT_WORKER_SECRET` — it authenticates to the gateway with it and requires it on its own
 surface. `SEMIONT_SKIP_REBUILD=true` skips the startup view rebuild.
 
+**The heap ceiling is explicit, and paired.** The image sets
+`NODE_OPTIONS=--max-old-space-size=1536` against a 2 GB container allocation. Without it V8
+picks its own default, which lands well under the cgroup limit — this process once died at
+~1016 MB inside 2048 MB, with half the memory it was allotted unreachable. The 1536/2048 pair
+must move together: raising the cap to the container's full allocation trades a catchable V8
+heap error for an uncatchable cgroup kill. `semiont.runtime.heap{heap.stat="limit"}` reports the
+ceiling actually in force, so a cap that was set but did not apply is visible rather than
+assumed. Rationale in full lives in the Dockerfile beside the `ENV`.
+
 Start it **after the gateway** (it mints an agent token there) and **before the sidecars** (they
 dial it). Its `/health` answers only once the actors and bus pumps are up, which is what makes
 that ordering enforceable.
