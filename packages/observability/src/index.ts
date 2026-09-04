@@ -449,6 +449,60 @@ export function recordJobOutcome(jobType: string, outcome: 'completed' | 'failed
   jobDurationHistogram().record(durationMs, { 'job.type': jobType, 'job.outcome': outcome });
 }
 
+let _appendStageHistogram: Histogram | undefined;
+function appendStageHistogram(): Histogram {
+  if (!_appendStageHistogram) {
+    _appendStageHistogram = meter().createHistogram('semiont.record.append.duration', {
+      description: 'Time spent in one stage of appending an event to the record, labeled by stage: persist (JSONL write + git), materialize (view rebuild), enrich, publish. The Archivist\'s core write path.',
+      unit: 'ms',
+    });
+  }
+  return _appendStageHistogram;
+}
+
+/**
+ * Record one stage of `EventStore.appendEvent` (ARCHIVIST-STAYS-UP P7).
+ *
+ * The append path is the one operation only the Archivist can perform, and it
+ * was entirely dark: reads had `recordHandlerDuration` and the bus had its own
+ * counters, while writes had nothing. Stage-labeled because the useful
+ * question is never "was the append slow" but WHICH PART — and `materialize`
+ * in particular does work proportional to a resource's annotation count, so it
+ * degrades with history rather than with load.
+ */
+export function recordAppendStage(
+  stage: 'persist' | 'materialize' | 'enrich' | 'publish',
+  durationMs: number,
+): void {
+  appendStageHistogram().record(durationMs, { 'record.stage': stage });
+}
+
+let _gitCommandHistogram: Histogram | undefined;
+function gitCommandHistogram(): Histogram {
+  if (!_gitCommandHistogram) {
+    _gitCommandHistogram = meter().createHistogram('semiont.git.duration', {
+      description: 'Time spent in a synchronous git subprocess. These run on the event loop, so this duration is also time no other request could be served.',
+      unit: 'ms',
+    });
+  }
+  return _gitCommandHistogram;
+}
+
+/**
+ * Record a synchronous git invocation (ARCHIVIST-STAYS-UP P7).
+ *
+ * These are `execFileSync`, so **the duration is event-loop blockage, not just
+ * latency** — every concurrent `browse:*` read waits behind it. One `git add`
+ * runs per appended event, so a detection job writing hundreds of annotations
+ * spawns hundreds of blocking subprocesses. That is the suspected mechanism
+ * behind "reads serializing behind the detection job's annotation writes" in
+ * `bugs/absent-archivist-wedges-browse.md`, which recorded the symptom without
+ * a cause. This number is what turns that from a hypothesis into a reading.
+ */
+export function recordGitCommand(command: string, durationMs: number): void {
+  gitCommandHistogram().record(durationMs, { 'git.command': command });
+}
+
 function gatherDegradeCounter(): Counter {
   if (!_gatherDegradeCounter) {
     _gatherDegradeCounter = meter().createCounter('semiont.gather.degraded', {

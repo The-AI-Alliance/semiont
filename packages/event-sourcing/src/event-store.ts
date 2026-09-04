@@ -19,6 +19,7 @@ import type {
   ResourceId,
   Logger,
 } from '@semiont/core';
+import { recordAppendStage } from '@semiont/observability';
 import { EventBus as CoreEventBus } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import type { ViewStorage } from './storage/view-storage';
@@ -68,36 +69,54 @@ export class EventStore {
   ): Promise<StoredEvent> {
     const resourceId: ResourceId | '__system__' = event.resourceId || '__system__';
 
+    // Each stage is timed separately (ARCHIVIST-STAYS-UP P7). The useful
+    // question is never "was the append slow" but WHICH stage: `persist`
+    // includes a SYNCHRONOUS git add that blocks the event loop, and
+    // `materialize` does work proportional to the resource's annotation
+    // count — so one degrades with concurrency and the other with history.
+    const timed = async <T>(stage: 'persist' | 'materialize' | 'enrich' | 'publish', run: () => Promise<T> | T): Promise<T> => {
+      const started = performance.now();
+      try {
+        return await run();
+      } finally {
+        recordAppendStage(stage, performance.now() - started);
+      }
+    };
+
     // 1. Persist event to log
-    const storedEvent = await this.log.append(event, resourceId as any, options);
+    const storedEvent = await timed('persist', () => this.log.append(event, resourceId as any, options));
 
     // 2. Update views
-    if (resourceId === '__system__') {
-      await this.views.materializeSystem(
-        storedEvent.type,
-        storedEvent.payload
-      );
-    } else {
-      await this.views.materializeResource(
-        resourceId as ResourceId,
-        storedEvent,
-        () => this.log.getEvents(resourceId as ResourceId)
-      );
-    }
+    await timed('materialize', async () => {
+      if (resourceId === '__system__') {
+        await this.views.materializeSystem(
+          storedEvent.type,
+          storedEvent.payload
+        );
+      } else {
+        await this.views.materializeResource(
+          resourceId as ResourceId,
+          storedEvent,
+          () => this.log.getEvents(resourceId as ResourceId)
+        );
+      }
+    });
 
     // 3. Enrich (attach post-materialization data like annotations)
     let publishEvent = storedEvent;
     if (this.enrichEvent && resourceId !== '__system__') {
-      publishEvent = await this.enrichEvent(storedEvent, resourceId as ResourceId);
+      publishEvent = await timed('enrich', () => this.enrichEvent!(storedEvent, resourceId as ResourceId));
     }
 
     // 4. Publish to Core EventBus typed channels
-    this.coreEventBus.getDomainEvent(publishEvent.type).next(publishEvent);
+    await timed('publish', () => {
+      this.coreEventBus.getDomainEvent(publishEvent.type).next(publishEvent);
 
-    if (resourceId !== '__system__') {
-      const scopedBus = this.coreEventBus.scope(resourceId as string);
-      scopedBus.getDomainEvent(publishEvent.type).next(publishEvent);
-    }
+      if (resourceId !== '__system__') {
+        const scopedBus = this.coreEventBus.scope(resourceId as string);
+        scopedBus.getDomainEvent(publishEvent.type).next(publishEvent);
+      }
+    });
 
     return storedEvent;
   }

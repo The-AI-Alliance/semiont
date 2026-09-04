@@ -25,6 +25,7 @@
  * blowing up bundles for every consumer.
  */
 
+import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { context, metrics, propagation, trace } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
@@ -147,6 +148,29 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
     ],
   });
   metrics.setGlobalMeterProvider(meterProviderInstance);
+
+  // Event-loop lag (ARCHIVIST-STAYS-UP P7). The cause-AGNOSTIC detector for a
+  // blocked process: it rises whether the cause is a synchronous git
+  // subprocess, a large JSON parse, or GC. Cheap — libuv keeps the histogram;
+  // we read percentiles and reset once per export interval.
+  //
+  // It earns its place because the Archivist runs `execFileSync('git', …)` on
+  // this loop once per appended event: while that blocks, every concurrent
+  // `browse:*` read waits, and nothing else in the stack says so.
+  const loopDelay = monitorEventLoopDelay({ resolution: 10 });
+  loopDelay.enable();
+  const loopMeter = meterProviderInstance.getMeter('semiont-runtime');
+  loopMeter
+    .createObservableGauge('semiont.runtime.event_loop.lag', {
+      description: 'Event-loop delay percentiles over the last export interval. Time the process could not serve anything.',
+      unit: 'ms',
+    })
+    .addCallback((observer) => {
+      observer.observe(loopDelay.mean / 1e6, { 'lag.stat': 'mean' });
+      observer.observe(loopDelay.percentile(99) / 1e6, { 'lag.stat': 'p99' });
+      observer.observe(loopDelay.max / 1e6, { 'lag.stat': 'max' });
+      loopDelay.reset();
+    });
 
   // Flush traces + metrics on shutdown so nothing is lost on SIGTERM/SIGINT.
   const shutdown = () => {
