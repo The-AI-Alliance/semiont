@@ -3041,6 +3041,9 @@ type JobProgress struct {
 		// FoundCount Annotations found for it.
 		FoundCount int `json:"foundCount"`
 
+		// PersistedCount Annotations actually persisted for it — post-dedupe and post-durability-acknowledgement, so it counts what the event log holds, not what the model proposed. Beside foundCount this is the per-unit yield the sizing work is judged by. Present on flows whose units persist as they complete (reference-annotation); the tagging flow reports the same fact as byCategory on its result, because its annotations are built after the per-category loop.
+		PersistedCount *int `json:"persistedCount,omitempty"`
+
 		// Value The item, shown verbatim.
 		Value string `json:"value"`
 	} `json:"completedItems,omitempty"`
