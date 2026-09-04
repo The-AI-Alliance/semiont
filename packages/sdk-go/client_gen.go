@@ -1622,7 +1622,7 @@ type AuthResponse struct {
 	RefreshToken string `json:"refreshToken"`
 	Success      bool   `json:"success"`
 
-	// Token Short-lived access token (1 hour). Use as Authorization: Bearer header on API calls.
+	// Token Short-lived access token. Use as Authorization: Bearer header on API calls. The TTL is deliberately NOT restated here — docs/system/administration/AUTHENTICATION.md holds the one table of token lifetimes, and a second copy is how this description came to claim an hour for a ten-minute token. A client must refresh from the refresh token rather than assume any particular window.
 	Token string `json:"token"`
 	User  struct {
 		Domain  string  `json:"domain"`
