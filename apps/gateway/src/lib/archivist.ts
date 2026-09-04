@@ -17,7 +17,24 @@
 import { HTTPException } from 'hono/http-exception';
 import type { StoredResource } from '@semiont/content';
 import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
+import { SpanKind, withSpan } from '@semiont/observability';
 import { getLogger } from '../logger';
+
+/**
+ * Every call here crosses to the Archivist, so every call is a CLIENT span.
+ *
+ * The documented model (OBSERVABILITY.md) pairs a `content.*` client span with
+ * a `content.*.server` span and stops — it was written when the gateway WAS the
+ * content store. SINGLE-KB-MOUNT added this third hop underneath the server
+ * span, so `content.put.server`'s duration has since included a full Archivist
+ * round-trip while attributing none of it: a slow Archivist rendered as a slow
+ * gateway. These spans put the time where it is spent.
+ */
+const archivistSpan = <T>(op: string, run: () => Promise<T>): Promise<T> =>
+  withSpan(`archivist.${op}`, run, {
+    kind: SpanKind.CLIENT,
+    attrs: { 'peer.service': 'archivist' },
+  });
 
 /**
  * The KB working tree's current branch, for `/api/status` (SINGLE-KB-MOUNT
@@ -33,7 +50,7 @@ import { getLogger } from '../logger';
 export async function kbBranch(config: ArchivistAddressConfig): Promise<string | undefined> {
   try {
     const { base, headers } = archivistEndpoint(config);
-    const res = await fetch(`${base}/kb/branch`, { headers });
+    const res = await archivistSpan('kb.branch', () => fetch(`${base}/kb/branch`, { headers }));
     if (!res.ok) return undefined;
     const { branch } = await res.json() as { branch?: string | null };
     return branch ?? undefined;
@@ -79,7 +96,7 @@ export async function putContent(
 
   let res: Response;
   try {
-    res = await fetch(url, { method: 'PUT', headers, body });
+    res = await archivistSpan('content.put', () => fetch(url, { method: 'PUT', headers, body }));
   } catch (error) {
     getLogger().error('Archivist content write unreachable', {
       component: 'archivist-client',
@@ -125,7 +142,7 @@ export async function getContent(
 
   let res: Response;
   try {
-    res = await fetch(url, { headers });
+    res = await archivistSpan('content.get', () => fetch(url, { headers }));
   } catch (error) {
     getLogger().error('Archivist content read unreachable', {
       component: 'archivist-client',

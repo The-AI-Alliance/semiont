@@ -11,10 +11,18 @@ import type {
   EventMetadata,
   components,
 } from '@semiont/core';
-const observed = vi.hoisted(() => ({ replySuppressed: vi.fn() }));
+const observed = vi.hoisted(() => ({
+  replySuppressed: vi.fn(),
+  resumeGap: vi.fn(),
+  unanswerable: vi.fn(),
+  registryProvider: vi.fn(),
+}));
 vi.mock('@semiont/observability', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@semiont/observability')>()),
   recordReplySuppressed: (...args: unknown[]) => observed.replySuppressed(...args),
+  recordResumeGap: (...args: unknown[]) => observed.resumeGap(...args),
+  recordUnanswerableRequest: (...args: unknown[]) => observed.unanswerable(...args),
+  registerCorrelationRegistryProvider: (p: unknown) => observed.registryProvider(p),
 }));
 
 import { createBusRouter, createCorrelationRegistry } from '../../routes/bus';
@@ -1325,6 +1333,81 @@ describe('bus routes', () => {
       eventBus.get(FAILED).subscribe((v) => failures.push(v));
       await emit({ channel: REQ, payload: { resourceId: 'r-5', options: OPTS } });
       expect(failures).toHaveLength(0);
+    });
+  });
+
+  // ── Gateway telemetry ─────────────────────────────────────────────────
+  //
+  // A counter that is wired but never incremented is the defect these pins
+  // exist to prevent — nothing else in the stack would notice. Spans are not
+  // pinned here: the repo tests no spans anywhere, and inventing a harness for
+  // these four would be a precedent, not a pin.
+  describe('telemetry', () => {
+    const REQ = 'gather:resource-requested';
+    const OPTS = { depth: 1, maxResources: 1, includeContent: false, includeSummary: false };
+
+    it('counts an unanswerable request, labelled by channel', async () => {
+      observed.unanswerable.mockClear();
+      await app.request('/bus/emit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: REQ,
+          clientId: 'client-t',
+          payload: { correlationId: 'c-unans', resourceId: 'r-1', options: OPTS },
+        }),
+      });
+      expect(observed.unanswerable).toHaveBeenCalledWith(REQ);
+    });
+
+    it('does not count a broadcast that reaches nobody', async () => {
+      observed.unanswerable.mockClear();
+      await app.request('/bus/emit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: 'beckon:focus', payload: { annotationId: 'ann-1' } }),
+      });
+      expect(observed.unanswerable).not.toHaveBeenCalled();
+    });
+
+    it('counts a resume gap, labelled by its reason', async () => {
+      observed.resumeGap.mockClear();
+      const res = await subscribe(app, {
+        clientId: 'client-gap',
+        global: ['test:event'],
+        scoped: [{ scope: 'res-1', channels: ['test:event'], lastEventId: 'not-a-valid-id' }],
+      });
+      await readSSE(res, (b) => b.includes('resume-gap'));
+      expect(observed.resumeGap).toHaveBeenCalled();
+      // The label is a closed set, never a scope or an id — cardinality.
+      expect(typeof observed.resumeGap.mock.calls[0]?.[0]).toBe('string');
+      expect(observed.resumeGap.mock.calls[0]?.[0]).toMatch(/last-event-id|scope|replay/);
+    });
+
+    it('registers a registry-occupancy provider that reports claims and retained replies', async () => {
+      observed.registryProvider.mockClear();
+      await subscribe(app, { clientId: 'client-occ', global: ['gather:resource-complete'] });
+      expect(observed.registryProvider).toHaveBeenCalled();
+
+      const provider = observed.registryProvider.mock.calls[0]?.[0] as () => {
+        claims: number; retainedReplies: number;
+      };
+      expect(provider()).toEqual({ claims: 0, retainedReplies: 0 });
+
+      await app.request('/bus/emit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: REQ,
+          clientId: 'client-occ',
+          payload: { correlationId: 'c-occ', resourceId: 'r-1', options: OPTS },
+        }),
+      });
+      // The claim exists; its reply arrived via the synthesized failure, so
+      // both dimensions move — which is what makes them separate series.
+      const after = provider();
+      expect(after.claims).toBeGreaterThan(0);
+      expect(after.retainedReplies).toBeGreaterThan(0);
     });
   });
 
