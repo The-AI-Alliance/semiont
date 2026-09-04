@@ -83,4 +83,47 @@ describe('append telemetry', () => {
 
     expect(recordAppendStage.mock.calls.map((c) => c[0])).toContain('persist');
   });
+
+  // Enrich is the one conditional stage: it runs only when an enricher is
+  // registered (make-meaning's event-enrichment does this) AND the event is
+  // resource-scoped. Both halves of that condition are pinned here, because a
+  // stage that silently stops being timed looks identical to one that is fast.
+  it('times the enrich stage when an enricher is registered', async () => {
+    store.setEnrichEvent(async (event) => event);
+
+    await store.appendEvent({
+      type: 'yield:created',
+      resourceId: makeResourceId('res-enriched'),
+      userId: userId('did:web:example:users:alice'),
+      version: 1,
+      payload: { name: 'N', format: 'text/plain', contentChecksum: 'h' },
+    } as never);
+
+    expect(recordAppendStage.mock.calls.map((c) => c[0])).toContain('enrich');
+  });
+
+  it('does not time enrich for a system append — the enricher is resource-scoped', async () => {
+    store.setEnrichEvent(async (event) => event);
+
+    await store.appendEvent({
+      type: 'frame:entity-type-added',
+      userId: userId('did:web:example:users:alice'),
+      version: 1,
+      payload: { entityType: 'Person' },
+    } as never);
+
+    expect(recordAppendStage.mock.calls.map((c) => c[0])).not.toContain('enrich');
+  });
+
+  it('leaves enrich untimed when no enricher is registered', async () => {
+    await store.appendEvent({
+      type: 'yield:created',
+      resourceId: makeResourceId('res-unenriched'),
+      userId: userId('did:web:example:users:alice'),
+      version: 1,
+      payload: { name: 'N', format: 'text/plain', contentChecksum: 'h' },
+    } as never);
+
+    expect(recordAppendStage.mock.calls.map((c) => c[0])).not.toContain('enrich');
+  });
 });

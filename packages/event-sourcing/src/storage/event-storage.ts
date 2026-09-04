@@ -28,12 +28,12 @@ import { recordGitCommand } from '@semiont/observability';
  * this process could serve nothing else, which is why it is measured rather
  * than assumed (ARCHIVIST-STAYS-UP P7).
  */
-function git(args: string[], cwd: string): void {
+function git(args: [string, ...string[]], cwd: string): void {
   const started = performance.now();
   try {
     execFileSync('git', args, { cwd });
   } finally {
-    recordGitCommand(args[0] ?? 'git', performance.now() - started);
+    recordGitCommand(args[0], performance.now() - started);
   }
 }
 
