@@ -34,8 +34,7 @@
  *   SEMIONT_SKIP_REBUILD      — 'true' skips the startup view rebuild.
  */
 
-import { BehaviorSubject, Subscription, merge, from } from 'rxjs';
-import { concatMap } from 'rxjs/operators';
+import { BehaviorSubject, Subscription, merge } from 'rxjs';
 import { HttpTransport } from '@semiont/http-transport';
 import {
   EventBus,
@@ -47,8 +46,6 @@ import {
   STARTUP_FETCH_RETRY,
   errField,
   type AccessToken,
-  type EventMap,
-  type StoredEvent,
 } from '@semiont/core';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 import { createEventStore } from '@semiont/event-sourcing';
@@ -63,6 +60,7 @@ import { createSmeltProgress } from './smelt-progress';
 import { createLimitsDiscovery } from './limits-discovery';
 import { makeMeaningConfigFrom } from './config';
 import { createArchivistServer } from './archivist-read-path';
+import { createFactPump } from './fact-pump';
 import { registerAnnotationAssemblyHandler } from './handlers/annotation-assembly';
 import { registerAnnotationContextHandler } from './handlers/annotation-lookups';
 import { workingTreeContentReads } from './knowledge-base';
@@ -115,6 +113,7 @@ const skipRebuild = process.env.SEMIONT_SKIP_REBUILD === 'true';
 /** Claimed as a portNeed in the launcher (P2b): worker 24100, smelter 24101, weaver 24102. */
 const healthPort = 24103;
 
+import { registerFactPumpDepthProvider } from '@semiont/observability';
 import { createProcessLogger } from '@semiont/observability/process-logger';
 const logger = createProcessLogger('archivist');
 
@@ -304,38 +303,30 @@ async function main() {
 
   // ── The fact pump (P3, D5): persisted events ride the bus ──────────
   // Every append publishes an (enriched) StoredEvent on this process's bus;
-  // this pump emits each one to the gateway via the ordinary /bus/emit —
+  // the pump emits each one to the gateway via the ordinary /bus/emit —
   // persisted channels are registered there (validate: null), and channel
   // authz is deferred wholesale (CHANNEL-AUTHZ.md). Emitted twice, exactly
   // as in-process appendEvent published: once global (the Smelter's and
   // Weaver's unscoped subscriptions), once resource-scoped (clients'
   // per-resource feeds, whose SSE frames carry the resumable p-<scope>-<seq>
-  // ids). Serialized with concatMap: projections downstream assume
-  // per-resource ORDER, and parallel emits would reorder. A fact that fails
-  // after the transport's retries is logged loudly and NOT retried further —
-  // the D1 replay path and the projectors' catch-up/reconcile passes exist
-  // for exactly that gap.
-  const publishFact = async (event: StoredEvent): Promise<void> => {
-    try {
-      const type = event.type as keyof EventMap;
-      await httpTransport.emit(type, event as never);
-      if (event.resourceId) {
-        await httpTransport.emit(type, event as never, event.resourceId);
-      }
-    } catch (error) {
-      logger.error('Fact publish failed — projectors will heal on their next catch-up', {
-        type: event.type,
-        resourceId: event.resourceId,
-        sequenceNumber: event.metadata?.sequenceNumber,
-        error: errField(error),
-      });
-    }
-  };
-  pumps.push(
-    merge(...PERSISTED_EVENT_TYPES.map((type) => localBus.getDomainEvent(type)))
-      .pipe(concatMap((event) => from(publishFact(event))))
-      .subscribe(),
+  // ids). A fact that fails after the transport's retries is logged loudly
+  // and NOT retried further — the D1 replay path and the projectors'
+  // catch-up/reconcile passes exist for exactly that gap.
+  //
+  // EXTRACTED to `fact-pump.ts` by ARCHIVIST-STAYS-UP P5, so the component
+  // whose backlog is the leading suspect for load-correlated heap growth can
+  // be tested and measured at all. Two things changed there, and the
+  // distinction matters: events still drain ONE AT A TIME IN ORDER (projections
+  // assume per-resource order), but the two emits WITHIN one event now run
+  // together — they address different scopes and have no ordering relation,
+  // so serialising them only doubled the drain time. `depth()` is published as
+  // a gauge: an unbounded backlog with no number is how this went undiagnosed.
+  const factPump = createFactPump(
+    merge(...PERSISTED_EVENT_TYPES.map((type) => localBus.getDomainEvent(type))),
+    { emit: (channel, payload, scope) => httpTransport.emit(channel, payload, scope), logger },
   );
+  pumps.push({ unsubscribe: () => factPump.unsubscribe() } as Subscription);
+  registerFactPumpDepthProvider(() => factPump.depth());
 
   logger.info('Bus pumps attached', { inbound: ARCHIVIST_INBOUND_CHANNELS.length, outbound: outbound.length, facts: PERSISTED_EVENT_TYPES.length });
 

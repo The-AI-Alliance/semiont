@@ -247,6 +247,8 @@ let _sseSubscribers: UpDownCounter | undefined;
 let _jobQueueGauge: ObservableGauge | undefined;
 let _jobQueueProvider: (() => Promise<JobQueueSnapshot> | JobQueueSnapshot) | undefined;
 let _vectorIndexSizeGauge: ObservableGauge | undefined;
+let _factPumpDepthGauge: ObservableGauge | undefined;
+let _factPumpDepthProvider: (() => number) | undefined;
 let _vectorIndexSizeProvider: (() => Promise<number> | number) | undefined;
 
 /** Snapshot of job-queue contents by status. Match `JobQueue.getStats()`. */
@@ -510,6 +512,29 @@ export function registerJobQueueProvider(
  * (point count). Async to allow remote queries (Qdrant). Polled at
  * the metric-collection interval.
  */
+/**
+ * Register the Archivist's fact-pump backlog — facts appended to the record
+ * but not yet republished onto the bus.
+ *
+ * At rest this is zero. A value that climbs and does not come back means the
+ * pump is outrunning its transport, which is the leading hypothesis for the
+ * load-correlated heap growth in `bugs/absent-archivist-wedges-browse.md`
+ * (ARCHIVIST-STAYS-UP P5). The backlog is deliberately unbounded today, so
+ * this number is the only thing standing between "the pump is behind" and an
+ * OOM whose cause is inferred from RSS after the fact.
+ */
+export function registerFactPumpDepthProvider(provider: () => number): void {
+  _factPumpDepthProvider = provider;
+  if (!_factPumpDepthGauge) {
+    _factPumpDepthGauge = meter().createObservableGauge('semiont.archivist.fact_pump.depth', {
+      description: 'Facts appended to the record but not yet published to the bus. Zero at rest; a rising floor means the pump is behind its transport.',
+    });
+    _factPumpDepthGauge.addCallback((observer) => {
+      if (_factPumpDepthProvider) observer.observe(_factPumpDepthProvider());
+    });
+  }
+}
+
 export function registerVectorIndexSizeProvider(
   provider: () => Promise<number> | number,
 ): void {
