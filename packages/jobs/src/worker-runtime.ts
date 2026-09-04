@@ -125,8 +125,21 @@ export function buildHealthPayload(workers: ReadonlyArray<{ vitals(): AgentVital
  *
  * Thresholds are fixed by design (no env knobs) and deliberately
  * layered: inference timeout (10 min, P2) fires first; this watchdog
- * (15 min) catches the failure modes nobody predicted; the gateway's
- * dead-worker janitor (30 min) re-queues the job regardless.
+ * (15 min) catches wedges where the loop still turns but activity has
+ * stopped; the gateway's dead-worker janitor (30 min) re-queues the job
+ * regardless.
+ *
+ * The layering matters because this watchdog has a hard limit: it is an
+ * IN-PROCESS timer, so it cannot fire while the event loop itself is
+ * blocked — the exact condition a blocked loop creates
+ * (JOB-RESTART-SAFETY P7, the 2026-09-03 finalization hang: 18 min silent,
+ * this watchdog never fired, an empty /health confirming the loop was
+ * wedged). The unbounded emit that caused that specific hang is now bounded
+ * at the transport (`EMIT_TIMEOUT_MS`), so the loop errors instead of
+ * blocking; but for any future blocked-loop bug the ONLY backstop is the
+ * out-of-process one — the gateway's janitor sweeping this worker's job
+ * files by mtime (`fs-job-queue.ts` `recoverStaleRunningJobs`). A liveness
+ * guarantee a blocked loop defeats is not one; the janitor is the guarantee.
  */
 export const STALL_THRESHOLD_MS = 15 * 60_000;
 export const STALL_CHECK_INTERVAL_MS = 60_000;
@@ -190,6 +203,11 @@ export const WORKER_AWAITED_OPERATIONS = [
   'job:claim',
   'browse:resource-requested',
   'browse:anchored-text-by-checksum-requested',
+  // Durability acknowledgement for a unit's annotations (JOB-RESTART-SAFETY
+  // P6). The worker AWAITS this one — a unit may not advance until its
+  // annotations are in the event log — so its replies must be in the narrow
+  // channel set or every commit fails fast with `bus.unsubscribed`.
+  'mark:commit',
 ] as const satisfies readonly BusOperationKey[];
 
 /** The derived global SSE channel set for a worker's transport. */

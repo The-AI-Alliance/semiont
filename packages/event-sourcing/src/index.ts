@@ -46,4 +46,4 @@ export {
 } from './views/projection-reducers';
 
 // Identifier utilities
-export { generateAnnotationId } from './identifier-utils';
+export { annotationIdFor, type AnnotationIdentity } from './identifier-utils';

@@ -215,6 +215,13 @@ export type MarkAssistProgress = JobProgress;
  */
 export type MarkAssistEvent =
   | { kind: 'progress'; data: MarkAssistProgress }
+  /**
+   * A failure the queue will retry (JOB-RESTART-SAFETY P5). The run is NOT
+   * over: a fresh attempt follows and this stream stays open until a terminal
+   * arrives. A TERMINAL failure is not this event — it errors the stream, as
+   * it always has. Render it as a setback, not an ending.
+   */
+  | { kind: 'failed'; data: components['schemas']['JobFailCommand'] }
   | { kind: 'complete'; data: components['schemas']['JobCompleteCommand'] };
 
 /**
@@ -530,6 +537,8 @@ export interface JobNamespace {
   status(jobId: JobId): Promise<JobStatusResponse>;
   pollUntilComplete(jobId: JobId, options?: { interval?: number; timeout?: number; onProgress?: (status: JobStatusResponse) => void }): Promise<JobStatusResponse>;
   cancelByType(jobType: 'annotation' | 'generation'): Promise<number>;
+  /** Cancel ONE job by id; resolves with the count the queue acted on. */
+  cancel(jobId: JobId): Promise<number>;
 
   /** UI signal: cancel all active jobs of a given type (e.g. "annotation"). */
   cancelRequest(jobType: 'annotation' | 'generation'): void;

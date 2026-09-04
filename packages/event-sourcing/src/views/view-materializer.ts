@@ -341,9 +341,41 @@ export class ViewMaterializer {
    */
   private applyEventToAnnotations(annotations: ResourceAnnotations, event: PersistedEvent): void {
     switch (event.type) {
-      case 'mark:added':
-        annotations.annotations.push(event.payload.annotation);
+      case 'mark:added': {
+        // Idempotent by annotation id (JOB-RESTART-SAFETY P6). At-least-once
+        // delivery is a property of the network: a worker whose commit was
+        // appended but whose acknowledgement was lost MUST retry, and no
+        // pre-append check can prevent the repeat because the append already
+        // succeeded. P3's deterministic ids make the repeat recognizable; this
+        // makes it harmless.
+        //
+        // It is also what a projection owes the log it derives from — the view
+        // answers "annotation X exists", never "X was written twice". A blind
+        // push made the view depend on how many times a fact was recorded.
+        // Ordering still decides: a `mark:removed` between two appends drops
+        // the annotation, and the later append re-creates it (a genuinely new
+        // fact, which is why it correctly takes the new payload).
+        //
+        // FIRST write wins, and that is load-bearing rather than arbitrary. A
+        // repeat is NOT byte-identical: `created` is stamped at emission and
+        // was deliberately excluded from the id (P3), so a recovery re-sends
+        // the same annotation with a fresh timestamp. Taking the newer payload
+        // advanced `created` to the recovery time, so this view reported when
+        // a retry happened rather than when the annotation was made — a
+        // projection answering a question about its own delivery history
+        // instead of about the facts it derives from. (The graph projection is
+        // unaffected: it mints its own write time in `buildAnnotation` and
+        // never sees this stamp.) Nothing else CAN differ: the id hashes
+        // resourceId +
+        // motivation + anchor + body, so a same-id re-append carries the same
+        // identity-bearing content by construction. Last-write-wins therefore
+        // had no reachable upside and this one real cost.
+        const incoming = event.payload.annotation;
+        if (!annotations.annotations.some((a: Annotation) => a.id === incoming.id)) {
+          annotations.annotations.push(incoming);
+        }
         break;
+      }
 
       case 'mark:removed':
         annotations.annotations = annotations.annotations.filter(

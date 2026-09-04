@@ -45,9 +45,10 @@ vi.mock('../workers/generation/typst-compiler', async (importOriginal) => ({
   compileTypst: vi.fn(),
 }));
 
-vi.mock('@semiont/event-sourcing', () => ({
-  generateAnnotationId: vi.fn(() => 'ann-test-123'),
-}));
+// No `@semiont/event-sourcing` mock: annotation ids are content-addressed
+// (JOB-RESTART-SAFETY P3), so the real function is already deterministic. The
+// mock existed only to buy that determinism, and keeping it would hide the
+// identity these builders now compute — which is the thing worth exercising.
 
 // No `@semiont/core` mock — these tests exercise the real `reconcileSelector`
 // against synthetic content. The processor's `buildTextAnnotation` invariant
@@ -328,6 +329,72 @@ describe('processReferenceJob', () => {
     // Legitimately-empty is a completed unit (A3 v) — a retry must skip it.
     expect(onUnitComplete).toHaveBeenCalledExactlyOnceWith('Location', []);
     expect(outcome.result).toEqual({ kind: 'reference-annotation', totalFound: 0, totalEmitted: 0, errors: 0 });
+  });
+});
+
+// ── JOB-RESTART-SAFETY P6: the unit gates on the COMMIT, not on the emit ────
+//
+// `onUnitComplete` is the durability seam. Before P6 the worker's version of it
+// emitted `mark:create` fire-and-forget and returned, so a down Archivist lost
+// the unit silently and a flapping one hung the worker forever. It now awaits a
+// `mark:commit` acknowledgement, which means a rejecting sink must stop the
+// unit from counting — and a recovering one must let it through.
+//
+// Tested here rather than at the worker because this is where "counts anywhere"
+// is decided: the loop awaits the callback BEFORE touching totals, completed
+// items, or the checkpoint list.
+describe('processReferenceJob — unit completion gates on the commit (P6)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('a rejecting sink stops the unit counting, and the failure reaches the caller', async () => {
+    vi.mocked(extractEntities).mockResolvedValue([
+      { exact: 'Paris', start: 0, end: 5, entityType: 'Location' } as any,
+    ]);
+    const onUnitComplete = vi.fn(async () => { throw new Error('mark:commit failed: sink down'); });
+
+    await expect(processReferenceJob(
+      'Paris and Berlin',
+      makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild('Paris and Berlin'),
+      vi.fn(),
+      LOGGER,
+      onUnitComplete,
+    )).rejects.toThrow(/sink down/);
+
+    // The point of the phase: an un-acked unit must NOT be reported complete.
+    // Swallowing here is what turned an Archivist outage into silent data
+    // loss — the unit would advance, the checkpoint would record it, and a
+    // resume would skip work that never persisted.
+    expect(onUnitComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it('a sink that recovers lets the unit through and counts it once', async () => {
+    vi.mocked(extractEntities).mockResolvedValue([
+      { exact: 'Paris', start: 0, end: 5, entityType: 'Location' } as any,
+    ]);
+    let attempt = 0;
+    const onUnitComplete = vi.fn(async () => {
+      if (++attempt === 1) throw new Error('mark:commit failed: sink down');
+    });
+
+    // First pass fails at the unit boundary.
+    await expect(processReferenceJob(
+      'Paris and Berlin', makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild('Paris and Berlin'), vi.fn(), LOGGER, onUnitComplete,
+    )).rejects.toThrow();
+
+    // The retry — the whole unit again, which is safe because ids are
+    // deterministic (P3) and the annotation fold is idempotent by id.
+    const outcome = await processReferenceJob(
+      'Paris and Berlin', makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild('Paris and Berlin'), vi.fn(), LOGGER, onUnitComplete,
+    );
+
+    expect(outcome.result).toEqual({ kind: 'reference-annotation', totalFound: 1, totalEmitted: 1, errors: 0 });
+    expect(attempt).toBe(2);
   });
 });
 

@@ -145,6 +145,17 @@ export type EventMap = {
   // Command results
   'mark:create-ok': components['schemas']['MarkCreateOk'];
   'mark:create-failed': components['schemas']['CommandError'];
+
+  /**
+   * Persist a detection unit's annotations as ONE acknowledged batch
+   * (JOB-RESTART-SAFETY P6). Answered only after every annotation is in
+   * the event log, so a worker can gate unit completion on durability
+   * instead of on emission — which is what makes an Archivist outage a
+   * delay rather than silent data loss.
+   */
+  'mark:commit': components['schemas']['MarkCommitCommand'];
+  'mark:commit-ok': components['schemas']['MarkCommitOk'];
+  'mark:commit-failed': components['schemas']['CommandError'];
   'mark:delete-ok': components['schemas']['MarkDeleteOk'];
   'mark:delete-failed': components['schemas']['CommandError'];
   // archive/unarchive confirmed-write replies (bridged) — correlation-keyed
@@ -397,8 +408,10 @@ export type EventMap = {
   'job:report-progress': components['schemas']['JobReportProgressCommand'];
   'job:complete': components['schemas']['JobCompleteCommand'];
   'job:fail': components['schemas']['JobFailCommand'];
+  'job:checkpoint': components['schemas']['JobCheckpointCommand'];
   'job:queued': components['schemas']['JobQueuedEvent'];
   'job:cancel-requested': components['schemas']['JobCancelRequest'];
+  'job:cancel': components['schemas']['JobCancelCommand'];
   'job:status-requested': components['schemas']['JobStatusRequest'];
   'job:create': components['schemas']['JobCreateCommand'];
   'job:claim': components['schemas']['JobClaimCommand'];
@@ -616,6 +629,9 @@ export const CHANNEL_SCHEMAS = {
   'frame:add-tag-schema':             'FrameAddTagSchemaCommand',
   'mark:create-ok':                   'MarkCreateOk',
   'mark:create-failed':               'CommandError',
+  'mark:commit':                      'MarkCommitCommand',
+  'mark:commit-ok':                   'MarkCommitOk',
+  'mark:commit-failed':               'CommandError',
   'mark:delete-ok':                   'MarkDeleteOk',
   'mark:delete-failed':               'CommandError',
   'mark:archive-ok':                  null,
@@ -738,8 +754,10 @@ export const CHANNEL_SCHEMAS = {
   'job:report-progress':              'JobReportProgressCommand',
   'job:complete':                     'JobCompleteCommand',
   'job:fail':                         'JobFailCommand',
+  'job:checkpoint':                   'JobCheckpointCommand',
   'job:queued':                       'JobQueuedEvent',
   'job:cancel-requested':             'JobCancelRequest',
+  'job:cancel':                       'JobCancelCommand',
   'job:status-requested':             'JobStatusRequest',
   'job:create':                       'JobCreateCommand',
   'job:claim':                        'JobClaimCommand',

@@ -74,7 +74,7 @@ export interface StowerStores {
  */
 export const STOWER_CHANNELS = [
   'yield:create', 'yield:clone-persist', 'yield:update', 'yield:mv',
-  'mark:create', 'mark:delete', 'mark:update-body',
+  'mark:create', 'mark:commit', 'mark:delete', 'mark:update-body',
   'frame:add-entity-type', 'frame:add-tag-schema',
   'mark:archive', 'mark:unarchive', 'mark:update-entity-types',
   'job:start', 'job:complete', 'job:fail',
@@ -109,6 +109,7 @@ export class Stower {
       pipe('yield:update', (e) => this.handleYieldUpdate(e)),
       pipe('yield:mv', (e) => this.handleYieldMv(e)),
       pipe('mark:create', (e) => this.handleMarkCreate(e)),
+      pipe('mark:commit', (e) => this.handleMarkCommit(e)),
       pipe('mark:delete', (e) => this.handleMarkDelete(e)),
       pipe('mark:update-body', (e) => this.handleMarkUpdateBody(e)),
       pipe('frame:add-entity-type', (e) => this.handleAddEntityType(e)),
@@ -362,6 +363,61 @@ export class Stower {
     } catch (error) {
       this.logger.error('Failed to create annotation', { error: errField(error) });
       this.eventBus.get('mark:create-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Persist a detection unit's annotations as ONE acknowledged batch, then
+   * answer (JOB-RESTART-SAFETY P6).
+   *
+   * The difference from `mark:create` is the reply, and it is the whole point.
+   * `mark:create` is fire-and-forget: the worker's emit resolves when the bus
+   * accepts it, which says nothing about the event log, so a down Stower loses
+   * a unit silently and a flapping one hangs the worker forever. This answers
+   * only after every append has returned, so the worker can gate unit
+   * completion — and its checkpoint — on durability.
+   *
+   * Appends are sequential, not concurrent: the event log is the system of
+   * record and a batch that half-lands under concurrency is harder to reason
+   * about than one that stops at the first failure. A partial batch is
+   * reported as a failure and the worker retries the WHOLE unit, which is safe
+   * because ids are deterministic (P3) and the annotation fold is idempotent
+   * by id — re-appending what already landed changes nothing.
+   */
+  private async handleMarkCommit(event: EventMap['mark:commit']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('mark:commit missing _userId (gateway injection)');
+    }
+    const annotations = (event.annotations ?? []) as Annotation[];
+    try {
+      let persisted = 0;
+      for (const annotation of annotations) {
+        await this.stores.eventStore.appendEvent({
+          type: 'mark:added',
+          resourceId: resourceId(event.resourceId),
+          userId: makeUserId(event._userId),
+          version: 1,
+          payload: { annotation },
+        });
+        persisted++;
+      }
+      this.logger.debug('Committed annotation batch', {
+        correlationId: event.correlationId, resourceId: event.resourceId, persisted,
+      });
+      this.eventBus.get('mark:commit-ok').next({
+        correlationId: event.correlationId,
+        response: { persisted, annotationIds: annotations.map((a) => String(a.id)) },
+      });
+    } catch (error) {
+      // No partial success is reported. The worker retries the unit whole, and
+      // the idempotent fold makes the already-landed fraction a no-op.
+      this.logger.error('Failed to commit annotation batch', {
+        correlationId: event.correlationId, error: errField(error),
+      });
+      this.eventBus.get('mark:commit-failed').next({
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });

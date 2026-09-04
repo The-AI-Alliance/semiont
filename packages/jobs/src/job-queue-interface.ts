@@ -19,6 +19,17 @@ export interface JobQueue {
    * budget remaining — a second identical attempt cannot succeed (P3).
    */
   failJob(jobId: JobId, error: string, completedUnits?: string[], failureClass?: 'transient' | 'deterministic'): Promise<'retried' | 'failed' | null>;
+  /**
+   * Persist a running job's completed-unit checkpoint AT unit completion —
+   * not only when a job fails (JOB-RESTART-SAFETY P2). `failJob` carries the
+   * checkpoint on a clean failure, but a worker that DIES (crash/OOM/kill)
+   * never emits `job:fail`, so its finished units would be lost and the
+   * janitor's recovery would redo them. This writes them into the running
+   * file's metadata as each unit lands, unioned with any existing
+   * checkpoint, so recovery resumes rather than restarts. Unthrottled (a
+   * unit completion must never be dropped); a no-op for non-running jobs.
+   */
+  checkpointUnits(jobId: JobId, completedUnits: string[]): Promise<void>;
   /** Write progress into a running job's file (throttled, best-effort). */
   recordProgress(jobId: JobId, progress: Record<string, unknown>): Promise<void>;
   /**

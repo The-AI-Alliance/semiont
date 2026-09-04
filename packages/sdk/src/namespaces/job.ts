@@ -77,6 +77,25 @@ export class JobNamespace implements IJobNamespace {
     return cancelled;
   }
 
+  /**
+   * Cancel ONE job by id (JOB-RESTART-SAFETY P5). Awaited like its category
+   * sibling `cancelByType`, and resolves with what the queue did: a PENDING
+   * job is cancelled outright; a RUNNING one is left to its worker, which
+   * stops cooperatively at the next unit boundary and keeps its checkpoint
+   * — so `1` means "accepted", not "already stopped".
+   *
+   * Deliberately carries no `jobType`: targeting one job must not be able to
+   * take the caller's other work with it.
+   */
+  async cancel(jobId: JobId): Promise<number> {
+    const { cancelled } = await busRequest(
+      this.transport,
+      'job:cancel-requested',
+      { jobId },
+    );
+    return cancelled;
+  }
+
   cancelRequest(jobType: 'annotation' | 'generation'): void {
     // Local emit: the batch-cancel widget fires this; a state unit subscribes and
     // translates into individual cancels.

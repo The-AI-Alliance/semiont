@@ -253,22 +253,78 @@ export function registerJobCommandHandlers(
     }
   });
 
+  // Durable checkpoint at unit completion (JOB-RESTART-SAFETY P2): persist the
+  // finished units into the running job's metadata now, so a worker that dies
+  // without emitting job:fail still leaves them for the janitor's recovery to
+  // resume from. failJob carries the same checkpoint on a CLEAN failure; this
+  // covers the crash path failJob never sees.
+  eventBus.get('job:checkpoint').subscribe(async (event) => {
+    try {
+      await jobQueue.checkpointUnits(jobId(event.jobId), event.completedUnits);
+    } catch (error) {
+      logger.error('Failed to checkpoint job units', {
+        jobId: event.jobId,
+        error: (error as Error).message,
+      });
+    }
+  });
+
   eventBus.get('job:cancel-requested').subscribe(async (event) => {
     try {
-      const cancelled = await jobQueue.cancelPendingJobs(event.jobType);
-      logger.info('Cancel requested', { jobType: event.jobType, cancelled });
+      let cancelled: number;
+      if (event.jobId) {
+        // Target one job (JOB-RESTART-SAFETY P4). A PENDING job is cancelled
+        // here and now; a RUNNING job is left for its worker to stop
+        // cooperatively (the worker is subscribed to this same signal and
+        // emits job:cancel when it reaches a unit boundary) — cancelling it
+        // here would yank it out from under a live worker.
+        const target = await jobQueue.getJob(jobId(event.jobId));
+        if (!target) {
+          cancelled = 0;
+        } else if (target.status === 'pending') {
+          cancelled = (await jobQueue.cancelJob(jobId(event.jobId))) ? 1 : 0;
+        } else if (target.status === 'running') {
+          logger.info('Cancel of running job delegated to its worker', { jobId: event.jobId });
+          cancelled = 1;
+        } else {
+          cancelled = 0; // already terminal
+        }
+        logger.info('Cancel requested', { jobId: event.jobId, cancelled });
+      } else if (event.jobType) {
+        cancelled = await jobQueue.cancelPendingJobs(event.jobType);
+        logger.info('Cancel requested', { jobType: event.jobType, cancelled });
+      } else {
+        cancelled = 0;
+      }
       eventBus.get('job:cancel-ok').next({
         correlationId: event.correlationId,
         response: { cancelled },
       });
     } catch (error) {
-      logger.error('Failed to cancel pending jobs', {
+      logger.error('Failed to cancel jobs', {
+        jobId: event.jobId,
         jobType: event.jobType,
         error: (error as Error).message,
       });
       eventBus.get('job:cancel-failed').next({
         correlationId: event.correlationId,
         message: (error as Error).message,
+      });
+    }
+  });
+
+  // A worker's confirmation that it stopped a running job cooperatively
+  // (JOB-RESTART-SAFETY P4): move it to cancelled/, carrying the units it
+  // checkpointed. This is the ONLY path that cancels a running job — a
+  // running job is never yanked queue-side out from under its live worker.
+  eventBus.get('job:cancel').subscribe(async (event) => {
+    try {
+      await jobQueue.cancelJob(jobId(event.jobId));
+      logger.info('Job cancelled by its worker', { jobId: event.jobId });
+    } catch (error) {
+      logger.error('Failed to cancel job', {
+        jobId: event.jobId,
+        error: (error as Error).message,
       });
     }
   });

@@ -45,6 +45,9 @@
       "mark:update-entity-types",
       "mark:create-ok",
       "mark:create-failed",
+      "mark:commit",
+      "mark:commit-ok",
+      "mark:commit-failed",
       "mark:delete-ok",
       "mark:delete-failed",
       "mark:archive-ok",
@@ -157,8 +160,10 @@
       "job:report-progress",
       "job:complete",
       "job:fail",
+      "job:checkpoint",
       "job:queued",
       "job:cancel-requested",
+      "job:cancel",
       "job:status-requested",
       "job:create",
       "job:claim",
@@ -236,6 +241,9 @@
       "frame:add-tag-schema",
       "mark:create-ok",
       "mark:create-failed",
+      "mark:commit",
+      "mark:commit-ok",
+      "mark:commit-failed",
       "mark:delete-ok",
       "mark:delete-failed",
       "mark:archive-ok",
@@ -344,8 +352,10 @@
       "job:report-progress",
       "job:complete",
       "job:fail",
+      "job:checkpoint",
       "job:queued",
       "job:cancel-requested",
+      "job:cancel",
       "job:status-requested",
       "job:create",
       "job:claim",
@@ -1058,6 +1068,60 @@
         "trailing": ""
       },
       "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:commit",
+      "shape": "schema",
+      "schema": "MarkCommitCommand",
+      "validate": "MarkCommitCommand",
+      "ts": "components['schemas']['MarkCommitCommand']",
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "docs": {
+        "lead": [
+          "",
+          "  /**",
+          "   * Persist a detection unit's annotations as ONE acknowledged batch",
+          "   * (JOB-RESTART-SAFETY P6). Answered only after every annotation is in",
+          "   * the event log, so a worker can gate unit completion on durability",
+          "   * instead of on emission — which is what makes an Archivist outage a",
+          "   * delay rather than silent data loss.",
+          "   */"
+        ],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:commit-ok",
+      "shape": "schema",
+      "schema": "MarkCommitOk",
+      "validate": "MarkCommitOk",
+      "ts": "components['schemas']['MarkCommitOk']",
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "mark:commit-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": "CommandError",
+      "ts": "components['schemas']['CommandError']",
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "docs": {
         "lead": [],
         "trailing": ""
       }
@@ -2885,6 +2949,21 @@
       }
     },
     {
+      "channel": "job:checkpoint",
+      "shape": "schema",
+      "schema": "JobCheckpointCommand",
+      "validate": "JobCheckpointCommand",
+      "ts": "components['schemas']['JobCheckpointCommand']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
       "channel": "job:queued",
       "shape": "schema",
       "schema": "JobQueuedEvent",
@@ -2905,6 +2984,21 @@
       "schema": "JobCancelRequest",
       "validate": "JobCancelRequest",
       "ts": "components['schemas']['JobCancelRequest']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:cancel",
+      "shape": "schema",
+      "schema": "JobCancelCommand",
+      "validate": "JobCancelCommand",
+      "ts": "components['schemas']['JobCancelCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3656,6 +3750,15 @@
           "",
           "  // ── MARK ────────────────────────────────────────────────────────"
         ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "mark:commit",
+      "result": "mark:commit-ok",
+      "failure": "mark:commit-failed",
+      "docs": {
+        "lead": [],
         "trailing": ""
       }
     },

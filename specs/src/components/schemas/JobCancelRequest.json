@@ -1,20 +1,22 @@
 {
   "type": "object",
-  "description": "Request to cancel a job",
+  "description": "Request to cancel a job. Target one running or pending job by `jobId` (JOB-RESTART-SAFETY P4), or a whole category of pending jobs by `jobType`. A `jobId`-targeted request that names a RUNNING job is honoured cooperatively by the owning worker, which stops at its next unit boundary and emits JobCancelCommand — the queue is never made to yank a running job out from under a live worker.",
   "properties": {
     "correlationId": {
       "type": "string",
       "description": "Correlation id for request/reply matching, set by the SDK's busRequest so the confirmed-write ack/failure routes back. Absent for the local cancelRequest UI signal."
+    },
+    "jobId": {
+      "type": "string",
+      "description": "Cancel this one job. A pending job is cancelled immediately by the gateway; a running job is cancelled cooperatively by its worker. Takes precedence over jobType."
     },
     "jobType": {
       "type": "string",
       "enum": [
         "annotation",
         "generation"
-      ]
+      ],
+      "description": "Cancel all PENDING jobs in this category — the bulk UI signal. Ignored when jobId is present."
     }
-  },
-  "required": [
-    "jobType"
-  ]
+  }
 }

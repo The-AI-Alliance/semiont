@@ -453,6 +453,9 @@
       "JobCancelRequest": {
         "$ref": "components/schemas/JobCancelRequest.json"
       },
+      "JobCancelCommand": {
+        "$ref": "components/schemas/JobCancelCommand.json"
+      },
       "JobClaimCommand": {
         "$ref": "components/schemas/JobClaimCommand.json"
       },
@@ -473,6 +476,9 @@
       },
       "JobFailCommand": {
         "$ref": "components/schemas/JobFailCommand.json"
+      },
+      "JobCheckpointCommand": {
+        "$ref": "components/schemas/JobCheckpointCommand.json"
       },
       "JobDeclinedResult": {
         "$ref": "components/schemas/JobDeclinedResult.json"
@@ -572,6 +578,12 @@
       },
       "MarkCreateOk": {
         "$ref": "components/schemas/MarkCreateOk.json"
+      },
+      "MarkCommitCommand": {
+        "$ref": "components/schemas/MarkCommitCommand.json"
+      },
+      "MarkCommitOk": {
+        "$ref": "components/schemas/MarkCommitOk.json"
       },
       "MarkCreateRequest": {
         "$ref": "components/schemas/MarkCreateRequest.json"

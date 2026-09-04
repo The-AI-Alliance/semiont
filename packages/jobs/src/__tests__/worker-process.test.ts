@@ -32,9 +32,11 @@
 
 import { GEN_REQUIRED, minimalContext } from './fixtures/generation-fixtures';
 import { referenceIdOf } from '../worker-process';
+import { Subject, BehaviorSubject } from 'rxjs';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { extractPdfTextLayer } from '@semiont/content';
 import type { SemiontSession } from '@semiont/sdk';
+import type { JobType } from '@semiont/core';
 import type { ActiveJob, JobClaimAdapter } from '../job-claim-adapter';
 import { handleJob, type WorkerProcessConfig } from '../worker-process';
 import {
@@ -100,18 +102,58 @@ function makeFakeSessionAndAdapter() {
   const yieldResourceCalls: Parameters<SemiontSession['client']['yield']['resource']>[0][] = [];
   const adapterCalls: AdapterCall[] = [];
 
+  // The Archivist stand-in for the durability ack (JOB-RESTART-SAFETY P6).
+  // `mark:commit` is a request/reply operation now, so the harness must answer
+  // it or every unit blocks until the commit timeout. `commitSink` lets a test
+  // play the sink being down.
+  // Handlers registered via `transport.on`, so a test can fire the signals the
+  // worker subscribes (JOB-RESTART-SAFETY P4's cancel).
+  const transportHandlers = new Map<string, (e: unknown) => void>();
+  const replyStreams = new Map<string, Subject<Record<string, unknown>>>();
+  const replyStream = (channel: string) => {
+    let s = replyStreams.get(channel);
+    if (!s) { s = new Subject(); replyStreams.set(channel, s); }
+    return s;
+  };
+  const commitSink: { mode: 'ok' | 'fail' | 'silent' } = { mode: 'ok' };
+
   const transportEmit = vi.fn(async (channel: string, payload: Record<string, unknown>, scope?: string) => {
     busEmits.push({ channel, payload, scope });
+    if (channel === 'mark:commit' && commitSink.mode !== 'silent') {
+      const correlationId = payload.correlationId as string;
+      const annotations = (payload.annotations ?? []) as Array<{ id: string }>;
+      // Answer on the next tick, as a real Archivist would.
+      queueMicrotask(() => {
+        if (commitSink.mode === 'ok') {
+          replyStream('mark:commit-ok').next({
+            correlationId,
+            response: { persisted: annotations.length, annotationIds: annotations.map((a) => String(a.id)) },
+          });
+        } else {
+          replyStream('mark:commit-failed').next({ correlationId, message: 'sink down' });
+        }
+      });
+    }
+    return 1;
   });
   const session = {
     client: {
       transport: {
         emit: transportEmit,
         // `startWorkerProcess` reads `transport.actor` to attach the job-claim
-        // adapter; test needs a minimal ActorStateUnit-shaped stand-in.
+        // adapter, and `transport.on` to subscribe the cancel signal
+        // (JOB-RESTART-SAFETY P4); test needs minimal stand-ins for both.
+        on: vi.fn((channel: string, handler: (e: unknown) => void) => {
+          transportHandlers.set(channel, handler);
+          return () => {};
+        }),
         actor: {
-          on$: vi.fn(() => ({ subscribe: () => ({ unsubscribe: () => {} }) })),
+          on$: vi.fn((channel: string) => replyStream(channel).asObservable()),
           emit: transportEmit,
+          // 'open' is the attach gate's pass value (BUS-ATTACH-GATE); anything
+          // else holds every busRequest until it times out.
+          state$: new BehaviorSubject('open'),
+          isSubscribed: () => true,
           addChannels: vi.fn(),
           removeChannels: vi.fn(),
         },
@@ -142,7 +184,7 @@ function makeFakeSessionAndAdapter() {
     touchActivity: vi.fn(() => adapterCalls.push({ method: 'touchActivity', args: [] })),
   } as unknown as JobClaimAdapter;
 
-  return { session, adapter, busEmits, yieldResourceCalls, adapterCalls };
+  return { session, transportHandlers, adapter, busEmits, yieldResourceCalls, adapterCalls };
 }
 
 function makeConfig(session: SemiontSession): WorkerProcessConfig {
@@ -173,12 +215,16 @@ function makeJob(
   type: ActiveJob['type'],
   paramsOverride: Record<string, unknown> = {},
   completedUnits: string[] = [],
+  // Default: no retries budgeted, so a failure is terminal unless a test
+  // says otherwise (JOB-RESTART-SAFETY P5).
+  budget: { retryCount: number; maxRetries: number } = { retryCount: 0, maxRetries: 0 },
 ): ActiveJob {
   return {
     jobId: JID,
     type,
     resourceId: RID,
     userId: UID,
+    ...budget,
     // Generation params must satisfy the wire's required trio (the worker
     // guard enforces it); overrides still win.
     params: { resourceId: RID, ...(type === 'generation' ? GEN_REQUIRED : {}), ...paramsOverride },
@@ -232,7 +278,7 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
 
       expect(h.busEmits.map(e => e.channel))
-        .toEqual(['job:start', 'mark:create', 'mark:create', 'job:complete']);
+        .toEqual(['job:start', 'mark:commit', 'job:complete']);
       expect(h.busEmits.find(e => e.channel === 'job:complete')!.payload)
         .toMatchObject({ jobType: 'highlight-annotation', result: { highlightsFound: 2 } });
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
@@ -250,7 +296,7 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob('comment-annotation'));
 
       expect(h.busEmits.map(e => e.channel))
-        .toEqual(['job:start', 'mark:create', 'job:complete']);
+        .toEqual(['job:start', 'mark:commit', 'job:complete']);
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
   });
@@ -266,7 +312,7 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob('assessment-annotation'));
 
       expect(h.busEmits.map(e => e.channel))
-        .toEqual(['job:start', 'mark:create', 'job:complete']);
+        .toEqual(['job:start', 'mark:commit', 'job:complete']);
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
   });
@@ -286,7 +332,7 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob('tag-annotation'));
 
       expect(h.busEmits.map(e => e.channel))
-        .toEqual(['job:start', 'mark:create', 'job:complete']);
+        .toEqual(['job:start', 'mark:commit', 'job:complete']);
       expect(h.busEmits.find(e => e.channel === 'job:complete')!.payload).toMatchObject({
         jobType: 'tag-annotation',
         result: { tagsFound: 1, tagsCreated: 1 },
@@ -332,7 +378,7 @@ describe('handleJob orchestration', () => {
         result: { resourceId: 'new-res-42', resourceName: 'New Resource' },
       });
       expect(h.busEmits.map(e => e.channel)).not.toContain('yield:create');
-      expect(h.busEmits.map(e => e.channel)).not.toContain('mark:create');
+      expect(h.busEmits.map(e => e.channel)).not.toContain('mark:commit');
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
 
@@ -548,20 +594,18 @@ describe('handleJob orchestration', () => {
 
       expect(h.yieldResourceCalls[0]!.sourceAnnotationId).toBeUndefined(); // no auto-bind
 
-      const markCreate = h.busEmits.find(e => e.channel === 'mark:create');
-      expect(markCreate, 'resource-focus generation mints a navigable source→derived reference').toBeDefined();
-      expect(markCreate!.payload).toMatchObject({
-        annotation: {
-          motivation: 'linking',
-          target: { source: RID },
-          body: { type: 'SpecificResource', source: 'new-res-42', purpose: 'linking' },
-        },
+      const commit = h.busEmits.find(e => e.channel === 'mark:commit');
+      expect(commit, 'resource-focus generation mints a navigable source→derived reference').toBeDefined();
+      const ann = (commit!.payload as { annotations: Array<{ target: { selector?: unknown } }> }).annotations[0]!;
+      expect(ann).toMatchObject({
+        motivation: 'linking',
+        target: { source: RID },
+        body: { type: 'SpecificResource', source: 'new-res-42', purpose: 'linking' },
       });
       // resource-level target — no selector
-      const ann = (markCreate!.payload as { annotation: { target: { selector?: unknown } } }).annotation;
       expect(ann.target.selector).toBeUndefined();
 
-      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:create', 'job:complete']);
+      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:commit', 'job:complete']);
     });
 
     it('mints a linking annotation on the DERIVED resource for each resolved citation (INLINE-CITATIONS P1)', async () => {
@@ -580,7 +624,14 @@ describe('handleJob orchestration', () => {
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { context: minimalContext('annotation'), cite: true }));
 
-      const markCreates = h.busEmits.filter(e => e.channel === 'mark:create');
+      // One commit per batch now, so a per-annotation view is reconstructed:
+      // each annotation paired with the resourceId its batch was keyed by.
+      const markCreates = h.busEmits
+        .filter(e => e.channel === 'mark:commit')
+        .flatMap(e => {
+          const p = e.payload as { resourceId: string; annotations: unknown[] };
+          return p.annotations.map(annotation => ({ payload: { resourceId: p.resourceId, annotation } }));
+        });
       expect(markCreates, 'one mark:create per resolved citation').toHaveLength(1);
       expect(markCreates[0]!.payload).toMatchObject({
         resourceId: 'new-res-42', // the annotation lives on the DERIVED resource
@@ -596,7 +647,7 @@ describe('handleJob orchestration', () => {
           body: { type: 'SpecificResource', source: 'ctx-9', purpose: 'linking' },
         },
       });
-      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:create', 'job:complete']);
+      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:commit', 'job:complete']);
     });
 
     it('anchors PDF citations by page geometry — FragmentSelector, never TextPositionSelector (PDF-GENERATION P4)', async () => {
@@ -623,7 +674,14 @@ describe('handleJob orchestration', () => {
         makeJob('generation', { context: minimalContext('annotation'), cite: true, outputMediaType: 'application/pdf' }),
       );
 
-      const markCreates = h.busEmits.filter(e => e.channel === 'mark:create');
+      // One commit per batch now, so a per-annotation view is reconstructed:
+      // each annotation paired with the resourceId its batch was keyed by.
+      const markCreates = h.busEmits
+        .filter(e => e.channel === 'mark:commit')
+        .flatMap(e => {
+          const p = e.payload as { resourceId: string; annotations: unknown[] };
+          return p.annotations.map(annotation => ({ payload: { resourceId: p.resourceId, annotation } }));
+        });
       expect(markCreates).toHaveLength(1);
       const payload = markCreates[0]!.payload as {
         resourceId: string;
@@ -665,7 +723,14 @@ describe('handleJob orchestration', () => {
         makeJob('generation', { context: minimalContext('annotation'), cite: true, outputMediaType: 'application/pdf' }),
       );
 
-      const markCreates = h.busEmits.filter(e => e.channel === 'mark:create');
+      // One commit per batch now, so a per-annotation view is reconstructed:
+      // each annotation paired with the resourceId its batch was keyed by.
+      const markCreates = h.busEmits
+        .filter(e => e.channel === 'mark:commit')
+        .flatMap(e => {
+          const p = e.payload as { resourceId: string; annotations: unknown[] };
+          return p.annotations.map(annotation => ({ payload: { resourceId: p.resourceId, annotation } }));
+        });
       expect(markCreates).toHaveLength(1);
       const selector = (markCreates[0]!.payload as {
         annotation: { target: { selector: Array<{ type: string; exact?: string }> } };
@@ -696,7 +761,111 @@ describe('handleJob orchestration', () => {
 
       expect(keysOf('job:start')).toEqual(['jobId', 'jobType', 'resourceId']);
       expect(keysOf('job:complete')).toEqual(['jobId', 'jobType', 'resourceId', 'result']);
-      expect(keysOf('mark:create')).toEqual(['annotation', 'resourceId']);
+      // The commit carries a batch and a correlationId (busRequest sets the
+      // latter), not a single annotation.
+      expect(keysOf('mark:commit')).toEqual(['annotations', 'correlationId', 'resourceId']);
+    });
+  });
+
+  // ── Every minting path is acknowledged (JOB-RESTART-SAFETY P6 residual) ────
+  //
+  // P6 wired the durability ack into the reference job only; highlight,
+  // comment, assessment, tag and generation kept emitting `mark:create`
+  // fire-and-forget. P7's EMIT_TIMEOUT_MS stopped those paths HANGING, which
+  // hid the rest: an emit that resolves means the gateway accepted the frame,
+  // not that the Stower appended anything, so a down Archivist still discarded
+  // their output while the job reported success.
+  //
+  // This is the census. It fails if a new job type — or a re-added
+  // `mark:create` in an existing one — mints annotations without waiting for
+  // the log, which is the only way this residual comes back.
+  describe('no job type persists without an acknowledgement', () => {
+    // TOTAL over `JobType`, and that totality is the whole point. A hand-kept
+    // list of the types that happened to exist when it was written does not
+    // fail when the source grows — which is exactly how this residual survived
+    // P6. Typing the map `Record<JobType, Coverage>` makes a seventh job type a
+    // MISSING KEY and a removed one an EXCESS KEY, so either fails
+    // `tsc --noEmit` before a single test runs.
+    //
+    // `coveredBy` is the deliberate escape hatch for a type this file's mocks
+    // cannot observe. It still costs a key and a pointer, so an omission has to
+    // be written down rather than simply not happening.
+    type Coverage =
+      | { exercise: Record<string, unknown>; commits: number; setup?: () => void }
+      | { coveredBy: string };
+
+    // Each case stubs its OWN processor. `vi.clearAllMocks()` clears calls but
+    // KEEPS implementations, so without this the four detection cases passed on
+    // a `mockResolvedValue` leaked from an earlier test in the file — and an
+    // un-stubbed processor returns undefined, whose empty batch `commitAnnotations`
+    // correctly skips, so the census would have asserted against a job that never
+    // minted anything. A gate that only holds when its neighbours run first is
+    // not a gate.
+    const minted = () => ({ annotations: [{ id: 'a1' }] as never, result: {} as never });
+
+    const JOB_TYPE_COVERAGE: Record<JobType, Coverage> = {
+      'highlight-annotation':  { exercise: {}, commits: 1, setup: () => { vi.mocked(processHighlightJob).mockResolvedValue(minted()); } },
+      'comment-annotation':    { exercise: {}, commits: 1, setup: () => { vi.mocked(processCommentJob).mockResolvedValue(minted()); } },
+      'assessment-annotation': { exercise: {}, commits: 1, setup: () => { vi.mocked(processAssessmentJob).mockResolvedValue(minted()); } },
+      'tag-annotation':        {
+        exercise: { schema: { id: 's', name: 's', categories: [{ name: 'catA' }] } },
+        commits: 1,
+        setup: () => { vi.mocked(processTagJob).mockResolvedValue(minted()); },
+      },
+
+      // Generation mints on TWO resources — the provenance edge on the SOURCE,
+      // the citations on the DERIVED — and `mark:commit` is keyed by a single
+      // resourceId, so it is genuinely two commits. Resource focus (the fixture
+      // default) is what mints the provenance edge; annotation focus auto-binds
+      // the triggering reference instead and mints only the citations.
+      'generation': {
+        exercise: { cite: true },
+        commits: 2,
+        setup: () => {
+          vi.mocked(processGenerationJob).mockResolvedValue({
+            content: new TextEncoder().encode('Paris is the capital of France.'),
+            title: 'Answer',
+            format: 'text/markdown',
+            citations: [{ resourceId: 'ctx-9', start: 0, end: 31, exact: 'Paris is the capital of France.' }],
+            result: {} as never,
+          });
+        },
+      },
+
+      // Not observable HERE: its commit rides `onUnitComplete` inside
+      // `processReferenceJob`, which this file mocks wholesale, so nothing
+      // reaches the bus. It is pinned where the callback actually runs.
+      'reference-annotation': {
+        coveredBy: 'processors.test.ts — the rejecting-sink and recovering-sink pins on onUnitComplete',
+      },
+    };
+
+    type Exercised = Extract<Coverage, { exercise: Record<string, unknown> }>;
+    const EXERCISED = Object.entries(JOB_TYPE_COVERAGE).filter(
+      (entry): entry is [string, Exercised] => 'exercise' in entry[1],
+    );
+
+    it.each(EXERCISED)('%s commits rather than fire-and-forgets', async (jobType, coverage) => {
+      coverage.setup?.();
+      const h = makeFakeSessionAndAdapter();
+      await handleJob(h.adapter, makeConfig(h.session), makeJob(jobType as never, coverage.exercise));
+
+      const channels = h.busEmits.map(e => e.channel);
+      expect(channels, `${jobType} must not emit un-acknowledged mark:create`).not.toContain('mark:create');
+
+      const commits = h.busEmits.filter(e => e.channel === 'mark:commit');
+      expect(commits, `${jobType} must acknowledge every batch it mints`).toHaveLength(coverage.commits);
+
+      // Each commit is keyed by ONE resourceId, so a job minting on N resources
+      // owes N commits to N DISTINCT resources — trivially true at 1, and the
+      // real pin for generation, whose provenance and citations land on
+      // different resources and would silently collapse into one batch.
+      const keyedTo = new Set(commits.map(e => (e.payload as { resourceId: string }).resourceId));
+      expect(keyedTo.size).toBe(coverage.commits);
+
+      // Durability precedes the success claim: a job:complete emitted before
+      // the LAST commit resolved would report work that may never have landed.
+      expect(channels.lastIndexOf('mark:commit')).toBeLessThan(channels.indexOf('job:complete'));
     });
   });
 
@@ -953,9 +1122,10 @@ describe('handleJob — global job-completion', () => {
 
     await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
 
-    const createEmit = h.busEmits.find(e => e.channel === 'mark:create');
-    expect(createEmit).toBeDefined();
-    expect(createEmit!.scope).toBeUndefined();
+    const commitEmit = h.busEmits.find(e => e.channel === 'mark:commit');
+    expect(commitEmit).toBeDefined();
+    // Global, not resource-scoped: the reply has to reach the awaiting worker.
+    expect(commitEmit!.scope).toBeUndefined();
   });
 });
 
@@ -979,6 +1149,57 @@ describe('startWorkerProcess', () => {
   // through by calling the activeJob$ subscriber from inside the
   // adapter. Easiest path: mock `createJobClaimAdapter` to return
   // a controllable fake.
+  // The cancel SIGNAL's routing, distinct from what the loop does once aborted.
+  // A worker holds one active job; a `job:cancel-requested` naming a different
+  // one must not touch it. Getting this wrong cancels a stranger's work, and
+  // the failure is invisible — the wrong job simply stops.
+  it('aborts the active job only when the cancel names it (JOB-RESTART-SAFETY P4)', async () => {
+    const { BehaviorSubject } = await import('rxjs');
+    const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
+    vi.doMock('../job-claim-adapter', () => ({
+      createJobClaimAdapter: vi.fn(() => ({
+        activeJob$,
+        isProcessing$: { subscribe: vi.fn() },
+        jobsCompleted$: { subscribe: vi.fn() },
+        errors$: { subscribe: vi.fn() },
+        start: vi.fn(), stop: vi.fn(),
+        completeJob: vi.fn(), failJob: vi.fn(), dispose: vi.fn(),
+      })),
+    }));
+    vi.resetModules();
+    const startWorkerProcess = await loadStartWorkerProcess();
+
+    let seenSignal: AbortSignal | undefined;
+    let release: (() => void) | undefined;
+    vi.mocked(processReferenceJob).mockImplementation(
+      async (_c, _cl, _p, _b, _pr, _l, _onUnit, signal) => {
+        seenSignal = signal;
+        await new Promise<void>((r) => { release = r; });
+        return { result: { kind: 'reference-annotation', totalFound: 0, totalEmitted: 0, errors: 0 } as never };
+      },
+    );
+
+    const h = makeFakeSessionAndAdapter();
+    startWorkerProcess(makeConfig(h.session));
+    activeJob$.next(makeJob('reference-annotation', { entityTypes: ['Person'] }));
+    await vi.waitFor(() => expect(seenSignal).toBeDefined());
+
+    const fireCancel = h.transportHandlers.get('job:cancel-requested');
+    expect(fireCancel).toBeDefined();
+
+    // A cancel for some other job leaves this one running.
+    fireCancel!({ jobId: 'some-other-job' });
+    expect(seenSignal!.aborted).toBe(false);
+
+    // A cancel naming the active job aborts it.
+    fireCancel!({ jobId: JID });
+    expect(seenSignal!.aborted).toBe(true);
+
+    release?.();
+    vi.doUnmock('../job-claim-adapter');
+    vi.resetModules();
+  });
+
   it('subscribes to activeJob$ and dispatches handleJob on each emitted job', async () => {
     const { BehaviorSubject } = await import('rxjs');
     const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
@@ -1073,8 +1294,52 @@ describe('startWorkerProcess', () => {
       jobType: 'reference-annotation',
       annotationId: 'ann-1',
       error: 'inference blew up',
+      // JOB-RESTART-SAFETY P5: the failure reports whether it is the END.
+      // makeJob's default budget is 0/0, so this one is terminal — a client
+      // watching the job may close its stream here.
+      willRetry: false,
     });
     expect(failJob).toHaveBeenCalledWith(JID, 'inference blew up');
+
+    vi.doUnmock('../job-claim-adapter');
+    vi.resetModules();
+  });
+
+  it('reports willRetry:true when the budget still has room — the failure is not the end', async () => {
+    const { BehaviorSubject } = await import('rxjs');
+    const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
+    vi.doMock('../job-claim-adapter', () => ({
+      createJobClaimAdapter: vi.fn(() => ({
+        activeJob$: activeJob$.asObservable(),
+        isProcessing$: { subscribe: vi.fn() },
+        jobsCompleted$: { subscribe: vi.fn() },
+        errors$: { subscribe: vi.fn() },
+        start: vi.fn(),
+        stop: vi.fn(),
+        completeJob: vi.fn(),
+        failJob: vi.fn(),
+        dispose: vi.fn(),
+      })),
+    }));
+    vi.resetModules();
+
+    const startWorkerProcess = await loadStartWorkerProcess();
+    vi.mocked(processReferenceJob).mockRejectedValueOnce(new Error('transient blip'));
+
+    const h = makeFakeSessionAndAdapter();
+    startWorkerProcess(makeConfig(h.session));
+
+    // A first attempt with one retry budgeted — the queue WILL re-queue this.
+    // `entityTypes` matters: without it the processor is never invoked, the
+    // queued rejection is never consumed, and it leaks into a later test —
+    // which is exactly what happened on the first draft of this pin.
+    activeJob$.next(
+      makeJob('reference-annotation', { referenceId: 'ann-1', entityTypes: ['Person'] }, [], { retryCount: 0, maxRetries: 1 }),
+    );
+    await new Promise((r) => setTimeout(r, 10));
+
+    const failEmit = h.busEmits.find((e) => e.channel === 'job:fail')!;
+    expect(failEmit.payload).toMatchObject({ jobId: JID, willRetry: true });
 
     vi.doUnmock('../job-claim-adapter');
     vi.resetModules();
@@ -1099,13 +1364,17 @@ describe('referenceIdOf', () => {
 
 // ── Checkpointed resume (ABANDONED-INFERENCE P2, A3) ──────────────────
 // The worker owns the unit commit: it passes `onUnitComplete` into
-// `processReferenceJob`, emits the unit's mark:creates as they complete
+// `processReferenceJob`, COMMITS the unit's annotations as they complete
 // (the post-run batch was N2's mechanism), accumulates the completed unit
 // names, carries them on job:fail, and skips checkpointed units on a
 // retried claim.
+//
+// The commit is one acknowledged batch per unit, not N fire-and-forget
+// creates (JOB-RESTART-SAFETY P6): the unit may not count until its
+// annotations are durably in the event log.
 
 describe('reference-annotation — checkpointed resume', () => {
-  it('emits per unit through the commit callback, with no post-run re-emission', async () => {
+  it('commits once per unit, awaiting durability, with no post-run re-emission', async () => {
     vi.mocked(processReferenceJob).mockImplementation(
       async (_content, _client, _params, _build, _progress, _logger, onUnitComplete) => {
         await onUnitComplete('Person', [{ id: 'r1' }] as never);
@@ -1118,10 +1387,61 @@ describe('reference-annotation — checkpointed resume', () => {
 
     await handleJob(h.adapter, makeConfig(h.session), makeJob('reference-annotation', { entityTypes: ['Person', 'Date', 'Location'] }));
 
-    // Exactly the callback's emissions — one per annotation, in unit order,
-    // and nothing re-emitted after the processor returns.
+    // Exactly the callback's emissions, in unit order: ONE mark:commit per
+    // non-empty unit, each followed by a durable job:checkpoint
+    // (JOB-RESTART-SAFETY P2). Date commits nothing — there is nothing to make
+    // durable — but still checkpoints, because an empty unit is complete and a
+    // retry must skip it. Nothing is re-emitted after the processor returns.
     expect(h.busEmits.map(e => e.channel))
-      .toEqual(['job:start', 'mark:create', 'mark:create', 'mark:create', 'job:complete']);
+      .toEqual([
+        'job:start',
+        'mark:commit', 'job:checkpoint',   // Person (1 annotation)
+        'job:checkpoint',                   // Date (no annotations, no commit)
+        'mark:commit', 'job:checkpoint',    // Location (2 annotations, ONE batch)
+        'job:complete',
+      ]);
+
+    // The batch is the unit: Location's two annotations travel together, so
+    // the acknowledgement covers the unit rather than its parts.
+    const commits = h.busEmits.filter(e => e.channel === 'mark:commit');
+    expect(commits.map(c => (c.payload as { annotations: unknown[] }).annotations.length)).toEqual([1, 2]);
+    // Each checkpoint carries the cumulative completed-unit set, so recovery
+    // after a crash between any two units resumes from the right place.
+    expect(h.busEmits.filter(e => e.channel === 'job:checkpoint').map(e => (e.payload as { completedUnits: string[] }).completedUnits))
+      .toEqual([['Person'], ['Person', 'Date'], ['Person', 'Date', 'Location']]);
+    expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
+  });
+
+  it('cancellation stops at a unit boundary: emits job:cancel with the checkpoint, not job:complete (JOB-RESTART-SAFETY P4)', async () => {
+    // The signal is aborted (a cancel was requested for this job). The real
+    // processReferenceJob breaks its loop at the next unit boundary; the mock
+    // commits one unit and returns. handleJobInner must then announce
+    // job:cancel — carrying the committed unit — instead of job:complete, so
+    // the queue moves the still-running job to cancelled/ rather than mark it
+    // done, and never fails it.
+    vi.mocked(processReferenceJob).mockImplementation(
+      async (_content, _client, _params, _build, _progress, _logger, onUnitComplete) => {
+        await onUnitComplete('Person', [{ id: 'r1' }] as never);
+        return { result: { kind: 'reference-annotation', totalFound: 1, totalEmitted: 1, errors: 0 } as never };
+      },
+    );
+    const h = makeFakeSessionAndAdapter();
+    const controller = new AbortController();
+    controller.abort();
+
+    await handleJob(
+      h.adapter,
+      makeConfig(h.session),
+      makeJob('reference-annotation', { entityTypes: ['Person', 'Location'] }),
+      new Map(),
+      controller.signal,
+    );
+
+    const channels = h.busEmits.map(e => e.channel);
+    expect(channels).toContain('job:cancel');
+    expect(channels).not.toContain('job:complete');
+    const cancel = h.busEmits.find(e => e.channel === 'job:cancel');
+    expect((cancel!.payload as { completedUnits: string[] }).completedUnits).toEqual(['Person']);
     expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
   });
 

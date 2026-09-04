@@ -53,8 +53,10 @@ interface MockJobQueue {
   updateJob: ReturnType<typeof vi.fn>;
   completeJob: ReturnType<typeof vi.fn>;
   failJob: ReturnType<typeof vi.fn>;
+  checkpointUnits: ReturnType<typeof vi.fn>;
   recordProgress: ReturnType<typeof vi.fn>;
   cancelPendingJobs: ReturnType<typeof vi.fn>;
+  cancelJob: ReturnType<typeof vi.fn>;
 }
 
 function makeJobQueue(): MockJobQueue {
@@ -64,8 +66,10 @@ function makeJobQueue(): MockJobQueue {
     updateJob: vi.fn().mockResolvedValue(undefined),
     completeJob: vi.fn().mockResolvedValue(true),
     failJob: vi.fn().mockResolvedValue('failed'),
+    checkpointUnits: vi.fn().mockResolvedValue(undefined),
     recordProgress: vi.fn().mockResolvedValue(undefined),
     cancelPendingJobs: vi.fn().mockResolvedValue(0),
+    cancelJob: vi.fn().mockResolvedValue(true),
   };
 }
 
@@ -550,11 +554,89 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
     });
   });
 
+  it('checkpoints completed units into the queue on job:checkpoint (JOB-RESTART-SAFETY P2)', async () => {
+    eventBus.get('job:checkpoint').next({
+      jobId: 'job-ckpt',
+      completedUnits: ['Person', 'Location'],
+    } as never);
+
+    await vi.waitFor(() => {
+      expect(jobQueue.checkpointUnits).toHaveBeenCalledWith('job-ckpt', ['Person', 'Location']);
+    });
+  });
+
+  // The cancel reply's COUNT is the answer, not a statistic: a caller asking
+  // to cancel needs to know whether anything actually stopped. Each of these
+  // reports 0 for a different reason, and conflating them would tell a user
+  // "cancelled" about a job that ran to completion.
+  it('reports 0 for a job that does not exist', async () => {
+    jobQueue.getJob.mockResolvedValueOnce(null);
+    const reply = firstValueFrom(eventBus.get('job:cancel-ok').pipe(take(1)));
+    eventBus.get('job:cancel-requested').next({ correlationId: 'c1', jobId: 'job-ghost' } as never);
+
+    expect((await reply as any).response.cancelled).toBe(0);
+    expect(jobQueue.cancelJob).not.toHaveBeenCalled();
+  });
+
+  it('reports 0 for a job that already reached a terminal state', async () => {
+    // Nothing to stop, and cancelJob must not be called — a completed job is
+    // not a cancellable one, and moving it would rewrite history.
+    jobQueue.getJob.mockResolvedValueOnce({ status: 'completed', metadata: { id: 'job-done' } });
+    const reply = firstValueFrom(eventBus.get('job:cancel-ok').pipe(take(1)));
+    eventBus.get('job:cancel-requested').next({ correlationId: 'c2', jobId: 'job-done' } as never);
+
+    expect((await reply as any).response.cancelled).toBe(0);
+    expect(jobQueue.cancelJob).not.toHaveBeenCalled();
+  });
+
+  it('reports 0 when the request names neither a jobId nor a jobType', async () => {
+    // Answered rather than ignored: this rides a request/reply operation, so
+    // a silent drop strands the caller until its timeout.
+    const reply = firstValueFrom(eventBus.get('job:cancel-ok').pipe(take(1)));
+    eventBus.get('job:cancel-requested').next({ correlationId: 'c3' } as never);
+
+    expect((await reply as any).response.cancelled).toBe(0);
+  });
+
   it('cancels pending jobs of the requested category on job:cancel-requested', async () => {
     eventBus.get('job:cancel-requested').next({ jobType: 'annotation' } as never);
 
     await vi.waitFor(() => {
       expect(jobQueue.cancelPendingJobs).toHaveBeenCalledWith('annotation');
+    });
+  });
+
+  it('cancels a PENDING job immediately when job:cancel-requested targets a jobId (JOB-RESTART-SAFETY P4)', async () => {
+    jobQueue.getJob.mockResolvedValueOnce({ status: 'pending', metadata: { id: 'job-x' } });
+    eventBus.get('job:cancel-requested').next({ jobId: 'job-x' } as never);
+
+    await vi.waitFor(() => {
+      expect(jobQueue.cancelJob).toHaveBeenCalledWith('job-x');
+    });
+  });
+
+  it('does NOT cancel a RUNNING job queue-side on job:cancel-requested — the worker stops it cooperatively (P4)', async () => {
+    jobQueue.getJob.mockResolvedValueOnce({ status: 'running', metadata: { id: 'job-r' } });
+    eventBus.get('job:cancel-requested').next({ jobId: 'job-r' } as never);
+
+    // getJob is consulted, but cancelJob is NOT called — yanking a running job
+    // out from under its live worker is the roach-motel race this avoids.
+    await vi.waitFor(() => {
+      expect(jobQueue.getJob).toHaveBeenCalledWith('job-r');
+    });
+    expect(jobQueue.cancelJob).not.toHaveBeenCalled();
+  });
+
+  it('moves a job to cancelled/ on job:cancel — the worker\'s cooperative-stop confirmation (P4)', async () => {
+    eventBus.get('job:cancel').next({
+      resourceId: 'rid-1',
+      jobId: 'job-r',
+      jobType: 'reference-annotation',
+      completedUnits: ['Person'],
+    } as never);
+
+    await vi.waitFor(() => {
+      expect(jobQueue.cancelJob).toHaveBeenCalledWith('job-r');
     });
   });
 

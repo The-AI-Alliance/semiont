@@ -1,0 +1,35 @@
+{
+  "type": "object",
+  "description": "Durability acknowledgement for a mark:commit batch: every annotation named by the command is in the event log at the moment this is emitted.",
+  "properties": {
+    "correlationId": {
+      "type": "string",
+      "description": "Correlation id echoed from the mark:commit command so busRequest can match the reply."
+    },
+    "response": {
+      "type": "object",
+      "description": "What the commit persisted.",
+      "properties": {
+        "persisted": {
+          "type": "integer",
+          "description": "Annotations this commit appended to the event log. Equals the batch size on success — a retry re-appends what already landed rather than counting it out, because the annotation fold is idempotent by id and the log is append-only. Not a dedupe count."
+        },
+        "annotationIds": {
+          "type": "array",
+          "description": "Ids the batch covers, whether appended now or already present.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "persisted",
+        "annotationIds"
+      ]
+    }
+  },
+  "required": [
+    "correlationId",
+    "response"
+  ]
+}

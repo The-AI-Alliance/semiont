@@ -12,6 +12,7 @@ import type { AnyJob, JobStatus, JobQueryFilters, CancelledJob, CompleteJob, Fai
 import type { SemiontState } from '@semiont/core/node';
 import { jobId as toJobId, type JobId, type Logger, type EventBus } from '@semiont/core';
 import type { JobQueue } from './job-queue-interface';
+import { willRetryAfter } from './will-retry';
 
 /**
  * How often pending jobs are re-announced on `job:queued` and stale
@@ -280,7 +281,7 @@ export class FsJobQueue implements JobQueue {
     // request cannot succeed on a second attempt, so a retry is guaranteed
     // waste at full price (ABANDONED-INFERENCE P3, A4). Unclassified and
     // transient failures retry as before.
-    if (failureClass !== 'deterministic' && job.metadata.retryCount < job.metadata.maxRetries) {
+    if (willRetryAfter(job.metadata, failureClass)) {
       const retried: PendingJob<any> = {
         status: 'pending',
         metadata: { ...metadata, retryCount: job.metadata.retryCount + 1 },
@@ -304,6 +305,31 @@ export class FsJobQueue implements JobQueue {
     };
     await this.updateJob(failed, 'running');
     return 'failed';
+  }
+
+  /**
+   * Persist a running job's completed-unit checkpoint at unit completion
+   * (JOB-RESTART-SAFETY P2). `failJob` writes this checkpoint on a clean
+   * failure, but a worker that dies without emitting `job:fail` would lose
+   * its finished units — so the janitor's recovery (which re-queues with
+   * whatever `metadata.completedUnits` the running file holds) would redo
+   * them. Writing it HERE, as each unit lands, makes a crash lose at most
+   * the in-flight unit. Unioned with any existing checkpoint, unthrottled
+   * (a unit completion is rare and must never be dropped), a no-op for
+   * non-running jobs. Written directly, like `recordProgress`, so it also
+   * refreshes the mtime heartbeat.
+   */
+  async checkpointUnits(jobId: JobId, completedUnits: string[]): Promise<void> {
+    const job = await this.getJob(jobId);
+    if (!job || job.status !== 'running') {
+      return;
+    }
+    const merged = [...new Set([...(job.metadata.completedUnits ?? []), ...completedUnits])];
+    const updated: RunningJob<any, any> = {
+      ...job,
+      metadata: { ...job.metadata, completedUnits: merged },
+    };
+    await fs.writeFile(this.getJobPath(jobId, 'running'), JSON.stringify(updated, null, 2), 'utf-8');
   }
 
   /**

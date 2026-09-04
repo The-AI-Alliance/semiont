@@ -165,6 +165,108 @@ describe('ViewMaterializer', () => {
       expect(view!.annotations.version).toBe(2);
     });
 
+    // JOB-RESTART-SAFETY P6: at-least-once is a property of the network, not a
+    // bug to be prevented upstream. A worker that commits a unit and loses the
+    // acknowledgement in transit MUST retry, and the retry re-sends facts that
+    // already landed — the append succeeded before the ack was lost, so no
+    // pre-append check can stop it. P3 made annotation ids deterministic so
+    // that repeat is recognizable; this fold is what makes it harmless.
+    //
+    // It is also what the projection doctrine already required: a view is a
+    // derivation of the log, so it must answer "annotation X exists", never
+    // "X was written twice". The previous blind push made the view depend on
+    // how many times a fact was recorded rather than on what the facts mean.
+    it('folds a repeated mark:added by id — a retried commit yields ONE annotation', async () => {
+      const annotation = {
+        '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+        'type': 'Annotation' as const,
+        id: annotationId('anno-retried'),
+        motivation: 'highlighting' as const,
+        creator: { '@type': 'Person' as const, name: 'Test User' },
+        created: new Date().toISOString(),
+        target: { source: 'doc1', selector: [{ type: 'TextPositionSelector' as const, start: 0, end: 4 }] },
+      };
+
+      const view = await projector.materialize([
+        createStoredEvent({
+          type: 'yield:created',
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        }, 1),
+        createStoredEvent({ type: 'mark:added', payload: { annotation } }, 2),
+        // The retry: same id, same content, appended again.
+        createStoredEvent({ type: 'mark:added', payload: { annotation } }, 3),
+      ], resourceId('doc-retried'));
+
+      expect(view!.annotations.annotations).toHaveLength(1);
+      expect(view!.annotations.annotations[0]?.id).toBe('anno-retried');
+    });
+
+    it('a repeat does not resurrect an annotation that was removed after it', async () => {
+      // Ordering still decides. The fold must not treat "already seen" as
+      // "ignore forever" — a remove between two appends is a later fact, and
+      // the second append legitimately re-creates.
+      const annotation = {
+        '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+        'type': 'Annotation' as const,
+        id: annotationId('anno-cycle'),
+        motivation: 'highlighting' as const,
+        creator: { '@type': 'Person' as const, name: 'Test User' },
+        created: new Date().toISOString(),
+        target: { source: 'doc1', selector: [{ type: 'TextPositionSelector' as const, start: 0, end: 4 }] },
+      };
+
+      const view = await projector.materialize([
+        createStoredEvent({
+          type: 'yield:created',
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        }, 1),
+        createStoredEvent({ type: 'mark:added', payload: { annotation } }, 2),
+        createStoredEvent({ type: 'mark:removed', payload: { annotationId: annotationId('anno-cycle') } }, 3),
+        createStoredEvent({ type: 'mark:added', payload: { annotation } }, 4),
+      ], resourceId('doc-cycle'));
+
+      expect(view!.annotations.annotations).toHaveLength(1);
+    });
+
+    // The repeat is NOT byte-identical, which is exactly what the previous
+    // last-write-wins fold assumed. `created` is stamped at EMISSION
+    // (`processors.ts`, `new Date().toISOString()`) and is deliberately not an
+    // identity input — P3 excluded it so a recovery re-emitting at a different
+    // time from a different process still collides. So a retry always arrives
+    // with a FRESH timestamp, and taking the newer payload silently advanced
+    // `created` to the recovery time.
+    //
+    // This view is read by consumers (e.g. `make-meaning/annotation-context.ts`),
+    // and it must answer when the annotation was MADE, not when a retry
+    // happened to re-send it. Scope, measured: the graph projection is NOT
+    // affected — it mints its own write time in `buildAnnotation` and the
+    // worker's stamp never reaches it.
+    it('a repeat does not advance created — the first append is when the annotation was made', async () => {
+      const base = {
+        '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+        'type': 'Annotation' as const,
+        id: annotationId('anno-created'),
+        motivation: 'highlighting' as const,
+        creator: { '@type': 'Person' as const, name: 'Test User' },
+        target: { source: 'doc1', selector: [{ type: 'TextPositionSelector' as const, start: 0, end: 4 }] },
+      };
+      const firstCreated = '2026-09-03T10:00:00.000Z';
+      const retryCreated = '2026-09-04T17:30:00.000Z';
+
+      const view = await projector.materialize([
+        createStoredEvent({
+          type: 'yield:created',
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        }, 1),
+        createStoredEvent({ type: 'mark:added', payload: { annotation: { ...base, created: firstCreated } } }, 2),
+        // The recovery: same annotation, same id by construction, new stamp.
+        createStoredEvent({ type: 'mark:added', payload: { annotation: { ...base, created: retryCreated } } }, 3),
+      ], resourceId('doc-created'));
+
+      expect(view!.annotations.annotations).toHaveLength(1);
+      expect(view!.annotations.annotations[0]?.created).toBe(firstCreated);
+    });
+
     it('should apply annotation.added event', async () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,

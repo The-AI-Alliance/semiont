@@ -31,8 +31,15 @@
     },
     "failureClass": {
       "type": "string",
-      "enum": ["transient", "deterministic"],
-      "description": "Worker-side classification of the failure, made where the error is still typed. 'deterministic' — the same request cannot succeed on a second attempt — skips the retry budget; absent or 'transient' retries as before. Only KNOWN-deterministic failures carry the class."
+      "enum": [
+        "transient",
+        "deterministic"
+      ],
+      "description": "Worker-side classification of the failure, made where the error is still typed. 'deterministic' \u2014 the same request cannot succeed on a second attempt \u2014 skips the retry budget; absent or 'transient' retries as before. Only KNOWN-deterministic failures carry the class."
+    },
+    "willRetry": {
+      "type": "boolean",
+      "description": "Whether the queue will re-queue this job for another attempt. Computed by the worker from the SAME predicate the queue applies at failJob (one decision site, `willRetryAfter` in @semiont/jobs) using the retry budget carried on the claimed record. FALSE (or absent) means this failure is TERMINAL: a client's job-watch stream ends here. TRUE means the work continues on a fresh attempt \u2014 the failure is an event, not the end, and a stream that terminated on it would report a recovering run as a failed one (JOB-RESTART-SAFETY P5)."
     }
   },
   "required": [

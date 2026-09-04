@@ -15,7 +15,7 @@ import { DEFAULT_MAX_TOKENS, generateResourceFromTopic } from './workers/generat
 import { compileTypst, MAX_COMPILE_REPAIRS } from './workers/generation/typst-compiler';
 import { withinByteBudget, MAX_PDF_BYTES } from '@semiont/content';
 import { resolveCitationTokens, collectContextResourceIds, type GenerationCitation } from './workers/generation/citation-resolver';
-import { generateAnnotationId } from '@semiont/event-sourcing';
+import { annotationIdFor } from '@semiont/event-sourcing';
 import { didToAgent, GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type ResourceId, type SupportedMediaType, type components } from '@semiont/core';
 import { reconcileSelector, createFragmentSelector, locate, type ReconciledSelector, type AnchoredText } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
@@ -37,6 +37,21 @@ type Agent = components['schemas']['Agent'];
 
 /** A detected span — offsets into the extracted `.text`, plus optional context. */
 export type SpanMatch = { exact: string; start: number; end: number; prefix?: string; suffix?: string };
+
+/**
+ * The span half of an annotation's identity (JOB-RESTART-SAFETY P3).
+ *
+ * Shared by both builders because the span IS the same fact in both — the PDF
+ * path additionally persists geometry for it, but that geometry is derived
+ * from these offsets, so hashing it too would add no distinguishing power and
+ * would make an id depend on a layout the text path cannot reproduce.
+ *
+ * `exact` is included, not just the offsets: after a content update the same
+ * offsets cover different text, and that is a different annotation.
+ */
+function spanAnchor(match: Pick<SpanMatch, 'start' | 'end' | 'exact'>): string {
+  return `${match.start}:${match.end}:${match.exact}`;
+}
 
 /**
  * Turn a detected span into a stored annotation. The media type, resource, and
@@ -215,7 +230,7 @@ export function buildTextAnnotation(
   return {
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
     'type': 'Annotation' as const,
-    'id': generateAnnotationId(),
+    'id': annotationIdFor({ resourceId: resourceId as string, motivation, anchor: spanAnchor(match), body }),
     motivation,
     creator,
     generator,
@@ -289,7 +304,7 @@ export function buildPdfAnnotation(
   return {
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
     'type': 'Annotation' as const,
-    'id': generateAnnotationId(),
+    'id': annotationIdFor({ resourceId: resourceId as string, motivation, anchor: spanAnchor(match), body }),
     motivation,
     creator,
     generator,
@@ -475,6 +490,7 @@ export async function processReferenceJob(
   onProgress: OnProgress,
   logger: Logger,
   onUnitComplete: (entityType: string, annotations: Annotation[]) => Promise<void>,
+  signal?: AbortSignal,
 ): Promise<{ result: DetectionResult }> {
   const entityTypeNames = params.entityTypes.map(String);
   const requestParams = [{ label: 'entity-types' as const, value: entityTypeNames.join(', ') }];
@@ -488,6 +504,12 @@ export async function processReferenceJob(
   const bodyLanguage = params.language ?? 'en';
 
   for (let i = 0; i < entityTypeNames.length; i++) {
+    // Cooperative cancellation at the unit boundary (JOB-RESTART-SAFETY P4):
+    // a cancel requested mid-run stops the loop cleanly here, between units.
+    // Units already committed stay checkpointed; the in-flight unit is never
+    // started. The caller reads `signal.aborted` to move the job to
+    // cancelled/ rather than complete/.
+    if (signal?.aborted) break;
     const entityTypeName = entityTypeNames[i];
     if (!entityTypeName) continue;
     const pct = 20 + Math.round((i / entityTypeNames.length) * 60);

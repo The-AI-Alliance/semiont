@@ -456,6 +456,12 @@ describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)'
       'browse:resource-result',
       'job:claim-failed',
       'job:claimed',
+      // The durability ack (JOB-RESTART-SAFETY P6). A worker that awaits a
+      // commit but does not subscribe its replies fails fast with
+      // `bus.unsubscribed` on the first unit — which is why this pin and
+      // WORKER_AWAITED_OPERATIONS move together.
+      'mark:commit-failed',
+      'mark:commit-ok',
     ]);
   });
 

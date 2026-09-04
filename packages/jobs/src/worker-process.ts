@@ -16,6 +16,7 @@
  */
 
 import { createJobClaimAdapter, type JobClaimAdapter, type ActiveJob } from './job-claim-adapter';
+import { willRetryAfter } from './will-retry';
 import {
   asJobParams,
   isJobType,
@@ -28,10 +29,11 @@ import {
 } from './types';
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
-import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, findClaimSpan, capabilitiesOf, type EventMap } from '@semiont/core';
+import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, findClaimSpan, capabilitiesOf, type EventMap, busRequest} from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
+import { workerBusAsPrimitive } from './worker-bus-primitive.js';
 import { extractPdfTextLayer, type AnchoredTextStore, type ContentReads } from '@semiont/content';
 import { prepareDetection } from './workers/detection/prepare-detection';
 import { classifyFailure, DeterministicJobError } from './failure-class';
@@ -118,6 +120,43 @@ export interface WorkerProcessConfig {
  * Route `transport.emit` calls — choosing resource-scoped vs global based
  * on whether the event is a cross-subscriber broadcast.
  */
+/**
+ * How long a unit's commit may take before the worker treats the sink as down.
+ *
+ * Generous relative to an append — the batch is one unit's annotations and the
+ * Archivist may be catching up — but FINITE, which is the whole point: the
+ * 2026-09-03 hang was an unbounded wait on a confirmation that never came.
+ */
+const MARK_COMMIT_TIMEOUT_MS = 60_000;
+
+/**
+ * Persist a batch of annotations and WAIT for the event log to confirm it
+ * (JOB-RESTART-SAFETY P6).
+ *
+ * Every worker path that mints annotations goes through here. `mark:create` is
+ * fire-and-forget: its emit resolves when the gateway accepts the frame, which
+ * says nothing about the Stower having appended anything — so a down Archivist
+ * discarded a job's whole output while the job reported success. P7's
+ * `EMIT_TIMEOUT_MS` stopped those paths HANGING; only the acknowledgement stops
+ * them LOSING.
+ *
+ * Empty is a no-op, not a round trip: a job that found nothing has nothing to
+ * make durable, and the caller still proceeds.
+ */
+async function commitAnnotations(
+  session: SemiontSession,
+  resourceId: string,
+  annotations: readonly unknown[],
+): Promise<void> {
+  if (annotations.length === 0) return;
+  await busRequest(
+    workerBusAsPrimitive((session.client.transport as HttpTransport).actor),
+    'mark:commit',
+    { resourceId, annotations },
+    MARK_COMMIT_TIMEOUT_MS,
+  );
+}
+
 async function emitEvent<K extends keyof EventMap>(
   session: SemiontSession,
   channel: K,
@@ -150,10 +189,30 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
   // it); cleared on every terminal outcome.
   const completedUnitsByJob = new Map<string, string[]>();
 
+  // Cooperative cancellation (JOB-RESTART-SAFETY P4): a job:cancel-requested
+  // targeting the ACTIVE job aborts its signal; the reference loop stops at
+  // its next unit boundary and the job moves to cancelled/ carrying its
+  // checkpoint — no worker kill. The worker processes one job at a time (the
+  // adapter's isProcessing gate), so a single controller keyed by jobId is
+  // enough. A pending job's cancel is handled gateway-side; a running
+  // job's must be cooperative, or it would be yanked out from under a live
+  // worker (the roach-motel race).
+  let activeCancel: { jobId: string; controller: AbortController } | null = null;
+  httpTransport.actor.addChannels?.(['job:cancel-requested']);
+  httpTransport.on('job:cancel-requested', (event) => {
+    const targetId = (event as { jobId?: string }).jobId;
+    if (targetId && activeCancel?.jobId === targetId) {
+      logger.info('Cancel requested for active job — stopping at next unit boundary', { jobId: targetId });
+      activeCancel.controller.abort();
+    }
+  });
+
   adapter.activeJob$.subscribe((job) => {
     if (!job) return;
     logger.info('Processing job', { jobId: job.jobId, type: job.type, resourceId: job.resourceId });
-    handleJob(adapter, config, job, completedUnitsByJob)
+    const controller = new AbortController();
+    activeCancel = { jobId: job.jobId, controller };
+    handleJob(adapter, config, job, completedUnitsByJob, controller.signal)
       .then(() => {
         completedUnitsByJob.delete(job.jobId);
       })
@@ -175,9 +234,18 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
             error: message,
             ...(completedUnits && completedUnits.length > 0 ? { completedUnits } : {}),
             ...(failureClass !== undefined ? { failureClass } : {}),
+            // Whether this failure is the END, answered by the same predicate
+            // the queue applies at failJob (JOB-RESTART-SAFETY P5). Without
+            // it a client cannot tell a recovering run from a dead one: it
+            // sees job:fail either way and would end its stream on a job the
+            // queue is about to re-run.
+            willRetry: willRetryAfter(job, failureClass),
           }).catch(() => {});
         }
         adapter.failJob(job.jobId, message);
+      })
+      .finally(() => {
+        if (activeCancel?.jobId === job.jobId) activeCancel = null;
       });
   });
 
@@ -197,13 +265,18 @@ export async function handleJob(
   // (checkpointed resume); standalone callers may omit it — a fresh map
   // changes no behavior, only discards the checkpoint on return.
   completedUnitsByJob: Map<string, string[]> = new Map(),
+  // Cancellation signal (JOB-RESTART-SAFETY P4): aborted when a
+  // job:cancel-requested targets this job; the reference loop stops at its
+  // next unit boundary and the job moves to cancelled/. Standalone callers
+  // omit it — an undefined signal never aborts.
+  signal?: AbortSignal,
 ): Promise<void> {
   const start = performance.now();
   let outcome: 'completed' | 'failed' = 'completed';
   try {
     return await withSpan(
       `job:${job.type}`,
-      () => handleJobInner(adapter, config, job, completedUnitsByJob),
+      () => handleJobInner(adapter, config, job, completedUnitsByJob, signal),
       {
         kind: SpanKind.CONSUMER,
         attrs: {
@@ -226,6 +299,7 @@ async function handleJobInner(
   config: WorkerProcessConfig,
   job: ActiveJob,
   completedUnitsByJob: Map<string, string[]>,
+  signal?: AbortSignal,
 ): Promise<void> {
   const { session, inferenceClient, generator } = config;
   const { userId, jobId } = job;
@@ -342,9 +416,9 @@ async function handleJobInner(
     const { annotations, result } = await processHighlightJob(
       ready!.text, inferenceClient, asJobParams<HighlightDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
     );
-    for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
-    }
+    // Durable before the job claims success: `job:complete` after a lost batch
+    // is the silent-loss shape P6 removes.
+    await commitAnnotations(session, String(resourceId), annotations);
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result,
@@ -355,9 +429,9 @@ async function handleJobInner(
     const { annotations, result } = await processCommentJob(
       ready!.text, inferenceClient, asJobParams<CommentDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
     );
-    for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
-    }
+    // Durable before the job claims success: `job:complete` after a lost batch
+    // is the silent-loss shape P6 removes.
+    await commitAnnotations(session, String(resourceId), annotations);
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result,
@@ -368,9 +442,9 @@ async function handleJobInner(
     const { annotations, result } = await processAssessmentJob(
       ready!.text, inferenceClient, asJobParams<AssessmentDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
     );
-    for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
-    }
+    // Durable before the job claims success: `job:complete` after a lost batch
+    // is the silent-loss shape P6 removes.
+    await commitAnnotations(session, String(resourceId), annotations);
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result,
@@ -396,12 +470,50 @@ async function handleJobInner(
     const { result } = await processReferenceJob(
       ready!.text, inferenceClient, remaining, ready!.buildAnnotation, onProgress, config.logger,
       async (unit, annotations) => {
-        for (const ann of annotations) {
-          await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
-        }
+        // Gate the unit on DURABILITY, not on emission (JOB-RESTART-SAFETY P6).
+        //
+        // `emitEvent` resolves when the bus accepts the command, which says
+        // nothing about the event log. Advancing on that is how a down
+        // Archivist lost a whole unit silently — and how a flapping one hung
+        // the worker forever, waiting on a confirmation nothing was going to
+        // send. `mark:commit` answers only after every annotation is appended,
+        // and busRequest bounds the wait, so an outage becomes a retryable
+        // failure instead of either.
+        //
+        // The retry is safe to repeat whole: ids are deterministic (P3) and
+        // the annotation fold is idempotent by id, so re-committing the
+        // fraction that already landed changes nothing. That is required, not
+        // belt-and-braces — the ack itself can be lost after a successful
+        // append, so at-least-once is unavoidable here.
+        await commitAnnotations(session, String(resourceId), annotations);
         committed.push(unit);
+        // Durable checkpoint the moment the unit lands (JOB-RESTART-SAFETY
+        // P2): if this worker dies before the next unit — or before any
+        // job:fail — the janitor recovers a job that already records this
+        // unit, so the retry skips it. The in-memory `committed` still
+        // feeds the job:fail payload on a clean failure; this makes the
+        // crash path durable too.
+        await emitEvent(session, 'job:checkpoint', {
+          jobId: job.jobId,
+          completedUnits: [...committed],
+        });
       },
+      signal,
     );
+    // Cooperative cancellation (JOB-RESTART-SAFETY P4): the loop stopped
+    // because a cancel was requested for this job. Announce it so the queue
+    // moves the (still-running) job to cancelled/ — never yanked out from
+    // under this worker — carrying the units it did finish (already
+    // checkpointed above). completeJob releases the claim; a cancel is a
+    // clean terminal, not a failure.
+    if (signal?.aborted) {
+      await emitEvent(session, 'job:cancel', {
+        ...lifecycleBase,
+        ...(committed.length > 0 ? { completedUnits: [...committed] } : {}),
+      });
+      adapter.completeJob();
+      return;
+    }
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result,
@@ -412,9 +524,9 @@ async function handleJobInner(
     const { annotations, result } = await processTagJob(
       ready!.text, inferenceClient, asJobParams<TagDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
     );
-    for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
-    }
+    // Durable before the job claims success: `job:complete` after a lost batch
+    // is the silent-loss shape P6 removes.
+    await commitAnnotations(session, String(resourceId), annotations);
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result,
@@ -497,7 +609,7 @@ async function handleJobInner(
         },
         generator,
       );
-      await emitEvent(session, 'mark:create', { annotation: provenanceRef, resourceId });
+      await commitAnnotations(session, String(resourceId), [provenanceRef]);
     }
 
     // Inline citations: mint each as a linking annotation ON THE DERIVED
@@ -512,6 +624,11 @@ async function handleJobInner(
     // is re-found in the artifact's own text layer (two-stage search — strict,
     // then break-aware for hyphenation) and located to rects. A claim the
     // search cannot find is dropped LOUDLY, never minted wrong.
+    // Collected, then committed once: the citations all land on the DERIVED
+    // resource, so they are one batch keyed by `newResourceId` — a different
+    // resource from the provenance edge above, which is why they cannot share
+    // a commit.
+    const citationRefs: unknown[] = [];
     if (genResult.format === 'application/pdf' && genResult.citations.length > 0) {
       const layer = await extractPdfTextLayer(genResult.content);
       if (!layer) {
@@ -542,7 +659,7 @@ async function handleJobInner(
             { exact: layer.text.slice(span.start, span.end), start: span.start, end: span.end },
             { type: 'SpecificResource', source: citation.resourceId, purpose: 'linking' },
           );
-          await emitEvent(session, 'mark:create', { annotation: citationRef, resourceId: newResourceId });
+          citationRefs.push(citationRef);
         }
       }
     } else {
@@ -561,9 +678,11 @@ async function handleJobInner(
           },
           generator,
         );
-        await emitEvent(session, 'mark:create', { annotation: citationRef, resourceId: newResourceId });
+        citationRefs.push(citationRef);
       }
     }
+
+    await commitAnnotations(session, String(newResourceId), citationRefs);
 
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,

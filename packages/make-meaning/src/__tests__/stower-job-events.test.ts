@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { firstValueFrom, take } from 'rxjs';
 import { EventBus, resourceId, type Logger } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import { Stower } from '../stower';
@@ -101,5 +102,95 @@ describe('Stower job:* handlers', () => {
 
     // The refusal must not be a half-write: no event reaches the log at all.
     expect(appendEvent).not.toHaveBeenCalled();
+  });
+
+  // ── mark:commit — the durability acknowledgement (JOB-RESTART-SAFETY P6) ───
+  //
+  // The whole point of this channel is the REPLY. `mark:create` resolves when
+  // the bus accepts it, which says nothing about the event log; a worker that
+  // advanced on that lost a unit whenever the Archivist was down and hung
+  // forever whenever it flapped. These pin the contract the worker now bets a
+  // unit's completion on.
+  describe('mark:commit', () => {
+    const ann = (id: string) => ({
+      '@context': 'http://www.w3.org/ns/anno.jsonld',
+      type: 'Annotation', id, motivation: 'linking',
+      target: { source: RID },
+      creator: { '@type': 'Person', name: 'Detector', '@id': 'did:web:test:agents:detect' },
+      created: '2026-09-03T00:00:00.000Z',
+    });
+
+    /** First reply on either channel, or 'none' if the seam answers nothing. */
+    async function replyOf(fn: () => void): Promise<{ channel: string; body: any }> {
+      const ok = firstValueFrom(bus.get('mark:commit-ok').pipe(take(1)));
+      const failed = firstValueFrom(bus.get('mark:commit-failed').pipe(take(1)));
+      fn();
+      return Promise.race([
+        ok.then((body) => ({ channel: 'mark:commit-ok', body })),
+        failed.then((body) => ({ channel: 'mark:commit-failed', body })),
+        new Promise<{ channel: string; body: any }>((r) => setTimeout(() => r({ channel: 'none', body: null }), 300)),
+      ]);
+    }
+
+    it('appends every annotation in the batch, then acknowledges', async () => {
+      const reply = await replyOf(() => bus.get('mark:commit').next({
+        correlationId: 'cid-1', resourceId: RID, _userId: USER,
+        annotations: [ann('a1'), ann('a2')],
+      } as never));
+
+      // Acknowledged only after BOTH appends returned — the ack is a
+      // durability claim, so it must not precede the writes it attests to.
+      expect(appendEvent).toHaveBeenCalledTimes(2);
+      expect(reply.channel).toBe('mark:commit-ok');
+      expect(reply.body.correlationId).toBe('cid-1');
+      expect(reply.body.response.persisted).toBe(2);
+      expect(reply.body.response.annotationIds).toEqual(['a1', 'a2']);
+      for (const call of appendEvent.mock.calls) {
+        expect(call[0].type).toBe('mark:added');
+        expect(String(call[0].userId)).toBe(USER);
+      }
+    });
+
+    it('reports failure — never partial success — when an append throws', async () => {
+      // The batch is the unit. Half a unit acknowledged as done is exactly the
+      // silent-loss shape this phase exists to remove, so a failed batch is
+      // reported whole and the worker retries it whole.
+      appendEvent.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('log unwritable'));
+
+      const reply = await replyOf(() => bus.get('mark:commit').next({
+        correlationId: 'cid-2', resourceId: RID, _userId: USER,
+        annotations: [ann('b1'), ann('b2')],
+      } as never));
+
+      expect(reply.channel).toBe('mark:commit-failed');
+      expect(reply.body.correlationId).toBe('cid-2');
+      expect(reply.body.message).toContain('log unwritable');
+      // Stops at the failure rather than pressing on.
+      expect(appendEvent).toHaveBeenCalledTimes(2);
+    });
+
+    it('acknowledges an empty batch without appending', async () => {
+      // A legitimately-empty unit is still a completed unit: the worker must
+      // be able to checkpoint it, so the seam has to answer rather than hang.
+      const reply = await replyOf(() => bus.get('mark:commit').next({
+        correlationId: 'cid-3', resourceId: RID, _userId: USER, annotations: [],
+      } as never));
+
+      expect(appendEvent).not.toHaveBeenCalled();
+      expect(reply.channel).toBe('mark:commit-ok');
+      expect(reply.body.response.persisted).toBe(0);
+    });
+
+    it('refuses without the gateway-injected _userId — nothing is appended', async () => {
+      const reply = await replyOf(() => bus.get('mark:commit').next({
+        correlationId: 'cid-4', resourceId: RID, annotations: [ann('c1')],
+      } as never));
+
+      expect(appendEvent).not.toHaveBeenCalled();
+      // The guard throws before the try, so no reply is produced — the caller
+      // sees its bounded timeout, which is the honest outcome for a command
+      // the gateway never stamped.
+      expect(reply.channel).toBe('none');
+    });
   });
 });

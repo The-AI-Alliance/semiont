@@ -21,32 +21,10 @@
  */
 
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
-import { busRequest, isArray, isString, type BusRequestPrimitive, type EventMap } from '@semiont/core';
+import { busRequest, isArray, isNumber, isString } from '@semiont/core';
 import type { WorkerBus } from '@semiont/sdk';
+import { workerBusAsPrimitive } from './worker-bus-primitive.js';
 
-/**
- * Adapt the string-typed `WorkerBus` to the `BusRequestPrimitive` that
- * `busRequest` consumes, so job-claim rides the same request/reply path as the
- * SDK instead of a hand-rolled copy of it.
- */
-function workerBusAsPrimitive(bus: WorkerBus): BusRequestPrimitive {
-  return {
-    emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<number> {
-      return bus.emit(channel as string, payload as Record<string, unknown>);
-    },
-    stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
-      return bus.on$<EventMap[K]>(channel as string);
-    },
-    // Pass the real connection state through: a worker's first `job:claim`
-    // fires right after connect — exactly the attach-window emit the gate
-    // exists for (.plans/BUS-ATTACH-GATE.md).
-    state$: bus.state$,
-    // Pass the subscription probe through so a `job:claim` against a
-    // transport whose narrowed channel set omits the claim replies fails
-    // fast (`bus.unsubscribed`) instead of timing out.
-    ...(bus.isSubscribed ? { isSubscribed: (channel: string) => bus.isSubscribed!(channel) } : {}),
-  };
-}
 
 export interface JobAssignment {
   jobId: string;
@@ -67,6 +45,14 @@ export interface ActiveJob {
    * neither redoes nor duplicates completed work. Empty on first attempts.
    */
   completedUnits: string[];
+  /**
+   * The claimed record's retry budget, carried so the worker can report
+   * `willRetry` on `job:fail` (JOB-RESTART-SAFETY P5). It is the same budget
+   * the queue re-reads at `failJob`, and only `failJob` changes it, so the
+   * two evaluations of `willRetryAfter` agree.
+   */
+  retryCount: number;
+  maxRetries: number;
 }
 
 export interface JobClaimAdapterOptions {
@@ -173,7 +159,7 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
       // it to the claimed-job shape the worker reads.
       const job = (await busRequest(requestBus, 'job:claim', { jobId: assignment.jobId }, 10_000)) as {
         params?: Record<string, unknown>;
-        metadata?: { userId?: string; completedUnits?: unknown };
+        metadata?: { userId?: string; completedUnits?: unknown; retryCount?: unknown; maxRetries?: unknown };
       };
 
       const completedUnits = isArray(job.metadata?.completedUnits)
@@ -187,6 +173,10 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
         userId: (job.metadata?.userId ?? '') as string,
         params: (job.params ?? {}) as Record<string, unknown>,
         completedUnits,
+        // Absent or malformed metadata reads as "no budget left" — a worker
+        // that cannot see the budget must not claim a retry is coming.
+        retryCount: isNumber(job.metadata?.retryCount) ? job.metadata.retryCount : 0,
+        maxRetries: isNumber(job.metadata?.maxRetries) ? job.metadata.maxRetries : 0,
       };
     } catch {
       // A claim-failed reply (job not pending / already claimed / queue error)
