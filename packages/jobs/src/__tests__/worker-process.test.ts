@@ -32,6 +32,7 @@
 
 import { GEN_REQUIRED, minimalContext } from './fixtures/generation-fixtures';
 import { referenceIdOf } from '../worker-process';
+import { Subject, BehaviorSubject } from 'rxjs';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { extractPdfTextLayer } from '@semiont/content';
 import type { SemiontSession } from '@semiont/sdk';
@@ -100,8 +101,36 @@ function makeFakeSessionAndAdapter() {
   const yieldResourceCalls: Parameters<SemiontSession['client']['yield']['resource']>[0][] = [];
   const adapterCalls: AdapterCall[] = [];
 
+  // The Archivist stand-in for the durability ack (JOB-RESTART-SAFETY P6).
+  // `mark:commit` is a request/reply operation now, so the harness must answer
+  // it or every unit blocks until the commit timeout. `commitSink` lets a test
+  // play the sink being down.
+  const replyStreams = new Map<string, Subject<Record<string, unknown>>>();
+  const replyStream = (channel: string) => {
+    let s = replyStreams.get(channel);
+    if (!s) { s = new Subject(); replyStreams.set(channel, s); }
+    return s;
+  };
+  const commitSink: { mode: 'ok' | 'fail' | 'silent' } = { mode: 'ok' };
+
   const transportEmit = vi.fn(async (channel: string, payload: Record<string, unknown>, scope?: string) => {
     busEmits.push({ channel, payload, scope });
+    if (channel === 'mark:commit' && commitSink.mode !== 'silent') {
+      const correlationId = payload.correlationId as string;
+      const annotations = (payload.annotations ?? []) as Array<{ id: string }>;
+      // Answer on the next tick, as a real Archivist would.
+      queueMicrotask(() => {
+        if (commitSink.mode === 'ok') {
+          replyStream('mark:commit-ok').next({
+            correlationId,
+            response: { persisted: annotations.length, annotationIds: annotations.map((a) => String(a.id)) },
+          });
+        } else {
+          replyStream('mark:commit-failed').next({ correlationId, message: 'sink down' });
+        }
+      });
+    }
+    return 1;
   });
   const session = {
     client: {
@@ -112,8 +141,12 @@ function makeFakeSessionAndAdapter() {
         // (JOB-RESTART-SAFETY P4); test needs minimal stand-ins for both.
         on: vi.fn(() => () => {}),
         actor: {
-          on$: vi.fn(() => ({ subscribe: () => ({ unsubscribe: () => {} }) })),
+          on$: vi.fn((channel: string) => replyStream(channel).asObservable()),
           emit: transportEmit,
+          // 'open' is the attach gate's pass value (BUS-ATTACH-GATE); anything
+          // else holds every busRequest until it times out.
+          state$: new BehaviorSubject('open'),
+          isSubscribed: () => true,
           addChannels: vi.fn(),
           removeChannels: vi.fn(),
         },
@@ -1149,13 +1182,17 @@ describe('referenceIdOf', () => {
 
 // ── Checkpointed resume (ABANDONED-INFERENCE P2, A3) ──────────────────
 // The worker owns the unit commit: it passes `onUnitComplete` into
-// `processReferenceJob`, emits the unit's mark:creates as they complete
+// `processReferenceJob`, COMMITS the unit's annotations as they complete
 // (the post-run batch was N2's mechanism), accumulates the completed unit
 // names, carries them on job:fail, and skips checkpointed units on a
 // retried claim.
+//
+// The commit is one acknowledged batch per unit, not N fire-and-forget
+// creates (JOB-RESTART-SAFETY P6): the unit may not count until its
+// annotations are durably in the event log.
 
 describe('reference-annotation — checkpointed resume', () => {
-  it('emits per unit through the commit callback, with no post-run re-emission', async () => {
+  it('commits once per unit, awaiting durability, with no post-run re-emission', async () => {
     vi.mocked(processReferenceJob).mockImplementation(
       async (_content, _client, _params, _build, _progress, _logger, onUnitComplete) => {
         await onUnitComplete('Person', [{ id: 'r1' }] as never);
@@ -1168,18 +1205,24 @@ describe('reference-annotation — checkpointed resume', () => {
 
     await handleJob(h.adapter, makeConfig(h.session), makeJob('reference-annotation', { entityTypes: ['Person', 'Date', 'Location'] }));
 
-    // Exactly the callback's emissions, in unit order: each unit's
-    // mark:create(s) followed by a durable job:checkpoint (JOB-RESTART-SAFETY
-    // P2) — Date emits a checkpoint even with no annotations (an empty unit
-    // is still complete) — and nothing re-emitted after the processor returns.
+    // Exactly the callback's emissions, in unit order: ONE mark:commit per
+    // non-empty unit, each followed by a durable job:checkpoint
+    // (JOB-RESTART-SAFETY P2). Date commits nothing — there is nothing to make
+    // durable — but still checkpoints, because an empty unit is complete and a
+    // retry must skip it. Nothing is re-emitted after the processor returns.
     expect(h.busEmits.map(e => e.channel))
       .toEqual([
         'job:start',
-        'mark:create', 'job:checkpoint',   // Person
-        'job:checkpoint',                   // Date (no annotations)
-        'mark:create', 'mark:create', 'job:checkpoint', // Location
+        'mark:commit', 'job:checkpoint',   // Person (1 annotation)
+        'job:checkpoint',                   // Date (no annotations, no commit)
+        'mark:commit', 'job:checkpoint',    // Location (2 annotations, ONE batch)
         'job:complete',
       ]);
+
+    // The batch is the unit: Location's two annotations travel together, so
+    // the acknowledgement covers the unit rather than its parts.
+    const commits = h.busEmits.filter(e => e.channel === 'mark:commit');
+    expect(commits.map(c => (c.payload as { annotations: unknown[] }).annotations.length)).toEqual([1, 2]);
     // Each checkpoint carries the cumulative completed-unit set, so recovery
     // after a crash between any two units resumes from the right place.
     expect(h.busEmits.filter(e => e.channel === 'job:checkpoint').map(e => (e.payload as { completedUnits: string[] }).completedUnits))

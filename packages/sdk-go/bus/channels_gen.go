@@ -141,6 +141,15 @@ const (
 	// payload: CommandError
 	MarkCreateFailed Channel = "mark:create-failed"
 
+	// payload: MarkCommitCommand
+	MarkCommit Channel = "mark:commit"
+
+	// payload: MarkCommitOk
+	MarkCommitOk Channel = "mark:commit-ok"
+
+	// payload: CommandError
+	MarkCommitFailed Channel = "mark:commit-failed"
+
 	// payload: MarkDeleteOk
 	MarkDeleteOk Channel = "mark:delete-ok"
 
@@ -593,6 +602,9 @@ var ChannelSchemas = map[Channel]string{
 	MarkUpdateEntityTypes:                 "MarkUpdateEntityTypesCommand",
 	MarkCreateOk:                          "MarkCreateOk",
 	MarkCreateFailed:                      "CommandError",
+	MarkCommit:                            "MarkCommitCommand",
+	MarkCommitOk:                          "MarkCommitOk",
+	MarkCommitFailed:                      "CommandError",
 	MarkDeleteOk:                          "MarkDeleteOk",
 	MarkDeleteFailed:                      "CommandError",
 	MarkArchiveFailed:                     "CommandError",

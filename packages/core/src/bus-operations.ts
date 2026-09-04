@@ -78,6 +78,7 @@ export const BUS_OPERATIONS = {
 
   // ── MARK ────────────────────────────────────────────────────────
   'mark:create-request':                 { result: 'mark:create-ok',                 failure: 'mark:create-failed' },
+  'mark:commit':                         { result: 'mark:commit-ok',                 failure: 'mark:commit-failed' },
   'mark:delete':                         { result: 'mark:delete-ok',                 failure: 'mark:delete-failed' },
   'mark:archive':                        { result: 'mark:archive-ok',                failure: 'mark:archive-failed' },
   'mark:unarchive':                      { result: 'mark:unarchive-ok',              failure: 'mark:unarchive-failed' },

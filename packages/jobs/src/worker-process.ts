@@ -29,10 +29,11 @@ import {
 } from './types';
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
-import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, findClaimSpan, capabilitiesOf, type EventMap } from '@semiont/core';
+import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, findClaimSpan, capabilitiesOf, type EventMap, busRequest} from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
+import { workerBusAsPrimitive } from './worker-bus-primitive.js';
 import { extractPdfTextLayer, type AnchoredTextStore, type ContentReads } from '@semiont/content';
 import { prepareDetection } from './workers/detection/prepare-detection';
 import { classifyFailure, DeterministicJobError } from './failure-class';
@@ -119,6 +120,15 @@ export interface WorkerProcessConfig {
  * Route `transport.emit` calls — choosing resource-scoped vs global based
  * on whether the event is a cross-subscriber broadcast.
  */
+/**
+ * How long a unit's commit may take before the worker treats the sink as down.
+ *
+ * Generous relative to an append — the batch is one unit's annotations and the
+ * Archivist may be catching up — but FINITE, which is the whole point: the
+ * 2026-09-03 hang was an unbounded wait on a confirmation that never came.
+ */
+const MARK_COMMIT_TIMEOUT_MS = 60_000;
+
 async function emitEvent<K extends keyof EventMap>(
   session: SemiontSession,
   channel: K,
@@ -432,8 +442,28 @@ async function handleJobInner(
     const { result } = await processReferenceJob(
       ready!.text, inferenceClient, remaining, ready!.buildAnnotation, onProgress, config.logger,
       async (unit, annotations) => {
-        for (const ann of annotations) {
-          await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
+        // Gate the unit on DURABILITY, not on emission (JOB-RESTART-SAFETY P6).
+        //
+        // `emitEvent` resolves when the bus accepts the command, which says
+        // nothing about the event log. Advancing on that is how a down
+        // Archivist lost a whole unit silently — and how a flapping one hung
+        // the worker forever, waiting on a confirmation nothing was going to
+        // send. `mark:commit` answers only after every annotation is appended,
+        // and busRequest bounds the wait, so an outage becomes a retryable
+        // failure instead of either.
+        //
+        // The retry is safe to repeat whole: ids are deterministic (P3) and
+        // the annotation fold is idempotent by id, so re-committing the
+        // fraction that already landed changes nothing. That is required, not
+        // belt-and-braces — the ack itself can be lost after a successful
+        // append, so at-least-once is unavoidable here.
+        if (annotations.length > 0) {
+          await busRequest(
+            workerBusAsPrimitive((session.client.transport as HttpTransport).actor),
+            'mark:commit',
+            { resourceId, annotations },
+            MARK_COMMIT_TIMEOUT_MS,
+          );
         }
         committed.push(unit);
         // Durable checkpoint the moment the unit lands (JOB-RESTART-SAFETY

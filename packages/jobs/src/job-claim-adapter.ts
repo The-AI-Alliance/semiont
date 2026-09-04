@@ -21,32 +21,10 @@
  */
 
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
-import { busRequest, isArray, isNumber, isString, type BusRequestPrimitive, type EventMap } from '@semiont/core';
+import { busRequest, isArray, isNumber, isString } from '@semiont/core';
 import type { WorkerBus } from '@semiont/sdk';
+import { workerBusAsPrimitive } from './worker-bus-primitive.js';
 
-/**
- * Adapt the string-typed `WorkerBus` to the `BusRequestPrimitive` that
- * `busRequest` consumes, so job-claim rides the same request/reply path as the
- * SDK instead of a hand-rolled copy of it.
- */
-function workerBusAsPrimitive(bus: WorkerBus): BusRequestPrimitive {
-  return {
-    emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<number> {
-      return bus.emit(channel as string, payload as Record<string, unknown>);
-    },
-    stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
-      return bus.on$<EventMap[K]>(channel as string);
-    },
-    // Pass the real connection state through: a worker's first `job:claim`
-    // fires right after connect — exactly the attach-window emit the gate
-    // exists for (.plans/BUS-ATTACH-GATE.md).
-    state$: bus.state$,
-    // Pass the subscription probe through so a `job:claim` against a
-    // transport whose narrowed channel set omits the claim replies fails
-    // fast (`bus.unsubscribed`) instead of timing out.
-    ...(bus.isSubscribed ? { isSubscribed: (channel: string) => bus.isSubscribed!(channel) } : {}),
-  };
-}
 
 export interface JobAssignment {
   jobId: string;

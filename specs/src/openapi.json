@@ -579,6 +579,12 @@
       "MarkCreateOk": {
         "$ref": "components/schemas/MarkCreateOk.json"
       },
+      "MarkCommitCommand": {
+        "$ref": "components/schemas/MarkCommitCommand.json"
+      },
+      "MarkCommitOk": {
+        "$ref": "components/schemas/MarkCommitOk.json"
+      },
       "MarkCreateRequest": {
         "$ref": "components/schemas/MarkCreateRequest.json"
       },

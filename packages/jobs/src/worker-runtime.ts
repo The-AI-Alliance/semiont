@@ -190,6 +190,11 @@ export const WORKER_AWAITED_OPERATIONS = [
   'job:claim',
   'browse:resource-requested',
   'browse:anchored-text-by-checksum-requested',
+  // Durability acknowledgement for a unit's annotations (JOB-RESTART-SAFETY
+  // P6). The worker AWAITS this one — a unit may not advance until its
+  // annotations are in the event log — so its replies must be in the narrow
+  // channel set or every commit fails fast with `bus.unsubscribed`.
+  'mark:commit',
 ] as const satisfies readonly BusOperationKey[];
 
 /** The derived global SSE channel set for a worker's transport. */

@@ -111,6 +111,7 @@ describe('archivist transport channels', () => {
       'job:fail',
       'job:start',
       'mark:archive',
+      'mark:commit',
       'mark:create',
       'mark:create-request',
       'mark:delete',

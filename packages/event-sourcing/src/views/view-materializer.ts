@@ -341,9 +341,32 @@ export class ViewMaterializer {
    */
   private applyEventToAnnotations(annotations: ResourceAnnotations, event: PersistedEvent): void {
     switch (event.type) {
-      case 'mark:added':
-        annotations.annotations.push(event.payload.annotation);
+      case 'mark:added': {
+        // Idempotent by annotation id (JOB-RESTART-SAFETY P6). At-least-once
+        // delivery is a property of the network: a worker whose commit was
+        // appended but whose acknowledgement was lost MUST retry, and no
+        // pre-append check can prevent the repeat because the append already
+        // succeeded. P3's deterministic ids make the repeat recognizable; this
+        // makes it harmless.
+        //
+        // It is also what a projection owes the log it derives from — the view
+        // answers "annotation X exists", never "X was written twice". A blind
+        // push made the view depend on how many times a fact was recorded.
+        // Ordering still decides: a `mark:removed` between two appends drops
+        // the annotation, and the later append re-creates it.
+        const incoming = event.payload.annotation;
+        const at = annotations.annotations.findIndex((a: Annotation) => a.id === incoming.id);
+        if (at === -1) {
+          annotations.annotations.push(incoming);
+        } else {
+          // Same id seen again: keep the position, take the newer payload. A
+          // repeat is byte-identical today, so this is a no-op — it is written
+          // as last-write-wins so a future corrective re-append behaves the way
+          // every other fold in this file does.
+          annotations.annotations[at] = incoming;
+        }
         break;
+      }
 
       case 'mark:removed':
         annotations.annotations = annotations.annotations.filter(

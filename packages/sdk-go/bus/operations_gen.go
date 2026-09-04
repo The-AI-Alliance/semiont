@@ -16,7 +16,7 @@ type Operation struct {
 	Progress Channel // "" when the operation is not streaming
 }
 
-// Operations is the request→reply registry: 38 operations.
+// Operations is the request→reply registry: 39 operations.
 var Operations = map[Channel]Operation{
 	"bind:update-body":                           {Result: "bind:body-updated", Failure: "bind:body-update-failed"},
 	"browse:resource-requested":                  {Result: "browse:resource-result", Failure: "browse:resource-failed"},
@@ -43,6 +43,7 @@ var Operations = map[Channel]Operation{
 	"job:cancel-requested":                       {Result: "job:cancel-ok", Failure: "job:cancel-failed"},
 	"job:claim":                                  {Result: "job:claimed", Failure: "job:claim-failed"},
 	"mark:create-request":                        {Result: "mark:create-ok", Failure: "mark:create-failed"},
+	"mark:commit":                                {Result: "mark:commit-ok", Failure: "mark:commit-failed"},
 	"mark:delete":                                {Result: "mark:delete-ok", Failure: "mark:delete-failed"},
 	"mark:archive":                               {Result: "mark:archive-ok", Failure: "mark:archive-failed"},
 	"mark:unarchive":                             {Result: "mark:unarchive-ok", Failure: "mark:unarchive-failed"},
