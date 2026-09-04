@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/auth';
 import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { SemiontClient, type TagSchema } from '@semiont/sdk';
+import { signInSession } from '../fixtures/sdk-session';
 
 /**
  * Regression guard — `frame:tag-schema-added` must reach a resource-subscribed
@@ -75,11 +76,8 @@ test.describe('frame:tag-schema-added single delivery (BRIDGED ∩ RESOURCE_SCOP
     await page.waitForTimeout(2_000);
 
     // ── Trigger exactly one frame:tag-schema-added from a parallel client ──
-    const client = await SemiontClient.signInHttp({
-      baseUrl: GATEWAY_URL,
-      email: E2E_EMAIL,
-      password: E2E_PASSWORD,
-    });
+    const session = await signInSession();
+    const client = session.client;
     try {
       bus.clear();
       await client.frame.addTagSchema(DEDUP_SCHEMA);
@@ -101,7 +99,7 @@ test.describe('frame:tag-schema-added single delivery (BRIDGED ∩ RESOURCE_SCOP
           `(global + scoped dual-forward). delivery scopes=${JSON.stringify(deliveries.map((d) => d.scope))}`,
       ).toBe(1);
     } finally {
-      client.dispose();
+      await session.dispose();
     }
   });
 });

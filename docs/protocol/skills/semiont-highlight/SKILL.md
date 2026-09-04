@@ -18,18 +18,26 @@ This skill builds **Layer #2 (Annotations)** of the layered data model — `high
 
 ## Client setup
 
-`SemiontClient.signInHttp(...)` is the credentials-first one-line construction for one-shot scripts. It calls `auth.password(email, password)` and returns a wired-up client with the access token populated. Construct once at the top of a script and reuse the same client for every verb call.
+`SemiontSession.signInHttp(...)` is the credentials-first construction. It calls `auth.password(email, password)`, then owns the token lifecycle — the access token lives **ten minutes**, so a session (not a bare client) is what keeps a script working past that. Construct once at the top and reuse `session.client` for every verb call; `await session.dispose()` when done.
 
-For long-running scripts that may span token expiry, use `SemiontSession.signInHttp(...)` instead — it owns refresh, validation, and storage; the lighter pattern below is right for one-shot work. If you already have an access token (cached from a prior auth, or supplied by an embedding host), use `SemiontClient.fromHttp({ baseUrl, token })` to skip the auth round-trip.
+Already hold an access token (cached from a prior auth, or supplied by an embedding host)? `SemiontClient.fromHttp({ baseUrl, token })` skips the auth round-trip — but you then own refresh yourself.
 
 ```typescript
-import { SemiontClient, resourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
 
-const semiont = await SemiontClient.signInHttp({
-  baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+const session = await SemiontSession.signInHttp({
+  kb: httpKb({
+    id: 'semiont-highlight', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+    host: url.hostname, port: Number(url.port || 4000),
+    protocol: url.protocol === 'https:' ? 'https' : 'http',
+  }),
+  storage: new InMemorySessionStorage(),
+  baseUrl: url.href,
   email: process.env.SEMIONT_USER_EMAIL!,
   password: process.env.SEMIONT_USER_PASSWORD!,
 });
+const semiont = session.client;
 ```
 
 ## Delegate (AI-assisted)
@@ -46,7 +54,7 @@ const progress = await semiont.mark.assist(rId, 'highlighting', {
 
 console.log(`Created ${progress.progress?.createdCount ?? 0} highlights`);
 
-semiont.dispose();
+await session.dispose();
 ```
 
 To observe intermediate progress (e.g. for a progress bar), subscribe directly instead of awaiting:
@@ -86,14 +94,22 @@ await semiont.mark.annotation({
 ## Complete script skeleton
 
 ```typescript
-import { SemiontClient, resourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
 
 async function highlight(resourceIdStr: string): Promise<void> {
-  const semiont = await SemiontClient.signInHttp({
-    baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+  const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+  const session = await SemiontSession.signInHttp({
+    kb: httpKb({
+      id: 'semiont-highlight', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+      host: url.hostname, port: Number(url.port || 4000),
+      protocol: url.protocol === 'https:' ? 'https' : 'http',
+    }),
+    storage: new InMemorySessionStorage(),
+    baseUrl: url.href,
     email: process.env.SEMIONT_USER_EMAIL!,
     password: process.env.SEMIONT_USER_PASSWORD!,
   });
+  const semiont = session.client;
   const rId = resourceId(resourceIdStr);
 
   const progress = await semiont.mark.assist(rId, 'highlighting', {
@@ -103,7 +119,7 @@ async function highlight(resourceIdStr: string): Promise<void> {
   });
 
   console.log(`Created ${progress.progress?.createdCount ?? 0} highlights`);
-  semiont.dispose();
+  await session.dispose();
 }
 
 const target = process.argv[2];

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { SemiontClient, resourceId as ridBrand } from '@semiont/sdk';
 import type { ResourceDescriptor } from '@semiont/core';
 import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { signInSession } from '../fixtures/sdk-session';
 
 /**
  * Live gate — SEMANTIC-FALLBACK.md: when a lexical search returns nothing, the
@@ -98,13 +99,7 @@ const BODY = [
 /** The Smelter chunks and embeds asynchronously; nothing is searchable until it has. */
 const INDEXING_TIMEOUT = 120_000;
 
-async function signIn() {
-  return SemiontClient.signInHttp({
-    baseUrl: GATEWAY_URL,
-    email: E2E_EMAIL,
-    password: E2E_PASSWORD,
-  });
-}
+
 
 /** Search by body phrase — zero lexical hits by construction, so this is the fallback's answer. */
 async function semanticSearch(
@@ -116,11 +111,13 @@ async function semanticSearch(
 }
 
 test.describe.serial('semantic fallback answers what lexical search cannot', () => {
+  let session: Awaited<ReturnType<typeof signInSession>>;
   let client: SemiontClient;
   let rid: ReturnType<typeof ridBrand>;
 
   test.beforeAll(async () => {
-    client = await signIn();
+    session = await signInSession();
+    client = session.client;
     rid = ridBrand(
       (
         await client.yield.resource({
@@ -136,8 +133,8 @@ test.describe.serial('semantic fallback answers what lexical search cannot', () 
     console.log(`SEMANTIC: seeded ${rid} as "${RESOURCE_NAME}" (${BODY.length} bytes)`);
   });
 
-  test.afterAll(() => {
-    client?.dispose();
+  test.afterAll(async () => {
+    await session?.dispose();
   });
 
   /**

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { SemiontClient } from '@semiont/sdk';
 import { getTargetSource, getTargetSelector, getBodySource } from '@semiont/core';
 import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { signInSession } from '../fixtures/sdk-session';
 
 /**
  * Smoke test — RESOURCE-LEVEL-ANCHOR.md Phase 5 (verify): a whole-resource
@@ -29,11 +30,9 @@ test.describe('resource-level anchor', () => {
   test('a source-only (whole-resource) annotation is created, served, and its edge resolves', async () => {
     test.setTimeout(60_000);
 
-    const client = await SemiontClient.signInHttp({
-      baseUrl: GATEWAY_URL,
-      email: E2E_EMAIL,
-      password: E2E_PASSWORD,
-    });
+    const session = await signInSession();
+
+    const client = session.client;
 
     try {
       // Two resources: "claim" A (the annotation target) and "source" B (the edge target).
@@ -87,7 +86,7 @@ test.describe('resource-level anchor', () => {
       // The SpecificResource body edge resolves to B.
       expect(getBodySource(created!.body)).toBe(b);
     } finally {
-      client.dispose();
+      await session.dispose();
     }
   });
 });

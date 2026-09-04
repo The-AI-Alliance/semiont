@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/auth';
 import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { SemiontClient, resourceId as ridBrand, type TagSchema } from '@semiont/sdk';
+import { signInSession } from '../fixtures/sdk-session';
 
 /**
  * Smoke test: the Frame flow's tag-schema runtime registry surface
@@ -121,11 +122,8 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
     // shape every production caller takes (see seed.ts and the demo-KB
     // skills); the test exercises the SDK end-to-end rather than poking
     // bus channels directly.
-    const client = await SemiontClient.signInHttp({
-      baseUrl: GATEWAY_URL,
-      email: E2E_EMAIL,
-      password: E2E_PASSWORD,
-    });
+    const session = await signInSession();
+    const client = session.client;
 
     try {
       // ── Phase 1: registration round-trip ──────────────────────────
@@ -236,7 +234,7 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
         'tagging body value must be one of the registered category names',
       ).toContain((taggingBody as any).value);
     } finally {
-      client.dispose();
+      await session.dispose();
     }
   });
 });

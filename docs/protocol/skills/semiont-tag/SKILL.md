@@ -30,16 +30,22 @@ Tag schemas are runtime-registered per KB. The dispatcher resolves `schemaId` â†
 ## Client setup
 
 ```typescript
-import { SemiontClient, type TagSchema, resourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb, type TagSchema, resourceId } from '@semiont/sdk';
 
-const semiont = await SemiontClient.signInHttp({
-  baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+const session = await SemiontSession.signInHttp({
+  kb: httpKb({
+    id: 'semiont-tag', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+    host: url.hostname, port: Number(url.port || 4000),
+    protocol: url.protocol === 'https:' ? 'https' : 'http',
+  }),
+  storage: new InMemorySessionStorage(),
+  baseUrl: url.href,
   email: process.env.SEMIONT_USER_EMAIL!,
   password: process.env.SEMIONT_USER_PASSWORD!,
 });
+const semiont = session.client;
 ```
-
-For long-running scripts that may span token expiry, use `SemiontSession.signInHttp(...)` instead.
 
 ## Structural-analysis tagging (motivation `tagging`)
 
@@ -61,7 +67,7 @@ const progress = await semiont.mark.assist(rId, 'tagging', {
 
 console.log(`Created ${progress.progress?.createdCount ?? 0} IRAC tags`);
 
-semiont.dispose();
+await session.dispose();
 ```
 
 The dispatcher resolves the `schemaId` against the KB's projection, embeds the full `TagSchema` in the worker's job params, and validates each `categories` entry against the schema's `tags`. Each resulting annotation gets a body containing:
@@ -150,15 +156,23 @@ await semiont.mark.annotation({
 ## Complete script skeleton (structural-analysis IRAC)
 
 ```typescript
-import { SemiontClient, resourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
 import { LEGAL_IRAC_SCHEMA } from '../../src/tag-schemas.js';
 
 async function tagIRAC(resourceIdStr: string): Promise<void> {
-  const semiont = await SemiontClient.signInHttp({
-    baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+  const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+  const session = await SemiontSession.signInHttp({
+    kb: httpKb({
+      id: 'semiont-tag', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+      host: url.hostname, port: Number(url.port || 4000),
+      protocol: url.protocol === 'https:' ? 'https' : 'http',
+    }),
+    storage: new InMemorySessionStorage(),
+    baseUrl: url.href,
     email: process.env.SEMIONT_USER_EMAIL!,
     password: process.env.SEMIONT_USER_PASSWORD!,
   });
+  const semiont = session.client;
 
   // Self-register the schema. Idempotent.
   await semiont.frame.addTagSchema(LEGAL_IRAC_SCHEMA);
@@ -171,7 +185,7 @@ async function tagIRAC(resourceIdStr: string): Promise<void> {
   });
 
   console.log(`Created ${progress.progress?.createdCount ?? 0} IRAC tags`);
-  semiont.dispose();
+  await session.dispose();
 }
 
 const target = process.argv[2];

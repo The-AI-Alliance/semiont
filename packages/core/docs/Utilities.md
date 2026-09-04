@@ -333,9 +333,10 @@ interface TagCategory {
 ### Registering and enumerating
 
 ```typescript
-import { SemiontClient, type TagSchema } from '@semiont/sdk';
+import { SemiontSession, type TagSchema } from '@semiont/sdk';
 
-const semiont = await SemiontClient.signInHttp({ /* ... */ });
+const session = await SemiontSession.signInHttp({ /* kb, storage, baseUrl, email, password */ });
+const semiont = session.client;
 
 // Register at runtime — idempotent (same content re-registered is silent)
 const SCHEMA: TagSchema = { id: 'my-schema', name: '...', /* ... */ };

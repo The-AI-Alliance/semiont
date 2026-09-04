@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, SemiontError, type components, type ConnectionState, type StateUnit } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, type components, type ConnectionState, type StateUnit } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -8,6 +8,7 @@ import {
   withSpan,
   withTraceparent,
 } from '@semiont/observability';
+import { SseConnectError } from './sse-connect-error';
 
 export type { ConnectionState };
 
@@ -17,26 +18,6 @@ export interface BusEvent {
   scope?: string;
 }
 
-/**
- * A refused SSE connect — `POST /bus/subscribe` answered non-2xx (or 2xx
- * with no body). The status is CARRIED, not interpolated into the message:
- * P3's backoff/terminal split reads it (auth-refused is terminal in kind;
- * 5xx is transient), and it surfaces on `ActorStateUnit.errors$` so a
- * refused client is observable instead of a silent retry loop
- * (SSE-AUTH-RESILIENCE P2, shape B).
- *
- * Extends `SemiontError` (core) rather than reusing `APIError`: APIError
- * lives in http-transport.ts, which imports this module — reaching for it
- * here would buy one inherited field with an import cycle.
- */
-export class SseConnectError extends SemiontError {
-  readonly status: number;
-  constructor(status: number) {
-    super(`SSE connect failed: ${status}`, 'SSE_CONNECT_FAILED', { status });
-    this.name = 'SseConnectError';
-    this.status = status;
-  }
-}
 
 export interface ActorStateUnitOptions {
   baseUrl: string;

@@ -38,5 +38,5 @@ export {
   type BusEvent,
   type ActorStateUnitOptions,
   DEGRADED_THRESHOLD_MS,
-  SseConnectError,
 } from './transport/actor-state-unit';
+export { SseConnectError } from './transport/sse-connect-error';

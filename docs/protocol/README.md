@@ -70,9 +70,14 @@ Both the TypeScript types in `packages/core` and the **[Go client](../../package
 The eight flows are also the eight namespaces on the SDK's `SemiontClient` — `client.frame.*`, `client.mark.*`, `client.gather.*`, and so on. The protocol vocabulary and the typed surface are 1:1, so there is no translation step between reading the flow docs and writing code. Coordination signals appear on the same namespaces as `void`-returning methods (`beckon.hover`, `mark.changeShape`, `bind.initiate`).
 
 ```typescript
-import { SemiontClient } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
-const semiont = await SemiontClient.signInHttp({ baseUrl: 'http://localhost:4000', email, password });
+const session = await SemiontSession.signInHttp({
+  kb: httpKb({ id: 'demo', label: 'Demo', email, host: 'localhost', port: 4000, protocol: 'http' }),
+  storage: new InMemorySessionStorage(),
+  baseUrl: 'http://localhost:4000', email, password,
+});
+const semiont = session.client;
 
 await semiont.mark.assist(resourceId, 'linking', { entityTypes: ['Person'] });
 const { response: context } = await semiont.gather.annotation(resourceId, annId);

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { SemiontClient } from '@semiont/sdk';
 import type { CollaboratorEntry } from '@semiont/core';
 import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { signInSession } from '../fixtures/sdk-session';
 
 /**
  * Smoke test — COLLABORATOR-DIRECTORY.md Phase 5 (verify): the KB's software
@@ -69,11 +70,9 @@ test.describe('collaborator directory (browse.agents)', () => {
   test('directory lists the TOML software roster and attribution DIDs are members', async () => {
     test.setTimeout(120_000);
 
-    const client = await SemiontClient.signInHttp({
-      baseUrl: GATEWAY_URL,
-      email: E2E_EMAIL,
-      password: E2E_PASSWORD,
-    });
+    const session = await signInSession();
+
+    const client = session.client;
 
     try {
       // ── 1. Freshness gate: the channel must exist on the running stack ──
@@ -183,7 +182,7 @@ test.describe('collaborator directory (browse.agents)', () => {
         }
       }
     } finally {
-      client.dispose();
+      await session.dispose();
     }
   });
 });

@@ -115,22 +115,10 @@ page-shaped. Page-level state machines and components, including the **embeddabl
 npm install @semiont/sdk
 ```
 
-One-shot script — credentials-first, one line:
-
-```ts
-import { SemiontClient } from '@semiont/sdk';
-
-const semiont = await SemiontClient.signInHttp({
-  baseUrl: 'http://localhost:4000',
-  email: 'me@example.com',
-  password: 'pwd',
-});
-const { resources } = await semiont.browse.resources({ limit: 10 }).fresh();
-semiont.dispose();
-```
-
-Long-running script — `SemiontSession` adds proactive refresh, storage, and disposal; `kb.id`
-is the storage key, so distinct scripts use distinct ids:
+Credentials-first — `SemiontSession` owns the token lifecycle (proactive refresh, storage,
+disposal); `kb.id` is the storage key, so distinct scripts use distinct ids. There is no
+client-level signIn: the access token lives ten minutes, so a construction without refresh
+was a trap rather than a shortcut.
 
 ```ts
 import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';

@@ -38,9 +38,11 @@ const session = await SemiontSession.signInHttp({
 await session.dispose();
 ```
 
-A one-shot script that just needs a few calls and exits can use the lighter
-`SemiontClient.signInHttp({ baseUrl, email, password })` (no token refresh, no `kb`). Already
-hold a JWT? Use the `fromHttp(...)` variants. → [Usage § Setup](./Usage.md#setup).
+`SemiontSession.signInHttp(...)` is the only credentials-first construction — even for a
+short script. The `SemiontClient` variant that skipped `kb` and storage was deleted: it
+handed out a token that lives ten minutes with nothing to renew it, and a script that ran
+longer simply started failing. Already hold a JWT? Use the `fromHttp(...)` variants.
+→ [Usage § Setup](./Usage.md#setup).
 
 **Discover local KBs (launcher-managed).** Before there's a session at all: on a machine
 running the Semiont launcher, the Browser's origin serves a live view of every KB the

@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/auth';
 import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { SemiontClient } from '@semiont/sdk';
+import { signInSession } from '../fixtures/sdk-session';
 
 /**
  * Render-time verbatim re-anchoring (ROBUST-RENDER.md).
@@ -40,11 +41,9 @@ test.beforeAll(async () => {
   expect(CONTENT.substring(STALE_START, STALE_END)).not.toBe(EXACT);
   expect(CONTENT.substring(TRUE_START, TRUE_END)).toBe(EXACT);
 
-  const client = await SemiontClient.signInHttp({
-    baseUrl: GATEWAY_URL,
-    email: E2E_EMAIL,
-    password: E2E_PASSWORD,
-  });
+  const session = await signInSession();
+
+  const client = session.client;
   try {
     const storageUri = `file://e2e/stale-offset-${Date.now()}.txt`;
     const { resourceId: rid } = await client.yield.resource({
@@ -69,7 +68,7 @@ test.beforeAll(async () => {
       },
     } as Parameters<typeof client.mark.annotation>[0]);
   } finally {
-    client.dispose();
+    await session.dispose();
   }
 });
 

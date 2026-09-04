@@ -43,31 +43,11 @@ Streams and uploads are thenable, so `await` works without learning RxJS. Live q
 
 ## Setup
 
-There are four idiomatic construction shapes, by audience:
+There are three idiomatic construction shapes, by audience:
 
-### One-shot scripts with credentials: `SemiontClient.signInHttp(...)`
+### Scripts with credentials: `SemiontSession.signInHttp(...)`
 
-The credentials-first one-line construction. Calls `auth.password(email, password)` and returns a wired-up client with the access token populated.
-
-```typescript
-import { SemiontClient } from '@semiont/sdk';
-
-const semiont = await SemiontClient.signInHttp({
-  baseUrl: 'http://localhost:4000',
-  email: 'me@example.com',
-  password: 'pwd',
-});
-
-// ...use semiont.browse / bind / yield / mark / frame / gather / match / beckon
-
-semiont.dispose();
-```
-
-This is the right entry point for skills, CLI scripts, and any consumer that starts with email + password rather than a JWT already on hand. Throws on auth failure with no resources leaked.
-
-### Long-running scripts with credentials: `SemiontSession.signInHttp(...)`
-
-Same credentials shape, plus the session machinery: proactive refresh (using the refresh token returned by `auth.password`, automatically wired), validation, storage persistence, lifecycle observables.
+Credentials in, a live session out — **the only credentials-first construction**. `SemiontClient` has no signIn factory: one existed and was deleted, because it handed out a token with a **ten-minute** life and nothing to renew it, so any script outliving that window started failing in ways nothing surfaced. The session machinery is what makes credentials safe to hold: proactive refresh (using the refresh token returned by `auth.password`, automatically wired), validation, storage persistence, lifecycle observables.
 
 `kb` is required. Its `id` is the storage key for this session — distinct scripts sharing the same `SessionStorage` instance must use distinct `id`s to avoid trampling each other's tokens. The factory does not synthesize a default; the consumer makes the choice.
 
@@ -505,11 +485,11 @@ await semiont.auth!.acceptTerms();
 const { token } = await semiont.auth!.mediaToken(resourceId);
 ```
 
-For credentials-first construction, prefer `SemiontClient.signInHttp({ baseUrl, email, password })` over calling `auth!.password(...)` directly — the factory wires the resulting token into `token$` for you.
+For credentials-first construction, prefer `SemiontSession.signInHttp({ kb, storage, baseUrl, email, password })` over calling `auth!.password(...)` directly — the factory wires the resulting token into `token$` AND owns the refresh that keeps it alive past ten minutes.
 
 ## Admin
 
-The `admin` namespace lives on `IGatewayOperations`. A `SemiontClient` constructed with a gateway (e.g. `fromHttp` / `signInHttp`) has `client.admin: AdminNamespace`; one constructed without a gateway has `client.admin: undefined`. HTTP-context callers narrow with `!`:
+The `admin` namespace lives on `IGatewayOperations`. A `SemiontClient` constructed with a gateway (e.g. `fromHttp`, or `session.client`) has `client.admin: AdminNamespace`; one constructed without a gateway has `client.admin: undefined`. HTTP-context callers narrow with `!`:
 
 ```typescript
 const users = await semiont.admin!.users();
@@ -746,4 +726,4 @@ const transport = new HttpTransport({
 const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 ```
 
-The factory shorthands (`fromHttp` / `signInHttp`) don't currently expose a `logger` parameter; use manual construction when you need transport-level logging.
+The factory shorthands (`fromHttp`, `SemiontSession.signInHttp`) don't currently expose a `logger` parameter; use manual construction when you need transport-level logging.

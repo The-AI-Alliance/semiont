@@ -165,7 +165,7 @@ describe('HttpTransport ky hooks', () => {
 
 import { BehaviorSubject } from 'rxjs';
 import { accessToken, type AccessToken } from '@semiont/core';
-import { SseConnectError } from '../actor-state-unit';
+import { SseConnectError } from '../sse-connect-error';
 import { mockFetch } from './helpers/mock-conn';
 
 describe('HttpTransport errors$ bridge (SSE connect refusals)', () => {
