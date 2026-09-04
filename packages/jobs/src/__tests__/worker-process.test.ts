@@ -105,6 +105,9 @@ function makeFakeSessionAndAdapter() {
   // `mark:commit` is a request/reply operation now, so the harness must answer
   // it or every unit blocks until the commit timeout. `commitSink` lets a test
   // play the sink being down.
+  // Handlers registered via `transport.on`, so a test can fire the signals the
+  // worker subscribes (JOB-RESTART-SAFETY P4's cancel).
+  const transportHandlers = new Map<string, (e: unknown) => void>();
   const replyStreams = new Map<string, Subject<Record<string, unknown>>>();
   const replyStream = (channel: string) => {
     let s = replyStreams.get(channel);
@@ -139,7 +142,10 @@ function makeFakeSessionAndAdapter() {
         // `startWorkerProcess` reads `transport.actor` to attach the job-claim
         // adapter, and `transport.on` to subscribe the cancel signal
         // (JOB-RESTART-SAFETY P4); test needs minimal stand-ins for both.
-        on: vi.fn(() => () => {}),
+        on: vi.fn((channel: string, handler: (e: unknown) => void) => {
+          transportHandlers.set(channel, handler);
+          return () => {};
+        }),
         actor: {
           on$: vi.fn((channel: string) => replyStream(channel).asObservable()),
           emit: transportEmit,
@@ -177,7 +183,7 @@ function makeFakeSessionAndAdapter() {
     touchActivity: vi.fn(() => adapterCalls.push({ method: 'touchActivity', args: [] })),
   } as unknown as JobClaimAdapter;
 
-  return { session, adapter, busEmits, yieldResourceCalls, adapterCalls };
+  return { session, transportHandlers, adapter, busEmits, yieldResourceCalls, adapterCalls };
 }
 
 function makeConfig(session: SemiontSession): WorkerProcessConfig {
@@ -1228,6 +1234,39 @@ describe('reference-annotation — checkpointed resume', () => {
     expect(h.busEmits.filter(e => e.channel === 'job:checkpoint').map(e => (e.payload as { completedUnits: string[] }).completedUnits))
       .toEqual([['Person'], ['Person', 'Date'], ['Person', 'Date', 'Location']]);
     expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
+  });
+
+  // The cancel SIGNAL's routing, distinct from what the loop does once aborted.
+  // A worker holds one active job; a `job:cancel-requested` naming a different
+  // one must not touch it. Getting this wrong cancels a stranger's work, and
+  // the failure is invisible — the wrong job simply stops.
+  it('aborts the active job only when the cancel names it', async () => {
+    let seenSignal: AbortSignal | undefined;
+    let release: (() => void) | undefined;
+    vi.mocked(processReferenceJob).mockImplementation(
+      async (_c, _cl, _p, _b, _pr, _l, _onUnit, signal) => {
+        seenSignal = signal;
+        await new Promise<void>((r) => { release = r; });
+        return { result: { kind: 'reference-annotation', totalFound: 0, totalEmitted: 0, errors: 0 } as never };
+      },
+    );
+    const h = makeFakeSessionAndAdapter();
+    startWorkerProcess(makeConfig(h.session));
+    activeJob$.next(makeJob('reference-annotation', { entityTypes: ['Person'] }));
+    await vi.waitFor(() => expect(seenSignal).toBeDefined());
+
+    const fireCancel = h.transportHandlers.get('job:cancel-requested');
+    expect(fireCancel).toBeDefined();
+
+    // A cancel for some other job leaves this one running.
+    fireCancel!({ jobId: 'some-other-job' });
+    expect(seenSignal!.aborted).toBe(false);
+
+    // A cancel naming the active job aborts it.
+    fireCancel!({ jobId: JID });
+    expect(seenSignal!.aborted).toBe(true);
+
+    release?.();
   });
 
   it('cancellation stops at a unit boundary: emits job:cancel with the checkpoint, not job:complete (JOB-RESTART-SAFETY P4)', async () => {

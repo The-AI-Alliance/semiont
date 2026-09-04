@@ -565,6 +565,39 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
     });
   });
 
+  // The cancel reply's COUNT is the answer, not a statistic: a caller asking
+  // to cancel needs to know whether anything actually stopped. Each of these
+  // reports 0 for a different reason, and conflating them would tell a user
+  // "cancelled" about a job that ran to completion.
+  it('reports 0 for a job that does not exist', async () => {
+    jobQueue.getJob.mockResolvedValueOnce(null);
+    const reply = firstValueFrom(eventBus.get('job:cancel-ok').pipe(take(1)));
+    eventBus.get('job:cancel-requested').next({ correlationId: 'c1', jobId: 'job-ghost' } as never);
+
+    expect((await reply as any).response.cancelled).toBe(0);
+    expect(jobQueue.cancelJob).not.toHaveBeenCalled();
+  });
+
+  it('reports 0 for a job that already reached a terminal state', async () => {
+    // Nothing to stop, and cancelJob must not be called — a completed job is
+    // not a cancellable one, and moving it would rewrite history.
+    jobQueue.getJob.mockResolvedValueOnce({ status: 'completed', metadata: { id: 'job-done' } });
+    const reply = firstValueFrom(eventBus.get('job:cancel-ok').pipe(take(1)));
+    eventBus.get('job:cancel-requested').next({ correlationId: 'c2', jobId: 'job-done' } as never);
+
+    expect((await reply as any).response.cancelled).toBe(0);
+    expect(jobQueue.cancelJob).not.toHaveBeenCalled();
+  });
+
+  it('reports 0 when the request names neither a jobId nor a jobType', async () => {
+    // Answered rather than ignored: this rides a request/reply operation, so
+    // a silent drop strands the caller until its timeout.
+    const reply = firstValueFrom(eventBus.get('job:cancel-ok').pipe(take(1)));
+    eventBus.get('job:cancel-requested').next({ correlationId: 'c3' } as never);
+
+    expect((await reply as any).response.cancelled).toBe(0);
+  });
+
   it('cancels pending jobs of the requested category on job:cancel-requested', async () => {
     eventBus.get('job:cancel-requested').next({ jobType: 'annotation' } as never);
 

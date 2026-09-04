@@ -67,6 +67,7 @@ const FROZEN_BRIDGED = [
   'browse:annotation-context-result', 'browse:annotation-context-failed',
   'mark:delete-ok', 'mark:delete-failed',
   'mark:create-ok', 'mark:create-failed',
+  'mark:commit-ok', 'mark:commit-failed',
   'mark:archive-ok', 'mark:archive-failed',
   'mark:unarchive-ok', 'mark:unarchive-failed',
   'mark:update-entity-types-ok', 'mark:update-entity-types-failed',
