@@ -36,6 +36,7 @@ import { Subject, BehaviorSubject } from 'rxjs';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { extractPdfTextLayer } from '@semiont/content';
 import type { SemiontSession } from '@semiont/sdk';
+import type { JobType } from '@semiont/core';
 import type { ActiveJob, JobClaimAdapter } from '../job-claim-adapter';
 import { handleJob, type WorkerProcessConfig } from '../worker-process';
 import {
@@ -779,24 +780,92 @@ describe('handleJob orchestration', () => {
   // `mark:create` in an existing one — mints annotations without waiting for
   // the log, which is the only way this residual comes back.
   describe('no job type persists without an acknowledgement', () => {
-    const MINTING_JOBS: Array<[string, Record<string, unknown>]> = [
-      ['highlight-annotation', {}],
-      ['comment-annotation', {}],
-      ['assessment-annotation', {}],
-      ['tag-annotation', { schema: { id: 's', name: 's', categories: [{ name: 'catA' }] } }],
-    ];
+    // TOTAL over `JobType`, and that totality is the whole point. A hand-kept
+    // list of the types that happened to exist when it was written does not
+    // fail when the source grows — which is exactly how this residual survived
+    // P6. Typing the map `Record<JobType, Coverage>` makes a seventh job type a
+    // MISSING KEY and a removed one an EXCESS KEY, so either fails
+    // `tsc --noEmit` before a single test runs.
+    //
+    // `coveredBy` is the deliberate escape hatch for a type this file's mocks
+    // cannot observe. It still costs a key and a pointer, so an omission has to
+    // be written down rather than simply not happening.
+    type Coverage =
+      | { exercise: Record<string, unknown>; commits: number; setup?: () => void }
+      | { coveredBy: string };
 
-    it.each(MINTING_JOBS)('%s commits rather than fire-and-forgets', async (jobType, params) => {
+    // Each case stubs its OWN processor. `vi.clearAllMocks()` clears calls but
+    // KEEPS implementations, so without this the four detection cases passed on
+    // a `mockResolvedValue` leaked from an earlier test in the file — and an
+    // un-stubbed processor returns undefined, whose empty batch `commitAnnotations`
+    // correctly skips, so the census would have asserted against a job that never
+    // minted anything. A gate that only holds when its neighbours run first is
+    // not a gate.
+    const minted = () => ({ annotations: [{ id: 'a1' }] as never, result: {} as never });
+
+    const JOB_TYPE_COVERAGE: Record<JobType, Coverage> = {
+      'highlight-annotation':  { exercise: {}, commits: 1, setup: () => { vi.mocked(processHighlightJob).mockResolvedValue(minted()); } },
+      'comment-annotation':    { exercise: {}, commits: 1, setup: () => { vi.mocked(processCommentJob).mockResolvedValue(minted()); } },
+      'assessment-annotation': { exercise: {}, commits: 1, setup: () => { vi.mocked(processAssessmentJob).mockResolvedValue(minted()); } },
+      'tag-annotation':        {
+        exercise: { schema: { id: 's', name: 's', categories: [{ name: 'catA' }] } },
+        commits: 1,
+        setup: () => { vi.mocked(processTagJob).mockResolvedValue(minted()); },
+      },
+
+      // Generation mints on TWO resources — the provenance edge on the SOURCE,
+      // the citations on the DERIVED — and `mark:commit` is keyed by a single
+      // resourceId, so it is genuinely two commits. Resource focus (the fixture
+      // default) is what mints the provenance edge; annotation focus auto-binds
+      // the triggering reference instead and mints only the citations.
+      'generation': {
+        exercise: { cite: true },
+        commits: 2,
+        setup: () => {
+          vi.mocked(processGenerationJob).mockResolvedValue({
+            content: new TextEncoder().encode('Paris is the capital of France.'),
+            title: 'Answer',
+            format: 'text/markdown',
+            citations: [{ resourceId: 'ctx-9', start: 0, end: 31, exact: 'Paris is the capital of France.' }],
+            result: {} as never,
+          });
+        },
+      },
+
+      // Not observable HERE: its commit rides `onUnitComplete` inside
+      // `processReferenceJob`, which this file mocks wholesale, so nothing
+      // reaches the bus. It is pinned where the callback actually runs.
+      'reference-annotation': {
+        coveredBy: 'processors.test.ts — the rejecting-sink and recovering-sink pins on onUnitComplete',
+      },
+    };
+
+    type Exercised = Extract<Coverage, { exercise: Record<string, unknown> }>;
+    const EXERCISED = Object.entries(JOB_TYPE_COVERAGE).filter(
+      (entry): entry is [string, Exercised] => 'exercise' in entry[1],
+    );
+
+    it.each(EXERCISED)('%s commits rather than fire-and-forgets', async (jobType, coverage) => {
+      coverage.setup?.();
       const h = makeFakeSessionAndAdapter();
-      await handleJob(h.adapter, makeConfig(h.session), makeJob(jobType as never, params));
+      await handleJob(h.adapter, makeConfig(h.session), makeJob(jobType as never, coverage.exercise));
 
       const channels = h.busEmits.map(e => e.channel);
       expect(channels, `${jobType} must not emit un-acknowledged mark:create`).not.toContain('mark:create');
-      expect(channels).toContain('mark:commit');
+
+      const commits = h.busEmits.filter(e => e.channel === 'mark:commit');
+      expect(commits, `${jobType} must acknowledge every batch it mints`).toHaveLength(coverage.commits);
+
+      // Each commit is keyed by ONE resourceId, so a job minting on N resources
+      // owes N commits to N DISTINCT resources — trivially true at 1, and the
+      // real pin for generation, whose provenance and citations land on
+      // different resources and would silently collapse into one batch.
+      const keyedTo = new Set(commits.map(e => (e.payload as { resourceId: string }).resourceId));
+      expect(keyedTo.size).toBe(coverage.commits);
 
       // Durability precedes the success claim: a job:complete emitted before
-      // the commit resolved would report work that may never have landed.
-      expect(channels.indexOf('mark:commit')).toBeLessThan(channels.indexOf('job:complete'));
+      // the LAST commit resolved would report work that may never have landed.
+      expect(channels.lastIndexOf('mark:commit')).toBeLessThan(channels.indexOf('job:complete'));
     });
   });
 
