@@ -3391,6 +3391,36 @@ type MarkAssistRequestEvent struct {
 // MarkAssistRequestEventOptionsTone defines model for MarkAssistRequestEvent.Options.Tone.
 type MarkAssistRequestEventOptionsTone string
 
+// MarkCommitCommand Bus command to persist a detection unit's annotations as one acknowledged batch (JOB-RESTART-SAFETY P6). Unlike mark:create, which is fire-and-forget and resolves when the bus accepts it, this command is answered only after every annotation is in the event log — so a worker can gate unit completion on durability rather than on emission. The batch is the unit: a partial commit is reported as a failure, and the worker retries the whole unit, which is safe because annotation ids are deterministic (P3).
+type MarkCommitCommand struct {
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// Annotations The unit's annotations, already built with deterministic ids. Re-committing an identical batch is a no-op rather than a duplicate.
+	Annotations []Annotation `json:"annotations"`
+
+	// CorrelationId Correlation id set by busRequest so the mark:commit-ok / mark:commit-failed reply routes back to the awaiting worker.
+	CorrelationId string `json:"correlationId"`
+
+	// ResourceId Resource every annotation in this batch targets.
+	ResourceId string `json:"resourceId"`
+}
+
+// MarkCommitOk Durability acknowledgement for a mark:commit batch: every annotation named by the command is in the event log at the moment this is emitted.
+type MarkCommitOk struct {
+	// CorrelationId Correlation id echoed from the mark:commit command so busRequest can match the reply.
+	CorrelationId string `json:"correlationId"`
+
+	// Response What the commit persisted.
+	Response struct {
+		// AnnotationIds Ids the batch covers, whether appended now or already present.
+		AnnotationIds []string `json:"annotationIds"`
+
+		// Persisted Annotations this commit appended to the event log. Equals the batch size on success — a retry re-appends what already landed rather than counting it out, because the annotation fold is idempotent by id and the log is append-only. Not a dedupe count.
+		Persisted int `json:"persisted"`
+	} `json:"response"`
+}
+
 // MarkCreateCommand Bus command to create an annotation on a resource.
 type MarkCreateCommand struct {
 	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
