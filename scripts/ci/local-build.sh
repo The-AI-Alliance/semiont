@@ -515,6 +515,15 @@ else
   # of noise on the happy path; a failure tails its own log, and this glob is
   # how you watch one live.
   step "Building ${#BUILD_IMGS[@]} image(s), 3 at a time ${DIM}(logs: $TMP_DIR/semiont-build-*)${RESET}"
+  # `container build` creates the singleton `buildkit` builder LAZILY, so three
+  # builds launched together race to create it and two die with "container
+  # already exists: buildkit". It only bites when the builder is absent — i.e.
+  # straight after a prune, which is exactly when a full rebuild is run
+  # (2026-09-03). Create it once, serially, before the batch.
+  if [[ "$RT" == "container" ]] && ! $RT ls -a 2>/dev/null | grep -qE "^buildkit[[:space:]]"; then
+    step "Starting the buildkit builder ${DIM}(absent — parallel builds would race to create it)${RESET}"
+    $RT builder start >/dev/null 2>&1 || warn "could not pre-start the buildkit builder — builds may race"
+  fi
 fi
 
 # Three builds at a time: ~30s of EVERY build is fixed buildkit-shim latency
