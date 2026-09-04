@@ -228,6 +228,45 @@ describe('ViewMaterializer', () => {
       expect(view!.annotations.annotations).toHaveLength(1);
     });
 
+    // The repeat is NOT byte-identical, which is exactly what the previous
+    // last-write-wins fold assumed. `created` is stamped at EMISSION
+    // (`processors.ts`, `new Date().toISOString()`) and is deliberately not an
+    // identity input — P3 excluded it so a recovery re-emitting at a different
+    // time from a different process still collides. So a retry always arrives
+    // with a FRESH timestamp, and taking the newer payload silently advanced
+    // `created` to the recovery time.
+    //
+    // This view is read by consumers (e.g. `make-meaning/annotation-context.ts`),
+    // and it must answer when the annotation was MADE, not when a retry
+    // happened to re-send it. Scope, measured: the graph projection is NOT
+    // affected — it mints its own write time in `buildAnnotation` and the
+    // worker's stamp never reaches it.
+    it('a repeat does not advance created — the first append is when the annotation was made', async () => {
+      const base = {
+        '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+        'type': 'Annotation' as const,
+        id: annotationId('anno-created'),
+        motivation: 'highlighting' as const,
+        creator: { '@type': 'Person' as const, name: 'Test User' },
+        target: { source: 'doc1', selector: [{ type: 'TextPositionSelector' as const, start: 0, end: 4 }] },
+      };
+      const firstCreated = '2026-09-03T10:00:00.000Z';
+      const retryCreated = '2026-09-04T17:30:00.000Z';
+
+      const view = await projector.materialize([
+        createStoredEvent({
+          type: 'yield:created',
+          payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        }, 1),
+        createStoredEvent({ type: 'mark:added', payload: { annotation: { ...base, created: firstCreated } } }, 2),
+        // The recovery: same annotation, same id by construction, new stamp.
+        createStoredEvent({ type: 'mark:added', payload: { annotation: { ...base, created: retryCreated } } }, 3),
+      ], resourceId('doc-created'));
+
+      expect(view!.annotations.annotations).toHaveLength(1);
+      expect(view!.annotations.annotations[0]?.created).toBe(firstCreated);
+    });
+
     it('should apply annotation.added event', async () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,

@@ -353,17 +353,26 @@ export class ViewMaterializer {
         // answers "annotation X exists", never "X was written twice". A blind
         // push made the view depend on how many times a fact was recorded.
         // Ordering still decides: a `mark:removed` between two appends drops
-        // the annotation, and the later append re-creates it.
+        // the annotation, and the later append re-creates it (a genuinely new
+        // fact, which is why it correctly takes the new payload).
+        //
+        // FIRST write wins, and that is load-bearing rather than arbitrary. A
+        // repeat is NOT byte-identical: `created` is stamped at emission and
+        // was deliberately excluded from the id (P3), so a recovery re-sends
+        // the same annotation with a fresh timestamp. Taking the newer payload
+        // advanced `created` to the recovery time, so this view reported when
+        // a retry happened rather than when the annotation was made — a
+        // projection answering a question about its own delivery history
+        // instead of about the facts it derives from. (The graph projection is
+        // unaffected: it mints its own write time in `buildAnnotation` and
+        // never sees this stamp.) Nothing else CAN differ: the id hashes
+        // resourceId +
+        // motivation + anchor + body, so a same-id re-append carries the same
+        // identity-bearing content by construction. Last-write-wins therefore
+        // had no reachable upside and this one real cost.
         const incoming = event.payload.annotation;
-        const at = annotations.annotations.findIndex((a: Annotation) => a.id === incoming.id);
-        if (at === -1) {
+        if (!annotations.annotations.some((a: Annotation) => a.id === incoming.id)) {
           annotations.annotations.push(incoming);
-        } else {
-          // Same id seen again: keep the position, take the newer payload. A
-          // repeat is byte-identical today, so this is a no-op — it is written
-          // as last-write-wins so a future corrective re-append behaves the way
-          // every other fold in this file does.
-          annotations.annotations[at] = incoming;
         }
         break;
       }
