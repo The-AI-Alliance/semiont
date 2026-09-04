@@ -273,7 +273,16 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         channels: [...globalChannels],
         ...(this.config.loadLastEventIds ? { loadLastEventIds: this.config.loadLastEventIds } : {}),
         ...(this.config.saveLastEventId ? { saveLastEventId: this.config.saveLastEventId } : {}),
+        // The SAME hook the ky beforeRetry path uses (SSE-AUTH-RESILIENCE
+        // P4, D2) — the SSE connect path refreshes once before parking
+        // `unauthenticated`, and no second refresh mechanism exists.
+        ...(this.config.tokenRefresher ? { tokenRefresher: this.config.tokenRefresher } : {}),
       });
+      // Refused connects surface on the transport's contract stream too —
+      // an SSE subscribe IS an HTTP request, and `SseConnectError` is a
+      // `SemiontError` (SSE-AUTH-RESILIENCE P4, closing P2's deferred
+      // bridge question).
+      this._actor.errors$.subscribe((e) => this.errorsSubject.next(e));
       // One fan-in per channel, wired once for the actor's lifetime — the
       // globally-subscribed set AND the resource-scoped set (disjoint by the
       // bus-invariants guard). Scoped events only arrive for scopes in the

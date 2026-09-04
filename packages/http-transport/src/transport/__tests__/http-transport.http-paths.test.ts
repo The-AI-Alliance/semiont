@@ -53,6 +53,9 @@ vi.mock('../actor-state-unit', async (importOriginal) => {
           events$.pipe(filter((e) => e.channel === channel), map((e) => e.payload as T)),
         emit: vi.fn(),
         state$: new BehaviorSubject<string>('open').asObservable(),
+        // Required by ActorStateUnit since SSE-AUTH-RESILIENCE P2; the
+        // transport bridges it into its own errors$ at construction (P4).
+        errors$: new Subject<unknown>().asObservable(),
         addChannels: actorHarness.addChannels,
         removeChannels: actorHarness.removeChannels,
         start: actorHarness.start,

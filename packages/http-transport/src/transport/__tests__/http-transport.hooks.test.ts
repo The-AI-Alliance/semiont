@@ -156,3 +156,36 @@ describe('HttpTransport ky hooks', () => {
     expect(returned).toBe(response);
   });
 });
+
+// ── SSE-AUTH-RESILIENCE P4: the actor→transport errors$ bridge ──────────
+// A refused SSE connect is an HTTP failure like any other, so it belongs on
+// the transport's contract `errors$` stream — not only on the actor's. This
+// pin drives a REAL actor connect (global fetch is stubbed by the mock-conn
+// harness; the ky mock above is irrelevant to the SSE path).
+
+import { BehaviorSubject } from 'rxjs';
+import { accessToken, type AccessToken } from '@semiont/core';
+import { SseConnectError } from '../actor-state-unit';
+import { mockFetch } from './helpers/mock-conn';
+
+describe('HttpTransport errors$ bridge (SSE connect refusals)', () => {
+  test('a refused SSE connect surfaces on the transport errors$ as a SseConnectError', async () => {
+    mockFetch.mockReset();
+    mockFetch.mockImplementation(async () => ({ ok: false, status: 401, body: null }));
+
+    const transport = new HttpTransport({
+      baseUrl: testBaseUrl,
+      timeout: 10_000,
+      token$: new BehaviorSubject<AccessToken | null>(accessToken('real-but-refused-tok')),
+    });
+    const seen: SemiontError[] = [];
+    transport.errors$.subscribe((e) => seen.push(e));
+
+    transport.actor.start();
+    await vi.waitFor(() => expect(seen).toHaveLength(1));
+    expect(seen[0]).toBeInstanceOf(SseConnectError);
+    expect((seen[0] as SseConnectError).status).toBe(401);
+
+    transport.dispose();
+  });
+});

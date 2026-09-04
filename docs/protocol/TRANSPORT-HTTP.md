@@ -249,8 +249,14 @@ The client-side `ActorStateUnit` handles three reconnect triggers:
    refused bearer is remembered, state parks in `unauthenticated`,
    and the flat tick polls the token getter (no network) until a
    different, non-empty credential appears — one refused request per
-   credential value, ever. The credential gate applies the same rule
-   to an EMPTY token before the first byte is sent.
+   credential value, ever. Before staying parked, the actor consults
+   the configured `tokenRefresher` **once per outage** — the same
+   hook the HTTP `beforeRetry` path uses, no second refresh
+   mechanism — and a successful refresh (the refresher's owner
+   rotates the token source) reconnects immediately; a null/throwing
+   refresher leaves the actor parked, and a successful open re-arms
+   the once. The credential gate applies the same no-asking rule to
+   an EMPTY token before the first byte is sent.
 2. **Channel-set change** (`addChannels` / `removeChannels`). A new SSE
    is opened with the updated query string and, **only once it is
    `open`, the old one is marked superseded and LINGERS — still

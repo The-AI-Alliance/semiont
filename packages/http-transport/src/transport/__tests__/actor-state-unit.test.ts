@@ -8,6 +8,7 @@ import {
   mockFetch,
   sseChunk,
   sseChunkId,
+  createSSEStream,
   mockSSEResponse,
   mockConn,
 } from './helpers/mock-conn';
@@ -305,6 +306,103 @@ describe('createActorStateUnit', () => {
     mockSSEResponse(); // the *Once queue outranks the persistent 503 impl
     await vi.advanceTimersByTimeAsync(120_000);
     expect(lastState).toBe('open');
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
+  // ── SSE-AUTH-RESILIENCE P4: refresh once before parking ─────────────
+  // D2: the SSE path consults the SAME `tokenRefresher` hook the HTTP
+  // beforeRetry path uses — no second refresh mechanism. Contract: the
+  // refresher's owner rotates the token SOURCE (sessions push into token$);
+  // the actor then reconnects through the gate's getter read, so the token
+  // stays single-sourced. One consult per outage: a successful open re-arms.
+
+  it('a 401 with a tokenRefresher consults it ONCE and reconnects promptly with the new bearer', async () => {
+    vi.useFakeTimers();
+    let token = 'expired-tok';
+    // Mirrors the real composition: session.refresh() rotates token$ (the
+    // getter's source) and returns the new token.
+    const refresher = vi.fn(async () => { token = 'fresh-tok'; return 'fresh-tok'; });
+    const sse = createSSEStream();
+    mockFetch.mockImplementation(async (_url: string, opts: { headers: Record<string, string> }) =>
+      opts.headers['Authorization'] === 'Bearer fresh-tok'
+        ? { ok: true, status: 200, body: sse.stream }
+        : { ok: false, status: 401, body: null },
+    );
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: () => token,
+      channels: ['test:event'],
+      reconnectMs: 5_000,
+      tokenRefresher: refresher,
+    });
+    let lastState = '';
+    stateUnit.state$.subscribe((s) => { lastState = s; });
+
+    stateUnit.start();
+    // Prompt: well inside one flat tick — the refresh-driven reconnect must
+    // not wait for the 5 s cadence.
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(refresher).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const [, retryOpts] = mockFetch.mock.calls[1] as [string, { headers: Record<string, string> }];
+    expect(retryOpts.headers['Authorization']).toBe('Bearer fresh-tok');
+    expect(lastState).toBe('open');
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
+  it('a failing refresher is consulted once; the actor parks instead of looping', async () => {
+    vi.useFakeTimers();
+    // A refresher that THROWS (network down mid-refresh) — the defensive
+    // case; P0 made session.refresh() non-throwing, but the hook is
+    // caller-supplied and the actor must not inherit an unhandled rejection.
+    const refresher = vi.fn(async () => { throw new Error('ECONNREFUSED'); });
+    mockFetch.mockImplementation(async () => ({ ok: false, status: 401, body: null }));
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'revoked-tok',
+      channels: ['test:event'],
+      reconnectMs: 5_000,
+      tokenRefresher: refresher,
+    });
+    let lastState = '';
+    stateUnit.state$.subscribe((s) => { lastState = s; });
+
+    stateUnit.start();
+    await vi.advanceTimersByTimeAsync(600_000);
+    expect(refresher).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls.length).toBeLessThanOrEqual(2);
+    expect(lastState).toBe('unauthenticated');
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
+  it('a refreshed token that is ALSO refused parks the actor — the refresher is not consulted again', async () => {
+    vi.useFakeTimers();
+    let token = 'expired-tok';
+    const refresher = vi.fn(async () => { token = 'also-bad-tok'; return 'also-bad-tok'; });
+    mockFetch.mockImplementation(async () => ({ ok: false, status: 401, body: null }));
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: () => token,
+      channels: ['test:event'],
+      reconnectMs: 5_000,
+      tokenRefresher: refresher,
+    });
+    let lastState = '';
+    stateUnit.state$.subscribe((s) => { lastState = s; });
+
+    stateUnit.start();
+    await vi.advanceTimersByTimeAsync(600_000);
+    // Ask with the expired token, refresh, ask with the refreshed token —
+    // and STOP. Re-consulting on the second 401 would be the refresh loop.
+    expect(refresher).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls.length).toBeLessThanOrEqual(3);
+    expect(lastState).toBe('unauthenticated');
 
     stateUnit.dispose();
     vi.useRealTimers();

@@ -50,6 +50,16 @@ export interface ActorStateUnitOptions {
    */
   reconnectMs?: number;
   /**
+   * The SAME hook `HttpTransportConfig.tokenRefresher` wires into the HTTP
+   * beforeRetry path (SSE-AUTH-RESILIENCE P4, D2 — no second refresh
+   * mechanism). Consulted ONCE per outage when a connect is refused 401,
+   * before parking `unauthenticated`; a successful open re-arms it. The
+   * refresher's owner rotates the token SOURCE (sessions push the new token
+   * into `token$`); the actor then reconnects through the getter, so the
+   * token stays single-sourced. A throwing refresher is treated as `null`.
+   */
+  tokenRefresher?: () => Promise<string | null>;
+  /**
    * Remove-side reconnect hysteresis (MULTI-RESOURCE-SCOPE). Scope
    * additions need liveness quickly (100 ms debounce), but a removal only
    * narrows delivery — extra events for a just-released scope are
@@ -163,7 +173,7 @@ const ALLOWED_TRANSITIONS: Record<ConnectionState, ReadonlyArray<ConnectionState
 };
 
 export function createActorStateUnit(options: ActorStateUnitOptions): ActorStateUnit {
-  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = 5_000, lazyRemoveMs = 5_000 } = options;
+  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = 5_000, lazyRemoveMs = 5_000, tokenRefresher } = options;
   const getToken = typeof tokenOrGetter === 'function' ? tokenOrGetter : () => tokenOrGetter;
 
   const globalChannels = new Set(initialChannels);
@@ -329,6 +339,13 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
    */
   let retryAttempt = 0;
   let refusedToken: string | null = null;
+  /**
+   * One refresher consult per outage (SSE-AUTH-RESILIENCE P4). Burned on
+   * the first 401 that consults; re-armed only by a successful open. Without
+   * this, a gateway refusing every token turns refresh-then-401 into a loop
+   * at connect cadence — the storm with extra steps.
+   */
+  let refreshBurned = false;
   const scheduleRetry = (delayMs: number, keepPrevious = false) => {
     if (!running) return;
     if (reconnectTimer) clearTimeout(reconnectTimer);
@@ -466,6 +483,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
       transition('open');
       retryAttempt = 0; // a success resets the backoff ladder
+      refreshBurned = false; // …and re-arms the refresh-once (P4)
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -623,6 +641,25 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           refusedToken = token;
           retryAttempt = 0;
           if (currentState !== 'unauthenticated') transition('unauthenticated');
+          // P4: refresh ONCE before staying parked — the same hook the HTTP
+          // beforeRetry path uses (D2). Parked state is truthful while the
+          // refresh call is in flight. On success the refresher's owner has
+          // rotated the token source, so an immediate tick reconnects
+          // through the gate's getter read; on null/throw (or an unchanged
+          // token) the flat waiting tick stands.
+          if (tokenRefresher && !refreshBurned) {
+            refreshBurned = true;
+            let refreshed: string | null = null;
+            try {
+              refreshed = await tokenRefresher();
+            } catch {
+              // A throwing refresher is a failed refresh, not a crash.
+            }
+            if (running && refreshed && refreshed !== refusedToken) {
+              scheduleRetry(0, keepPrevious);
+              return;
+            }
+          }
           scheduleRetry(reconnectMs, keepPrevious);
           return;
         }
