@@ -259,8 +259,15 @@ else
   # Note: intentionally no --rm — Apple Container CLI v0.11 silently drops
   # detached containers that use --rm, making logs unreachable on failure.
   # The EXIT trap above handles cleanup instead.
+  # --memory is EXPLICIT for the same reason the launcher sets it on every
+  # service: the silent default is the worst value. Apple container gives 1G,
+  # and three concurrent image builds pulling tarballs through this registry —
+  # while it proxies a 68 MB @prisma/client from upstream — killed it there
+  # (2026-09-03: builds died with ECONNRESET, verdaccio's log just stops
+  # mid-fetch with no shutdown line).
   $RT run -d \
     --name "$VERDACCIO_NAME" \
+    --memory 4G \
     -p 4873:4873 \
     -v "$VERDACCIO_CONF:/verdaccio/conf" \
     -v "$VERDACCIO_STORAGE:/verdaccio/storage" \
@@ -518,7 +525,7 @@ fi
 # Fan-out happens after all builds, keeping the builder VM to itself.
 i=0
 while [ $i -lt ${#BUILD_IMGS[@]} ]; do
-  PIDS=(); TAGS=(); LOGS=(); IMGS=(); STARTS=()
+  PIDS=(); TAGS=(); LOGS=(); IMGS=(); STARTS=(); NAMES=()
   for j in 0 1 2; do
     idx=$((i + j))
     [ $idx -ge ${#BUILD_IMGS[@]} ] && break
@@ -533,23 +540,64 @@ while [ $i -lt ${#BUILD_IMGS[@]} ]; do
       "$REPO_ROOT" > "$LOG" 2>&1 &
     PIDS+=($!)
     TAGS+=("$TAG")
+    NAMES+=("$img")
     LOGS+=("$LOG")
     IMGS+=("$idx")
     STARTS+=("$(date +%s)")
   done
-  for j in "${!PIDS[@]}"; do
-    st=0
-    wait "${PIDS[$j]}" || st=$?
-    if [ "$st" -ne 0 ]; then
-      fail "${TAGS[$j]} build failed (exit $st) — last 40 lines of ${LOGS[$j]}:"
-      tail -40 "${LOGS[$j]}"
-      exit 1
-    fi
-    ok "${TAGS[$j]} built ${DIM}($(( $(date +%s) - ${STARTS[$j]} ))s)${RESET}"
-    rm -f "${LOGS[$j]}"
-    idx=${IMGS[$j]}
-    if [[ -n "${BUILD_SIGS[$idx]}" ]]; then
-      state_put "${BUILD_IMGS[$idx]}" "${BUILD_SIGS[$idx]}"
+  # Reap in COMPLETION order, not index order. Waiting on PIDS[0] first means a
+  # hung build hides its siblings: on 2026-09-03 two builds failed in 15s
+  # against a dead registry and a third hung on npm's retry backoff, so the run
+  # looked stuck for 11 minutes with the real errors already on disk. bash 3.2
+  # has no `wait -n`, so poll with kill -0 and reap whoever finishes.
+  remaining=${#PIDS[@]}
+  declare -a DONE=()
+  for j in "${!PIDS[@]}"; do DONE[$j]=0; done
+  # A cold npm install inside these builds runs for MINUTES with nothing on
+  # stdout — @prisma/client alone is a 68 MB cold proxy fetch, and --no-cache
+  # means every run pays it. Twice (2026-09-03) that silence was read as a
+  # hang. Name what is still in flight every 30s so a slow build is
+  # distinguishable from a stopped one without going to `ps`.
+  beat=$(date +%s)
+  while [ "$remaining" -gt 0 ]; do
+    for j in "${!PIDS[@]}"; do
+      [ "${DONE[$j]}" -eq 1 ] && continue
+      kill -0 "${PIDS[$j]}" 2>/dev/null && continue
+      DONE[$j]=1
+      remaining=$((remaining - 1))
+      st=0
+      wait "${PIDS[$j]}" || st=$?
+      if [ "$st" -ne 0 ]; then
+        fail "${TAGS[$j]} build failed (exit $st) — last 40 lines of ${LOGS[$j]}:"
+        tail -40 "${LOGS[$j]}"
+        # Stop the siblings rather than leaving them to grind against whatever
+        # broke; their logs stay on disk.
+        for k in "${!PIDS[@]}"; do
+          [ "${DONE[$k]}" -eq 0 ] && kill "${PIDS[$k]}" 2>/dev/null || true
+        done
+        exit 1
+      fi
+      ok "${TAGS[$j]} built ${DIM}($(( $(date +%s) - ${STARTS[$j]} ))s)${RESET}"
+      beat=$(date +%s)
+      rm -f "${LOGS[$j]}"
+      idx=${IMGS[$j]}
+      if [[ -n "${BUILD_SIGS[$idx]}" ]]; then
+        state_put "${BUILD_IMGS[$idx]}" "${BUILD_SIGS[$idx]}"
+      fi
+    done
+    if [ "$remaining" -gt 0 ]; then
+      now=$(date +%s)
+      if [ $((now - beat)) -ge 30 ]; then
+        inflight=""
+        for k in "${!PIDS[@]}"; do
+          if [ "${DONE[$k]}" -eq 0 ]; then
+            inflight="$inflight ${NAMES[$k]} ($((now - ${STARTS[$k]}))s)"
+          fi
+        done
+        echo -e "${DIM}  still building:${inflight}${RESET}"
+        beat=$now
+      fi
+      sleep 1
     fi
   done
   i=$((i + 3))
