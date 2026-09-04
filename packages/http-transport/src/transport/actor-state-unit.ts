@@ -50,6 +50,20 @@ export interface ActorStateUnitOptions {
 export const DEGRADED_THRESHOLD_MS = 3_000;
 
 /**
+ * Deadline on the `/bus/emit` POST (JOB-RESTART-SAFETY P7). The gateway
+ * accepts an emit and returns 202 promptly; a POST that has not resolved by
+ * here means the gateway is unresponsive (mid-restart, overwhelmed), and the
+ * emit is rejected rather than awaited forever. This is the transport-level
+ * bound behind the 2026-09-03 finalization hang: a worker's mark:create /
+ * job:complete emit to a wedged gateway used to hang the worker loop with no
+ * timeout of its own. The rejection surfaces as a job failure the queue
+ * classifies transient (an unreachable gateway is not the request's fault),
+ * so the work retries instead of wedging. Covers EVERY emit and every job
+ * type — not just the reference-annotation persist P6 bounded.
+ */
+export const EMIT_TIMEOUT_MS = 30_000;
+
+/**
  * How long a superseded connection keeps DRAINING after a make-before-break
  * handoff before being aborted. Aborting the old connection the instant the
  * new one opened discarded replies already written to the old socket but not
@@ -580,10 +594,14 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         headers['traceparent'] = trace.traceparent;
         if (trace.tracestate) headers['tracestate'] = trace.tracestate;
       }
+      // Bounded (JOB-RESTART-SAFETY P7): an unresponsive gateway must not hang
+      // the caller's loop forever. AbortSignal.timeout rejects with a
+      // TimeoutError, which propagates like any other emit failure.
       const res = await fetch(`${baseUrl}/bus/emit`, {
         method: 'POST',
         headers,
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(EMIT_TIMEOUT_MS),
       });
       // A refused emit (validation 400, auth 401…) must REJECT — busRequest's
       // contract detaches its doomed reply and propagates this to the caller.

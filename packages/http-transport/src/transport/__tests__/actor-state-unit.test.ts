@@ -111,6 +111,45 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
+  it('emit bounds the /bus/emit POST with a timeout signal (JOB-RESTART-SAFETY P7)', async () => {
+    // An unresponsive gateway must not hang the caller's loop forever — the
+    // transport-level bound behind the 2026-09-03 finalization hang. Pin that
+    // the POST carries an AbortSignal (the emit deadline); without it, a
+    // wedged gateway hangs every mark:create / job:complete indefinitely.
+    mockFetch.mockResolvedValueOnce({ ok: true });
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: [],
+    });
+
+    await stateUnit.emit('mark:added', { annotationId: 'a-1' });
+
+    const [, opts] = mockFetch.mock.calls[0] as [string, { signal?: unknown }];
+    expect(opts.signal).toBeInstanceOf(AbortSignal);
+
+    stateUnit.dispose();
+  });
+
+  it('emit rejects (does not hang) when its timeout aborts the POST (P7)', async () => {
+    // When the deadline fires, `AbortSignal.timeout` rejects the fetch with a
+    // TimeoutError; the caller must receive that rejection — a job failure the
+    // queue classifies transient — rather than an unsettled promise. (The
+    // deadline itself is a native timer vitest's fake clock does not drive, so
+    // this pins the propagation the deadline produces, and the pin above pins
+    // that the deadline is wired.)
+    mockFetch.mockRejectedValueOnce(new DOMException('The operation timed out.', 'TimeoutError'));
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: [],
+    });
+
+    await expect(stateUnit.emit('mark:added', { annotationId: 'a-1' })).rejects.toThrow(/timed out/i);
+
+    stateUnit.dispose();
+  });
+
   it('emit resolves with the subscriber count from the response body', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ subscribers: 3 }) });
 
