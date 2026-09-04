@@ -215,13 +215,22 @@ that the gateway is down or slow, not transport weather.
 ## Connection state
 
 Every transport exposes `state$: Observable<ConnectionState>` with the
-same six-state union:
+same seven-state union:
 
 ```
-'initial' | 'connecting' | 'open' | 'reconnecting' | 'degraded' | 'closed'
+'initial' | 'connecting' | 'open' | 'reconnecting' | 'degraded'
+          | 'unauthenticated' | 'closed'
 ```
 
-`HttpTransport` drives all six (see
+`unauthenticated` means the transport is deliberately NOT attempting:
+its credential is absent, or was refused (401) and only a different one
+is worth trying. No network activity happens in this state, and the
+transport leaves it on its own when a usable credential appears (a
+re-login, a session refresh). The refusal that caused it is on the
+transport's error stream — the state answers "can the bus deliver?",
+the error stream answers "why not" (SSE-AUTH-RESILIENCE D3/D6a).
+
+`HttpTransport` drives all seven (see
 [TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)
 for the state machine). An in-process transport is `'open'` from
 construction and never changes — consumers that show connecting /

@@ -237,6 +237,79 @@ describe('createActorStateUnit', () => {
     erroring.dispose();
   });
 
+  // ── SSE-AUTH-RESILIENCE P3: bound the self-inflicted load ───────────
+  // D1a: backoff-with-jitter on ALL failure reconnects; auth is additionally
+  // terminal-per-credential. The assertions state properties over simulated
+  // time (a bound, growth, recovery) — never a schedule — so jitter lives
+  // inside the tolerance, not outside it. Non-empty tokens throughout: an
+  // empty one would measure the P1 gate (handoff note 6).
+
+  it('a refused credential is asked about a bounded number of times, then the actor waits — and recovers when a DIFFERENT token appears', async () => {
+    vi.useFakeTimers();
+    let token = 'revoked-tok';
+    mockFetch.mockImplementation(async () => ({ ok: false, status: 401, body: null }));
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: () => token,
+      channels: ['test:event'],
+      reconnectMs: 5_000,
+    });
+    let lastState = '';
+    stateUnit.state$.subscribe((s) => { lastState = s; });
+
+    stateUnit.start();
+    await vi.advanceTimersByTimeAsync(600_000); // ten minutes of a dead credential
+    // The measured incident rate was ~24/min — ~240 asks in this window. A
+    // refused credential cannot improve by being re-sent, so the bound is a
+    // handful, and the actor parks in a state that says why.
+    expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(mockFetch.mock.calls.length).toBeLessThanOrEqual(3);
+    expect(lastState).toBe('unauthenticated');
+
+    // Recovery: a re-login rotates the token. The waiting tick polls the
+    // GETTER (no network), so the next tick after the swap must connect.
+    mockFetch.mockReset();
+    mockSSEResponse();
+    token = 'fresh-tok';
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(lastState).toBe('open');
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
+  it('a downed gateway (503) is retried on a GROWING interval — and still recovers (D1a: backoff is not auth-specific)', async () => {
+    vi.useFakeTimers();
+    mockFetch.mockImplementation(async () => ({ ok: false, status: 503, body: null }));
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'fine-tok',
+      channels: ['test:event'],
+      reconnectMs: 5_000,
+    });
+    let lastState = '';
+    stateUnit.state$.subscribe((s) => { lastState = s; });
+
+    stateUnit.start();
+    await vi.advanceTimersByTimeAsync(60_000);
+    // Flat 5s cadence would be ≥12 attempts in this window. Exponential
+    // growth from a 5s base (with jitter inside the tolerance) lands in
+    // [3, 7] — the property is "the interval grows", not a schedule.
+    expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(mockFetch.mock.calls.length).toBeLessThanOrEqual(7);
+    // A 503 is transient, not auth: the actor must NOT park.
+    expect(lastState).not.toBe('unauthenticated');
+
+    // The gateway heals: the next backed-off attempt opens normally.
+    mockSSEResponse(); // the *Once queue outranks the persistent 503 impl
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(lastState).toBe('open');
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
   it('emit resolves with the subscriber count from the response body', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ subscribers: 3 }) });
 

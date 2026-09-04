@@ -201,6 +201,7 @@ from construction. The HTTP state machine:
 | `open` | SSE stream is live; at least one frame received. |
 | `reconnecting` | Was open or connecting; now retrying. May be transient (mount churn, channel-set change) or sustained (network loss). |
 | `degraded` | Has been in `reconnecting` for longer than `DEGRADED_THRESHOLD_MS` (3 s). UI banner threshold — distinguishes brief churn from real disconnection. |
+| `unauthenticated` | Not attempting: the token getter returns nothing, or returned a bearer the gateway refused with 401. The tick keeps polling the GETTER (no network) and the actor reconnects by itself the moment a usable, different credential appears. The refusal is on `errors$` as a `SseConnectError` carrying the status. |
 | `closed` | `stop()` or `dispose()` was called. Terminal. |
 
 Transitions are enforced by an internal helper. An invalid move is
@@ -212,16 +213,21 @@ edge is a bug, but degrading gracefully beats crashing a job.
 Allowed transitions:
 
 ```
-initial      → connecting | closed
-connecting   → open | reconnecting | closed
-open         → reconnecting | closed
-reconnecting → connecting | degraded | closed
-degraded     → connecting | reconnecting | closed
-closed       → (terminal)
+initial         → connecting | unauthenticated | closed
+connecting      → open | reconnecting | unauthenticated | closed
+open            → reconnecting | closed
+reconnecting    → connecting | degraded | unauthenticated | closed
+degraded        → connecting | reconnecting | unauthenticated | closed
+unauthenticated → connecting | closed
+closed          → (terminal)
 ```
 
 `degraded → reconnecting` is the #844 recovery edge: a channel-set
 change can schedule a reconnect while the connection is degraded.
+`unauthenticated` is entered from any non-open state — at the gate
+(empty or still-refused token) or when a connect lands 401 — and left
+only for `connecting`, when the getter yields a usable, different
+credential.
 
 Gap detection is handled by the resumption protocol (see "Event id and
 resumption"), not by consumers interpreting state edges.
@@ -230,10 +236,21 @@ resumption"), not by consumers interpreting state edges.
 
 The client-side `ActorStateUnit` handles three reconnect triggers:
 
-1. **Server/network disconnect.** The SSE read loop exits; state
-   transitions to `reconnecting`; `connect()` is retried after
-   `reconnectMs` (default 5 s). If the retry takes longer than
-   `DEGRADED_THRESHOLD_MS`, state enters `degraded`.
+1. **Server/network disconnect, or a refused connect.** The SSE read
+   loop exits (or the subscribe POST answers non-2xx — surfaced on
+   `errors$` as a `SseConnectError` carrying the status); state
+   transitions to `reconnecting`; `connect()` is retried on an
+   **equal-jitter exponential backoff**: delay ∈ [cap/2, cap] with
+   cap = min(`reconnectMs`·2ⁿ, 60 s), n resetting on a successful
+   open (SSE-AUTH-RESILIENCE D1a — the bound applies to ALL failure
+   retries, not just auth, and jitter keeps N clients out of
+   lockstep). If retrying takes longer than `DEGRADED_THRESHOLD_MS`,
+   state enters `degraded`. **A 401 does not retry at all**: the
+   refused bearer is remembered, state parks in `unauthenticated`,
+   and the flat tick polls the token getter (no network) until a
+   different, non-empty credential appears — one refused request per
+   credential value, ever. The credential gate applies the same rule
+   to an EMPTY token before the first byte is sent.
 2. **Channel-set change** (`addChannels` / `removeChannels`). A new SSE
    is opened with the updated query string and, **only once it is
    `open`, the old one is marked superseded and LINGERS — still

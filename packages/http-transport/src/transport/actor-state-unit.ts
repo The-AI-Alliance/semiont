@@ -42,6 +42,12 @@ export interface ActorStateUnitOptions {
   baseUrl: string;
   token: string | (() => string);
   channels: string[];
+  /**
+   * Base of the failure-retry backoff ladder AND the flat cadence of the
+   * `unauthenticated` waiting tick (which polls the token getter, no
+   * network). A failure retry waits jitter(min(reconnectMs·2ⁿ, 60 s));
+   * n resets on a successful open. Default 5 s.
+   */
   reconnectMs?: number;
   /**
    * Remove-side reconnect hysteresis (MULTI-RESOURCE-SCOPE). Scope
@@ -69,6 +75,13 @@ export interface ActorStateUnitOptions {
 
 /** Time in the `reconnecting` state before transitioning to `degraded`. */
 export const DEGRADED_THRESHOLD_MS = 3_000;
+
+/**
+ * Ceiling for the failure-retry backoff (SSE-AUTH-RESILIENCE P3, D1a): the
+ * exponential ladder from `reconnectMs` caps here, so a long outage settles
+ * into roughly one attempt per minute rather than growing without bound.
+ */
+const MAX_RECONNECT_MS = 60_000;
 
 /**
  * Deadline on the `/bus/emit` POST (JOB-RESTART-SAFETY P7). The gateway
@@ -134,15 +147,18 @@ export interface ActorStateUnit extends StateUnit {
 
 /** Allowed transitions in the connection state machine. */
 const ALLOWED_TRANSITIONS: Record<ConnectionState, ReadonlyArray<ConnectionState>> = {
-  initial:      ['connecting', 'closed'],
-  connecting:   ['open', 'reconnecting', 'closed'],
+  initial:      ['connecting', 'unauthenticated', 'closed'],
+  connecting:   ['open', 'reconnecting', 'unauthenticated', 'closed'],
   open:         ['reconnecting', 'closed'],
-  reconnecting: ['connecting', 'degraded', 'closed'],
+  reconnecting: ['connecting', 'degraded', 'unauthenticated', 'closed'],
   // `degraded → reconnecting` is a legitimate recovery edge: a channel-set
   // change (`addChannels`/`removeChannels`) schedules a reconnect that can
   // fire while the connection is degraded. Omitting it made `reconnect()`
   // throw a fatal, uncaught exception from the reconnect timer (#844).
-  degraded:     ['connecting', 'reconnecting', 'closed'],
+  degraded:     ['connecting', 'reconnecting', 'unauthenticated', 'closed'],
+  // Leaving `unauthenticated` takes a usable credential (the gate saw a
+  // different, non-empty token) → straight to `connecting`; or teardown.
+  unauthenticated: ['connecting', 'closed'],
   closed:       [],
 };
 
@@ -297,36 +313,68 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     lingerTimers.clear();
   };
 
+  /**
+   * Drop-recovery scheduling (SSE-AUTH-RESILIENCE P3). One place arms
+   * `reconnectTimer`, so the gate's waiting tick and the failure retry can
+   * never disagree on cadence (the split-brain the P1 handoff warned about).
+   * Failure retries BACK OFF (D1a): equal-jitter exponential — delay ∈
+   * [cap/2, cap], cap = min(reconnectMs·2ⁿ, MAX_RECONNECT_MS) — so a downed
+   * gateway sees a thinning trickle instead of 12 requests/min from every
+   * client, jitter keeps N clients out of lockstep, and a transient failure
+   * still recovers (backoff delays recovery; it never prevents it). The
+   * WAITING tick stays flat at `reconnectMs`: it polls the token getter and
+   * makes no requests, so there is no load to bound — and backing it off
+   * would only slow recovery after a re-login. Scope-churn reconnects
+   * (debounce/hysteresis timers) are a separate mechanism, untouched.
+   */
+  let retryAttempt = 0;
+  let refusedToken: string | null = null;
+  const scheduleRetry = (delayMs: number, keepPrevious = false) => {
+    if (!running) return;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(() => {
+      if (running) connect(keepPrevious);
+    }, delayMs);
+  };
+  const backoffDelay = () => {
+    const cap = Math.min(reconnectMs * 2 ** retryAttempt, MAX_RECONNECT_MS);
+    retryAttempt++;
+    return cap / 2 + Math.random() * (cap / 2);
+  };
+
   const connect = async (keepPrevious = false) => {
-    // ── The credential gate (SSE-AUTH-RESILIENCE P1, shape A) ───────────
+    // ── The credential gate (SSE-AUTH-RESILIENCE P1 + P3, shapes A + B) ─
     //
-    // A connect with no bearer CANNOT succeed, so it must not be attempted.
-    // `HttpTransport` renders a null `token$` as `''` (its getter is
-    // `token$.getValue() ?? ''`), which is exactly what a session that has
-    // exhausted refresh produces — so without this gate the actor sends
-    // `Authorization: Bearer ` on every tick, forever. That is a
-    // guaranteed-failing request generated on a timer, and it is the 401
-    // storm in .plans/bugs/stale-sse-actor-401-loops-after-token-expiry.md.
+    // A connect with no bearer CANNOT succeed (shape A: `HttpTransport`
+    // renders an exhausted session's null `token$` as `''`). A connect
+    // re-sending a bearer the gateway just REFUSED cannot succeed either
+    // (shape B: the same credential gets the same 401). Both are
+    // guaranteed-failing requests generated on a timer — the storm in
+    // .plans/bugs/stale-sse-actor-401-loops-after-token-expiry.md — so
+    // neither is attempted.
     //
-    // We WAIT rather than give up: the credential may arrive (a re-login, a
-    // service's first token). The existing reconnect tick is the poll — no
-    // push subscription, so the actor keeps taking its token as a getter and
-    // does not require the source to be an observable. Nothing reaches the
-    // network, so there is no load to bound here.
+    // This is D3 and D6a answered together: ONE `unauthenticated` state for
+    // "no credential yet" and "credential refused", because they are the
+    // same operational fact — not attempting, and only a usable DIFFERENT
+    // credential changes anything. The finer cause (the 401) is on
+    // `errors$`.
     //
-    // Deliberately NOT transitioning to a new state: whether "waiting for a
-    // credential" deserves its own connection state (and how it differs from
-    // auth-exhausted) is D6a/D3, still open, and user-visible. Until then we
-    // stay in whatever state we were in and simply do not attempt.
-    if (!getToken()) {
+    // We WAIT rather than give up: the tick polls the GETTER — no network,
+    // so there is no load to bound, and the tick stays at the flat base.
+    // Recovery is automatic: a re-login or session refresh rotates the
+    // getter's value and the next tick connects. That makes a 401 terminal
+    // PER-CREDENTIAL, not per-actor — a hard stop here would kill the SPA's
+    // bus for good on an out-of-band revocation (logout elsewhere bumping
+    // `tokenVersion`) that the session's next proactive refresh heals.
+    const token = getToken();
+    if (!token || token === refusedToken) {
       if (running) {
-        if (reconnectTimer) clearTimeout(reconnectTimer);
-        reconnectTimer = setTimeout(() => {
-          if (running) connect(keepPrevious);
-        }, reconnectMs);
+        if (currentState !== 'unauthenticated') transition('unauthenticated');
+        scheduleRetry(reconnectMs, keepPrevious);
       }
       return;
     }
+    refusedToken = null; // a different credential — worth attempting
 
     // Transition to `connecting` from whichever reconnect-ish state
     // we're currently in (`initial`, `reconnecting`, `degraded`).
@@ -376,7 +424,9 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
     try {
       const headers: Record<string, string> = {
-        Authorization: `Bearer ${getToken()}`,
+        // The gate's single read: `token` is what this ATTEMPT sends, and
+        // exactly what `refusedToken` records if the gateway says 401.
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
       const response = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
@@ -415,6 +465,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       }
 
       transition('open');
+      retryAttempt = 0; // a success resets the backoff ladder
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -560,22 +611,35 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       if ((err as Error).name === 'AbortError') return;
       // A refused connect carries its status out (P2). Anything else — a
       // network failure, a dropped stream — has no status to carry and
-      // stays off errors$. Both fall through to the reconnect-retry block.
-      if (err instanceof SseConnectError) errors$.next(err);
+      // stays off errors$.
+      if (err instanceof SseConnectError) {
+        errors$.next(err);
+        // 401: re-sending THIS bearer is deterministic, so park instead of
+        // retrying (P3). The gate re-admits the actor the moment the getter
+        // yields a different token; until then, no requests at all. Non-401
+        // refusals (5xx, proxies) are transient in kind and take the
+        // backoff path below.
+        if (err.status === 401 && running && !superseded.has(controller)) {
+          refusedToken = token;
+          retryAttempt = 0;
+          if (currentState !== 'unauthenticated') transition('unauthenticated');
+          scheduleRetry(reconnectMs, keepPrevious);
+          return;
+        }
+      }
     } finally {
       inflightControllers.delete(controller);
     }
 
     // If we reached here without an AbortError, the connection dropped
-    // or the fetch failed. Transition to reconnecting and schedule a
-    // retry after `reconnectMs` — unless this was a SUPERSEDED (lingering)
+    // or the fetch failed (a 401 already diverted to `unauthenticated`
+    // above). Transition to reconnecting and schedule a retry on the
+    // backoff ladder — unless this was a SUPERSEDED (lingering)
     // connection ending: its termination is expected teardown, not a drop
     // of the live stream, and must not restart the reconnect machinery.
     if (running && !superseded.has(controller)) {
       transition('reconnecting');
-      reconnectTimer = setTimeout(() => {
-        if (running) connect();
-      }, reconnectMs);
+      scheduleRetry(backoffDelay());
     }
   };
 
