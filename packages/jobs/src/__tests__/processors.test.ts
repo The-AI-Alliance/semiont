@@ -57,6 +57,7 @@ vi.mock('../workers/generation/typst-compiler', async (importOriginal) => ({
 
 import { AnnotationDetection } from '../workers/annotation-detection';
 import { extractEntities } from '../workers/detection/entity-extractor';
+import { DETECTION_TYPE_CONCURRENCY } from '../workers/detection/detection-chunking';
 import { generateResourceFromTopic } from '../workers/generation/resource-generation';
 import { compileTypst, MAX_COMPILE_REPAIRS } from '../workers/generation/typst-compiler';
 import type { PdfTextLayer } from '@semiont/content';
@@ -285,6 +286,84 @@ describe('processReferenceJob', () => {
       { type: 'TextualBody', value: 'Location', purpose: 'tagging', format: 'text/plain', language: 'en' },
     ]);
     expect(outcome.result).toEqual({ kind: 'reference-annotation', totalFound: 2, totalEmitted: 2, errors: 0 });
+  });
+
+  // ── P6: entity types run concurrently (DETECTION-QUALITY-THROUGHPUT) ──
+  //
+  // The sequential per-type loop was the 9×-sequential grind. These pin that
+  // types now run bounded-concurrent: every type still commits exactly once and
+  // reports its own found/persisted, order-independent, and no more than
+  // DETECTION_TYPE_CONCURRENCY are ever in flight.
+
+  it('runs multiple entity types and commits each exactly once', async () => {
+    // Each type returns its own entity (verbatim in the content so anchoring holds).
+    const content = 'Paris and Ada and Sony are here.';
+    vi.mocked(extractEntities).mockImplementation(async (_c, types) => {
+      const t = String(types[0]);
+      const map: Record<string, any> = {
+        Location: [{ exact: 'Paris', entityType: 'Location' }],
+        Person: [{ exact: 'Ada', entityType: 'Person' }],
+        Organization: [{ exact: 'Sony', entityType: 'Organization' }],
+      };
+      return map[t] ?? [];
+    });
+
+    const units: string[] = [];
+    const outcome = await processReferenceJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location'), entityType('Person'), entityType('Organization')] },
+      textBuild(content), vi.fn(), LOGGER,
+      async (unit) => { units.push(unit); },
+    );
+
+    expect(units.sort()).toEqual(['Location', 'Organization', 'Person']);
+    expect(outcome.result.totalFound).toBe(3);
+    expect(outcome.result.totalEmitted).toBe(3);
+  });
+
+  it('never runs more than DETECTION_TYPE_CONCURRENCY types at once', async () => {
+    const content = 'x '.repeat(50);
+    let inFlight = 0, maxInFlight = 0;
+    vi.mocked(extractEntities).mockImplementation(async () => {
+      inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      return [];
+    });
+
+    // More types than the bound, so the cap must actually clamp.
+    const many = Array.from({ length: DETECTION_TYPE_CONCURRENCY + 4 }, (_, i) => entityType(`T${i}`));
+    await processReferenceJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, entityTypes: many },
+      textBuild(content), vi.fn(), LOGGER, async () => {},
+    );
+
+    expect(maxInFlight).toBeGreaterThan(1); // actually concurrent
+    expect(maxInFlight).toBeLessThanOrEqual(DETECTION_TYPE_CONCURRENCY);
+  });
+
+  it('reports each unit once even when types finish OUT OF ORDER', async () => {
+    const content = 'Paris and Ada are here.';
+    // Location resolves slowly, Person fast — completion order reversed.
+    vi.mocked(extractEntities).mockImplementation(async (_c, types) => {
+      const t = String(types[0]);
+      if (t === 'Location') { await new Promise((r) => setTimeout(r, 20)); return [{ exact: 'Paris', entityType: 'Location' }] as any; }
+      return [{ exact: 'Ada', entityType: 'Person' }] as any;
+    });
+
+    const progress = vi.fn();
+    const outcome = await processReferenceJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location'), entityType('Person')] },
+      textBuild(content), progress, LOGGER, async () => {},
+    );
+
+    // The terminal frame carries the full completed set; each type appears once.
+    const last = progress.mock.calls.at(-1)![2] as { completedItems?: Array<{ value: string }> };
+    const values = (last.completedItems ?? []).map((i) => i.value).sort();
+    expect(values).toEqual(['Location', 'Person']);
+    expect(outcome.result.totalEmitted).toBe(2);
   });
 
   it('counts errors when reconciliation drops an entity (text not in source)', async () => {

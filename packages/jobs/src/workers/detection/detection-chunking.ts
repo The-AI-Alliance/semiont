@@ -70,6 +70,23 @@ const OVERLAP_TOKENS = Math.ceil(OVERLAP_CHARS / 4);
  */
 export const DETECTION_TEMPERATURE = 0;
 
+/**
+ * How many entity types one reference-detection job runs at once
+ * (DETECTION-QUALITY-THROUGHPUT P6). The types are independent units, and a
+ * single sequential job uses a sliver of any provider's rate limit (~1 request
+ * / 72 s measured), so concurrency is a near-linear wall-time win up to that
+ * limit — the sequential type loop was the 9×-sequential ≈ 2.5 h/document.
+ *
+ * Deliberately CONSERVATIVE and fixed for the first cut: the plan is start
+ * small, measure the real speedup and any 429s against P1 telemetry, and raise
+ * only on evidence — never fan out unbounded, which trades sequential waiting
+ * for 429 thrash. This is a policy constant, and the natural candidate to
+ * become user/admin-tunable per inference provider (a fast, cheap model
+ * tolerates more) — same status and future as `DETECTION_TEMPERATURE` and the
+ * chunk-sizing policy; homed here so there is one place to make it so.
+ */
+export const DETECTION_TYPE_CONCURRENCY = 4;
+
 export interface DetectionBudget {
   /** Feed to `chunkText` — `chunkSize` is the derived input budget (tokens). */
   chunking: ChunkingConfig;
