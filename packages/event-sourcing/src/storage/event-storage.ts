@@ -20,6 +20,22 @@ import type { StoredEvent, PersistedEvent, EventMetadata, EventInput, ResourceId
 import { resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import { jumpConsistentHash } from '@semiont/core';
+import { recordGitCommand } from '@semiont/observability';
+
+/**
+ * Every git call here is SYNCHRONOUS and therefore blocks the event loop —
+ * one runs per appended event. The duration is not merely latency, it is time
+ * this process could serve nothing else, which is why it is measured rather
+ * than assumed (ARCHIVIST-STAYS-UP P7).
+ */
+function git(args: [string, ...string[]], cwd: string): void {
+  const started = performance.now();
+  try {
+    execFileSync('git', args, { cwd });
+  } finally {
+    recordGitCommand(args[0], performance.now() - started);
+  }
+}
 
 export interface EventStorageConfig {
   maxEventsPerFile?: number;     // File rotation threshold (default: 10000)
@@ -129,7 +145,7 @@ export class EventStorage {
 
       // Stage the new event stream directory in git
       if (this.project.gitSync) {
-        execFileSync('git', ['add', docPath], { cwd: this.project.root });
+        git(['add', docPath], this.project.root);
       }
 
       // Initialize sequence number
@@ -239,7 +255,7 @@ export class EventStorage {
 
     // Stage the event log file in git index if configured
     if (this.project.gitSync) {
-      execFileSync('git', ['add', targetPath], { cwd: this.project.root });
+      git(['add', targetPath], this.project.root);
     }
   }
 

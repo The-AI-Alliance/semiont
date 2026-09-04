@@ -11,10 +11,18 @@ import type {
   EventMetadata,
   components,
 } from '@semiont/core';
-const observed = vi.hoisted(() => ({ replySuppressed: vi.fn() }));
+const observed = vi.hoisted(() => ({
+  replySuppressed: vi.fn(),
+  resumeGap: vi.fn(),
+  unanswerable: vi.fn(),
+  registryProvider: vi.fn(),
+}));
 vi.mock('@semiont/observability', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@semiont/observability')>()),
   recordReplySuppressed: (...args: unknown[]) => observed.replySuppressed(...args),
+  recordResumeGap: (...args: unknown[]) => observed.resumeGap(...args),
+  recordUnanswerableRequest: (...args: unknown[]) => observed.unanswerable(...args),
+  registerCorrelationRegistryProvider: (p: unknown) => observed.registryProvider(p),
 }));
 
 import { createBusRouter, createCorrelationRegistry } from '../../routes/bus';
@@ -976,6 +984,13 @@ describe('bus routes', () => {
     // (LIVENESS-AXIOMS L2: evicting a claim turns its future reply into a
     // silent drop, and the requester burns its whole timeout).
     it('refuses a claim beyond the per-client cap with 429 rather than evicting', async () => {
+      // A handler must be PRESENT but silent. Capacity tracks UNANSWERED
+      // requests (a settled claim releases its slot), and since
+      // ARCHIVIST-STAYS-UP P3 a request reaching zero subscribers is answered
+      // instantly with a synthesized failure — so shouting into a void no
+      // longer accumulates anything. A client at capacity is one with many
+      // requests genuinely in flight, which is what this now models.
+      eventBus.get(REQ).subscribe(() => {});
       for (let i = 0; i < 256; i++) {
         const res = await emit({
           channel: REQ,
@@ -1204,6 +1219,195 @@ describe('bus routes', () => {
       expect(warn.mock.calls.some((c) => String(c[0]).includes('CLAIM-EVICTED'))).toBe(true);
       registry.dispose();
       bus.destroy();
+    });
+  });
+
+  // ── ARCHIVIST-STAYS-UP P3 — an unanswerable request fails fast ────────
+  //
+  // An absent Archivist wedges every browse:* read silently: the gateway sees
+  // nothing subscribed, logs it, and returns 202 anyway, so the caller burns
+  // its full 30 s timeout. busRequest has no retry, so that timeout is
+  // terminal either way — the difference is milliseconds and a name instead
+  // of thirty seconds and a hang.
+  describe('unanswerable request fails fast (ARCHIVIST-STAYS-UP P3)', () => {
+    const REQ = 'gather:resource-requested';
+    const FAILED = 'gather:resource-failed';
+    const OPTS = { depth: 1, maxResources: 1, includeContent: false, includeSummary: false };
+
+    const emit = (body: unknown) =>
+      app.request('/bus/emit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    it('synthesizes the mapped *-failed when a request reaches zero subscribers', async () => {
+      const failures: unknown[] = [];
+      eventBus.get(FAILED).subscribe((v) => failures.push(v));
+
+      const res = await emit({
+        channel: REQ,
+        clientId: 'client-a',
+        payload: { correlationId: 'c-nobody', resourceId: 'r-1', options: OPTS },
+      });
+
+      expect(res.status).toBe(202);
+      expect(failures).toHaveLength(1);
+      expect(failures[0]).toMatchObject({ correlationId: 'c-nobody' });
+      expect(String((failures[0] as { message?: string }).message)).toMatch(/subscrib/i);
+    });
+
+    // Without the cid the frame is dropped by the delivery filter as a
+    // REPLY-SHAPE violation — the failure would be synthesized and then
+    // silently discarded, in exactly the outage this phase exists for.
+    it('carries the request correlationId, so owner-routing can deliver it', async () => {
+      const failures: Record<string, unknown>[] = [];
+      eventBus.get(FAILED).subscribe((v) => failures.push(v as Record<string, unknown>));
+
+      await emit({
+        channel: REQ,
+        clientId: 'client-b',
+        payload: { correlationId: 'c-routed-fail', resourceId: 'r-2', options: OPTS },
+      });
+
+      expect(failures[0]?.correlationId).toBe('c-routed-fail');
+      // Identifying fields the failure's own contract requires ride along:
+      // `gather:resource-failed` is `{ correlationId; resourceId } & CommandError`.
+      expect(failures[0]?.resourceId).toBe('r-2');
+    });
+
+    it('reaches the emitting client and nobody else', async () => {
+      const owner = await subscribe(app, { clientId: 'client-owner', global: [FAILED] });
+      const other = await subscribe(app, { clientId: 'client-other', global: [FAILED, 'test:event'] });
+      await new Promise((r) => setTimeout(r, 20));
+
+      setTimeout(() => {
+        void emit({
+          channel: REQ,
+          clientId: 'client-owner',
+          payload: { correlationId: 'c-only-mine', resourceId: 'r-3', options: OPTS },
+        });
+        eventBus.get('test:event' as never).next({ marker: 'alive' } as never);
+      }, 10);
+
+      expect(await readSSE(owner, (b) => b.includes('c-only-mine'))).toContain('c-only-mine');
+      const otherBody = await readSSE(other, (b) => b.includes('alive'));
+      expect(otherBody).not.toContain('c-only-mine');
+    });
+
+    // A broadcast reaching nobody is NORMAL — `job:started` with no UI
+    // attached is the common case. The distinction is membership in
+    // BUS_OPERATIONS, never a name pattern.
+    it('stays silent for a broadcast that reaches nobody', async () => {
+      const seen: unknown[] = [];
+      for (const ch of ['gather:resource-failed', 'test:event']) {
+        eventBus.get(ch as never).subscribe((v) => seen.push(v));
+      }
+      const before = seen.length;
+
+      const res = await emit({ channel: 'beckon:focus', payload: { annotationId: 'ann-1' } });
+
+      expect(res.status).toBe(202);
+      await expect(res.json()).resolves.toEqual({ subscribers: 0 });
+      expect(seen.length).toBe(before); // nothing synthesized
+    });
+
+    it('stays silent when a request DID reach a subscriber', async () => {
+      eventBus.get(REQ).subscribe(() => {}); // a handler is present
+      const failures: unknown[] = [];
+      eventBus.get(FAILED).subscribe((v) => failures.push(v));
+
+      await emit({
+        channel: REQ,
+        clientId: 'client-c',
+        payload: { correlationId: 'c-answered', resourceId: 'r-4', options: OPTS },
+      });
+
+      expect(failures).toHaveLength(0);
+    });
+
+    // A request without a correlationId has no reply to fail: synthesizing one
+    // would produce a frame the filter drops and nobody awaits.
+    it('stays silent for a request emit with no correlationId', async () => {
+      const failures: unknown[] = [];
+      eventBus.get(FAILED).subscribe((v) => failures.push(v));
+      await emit({ channel: REQ, payload: { resourceId: 'r-5', options: OPTS } });
+      expect(failures).toHaveLength(0);
+    });
+  });
+
+  // ── Gateway telemetry ─────────────────────────────────────────────────
+  //
+  // A counter that is wired but never incremented is the defect these pins
+  // exist to prevent — nothing else in the stack would notice. Spans are not
+  // pinned here: the repo tests no spans anywhere, and inventing a harness for
+  // these four would be a precedent, not a pin.
+  describe('telemetry', () => {
+    const REQ = 'gather:resource-requested';
+    const OPTS = { depth: 1, maxResources: 1, includeContent: false, includeSummary: false };
+
+    it('counts an unanswerable request, labelled by channel', async () => {
+      observed.unanswerable.mockClear();
+      await app.request('/bus/emit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: REQ,
+          clientId: 'client-t',
+          payload: { correlationId: 'c-unans', resourceId: 'r-1', options: OPTS },
+        }),
+      });
+      expect(observed.unanswerable).toHaveBeenCalledWith(REQ);
+    });
+
+    it('does not count a broadcast that reaches nobody', async () => {
+      observed.unanswerable.mockClear();
+      await app.request('/bus/emit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: 'beckon:focus', payload: { annotationId: 'ann-1' } }),
+      });
+      expect(observed.unanswerable).not.toHaveBeenCalled();
+    });
+
+    it('counts a resume gap, labelled by its reason', async () => {
+      observed.resumeGap.mockClear();
+      const res = await subscribe(app, {
+        clientId: 'client-gap',
+        global: ['test:event'],
+        scoped: [{ scope: 'res-1', channels: ['test:event'], lastEventId: 'not-a-valid-id' }],
+      });
+      await readSSE(res, (b) => b.includes('resume-gap'));
+      expect(observed.resumeGap).toHaveBeenCalled();
+      // The label is a closed set, never a scope or an id — cardinality.
+      expect(typeof observed.resumeGap.mock.calls[0]?.[0]).toBe('string');
+      expect(observed.resumeGap.mock.calls[0]?.[0]).toMatch(/last-event-id|scope|replay/);
+    });
+
+    it('registers a registry-occupancy provider that reports claims and retained replies', async () => {
+      observed.registryProvider.mockClear();
+      await subscribe(app, { clientId: 'client-occ', global: ['gather:resource-complete'] });
+      expect(observed.registryProvider).toHaveBeenCalled();
+
+      const provider = observed.registryProvider.mock.calls[0]?.[0] as () => {
+        claims: number; retainedReplies: number;
+      };
+      expect(provider()).toEqual({ claims: 0, retainedReplies: 0 });
+
+      await app.request('/bus/emit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: REQ,
+          clientId: 'client-occ',
+          payload: { correlationId: 'c-occ', resourceId: 'r-1', options: OPTS },
+        }),
+      });
+      // The claim exists; its reply arrived via the synthesized failure, so
+      // both dimensions move — which is what makes them separate series.
+      const after = provider();
+      expect(after.claims).toBeGreaterThan(0);
+      expect(after.retainedReplies).toBeGreaterThan(0);
     });
   });
 

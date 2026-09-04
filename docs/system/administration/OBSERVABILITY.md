@@ -33,7 +33,14 @@ headers and SSE `_trace` payload fields.
 | `actor.<name>:<channel>` | In-process subscriber (Stower / Gatherer / Matcher / Browser / Smelter) | consumer |
 | `content.{put,get}`    | `HttpContentTransport.*` / `LocalContentTransport.*` | client / internal |
 | `content.{put,get}.server` | Gateway `/resources*` routes          | server   |
+| `archivist.{content.put,content.get,kb.branch,events.replay}` | Gateway → Archivist HTTP | client |
 | `job:<type>`           | Worker `handleJob`                        | consumer |
+
+The `archivist.*` row is the third hop. The two `content.*` rows describe a
+client/server pair that once covered the whole byte path, because the gateway
+was the content store; SINGLE-KB-MOUNT moved the tree to the Archivist and put
+a network call *inside* `content.put.server`. Without its own span that call is
+invisible, and a slow Archivist reads as a slow gateway.
 
 A typical "open resource" trace, parented by the SPA's transport call:
 
@@ -213,6 +220,10 @@ through the same OTLP endpoint. No extra config required — the
 | `semiont.inference.duration` | histogram        | `inference.provider`, `inference.model`, `inference.outcome` | Anthropic + Ollama clients               |
 | `semiont.sse.subscribers`    | up-down counter  | (none)                                                  | `/bus/subscribe` connect/disconnect           |
 | `semiont.job.queue.size`     | observable gauge | `job.status` (`pending`/`running`/`complete`/`failed`/`cancelled`) | Gateway `FsJobQueue.getStats()` |
+| `semiont.bus.reply.suppressed` | counter        | `bus.channel`                                           | Gateway SSE: a correlated reply withheld from a non-owner |
+| `semiont.bus.resume_gap`     | counter          | `bus.resume_gap.reason`                                 | Gateway SSE: a resume that degraded to a gap  |
+| `semiont.bus.unanswerable`   | counter          | `bus.channel`                                           | Gateway `/bus/emit`: a request that reached zero subscribers |
+| `semiont.bus.correlation.size` | observable gauge | `correlation.kind` (`claims`/`retained_replies`)      | Gateway correlation registry occupancy        |
 
 Additional vars:
 

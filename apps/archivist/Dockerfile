@@ -77,9 +77,45 @@ ENV NODE_ENV=production
 # the launcher mounts host dirs AT these targets and passes no path env.
 ENV SEMIONT_ROOT=/kb
 ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
+
+# ── Heap ceiling (ARCHIVIST-STAYS-UP P4) ─────────────────────────────────
+# WHY THIS EXISTS, because a bare number here is unreadable in a year:
+#
+# On 2026-09-03 this process died with "JavaScript heap out of memory" at
+# ~1016 MB while the container was allotted 2048 MB — it never came close to
+# the container's limit. V8 derives its own default old-space ceiling from
+# visible memory and lands well under the cgroup allocation, so roughly half
+# the memory the fleet pays for was unreachable. See
+# .plans/bugs/absent-archivist-wedges-browse.md.
+#
+# 1536 leaves ~512 MB under the container's 2G for everything OUTSIDE the JS
+# heap: RSS overhead, Buffers, the git subprocesses this image shells out to,
+# and neo4j-driver's native allocations. Do not raise this to 2048 — being
+# OOM-KILLED by the cgroup is strictly worse than a V8 heap error, because the
+# process is shot rather than given the chance to throw and log.
+#
+# ⚠️ THIS NUMBER IS PAIRED with the archivist's `mem` in
+# apps/launcher/internal/launcher/service.go. Changing either without the
+# other silently re-opens the gap this closes. That pairing wants a gate —
+# see ARCHIVIST-STAYS-UP P2, which already cross-checks Dockerfile
+# declarations against launcher facts.
+#
+# Applies to EVERY node invocation in the container, which is intended: the
+# CMD is supervise.sh, and the child it spawns is the process that needs the
+# ceiling. The HEALTHCHECK's `node -e` inherits it too and does not care.
+#
+# VERIFY IT TOOK EFFECT: the `semiont.runtime.heap{heap.stat="limit"}` gauge
+# reports V8's actual ceiling at runtime. A cap that was set but not applied
+# shows up there as the old default — assume nothing.
+ENV NODE_OPTIONS=--max-old-space-size=1536
+
 EXPOSE 24103
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:24103/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
-CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/archivist-main.js"]
+# The supervisor, not node directly (ARCHIVIST-STAYS-UP P1): restarts a
+# crashed child, probes and kills a hung one, keeps the pre-death log on the
+# state mount. No runtime restart mechanism exists on all three runtimes.
+COPY apps/archivist/supervise.sh /usr/local/bin/supervise.sh
+CMD ["/bin/sh", "/usr/local/bin/supervise.sh"]

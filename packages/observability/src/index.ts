@@ -232,6 +232,10 @@ const meter = () => metrics.getMeter(METER_NAME);
 
 let _busEmitCounter: Counter | undefined;
 let _replySuppressedCounter: Counter | undefined;
+let _resumeGapCounter: Counter | undefined;
+let _unanswerableCounter: Counter | undefined;
+let _correlationRegistryGauge: ObservableGauge | undefined;
+let _correlationRegistryProvider: (() => CorrelationRegistrySnapshot) | undefined;
 let _handlerDurationHistogram: Histogram | undefined;
 let _jobOutcomeCounter: Counter | undefined;
 let _jobDurationHistogram: Histogram | undefined;
@@ -243,6 +247,8 @@ let _sseSubscribers: UpDownCounter | undefined;
 let _jobQueueGauge: ObservableGauge | undefined;
 let _jobQueueProvider: (() => Promise<JobQueueSnapshot> | JobQueueSnapshot) | undefined;
 let _vectorIndexSizeGauge: ObservableGauge | undefined;
+let _factPumpDepthGauge: ObservableGauge | undefined;
+let _factPumpDepthProvider: (() => number) | undefined;
 let _vectorIndexSizeProvider: (() => Promise<number> | number) | undefined;
 
 /** Snapshot of job-queue contents by status. Match `JobQueue.getStats()`. */
@@ -351,6 +357,76 @@ export function recordReplySuppressed(channel: string): void {
   replySuppressedCounter().add(1, { 'bus.channel': channel });
 }
 
+function resumeGapCounter(): Counter {
+  if (!_resumeGapCounter) {
+    _resumeGapCounter = meter().createCounter('semiont.bus.resume_gap', {
+      description: 'SSE resumes that degraded to a gap because replay was unavailable',
+    });
+  }
+  return _resumeGapCounter;
+}
+
+/**
+ * An SSE resume could not be served and the client was told to fall back to
+ * cache. This degradation is CORRECT by design and therefore silent — which is
+ * exactly why it needs a number. A rising rate means clients are losing
+ * history, and nothing else in the stack says so.
+ */
+export function recordResumeGap(reason: string): void {
+  resumeGapCounter().add(1, { 'bus.resume_gap.reason': reason });
+}
+
+function unanswerableCounter(): Counter {
+  if (!_unanswerableCounter) {
+    _unanswerableCounter = meter().createCounter('semiont.bus.unanswerable', {
+      description: 'Request emits that reached zero subscribers and were failed at the gateway',
+    });
+  }
+  return _unanswerableCounter;
+}
+
+/**
+ * A request-shaped emit reached no subscriber, so the gateway synthesized its
+ * mapped failure (ARCHIVIST-STAYS-UP P3). By channel, this is the absence rate
+ * of the service that answers it — the difference between "it went down once"
+ * and "it is flapping."
+ */
+export function recordUnanswerableRequest(channel: string): void {
+  unanswerableCounter().add(1, { 'bus.channel': channel });
+}
+
+/** Claims held and reply payloads retained by a gateway's correlation registry. */
+export interface CorrelationRegistrySnapshot {
+  claims: number;
+  retainedReplies: number;
+}
+
+/**
+ * Register a callback returning the gateway's correlation-registry occupancy.
+ *
+ * COUNTS, not bytes: retention is count-budgeted today (byte-budgeting is a
+ * known limit in CORRELATED-REPLY-ROUTING), so `retainedReplies` is a proxy for
+ * heap, not a measure of it. It is still the closest observable to the question
+ * two OOM investigations keep asking — a browse result can be 1-2 MB, and up to
+ * REPLY_RETENTION_MAX of them are held at once.
+ */
+export function registerCorrelationRegistryProvider(
+  provider: () => CorrelationRegistrySnapshot,
+): void {
+  _correlationRegistryProvider = provider;
+  if (!_correlationRegistryGauge) {
+    _correlationRegistryGauge = meter().createObservableGauge('semiont.bus.correlation.size', {
+      description: 'Correlation registry occupancy: live claims and retained reply payloads',
+    });
+    _correlationRegistryGauge.addCallback((observer) => {
+      if (!_correlationRegistryProvider) return;
+      const snap = _correlationRegistryProvider();
+      observer.observe(snap.claims, { 'correlation.kind': 'claims' });
+      observer.observe(snap.retainedReplies, { 'correlation.kind': 'retained_replies' });
+    });
+  }
+}
+
 /** Increment the bus-emit counter. Called at every transport `emit` site. */
 export function recordBusEmit(channel: string, scope?: string): void {
   busEmitCounter().add(1, {
@@ -371,6 +447,60 @@ export function recordHandlerDuration(actor: string, channel: string, durationMs
 export function recordJobOutcome(jobType: string, outcome: 'completed' | 'failed', durationMs: number): void {
   jobOutcomeCounter().add(1, { 'job.type': jobType, 'job.outcome': outcome });
   jobDurationHistogram().record(durationMs, { 'job.type': jobType, 'job.outcome': outcome });
+}
+
+let _appendStageHistogram: Histogram | undefined;
+function appendStageHistogram(): Histogram {
+  if (!_appendStageHistogram) {
+    _appendStageHistogram = meter().createHistogram('semiont.record.append.duration', {
+      description: 'Time spent in one stage of appending an event to the record, labeled by stage: persist (JSONL write + git), materialize (view rebuild), enrich, publish. The Archivist\'s core write path.',
+      unit: 'ms',
+    });
+  }
+  return _appendStageHistogram;
+}
+
+/**
+ * Record one stage of `EventStore.appendEvent` (ARCHIVIST-STAYS-UP P7).
+ *
+ * The append path is the one operation only the Archivist can perform, and it
+ * was entirely dark: reads had `recordHandlerDuration` and the bus had its own
+ * counters, while writes had nothing. Stage-labeled because the useful
+ * question is never "was the append slow" but WHICH PART — and `materialize`
+ * in particular does work proportional to a resource's annotation count, so it
+ * degrades with history rather than with load.
+ */
+export function recordAppendStage(
+  stage: 'persist' | 'materialize' | 'enrich' | 'publish',
+  durationMs: number,
+): void {
+  appendStageHistogram().record(durationMs, { 'record.stage': stage });
+}
+
+let _gitCommandHistogram: Histogram | undefined;
+function gitCommandHistogram(): Histogram {
+  if (!_gitCommandHistogram) {
+    _gitCommandHistogram = meter().createHistogram('semiont.git.duration', {
+      description: 'Time spent in a synchronous git subprocess. These run on the event loop, so this duration is also time no other request could be served.',
+      unit: 'ms',
+    });
+  }
+  return _gitCommandHistogram;
+}
+
+/**
+ * Record a synchronous git invocation (ARCHIVIST-STAYS-UP P7).
+ *
+ * These are `execFileSync`, so **the duration is event-loop blockage, not just
+ * latency** — every concurrent `browse:*` read waits behind it. One `git add`
+ * runs per appended event, so a detection job writing hundreds of annotations
+ * spawns hundreds of blocking subprocesses. That is the suspected mechanism
+ * behind "reads serializing behind the detection job's annotation writes" in
+ * `bugs/absent-archivist-wedges-browse.md`, which recorded the symptom without
+ * a cause. This number is what turns that from a hypothesis into a reading.
+ */
+export function recordGitCommand(command: string, durationMs: number): void {
+  gitCommandHistogram().record(durationMs, { 'git.command': command });
 }
 
 function gatherDegradeCounter(): Counter {
@@ -436,6 +566,29 @@ export function registerJobQueueProvider(
  * (point count). Async to allow remote queries (Qdrant). Polled at
  * the metric-collection interval.
  */
+/**
+ * Register the Archivist's fact-pump backlog — facts appended to the record
+ * but not yet republished onto the bus.
+ *
+ * At rest this is zero. A value that climbs and does not come back means the
+ * pump is outrunning its transport, which is the leading hypothesis for the
+ * load-correlated heap growth in `bugs/absent-archivist-wedges-browse.md`
+ * (ARCHIVIST-STAYS-UP P5). The backlog is deliberately unbounded today, so
+ * this number is the only thing standing between "the pump is behind" and an
+ * OOM whose cause is inferred from RSS after the fact.
+ */
+export function registerFactPumpDepthProvider(provider: () => number): void {
+  _factPumpDepthProvider = provider;
+  if (!_factPumpDepthGauge) {
+    _factPumpDepthGauge = meter().createObservableGauge('semiont.archivist.fact_pump.depth', {
+      description: 'Facts appended to the record but not yet published to the bus. Zero at rest; a rising floor means the pump is behind its transport.',
+    });
+    _factPumpDepthGauge.addCallback((observer) => {
+      if (_factPumpDepthProvider) observer.observe(_factPumpDepthProvider());
+    });
+  }
+}
+
 export function registerVectorIndexSizeProvider(
   provider: () => Promise<number> | number,
 ): void {

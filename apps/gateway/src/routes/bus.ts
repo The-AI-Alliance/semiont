@@ -11,6 +11,9 @@ import {
   injectTraceparent,
   recordBusEmit,
   recordReplySuppressed,
+  recordResumeGap,
+  recordUnanswerableRequest,
+  registerCorrelationRegistryProvider,
   recordSubscriberConnect,
   recordSubscriberDisconnect,
   withSpan,
@@ -49,9 +52,16 @@ async function fetchArchivistReplay(
   fromSequence: number,
 ): Promise<StoredEvent[]> {
   const { base, headers } = archivistEndpoint(config);
-  const res = await fetch(
-    `${base}/events/${encodeURIComponent(resourceId)}?fromSequence=${fromSequence}`,
-    { headers },
+  // A CLIENT span for the same reason lib/archivist.ts wraps its three calls:
+  // this crosses to another service, and without it a slow replay is
+  // indistinguishable from a slow gateway.
+  const res = await withSpan(
+    'archivist.events.replay',
+    () => fetch(
+      `${base}/events/${encodeURIComponent(resourceId)}?fromSequence=${fromSequence}`,
+      { headers },
+    ),
+    { kind: SpanKind.CLIENT, attrs: { 'peer.service': 'archivist' } },
   );
   if (!res.ok) {
     throw new Error(`Archivist replay read failed: ${res.status} ${res.statusText}`);
@@ -231,6 +241,8 @@ export function createCorrelationRegistry(
   owner(cid: string): { clientId: string; principalDid: string | undefined } | undefined;
   lookupReply(cid: string, clientId: string, principalDid: string | undefined): RetainedReply | undefined;
   size(): number;
+  /** Live claims and how many of them still hold a reply payload. */
+  occupancy(): { claims: number; retainedReplies: number };
   dispose(): void;
 } {
   const ttlMs = opts.ttlMs ?? REPLY_RETENTION_TTL_MS;
@@ -362,6 +374,11 @@ export function createCorrelationRegistry(
     size() {
       return claims.size;
     },
+    occupancy() {
+      let retainedReplies = 0;
+      for (const claim of claims.values()) if (claim.reply) retainedReplies++;
+      return { claims: claims.size, retainedReplies };
+    },
     dispose() {
       for (const sub of subs) sub.unsubscribe();
       claims.clear();
@@ -454,6 +471,10 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     if (!registry) {
       registry = createCorrelationRegistry(eventBus);
       registryByBus.set(eventBus, registry);
+      // Occupancy is the closest observable to the heap question two OOM
+      // investigations keep asking: a retained browse result is 1-2 MB and up
+      // to REPLY_RETENTION_MAX of them are held at once.
+      registerCorrelationRegistryProvider(() => registry!.occupancy());
     }
     const correlations = registry;
 
@@ -642,6 +663,10 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       };
 
       const emitResumeGap = async (reason: string, gapScope?: string, lastSeenId?: string) => {
+        // Counted at the ONE funnel every gap path goes through. `reason` is a
+        // closed set (scope-mismatch, unparseable-last-event-id, replay
+        // failure), so the label stays low-cardinality.
+        recordResumeGap(reason);
         const payload: { scope?: string; lastSeenId?: string; reason: string } = { reason };
         if (gapScope !== undefined) payload.scope = gapScope;
         if (lastSeenId !== undefined) payload.lastSeenId = lastSeenId;
@@ -991,6 +1016,48 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
               scope,
               hint: 'Nothing on this gateway subscribes to that channel. For a UI signal meant to cross to a participant, check that the channel is in BRIDGED_BROADCASTS and that a client subscribed to it.',
             });
+
+            // ── An unanswerable request fails fast (ARCHIVIST-STAYS-UP P3) ──
+            //
+            // A request whose handler is absent can never be answered, and
+            // `busRequest` has no retry — so the caller's only other outcome is
+            // a 30 s timeout. Synthesizing the operation's own mapped failure
+            // turns "the app is hung" into "the Archivist is down", in
+            // milliseconds, for every cause of absence.
+            //
+            // Gated on membership in BUS_OPERATIONS, never a name pattern: a
+            // BROADCAST reaching nobody is normal (`job:started` with no UI
+            // attached is the common case) and must stay silent.
+            //
+            // Since 536dbed0 narrowed each service to its own inbound roster,
+            // zero subscribers on a request channel means the one service that
+            // answers it is absent — a far sharper signal than when every
+            // client subscribed everything.
+            const operation = BUS_OPERATIONS[channel as keyof typeof BUS_OPERATIONS];
+            const failureCid = correlationIdOf(payload);
+            if (operation?.failure && failureCid) {
+              // The request payload is echoed because a failure's own contract
+              // is `{ correlationId, <the request's identifying fields> } &
+              // CommandError` — `gather:resource-failed` needs `resourceId`,
+              // `match:search-failed` needs `referenceId`. Echoing the request
+              // derives those; a per-operation table would restate 36 shapes.
+              // `_userId` is dropped: the gateway injected it inbound and it is
+              // not part of any reply contract.
+              const { _userId: _injected, ...echo } = payload as Record<string, unknown>;
+              const failure = {
+                ...echo,
+                message: `No subscriber for ${channel}: the service that answers it is not connected`,
+              };
+              recordUnanswerableRequest(channel);
+              getBusLogger().warn('[bus UNANSWERABLE] synthesizing failure for an unsubscribed request', {
+                channel,
+                failureChannel: operation.failure,
+                correlationId: failureCid,
+              });
+              // Unscoped, like every other reply: retention and the delivery
+              // filter both watch the unscoped subject.
+              eventBus.get(operation.failure as keyof EventMap).next(failure as never);
+            }
           }
         },
         {

@@ -30,6 +30,22 @@ import { pipeline } from 'stream/promises';
 import path from 'path';
 import type { SemiontProject } from '@semiont/core/node';
 import type { Logger } from '@semiont/core';
+import { recordGitCommand } from '@semiont/observability';
+
+/**
+ * Every git call here is SYNCHRONOUS and therefore blocks the event loop —
+ * one runs per appended event. The duration is not merely latency, it is time
+ * this process could serve nothing else, which is why it is measured rather
+ * than assumed (ARCHIVIST-STAYS-UP P7).
+ */
+function git(args: string[], cwd: string): void {
+  const started = performance.now();
+  try {
+    execFileSync('git', args, { cwd });
+  } finally {
+    recordGitCommand(args[0] ?? 'git', performance.now() - started);
+  }
+}
 
 /**
  * Result of store() or register()
@@ -136,7 +152,7 @@ export class WorkingTreeStore {
       await fs.rename(tempPath, filePath);
 
       if (this.shouldRunGit(options?.noGit)) {
-        execFileSync('git', ['add', filePath], { cwd: this.projectRoot });
+        git(['add', filePath], this.projectRoot);
       }
 
       this.logger?.info('Resource stored', { storageUri, checksum, byteSize });
@@ -189,7 +205,7 @@ export class WorkingTreeStore {
     }
 
     if (this.shouldRunGit(options?.noGit)) {
-      execFileSync('git', ['add', filePath], { cwd: this.projectRoot });
+      git(['add', filePath], this.projectRoot);
     }
 
     const byteSize = tap.byteSize;
@@ -257,7 +273,7 @@ export class WorkingTreeStore {
 
     if (this.shouldRunGit(options?.noGit)) {
       // git mv handles both the filesystem rename and the index update
-      execFileSync('git', ['mv', fromPath, toPath], { cwd: this.projectRoot });
+      git(['mv', fromPath, toPath], this.projectRoot);
     } else {
       await fs.rename(fromPath, toPath);
     }
@@ -291,7 +307,7 @@ export class WorkingTreeStore {
       const gitArgs = keepFile
         ? ['rm', '--cached', filePath]
         : ['rm', filePath];
-      execFileSync('git', gitArgs, { cwd: this.projectRoot });
+      git(gitArgs, this.projectRoot);
       this.logger?.info('Resource removed', { storageUri, keepFile, git: true });
       return;
     }

@@ -1,8 +1,10 @@
 package launcher
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -117,5 +119,85 @@ func TestExactlyOneContainerMountsTheKB(t *testing.T) {
 
 	if len(mounters) != 1 || mounters[0] != "archivist" {
 		t.Fatalf("containers mounting %s = %v, want exactly [archivist] — the tree has one owner", mount, mounters)
+	}
+}
+
+// ARCHIVIST-STAYS-UP P1: the archivist's image runs under the supervisor —
+// the only restart mechanism that can be true on all three runtimes (Apple
+// container has no --restart at all; probed 2026-09-04). Asserted against
+// the files, never by running anything.
+func TestArchivistRunsUnderTheSupervisor(t *testing.T) {
+	df, err := os.ReadFile(filepath.Join("..", "..", "..", "archivist", "Dockerfile"))
+	if err != nil {
+		t.Fatalf("reading the archivist Dockerfile: %v", err)
+	}
+	if !strings.Contains(string(df), "supervise.sh") {
+		t.Fatal("the archivist Dockerfile does not run supervise.sh — a crashed or hung Archivist stays down, and its absence looks like a frontend hang")
+	}
+	sup, err := os.ReadFile(filepath.Join("..", "..", "..", "archivist", "supervise.sh"))
+	if err != nil {
+		t.Fatalf("reading supervise.sh: %v", err)
+	}
+	s := string(sup)
+	for what, want := range map[string]string{
+		"the archivist entry point":            "dist/archivist-main.js",
+		"a durable log on the state mount":     "/semiont-state/",
+		"a TERM trap (semiont stop wins)":      "trap",
+		"a rapid-failure cap (fail-fast boot)": "MAX_RAPID",
+		"the health self-probe":                "/health",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("supervise.sh is missing %s (expected to find %q)", what, want)
+		}
+	}
+}
+
+// Each service's health port is hand-written in four homes (TS main const,
+// Dockerfile EXPOSE, Dockerfile HEALTHCHECK, launcher portNeed) — five for the
+// archivist, whose supervisor probes it too. They can't be derived across
+// three languages, so this gate keeps them agreeing.
+func TestServiceHealthPortsAgreeAcrossAllHomes(t *testing.T) {
+	mains := map[string]string{
+		"worker":    filepath.Join("..", "..", "..", "..", "packages", "jobs", "src", "worker-main.ts"),
+		"smelter":   filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "smelter-main.ts"),
+		"weaver":    filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "weaver-main.ts"),
+		"archivist": filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "archivist-main.ts"),
+		"librarian": filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "librarian-main.ts"),
+	}
+	tsPort := regexp.MustCompile(`const healthPort = (\d+)`)
+	exposePort := regexp.MustCompile(`(?m)^EXPOSE (\d+)`)
+	healthURL := regexp.MustCompile(`localhost:(\d+)/health`)
+	for svc, mainPath := range mains {
+		want := roles[svc].ports[0].port
+
+		ts, err := os.ReadFile(mainPath)
+		if err != nil {
+			t.Fatalf("%s: reading %s: %v", svc, mainPath, err)
+		}
+		m := tsPort.FindSubmatch(ts)
+		if m == nil {
+			t.Errorf("%s: no `const healthPort = N` in its main — the gate cannot see its port", svc)
+		} else if got := string(m[1]); got != fmt.Sprint(want) {
+			t.Errorf("%s: TS healthPort %s != launcher portNeed %d", svc, got, want)
+		}
+
+		df, err := os.ReadFile(filepath.Join("..", "..", "..", svc, "Dockerfile"))
+		if err != nil {
+			t.Fatalf("%s: reading Dockerfile: %v", svc, err)
+		}
+		if m := exposePort.FindSubmatch(df); m == nil || string(m[1]) != fmt.Sprint(want) {
+			t.Errorf("%s: Dockerfile EXPOSE disagrees with launcher portNeed %d", svc, want)
+		}
+		if m := healthURL.FindSubmatch(df); m == nil || string(m[1]) != fmt.Sprint(want) {
+			t.Errorf("%s: Dockerfile HEALTHCHECK URL disagrees with launcher portNeed %d", svc, want)
+		}
+	}
+	// The archivist's fifth home: the supervisor's own probe.
+	sup, err := os.ReadFile(filepath.Join("..", "..", "..", "archivist", "supervise.sh"))
+	if err != nil {
+		t.Fatalf("reading supervise.sh: %v", err)
+	}
+	if m := healthURL.FindSubmatch(sup); m == nil || string(m[1]) != fmt.Sprint(roles["archivist"].ports[0].port) {
+		t.Errorf("supervise.sh probes a port that is not the archivist's %d", roles["archivist"].ports[0].port)
 	}
 }
