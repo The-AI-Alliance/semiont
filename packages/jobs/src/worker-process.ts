@@ -129,6 +129,34 @@ export interface WorkerProcessConfig {
  */
 const MARK_COMMIT_TIMEOUT_MS = 60_000;
 
+/**
+ * Persist a batch of annotations and WAIT for the event log to confirm it
+ * (JOB-RESTART-SAFETY P6).
+ *
+ * Every worker path that mints annotations goes through here. `mark:create` is
+ * fire-and-forget: its emit resolves when the gateway accepts the frame, which
+ * says nothing about the Stower having appended anything — so a down Archivist
+ * discarded a job's whole output while the job reported success. P7's
+ * `EMIT_TIMEOUT_MS` stopped those paths HANGING; only the acknowledgement stops
+ * them LOSING.
+ *
+ * Empty is a no-op, not a round trip: a job that found nothing has nothing to
+ * make durable, and the caller still proceeds.
+ */
+async function commitAnnotations(
+  session: SemiontSession,
+  resourceId: string,
+  annotations: readonly unknown[],
+): Promise<void> {
+  if (annotations.length === 0) return;
+  await busRequest(
+    workerBusAsPrimitive((session.client.transport as HttpTransport).actor),
+    'mark:commit',
+    { resourceId, annotations },
+    MARK_COMMIT_TIMEOUT_MS,
+  );
+}
+
 async function emitEvent<K extends keyof EventMap>(
   session: SemiontSession,
   channel: K,
@@ -388,9 +416,9 @@ async function handleJobInner(
     const { annotations, result } = await processHighlightJob(
       ready!.text, inferenceClient, asJobParams<HighlightDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
     );
-    for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
-    }
+    // Durable before the job claims success: `job:complete` after a lost batch
+    // is the silent-loss shape P6 removes.
+    await commitAnnotations(session, String(resourceId), annotations);
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result,
@@ -401,9 +429,9 @@ async function handleJobInner(
     const { annotations, result } = await processCommentJob(
       ready!.text, inferenceClient, asJobParams<CommentDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
     );
-    for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
-    }
+    // Durable before the job claims success: `job:complete` after a lost batch
+    // is the silent-loss shape P6 removes.
+    await commitAnnotations(session, String(resourceId), annotations);
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result,
@@ -414,9 +442,9 @@ async function handleJobInner(
     const { annotations, result } = await processAssessmentJob(
       ready!.text, inferenceClient, asJobParams<AssessmentDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
     );
-    for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
-    }
+    // Durable before the job claims success: `job:complete` after a lost batch
+    // is the silent-loss shape P6 removes.
+    await commitAnnotations(session, String(resourceId), annotations);
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result,
@@ -457,14 +485,7 @@ async function handleJobInner(
         // fraction that already landed changes nothing. That is required, not
         // belt-and-braces — the ack itself can be lost after a successful
         // append, so at-least-once is unavoidable here.
-        if (annotations.length > 0) {
-          await busRequest(
-            workerBusAsPrimitive((session.client.transport as HttpTransport).actor),
-            'mark:commit',
-            { resourceId, annotations },
-            MARK_COMMIT_TIMEOUT_MS,
-          );
-        }
+        await commitAnnotations(session, String(resourceId), annotations);
         committed.push(unit);
         // Durable checkpoint the moment the unit lands (JOB-RESTART-SAFETY
         // P2): if this worker dies before the next unit — or before any
@@ -503,9 +524,9 @@ async function handleJobInner(
     const { annotations, result } = await processTagJob(
       ready!.text, inferenceClient, asJobParams<TagDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
     );
-    for (const ann of annotations) {
-      await emitEvent(session, 'mark:create', { annotation: ann, resourceId });
-    }
+    // Durable before the job claims success: `job:complete` after a lost batch
+    // is the silent-loss shape P6 removes.
+    await commitAnnotations(session, String(resourceId), annotations);
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,
       result,
@@ -588,7 +609,7 @@ async function handleJobInner(
         },
         generator,
       );
-      await emitEvent(session, 'mark:create', { annotation: provenanceRef, resourceId });
+      await commitAnnotations(session, String(resourceId), [provenanceRef]);
     }
 
     // Inline citations: mint each as a linking annotation ON THE DERIVED
@@ -603,6 +624,11 @@ async function handleJobInner(
     // is re-found in the artifact's own text layer (two-stage search — strict,
     // then break-aware for hyphenation) and located to rects. A claim the
     // search cannot find is dropped LOUDLY, never minted wrong.
+    // Collected, then committed once: the citations all land on the DERIVED
+    // resource, so they are one batch keyed by `newResourceId` — a different
+    // resource from the provenance edge above, which is why they cannot share
+    // a commit.
+    const citationRefs: unknown[] = [];
     if (genResult.format === 'application/pdf' && genResult.citations.length > 0) {
       const layer = await extractPdfTextLayer(genResult.content);
       if (!layer) {
@@ -633,7 +659,7 @@ async function handleJobInner(
             { exact: layer.text.slice(span.start, span.end), start: span.start, end: span.end },
             { type: 'SpecificResource', source: citation.resourceId, purpose: 'linking' },
           );
-          await emitEvent(session, 'mark:create', { annotation: citationRef, resourceId: newResourceId });
+          citationRefs.push(citationRef);
         }
       }
     } else {
@@ -652,9 +678,11 @@ async function handleJobInner(
           },
           generator,
         );
-        await emitEvent(session, 'mark:create', { annotation: citationRef, resourceId: newResourceId });
+        citationRefs.push(citationRef);
       }
     }
+
+    await commitAnnotations(session, String(newResourceId), citationRefs);
 
     await emitEvent(session, 'job:complete', {
       ...lifecycleBase,

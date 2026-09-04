@@ -277,7 +277,7 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
 
       expect(h.busEmits.map(e => e.channel))
-        .toEqual(['job:start', 'mark:create', 'mark:create', 'job:complete']);
+        .toEqual(['job:start', 'mark:commit', 'job:complete']);
       expect(h.busEmits.find(e => e.channel === 'job:complete')!.payload)
         .toMatchObject({ jobType: 'highlight-annotation', result: { highlightsFound: 2 } });
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
@@ -295,7 +295,7 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob('comment-annotation'));
 
       expect(h.busEmits.map(e => e.channel))
-        .toEqual(['job:start', 'mark:create', 'job:complete']);
+        .toEqual(['job:start', 'mark:commit', 'job:complete']);
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
   });
@@ -311,7 +311,7 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob('assessment-annotation'));
 
       expect(h.busEmits.map(e => e.channel))
-        .toEqual(['job:start', 'mark:create', 'job:complete']);
+        .toEqual(['job:start', 'mark:commit', 'job:complete']);
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
   });
@@ -331,7 +331,7 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob('tag-annotation'));
 
       expect(h.busEmits.map(e => e.channel))
-        .toEqual(['job:start', 'mark:create', 'job:complete']);
+        .toEqual(['job:start', 'mark:commit', 'job:complete']);
       expect(h.busEmits.find(e => e.channel === 'job:complete')!.payload).toMatchObject({
         jobType: 'tag-annotation',
         result: { tagsFound: 1, tagsCreated: 1 },
@@ -377,7 +377,7 @@ describe('handleJob orchestration', () => {
         result: { resourceId: 'new-res-42', resourceName: 'New Resource' },
       });
       expect(h.busEmits.map(e => e.channel)).not.toContain('yield:create');
-      expect(h.busEmits.map(e => e.channel)).not.toContain('mark:create');
+      expect(h.busEmits.map(e => e.channel)).not.toContain('mark:commit');
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
 
@@ -593,20 +593,18 @@ describe('handleJob orchestration', () => {
 
       expect(h.yieldResourceCalls[0]!.sourceAnnotationId).toBeUndefined(); // no auto-bind
 
-      const markCreate = h.busEmits.find(e => e.channel === 'mark:create');
-      expect(markCreate, 'resource-focus generation mints a navigable source→derived reference').toBeDefined();
-      expect(markCreate!.payload).toMatchObject({
-        annotation: {
-          motivation: 'linking',
-          target: { source: RID },
-          body: { type: 'SpecificResource', source: 'new-res-42', purpose: 'linking' },
-        },
+      const commit = h.busEmits.find(e => e.channel === 'mark:commit');
+      expect(commit, 'resource-focus generation mints a navigable source→derived reference').toBeDefined();
+      const ann = (commit!.payload as { annotations: Array<{ target: { selector?: unknown } }> }).annotations[0]!;
+      expect(ann).toMatchObject({
+        motivation: 'linking',
+        target: { source: RID },
+        body: { type: 'SpecificResource', source: 'new-res-42', purpose: 'linking' },
       });
       // resource-level target — no selector
-      const ann = (markCreate!.payload as { annotation: { target: { selector?: unknown } } }).annotation;
       expect(ann.target.selector).toBeUndefined();
 
-      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:create', 'job:complete']);
+      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:commit', 'job:complete']);
     });
 
     it('mints a linking annotation on the DERIVED resource for each resolved citation (INLINE-CITATIONS P1)', async () => {
@@ -625,7 +623,14 @@ describe('handleJob orchestration', () => {
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { context: minimalContext('annotation'), cite: true }));
 
-      const markCreates = h.busEmits.filter(e => e.channel === 'mark:create');
+      // One commit per batch now, so a per-annotation view is reconstructed:
+      // each annotation paired with the resourceId its batch was keyed by.
+      const markCreates = h.busEmits
+        .filter(e => e.channel === 'mark:commit')
+        .flatMap(e => {
+          const p = e.payload as { resourceId: string; annotations: unknown[] };
+          return p.annotations.map(annotation => ({ payload: { resourceId: p.resourceId, annotation } }));
+        });
       expect(markCreates, 'one mark:create per resolved citation').toHaveLength(1);
       expect(markCreates[0]!.payload).toMatchObject({
         resourceId: 'new-res-42', // the annotation lives on the DERIVED resource
@@ -641,7 +646,7 @@ describe('handleJob orchestration', () => {
           body: { type: 'SpecificResource', source: 'ctx-9', purpose: 'linking' },
         },
       });
-      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:create', 'job:complete']);
+      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:commit', 'job:complete']);
     });
 
     it('anchors PDF citations by page geometry — FragmentSelector, never TextPositionSelector (PDF-GENERATION P4)', async () => {
@@ -668,7 +673,14 @@ describe('handleJob orchestration', () => {
         makeJob('generation', { context: minimalContext('annotation'), cite: true, outputMediaType: 'application/pdf' }),
       );
 
-      const markCreates = h.busEmits.filter(e => e.channel === 'mark:create');
+      // One commit per batch now, so a per-annotation view is reconstructed:
+      // each annotation paired with the resourceId its batch was keyed by.
+      const markCreates = h.busEmits
+        .filter(e => e.channel === 'mark:commit')
+        .flatMap(e => {
+          const p = e.payload as { resourceId: string; annotations: unknown[] };
+          return p.annotations.map(annotation => ({ payload: { resourceId: p.resourceId, annotation } }));
+        });
       expect(markCreates).toHaveLength(1);
       const payload = markCreates[0]!.payload as {
         resourceId: string;
@@ -710,7 +722,14 @@ describe('handleJob orchestration', () => {
         makeJob('generation', { context: minimalContext('annotation'), cite: true, outputMediaType: 'application/pdf' }),
       );
 
-      const markCreates = h.busEmits.filter(e => e.channel === 'mark:create');
+      // One commit per batch now, so a per-annotation view is reconstructed:
+      // each annotation paired with the resourceId its batch was keyed by.
+      const markCreates = h.busEmits
+        .filter(e => e.channel === 'mark:commit')
+        .flatMap(e => {
+          const p = e.payload as { resourceId: string; annotations: unknown[] };
+          return p.annotations.map(annotation => ({ payload: { resourceId: p.resourceId, annotation } }));
+        });
       expect(markCreates).toHaveLength(1);
       const selector = (markCreates[0]!.payload as {
         annotation: { target: { selector: Array<{ type: string; exact?: string }> } };
@@ -741,7 +760,43 @@ describe('handleJob orchestration', () => {
 
       expect(keysOf('job:start')).toEqual(['jobId', 'jobType', 'resourceId']);
       expect(keysOf('job:complete')).toEqual(['jobId', 'jobType', 'resourceId', 'result']);
-      expect(keysOf('mark:create')).toEqual(['annotation', 'resourceId']);
+      // The commit carries a batch and a correlationId (busRequest sets the
+      // latter), not a single annotation.
+      expect(keysOf('mark:commit')).toEqual(['annotations', 'correlationId', 'resourceId']);
+    });
+  });
+
+  // ── Every minting path is acknowledged (JOB-RESTART-SAFETY P6 residual) ────
+  //
+  // P6 wired the durability ack into the reference job only; highlight,
+  // comment, assessment, tag and generation kept emitting `mark:create`
+  // fire-and-forget. P7's EMIT_TIMEOUT_MS stopped those paths HANGING, which
+  // hid the rest: an emit that resolves means the gateway accepted the frame,
+  // not that the Stower appended anything, so a down Archivist still discarded
+  // their output while the job reported success.
+  //
+  // This is the census. It fails if a new job type — or a re-added
+  // `mark:create` in an existing one — mints annotations without waiting for
+  // the log, which is the only way this residual comes back.
+  describe('no job type persists without an acknowledgement', () => {
+    const MINTING_JOBS: Array<[string, Record<string, unknown>]> = [
+      ['highlight-annotation', {}],
+      ['comment-annotation', {}],
+      ['assessment-annotation', {}],
+      ['tag-annotation', { schema: { id: 's', name: 's', categories: [{ name: 'catA' }] } }],
+    ];
+
+    it.each(MINTING_JOBS)('%s commits rather than fire-and-forgets', async (jobType, params) => {
+      const h = makeFakeSessionAndAdapter();
+      await handleJob(h.adapter, makeConfig(h.session), makeJob(jobType as never, params));
+
+      const channels = h.busEmits.map(e => e.channel);
+      expect(channels, `${jobType} must not emit un-acknowledged mark:create`).not.toContain('mark:create');
+      expect(channels).toContain('mark:commit');
+
+      // Durability precedes the success claim: a job:complete emitted before
+      // the commit resolved would report work that may never have landed.
+      expect(channels.indexOf('mark:commit')).toBeLessThan(channels.indexOf('job:complete'));
     });
   });
 
@@ -998,9 +1053,10 @@ describe('handleJob — global job-completion', () => {
 
     await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
 
-    const createEmit = h.busEmits.find(e => e.channel === 'mark:create');
-    expect(createEmit).toBeDefined();
-    expect(createEmit!.scope).toBeUndefined();
+    const commitEmit = h.busEmits.find(e => e.channel === 'mark:commit');
+    expect(commitEmit).toBeDefined();
+    // Global, not resource-scoped: the reply has to reach the awaiting worker.
+    expect(commitEmit!.scope).toBeUndefined();
   });
 });
 
