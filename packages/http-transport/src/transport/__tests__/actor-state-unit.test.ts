@@ -201,6 +201,42 @@ describe('createActorStateUnit', () => {
     vi.useRealTimers();
   });
 
+  // ── SSE-AUTH-RESILIENCE P2: stop discarding the status ──────────────
+  // Shape B: a REAL credential the gateway refuses. The P1 gate is upstream,
+  // so a 401 here is a rejected token, never an empty bearer. The status must
+  // survive as structured data — P3's backoff/terminal split reads it, and an
+  // operator debugging a refused client needs 401-vs-503 without parsing a
+  // message string. Note the non-empty tokens: an empty one would measure
+  // P1's gate instead (handoff note 6).
+
+  it('a refused connect surfaces its status as structured data — 401 distinguishable from 500', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 401, body: null });
+    const rejected = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'expired-but-real-tok',
+      channels: ['test:event'],
+    });
+    const seen401: Array<{ status: number }> = [];
+    rejected.errors$.subscribe((e) => seen401.push(e));
+    rejected.start();
+    await vi.waitFor(() => expect(seen401).toHaveLength(1));
+    expect(seen401[0]!.status).toBe(401);
+    rejected.dispose();
+
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 500, body: null });
+    const erroring = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'fine-tok',
+      channels: ['test:event'],
+    });
+    const seen500: Array<{ status: number }> = [];
+    erroring.errors$.subscribe((e) => seen500.push(e));
+    erroring.start();
+    await vi.waitFor(() => expect(seen500).toHaveLength(1));
+    expect(seen500[0]!.status).toBe(500);
+    erroring.dispose();
+  });
+
   it('emit resolves with the subscriber count from the response body', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ subscribers: 3 }) });
 

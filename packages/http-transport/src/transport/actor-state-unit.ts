@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, type components, type ConnectionState, type StateUnit } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, SemiontError, type components, type ConnectionState, type StateUnit } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -15,6 +15,27 @@ export interface BusEvent {
   channel: string;
   payload: Record<string, unknown>;
   scope?: string;
+}
+
+/**
+ * A refused SSE connect — `POST /bus/subscribe` answered non-2xx (or 2xx
+ * with no body). The status is CARRIED, not interpolated into the message:
+ * P3's backoff/terminal split reads it (auth-refused is terminal in kind;
+ * 5xx is transient), and it surfaces on `ActorStateUnit.errors$` so a
+ * refused client is observable instead of a silent retry loop
+ * (SSE-AUTH-RESILIENCE P2, shape B).
+ *
+ * Extends `SemiontError` (core) rather than reusing `APIError`: APIError
+ * lives in http-transport.ts, which imports this module — reaching for it
+ * here would buy one inherited field with an import cycle.
+ */
+export class SseConnectError extends SemiontError {
+  readonly status: number;
+  constructor(status: number) {
+    super(`SSE connect failed: ${status}`, 'SSE_CONNECT_FAILED', { status });
+    this.name = 'SseConnectError';
+    this.status = status;
+  }
 }
 
 export interface ActorStateUnitOptions {
@@ -80,6 +101,13 @@ export interface ActorStateUnit extends StateUnit {
   on$<T = Record<string, unknown>>(channel: string): Observable<T>;
   emit(channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<number>;
   state$: Observable<ConnectionState>;
+  /**
+   * Refused connects (SSE-AUTH-RESILIENCE P2). One `SseConnectError` per
+   * non-2xx `/bus/subscribe` answer, carrying the HTTP status as
+   * structured data. Network-level failures (fetch rejections) have no
+   * status and do not emit here — they stay on the reconnect path.
+   */
+  errors$: Observable<SseConnectError>;
   /** With `scope`: upsert channels into that scope's matrix entry. Without: global channels. */
   addChannels(channels: string[], scope?: string): void;
   /**
@@ -154,6 +182,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
   const events$ = new Subject<BusEvent>();
   const state$ = new BehaviorSubject<ConnectionState>('initial');
+  const errors$ = new Subject<SseConnectError>();
   let currentState: ConnectionState = 'initial';
   let degradedTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -353,7 +382,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       const response = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
 
       if (!response.ok || !response.body) {
-        throw new Error(`SSE connect failed: ${response.status}`);
+        throw new SseConnectError(response.status);
       }
 
       // Stopped/disposed while the fetch was in flight — don't proceed to open
@@ -529,7 +558,10 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
-      // Any non-abort error falls through to the reconnect-retry block.
+      // A refused connect carries its status out (P2). Anything else — a
+      // network failure, a dropped stream — has no status to carry and
+      // stays off errors$. Both fall through to the reconnect-retry block.
+      if (err instanceof SseConnectError) errors$.next(err);
     } finally {
       inflightControllers.delete(controller);
     }
@@ -658,6 +690,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
     state$: state$.asObservable(),
 
+    errors$: errors$.asObservable(),
+
     isSubscribed: (channel: string) => globalChannels.has(channel),
 
     addChannels: (channels: string[], scope?: string) => {
@@ -733,6 +767,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       disconnect();
       events$.complete();
       state$.complete();
+      errors$.complete();
     },
   };
 }
