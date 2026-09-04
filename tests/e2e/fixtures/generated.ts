@@ -3,6 +3,7 @@ import { SemiontClient } from '@semiont/sdk';
 import { getPrimaryMediaType, getStorageUri } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { signInSession } from './sdk-session';
 
 /**
  * Read a generated resource's descriptor over a SEPARATE signed-in client.
@@ -20,11 +21,8 @@ export async function generatedDescriptor(
   name: string,
   timeout = 60_000,
 ): Promise<ResourceDescriptor> {
-  const client = await SemiontClient.signInHttp({
-    baseUrl: GATEWAY_URL,
-    email: E2E_EMAIL,
-    password: E2E_PASSWORD,
-  });
+  const session = await signInSession();
+  const client = session.client;
   try {
     let hit: ResourceDescriptor | undefined;
     await expect
@@ -40,7 +38,7 @@ export async function generatedDescriptor(
     if (!hit) throw new Error(`unreachable: poll resolved without a descriptor for "${name}"`);
     return hit;
   } finally {
-    client.dispose();
+    await session.dispose();
   }
 }
 

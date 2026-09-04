@@ -40,6 +40,7 @@
 
 import { SemiontClient } from '@semiont/sdk';
 import { getStorageUri } from '@semiont/core';
+import { sessionFor } from '../lib/session';
 
 interface SeedSpec {
   name: string;
@@ -588,11 +589,12 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
   const log = opts.log ?? ((m: string) => { console.log(m); });
   log(`[seed] gateway=${opts.gatewayUrl} user=${opts.email}`);
 
-  const client = await SemiontClient.signInHttp({
+  const session = await sessionFor({
     baseUrl: opts.gatewayUrl,
     email: opts.email,
     password: opts.password,
   });
+  const client = session.client;
 
   let created = 0;
   let existed = 0;
@@ -663,7 +665,7 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
       }
     }
   } finally {
-    client.dispose();
+    await session.dispose();
   }
 
   log(`[seed] done — ${created} created, ${existed} already present`);

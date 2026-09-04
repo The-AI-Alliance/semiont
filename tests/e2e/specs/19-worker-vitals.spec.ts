@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { SemiontClient } from '@semiont/sdk';
 import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { signInSession } from '../fixtures/sdk-session';
 
 /**
  * Smoke test — WORKER-LIVENESS.md P1/T0: the worker's `/health` vitals
@@ -171,11 +172,8 @@ test.describe('worker vitals (/health)', () => {
     const baseByDid = new Map(baseline.workers.map((w) => [w.did, w.jobsCompleted]));
 
     // ── 4. One real assist (self-seeded, spec-18 pattern) ──
-    const client = await SemiontClient.signInHttp({
-      baseUrl: GATEWAY_URL,
-      email: E2E_EMAIL,
-      password: E2E_PASSWORD,
-    });
+    const session = await signInSession();
+    const client = session.client;
     try {
       const rid = (
         await client.yield.resource({
@@ -198,7 +196,7 @@ test.describe('worker vitals (/health)', () => {
         'highlight assist completes (highlight-annotation job → job:complete)',
       ).toBe('complete');
     } finally {
-      client.dispose();
+      await session.dispose();
     }
 
     // ── 5. The vitals advanced. Poll: job:complete on the bus and the

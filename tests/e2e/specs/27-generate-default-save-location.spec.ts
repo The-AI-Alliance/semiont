@@ -4,6 +4,7 @@ import { proposeStoragePath, folderOf, getStorageUri } from '@semiont/core';
 import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { expectGeneratedAt } from '../fixtures/generated';
 import { openConfigureStep, runGeneration } from '../fixtures/generate';
+import { signInSession } from '../fixtures/sdk-session';
 
 /**
  * An UNTOUCHED Save location generates to the PROPOSED path (P4/D11).
@@ -27,18 +28,15 @@ import { openConfigureStep, runGeneration } from '../fixtures/generate';
 const resourceIdFromUrl = (url: string) => url.split('/').pop()!.split('?')[0]!;
 
 async function sourceStorageUri(id: string): Promise<string> {
-  const client = await SemiontClient.signInHttp({
-    baseUrl: GATEWAY_URL,
-    email: E2E_EMAIL,
-    password: E2E_PASSWORD,
-  });
+  const session = await signInSession();
+  const client = session.client;
   try {
     const descriptor = await client.browse.resource(rid(id)).fresh();
     const uri = getStorageUri(descriptor);
     if (!uri) throw new Error(`source ${id} has no storageUri`);
     return uri;
   } finally {
-    client.dispose();
+    await session.dispose();
   }
 }
 

@@ -43,16 +43,22 @@ Shape A is right for sparse relationships where the per-passage mention is the a
 ## Client setup
 
 ```typescript
-import { SemiontClient, resourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
 
-const semiont = await SemiontClient.signInHttp({
-  baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+const session = await SemiontSession.signInHttp({
+  kb: httpKb({
+    id: 'semiont-relate', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+    host: url.hostname, port: Number(url.port || 4000),
+    protocol: url.protocol === 'https:' ? 'https' : 'http',
+  }),
+  storage: new InMemorySessionStorage(),
+  baseUrl: url.href,
   email: process.env.SEMIONT_USER_EMAIL!,
   password: process.env.SEMIONT_USER_PASSWORD!,
 });
+const semiont = session.client;
 ```
-
-For long-running scripts that may span token expiry, use `SemiontSession.signInHttp(...)` instead.
 
 ## Step 1 — Run the relationship-extraction pass
 
@@ -166,7 +172,7 @@ The synthesized Relationship resources are themselves small canonical nodes (Lay
 ## Complete script skeleton (Shape A — inline tagging only)
 
 ```typescript
-import { SemiontClient, resourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
 
 const RELATIONSHIP_INSTRUCTIONS = process.env.RELATIONSHIP_INSTRUCTIONS ?? `
 For pairs of named entities that already exist as canonical resources in this KB,
@@ -177,11 +183,19 @@ canonical resources by id.
 `.trim();
 
 async function wireEdges(resourceIdStr: string): Promise<void> {
-  const semiont = await SemiontClient.signInHttp({
-    baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+  const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+  const session = await SemiontSession.signInHttp({
+    kb: httpKb({
+      id: 'semiont-relate', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+      host: url.hostname, port: Number(url.port || 4000),
+      protocol: url.protocol === 'https:' ? 'https' : 'http',
+    }),
+    storage: new InMemorySessionStorage(),
+    baseUrl: url.href,
     email: process.env.SEMIONT_USER_EMAIL!,
     password: process.env.SEMIONT_USER_PASSWORD!,
   });
+  const semiont = session.client;
   const rId = resourceId(resourceIdStr);
 
   const progress = await semiont.mark.assist(rId, 'linking', {
@@ -189,7 +203,7 @@ async function wireEdges(resourceIdStr: string): Promise<void> {
   });
 
   console.log(`Created ${progress.progress?.createdCount ?? 0} relationship annotations`);
-  semiont.dispose();
+  await session.dispose();
 }
 
 const target = process.argv[2];

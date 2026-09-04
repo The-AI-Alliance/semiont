@@ -41,9 +41,10 @@ console.log(DEFAULT_ENTITY_TYPES);
 Tag schemas are runtime-registered per KB (see [`docs/protocol/skills/semiont-tag/SKILL.md`](../../docs/protocol/skills/semiont-tag/SKILL.md)). The `TagSchema` and `TagCategory` *types* live in `@semiont/core`; schema *data* lives with the KB that owns it. Use `frame.addTagSchema(schema)` to register and `browse.tagSchemas()` to enumerate registered schemas.
 
 ```typescript
-import { SemiontClient, type TagSchema } from '@semiont/sdk';
+import { SemiontSession, type TagSchema } from '@semiont/sdk';
 
-const semiont = await SemiontClient.signInHttp({ /* ... */ });
+const session = await SemiontSession.signInHttp({ /* kb, storage, baseUrl, email, password */ });
+const semiont = session.client;
 
 // Register a schema (idempotent — same content re-registered is silent)
 const SCHEMA: TagSchema = { id: 'my-schema', name: '...', /* ... */ };

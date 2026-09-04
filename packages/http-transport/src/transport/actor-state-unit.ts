@@ -8,6 +8,7 @@ import {
   withSpan,
   withTraceparent,
 } from '@semiont/observability';
+import { SseConnectError } from './sse-connect-error';
 
 export type { ConnectionState };
 
@@ -17,11 +18,28 @@ export interface BusEvent {
   scope?: string;
 }
 
+
 export interface ActorStateUnitOptions {
   baseUrl: string;
   token: string | (() => string);
   channels: string[];
+  /**
+   * Base of the failure-retry backoff ladder AND the flat cadence of the
+   * `unauthenticated` waiting tick (which polls the token getter, no
+   * network). A failure retry waits jitter(min(reconnectMs·2ⁿ, 60 s));
+   * n resets on a successful open. Default 5 s.
+   */
   reconnectMs?: number;
+  /**
+   * The SAME hook `HttpTransportConfig.tokenRefresher` wires into the HTTP
+   * beforeRetry path (SSE-AUTH-RESILIENCE P4, D2 — no second refresh
+   * mechanism). Consulted ONCE per outage when a connect is refused 401,
+   * before parking `unauthenticated`; a successful open re-arms it. The
+   * refresher's owner rotates the token SOURCE (sessions push the new token
+   * into `token$`); the actor then reconnects through the getter, so the
+   * token stays single-sourced. A throwing refresher is treated as `null`.
+   */
+  tokenRefresher?: () => Promise<string | null>;
   /**
    * Remove-side reconnect hysteresis (MULTI-RESOURCE-SCOPE). Scope
    * additions need liveness quickly (100 ms debounce), but a removal only
@@ -48,6 +66,13 @@ export interface ActorStateUnitOptions {
 
 /** Time in the `reconnecting` state before transitioning to `degraded`. */
 export const DEGRADED_THRESHOLD_MS = 3_000;
+
+/**
+ * Ceiling for the failure-retry backoff (SSE-AUTH-RESILIENCE P3, D1a): the
+ * exponential ladder from `reconnectMs` caps here, so a long outage settles
+ * into roughly one attempt per minute rather than growing without bound.
+ */
+const MAX_RECONNECT_MS = 60_000;
 
 /**
  * Deadline on the `/bus/emit` POST (JOB-RESTART-SAFETY P7). The gateway
@@ -80,6 +105,13 @@ export interface ActorStateUnit extends StateUnit {
   on$<T = Record<string, unknown>>(channel: string): Observable<T>;
   emit(channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<number>;
   state$: Observable<ConnectionState>;
+  /**
+   * Refused connects (SSE-AUTH-RESILIENCE P2). One `SseConnectError` per
+   * non-2xx `/bus/subscribe` answer, carrying the HTTP status as
+   * structured data. Network-level failures (fetch rejections) have no
+   * status and do not emit here — they stay on the reconnect path.
+   */
+  errors$: Observable<SseConnectError>;
   /** With `scope`: upsert channels into that scope's matrix entry. Without: global channels. */
   addChannels(channels: string[], scope?: string): void;
   /**
@@ -106,20 +138,23 @@ export interface ActorStateUnit extends StateUnit {
 
 /** Allowed transitions in the connection state machine. */
 const ALLOWED_TRANSITIONS: Record<ConnectionState, ReadonlyArray<ConnectionState>> = {
-  initial:      ['connecting', 'closed'],
-  connecting:   ['open', 'reconnecting', 'closed'],
+  initial:      ['connecting', 'unauthenticated', 'closed'],
+  connecting:   ['open', 'reconnecting', 'unauthenticated', 'closed'],
   open:         ['reconnecting', 'closed'],
-  reconnecting: ['connecting', 'degraded', 'closed'],
+  reconnecting: ['connecting', 'degraded', 'unauthenticated', 'closed'],
   // `degraded → reconnecting` is a legitimate recovery edge: a channel-set
   // change (`addChannels`/`removeChannels`) schedules a reconnect that can
   // fire while the connection is degraded. Omitting it made `reconnect()`
   // throw a fatal, uncaught exception from the reconnect timer (#844).
-  degraded:     ['connecting', 'reconnecting', 'closed'],
+  degraded:     ['connecting', 'reconnecting', 'unauthenticated', 'closed'],
+  // Leaving `unauthenticated` takes a usable credential (the gate saw a
+  // different, non-empty token) → straight to `connecting`; or teardown.
+  unauthenticated: ['connecting', 'closed'],
   closed:       [],
 };
 
 export function createActorStateUnit(options: ActorStateUnitOptions): ActorStateUnit {
-  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = 5_000, lazyRemoveMs = 5_000 } = options;
+  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = 5_000, lazyRemoveMs = 5_000, tokenRefresher } = options;
   const getToken = typeof tokenOrGetter === 'function' ? tokenOrGetter : () => tokenOrGetter;
 
   const globalChannels = new Set(initialChannels);
@@ -154,6 +189,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
   const events$ = new Subject<BusEvent>();
   const state$ = new BehaviorSubject<ConnectionState>('initial');
+  const errors$ = new Subject<SseConnectError>();
   let currentState: ConnectionState = 'initial';
   let degradedTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -268,7 +304,76 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     lingerTimers.clear();
   };
 
+  /**
+   * Drop-recovery scheduling (SSE-AUTH-RESILIENCE P3). One place arms
+   * `reconnectTimer`, so the gate's waiting tick and the failure retry can
+   * never disagree on cadence (the split-brain the P1 handoff warned about).
+   * Failure retries BACK OFF (D1a): equal-jitter exponential — delay ∈
+   * [cap/2, cap], cap = min(reconnectMs·2ⁿ, MAX_RECONNECT_MS) — so a downed
+   * gateway sees a thinning trickle instead of 12 requests/min from every
+   * client, jitter keeps N clients out of lockstep, and a transient failure
+   * still recovers (backoff delays recovery; it never prevents it). The
+   * WAITING tick stays flat at `reconnectMs`: it polls the token getter and
+   * makes no requests, so there is no load to bound — and backing it off
+   * would only slow recovery after a re-login. Scope-churn reconnects
+   * (debounce/hysteresis timers) are a separate mechanism, untouched.
+   */
+  let retryAttempt = 0;
+  let refusedToken: string | null = null;
+  /**
+   * One refresher consult per outage (SSE-AUTH-RESILIENCE P4). Burned on
+   * the first 401 that consults; re-armed only by a successful open. Without
+   * this, a gateway refusing every token turns refresh-then-401 into a loop
+   * at connect cadence — the storm with extra steps.
+   */
+  let refreshBurned = false;
+  const scheduleRetry = (delayMs: number, keepPrevious = false) => {
+    if (!running) return;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(() => {
+      if (running) connect(keepPrevious);
+    }, delayMs);
+  };
+  const backoffDelay = () => {
+    const cap = Math.min(reconnectMs * 2 ** retryAttempt, MAX_RECONNECT_MS);
+    retryAttempt++;
+    return cap / 2 + Math.random() * (cap / 2);
+  };
+
   const connect = async (keepPrevious = false) => {
+    // ── The credential gate (SSE-AUTH-RESILIENCE P1 + P3, shapes A + B) ─
+    //
+    // A connect with no bearer CANNOT succeed (shape A: `HttpTransport`
+    // renders an exhausted session's null `token$` as `''`). A connect
+    // re-sending a bearer the gateway just REFUSED cannot succeed either
+    // (shape B: the same credential gets the same 401). Both are
+    // guaranteed-failing requests generated on a timer — the storm in
+    // .plans/bugs/stale-sse-actor-401-loops-after-token-expiry.md — so
+    // neither is attempted.
+    //
+    // This is D3 and D6a answered together: ONE `unauthenticated` state for
+    // "no credential yet" and "credential refused", because they are the
+    // same operational fact — not attempting, and only a usable DIFFERENT
+    // credential changes anything. The finer cause (the 401) is on
+    // `errors$`.
+    //
+    // We WAIT rather than give up: the tick polls the GETTER — no network,
+    // so there is no load to bound, and the tick stays at the flat base.
+    // Recovery is automatic: a re-login or session refresh rotates the
+    // getter's value and the next tick connects. That makes a 401 terminal
+    // PER-CREDENTIAL, not per-actor — a hard stop here would kill the SPA's
+    // bus for good on an out-of-band revocation (logout elsewhere bumping
+    // `tokenVersion`) that the session's next proactive refresh heals.
+    const token = getToken();
+    if (!token || token === refusedToken) {
+      if (running) {
+        if (currentState !== 'unauthenticated') transition('unauthenticated');
+        scheduleRetry(reconnectMs, keepPrevious);
+      }
+      return;
+    }
+    refusedToken = null; // a different credential — worth attempting
+
     // Transition to `connecting` from whichever reconnect-ish state
     // we're currently in (`initial`, `reconnecting`, `degraded`).
     transition('connecting');
@@ -317,13 +422,15 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
     try {
       const headers: Record<string, string> = {
-        Authorization: `Bearer ${getToken()}`,
+        // The gate's single read: `token` is what this ATTEMPT sends, and
+        // exactly what `refusedToken` records if the gateway says 401.
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
       const response = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
 
       if (!response.ok || !response.body) {
-        throw new Error(`SSE connect failed: ${response.status}`);
+        throw new SseConnectError(response.status);
       }
 
       // Stopped/disposed while the fetch was in flight — don't proceed to open
@@ -356,6 +463,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       }
 
       transition('open');
+      retryAttempt = 0; // a success resets the backoff ladder
+      refreshBurned = false; // …and re-arms the refresh-once (P4)
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -499,21 +608,56 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
-      // Any non-abort error falls through to the reconnect-retry block.
+      // A refused connect carries its status out (P2). Anything else — a
+      // network failure, a dropped stream — has no status to carry and
+      // stays off errors$.
+      if (err instanceof SseConnectError) {
+        errors$.next(err);
+        // 401: re-sending THIS bearer is deterministic, so park instead of
+        // retrying (P3). The gate re-admits the actor the moment the getter
+        // yields a different token; until then, no requests at all. Non-401
+        // refusals (5xx, proxies) are transient in kind and take the
+        // backoff path below.
+        if (err.status === 401 && running && !superseded.has(controller)) {
+          refusedToken = token;
+          retryAttempt = 0;
+          if (currentState !== 'unauthenticated') transition('unauthenticated');
+          // P4: refresh ONCE before staying parked — the same hook the HTTP
+          // beforeRetry path uses (D2). Parked state is truthful while the
+          // refresh call is in flight. On success the refresher's owner has
+          // rotated the token source, so an immediate tick reconnects
+          // through the gate's getter read; on null/throw (or an unchanged
+          // token) the flat waiting tick stands.
+          if (tokenRefresher && !refreshBurned) {
+            refreshBurned = true;
+            let refreshed: string | null = null;
+            try {
+              refreshed = await tokenRefresher();
+            } catch {
+              // A throwing refresher is a failed refresh, not a crash.
+            }
+            if (running && refreshed && refreshed !== refusedToken) {
+              scheduleRetry(0, keepPrevious);
+              return;
+            }
+          }
+          scheduleRetry(reconnectMs, keepPrevious);
+          return;
+        }
+      }
     } finally {
       inflightControllers.delete(controller);
     }
 
     // If we reached here without an AbortError, the connection dropped
-    // or the fetch failed. Transition to reconnecting and schedule a
-    // retry after `reconnectMs` — unless this was a SUPERSEDED (lingering)
+    // or the fetch failed (a 401 already diverted to `unauthenticated`
+    // above). Transition to reconnecting and schedule a retry on the
+    // backoff ladder — unless this was a SUPERSEDED (lingering)
     // connection ending: its termination is expected teardown, not a drop
     // of the live stream, and must not restart the reconnect machinery.
     if (running && !superseded.has(controller)) {
       transition('reconnecting');
-      reconnectTimer = setTimeout(() => {
-        if (running) connect();
-      }, reconnectMs);
+      scheduleRetry(backoffDelay());
     }
   };
 
@@ -628,6 +772,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
     state$: state$.asObservable(),
 
+    errors$: errors$.asObservable(),
+
     isSubscribed: (channel: string) => globalChannels.has(channel),
 
     addChannels: (channels: string[], scope?: string) => {
@@ -703,6 +849,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       disconnect();
       events$.complete();
       state$.complete();
+      errors$.complete();
     },
   };
 }

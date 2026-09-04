@@ -19,19 +19,25 @@ Both operations are idempotent on the schema side (declaring an already-declared
 
 ## Client setup
 
-`SemiontClient.signInHttp(...)` is the credentials-first one-line construction for one-shot scripts. Construct once and reuse for both `frame` and `yield` calls.
+`SemiontSession.signInHttp(...)` is the credentials-first construction; it owns the token lifecycle, which matters because the access token lives **ten minutes** and an ingest can outrun that. Construct once and reuse `session.client` for both `frame` and `yield` calls; `await session.dispose()` when done.
 
 ```typescript
-import { SemiontClient } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
-const semiont = await SemiontClient.signInHttp({
-  baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+const session = await SemiontSession.signInHttp({
+  kb: httpKb({
+    id: 'semiont-ingest', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+    host: url.hostname, port: Number(url.port || 4000),
+    protocol: url.protocol === 'https:' ? 'https' : 'http',
+  }),
+  storage: new InMemorySessionStorage(),
+  baseUrl: url.href,
   email: process.env.SEMIONT_USER_EMAIL!,
   password: process.env.SEMIONT_USER_PASSWORD!,
 });
+const semiont = session.client;
 ```
-
-For long-running ingests that may span token expiry, use `SemiontSession.signInHttp(...)` instead.
 
 ## Step 1 — Declare the entity-type vocabulary
 
@@ -100,7 +106,7 @@ The `format` controls what downstream skills can do: `text/markdown` and `text/p
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
 
-import { SemiontClient } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
 // === The KB's published entity-type vocabulary ===
 const KB_ENTITY_TYPES = [
@@ -153,11 +159,19 @@ function discoverCorpus(repoRoot: string): CorpusFile[] {
 }
 
 async function ingest(): Promise<void> {
-  const semiont = await SemiontClient.signInHttp({
-    baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+  const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+  const session = await SemiontSession.signInHttp({
+    kb: httpKb({
+      id: 'semiont-ingest', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+      host: url.hostname, port: Number(url.port || 4000),
+      protocol: url.protocol === 'https:' ? 'https' : 'http',
+    }),
+    storage: new InMemorySessionStorage(),
+    baseUrl: url.href,
     email: process.env.SEMIONT_USER_EMAIL!,
     password: process.env.SEMIONT_USER_PASSWORD!,
   });
+  const semiont = session.client;
 
   // Step 1 — declare the vocabulary
   console.log(`Declaring ${KB_ENTITY_TYPES.length} entity types via frame...`);
@@ -188,7 +202,7 @@ async function ingest(): Promise<void> {
   }
 
   console.log(`Done. ${created} resources created, ${failed} failed.`);
-  semiont.dispose();
+  await session.dispose();
 }
 
 ingest().catch((e) => {

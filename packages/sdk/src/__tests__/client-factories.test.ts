@@ -1,16 +1,17 @@
 /**
- * Tests for `SemiontClient.fromHttp(...)` and `SemiontClient.signInHttp(...)`.
+ * Tests for `SemiontClient.fromHttp(...)`.
  *
  * `fromHttp` is purely structural: it constructs `HttpTransport` +
  * `HttpContentTransport`, threads a fresh `BehaviorSubject<AccessToken>`
  * through, brands string inputs, and returns a wired client. We assert
  * on the wiring it can hand back without going to the wire.
  *
- * `signInHttp` adds an auth round-trip on top. We spy on
- * `HttpTransport.prototype.authenticatePassword` to keep the test
- * off-network and exercise:
- *   - success: token populated, client returned
- *   - failure: client disposed before re-throw (no leaked HTTP transport)
+ * The credentials-first factory that used to live here was DELETED
+ * (SSE-AUTH-RESILIENCE P5) — it handed out a token that never refreshed.
+ * Its replacement and its coverage are `SemiontSession.signInHttp`, tested in
+ * `session/__tests__/semiont-session-factories.test.ts`.
+ *
+ * `fromHttp` never authenticates, so nothing here goes to the wire.
  */
 
 import { describe, test, expect, vi, afterEach } from 'vitest';
@@ -103,69 +104,5 @@ describe('SemiontClient.fromHttp', () => {
     // dispose() should not throw and should be idempotent enough that the
     // test runner cleanup succeeds.
     expect(() => client.dispose()).not.toThrow();
-  });
-});
-
-describe('SemiontClient.signInHttp', () => {
-  test('calls auth.password against the constructed transport and returns a wired client', async () => {
-    // Spy on the transport prototype so the real HTTP layer is never invoked.
-    const passwordSpy = vi
-      .spyOn(HttpTransport.prototype, 'authenticatePassword')
-      .mockResolvedValue({ token: 'jwt-from-server', user: { did: 'did:test:u' } } as never);
-
-    const client = await SemiontClient.signInHttp({
-      baseUrl: 'http://test.local',
-      email: 'me@example.com',
-      password: 'pwd',
-    });
-
-    try {
-      expect(client).toBeInstanceOf(SemiontClient);
-      expect(passwordSpy).toHaveBeenCalledTimes(1);
-      const [emailArg, passwordArg] = passwordSpy.mock.calls[0]!;
-      expect(emailArg).toBe('me@example.com');
-      expect(passwordArg).toBe('pwd');
-    } finally {
-      client.dispose();
-    }
-  });
-
-  test('accepts an already-branded BaseUrl', async () => {
-    vi.spyOn(HttpTransport.prototype, 'authenticatePassword').mockResolvedValue({
-      token: 't',
-      user: { did: 'did:test:u' },
-    } as never);
-
-    const client = await SemiontClient.signInHttp({
-      baseUrl: makeBaseUrl('http://branded.local'),
-      email: 'a@b.com',
-      password: 'p',
-    });
-    try {
-      expect(client.baseUrl).toBe('http://branded.local');
-    } finally {
-      client.dispose();
-    }
-  });
-
-  test('disposes the transient client and rethrows when auth fails', async () => {
-    // Spy on dispose at the construction site by capturing it on prototype
-    // — every SemiontClient instance shares the dispose method. Easier:
-    // capture the HttpTransport.prototype.dispose call count before/after.
-    const disposeSpy = vi.spyOn(HttpTransport.prototype, 'dispose');
-    const failure = new Error('invalid credentials');
-    vi.spyOn(HttpTransport.prototype, 'authenticatePassword').mockRejectedValue(failure);
-
-    const before = disposeSpy.mock.calls.length;
-
-    await expect(
-      SemiontClient.signInHttp({
-        baseUrl: 'http://test.local',
-        email: 'me@example.com',
-        password: 'wrong',
-      }),
-    ).rejects.toBe(failure);
-
-    expect(disposeSpy.mock.calls.length).toBeGreaterThan(before);
   });
 });

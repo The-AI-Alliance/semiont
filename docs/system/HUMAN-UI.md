@@ -53,7 +53,7 @@ The state unit layer is what makes the same SDK that drives the browser also dri
 
 ## Multi-KB sessions
 
-A Semiont Browser instance can connect to multiple knowledge bases concurrently — each a separate gateway with its own JWT session, its own event-bus connection, and its own resource state. Per-KB authentication and state live in `SemiontSession` (defined in `@semiont/sdk`), the same abstraction workers and the smelter use.
+A Semiont Browser instance registers multiple knowledge bases — each a separate gateway with its own stored credentials, its own tabs, and its own resource state — but holds exactly **one live `SemiontSession` at a time: the active KB's**. Switching KBs disposes the current session (and with it the event-bus connection) before constructing the next; `SemiontBrowser.setActiveKb` documents the disposal contract. An inactive KB exists as persisted per-KB state only — its auth status (signed-out / expired / authenticated) is computed from its stored token without any session or connection existing. Per-KB authentication and the session lifecycle live in `SemiontSession` (defined in `@semiont/sdk`), the same abstraction workers and the smelter use.
 
 Storage adapters thread the same `SemiontSession` through every host environment:
 

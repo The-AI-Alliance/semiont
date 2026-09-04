@@ -32,22 +32,32 @@ await semiont.frame.addEntityTypes(['Location', 'Person', 'Organization', 'Conce
 
 ## Client setup
 
-All steps share one `SemiontClient` constructed via `SemiontClient.signInHttp(...)`. For long-running scripts that may span token expiry, swap in `SemiontSession.signInHttp(...)` — it owns refresh, validation, and storage; the lighter pattern here is right for one-shot work. If you already have an access token (cached from a prior auth, or supplied by an embedding host), use `SemiontClient.fromHttp({ baseUrl, token })` to skip the auth round-trip.
+All steps share one client, reached through a session: `SemiontSession.signInHttp(...)` owns refresh, validation and storage, which a multi-step wiki build needs — the access token lives **ten minutes**. Already hold an access token? `SemiontClient.fromHttp({ baseUrl, token })` skips the auth round-trip, but you then own refresh yourself.
 
 ```typescript
 import {
-  SemiontClient,
+  SemiontSession,
+  InMemorySessionStorage,
+  httpKb,
   annotationId,
   entityType,
   resourceId,
   type GatheredContext,
 } from '@semiont/sdk';
 
-const semiont = await SemiontClient.signInHttp({
-  baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+const session = await SemiontSession.signInHttp({
+  kb: httpKb({
+    id: 'semiont-wiki', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+    host: url.hostname, port: Number(url.port || 4000),
+    protocol: url.protocol === 'https:' ? 'https' : 'http',
+  }),
+  storage: new InMemorySessionStorage(),
+  baseUrl: url.href,
   email: process.env.SEMIONT_USER_EMAIL!,
   password: process.env.SEMIONT_USER_PASSWORD!,
 });
+const semiont = session.client;
 ```
 
 ## Step 1 — Detect entity references (Mark)
@@ -124,14 +134,16 @@ for (const ann of unresolved) {
   }
 }
 
-semiont.dispose();
+await session.dispose();
 ```
 
 ## Complete script skeleton
 
 ```typescript
 import {
-  SemiontClient,
+  SemiontSession,
+  InMemorySessionStorage,
+  httpKb,
   annotationId,
   entityType,
   resourceId,
@@ -144,11 +156,19 @@ const ENTITY_TYPES = (process.env.ENTITY_TYPES ?? 'Location')
   .map((t) => entityType(t.trim()));
 
 async function runWikiPipeline(resourceIdStr: string): Promise<void> {
-  const semiont = await SemiontClient.signInHttp({
-    baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+  const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+  const session = await SemiontSession.signInHttp({
+    kb: httpKb({
+      id: 'semiont-wiki', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+      host: url.hostname, port: Number(url.port || 4000),
+      protocol: url.protocol === 'https:' ? 'https' : 'http',
+    }),
+    storage: new InMemorySessionStorage(),
+    baseUrl: url.href,
     email: process.env.SEMIONT_USER_EMAIL!,
     password: process.env.SEMIONT_USER_PASSWORD!,
   });
+  const semiont = session.client;
   const rId = resourceId(resourceIdStr);
 
   // Step 1 — Detect entity references
@@ -199,7 +219,7 @@ async function runWikiPipeline(resourceIdStr: string): Promise<void> {
     }
   }
 
-  semiont.dispose();
+  await session.dispose();
   console.log('Pipeline complete.');
 }
 

@@ -31,7 +31,7 @@ Implements `ITransport` from `@semiont/core`. Owns the SSE bus connection, HTTP 
 type TokenRefresher = () => Promise<string | null>;
 ```
 
-Called when the transport receives a 401. Should return a new access token (no `Bearer ` prefix), or `null` to give up. The transport pushes the new token into `token$` and retries the originating request.
+Called when the transport receives a 401 — on the HTTP path as a ky `beforeRetry` hook (the returned token is set on the retried request's `Authorization` header), and on the SSE connect path **once per outage** before the actor parks `unauthenticated` (a successful open re-arms the once). Should return a new access token (no `Bearer ` prefix), or `null` to give up; a throw counts as `null`. The transport does **not** push the result into `token$` — rotating the token source is the refresher owner's job (`SemiontSession.refresh()` does exactly that), which is also how the SSE path reconnects: the actor re-reads its token getter rather than trusting the returned value.
 
 For session-managed refresh (proactive refresh on a timer, terminal-auth-failure surface, cross-tab sync), use `SemiontSession` from `@semiont/sdk` rather than the raw `tokenRefresher` hook — `SemiontSession.refresh()` orchestrates the lifecycle and `tokenRefresher` is the lower-level escape hatch.
 

@@ -45,19 +45,26 @@ type GetResourceResponse = components['schemas']['GetResourceResponse'];
 // ── Connection state ────────────────────────────────────────────────────
 
 /**
- * Six-state lifecycle for a transport's connection. Drives UI affordances
+ * Seven-state lifecycle for a transport's connection. Drives UI affordances
  * (connecting spinners, reconnecting banners, etc.) and is observed via
  * `ITransport.state$`.
  *
- *   initial      ─ pre-`start()`; never enters subscribers' streams
- *                  except as the first replayed value
- *   connecting   ─ in-flight initial open
- *   open         ─ healthy, delivering events
- *   reconnecting ─ open → dropped, retrying; may be transient
- *   degraded     ─ has been reconnecting for > DEGRADED_THRESHOLD_MS;
- *                  UI banner threshold; distinguishes brief mount-
- *                  churn cycles from sustained disconnection
- *   closed       ─ stop()/dispose() called; terminal
+ *   initial         ─ pre-`start()`; never enters subscribers' streams
+ *                     except as the first replayed value
+ *   connecting      ─ in-flight initial open
+ *   open            ─ healthy, delivering events
+ *   reconnecting    ─ open → dropped, retrying; may be transient
+ *   degraded        ─ has been reconnecting for > DEGRADED_THRESHOLD_MS;
+ *                     UI banner threshold; distinguishes brief mount-
+ *                     churn cycles from sustained disconnection
+ *   unauthenticated ─ not attempting: the credential is absent, or was
+ *                     refused (401) and only a DIFFERENT one is worth
+ *                     trying. No network activity; recovers on its own
+ *                     when a usable credential appears (a re-login, a
+ *                     session refresh). The refusal itself surfaces on
+ *                     the transport's error stream (SSE-AUTH-RESILIENCE
+ *                     D3/D6a — one state for both answers)
+ *   closed          ─ stop()/dispose() called; terminal
  */
 export type ConnectionState =
   | 'initial'
@@ -65,6 +72,7 @@ export type ConnectionState =
   | 'open'
   | 'reconnecting'
   | 'degraded'
+  | 'unauthenticated'
   | 'closed';
 
 // ── Response type helpers (shape-equivalent to the OpenAPI surface) ─────

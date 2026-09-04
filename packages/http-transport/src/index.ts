@@ -39,3 +39,4 @@ export {
   type ActorStateUnitOptions,
   DEGRADED_THRESHOLD_MS,
 } from './transport/actor-state-unit';
+export { SseConnectError } from './transport/sse-connect-error';

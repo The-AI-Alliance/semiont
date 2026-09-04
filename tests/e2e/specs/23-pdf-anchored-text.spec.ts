@@ -4,6 +4,7 @@ import { SemiontClient, resourceId as ridBrand } from '@semiont/sdk';
 import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 
 import { openResourceByName } from '../fixtures/discover';
+import { signInSession } from '../fixtures/sdk-session';
 /**
  * A rectangle drawn on a SCANNED page quotes the text the server recovered.
  *
@@ -47,15 +48,12 @@ const resourceIdFromUrl = (page: Page) => page.url().split('/').pop()!.split('?'
  *  client, so a pass proves the quote persisted rather than that the browser
  *  still holds it. */
 async function storedAnnotations(resourceId: string) {
-  const client = await SemiontClient.signInHttp({
-    baseUrl: GATEWAY_URL,
-    email: E2E_EMAIL,
-    password: E2E_PASSWORD,
-  });
+  const session = await signInSession();
+  const client = session.client;
   try {
     return await client.browse.annotations(ridBrand(resourceId)).fresh();
   } finally {
-    client.dispose();
+    await session.dispose();
   }
 }
 

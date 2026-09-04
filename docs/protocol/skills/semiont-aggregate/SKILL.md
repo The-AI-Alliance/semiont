@@ -45,13 +45,21 @@ Skipping the declaration means the aggregate's entity-type stamps end up implici
 ## Client setup
 
 ```typescript
-import { SemiontClient, resourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
 
-const semiont = await SemiontClient.signInHttp({
-  baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+const session = await SemiontSession.signInHttp({
+  kb: httpKb({
+    id: 'semiont-aggregate', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+    host: url.hostname, port: Number(url.port || 4000),
+    protocol: url.protocol === 'https:' ? 'https' : 'http',
+  }),
+  storage: new InMemorySessionStorage(),
+  baseUrl: url.href,
   email: process.env.SEMIONT_USER_EMAIL!,
   password: process.env.SEMIONT_USER_PASSWORD!,
 });
+const semiont = session.client;
 ```
 
 ## Step 1 — Identify the anchor and gather material
@@ -140,7 +148,7 @@ const { resourceId: aggregateId } = await semiont.yield.resource({
 });
 
 console.log(`Aggregate created: ${aggregateId} (${body.length} bytes)`);
-semiont.dispose();
+await session.dispose();
 ```
 
 The `entityTypes` always include both the specific aggregate kind (`SubsequentTreatment`, `PlotArc`, `Investigation`, `Timeline`, etc.) and the umbrella `Aggregate` tag, so `browse.resources({ entityType: 'Aggregate' })` lists every aggregate in the KB regardless of kind.
@@ -148,16 +156,24 @@ The `entityTypes` always include both the specific aggregate kind (`SubsequentTr
 ## Complete script skeleton
 
 ```typescript
-import { SemiontClient, resourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
 
 const INCLUDE_GATHER = process.env.INCLUDE_GATHER !== '0';
 
 async function aggregate(anchorIdStr: string): Promise<void> {
-  const semiont = await SemiontClient.signInHttp({
-    baseUrl: process.env.SEMIONT_API_URL ?? 'http://localhost:4000',
+  const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+  const session = await SemiontSession.signInHttp({
+    kb: httpKb({
+      id: 'semiont-aggregate', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+      host: url.hostname, port: Number(url.port || 4000),
+      protocol: url.protocol === 'https:' ? 'https' : 'http',
+    }),
+    storage: new InMemorySessionStorage(),
+    baseUrl: url.href,
     email: process.env.SEMIONT_USER_EMAIL!,
     password: process.env.SEMIONT_USER_PASSWORD!,
   });
+  const semiont = session.client;
   const anchorId = resourceId(anchorIdStr);
 
   // 1. Identify the anchor
@@ -223,7 +239,7 @@ async function aggregate(anchorIdStr: string): Promise<void> {
   });
 
   console.log(`Aggregate created: ${aggregateId} (${body.length} bytes)`);
-  semiont.dispose();
+  await session.dispose();
 }
 
 const target = process.argv[2];

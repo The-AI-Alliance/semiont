@@ -198,7 +198,7 @@ export class SemiontSession {
     if (!stored) return;
 
     const startToken = isJwtExpired(stored.access)
-      ? (this.doRefresh ? await this.doRefresh() : null)
+      ? (await this.tryRefresh()).token
       : stored.access;
     if (!startToken) {
       if (isJwtExpired(stored.access)) {
@@ -225,7 +225,7 @@ export class SemiontSession {
       } catch (err) {
         if (this.disposed) return;
         if (err instanceof APIError && err.status === 401) {
-          const refreshed = this.doRefresh ? await this.doRefresh() : null;
+          const refreshed = (await this.tryRefresh()).token;
           if (this.disposed) return;
           if (refreshed) {
             this.token$.next(accessToken(refreshed));
@@ -258,10 +258,36 @@ export class SemiontSession {
    * fires `onAuthFailed` — the frontend's wiring of that callback is
    * what surfaces the session-expired modal.
    */
+  /**
+   * Call the configured refresh callback, converting a THROW into the same
+   * "no token" answer a null return gives (SSE-AUTH-RESILIENCE P0).
+   *
+   * The callback makes an HTTP call, so it can reject as easily as it can
+   * resolve null — a network blip, DNS failure, or gateway 5xx — and both
+   * mean the same thing here: this token cannot be renewed. Before this,
+   * a throw escaped `refresh()` and skipped every terminal behaviour; through
+   * the proactive timer's `void this.refresh()` it became an unhandled
+   * rejection with NO further refresh scheduled, leaving a session holding an
+   * expired token forever. That is the client shape behind the 401-loop
+   * incident.
+   *
+   * The reason is returned rather than swallowed: a network failure and a
+   * revoked session both end the session, but they are not the same event and
+   * an operator reading the error needs to know which one happened.
+   */
+  private async tryRefresh(): Promise<{ token: string | null; failure?: string }> {
+    if (!this.doRefresh) return { token: null };
+    try {
+      return { token: await this.doRefresh() };
+    } catch (err) {
+      return { token: null, failure: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
   async refresh(): Promise<AccessToken | null> {
     if (this.disposed) return null;
     if (!this.doRefresh) return null;
-    const newAccess = await this.doRefresh();
+    const { token: newAccess, failure } = await this.tryRefresh();
     if (this.disposed) return null;
     if (newAccess) {
       const tok = accessToken(newAccess);
@@ -273,7 +299,11 @@ export class SemiontSession {
     clearStoredSession(this.storage, this.kb.id);
     this.onAuthFailed('Your session has expired. Please sign in again.');
     this.onError(
-      new SemiontSessionError('session.refresh-exhausted', 'Token refresh failed', this.kb.id),
+      new SemiontSessionError(
+        'session.refresh-exhausted',
+        failure ? `Token refresh failed: ${failure}` : 'Token refresh failed',
+        this.kb.id,
+      ),
     );
     return null;
   }

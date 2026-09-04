@@ -149,14 +149,22 @@ if (context.focus.kind === 'annotation') {
 The simplest way to interact with the knowledge system is the [`@semiont/sdk`](../../sdk/README.md) client:
 
 ```typescript
-import { SemiontClient } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 import { resourceId, annotationId } from '@semiont/core';
 
-const semiont = await SemiontClient.signInHttp({
-  baseUrl: 'http://localhost:4000',
-  email,
-  password,
+const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
+const session = await SemiontSession.signInHttp({
+  kb: httpKb({
+    id: 'script', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+    host: url.hostname, port: Number(url.port || 4000),
+    protocol: url.protocol === 'https:' ? 'https' : 'http',
+  }),
+  storage: new InMemorySessionStorage(),
+  baseUrl: url.href,
+  email: process.env.SEMIONT_USER_EMAIL!,
+  password: process.env.SEMIONT_USER_PASSWORD!,
 });
+const semiont = session.client;
 
 // The SDK is RxJS-native, but its return values are PromiseLike — `await` works directly.
 const resource = await semiont.browse.resource(resourceId('doc-123'));

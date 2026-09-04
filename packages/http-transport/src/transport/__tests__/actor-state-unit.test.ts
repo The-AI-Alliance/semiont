@@ -8,6 +8,7 @@ import {
   mockFetch,
   sseChunk,
   sseChunkId,
+  createSSEStream,
   mockSSEResponse,
   mockConn,
 } from './helpers/mock-conn';
@@ -148,6 +149,263 @@ describe('createActorStateUnit', () => {
     await expect(stateUnit.emit('mark:added', { annotationId: 'a-1' })).rejects.toThrow(/timed out/i);
 
     stateUnit.dispose();
+  });
+
+  // ── SSE-AUTH-RESILIENCE P1: don't ask without a credential ──────────
+  // Shape A: a session that exhausts refresh pushes `null` to `token$`, and
+  // HttpTransport renders that as `''`. The actor used to send
+  // `Authorization: Bearer ` and retry forever — a guaranteed-failing request
+  // generated on a timer, which is the 401 storm. A connect with no
+  // credential cannot succeed, so it must not be attempted.
+
+  it('makes NO request while it has no credential', async () => {
+    vi.useFakeTimers();
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: () => '',              // the shape `token$.getValue() ?? ''` produces
+      channels: ['test:event'],
+    });
+
+    stateUnit.start();
+    // Well past several reconnect cadences: still nothing on the wire.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
+  it('connects as soon as a credential arrives — the gate waits, it does not give up', async () => {
+    // The other half of the absence assertion above: without this, a gate that
+    // NEVER connects would pass that test. Same actor, same getter, a token
+    // appearing between ticks.
+    vi.useFakeTimers();
+    mockSSEResponse();
+    let token = '';
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: () => token,
+      channels: ['test:event'],
+    });
+
+    stateUnit.start();
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    token = 'fresh-tok';
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [, opts] = mockFetch.mock.calls[0] as [string, { headers: Record<string, string> }];
+    expect(opts.headers['Authorization']).toBe('Bearer fresh-tok');
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
+  // ── SSE-AUTH-RESILIENCE P2: stop discarding the status ──────────────
+  // Shape B: a REAL credential the gateway refuses. The P1 gate is upstream,
+  // so a 401 here is a rejected token, never an empty bearer. The status must
+  // survive as structured data — P3's backoff/terminal split reads it, and an
+  // operator debugging a refused client needs 401-vs-503 without parsing a
+  // message string. Note the non-empty tokens: an empty one would measure
+  // P1's gate instead (handoff note 6).
+
+  it('a refused connect surfaces its status as structured data — 401 distinguishable from 500', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 401, body: null });
+    const rejected = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'expired-but-real-tok',
+      channels: ['test:event'],
+    });
+    const seen401: Array<{ status: number }> = [];
+    rejected.errors$.subscribe((e) => seen401.push(e));
+    rejected.start();
+    await vi.waitFor(() => expect(seen401).toHaveLength(1));
+    expect(seen401[0]!.status).toBe(401);
+    rejected.dispose();
+
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 500, body: null });
+    const erroring = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'fine-tok',
+      channels: ['test:event'],
+    });
+    const seen500: Array<{ status: number }> = [];
+    erroring.errors$.subscribe((e) => seen500.push(e));
+    erroring.start();
+    await vi.waitFor(() => expect(seen500).toHaveLength(1));
+    expect(seen500[0]!.status).toBe(500);
+    erroring.dispose();
+  });
+
+  // ── SSE-AUTH-RESILIENCE P3: bound the self-inflicted load ───────────
+  // D1a: backoff-with-jitter on ALL failure reconnects; auth is additionally
+  // terminal-per-credential. The assertions state properties over simulated
+  // time (a bound, growth, recovery) — never a schedule — so jitter lives
+  // inside the tolerance, not outside it. Non-empty tokens throughout: an
+  // empty one would measure the P1 gate (handoff note 6).
+
+  it('a refused credential is asked about a bounded number of times, then the actor waits — and recovers when a DIFFERENT token appears', async () => {
+    vi.useFakeTimers();
+    let token = 'revoked-tok';
+    mockFetch.mockImplementation(async () => ({ ok: false, status: 401, body: null }));
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: () => token,
+      channels: ['test:event'],
+      reconnectMs: 5_000,
+    });
+    let lastState = '';
+    stateUnit.state$.subscribe((s) => { lastState = s; });
+
+    stateUnit.start();
+    await vi.advanceTimersByTimeAsync(600_000); // ten minutes of a dead credential
+    // The measured incident rate was ~24/min — ~240 asks in this window. A
+    // refused credential cannot improve by being re-sent, so the bound is a
+    // handful, and the actor parks in a state that says why.
+    expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(mockFetch.mock.calls.length).toBeLessThanOrEqual(3);
+    expect(lastState).toBe('unauthenticated');
+
+    // Recovery: a re-login rotates the token. The waiting tick polls the
+    // GETTER (no network), so the next tick after the swap must connect.
+    mockFetch.mockReset();
+    mockSSEResponse();
+    token = 'fresh-tok';
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(lastState).toBe('open');
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
+  it('a downed gateway (503) is retried on a GROWING interval — and still recovers (D1a: backoff is not auth-specific)', async () => {
+    vi.useFakeTimers();
+    mockFetch.mockImplementation(async () => ({ ok: false, status: 503, body: null }));
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'fine-tok',
+      channels: ['test:event'],
+      reconnectMs: 5_000,
+    });
+    let lastState = '';
+    stateUnit.state$.subscribe((s) => { lastState = s; });
+
+    stateUnit.start();
+    await vi.advanceTimersByTimeAsync(60_000);
+    // Flat 5s cadence would be ≥12 attempts in this window. Exponential
+    // growth from a 5s base (with jitter inside the tolerance) lands in
+    // [3, 7] — the property is "the interval grows", not a schedule.
+    expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(mockFetch.mock.calls.length).toBeLessThanOrEqual(7);
+    // A 503 is transient, not auth: the actor must NOT park.
+    expect(lastState).not.toBe('unauthenticated');
+
+    // The gateway heals: the next backed-off attempt opens normally.
+    mockSSEResponse(); // the *Once queue outranks the persistent 503 impl
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(lastState).toBe('open');
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
+  // ── SSE-AUTH-RESILIENCE P4: refresh once before parking ─────────────
+  // D2: the SSE path consults the SAME `tokenRefresher` hook the HTTP
+  // beforeRetry path uses — no second refresh mechanism. Contract: the
+  // refresher's owner rotates the token SOURCE (sessions push into token$);
+  // the actor then reconnects through the gate's getter read, so the token
+  // stays single-sourced. One consult per outage: a successful open re-arms.
+
+  it('a 401 with a tokenRefresher consults it ONCE and reconnects promptly with the new bearer', async () => {
+    vi.useFakeTimers();
+    let token = 'expired-tok';
+    // Mirrors the real composition: session.refresh() rotates token$ (the
+    // getter's source) and returns the new token.
+    const refresher = vi.fn(async () => { token = 'fresh-tok'; return 'fresh-tok'; });
+    const sse = createSSEStream();
+    mockFetch.mockImplementation(async (_url: string, opts: { headers: Record<string, string> }) =>
+      opts.headers['Authorization'] === 'Bearer fresh-tok'
+        ? { ok: true, status: 200, body: sse.stream }
+        : { ok: false, status: 401, body: null },
+    );
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: () => token,
+      channels: ['test:event'],
+      reconnectMs: 5_000,
+      tokenRefresher: refresher,
+    });
+    let lastState = '';
+    stateUnit.state$.subscribe((s) => { lastState = s; });
+
+    stateUnit.start();
+    // Prompt: well inside one flat tick — the refresh-driven reconnect must
+    // not wait for the 5 s cadence.
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(refresher).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const [, retryOpts] = mockFetch.mock.calls[1] as [string, { headers: Record<string, string> }];
+    expect(retryOpts.headers['Authorization']).toBe('Bearer fresh-tok');
+    expect(lastState).toBe('open');
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
+  it('a failing refresher is consulted once; the actor parks instead of looping', async () => {
+    vi.useFakeTimers();
+    // A refresher that THROWS (network down mid-refresh) — the defensive
+    // case; P0 made session.refresh() non-throwing, but the hook is
+    // caller-supplied and the actor must not inherit an unhandled rejection.
+    const refresher = vi.fn(async () => { throw new Error('ECONNREFUSED'); });
+    mockFetch.mockImplementation(async () => ({ ok: false, status: 401, body: null }));
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'revoked-tok',
+      channels: ['test:event'],
+      reconnectMs: 5_000,
+      tokenRefresher: refresher,
+    });
+    let lastState = '';
+    stateUnit.state$.subscribe((s) => { lastState = s; });
+
+    stateUnit.start();
+    await vi.advanceTimersByTimeAsync(600_000);
+    expect(refresher).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls.length).toBeLessThanOrEqual(2);
+    expect(lastState).toBe('unauthenticated');
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
+  it('a refreshed token that is ALSO refused parks the actor — the refresher is not consulted again', async () => {
+    vi.useFakeTimers();
+    let token = 'expired-tok';
+    const refresher = vi.fn(async () => { token = 'also-bad-tok'; return 'also-bad-tok'; });
+    mockFetch.mockImplementation(async () => ({ ok: false, status: 401, body: null }));
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: () => token,
+      channels: ['test:event'],
+      reconnectMs: 5_000,
+      tokenRefresher: refresher,
+    });
+    let lastState = '';
+    stateUnit.state$.subscribe((s) => { lastState = s; });
+
+    stateUnit.start();
+    await vi.advanceTimersByTimeAsync(600_000);
+    // Ask with the expired token, refresh, ask with the refreshed token —
+    // and STOP. Re-consulting on the second 401 would be the refresh loop.
+    expect(refresher).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls.length).toBeLessThanOrEqual(3);
+    expect(lastState).toBe('unauthenticated');
+
+    stateUnit.dispose();
+    vi.useRealTimers();
   });
 
   it('emit resolves with the subscriber count from the response body', async () => {

@@ -214,49 +214,4 @@ export class SemiontClient {
     return new SemiontClient(transport, content, transport);
   }
 
-  /**
-   * Async factory for the credentials-first script case. Builds a
-   * transient HTTP transport, calls `auth.password(email, password)`
-   * to acquire an access token, and returns the wired client with
-   * the token populated.
-   *
-   * This is the right entry point for skills, CLI scripts, and any
-   * consumer that starts with email + password rather than a JWT
-   * already on hand. For consumers that already hold a token (CLI
-   * cached-token path, env-var token, embedded auth flow), use
-   * `fromHttp({ baseUrl, token })` instead.
-   *
-   * For long-running scripts that need refresh, use
-   * `SemiontSession.signInHttp(...)` — same credentials shape, plus
-   * the session machinery for proactive refresh and persistence.
-   *
-   * Named `signInHttp` because email+password authentication is
-   * inherently an HTTP-shaped operation in the current gateway; an
-   * in-process `LocalTransport` doesn't have a credentials login
-   * path. Non-HTTP transports construct the client directly from
-   * their package's transport instance.
-   *
-   * Throws if authentication fails. The transient client is disposed
-   * before the throw, so no resources leak on failure.
-   */
-  static async signInHttp(opts: {
-    baseUrl: BaseUrl | string;
-    email: string;
-    password: string;
-  }): Promise<SemiontClient> {
-    const url = typeof opts.baseUrl === 'string' ? baseUrl(opts.baseUrl) : opts.baseUrl;
-    const token$ = new BehaviorSubject<AccessToken | null>(null);
-    const transport = new HttpTransport({ baseUrl: url, token$ });
-    const content = new HttpContentTransport(transport);
-    const client = new SemiontClient(transport, content, transport);
-    try {
-      // HTTP-only factory: gateway is guaranteed present.
-      const auth = await client.auth!.password(opts.email, opts.password);
-      token$.next(accessToken(auth.token));
-      return client;
-    } catch (err) {
-      client.dispose();
-      throw err;
-    }
-  }
 }
