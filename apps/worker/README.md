@@ -46,15 +46,36 @@ requests billing against dead jobs) with an in-flight heartbeat every 15 s while
 worker whose activity goes quiet for **15 minutes** crashes loudly (stall watchdog) rather
 than wedging; a running job untouched for **30 minutes** is recovered by the queue's janitor.
 
-Detection budgets derive from the provider's published limits — chunk sizes follow the 1:2
-input:output allocation and a duration cap at half the call bound, so no call is planned to
-outlive its own timeout. A chunk that still fails on size (duration, truncation) is
-**subdivided in place and retried smaller** before it is allowed to fail the job.
+Detection budgets derive from the provider's limits — chunk sizes follow the 1:2
+input:output allocation, and **every** provider gets a duration cap at half the call bound
+(the published worst-case rate when there is one, a conservative assumed floor for
+rate-silent local models), so no call is planned to outlive its own timeout. A chunk that
+still fails on size — duration, truncation, unreadable no-stop-reason output, or a flagged
+under-report — is **subdivided in place and retried smaller** before it is allowed to fail
+the job; an under-report that persists at the smallest size keeps what it found, loudly,
+rather than discarding the unit.
+
+Successful-looking extractions are **verified**: where the provider declares it (all real
+providers), each chunk's yield is checked against a cheap parallel count call, catching the
+silent under-reporting local models exhibit on repetitive text. Entity types run
+**concurrently up to the provider's declared capacity** — several at once on a hosted API,
+sequentially on a local single-model server, where concurrent requests would only split one
+GPU.
 
 When a job does fail, the worker classifies it: deterministic failures (an identical retry
 cannot succeed) skip the retry budget; transient ones retry — and the retry **resumes from
 the checkpoint** of entity types the failed attempt already persisted, paying only for what
 is left.
+
+## What it reports
+
+Every detection model call lands in the `semiont.detection.*` metric family — duration,
+items, provider-reported tokens, subdivision depth, and outcome (`success` / `truncated` /
+`collapsed` / `timeout` / `error`) — alongside every anchoring outcome
+(`semiont.detection.anchors`, by method), so a run's cost, yield, and precision are
+queryable rather than log archaeology. See
+[Observability](../../docs/system/administration/OBSERVABILITY.md) for the full inventory
+and where the metrics flow.
 
 ## Related
 

@@ -15,7 +15,7 @@ The moving parts:
 | File | Role |
 |------|------|
 | `src/worker-main.ts` | Standalone entry point. Reads `~/.semiontconfig`, groups job types by `(provider, model)`, authenticates each agent, and starts one worker process per agent group. |
-| `src/worker-process.ts` | `startWorkerProcess(config)` — claims jobs via the `JobClaimAdapter`, then `handleJobInner` dispatches by `jobType` to the right processor and emits lifecycle + `mark:create` events. |
+| `src/worker-process.ts` | `startWorkerProcess(config)` — claims jobs via the `JobClaimAdapter`, then `handleJobInner` dispatches by `jobType` to the right processor, commits annotations in acknowledged batches (`mark:commit`), and emits the lifecycle events. |
 | `src/processors.ts` | The `process*Job` functions. Pure: content + inference + params in, `{ annotations, result }` out. No bus, no queue, no I/O except calling inference. |
 | `src/workers/annotation-detection.ts` | `AnnotationDetection` — the LLM detection logic the annotation processors call (`detectHighlights`, `detectComments`, `detectAssessments`, `detectTags`). |
 | `src/fs-job-queue.ts` | `FsJobQueue` — the filesystem-backed queue jobs are claimed from. |
@@ -107,9 +107,10 @@ Workers emit lifecycle and annotation commands directly on the session's transpo
 
 - `job:start` — once, when the job is picked up.
 - `job:report-progress` — driven by the processor's `onProgress` callback (ephemeral; Stower ignores it, the UI renders it).
-- `mark:create` — one per produced annotation: `{ annotation, userId, resourceId }`.
-- `job:complete` — once, with the processor's `result`.
-- `job:fail` — on error, with the message.
+- `mark:commit` — one **awaited batch per unit of work**: `{ resourceId, annotations }`. This is a `busRequest`, not a fire-and-forget emit — it resolves only after the Stower has appended every annotation to the event log, and only then does the unit count as complete. A job type that minted annotations without waiting for this acknowledgement would silently lose them whenever the persistence sink was down; a census test (`worker-process.test.ts`, "no job type persists without an acknowledgement") fails on any job type that tries.
+- `job:checkpoint` — after each committed unit, carrying the cumulative committed set, so a crashed worker's retry resumes instead of re-paying.
+- `job:complete` — once, with the processor's `result`, **after** the final commit resolved.
+- `job:fail` — on error, with the message, the `failureClass`, and `willRetry`.
 
 The processor itself emits nothing. It calls `onProgress(percentage, message, stage, extra?)`; the worker process turns each call into a `job:report-progress` event.
 
@@ -181,7 +182,7 @@ Then export it from `src/index.ts` next to the other `process*Job` functions.
 
 ### 3. Add a dispatch branch
 
-In `src/worker-process.ts`, add a branch to `handleJobInner`. The branch fetches content, calls the processor, emits one `mark:create` per annotation, then `job:complete`:
+In `src/worker-process.ts`, add a branch to `handleJobInner`. The branch fetches content, calls the processor, **commits the batch with `commitAnnotations` — awaited, before `job:complete`** — then reports completion:
 
 ```typescript
 } else if (jobType === 'summary-annotation') {
@@ -189,21 +190,21 @@ In `src/worker-process.ts`, add a branch to `handleJobInner`. The branch fetches
   const { annotations, result } = await processSummaryJob(
     content, inferenceClient, job.params as never, userId, generator, onProgress,
   );
-  for (const ann of annotations) {
-    await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
-  }
+  // Awaited: resolves only after the event log holds every annotation.
+  // Emitting job:complete before this resolves would claim success for
+  // work that may never have persisted.
+  await commitAnnotations(session, String(resourceId), annotations);
   await emitEvent(session, 'job:complete', {
     ...lifecycleBase,
     result: result as never,
   });
   adapter.completeJob();
-
 }
 ```
 
-Finally, add `'summary-annotation'` to `ALL_JOB_TYPES` in `src/worker-main.ts` so the host actually subscribes to it. That's the whole extension path — no base class, no lifecycle methods to override.
+Finally, add `'summary-annotation'` to `ALL_JOB_TYPES` in `src/worker-main.ts` so the host actually subscribes to it, and take a position in the persistence census (`worker-process.test.ts`, `JOB_TYPE_COVERAGE` — typed total over `JobType`, so forgetting is a compile error): either an `exercise` entry proving your type commits before completing, or a `coveredBy` pointer to where that is pinned instead. That's the whole extension path — no base class, no lifecycle methods to override.
 
-> Generation jobs follow a different tail: instead of emitting `mark:create`, the branch uploads the generated content via `session.client.yield.resource(...)` and reports the new `resourceId` on `job:complete`. Mirror an annotation branch unless you're producing a new resource.
+> Generation jobs follow a different tail: alongside its committed annotations (provenance on the source resource, citations on the derived one — two commits, keyed by resource), the branch uploads the generated content via `session.client.yield.resource(...)` and reports the new `resourceId` on `job:complete`. Mirror an annotation branch unless you're producing a new resource.
 
 ## Lifecycle and Failure Handling
 
@@ -220,7 +221,7 @@ fetchContent()  (annotation jobs)
   ↓
 process<X>Job(...)  — YOUR LOGIC, reports via onProgress
   ↓ success
-emit mark:create (×N)  →  emit job:complete  →  adapter.completeJob()
+await mark:commit (one acknowledged batch)  →  emit job:complete  →  adapter.completeJob()
 
   ↓ error (anything throws)
 emit job:fail  →  adapter.failJob(jobId, message)
