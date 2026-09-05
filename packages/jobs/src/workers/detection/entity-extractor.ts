@@ -133,7 +133,7 @@ ${piece}
   }
   if (itemCount * YIELD_COLLAPSE_BAND < counted) {
     throw new YieldCollapseError(
-      `Extraction found ${itemCount} entities where a count call reports ~${counted} mentions (band ×${YIELD_COLLAPSE_BAND}) on a ${piece.length}-char chunk — silent yield collapse (F7): deterministic, so a retry returns the identical under-report; subdividing instead.`,
+      `Extraction found ${itemCount} entities where a count call reports ~${counted} mentions (band ×${YIELD_COLLAPSE_BAND}) on a ${piece.length}-char chunk — silent yield collapse (F7): deterministic — a same-size retry returns the identical under-report.`,
     );
   }
 }

@@ -446,9 +446,11 @@ describe('extractEntities — count-verifier (P3c)', () => {
     await expect(
       extractEntities(TEXT, ['Person'], client as never, false, LOGGER),
     ).rejects.toBeInstanceOf(YieldCollapseError);
-    // And it DID descend before failing — subdivision is the response to a
-    // flag, the floor failure only its terminus.
-    expect(client.generateStructured.mock.calls.length).toBeGreaterThan(1);
+    // Text this small cannot shrink, so it is AT its floor on the first flag
+    // (the no-shrink rule, P4 attempt 1): exactly one extraction, no identical
+    // re-runs, loud typed failure. Descent on genuinely shrinkable chunks is
+    // pinned in detection-chunking.test.ts.
+    expect(client.generateStructured.mock.calls.length).toBe(1);
   });
 
   it('a provider that publishes a rate makes NO count call — Anthropic is untouched', async () => {

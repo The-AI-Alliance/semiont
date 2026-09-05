@@ -309,9 +309,18 @@ export async function callChunkSubdividing<T>(
       // the descent must go as deep as the content demands. The floor
       // derives from the overlap constant; below it even solid names fit
       // the budget. Timeouts stay depth-capped and fail fast.
-      const canDescend = truncation(error)
+      //
+      // A descent must also actually CHANGE the input: once a piece fits
+      // inside the smaller chunk size, re-chunking returns it unchanged, and
+      // at temperature 0 the identical call returns the identical failure —
+      // measured live (P4 attempt 1: one 572-char piece "descended" through
+      // three depths, same verdict each time). A piece that cannot shrink is
+      // AT its floor, whatever the arithmetic floor says.
+      const pieces = chunkText(piece, { chunkSize: half, overlap: chunking.overlap });
+      const shrinks = pieces.length > 1 || pieces[0] !== piece;
+      const canDescend = shrinks && (truncation(error)
         ? half > 2 * OVERLAP_TOKENS
-        : depth < MAX_SUBDIVISION_DEPTH;
+        : depth < MAX_SUBDIVISION_DEPTH);
       if (!canDescend) {
         // At the size floor honest overflow is impossible, so truncation
         // here is a degeneration loop — a sampling accident. One same-size
@@ -333,7 +342,6 @@ export async function callChunkSubdividing<T>(
         nextChunkSizeTokens: half,
         error: error instanceof Error ? error.message : String(error),
       });
-      const pieces = chunkText(piece, { chunkSize: half, overlap: chunking.overlap });
       const collected: T[] = [];
       for (const p of pieces) {
         collected.push(...(await attempt(p, half, depth + 1)));

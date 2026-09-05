@@ -304,6 +304,35 @@ describe('callChunkSubdividing', () => {
     expect(calls.length).toBeGreaterThan(1); // it descended rather than propagating
   });
 
+  it('never re-runs a piece that cannot shrink — a no-op descent is the floor (P4 attempt 1)', async () => {
+    // Measured live: a 572-char piece "descended" through three depths — each
+    // re-chunk returned the identical piece, and at temperature 0 the
+    // identical call returned the identical verdict. Once a piece fits inside
+    // the smaller chunk size, descent changes nothing; it is AT its floor
+    // regardless of the arithmetic floor. Collapse there: one call, propagate.
+    const boom = new YieldCollapseError('found 1 of 4 counted mentions');
+    const tiny = 'word '.repeat(20); // ~25 tokens — fits any half-size here
+    const calls: string[] = [];
+    await expect(callChunkSubdividing('reference', tiny, { chunkSize: 1_000, overlap: 16 }, async (piece) => {
+      calls.push(piece);
+      throw boom;
+    })).rejects.toBe(boom);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('a truncation on an unshrinkable piece gets its one floor re-roll, then propagates', async () => {
+    // Same no-shrink condition, truncation flavor: the sanctioned same-size
+    // retry is the floor RE-ROLL, exactly once — not an identical "descent".
+    const boom = new DeterministicJobError('truncated (max_tokens)');
+    const tiny = 'word '.repeat(20);
+    const calls: string[] = [];
+    await expect(callChunkSubdividing('reference', tiny, { chunkSize: 1_000, overlap: 16 }, async (piece) => {
+      calls.push(piece);
+      throw boom;
+    })).rejects.toBe(boom);
+    expect(calls).toHaveLength(2); // the call + its one re-roll
+  });
+
   it('at the size floor a collapse verdict FAILS THE JOB — no re-roll (P3c, user-ratified)', async () => {
     // Truncation at the floor gets one same-size re-roll (a sampling
     // accident). Collapse must NOT: it is measured deterministic, so the
