@@ -1,10 +1,26 @@
 // Ollama implementation of InferenceClient interface
 // Uses native Ollama HTTP API (no SDK dependency)
 
+import { Agent } from 'undici';
 import { estimateTokens, isNumber, isObject } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
 import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredReadError, StructuredResponse } from '../interface.js';
+
+// With `stream: false` Ollama sends nothing — not even response headers —
+// until the whole generation finishes, so any transport-level header timeout
+// is a hidden generation ceiling: undici's 300s default killed every longer
+// generation as a retryable-looking `TypeError: fetch failed` before the
+// caller's own bound could fire. Both transport timeouts are disabled here so
+// the caller's AbortSignal is the single bound on a generate call.
+//
+// The assertion bridges a declaration skew only: @types/node types this slot
+// via undici-types@8, while the Agent must come from undici@7 to match Node
+// 24's bundled copy — an undici@8 Agent is rejected at runtime with
+// UND_ERR_INVALID_ARG (measured 2026-09-04; transport.test.ts gates both the
+// runtime compatibility and the failure shape).
+type FetchDispatcher = NonNullable<RequestInit['dispatcher']>;
+export const unboundedTransport = new Agent({ headersTimeout: 0, bodyTimeout: 0 }) as unknown as FetchDispatcher;
 
 // Slack added to the chars/4 prompt estimate when sizing `num_ctx`:
 // proportional to the estimate (the heuristic's error grows with prompt size)
@@ -19,9 +35,17 @@ interface OllamaGenerateResponse {
   response: string;
   done: boolean;
   done_reason?: string;
+  /**
+   * Hidden reasoning from a thinking model. Requests always send
+   * `think: false`, but cloud-hosted reasoning models ignore it (measured
+   * live, gpt-oss:120b-cloud 2026-09-05): the thinking happens anyway,
+   * spends the caller's `num_predict` budget, and its tokens are folded
+   * invisibly into `eval_count`.
+   */
+  thinking?: string;
   /** Number of prompt tokens evaluated. Available on most Ollama versions. */
   prompt_eval_count?: number;
-  /** Number of tokens generated. */
+  /** Number of tokens generated — INCLUDING any hidden thinking tokens. */
   eval_count?: number;
 }
 
@@ -32,6 +56,8 @@ export class OllamaInferenceClient implements InferenceClient {
   // context costs KV-cache memory. Detection runs its types sequentially here
   // (DETECTION-QUALITY-THROUGHPUT P6).
   readonly maxConcurrency = 1;
+  // Where the collapse risk was MEASURED (F7) — the verifier's original home.
+  readonly verifyDetectionYield = true;
   readonly modelId: string;
   private baseURL: string;
   private logger?: Logger;
@@ -181,6 +207,10 @@ export class OllamaInferenceClient implements InferenceClient {
       },
     };
     if (elementSchema !== undefined) {
+      // Grammar-enforced for locally served models. Cloud-routed models
+      // (`*-cloud`) treat this as ADVISORY only — a schema-violating response
+      // is possible there (measured live 2026-09-05: bare strings where the
+      // schema required objects) and surfaces as a StructuredReadError.
       body['format'] = { type: 'array', items: elementSchema };
     }
 
@@ -194,6 +224,7 @@ export class OllamaInferenceClient implements InferenceClient {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
         signal,
+        dispatcher: unboundedTransport,
       });
     } catch (err) {
       recordInferenceUsage({
@@ -222,6 +253,18 @@ export class OllamaInferenceClient implements InferenceClient {
     }
 
     const data = await res.json() as OllamaGenerateResponse;
+    const stopReason = mapStopReason(data.done_reason);
+
+    if (data.thinking) {
+      // The adapter cannot prevent ignored `think: false` — it can only make
+      // the cost visible: the thinking billed, and `eval_count` (and any rate
+      // derived from it) is inflated by tokens that never reached the
+      // response.
+      this.logger?.warn('Model produced hidden thinking despite think:false', {
+        model: this.modelId,
+        thinkingChars: data.thinking.length,
+      });
+    }
 
     if (!data.response) {
       recordInferenceUsage({
@@ -232,8 +275,18 @@ export class OllamaInferenceClient implements InferenceClient {
         inputTokens: data.prompt_eval_count,
         outputTokens: data.eval_count,
       });
-      this.logger?.error('Empty response from Ollama', { model: this.modelId });
-      throw new Error('Empty response from Ollama');
+      this.logger?.error('Empty response from Ollama', {
+        model: this.modelId,
+        stopReason,
+        thinkingChars: data.thinking?.length,
+      });
+      // Truncated-to-nothing is still truncation: a thinking model can burn
+      // the entire output budget before its first response character. The
+      // stop reason must ride the error so `max_tokens` classifies
+      // deterministic (and subdivides) instead of masquerading as an
+      // unrecognized retryable mystery; any other stop reason stays
+      // retryable, exactly as an untyped error did.
+      throw new StructuredReadError('response is empty', stopReason);
     }
 
     recordInferenceUsage({
@@ -244,8 +297,6 @@ export class OllamaInferenceClient implements InferenceClient {
       inputTokens: data.prompt_eval_count,
       outputTokens: data.eval_count,
     });
-
-    const stopReason = mapStopReason(data.done_reason);
 
     this.logger?.info('Text generation completed', {
       model: this.modelId,

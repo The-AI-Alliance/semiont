@@ -27,7 +27,9 @@ export type FailureClass = 'transient' | 'deterministic';
  * to extract. Throw it instead of `Error` wherever that knowledge exists.
  */
 export class DeterministicJobError extends Error {
-  override readonly name = 'DeterministicJobError';
+  // Typed string, not the literal: subclasses (YieldCollapseError) carry
+  // their own name — classification is instanceof, never name-matching.
+  override readonly name: string = 'DeterministicJobError';
 }
 
 /**

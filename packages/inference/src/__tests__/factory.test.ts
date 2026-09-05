@@ -58,3 +58,29 @@ describe('@semiont/inference - createInferenceClient', () => {
     expect(() => createInferenceClient(config)).toThrow('Unsupported inference client type');
   });
 });
+
+// ── Detection-consumption capabilities (OLLAMA-DETECTION-TESTING, ruled
+// 2026-09-05) ─────────────────────────────────────────────────────────────
+//
+// @semiont/jobs is written in terms of the InferenceClient contract and does
+// NO provider-specific switching (user architecture ruling): whatever varies
+// by provider is DECLARED here, per implementation, like `maxConcurrency`.
+// These pin the declarations so a new provider must take a position and an
+// edit to one is deliberate.
+import { AnthropicInferenceClient, OllamaInferenceClient, MockInferenceClient } from '../index';
+
+describe('per-provider detection capabilities', () => {
+  it('every REAL provider count-verifies detection yield — Anthropic included (user ruling 2026-09-05)', () => {
+    // The verifier was first scoped to where collapse was MEASURED (local
+    // models). Overruled: unverified completeness is not a savings — "no
+    // observed collapse on Anthropic" was absence-of-looking, and a ~2×
+    // Person-yield discrepancy between sonnet and gemma on the same document
+    // stands unexplained. The extra billed input is the accepted cost.
+    expect(new AnthropicInferenceClient('key', 'model').verifyDetectionYield).toBe(true);
+    expect(new OllamaInferenceClient('model').verifyDetectionYield).toBe(true);
+  });
+
+  it('the mock does NOT verify by default — deterministic tests opt in explicitly', () => {
+    expect(new MockInferenceClient().verifyDetectionYield).toBe(false);
+  });
+});

@@ -76,7 +76,10 @@ export interface InferenceLimits {
    * the one duration statement that provider surface makes. Consumers with
    * their own call deadline derive a duration-safe output budget from it
    * (ABANDONED-INFERENCE P4). Absent for providers whose rates are
-   * unknowable (Ollama — local hardware), where no duration bound applies.
+   * unknowable a priori (Ollama — local hardware). Absence does NOT mean no
+   * duration bound: the detection consumer applies its own conservative
+   * assumed floor rate instead (OLLAMA-DETECTION-TESTING P3b) — an unbounded
+   * budget turned model repetition loops into hour-long transient burns.
    */
   outputTokensPerHour?: number;
 }
@@ -92,6 +95,12 @@ export interface InferenceLimits {
  * output budget — the same input truncates the same way, so a retry is
  * guaranteed waste — while any other reason is model misbehavior a retry
  * may legitimately fix.
+ *
+ * Also thrown — on either generation path — when a response arrives EMPTY:
+ * a thinking model can exhaust the whole output budget on hidden reasoning
+ * before its first response character (measured live, gpt-oss:120b-cloud
+ * 2026-09-05). Truncated-to-nothing is still truncation, and it needs the
+ * same stop-reason ride to classify correctly.
  */
 export class StructuredReadError extends Error {
   override readonly name = 'StructuredReadError';
@@ -126,6 +135,19 @@ export interface InferenceClient {
    * only where this is SET, not the callers).
    */
   readonly maxConcurrency: number;
+
+  /**
+   * Whether detection should run the count-verifier against this provider's
+   * extractions (OLLAMA-DETECTION-TESTING P3c; universalized to every real
+   * provider by user ruling 2026-09-05 — unverified completeness is not a
+   * savings). Declared HERE, per implementation, because @semiont/jobs does no
+   * provider-specific switching (architecture ruling, same date): whatever
+   * varies by provider is a capability on this contract, like
+   * `maxConcurrency`. The mock alone defaults false, so deterministic tests
+   * opt in explicitly rather than paying a queue-popping count call by
+   * surprise.
+   */
+  readonly verifyDetectionYield: boolean;
 
   /**
    * The provider's actual context/output ceilings for `modelId`. Discovered

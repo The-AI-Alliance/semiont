@@ -242,7 +242,10 @@ describe('extractEntities', () => {
       `Paragraph ${String(k).padStart(2, '0')}: ${'filler words for bulk '.repeat(12)}PARA_${k} end.`,
     );
     const bigText = paragraphs.join('\n\n') + '\n\nFinal note: OMEGA_MARKER closes the document.';
-    const SMALL_SHARED_LIMITS = { contextTokens: 2400, maxOutputTokens: 2400 };
+    // Published no-op rate: these tests are about CHUNKING; a rate-silent
+    // fixture would (since P3c) also enable the count-verifier, whose calls
+    // would interleave into `client.calls` and muddy every assertion here.
+    const SMALL_SHARED_LIMITS = { contextTokens: 2400, maxOutputTokens: 2400, outputTokensPerHour: 3_600_000_000 };
 
     const entity = (exact: string) => JSON.stringify([{ exact, entityType: 'Person' }]);
 
@@ -392,5 +395,96 @@ describe('temperature', () => {
     const client = new MockInferenceClient(['[]']);
     await extractEntities('Alice went to Paris.', ['Person'], client as unknown as InferenceClient, false, LOGGER);
     expect(client.calls[0]!.temperature).toBe(0);
+  });
+});
+
+
+// ── P3c: the count-verifier (OLLAMA-DETECTION-TESTING) ────────────────────
+//
+// Silent yield collapse (F7): a schema-clean, stop-clean extraction returning
+// a fraction of the mentions verifiably present — deterministic, so retries
+// return the identical under-report, and classification-invisible, so nothing
+// downstream can notice. The verifier is a cheap parallel COUNT call compared
+// against the extraction's item count; the expectation comes from the same
+// text, so no input assumption is made. Enabled exactly where the risk was
+// measured: rate-silent providers (the same class P3b's assumed floor
+// targets). A provider that publishes a rate makes NO count call.
+describe('extractEntities — count-verifier (P3c)', () => {
+  /** A rate-silent (Ollama-shaped) client: extraction returns `items`, the
+   * count call answers `countText`. */
+  function verifyingClient(items: unknown[], countText: string) {
+    return {
+      type: 'ollama', modelId: 'test', maxConcurrency: 1, verifyDetectionYield: true,
+      limits: vi.fn(async () => ({ contextTokens: 262_144, maxOutputTokens: 262_144 })),
+      generateStructured: vi.fn(async () => ({ items, stopReason: 'end_turn' })),
+      generateTextWithMetadata: vi.fn(async () => ({ text: countText, stopReason: 'end_turn' })),
+      generateText: vi.fn(),
+    };
+  }
+
+  const TEXT = 'Alice met Bob. '.repeat(10);
+
+  it('a healthy ratio passes untouched — and the count call was made', async () => {
+    // 12 extracted vs 15 counted: 12 × 2 ≥ 15, inside the band.
+    const items = Array.from({ length: 12 }, () => ({ exact: 'Alice', entityType: 'Person' }));
+    const client = verifyingClient(items, '15');
+
+    const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
+
+    expect(result).toHaveLength(12);
+    expect(client.generateTextWithMetadata).toHaveBeenCalled();
+  });
+
+  it('a flagged ratio at the floor ACCEPTS the under-report loudly — unit survives (ruled 2026-09-05)', async () => {
+    // 1 extracted vs 50 counted → flagged. Text this small cannot shrink, so
+    // it is AT its floor on the first flag (no-shrink rule): exactly one
+    // extraction, and the salvage — the entity it DID find, span-verified —
+    // flows through rather than nuking ~20 good chunks with it (the P4
+    // attempt-1 blast radius, ruled on 2026-09-05). Descent on genuinely
+    // shrinkable chunks still discards and retries smaller.
+    const items = [{ exact: 'Alice', entityType: 'Person' }];
+    const client = verifyingClient(items, '50');
+
+    const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
+
+    expect(result).toEqual([{ exact: 'Alice', entityType: 'Person' }]);
+    expect(client.generateStructured.mock.calls.length).toBe(1);
+  });
+
+  it('the provider DECLARES verification — false means no count call, whatever its limits look like', async () => {
+    // The old behavior keyed off rate-silence (provider-shape sniffing in
+    // jobs) and exempted Anthropic. Both overruled 2026-09-05: the capability
+    // is declared on the client, and every real provider declares true. False
+    // remains the mock's test-ergonomics default — pinned here as the OFF
+    // path.
+    const items = [{ exact: 'Alice', entityType: 'Person' }];
+    const client = { ...verifyingClient(items, '999'), verifyDetectionYield: false };
+
+    const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
+
+    expect(result).toHaveLength(1);
+    expect(client.generateTextWithMetadata).not.toHaveBeenCalled();
+  });
+
+  it('an Anthropic-shaped client (publishes a rate, declares true) IS verified — the 2026-09-05 ruling', async () => {
+    const items = Array.from({ length: 12 }, () => ({ exact: 'Alice', entityType: 'Person' }));
+    const client = verifyingClient(items, '15');
+    client.limits = vi.fn(async () => ({ contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 }));
+
+    const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
+
+    expect(result).toHaveLength(12);
+    expect(client.generateTextWithMetadata).toHaveBeenCalled();
+  });
+
+  it('a broken count call disables the verifier for that chunk — never fails a healthy extraction', async () => {
+    // The verifier is a safety net; its own failure must not take the job
+    // down. Unparseable count → warn and pass the extraction through.
+    const items = [{ exact: 'Alice', entityType: 'Person' }];
+    const client = verifyingClient(items, 'I cannot count');
+
+    const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
+
+    expect(result).toHaveLength(1);
   });
 });
