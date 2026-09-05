@@ -29,7 +29,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",
     "@semiont/core": "*",
-    "@semiont/observability": "*"
+    "@semiont/observability": "*",
+    "undici": "^7.29.0"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.11",

@@ -245,9 +245,14 @@ describe('callChunkSubdividing', () => {
     }
   });
 
-  it('does NOT subdivide on failures size cannot fix — unreadable end_turn, plain errors', async () => {
+  it('does NOT subdivide on failures size cannot fix — unreadable end_turn/unknown, plain errors', async () => {
     for (const boom of [
       new StructuredReadError('parsed to object, not an array', 'end_turn'),
+      // The live Ollama failure's exact token (done_reason absent → 'unknown').
+      // Pinned as NOT-subdividable TODAY: OLLAMA-DETECTION-TESTING P1 leaves
+      // open whether a smaller chunk would parse — P2's live data decides, and
+      // this pin makes that change deliberate rather than drift.
+      new StructuredReadError('response is not valid JSON', 'unknown'),
       new Error('model exploded'),
     ]) {
       const calls: string[] = [];

@@ -52,6 +52,14 @@ describe('classifyFailure (A4)', () => {
     expect(classifyFailure(new StructuredReadError('parsed to object, not an array', 'end_turn'))).toBeUndefined();
   });
 
+  it("an 'unknown'-stop unreadable response stays retryable — the live Ollama failure's exact shape (OLLAMA-DETECTION-TESTING P1)", () => {
+    // gemma4:26b, 2026-09-03: done_reason ABSENT → the adapter maps 'unknown'.
+    // An unknown stop is not provably-repeatable the way max_tokens is, so it
+    // stays inside the retry budget. Pinned so a change (e.g. P3 making it
+    // subdividable or deterministic on P2's data) is deliberate, not drift.
+    expect(classifyFailure(new StructuredReadError('response is not valid JSON', 'unknown'))).toBeUndefined();
+  });
+
   it('everything unrecognized is unclassified — retryable by default (HD2 gates only KNOWN-deterministic)', () => {
     expect(classifyFailure(new Error('MessageStream terminated'))).toBeUndefined();
     expect(classifyFailure(new TypeError('fetch failed'))).toBeUndefined();

@@ -1,10 +1,26 @@
 // Ollama implementation of InferenceClient interface
 // Uses native Ollama HTTP API (no SDK dependency)
 
+import { Agent } from 'undici';
 import { estimateTokens, isNumber, isObject } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
 import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredReadError, StructuredResponse } from '../interface.js';
+
+// With `stream: false` Ollama sends nothing — not even response headers —
+// until the whole generation finishes, so any transport-level header timeout
+// is a hidden generation ceiling: undici's 300s default killed every longer
+// generation as a retryable-looking `TypeError: fetch failed` before the
+// caller's own bound could fire. Both transport timeouts are disabled here so
+// the caller's AbortSignal is the single bound on a generate call.
+//
+// The assertion bridges a declaration skew only: @types/node types this slot
+// via undici-types@8, while the Agent must come from undici@7 to match Node
+// 24's bundled copy — an undici@8 Agent is rejected at runtime with
+// UND_ERR_INVALID_ARG (measured 2026-09-04; transport.test.ts gates both the
+// runtime compatibility and the failure shape).
+type FetchDispatcher = NonNullable<RequestInit['dispatcher']>;
+export const unboundedTransport = new Agent({ headersTimeout: 0, bodyTimeout: 0 }) as unknown as FetchDispatcher;
 
 // Slack added to the chars/4 prompt estimate when sizing `num_ctx`:
 // proportional to the estimate (the heuristic's error grows with prompt size)
@@ -194,6 +210,7 @@ export class OllamaInferenceClient implements InferenceClient {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
         signal,
+        dispatcher: unboundedTransport,
       });
     } catch (err) {
       recordInferenceUsage({

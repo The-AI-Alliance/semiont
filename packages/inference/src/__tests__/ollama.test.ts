@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { OllamaInferenceClient } from '../implementations/ollama.js';
+import { OllamaInferenceClient, unboundedTransport } from '../implementations/ollama.js';
 
 // Ollama generate calls now consult /api/show first (limits discovery), so
 // every fetch mock routes by URL: show → model metadata, generate → canned
@@ -113,6 +113,24 @@ describe('OllamaInferenceClient - cancellation threads to the transport (ABANDON
   });
 });
 
+describe('OllamaInferenceClient - generate owns its transport (OLLAMA-DETECTION-TESTING P3.5)', () => {
+  it('sends generate through the unbounded dispatcher and leaves show on platform defaults', async () => {
+    const fetchMock = stubRoutedFetch();
+
+    const client = new OllamaInferenceClient('llama3', 'http://localhost:11434');
+    await client.generateText('p', 100, 0);
+
+    const generateInit = callsTo(fetchMock, '/api/generate')[0][1] as { dispatcher?: unknown };
+    expect(generateInit.dispatcher).toBe(unboundedTransport);
+
+    // /api/show answers from local metadata — headers arrive immediately, so
+    // the platform's default transport bound is protection there, not a
+    // ceiling (limits() has no AbortSignal to be the bound instead).
+    const showInit = callsTo(fetchMock, '/api/show')[0][1] as { dispatcher?: unknown };
+    expect(showInit.dispatcher).toBeUndefined();
+  });
+});
+
 describe('OllamaInferenceClient - managed num_ctx', () => {
   it('sets num_ctx explicitly, covering prompt estimate + output budget within the window', async () => {
     const fetchMock = stubRoutedFetch();
@@ -163,6 +181,35 @@ describe('OllamaInferenceClient - grammar-constrained structured path', () => {
     // generation itself — strictly stronger than the old bare `items: {}`.
     expect(body.format).toEqual({ type: 'array', items: ELEMENT });
     expect(res.items).toEqual([{ exact: 'Paris' }]);
+  });
+
+  // OLLAMA-DETECTION-TESTING P1: the live gemma4:26b failure (2026-09-03) —
+  // 6,858 chars of unparseable output with `done_reason` ABSENT. These pin the
+  // vocabulary token at its origin: an absent done_reason maps to exactly
+  // 'unknown', and that string rides the StructuredReadError downstream, where
+  // classification (retryable) and subdivision (none today) key off it.
+  it("maps an ABSENT done_reason to exactly 'unknown' on the thrown StructuredReadError (the live failure shape)", async () => {
+    stubRoutedFetch({
+      generate: { body: { response: 'entity: Cedar County ("the Society'.repeat(200), done: true } },
+    });
+
+    const client = new OllamaInferenceClient('gemma4:26b', 'http://localhost:11434');
+    await expect(
+      client.generateStructured('p', 100, 0, { type: 'object' }),
+    ).rejects.toMatchObject({ name: 'StructuredReadError', stopReason: 'unknown' });
+  });
+
+  it("maps done_reason 'length' to 'max_tokens' on the thrown StructuredReadError (the Ollama truncation path)", async () => {
+    stubRoutedFetch({
+      generate: { body: { response: '[{"exact":"Par', done: true, done_reason: 'length' } },
+    });
+
+    const client = new OllamaInferenceClient('gemma4:26b', 'http://localhost:11434');
+    // Downstream this exact shape classifies DETERMINISTIC and subdivides —
+    // the same contract the Anthropic path carries, pinned here for Ollama.
+    await expect(
+      client.generateStructured('p', 100, 0, { type: 'object' }),
+    ).rejects.toMatchObject({ name: 'StructuredReadError', stopReason: 'max_tokens' });
   });
 
   it('throws "could not be read" when the response is not a JSON array', async () => {
