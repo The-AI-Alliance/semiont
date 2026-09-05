@@ -269,16 +269,45 @@ describe('callChunkSubdividing', () => {
     }
   });
 
-  it('does NOT subdivide on failures size cannot fix — unreadable end_turn/unknown, plain errors', async () => {
+  it("an 'unknown'-stop unreadable response DESCENDS BY SIZE — the F3 fix (P4 attempt 2, ruled 2026-09-05)", async () => {
+    // DELIBERATE FLIP of P3a's hold, on exactly the evidence its pin demanded:
+    // the F3 shape recurred live (Location, 1996 Review — 6,424 unparseable
+    // chars, done_reason absent, on a 4,460-char piece MID-DESCENT at depth 3,
+    // adjacent to max_tokens truncations that healed by subdividing), and the
+    // retryable-at-same-size alternative was measured as a deterministic 34 s
+    // burn. Size-floored like truncation — NOT depth-capped like timeouts:
+    // the live failure sat at depth 3, where a depth cap would refuse to
+    // descend and change nothing.
+    const calls: string[] = [];
+    let first = true;
+    const result = await callChunkSubdividing('reference', CHUNK, CHUNKING, async (piece) => {
+      calls.push(piece);
+      if (first) { first = false; throw new StructuredReadError('response is not valid JSON', 'unknown'); }
+      return { items: [piece.length] };
+    });
+    expect(result.length).toBeGreaterThan(0);
+    expect(calls.length).toBeGreaterThan(1);
+  });
+
+  it("an 'unknown'-stop unreadable at the floor propagates after ONE call — no re-roll, nothing to salvage", async () => {
+    // Truncation's floor re-roll is for sampling accidents; the F3 garbage is
+    // measured near-deterministic at temp 0, and unlike a collapse there is no
+    // parsed salvage to accept. One call, then the original error to the
+    // job-level machinery (still classified retryable there — a genuinely
+    // broken server deserves its budget).
+    const boom = new StructuredReadError('response is not valid JSON', 'unknown');
+    const small = 'a'.repeat(400);
+    const calls: string[] = [];
+    await expect(callChunkSubdividing('reference', small, { chunkSize: 8, overlap: 16 }, async (piece) => {
+      calls.push(piece);
+      throw boom;
+    })).rejects.toBe(boom);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('does NOT subdivide on failures size cannot fix — unreadable end_turn, plain errors', async () => {
     for (const boom of [
       new StructuredReadError('parsed to object, not an array', 'end_turn'),
-      // The live Ollama failure's exact token (done_reason absent → 'unknown').
-      // DECIDED not-subdividable (OLLAMA-DETECTION-TESTING P3a, 2026-09-05):
-      // P2's 38-row sweep produced zero 'unknown' stops — no size-correlation
-      // evidence that a smaller chunk would parse — so subdivision would spend
-      // extra calls on a shape nothing ties to size. The original live failure
-      // (F3) stands unreproduced; new evidence reopens this, not drift.
-      new StructuredReadError('response is not valid JSON', 'unknown'),
       new Error('model exploded'),
     ]) {
       const calls: string[] = [];

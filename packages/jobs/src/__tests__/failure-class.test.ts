@@ -66,12 +66,12 @@ describe('classifyFailure (A4)', () => {
     // An unknown stop is not provably-repeatable the way max_tokens is, so it
     // stays inside the retry budget.
     //
-    // DECIDED on P2's data (OLLAMA-DETECTION-TESTING P3a, 2026-09-05): the
-    // characterization sweep's 38 rows produced ZERO 'unknown' stops — every
-    // failure was done_reason 'length' or a clean stop — so there is no
-    // size-correlation evidence to reclassify it deterministic. Retryable
-    // stands. The original live shape (F3) remains unreproduced; if it ever
-    // recurs WITH evidence, that evidence reopens this, not drift.
+    // Retryable STANDS after F3's live recurrence (P4 attempt 2, 2026-09-05):
+    // the new evidence flipped SUBDIVIDABILITY (see detection-chunking — the
+    // shape descends by size now), not classification. An unknown stop still
+    // is not provably-repeatable the way max_tokens is, and a genuinely broken
+    // server deserves its retry budget; the subdivision fix is what keeps the
+    // deterministic-in-practice case from burning that budget at same size.
     expect(classifyFailure(new StructuredReadError('response is not valid JSON', 'unknown'))).toBeUndefined();
   });
 

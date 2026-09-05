@@ -234,8 +234,21 @@ export const MAX_SUBDIVISION_DEPTH = 2;
 
 /** The failures a smaller chunk can plausibly fix. An unreadable response
  * that stopped naturally is model misbehavior, not size. */
+/** The F3 shape: unreadable output whose stop reason is UNKNOWN (done_reason
+ * absent). Held not-subdividable through P3a for lack of evidence; the live
+ * gate then reproduced it twice on real text (2026-09-03 at ~21K chars, P4
+ * attempt 2 at ~4.5K, mid-descent, adjacent to max_tokens truncations that
+ * healed by subdividing) and measured the retry-at-same-size alternative as a
+ * deterministic 34 s burn. Size-shaped on the evidence — descends like
+ * truncation, but with no floor re-roll (near-deterministic, nothing salvaged)
+ * and unchanged retryable classification (a genuinely broken server still
+ * deserves its budget). */
+function unknownUnreadable(error: unknown): boolean {
+  return error instanceof StructuredReadError && error.stopReason === 'unknown';
+}
+
 function subdividable(error: unknown): boolean {
-  return error instanceof InferenceTimeoutError || truncation(error);
+  return error instanceof InferenceTimeoutError || truncation(error) || unknownUnreadable(error);
 }
 
 /** Truncation in either surface: parsed-but-flagged (`assertNotTruncated`'s
@@ -327,7 +340,10 @@ export async function callChunkSubdividing<T>(
       // AT its floor, whatever the arithmetic floor says.
       const pieces = chunkText(piece, { chunkSize: half, overlap: chunking.overlap });
       const shrinks = pieces.length > 1 || pieces[0] !== piece;
-      const canDescend = shrinks && (truncation(error)
+      // Size-shaped failures (truncation, collapse, the F3 unknown-unreadable)
+      // descend to the SIZE floor; only timeouts are depth-capped — the F3 fix
+      // must reach failures that first appear mid-descent (measured at depth 3).
+      const canDescend = shrinks && (truncation(error) || unknownUnreadable(error)
         ? half > 2 * OVERLAP_TOKENS
         : depth < MAX_SUBDIVISION_DEPTH);
       if (!canDescend) {
