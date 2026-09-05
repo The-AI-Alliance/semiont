@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { StructuredReadError } from '@semiont/inference';
 import { classifyFailure, DeterministicJobError } from '../failure-class';
+import { YieldCollapseError } from '../workers/detection/detection-chunking';
 import { InferenceTimeoutError } from '../workers/inference-call';
 
 describe('classifyFailure (A4)', () => {
@@ -48,6 +49,14 @@ describe('classifyFailure (A4)', () => {
     expect(classifyFailure(new StructuredReadError('response is not valid JSON', 'max_tokens'))).toBe('deterministic');
   });
 
+  it('a yield-collapse verdict is deterministic — retries provably return the identical under-report (P3c)', () => {
+    // Inherited from DeterministicJobError on purpose: the collapse was
+    // measured bit-identical across retries AND budget regimes, so spending
+    // the retry budget on it is pure waste. Pinned at the seam so the
+    // inheritance cannot be silently severed.
+    expect(classifyFailure(new YieldCollapseError('found 3 of 50 counted mentions'))).toBe('deterministic');
+  });
+
   it('an unreadable structured response with any other stop reason stays retryable — sampling may fix it', () => {
     expect(classifyFailure(new StructuredReadError('parsed to object, not an array', 'end_turn'))).toBeUndefined();
   });
@@ -55,8 +64,14 @@ describe('classifyFailure (A4)', () => {
   it("an 'unknown'-stop unreadable response stays retryable — the live Ollama failure's exact shape (OLLAMA-DETECTION-TESTING P1)", () => {
     // gemma4:26b, 2026-09-03: done_reason ABSENT → the adapter maps 'unknown'.
     // An unknown stop is not provably-repeatable the way max_tokens is, so it
-    // stays inside the retry budget. Pinned so a change (e.g. P3 making it
-    // subdividable or deterministic on P2's data) is deliberate, not drift.
+    // stays inside the retry budget.
+    //
+    // DECIDED on P2's data (OLLAMA-DETECTION-TESTING P3a, 2026-09-05): the
+    // characterization sweep's 38 rows produced ZERO 'unknown' stops — every
+    // failure was done_reason 'length' or a clean stop — so there is no
+    // size-correlation evidence to reclassify it deterministic. Retryable
+    // stands. The original live shape (F3) remains unreproduced; if it ever
+    // recurs WITH evidence, that evidence reopens this, not drift.
     expect(classifyFailure(new StructuredReadError('response is not valid JSON', 'unknown'))).toBeUndefined();
   });
 

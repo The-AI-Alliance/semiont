@@ -709,7 +709,7 @@ export function recordDetectionCall(opts: {
   items: number;
   depth: number;
   reroll: boolean;
-  outcome: 'success' | 'truncated' | 'timeout' | 'error';
+  outcome: 'success' | 'truncated' | 'timeout' | 'collapsed' | 'error';
   inputTokens?: number;
   outputTokens?: number;
 }): void {

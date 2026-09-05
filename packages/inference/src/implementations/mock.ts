@@ -7,6 +7,11 @@ import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, Str
 const GENEROUS_LIMITS: InferenceLimits = {
   contextTokens: 1_000_000,
   maxOutputTokens: 1_000_000,
+  // Generous RATE too: without one the mock reads as rate-silent, which since
+  // OLLAMA-DETECTION-TESTING P3b/P3c opts consumers into the assumed duration
+  // floor and the count-verifier. Tests exercise those by injecting
+  // rate-silent limits deliberately, never by the default.
+  outputTokensPerHour: 3_600_000_000,
 };
 
 export class MockInferenceClient implements InferenceClient {

@@ -76,7 +76,10 @@ export interface InferenceLimits {
    * the one duration statement that provider surface makes. Consumers with
    * their own call deadline derive a duration-safe output budget from it
    * (ABANDONED-INFERENCE P4). Absent for providers whose rates are
-   * unknowable (Ollama — local hardware), where no duration bound applies.
+   * unknowable a priori (Ollama — local hardware). Absence does NOT mean no
+   * duration bound: the detection consumer applies its own conservative
+   * assumed floor rate instead (OLLAMA-DETECTION-TESTING P3b) — an unbounded
+   * budget turned model repetition loops into hour-long transient burns.
    */
   outputTokensPerHour?: number;
 }

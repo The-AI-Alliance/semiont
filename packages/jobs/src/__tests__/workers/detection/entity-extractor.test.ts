@@ -8,6 +8,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { MockInferenceClient, type InferenceClient } from '@semiont/inference';
 import { extractEntities } from '../../../workers/detection/entity-extractor';
+import { YieldCollapseError } from '../../../workers/detection/detection-chunking';
 import { DeterministicJobError } from '../../../failure-class';
 
 // Create mock client directly
@@ -242,7 +243,10 @@ describe('extractEntities', () => {
       `Paragraph ${String(k).padStart(2, '0')}: ${'filler words for bulk '.repeat(12)}PARA_${k} end.`,
     );
     const bigText = paragraphs.join('\n\n') + '\n\nFinal note: OMEGA_MARKER closes the document.';
-    const SMALL_SHARED_LIMITS = { contextTokens: 2400, maxOutputTokens: 2400 };
+    // Published no-op rate: these tests are about CHUNKING; a rate-silent
+    // fixture would (since P3c) also enable the count-verifier, whose calls
+    // would interleave into `client.calls` and muddy every assertion here.
+    const SMALL_SHARED_LIMITS = { contextTokens: 2400, maxOutputTokens: 2400, outputTokensPerHour: 3_600_000_000 };
 
     const entity = (exact: string) => JSON.stringify([{ exact, entityType: 'Person' }]);
 
@@ -392,5 +396,80 @@ describe('temperature', () => {
     const client = new MockInferenceClient(['[]']);
     await extractEntities('Alice went to Paris.', ['Person'], client as unknown as InferenceClient, false, LOGGER);
     expect(client.calls[0]!.temperature).toBe(0);
+  });
+});
+
+
+// ── P3c: the count-verifier (OLLAMA-DETECTION-TESTING) ────────────────────
+//
+// Silent yield collapse (F7): a schema-clean, stop-clean extraction returning
+// a fraction of the mentions verifiably present — deterministic, so retries
+// return the identical under-report, and classification-invisible, so nothing
+// downstream can notice. The verifier is a cheap parallel COUNT call compared
+// against the extraction's item count; the expectation comes from the same
+// text, so no input assumption is made. Enabled exactly where the risk was
+// measured: rate-silent providers (the same class P3b's assumed floor
+// targets). A provider that publishes a rate makes NO count call.
+describe('extractEntities — count-verifier (P3c)', () => {
+  /** A rate-silent (Ollama-shaped) client: extraction returns `items`, the
+   * count call answers `countText`. */
+  function rateSilentClient(items: unknown[], countText: string) {
+    return {
+      type: 'ollama', modelId: 'test', maxConcurrency: 1,
+      limits: vi.fn(async () => ({ contextTokens: 262_144, maxOutputTokens: 262_144 })),
+      generateStructured: vi.fn(async () => ({ items, stopReason: 'end_turn' })),
+      generateTextWithMetadata: vi.fn(async () => ({ text: countText, stopReason: 'end_turn' })),
+      generateText: vi.fn(),
+    };
+  }
+
+  const TEXT = 'Alice met Bob. '.repeat(10);
+
+  it('a healthy ratio passes untouched — and the count call was made', async () => {
+    // 12 extracted vs 15 counted: 12 × 2 ≥ 15, inside the band.
+    const items = Array.from({ length: 12 }, () => ({ exact: 'Alice', entityType: 'Person' }));
+    const client = rateSilentClient(items, '15');
+
+    const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
+
+    expect(result).toHaveLength(12);
+    expect(client.generateTextWithMetadata).toHaveBeenCalled();
+  });
+
+  it('a flagged ratio fails the job with the typed collapse error', async () => {
+    // 3 extracted vs 50 counted: 3 × 2 < 50 → flagged. The mock is
+    // deterministic (the real measured property), so every descent returns
+    // the identical collapse and the floor fails the job loudly.
+    const items = [{ exact: 'Alice', entityType: 'Person' }];
+    const client = rateSilentClient(items, '50');
+
+    await expect(
+      extractEntities(TEXT, ['Person'], client as never, false, LOGGER),
+    ).rejects.toBeInstanceOf(YieldCollapseError);
+    // And it DID descend before failing — subdivision is the response to a
+    // flag, the floor failure only its terminus.
+    expect(client.generateStructured.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it('a provider that publishes a rate makes NO count call — Anthropic is untouched', async () => {
+    const items = [{ exact: 'Alice', entityType: 'Person' }];
+    const client = rateSilentClient(items, '999');
+    client.limits = vi.fn(async () => ({ contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 }));
+
+    const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
+
+    expect(result).toHaveLength(1);
+    expect(client.generateTextWithMetadata).not.toHaveBeenCalled();
+  });
+
+  it('a broken count call disables the verifier for that chunk — never fails a healthy extraction', async () => {
+    // The verifier is a safety net; its own failure must not take the job
+    // down. Unparseable count → warn and pass the extraction through.
+    const items = [{ exact: 'Alice', entityType: 'Person' }];
+    const client = rateSilentClient(items, 'I cannot count');
+
+    const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
+
+    expect(result).toHaveLength(1);
   });
 });

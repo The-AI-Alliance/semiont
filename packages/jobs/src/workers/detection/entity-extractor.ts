@@ -1,7 +1,7 @@
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
 import { chunkText, estimateTokens, getLocaleEnglishName, isObject, isString, type Logger } from '@semiont/core';
-import { boundedGenerateStructured } from '../inference-call';
-import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, DETECTION_TEMPERATURE } from './detection-chunking';
+import { boundedGenerateStructured, boundedGenerateWithMetadata } from '../inference-call';
+import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, DETECTION_TEMPERATURE, YIELD_COLLAPSE_BAND, YieldCollapseError } from './detection-chunking';
 
 /**
  * Entity reference extracted from text — pre-reconciliation.
@@ -71,6 +71,73 @@ const ENTITY_ELEMENT_SCHEMA: ElementSchema = {
  *   (DETECTION-HEARTBEAT).
  * @returns Array of extracted entities with their character offsets
  */
+/** Output cap for the count call: the answer is one number (≤7 digits), and a
+ * tiny cap is itself the safety — a ~5-token output structurally cannot loop
+ * or truncate the way the extraction's array can. */
+const COUNT_MAX_TOKENS = 16;
+
+/** The count answer, read as its leading integer. "Respond with only the
+ * number" is the prompt's contract, but a model that pads it ("There are 50")
+ * still yields its verdict; anything with no integer yields none. */
+function parseCount(text: string): number | undefined {
+  const m = text.trim().match(/\d+/);
+  return m ? Number(m[0]) : undefined;
+}
+
+/**
+ * The count-verifier (OLLAMA-DETECTION-TESTING P3c): guard a SUCCESSFUL
+ * extraction against silent yield collapse (F7) — a schema-clean response
+ * carrying a fraction of the mentions present, measured deterministic and
+ * classification-invisible, so nothing else can catch it.
+ *
+ * A cheap count call ("respond with only the number") sets the expectation
+ * FROM THE SAME TEXT — corpus-free, per the no-input-assumptions principle.
+ * An extraction under 1/BAND of the count throws the collapse verdict, which
+ * subdivision treats like truncation (descend by size) except at the floor,
+ * where it fails the job loudly (user-ratified).
+ *
+ * The verifier's own failure — count call errors, or answers with no number —
+ * disables it for the chunk (warn, pass through): a safety net's outage must
+ * not take down a healthy extraction. Known limit, documented in the bug
+ * report: the count saturates past ~8K chars, so margins are cleanest at
+ * post-descent sizes; it still flagged every measured collapse at 16K/32K.
+ */
+async function assertYieldNotCollapsed(
+  client: InferenceClient,
+  piece: string,
+  itemCount: number,
+  entityTypesDescription: string,
+  logger: Logger,
+): Promise<void> {
+  const prompt = `Count every mention of: ${entityTypesDescription} in the following text. Repeated mentions of the same entity count separately. Respond with only the number.
+
+Text:
+"""
+${piece}
+"""`;
+
+  let counted: number | undefined;
+  try {
+    const response = await boundedGenerateWithMetadata(client, prompt, COUNT_MAX_TOKENS, DETECTION_TEMPERATURE, undefined, logger);
+    counted = parseCount(response.text);
+  } catch (err) {
+    logger.warn('Count-verifier call failed — yield check skipped for this chunk', {
+      pieceChars: piece.length,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  if (counted === undefined) {
+    logger.warn('Count-verifier answer carried no number — yield check skipped for this chunk', { pieceChars: piece.length });
+    return;
+  }
+  if (itemCount * YIELD_COLLAPSE_BAND < counted) {
+    throw new YieldCollapseError(
+      `Extraction found ${itemCount} entities where a count call reports ~${counted} mentions (band ×${YIELD_COLLAPSE_BAND}) on a ${piece.length}-char chunk — silent yield collapse (F7): deterministic, so a retry returns the identical under-report; subdividing instead.`,
+    );
+  }
+}
+
 export async function extractEntities(
   exact: string,
   entityTypes: string[] | { type: string; examples?: string[] }[],
@@ -151,6 +218,11 @@ Example output:
   // when the derived budget forces it; small documents make one call, as
   // before.
   const limits = await client.limits();
+  // The verifier runs exactly where the risk was measured: rate-silent
+  // providers — the same class P3b's assumed duration floor targets. A
+  // provider that publishes its rate (Anthropic) showed no collapse and pays
+  // for input twice if we count anyway, so it makes NO count call.
+  const verifyYield = limits.outputTokensPerHour === undefined;
   const scaffoldTokens = estimateTokens(buildPrompt(''));
   // One call asks for every type in `entityTypes` — the processor's per-type
   // loop passes one, so this is 1 in production today.
@@ -193,6 +265,12 @@ Example output:
       // consuming: a truncated structured response can still carry a valid
       // partial array, so the items themselves cannot signal the loss.
       assertNotTruncated(response, 'Entity extraction', i + 1, chunks.length, outputBudget);
+      // And a CLEAN response can still be a silent under-report (F7) — the
+      // count-verifier is the only signal for that, and a flag throws the
+      // collapse verdict so subdivision changes the input.
+      if (verifyYield) {
+        await assertYieldNotCollapsed(client, piece, response.items.length, entityTypesDescription, logger);
+      }
       // Usage rides back so the telemetry record carries what the call COST
       // beside what it yielded — the provider's own counts, not an estimate.
       return { items: response.items, ...(response.usage ? { usage: response.usage } : {}) };

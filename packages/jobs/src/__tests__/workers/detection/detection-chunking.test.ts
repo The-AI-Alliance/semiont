@@ -16,7 +16,7 @@ vi.mock('@semiont/observability', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@semiont/observability')>()),
   recordDetectionCall: recordDetectionCallMock,
 }));
-import { deriveDetectionBudget } from '../../../workers/detection/detection-chunking';
+import { deriveDetectionBudget, ASSUMED_OUTPUT_TOKENS_PER_HOUR } from '../../../workers/detection/detection-chunking';
 import { INFERENCE_TIMEOUT_MS } from '../../../workers/inference-call';
 
 describe('deriveDetectionBudget', () => {
@@ -43,8 +43,11 @@ describe('deriveDetectionBudget', () => {
     // demanded MORE than the whole output budget — the model ground toward
     // truncation for minutes or collapsed to []. Capacity-sized input plans
     // calls whose honest answers cannot fit.
+    // Rate high enough that the duration cap is a no-op — this test pins the
+    // ALLOCATION shape alone. (Since P3b, OMITTING the rate no longer means
+    // uncapped: it means the assumed floor.)
     const { chunking, outputBudget } = deriveDetectionBudget(
-      { contextTokens: 200_000, maxOutputTokens: 64_000 },
+      { contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 3_600_000_000 },
       500,
       1,
     );
@@ -96,7 +99,9 @@ describe('deriveDetectionBudget', () => {
 
 describe('deriveDetectionBudget — duration bound (A5)', () => {
   const anthropic1M = { contextTokens: 1_000_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 };
-  const anthropic1MNoRate = { contextTokens: 1_000_000, maxOutputTokens: 64_000 };
+  // The uncapped BASELINE needs an explicitly-huge published rate: since P3b,
+  // omitting the rate no longer means uncapped — it means the assumed floor.
+  const anthropic1MUncapped = { contextTokens: 1_000_000, maxOutputTokens: 64_000, outputTokensPerHour: 3_600_000_000 };
 
   it('caps per-call output at the provider rate × the inference bound', () => {
     const budget = deriveDetectionBudget(anthropic1M, 1_000, 1);
@@ -105,7 +110,7 @@ describe('deriveDetectionBudget — duration bound (A5)', () => {
   });
 
   it('scales input by the same factor — ratio preserved, so a capacity-sized document now splits (A5)', () => {
-    const uncapped = deriveDetectionBudget(anthropic1MNoRate, 1_000, 1);
+    const uncapped = deriveDetectionBudget(anthropic1MUncapped, 1_000, 1);
     const capped = deriveDetectionBudget(anthropic1M, 1_000, 1);
 
     const factor = capped.outputBudget / uncapped.outputBudget;
@@ -122,14 +127,33 @@ describe('deriveDetectionBudget — duration bound (A5)', () => {
       .toEqual(deriveDetectionBudget(tinyOutput, 1_000, 1));
   });
 
-  it('providers publishing no rate are byte-identical to today — Ollama stays capacity-governed', () => {
-    const shared = { contextTokens: 32_768, maxOutputTokens: 32_768 };
+  it('a rate-silent provider is duration-capped at the ASSUMED floor rate — the F9 fix (OLLAMA-DETECTION-TESTING P3b)', () => {
+    // DELIBERATE FLIP of the old "Ollama stays capacity-governed" pin, on
+    // P2's data: capacity-sizing handed a 262K-window model a 174K-token
+    // output budget, and a repetition loop then burned the full 10-minute
+    // guillotine as TRANSIENT — retried identically, three times over. The
+    // same loop under a duration-shaped cap dies in minutes as max_tokens →
+    // deterministic → subdividable, the useful failure. Rate-silent providers
+    // now get the consumer's own conservative floor (30 tok/s) instead of no
+    // bound at all.
+    const shared = { contextTokens: 262_144, maxOutputTokens: 262_144 };
 
     const budget = deriveDetectionBudget(shared, 500, 1);
-    const available = 32_768 - 500;
-    const inputBudget = Math.floor(available / 3);
-    expect(budget.chunking.chunkSize).toBe(inputBudget);
-    expect(budget.outputBudget).toBe(available - inputBudget);
+    // 108,000 tokens/hour × half the 10-minute bound = 9,000 output tokens;
+    // the 1:2 clamp then puts input at 4,500 (~18K chars per chunk) — the
+    // worked numbers from the P3 dispatch.
+    expect(budget.outputBudget).toBe(Math.floor(ASSUMED_OUTPUT_TOKENS_PER_HOUR * (INFERENCE_TIMEOUT_MS / 2) / 3_600_000));
+    expect(budget.outputBudget).toBe(9_000);
+    // Input scales by the same factor (ratio preserved), floored: 87,214 ×
+    // 9,000/174,430 = 4,499.95 → 4,499 — one token under the 1:2 clamp's
+    // 4,500, ~18K chars per chunk.
+    expect(budget.chunking.chunkSize).toBe(4_499);
+  });
+
+  it('a published rate still wins over the assumed floor — Anthropic is untouched by P3b', () => {
+    const anthropic = { contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 };
+    const budget = deriveDetectionBudget(anthropic, 500, 1);
+    expect(budget.outputBudget).toBe(Math.floor(128_000 * (INFERENCE_TIMEOUT_MS / 2) / 3_600_000));
   });
 });
 
@@ -195,7 +219,7 @@ describe('deriveDetectionBudget — input never exceeds half the output budget',
 // size-shaped failure, it subdivides in place instead of burning the
 // attempt.
 
-import { callChunkSubdividing } from '../../../workers/detection/detection-chunking';
+import { callChunkSubdividing, YieldCollapseError } from '../../../workers/detection/detection-chunking';
 import { InferenceTimeoutError } from '../../../workers/inference-call';
 import { DeterministicJobError } from '../../../failure-class';
 import { StructuredReadError } from '@semiont/inference';
@@ -249,9 +273,11 @@ describe('callChunkSubdividing', () => {
     for (const boom of [
       new StructuredReadError('parsed to object, not an array', 'end_turn'),
       // The live Ollama failure's exact token (done_reason absent → 'unknown').
-      // Pinned as NOT-subdividable TODAY: OLLAMA-DETECTION-TESTING P1 leaves
-      // open whether a smaller chunk would parse — P2's live data decides, and
-      // this pin makes that change deliberate rather than drift.
+      // DECIDED not-subdividable (OLLAMA-DETECTION-TESTING P3a, 2026-09-05):
+      // P2's 38-row sweep produced zero 'unknown' stops — no size-correlation
+      // evidence that a smaller chunk would parse — so subdivision would spend
+      // extra calls on a shape nothing ties to size. The original live failure
+      // (F3) stands unreproduced; new evidence reopens this, not drift.
       new StructuredReadError('response is not valid JSON', 'unknown'),
       new Error('model exploded'),
     ]) {
@@ -262,6 +288,35 @@ describe('callChunkSubdividing', () => {
       })).rejects.toBe(boom);
       expect(calls).toEqual([CHUNK]);
     }
+  });
+
+  it('a collapse verdict descends by SIZE, like truncation (P3c)', async () => {
+    // A YieldCollapseError on the full chunk must subdivide — retry provably
+    // returns the identical collapse, so changing the input is the one lever.
+    const calls: string[] = [];
+    let first = true;
+    const result = await callChunkSubdividing('reference', CHUNK, CHUNKING, async (piece) => {
+      calls.push(piece);
+      if (first) { first = false; throw new YieldCollapseError('found 3 of 50 counted mentions'); }
+      return { items: [piece.length] };
+    });
+    expect(result.length).toBeGreaterThan(0);
+    expect(calls.length).toBeGreaterThan(1); // it descended rather than propagating
+  });
+
+  it('at the size floor a collapse verdict FAILS THE JOB — no re-roll (P3c, user-ratified)', async () => {
+    // Truncation at the floor gets one same-size re-roll (a sampling
+    // accident). Collapse must NOT: it is measured deterministic, so the
+    // re-roll would return the identical under-report and turn a loud
+    // failure into a wasted call. One call, then the typed error propagates.
+    const boom = new YieldCollapseError('found 3 of 50 counted mentions');
+    const small = 'a'.repeat(400);
+    const calls: string[] = [];
+    await expect(callChunkSubdividing('reference', small, { chunkSize: 8, overlap: 16 }, async (piece) => {
+      calls.push(piece);
+      throw boom;
+    })).rejects.toBe(boom);
+    expect(calls).toHaveLength(1);
   });
 
   it('is depth-bounded: a chunk that fails at every size rethrows the ORIGINAL failure', async () => {
@@ -396,6 +451,21 @@ describe('callChunkSubdividing telemetry', () => {
     expect(records).toHaveLength(2);
     expect(records[0]).toMatchObject({ reroll: false, outcome: 'truncated' });
     expect(records[1]).toMatchObject({ reroll: true, outcome: 'success' });
+  });
+
+  it("records a collapse verdict as its own outcome — F7 finally has an in-band signal", async () => {
+    // The bug report's core complaint was "no signal, nothing downstream can
+    // detect it". The verifier creates the signal; the telemetry must not
+    // collapse it into 'truncated' (which the DeterministicJobError
+    // inheritance would otherwise do) — the two are different facts.
+    await expect(
+      callChunkSubdividing<string>('reference', 'a'.repeat(400), { chunkSize: 8, overlap: 16 }, async () => {
+        throw new YieldCollapseError('found 3 of 50 counted mentions');
+      }),
+    ).rejects.toBeInstanceOf(YieldCollapseError);
+
+    const outcomes = recordDetectionCallMock.mock.calls.map(c => (c[0] as { outcome: string }).outcome);
+    expect(new Set(outcomes)).toEqual(new Set(['collapsed']));
   });
 
   it('classifies a timeout distinctly from a truncation — they demand opposite responses', async () => {

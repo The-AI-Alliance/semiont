@@ -70,6 +70,53 @@ const OVERLAP_TOKENS = Math.ceil(OVERLAP_CHARS / 4);
  */
 export const DETECTION_TEMPERATURE = 0;
 
+/**
+ * Assumed worst-case output rate for providers that publish none
+ * (OLLAMA-DETECTION-TESTING P3b, from F9). Rate-silent providers (Ollama —
+ * local hardware, rate unknowable a priori) previously got NO duration bound:
+ * capacity-sizing handed a 262K-window model a ~174K-token output budget, and
+ * a repetition loop then burned the full 10-minute guillotine as TRANSIENT —
+ * retried identically. Under a duration-shaped cap the same loop dies in
+ * minutes as max_tokens → deterministic → subdividable: the useful failure.
+ *
+ * 30 tok/s. P2 measured 36–90 tok/s across three local model families
+ * (qwen3.5:9b ~36, gemma4:26b ~50, gemma4:e2b ~90), and the half-bound rule
+ * in the cap below means real rates down to 15 tok/s still finish inside the
+ * guillotine — anything slower is wedged, not working, which is exactly what
+ * the guillotine is for. A conservative floor, deliberately NOT per-model:
+ * F8 showed per-model thresholds chase noise. Owned policy constant, same
+ * status as the 1:2 split and DETECTION_TEMPERATURE.
+ */
+export const ASSUMED_OUTPUT_TOKENS_PER_HOUR = 108_000;
+
+/**
+ * The count-verifier band (OLLAMA-DETECTION-TESTING P3c, user-ratified
+ * 2026-09-05): an extraction that found fewer than 1/BAND of the mentions a
+ * cheap count call reports is flagged as silent yield collapse (F7). The band
+ * is LOAD-BEARING at 2: F12 measured the same model flipping between
+ * entity-like and mention-like enumeration on the same corpus, and that
+ * legitimate judgment spread must fit INSIDE the band — probe evidence (n=6)
+ * put every healthy ratio at 0.68–0.88 and every collapse at 0.18–0.41.
+ */
+export const YIELD_COLLAPSE_BAND = 2;
+
+/**
+ * The silent-yield-collapse verdict (F7): a schema-clean, done-reason-clean
+ * extraction that found a fraction of what a cheap count call says is present.
+ * Extends DeterministicJobError because the collapse is MEASURED deterministic
+ * — bit-identical across retries and across budget regimes — so a retry is
+ * guaranteed waste; the classification and the size-floored subdivision
+ * descent both follow from the base class. The one place it diverges from
+ * truncation: at the size floor there is NO re-roll — a same-size re-roll
+ * provably returns the identical collapse, so a floor-size piece still
+ * flagged FAILS THE JOB LOUDLY (user-ratified; same value as
+ * assertNotTruncated — never silently under-report; the event log preserves
+ * the document, so re-detection heals).
+ */
+export class YieldCollapseError extends DeterministicJobError {
+  override readonly name = 'YieldCollapseError';
+}
+
 export interface DetectionBudget {
   /** Feed to `chunkText` — `chunkSize` is the derived input budget (tokens). */
   chunking: ChunkingConfig;
@@ -117,25 +164,28 @@ export function deriveDetectionBudget(
     }
   }
 
-  // Duration floor (ABANDONED-INFERENCE P4, HD3): when the provider
-  // publishes its worst-case output rate, cap each call's output at what
-  // that rate finishes inside our own inference bound — a call projected
-  // past the 10-minute guillotine is planned-to-fail — and scale input by
-  // the same factor, so the input:output ratio (and with it the per-chunk
-  // truncation risk profile) is exactly the capacity solution's. Capacity
-  // says what CAN fit in one call; this says what SHOULD. Derived end to
-  // end — rate from `limits()`, deadline from INFERENCE_TIMEOUT_MS — so
-  // #1121's no-hand-tuned-caps principle is extended, not violated; it is
-  // a floor on chunk count, never a raise (a tighter capacity budget is
-  // left alone). Side effect worth knowing: on Anthropic this lands every
-  // detection call at or under the SDK's non-streaming threshold — off the
-  // MessageStream path the original `terminated` failure arrived on.
-  if (limits.outputTokensPerHour !== undefined) {
+  // Duration floor (ABANDONED-INFERENCE P4 HD3; universalized by
+  // OLLAMA-DETECTION-TESTING P3b): cap each call's output at what the
+  // provider's worst-case rate finishes inside our own inference bound — a
+  // call projected past the 10-minute guillotine is planned-to-fail — and
+  // scale input by the same factor, so the input:output ratio (and with it
+  // the per-chunk truncation risk profile) is exactly the capacity
+  // solution's. Capacity says what CAN fit in one call; this says what
+  // SHOULD. EVERY provider gets the bound: the published rate when there is
+  // one, the conservative assumed floor when there is not — a rate-silent
+  // provider with no bound turned repetition loops into hour-long transient
+  // burns (F9; see ASSUMED_OUTPUT_TOKENS_PER_HOUR). It is a floor on chunk
+  // count, never a raise (a tighter capacity budget is left alone). Side
+  // effect worth knowing: on Anthropic this lands every detection call at
+  // or under the SDK's non-streaming threshold — off the MessageStream path
+  // the original `terminated` failure arrived on.
+  const outputTokensPerHour = limits.outputTokensPerHour ?? ASSUMED_OUTPUT_TOKENS_PER_HOUR;
+  {
     // Half the bound, not all of it: at the full bound the slowest
     // legitimate full-budget generation lands exactly on the guillotine.
     // At half, the guillotine fires only on calls at least 2× slower than
     // the provider's own worst-case model — wedged, not working.
-    const durationSafeOutput = Math.floor(limits.outputTokensPerHour * (INFERENCE_TIMEOUT_MS / 2) / 3_600_000);
+    const durationSafeOutput = Math.floor(outputTokensPerHour * (INFERENCE_TIMEOUT_MS / 2) / 3_600_000);
     if (outputBudget > durationSafeOutput) {
       inputBudget = Math.floor(inputBudget * (durationSafeOutput / outputBudget));
       outputBudget = durationSafeOutput;
@@ -206,7 +256,11 @@ export interface ChunkCallResult<T> {
 /** Which shape of failure this was — they demand opposite responses, so the
  * history must tell them apart: truncation descends by size, a timeout fails
  * fast, anything else is not size-shaped at all. */
-function outcomeOf(error: unknown): 'truncated' | 'timeout' | 'error' {
+function outcomeOf(error: unknown): 'truncated' | 'timeout' | 'collapsed' | 'error' {
+  // Collapse before truncation: it IS a DeterministicJobError (so the
+  // truncation check would swallow it), but in the history the two are
+  // different facts — one is output overflow, the other silent under-report.
+  if (error instanceof YieldCollapseError) return 'collapsed';
   if (truncation(error)) return 'truncated';
   if (error instanceof InferenceTimeoutError) return 'timeout';
   return 'error';
@@ -261,8 +315,12 @@ export async function callChunkSubdividing<T>(
       if (!canDescend) {
         // At the size floor honest overflow is impossible, so truncation
         // here is a degeneration loop — a sampling accident. One same-size
-        // re-roll; a second truncation propagates. Timeouts get no re-roll.
-        if (!truncation(error)) throw error;
+        // re-roll; a second truncation propagates. Timeouts get no re-roll —
+        // and neither does a COLLAPSE verdict (P3c, user-ratified): it is
+        // measured deterministic, so a same-size re-roll returns the
+        // identical under-report; a floor-size piece still flagged fails the
+        // job loudly instead.
+        if (!truncation(error) || error instanceof YieldCollapseError) throw error;
         logger?.warn('Floor-size piece truncated — re-rolling once before giving up', {
           pieceChars: piece.length,
           error: error instanceof Error ? error.message : String(error),
