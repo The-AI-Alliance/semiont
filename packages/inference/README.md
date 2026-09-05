@@ -90,12 +90,21 @@ interface InferenceClient {
   readonly type: string;     // 'anthropic' | 'ollama' | 'mock'
   readonly modelId: string;  // configured model name
 
+  // Declared per-provider capabilities — consumers read these instead of
+  // switching on provider identity:
+  readonly maxConcurrency: number;        // independent calls that gain from running at once
+                                          // (Anthropic 4; Ollama 1 — one GPU, no parallel gain)
+  readonly verifyDetectionYield: boolean; // whether detection count-verifies extractions
+                                          // (true for real providers; Mock false — tests opt in)
+
   limits(): Promise<InferenceLimits>;
   generateText(prompt, maxTokens, temperature, signal?): Promise<string>;
   generateTextWithMetadata(prompt, maxTokens, temperature, signal?): Promise<InferenceResponse>;
   generateStructured<T>(prompt, maxTokens, temperature, elementSchema, signal?): Promise<StructuredResponse<T>>;
 }
 ```
+
+Whatever varies by provider is a **capability declared here**, hard-coded per implementation — downstream packages are written purely in terms of this contract and never sniff provider identity. A new provider must take a position on each capability (tests pin the declarations).
 
 Every generation method takes a trailing optional `AbortSignal`: aborting tears down the underlying transport (and, on Anthropic, the SDK's internal retry loop) so a cancelled call rejects promptly instead of surviving as a billed background request. Implementations must honor it — accepting and ignoring the signal is a defect.
 
@@ -111,8 +120,16 @@ interface InferenceLimits {
 interface InferenceResponse {
   text: string;
   stopReason: 'end_turn' | 'max_tokens' | 'stop_sequence' | string;
+  usage?: TokenUsage;   // the PROVIDER's own token counts — never estimated;
+}                       // absent means unreported, not zero
+
+interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
 }
 ```
+
+`StructuredResponse<T>` carries the same optional `usage`, so a consumer can pair what a call yielded with what it cost from one return value.
 
 ### Structured generation
 
@@ -131,7 +148,7 @@ Each implementation honors the contract with its provider's mechanism:
 - **Ollama**: grammar-constrained sampling — the request's `format` field carries the caller's element schema wrapped in an array schema.
 - **Anthropic**: response-level structured output — `output_config.format` carries the caller's element schema under an **array root** (accepted on both live-config models; `.plans/spikes/output-config-array-root.md`), so the response text IS the schema-conforming JSON. No tools, no wrapper, no unwrap.
 
-A response that cannot be read as an array — the SDK delivering unparsed tool input as a string, a missing array, an unhonoured grammar — **throws a typed `StructuredReadError`** carrying the provider's `stopReason`, because the cause classifies differently downstream: `max_tokens` is truncation (an identical retry truncates identically), anything else is model misbehavior a retry may fix. It is never coerced to `[]`: an empty extraction is a legitimate, distinct outcome, and conflating the two silently discards real data (STRUCTURED-INFERENCE).
+A response that cannot be read as an array — unparseable output, a missing array, an unhonoured grammar, or an **empty response** (which throws with the stop reason that produced it, so thinking-exhaustion classifies as the truncation it is) — **throws a typed `StructuredReadError`** carrying the provider's `stopReason`, because the cause classifies differently downstream: `max_tokens` is truncation (an identical retry truncates identically, so detection subdivides), `'unknown'` (no stop reason at all) is measured size-correlated on real documents (detection subdivides that too, while keeping it retryable), and everything else is model misbehavior a retry may fix. It is never coerced to `[]`: an empty extraction is a legitimate, distinct outcome, and conflating the two silently discards real data.
 
 Current callers all expect arrays (entity extraction, motivation detection). If an object-emitting caller appears, `generateStructured` grows a sibling, not an option — see the notes in [src/interface.ts](src/interface.ts).
 
@@ -140,17 +157,19 @@ Current callers all expect arrays (entity extraction, motivation detection). If 
 `limits()` publishes the provider's **actual** context/output ceilings for the configured model — discovered from the provider itself, never hand-maintained constants:
 
 - **Anthropic**: the Models API (`models.retrieve`) — `max_input_tokens` / `max_tokens` — plus `outputTokensPerHour: 128_000`, the SDK's own worst-case rate model (the `calculateNonstreamingTimeout` constant): the one duration statement the provider surface makes, which detection's duration-safe budgets derive from.
-- **Ollama**: `POST /api/show` — the model's context window. Input and output share that window, so it is published as both fields (`maxOutputTokens === contextTokens` signals a shared window). No rate is published — local hardware's rate is unknowable, so no duration bound applies.
+- **Ollama**: `POST /api/show` — the model's context window. Input and output share that window, so it is published as both fields (`maxOutputTokens === contextTokens` signals a shared window). No rate is published — local hardware's rate is unknowable a priori. Absence does **not** mean no duration bound: the detection consumer applies its own conservative assumed floor rate instead, because an unbounded output budget turned model repetition loops into hour-long transient burns.
 
 Discovery is lazy and cached per client; a failed discovery is **not** cached — the next call retries. When ceilings cannot be determined (unknown model, endpoint unreachable), `limits()` **throws**: fail-loud, never a guessed floor.
 
 Two request-time behaviors ride on the limits:
 - **Ollama sets `num_ctx` explicitly** on every generate request — sized to the prompt estimate + output budget, capped at the model window. Without it, Ollama's model-*default* window silently clips large prompts. A request that genuinely cannot fit **throws** instead of being clipped.
+- **The Ollama adapter owns its transport timeouts.** With `stream: false`, Ollama sends no response headers until generation completes, and Node's default fetch would kill any call generating longer than ~5 minutes (undici's `headersTimeout`) — a ceiling below every deliberate bound, owned by nobody. Generate requests run on a per-request undici@7 dispatcher with those timeouts disabled; the caller's `AbortSignal` is the one bound. The undici `^7` pin is load-bearing (the built-in fetch rejects an undici@8 Agent) and test-gated.
+- **Cloud-routed Ollama models are reported honestly, not corrected**: hidden thinking returned despite `think: false` is surfaced on the response and warned (it inflates `eval_count`, which is documented at the field), and the structured `format` is advisory rather than grammar-enforced on that path — violations surface as `StructuredReadError`.
 - **Anthropic streams internally** above the SDK's non-streaming output ceiling (≈21K tokens) — same interface, same response shape.
 
 ### `MockInferenceClient`
 
-A scripted test double ([src/implementations/mock.ts](src/implementations/mock.ts)): construct it with a list of canned responses, then inspect `calls` (recorded prompt/maxTokens/temperature/options per invocation). `reset()` and `setResponses()` helpers included. An optional third constructor argument injects `InferenceLimits` for chunking/budget tests; the default is generous (1M/1M) so ordinary tests never trip window guards.
+A scripted test double ([src/implementations/mock.ts](src/implementations/mock.ts)): construct it with a list of canned responses, then inspect `calls` (recorded prompt/maxTokens/temperature/options per invocation). `reset()` and `setResponses()` helpers included. An optional third constructor argument injects `InferenceLimits` for chunking/budget tests; the default is generous (1M/1M window plus a generous published rate) so ordinary tests never trip window guards, duration caps, or the count-verifier. Its capabilities are deterministic-test defaults — `maxConcurrency: 1`, `verifyDetectionYield: false` — so a test exercising concurrency or verification declares its own client rather than paying a surprise call.
 
 ```typescript
 import { MockInferenceClient } from '@semiont/inference';
@@ -203,10 +222,14 @@ Every generation records a usage metric through `@semiont/observability`'s `reco
 
 ### Adding a New Provider
 
-1. Implement `InferenceClient` interface in `src/implementations/`
+1. Implement the `InferenceClient` interface in `src/implementations/` — including a
+   position on each declared capability (`maxConcurrency`: does this provider gain from
+   concurrent independent calls? `verifyDetectionYield`: should detection count-verify
+   its extractions?). The capability pins in `factory.test.ts` fail until you take one.
 2. Add type to `InferenceClientType` union in `src/factory.ts`
 3. Add case in `createInferenceClient()` switch
-4. Application code in `@semiont/make-meaning` requires no changes
+4. Application code in `@semiont/make-meaning` and `@semiont/jobs` requires no changes —
+   consumers read capabilities off the contract instead of switching on provider identity
 
 ## Dependencies
 

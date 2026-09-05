@@ -221,7 +221,7 @@ if (isRunningJob(job)) {
 
 ## Worker Implementation Pattern
 
-There are no per-type worker classes. `startWorkerProcess` claims a job and dispatches on `jobType` to a plain `process*Job` function (in `processors.ts`). Each processor returns the annotations it built plus a typed result; the worker process emits each annotation as a `mark:create` command, then a final `job:complete`.
+There are no per-type worker classes. `startWorkerProcess` claims a job and dispatches on `jobType` to a plain `process*Job` function (in `processors.ts`). Each processor returns the annotations it built plus a typed result; the worker process commits the batch as one **awaited `mark:commit`** — resolving only after the event log holds every annotation — then emits `job:complete`.
 
 ```typescript
 // processors.ts — pure async function, no class, no JobWorker
@@ -262,16 +262,16 @@ export async function processTagJob(
   const { annotations, result } = await processTagJob(
     content, inferenceClient, job.params as never, userId, generator, onProgress,
   );
-  for (const ann of annotations) {
-    // Underlying primitive is session.client.transport.emit('mark:create', ...)
-    await emitEvent(session, 'mark:create', { annotation: ann, userId, resourceId });
-  }
+  // Awaited durability: resolves only after the Stower has appended every
+  // annotation to the event log. job:complete comes AFTER — a success claim
+  // emitted first would report work that may never have persisted.
+  await commitAnnotations(session, String(resourceId), annotations);
   await emitEvent(session, 'job:complete', { ...lifecycleBase, result: result as never });
   adapter.completeJob();
 }
 ```
 
-Workers emit bus commands (`mark:create`, `job:complete`) via `session.client.transport.emit`. The **Stower** actor in `@semiont/make-meaning` subscribes to these commands and handles all persistence to the Knowledge Base.
+Workers persist through the acknowledged `mark:commit` operation (`commitAnnotations`) and emit lifecycle commands (`job:start`, `job:checkpoint`, `job:complete`, `job:fail`) via `session.client.transport.emit`. The **Stower** actor in `@semiont/make-meaning` handles all persistence to the Knowledge Base and answers each commit with `mark:commit-ok` only once the append is durable.
 
 ## Exhaustive Checking
 

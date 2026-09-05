@@ -231,7 +231,7 @@ session.client.browse.resourceContent(resourceId)   (detection job types)
   ↓
 process*Job(...) → annotations + result
   ↓
-emit mark:create per annotation; emit job:complete
+await mark:commit (batched, acknowledged); emit job:checkpoint; emit job:complete
   ↓ on error
 emit job:fail; adapter.failJob(jobId, message)
 ```
@@ -240,7 +240,7 @@ A pending job whose announcement found no idle eligible worker (all busy, worker
 
 On the gateway, the lifecycle events are mirrored into the queue files (see `@semiont/make-meaning`'s job command handlers): `job:complete` moves the file to `complete/`, `job:fail` retries or moves it to `failed/`, and `job:report-progress` is written into the running file as both live progress and a worker heartbeat.
 
-Lifecycle and `mark:create` events are emitted via `session.client.transport.emit(...)`. The Stower actor in @semiont/make-meaning persists them.
+Lifecycle events are emitted via `session.client.transport.emit(...)`; annotations persist through the **awaited `mark:commit`** operation, which the Stower actor in @semiont/make-meaning answers with `mark:commit-ok` only once every annotation is appended to the event log. Unit completion — and `job:complete` itself — gate on that acknowledgement, never on emission.
 
 ## Storage
 

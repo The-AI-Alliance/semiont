@@ -114,7 +114,7 @@ Five access actors mediate reads and writes — the record's three (Stower, Brow
 
 ### Stower (archivist)
 
-The single write gateway. Bus commands (`mark:create`, `yield:create`, `job:complete`, …) become domain events on the event log and content registrations; replies (`*-ok` / `*-failed`) confirm completion, and the EventStore republishes the appended domain events. No other code calls `eventStore.appendEvent()` or writes the content store.
+The single write gateway. Bus commands (`mark:create`, `mark:commit`, `yield:create`, `job:complete`, …) become domain events on the event log and content registrations; replies (`*-ok` / `*-failed`) confirm completion, and the EventStore republishes the appended domain events. No other code calls `eventStore.appendEvent()` or writes the content store.
 
 ### Browser (archivist)
 

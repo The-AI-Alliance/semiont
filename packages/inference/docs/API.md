@@ -50,6 +50,11 @@ interface InferenceClient {
   readonly type: string;     // 'anthropic' | 'ollama' | 'mock'
   readonly modelId: string;  // configured model name
 
+  // Declared capabilities — consumers read these instead of switching on
+  // provider identity; every implementation must take a position (pinned):
+  readonly maxConcurrency: number;        // independent calls that gain from running concurrently
+  readonly verifyDetectionYield: boolean; // whether detection count-verifies extractions
+
   limits(): Promise<InferenceLimits>;
 
   generateText(
@@ -78,6 +83,12 @@ interface InferenceClient {
 interface InferenceResponse {
   text: string;
   stopReason: 'end_turn' | 'max_tokens' | 'stop_sequence' | string;
+  usage?: TokenUsage;  // provider-reported token counts; absent = unreported, never zero-filled
+}
+
+interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
 }
 ```
 
@@ -101,7 +112,7 @@ interface InferenceLimits {
 - **Anthropic** (separate ceilings): `contextTokens` = maximum *input* tokens, `maxOutputTokens` = the output ceiling — both from the Models API (`models.retrieve`).
 - **Ollama** (shared window): input and output draw from one window, published as both fields — so `maxOutputTokens === contextTokens` signals a shared window to budget-derivation consumers.
 
-`outputTokensPerHour` is the one **duration** statement a provider surface makes: Anthropic's SDK projects a call's maximum duration as `max_tokens / rate` (the `calculateNonstreamingTimeout` constant, 128K/hour) and detection derives its duration-safe output budget from it. Absent for providers whose rates are unknowable (Ollama — local hardware), where no duration bound applies. Note the modeled rate is a ceiling estimate, not a floor: generation measured live at roughly half that rate (2026-09-02), which is why consumers spend only part of their call bound against it.
+`outputTokensPerHour` is the one **duration** statement a provider surface makes: Anthropic's SDK projects a call's maximum duration as `max_tokens / rate` (the `calculateNonstreamingTimeout` constant, 128K/hour) and detection derives its duration-safe output budget from it. Absent for providers whose rates are unknowable a priori (Ollama — local hardware) — and absence does **not** mean no duration bound: the detection consumer applies its own conservative assumed floor rate instead, because an unbounded output budget turned model repetition loops into hour-long transient burns. Note the modeled rate is a ceiling estimate, not a floor: generation measured live at roughly half that rate (2026-09-02), which is why consumers spend only part of their call bound against it.
 
 Discovery is lazy (first call) and cached for the client's lifetime; a failed discovery is **not** cached, so the next call retries. `limits()` **throws** when the ceilings cannot be determined (unknown model, discovery endpoint unreachable) — fail-loud, never a guessed floor.
 
@@ -113,6 +124,7 @@ type ElementSchema = Record<string, unknown>;  // raw JSON Schema for ONE array 
 interface StructuredResponse<T> {
   items: T[];
   stopReason: 'end_turn' | 'max_tokens' | 'stop_sequence' | string;
+  usage?: TokenUsage;
 }
 ```
 
@@ -144,6 +156,8 @@ const response = await client.generateTextWithMetadata('Hello', 100, 0.7);
 
 Uses `@anthropic-ai/sdk`'s Messages API. Throws if the response contains no text content block (plain mode) or no `tool_use` block (JSON mode). SDK errors (rate limits, auth, network) propagate unchanged.
 
+Declared capabilities: `maxConcurrency: 4` (a hosted API whose per-account rate limit sits far above one job's usage — independent calls genuinely parallelize) and `verifyDetectionYield: true`.
+
 `limits()` discovers ceilings via the Models API (`models.retrieve(modelId)` → `max_input_tokens` / `max_tokens`); throws if either is absent. Requests whose `maxTokens` exceeds the SDK's non-streaming ceiling (≈21,333 output tokens — beyond it the SDK refuses non-streaming calls as likely to outlive its 10-minute timeout) are **streamed internally** and assembled via `finalMessage()`: same request shape, same response handling, no interface change.
 
 ## OllamaInferenceClient
@@ -161,6 +175,12 @@ const response = await client.generateTextWithMetadata('Hello', 100, 0.7);
 ```
 
 Uses Ollama's native HTTP API (`POST /api/generate`, non-streaming, thinking disabled) via `fetch` — no SDK dependency. `maxTokens` maps to `num_predict`. Any model available via `ollama pull` works.
+
+Declared capabilities: `maxConcurrency: 1` (a local single model is hardware-bound — concurrent requests queue or split one GPU for no aggregate gain, while each live context costs KV-cache memory) and `verifyDetectionYield: true` (where silent yield collapse was measured).
+
+**Transport:** generate requests run on a per-request undici@7 dispatcher with header/body timeouts disabled — with `stream: false` Ollama sends no headers until generation completes, and Node's default fetch would otherwise kill any call generating longer than ~5 minutes. The caller's `AbortSignal` is the one bound. The `undici@^7` pin is load-bearing (the built-in fetch rejects an undici@8 Agent) and test-gated.
+
+**Cloud-routed models** (`*-cloud` tags): `think: false` is advisory — returned thinking is surfaced on the response and warned (it inflates `eval_count`, documented at the field); the structured `format` is advisory rather than grammar-enforced, with violations surfacing as `StructuredReadError`. **Empty responses** throw `StructuredReadError('response is empty', stopReason)` — a thinking-exhausted empty (`done_reason: length`) classifies as the truncation it is.
 
 `limits()` discovers the model's context window via `POST /api/show` (the `model_info` key `<architecture>.context_length`, with a `*.context_length` fallback). The window is shared between input and output, so it is published as both `contextTokens` and `maxOutputTokens`.
 

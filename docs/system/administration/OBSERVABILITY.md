@@ -218,6 +218,11 @@ through the same OTLP endpoint. No extra config required — the
 | `semiont.inference.calls`    | counter          | `inference.provider`, `inference.model`, `inference.outcome` | Anthropic + Ollama clients               |
 | `semiont.inference.tokens`   | counter          | `inference.provider`, `inference.model`, `inference.direction` (`input`/`output`) | Anthropic + Ollama (when usage exposed) |
 | `semiont.inference.duration` | histogram        | `inference.provider`, `inference.model`, `inference.outcome` | Anthropic + Ollama clients               |
+| `semiont.detection.calls`    | counter          | `detection.label`, `detection.outcome` (`success`/`truncated`/`collapsed`/`timeout`/`error`), `detection.depth`, `detection.reroll` | Worker detection — one row per model call, failed attempts included |
+| `semiont.detection.call.duration` | histogram   | same as `semiont.detection.calls`                       | Worker detection per-call wall time           |
+| `semiont.detection.call.items` | histogram      | same as `semiont.detection.calls`                       | Annotations returned per call — against input size, this is yield |
+| `semiont.detection.call.tokens` | histogram     | same, plus `detection.direction` (`input`/`output`)     | Provider-reported tokens per detection call; kept separate from `semiont.inference.tokens` because that series carries no subdivision depth |
+| `semiont.detection.anchors`  | counter          | `detection.label`, `anchor.method` (`unique-match`/`context-recovered`/`first-of-many`/`fuzzy-match`) | Every annotation anchoring — the degraded-method **rate** is the precision signal, so clean outcomes are counted too |
 | `semiont.sse.subscribers`    | up-down counter  | (none)                                                  | `/bus/subscribe` connect/disconnect           |
 | `semiont.job.queue.size`     | observable gauge | `job.status` (`pending`/`running`/`complete`/`failed`/`cancelled`) | Gateway `FsJobQueue.getStats()` |
 | `semiont.bus.reply.suppressed` | counter        | `bus.channel`                                           | Gateway SSE: a correlated reply withheld from a non-owner |
