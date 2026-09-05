@@ -1,5 +1,17 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import type { Logger } from '@semiont/core';
 import { OllamaInferenceClient, unboundedTransport } from '../implementations/ollama.js';
+
+function stubLogger(): Logger {
+  const logger: Logger = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    child: () => logger,
+  };
+  return logger;
+}
 
 // Ollama generate calls now consult /api/show first (limits discovery), so
 // every fetch mock routes by URL: show → model metadata, generate → canned
@@ -210,6 +222,63 @@ describe('OllamaInferenceClient - grammar-constrained structured path', () => {
     await expect(
       client.generateStructured('p', 100, 0, { type: 'object' }),
     ).rejects.toMatchObject({ name: 'StructuredReadError', stopReason: 'max_tokens' });
+  });
+
+  // F11(a), OLLAMA-DETECTION-TESTING P2: a thinking model can burn the entire
+  // output budget on hidden reasoning before its first response character
+  // (measured live, gpt-oss:120b-cloud 2026-09-05) — the response arrives
+  // EMPTY with done_reason 'length'. Truncated-to-nothing is still truncation:
+  // it must carry the stop reason so it classifies deterministic and
+  // subdivides, not vanish into an unrecognized-retryable mystery error.
+  it("throws StructuredReadError with stopReason 'max_tokens' when the response is empty and done_reason is 'length'", async () => {
+    stubRoutedFetch({
+      generate: { body: { response: '', done: true, done_reason: 'length' } },
+    });
+
+    const client = new OllamaInferenceClient('gpt-oss:120b-cloud', 'http://localhost:11434');
+    await expect(
+      client.generateStructured('p', 100, 0, { type: 'object' }),
+    ).rejects.toMatchObject({ name: 'StructuredReadError', stopReason: 'max_tokens' });
+  });
+
+  it("throws StructuredReadError with stopReason 'unknown' when the response is empty with no done_reason (broken server) — on the text path too", async () => {
+    stubRoutedFetch({
+      generate: { body: { response: '', done: true } },
+    });
+
+    const client = new OllamaInferenceClient('llama3', 'http://localhost:11434');
+    await expect(
+      client.generateText('p', 100, 0),
+    ).rejects.toMatchObject({ name: 'StructuredReadError', stopReason: 'unknown' });
+  });
+
+  // F11(b)/(d): cloud models ignore `think: false` — hidden reasoning happens
+  // anyway, bills anyway, and inflates eval_count (outputTokens) with tokens
+  // that never reach the response. The adapter cannot prevent it, so it must
+  // make it visible: one warn per affected call, carrying the thinking size.
+  it('warns when a response carries hidden thinking despite think:false', async () => {
+    stubRoutedFetch({
+      generate: { body: { response: '[]', done: true, done_reason: 'stop', thinking: 'x'.repeat(500) } },
+    });
+    const logger = stubLogger();
+
+    const client = new OllamaInferenceClient('gpt-oss:120b-cloud', 'http://localhost:11434', logger);
+    await client.generateStructured('p', 100, 0, { type: 'object' });
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringMatching(/thinking/i),
+      expect.objectContaining({ model: 'gpt-oss:120b-cloud', thinkingChars: 500 }),
+    );
+  });
+
+  it('does not warn when there is no thinking in the response', async () => {
+    stubRoutedFetch();
+    const logger = stubLogger();
+
+    const client = new OllamaInferenceClient('llama3', 'http://localhost:11434', logger);
+    await client.generateText('p', 100, 0);
+
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it('throws "could not be read" when the response is not a JSON array', async () => {
