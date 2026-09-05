@@ -105,7 +105,7 @@ function parseCount(text: string): number | undefined {
 async function assertYieldNotCollapsed(
   client: InferenceClient,
   piece: string,
-  itemCount: number,
+  items: readonly unknown[],
   entityTypesDescription: string,
   logger: Logger,
 ): Promise<void> {
@@ -131,9 +131,13 @@ ${piece}
     logger.warn('Count-verifier answer carried no number — yield check skipped for this chunk', { pieceChars: piece.length });
     return;
   }
-  if (itemCount * YIELD_COLLAPSE_BAND < counted) {
+  if (items.length * YIELD_COLLAPSE_BAND < counted) {
+    // The salvage rides the error: descent discards it (a smaller re-run does
+    // better), the floor accepts it (better than nothing, and every span is
+    // write-time-verified).
     throw new YieldCollapseError(
-      `Extraction found ${itemCount} entities where a count call reports ~${counted} mentions (band ×${YIELD_COLLAPSE_BAND}) on a ${piece.length}-char chunk — silent yield collapse (F7): deterministic — a same-size retry returns the identical under-report.`,
+      `Extraction found ${items.length} entities where a count call reports ~${counted} mentions (band ×${YIELD_COLLAPSE_BAND}) on a ${piece.length}-char chunk — silent yield collapse (F7): deterministic — a same-size retry returns the identical under-report.`,
+      [...items],
     );
   }
 }
@@ -269,7 +273,7 @@ Example output:
       // count-verifier is the only signal for that, and a flag throws the
       // collapse verdict so subdivision changes the input.
       if (verifyYield) {
-        await assertYieldNotCollapsed(client, piece, response.items.length, entityTypesDescription, logger);
+        await assertYieldNotCollapsed(client, piece, response.items, entityTypesDescription, logger);
       }
       // Usage rides back so the telemetry record carries what the call COST
       // beside what it yielded — the provider's own counts, not an estimate.

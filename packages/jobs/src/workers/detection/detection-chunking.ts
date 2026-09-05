@@ -106,15 +106,24 @@ export const YIELD_COLLAPSE_BAND = 2;
  * Extends DeterministicJobError because the collapse is MEASURED deterministic
  * — bit-identical across retries and across budget regimes — so a retry is
  * guaranteed waste; the classification and the size-floored subdivision
- * descent both follow from the base class. The one place it diverges from
- * truncation: at the size floor there is NO re-roll — a same-size re-roll
- * provably returns the identical collapse, so a floor-size piece still
- * flagged FAILS THE JOB LOUDLY (user-ratified; same value as
- * assertNotTruncated — never silently under-report; the event log preserves
- * the document, so re-detection heals).
+ * descent both follow from the base class. It diverges from truncation at the
+ * size floor: NO re-roll (a same-size re-roll provably returns the identical
+ * collapse), and — ruled 2026-09-05 after P4 attempt 1, amending the original
+ * fail-the-job invariant — the floor ACCEPTS the flagged piece's `salvage`
+ * loudly rather than failing the unit: one hostile ~530-char stretch had
+ * discarded ~20 chunks of good extraction, and at floor sizes the count's
+ * evidence sits far below anything the probe validated. The warning and the
+ * 'collapsed' telemetry rows are the durable record; re-detection heals.
  */
 export class YieldCollapseError extends DeterministicJobError {
   override readonly name = 'YieldCollapseError';
+  /** What the flagged extraction DID find — every span write-time-verified,
+   * so discarding it at the floor would add loss on top of the under-report.
+   * Carried on the error because the flag site cannot know whether descent
+   * remains possible; the floor is the subdivider's knowledge. */
+  constructor(message: string, readonly salvage: unknown[] = []) {
+    super(message);
+  }
 }
 
 export interface DetectionBudget {
@@ -322,14 +331,22 @@ export async function callChunkSubdividing<T>(
         ? half > 2 * OVERLAP_TOKENS
         : depth < MAX_SUBDIVISION_DEPTH);
       if (!canDescend) {
+        // A collapse verdict at the floor is ACCEPTED, loudly (ruled
+        // 2026-09-05): its salvage flows through with a warning instead of
+        // one hostile piece discarding the whole unit's work. No re-roll —
+        // the collapse is deterministic, a same-size retry changes nothing.
+        if (error instanceof YieldCollapseError) {
+          logger?.warn('Floor-size piece still flagged as collapsed — accepting its under-reported salvage and continuing', {
+            pieceChars: piece.length,
+            salvaged: error.salvage.length,
+            error: error.message,
+          });
+          return error.salvage as T[];
+        }
         // At the size floor honest overflow is impossible, so truncation
         // here is a degeneration loop — a sampling accident. One same-size
-        // re-roll; a second truncation propagates. Timeouts get no re-roll —
-        // and neither does a COLLAPSE verdict (P3c, user-ratified): it is
-        // measured deterministic, so a same-size re-roll returns the
-        // identical under-report; a floor-size piece still flagged fails the
-        // job loudly instead.
-        if (!truncation(error) || error instanceof YieldCollapseError) throw error;
+        // re-roll; a second truncation propagates. Timeouts get no re-roll.
+        if (!truncation(error)) throw error;
         logger?.warn('Floor-size piece truncated — re-rolling once before giving up', {
           pieceChars: piece.length,
           error: error instanceof Error ? error.message : String(error),

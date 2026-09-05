@@ -310,14 +310,15 @@ describe('callChunkSubdividing', () => {
     // identical call returned the identical verdict. Once a piece fits inside
     // the smaller chunk size, descent changes nothing; it is AT its floor
     // regardless of the arithmetic floor. Collapse there: one call, propagate.
-    const boom = new YieldCollapseError('found 1 of 4 counted mentions');
+    const boom = new YieldCollapseError('found 1 of 4 counted mentions', ['the-one-found']);
     const tiny = 'word '.repeat(20); // ~25 tokens — fits any half-size here
     const calls: string[] = [];
-    await expect(callChunkSubdividing('reference', tiny, { chunkSize: 1_000, overlap: 16 }, async (piece) => {
+    const result = await callChunkSubdividing<string>('reference', tiny, { chunkSize: 1_000, overlap: 16 }, async (piece) => {
       calls.push(piece);
       throw boom;
-    })).rejects.toBe(boom);
+    });
     expect(calls).toHaveLength(1);
+    expect(result).toEqual(['the-one-found']);
   });
 
   it('a truncation on an unshrinkable piece gets its one floor re-roll, then propagates', async () => {
@@ -333,19 +334,28 @@ describe('callChunkSubdividing', () => {
     expect(calls).toHaveLength(2); // the call + its one re-roll
   });
 
-  it('at the size floor a collapse verdict FAILS THE JOB — no re-roll (P3c, user-ratified)', async () => {
-    // Truncation at the floor gets one same-size re-roll (a sampling
-    // accident). Collapse must NOT: it is measured deterministic, so the
-    // re-roll would return the identical under-report and turn a loud
-    // failure into a wasted call. One call, then the typed error propagates.
-    const boom = new YieldCollapseError('found 3 of 50 counted mentions');
+  it('at the size floor a collapse verdict ACCEPTS the salvage loudly — the unit survives (ruled 2026-09-05)', async () => {
+    // DELIBERATE FLIP of the original "fail the job" invariant, on the user's
+    // P4 attempt-1 ruling: one hostile ~530-char stretch had discarded ~20
+    // chunks of good extraction, and at floor sizes the count's evidence is
+    // far below anything the probe validated. The flagged piece's SALVAGE —
+    // what extraction did find, every span write-time-verified — flows
+    // through with a loud warning instead of nuking the unit. No re-roll
+    // either way: the collapse is deterministic.
+    const boom = new YieldCollapseError('found 1 of 4 counted mentions', ['salvaged-entity']);
     const small = 'a'.repeat(400);
     const calls: string[] = [];
-    await expect(callChunkSubdividing('reference', small, { chunkSize: 8, overlap: 16 }, async (piece) => {
+    const warn = vi.fn();
+    const logger = { warn, info: vi.fn(), debug: vi.fn(), error: vi.fn() } as never;
+
+    const result = await callChunkSubdividing<string>('reference', small, { chunkSize: 8, overlap: 16 }, async (piece) => {
       calls.push(piece);
       throw boom;
-    })).rejects.toBe(boom);
-    expect(calls).toHaveLength(1);
+    }, logger);
+
+    expect(calls).toHaveLength(1);          // still no re-roll
+    expect(result).toEqual(['salvaged-entity']); // the under-report is kept, not dropped
+    expect(warn).toHaveBeenCalled();        // and it is LOUD
   });
 
   it('is depth-bounded: a chunk that fails at every size rethrows the ORIGINAL failure', async () => {
@@ -487,11 +497,14 @@ describe('callChunkSubdividing telemetry', () => {
     // detect it". The verifier creates the signal; the telemetry must not
     // collapse it into 'truncated' (which the DeterministicJobError
     // inheritance would otherwise do) — the two are different facts.
-    await expect(
-      callChunkSubdividing<string>('reference', 'a'.repeat(400), { chunkSize: 8, overlap: 16 }, async () => {
-        throw new YieldCollapseError('found 3 of 50 counted mentions');
-      }),
-    ).rejects.toBeInstanceOf(YieldCollapseError);
+    // The floor ACCEPTS the flagged piece now (ruled 2026-09-05), so the run
+    // RESOLVES — but the call's own record still says 'collapsed': acceptance
+    // is a policy above the telemetry, and the metric is the durable trace of
+    // every under-report, accepted or not.
+    const result = await callChunkSubdividing<string>('reference', 'a'.repeat(400), { chunkSize: 8, overlap: 16 }, async () => {
+      throw new YieldCollapseError('found 3 of 50 counted mentions', []);
+    });
+    expect(result).toEqual([]);
 
     const outcomes = recordDetectionCallMock.mock.calls.map(c => (c[0] as { outcome: string }).outcome);
     expect(new Set(outcomes)).toEqual(new Set(['collapsed']));

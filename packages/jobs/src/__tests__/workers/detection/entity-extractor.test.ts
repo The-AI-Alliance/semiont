@@ -8,7 +8,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { MockInferenceClient, type InferenceClient } from '@semiont/inference';
 import { extractEntities } from '../../../workers/detection/entity-extractor';
-import { YieldCollapseError } from '../../../workers/detection/detection-chunking';
 import { DeterministicJobError } from '../../../failure-class';
 
 // Create mock client directly
@@ -436,20 +435,19 @@ describe('extractEntities — count-verifier (P3c)', () => {
     expect(client.generateTextWithMetadata).toHaveBeenCalled();
   });
 
-  it('a flagged ratio fails the job with the typed collapse error', async () => {
-    // 3 extracted vs 50 counted: 3 × 2 < 50 → flagged. The mock is
-    // deterministic (the real measured property), so every descent returns
-    // the identical collapse and the floor fails the job loudly.
+  it('a flagged ratio at the floor ACCEPTS the under-report loudly — unit survives (ruled 2026-09-05)', async () => {
+    // 1 extracted vs 50 counted → flagged. Text this small cannot shrink, so
+    // it is AT its floor on the first flag (no-shrink rule): exactly one
+    // extraction, and the salvage — the entity it DID find, span-verified —
+    // flows through rather than nuking ~20 good chunks with it (the P4
+    // attempt-1 blast radius, ruled on 2026-09-05). Descent on genuinely
+    // shrinkable chunks still discards and retries smaller.
     const items = [{ exact: 'Alice', entityType: 'Person' }];
     const client = rateSilentClient(items, '50');
 
-    await expect(
-      extractEntities(TEXT, ['Person'], client as never, false, LOGGER),
-    ).rejects.toBeInstanceOf(YieldCollapseError);
-    // Text this small cannot shrink, so it is AT its floor on the first flag
-    // (the no-shrink rule, P4 attempt 1): exactly one extraction, no identical
-    // re-runs, loud typed failure. Descent on genuinely shrinkable chunks is
-    // pinned in detection-chunking.test.ts.
+    const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
+
+    expect(result).toEqual([{ exact: 'Alice', entityType: 'Person' }]);
     expect(client.generateStructured.mock.calls.length).toBe(1);
   });
 
