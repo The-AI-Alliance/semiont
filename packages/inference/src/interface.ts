@@ -92,6 +92,12 @@ export interface InferenceLimits {
  * output budget — the same input truncates the same way, so a retry is
  * guaranteed waste — while any other reason is model misbehavior a retry
  * may legitimately fix.
+ *
+ * Also thrown — on either generation path — when a response arrives EMPTY:
+ * a thinking model can exhaust the whole output budget on hidden reasoning
+ * before its first response character (measured live, gpt-oss:120b-cloud
+ * 2026-09-05). Truncated-to-nothing is still truncation, and it needs the
+ * same stop-reason ride to classify correctly.
  */
 export class StructuredReadError extends Error {
   override readonly name = 'StructuredReadError';
