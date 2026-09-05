@@ -137,6 +137,19 @@ export interface InferenceClient {
   readonly maxConcurrency: number;
 
   /**
+   * Whether detection should run the count-verifier against this provider's
+   * extractions (OLLAMA-DETECTION-TESTING P3c; universalized to every real
+   * provider by user ruling 2026-09-05 — unverified completeness is not a
+   * savings). Declared HERE, per implementation, because @semiont/jobs does no
+   * provider-specific switching (architecture ruling, same date): whatever
+   * varies by provider is a capability on this contract, like
+   * `maxConcurrency`. The mock alone defaults false, so deterministic tests
+   * opt in explicitly rather than paying a queue-popping count call by
+   * surprise.
+   */
+  readonly verifyDetectionYield: boolean;
+
+  /**
    * The provider's actual context/output ceilings for `modelId`. Discovered
    * lazily on first call and cached for the client's lifetime; a failed
    * discovery is NOT cached — the next call retries. Throws when the ceilings

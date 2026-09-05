@@ -33,6 +33,7 @@ const noopInference = {
   type: 'noop',
   modelId: 'noop',
   maxConcurrency: 1,
+  verifyDetectionYield: false,
   generateText: vi.fn().mockResolvedValue(''),
   generateTextWithMetadata: vi.fn().mockResolvedValue({ text: '', usage: {} }),
 } as unknown as InferenceClient;

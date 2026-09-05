@@ -130,6 +130,7 @@ const noopInference = {
   type: 'noop',
   modelId: 'noop',
   maxConcurrency: 1,
+  verifyDetectionYield: false,
   generateText: vi.fn().mockResolvedValue(''),
   generateTextWithMetadata: vi.fn().mockResolvedValue({ text: '', usage: {} }),
 } as unknown as InferenceClient;
@@ -635,6 +636,7 @@ describe('Matcher', () => {
         type: 'mock' as const,
         modelId: 'mock-model',
         maxConcurrency: 1,
+        verifyDetectionYield: false,
         generateText: vi.fn().mockResolvedValue('1. 0.9\n2. 0.2'),
         generateTextWithMetadata: vi.fn(),
         limits: vi.fn().mockResolvedValue({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 }),
@@ -684,6 +686,7 @@ describe('Matcher', () => {
         type: 'mock' as const,
         modelId: 'mock-model',
         maxConcurrency: 1,
+        verifyDetectionYield: false,
         generateText: vi.fn().mockRejectedValue(new Error('LLM unavailable')),
         generateTextWithMetadata: vi.fn(),
         limits: vi.fn().mockResolvedValue({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 }),
@@ -748,7 +751,7 @@ describe('Matcher', () => {
     });
 
     describe('inference response parsing edge cases', () => {
-      let mockInference: { type: string; modelId: string; maxConcurrency: number; generateText: ReturnType<typeof vi.fn>; generateTextWithMetadata: ReturnType<typeof vi.fn>; limits: ReturnType<typeof vi.fn>; generateStructured: ReturnType<typeof vi.fn> };
+      let mockInference: { type: string; modelId: string; maxConcurrency: number; verifyDetectionYield: boolean; generateText: ReturnType<typeof vi.fn>; generateTextWithMetadata: ReturnType<typeof vi.fn>; limits: ReturnType<typeof vi.fn>; generateStructured: ReturnType<typeof vi.fn> };
 
       beforeEach(async () => {
         await matcher.stop();
@@ -769,6 +772,7 @@ describe('Matcher', () => {
           type: 'mock',
           modelId: 'mock-model',
           maxConcurrency: 1,
+          verifyDetectionYield: false,
           generateText: vi.fn(),
           generateTextWithMetadata: vi.fn(),
           limits: vi.fn().mockResolvedValue({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 }),

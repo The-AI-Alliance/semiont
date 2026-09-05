@@ -56,6 +56,8 @@ export class OllamaInferenceClient implements InferenceClient {
   // context costs KV-cache memory. Detection runs its types sequentially here
   // (DETECTION-QUALITY-THROUGHPUT P6).
   readonly maxConcurrency = 1;
+  // Where the collapse risk was MEASURED (F7) — the verifier's original home.
+  readonly verifyDetectionYield = true;
   readonly modelId: string;
   private baseURL: string;
   private logger?: Logger;

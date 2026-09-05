@@ -51,6 +51,11 @@ export class AnthropicInferenceClient implements InferenceClient {
   // so independent calls genuinely parallelize. Conservative until an 8-way run
   // measures the next step (DETECTION-QUALITY-THROUGHPUT P6).
   readonly maxConcurrency = 4;
+  // Universal for real providers (user ruling 2026-09-05): "no observed
+  // collapse" here was absence-of-looking, and the unexplained ~2× yield gap
+  // vs gemma on the same document is exactly what verification answers. The
+  // ~2× billed input is the accepted cost.
+  readonly verifyDetectionYield = true;
   readonly modelId: string;
   private client: Anthropic;
   private logger?: Logger;

@@ -222,11 +222,12 @@ Example output:
   // when the derived budget forces it; small documents make one call, as
   // before.
   const limits = await client.limits();
-  // The verifier runs exactly where the risk was measured: rate-silent
-  // providers — the same class P3b's assumed duration floor targets. A
-  // provider that publishes its rate (Anthropic) showed no collapse and pays
-  // for input twice if we count anyway, so it makes NO count call.
-  const verifyYield = limits.outputTokensPerHour === undefined;
+  // The provider DECLARES whether its extractions get count-verified
+  // (universal for real providers since the 2026-09-05 ruling — unverified
+  // completeness is not a savings). Jobs does no provider-specific switching:
+  // whatever varies by provider is a capability on the InferenceClient
+  // contract, read here like `maxConcurrency`.
+  const verifyYield = client.verifyDetectionYield;
   const scaffoldTokens = estimateTokens(buildPrompt(''));
   // One call asks for every type in `entityTypes` — the processor's per-type
   // loop passes one, so this is 1 in production today.

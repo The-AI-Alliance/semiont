@@ -19,6 +19,10 @@ export class MockInferenceClient implements InferenceClient {
   readonly modelId = 'mock-model' as const;
   // Deterministic default for tests; a test exercising concurrency sets its own.
   readonly maxConcurrency = 1;
+  // Deterministic default: a count call pops the shared response queue, so
+  // tests exercising the verifier declare their own true rather than every
+  // consumer paying it by surprise.
+  readonly verifyDetectionYield = false;
   private responses: string[] = [];
   private responseIndex: number = 0;
   private stopReasons: string[] = [];

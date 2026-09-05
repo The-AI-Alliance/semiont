@@ -412,9 +412,9 @@ describe('temperature', () => {
 describe('extractEntities — count-verifier (P3c)', () => {
   /** A rate-silent (Ollama-shaped) client: extraction returns `items`, the
    * count call answers `countText`. */
-  function rateSilentClient(items: unknown[], countText: string) {
+  function verifyingClient(items: unknown[], countText: string) {
     return {
-      type: 'ollama', modelId: 'test', maxConcurrency: 1,
+      type: 'ollama', modelId: 'test', maxConcurrency: 1, verifyDetectionYield: true,
       limits: vi.fn(async () => ({ contextTokens: 262_144, maxOutputTokens: 262_144 })),
       generateStructured: vi.fn(async () => ({ items, stopReason: 'end_turn' })),
       generateTextWithMetadata: vi.fn(async () => ({ text: countText, stopReason: 'end_turn' })),
@@ -427,7 +427,7 @@ describe('extractEntities — count-verifier (P3c)', () => {
   it('a healthy ratio passes untouched — and the count call was made', async () => {
     // 12 extracted vs 15 counted: 12 × 2 ≥ 15, inside the band.
     const items = Array.from({ length: 12 }, () => ({ exact: 'Alice', entityType: 'Person' }));
-    const client = rateSilentClient(items, '15');
+    const client = verifyingClient(items, '15');
 
     const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
 
@@ -443,7 +443,7 @@ describe('extractEntities — count-verifier (P3c)', () => {
     // attempt-1 blast radius, ruled on 2026-09-05). Descent on genuinely
     // shrinkable chunks still discards and retries smaller.
     const items = [{ exact: 'Alice', entityType: 'Person' }];
-    const client = rateSilentClient(items, '50');
+    const client = verifyingClient(items, '50');
 
     const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
 
@@ -451,10 +451,14 @@ describe('extractEntities — count-verifier (P3c)', () => {
     expect(client.generateStructured.mock.calls.length).toBe(1);
   });
 
-  it('a provider that publishes a rate makes NO count call — Anthropic is untouched', async () => {
+  it('the provider DECLARES verification — false means no count call, whatever its limits look like', async () => {
+    // The old behavior keyed off rate-silence (provider-shape sniffing in
+    // jobs) and exempted Anthropic. Both overruled 2026-09-05: the capability
+    // is declared on the client, and every real provider declares true. False
+    // remains the mock's test-ergonomics default — pinned here as the OFF
+    // path.
     const items = [{ exact: 'Alice', entityType: 'Person' }];
-    const client = rateSilentClient(items, '999');
-    client.limits = vi.fn(async () => ({ contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 }));
+    const client = { ...verifyingClient(items, '999'), verifyDetectionYield: false };
 
     const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
 
@@ -462,11 +466,22 @@ describe('extractEntities — count-verifier (P3c)', () => {
     expect(client.generateTextWithMetadata).not.toHaveBeenCalled();
   });
 
+  it('an Anthropic-shaped client (publishes a rate, declares true) IS verified — the 2026-09-05 ruling', async () => {
+    const items = Array.from({ length: 12 }, () => ({ exact: 'Alice', entityType: 'Person' }));
+    const client = verifyingClient(items, '15');
+    client.limits = vi.fn(async () => ({ contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 }));
+
+    const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
+
+    expect(result).toHaveLength(12);
+    expect(client.generateTextWithMetadata).toHaveBeenCalled();
+  });
+
   it('a broken count call disables the verifier for that chunk — never fails a healthy extraction', async () => {
     // The verifier is a safety net; its own failure must not take the job
     // down. Unparseable count → warn and pass the extraction through.
     const items = [{ exact: 'Alice', entityType: 'Person' }];
-    const client = rateSilentClient(items, 'I cannot count');
+    const client = verifyingClient(items, 'I cannot count');
 
     const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
 
