@@ -27,6 +27,11 @@ interface OllamaGenerateResponse {
 
 export class OllamaInferenceClient implements InferenceClient {
   readonly type = 'ollama' as const;
+  // Local single model: generation throughput is hardware-bound, so concurrent
+  // requests queue or split one GPU for no aggregate speedup — and each live
+  // context costs KV-cache memory. Detection runs its types sequentially here
+  // (DETECTION-QUALITY-THROUGHPUT P6).
+  readonly maxConcurrency = 1;
   readonly modelId: string;
   private baseURL: string;
   private logger?: Logger;

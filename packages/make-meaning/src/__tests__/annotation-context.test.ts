@@ -572,6 +572,7 @@ describe('AnnotationContext', () => {
       const mockInferenceClient = {
         type: 'mock' as const,
         modelId: 'mock-model',
+        maxConcurrency: 1,
         generateText: vi.fn().mockResolvedValue('This passage about a fox relates to the Animals topic in the knowledge base.'),
         generateTextWithMetadata: vi.fn(),
         limits: vi.fn().mockResolvedValue({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 }),
@@ -633,6 +634,7 @@ describe('AnnotationContext', () => {
       const mockInferenceClient = {
         type: 'mock' as const,
         modelId: 'mock-model',
+        maxConcurrency: 1,
         generateText: vi.fn().mockRejectedValue(new Error('LLM unavailable')),
         generateTextWithMetadata: vi.fn(),
         limits: vi.fn().mockResolvedValue({ contextTokens: 1_000_000, maxOutputTokens: 1_000_000 }),

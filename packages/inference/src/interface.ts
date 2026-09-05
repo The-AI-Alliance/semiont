@@ -108,6 +108,26 @@ export interface InferenceClient {
   readonly modelId: string;
 
   /**
+   * How many INDEPENDENT inference calls a caller should run concurrently
+   * against this provider for a throughput gain (DETECTION-QUALITY-THROUGHPUT
+   * P6 — detection's per-type fan-out reads this).
+   *
+   * This is a property of the provider's economics, which is why it lives on
+   * the provider and not in the caller. A HOSTED API whose per-account rate
+   * limit sits far above one job's usage has real spare capacity, so >1
+   * genuinely parallelizes. A LOCAL single-model server (Ollama) is 1: its
+   * throughput is hardware-bound, so concurrent requests only queue or split
+   * one GPU — no aggregate speedup, and N live KV-cache contexts is memory
+   * pressure that can OOM. There is no honest default across those two worlds,
+   * so this is required, not optional.
+   *
+   * Hard-coded per implementation for now; the natural seam for future
+   * per-provider or admin tuning (a value that later comes from config changes
+   * only where this is SET, not the callers).
+   */
+  readonly maxConcurrency: number;
+
+  /**
    * The provider's actual context/output ceilings for `modelId`. Discovered
    * lazily on first call and cached for the client's lifetime; a failed
    * discovery is NOT cached — the next call retries. Throws when the ceilings

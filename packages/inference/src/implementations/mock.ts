@@ -12,6 +12,8 @@ const GENEROUS_LIMITS: InferenceLimits = {
 export class MockInferenceClient implements InferenceClient {
   readonly type = 'mock' as const;
   readonly modelId = 'mock-model' as const;
+  // Deterministic default for tests; a test exercising concurrency sets its own.
+  readonly maxConcurrency = 1;
   private responses: string[] = [];
   private responseIndex: number = 0;
   private stopReasons: string[] = [];

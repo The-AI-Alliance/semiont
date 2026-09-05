@@ -46,6 +46,11 @@ interface ModelDiscovery {
 
 export class AnthropicInferenceClient implements InferenceClient {
   readonly type = 'anthropic' as const;
+  // Hosted API: a single detection job uses a sliver of the account rate limit
+  // (measured 2026-09-04: ~1 request / 72 s, zero 429s at 4 concurrent types),
+  // so independent calls genuinely parallelize. Conservative until an 8-way run
+  // measures the next step (DETECTION-QUALITY-THROUGHPUT P6).
+  readonly maxConcurrency = 4;
   readonly modelId: string;
   private client: Anthropic;
   private logger?: Logger;

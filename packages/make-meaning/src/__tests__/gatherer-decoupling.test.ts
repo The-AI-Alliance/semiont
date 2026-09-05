@@ -32,6 +32,7 @@ const mockLogger: Logger = {
 const noopInference = {
   type: 'noop',
   modelId: 'noop',
+  maxConcurrency: 1,
   generateText: vi.fn().mockResolvedValue(''),
   generateTextWithMetadata: vi.fn().mockResolvedValue({ text: '', usage: {} }),
 } as unknown as InferenceClient;

@@ -34,7 +34,6 @@ import type {
 } from './types';
 import { noteAnchor } from './workers/detection/anchor-audit';
 import { runBounded } from './workers/detection/bounded-concurrency';
-import { DETECTION_TYPE_CONCURRENCY } from './workers/detection/detection-chunking';
 
 type Agent = components['schemas']['Agent'];
 
@@ -537,7 +536,10 @@ export async function processReferenceJob(
     });
   };
 
-  await runBounded(entityTypeNames, DETECTION_TYPE_CONCURRENCY, async (entityTypeName) => {
+  // Concurrency is the PROVIDER's capability, not a flat constant: a hosted
+  // API parallelizes, a local single-model server does not (P6). Reading it
+  // from the client is what makes the same code correct on both.
+  await runBounded(entityTypeNames, inferenceClient.maxConcurrency, async (entityTypeName) => {
     if (!entityTypeName) return;
     // Cooperative cancellation (JOB-RESTART-SAFETY P4): once aborted, a pending
     // type is skipped when its turn comes; types already in flight finish and

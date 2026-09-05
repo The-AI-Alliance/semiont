@@ -57,7 +57,6 @@ vi.mock('../workers/generation/typst-compiler', async (importOriginal) => ({
 
 import { AnnotationDetection } from '../workers/annotation-detection';
 import { extractEntities } from '../workers/detection/entity-extractor';
-import { DETECTION_TYPE_CONCURRENCY } from '../workers/detection/detection-chunking';
 import { generateResourceFromTopic } from '../workers/generation/resource-generation';
 import { compileTypst, MAX_COMPILE_REPAIRS } from '../workers/generation/typst-compiler';
 import type { PdfTextLayer } from '@semiont/content';
@@ -110,9 +109,13 @@ const PDF_LAYER: PdfTextLayer = {
 const pdfBuild = (layer: PdfTextLayer, userId: string = USER_DID): BuildAnnotation =>
   (motivation, match, body) => buildPdfAnnotation(layer, RID, userId, GENERATOR, motivation, match, body);
 
+// The concurrency the fake provider advertises — detection reads it off the
+// client now (a real provider hard-codes its own), so tests set it here.
+const TEST_MAX_CONCURRENCY = 4;
 function makeInferenceClient(): InferenceClient {
   return {
     generateText: vi.fn(),
+    maxConcurrency: TEST_MAX_CONCURRENCY,
   } as unknown as InferenceClient;
 }
 
@@ -321,7 +324,7 @@ describe('processReferenceJob', () => {
     expect(outcome.result.totalEmitted).toBe(3);
   });
 
-  it('never runs more than DETECTION_TYPE_CONCURRENCY types at once', async () => {
+  it('never runs more than the provider maxConcurrency types at once', async () => {
     const content = 'x '.repeat(50);
     let inFlight = 0, maxInFlight = 0;
     vi.mocked(extractEntities).mockImplementation(async () => {
@@ -332,7 +335,7 @@ describe('processReferenceJob', () => {
     });
 
     // More types than the bound, so the cap must actually clamp.
-    const many = Array.from({ length: DETECTION_TYPE_CONCURRENCY + 4 }, (_, i) => entityType(`T${i}`));
+    const many = Array.from({ length: TEST_MAX_CONCURRENCY + 4 }, (_, i) => entityType(`T${i}`));
     await processReferenceJob(
       content, makeInferenceClient(),
       { resourceId: RID, entityTypes: many },
@@ -340,7 +343,30 @@ describe('processReferenceJob', () => {
     );
 
     expect(maxInFlight).toBeGreaterThan(1); // actually concurrent
-    expect(maxInFlight).toBeLessThanOrEqual(DETECTION_TYPE_CONCURRENCY);
+    expect(maxInFlight).toBeLessThanOrEqual(TEST_MAX_CONCURRENCY);
+  });
+
+  it('runs SEQUENTIALLY when the provider advertises maxConcurrency 1 (the Ollama case)', async () => {
+    // A local single-model server gets no aggregate speedup from concurrent
+    // requests and pays KV-cache memory for them, so its client advertises 1 —
+    // and detection must then never overlap calls, exactly as before P6.
+    const content = 'x '.repeat(50);
+    let inFlight = 0, maxInFlight = 0;
+    vi.mocked(extractEntities).mockImplementation(async () => {
+      inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      return [];
+    });
+    const ollamaShaped = { generateText: vi.fn(), maxConcurrency: 1 } as unknown as InferenceClient;
+
+    await processReferenceJob(
+      content, ollamaShaped,
+      { resourceId: RID, entityTypes: [entityType('A'), entityType('B'), entityType('C'), entityType('D')] },
+      textBuild(content), vi.fn(), LOGGER, async () => {},
+    );
+
+    expect(maxInFlight).toBe(1);
   });
 
   it('reports each unit once even when types finish OUT OF ORDER', async () => {
