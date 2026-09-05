@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Progress report from a running job. The required field is `percentage`; `message` carries the coded phase and the rest are optional job-shape fields. This is the single progress shape for every job type \u2014 annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Terminality is signalled on `job:complete` / `job:fail`, not here. The per-flow progress vocabularies (`processedEntityTypes`/`totalEntityTypes` for references, `processedCategories`/`totalCategories`/`currentCategory` for tags) were replaced by one `current`/`processed`/`total` triple (CLEAN-PROGRESS D2): both flows iterate a user-chosen list, so they report the same shape and the client stops guessing which flow it is drawing.",
+  "description": "Progress report from a running job. The required field is `percentage`; `message` carries the coded phase and the rest are optional job-shape fields. This is the single progress shape for every job type — annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Terminality is signalled on `job:complete` / `job:fail`, not here. The per-flow progress vocabularies (`processedEntityTypes`/`totalEntityTypes` for references, `processedCategories`/`totalCategories`/`currentCategory` for tags) were replaced by one `current`/`processed`/`total` triple (CLEAN-PROGRESS D2): both flows iterate a user-chosen list, so they report the same shape and the client stops guessing which flow it is drawing.",
   "properties": {
     "percentage": {
       "type": "number",
@@ -16,7 +16,7 @@
     },
     "current": {
       "type": "object",
-      "description": "What the run is working on right now. `kind` is a CODE the client renders a localized name for; `value` is KB data (an entity type, a tag category) shown verbatim \u2014 the same split as `requestParams`. Absent on flows that iterate nothing, such as generation.",
+      "description": "What the run is working on right now. `kind` is a CODE the client renders a localized name for; `value` is KB data (an entity type, a tag category) shown verbatim — the same split as `requestParams`. Absent on flows that iterate nothing, such as generation.",
       "properties": {
         "kind": {
           "type": "string",
@@ -38,7 +38,7 @@
     },
     "processed": {
       "type": "integer",
-      "description": "Items completed so far, zero-based \u2014 the item in `current` is the one after these. Paired with `total`."
+      "description": "Items completed so far, zero-based — the item in `current` is the one after these. Paired with `total`."
     },
     "total": {
       "type": "integer",
@@ -65,6 +65,10 @@
           "foundCount": {
             "type": "integer",
             "description": "Annotations found for it."
+          },
+          "persistedCount": {
+            "type": "integer",
+            "description": "Annotations actually persisted for it — post-dedupe and post-durability-acknowledgement, so it counts what the event log holds, not what the model proposed. Beside foundCount this is the per-unit yield the sizing work is judged by. Present on flows whose units persist as they complete (reference-annotation); the tagging flow reports the same fact as byCategory on its result, because its annotations are built after the per-category loop."
           }
         },
         "required": [
@@ -75,7 +79,7 @@
     },
     "requestParams": {
       "type": "array",
-      "description": "Echoed job parameters for display in the progress UI. `label` is a CODE, not a sentence \u2014 the client owns the wording, same rule as the progress message. `value` is the user's own input (an entity-type list, their instructions) and is deliberately NOT translated: it is their words, not ours.",
+      "description": "Echoed job parameters for display in the progress UI. `label` is a CODE, not a sentence — the client owns the wording, same rule as the progress message. `value` is the user's own input (an entity-type list, their instructions) and is deliberately NOT translated: it is their words, not ours.",
       "items": {
         "type": "object",
         "properties": {

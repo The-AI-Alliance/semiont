@@ -27,6 +27,11 @@ interface OllamaGenerateResponse {
 
 export class OllamaInferenceClient implements InferenceClient {
   readonly type = 'ollama' as const;
+  // Local single model: generation throughput is hardware-bound, so concurrent
+  // requests queue or split one GPU for no aggregate speedup — and each live
+  // context costs KV-cache memory. Detection runs its types sequentially here
+  // (DETECTION-QUALITY-THROUGHPUT P6).
+  readonly maxConcurrency = 1;
   readonly modelId: string;
   private baseURL: string;
   private logger?: Logger;
@@ -118,7 +123,7 @@ export class OllamaInferenceClient implements InferenceClient {
       throw new StructuredReadError(`parsed to ${typeof parsed}, not an array`, response.stopReason);
     }
 
-    return { items: parsed as T[], stopReason: response.stopReason };
+    return { items: parsed as T[], stopReason: response.stopReason, ...(response.usage ? { usage: response.usage } : {}) };
   }
 
   private async generate(
@@ -251,6 +256,9 @@ export class OllamaInferenceClient implements InferenceClient {
     return {
       text: data.response,
       stopReason,
+      ...(data.prompt_eval_count !== undefined && data.eval_count !== undefined
+        ? { usage: { inputTokens: data.prompt_eval_count, outputTokens: data.eval_count } }
+        : {}),
     };
   }
 }

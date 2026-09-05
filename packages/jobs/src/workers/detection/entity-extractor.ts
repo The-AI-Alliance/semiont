@@ -170,7 +170,7 @@ Example output:
     // unreadable model response is a job failure, never a silent []. A
     // size-shaped failure (duration bound, truncation) subdivides in place
     // and retries smaller before it is allowed to fail the job.
-    const items = await callChunkSubdividing<unknown>(chunks[i]!, chunking, async (piece) => {
+    const items = await callChunkSubdividing<unknown>('reference', chunks[i]!, chunking, async (piece) => {
       const response = await boundedGenerateStructured<unknown>(
         client,
         buildPrompt(piece),
@@ -193,7 +193,9 @@ Example output:
       // consuming: a truncated structured response can still carry a valid
       // partial array, so the items themselves cannot signal the loss.
       assertNotTruncated(response, 'Entity extraction', i + 1, chunks.length, outputBudget);
-      return response.items;
+      // Usage rides back so the telemetry record carries what the call COST
+      // beside what it yielded — the provider's own counts, not an estimate.
+      return { items: response.items, ...(response.usage ? { usage: response.usage } : {}) };
     }, logger);
 
     for (const e of items) {

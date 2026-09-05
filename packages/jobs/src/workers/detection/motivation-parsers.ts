@@ -11,6 +11,7 @@
 
 import { reconcileSelector, isObject, isString, type AnchorMethod } from '@semiont/core';
 import type { ElementSchema } from '@semiont/inference';
+import { noteAnchor } from './anchor-audit';
 
 // Parsers receive ALREADY-PARSED elements (`unknown[]`) from the structured
 // inference surface — `generateStructured` returns `T[]` or throws, so
@@ -307,14 +308,10 @@ export interface RawTagInput {
 }
 
 /**
- * Single audit log for any anchor-method classification a parser produces.
- * `llm-exact` and `unique-match` are silent (the common path). The risky
- * cases — `first-of-many` (multiple occurrences with no usable context)
- * and `fuzzy-match` (recovered via case/whitespace/Levenshtein) — log
- * `warn` so corpus owners can audit them in worker output.
+ * Audit one anchor-method classification. Forwards to the single decider
+ * shared with the reference path (`anchor-audit.ts`) — which methods count as
+ * risky is one judgement, and this file used to hold a second copy of it.
  */
 function logAnchorMethod(motivation: string, exact: string, anchorMethod: AnchorMethod): void {
-  if (anchorMethod === 'first-of-many' || anchorMethod === 'fuzzy-match') {
-    console.warn(`[MotivationParsers] ${motivation} anchored via ${anchorMethod}: "${exact}"`);
-  }
+  noteAnchor(motivation, exact, anchorMethod);
 }

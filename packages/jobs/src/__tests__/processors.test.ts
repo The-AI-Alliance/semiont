@@ -109,9 +109,13 @@ const PDF_LAYER: PdfTextLayer = {
 const pdfBuild = (layer: PdfTextLayer, userId: string = USER_DID): BuildAnnotation =>
   (motivation, match, body) => buildPdfAnnotation(layer, RID, userId, GENERATOR, motivation, match, body);
 
+// The concurrency the fake provider advertises — detection reads it off the
+// client now (a real provider hard-codes its own), so tests set it here.
+const TEST_MAX_CONCURRENCY = 4;
 function makeInferenceClient(): InferenceClient {
   return {
     generateText: vi.fn(),
+    maxConcurrency: TEST_MAX_CONCURRENCY,
   } as unknown as InferenceClient;
 }
 
@@ -287,6 +291,107 @@ describe('processReferenceJob', () => {
     expect(outcome.result).toEqual({ kind: 'reference-annotation', totalFound: 2, totalEmitted: 2, errors: 0 });
   });
 
+  // ── P6: entity types run concurrently (DETECTION-QUALITY-THROUGHPUT) ──
+  //
+  // The sequential per-type loop was the 9×-sequential grind. These pin that
+  // types now run bounded-concurrent: every type still commits exactly once and
+  // reports its own found/persisted, order-independent, and no more than
+  // DETECTION_TYPE_CONCURRENCY are ever in flight.
+
+  it('runs multiple entity types and commits each exactly once', async () => {
+    // Each type returns its own entity (verbatim in the content so anchoring holds).
+    const content = 'Paris and Ada and Sony are here.';
+    vi.mocked(extractEntities).mockImplementation(async (_c, types) => {
+      const t = String(types[0]);
+      const map: Record<string, any> = {
+        Location: [{ exact: 'Paris', entityType: 'Location' }],
+        Person: [{ exact: 'Ada', entityType: 'Person' }],
+        Organization: [{ exact: 'Sony', entityType: 'Organization' }],
+      };
+      return map[t] ?? [];
+    });
+
+    const units: string[] = [];
+    const outcome = await processReferenceJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location'), entityType('Person'), entityType('Organization')] },
+      textBuild(content), vi.fn(), LOGGER,
+      async (unit) => { units.push(unit); },
+    );
+
+    expect(units.sort()).toEqual(['Location', 'Organization', 'Person']);
+    expect(outcome.result.totalFound).toBe(3);
+    expect(outcome.result.totalEmitted).toBe(3);
+  });
+
+  it('never runs more than the provider maxConcurrency types at once', async () => {
+    const content = 'x '.repeat(50);
+    let inFlight = 0, maxInFlight = 0;
+    vi.mocked(extractEntities).mockImplementation(async () => {
+      inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      return [];
+    });
+
+    // More types than the bound, so the cap must actually clamp.
+    const many = Array.from({ length: TEST_MAX_CONCURRENCY + 4 }, (_, i) => entityType(`T${i}`));
+    await processReferenceJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, entityTypes: many },
+      textBuild(content), vi.fn(), LOGGER, async () => {},
+    );
+
+    expect(maxInFlight).toBeGreaterThan(1); // actually concurrent
+    expect(maxInFlight).toBeLessThanOrEqual(TEST_MAX_CONCURRENCY);
+  });
+
+  it('runs SEQUENTIALLY when the provider advertises maxConcurrency 1 (the Ollama case)', async () => {
+    // A local single-model server gets no aggregate speedup from concurrent
+    // requests and pays KV-cache memory for them, so its client advertises 1 —
+    // and detection must then never overlap calls, exactly as before P6.
+    const content = 'x '.repeat(50);
+    let inFlight = 0, maxInFlight = 0;
+    vi.mocked(extractEntities).mockImplementation(async () => {
+      inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      return [];
+    });
+    const ollamaShaped = { generateText: vi.fn(), maxConcurrency: 1 } as unknown as InferenceClient;
+
+    await processReferenceJob(
+      content, ollamaShaped,
+      { resourceId: RID, entityTypes: [entityType('A'), entityType('B'), entityType('C'), entityType('D')] },
+      textBuild(content), vi.fn(), LOGGER, async () => {},
+    );
+
+    expect(maxInFlight).toBe(1);
+  });
+
+  it('reports each unit once even when types finish OUT OF ORDER', async () => {
+    const content = 'Paris and Ada are here.';
+    // Location resolves slowly, Person fast — completion order reversed.
+    vi.mocked(extractEntities).mockImplementation(async (_c, types) => {
+      const t = String(types[0]);
+      if (t === 'Location') { await new Promise((r) => setTimeout(r, 20)); return [{ exact: 'Paris', entityType: 'Location' }] as any; }
+      return [{ exact: 'Ada', entityType: 'Person' }] as any;
+    });
+
+    const progress = vi.fn();
+    const outcome = await processReferenceJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location'), entityType('Person')] },
+      textBuild(content), progress, LOGGER, async () => {},
+    );
+
+    // The terminal frame carries the full completed set; each type appears once.
+    const last = progress.mock.calls.at(-1)![2] as { completedItems?: Array<{ value: string }> };
+    const values = (last.completedItems ?? []).map((i) => i.value).sort();
+    expect(values).toEqual(['Location', 'Person']);
+    expect(outcome.result.totalEmitted).toBe(2);
+  });
+
   it('counts errors when reconciliation drops an entity (text not in source)', async () => {
     // 'good' is in the content; 'BADTEXT' is not — reconcileSelector drops
     // the second entity, the processor counts an error.
@@ -345,6 +450,42 @@ describe('processReferenceJob', () => {
 // items, or the checkpoint list.
 describe('processReferenceJob — unit completion gates on the commit (P6)', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  // DETECTION-QUALITY-THROUGHPUT P1. The baseline's headline number — "Person
+  // 935 found / 844 persisted" — had to be reconstructed by reading logs,
+  // because the per-unit result reported only what the model PROPOSED. The gap
+  // is dedupe plus the commit ack, and it is the yield every sizing decision is
+  // judged against, so it belongs on the result rather than in an operator's
+  // head.
+  it('reports found AND persisted per unit — the gap between them is the yield', async () => {
+    // Three proposals, two distinct spans: the duplicate collapses in dedupe,
+    // so found and persisted must differ here or the test proves nothing.
+    vi.mocked(extractEntities).mockResolvedValue([
+      { exact: 'Paris', start: 0, end: 5, entityType: 'Location' } as any,
+      { exact: 'Paris', start: 0, end: 5, entityType: 'Location' } as any,
+      { exact: 'Berlin', start: 10, end: 16, entityType: 'Location' } as any,
+    ]);
+    const onProgress = vi.fn();
+
+    await processReferenceJob(
+      'Paris and Berlin',
+      makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild('Paris and Berlin'),
+      onProgress,
+      LOGGER,
+      vi.fn(async () => {}),
+    );
+
+    const completed = onProgress.mock.calls
+      .map(c => (c[2] as { completedItems?: Array<{ value: string; foundCount: number; persistedCount?: number }> } | undefined)?.completedItems)
+      .filter((items): items is Array<{ value: string; foundCount: number; persistedCount?: number }> => !!items?.length)
+      .at(-1);
+
+    expect(completed).toEqual([
+      { value: 'Location', foundCount: 3, persistedCount: 2 },
+    ]);
+  });
 
   it('a rejecting sink stops the unit counting, and the failure reaches the caller', async () => {
     vi.mocked(extractEntities).mockResolvedValue([

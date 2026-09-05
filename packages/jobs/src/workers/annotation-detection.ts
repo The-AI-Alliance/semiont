@@ -67,14 +67,16 @@ async function detectInChunks<T>(
     // response fails the job rather than reading as an empty detection. A
     // size-shaped failure (duration bound, truncation) subdivides in place
     // and retries smaller before it is allowed to fail the job.
-    const items = await callChunkSubdividing<unknown>(chunks[i]!, chunking, async (piece) => {
+    const items = await callChunkSubdividing<unknown>(motivation, chunks[i]!, chunking, async (piece) => {
       const response = await boundedGenerateStructured<unknown>(
         client, buildPrompt(piece), outputBudget, DETECTION_TEMPERATURE, elementSchema,
         // Still alive, same position (a long single call is otherwise silent).
         () => onActivity?.(i, chunks.length),
       );
       assertNotTruncated(response, `${motivation} detection`, i + 1, chunks.length, outputBudget);
-      return response.items;
+      // Usage rides back so the telemetry record carries what the call COST
+      // beside what it yielded — the provider's own counts, not an estimate.
+      return { items: response.items, ...(response.usage ? { usage: response.usage } : {}) };
     });
     collected.push(...parse(items));
     if (i < chunks.length - 1) {

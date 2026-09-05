@@ -32,6 +32,8 @@ import type {
   TagDetectionResult,
   GenerationResult,
 } from './types';
+import { noteAnchor } from './workers/detection/anchor-audit';
+import { runBounded } from './workers/detection/bounded-concurrency';
 
 type Agent = components['schemas']['Agent'];
 
@@ -91,6 +93,10 @@ export type OnProgress = (
 ) => void;
 
 type JobProgress = components['schemas']['JobProgress'];
+/** Derived from the wire, never restated: the per-unit entry's shape is the
+ * spec's, so a field added there reaches these accumulators by regeneration
+ * rather than by someone remembering two places. */
+type CompletedItem = NonNullable<JobProgress['completedItems']>[number];
 type JobProgressMessage = components['schemas']['JobProgressMessage'];
 
 /** The five W3C motivations this system mints — a closed vocabulary, so it is
@@ -494,7 +500,7 @@ export async function processReferenceJob(
 ): Promise<{ result: DetectionResult }> {
   const entityTypeNames = params.entityTypes.map(String);
   const requestParams = [{ label: 'entity-types' as const, value: entityTypeNames.join(', ') }];
-  const completedItems: Array<{ value: string; foundCount: number }> = [];
+  const completedItems: CompletedItem[] = [];
   let totalFound = 0;
   let totalEmitted = 0;
   let errors = 0;
@@ -503,57 +509,62 @@ export async function processReferenceJob(
 
   const bodyLanguage = params.language ?? 'en';
 
-  for (let i = 0; i < entityTypeNames.length; i++) {
-    // Cooperative cancellation at the unit boundary (JOB-RESTART-SAFETY P4):
-    // a cancel requested mid-run stops the loop cleanly here, between units.
-    // Units already committed stay checkpointed; the in-flight unit is never
-    // started. The caller reads `signal.aborted` to move the job to
-    // cancelled/ rather than complete/.
-    if (signal?.aborted) break;
-    const entityTypeName = entityTypeNames[i];
-    if (!entityTypeName) continue;
-    const pct = 20 + Math.round((i / entityTypeNames.length) * 60);
+  // Entity types run BOUNDED-CONCURRENT (DETECTION-QUALITY-THROUGHPUT P6).
+  // They are independent units — own extraction, own commit, own checkpoint —
+  // and a single sequential job used a sliver of the provider's rate limit, so
+  // the old `for … await` was the 9×-sequential ≈ 2.5 h/document. The bound is
+  // the point: unbounded fan-out just trades sequential waiting for 429 thrash.
+  //
+  // Shared counters and `completedItems` are mutated SYNCHRONOUSLY between
+  // awaits inside the worker — safe under the single-threaded event loop (no
+  // read-modify-write straddles an await), so no locking is needed. Progress is
+  // now "M of N done" rather than "on type i": concurrent types finish out of
+  // order, and `completedItems` already tolerates that.
+  let completed = 0;
+  const total = entityTypeNames.length;
+
+  const emitTypeProgress = (entityTypeName: string): void => {
+    const pct = 20 + Math.round((completed / total) * 60);
     onProgress(pct, { code: 'detecting-entities', entityType: entityTypeName }, {
-      // One vocabulary for "what is in flight" (CLEAN-PROGRESS D2): the entity
-      // type is KB data, `kind` is the code the client localizes around it.
       current: { kind: 'entity-type', value: entityTypeName },
-      processed: i,
-      total: entityTypeNames.length,
+      processed: completed,
+      total,
       entitiesFound: totalFound,
       entitiesEmitted: totalEmitted,
       completedItems: [...completedItems],
       requestParams,
     });
+  };
+
+  // Concurrency is the PROVIDER's capability, not a flat constant: a hosted
+  // API parallelizes, a local single-model server does not (P6). Reading it
+  // from the client is what makes the same code correct on both.
+  await runBounded(entityTypeNames, inferenceClient.maxConcurrency, async (entityTypeName) => {
+    if (!entityTypeName) return;
+    // Cooperative cancellation (JOB-RESTART-SAFETY P4): once aborted, a pending
+    // type is skipped when its turn comes; types already in flight finish and
+    // commit, so committed units stay checkpointed. The caller reads
+    // `signal.aborted` to move the job to cancelled/ rather than complete/.
+    if (signal?.aborted) return;
+
+    emitTypeProgress(entityTypeName);
 
     const extractedEntities = await extractEntities(
       content, [entityTypeName], inferenceClient, params.includeDescriptiveReferences ?? false, logger,
       params.sourceLanguage,
-      // Liveness: fires at chunk boundaries AND every ~15 s while a single
-      // inference call is in flight (DETECTION-HEARTBEAT). Progress feeds the
-      // stall watchdog, the janitor, AND the client's inter-emission timeout,
-      // so a long single-chunk call must not be silent. Percentage
-      // interpolates within this entity type's band of the 20–80 range; a
-      // heartbeat repeats the current position rather than inventing an
-      // advance.
-      (completed, total) => {
-        const interpolated = 20 + Math.round(((i + completed / total) / entityTypeNames.length) * 60);
-        onProgress(interpolated, { code: 'detecting-entities', entityType: entityTypeName }, {
-          current: { kind: 'entity-type', value: entityTypeName },
-          processed: i,
-          total: entityTypeNames.length,
-          entitiesFound: totalFound,
-          entitiesEmitted: totalEmitted,
-          completedItems: [...completedItems],
-          requestParams,
-        });
-      },
+      // Liveness heartbeat (DETECTION-HEARTBEAT): fires at chunk boundaries and
+      // every ~15 s while a call is in flight, so a long single-chunk call is
+      // not silent. It repeats the current position rather than inventing an
+      // advance — the stall watchdog, janitor and client timeout need a signal,
+      // not a monotone.
+      () => emitTypeProgress(entityTypeName),
     );
 
     // Unresolved reference body: the entity type as a tagging TextualBody,
     // stamped with the body locale to match the comment/assess/tag pattern.
-    // The bind flow later appends a SpecificResource (purpose: 'linking')
-    // via mark:body-updated to produce the resolved shape. Emitting an
-    // empty body would break the append contract.
+    // The bind flow later appends a SpecificResource (purpose: 'linking') via
+    // mark:body-updated to produce the resolved shape. Emitting an empty body
+    // would break the append contract.
     const unresolvedBody: Annotation['body'] = [
       { type: 'TextualBody' as const, value: entityTypeName, purpose: 'tagging' as const, format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
     ];
@@ -573,20 +584,12 @@ export async function processReferenceJob(
         errors++;
         continue;
       }
-      if (reconciled.anchorMethod === 'first-of-many' || reconciled.anchorMethod === 'fuzzy-match') {
-        logger.warn('Entity anchored via degraded method', {
-          text: entity.exact,
-          entityType: entity.entityType,
-          anchorMethod: reconciled.anchorMethod,
-        });
-      }
+      noteAnchor('reference', entity.exact, reconciled.anchorMethod, logger);
       const ann = buildAnnotation('linking', toMatch(reconciled), unresolvedBody);
       built.push(ann);
     }
 
-    // De-dupe within the unit — identical spans under the same entity type
-    // collapse; cross-unit duplicates cannot exist, because the body
-    // carries the type name. Then COMMIT: the awaited callback emits the
+    // De-dupe within the unit, then COMMIT: the awaited callback emits the
     // unit's annotations, and only after it resolves does the unit count
     // anywhere — a unit whose commit fails contributes nothing (unit
     // atomicity, A3).
@@ -594,10 +597,26 @@ export async function processReferenceJob(
     await onUnitComplete(entityTypeName, unitAnnotations);
     totalEmitted += unitAnnotations.length;
     totalFound += extractedEntities.length;
-    completedItems.push({ value: entityTypeName, foundCount: extractedEntities.length });
-  }
+    // Found vs persisted, per unit: the model proposed `extractedEntities`, the
+    // log holds `unitAnnotations` after dedupe and the commit ack. The gap
+    // between them is this flow's yield (DETECTION-QUALITY-THROUGHPUT P1).
+    completedItems.push({
+      value: entityTypeName,
+      foundCount: extractedEntities.length,
+      persistedCount: unitAnnotations.length,
+    });
+    completed++;
+    emitTypeProgress(entityTypeName);
+  });
 
-  onProgress(100, { code: 'complete-created', count: totalEmitted, kind: 'reference' }, { requestParams });
+  // The terminal frame carries the completed set, and it is the only frame
+  // that can: the per-unit entries ride the progress emitted at the START of
+  // each unit, so the LAST unit's entry — and on a single-type job, every
+  // entry — was never reported anywhere (DETECTION-QUALITY-THROUGHPUT P1).
+  onProgress(100, { code: 'complete-created', count: totalEmitted, kind: 'reference' }, {
+    completedItems: [...completedItems],
+    requestParams,
+  });
 
   return {
     result: { kind: 'reference-annotation', totalFound, totalEmitted, errors },
@@ -615,7 +634,7 @@ export async function processTagJob(
   onProgress(30, { code: 'analyzing-tags' });
 
   const allTags = [];
-  const completedItems: Array<{ value: string; foundCount: number }> = [];
+  const completedItems: CompletedItem[] = [];
   for (let c = 0; c < params.categories.length; c++) {
     const category = params.categories[c]!;
     // The loop always existed; it just never reported itself, so the tag flow

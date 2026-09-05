@@ -1,8 +1,20 @@
 // Inference client interface - all implementations must follow this contract
 
+/**
+ * What the call actually cost, as the PROVIDER counted it — never estimated
+ * here. Optional because a provider may not report it (and a call that fails
+ * before generating has nothing to report); absent means unknown, and a
+ * consumer must treat it as unknown rather than substituting a guess.
+ */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface InferenceResponse {
   text: string;
   stopReason: 'end_turn' | 'max_tokens' | 'stop_sequence' | string;
+  usage?: TokenUsage;
 }
 
 /**
@@ -37,6 +49,7 @@ export type ElementSchema = Record<string, unknown>;
 export interface StructuredResponse<T> {
   items: T[];
   stopReason: 'end_turn' | 'max_tokens' | 'stop_sequence' | string;
+  usage?: TokenUsage;
 }
 
 /**
@@ -93,6 +106,26 @@ export interface InferenceClient {
 
   /** Model identifier used for generation (e.g. 'claude-opus-4-6', 'llama3') */
   readonly modelId: string;
+
+  /**
+   * How many INDEPENDENT inference calls a caller should run concurrently
+   * against this provider for a throughput gain (DETECTION-QUALITY-THROUGHPUT
+   * P6 — detection's per-type fan-out reads this).
+   *
+   * This is a property of the provider's economics, which is why it lives on
+   * the provider and not in the caller. A HOSTED API whose per-account rate
+   * limit sits far above one job's usage has real spare capacity, so >1
+   * genuinely parallelizes. A LOCAL single-model server (Ollama) is 1: its
+   * throughput is hardware-bound, so concurrent requests only queue or split
+   * one GPU — no aggregate speedup, and N live KV-cache contexts is memory
+   * pressure that can OOM. There is no honest default across those two worlds,
+   * so this is required, not optional.
+   *
+   * Hard-coded per implementation for now; the natural seam for future
+   * per-provider or admin tuning (a value that later comes from config changes
+   * only where this is SET, not the callers).
+   */
+  readonly maxConcurrency: number;
 
   /**
    * The provider's actual context/output ceilings for `modelId`. Discovered
