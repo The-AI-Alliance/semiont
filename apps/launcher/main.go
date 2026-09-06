@@ -19,28 +19,36 @@ func usage(w *os.File) {
 Local Semiont stack launcher — drives your container runtime
 (Apple container, Docker, or Podman) directly.
 
-Commands:
+Stack lifecycle:
   init      Birth a new KB here: permanent identity, git repo, registration
   start     Start the local Semiont stack
-  useradd   Create or update a user in the running stack
-  login     Authenticate against a running stack (token stored, never the password)
-  logout    End the stored session (server best-effort, local token forgotten)
-  yield     Upload files from the KB root as resources (needs login)
-  browse    Read the KB: resources, annotations, entity types (needs login)
-  gather    Assemble LLM context for a resource or annotation (needs login)
-  mark      Annotate a resource; --delete removes an annotation (needs login)
-  bind      Resolve a linking annotation to its target resource (needs login)
-  match     Find resources an annotation could bind to (needs login)
-  beckon    Draw attention to a resource or annotation (needs login)
-  frame     Add entity types to the KB's schema vocabulary (needs login)
-  listen    Follow the KB's live event stream (needs login)
-  secret    Register where config secrets come from (pointers, never values)
   status    Report container state and application health per service
   logs      Follow the running stack's service logs
   stop      Stop the stack across all installed runtimes
-  clean     Remove a root's persistent stack state (PostgreSQL/Qdrant/Neo4j)
+  clean     Remove a root's persistent stack state (databases, event log, secrets)
+
+Identity & auth:
+  useradd   Create or update a user in the running stack
+  login     Authenticate against a running stack (token stored, never the password)
+  logout    End the stored session (server best-effort, local token forgotten)
+  secret    Register where config secrets come from (pointers, never values)
+
+Knowledge base (need login):
+  browse    Read the KB: resources, annotations, entity types
+  bind      Resolve a linking annotation to its target resource
+  yield     Upload files from the KB root as resources
+  mark      Annotate a resource; --delete removes an annotation
+  frame     Add entity types to the KB's schema vocabulary
+  gather    Assemble LLM context for a resource or annotation
+  match     Find resources an annotation could bind to
+  beckon    Draw attention to a resource or annotation
+  listen    Follow the KB's live event stream
+
+Data:
   export    Write a KB's durable state to a .tar.gz (no stack needed)
   import    Restore a KB from an export archive into a new root
+
+Info:
   about     What Semiont is, project links, and detected runtimes
   version   Print the launcher version
 
