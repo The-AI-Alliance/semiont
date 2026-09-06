@@ -121,7 +121,7 @@ COPY --from=installer --chown=semiont:nodejs /home/semiont/.local/share/semiont 
 # with its bundled brace-expansion patched there, so keeping npm is clean for the
 # Trivy gate.
 #
-# We still drop two things pulled transitively but never loaded at runtime:
+# We still drop three things pulled transitively but never loaded at runtime:
 #   - the TypeScript compiler: `typescript` + its native `@typescript/*` Go
 #     binaries (via the qdrant client's dep chain); the native `tsc` carries a
 #     Go-stdlib CVE (CVE-2026-39822).
@@ -132,13 +132,28 @@ COPY --from=installer --chown=semiont:nodejs /home/semiont/.local/share/semiont 
 #     it is Apache-2.0 and prisma's CLI top-level-requires it (removing it breaks
 #     the CLI, and `migrate deploy` still runs at start), while removing only
 #     elkjs leaves the CLI working.
+#   - `mysql2`: prisma pins it at exactly 3.15.3, which carries
+#     GHSA-3f6p-5ww8-9rcr (HIGH: auth-plugin downgrade to mysql_clear_password
+#     leaks credentials). The fix is 3.22.0 and prisma's pin is exact, so no
+#     range bump or lockfile update reaches it — and `ignore-unfixed` does not
+#     suppress it, because a fix exists. Same shape as elkjs: the only import in
+#     the tree is a lazy `import("mysql2/promise")` in the `prisma studio`
+#     command (build/cli.js), and @prisma/studio-core/data/mysql2 is a shim that
+#     never requires mysql2 itself. Our datasource is postgresql via
+#     @prisma/adapter-pg, so no MySQL connection is ever constructed. Retire this
+#     entry at prisma 8 — 8.0.0-rc.13 drops the mysql2 dependency outright.
+#     Matched by -path, NOT -name: a bare `-name mysql2` also hits
+#     @prisma/studio-core/dist/data/mysql2, the adapter shim that cli.js
+#     top-level-requires alongside data/bff and data/node-sqlite. Deleting that
+#     breaks the CLI at load and the container never starts.
 #
 # `find-my-way` used to be dropped here too: @prisma/dev pinned it at exactly
 # 9.6.0, which carried CVE-2026-47219 (HIGH: HTTP/2 DDoS). prisma 7.9.1 now
 # resolves @prisma/dev 0.24.17, which depends on the fixed find-my-way 9.7.0,
 # so there is nothing left to drop.
 RUN find /usr/local/lib/node_modules /home/semiont/.local/share/semiont \
-      -type d \( -name typescript -o -name '@typescript' -o -name elkjs \) \
+      -type d \( -name typescript -o -name '@typescript' -o -name elkjs \
+                 -o -path '*/node_modules/mysql2' \) \
       -prune -exec rm -rf {} +
 
 COPY LICENSE apps/gateway/NOTICE /home/semiont/
