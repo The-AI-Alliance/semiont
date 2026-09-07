@@ -286,13 +286,9 @@ export type EventMap = {
   //
   // Read-only over the wire: the Smelter is the sole producer and publishes
   // through `IContentTransport`, never over this channel. `null` in the reply
-  // The reply is never null: absence is NAMED, so a caller can tell "not yet"
-  // from "never" (SMELTER-OWNS-OCR P1). Declared by REFERENCE to the schema
-  // rather than restated inline — the inline form was a mirror, and it went
-  // stale the moment the schema widened, surfacing as an unrelated-types error
-  // at the handler rather than here.
+  // means no map has been derived, which is the common case and not an error.
   'browse:anchored-text-requested': components['schemas']['BrowseAnchoredTextRequest'];
-  'browse:anchored-text-result': components['schemas']['BrowseAnchoredTextResult'];
+  'browse:anchored-text-result': { correlationId: string; response: components['schemas']['ExtractionOutcome'] | null };
   'browse:anchored-text-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   // The checksum-addressed consult: the stored extraction outcome for a

@@ -1,6 +1,6 @@
-import type { ResourceId, components } from '@semiont/core';
+import type { ResourceId, components, AnchoredTextAnswer } from '@semiont/core';
 import { textExtractionOf } from '@semiont/core';
-import { EXTRACTORS, calculateChecksum, type AnchoredTextStore, type ContentReads, type ExtractionDecline } from '@semiont/content';
+import { EXTRACTORS, type ContentReads, type ExtractionDecline } from '@semiont/content';
 import { buildTextAnnotation, buildPdfAnnotation, type BuildAnnotation } from '../../processors';
 
 type Agent = components['schemas']['Agent'];
@@ -26,8 +26,20 @@ export type DetectionSource =
  * whichever verb asked.
  */
 export type DetectionDecline = {
-  declined: ExtractionDecline['declined'] | 'no-extractor' | 'empty';
+  declined: ExtractionDecline['declined'] | 'no-extractor' | 'empty'
+    // The three the CONSULT can report for a geometry-bearing type
+    // (SMELTER-OWNS-OCR P2). `not-yet` is transient — the Smelter has not
+    // settled this generation yet, and the retry finds the store warm.
+    // `no-map` and `unknown` are terminal: the first is drift between
+    // `yieldsGeometry` and the Smelter's skip decision (a geometry type it
+    // declined to map), the second is a resource with no content identity.
+    | 'not-yet' | 'no-map' | 'unknown';
 };
+
+/** How a detection job reads canonical geometry: the resource-addressed
+ * consult (`browse.resourceAnchoredText`), injected as a narrow function so
+ * this stays on the read seam and never holds a session. */
+export type ConsultAnchoredText = (resourceId: ResourceId) => Promise<AnchoredTextAnswer>;
 
 /**
  * For one detection job, resolve the text the model detects over and the
@@ -36,12 +48,13 @@ export type DetectionDecline = {
  * Extraction goes through the **same registry the Smelter embeds from**
  * (`EXTRACTORS`, keyed by the media-type registry's `TextExtraction`
  * strategy), so detection and embedding always read a resource identically —
- * including scanned PDFs, which are read by OCR rather than declined.
+ * but a geometry-bearing type (PDF) is CONSULTED for the Smelter's canonical
+ * text rather than re-extracted here — the Smelter owns OCR
+ * (SMELTER-OWNS-OCR).
  *
- * Bytes come from the injected `ContentReads` — in the fleet, the Archivist's
- * byte route rather than a hop through the gateway (SINGLE-KB-MOUNT P4). This
- * takes the read seam and not the session because the read is all it ever
- * wanted from one.
+ * Bytes come from the injected `ContentReads` for NON-geometry types only;
+ * geometry types take the injected `consult` seam instead. Both are narrow
+ * read seams rather than the session — the read is all this ever wanted.
  *
  * The anchoring model follows the geometry, not the media type: an extraction
  * that carries positioned runs anchors spatially (page + viewrect), one that
@@ -55,38 +68,50 @@ export async function prepareDetection(
   resourceId: ResourceId,
   userId: string,
   generator: Agent,
-  store: AnchoredTextStore,
+  consult: ConsultAnchoredText,
 ): Promise<DetectionSource> {
   const extractor = EXTRACTORS[textExtractionOf(mediaType)];
   if (!extractor) return { declined: 'no-extractor' };
 
+  // The media type decides where the text comes from (SMELTER-OWNS-OCR).
+  //
+  // GEOMETRY-BEARING types (PDF, every class) get their text from the
+  // Smelter's canonical anchored text, CONSULTED by resourceId — the Smelter
+  // is the sole producer, and a second derivation here is a second producer
+  // whose divergent offsets misanchor every annotation silently. The worker
+  // fetches no bytes and runs no OCR: the consult carries the text and its
+  // geometry. `yieldsGeometry` is declared on the extractor and is the same
+  // predicate the Smelter uses to decide whether to publish, so the two
+  // cannot drift about which resources have canonical text.
+  if (extractor.yieldsGeometry) {
+    const answer = await consult(resourceId);
+    switch (answer.kind) {
+      case 'extracted': {
+        if (!answer.text.trim()) return { declined: 'empty' };
+        const anchored = { text: answer.text, items: answer.items ?? [] };
+        return {
+          text: answer.text,
+          buildAnnotation: (motivation, match, body) =>
+            buildPdfAnnotation(anchored, resourceId, userId, generator, motivation, match, body),
+        };
+      }
+      // The Smelter's own decline (encrypted, corrupt) — passed through by name.
+      case 'declined': return { declined: answer.declined };
+      // Named absences: `not-yet` retries, the other two are terminal.
+      case 'not-yet': return { declined: 'not-yet' };
+      case 'no-map':  return { declined: 'no-map' };
+      case 'unknown': return { declined: 'unknown' };
+    }
+  }
+
+  // NON-GEOMETRY types (markdown, plain text) have no canonical artifact to
+  // consult — the Smelter publishes nothing for them, so there is nothing to
+  // diverge from. Decode the bytes directly; the text itself is the
+  // coordinate system, anchored by character offset.
   const { data } = await content.getBinary(resourceId);
-  // Read through the anchored-text cache (PERSIST-ANCHORS P2d): a stored
-  // outcome — success or decline — is served whole, so a second detection
-  // pass over the same representation runs neither parser nor engine. The
-  // key is the checksum of the bytes actually fetched, never a descriptor
-  // claim: a catalog-derived key can race a byte change and file or read
-  // geometry under an identity that does not describe these bytes (P1c).
-  const bytes = Buffer.from(data);
-  const extracted = await extractor.extract(bytes, mediaType, {
-    key: calculateChecksum(bytes),
-    store,
-  });
+  const extracted = await extractor.extract(Buffer.from(data), mediaType);
   if (extracted.kind === 'declined') return extracted;
   if (!extracted.text.trim()) return { declined: 'empty' };
-
-  // Positioned runs mean the source has real geometry to anchor to — a PDF's
-  // text layer, its form widgets, its table cells, or OCR'd words. Without
-  // them the text itself is the coordinate system.
-  const items = extracted.items;
-  if (items && items.length > 0) {
-    const anchored = { text: extracted.text, items };
-    return {
-      text: extracted.text,
-      buildAnnotation: (motivation, match, body) =>
-        buildPdfAnnotation(anchored, resourceId, userId, generator, motivation, match, body),
-    };
-  }
 
   return {
     text: extracted.text,

@@ -21,7 +21,7 @@ vi.mock('@semiont/content', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@semiont/content')>();
   return {
     ...actual,
-    EXTRACTORS: { ...actual.EXTRACTORS, 'pdf-text-layer': { extract: vi.fn() } },
+    EXTRACTORS: { ...actual.EXTRACTORS, 'pdf-text-layer': { extract: vi.fn(), yieldsGeometry: true } },
   };
 });
 // No `@semiont/event-sourcing` mock: annotation ids are content-addressed
@@ -29,15 +29,8 @@ vi.mock('@semiont/content', async (importOriginal) => {
 // mock existed only to buy that determinism, and keeping it would hide the
 // identity these builders now compute — which is the thing worth exercising.
 
-import { EXTRACTORS, type AnchoredTextStore, type ContentReads } from '@semiont/content';
+import { EXTRACTORS, type ContentReads } from '@semiont/content';
 import { prepareDetection } from '../workers/detection/prepare-detection';
-
-/** Always-miss, write-blind: the dispatch layer runs uncached. */
-const MISS_STORE: AnchoredTextStore = {
-  read: async () => null,
-  write: async () => {},
-  list: async () => [],
-};
 
 type Agent = components['schemas']['Agent'];
 
@@ -77,6 +70,13 @@ function fakeReads(text = 'alpha beta gamma') {
   return { reads, getBinary };
 }
 
+/** The geometry consult (SMELTER-OWNS-OCR P2) — a spy over
+ * `browse.resourceAnchoredText`. Default: a settled map. */
+function fakeConsult(answer: unknown = { kind: 'extracted', text: PDF_TEXT, items: PDF_ITEMS, method: 'pdf-text-layer' }) {
+  const consult = vi.fn(async () => answer as never);
+  return { consult };
+}
+
 type Sel = { type: string; start?: number; end?: number; value?: string };
 const selectors = (ann: Record<string, unknown>): Sel[] =>
   (ann.target as { selector: Sel[] }).selector;
@@ -84,32 +84,50 @@ const selectors = (ann: Record<string, unknown>): Sel[] =>
 describe('prepareDetection', () => {
   beforeEach(() => { pdfExtract.mockReset(); });
 
+  // ── NON-geometry: decode the bytes, no consult ──────────────────────────
+
   it('text: decodes for real and anchors by character offsets in that SAME text', async () => {
     const { reads, getBinary } = fakeReads();
+    const { consult } = fakeConsult();
 
-    const source = await prepareDetection('text/markdown', reads, RID, USER_DID, GENERATOR, MISS_STORE);
+    const source = await prepareDetection('text/markdown', reads, RID, USER_DID, GENERATOR, consult);
     if ('declined' in source) throw new Error(`unexpected decline: ${source.declined}`);
 
     expect(getBinary).toHaveBeenCalledOnce();
+    // The Smelter publishes nothing for non-geometry types, so consulting would
+    // always miss and then block on an artifact that is never coming.
+    expect(consult).not.toHaveBeenCalled();
     expect(source.text).toBe('alpha beta gamma');
 
     const ann = source.buildAnnotation('highlighting', { exact: 'alpha', start: 0, end: 5 }) as Record<string, unknown>;
-    expect(ann.motivation).toBe('highlighting');
-    expect((ann.target as { source: string }).source).toBe(RID);
     const sels = selectors(ann);
     expect(sels.find((s) => s.type === 'TextPositionSelector')).toMatchObject({ start: 0, end: 5 });
     expect(sels.some((s) => s.type === 'TextQuoteSelector')).toBe(true);
-    // The closure closed over the decoded text: a span that does not match it
-    // trips buildTextAnnotation's content invariant.
     expect(() => source.buildAnnotation('highlighting', { exact: 'zzz', start: 0, end: 3 })).toThrow(/invariant/);
   });
 
-  it('positioned runs: anchors by viewrect geometry from the SAME extraction', async () => {
-    const { reads } = fakeReads();
-    pdfExtract.mockResolvedValue({ kind: 'extracted', text: PDF_TEXT, items: PDF_ITEMS, method: 'pdf-text-layer', pdfClass: 'A' });
+  it("declines 'empty' when a decoded non-geometry resource yields nothing to detect over", async () => {
+    const { reads } = fakeReads('   \n  ');
+    const { consult } = fakeConsult();
+    expect(await prepareDetection('text/markdown', reads, RID, USER_DID, GENERATOR, consult))
+      .toEqual({ declined: 'empty' });
+  });
 
-    const source = await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, MISS_STORE);
+  // ── GEOMETRY-bearing: consult the Smelter, never fetch or OCR ────────────
+
+  it('PDF: text comes from the CONSULT with its geometry, and getBinary is NOT called', async () => {
+    // The headline of SMELTER-OWNS-OCR P2: a geometry type reads canonical text
+    // from the Smelter. Assert on the CALL, not the result — a fetch whose bytes
+    // are discarded still downloads 39 MB, and an OCR pass still burns the CPU.
+    const { reads, getBinary } = fakeReads();
+    const { consult } = fakeConsult({ kind: 'extracted', text: PDF_TEXT, items: PDF_ITEMS, method: 'pdf-text-layer' });
+
+    const source = await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, consult);
     if ('declined' in source) throw new Error(`unexpected decline: ${source.declined}`);
+
+    expect(consult).toHaveBeenCalledWith(RID);
+    expect(getBinary).not.toHaveBeenCalled();
+    expect(pdfExtract).not.toHaveBeenCalled();
     expect(source.text).toBe(PDF_TEXT);
 
     const ann = source.buildAnnotation('highlighting', { exact: 'alpha', start: 0, end: 5 }) as Record<string, unknown>;
@@ -119,39 +137,68 @@ describe('prepareDetection', () => {
     expect(sels.some((s) => s.type === 'TextQuoteSelector')).toBe(true);
   });
 
-  it('a scanned PDF that OCR read is anchored spatially, like any other geometry', async () => {
-    // The point of #739: OCR'd words are ordinary positioned runs, so class B
-    // takes the identical path a native text layer does.
-    const { reads } = fakeReads();
-    pdfExtract.mockResolvedValue({ kind: 'extracted', text: PDF_TEXT, items: PDF_ITEMS, method: 'ocr', pdfClass: 'B' });
-
-    const source = await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, MISS_STORE);
-    if ('declined' in source) throw new Error('unexpected decline');
-    const ann = source.buildAnnotation('highlighting', { exact: 'gamma', start: 11, end: 16 }) as Record<string, unknown>;
-    expect(selectors(ann).find((s) => s.type === 'FragmentSelector')?.value).toMatch(/^page=1&viewrect=/);
-  });
-
-  it("passes an extractor's own decline through by name", async () => {
-    const { reads } = fakeReads();
-    pdfExtract.mockResolvedValue({ kind: 'declined', declined: 'encrypted' });
-
-    expect(await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, MISS_STORE))
-      .toEqual({ kind: 'declined', declined: 'encrypted' });
-  });
-
-  it("declines 'no-extractor' for a media type that can never yield text", async () => {
+  it('a class A PDF takes the consult path too — the rule is yieldsGeometry, not "is it a scan"', async () => {
+    // A class-A carve-out would reintroduce a second producer for an operation
+    // that is merely *probably* deterministic. The consult, not the pdfClass,
+    // decides.
     const { reads, getBinary } = fakeReads();
+    const { consult } = fakeConsult({ kind: 'extracted', text: PDF_TEXT, items: PDF_ITEMS, method: 'pdf-text-layer' });
 
-    expect(await prepareDetection('application/zip', reads, RID, USER_DID, GENERATOR, MISS_STORE))
-      .toEqual({ declined: 'no-extractor' });
-    // Nothing is fetched — the media type alone settles it.
+    const source = await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, consult);
+    if ('declined' in source) throw new Error('unexpected decline');
+    expect(consult).toHaveBeenCalledOnce();
     expect(getBinary).not.toHaveBeenCalled();
   });
 
-  it("declines 'empty' when extraction yields nothing to detect over", async () => {
-    const { reads } = fakeReads('   \n  ');
+  it("a not-yet consult answer declines 'not-yet' — no fetch, no OCR (the RETRY case)", async () => {
+    const { reads, getBinary } = fakeReads();
+    const { consult } = fakeConsult({ kind: 'not-yet' });
 
-    expect(await prepareDetection('text/markdown', reads, RID, USER_DID, GENERATOR, MISS_STORE))
+    expect(await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, consult))
+      .toEqual({ declined: 'not-yet' });
+    // No fallback extraction: a local OCR pass that runs and is discarded still
+    // burns the CPU this plan exists to stop duplicating.
+    expect(getBinary).not.toHaveBeenCalled();
+    expect(pdfExtract).not.toHaveBeenCalled();
+  });
+
+  it("a no-map consult answer declines 'no-map' (TERMINAL — drift on a geometry type)", async () => {
+    const { reads } = fakeReads();
+    const { consult } = fakeConsult({ kind: 'no-map' });
+    expect(await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, consult))
+      .toEqual({ declined: 'no-map' });
+  });
+
+  it("an unknown consult answer declines 'unknown' (TERMINAL — no content identity)", async () => {
+    const { reads } = fakeReads();
+    const { consult } = fakeConsult({ kind: 'unknown' });
+    expect(await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, consult))
+      .toEqual({ declined: 'unknown' });
+  });
+
+  it("a genuine content decline passes through the consult by name", async () => {
+    const { reads } = fakeReads();
+    const { consult } = fakeConsult({ kind: 'declined', declined: 'encrypted' });
+    expect(await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, consult))
+      .toEqual({ declined: 'encrypted' });
+  });
+
+  it("declines 'empty' when the consulted map has blank text", async () => {
+    const { reads } = fakeReads();
+    const { consult } = fakeConsult({ kind: 'extracted', text: '   ', items: [], method: 'pdf-text-layer' });
+    expect(await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, consult))
       .toEqual({ declined: 'empty' });
+  });
+
+  // ── media-type gate, unchanged ──────────────────────────────────────────
+
+  it("declines 'no-extractor' for a media type that can never yield text", async () => {
+    const { reads, getBinary } = fakeReads();
+    const { consult } = fakeConsult();
+
+    expect(await prepareDetection('application/zip', reads, RID, USER_DID, GENERATOR, consult))
+      .toEqual({ declined: 'no-extractor' });
+    expect(getBinary).not.toHaveBeenCalled();
+    expect(consult).not.toHaveBeenCalled();
   });
 });

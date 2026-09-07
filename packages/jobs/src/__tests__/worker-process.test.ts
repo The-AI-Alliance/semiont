@@ -39,6 +39,7 @@ import type { SemiontSession } from '@semiont/sdk';
 import type { JobType } from '@semiont/core';
 import type { ActiveJob, JobClaimAdapter } from '../job-claim-adapter';
 import { handleJob, type WorkerProcessConfig } from '../worker-process';
+import { classifyFailure } from '../failure-class';
 import {
   processHighlightJob,
   processCommentJob,
@@ -47,7 +48,6 @@ import {
   processTagJob,
   processGenerationJob,
 } from '../processors';
-import { EXTRACTORS } from '@semiont/content';
 
 // Mock the six processor entry points; keep every other export real.
 // `prepareDetection` imports `buildTextAnnotation`/`buildPdfAnnotation` from
@@ -71,7 +71,7 @@ vi.mock('@semiont/content', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@semiont/content')>();
   return {
     ...actual,
-    EXTRACTORS: { ...actual.EXTRACTORS, 'pdf-text-layer': { extract: vi.fn() } },
+    EXTRACTORS: { ...actual.EXTRACTORS, 'pdf-text-layer': { extract: vi.fn(), yieldsGeometry: true } },
     // PDF citation geometry (P4): the worker re-anchors claims through the
     // extracted text layer; tests supply it.
     extractPdfTextLayer: vi.fn(),
@@ -166,6 +166,11 @@ function makeFakeSessionAndAdapter() {
           fresh: async () => ({ representations: [{ mediaType: 'text/plain' }] }),
         })),
         resourceContent: vi.fn(async (_rid: string) => 'the content'),
+        // The geometry consult (SMELTER-OWNS-OCR P2). Only PDF tests take this
+        // path; they override it. Default is a benign settled answer.
+        resourceAnchoredText: vi.fn(async (_rid: string) => ({
+          kind: 'extracted', text: 'the content', items: [], method: 'pdf-text-layer',
+        })),
       },
       yield: {
         resource: vi.fn(async (data: Parameters<SemiontSession['client']['yield']['resource']>[0]) => {
@@ -969,16 +974,17 @@ describe('handleJob orchestration', () => {
         lastCall: () => vi.mocked(processTagJob).mock.calls[0] },
     ];
 
-    it.each(PDF_FANOUT)('fans $jobType out to the pdf-text-layer path', async ({ jobType, arm, lastCall }) => {
+    it.each(PDF_FANOUT)('fans $jobType out to the geometry-consult path', async ({ jobType, arm, lastCall }) => {
       arm();
-      vi.mocked(EXTRACTORS['pdf-text-layer']!.extract).mockResolvedValue({
-        kind: 'extracted', text: 'the quick brown fox', items: [], method: 'pdf-text-layer', pdfClass: 'A',
-      });
       const h = makeFakeSessionAndAdapter();
       vi.mocked(h.session.client.browse.resource).mockReturnValue({
         fresh: async () => ({
         representations: [{ mediaType: 'application/pdf' }],
       }),
+      } as never);
+      // Geometry text comes from the consult (SMELTER-OWNS-OCR P2), not extract.
+      vi.mocked(h.session.client.browse.resourceAnchoredText).mockResolvedValue({
+        kind: 'extracted', text: 'the quick brown fox', items: [], method: 'pdf-text-layer',
       } as never);
 
       await handleJob(
@@ -989,26 +995,31 @@ describe('handleJob orchestration', () => {
         makeJob(jobType, jobType === 'reference-annotation' ? { entityTypes: ['Person'] } : {}),
       );
 
-      // pdf-text-layer fetches the representation bytes, never resourceContent.
-      expect(getBinary).toHaveBeenCalled();
-      expect(h.session.client.browse.resourceContent).not.toHaveBeenCalled();
+      // A PDF is geometry-bearing: its text comes from the CONSULT, not from
+      // fetching and re-extracting bytes here (SMELTER-OWNS-OCR P2). getBinary
+      // must NOT run — a 39 MB download whose bytes are discarded still downloads.
+      expect(h.session.client.browse.resourceAnchoredText).toHaveBeenCalled();
+      expect(getBinary).not.toHaveBeenCalled();
       const call = lastCall();
       expect(call).toBeDefined();
-      expect(call![0]).toBe('the quick brown fox'); // source.text — the extracted layer
+      expect(call![0]).toBe('the quick brown fox'); // source.text — the consulted canonical text
       expect(typeof call![3]).toBe('function');      // source.buildAnnotation — PDF-aware anchor
       expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(true);
     });
 
     it('declines cleanly (no throw, no processor) for a scanned PDF with no text layer', async () => {
-      // A scan OCR could not read declines by name. The dispatch completes the
-      // job with that reason rather than crashing or running the model on
-      // nothing — and the reason is now the extractor's own, not a guess.
-      vi.mocked(EXTRACTORS['pdf-text-layer']!.extract).mockResolvedValue({ kind: 'declined', declined: 'no-text-layer' });
+      // A genuine content decline now comes back from the CONSULT by name
+      // (SMELTER-OWNS-OCR P2): the Smelter tried and settled skipped. The
+      // dispatch completes the job with that reason rather than crashing or
+      // running the model on nothing.
       const h = makeFakeSessionAndAdapter();
       vi.mocked(h.session.client.browse.resource).mockReturnValue({
         fresh: async () => ({
         representations: [{ mediaType: 'application/pdf' }],
       }),
+      } as never);
+      vi.mocked(h.session.client.browse.resourceAnchoredText).mockResolvedValue({
+        kind: 'declined', declined: 'no-text-layer',
       } as never);
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
@@ -1019,6 +1030,39 @@ describe('handleJob orchestration', () => {
       expect((complete!.payload as { result?: unknown }).result)
         .toMatchObject({ declined: true, reason: 'no-text-layer' });
       expect(h.adapterCalls.some(c => c.method === 'completeJob')).toBe(true);
+    });
+
+    it('a not-yet consult is a TRANSIENT failure — the retry finds the store warm (SMELTER-OWNS-OCR D3)', async () => {
+      // The Smelter has not settled this generation yet. Not a decline, not a
+      // clean completion — a retryable failure. The throw carries no
+      // deterministic class, so classifyFailure leaves it transient.
+      const h = makeFakeSessionAndAdapter();
+      vi.mocked(h.session.client.browse.resource).mockReturnValue({
+        fresh: async () => ({ representations: [{ mediaType: 'application/pdf' }] }),
+      } as never);
+      vi.mocked(h.session.client.browse.resourceAnchoredText).mockResolvedValue({ kind: 'not-yet' } as never);
+
+      const err = await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'))
+        .then(() => null, (e) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toMatch(/not yet derived/);
+      expect(classifyFailure(err)).toBeUndefined();   // transient — retryable
+      expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(false);
+      expect(processHighlightJob).not.toHaveBeenCalled();
+    });
+
+    it('a no-map consult is a TERMINAL failure — drift the retry cannot fix', async () => {
+      const h = makeFakeSessionAndAdapter();
+      vi.mocked(h.session.client.browse.resource).mockReturnValue({
+        fresh: async () => ({ representations: [{ mediaType: 'application/pdf' }] }),
+      } as never);
+      vi.mocked(h.session.client.browse.resourceAnchoredText).mockResolvedValue({ kind: 'no-map' } as never);
+
+      const err = await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'))
+        .then(() => null, (e) => e);
+      expect((err as Error).message).toMatch(/consult returned 'no-map'/);
+      expect(classifyFailure(err)).toBe('deterministic');   // terminal
+      expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(false);
     });
 
     it('fails a detection job when the resource has no primary representation', async () => {

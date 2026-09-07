@@ -11,11 +11,14 @@
  *   for a scanned PDF, that is an OCR pass not run.
  * - **Write is not this process's business.** The Smelter is the sole writer
  *   of anchored text, and there is no write operation on the wire to reach
- *   for. A worker that misses extracts locally and *discards*: it needs
- *   `extracted.items` in-process regardless, so the only thing lost is
- *   sharing the result with a later pass — and the Smelter's reconcile fills
- *   the store for every geometry-capable resource anyway, so a miss means
- *   detection beat the Smelter to a fresh upload.
+ *   for.
+ *
+ * NOTE (SMELTER-OWNS-OCR P2): detection no longer reaches this checksum-
+ * addressed probe at all. `prepareDetection` now CONSULTS the Smelter's
+ * canonical text by resourceId (`browse.resourceAnchoredText`) for
+ * geometry-bearing types and never derives its own — so the worker no longer
+ * "extracts locally and discards". This adapter and its channel are dead code
+ * pending P3's reaping census.
  *
  * The no-op `write` is the store contract's own sanctioned shape — *"a store
  * that cannot write is still a store"* — not a swallowed failure. Do not

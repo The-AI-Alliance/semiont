@@ -366,16 +366,35 @@ async function handleJobInner(
     // trace, which is exactly what made a 411 s opaque job hard to diagnose.
     const source = await withSpan(
       'detection:prepare',
-      () => prepareDetection(mediaType ?? '', config.contentReads, resourceId, userId, generator, config.anchoredTextStore),
+      () => prepareDetection(mediaType ?? '', config.contentReads, resourceId, userId, generator, (rid) => session.client.browse.resourceAnchoredText(rid)),
       { attrs: { 'resource.id': resourceId as unknown as string, 'media.type': mediaType ?? 'unknown' } },
     );
 
     if ('declined' in source) {
+      if (source.declined === 'not-yet') {
+        // The Smelter has not finished deriving this resource's anchored text
+        // (SMELTER-OWNS-OCR D3). Not an error — the work is not ready. Throw a
+        // TRANSIENT failure (classifyFailure leaves it unrecognized → transient)
+        // so the job retries and the retry finds the store warm. NEVER OCR here:
+        // the Smelter is the sole producer.
+        throw new Error(`Anchored text not yet derived for resource ${resourceId} — Smelter has not settled; retrying`);
+      }
       if (source.declined === 'no-extractor') {
         // A media type with nothing to extract is a user error, not weather —
         // retrying cannot change it (ABANDONED-INFERENCE P3, A4).
         throw new DeterministicJobError(`Cannot run ${jobType} on resource ${resourceId}: media type '${mediaType ?? 'unknown'}' has no extractable text to analyze`);
       }
+      if (source.declined === 'no-map' || source.declined === 'unknown') {
+        // Terminal, and loud: no-map is drift between `yieldsGeometry` and the
+        // Smelter's skip decision (a geometry type it declined to map); unknown
+        // is a resource with no content identity. Neither is retryable, and
+        // both mean something upstream is wrong — surface it, do not complete
+        // as if the resource simply had nothing to detect.
+        throw new DeterministicJobError(`Cannot run ${jobType} on resource ${resourceId}: anchored-text consult returned '${source.declined}'`);
+      }
+      // A genuine content decline (encrypted, corrupt, scanned-without-OCR,
+      // empty) — the resource legitimately has nothing to detect over. A clean
+      // completion carrying the reason, not a failure.
       await emitEvent(session, 'job:complete', {
         ...lifecycleBase,
         result: {
