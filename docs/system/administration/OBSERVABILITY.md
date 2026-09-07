@@ -102,47 +102,34 @@ SDK — no spans emitted, no overhead.
 
 ## Recommended targets
 
-Semiont does not store traces; the operator picks a gateway.
+Semiont does not store traces; the operator picks a backend. Locally the launcher picks for you — an OTel collector fans in all telemetry, Jaeger stores traces, Prometheus stores metrics.
 
 | Deployment              | Recommended target                                                                              |
 |-------------------------|-------------------------------------------------------------------------------------------------|
-| Local dev (default)     | SDK off — set `OTEL_CONSOLE_EXPORTER=true` for stderr output, or skip and rely on `busLog`.     |
-| Local dev (richer)      | `docker compose` Jaeger sidecar at `http://jaeger:4318`.                                        |
+| Local dev (default)     | The launcher's trio: OTel collector (always on, OTLP `:4318`) → Jaeger for traces (UI `:16686`), Prometheus for metrics (UI `:9090`). |
+| Local dev (custom)      | Point `OTEL_EXPORTER_OTLP_ENDPOINT` at any OTLP intake; or `OTEL_CONSOLE_EXPORTER=true` for stderr output. |
 | Self-hosted prod        | Jaeger (Cassandra/ES-backed) or Grafana Tempo (S3-backed, pairs with Loki).                      |
 | AWS prod                | AWS X-Ray via the AWS Distro for OpenTelemetry collector sidecar (translates OTLP → X-Ray).      |
 | SaaS APM                | Honeycomb / Datadog / New Relic / Lightstep all accept OTLP — set endpoint + auth header.        |
 | Multi-backend / scrubbing | Run the standard `otelcol` between Semiont and downstream backends. Pure operator config.      |
 
-## Local quickstart with Jaeger
+## Local quickstart
 
-```bash
-# 1. Run Jaeger
-docker run -d --name jaeger \
-  -p 16686:16686 \
-  -p 4318:4318 \
-  jaegertracing/all-in-one:latest
-
-# 2. Point Semiont at it
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
-export OTEL_SERVICE_NAME=semiont-gateway
-semiont start --service gateway
-
-# 3. Browse traces at http://localhost:16686
-```
-
-### Containerized stack (Jaeger on by default)
-
-The [`semiont` launcher](../../../apps/launcher/README.md) brings up
-Jaeger as a sidecar and wires `OTEL_EXPORTER_OTLP_ENDPOINT` into
-gateway / worker / smelter **by default**; pass `--no-observe` to skip
-the sidecar:
+The [`semiont` launcher](../../../apps/launcher/README.md) does the whole thing by default:
 
 ```bash
 ANTHROPIC_API_KEY=<key> semiont start --config anthropic
+# traces:  http://localhost:16686   (Jaeger)
+# metrics: http://localhost:9090    (Prometheus)
 ```
 
-Use this for development / e2e workflows where you want to inspect
-cross-service trace propagation without standing Jaeger up by hand.
+The OTel collector **always** runs (OTLP on `:4318`, its own readout on `:24110`) and
+`OTEL_EXPORTER_OTLP_ENDPOINT` is wired into all six service containers; `--no-observe`
+skips only Jaeger and Prometheus — the collector then discards traces, and the metrics
+readout is still served for anything that wants to scrape it. Jaeger's own OTLP ingest
+sits on `:14318` (the collector owns `:4318` and forwards). A single service started with
+`--service` exports iff the stack's collector is already running — don't stand up a
+hand-run Jaeger on `:4318`; that port is the collector's.
 
 ### Verifying spans are flowing
 
@@ -156,6 +143,9 @@ curl -s http://localhost:16686/api/services/semiont-gateway/operations | jq -r '
 # Cross-service traces (most useful for debugging propagation)
 curl -s 'http://localhost:16686/api/traces?service=semiont-gateway&limit=200&lookback=10m' \
   | jq -r '.data[] | select(([.processes[].serviceName] | unique | length) > 1) | "\(.traceID) services=\([.processes[].serviceName] | unique | join(","))"'
+
+# Metrics landing in Prometheus (via the collector's readout)
+curl -s 'http://localhost:9090/api/v1/label/__name__/values' | jq -r '.data[]' | head
 ```
 
 If Jaeger only knows about itself (`jaeger-all-in-one`), no Semiont
