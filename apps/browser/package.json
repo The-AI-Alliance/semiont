@@ -82,7 +82,7 @@
     "jest-axe": "^11.0.0",
     "jsdom": "^30.0.0",
     "msw": "^2.15.0",
-    "postcss": "^8.5.25",
+    "postcss": "^8.5.28",
     "tailwindcss": "^4.2.1",
     "typescript": "^6.0.2",
     "vite": "^8.2.2",
