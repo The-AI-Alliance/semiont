@@ -57,6 +57,7 @@
     "vitest": "^4.1.11"
   },
   "dependencies": {
+    "@semiont/content": "*",
     "@semiont/core": "*",
     "@semiont/http-transport": "*",
     "@semiont/observability": "*",

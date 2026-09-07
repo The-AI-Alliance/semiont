@@ -11,7 +11,6 @@
  */
 
 import { promises as fs } from 'fs';
-import { execFileSync } from 'child_process';
 import * as path from 'path';
 import { createReadStream } from 'fs';
 import * as readline from 'readline';
@@ -20,22 +19,8 @@ import type { StoredEvent, PersistedEvent, EventMetadata, EventInput, ResourceId
 import { resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import { jumpConsistentHash } from '@semiont/core';
-import { recordGitCommand } from '@semiont/observability';
+import { createStager, type Stager } from '@semiont/content';
 
-/**
- * Every git call here is SYNCHRONOUS and therefore blocks the event loop —
- * one runs per appended event. The duration is not merely latency, it is time
- * this process could serve nothing else, which is why it is measured rather
- * than assumed (ARCHIVIST-STAYS-UP P7).
- */
-function git(args: [string, ...string[]], cwd: string): void {
-  const started = performance.now();
-  try {
-    execFileSync('git', args, { cwd });
-  } finally {
-    recordGitCommand(args[0], performance.now() - started);
-  }
-}
 
 export interface EventStorageConfig {
   maxEventsPerFile?: number;     // File rotation threshold (default: 10000)
@@ -75,6 +60,34 @@ export class EventStorage {
 
   // Per-resource sequence tracking: resourceId -> sequence number
   private resourceSequences: Map<string, number> = new Map();
+
+  /**
+   * Staging is DEFERRED and deduped (GIT-OFF-THE-EVENT-LOOP). The index exists
+   * for a human who commits by hand — nothing in the codebase commits or reads
+   * it — so it must be current within seconds, not synchronously per append.
+   *
+   * This is the hot path the change was for: appending 1,400 annotations to
+   * one resource re-staged ONE file 1,400 times, each a blocking subprocess on
+   * the loop that also answers every `browse:*` read. Deduped, that is one
+   * path and one invocation.
+   *
+   * Created on first append, never at import.
+   */
+  private _stager?: Stager;
+  private stager(): Stager {
+    if (!this._stager) this._stager = createStager(this.project.root);
+    return this._stager;
+  }
+
+  /** Stage everything pending now. */
+  flushStaging(): Promise<void> {
+    return this._stager ? this._stager.flush() : Promise.resolve();
+  }
+
+  /** Drain and stop — a stopped process must leave nothing unstaged. */
+  async disposeStaging(): Promise<void> {
+    if (this._stager) await this._stager.dispose();
+  }
   // Per-resource current file cache: avoids fs.readdir() + countEventsInFile() on every append
   private currentFiles: Map<string, { path: string; eventCount: number }> = new Map();
 
@@ -145,7 +158,7 @@ export class EventStorage {
 
       // Stage the new event stream directory in git
       if (this.project.gitSync) {
-        git(['add', docPath], this.project.root);
+        this.stager().add(docPath);
       }
 
       // Initialize sequence number
@@ -255,7 +268,7 @@ export class EventStorage {
 
     // Stage the event log file in git index if configured
     if (this.project.gitSync) {
-      git(['add', targetPath], this.project.root);
+      this.stager().add(targetPath);
     }
   }
 

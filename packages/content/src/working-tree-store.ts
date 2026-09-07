@@ -23,29 +23,14 @@
  */
 
 import { promises as fs, createReadStream, createWriteStream } from 'fs';
-import { execFileSync } from 'child_process';
 import { createHash, randomUUID } from 'crypto';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import path from 'path';
 import type { SemiontProject } from '@semiont/core/node';
 import type { Logger } from '@semiont/core';
-import { recordGitCommand } from '@semiont/observability';
+import { createStager, type Stager, type StagerOptions } from './git-staging.js';
 
-/**
- * Every git call here is SYNCHRONOUS and therefore blocks the event loop —
- * one runs per appended event. The duration is not merely latency, it is time
- * this process could serve nothing else, which is why it is measured rather
- * than assumed (ARCHIVIST-STAYS-UP P7).
- */
-function git(args: string[], cwd: string): void {
-  const started = performance.now();
-  try {
-    execFileSync('git', args, { cwd });
-  } finally {
-    recordGitCommand(args[0] ?? 'git', performance.now() - started);
-  }
-}
 
 /**
  * Result of store() or register()
@@ -88,10 +73,36 @@ export class WorkingTreeStore {
   private gitSync: boolean;
   private logger?: Logger;
 
-  constructor(project: SemiontProject, logger?: Logger) {
+  private _stager?: Stager;
+  private readonly staging: StagerOptions;
+
+  /**
+   * `staging` is the flush POLICY, set by the composition root that knows the
+   * deployment (archivist-main), not baked into the store. The store owns the
+   * mechanism; how stale the index may get is the Archivist's call.
+   */
+  constructor(project: SemiontProject, logger?: Logger, staging: StagerOptions = {}) {
     this.projectRoot = project.root;
     this.gitSync = project.gitSync;
     this.logger = logger;
+    this.staging = staging;
+  }
+
+  /** Created on first use, never at import: `@semiont/jobs` pulls this package
+   *  in for EXTRACTORS alone and must carry no live timer or worker. */
+  private stager(): Stager {
+    if (!this._stager) this._stager = createStager(this.projectRoot, this.staging);
+    return this._stager;
+  }
+
+  /** Stage everything pending now — for a caller that wants the index current. */
+  flushStaging(): Promise<void> {
+    return this._stager ? this._stager.flush() : Promise.resolve();
+  }
+
+  /** Drain and stop. A stopped process must leave nothing unstaged. */
+  async dispose(): Promise<void> {
+    if (this._stager) await this._stager.dispose();
   }
 
   private shouldRunGit(noGit?: boolean): boolean {
@@ -152,7 +163,7 @@ export class WorkingTreeStore {
       await fs.rename(tempPath, filePath);
 
       if (this.shouldRunGit(options?.noGit)) {
-        git(['add', filePath], this.projectRoot);
+        this.stager().add(filePath);
       }
 
       this.logger?.info('Resource stored', { storageUri, checksum, byteSize });
@@ -205,7 +216,7 @@ export class WorkingTreeStore {
     }
 
     if (this.shouldRunGit(options?.noGit)) {
-      git(['add', filePath], this.projectRoot);
+      this.stager().add(filePath);
     }
 
     const byteSize = tap.byteSize;
@@ -273,7 +284,7 @@ export class WorkingTreeStore {
 
     if (this.shouldRunGit(options?.noGit)) {
       // git mv handles both the filesystem rename and the index update
-      git(['mv', fromPath, toPath], this.projectRoot);
+      await this.stager().run(['mv', fromPath, toPath]);
     } else {
       await fs.rename(fromPath, toPath);
     }
@@ -307,7 +318,7 @@ export class WorkingTreeStore {
       const gitArgs = keepFile
         ? ['rm', '--cached', filePath]
         : ['rm', filePath];
-      git(gitArgs, this.projectRoot);
+      await this.stager().run(gitArgs);
       this.logger?.info('Resource removed', { storageUri, keepFile, git: true });
       return;
     }
