@@ -17,7 +17,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { EXTRACTORS } from '../content-extractor';
+import { derivingExtractorFor } from '../content-extractor';
+import type { AnchoredTextStore } from '../anchored-text-store';
+
+const NO_CACHE = { key: 'test', store: { read: async () => undefined, write: async () => {} } as unknown as AnchoredTextStore };
 import { MAX_PDF_BYTES, withinByteBudget } from '../pdf-extractor';
 import { MAX_IMAGE_PIXELS, PEAK_BYTES_PER_PIXEL, withinPixelBudget, extractPageImages } from '../pdf-page-images';
 
@@ -89,7 +92,7 @@ describe('input size budget', () => {
         const oversized = Buffer.alloc(0);
         Object.defineProperty(oversized, 'length', { value: MAX_PDF_BYTES + 1 });
 
-        const out = await EXTRACTORS['pdf-text-layer']!.extract(oversized, 'application/pdf');
+        const out = await derivingExtractorFor('application/pdf')!.extract(oversized, 'application/pdf', NO_CACHE);
         expect(out).toEqual({ kind: 'declined', declined: 'too-large' });
     });
 });

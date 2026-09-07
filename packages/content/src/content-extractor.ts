@@ -1,20 +1,24 @@
 /**
- * ContentExtractor — strategy-keyed text extraction for embedding.
+ * ContentExtractor — DERIVING text from bytes that carry none of their own.
  *
- * The registry is keyed by `TextExtraction` from `@semiont/core` — the
- * media-type registry's dispatch vocabulary — never by a second media-type
- * list (SMELTER-MEDIA-TYPES.md, Design §1): there is exactly one media-type
- * table in the system, and this registry consumes it. The Smelter resolves
- * `textExtractionOf(contentType)` and looks the extractor up by strategy; a
- * `null` slot means decline (settle skipped, reason 'no-extractor').
+ * Scope note (READ-VS-EXTRACT P2): this file used to hold a strategy-keyed
+ * registry covering both ways a resource yields text — decoding (charset-aware
+ * `Buffer → string`) and deriving (parse a PDF, OCR it when there is no text
+ * layer). Those share a name and almost nothing else: microseconds vs. minutes,
+ * total determinism vs. none across engine versions, no canonical artifact vs.
+ * exactly one, and anyone-with-bytes vs. the Smelter alone. The registry made
+ * them interchangeable at every call site.
  *
- * Extraction is ephemeral: `extract` runs at read time, its output feeds the
- * chunker, and is discarded — no stored derived representation. Annotations
- * anchor to native geometry (`items`), never to extracted-text offsets, so
- * re-extraction can never break an anchor.
+ * Decoding left: it is `decodeRepresentation` in `@semiont/core`, called
+ * directly. What remains here is the deriving half, reached through
+ * `derivingExtractorFor` and callable only with the store that persists its
+ * output.
+ *
+ * Anchoring is unaffected: annotations anchor to native geometry (`items`),
+ * never to extracted-text offsets, so re-derivation can never break an anchor.
  */
 
-import { decodeRepresentation, type TextExtraction, type PdfTextItem } from '@semiont/core';
+import { yieldsGeometryOf, type PdfTextItem } from '@semiont/core';
 import type { AnchoredTextStore } from './anchored-text-store';
 import { pdfExtractor } from './pdf-extractor';
 
@@ -83,12 +87,15 @@ export interface ExtractionDecline {
  * (PERSIST-ANCHORS P1b); readers mirror it (P1c). One SHA-256 over bytes
  * already in memory is noise against the engine pass a hit avoids.
  *
- * Optional throughout: a caller that passes nothing extracts uncached and is
- * unaffected. The seam is `extract()` itself (PERSIST-ANCHORS D1/P2b): a hit
- * returns the FINISHED outcome — classification, geometry, provenance, or a
- * named decline — so neither the native parse nor the engine runs. Every
- * geometry-yielding extraction produces an entry, native documents included;
- * the 'decode' strategy ignores the cache (no geometry, nothing expensive).
+ * REQUIRED, and that is the ownership rule (READ-VS-EXTRACT P2). It carries an
+ * `AnchoredTextStore`, and only the Smelter holds one — so deriving is reachable
+ * exactly to the process that can persist what it derived. The restriction is a
+ * capability the caller must already hold, not a convention it must remember:
+ * a would-be second producer cannot construct the argument, so it cannot compile.
+ *
+ * The seam is `extract()` itself (PERSIST-ANCHORS D1/P2b): a hit returns the
+ * FINISHED outcome — classification, geometry, provenance, or a named decline —
+ * so neither the native parse nor the engine runs.
  */
 export interface ExtractionCache {
   key: string;
@@ -106,28 +113,40 @@ export interface ExtractionCache {
  */
 export interface ContentExtractor {
   /**
-   * Extract embeddable/annotatable text, or decline with the class reason
-   * (scanned-without-OCR, encrypted, corrupt). The caller skips embedding
-   * and settles skipped with that reason.
+   * Derive text WITH geometry from bytes that carry no text of their own, or
+   * decline with the class reason (scanned-without-OCR, encrypted, corrupt).
+   * The caller skips embedding and settles skipped with that reason.
+   *
+   * Expensive, non-deterministic across engine versions, and the sole producer
+   * of a canonical artifact — which is why `cache` is required rather than
+   * optional (see `ExtractionCache`).
    */
-  extract(content: Buffer, mediaType: string, cache?: ExtractionCache): Promise<ExtractedText | ExtractionDecline>;
+  extract(content: Buffer, mediaType: string, cache: ExtractionCache): Promise<ExtractedText | ExtractionDecline>;
 }
 
-/** Charset-aware decode of textual bytes — the pre-registry behavior, now
- *  scoped as the 'decode' strategy's extractor. Never declines: any byte
- *  sequence decodes to *some* string; emptiness is the caller's call. */
-const passthroughExtractor: ContentExtractor = {
-  async extract(content, mediaType) {
-    return { kind: 'extracted', text: decodeRepresentation(content, mediaType), method: 'text-passthrough' };
-  },
-};
-
 /**
- * Strategy → extractor. A `null` slot is a decline: the strategy names a
- * capability nothing currently provides ('none' permanently).
+ * The deriving extractor for a media type, or `null` when its text needs no
+ * deriving.
+ *
+ * **This replaced a `Record<TextExtraction, ContentExtractor | null>` keyed by
+ * strategy (READ-VS-EXTRACT P2), and the deletion is the point.** That map held
+ * one real extractor, a `null`, and — under 'decode' — a one-line wrapper around
+ * core's `decodeRepresentation`, which five sites in `@semiont/make-meaning`
+ * already called directly. Resolving "give me an extractor for this media type"
+ * therefore returned, half the time, a trivial function dressed as the same
+ * capability as OCR: identical at the call site, wildly different in cost,
+ * determinism, and who is allowed to run it. That symmetry is what let a
+ * detection worker OCR scanned PDFs for four months without anyone reading it as
+ * a category error (#739).
+ *
+ * Decoding is now a direct `decodeRepresentation()` call at the two sites that
+ * need it. There is no registry to resolve, so there is no way to reach OCR by
+ * asking a generic question — and a caller that gets a non-null answer here still
+ * cannot run it without an `AnchoredTextStore`.
+ *
+ * Keyed by P1's `yieldsGeometryOf`, so this and the Smelter's publish gate cannot
+ * disagree about which media types have a canonical artifact.
  */
-export const EXTRACTORS: Record<TextExtraction, ContentExtractor | null> = {
-  'decode': passthroughExtractor,
-  'pdf-text-layer': pdfExtractor,
-  'none': null,
-};
+export function derivingExtractorFor(mediaType: string): ContentExtractor | null {
+  return yieldsGeometryOf(mediaType) ? pdfExtractor : null;
+}

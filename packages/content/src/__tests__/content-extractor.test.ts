@@ -1,101 +1,138 @@
 /**
- * ContentExtractor registry — Phase 0 (SMELTER-MEDIA-TYPES.md, #743).
+ * Deriving text, and who is allowed to (SMELTER-MEDIA-TYPES #743;
+ * READ-VS-EXTRACT P1/P2).
  *
- * The registry resolves by `TextExtraction` strategy, consuming core's
- * media-type vocabulary directly — no second media-type table. Phase 0
- * fills only the 'decode' slot (passthrough over `decodeRepresentation`,
- * today's exact behavior, now scoped); 'pdf-text-layer' stays null until
- * Phase 1 (#744) fills it.
+ * The strategy-keyed `EXTRACTORS` registry these tests used to cover is gone.
+ * It held one real extractor and a one-line wrapper around core's
+ * `decodeRepresentation` — whose own behavior (UTF-8, charset parameters, the
+ * no-charset default) is tested in `@semiont/core`'s `resource-utils.test.ts`,
+ * so the wrapper's tests were duplicating that through an indirection and left
+ * with it.
+ *
+ * What is covered here is what remains: which media types need deriving, that
+ * deriving cannot be reached without the store that persists it, and that core's
+ * geometry answer matches what actually runs.
  */
 
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { describe, it, expect } from 'vitest';
-import { yieldsGeometryOf, type TextExtraction } from '@semiont/core';
-import { EXTRACTORS } from '../content-extractor';
+import { yieldsGeometryOf, decodeRepresentation, type TextExtraction, type ExtractionOutcome } from '@semiont/core';
+import { derivingExtractorFor } from '../content-extractor';
+import type { AnchoredTextStore } from '../anchored-text-store';
 
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
-describe('EXTRACTORS registry (Phase 0)', () => {
-  it("resolves 'decode' to the passthrough extractor", () => {
-    expect(EXTRACTORS['decode']).not.toBeNull();
+describe('derivingExtractorFor (READ-VS-EXTRACT P2)', () => {
+  it('answers for the one media type whose text must be derived', () => {
+    expect(derivingExtractorFor('application/pdf')).not.toBeNull();
   });
 
-  it("resolves 'pdf-text-layer' to the pdf extractor (Phase 1, #744)", () => {
-    expect(EXTRACTORS['pdf-text-layer']).not.toBeNull();
+  it('answers null for text — decoding is not deriving, and is core\'s job', () => {
+    // The deleted registry returned a passthrough extractor here, making
+    // "decode UTF-8" and "OCR a scan" the same call. Callers now reach
+    // `decodeRepresentation` in @semiont/core directly, as five sites in
+    // @semiont/make-meaning already did.
+    expect(derivingExtractorFor('text/markdown')).toBeNull();
+    expect(derivingExtractorFor('text/plain')).toBeNull();
+    expect(derivingExtractorFor('application/json')).toBeNull();
   });
 
-  it("resolves 'none' to null — nothing to extract", () => {
-    expect(EXTRACTORS['none']).toBeNull();
+  it('answers null where there is no text at all', () => {
+    expect(derivingExtractorFor('image/png')).toBeNull();
+  });
+
+  it('tolerates parameters and case, like the core accessor it reads', () => {
+    expect(derivingExtractorFor('application/pdf; version=1.7')).not.toBeNull();
+    expect(derivingExtractorFor('APPLICATION/PDF')).not.toBeNull();
   });
 });
 
-describe('passthrough extractor', () => {
-  it('decodes UTF-8 bytes verbatim as text-passthrough', async () => {
-    const text = '# Heading\n\nStig Dagerman — swedish prose, naïve façade.';
-    const ex = EXTRACTORS['decode'];
-    expect(ex).not.toBeNull();
-    const out = await ex!.extract(Buffer.from(text, 'utf8'), 'text/markdown');
-    expect(out).toEqual({ kind: 'extracted', text, method: 'text-passthrough' });
+describe('deriving requires the store that persists what it derives (READ-VS-EXTRACT P2)', () => {
+  // The ownership rule, enforced by the type rather than by a convention: an
+  // `ExtractionCache` carries an `AnchoredTextStore`, only the Smelter holds
+  // one, so only the Smelter can call this. A worker cannot derive by accident
+  // because it cannot construct the argument.
+  //
+  // These assertions are the COMPILER's — `@ts-expect-error` fails `tsc` if the
+  // call ever starts type-checking, which is exactly the regression to catch.
+  // Nothing is invoked; a runtime guard would be the fifth thing to remember,
+  // and remembering is what this phase removes.
+  it('does not type-check without a cache', () => {
+    const extractor = derivingExtractorFor('application/pdf')!;
+    const call = () =>
+      // @ts-expect-error - deriving without the store is not reachable (P2)
+      extractor.extract(Buffer.from(''), 'application/pdf');
+    expect(typeof call).toBe('function');
   });
 
-  it('honors the charset parameter via decodeRepresentation', async () => {
-    // 'café' in ISO-8859-1 is a single 0xE9 byte for é — a UTF-8 decode
-    // would mangle it, so this pins the charset-aware path.
-    const latin1 = Buffer.from('café', 'latin1');
-    const ex = EXTRACTORS['decode'];
-    expect(ex).not.toBeNull();
-    const out = await ex!.extract(latin1, 'text/plain; charset=iso-8859-1');
-    if (out.kind === 'declined') throw new Error('unexpected decline');
-    expect(out.text).toBe('café');
-    expect(out.method).toBe('text-passthrough');
+  it('type-checks with one', () => {
+    const extractor = derivingExtractorFor('application/pdf')!;
+    const store = { read: async () => undefined, write: async () => {} } as unknown as AnchoredTextStore;
+    const call = () => extractor.extract(Buffer.from(''), 'application/pdf', { key: 'k', store });
+    expect(typeof call).toBe('function');
   });
 });
 
 /**
- * The census gate for READ-VS-EXTRACT P1.
+ * The census gate for READ-VS-EXTRACT P1, restated against P2's shape.
  *
- * `yieldsGeometry` used to be a boolean declared on each extractor, beside the
- * implementations, in this package — while the strategy that determines it lives
- * in core's media-type registry. Two homes for one fact. P1 deleted the boolean
- * and made core's `yieldsGeometryOf` the single home.
+ * P1 deleted the `yieldsGeometry` boolean each extractor declared and made core's
+ * `yieldsGeometryOf` the single home. That removes the chance of two
+ * *declarations* disagreeing, but not the thing that matters: core can still be
+ * wrong about what the code DOES. So the gate is behavioral — for every strategy,
+ * check that positioned runs appear exactly where core says they will.
  *
- * That removes the possibility of the two *declarations* disagreeing, but not the
- * thing that actually matters: core can still be wrong about what an extractor
- * DOES. So the gate is behavioral — run each strategy's extractor and check that
- * positioned runs appear exactly where core says they will. Asserting core's
- * answer against a second hand-written table would be a mirror; asserting it
- * against the extractor's output cannot be.
+ * Asserting core's answer against a second hand-written table would be a mirror;
+ * asserting it against what actually runs cannot be.
  */
-describe('core\'s geometry answer matches what the extractors produce (READ-VS-EXTRACT P1)', () => {
+describe("core's geometry answer matches what actually runs (READ-VS-EXTRACT P1/P2)", () => {
   // Keyed by strategy, so a strategy added in core fails to compile here until
-  // someone decides which media type exercises it — the same exhaustiveness
-  // `EXTRACTORS: Record<TextExtraction, …>` already gives the registry itself.
-  // `bytes: null` means the strategy runs nothing; core must still answer.
+  // someone decides which media type exercises it.
   const PROBES: Record<TextExtraction, { mediaType: string; bytes: (() => Buffer) | null }> = {
     'decode': { mediaType: 'text/markdown', bytes: () => Buffer.from('# just text\n') },
     'pdf-text-layer': {
       mediaType: 'application/pdf',
       bytes: () => fs.readFileSync(path.join(FIXTURES, 'single-line.pdf')),
     },
+    // Nothing reads this type at all; core must still answer.
     'none': { mediaType: 'image/png', bytes: null },
   };
 
-  for (const [strategy, probe] of Object.entries(PROBES) as [TextExtraction, { mediaType: string; bytes: (() => Buffer) | null }][]) {
+  const memoryStore = (): AnchoredTextStore => {
+    const kept = new Map<string, ExtractionOutcome>();
+    return {
+      read: async (key: string) => kept.get(key),
+      write: async (key: string, outcome: ExtractionOutcome) => { kept.set(key, outcome); },
+    } as unknown as AnchoredTextStore;
+  };
+
+  for (const [strategy, probe] of Object.entries(PROBES) as [TextExtraction, typeof PROBES['decode']][]) {
     it(`'${strategy}': positioned runs appear iff core says the type yields geometry`, async () => {
-      const extractor = EXTRACTORS[strategy];
+      const extractor = derivingExtractorFor(probe.mediaType);
 
       if (!probe.bytes) {
-        // The strategy names a capability nothing provides, so there is no
-        // behavior to compare against — only that both sides agree there is none.
         expect(extractor).toBeNull();
         expect(yieldsGeometryOf(probe.mediaType)).toBe(false);
         return;
       }
 
-      expect(extractor).not.toBeNull();
-      const out = await extractor!.extract(probe.bytes(), probe.mediaType);
+      // Whether a deriving extractor exists at all is itself the geometry
+      // answer — P2 keyed the accessor on `yieldsGeometryOf`, so this pins the
+      // two together before either is run.
+      expect(extractor !== null).toBe(yieldsGeometryOf(probe.mediaType));
+
+      if (!extractor) {
+        // The decode route: core's own function, the same call the Smelter and
+        // the detection worker make. A string, never geometry.
+        const text = decodeRepresentation(probe.bytes(), probe.mediaType);
+        expect(typeof text).toBe('string');
+        expect(yieldsGeometryOf(probe.mediaType)).toBe(false);
+        return;
+      }
+
+      const out = await extractor.extract(probe.bytes(), probe.mediaType, { key: 'probe', store: memoryStore() });
       if (out.kind === 'declined') throw new Error(`probe for '${strategy}' declined: ${out.declined}`);
 
       const carriesGeometry = (out.items?.length ?? 0) > 0;

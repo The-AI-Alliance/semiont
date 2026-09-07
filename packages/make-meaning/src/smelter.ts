@@ -40,8 +40,8 @@ import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { burstBuffer, errField } from '@semiont/core';
 import type { Logger, Annotation, ResourceId, AnnotationId, ResourceDescriptor, EventMap } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
-import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes, textExtractionOf, yieldsGeometryOf } from '@semiont/core';
-import { calculateChecksum, EXTRACTORS, type AnchoredTextStore, type ContentReads } from '@semiont/content';
+import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes, textExtractionOf, yieldsGeometryOf, decodeRepresentation } from '@semiont/core';
+import { calculateChecksum, derivingExtractorFor, type AnchoredTextStore, type ContentReads, type ExtractedText, type ExtractionDecline } from '@semiont/content';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { ChunkingConfig } from '@semiont/core';
@@ -51,15 +51,15 @@ import { busRequest, type BusRequestPrimitive } from '@semiont/core';
 import { partitionByType } from './batch-utils';
 import type { SmelterEvent } from './smelter-actor-state-unit';
 
-// Media dispatch is the strategy-keyed extractor registry
-// (`.plans/SMELTER-MEDIA-TYPES.md`): both call sites (live fetch and
-// reconcile planning) resolve `EXTRACTORS[textExtractionOf(mediaType)]`,
-// and a null slot declines — settle skipped, reason 'no-extractor' — so
-// binary types never decode to mojibake. 'decode' is the charset-aware
-// passthrough (RFC 2046 text/* fallback included); 'pdf-text-layer'
-// extracts native text layers inline and declines scanned/encrypted/
-// corrupt PDFs with their class reason (Phase 3 turns 'no-text-layer'
-// declines into OCR coverage).
+// Media dispatch is core's, keyed by the media type's `TextExtraction`
+// strategy (`.plans/SMELTER-MEDIA-TYPES.md`, narrowed by READ-VS-EXTRACT P2).
+// 'none' declines — settle skipped, reason 'no-extractor' — so binary types
+// never decode to mojibake. 'decode' is core's charset-aware
+// `decodeRepresentation` (RFC 2046 text/* fallback included), called directly;
+// 'pdf-text-layer' is the one DERIVING strategy, reached through
+// `derivingExtractorFor` and callable only with the anchored-text store, which
+// is why the Smelter is its only caller. It reads native text layers inline and
+// declines scanned/encrypted/corrupt PDFs with their class reason.
 
 export interface ReconcileSummary {
   resourcesEmbedded: number;
@@ -421,8 +421,8 @@ export class Smelter {
     if (!rid) return;
     const { data, contentType } = await this.content.getBinary(makeResourceId(rid));
     const bytes = Buffer.from(data);
-    const extractor = EXTRACTORS[textExtractionOf(contentType)];
-    if (!extractor || !yieldsGeometryOf(contentType)) {
+    const extractor = derivingExtractorFor(contentType);
+    if (!extractor) {
       // Planned from a catalog claim the bytes no longer match — nothing to
       // derive is a decision, not a failure.
       this.logger.info('Re-anchor found no geometry-capable extractor', { resourceId: rid, contentType });
@@ -487,21 +487,26 @@ export class Smelter {
       const { data, contentType } = await this.content.getBinary(makeResourceId(resourceId));
       const bytes = Buffer.from(data);
       const checksum = calculateChecksum(bytes);
-      const extractor = EXTRACTORS[textExtractionOf(contentType)];
-      if (!extractor) {
-        this.logger.debug('Skipping resource with no extractor for its media type', { resourceId, contentType });
+      // The only site that wants text by EITHER route, so it is the only site
+       // that branches (READ-VS-EXTRACT P2). Deriving is expensive, stores a
+       // canonical artifact, and is reachable only here and in `reanchorResource`
+       // because both hold the store; decoding is a pure function over bytes.
+      const extractor = derivingExtractorFor(contentType);
+      if (!extractor && textExtractionOf(contentType) === 'none') {
+        this.logger.debug('Skipping resource with no way to read its media type', { resourceId, contentType });
         return { kind: 'skipped', checksum, reason: 'no-extractor' };
       }
-      // The cache seam (PERSIST-ANCHORS P2c, decision C): extraction consults
+      // The cache seam (PERSIST-ANCHORS P2c, decision C): derivation consults
       // the artifact store for this exact byte content and, on a miss, the
       // seam itself stores whatever it concluded — success with provenance,
       // or the decline. The write moved INTO extract() with D1, which is why
       // there is no publish call in this method anymore: exactly one place
       // writes exactly one artifact, and this is not it.
-      const extracted = await extractor.extract(bytes, contentType, {
-        key: checksum,
-        store: this.anchoredStore,
-      });
+      const extracted: ExtractedText | ExtractionDecline = extractor
+        ? await extractor.extract(bytes, contentType, { key: checksum, store: this.anchoredStore })
+        // Decoding never declines and never yields geometry — any byte sequence
+        // decodes to SOME string, and emptiness is the caller's call below.
+        : { kind: 'extracted', text: decodeRepresentation(bytes, contentType), method: 'text-passthrough' };
       if (extracted.kind === 'declined') {
         this.logger.debug('Extractor declined', { resourceId, contentType, reason: extracted.declined });
         return { kind: 'skipped', checksum, reason: extracted.declined };
@@ -1017,10 +1022,12 @@ export class Smelter {
    * representation's checksum (the bytes the smelter would read), the
    * current entity-type set (the discriminator the stamps must carry), and
    * whether the media type's extractor derives geometry (whether an
-   * anchored-text artifact should exist). Embeddable ⇔ an extractor exists
-   * for the media type's strategy — the same registry the live fetch resolves.
-   * The geometry answer comes from core's `yieldsGeometryOf`, keyed by the same
-   * strategy, so this gate and the live fetch cannot disagree about it.
+   * anchored-text artifact should exist). Both answers are core's, keyed by the
+   * media type's strategy: embeddable ⇔ the type has any text-reading strategy
+   * at all, and geometry ⇔ that strategy derives it. Until READ-VS-EXTRACT P2
+   * embeddability was asked as `EXTRACTORS[strategy] !== null` — true, but a
+   * second statement of `strategy !== 'none'`, answered by resolving an
+   * implementation to learn a fact about a media type.
    * Shared by `reconcile()` and the `smelt:rebuild-anchors` planner.
    */
   private classifyEmbeddable(
@@ -1029,8 +1036,8 @@ export class Smelter {
     const embeddable = new Map<string, { checksum: string | undefined; entityTypes: string[]; yieldsGeometry: boolean }>();
     for (const resource of resources) {
       const mediaType = getPrimaryMediaType(resource);
-      const extractor = mediaType ? EXTRACTORS[textExtractionOf(mediaType)] : null;
-      if (resource['@id'] && mediaType && extractor) {
+      const readable = mediaType !== undefined && textExtractionOf(mediaType) !== 'none';
+      if (resource['@id'] && mediaType && readable) {
         embeddable.set(resource['@id'], {
           checksum: getPrimaryRepresentation(resource)?.checksum,
           entityTypes: getResourceEntityTypes(resource),

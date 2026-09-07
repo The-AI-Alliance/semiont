@@ -71,7 +71,6 @@ vi.mock('@semiont/content', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@semiont/content')>();
   return {
     ...actual,
-    EXTRACTORS: { ...actual.EXTRACTORS, 'pdf-text-layer': { extract: vi.fn() } },
     // PDF citation geometry (P4): the worker re-anchors claims through the
     // extracted text layer; tests supply it.
     extractPdfTextLayer: vi.fn(),

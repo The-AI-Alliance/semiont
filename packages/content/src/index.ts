@@ -16,9 +16,11 @@ export {
   verifyChecksum
 } from './checksum';
 
-// Strategy-keyed text extraction for embedding (SMELTER-MEDIA-TYPES)
+// Deriving text from bytes that carry none (SMELTER-MEDIA-TYPES; narrowed to
+// the deriving half by READ-VS-EXTRACT P2 — decoding is core's
+// `decodeRepresentation`, called directly).
 export {
-  EXTRACTORS,
+  derivingExtractorFor,
   type ContentExtractor,
   type ExtractedText,
   type ExtractionDecline,

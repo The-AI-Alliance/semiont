@@ -225,7 +225,7 @@ export const pdfExtractor: ContentExtractor = {
     // code that did the deriving. Declines are first-class hits: "we read
     // this and there was nothing" costs a full recognition pass to discover,
     // so the negative is precisely the result worth keeping.
-    const hit = await cache?.store.read(cache.key);
+    const hit = await cache.store.read(cache.key);
     if (hit) return hit;
 
     const outcome = await extractPdf(content);
@@ -238,13 +238,11 @@ export const pdfExtractor: ContentExtractor = {
     // is where "best-effort" is chosen, by the seam that wants it. Previously
     // the store swallowed for every caller and this comment described a
     // property it did not own.
-    if (cache) {
-      try {
-        if (outcome.kind === 'declined') await cache.store.write(cache.key, outcome);
-        else if (outcome.items) await cache.store.write(cache.key, { ...outcome, items: outcome.items });
-      } catch {
-        // Cached nothing; the outcome below is still correct.
-      }
+    try {
+      if (outcome.kind === 'declined') await cache.store.write(cache.key, outcome);
+      else if (outcome.items) await cache.store.write(cache.key, { ...outcome, items: outcome.items });
+    } catch {
+      // Cached nothing; the outcome below is still correct.
     }
     return outcome;
   },
