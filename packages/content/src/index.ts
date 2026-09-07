@@ -8,7 +8,6 @@
 export {
   WorkingTreeStore,
   ChecksumMismatchError,
-  type StoredResource,
 } from './working-tree-store';
 
 // Checksum utilities
