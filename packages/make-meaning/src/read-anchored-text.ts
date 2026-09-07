@@ -14,7 +14,7 @@
  * exists to avoid.
  */
 
-import { getPrimaryRepresentation, resourceId as makeResourceId, type ExtractionOutcome } from '@semiont/core';
+import { getPrimaryRepresentation, resourceId as makeResourceId, type AnchoredTextAnswer } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { AnchoredTextStore } from '@semiont/content';
 import { SmeltProgressTimeout, type SmeltProgress } from './smelt-progress';
@@ -33,7 +33,25 @@ export interface AnchoredTextReads {
  */
 export const ANCHORED_TEXT_SETTLE_TIMEOUT_MS = 15_000;
 
-export async function readAnchoredText(kb: AnchoredTextReads, resourceId: string): Promise<ExtractionOutcome | null> {
+/**
+ * A resource's coordinate map, a stored decline, or a NAMED absence.
+ *
+ * Never null. Absence used to be a bare `null` covering four facts — the settle
+ * barrier expired, the Smelter settled the resource as skipped, there was no
+ * content identity, or the progress fold was disposed — two of which a caller
+ * should retry and two of which are terminal. A reader that blocks on this
+ * (SMELTER-OWNS-OCR P2) cannot classify its own failure without the
+ * distinction: it would retry forever on a document that will never have a map,
+ * or fail terminally on one that is merely still being read.
+ *
+ * `settleTimeoutMs` is a parameter rather than the constant it defaults to so
+ * tests can drive the barrier without waiting out a 15 s production budget.
+ */
+export async function readAnchoredText(
+  kb: AnchoredTextReads,
+  resourceId: string,
+  settleTimeoutMs: number = ANCHORED_TEXT_SETTLE_TIMEOUT_MS,
+): Promise<AnchoredTextAnswer> {
   // The `resourceId → checksum` index (PERSIST-ANCHORS P1b, decision A): the
   // store is keyed by content identity, the caller holds a mutable pointer,
   // and the index — a live view read — resolves the pointer first, on EVERY
@@ -44,7 +62,10 @@ export async function readAnchoredText(kb: AnchoredTextReads, resourceId: string
   // content identity to look up — no map, by construction.
   const view = await kb.views.get(makeResourceId(resourceId));
   const checksum = getPrimaryRepresentation(view?.resource)?.checksum;
-  if (!checksum) return null;
+  // No content identity — the resource is unknown here, or its primary
+  // representation carries no checksum. Nothing to key the store by and nothing
+  // to wait for, which is a different fact from "the map is coming".
+  if (!checksum) return { kind: 'unknown' };
 
   const hit = await kb.anchoredText.read(checksum);
   if (hit) return hit;   // the common case still pays for no settle check
@@ -54,14 +75,21 @@ export async function readAnchoredText(kb: AnchoredTextReads, resourceId: string
   // would be wrong, so wait for *this* content generation — keyed by the same
   // checksum the artifact is filed under.
   try {
-    const outcome = await kb.smeltProgress.whenSettled(resourceId, checksum, ANCHORED_TEXT_SETTLE_TIMEOUT_MS);
-    // 'skipped' is a decision, not a delay: the document declined extraction and
-    // will never have a map, so re-reading would be pointless.
-    return outcome === 'indexed' ? kb.anchoredText.read(checksum) : null;
+    const outcome = await kb.smeltProgress.whenSettled(resourceId, checksum, settleTimeoutMs);
+    // 'skipped' is a decision, not a delay: this media type derives no geometry,
+    // so a map will never exist and waiting again is pointless. 'inert' means
+    // the fold was disposed — the process cannot answer, which is temporary.
+    if (outcome === 'skipped') return { kind: 'no-map' };
+    if (outcome === 'inert') return { kind: 'not-yet' };
+
+    // Settled indexed. The artifact should be here; if it is not, the reconcile
+    // planner's third drift class has it (a lost entry, which it re-publishes),
+    // so this is "come back", never "never".
+    return (await kb.anchoredText.read(checksum)) ?? { kind: 'not-yet' };
   } catch (error) {
-    // Only the barrier's own timeout degrades to "not yet". Anything else is a
-    // broken progress fold and must surface rather than masquerade as "no map".
-    if (error instanceof SmeltProgressTimeout) return null;
+    // Only the barrier's own timeout is "not yet". Anything else is a broken
+    // progress fold and must surface rather than masquerade as an absence.
+    if (error instanceof SmeltProgressTimeout) return { kind: 'not-yet' };
     throw error;
   }
 }

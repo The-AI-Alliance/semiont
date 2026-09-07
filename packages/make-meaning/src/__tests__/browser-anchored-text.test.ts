@@ -98,9 +98,11 @@ describe('browse:anchored-text-requested', () => {
     expect((await ask(eventBus, browser)).response).toEqual(MAP);
   });
 
-  it("answers null when the Smelter settled 'skipped'", async () => {
-    // A decision, not a delay: the document declined extraction, so no amount
-    // of waiting produces a map. Re-reading the store would be pointless.
+  it("answers NO-MAP when the Smelter settled 'skipped'", async () => {
+    // A decision, not a delay: this media type derives no geometry, so no
+    // amount of waiting produces a map and re-reading the store is pointless.
+    // Named rather than null (SMELTER-OWNS-OCR P1) — a reader that blocks on
+    // this must stop retrying here, and must NOT stop for a timeout.
     const read = vi.fn(async () => null);
     const { eventBus, browser } = browserOver({
       anchoredText: { read, write: async () => {} },
@@ -109,11 +111,14 @@ describe('browse:anchored-text-requested', () => {
     });
     stop = () => browser.stop();
 
-    expect((await ask(eventBus, browser)).response).toBeNull();
+    expect((await ask(eventBus, browser)).response).toEqual({ kind: 'no-map' });
     expect(read).toHaveBeenCalledTimes(1);
   });
 
-  it('answers null when the barrier times out', async () => {
+  it('answers NOT-YET when the barrier times out', async () => {
+    // The other half of the distinction: the Smelter has not finished, so this
+    // is "come back", not "never". Sharing a `null` with the skipped case above
+    // is exactly what left a blocking reader unable to classify its failure.
     const { eventBus, browser } = browserOver({
       anchoredText: { read: async () => null, write: async () => {} },
       views: viewWithChecksum,
@@ -123,7 +128,7 @@ describe('browse:anchored-text-requested', () => {
     });
     stop = () => browser.stop();
 
-    expect((await ask(eventBus, browser)).response).toBeNull();
+    expect((await ask(eventBus, browser)).response).toEqual({ kind: 'not-yet' });
   });
 
   it('fails the request when the progress fold is broken', async () => {

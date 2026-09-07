@@ -24,6 +24,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { EventBus, getPrimaryRepresentation, userId as makeUserId, type ExtractionOutcome, type Logger, type ResourceId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { readAnchoredText } from '../read-anchored-text';
+import { createSmeltProgress } from '../smelt-progress';
 import { ResourceOperations } from '../resource-operations';
 import { startMakeMeaning, type MakeMeaningConfig, type MakeMeaningService } from '../service';
 import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
@@ -122,12 +123,17 @@ describe('readAnchoredText + the anchored-text store', () => {
     expect(await readAnchoredText(kb, String(rid))).toEqual(MAP);
   });
 
-  it('returns null for a resource that has no map', async () => {
-    // Not an error. Most resources never have one: a native text layer is read
-    // in the browser, and a document with no extractor never produces a map at
-    // all. The caller degrades to no quote, which is the pre-existing behaviour.
+  it('answers NOT-YET for a resource whose map nothing has settled', async () => {
+    // Not an error. But it is no longer a bare `null` either (SMELTER-OWNS-OCR
+    // P1): nothing has settled this generation, so the honest answer is "come
+    // back" — and a caller that blocks on this read needs to know that rather
+    // than concluding the document will never have a map.
+    //
+    // There is no live Smelter here, so the barrier runs its full course; the
+    // short timeout keeps that from being a 15 s test.
     const other = await seedPdf('no-map');
-    expect(await readAnchoredText(kb, String(other.rid))).toBeNull();
+    const answer = await readAnchoredText(kb, String(other.rid), 60);
+    expect(answer.kind).toBe('not-yet');
   });
 
   it('serves the map written last for a resource', async () => {
@@ -173,7 +179,13 @@ describe('readAnchoredText + the anchored-text store', () => {
       resourceId: String(target), contentChecksum: stored2.checksum, outcome: 'indexed',
     });
 
-    expect(await readAnchoredText(kb, String(target))).toBeNull();
+    // Absent, and now SAYS SO by name. `not-yet` rather than `no-map`: the new
+    // generation settled indexed but carries no artifact, which the reconcile
+    // planner heals (its third drift class). What matters for P1's invariant is
+    // that the OLD map is not served — the answer is an absence either way.
+    const answer = await readAnchoredText(kb, String(target), 60);
+    expect(answer.kind).toBe('not-yet');
+    expect(answer).not.toEqual(MAP);
   });
 
   // ── The two barrier-FREE reads (PERSIST-ANCHORS P0 + P2c) ─────────────────
@@ -221,5 +233,108 @@ describe('readAnchoredText + the anchored-text store', () => {
     for (const key of keys) {
       expect(await kb.anchoredText.read(key)).not.toBeNull();
     }
+  });
+});
+
+/**
+ * SMELTER-OWNS-OCR P1 — the answer says WHY there is no map.
+ *
+ * `readAnchoredText` used to return `ExtractionOutcome | null`, and that `null`
+ * covered four different facts: the settle barrier expired, the Smelter settled
+ * the resource as skipped, there was no content identity to look up, and the
+ * progress fold was disposed. Two of those a caller should RETRY; two are
+ * terminal. A detection worker that blocks on this read (P2) cannot classify its
+ * own failure without the distinction — it would either retry forever on a
+ * document that will never have a map, or fail terminally on one that is merely
+ * still being read.
+ *
+ * Driven through a REAL `SmeltProgress`, not a stub: the barrier is the subject
+ * here, and a mocked one would assert the shape of the answer while proving
+ * nothing about which branch produces it.
+ */
+describe('readAnchoredText — why there is no map (SMELTER-OWNS-OCR P1)', () => {
+  const SETTLE_MS = 60;
+
+  /** A fold fed by hand, so a test can settle a generation or leave it open. */
+  function harness(store: Record<string, ExtractionOutcome>, views: Record<string, string | undefined>) {
+    const bus = new EventBus();
+    const smeltProgress = createSmeltProgress(bus);
+    const kb = {
+      views: { get: async (rid: ResourceId) => {
+        const checksum = views[rid as unknown as string];
+        return checksum === undefined
+          ? null
+          : { resource: { representations: [{ mediaType: 'application/pdf', checksum }] } };
+      } },
+      anchoredText: { read: async (key: string) => store[key] ?? null },
+      smeltProgress,
+    };
+    const settle = (rid: string, contentChecksum: string, outcome: 'indexed' | 'skipped') =>
+      bus.get('smelt:settled').next({ resourceId: rid, contentChecksum, outcome } as never);
+    return { kb, settle, dispose: () => { smeltProgress.dispose(); bus.destroy(); } };
+  }
+
+  it('says NOT-YET when the barrier expires — the Smelter has not finished', async () => {
+    // The fresh-upload race: bytes are in, the map is coming, nobody has settled
+    // this generation. Answering "no map" here is what would send a worker's job
+    // to a terminal failure for a document that gets one seconds later.
+    const h = harness({}, { 'res-pending': 'C1' });
+    try {
+      const answer = await readAnchoredText(h.kb as never, 'res-pending', SETTLE_MS);
+      expect(answer.kind).toBe('not-yet');
+    } finally { h.dispose(); }
+  });
+
+  it('says NO-MAP when the Smelter settled the resource as skipped', async () => {
+    // A decision, not a delay: this media type derives no geometry, so waiting
+    // again would be pointless. Must be distinguishable from not-yet or a
+    // retrying caller never stops.
+    const h = harness({}, { 'res-skipped': 'C2' });
+    try {
+      const pending = readAnchoredText(h.kb as never, 'res-skipped', SETTLE_MS);
+      h.settle('res-skipped', 'C2', 'skipped');
+      expect((await pending).kind).toBe('no-map');
+    } finally { h.dispose(); }
+  });
+
+  it('says UNKNOWN when there is no content identity to look up', async () => {
+    // No view, or a view whose primary representation carries no checksum:
+    // there is nothing to key the store by, so this never had an answer to wait
+    // for. Terminal, and a different fact from "skipped".
+    const h = harness({}, {});
+    try {
+      expect((await readAnchoredText(h.kb as never, 'res-absent', SETTLE_MS)).kind).toBe('unknown');
+    } finally { h.dispose(); }
+  });
+
+  it('serves the map on a hit, with no barrier and no waiting', async () => {
+    // The common case must not pay for any of the above: a hit returns before
+    // anything settles, which a short timeout here would expose.
+    const h = harness({ C3: MAP }, { 'res-hit': 'C3' });
+    try {
+      expect(await readAnchoredText(h.kb as never, 'res-hit', SETTLE_MS)).toEqual(MAP);
+    } finally { h.dispose(); }
+  });
+
+  it('serves a stored DECLINE as itself, not as an absence', async () => {
+    // "We ran and there was nothing" cost a full recognition pass to learn. It
+    // is an answer, not a missing one, and it must keep arriving through the
+    // early hit path rather than collapsing into no-map.
+    const declined: ExtractionOutcome = { kind: 'declined', declined: 'encrypted' } as ExtractionOutcome;
+    const h = harness({ C4: declined }, { 'res-declined': 'C4' });
+    try {
+      expect((await readAnchoredText(h.kb as never, 'res-declined', SETTLE_MS)).kind).toBe('declined');
+    } finally { h.dispose(); }
+  });
+
+  it('says NOT-YET when the generation settled indexed but the artifact is gone', async () => {
+    // The reconcile planner's third drift class: settled, but the store lost
+    // the entry. The planner re-publishes, so this is "come back", not "never".
+    const h = harness({}, { 'res-lost': 'C5' });
+    try {
+      const pending = readAnchoredText(h.kb as never, 'res-lost', SETTLE_MS);
+      h.settle('res-lost', 'C5', 'indexed');
+      expect((await pending).kind).toBe('not-yet');
+    } finally { h.dispose(); }
   });
 });

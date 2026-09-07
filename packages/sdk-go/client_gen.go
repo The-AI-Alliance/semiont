@@ -23,6 +23,27 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
+// Defines values for AnchoredTextAbsentKind.
+const (
+	AnchoredTextAbsentKindNoMap   AnchoredTextAbsentKind = "no-map"
+	AnchoredTextAbsentKindNotYet  AnchoredTextAbsentKind = "not-yet"
+	AnchoredTextAbsentKindUnknown AnchoredTextAbsentKind = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the AnchoredTextAbsentKind enum.
+func (e AnchoredTextAbsentKind) Valid() bool {
+	switch e {
+	case AnchoredTextAbsentKindNoMap:
+		return true
+	case AnchoredTextAbsentKindNotYet:
+		return true
+	case AnchoredTextAbsentKindUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AnnotationContext.
 const (
 	HttpwwwW3OrgnsannoJsonld AnnotationContext = "http://www.w3.org/ns/anno.jsonld"
@@ -475,19 +496,19 @@ func (e GraphResourceNodeType) Valid() bool {
 
 // Defines values for HealthResponseDatabase.
 const (
-	Connected    HealthResponseDatabase = "connected"
-	Disconnected HealthResponseDatabase = "disconnected"
-	Unknown      HealthResponseDatabase = "unknown"
+	HealthResponseDatabaseConnected    HealthResponseDatabase = "connected"
+	HealthResponseDatabaseDisconnected HealthResponseDatabase = "disconnected"
+	HealthResponseDatabaseUnknown      HealthResponseDatabase = "unknown"
 )
 
 // Valid indicates whether the value is a known member of the HealthResponseDatabase enum.
 func (e HealthResponseDatabase) Valid() bool {
 	switch e {
-	case Connected:
+	case HealthResponseDatabaseConnected:
 		return true
-	case Disconnected:
+	case HealthResponseDatabaseDisconnected:
 		return true
-	case Unknown:
+	case HealthResponseDatabaseUnknown:
 		return true
 	default:
 		return false
@@ -1482,6 +1503,38 @@ type AnchoredText struct {
 	Text string `json:"text"`
 }
 
+// AnchoredTextAbsent There is no coordinate map to serve, and WHY — the distinction a bare null could not carry (SMELTER-OWNS-OCR P1).
+//
+// One member covers all three absences because none carries a payload; `kind` alone is the fact. Retryability is legible from the name, deliberately: a caller must not need a lookup table to decide whether to come back.
+type AnchoredTextAbsent struct {
+	// Kind Discriminant, sharing the `kind` field with the ExtractedText/ExtractionDeclined members so the whole answer is one flat union (D6).
+	//
+	// `not-yet` — the Smelter has not settled this content generation: the settle barrier expired, the progress fold was disposed, or it settled indexed and the artifact is missing (the reconcile planner's third drift class, which heals). RETRY.
+	//
+	// `no-map` — the Smelter settled this resource as skipped: its media type derives no geometry, so a map will never exist. TERMINAL.
+	//
+	// `unknown` — no content identity to look up: the resource is not in the view store, or its primary representation carries no checksum. TERMINAL.
+	Kind AnchoredTextAbsentKind `json:"kind"`
+}
+
+// AnchoredTextAbsentKind Discriminant, sharing the `kind` field with the ExtractedText/ExtractionDeclined members so the whole answer is one flat union (D6).
+//
+// `not-yet` — the Smelter has not settled this content generation: the settle barrier expired, the progress fold was disposed, or it settled indexed and the artifact is missing (the reconcile planner's third drift class, which heals). RETRY.
+//
+// `no-map` — the Smelter settled this resource as skipped: its media type derives no geometry, so a map will never exist. TERMINAL.
+//
+// `unknown` — no content identity to look up: the resource is not in the view store, or its primary representation carries no checksum. TERMINAL.
+type AnchoredTextAbsentKind string
+
+// AnchoredTextAnswer What a reader gets when it asks for a resource's coordinate map: the map, a stored decline, or a named absence.
+//
+// Distinct from `ExtractionOutcome` on purpose. That type is what the STORE holds and what an extractor RETURNS — neither of which can ever be 'not yet'. This is the read answer, which can, so widening ExtractionOutcome itself would have put an impossible state into the store's own type.
+//
+// Flat, one discriminant: every member carries `kind`, rather than nesting an outcome inside a status envelope and giving the wire two `kind` fields at different depths.
+type AnchoredTextAnswer struct {
+	union json.RawMessage
+}
+
 // Annotation defines model for Annotation.
 type Annotation struct {
 	// Context W3C Web Annotation JSON-LD context
@@ -1785,10 +1838,16 @@ type BrowseAnchoredTextRequest struct {
 	ResourceId    string `json:"resourceId"`
 }
 
-// BrowseAnchoredTextResult A resource's stored extraction outcome — the coordinate map with its provenance, or a named decline — or null when none has been derived. Null is the common case and not an error: a native text layer is read in the browser, and a media type with no extractor never produces one.
+// BrowseAnchoredTextResult A resource's coordinate map, a stored decline, or a named reason there is none (SMELTER-OWNS-OCR P1). Never null: absence used to be a bare null covering four different facts — barrier expired, settled-skipped, no content identity, fold disposed — two of which a caller should retry and two of which it should not.
 type BrowseAnchoredTextResult struct {
-	CorrelationId string             `json:"correlationId"`
-	Response      *ExtractionOutcome `json:"response"`
+	CorrelationId string `json:"correlationId"`
+
+	// Response What a reader gets when it asks for a resource's coordinate map: the map, a stored decline, or a named absence.
+	//
+	// Distinct from `ExtractionOutcome` on purpose. That type is what the STORE holds and what an extractor RETURNS — neither of which can ever be 'not yet'. This is the read answer, which can, so widening ExtractionOutcome itself would have put an impossible state into the store's own type.
+	//
+	// Flat, one discriminant: every member carries `kind`, rather than nesting an outcome inside a status envelope and giving the wire two `kind` fields at different depths.
+	Response AnchoredTextAnswer `json:"response"`
 }
 
 // BrowseAnnotationContextRequest Request to get contextual text around an annotation
@@ -6670,6 +6729,123 @@ func (t Agent) MarshalJSON() ([]byte, error) {
 }
 
 func (t *Agent) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsExtractedText returns the union data inside the AnchoredTextAnswer as a ExtractedText
+func (t AnchoredTextAnswer) AsExtractedText() (ExtractedText, error) {
+	var body ExtractedText
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromExtractedText overwrites any union data inside the AnchoredTextAnswer as the provided ExtractedText
+func (t *AnchoredTextAnswer) FromExtractedText(v ExtractedText) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeExtractedText performs a merge with any union data inside the AnchoredTextAnswer, using the provided ExtractedText
+func (t *AnchoredTextAnswer) MergeExtractedText(v ExtractedText) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsExtractionDeclined returns the union data inside the AnchoredTextAnswer as a ExtractionDeclined
+func (t AnchoredTextAnswer) AsExtractionDeclined() (ExtractionDeclined, error) {
+	var body ExtractionDeclined
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromExtractionDeclined overwrites any union data inside the AnchoredTextAnswer as the provided ExtractionDeclined
+func (t *AnchoredTextAnswer) FromExtractionDeclined(v ExtractionDeclined) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeExtractionDeclined performs a merge with any union data inside the AnchoredTextAnswer, using the provided ExtractionDeclined
+func (t *AnchoredTextAnswer) MergeExtractionDeclined(v ExtractionDeclined) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAnchoredTextAbsent returns the union data inside the AnchoredTextAnswer as a AnchoredTextAbsent
+func (t AnchoredTextAnswer) AsAnchoredTextAbsent() (AnchoredTextAbsent, error) {
+	var body AnchoredTextAbsent
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAnchoredTextAbsent overwrites any union data inside the AnchoredTextAnswer as the provided AnchoredTextAbsent
+func (t *AnchoredTextAnswer) FromAnchoredTextAbsent(v AnchoredTextAbsent) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAnchoredTextAbsent performs a merge with any union data inside the AnchoredTextAnswer, using the provided AnchoredTextAbsent
+func (t *AnchoredTextAnswer) MergeAnchoredTextAbsent(v AnchoredTextAbsent) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AnchoredTextAnswer) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"kind"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t AnchoredTextAnswer) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "declined":
+		return t.AsExtractionDeclined()
+	case "extracted":
+		return t.AsExtractedText()
+	case "no-map":
+		return t.AsAnchoredTextAbsent()
+	case "not-yet":
+		return t.AsAnchoredTextAbsent()
+	case "unknown":
+		return t.AsAnchoredTextAbsent()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t AnchoredTextAnswer) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *AnchoredTextAnswer) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

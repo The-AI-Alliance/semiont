@@ -1,0 +1,18 @@
+{
+  "description": "What a reader gets when it asks for a resource's coordinate map: the map, a stored decline, or a named absence.\n\nDistinct from `ExtractionOutcome` on purpose. That type is what the STORE holds and what an extractor RETURNS — neither of which can ever be 'not yet'. This is the read answer, which can, so widening ExtractionOutcome itself would have put an impossible state into the store's own type.\n\nFlat, one discriminant: every member carries `kind`, rather than nesting an outcome inside a status envelope and giving the wire two `kind` fields at different depths.",
+  "oneOf": [
+    { "$ref": "./ExtractedText.json" },
+    { "$ref": "./ExtractionDeclined.json" },
+    { "$ref": "./AnchoredTextAbsent.json" }
+  ],
+  "discriminator": {
+    "propertyName": "kind",
+    "mapping": {
+      "extracted": "./ExtractedText.json",
+      "declined": "./ExtractionDeclined.json",
+      "not-yet": "./AnchoredTextAbsent.json",
+      "no-map": "./AnchoredTextAbsent.json",
+      "unknown": "./AnchoredTextAbsent.json"
+    }
+  }
+}

@@ -258,6 +258,12 @@
       "BrowseAnchoredTextResult": {
         "$ref": "components/schemas/BrowseAnchoredTextResult.json"
       },
+      "AnchoredTextAnswer": {
+        "$ref": "components/schemas/AnchoredTextAnswer.json"
+      },
+      "AnchoredTextAbsent": {
+        "$ref": "components/schemas/AnchoredTextAbsent.json"
+      },
       "BrowseAnchoredTextByChecksumRequest": {
         "$ref": "components/schemas/BrowseAnchoredTextByChecksumRequest.json"
       },

@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "description": "There is no coordinate map to serve, and WHY — the distinction a bare null could not carry (SMELTER-OWNS-OCR P1).\n\nOne member covers all three absences because none carries a payload; `kind` alone is the fact. Retryability is legible from the name, deliberately: a caller must not need a lookup table to decide whether to come back.",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": ["not-yet", "no-map", "unknown"],
+      "description": "Discriminant, sharing the `kind` field with the ExtractedText/ExtractionDeclined members so the whole answer is one flat union (D6).\n\n`not-yet` — the Smelter has not settled this content generation: the settle barrier expired, the progress fold was disposed, or it settled indexed and the artifact is missing (the reconcile planner's third drift class, which heals). RETRY.\n\n`no-map` — the Smelter settled this resource as skipped: its media type derives no geometry, so a map will never exist. TERMINAL.\n\n`unknown` — no content identity to look up: the resource is not in the view store, or its primary representation carries no checksum. TERMINAL."
+    }
+  },
+  "required": ["kind"]
+}

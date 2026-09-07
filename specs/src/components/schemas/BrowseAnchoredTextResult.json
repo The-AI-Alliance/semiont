@@ -1,17 +1,12 @@
 {
   "type": "object",
-  "description": "A resource's stored extraction outcome — the coordinate map with its provenance, or a named decline — or null when none has been derived. Null is the common case and not an error: a native text layer is read in the browser, and a media type with no extractor never produces one.",
+  "description": "A resource's coordinate map, a stored decline, or a named reason there is none (SMELTER-OWNS-OCR P1). Never null: absence used to be a bare null covering four different facts \u2014 barrier expired, settled-skipped, no content identity, fold disposed \u2014 two of which a caller should retry and two of which it should not.",
   "properties": {
     "correlationId": {
       "type": "string"
     },
     "response": {
-      "nullable": true,
-      "allOf": [
-        {
-          "$ref": "./ExtractionOutcome.json"
-        }
-      ]
+      "$ref": "./AnchoredTextAnswer.json"
     }
   },
   "required": [
