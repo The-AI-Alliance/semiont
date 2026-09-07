@@ -128,9 +128,8 @@ describe('encode — absence is stored as absence (D4)', () => {
       target: { source: 'res-1' },
       body: [{ type: 'SpecificResource', source: 'res-2', purpose: 'linking' }],
       creator: CREATOR,
-    } as CreateAnnotationInternal,
-    CREATED
-  );
+      created: CREATED,
+    } as CreateAnnotationInternal);
 
   it('emits NO selector property at all for a source-only target', () => {
     const props = encodeAnnotation(sourceOnly);
@@ -154,9 +153,8 @@ describe('encode — absence is stored as absence (D4)', () => {
         motivation: 'highlighting',
         target: { source: 'res-1', selector: QUOTE_SELECTOR },
         creator: CREATOR,
-      } as CreateAnnotationInternal,
-      CREATED
-    );
+        created: CREATED,
+      } as CreateAnnotationInternal);
     const props = encodeAnnotation(highlight);
     expect(props.selector).toBe(JSON.stringify(QUOTE_SELECTOR));
     for (const store of STORES) expect(store.decode(props)).toEqual(highlight);
@@ -169,9 +167,8 @@ describe('encode — absence is stored as absence (D4)', () => {
         motivation: 'highlighting',
         target: { source: 'res-1', selector: QUOTE_SELECTOR },
         creator: CREATOR,
-      } as CreateAnnotationInternal,
-      CREATED
-    );
+        created: CREATED,
+      } as CreateAnnotationInternal);
     expect(encodeAnnotation(highlight).type).toBe('TextualBody');
     expect(encodeAnnotation(sourceOnly).type).toBe('SpecificResource');
   });
@@ -184,17 +181,11 @@ describe('encode — the fields a store cannot invent for itself', () => {
       motivation: 'linking',
       target: { source: 'res-1' },
       creator: CREATOR,
-    } as CreateAnnotationInternal,
-    CREATED
-  );
+      created: CREATED,
+    } as CreateAnnotationInternal);
 
   it('refuses an annotation whose target has no source', () => {
     expect(() => encodeAnnotation({ ...base, target: { source: '' } })).toThrow(/no target source/);
-  });
-
-  it('refuses an annotation with no created timestamp rather than stamping one', () => {
-    const { created, ...withoutCreated } = base;
-    expect(() => encodeAnnotation(withoutCreated as Annotation)).toThrow(/no created timestamp/);
   });
 
   it('writes a selector but no exact when the selector quotes nothing', () => {
@@ -204,9 +195,8 @@ describe('encode — the fields a store cannot invent for itself', () => {
         motivation: 'highlighting',
         target: { source: 'res-1', selector: { type: 'TextPositionSelector', start: 10, end: 20 } },
         creator: CREATOR,
-      } as CreateAnnotationInternal,
-      CREATED
-    );
+        created: CREATED,
+      } as CreateAnnotationInternal);
     const props = encodeAnnotation(positional);
     expect(props.selector).toBe(JSON.stringify({ type: 'TextPositionSelector', start: 10, end: 20 }));
     expect('exact' in props).toBe(false);
@@ -291,6 +281,7 @@ describe('D7: memorygraph is a faithful reference, not a store where the bug is 
       target: { source: 'res-1' },
       body: [{ type: 'SpecificResource', source: 'res-2', purpose: 'linking' }],
       creator: CREATOR,
+      created: CREATED,
     } as CreateAnnotationInternal);
 
     expect('selector' in (created.target as object)).toBe(false);

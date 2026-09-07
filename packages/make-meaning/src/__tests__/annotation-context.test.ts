@@ -147,6 +147,7 @@ describe('AnnotationContext', () => {
           id: annId,
           type: 'Annotation',
           motivation: 'commenting',
+          created: '2026-01-01T00:00:00.000Z',
           body: {
             type: 'TextualBody',
             value: 'Test comment',
@@ -338,6 +339,7 @@ describe('AnnotationContext', () => {
           id: annotationId(testAnnId),
           type: 'Annotation',
           motivation: 'commenting',
+          created: '2026-01-01T00:00:00.000Z',
           body: {
             type: 'TextualBody',
             value: 'Comment without position',
@@ -504,6 +506,7 @@ describe('AnnotationContext', () => {
             id: annotationId(siblingAnnId),
             type: 'Annotation',
             motivation: 'tagging',
+            created: '2026-01-01T00:00:00.000Z',
             body: [{
               type: 'TextualBody',
               value: 'Location',

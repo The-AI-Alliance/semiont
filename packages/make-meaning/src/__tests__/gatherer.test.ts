@@ -93,6 +93,7 @@ describe('Gatherer', () => {
             '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
             type: 'Annotation' as const,
             motivation: 'linking' as const,
+            created: '2026-01-01T00:00:00.000Z',
             target: { source: 'res-1' },
             body: { type: 'SpecificResource' as const, source: '' },
           },

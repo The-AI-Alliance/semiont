@@ -54,7 +54,7 @@ export function motivationForCategory(category: AnnotationCategory): Annotation[
  * write time. `CreateAnnotationInternal` carries no timestamp, so the event's
  * own time does not reach this projection at all.
  */
-export function buildAnnotation(input: CreateAnnotationInternal, created: string): Annotation {
+export function buildAnnotation(input: CreateAnnotationInternal): Annotation {
   const annotation: Annotation = {
     '@context': 'http://www.w3.org/ns/anno.jsonld',
     type: 'Annotation',
@@ -62,7 +62,7 @@ export function buildAnnotation(input: CreateAnnotationInternal, created: string
     motivation: input.motivation,
     target: input.target,
     creator: input.creator,
-    created,
+    created: input.created,
   };
   if (input.body && (!Array.isArray(input.body) || input.body.length > 0)) {
     annotation.body = input.body;
@@ -78,11 +78,8 @@ export function encodeAnnotation(annotation: Annotation): Record<string, string>
   const selector = getTargetSelector(annotation.target);
   const bodySource = getBodySource(annotation.body);
 
-  // `created` is optional on the wire but not in the store: a row without it
-  // cannot be read back, so refuse to write one rather than mint a timestamp.
   const resourceId = getTargetSource(annotation.target);
   if (!resourceId) throw new Error(`Annotation ${annotation.id} has no target source`);
-  if (!annotation.created) throw new Error(`Annotation ${annotation.id} has no created timestamp`);
 
   const props: Record<string, string> = {
     id: annotation.id,

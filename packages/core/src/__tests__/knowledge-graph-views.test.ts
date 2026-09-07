@@ -35,6 +35,7 @@ describe('deriveViews', () => {
       id,
       motivation: 'linking' as const,
       target: { source },
+      created: '2020-01-01T00:00:00.000Z',
     });
     const graph: KnowledgeGraph = {
       nodes: [
@@ -72,6 +73,7 @@ describe('deriveViews', () => {
       id,
       motivation: 'linking' as const,
       target: { source },
+      created: '2020-01-01T00:00:00.000Z',
     });
     const graph: KnowledgeGraph = {
       nodes: [

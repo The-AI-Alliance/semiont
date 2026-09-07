@@ -32,6 +32,7 @@ const testAnnotation: AnnotationFocus['annotation'] = {
   type: 'Annotation',
   id: 'test-annotation',
   motivation: 'commenting',
+  created: '2026-01-01T00:00:00.000Z',
   target: { source: MAIN_ID },
   body: [{ type: 'TextualBody', value: 'test comment', purpose: 'commenting' }],
 };
@@ -74,6 +75,7 @@ function buildGraph(opts: {
     id,
     motivation,
     target: { source },
+    created: '2026-01-01T00:00:00.000Z',
   });
   for (const c of opts.citedByPresent ?? []) {
     nodes.push({ id: c.resourceId, type: 'resource', label: c.resourceName });

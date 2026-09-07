@@ -389,7 +389,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     const session = this.getSession();
     try {
-      const annotation = buildAnnotation(input, new Date().toISOString());
+      const annotation = buildAnnotation(input);
       const props = encodeAnnotation(annotation);
       const targetSource = props.resourceId!;
       const bodySource = props.source;

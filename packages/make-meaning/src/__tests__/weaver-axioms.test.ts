@@ -18,7 +18,7 @@
 
 import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
-import { EventBus } from '@semiont/core';
+import { EventBus, annotationId as makeAnnotationId } from '@semiont/core';
 import type { StoredEvent } from '@semiont/core';
 import { MemoryGraphDatabase } from '@semiont/graph';
 import { createWeaveProgress } from '../weave-progress';
@@ -107,7 +107,7 @@ function toHistory(cat: Catalog, ops: OpDescriptor[]): StoredEvent[] {
         }, next(op.rid)));
         break;
       case 'mark-':
-        history.push(storedEvent('mark:removed', op.rid, { annotationId: annId }, next(op.rid)));
+        history.push(storedEvent('mark:removed', op.rid, { annotationId: makeAnnotationId(annId) }, next(op.rid)));
         break;
       case 'tag+':
         history.push(storedEvent('mark:entity-tag-added', op.rid, { entityType: op.tag }, next(op.rid)));

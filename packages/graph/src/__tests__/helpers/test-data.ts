@@ -59,6 +59,7 @@ export function createTestHighlight(
       '@type': 'Person' as const,
       name: `User ${uuidv4()}`,
     },
+    created: new Date().toISOString(),
     ...overrides,
   };
 }
@@ -87,6 +88,7 @@ export function createTestReference(
       '@type': 'Person' as const,
       name: `User ${uuidv4()}`,
     },
+    created: new Date().toISOString(),
     ...overrides,
   };
 }
@@ -123,6 +125,7 @@ export function createTestEntityReference(
       '@type': 'Person' as const,
       name: `User ${uuidv4()}`,
     },
+    created: new Date().toISOString(),
     ...overrides,
   };
 }

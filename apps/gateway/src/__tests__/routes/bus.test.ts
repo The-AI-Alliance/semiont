@@ -46,6 +46,7 @@ function fakeStoredMarkAdded(
     type: 'Annotation',
     id: annotationId(annIdStr),
     motivation: 'commenting',
+    created: '2026-01-01T00:00:00.000Z',
     target: { source: rIdStr },
     body: [{ type: 'TextualBody', value: 'test comment', purpose: 'commenting' }],
   };

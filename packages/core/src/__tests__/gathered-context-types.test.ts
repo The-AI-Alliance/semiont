@@ -71,6 +71,7 @@ describe('GatheredContext — unified shape (P1)', () => {
             '@context': 'http://www.w3.org/ns/anno.jsonld',
             type: 'Annotation', id: 'a-1', motivation: 'commenting',
             target: { source: 'r-1' },
+            created: '2020-01-01T00:00:00.000Z',
           },
         },
       ],

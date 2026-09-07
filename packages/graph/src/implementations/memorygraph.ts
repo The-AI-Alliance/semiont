@@ -120,7 +120,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     // survived. So the annotation round-trips through the codec: what a Map
     // hands back is exactly what Cypher and Gremlin hand back.
     const annotation = decodeAnnotation(
-      encodeAnnotation(buildAnnotation(input, new Date().toISOString())),
+      encodeAnnotation(buildAnnotation(input)),
       getEntityTypes(input)
     );
 

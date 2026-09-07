@@ -28,6 +28,14 @@ import { JanusGraphDatabase } from '../implementations/janusgraph';
 
 const CREATOR = { '@type': 'Person' as const, id: 'did:semiont:user:u1', name: 'Ada' };
 
+/**
+ * The AUTHORING moment, deliberately long past. A store that stamps its own
+ * clock instead of persisting this cannot be caught by a value near `now` —
+ * and `rebuildResource` deletes before it replays, so a restamping store
+ * collapses every annotation to the rebuild moment on each reconcile heal.
+ */
+const AUTHORED = '2020-03-04T05:06:07.000Z';
+
 /** A resource-level reference: source-only target, resolved to another resource. */
 const SOURCE_ONLY: CreateAnnotationInternal = {
   id: annotationId('ann-source-only'),
@@ -35,6 +43,7 @@ const SOURCE_ONLY: CreateAnnotationInternal = {
   target: { source: 'res-1' },
   body: [{ type: 'SpecificResource', source: 'res-2', purpose: 'linking' }],
   creator: CREATOR,
+  created: AUTHORED,
 };
 
 const QUOTE_SELECTOR = { type: 'TextQuoteSelector' as const, exact: 'Black Hawk', prefix: '', suffix: '' };
@@ -44,6 +53,7 @@ const HIGHLIGHT: CreateAnnotationInternal = {
   motivation: 'highlighting',
   target: { source: 'res-1', selector: QUOTE_SELECTOR },
   creator: CREATOR,
+  created: AUTHORED,
 };
 
 const STORAGE_URI = 'file:///kb/res-1.md';
@@ -140,13 +150,20 @@ describe('neo4j write path', () => {
     expect(recorded[0]!.props.type).toBe('TextualBody');
   });
 
+  it('persists the AUTHORED created, not its own clock', async () => {
+    const { db, recorded } = neo4jStore();
+    await db.createAnnotation(SOURCE_ONLY);
+
+    expect(recorded[0]!.params.created).toBe(AUTHORED);
+  });
+
   it('reads its own write back as the annotation it wrote, temporal and all', async () => {
     const { db } = neo4jStore();
     const written = await db.createAnnotation(SOURCE_ONLY);
 
     expect(written.target).toEqual({ source: 'res-1' });
     expect(written.motivation).toBe('linking');
-    expect(typeof written.created).toBe('string');
+    expect(written.created).toBe(AUTHORED);
     expect(written.body).toEqual([{ type: 'SpecificResource', source: 'res-2', purpose: 'linking' }]);
   });
 
@@ -275,6 +292,13 @@ describe.each(GREMLIN_STORES)('%s write path', (_name, makeStore) => {
     expect('exact' in written).toBe(false);
     expect('text' in written).toBe(false);
     expect(Object.values(written)).not.toContain('{}');
+  });
+
+  it('persists the AUTHORED created, not its own clock', async () => {
+    const { db, written } = makeStore();
+    await db.createAnnotation(SOURCE_ONLY);
+
+    expect(written.created).toBe(AUTHORED);
   });
 
   it('writes the same bag the other stores write', async () => {

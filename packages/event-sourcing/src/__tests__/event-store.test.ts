@@ -181,6 +181,7 @@ describe('Event Store', () => {
           type: 'Annotation' as const,
           id: annId,
           motivation: 'linking' as const,
+          created: '2026-01-01T00:00:00.000Z',
           target: {
             source: docId,
             selector: [

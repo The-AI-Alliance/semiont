@@ -53,10 +53,13 @@
       "description": "Web Annotation creator — the entity that initiated the annotation. For human-driven work this is a Person; for autonomous-agent work this is a Software peer."
     },
     "created": {
-      "type": "string"
+      "type": "string",
+      "format": "date-time",
+      "description": "When the annotation was MADE — the authoring moment, carried from the event that created it. Not when a projection happened to write it: a store that rebuilds from the log must preserve this value, never restamp it."
     },
     "modified": {
-      "type": "string"
+      "type": "string",
+      "format": "date-time"
     },
     "generator": {
       "oneOf": [
@@ -78,6 +81,7 @@
     "type",
     "id",
     "motivation",
-    "target"
+    "target",
+    "created"
   ]
 }

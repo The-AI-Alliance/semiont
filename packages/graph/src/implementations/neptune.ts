@@ -430,7 +430,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
     // The caller's id is the system of record's — never mint a fresh one
     // (the event-log id is what deletes and lookups arrive under).
-    const annotation = buildAnnotation(input, new Date().toISOString());
+    const annotation = buildAnnotation(input);
     const props = encodeAnnotation(annotation);
     const targetSource = props.resourceId!;
     const bodySource = props.source;
