@@ -150,14 +150,9 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
   });
   metrics.setGlobalMeterProvider(meterProviderInstance);
 
-  // Event-loop lag (ARCHIVIST-STAYS-UP P7). The cause-AGNOSTIC detector for a
-  // blocked process: it rises whether the cause is a synchronous git
-  // subprocess, a large JSON parse, or GC. Cheap — libuv keeps the histogram;
-  // we read percentiles and reset once per export interval.
-  //
-  // It earns its place because the Archivist runs `execFileSync('git', …)` on
-  // this loop once per appended event: while that blocks, every concurrent
-  // `browse:*` read waits, and nothing else in the stack says so.
+  // The cause-AGNOSTIC detector for a blocked process: it rises whether the
+  // cause is a large JSON parse, GC, or a sync subprocess. Cheap — libuv keeps
+  // the histogram; we read percentiles and reset once per export interval.
   const loopDelay = monitorEventLoopDelay({ resolution: 10 });
   loopDelay.enable();
   const runtimeMeter = meterProviderInstance.getMeter('semiont-runtime');
