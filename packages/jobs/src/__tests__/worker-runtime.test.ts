@@ -413,45 +413,9 @@ describe('worker-runtime — stall watchdog (WORKER-LIVENESS.md P3)', () => {
   });
 });
 
-describe('worker-runtime — anchored-text store threading (PERSIST-ANCHORS P2d)', () => {
-  beforeEach(() => {
-    vi.mocked(startWorkerProcess).mockClear();
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('threads an AnchoredTextStore into the worker process config', async () => {
-    installFetchStub();
-
-    const worker = await startAgentWorker({
-      group: makeGroup(),
-      gatewayBaseUrl: DIAL_URL,
-      workerSecret: 'test-secret',
-      contentReads: { getBinary: vi.fn() },
-      logger: noopLogger,
-    });
-
-    const config = vi.mocked(startWorkerProcess).mock.calls[0]![0] as {
-      anchoredTextStore?: { read: unknown; write: unknown; list: unknown };
-    };
-    // The session's content transport is private to the client; the runtime
-    // holds it at construction and hands the adapter down — the store rides
-    // the config, one per agent process.
-    expect(config.anchoredTextStore).toBeDefined();
-    expect(typeof config.anchoredTextStore!.read).toBe('function');
-    expect(typeof config.anchoredTextStore!.write).toBe('function');
-
-    await worker.dispose();
-  });
-});
-
 describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)', () => {
   it('WORKER_CHANNELS carries exactly the reply channels of the operations the worker awaits', () => {
     expect([...WORKER_CHANNELS].sort()).toEqual([
-      'browse:anchored-text-by-checksum-failed',
-      'browse:anchored-text-by-checksum-result',
       'browse:resource-failed',
       'browse:resource-result',
       'job:claim-failed',

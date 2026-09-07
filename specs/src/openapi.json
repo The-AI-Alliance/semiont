@@ -264,9 +264,6 @@
       "AnchoredTextAbsent": {
         "$ref": "components/schemas/AnchoredTextAbsent.json"
       },
-      "BrowseAnchoredTextByChecksumRequest": {
-        "$ref": "components/schemas/BrowseAnchoredTextByChecksumRequest.json"
-      },
       "BrowseResourceRequest": {
         "$ref": "components/schemas/BrowseResourceRequest.json"
       },

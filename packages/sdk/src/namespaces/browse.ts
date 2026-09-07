@@ -1,7 +1,7 @@
 import { Observable, map } from 'rxjs';
 import { CacheObservable } from '../awaitable';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId, searchQuery, decodeWithCharset } from '@semiont/core';
-import type { AnchoredTextAnswer, ExtractionOutcome } from '@semiont/core';
+import type { AnchoredTextAnswer } from '@semiont/core';
 import type {
   Annotation,
   EventBus,
@@ -427,14 +427,6 @@ export class BrowseNamespace implements IBrowseNamespace {
    * served whole so a second pass runs neither parser nor engine. Read-only by
    * design — the Smelter is the only writer of this store.
    */
-  async anchoredTextByChecksum(checksum: string): Promise<ExtractionOutcome | null> {
-    return busRequest(
-      this.transport,
-      'browse:anchored-text-by-checksum-requested',
-      { checksum },
-      this.busTimeoutMs,
-    );
-  }
 
   async resourceGraph(resourceId: ResourceId): Promise<GetResourceResponse> {
     return this.content.getResourceGraph(resourceId);

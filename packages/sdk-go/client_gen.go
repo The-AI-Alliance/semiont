@@ -1826,12 +1826,6 @@ type BrowseAgentsResult struct {
 	} `json:"response"`
 }
 
-// BrowseAnchoredTextByChecksumRequest Request the stored extraction outcome for a content identity the caller already holds — the detection workers' read-through cache consult (ANCHORED-TEXT-TO-SMELTER P2). A hit — success or decline — is served whole and the caller skips extraction; null is a miss and the caller extracts locally. Read-only: the Smelter is the sole writer and never answers over this channel.
-type BrowseAnchoredTextByChecksumRequest struct {
-	Checksum      string `json:"checksum"`
-	CorrelationId string `json:"correlationId"`
-}
-
 // BrowseAnchoredTextRequest Request a resource's derived coordinate map — the text recovered from its bytes plus the geometry indexing it. Read-only: the Smelter is the sole producer and publishes through the content transport, never over this channel.
 type BrowseAnchoredTextRequest struct {
 	CorrelationId string `json:"correlationId"`

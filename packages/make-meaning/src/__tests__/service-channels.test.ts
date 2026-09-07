@@ -92,7 +92,6 @@ describe('archivist transport channels', () => {
   it('subscribes exactly its inbound roster', () => {
     expect([...ARCHIVIST_INBOUND_CHANNELS].sort()).toEqual([
       'browse:agents-requested',
-      'browse:anchored-text-by-checksum-requested',
       'browse:anchored-text-requested',
       'browse:annotation-context-requested',
       'browse:annotation-history-requested',

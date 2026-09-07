@@ -34,7 +34,7 @@ import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourc
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components } from '@semiont/core';
 import { workerBusAsPrimitive } from './worker-bus-primitive.js';
-import { extractPdfTextLayer, type AnchoredTextStore, type ContentReads } from '@semiont/content';
+import { extractPdfTextLayer, type ContentReads } from '@semiont/content';
 import { prepareDetection } from './workers/detection/prepare-detection';
 import { classifyFailure, DeterministicJobError } from './failure-class';
 import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
@@ -98,14 +98,6 @@ export interface WorkerProcessConfig {
    * session is authenticated as.
    */
   generator: Agent;
-  /**
-   * The anchored-text cache the extraction seam reads and writes
-   * (PERSIST-ANCHORS P2d) — the adapter over this worker's content
-   * transport, constructed once per agent process by worker-runtime.
-   * The session's own content transport is private to the client, so
-   * the store rides the config from where the transport is in hand.
-   */
-  anchoredTextStore: AnchoredTextStore;
   /**
    * The resource's bytes, for the detection extraction seam. Dials the
    * Archivist rather than the gateway (SINGLE-KB-MOUNT P4) — which is why it
