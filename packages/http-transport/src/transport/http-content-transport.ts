@@ -44,7 +44,7 @@ import type { AccessToken, ResourceId, PutBinaryOptions, components } from '@sem
 import { busLog } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan } from '@semiont/observability';
 import type { HttpTransport } from './http-transport';
-import { APIError } from './http-transport';
+import { APIError } from './api-error';
 import type { IContentTransport, PutBinaryRequest } from '@semiont/core';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];

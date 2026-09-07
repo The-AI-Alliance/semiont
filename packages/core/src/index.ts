@@ -402,8 +402,8 @@ export type { GraphViews } from './knowledge-graph-views';
 
 // Bounded retry with backoff — startup connections from long-running peers
 // (worker, smelter, weaver) to the KS.
-export { retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY } from './retry';
-export type { RetryPolicy, RetryAttemptInfo } from './retry';
+export { retryWithBackoff, isTransientFetchError, isRetryableRequestError, STARTUP_FETCH_RETRY } from './retry';
+export type { HttpStatusError, RetryPolicy, RetryAttemptInfo } from './retry';
 
 export { getShardPath, jumpConsistentHash } from './shard-utils';
 

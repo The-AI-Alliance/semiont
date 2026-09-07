@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, type components, type ConnectionState, type StateUnit } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, isRetryableRequestError, type components, type ConnectionState, type StateUnit, type RetryPolicy } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -9,6 +9,7 @@ import {
   withTraceparent,
 } from '@semiont/observability';
 import { SseConnectError } from './sse-connect-error';
+import { APIError } from './api-error';
 
 export type { ConnectionState };
 
@@ -87,6 +88,25 @@ const MAX_RECONNECT_MS = 60_000;
  * type — not just the reference-annotation persist P6 bounded.
  */
 export const EMIT_TIMEOUT_MS = 30_000;
+
+/**
+ * Retry budget for ONE `/bus/emit` POST (SIDECAR-BOOT-RESILIENCE D3).
+ *
+ * Per request, deliberately — not per boot pass. "Retry when one settles" is
+ * advice about a single request; re-running a whole catch-up pass to recover
+ * from one refusal re-sends hundreds of already-successful emits, which is the
+ * amplification that wedged the weaver in the first place.
+ *
+ * Small on purpose. `EMIT_TIMEOUT_MS` bounds each attempt, so the worst case
+ * here is 4 attempts plus up to ~7s of jittered waiting, and an emit that a
+ * caller is awaiting must fail while the caller still cares. The patience for a
+ * gateway that is genuinely down belongs to the boot pass above it, not here.
+ */
+export const EMIT_RETRY: RetryPolicy = {
+  attempts: 4,
+  initialDelayMs: 1_000,
+  maxDelayMs: 4_000,
+};
 
 /**
  * How long a superseded connection keeps DRAINING after a make-before-break
@@ -738,28 +758,49 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         headers['traceparent'] = trace.traceparent;
         if (trace.tracestate) headers['tracestate'] = trace.tracestate;
       }
-      // Bounded (JOB-RESTART-SAFETY P7): an unresponsive gateway must not hang
-      // the caller's loop forever. AbortSignal.timeout rejects with a
-      // TimeoutError, which propagates like any other emit failure.
-      const res = await fetch(`${baseUrl}/bus/emit`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(EMIT_TIMEOUT_MS),
-      });
-      // A refused emit (validation 400, auth 401…) must REJECT — busRequest's
-      // contract detaches its doomed reply and propagates this to the caller.
-      // Resolving a sentinel here instead leaves that caller waiting for a
-      // reply the gateway will never send.
-      if (!res.ok) {
-        let detail = '';
-        try {
-          detail = (await res.text()).slice(0, 500);
-        } catch {
-          // status alone
+      // Retried per request (SIDECAR-BOOT-RESILIENCE D3): a 429/503/504 or an
+      // expired deadline gets another attempt; a 400/401/403 rejects on the
+      // first, unretried. The predicate is core's, shared with the boot passes
+      // above, so "retryable" means one thing across the fleet.
+      //
+      // The whole attempt — POST, status check, and the error it throws — is
+      // inside the retried unit, because the refusal IS the failure being
+      // classified. Retrying only the fetch would re-run the request and then
+      // hand back the same unexamined response.
+      const res = await retryWithBackoff(async () => {
+        // Bounded (JOB-RESTART-SAFETY P7): an unresponsive gateway must not hang
+        // the caller's loop forever. AbortSignal.timeout rejects with a
+        // DOMException named TimeoutError — which the predicate treats as
+        // retryable, since a deadline is the definition of "try again".
+        const attempt = await fetch(`${baseUrl}/bus/emit`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(EMIT_TIMEOUT_MS),
+        });
+        // A refused emit (validation 400, auth 401…) must REJECT — busRequest's
+        // contract detaches its doomed reply and propagates this to the caller.
+        // Resolving a sentinel here instead leaves that caller waiting for a
+        // reply the gateway will never send.
+        if (!attempt.ok) {
+          let detail = '';
+          try {
+            detail = (await attempt.text()).slice(0, 500);
+          } catch {
+            // status alone
+          }
+          // APIError, not a bare Error: the status rides as a FIELD (D1), which
+          // is what makes it classifiable without parsing it back out of prose.
+          // The message keeps its shape, so callers matching on it are unaffected.
+          throw new APIError(
+            `/bus/emit ${attempt.status}${detail ? `: ${detail}` : ''}`,
+            attempt.status,
+            attempt.statusText,
+            detail || undefined,
+          );
         }
-        throw new Error(`/bus/emit ${res.status}${detail ? `: ${detail}` : ''}`);
-      }
+        return attempt;
+      }, isRetryableRequestError, EMIT_RETRY);
       // `-1` = count unknown (older gateway / unreadable body) — never let a
       // parse failure read as an empty room. Same sentinel as the Go client.
       try {

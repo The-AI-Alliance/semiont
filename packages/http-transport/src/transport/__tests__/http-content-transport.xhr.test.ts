@@ -18,7 +18,8 @@ vi.mock('ky', () => ({
 }));
 
 import ky from 'ky';
-import { HttpTransport, APIError } from '../http-transport';
+import { HttpTransport } from '../http-transport';
+import { APIError } from '../api-error';
 import { HttpContentTransport } from '../http-content-transport';
 import { BehaviorSubject } from 'rxjs';
 

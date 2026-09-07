@@ -31,9 +31,9 @@ import {
   SemiontError,
   busLog,
 } from '@semiont/core';
-import type { TransportErrorCode } from '@semiont/core';
 import { SpanKind, recordBusEmit, withSpan } from '@semiont/observability';
 import { createActorStateUnit, type ActorStateUnit } from './actor-state-unit';
+import { APIError } from './api-error';
 import type {
   ConnectionState,
   IGatewayOperations,
@@ -63,29 +63,6 @@ export const RESOURCE_SCOPED_CHANNELS = [
   ...PERSISTED_EVENT_TYPES.filter((t) => !(BRIDGED_CHANNELS as readonly string[]).includes(t)),
   ...RESOURCE_BROADCAST_TYPES,
 ];
-
-function classifyApiCode(status: number): TransportErrorCode {
-  if (status === 400) return 'bad-request';
-  if (status === 401) return 'unauthorized';
-  if (status === 403) return 'forbidden';
-  if (status === 404) return 'not-found';
-  if (status === 409) return 'conflict';
-  if (status >= 500) return 'unavailable';
-  return 'error';
-}
-
-export class APIError extends SemiontError {
-  declare code: TransportErrorCode;
-  readonly status: number;
-  readonly statusText: string;
-
-  constructor(message: string, status: number, statusText: string, body?: unknown) {
-    super(message, classifyApiCode(status), { status, statusText, body });
-    this.name = 'APIError';
-    this.status = status;
-    this.statusText = statusText;
-  }
-}
 
 export type TokenRefresher = () => Promise<string | null>;
 
