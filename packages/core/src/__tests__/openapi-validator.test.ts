@@ -39,16 +39,37 @@ describe('generated spec validators', () => {
   });
 
   it('validates the OpenAPI 3.0 nullable-$ref idiom (nullable beside allOf)', () => {
-    // Five schemas use it. Left unconverted, Ajv refuses the schema outright —
-    // which is now a build failure rather than a 500 on first use.
+    // Several schemas use it. Left unconverted, Ajv refuses the schema outright
+    // — which is now a build failure rather than a 500 on first use.
+    //
+    // Exemplar moved off `BrowseAnchoredTextResult` (SMELTER-OWNS-OCR P1): its
+    // `response` stopped being nullable, so it no longer exercises this idiom.
+    // `GetAnnotationResponse` still does, on two properties.
+    expect(validators.GetAnnotationResponse({
+      annotation: { '@context': 'http://www.w3.org/ns/anno.jsonld', type: 'Annotation', id: 'ann-1', motivation: 'linking', target: { type: 'SpecificResource', source: 'res-1' } },
+      resource: null,
+      resolvedResource: null,
+    })).toBe(true);
+    expect(validators.BeckonHoverEvent({ annotationId: null })).toBe(true);
+  });
+
+  it('the anchored-text reply is a discriminated union with NO null member', () => {
+    // SMELTER-OWNS-OCR P1: absence is named, so a reader can tell "not yet"
+    // from "never". Ajv is the check that the widened `oneOf` actually admits
+    // the new members and rejects the old null — the generated TS types would
+    // agree with a wrong schema, since both derive from it.
     expect(validators.BrowseAnchoredTextResult({
       correlationId: 'c-1',
       response: { kind: 'declined', declined: 'no-text-layer' },
     })).toBe(true);
     expect(validators.BrowseAnchoredTextResult({
       correlationId: 'c-1',
-      response: null,
+      response: { kind: 'not-yet' },
     })).toBe(true);
+    expect(validators.BrowseAnchoredTextResult({
+      correlationId: 'c-1',
+      response: null,
+    })).toBe(false);
   });
 
   it('covers every component schema, so no consumer needs a fallback', () => {

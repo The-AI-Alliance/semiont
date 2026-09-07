@@ -284,24 +284,18 @@ export type EventMap = {
   // A resource's derived coordinate map — the text recovered from its bytes
   // plus the geometry that indexes it (ANCHORED-TEXT-CACHE Lane 5).
   //
-  // Read-only over the wire: the Smelter is the sole producer and publishes
-  // through `IContentTransport`, never over this channel. `null` in the reply
-  // means no map has been derived, which is the common case and not an error.
+  // Read-only over the wire: the Smelter is the sole producer, and this is
+  // the ONLY way to reach the store since the checksum-addressed probe was
+  // reaped (SMELTER-OWNS-OCR P3 — its last consumer was the worker's local
+  // extraction, which P2 removed).
   'browse:anchored-text-requested': components['schemas']['BrowseAnchoredTextRequest'];
-  'browse:anchored-text-result': { correlationId: string; response: components['schemas']['ExtractionOutcome'] | null };
-  'browse:anchored-text-failed': { correlationId: string } & components['schemas']['CommandError'];
 
-  // The checksum-addressed consult: the stored extraction outcome for a
-  // content identity the caller already holds (ANCHORED-TEXT-TO-SMELTER P2).
-  //
-  // The detection workers' read-through cache: a hit — success or decline —
-  // is served whole and the caller skips extraction; `null` is a miss and
-  // the caller extracts locally. No settle barrier: with no resourceId there
-  // is no generation to wait for. Read-only over the wire: the Smelter is
-  // the sole writer and never answers here.
-  'browse:anchored-text-by-checksum-requested': components['schemas']['BrowseAnchoredTextByChecksumRequest'];
-  'browse:anchored-text-by-checksum-result': { correlationId: string; response: components['schemas']['ExtractionOutcome'] | null };
-  'browse:anchored-text-by-checksum-failed': { correlationId: string } & components['schemas']['CommandError'];
+  // Never null: absence is NAMED, so a caller can tell "not yet" from
+  // "never" (SMELTER-OWNS-OCR P1). Declared BY SCHEMA rather than as a
+  // custom inline type — the inline form restated the schema and went stale
+  // the moment it widened.
+  'browse:anchored-text-result': components['schemas']['BrowseAnchoredTextResult'];
+  'browse:anchored-text-failed': { correlationId: string } & components['schemas']['CommandError'];
 
   'browse:resources-requested': components['schemas']['BrowseResourcesRequest'];
   'browse:resources-result': {
@@ -689,9 +683,6 @@ export const CHANNEL_SCHEMAS = {
   'browse:anchored-text-requested':   'BrowseAnchoredTextRequest',
   'browse:anchored-text-result':      'BrowseAnchoredTextResult',
   'browse:anchored-text-failed':      null, // { correlationId } & CommandError
-  'browse:anchored-text-by-checksum-requested': 'BrowseAnchoredTextByChecksumRequest',
-  'browse:anchored-text-by-checksum-result': 'BrowseAnchoredTextResult',
-  'browse:anchored-text-by-checksum-failed': null, // { correlationId } & CommandError
   'browse:resources-requested':       'BrowseResourcesRequest',
   'browse:resources-result':          'BrowseResourcesResult',
   'browse:resources-failed':          null,

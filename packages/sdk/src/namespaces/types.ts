@@ -49,7 +49,7 @@ import type {
 // ── OpenAPI schema type aliases ─────────────────────────────────────────────
 
 import type { Annotation } from '@semiont/core';
-import type { ExtractionOutcome } from '@semiont/core';
+import type { AnchoredTextAnswer } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 type StoredEventResponse = components['schemas']['StoredEventResponse'];
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
@@ -278,10 +278,11 @@ export interface BrowseNamespace {
   resourceContent(resourceId: ResourceId): Promise<string>;
   resourceGraph(resourceId: ResourceId): Promise<GetResourceResponse>;
   /** The resource's coordinate map, or null when none has been derived. */
-  resourceAnchoredText(resourceId: ResourceId): Promise<ExtractionOutcome | null>;
+  /** Never null — absence is named, so a caller can tell "not yet" from
+   *  "never" (SMELTER-OWNS-OCR P1). */
+  resourceAnchoredText(resourceId: ResourceId): Promise<AnchoredTextAnswer>;
   /** Checksum-addressed consult of the same store — barrier-free, read-only
    *  (ANCHORED-TEXT-TO-SMELTER D2). `null` means "extract it yourself". */
-  anchoredTextByChecksum(checksum: string): Promise<ExtractionOutcome | null>;
   resourceRepresentation(resourceId: ResourceId): Promise<{ data: ArrayBuffer; contentType: string }>;
   resourceRepresentationStream(resourceId: ResourceId): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }>;
   resourceEvents(resourceId: ResourceId): Promise<StoredEventResponse[]>;

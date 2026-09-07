@@ -18,7 +18,7 @@
  * resource-creation pipeline the HTTP `/resources` handler uses.
  */
 
-import type { AccessToken, ExtractionOutcome, ResourceId, components } from '@semiont/core';
+import type { AccessToken, ResourceId, components } from '@semiont/core';
 import { busLog } from '@semiont/core';
 import { SpanKind, withSpan } from '@semiont/observability';
 import type { IContentTransport, PutBinaryRequest, PutBinaryOptions } from '@semiont/core';
@@ -26,7 +26,6 @@ import type { IContentTransport, PutBinaryRequest, PutBinaryOptions } from '@sem
 import type { KnowledgeBase } from './knowledge-base.js';
 import { workingTreeContentReads } from './knowledge-base.js';
 import { assembleResourceGraph } from './resource-graph.js';
-import { readAnchoredText } from './read-anchored-text.js';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
@@ -46,55 +45,9 @@ export class LocalContentTransport implements IContentTransport {
     );
   }
 
-  /**
-   * Store a derived coordinate map under the content checksum the producer
-   * read (PERSIST-ANCHORS decision A — see the interface doc for why the
-   * producer supplies the key). In local mode this is the same store the
-   * HTTP route writes to — one storage authority, reached the same way from
-   * every process (ANCHORED-TEXT-CACHE Lane 5).
-   */
-  async putAnchoredText(
-    checksum: string,
-    outcome: ExtractionOutcome,
-    _options?: { auth?: AccessToken },
-  ): Promise<void> {
-    busLog('PUT', 'anchored-text', { checksum });
-    await this.kb.anchoredText.write(checksum, outcome);
-  }
 
-  /** The stored outcome, or null when nothing has derived one — the common case. */
-  async getAnchoredText(
-    resourceId: ResourceId,
-    _options?: { auth?: AccessToken },
-  ): Promise<ExtractionOutcome | null> {
-    busLog('GET', 'anchored-text', { resourceId });
-    // The same barrier the wire path applies, from the same function: local and
-    // hosted modes must answer identically at the same moment.
-    return readAnchoredText(this.kb, resourceId as unknown as string);
-  }
 
-  /**
-   * The cache-consult read (PERSIST-ANCHORS P2c), straight from the store —
-   * checksum-addressed, so no view resolution and no settle barrier: the
-   * caller holds the content identity already.
-   */
-  async getAnchoredTextByChecksum(
-    checksum: string,
-    _options?: { auth?: AccessToken },
-  ): Promise<ExtractionOutcome | null> {
-    busLog('GET', 'anchored-text-by-checksum', { checksum });
-    return this.kb.anchoredText.read(checksum);
-  }
 
-  /**
-   * The store's would-hit keys, straight from the store — planning data for
-   * the reconcile diff (PERSIST-ANCHORS P0), so no settle barrier applies:
-   * presence is being asked, not content at a moment.
-   */
-  async listAnchoredTextKeys(_options?: { auth?: AccessToken }): Promise<string[]> {
-    busLog('GET', 'anchored-text-keys', {});
-    return this.kb.anchoredText.list();
-  }
 
   async getBinary(
     resourceId: ResourceId,

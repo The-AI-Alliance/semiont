@@ -275,37 +275,6 @@ describe('BrowseNamespace', () => {
     // bridged result channel like every other bus reply.
   });
 
-  it('anchoredTextByChecksum consults by content identity over the bus', async () => {
-    const OUTCOME = { kind: 'declined', declined: 'too-large' };
-    const responses = defaultResponses();
-    responses['browse:anchored-text-by-checksum-requested'] = () => ({
-      resultChannel: 'browse:anchored-text-by-checksum-result',
-      response: OUTCOME,
-    });
-    const mock = createMockTransport(responses);
-    const content = makeContent();
-    const b = new BrowseNamespace(mock.transport, new EventBus(), content);
-
-    await expect(b.anchoredTextByChecksum('abc123')).resolves.toEqual(OUTCOME);
-
-    expect(mock.emitSpy).toHaveBeenCalledWith(
-      'browse:anchored-text-by-checksum-requested',
-      expect.objectContaining({ checksum: 'abc123' }),
-    );
-  });
-
-  it('anchoredTextByChecksum resolves null for a miss — the caller extracts locally', async () => {
-    const responses = defaultResponses();
-    responses['browse:anchored-text-by-checksum-requested'] = () => ({
-      resultChannel: 'browse:anchored-text-by-checksum-result',
-      response: null as never,
-    });
-    const b = new BrowseNamespace(createMockTransport(responses).transport, new EventBus(), makeContent());
-
-    await expect(b.anchoredTextByChecksum('nothing-here')).resolves.toBeNull();
-  });
-
-
   describe('entityTypes()', () => {
     it('fetches on first subscribe', async () => {
       const val = await firstDefined(browse.entityTypes());

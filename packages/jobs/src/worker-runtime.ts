@@ -15,7 +15,6 @@
 
 import { startWorkerProcess } from './worker-process';
 import type { WorkerVitals } from './job-claim-adapter';
-import { anchoredTextOverBus } from './anchored-text-over-bus';
 import type { InferenceClient } from '@semiont/inference';
 import { hostname } from 'os';
 import {
@@ -202,7 +201,6 @@ export function startStallWatchdog(opts: StallWatchdogOptions): { dispose(): voi
 export const WORKER_AWAITED_OPERATIONS = [
   'job:claim',
   'browse:resource-requested',
-  'browse:anchored-text-by-checksum-requested',
   // Durability acknowledgement for a unit's annotations (JOB-RESTART-SAFETY
   // P6). The worker AWAITS this one — a unit may not advance until its
   // annotations are in the event log — so its replies must be in the narrow
@@ -359,7 +357,6 @@ export async function startAgentWorker(
     // (ANCHORED-TEXT-TO-SMELTER D2): the Smelter owns this store, the
     // Archivist answers the checksum-addressed read, and a worker that
     // misses extracts locally and discards.
-    anchoredTextStore: anchoredTextOverBus(client, logger),
     contentReads,
     logger,
   });

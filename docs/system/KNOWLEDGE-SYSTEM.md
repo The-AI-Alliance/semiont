@@ -70,6 +70,10 @@ graph TB
     class ANCH,VIEWS store
     class TREE record
 
+    LIB ~~~ SMELT
+    LIB ~~~ WEAVE
+    LIB ~~~ ARCH
+    TREE ~~~ OL
     NEO ~~~ TREE
     NEO ~~~ VIEWS
     QD ~~~ ANCH

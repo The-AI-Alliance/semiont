@@ -60,6 +60,16 @@ export interface AnchoredText {
 export type ExtractionOutcome = components['schemas']['ExtractionOutcome'];
 
 /**
+ * What a READER gets when it asks for a resource's map: the map, a stored
+ * decline, or a named absence (SMELTER-OWNS-OCR P1).
+ *
+ * Deliberately wider than `ExtractionOutcome`, which is what the store HOLDS and
+ * what an extractor RETURNS — neither of which can ever be "not yet". Widening
+ * that type instead would have put an impossible state into the store's own.
+ */
+export type AnchoredTextAnswer = components['schemas']['AnchoredTextAnswer'];
+
+/**
  * One text run as pdf.js reports it, narrowed to the fields anchoring reads.
  * Structural on purpose: core takes no dependency on pdfjs-dist, so each
  * producer filters marked-content items at its own boundary and passes the
