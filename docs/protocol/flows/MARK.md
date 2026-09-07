@@ -253,25 +253,22 @@ Detection logic lives in the `AnnotationDetection` class from [@semiont/jobs](..
 - **Detection Method**: [AnnotationDetection.detectHighlights()](../../../packages/jobs/src/workers/annotation-detection.ts)
 - **Job processor**: [processHighlightJob](../../../packages/jobs/src/processors.ts)
 - **Task**: Identify important/noteworthy passages
-- **Input**: First 8000 characters + optional user instructions
+- **Input**: The whole document, chunked to the derived budget + optional user instructions
 - **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`
-- **Model params**: max_tokens=2000, temperature=0.3
 
 **Assessment Detection**:
 - **Detection Method**: [AnnotationDetection.detectAssessments()](../../../packages/jobs/src/workers/annotation-detection.ts)
 - **Job processor**: [processAssessmentJob](../../../packages/jobs/src/processors.ts)
 - **Task**: Assess and evaluate key passages
-- **Input**: First 8000 characters + optional user instructions
+- **Input**: The whole document, chunked to the derived budget + optional user instructions
 - **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`, `assessment`
-- **Model params**: max_tokens=2000, temperature=0.3
 
 **Comment Detection**:
 - **Detection Method**: [AnnotationDetection.detectComments()](../../../packages/jobs/src/workers/annotation-detection.ts)
 - **Job processor**: [processCommentJob](../../../packages/jobs/src/processors.ts)
 - **Task**: Identify passages needing explanatory comments
-- **Input**: First 8000 characters + optional user instructions + optional tone (scholarly/explanatory/conversational/technical)
+- **Input**: The whole document, chunked to the derived budget + optional user instructions + optional tone (scholarly/explanatory/conversational/technical)
 - **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`, `comment`
-- **Model params**: max_tokens=3000 (higher to allow for comment generation), temperature=0.4 (higher for creative context)
 - **Guidelines**: Emphasis on selectivity (3-8 comments per 2000 words), value beyond restating text, focus on context/background/clarification
 
 **Tag Detection**:
@@ -280,7 +277,6 @@ Detection logic lives in the `AnnotationDetection` class from [@semiont/jobs](..
 - **Task**: Detect and extract structured tags using ontology schemas
 - **Input**: Full document content + schema ID + category
 - **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`, `category`
-- **Model params**: max_tokens=2000, temperature=0.3
 
 **Reference/Entity Detection**:
 - **Detection Method**: [AnnotationDetection.extractEntities()](../../../packages/jobs/src/workers/detection/entity-extractor.ts)
@@ -288,7 +284,12 @@ Detection logic lives in the `AnnotationDetection` class from [@semiont/jobs](..
 - **Task**: Identify entity references by type (Person, Location, Concept, etc.)
 - **Input**: Full document content + selected entity types (with optional examples)
 - **Output**: JSON array with `exact`, `entityType`, `startOffset`, `endOffset`, `prefix`, `suffix`
-- **Model params**: max_tokens=4000, temperature=0.3
+- **Concurrency**: entity types are independent, so they run in parallel up to the provider's `maxConcurrency`
+
+**Model parameters are not per-motivation.** All five share `temperature = 0`
+(detection is extraction, not generation) and an output budget **derived from the
+provider's limits** per chunk — there are no hand-set `max_tokens` values left to
+document. See "Long documents are chunked, not truncated" below.
 
 ### Detection Parameters
 
@@ -371,25 +372,39 @@ Controls the target number of annotations per 2000 words:
 
 **Prompt Impact**: When enabled, the AI is instructed to find both explicit names and descriptive references that clearly refer to entities.
 
-### Content Truncation Strategy
+### Long documents are chunked, not truncated
 
-| Detection Type | Content Limit | Rationale |
-|----------------|---------------|-----------|
-| Highlights | 8000 chars (~2000 words) | LLM context, response time, cost |
-| Assessments | 8000 chars (~2000 words) | LLM context, response time, cost |
-| Comments | 8000 chars (~2000 words) | LLM context, response time, cost (higher max_tokens for comment generation) |
-| References | Full document | Entity extraction needs complete context |
+**There is no character cap.** Detection derives its budget from the inference
+provider's *published limits* and chunks the document to fit — no hand-tuned
+constants, and document content never enters the arithmetic.
 
-**Impact**:
+Providers come in two shapes, and the budget follows:
 
-- Highlights/assessments/comments: Only first ~2000 words analyzed, long documents incomplete
-- References: Full document processed, but may hit max_tokens (4000) on very long documents
+- **Shared window** (Ollama publishes `maxOutputTokens === contextTokens`): what
+  remains after the prompt scaffold is split input:output **1:2**. Annotation
+  JSON echoes each span plus a fixed envelope, so output needs the larger share.
+- **Separate ceilings** (Anthropic): output takes its full ceiling, duration-capped;
+  input follows the same 1:2 allocation and is **never** more than half the output
+  budget.
 
-**Future Improvements**:
+Input deliberately does *not* get "the rest of the window." A window-sized chunk of
+entity-dense text demands more output than any budget holds, so the model grinds
+toward `max_tokens` for minutes or collapses to a degenerate empty result.
+**Chunking is the fix for that, not a cost of it.**
 
-- Chunking strategy with sliding window for highlights/assessments/comments
-- User-controlled excerpt selection
-- Multi-pass detection for long documents
+**Truncation is typed, and it is a signal.** A response that hits the output budget
+is caught per chunk by `assertNotTruncated` — never predicted in advance — and a
+chunk that overflows is **subdivided in place** rather than retried at the same
+size. That failure is the useful one: deterministic, and therefore actionable.
+
+**Entity types run in parallel, with a bound.** Independent entity types fan out
+concurrently, capped at the provider's `maxConcurrency` — unbounded fan-out just
+trades sequential waiting for 429 thrash, so the cap is the feature, not a
+limitation.
+
+For the numbers behind any of this, read
+[`detection-chunking.ts`](../../../packages/jobs/src/workers/detection/detection-chunking.ts);
+they move with provider limits and are deliberately not restated here.
 
 ### Response Validation
 
@@ -708,7 +723,7 @@ After detection completes:
 - **Position accuracy**: Annotations render at correct character positions
 - **Fuzzy anchoring**: Finds correct text even when LLM positions are wrong by searching for exact text and using prefix/suffix context for disambiguation
 - **CRLF handling**: Windows line endings normalized correctly ([CODEMIRROR-INTEGRATION.md](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md))
-- **Content limits**: Highlights/assessments/comments process first 8000 chars, references process full document
+- **Chunk coverage**: every motivation processes the whole document — chunk boundaries do not drop spans, and a chunk that overflows its output budget subdivides rather than silently truncating
 - **User instructions**: Influence LLM detection results as expected (highlights/assessments/comments)
 - **Tone selection**: Tone influences writing style as expected
   - Assessment tones: analytical/critical/balanced/constructive
@@ -725,12 +740,14 @@ After detection completes:
 
 ### Known Limitations
 
-1. **Content truncation**: Highlights/assessments/comments only analyze first 8000 characters (long documents incomplete)
-2. **Position approximation**: LLM positions may be ±5 characters off (fuzzy anchoring and validation compensate)
-3. **Single-pass processing**: No iterative refinement or confidence scores
-4. **No batch position validation**: Highlights/assessments/comments don't validate positions before creating annotations (rely on fuzzy anchoring)
-5. **Comment selectivity**: AI may occasionally over-comment or under-comment (target is 3-8 per 2000 words)
-6. **Reference max tokens**: Very long documents may hit 4000 token limit, truncating entity extraction response
+1. **Position approximation**: LLM positions may be ±5 characters off (fuzzy anchoring and validation compensate)
+2. **Single-pass processing**: No iterative refinement or confidence scores
+3. **No batch position validation**: Highlights/assessments/comments don't validate positions before creating annotations (rely on fuzzy anchoring)
+4. **Comment selectivity**: AI may occasionally over-comment or under-comment (target is 3-8 per 2000 words)
+
+*(Content truncation and a fixed token ceiling were listed here until budgets
+became provider-derived and long documents began chunking — see "Long documents
+are chunked, not truncated" above.)*
 
 ---
 

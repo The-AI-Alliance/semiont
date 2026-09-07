@@ -111,7 +111,14 @@ const adapter = startWorkerProcess({
 });
 ```
 
-Before dispatching a detection job, the worker process fetches the resource descriptor through its session (`session.client.browse.resource(resourceId).fresh()`), then `prepareDetection` fetches the bytes (`session.client.browse.resourceRepresentation(resourceId)`) and extracts text through the **same extractor registry the Smelter embeds from**, cached in the anchored-text store. It never reads KB storage directly.
+Before dispatching a detection job, the worker process fetches the resource descriptor through its session (`session.client.browse.resource(resourceId).fresh()`), then `prepareDetection` fetches the bytes (`session.client.browse.resourceRepresentation(resourceId)`) and gets text from them. It never reads KB storage directly.
+
+**How it gets that text depends on whether the bytes carry any** (READ-VS-EXTRACT). Those are two operations, not one, and they no longer share a registry:
+
+- **Decoding** — a charset-aware `Buffer → string` for text media. Microseconds, deterministic, no artifact to persist, and anyone holding bytes can do it. It is `decodeRepresentation` in `@semiont/core`, called directly.
+- **Deriving** — parsing a PDF, OCR-ing it when there is no text layer. Minutes, non-deterministic across engine versions, and it produces exactly one canonical artifact. Reached through `derivingExtractorFor(mediaType)` in `@semiont/content`, and **callable only with the store that persists its output** — which is why the Smelter owns it.
+
+The type decides which applies: `textSourceOf(format)` returns `'decode' | 'pdf-text-layer' | 'none'`. Derived text is cached in the anchored-text store, so a detection pass reuses what the Smelter already produced rather than re-deriving it.
 
 ## See Also
 
