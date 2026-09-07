@@ -62,6 +62,7 @@ async function seedGraph(): Promise<{ kb: KnowledgeGraphReads; annotation: Annot
     body: [{ type: 'SpecificResource', source: String(SOURCE_ID) }],
     // AgentPerson requires `name` as well as `@type`, or every branch fails.
     creator: { '@id': 'did:user:test', '@type': 'Person', name: 'Test User' },
+    created: '2026-01-01T00:00:00.000Z',
   } as Parameters<MemoryGraphDatabase['createAnnotation']>[0]);
 
   const kb: KnowledgeGraphReads = {

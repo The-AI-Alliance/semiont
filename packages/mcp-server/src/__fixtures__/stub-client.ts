@@ -44,6 +44,7 @@ export const HIGHLIGHT: Annotation = {
   type: 'Annotation',
   id: annotationId('anno-highlight'),
   motivation: 'highlighting',
+  created: '2026-01-01T00:00:00.000Z',
   target: {
     source: 'res-iliad',
     selector: [
@@ -58,6 +59,7 @@ export const BOUND_REFERENCE: Annotation = {
   type: 'Annotation',
   id: annotationId('anno-reference'),
   motivation: 'linking',
+  created: '2026-01-01T00:00:00.000Z',
   target: { source: 'res-iliad', selector: [{ type: 'TextQuoteSelector', exact: 'Achilles' }] },
   body: [{ type: 'SpecificResource', source: 'res-achilles', purpose: 'linking' }],
 };
@@ -67,6 +69,7 @@ export const UNBOUND_REFERENCE: Annotation = {
   type: 'Annotation',
   id: annotationId('anno-unbound'),
   motivation: 'linking',
+  created: '2026-01-01T00:00:00.000Z',
   target: { source: 'res-iliad', selector: [{ type: 'TextQuoteSelector', exact: 'Patroclus' }] },
 };
 

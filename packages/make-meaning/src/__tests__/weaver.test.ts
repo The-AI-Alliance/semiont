@@ -398,6 +398,7 @@ describe('Weaver', () => {
             type: 'Annotation' as const,
             id: annotationId('ann-1'),
             motivation: 'highlighting' as const,
+            created: '2026-01-01T00:00:00.000Z',
             target: {
               source: docId,
               selector: [
@@ -778,6 +779,7 @@ describe('Weaver', () => {
               type: 'Annotation' as const,
               id: annotationId(`ann-batch-${i}`),
               motivation: 'highlighting' as const,
+              created: '2026-01-01T00:00:00.000Z',
               target: {
                 source: docId,
                 selector: [
@@ -900,6 +902,7 @@ describe('Weaver', () => {
       motivation: 'commenting',
       target: { source: rid },
       body: [],
+      created: '2026-01-01T00:00:00.000Z',
     });
 
     beforeEach(async () => {
@@ -1170,6 +1173,52 @@ describe('Weaver', () => {
       expect(clearSpy).not.toHaveBeenCalled();
       expect((await graphDb.getResource(resourceId(rid)))?.name).toBe('Rebuilt One');
     });
+
+    // ANNOTATION-CREATED-AUTHORITY, the end-to-end proof. `rebuildResource`
+    // DELETES before it replays (neo4j: DETACH DELETE d, a), so the fold's
+    // "skip ids the graph already holds" guard finds nothing and re-creates
+    // every annotation. A store that stamps its own clock therefore collapses
+    // every annotation's authored `created` to the rebuild moment — on every
+    // reconcile heal, not just an empty-graph rebuild.
+    it('a rebuild preserves each annotation\'s AUTHORED created, rather than restamping it', async () => {
+      await consumer.stop();
+      weaverUnit.dispose();
+      graphDb = new MemoryGraphDatabase();
+      consumer = await wireWeaver(graphDb);
+
+      const rid = `rebuild-created-${Date.now()}`;
+      const AUTHORED = '2020-03-04T05:06:07.000Z';
+      await eventStore.appendEvent({
+        type: 'yield:created',
+        resourceId: resourceId(rid),
+        userId: userId('user1'),
+        version: 1,
+        payload: { name: 'Authored', format: 'text/plain', contentChecksum: 'h-ac' },
+      });
+      await eventStore.appendEvent({
+        type: 'mark:added',
+        resourceId: resourceId(rid),
+        userId: userId('user1'),
+        version: 1,
+        payload: {
+          annotation: {
+            '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+            type: 'Annotation' as const,
+            id: annotationId('ann-authored'),
+            motivation: 'highlighting' as const,
+            created: AUTHORED,
+            target: { source: rid },
+          },
+        },
+      });
+      await tick();
+
+      serveBrowseReads([rid]);
+      await busRequest(asBusRequestPrimitive(coreEventBus), 'weave:rebuild', { resourceId: rid });
+
+      const rebuilt = await graphDb.getAnnotation(annotationId('ann-authored'));
+      expect(rebuilt?.created).toBe(AUTHORED);
+    });
   });
 
   describe('completeness accounting + reconcile (#845)', () => {
@@ -1231,6 +1280,7 @@ describe('Weaver', () => {
       // createAnnotations — the mocked failure.
       const ann = (aid: string) => ({
         id: annotationId(aid), motivation: 'commenting', target: { source: rid }, body: [],
+        created: '2026-01-01T00:00:00.000Z',
       });
       const pushMark = (aid: string, seq: number) => coreEventBus.getDomainEvent('mark:added').next({
         id: uuidv4(), type: 'mark:added', timestamp: new Date().toISOString(),

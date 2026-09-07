@@ -318,6 +318,7 @@ describe('ViewMaterializer', () => {
         'type': 'Annotation' as const,
         id: annotationId('anno1'),
         motivation: 'highlighting' as const,
+        created: '2026-01-01T00:00:00.000Z',
         target: { source: 'doc1' },
         modified: new Date().toISOString(),
       };
@@ -349,6 +350,7 @@ describe('ViewMaterializer', () => {
         'type': 'Annotation' as const,
         id: annotationId('anno1'),
         motivation: 'highlighting' as const,
+        created: '2026-01-01T00:00:00.000Z',
         target: { source: 'doc1' },
         modified: new Date().toISOString(),
       };
@@ -392,6 +394,7 @@ describe('ViewMaterializer', () => {
         'type': 'Annotation' as const,
         id: annotationId('anno1'),
         motivation: 'highlighting' as const,
+        created: '2026-01-01T00:00:00.000Z',
         target: { source: 'doc1' },
         body: [
           { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const },
@@ -437,6 +440,7 @@ describe('ViewMaterializer', () => {
         'type': 'Annotation' as const,
         id: annotationId('anno1'),
         motivation: 'highlighting' as const,
+        created: '2026-01-01T00:00:00.000Z',
         target: { source: 'doc1' },
         body: [
           { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const },
@@ -493,6 +497,7 @@ describe('ViewMaterializer', () => {
               'type': 'Annotation' as const,
               id: annotationId('anno1'),
               motivation: 'highlighting' as const,
+              created: '2026-01-01T00:00:00.000Z',
               target: { source: 'doc1' },
               modified: new Date().toISOString(),
             },
@@ -506,6 +511,7 @@ describe('ViewMaterializer', () => {
               'type': 'Annotation' as const,
               id: annotationId('anno2'),
               motivation: 'highlighting' as const,
+              created: '2026-01-01T00:00:00.000Z',
               target: { source: 'doc1' },
               modified: new Date().toISOString(),
             },
@@ -655,6 +661,7 @@ describe('ViewMaterializer', () => {
               'type': 'Annotation' as const,
               id: annotationId('anno1'),
               motivation: 'highlighting' as const,
+              created: '2026-01-01T00:00:00.000Z',
               target: { source: 'doc1' },
               modified: new Date().toISOString(),
             },

@@ -470,6 +470,7 @@ describe('EventQuery', () => {
               type: 'Annotation' as const,
               id: annotationId(`anno-${i}`),
               motivation: 'highlighting' as const,
+              created: '2026-01-01T00:00:00.000Z',
               target: { source: 'doc-perf' },
             }
           },
@@ -498,6 +499,7 @@ describe('EventQuery', () => {
                   type: 'Annotation' as const,
                   id: annotationId(`anno-${i}`),
                   motivation: 'highlighting' as const,
+                  created: '2026-01-01T00:00:00.000Z',
                   target: { source: 'doc-filter' },
                 }
               }

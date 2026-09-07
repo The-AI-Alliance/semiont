@@ -26,6 +26,7 @@ export function minimalContext(kind: 'resource' | 'annotation' = 'resource'): Ga
               type: 'Annotation',
               id: 'ann-1',
               motivation: 'linking',
+              created: '2026-01-01T00:00:00.000Z',
               target: { source: 'res-1' },
             },
             sourceResource,

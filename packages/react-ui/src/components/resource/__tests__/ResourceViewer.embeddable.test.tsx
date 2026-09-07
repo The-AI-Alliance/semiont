@@ -59,6 +59,7 @@ const loadedHighlight: Annotation = {
   type: 'Annotation',
   id: annotationId('ann-1'),
   motivation: 'highlighting',
+  created: '2026-01-01T00:00:00.000Z',
   target: { source: 'res-1', selector: { type: 'TextPositionSelector', start: 0, end: 10 } },
 };
 

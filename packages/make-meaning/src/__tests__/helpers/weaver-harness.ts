@@ -13,8 +13,8 @@
  */
 
 import { Subject } from 'rxjs';
-import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { Annotation, EventMap, Logger, ResourceDescriptor, StoredEvent } from '@semiont/core';
+import { EventBus, annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
+import type { Annotation, EventMap, EventOfType, Logger, PersistedEventType, ResourceDescriptor, StoredEvent } from '@semiont/core';
 import { MemoryGraphDatabase } from '@semiont/graph';
 import type { GraphDatabase } from '@semiont/graph';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
@@ -50,29 +50,54 @@ export class MemoryWeaverCheckpoint implements WeaverCheckpoint {
 
 let eventCounter = 0;
 
-export function storedEvent(
-  type: string,
+/**
+ * Build a stored event for the axiom histories.
+ *
+ * The payload is typed against the persisted-event catalog, per event type.
+ * It used to be `unknown`, and that hole cost real time: when
+ * ANNOTATION-CREATED-AUTHORITY made `created` required, ten axioms failed at
+ * RUNTIME with a clean workspace typecheck, because nothing here checked an
+ * annotation payload against the schema it claimed to be. A required field is
+ * only as strong as the weakest constructor of the thing that carries it.
+ *
+ * The one cast that remains is the resourceId discrimination: `EventOfType<K>`
+ * demands a `resourceId` for every non-system event and forbids it on the two
+ * `frame:*` ones, which this single signature cannot express while taking
+ * `rid` as an ordinary argument. That is the shape of the union, not a gap in
+ * the payload check — which is the part that was actually wrong.
+ */
+export function storedEvent<K extends PersistedEventType>(
+  type: K,
   rid: string | undefined,
-  payload: unknown,
+  payload: EventOfType<K>['payload'],
   seq: number,
-): StoredEvent {
+): StoredEvent<EventOfType<K>> {
   return {
     id: `evt-${++eventCounter}`,
     type,
     timestamp: new Date().toISOString(),
     userId: 'did:web:test:users:axioms',
-    ...(rid ? { resourceId: rid } : {}),
+    ...(rid ? { resourceId: makeResourceId(rid) } : {}),
     version: 1,
     payload,
     metadata: { sequenceNumber: seq },
-  } as unknown as StoredEvent;
+  } as unknown as StoredEvent<EventOfType<K>>;
 }
 
-export const makeAnnotationPayload = (aid: string, rid: string) => ({
-  id: aid,
+export const makeAnnotationPayload = (aid: string, rid: string): Annotation => ({
+  '@context': 'http://www.w3.org/ns/anno.jsonld',
+  type: 'Annotation',
+  id: makeAnnotationId(aid),
   motivation: 'commenting',
   target: { source: rid },
   body: [],
+  // The AUTHORED moment — the stores no longer mint one of their own
+  // (ANNOTATION-CREATED-AUTHORITY), so an event without `created` decodes as a
+  // missing required field rather than silently acquiring the write moment.
+  // Deliberately fixed, not `new Date()`: these
+  // axioms compare a replayed projection against a reference fold, and a
+  // clock-derived value would differ between the two.
+  created: '2026-01-01T00:00:00.000Z',
 });
 
 // ── The reference fold (the model M in W4/W5) ───────────────────────────────

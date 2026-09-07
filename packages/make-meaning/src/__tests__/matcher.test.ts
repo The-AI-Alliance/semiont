@@ -31,6 +31,7 @@ const testAnnotation: AnnotationFocus['annotation'] = {
   '@context': 'http://www.w3.org/ns/anno.jsonld',
   type: 'Annotation',
   motivation: 'linking',
+  created: '2026-01-01T00:00:00.000Z',
   target: { source: 'test-resource' },
   body: { type: 'SpecificResource', source: '' },
 };
@@ -74,6 +75,7 @@ function buildGraph(opts: {
     id,
     motivation,
     target: { source },
+    created: '2026-01-01T00:00:00.000Z',
   });
   for (const c of opts.citedByPresent ?? []) {
     nodes.push({ id: c.resourceId, type: 'resource', label: c.resourceName });

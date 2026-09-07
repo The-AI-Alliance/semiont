@@ -46,7 +46,7 @@ describe('generated spec validators', () => {
     // `response` stopped being nullable, so it no longer exercises this idiom.
     // `GetAnnotationResponse` still does, on two properties.
     expect(validators.GetAnnotationResponse({
-      annotation: { '@context': 'http://www.w3.org/ns/anno.jsonld', type: 'Annotation', id: 'ann-1', motivation: 'linking', target: { type: 'SpecificResource', source: 'res-1' } },
+      annotation: { '@context': 'http://www.w3.org/ns/anno.jsonld', type: 'Annotation', id: 'ann-1', motivation: 'linking', created: '2026-01-01T00:00:00.000Z', target: { type: 'SpecificResource', source: 'res-1' } },
       resource: null,
       resolvedResource: null,
     })).toBe(true);

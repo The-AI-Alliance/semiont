@@ -32,4 +32,9 @@ export interface CreateAnnotationInternal {
   // presence based on motivation rather than treat it as guaranteed.
   body?: Annotation['body'];
   creator: components['schemas']['Agent'];
+  // The AUTHORING moment, carried from the event. A store must persist this
+  // value rather than stamp its own clock: `rebuildResource` deletes and
+  // replays, so a store that restamps collapses every annotation's `created`
+  // to the rebuild moment on every reconcile heal.
+  created: Annotation['created'];
 }

@@ -23,6 +23,7 @@ const W3C: components['schemas']['Annotation'] = {
   id: 'ann-cite',
   motivation: 'linking',
   target: { source: 'res-citing' },
+  created: '2020-01-01T00:00:00.000Z',
 };
 
 function describeNode(n: GraphNode): string {

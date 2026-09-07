@@ -1541,8 +1541,10 @@ type Annotation struct {
 	Context AnnotationContext `json:"@context"`
 
 	// Body W3C Web Annotation body. Optional per the W3C spec — annotations whose motivation alone is meaningful (highlighting) legitimately omit it. Present values are either a single body or a non-empty array of bodies; the prior empty-array 'stub' branch has been removed (it was a naming lie shared between highlights and never-actually-emitted stub references, and the source of the #651 reference-annotation validator bug).
-	Body    *Annotation_Body `json:"body,omitempty"`
-	Created *string          `json:"created,omitempty"`
+	Body *Annotation_Body `json:"body,omitempty"`
+
+	// Created When the annotation was MADE — the authoring moment, carried from the event that created it. Not when a projection happened to write it: a store that rebuilds from the log must preserve this value, never restamp it.
+	Created time.Time `json:"created"`
 
 	// Creator Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
 	Creator *Agent `json:"creator,omitempty"`
@@ -1550,7 +1552,7 @@ type Annotation struct {
 	// Generator Web Annotation generator — the SoftwareAgent that produced the annotation, when software was involved. Absent for purely manual annotations. Single object is the common case; array supports pipelines that combine multiple software peers.
 	Generator *Annotation_Generator `json:"generator,omitempty"`
 	Id        string                `json:"id"`
-	Modified  *string               `json:"modified,omitempty"`
+	Modified  *time.Time            `json:"modified,omitempty"`
 
 	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
 	Motivation Motivation `json:"motivation"`

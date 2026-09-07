@@ -16,6 +16,14 @@ set -euo pipefail
 #      optional-with-fallback: absence must fail loudly, never acquire a
 #      value the next reader cannot tell from a real one.
 #
+#      A5 covers what the implementations HAND the codec, not just the codec
+#      body. `created` satisfied A5's letter and broke its spirit one call
+#      frame up: all four stores minted `new Date().toISOString()` and passed
+#      it in, so the codec faithfully stored a manufactured value. Because
+#      `rebuildResource` deletes before it replays, that restamped every
+#      annotation on every reconcile heal. See
+#      .plans/ANNOTATION-CREATED-AUTHORITY.md.
+#
 # See .plans/GRAPH-ANNOTATION-CODEC.md.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -62,9 +70,28 @@ if manufactured=$(grep -nE "(\|\||\?\?) *('\{\}'|\"\{\}\"|'\[\]'|'linking'|'high
   violations=$((violations + 1))
 fi
 
+# A5, one frame up: an implementation must not mint a value the log carries
+# and hand it to the codec. The event supplies `created`; a store that stamps
+# its own clock overwrites the authoring moment with a write moment.
+# `resolvedAt` is the one deliberate exception, and it is on the record rather
+# than silently permitted: unlike `created` it appears in no event, no core
+# type and no spec, so there is no authored value being overwritten — it is
+# bookkeeping the graph invents, which a rebuild loses outright. Whether it
+# should be derived from the resolve event or declared ephemeral is
+# GRAPH-DIVERGENCE-DEPTH's open question; when that is settled, this exclusion
+# is either deleted or given a reason that outlives the question.
+if stamped=$(grep -rnE "new Date\(\)" "$IMPLEMENTATIONS" 2>/dev/null | grep -v "resolvedAt"); then
+  echo ""
+  echo "❌ A5: an implementation is minting a timestamp of its own."
+  echo "   The log carries the authored value; pass it through, never restamp."
+  echo "$stamped" | sed 's|^|   |'
+  violations=$((violations + 1))
+fi
+
 if [ "$violations" -eq 0 ]; then
   echo "✅ A1: no W3C envelope built outside the codec"
   echo "✅ A5: the codec manufactures nothing"
+  echo "✅ A5: no implementation mints a value the log carries"
   exit 0
 fi
 

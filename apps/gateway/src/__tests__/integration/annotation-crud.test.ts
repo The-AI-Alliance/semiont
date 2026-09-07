@@ -81,7 +81,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Use SAME path from beforeAll
       const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
-      const annotation: Omit<Annotation, 'creator' | 'created'> = {
+      const annotation: Omit<Annotation, 'creator'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
         id: annotationId('test-empty-body-' + Date.now()),
@@ -100,6 +100,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
             },
           ],
         },
+        created: new Date().toISOString(),
         modified: new Date().toISOString(),
       };
 
@@ -125,7 +126,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Use SAME path from beforeAll
       const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
-      const annotation: Omit<Annotation, 'creator' | 'created'> = {
+      const annotation: Omit<Annotation, 'creator'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
         id: annotationId('test-entity-tags-' + Date.now()),
@@ -154,6 +155,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
             purpose: 'tagging',
           },
         ],
+        created: new Date().toISOString(),
         modified: new Date().toISOString(),
       };
 
@@ -199,7 +201,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       // Create stub annotation with entity tags
       const stubId = annotationId('test-resolve-stub-' + Date.now());
-      const stubAnnotation: Omit<Annotation, 'creator' | 'created'> = {
+      const stubAnnotation: Omit<Annotation, 'creator'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
         id: stubId,
@@ -225,6 +227,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
             purpose: 'tagging',
           },
         ],
+        created: new Date().toISOString(),
         modified: new Date().toISOString(),
       };
 
@@ -299,7 +302,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       // Create stub with no body
       const stubId = annotationId('test-resolve-empty-' + Date.now());
-      const stubAnnotation: Omit<Annotation, 'creator' | 'created'> = {
+      const stubAnnotation: Omit<Annotation, 'creator'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
         id: stubId,
@@ -318,6 +321,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
             },
           ],
         },
+        created: new Date().toISOString(),
         modified: new Date().toISOString(),
       };
 
@@ -408,7 +412,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       // Create annotation
       const deleteId = annotationId('test-delete-' + Date.now());
-      const annotation: Omit<Annotation, 'creator' | 'created'> = {
+      const annotation: Omit<Annotation, 'creator'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
         id: deleteId,
@@ -439,6 +443,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
             purpose: 'linking',
           },
         ],
+        created: new Date().toISOString(),
         modified: new Date().toISOString(),
       };
 
@@ -481,7 +486,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       const eventStore = createEventStore(project, new EventBus(), mockLogger);
 
       const w3cId = annotationId('test-w3c-' + Date.now());
-      const annotation: Omit<Annotation, 'creator' | 'created'> = {
+      const annotation: Omit<Annotation, 'creator'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         'type': 'Annotation',
         id: w3cId,
@@ -500,6 +505,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
             purpose: 'tagging',
           },
         ],
+        created: new Date().toISOString(),
         modified: new Date().toISOString(),
       };
 
