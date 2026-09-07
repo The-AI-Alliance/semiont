@@ -25,6 +25,7 @@ import { FileWeaverCheckpoint } from './weaver-checkpoint';
 import { WEAVER_REPLY_CHANNELS } from './service-channels';
 import { HttpTransport } from '@semiont/http-transport';
 import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader, retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY } from '@semiont/core';
+import { runBootPass, type BootPassState } from './boot-pass';
 import type { AccessToken } from '@semiont/core';
 import { getGraphDatabase } from '@semiont/graph';
 import { createServer } from 'http';
@@ -198,8 +199,8 @@ async function main() {
   actorStateUnit.start();
   logger.info('Subscribed to graph-relevant events and rebuild commands');
 
-  let catchUpState: Record<string, unknown> = { phase: 'pending' };
-  let reconcileState: Record<string, unknown> = { phase: 'pending' };
+  let catchUpState: BootPassState = { phase: 'pending' };
+  let reconcileState: BootPassState = { phase: 'pending' };
 
   const health = createServer((req, res) => {
     if (req.url === '/health') {
@@ -235,30 +236,22 @@ async function main() {
 
   // Catch-up pass: the live subscription is attached, so anything that
   // changed while this weaver was down is brought back in sync here —
-  // checkpointed replay, full replay if the checkpoint is gone. Fatal on
-  // failure: a weaver that cannot catch up is projecting a graph of
-  // unknown freshness. (A restart re-runs it — catch-up is idempotent.)
-  catchUpState = { phase: 'running' };
-  try {
-    const summary = await weaver.catchUp();
-    catchUpState = { phase: 'done', summary };
-  } catch (error) {
-    catchUpState = { phase: 'failed', error: error instanceof Error ? error.message : String(error) };
-    throw error;
-  }
+  // checkpointed replay, full replay if the checkpoint is gone.
+  //
+  // NOT fatal since SIDECAR-BOOT-RESILIENCE P3. It used to be, on the argument
+  // that "a weaver that cannot catch up is projecting a graph of unknown
+  // freshness" — true, but exiting does not make the graph fresher, and the rule
+  // only ever guarded this ~30 s window: a subscription that drops silently an
+  // hour from now leaves exactly the same stale graph. What it did guarantee was
+  // that one 429 removed the weaver entirely (2026-09-07). The failed phase is
+  // recorded and logged; the live subscription keeps running.
+  await runBootPass('catch-up', () => weaver.catchUp(), logger, (s) => { catchUpState = s; });
 
   // Reconcile pass (#845): the state-diff backstop for divergence the
   // accounting cannot witness — out-of-band mutations, wiped/rolled-back
-  // graph volumes, historical damage. Fatal on a thrown reconcile (bus
-  // unreachable); heal failures are reported in the summary, not fatal.
-  reconcileState = { phase: 'running' };
-  try {
-    const summary = await weaver.reconcile();
-    reconcileState = { phase: 'done', summary };
-  } catch (error) {
-    reconcileState = { phase: 'failed', error: error instanceof Error ? error.message : String(error) };
-    throw error;
-  }
+  // graph volumes, historical damage. Also non-fatal (P3); heal failures were
+  // already reported in the summary rather than thrown.
+  await runBootPass('reconcile', () => weaver.reconcile(), logger, (s) => { reconcileState = s; });
 }
 
 main().catch((error) => {

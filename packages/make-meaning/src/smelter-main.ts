@@ -27,6 +27,7 @@ import { Smelter } from './smelter';
 import { SMELTER_REPLY_CHANNELS } from './service-channels';
 import { HttpTransport } from '@semiont/http-transport';
 import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader, retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY } from '@semiont/core';
+import { runBootPass } from './boot-pass';
 import type { AccessToken } from '@semiont/core';
 import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
 import type { ChunkingConfig } from '@semiont/core';
@@ -266,10 +267,14 @@ async function main() {
 
   // Catch-up pass: the live subscription is attached, so anything that
   // changed while this worker was down — or a wiped Qdrant volume — is
-  // brought back in sync here. Fatal on failure: a smelter that cannot
-  // reconcile is serving an index of unknown completeness. (A restart
-  // re-runs it from scratch — reconcile is idempotent.)
-  await smelter.reconcile();
+  // brought back in sync here.
+  //
+  // NOT fatal since SIDECAR-BOOT-RESILIENCE P3, for the same reason as the
+  // weaver's: an index of unknown completeness is a data condition, and exiting
+  // does not complete it. No state sink is passed — `Smelter.reconcile()` already
+  // sets `reconcileState` to `{ phase: 'failed' }` before it throws, and that is
+  // what `/health` serves.
+  await runBootPass('reconcile', () => smelter.reconcile(), logger);
 }
 
 main().catch((error) => {
