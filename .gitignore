@@ -19,6 +19,8 @@ pnpm-debug.log*
 # Build outputs
 packages/*/dist/
 dist/
+# transient tsc output: packages/core's build emits it, then rm -rf's it at the end
+dist-types/
 build/
 apps/browser/public
 
