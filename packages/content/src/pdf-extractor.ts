@@ -210,8 +210,9 @@ function shapeTables(layer: PdfTextLayer): ExtractedText | null {
 
 export const pdfExtractor: ContentExtractor = {
   // Every non-declined PDF extraction carries positioned runs — native text
-  // layers and OCR both anchor by page geometry.
-  yieldsGeometry: true,
+  // layers and OCR both anchor by page geometry. That fact is declared in core
+  // ('pdf-text-layer' → true) rather than here; this comment records the
+  // behavior the census gate holds core's answer to.
   async extract(content, _mediaType, cache) {
     // The seam (PERSIST-ANCHORS D1/P2b): consult the store for the FINISHED
     // outcome before anything runs — byte gate, native parse, image decode

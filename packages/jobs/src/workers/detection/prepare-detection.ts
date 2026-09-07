@@ -1,5 +1,5 @@
 import type { ResourceId, components, AnchoredTextAnswer } from '@semiont/core';
-import { textExtractionOf } from '@semiont/core';
+import { textExtractionOf, yieldsGeometryOf } from '@semiont/core';
 import { EXTRACTORS, type ContentReads, type ExtractionDecline } from '@semiont/content';
 import { buildTextAnnotation, buildPdfAnnotation, type BuildAnnotation } from '../../processors';
 import { DeterministicJobError } from '../../failure-class';
@@ -32,7 +32,7 @@ export type DetectionDecline = {
     // (SMELTER-OWNS-OCR P2). `not-yet` is transient — the Smelter has not
     // settled this generation yet, and the retry finds the store warm.
     // `no-map` and `unknown` are terminal: the first is drift between
-    // `yieldsGeometry` and the Smelter's skip decision (a geometry type it
+    // `yieldsGeometryOf` and the Smelter's skip decision (a geometry type it
     // declined to map), the second is a resource with no content identity.
     | 'not-yet' | 'no-map' | 'unknown';
 };
@@ -81,10 +81,10 @@ export async function prepareDetection(
   // is the sole producer, and a second derivation here is a second producer
   // whose divergent offsets misanchor every annotation silently. The worker
   // fetches no bytes and runs no OCR: the consult carries the text and its
-  // geometry. `yieldsGeometry` is declared on the extractor and is the same
-  // predicate the Smelter uses to decide whether to publish, so the two
-  // cannot drift about which resources have canonical text.
-  if (extractor.yieldsGeometry) {
+  // geometry. `yieldsGeometryOf` is core's, derived from the same media-type
+  // strategy the Smelter reads to decide whether to publish, so the two cannot
+  // drift about which resources have canonical text (READ-VS-EXTRACT P1).
+  if (yieldsGeometryOf(mediaType)) {
     const answer = await consult(resourceId);
     switch (answer.kind) {
       case 'extracted': {

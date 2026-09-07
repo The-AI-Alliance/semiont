@@ -21,7 +21,7 @@ vi.mock('@semiont/content', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@semiont/content')>();
   return {
     ...actual,
-    EXTRACTORS: { ...actual.EXTRACTORS, 'pdf-text-layer': { extract: vi.fn(), yieldsGeometry: true } },
+    EXTRACTORS: { ...actual.EXTRACTORS, 'pdf-text-layer': { extract: vi.fn() } },
   };
 });
 // No `@semiont/event-sourcing` mock: annotation ids are content-addressed
@@ -137,7 +137,7 @@ describe('prepareDetection', () => {
     expect(sels.some((s) => s.type === 'TextQuoteSelector')).toBe(true);
   });
 
-  it('a class A PDF takes the consult path too — the rule is yieldsGeometry, not "is it a scan"', async () => {
+  it('a class A PDF takes the consult path too — the rule is yieldsGeometryOf, not "is it a scan"', async () => {
     // A class-A carve-out would reintroduce a second producer for an operation
     // that is merely *probably* deterministic. The consult, not the pdfClass,
     // decides.

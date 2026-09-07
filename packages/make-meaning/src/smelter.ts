@@ -40,7 +40,7 @@ import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { burstBuffer, errField } from '@semiont/core';
 import type { Logger, Annotation, ResourceId, AnnotationId, ResourceDescriptor, EventMap } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
-import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes, textExtractionOf } from '@semiont/core';
+import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes, textExtractionOf, yieldsGeometryOf } from '@semiont/core';
 import { calculateChecksum, EXTRACTORS, type AnchoredTextStore, type ContentReads } from '@semiont/content';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
@@ -422,7 +422,7 @@ export class Smelter {
     const { data, contentType } = await this.content.getBinary(makeResourceId(rid));
     const bytes = Buffer.from(data);
     const extractor = EXTRACTORS[textExtractionOf(contentType)];
-    if (!extractor?.yieldsGeometry) {
+    if (!extractor || !yieldsGeometryOf(contentType)) {
       // Planned from a catalog claim the bytes no longer match — nothing to
       // derive is a decision, not a failure.
       this.logger.info('Re-anchor found no geometry-capable extractor', { resourceId: rid, contentType });
@@ -1018,9 +1018,9 @@ export class Smelter {
    * current entity-type set (the discriminator the stamps must carry), and
    * whether the media type's extractor derives geometry (whether an
    * anchored-text artifact should exist). Embeddable ⇔ an extractor exists
-   * for the media type's strategy — the same registry the live fetch
-   * resolves, and `yieldsGeometry` is declared on the extractor itself, so
-   * every gate here and the live fetch's behavior are twins by construction.
+   * for the media type's strategy — the same registry the live fetch resolves.
+   * The geometry answer comes from core's `yieldsGeometryOf`, keyed by the same
+   * strategy, so this gate and the live fetch cannot disagree about it.
    * Shared by `reconcile()` and the `smelt:rebuild-anchors` planner.
    */
   private classifyEmbeddable(
@@ -1030,11 +1030,11 @@ export class Smelter {
     for (const resource of resources) {
       const mediaType = getPrimaryMediaType(resource);
       const extractor = mediaType ? EXTRACTORS[textExtractionOf(mediaType)] : null;
-      if (resource['@id'] && extractor) {
+      if (resource['@id'] && mediaType && extractor) {
         embeddable.set(resource['@id'], {
           checksum: getPrimaryRepresentation(resource)?.checksum,
           entityTypes: getResourceEntityTypes(resource),
-          yieldsGeometry: extractor.yieldsGeometry,
+          yieldsGeometry: yieldsGeometryOf(mediaType),
         });
       }
     }

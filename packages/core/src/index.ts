@@ -308,6 +308,7 @@ export {
   extensionForMediaType,
   mediaTypeForExtension,
   textExtractionOf,
+  yieldsGeometryOf,
   isAnnotatable,
   AUTHORABLE_MEDIA_TYPES,
   EMBEDDABLE_MEDIA_TYPES,

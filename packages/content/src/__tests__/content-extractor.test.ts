@@ -8,8 +8,14 @@
  * Phase 1 (#744) fills it.
  */
 
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { describe, it, expect } from 'vitest';
+import { yieldsGeometryOf, type TextExtraction } from '@semiont/core';
 import { EXTRACTORS } from '../content-extractor';
+
+const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
 describe('EXTRACTORS registry (Phase 0)', () => {
   it("resolves 'decode' to the passthrough extractor", () => {
@@ -45,4 +51,55 @@ describe('passthrough extractor', () => {
     expect(out.text).toBe('café');
     expect(out.method).toBe('text-passthrough');
   });
+});
+
+/**
+ * The census gate for READ-VS-EXTRACT P1.
+ *
+ * `yieldsGeometry` used to be a boolean declared on each extractor, beside the
+ * implementations, in this package — while the strategy that determines it lives
+ * in core's media-type registry. Two homes for one fact. P1 deleted the boolean
+ * and made core's `yieldsGeometryOf` the single home.
+ *
+ * That removes the possibility of the two *declarations* disagreeing, but not the
+ * thing that actually matters: core can still be wrong about what an extractor
+ * DOES. So the gate is behavioral — run each strategy's extractor and check that
+ * positioned runs appear exactly where core says they will. Asserting core's
+ * answer against a second hand-written table would be a mirror; asserting it
+ * against the extractor's output cannot be.
+ */
+describe('core\'s geometry answer matches what the extractors produce (READ-VS-EXTRACT P1)', () => {
+  // Keyed by strategy, so a strategy added in core fails to compile here until
+  // someone decides which media type exercises it — the same exhaustiveness
+  // `EXTRACTORS: Record<TextExtraction, …>` already gives the registry itself.
+  // `bytes: null` means the strategy runs nothing; core must still answer.
+  const PROBES: Record<TextExtraction, { mediaType: string; bytes: (() => Buffer) | null }> = {
+    'decode': { mediaType: 'text/markdown', bytes: () => Buffer.from('# just text\n') },
+    'pdf-text-layer': {
+      mediaType: 'application/pdf',
+      bytes: () => fs.readFileSync(path.join(FIXTURES, 'single-line.pdf')),
+    },
+    'none': { mediaType: 'image/png', bytes: null },
+  };
+
+  for (const [strategy, probe] of Object.entries(PROBES) as [TextExtraction, { mediaType: string; bytes: (() => Buffer) | null }][]) {
+    it(`'${strategy}': positioned runs appear iff core says the type yields geometry`, async () => {
+      const extractor = EXTRACTORS[strategy];
+
+      if (!probe.bytes) {
+        // The strategy names a capability nothing provides, so there is no
+        // behavior to compare against — only that both sides agree there is none.
+        expect(extractor).toBeNull();
+        expect(yieldsGeometryOf(probe.mediaType)).toBe(false);
+        return;
+      }
+
+      expect(extractor).not.toBeNull();
+      const out = await extractor!.extract(probe.bytes(), probe.mediaType);
+      if (out.kind === 'declined') throw new Error(`probe for '${strategy}' declined: ${out.declined}`);
+
+      const carriesGeometry = (out.items?.length ?? 0) > 0;
+      expect(carriesGeometry).toBe(yieldsGeometryOf(probe.mediaType));
+    });
+  }
 });

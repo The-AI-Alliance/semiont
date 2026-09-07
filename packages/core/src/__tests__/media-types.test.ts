@@ -16,6 +16,7 @@ import {
   mediaTypeForExtension,
   textExtractionOf,
   isAnnotatable,
+  yieldsGeometryOf,
   AUTHORABLE_MEDIA_TYPES,
   EMBEDDABLE_MEDIA_TYPES,
   GENERATABLE_MEDIA_TYPES,
@@ -192,6 +193,61 @@ describe('media-types registry', () => {
       // does not have for an unknown type, so it refuses.
       expect(textExtractionOf('text/x-obscure-notation')).toBe('decode');
       expect(isAnnotatable('text/x-obscure-notation')).toBe(false);
+    });
+  });
+
+  describe('yieldsGeometryOf (READ-VS-EXTRACT P1)', () => {
+    // The question is about a MEDIA TYPE, so core answers it. Before P1 it was a
+    // boolean declared on each extractor in @semiont/content — a property of the
+    // strategy, stored beside the implementations, in another package. Two homes
+    // for one fact, gated by nothing.
+    it("is true for the one strategy that derives geometry", () => {
+      expect(yieldsGeometryOf('application/pdf')).toBe(true);
+    });
+
+    it('is false for decoded text — the text itself is the coordinate system', () => {
+      expect(yieldsGeometryOf('text/markdown')).toBe(false);
+      expect(yieldsGeometryOf('text/plain')).toBe(false);
+      expect(yieldsGeometryOf('text/html')).toBe(false);
+      expect(yieldsGeometryOf('application/json')).toBe(false);
+    });
+
+    it("is false where there is no text to extract at all", () => {
+      expect(yieldsGeometryOf('image/png')).toBe(false);
+      expect(yieldsGeometryOf('image/jpeg')).toBe(false);
+    });
+
+    it('answers without resolving an extractor — the reconcile planner\'s need', () => {
+      // PERSIST-ANCHORS P0, the third drift class: the planner asks "should an
+      // anchored-text artifact exist for this resource?" over a whole catalog,
+      // and must not construct or run an extractor to find out. That this file
+      // can answer at all, with no dependency on @semiont/content, IS the test.
+      expect(EMBEDDABLE_MEDIA_TYPES.filter(yieldsGeometryOf)).toEqual(['application/pdf']);
+    });
+
+    it('agrees with textExtractionOf on every registry row — one fact, derived', () => {
+      // The census gate the duplicated pair lacked. Not a mirror: the expectation
+      // is COMPUTED from the strategy, so it cannot drift from the thing it
+      // derives from. A new strategy makes GEOMETRY_BY_STRATEGY fail to compile
+      // in media-types.ts, which is where the fact belongs.
+      for (const type of Object.keys(MEDIA_TYPES) as SupportedMediaType[]) {
+        expect(yieldsGeometryOf(type), type).toBe(textExtractionOf(type) === 'pdf-text-layer');
+      }
+    });
+
+    it('is lenient like textExtractionOf, not strict like isAnnotatable', () => {
+      // An unregistered text/* type decodes (textExtractionOf's leniency), and
+      // decoding yields no geometry — so the answer is a real false, not a
+      // refusal. Nothing here is a durable write, so there is nothing to protect.
+      expect(textExtractionOf('text/x-obscure-notation')).toBe('decode');
+      expect(yieldsGeometryOf('text/x-obscure-notation')).toBe(false);
+      expect(yieldsGeometryOf('application/x-proprietary')).toBe(false);
+      expect(yieldsGeometryOf('')).toBe(false);
+    });
+
+    it('tolerates parameters and case, like every other accessor here', () => {
+      expect(yieldsGeometryOf('application/pdf; version=1.7')).toBe(true);
+      expect(yieldsGeometryOf('APPLICATION/PDF')).toBe(true);
     });
   });
 

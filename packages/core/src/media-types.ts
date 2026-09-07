@@ -264,6 +264,43 @@ export function textExtractionOf(format: string): TextExtraction {
 }
 
 /**
+ * Whether a strategy's extraction carries positioned runs (`items`) — the
+ * geometry an anchored-text artifact is made of.
+ *
+ * Exhaustive over `TextExtraction` on purpose: a new strategy fails to compile
+ * here until someone decides which side it is on, so the next media type cannot
+ * default into the wrong answer. Private — `yieldsGeometryOf` is the surface.
+ */
+const GEOMETRY_BY_STRATEGY: Record<TextExtraction, boolean> = {
+  'decode': false,
+  'pdf-text-layer': true,
+  'none': false,
+};
+
+/**
+ * WHETHER a type's extracted text carries geometry — page-positioned runs
+ * rather than a bare string. Answers "should an anchored-text artifact exist
+ * for this resource?" (PERSIST-ANCHORS P0, the third drift class) and "does
+ * this type anchor spatially or by character offset?".
+ *
+ * Derived from `extractText`, not stored: until READ-VS-EXTRACT P1 this was a
+ * `yieldsGeometry` boolean declared on each `ContentExtractor` in
+ * `@semiont/content` — a property of the STRATEGY, declared per-implementation,
+ * in a different package from the strategy vocabulary. Two facts that must
+ * agree, gated by nothing, and consumers asking about a media type had to
+ * resolve an implementation to get an answer.
+ *
+ * Lenient like `textExtractionOf`, not strict like `isAnnotatable`. An
+ * unregistered `text/*` type decodes, and decoding yields no geometry — so
+ * `false` here is a real answer rather than a refusal. Nothing downstream is a
+ * durable write against a coordinate model, which is what makes `isAnnotatable`
+ * strict.
+ */
+export function yieldsGeometryOf(format: string): boolean {
+  return GEOMETRY_BY_STRATEGY[textExtractionOf(format)];
+}
+
+/**
  * WHETHER a type can carry annotations — `anchoring` remains the authority on
  * HOW. Derived rather than stored: a parallel `annotatable` row field would be
  * two facts that can disagree, with nothing to adjudicate
