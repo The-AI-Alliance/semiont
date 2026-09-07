@@ -25,77 +25,59 @@ For the broader actor model that frames these seven, see [ACTOR-MODEL.md](ACTOR-
 ```mermaid
 ---
 title: Knowledge System
+config:
+  layout: elk
 ---
 graph TB
-    BE["Event bus<br/>(reached via the gateway)"]
+    LIB["semiont-librarian<br/>Gatherer · Matcher"]
 
-    subgraph ARCHG ["semiont-archivist"]
-        STOWER["Stower"]
-        BROWSER["Browser"]
-        CTM["CloneTokenManager"]
+    subgraph G2 [" "]
+        SMELT["semiont-smelter<br/>Smelter — vector pipeline"]
+        WEAVE["semiont-weaver<br/>Weaver — graph pipeline"]
+        ARCH["semiont-archivist<br/>Stower · Browser · CloneTokenManager"]
+        QD["semiont-qdrant<br/>Qdrant — vector index"]
+        NEO["semiont-neo4j<br/>Neo4j — graph projection"]
+        ANCH[("anchored-text store")]
+        VIEWS[("views<br/>resources/ · projections/")]
+        TREE[("KB working tree<br/>content · event log · git state")]
     end
 
-    subgraph LIBG ["semiont-librarian"]
-        GATHERER["Gatherer"]
-        MATCHER["Matcher"]
-    end
+    OL["semiont-ollama<br/>Ollama — embeddings · local inference"]
 
-    subgraph WEAVG ["semiont-weaver"]
-        WEAVER["Weaver"]
-    end
-    subgraph SMELG ["semiont-smelter"]
-        SMELT["Smelter"]
-    end
+    ARCH -->|rw| TREE
+    ARCH --> VIEWS
+    LIB -->|ro| VIEWS
+    SMELT --> ANCH
+    ARCH -->|ro| ANCH
 
-    TREE[("KB working tree<br/>event log · content · git state<br/>— the system of record")]
-    VIEWS[("views<br/>resources/ · projections/")]
-    ANCH[("anchored text")]
-    GRAPH[("graph<br/>Neo4j")]
-    VECTORS[("vectors<br/>Qdrant")]
+    WEAVE --> NEO
+    ARCH --> NEO
+    LIB --> NEO
+    SMELT --> QD
+    ARCH --> QD
+    LIB --> QD
+    SMELT --> OL
+    ARCH --> OL
+    LIB --> OL
 
-    BE -->|"mark · yield"| STOWER
-    BE -->|browse| BROWSER
-    BE -->|clone| CTM
-    BE -->|gather| GATHERER
-    BE -->|match| MATCHER
-    BE -->|"domain events"| WEAVER
-    BE -->|"domain events"| SMELT
-
-    STOWER -->|append| TREE
-    TREE -->|"materialize (sync, on append)"| VIEWS
-    BROWSER --> VIEWS
-    BROWSER --> TREE
-    BROWSER -->|fallback| VECTORS
-    BROWSER --> ANCH
-    CTM --> VIEWS
-    CTM --> TREE
-    GATHERER --> VIEWS
-    GATHERER --> TREE
-    GATHERER --> GRAPH
-    GATHERER --> VECTORS
-    MATCHER --> VIEWS
-    MATCHER --> GRAPH
-    MATCHER --> VECTORS
-    WEAVER -->|project| GRAPH
-    SMELT --> TREE
-    SMELT -->|embed| VECTORS
-    SMELT -->|write| ANCH
-
-    classDef hub fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000
     classDef svc fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
+    classDef infra fill:#c97d5d,stroke:#8b4513,stroke-width:2px,color:#fff
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
+    classDef record fill:#2c5f7a,stroke:#16394f,stroke-width:3px,color:#fff
 
-    class BE hub
-    class STOWER,BROWSER,CTM,GATHERER,MATCHER,WEAVER,SMELT svc
-    class TREE,VIEWS,ANCH,GRAPH,VECTORS store
+    class LIB,SMELT,WEAVE,ARCH svc
+    class QD,NEO,OL infra
+    class ANCH,VIEWS store
+    class TREE record
 
-    style ARCHG fill:none,stroke:#3d6644,stroke-width:1.5px,stroke-dasharray:6 4
-    style LIBG fill:none,stroke:#3d6644,stroke-width:1.5px,stroke-dasharray:6 4
-    style WEAVG fill:none,stroke:#3d6644,stroke-width:1.5px,stroke-dasharray:6 4
-    style SMELG fill:none,stroke:#3d6644,stroke-width:1.5px,stroke-dasharray:6 4
+    NEO ~~~ TREE
+    NEO ~~~ VIEWS
+    QD ~~~ ANCH
+
+    style G2 fill:none,stroke:#888,stroke-width:1.5px,stroke-dasharray:6 4
 ```
 
-Same grammar as [CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md)'s state view: rectangles act, cylinders persist, and each actor sits inside the dashed frame of the service container that hosts it. The working-tree cylinder is the system of record; every other store is derived from it.
+This is the knowledge-system cut of [CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md)'s state view, same grammar throughout: the librarian reads in from above, the dashed frame is the record's world — its actors, its projections, its stores — and Ollama serves embeddings and inference below. The deep-blue cylinder is the working tree — the git-tracked system of record; every purple store is derived from it. Actor placement rides the labels (Stower, Browser, and CloneTokenManager in the archivist; Gatherer and Matcher in the librarian); the bus flows that drive these actors are the sections below.
 
 ## Storage layout
 
