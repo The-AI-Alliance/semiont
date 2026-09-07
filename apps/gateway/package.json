@@ -41,7 +41,7 @@
     "hono": "^4.13.5",
     "jsonwebtoken": "^9.0.2",
     "winston": "^3.19.0",
-    "zod": "^4.4.3"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@faker-js/faker": "^10.6.0",
@@ -57,7 +57,7 @@
     "msw": "^2.15.0",
     "prisma": "^7.10.0",
     "tsup": "^8.5.1",
-    "tsx": "^4.23.12",
+    "tsx": "^4.23.13",
     "typescript": "^6.0.2",
     "vitest": "^4.1.11"
   }
