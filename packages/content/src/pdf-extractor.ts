@@ -18,7 +18,7 @@
 
 import { isObject, type PdfTextItem } from '@semiont/core';
 import { extractPdfTextLayer } from './extract-pdf-text-layer';
-import type { ContentExtractor, ExtractedText, ExtractionDecline } from './content-extractor';
+import type { TextExtractor, ExtractedText, ExtractionDecline } from './text-extractor';
 import type { PdfTextLayer } from './pdf-text-layer';
 import { detectTable, renderTable } from './pdf-tables';
 import { extractPageImages } from './pdf-page-images';
@@ -208,7 +208,7 @@ function shapeTables(layer: PdfTextLayer): ExtractedText | null {
   return { kind: 'extracted', text, items, method: 'table', pdfClass: 'D' };
 }
 
-export const pdfExtractor: ContentExtractor = {
+export const pdfExtractor: TextExtractor = {
   // Every non-declined PDF extraction carries positioned runs — native text
   // layers and OCR both anchor by page geometry. That fact is declared in core
   // ('pdf-text-layer' → true) rather than here; this comment records the

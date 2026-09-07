@@ -21,11 +21,11 @@ export {
 // `decodeRepresentation`, called directly).
 export {
   derivingExtractorFor,
-  type ContentExtractor,
+  type TextExtractor,
   type ExtractedText,
   type ExtractionDecline,
   type ExtractionCache,
-} from './content-extractor';
+} from './text-extractor';
 
 // Extraction byte budget (#1124). Also the generation output bound
 // (PDF-GENERATION P5): an artifact we generate must stay within the budget

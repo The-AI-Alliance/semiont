@@ -18,8 +18,8 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { describe, it, expect } from 'vitest';
-import { yieldsGeometryOf, decodeRepresentation, type TextExtraction, type ExtractionOutcome } from '@semiont/core';
-import { derivingExtractorFor } from '../content-extractor';
+import { yieldsGeometryOf, decodeRepresentation, type TextSource, type ExtractionOutcome } from '@semiont/core';
+import { derivingExtractorFor } from '../text-extractor';
 import type { AnchoredTextStore } from '../anchored-text-store';
 
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
@@ -90,7 +90,7 @@ describe('deriving requires the store that persists what it derives (READ-VS-EXT
 describe("core's geometry answer matches what actually runs (READ-VS-EXTRACT P1/P2)", () => {
   // Keyed by strategy, so a strategy added in core fails to compile here until
   // someone decides which media type exercises it.
-  const PROBES: Record<TextExtraction, { mediaType: string; bytes: (() => Buffer) | null }> = {
+  const PROBES: Record<TextSource, { mediaType: string; bytes: (() => Buffer) | null }> = {
     'decode': { mediaType: 'text/markdown', bytes: () => Buffer.from('# just text\n') },
     'pdf-text-layer': {
       mediaType: 'application/pdf',
@@ -108,7 +108,7 @@ describe("core's geometry answer matches what actually runs (READ-VS-EXTRACT P1/
     } as unknown as AnchoredTextStore;
   };
 
-  for (const [strategy, probe] of Object.entries(PROBES) as [TextExtraction, typeof PROBES['decode']][]) {
+  for (const [strategy, probe] of Object.entries(PROBES) as [TextSource, typeof PROBES['decode']][]) {
     it(`'${strategy}': positioned runs appear iff core says the type yields geometry`, async () => {
       const extractor = derivingExtractorFor(probe.mediaType);
 

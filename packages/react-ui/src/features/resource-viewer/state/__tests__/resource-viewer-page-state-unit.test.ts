@@ -152,7 +152,7 @@ describe('createResourceViewerPageStateUnit', () => {
     stateUnit.dispose();
   });
 
-  // isBinaryType keys off textExtractionOf(...) !== 'decode', not render mode:
+  // isBinaryType keys off textSourceOf(...) !== 'decode', not render mode:
   // storage-tier binary (ZIP, gif/webp) must be fetched as bytes, never
   // decoded as text — the client-side twin of the Phase 3a serving-side fix.
   it('fetches storage-tier binary (ZIP) as bytes, never the text-decode path', async () => {

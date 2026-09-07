@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { derivingExtractorFor } from '../content-extractor';
+import { derivingExtractorFor } from '../text-extractor';
 import type { AnchoredTextStore } from '../anchored-text-store';
 
 const NO_CACHE = { key: 'test', store: { read: async () => undefined, write: async () => {} } as unknown as AnchoredTextStore };

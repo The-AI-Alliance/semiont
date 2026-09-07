@@ -1,10 +1,10 @@
 /**
- * ContentExtractor — DERIVING text from bytes that carry none of their own.
+ * TextExtractor — DERIVING text from bytes that carry none of their own.
  *
- * Scope note (READ-VS-EXTRACT P2): this file used to hold a strategy-keyed
- * registry covering both ways a resource yields text — decoding (charset-aware
- * `Buffer → string`) and deriving (parse a PDF, OCR it when there is no text
- * layer). Those share a name and almost nothing else: microseconds vs. minutes,
+ * Scope note (READ-VS-EXTRACT P2/P3): this file used to hold a registry covering
+ * both ways a resource yields text — decoding (charset-aware `Buffer → string`)
+ * and deriving (parse a PDF, OCR it when there is no text layer). Those shared a
+ * name and almost nothing else: microseconds vs. minutes,
  * total determinism vs. none across engine versions, no canonical artifact vs.
  * exactly one, and anyone-with-bytes vs. the Smelter alone. The registry made
  * them interchangeable at every call site.
@@ -76,7 +76,7 @@ export interface ExtractionDecline {
 }
 
 /**
- * Where a strategy may reuse an earlier recognition, and under what key.
+ * Where a derivation may reuse an earlier recognition, and under what key.
  *
  * The caller supplies the key, and derives it from the bytes it actually
  * holds — `calculateChecksum` over the same Buffer it passes to `extract()` —
@@ -103,15 +103,22 @@ export interface ExtractionCache {
 }
 
 /**
- * Whether a strategy's extractions carry positioned runs lives in
- * `@semiont/core`'s `yieldsGeometryOf`, NOT here (READ-VS-EXTRACT P1). It is a
- * property of the strategy, and the strategy vocabulary is core's — declaring it
- * per-implementation made it two facts that could disagree, and forced consumers
- * asking about a media type to resolve an implementation to find out.
- * `content-extractor.test.ts` gates core's answer against what these extractors
- * actually produce.
+ * Deriving text from bytes that carry none of their own.
+ *
+ * Named `ContentExtractor` until READ-VS-EXTRACT P3: the `Content` prefix named
+ * the INPUT, when what distinguishes this type is that it produces TEXT — by
+ * deriving, which since P3 is the only thing "extraction" means here. WHERE a
+ * media type's text comes from at all is core's `TextSource`, which spans both
+ * routes and is therefore not called extraction.
+ *
+ * Whether a text source yields positioned runs lives in `@semiont/core`'s
+ * `yieldsGeometryOf`, NOT here (P1). It is a property of the source, and that
+ * vocabulary is core's — declaring it per-implementation made it two facts that
+ * could disagree, and forced consumers asking about a media type to resolve an
+ * implementation to find out. `text-extractor.test.ts` gates core's answer
+ * against what these extractors actually produce.
  */
-export interface ContentExtractor {
+export interface TextExtractor {
   /**
    * Derive text WITH geometry from bytes that carry no text of their own, or
    * decline with the class reason (scanned-without-OCR, encrypted, corrupt).
@@ -128,7 +135,7 @@ export interface ContentExtractor {
  * The deriving extractor for a media type, or `null` when its text needs no
  * deriving.
  *
- * **This replaced a `Record<TextExtraction, ContentExtractor | null>` keyed by
+ * **This replaced a `Record<TextSource, TextExtractor | null>` keyed by
  * strategy (READ-VS-EXTRACT P2), and the deletion is the point.** That map held
  * one real extractor, a `null`, and — under 'decode' — a one-line wrapper around
  * core's `decodeRepresentation`, which five sites in `@semiont/make-meaning`
@@ -147,6 +154,6 @@ export interface ContentExtractor {
  * Keyed by P1's `yieldsGeometryOf`, so this and the Smelter's publish gate cannot
  * disagree about which media types have a canonical artifact.
  */
-export function derivingExtractorFor(mediaType: string): ContentExtractor | null {
+export function derivingExtractorFor(mediaType: string): TextExtractor | null {
   return yieldsGeometryOf(mediaType) ? pdfExtractor : null;
 }

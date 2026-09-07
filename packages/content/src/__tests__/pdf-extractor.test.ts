@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { describe, it, expect } from 'vitest';
 import { extractPdfTextLayer } from '../extract-pdf-text-layer';
-import { derivingExtractorFor } from '../content-extractor';
+import { derivingExtractorFor } from '../text-extractor';
 import type { AnchoredTextStore } from '../anchored-text-store';
 
 /** Deriving requires the store (READ-VS-EXTRACT P2); these cases are about the

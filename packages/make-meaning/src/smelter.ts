@@ -40,7 +40,7 @@ import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { burstBuffer, errField } from '@semiont/core';
 import type { Logger, Annotation, ResourceId, AnnotationId, ResourceDescriptor, EventMap } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
-import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes, textExtractionOf, yieldsGeometryOf, decodeRepresentation } from '@semiont/core';
+import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes, textSourceOf, yieldsGeometryOf, decodeRepresentation } from '@semiont/core';
 import { calculateChecksum, derivingExtractorFor, type AnchoredTextStore, type ContentReads, type ExtractedText, type ExtractionDecline } from '@semiont/content';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
@@ -51,7 +51,7 @@ import { busRequest, type BusRequestPrimitive } from '@semiont/core';
 import { partitionByType } from './batch-utils';
 import type { SmelterEvent } from './smelter-actor-state-unit';
 
-// Media dispatch is core's, keyed by the media type's `TextExtraction`
+// Media dispatch is core's, keyed by the media type's `TextSource`
 // strategy (`.plans/SMELTER-MEDIA-TYPES.md`, narrowed by READ-VS-EXTRACT P2).
 // 'none' declines — settle skipped, reason 'no-extractor' — so binary types
 // never decode to mojibake. 'decode' is core's charset-aware
@@ -492,7 +492,7 @@ export class Smelter {
        // canonical artifact, and is reachable only here and in `reanchorResource`
        // because both hold the store; decoding is a pure function over bytes.
       const extractor = derivingExtractorFor(contentType);
-      if (!extractor && textExtractionOf(contentType) === 'none') {
+      if (!extractor && textSourceOf(contentType) === 'none') {
         this.logger.debug('Skipping resource with no way to read its media type', { resourceId, contentType });
         return { kind: 'skipped', checksum, reason: 'no-extractor' };
       }
@@ -1036,7 +1036,7 @@ export class Smelter {
     const embeddable = new Map<string, { checksum: string | undefined; entityTypes: string[]; yieldsGeometry: boolean }>();
     for (const resource of resources) {
       const mediaType = getPrimaryMediaType(resource);
-      const readable = mediaType !== undefined && textExtractionOf(mediaType) !== 'none';
+      const readable = mediaType !== undefined && textSourceOf(mediaType) !== 'none';
       if (resource['@id'] && mediaType && readable) {
         embeddable.set(resource['@id'], {
           checksum: getPrimaryRepresentation(resource)?.checksum,

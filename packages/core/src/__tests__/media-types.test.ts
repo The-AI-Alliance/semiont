@@ -14,7 +14,7 @@ import {
   capabilitiesOf,
   extensionForMediaType,
   mediaTypeForExtension,
-  textExtractionOf,
+  textSourceOf,
   isAnnotatable,
   yieldsGeometryOf,
   AUTHORABLE_MEDIA_TYPES,
@@ -83,7 +83,7 @@ describe('media-types registry', () => {
     it('extracts text from every text/* row (embed anything that decodes as text)', () => {
       for (const [type, caps] of rows) {
         if (type.startsWith('text/')) {
-          expect(caps.extractText, type).toBe('decode');
+          expect(caps.textSource, type).toBe('decode');
         }
       }
     });
@@ -93,31 +93,31 @@ describe('media-types registry', () => {
     it('pins the seven curated rows', () => {
       expect(MEDIA_TYPES['text/markdown']).toEqual({
         extension: '.md', label: 'Markdown', render: 'text', anchoring: 'text-selector',
-        extractText: 'decode', authorable: true, uploadable: true, generatable: true,
+        textSource: 'decode', authorable: true, uploadable: true, generatable: true,
       });
       expect(MEDIA_TYPES['text/plain']).toEqual({
         extension: '.txt', label: 'Plain Text', render: 'text', anchoring: 'text-selector',
-        extractText: 'decode', authorable: true, uploadable: true, generatable: true,
+        textSource: 'decode', authorable: true, uploadable: true, generatable: true,
       });
       expect(MEDIA_TYPES['text/html']).toEqual({
         extension: '.html', label: 'HTML', render: 'text', anchoring: 'text-selector',
-        extractText: 'decode', authorable: true, uploadable: true, generatable: false,
+        textSource: 'decode', authorable: true, uploadable: true, generatable: false,
       });
       expect(MEDIA_TYPES['application/json']).toEqual({
         extension: '.json', label: 'JSON', render: 'text', anchoring: 'text-selector',
-        extractText: 'decode', authorable: false, uploadable: true, generatable: false,
+        textSource: 'decode', authorable: false, uploadable: true, generatable: false,
       });
       expect(MEDIA_TYPES['image/png']).toEqual({
         extension: '.png', label: 'PNG image', render: 'image', anchoring: 'spatial',
-        extractText: 'none', authorable: false, uploadable: true, generatable: false,
+        textSource: 'none', authorable: false, uploadable: true, generatable: false,
       });
       expect(MEDIA_TYPES['image/jpeg']).toEqual({
         extension: '.jpg', label: 'JPEG image', render: 'image', anchoring: 'spatial',
-        extractText: 'none', authorable: false, uploadable: true, generatable: false,
+        textSource: 'none', authorable: false, uploadable: true, generatable: false,
       });
       expect(MEDIA_TYPES['application/pdf']).toEqual({
         extension: '.pdf', label: 'PDF', render: 'pdf', anchoring: 'spatial',
-        extractText: 'pdf-text-layer', authorable: false, uploadable: true, generatable: true,
+        textSource: 'pdf-text-layer', authorable: false, uploadable: true, generatable: true,
       });
     });
   });
@@ -186,12 +186,12 @@ describe('media-types registry', () => {
       expect(isAnnotatable('application/x-proprietary')).toBe(false);
       expect(isAnnotatable('')).toBe(false);
 
-      // The asymmetry with textExtractionOf is deliberate, not an oversight.
+      // The asymmetry with textSourceOf is deliberate, not an oversight.
       // Extracting the wrong bytes costs one bad vector and refusing to
       // extract costs a resource nobody can find, so extraction guesses. An
       // annotation is a durable write against a coordinate model the system
       // does not have for an unknown type, so it refuses.
-      expect(textExtractionOf('text/x-obscure-notation')).toBe('decode');
+      expect(textSourceOf('text/x-obscure-notation')).toBe('decode');
       expect(isAnnotatable('text/x-obscure-notation')).toBe(false);
     });
   });
@@ -225,21 +225,21 @@ describe('media-types registry', () => {
       expect(EMBEDDABLE_MEDIA_TYPES.filter(yieldsGeometryOf)).toEqual(['application/pdf']);
     });
 
-    it('agrees with textExtractionOf on every registry row — one fact, derived', () => {
+    it('agrees with textSourceOf on every registry row — one fact, derived', () => {
       // The census gate the duplicated pair lacked. Not a mirror: the expectation
       // is COMPUTED from the strategy, so it cannot drift from the thing it
       // derives from. A new strategy makes GEOMETRY_BY_STRATEGY fail to compile
       // in media-types.ts, which is where the fact belongs.
       for (const type of Object.keys(MEDIA_TYPES) as SupportedMediaType[]) {
-        expect(yieldsGeometryOf(type), type).toBe(textExtractionOf(type) === 'pdf-text-layer');
+        expect(yieldsGeometryOf(type), type).toBe(textSourceOf(type) === 'pdf-text-layer');
       }
     });
 
-    it('is lenient like textExtractionOf, not strict like isAnnotatable', () => {
-      // An unregistered text/* type decodes (textExtractionOf's leniency), and
+    it('is lenient like textSourceOf, not strict like isAnnotatable', () => {
+      // An unregistered text/* type decodes (textSourceOf's leniency), and
       // decoding yields no geometry — so the answer is a real false, not a
       // refusal. Nothing here is a durable write, so there is nothing to protect.
-      expect(textExtractionOf('text/x-obscure-notation')).toBe('decode');
+      expect(textSourceOf('text/x-obscure-notation')).toBe('decode');
       expect(yieldsGeometryOf('text/x-obscure-notation')).toBe(false);
       expect(yieldsGeometryOf('application/x-proprietary')).toBe(false);
       expect(yieldsGeometryOf('')).toBe(false);
@@ -438,27 +438,27 @@ describe('media-types registry', () => {
     });
   });
 
-  describe('textExtractionOf (the Smelter gate)', () => {
+  describe('textSourceOf (the Smelter gate)', () => {
     it('answers from registry rows', () => {
-      expect(textExtractionOf('text/markdown')).toBe('decode');
-      expect(textExtractionOf('application/json')).toBe('decode');
-      expect(textExtractionOf('application/pdf')).toBe('pdf-text-layer');
-      expect(textExtractionOf('image/png')).toBe('none');
-      expect(textExtractionOf('application/zip')).toBe('none');
+      expect(textSourceOf('text/markdown')).toBe('decode');
+      expect(textSourceOf('application/json')).toBe('decode');
+      expect(textSourceOf('application/pdf')).toBe('pdf-text-layer');
+      expect(textSourceOf('image/png')).toBe('none');
+      expect(textSourceOf('application/zip')).toBe('none');
     });
 
     it('decodes unregistered text/* (RFC 2046 — imported text subtypes embed)', () => {
-      expect(textExtractionOf('text/x-obscure-notation')).toBe('decode');
-      expect(textExtractionOf('text/x-obscure-notation; charset=iso-8859-1')).toBe('decode');
+      expect(textSourceOf('text/x-obscure-notation')).toBe('decode');
+      expect(textSourceOf('text/x-obscure-notation; charset=iso-8859-1')).toBe('decode');
     });
 
     it('never decodes unregistered non-text types — no mojibake', () => {
-      expect(textExtractionOf('application/x-proprietary')).toBe('none');
-      expect(textExtractionOf('chemical/x-pdb')).toBe('none');
+      expect(textSourceOf('application/x-proprietary')).toBe('none');
+      expect(textSourceOf('chemical/x-pdb')).toBe('none');
     });
 
     it('treats SVG as binary despite its XML body (image/* is not text/*)', () => {
-      expect(textExtractionOf('image/svg+xml')).toBe('none');
+      expect(textSourceOf('image/svg+xml')).toBe('none');
     });
   });
 
@@ -469,7 +469,7 @@ describe('media-types registry', () => {
 
     it('EMBEDDABLE_MEDIA_TYPES is exactly the rows with text extraction', () => {
       for (const type of EMBEDDABLE_MEDIA_TYPES) {
-        expect(MEDIA_TYPES[type].extractText).not.toBe('none');
+        expect(MEDIA_TYPES[type].textSource).not.toBe('none');
       }
       expect(EMBEDDABLE_MEDIA_TYPES).toContain('application/pdf');
       expect(EMBEDDABLE_MEDIA_TYPES).toContain('text/x-python');

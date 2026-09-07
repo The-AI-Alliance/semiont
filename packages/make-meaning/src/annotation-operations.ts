@@ -33,7 +33,7 @@ type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRe
  *
  * Two populations land here: a registry row that declines (storage tier) and a
  * type the registry has never seen (import leniency keeps those in the KB, and
- * `textExtractionOf` is lenient for `text/*`, so they embed and turn up in
+ * `textSourceOf` is lenient for `text/*`, so they embed and turn up in
  * search). The wording states what cannot be done rather than making a
  * vocabulary claim the registry is not entitled to make about a miss.
  *

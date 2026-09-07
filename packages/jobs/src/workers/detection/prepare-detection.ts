@@ -1,5 +1,5 @@
 import type { ResourceId, components, AnchoredTextAnswer } from '@semiont/core';
-import { textExtractionOf, yieldsGeometryOf, decodeRepresentation } from '@semiont/core';
+import { textSourceOf, yieldsGeometryOf, decodeRepresentation } from '@semiont/core';
 import type { ContentReads, ExtractionDecline } from '@semiont/content';
 import { buildTextAnnotation, buildPdfAnnotation, type BuildAnnotation } from '../../processors';
 import { DeterministicJobError } from '../../failure-class';
@@ -46,7 +46,7 @@ export type ConsultAnchoredText = (resourceId: ResourceId) => Promise<AnchoredTe
  * For one detection job, resolve the text the model detects over and the
  * media-appropriate way to turn a detected span into a stored annotation.
  *
- * Both routes are core's, keyed by the media type's `TextExtraction` strategy,
+ * Both routes are core's, keyed by the media type's `TextSource` strategy,
  * so detection and embedding always read a resource identically. A
  * geometry-bearing type (PDF) is CONSULTED for the Smelter's canonical text
  * rather than derived here — the Smelter owns OCR (SMELTER-OWNS-OCR) — and
@@ -71,7 +71,7 @@ export async function prepareDetection(
   generator: Agent,
   consult: ConsultAnchoredText,
 ): Promise<DetectionSource> {
-  if (textExtractionOf(mediaType) === 'none') return { declined: 'no-extractor' };
+  if (textSourceOf(mediaType) === 'none') return { declined: 'no-extractor' };
 
   // The media type decides where the text comes from (SMELTER-OWNS-OCR).
   //

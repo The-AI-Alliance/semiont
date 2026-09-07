@@ -53,7 +53,7 @@ vi.mock('../extract-pdf-text-layer', async (importOriginal) => {
   };
 });
 
-const { derivingExtractorFor } = await import('../content-extractor');
+const { derivingExtractorFor } = await import('../text-extractor');
 const { createAnchoredTextStore, encodeLines, decodeLines } = await import('../anchored-text-store');
 const { calculateChecksum } = await import('../checksum');
 const { locate, textUnder, getShardPath } = await import('@semiont/core');
