@@ -10,7 +10,7 @@ For the actor responsibilities running inside the archivist / librarian / worker
 
 ## Multi-container layout
 
-A local deployment runs six containers of Semiont code, seven with the Browser, eleven with the infrastructure dependencies — and twelve with the Jaeger observability sidecar, which local KB stacks run **by default** (`--no-observe` skips it): the gateway, archivist, librarian, worker, smelter, and weaver all export OTLP traces + metrics to it. All seven Semiont containers are **published, attested images** (`ghcr.io/the-ai-alliance/semiont-*`) that knowledge-base stacks pull — selecting the version via `SEMIONT_VERSION` — and configure by bind-mounting per-KB TOML at runtime; KBs do not build images (see [Container Images](administration/IMAGES.md)). Two views of one stack follow: who talks to whom, and what attaches to what.
+A local deployment runs six containers of Semiont code, seven with the Browser, twelve with the infrastructure dependencies (the OTel collector is always among them), and fourteen with the observability pair — Jaeger for traces and Prometheus for metrics — which local stacks run **by default**: all six service containers export OTLP to the collector, which forwards traces to Jaeger and serves a readout Prometheus scrapes. `--no-observe` skips only the pair; the collector still runs and discards traces. All seven Semiont containers are **published, attested images** (`ghcr.io/the-ai-alliance/semiont-*`) that knowledge-base stacks pull — selecting the version via `SEMIONT_VERSION` — and configure by bind-mounting per-KB TOML at runtime; KBs do not build images (see [Container Images](administration/IMAGES.md)). Two views of one stack follow: who talks to whom, and what attaches to what.
 
 ### Who talks to whom
 
@@ -65,24 +65,38 @@ The bidirectional edges are the bus (`POST /bus/emit`, `POST /bus/subscribe` as 
 The state plane: the same six service containers against file state and the third-party infrastructure.
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 graph TB
-    GW["semiont-gateway<br/>bus relay · identity · job queue · content proxy"]
+    subgraph G1 [" "]
+        GW["semiont-gateway<br/>bus relay · identity · job queue · content proxy"]
+        JOBS[("jobs queue")]
+        PG["semiont-postgres<br/>PostgreSQL — users · auth"]
+    end
+
+    subgraph G2 [" "]
+        ARCH["semiont-archivist<br/>Stower · Browser · CloneTokenManager"]
+        TREE[("KB working tree<br/>content · event log · git state")]
+        VIEWS[("views<br/>resources/ · projections/")]
+        ANCH[("anchored-text store")]
+        WEAVE["semiont-weaver<br/>Weaver — graph pipeline"]
+        SMELT["semiont-smelter<br/>Smelter — vector pipeline"]
+        NEO["semiont-neo4j<br/>Neo4j — graph projection"]
+        QD["semiont-qdrant<br/>Qdrant — vector index"]
+    end
+
     LIB["semiont-librarian<br/>Gatherer · Matcher"]
-    WORKER["semiont-worker<br/>worker pool — Generator · detection workers"]
-    SMELT["semiont-smelter<br/>Smelter — vector pipeline"]
-    WEAVE["semiont-weaver<br/>Weaver — graph pipeline"]
-    ARCH["semiont-archivist<br/>Stower · Browser · CloneTokenManager"]
-
-    TREE[("KB working tree<br/>content · event log · git state")]
-    ANCH[("anchored-text store")]
-    VIEWS[("views<br/>resources/ · projections/")]
-    JOBS[("jobs queue")]
-
-    NEO["semiont-neo4j<br/>Neo4j — graph projection"]
-    QD["semiont-qdrant<br/>Qdrant — vector index"]
     OL["semiont-ollama<br/>Ollama — embeddings · local inference"]
-    PG["semiont-postgres<br/>PostgreSQL — users · auth"]
-    JAG["semiont-jaeger<br/>Jaeger — OTLP traces · metrics"]
+
+    WORKER["semiont-worker<br/>worker pool — Generator · detection workers"]
+
+    subgraph G5 [" "]
+        COLL["semiont-otel-collector<br/>OTel Collector — telemetry fan-in"]
+        TRACES["semiont-jaeger<br/>Jaeger — traces"]
+        METRICS["semiont-prometheus<br/>Prometheus — metrics"]
+    end
 
     ARCH -->|rw| TREE
     ARCH --> VIEWS
@@ -103,32 +117,42 @@ graph TB
     WORKER --> OL
     GW --> PG
 
-    GW -.-> JAG
-    ARCH -.-> JAG
-    LIB -.-> JAG
-    WORKER -.-> JAG
-    SMELT -.-> JAG
-    WEAVE -.-> JAG
+    GW -.-> COLL
+    ARCH -.-> COLL
+    LIB -.-> COLL
+    WORKER -.-> COLL
+    SMELT -.-> COLL
+    WEAVE -.-> COLL
+    COLL -.->|traces| TRACES
+    COLL -.->|"scraped by"| METRICS
 
     classDef svc fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
     classDef hub fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000
     classDef infra fill:#c97d5d,stroke:#8b4513,stroke-width:2px,color:#fff
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
+    classDef record fill:#2c5f7a,stroke:#16394f,stroke-width:3px,color:#fff
 
     class LIB,WORKER,SMELT,WEAVE,ARCH svc
     class GW hub
-    class NEO,QD,OL,PG,JAG infra
-    class TREE,ANCH,VIEWS,JOBS store
+    class NEO,QD,OL,PG,COLL,TRACES,METRICS infra
+    class ANCH,VIEWS,JOBS store
+    class TREE record
 
-    TREE ~~~ NEO
-    VIEWS ~~~ QD
-    ANCH ~~~ OL
-    JOBS ~~~ PG
-    QD ~~~ JAG
-    OL ~~~ JAG
+    NEO ~~~ TREE
+    NEO ~~~ VIEWS
+    QD ~~~ ANCH
+    PG ~~~ JOBS
+    GW ~~~ WORKER
+    OL ~~~ COLL
+    GW ~~~ LIB
+    GW ~~~ ARCH
+
+    style G1 fill:none,stroke:#888,stroke-width:1.5px,stroke-dasharray:6 4
+    style G2 fill:none,stroke:#888,stroke-width:1.5px,stroke-dasharray:6 4
+    style G5 fill:none,stroke:#888,stroke-width:1.5px,stroke-dasharray:6 4
 ```
 
-Cylinders are file state on the host; their edges are mounts and the direction of use — `rw`/`ro` marked where it matters, and the working tree has exactly one writer. Rectangle-to-rectangle edges are each service's infrastructure attachments; dotted edges are OTLP export to Jaeger. The Ollama edges show the fully-local default: with the anthropic config, LLM inference for the workers, Gatherer, and Matcher goes to the Anthropic API instead, while embeddings stay on Ollama either way.
+Cylinders are file state on the host; their edges are mounts and the direction of use — `rw`/`ro` marked where it matters, and the working tree has exactly one writer. The deep-blue cylinder is the KB working tree — the git-tracked system of record; every purple cylinder is derived state, rebuildable from it. Rectangle-to-rectangle edges are each service's infrastructure attachments; dotted edges are telemetry — OTLP into the collector, traces forwarded to Jaeger, metrics scraped by Prometheus off the collector's readout (a pull, drawn in the direction the data flows). The dashed frames are groupings, not components — the edges alone carry the attachment facts. The Ollama edges show the fully-local default: with the anthropic config, LLM inference for the workers, Gatherer, and Matcher goes to the Anthropic API instead, while embeddings stay on Ollama either way.
 
 Every service-to-gateway bus edge in the first diagram authenticates via `POST /api/tokens/agent`, which exchanges a shared secret (`SEMIONT_WORKER_SECRET`) plus a `(provider, model)` identity for a JWT carrying a typed Software-agent DID (the smelter presents its embedding config; the weaver presents `(semiont, weaver)`); the existing auth middleware validates that JWT exactly as it would a user's. One nuance the drawing flattens: besides content bytes, the archivist's event read path also rides plain HTTP, by design. The split itself is why the partition exists — the record, retrieval, LLM, embedding, and graph-projection work run in separate V8 isolates, and the gateway stays responsive to human users.
 
@@ -144,7 +168,7 @@ The second diagram draws the mounts; this table adds the discipline. Exactly one
 | smelter | — | **stamp holder** — writes | — |
 | worker · weaver · browser | — | — | — |
 
-Every service also mounts its launcher-staged config TOML read-only; the infrastructure containers own their private data dirs.
+Every service also mounts its launcher-staged config read-only — the services' TOML, the collector's and Prometheus's YAML; the infrastructure containers own their private data dirs.
 
 ## Unified bus and SemiontSession
 
