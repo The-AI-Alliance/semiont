@@ -1,22 +1,18 @@
 /**
- * Anchored text over `IContentTransport` — ANCHORED-TEXT-CACHE Lane 5.
+ * `readAnchoredText` and the anchored-text store, tested directly.
  *
- * The Smelter derives a coordinate map at ingest; five detection jobs and a
- * browser all want to read it. This is the seam that carries it, modelled on
- * `getResourceGraph`: a derived, server-computed view of a resource fetched
- * through the content transport, not the resource's bytes.
+ * The Smelter derives a coordinate map at ingest; detection jobs and the
+ * browser read it. This file pins how a READER resolves one — in particular
+ * that it can never receive geometry for bytes the resource no longer has.
  *
- * Why a transport method rather than a shared volume between the smelter and
- * worker images: `WorkingTreeStore` is instantiated exactly once, in
- * `knowledge-base.ts`. The KnowledgeSystem owns content storage and every other
- * process reaches it through the transport. A mount would have created a second
- * storage authority, coupled two services through a filesystem, and broken as
- * soon as they landed on different hosts.
- *
- * `putAnchoredText` is its own method rather than a `putBinary` of some derived
- * media type — a coordinate map is not a *representation* of the resource, and
- * dressing it as one would make a derived artifact indistinguishable from
- * content a user uploaded.
+ * These tests used to reach their subjects through four `IContentTransport`
+ * methods (`putAnchoredText`, `getAnchoredText`, …). Those were one-line
+ * wrappers, and SMELTER-OWNS-OCR P0 deleted them: anchored text moved onto bus
+ * channels (ANCHORED-TEXT-TO-SMELTER P3/P4), so the transport-layer twins had
+ * no callers and, on the HTTP side, no route behind them. The wrappers are
+ * gone; the invariants they happened to cover are these, now asserted against
+ * `readAnchoredText` and `kb.anchoredText` themselves — which is what they
+ * were always about.
  */
 
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
@@ -27,7 +23,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { EventBus, getPrimaryRepresentation, userId as makeUserId, type ExtractionOutcome, type Logger, type ResourceId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
-import { LocalContentTransport } from '../local-content-transport';
+import { readAnchoredText } from '../read-anchored-text';
 import { ResourceOperations } from '../resource-operations';
 import { startMakeMeaning, type MakeMeaningConfig, type MakeMeaningService } from '../service';
 import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
@@ -64,9 +60,10 @@ const MAP: ExtractionOutcome = {
   method: 'ocr',
 };
 
-describe('anchored text over IContentTransport', () => {
+describe('readAnchoredText + the anchored-text store', () => {
   let service: MakeMeaningService;
-  let content: LocalContentTransport;
+  /** The KnowledgeSystem the reader resolves against — views + the store. */
+  let kb: MakeMeaningService['knowledgeSystem']['kb'];
   let eventBus: EventBus;
   let testDir: string;
   let rid: ResourceId;
@@ -77,7 +74,7 @@ describe('anchored text over IContentTransport', () => {
     await fs.mkdir(testDir, { recursive: true });
     eventBus = new EventBus();
     service = await startMakeMeaning(new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` }), config, eventBus, silentLogger);
-    content = new LocalContentTransport(service.knowledgeSystem.kb);
+    kb = service.knowledgeSystem.kb;
 
     ({ rid, checksum } = await seedPdf('scan'));
   }, 30_000);
@@ -121,8 +118,8 @@ describe('anchored text over IContentTransport', () => {
   it('round-trips a map written by the producer and read by a consumer', async () => {
     // The producer writes by the checksum of the bytes it read (P1b); the
     // reader holds the rid, and the view index resolves it to the same key.
-    await content.putAnchoredText(checksum, MAP);
-    expect(await content.getAnchoredText(rid)).toEqual(MAP);
+    await kb.anchoredText.write(checksum, MAP);
+    expect(await readAnchoredText(kb, String(rid))).toEqual(MAP);
   });
 
   it('returns null for a resource that has no map', async () => {
@@ -130,7 +127,7 @@ describe('anchored text over IContentTransport', () => {
     // in the browser, and a document with no extractor never produces a map at
     // all. The caller degrades to no quote, which is the pre-existing behaviour.
     const other = await seedPdf('no-map');
-    expect(await content.getAnchoredText(other.rid)).toBeNull();
+    expect(await readAnchoredText(kb, String(other.rid))).toBeNull();
   });
 
   it('serves the map written last for a resource', async () => {
@@ -138,8 +135,8 @@ describe('anchored text over IContentTransport', () => {
     // The store holds one map per resource and the newest wins; nothing here
     // accumulates generations.
     const revised: ExtractionOutcome = { kind: 'extracted', text: 'gamma', items: [{ start: 0, end: 5, page: 2, x: 10, y: 20, width: 30, height: 12 }], method: 'ocr' };
-    await content.putAnchoredText(checksum, revised);
-    expect(await content.getAnchoredText(rid)).toEqual(revised);
+    await kb.anchoredText.write(checksum, revised);
+    expect(await readAnchoredText(kb, String(rid))).toEqual(revised);
   });
 
   it('does not serve superseded geometry after the resource\'s bytes change (PERSIST-ANCHORS P1)', async () => {
@@ -148,15 +145,14 @@ describe('anchored text over IContentTransport', () => {
     // and drops the old one. The map indexes text that no longer exists —
     // serving it would place quotes at coordinates in the WRONG document,
     // which is worse than absent. The reader must miss.
-    const kb = service.knowledgeSystem.kb;
     const { rid: target } = await seedPdf('mutable');
     const view1 = await kb.views.get(target);
     const c1 = getPrimaryRepresentation(view1?.resource)?.checksum;
     expect(c1).toBeDefined();
 
     // The producer publishes the map for the B1 bytes it actually read.
-    await content.putAnchoredText(c1!, MAP);
-    expect(await content.getAnchoredText(target)).toEqual(MAP);
+    await kb.anchoredText.write(c1!, MAP);
+    expect(await readAnchoredText(kb, String(target))).toEqual(MAP);
 
     // The bytes change: old representation out, new one in — through the
     // single write path (appendEvent), so the view is current by V1.
@@ -177,7 +173,7 @@ describe('anchored text over IContentTransport', () => {
       resourceId: String(target), contentChecksum: stored2.checksum, outcome: 'indexed',
     });
 
-    expect(await content.getAnchoredText(target)).toBeNull();
+    expect(await readAnchoredText(kb, String(target))).toBeNull();
   });
 
   // ── The two barrier-FREE reads (PERSIST-ANCHORS P0 + P2c) ─────────────────
@@ -198,15 +194,15 @@ describe('anchored text over IContentTransport', () => {
     // under a checksum belonging to no resource in this KB at all, so a read
     // that resolved views or awaited a generation could not answer it.
     const orphanChecksum = uuidv4().replace(/-/g, '');
-    await content.putAnchoredText(orphanChecksum, MAP);
+    await kb.anchoredText.write(orphanChecksum, MAP);
 
-    expect(await content.getAnchoredTextByChecksum(orphanChecksum)).toEqual(MAP);
+    expect(await kb.anchoredText.read(orphanChecksum)).toEqual(MAP);
   });
 
   it('answers null for a checksum nothing has derived, rather than waiting', async () => {
     // The common case at ingest — most content has no map. A miss is an
     // answer here, not a reason to block.
-    expect(await content.getAnchoredTextByChecksum(uuidv4().replace(/-/g, ''))).toBeNull();
+    expect(await kb.anchoredText.read(uuidv4().replace(/-/g, ''))).toBeNull();
   });
 
   it('lists the store keys for the reconcile diff', async () => {
@@ -215,15 +211,15 @@ describe('anchored text over IContentTransport', () => {
     // against — the store shards by key and only entries under the current
     // stamp are listed, so a synthetic key proves nothing about either.
     const { checksum: realChecksum } = await seedPdf('listed');
-    await content.putAnchoredText(realChecksum, MAP);
+    await kb.anchoredText.write(realChecksum, MAP);
 
-    const keys = await content.listAnchoredTextKeys();
+    const keys = await kb.anchoredText.list();
     expect(keys).toContain(realChecksum);
 
     // The equivalence the planner depends on: every listed key must read back,
     // or the diff plans re-anchors for artifacts the store already holds.
     for (const key of keys) {
-      expect(await content.getAnchoredTextByChecksum(key)).not.toBeNull();
+      expect(await kb.anchoredText.read(key)).not.toBeNull();
     }
   });
 });

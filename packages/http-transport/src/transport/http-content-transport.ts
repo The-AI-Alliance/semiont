@@ -40,7 +40,7 @@
  * complaint, wire a manual retry loop here that reads `token$` afresh.
  */
 
-import type { AccessToken, ExtractionOutcome, ResourceId, PutBinaryOptions, components } from '@semiont/core';
+import type { AccessToken, ResourceId, PutBinaryOptions, components } from '@semiont/core';
 import { busLog } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan } from '@semiont/observability';
 import type { HttpTransport } from './http-transport';
@@ -175,110 +175,9 @@ export class HttpContentTransport implements IContentTransport {
     );
   }
 
-  /**
-   * Store a resource's derived coordinate map (ANCHORED-TEXT-CACHE Lane 5).
-   *
-   * The Smelter is the producer and runs as its own process, which is why this
-   * crosses the wire at all: the map goes to the one store the KnowledgeSystem
-   * owns, rather than to a volume shared between service images.
-   */
-  async putAnchoredText(
-    checksum: string,
-    outcome: ExtractionOutcome,
-    options?: { auth?: AccessToken },
-  ): Promise<void> {
-    busLog('PUT', 'anchored-text', { checksum });
-    await withSpan(
-      'content.put_anchored_text',
-      () =>
-        this.transport.rawHttp
-          .put(`${this.transport.baseUrl}/anchored-text/${checksum}`, {
-            headers: this.requestHeaders(options?.auth),
-            json: outcome,
-          })
-          .json<unknown>(),
-      { kind: SpanKind.CLIENT, attrs: { 'content.checksum': checksum } },
-    );
-  }
 
-  /**
-   * The resource's coordinate map, or `null` when none has been derived —
-   * which is the common case and not an error: callers degrade to no quoted
-   * text.
-   *
-   * 204 is that answer, and the body is empty, so it must be taken before
-   * `.json()` is reached — parsing an empty body throws, which would turn the
-   * ordinary case into a failure. A 404 degrades the same way, though it is a
-   * different fact: the resource itself is absent, and a resource that does
-   * not exist has no map either.
-   */
-  async getAnchoredText(
-    resourceId: ResourceId,
-    options?: { auth?: AccessToken },
-  ): Promise<ExtractionOutcome | null> {
-    busLog('GET', 'anchored-text', { resourceId });
-    return withSpan(
-      'content.get_anchored_text',
-      async () => {
-        const response = await this.transport.rawHttp
-          .get(`${this.transport.baseUrl}/resources/${resourceId}/anchored-text`, {
-            headers: this.requestHeaders(options?.auth),
-            throwHttpErrors: false,
-          });
-        if (response.status === 204 || response.status === 404) return null;
-        if (!response.ok) throw new Error(`anchored-text read failed: ${response.status}`);
-        return response.json<ExtractionOutcome>();
-      },
-      { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
-    );
-  }
 
-  /**
-   * The cache-consult read (PERSIST-ANCHORS P2c) — checksum-addressed and
-   * barrier-free; 204 is the ordinary miss. This is how an out-of-process
-   * extraction seam hits the cache at all.
-   */
-  async getAnchoredTextByChecksum(
-    checksum: string,
-    options?: { auth?: AccessToken },
-  ): Promise<ExtractionOutcome | null> {
-    busLog('GET', 'anchored-text-by-checksum', { checksum });
-    return withSpan(
-      'content.get_anchored_text_by_checksum',
-      async () => {
-        const response = await this.transport.rawHttp
-          .get(`${this.transport.baseUrl}/anchored-text/${checksum}`, {
-            headers: this.requestHeaders(options?.auth),
-            throwHttpErrors: false,
-          });
-        if (response.status === 204) return null;
-        if (!response.ok) throw new Error(`anchored-text checksum read failed: ${response.status}`);
-        return response.json<ExtractionOutcome>();
-      },
-      { kind: SpanKind.CLIENT, attrs: { 'content.checksum': checksum } },
-    );
-  }
 
-  /**
-   * The store's would-hit keys — the reconcile planner's bulk existence read
-   * (PERSIST-ANCHORS P0). One request per reconcile; keys only, never the
-   * maps themselves, which is the point of the dedicated route.
-   */
-  async listAnchoredTextKeys(options?: { auth?: AccessToken }): Promise<string[]> {
-    busLog('GET', 'anchored-text-keys', {});
-    return withSpan(
-      'content.list_anchored_text_keys',
-      async () => {
-        const { keys } = await this.transport.rawHttp
-          .get(`${this.transport.baseUrl}/anchored-text/keys`, {
-            headers: this.requestHeaders(options?.auth),
-          })
-          .json<{ keys: string[] }>();
-        return keys;
-      },
-      { kind: SpanKind.CLIENT },
-    );
-  }
 
   dispose(): void {
     // HttpContentTransport has no resources of its own; HttpTransport owns
