@@ -186,11 +186,8 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
       }
       const expectedChecksum = url.searchParams.get('checksum');
 
-      // The request body streams straight into the store (D7: memory bounded
-      // by the chunk, never the representation). The store writes beside the
-      // target and renames only after the checksum agrees, so a disagreeing
-      // body — or a torn upload — leaves nothing where the Stower's register
-      // would find it.
+      // Streamed straight in: memory is bounded by the chunk. The store
+      // renames into place only once the checksum agrees.
       content.store(req, storageUri, {
         noGit: true,
         ...(expectedChecksum !== null ? { expectedChecksum } : {}),

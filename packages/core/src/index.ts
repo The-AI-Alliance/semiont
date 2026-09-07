@@ -322,7 +322,7 @@ export type {
 } from './media-types';
 
 // Resource types
-export type { UpdateResourceInput, ResourceFilter } from './resource-types';
+export type { UpdateResourceInput, ResourceFilter, StoredResource } from './resource-types';
 
 // Annotation types
 export type { Annotation, AnnotationCategory, CreateAnnotationInternal } from './annotation-types';

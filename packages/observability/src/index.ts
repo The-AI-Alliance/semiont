@@ -481,7 +481,7 @@ let _gitCommandHistogram: Histogram | undefined;
 function gitCommandHistogram(): Histogram {
   if (!_gitCommandHistogram) {
     _gitCommandHistogram = meter().createHistogram('semiont.git.duration', {
-      description: 'Time spent in a synchronous git subprocess. These run on the event loop, so this duration is also time no other request could be served.',
+      description: 'Wall time of a git subprocess. Async — this is latency, not event-loop blockage. Staging is deduped, so the `add` count is far below the number of appended events.',
       unit: 'ms',
     });
   }
@@ -489,15 +489,8 @@ function gitCommandHistogram(): Histogram {
 }
 
 /**
- * Record a synchronous git invocation (ARCHIVIST-STAYS-UP P7).
- *
- * These are `execFileSync`, so **the duration is event-loop blockage, not just
- * latency** — every concurrent `browse:*` read waits behind it. One `git add`
- * runs per appended event, so a detection job writing hundreds of annotations
- * spawns hundreds of blocking subprocesses. That is the suspected mechanism
- * behind "reads serializing behind the detection job's annotation writes" in
- * `bugs/absent-archivist-wedges-browse.md`, which recorded the symptom without
- * a cause. This number is what turns that from a hypothesis into a reading.
+ * Record a git invocation. Read the `add` count against events appended: one
+ * per event means deferred staging has stopped deduping.
  */
 export function recordGitCommand(command: string, durationMs: number): void {
   gitCommandHistogram().record(durationMs, { 'git.command': command });

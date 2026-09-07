@@ -8,7 +8,6 @@
 export {
   WorkingTreeStore,
   ChecksumMismatchError,
-  type StoredResource,
 } from './working-tree-store';
 
 // Checksum utilities
@@ -62,3 +61,10 @@ export type {
   PdfPageInfo,
   PdfFormField,
 } from './pdf-text-layer';
+
+// Deferred, deduped git staging (GIT-OFF-THE-EVENT-LOOP). The working tree is
+// this package's concern, and git is how that tree keeps history — so the
+// scheduling of `git add` lives here, beside the store that writes the files.
+// `@semiont/event-sourcing` uses it for the event log, which lives in the same
+// working tree.
+export { createStager, type Stager, type StagerOptions } from './git-staging.js';

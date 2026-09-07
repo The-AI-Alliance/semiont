@@ -15,7 +15,7 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import type { StoredResource } from '@semiont/content';
+import type { StoredResource } from '@semiont/core';
 import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
 import { SpanKind, withSpan } from '@semiont/observability';
 import { getLogger } from '../logger';

@@ -473,15 +473,24 @@ describe('WorkingTreeStore with gitSync', () => {
     expect(project.gitSync).toBe(true);
   });
 
-  it('should stage stored files in the git index', async () => {
+  it('should stage stored files in the git index — after a flush', async () => {
     await store.store(Buffer.from('staged'), 'file://docs/staged.md');
 
+    // Staging is DEFERRED (GIT-OFF-THE-EVENT-LOOP): the index is for a human
+    // who commits by hand, so it must be current within seconds, not
+    // synchronously per write. `git-staging.test.ts` pins the other half of
+    // this contract — that it is NOT staged before the flush.
+    await store.flushStaging();
     expect(stagedFiles(root)).toContain('docs/staged.md');
   });
 
   it('should skip staging with noGit', async () => {
     await store.store(Buffer.from('unstaged'), 'file://docs/unstaged.md', { noGit: true });
 
+    // Flush first, so this proves noGit SKIPPED staging rather than merely
+    // proving staging had not happened yet — which deferral would make true
+    // of everything.
+    await store.flushStaging();
     expect(stagedFiles(root)).not.toContain('docs/unstaged.md');
   });
 
@@ -490,6 +499,7 @@ describe('WorkingTreeStore with gitSync', () => {
 
     await store.register('file://registered.txt');
 
+    await store.flushStaging();
     expect(stagedFiles(root)).toContain('registered.txt');
   });
 
@@ -507,6 +517,7 @@ describe('WorkingTreeStore with gitSync', () => {
 
   it('should unstage but keep the file on disk with keepFile', async () => {
     await store.store(Buffer.from('cached only'), 'file://cached-only.txt');
+    await store.flushStaging();
     expect(stagedFiles(root)).toContain('cached-only.txt');
 
     await store.remove('file://cached-only.txt', { keepFile: true });
