@@ -1,0 +1,48 @@
+/**
+ * Bounded retry with exponential backoff.
+ *
+ * Exists for startup-critical network calls in long-running peers (worker,
+ * smelter, weaver): each authenticates against the KS the moment its
+ * container starts, and the gateway may not be reachable for a few seconds
+ * (gateway restart, container-network warm-up). Orchestration runs these
+ * processes with `--rm` and no restart policy, so a process that dies on
+ * the first `TypeError: fetch failed` is dead for good — the retry window
+ * here is the only recovery it gets.
+ */
+export interface RetryPolicy {
+    /** Total attempts, including the first one. */
+    attempts: number;
+    /** Delay before the second attempt; doubles each retry. */
+    initialDelayMs: number;
+    /** Ceiling for the doubled delay. */
+    maxDelayMs: number;
+}
+export interface RetryAttemptInfo {
+    /** 1-based number of the attempt that just failed. */
+    attempt: number;
+    /** Total attempt budget from the policy. */
+    attempts: number;
+    /** How long we wait before the next attempt. */
+    delayMs: number;
+    error: unknown;
+}
+/**
+ * Default policy for startup connections to the gateway: 8 attempts with
+ * delays 1s, 2s, 4s, then capped at 8s — ~39s of patience before giving up.
+ */
+export declare const STARTUP_FETCH_RETRY: RetryPolicy;
+/**
+ * True for the errors `fetch` throws when the connection itself fails —
+ * undici's `TypeError: fetch failed` (ECONNREFUSED, ENOTFOUND, reset,
+ * timeout — the socket error rides in `cause`). Deliberately false for
+ * HTTP-level failures (a 401 means the gateway is UP and rejected us;
+ * retrying won't change its mind) and for programming errors.
+ */
+export declare function isTransientFetchError(error: unknown): boolean;
+/**
+ * Run `fn`, retrying on errors `isRetryable` accepts, with exponential
+ * backoff per `policy`. `onRetry` fires before each wait — the caller's
+ * hook for logging the attempt. The final error (retryable budget
+ * exhausted, or the first non-retryable one) is rethrown verbatim.
+ */
+export declare function retryWithBackoff<T>(fn: () => Promise<T>, isRetryable: (error: unknown) => boolean, policy: RetryPolicy, onRetry?: (info: RetryAttemptInfo) => void): Promise<T>;
