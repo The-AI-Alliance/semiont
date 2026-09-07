@@ -25,8 +25,7 @@ import { MemoryVectorStore } from '@semiont/vectors';
 import type { EmbeddingChunk, AnnotationPayload } from '@semiont/vectors';
 import { chunkText } from '@semiont/core';
 import type { ExtractionOutcome, ChunkingConfig } from '@semiont/core';
-import { textExtractionOf } from '@semiont/core';
-import { EXTRACTORS } from '@semiont/content';
+import { textSourceOf } from '@semiont/core';
 import { Smelter, type SmelterTiming } from '../smelter';
 import type { SmelterEvent } from '../smelter-actor-state-unit';
 import { partitionByType } from '../batch-utils';
@@ -88,11 +87,16 @@ const textArb = fc.string({ minLength: 1, maxLength: 60 }).filter((s) => s.trim(
 // application/pdf entries never embed here even though the strategy is
 // eligible (P0b): eligibility is an extractor existing, not extraction
 // succeeding (SMELTER-MEDIA-TYPES Phase 1).
-const embeds = (mediaType: string) => textExtractionOf(mediaType) === 'decode';
+const embeds = (mediaType: string) => textSourceOf(mediaType) === 'decode';
 
-/** Eligibility: an extractor exists for the type's strategy (P0b). Wider than
- *  `embeds` — a PDF is eligible and still declines on garbage bytes. */
-const eligible = (mediaType: string) => EXTRACTORS[textExtractionOf(mediaType)] !== null;
+/** Eligibility: the type has SOME way to read text (P0b). Wider than `embeds` —
+ *  a PDF is eligible and still declines on garbage bytes.
+ *
+ *  Asked of core since READ-VS-EXTRACT P2. It used to be
+ *  `EXTRACTORS[strategy] !== null`, which was true but was a second statement of
+ *  `strategy !== 'none'`, answered by resolving an implementation to learn a fact
+ *  about a media type. */
+const eligible = (mediaType: string) => textSourceOf(mediaType) !== 'none';
 
 // Pools by behavioral outcome: decodable types embed; the rest (binary
 // without an extractor, and pdfs whose garbage bytes decline) are skipped.
@@ -390,7 +394,7 @@ describe('P0 — pure laws', () => {
     );
   });
 
-  // P0b (FOPL): ∀ m ∈ M: eligible(m) ⇔ EXTRACTORS[extraction(m)] ≠ null,
+  // P0b (FOPL): ∀ m ∈ M: eligible(m) ⇔ extraction(m) ≠ 'none',
   // with ∀ s: extraction("text/" ⧺ s) = decode — the registry gate never
   // narrows the old text/* prefix gate (MEDIA-TYPES.md decision 7), and at
   // Phase 1 (SMELTER-MEDIA-TYPES #744) the pdf tier joins ELIGIBILITY: an
@@ -399,7 +403,7 @@ describe('P0 — pure laws', () => {
   it('P0b: eligibility is exactly "an extractor exists for the strategy"', () => {
     fc.assert(
       fc.property(fc.string({ maxLength: 20 }).map((s) => `text/${s}`), (mt) => {
-        expect(textExtractionOf(mt)).toBe('decode');
+        expect(textSourceOf(mt)).toBe('decode');
         expect(eligible(mt)).toBe(true);
       }),
       { numRuns: 500 },
@@ -409,7 +413,7 @@ describe('P0 — pure laws', () => {
     expect(eligible('application/zip')).toBe(false);        // binary stays out — no extractor
     expect(eligible('application/octet-stream')).toBe(false);
     expect(eligible('application/pdf')).toBe(true);         // Phase 1: the pdf-text-layer slot is filled
-    expect(textExtractionOf('application/pdf')).toBe('pdf-text-layer');
+    expect(textSourceOf('application/pdf')).toBe('pdf-text-layer');
   });
 });
 

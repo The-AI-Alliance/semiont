@@ -307,7 +307,8 @@ export {
   cloneFormat,
   extensionForMediaType,
   mediaTypeForExtension,
-  textExtractionOf,
+  textSourceOf,
+  yieldsGeometryOf,
   isAnnotatable,
   AUTHORABLE_MEDIA_TYPES,
   EMBEDDABLE_MEDIA_TYPES,
@@ -318,7 +319,7 @@ export type {
   MediaTypeCapabilities,
   RenderMode,
   AnchoringModel,
-  TextExtraction,
+  TextSource,
 } from './media-types';
 
 // Resource types

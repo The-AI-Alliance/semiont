@@ -1,6 +1,6 @@
 import type { ResourceId, components, AnchoredTextAnswer } from '@semiont/core';
-import { textExtractionOf } from '@semiont/core';
-import { EXTRACTORS, type ContentReads, type ExtractionDecline } from '@semiont/content';
+import { textSourceOf, yieldsGeometryOf, decodeRepresentation } from '@semiont/core';
+import type { ContentReads, ExtractionDecline } from '@semiont/content';
 import { buildTextAnnotation, buildPdfAnnotation, type BuildAnnotation } from '../../processors';
 import { DeterministicJobError } from '../../failure-class';
 
@@ -32,7 +32,7 @@ export type DetectionDecline = {
     // (SMELTER-OWNS-OCR P2). `not-yet` is transient — the Smelter has not
     // settled this generation yet, and the retry finds the store warm.
     // `no-map` and `unknown` are terminal: the first is drift between
-    // `yieldsGeometry` and the Smelter's skip decision (a geometry type it
+    // `yieldsGeometryOf` and the Smelter's skip decision (a geometry type it
     // declined to map), the second is a resource with no content identity.
     | 'not-yet' | 'no-map' | 'unknown';
 };
@@ -46,12 +46,12 @@ export type ConsultAnchoredText = (resourceId: ResourceId) => Promise<AnchoredTe
  * For one detection job, resolve the text the model detects over and the
  * media-appropriate way to turn a detected span into a stored annotation.
  *
- * Extraction goes through the **same registry the Smelter embeds from**
- * (`EXTRACTORS`, keyed by the media-type registry's `TextExtraction`
- * strategy), so detection and embedding always read a resource identically —
- * but a geometry-bearing type (PDF) is CONSULTED for the Smelter's canonical
- * text rather than re-extracted here — the Smelter owns OCR
- * (SMELTER-OWNS-OCR).
+ * Both routes are core's, keyed by the media type's `TextSource` strategy,
+ * so detection and embedding always read a resource identically. A
+ * geometry-bearing type (PDF) is CONSULTED for the Smelter's canonical text
+ * rather than derived here — the Smelter owns OCR (SMELTER-OWNS-OCR) — and
+ * since READ-VS-EXTRACT P2 this worker cannot derive even by mistake: deriving
+ * needs the anchored-text store, which it does not have.
  *
  * Bytes come from the injected `ContentReads` for NON-geometry types only;
  * geometry types take the injected `consult` seam instead. Both are narrow
@@ -71,8 +71,7 @@ export async function prepareDetection(
   generator: Agent,
   consult: ConsultAnchoredText,
 ): Promise<DetectionSource> {
-  const extractor = EXTRACTORS[textExtractionOf(mediaType)];
-  if (!extractor) return { declined: 'no-extractor' };
+  if (textSourceOf(mediaType) === 'none') return { declined: 'no-extractor' };
 
   // The media type decides where the text comes from (SMELTER-OWNS-OCR).
   //
@@ -81,10 +80,10 @@ export async function prepareDetection(
   // is the sole producer, and a second derivation here is a second producer
   // whose divergent offsets misanchor every annotation silently. The worker
   // fetches no bytes and runs no OCR: the consult carries the text and its
-  // geometry. `yieldsGeometry` is declared on the extractor and is the same
-  // predicate the Smelter uses to decide whether to publish, so the two
-  // cannot drift about which resources have canonical text.
-  if (extractor.yieldsGeometry) {
+  // geometry. `yieldsGeometryOf` is core's, derived from the same media-type
+  // strategy the Smelter reads to decide whether to publish, so the two cannot
+  // drift about which resources have canonical text (READ-VS-EXTRACT P1).
+  if (yieldsGeometryOf(mediaType)) {
     const answer = await consult(resourceId);
     switch (answer.kind) {
       case 'extracted': {
@@ -127,14 +126,18 @@ export async function prepareDetection(
   // consult — the Smelter publishes nothing for them, so there is nothing to
   // diverge from. Decode the bytes directly; the text itself is the
   // coordinate system, anchored by character offset.
+  //
+  // `decodeRepresentation` is core's, and it is the SAME call the Smelter's
+  // embedding path makes for these types — not a second implementation that
+  // happens to agree. It cannot decline: any byte sequence decodes to some
+  // string, so 'empty' below is the only way this route yields nothing.
   const { data } = await content.getBinary(resourceId);
-  const extracted = await extractor.extract(Buffer.from(data), mediaType);
-  if (extracted.kind === 'declined') return extracted;
-  if (!extracted.text.trim()) return { declined: 'empty' };
+  const text = decodeRepresentation(Buffer.from(data), mediaType);
+  if (!text.trim()) return { declined: 'empty' };
 
   return {
-    text: extracted.text,
+    text,
     buildAnnotation: (motivation, match, body) =>
-      buildTextAnnotation(extracted.text, resourceId, userId, generator, motivation, match, body),
+      buildTextAnnotation(text, resourceId, userId, generator, motivation, match, body),
   };
 }

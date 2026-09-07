@@ -16,14 +16,16 @@ export {
   verifyChecksum
 } from './checksum';
 
-// Strategy-keyed text extraction for embedding (SMELTER-MEDIA-TYPES)
+// Deriving text from bytes that carry none (SMELTER-MEDIA-TYPES; narrowed to
+// the deriving half by READ-VS-EXTRACT P2 — decoding is core's
+// `decodeRepresentation`, called directly).
 export {
-  EXTRACTORS,
-  type ContentExtractor,
+  derivingExtractorFor,
+  type TextExtractor,
   type ExtractedText,
   type ExtractionDecline,
   type ExtractionCache,
-} from './content-extractor';
+} from './text-extractor';
 
 // Extraction byte budget (#1124). Also the generation output bound
 // (PDF-GENERATION P5): an artifact we generate must stay within the budget

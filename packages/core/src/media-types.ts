@@ -9,8 +9,11 @@
  * - `render`      — which viewer the UI mounts ('none' → metadata + download)
  * - `anchoring`   — which annotation model applies: character-offset text
  *                   selectors vs spatial geometry (PDFs are spatial)
- * - `extractText` — how the Smelter gets embeddable text ('none' → skip
- *                   embedding, never mojibake)
+ * - `textSource`  — WHERE a type's text comes from: decoded from its own bytes,
+ *                   or derived by reading them ('none' → skip embedding, never
+ *                   mojibake). Named `extractText` until READ-VS-EXTRACT P3,
+ *                   which called decoding an extraction — the conflation that
+ *                   let a worker OCR PDFs for four months (#739)
  * - `authorable`  — offered in the compose editor's format dropdown
  * - `uploadable`  — big tent: true for every registry member
  * - `generatable` — the generation worker can produce it as a yield artifact
@@ -36,7 +39,7 @@ export type SupportedMediaType = components['schemas']['SupportedMediaType'];
 
 export type RenderMode = 'text' | 'image' | 'pdf' | 'none';
 export type AnchoringModel = 'text-selector' | 'spatial' | 'none';
-export type TextExtraction = 'decode' | 'pdf-text-layer' | 'none';
+export type TextSource = 'decode' | 'pdf-text-layer' | 'none';
 
 export interface MediaTypeCapabilities {
   /** Canonical file extension, with leading dot. */
@@ -45,7 +48,7 @@ export interface MediaTypeCapabilities {
   label: string;
   render: RenderMode;
   anchoring: AnchoringModel;
-  extractText: TextExtraction;
+  textSource: TextSource;
   authorable: boolean;
   uploadable: boolean;
   /** Whether the generation worker can produce this type as a yield artifact.
@@ -61,7 +64,7 @@ const storedBinary = (extension: `.${string}`, label: string): MediaTypeCapabili
   label,
   render: 'none',
   anchoring: 'none',
-  extractText: 'none',
+  textSource: 'none',
   authorable: false,
   uploadable: true,
   generatable: false,
@@ -70,7 +73,7 @@ const storedBinary = (extension: `.${string}`, label: string): MediaTypeCapabili
 /** Storage tier, text-flavored: embedded (charset-aware decode), not rendered. */
 const storedText = (extension: `.${string}`, label: string): MediaTypeCapabilities => ({
   ...storedBinary(extension, label),
-  extractText: 'decode',
+  textSource: 'decode',
 });
 
 /**
@@ -86,13 +89,13 @@ export const MEDIA_TYPES = {
   // Full-capability tier
   // `generatable: application/pdf` — the Typst renderer (PDF-GENERATION P3):
   // the model writes Typst, the worker's pinned binary compiles it.
-  'text/markdown':    { extension: '.md',   label: 'Markdown',   render: 'text',  anchoring: 'text-selector', extractText: 'decode',         authorable: true,  uploadable: true, generatable: true },
-  'text/plain':       { extension: '.txt',  label: 'Plain Text', render: 'text',  anchoring: 'text-selector', extractText: 'decode',         authorable: true,  uploadable: true, generatable: true },
-  'text/html':        { extension: '.html', label: 'HTML',       render: 'text',  anchoring: 'text-selector', extractText: 'decode',         authorable: true,  uploadable: true, generatable: false },
-  'application/json': { extension: '.json', label: 'JSON',       render: 'text',  anchoring: 'text-selector', extractText: 'decode',         authorable: false, uploadable: true, generatable: false },
-  'image/png':        { extension: '.png',  label: 'PNG image',  render: 'image', anchoring: 'spatial',       extractText: 'none',           authorable: false, uploadable: true, generatable: false },
-  'image/jpeg':       { extension: '.jpg',  label: 'JPEG image', render: 'image', anchoring: 'spatial',       extractText: 'none',           authorable: false, uploadable: true, generatable: false },
-  'application/pdf':  { extension: '.pdf',  label: 'PDF',        render: 'pdf',   anchoring: 'spatial',       extractText: 'pdf-text-layer', authorable: false, uploadable: true, generatable: true },
+  'text/markdown':    { extension: '.md',   label: 'Markdown',   render: 'text',  anchoring: 'text-selector', textSource: 'decode',         authorable: true,  uploadable: true, generatable: true },
+  'text/plain':       { extension: '.txt',  label: 'Plain Text', render: 'text',  anchoring: 'text-selector', textSource: 'decode',         authorable: true,  uploadable: true, generatable: true },
+  'text/html':        { extension: '.html', label: 'HTML',       render: 'text',  anchoring: 'text-selector', textSource: 'decode',         authorable: true,  uploadable: true, generatable: false },
+  'application/json': { extension: '.json', label: 'JSON',       render: 'text',  anchoring: 'text-selector', textSource: 'decode',         authorable: false, uploadable: true, generatable: false },
+  'image/png':        { extension: '.png',  label: 'PNG image',  render: 'image', anchoring: 'spatial',       textSource: 'none',           authorable: false, uploadable: true, generatable: false },
+  'image/jpeg':       { extension: '.jpg',  label: 'JPEG image', render: 'image', anchoring: 'spatial',       textSource: 'none',           authorable: false, uploadable: true, generatable: false },
+  'application/pdf':  { extension: '.pdf',  label: 'PDF',        render: 'pdf',   anchoring: 'spatial',       textSource: 'pdf-text-layer', authorable: false, uploadable: true, generatable: true },
 
   // Storage tier — the big tent. Every row is a deliberate admission,
   // promotable by editing its row. Text-flavored rows embed (decode).
@@ -252,15 +255,59 @@ export function mediaTypeForExtension(ext: string): SupportedMediaType | undefin
 }
 
 /**
- * The Smelter's gate: how to get embeddable text from a format. Registry
- * rows answer directly; on a registry miss, base types under text/* decode
- * (RFC 2046 guarantees the text top-level type is textual — imported
- * unregistered text subtypes embed too), everything else is 'none'.
+ * WHERE a format's text comes from. Registry rows answer directly; on a registry
+ * miss, base types under text/* decode (RFC 2046 guarantees the text top-level
+ * type is textual — imported unregistered text subtypes embed too), everything
+ * else is 'none'.
+ *
+ * The three answers are different operations, not degrees of one: `decode` is a
+ * pure charset-aware `Buffer → string` anyone holding bytes may run;
+ * `pdf-text-layer` parses and, failing that, OCRs — expensive, not deterministic
+ * across engine versions, and runnable only by the process that persists its
+ * output. Calling both "extraction" is what this accessor was named for until
+ * READ-VS-EXTRACT P3.
  */
-export function textExtractionOf(format: string): TextExtraction {
+export function textSourceOf(format: string): TextSource {
   const caps = capabilitiesOf(format);
-  if (caps) return caps.extractText;
+  if (caps) return caps.textSource;
   return baseMediaType(format).startsWith('text/') ? 'decode' : 'none';
+}
+
+/**
+ * Whether a text source yields positioned runs (`items`) — the geometry an
+ * anchored-text artifact is made of. Only deriving does.
+ *
+ * Exhaustive over `TextSource` on purpose: a new strategy fails to compile
+ * here until someone decides which side it is on, so the next media type cannot
+ * default into the wrong answer. Private — `yieldsGeometryOf` is the surface.
+ */
+const GEOMETRY_BY_STRATEGY: Record<TextSource, boolean> = {
+  'decode': false,
+  'pdf-text-layer': true,
+  'none': false,
+};
+
+/**
+ * WHETHER a type's extracted text carries geometry — page-positioned runs
+ * rather than a bare string. Answers "should an anchored-text artifact exist
+ * for this resource?" (PERSIST-ANCHORS P0, the third drift class) and "does
+ * this type anchor spatially or by character offset?".
+ *
+ * Derived from `textSource`, not stored: until READ-VS-EXTRACT P1 this was a
+ * `yieldsGeometry` boolean declared on each `TextExtractor` in
+ * `@semiont/content` — a property of the STRATEGY, declared per-implementation,
+ * in a different package from the strategy vocabulary. Two facts that must
+ * agree, gated by nothing, and consumers asking about a media type had to
+ * resolve an implementation to get an answer.
+ *
+ * Lenient like `textSourceOf`, not strict like `isAnnotatable`. An
+ * unregistered `text/*` type decodes, and decoding yields no geometry — so
+ * `false` here is a real answer rather than a refusal. Nothing downstream is a
+ * durable write against a coordinate model, which is what makes `isAnnotatable`
+ * strict.
+ */
+export function yieldsGeometryOf(format: string): boolean {
+  return GEOMETRY_BY_STRATEGY[textSourceOf(format)];
 }
 
 /**
@@ -269,9 +316,9 @@ export function textExtractionOf(format: string): TextExtraction {
  * two facts that can disagree, with nothing to adjudicate
  * `{ annotatable: true, anchoring: 'none' }`.
  *
- * Strict on a registry miss, where `textExtractionOf` above is lenient. The
- * asymmetry is deliberate. Extracting the wrong bytes costs one bad vector,
- * and refusing to extract costs a resource nobody can find, so extraction
+ * Strict on a registry miss, where `textSourceOf` above is lenient. The
+ * asymmetry is deliberate. Reading the wrong bytes costs one bad vector, and
+ * refusing to read costs a resource nobody can find, so the text source
  * guesses; an annotation is a durable write against a coordinate model the
  * system does not have for an unknown type, so it refuses.
  */
@@ -287,10 +334,10 @@ export const AUTHORABLE_MEDIA_TYPES: readonly SupportedMediaType[] = REGISTRY_KE
   (type) => MEDIA_TYPES[type].authorable,
 );
 
-/** Registry rows whose text the Smelter can extract. Rows only — the
- *  text/* fallback in `textExtractionOf` isn't enumerable. */
+/** Registry rows whose text the Smelter can get at, by either route. Rows only —
+ *  the text/* fallback in `textSourceOf` isn't enumerable. */
 export const EMBEDDABLE_MEDIA_TYPES: readonly SupportedMediaType[] = REGISTRY_KEYS.filter(
-  (type) => MEDIA_TYPES[type].extractText !== 'none',
+  (type) => MEDIA_TYPES[type].textSource !== 'none',
 );
 
 /** Types the generation worker can produce as a yield artifact — the

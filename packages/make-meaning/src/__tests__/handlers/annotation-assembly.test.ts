@@ -98,7 +98,7 @@ describe('mark:create-request refuses unannotatable targets (MEDIA-CAPABILITY-DI
   });
 
   it('refuses a target the registry has never seen (D2 second population)', async () => {
-    // Import leniency means a KB can hold these, and `textExtractionOf` is
+    // Import leniency means a KB can hold these, and `textSourceOf` is
     // lenient for `text/*` so they embed and turn up in search — a user who
     // found one will reasonably try to annotate it. The refusal has to read
     // sanely for a type the registry cannot make vocabulary claims about.

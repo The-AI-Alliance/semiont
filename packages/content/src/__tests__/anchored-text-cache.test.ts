@@ -53,7 +53,7 @@ vi.mock('../extract-pdf-text-layer', async (importOriginal) => {
   };
 });
 
-const { EXTRACTORS } = await import('../content-extractor');
+const { derivingExtractorFor } = await import('../text-extractor');
 const { createAnchoredTextStore, encodeLines, decodeLines } = await import('../anchored-text-store');
 const { calculateChecksum } = await import('../checksum');
 const { locate, textUnder, getShardPath } = await import('@semiont/core');
@@ -62,7 +62,7 @@ type Item = import('@semiont/core').PdfTextItem;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(__dirname, 'fixtures');
 const SCAN = fs.readFileSync(path.join(FIXTURES, 'scanned-image.pdf'));
-const pdfExtractor = EXTRACTORS['pdf-text-layer']!;
+const pdfExtractor = derivingExtractorFor('application/pdf')!;
 
 /** Entry files wherever the layout puts them — the pins that manipulate
  *  stored files find them by walking, so the layout can move without the
@@ -282,16 +282,13 @@ describe('anchored-text cache', () => {
     expect(recognizeSpy).toHaveBeenCalledTimes(2);
   });
 
-  it('extracts normally when given no cache at all', { timeout: 60_000 }, async () => {
-    // The cache is optional: every existing caller passes nothing and must be
-    // unaffected. This fixture's raster is a synthetic bitmap font, which the
-    // recognizer correctly reads as nothing — so the unchanged behaviour being
-    // asserted is the clean decline, the same one 22-pdf-scanned-decline
-    // depends on. What matters here is that the engine still ran.
-    const out = await pdfExtractor.extract(SCAN, 'application/pdf');
-    expect(out).toEqual({ kind: 'declined', declined: 'no-text-layer' });
-    expect(recognizeSpy).toHaveBeenCalledTimes(1);
-  });
+  // DELETED by READ-VS-EXTRACT P2: 'extracts normally when given no cache at all'.
+  // Its premise — "the cache is optional: every existing caller passes nothing" —
+  // had already stopped being true (both live callers pass one), and P2 made the
+  // cache required, so the path it covered no longer exists to be tested. Its one
+  // live assertion, that a synthetic-bitmap scan declines cleanly after a full
+  // recognition pass, is covered by the cache-miss cases above, which run the same
+  // engine pass against the same fixture.
 
   // The negative is worth caching precisely because it is expensive: a scan the
   // engine cannot read costs a full recognition pass to discover, and without

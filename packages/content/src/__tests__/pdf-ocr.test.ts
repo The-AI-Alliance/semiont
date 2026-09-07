@@ -13,7 +13,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EXTRACTORS } from '../content-extractor';
+import { derivingExtractorFor } from '../text-extractor';
+import type { AnchoredTextStore } from '../anchored-text-store';
+
+const NO_CACHE = { key: 'test', store: { read: async () => undefined, write: async () => {} } as unknown as AnchoredTextStore };
 import { recognizeImages, type OcrWord } from '../ocr';
 
 vi.mock('../ocr', () => ({ recognizeImages: vi.fn() }));
@@ -23,7 +26,7 @@ const FIXTURES = path.join(__dirname, 'fixtures');
 const readFixture = (name: string): Buffer => fs.readFileSync(path.join(FIXTURES, name));
 
 const extract = (fixture: string) =>
-    EXTRACTORS['pdf-text-layer']!.extract(readFixture(fixture), 'application/pdf');
+    derivingExtractorFor('application/pdf')!.extract(readFixture(fixture), 'application/pdf', NO_CACHE);
 
 /** Every image recognizes as the same known text, as one word per token. */
 const recognizesAs = (text: string) => {

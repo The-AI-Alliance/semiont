@@ -19,7 +19,7 @@ interface MediaTypeCapabilities {
   label: string;
   render:      'text' | 'image' | 'pdf' | 'none';
   anchoring:   'text-selector' | 'spatial' | 'none';
-  extractText: 'decode' | 'pdf-text-layer' | 'none';
+  textSource: 'decode' | 'pdf-text-layer' | 'none';
   authorable: boolean;
   uploadable: boolean;
   generatable: boolean;
@@ -31,7 +31,7 @@ the spec enum without a capabilities row — or the reverse — is a compile err
 That drift-lock is the reason this guide can describe behavior by reading one
 table.
 
-| Media type | `render` | `anchoring` | `extractText` |
+| Media type | `render` | `anchoring` | `textSource` |
 |---|---|---|---|
 | `text/markdown`, `text/plain`, `text/html` | `text` | `text-selector` | `decode` |
 | `application/json` | `text` | `text-selector` | `decode` |
@@ -83,18 +83,39 @@ space of possible ones. Time-based media needs a fourth, and video needs a
 [Time-based media](#time-based-media-what-the-model-must-absorb) below before
 extending this axis.
 
-### `extractText` — how meaning is recovered, and what it costs
+### `textSource` — WHERE a type's text comes from
 
-Feeds the Smelter's gate (`textExtractionOf`). On a registry miss, base types
-under `text/*` fall back to `decode` — RFC 2046 guarantees the `text` top-level
-type is textual — and everything else is `none`.
+Read it with `textSourceOf(format)`. On a registry miss, base types under
+`text/*` fall back to `decode` — RFC 2046 guarantees the `text` top-level type is
+textual — and everything else is `none`.
 
 - **`decode`** — charset-aware passthrough. The text *is* the bytes. Free.
 - **`pdf-text-layer`** — parse the content stream, and where a page has no
   glyphs, rasterize and OCR it. Roughly **2.9 seconds per scanned page**.
-- **`none`** — no extractor. No embedding, no vector search, no AI detection.
+- **`none`** — no text to be had. No embedding, no vector search, no AI detection.
 
-`extractText: 'none'` is not a gap to fill. An image is annotatable
+**The two values are not two settings of one operation** (READ-VS-EXTRACT). They
+name genuinely different work, and the field was called `extractText` until that
+was noticed:
+
+| | `decode` | `pdf-text-layer` |
+|---|---|---|
+| cost | microseconds | minutes |
+| determinism | total | none, across engine versions |
+| artifact | none to persist | exactly one, canonical |
+| who may do it | anyone holding bytes | the Smelter alone — it needs the store |
+
+Calling both "extraction" made them interchangeable at every call site, and that
+is what let a worker OCR PDFs for four months. They are now separate surfaces:
+decoding is `decodeRepresentation` in this package; deriving is
+`derivingExtractorFor(mediaType)` in `@semiont/content`, callable only with the
+store that persists its output.
+
+**`yieldsGeometryOf(format)` is derived from this field**, not stored beside it —
+`pdf-text-layer` produces positioned runs, `decode` does not. A second stored
+field could contradict the one it came from.
+
+`textSource: 'none'` is not a gap to fill. An image is annotatable
 (`anchoring: 'spatial'`) and carries no text; that combination is coherent and
 final.
 
@@ -118,7 +139,7 @@ the reading direction only.
 
 When a PDF is generated, the model writes [Typst](https://typst.app/) source
 and a pinned compiler in the worker image renders it. The result is an ordinary
-born-digital PDF: `extractText: 'pdf-text-layer'` reads it exactly as it reads a
+born-digital PDF: `textSource: 'pdf-text-layer'` reads it exactly as it reads a
 PDF someone uploaded, and every rung of the running example below applies
 unchanged. There is no second path and no authored sidecar — the PDF's own text
 layer carries the geometry.
@@ -152,7 +173,7 @@ of the renderer degrading the typography.
 
 ## The running example: a PDF, end to end
 
-A PDF declares `render: 'pdf'`, `anchoring: 'spatial'`, `extractText:
+A PDF declares `render: 'pdf'`, `anchoring: 'spatial'`, `textSource:
 'pdf-text-layer'` — the hardest setting on every axis. Each numbered step below
 exists because of one of those three declarations.
 
@@ -388,7 +409,7 @@ each axis knowingly:
   the type is time-based, read the section above first — the axis needs
   extending before the row can be written honestly, and a row that understates
   its anchoring model is not something later annotations can be migrated off.
-- **`extractText: 'none'` is a valid destination**, not a placeholder. It means
+- **`textSource: 'none'` is a valid destination**, not a placeholder. It means
   no embedding, no search, and no AI detection for that type.
 - **Extraction that costs real time needs an artifact and a key.** Anything
   above passthrough cost should be content-addressed by checksum, written once,

@@ -12,24 +12,23 @@
  * the media type — positioned runs anchor by viewrect, their absence
  * anchors by character offset in that same text.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { resourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { PdfTextItem } from '@semiont/core';
 
-vi.mock('@semiont/content', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@semiont/content')>();
-  return {
-    ...actual,
-    EXTRACTORS: { ...actual.EXTRACTORS, 'pdf-text-layer': { extract: vi.fn(), yieldsGeometry: true } },
-  };
-});
+// No `@semiont/content` mock. Since READ-VS-EXTRACT P2 this seam imports nothing
+// from it that runs — deriving is reachable only through `derivingExtractorFor`
+// and callable only with an `AnchoredTextStore`, which this worker does not have.
+// The `pdfExtract` spy that used to prove "the worker did not OCR" had no target
+// left; the `getBinary` assertions below prove the same thing observably, and
+// better: no bytes fetched is no derivation possible.
 // No `@semiont/event-sourcing` mock: annotation ids are content-addressed
 // (JOB-RESTART-SAFETY P3), so the real function is already deterministic. The
 // mock existed only to buy that determinism, and keeping it would hide the
 // identity these builders now compute — which is the thing worth exercising.
 
-import { EXTRACTORS, type ContentReads } from '@semiont/content';
+import type { ContentReads } from '@semiont/content';
 import { prepareDetection } from '../workers/detection/prepare-detection';
 
 type Agent = components['schemas']['Agent'];
@@ -51,9 +50,6 @@ const PDF_ITEMS: PdfTextItem[] = [
   { start: 11, end: 16, page: 1, x: 72,  y: 700, width: 45, height: 12 },
   { start: 17, end: 22, page: 1, x: 125, y: 700, width: 42, height: 12 },
 ];
-
-/** The PDF slot, stubbed — the only extractor these tests fake. */
-const pdfExtract = vi.mocked(EXTRACTORS['pdf-text-layer']!.extract);
 
 /**
  * The byte read, serving `text`. A plain `ContentReads` rather than a
@@ -82,7 +78,6 @@ const selectors = (ann: Record<string, unknown>): Sel[] =>
   (ann.target as { selector: Sel[] }).selector;
 
 describe('prepareDetection', () => {
-  beforeEach(() => { pdfExtract.mockReset(); });
 
   // ── NON-geometry: decode the bytes, no consult ──────────────────────────
 
@@ -127,7 +122,6 @@ describe('prepareDetection', () => {
 
     expect(consult).toHaveBeenCalledWith(RID);
     expect(getBinary).not.toHaveBeenCalled();
-    expect(pdfExtract).not.toHaveBeenCalled();
     expect(source.text).toBe(PDF_TEXT);
 
     const ann = source.buildAnnotation('highlighting', { exact: 'alpha', start: 0, end: 5 }) as Record<string, unknown>;
@@ -137,7 +131,7 @@ describe('prepareDetection', () => {
     expect(sels.some((s) => s.type === 'TextQuoteSelector')).toBe(true);
   });
 
-  it('a class A PDF takes the consult path too — the rule is yieldsGeometry, not "is it a scan"', async () => {
+  it('a class A PDF takes the consult path too — the rule is yieldsGeometryOf, not "is it a scan"', async () => {
     // A class-A carve-out would reintroduce a second producer for an operation
     // that is merely *probably* deterministic. The consult, not the pdfClass,
     // decides.
@@ -159,7 +153,6 @@ describe('prepareDetection', () => {
     // No fallback extraction: a local OCR pass that runs and is discarded still
     // burns the CPU this plan exists to stop duplicating.
     expect(getBinary).not.toHaveBeenCalled();
-    expect(pdfExtract).not.toHaveBeenCalled();
   });
 
   it("a no-map consult answer declines 'no-map' (TERMINAL — drift on a geometry type)", async () => {

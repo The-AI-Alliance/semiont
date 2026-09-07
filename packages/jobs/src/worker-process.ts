@@ -377,7 +377,7 @@ async function handleJobInner(
         throw new DeterministicJobError(`Cannot run ${jobType} on resource ${resourceId}: media type '${mediaType ?? 'unknown'}' has no extractable text to analyze`);
       }
       if (source.declined === 'no-map' || source.declined === 'unknown') {
-        // Terminal, and loud: no-map is drift between `yieldsGeometry` and the
+        // Terminal, and loud: no-map is drift between `yieldsGeometryOf` and the
         // Smelter's skip decision (a geometry type it declined to map); unknown
         // is a resource with no content identity. Neither is retryable, and
         // both mean something upstream is wrong — surface it, do not complete

@@ -10,7 +10,7 @@ import { createGatherStateUnit, type GatherStateUnit } from '@semiont/sdk';
 import { createMatchStateUnit } from '@semiont/sdk';
 import { createYieldStateUnit, type YieldStateUnit } from '@semiont/sdk';
 import type { SemiontSession } from '@semiont/sdk';
-import { decodeWithCharset, textExtractionOf, uuidV4 } from '@semiont/core';
+import { decodeWithCharset, textSourceOf, uuidV4 } from '@semiont/core';
 import { groupAnnotations } from '../../../lib/annotation-groups';
 import type { ReferencedByEntry } from '@semiont/sdk';
 
@@ -109,7 +109,7 @@ export function createResourceViewerPageStateUnit(
   // type does not decode to text. Storage-tier images (gif/webp) are
   // render:'none' but still binary, and a ZIP must avoid the text path; a
   // mechanical render-mode check would mis-route both into mojibake.
-  const isBinaryType = textExtractionOf(mediaType) !== 'decode';
+  const isBinaryType = textSourceOf(mediaType) !== 'decode';
 
   if (!isBinaryType && mediaType) {
     contentLoading$.next(true);

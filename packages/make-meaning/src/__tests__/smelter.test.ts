@@ -20,18 +20,22 @@ import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vite
 import { BehaviorSubject, EMPTY, Observable, Subject } from 'rxjs';
 import type { ExtractionOutcome, EventMap, components } from '@semiont/core';
 import { resourceId as makeResourceId, chunkText } from '@semiont/core';
-import { calculateChecksum, extractPdfTextLayer, EXTRACTORS } from '@semiont/content';
+import { calculateChecksum, extractPdfTextLayer } from '@semiont/content';
+
+/** The real deriving extractor with `extract` spied — one instance, so a
+ *  `mockResolvedValueOnce` set up in a test is the one the Smelter calls.
+ *  Since READ-VS-EXTRACT P2 the seam is the `derivingExtractorFor` accessor
+ *  rather than a strategy-keyed map, so the mock wraps the accessor. */
+const derivedSpy = vi.hoisted(() => ({ extract: vi.fn() }));
 
 vi.mock('@semiont/content', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@semiont/content')>();
+  const real = actual.derivingExtractorFor('application/pdf')!;
+  derivedSpy.extract.mockImplementation(real.extract.bind(real));
   return {
     ...actual,
-    EXTRACTORS: {
-      ...actual.EXTRACTORS,
-      // Spread the real extractor so its declared properties (e.g. geometry
-      // capability) survive the spy — only `extract` is wrapped.
-      'pdf-text-layer': { ...actual.EXTRACTORS['pdf-text-layer']!, extract: vi.fn(actual.EXTRACTORS['pdf-text-layer']!.extract) },
-    },
+    derivingExtractorFor: (mediaType: string) =>
+      actual.derivingExtractorFor(mediaType) === null ? null : derivedSpy,
   };
 });
 import { PDFDocument, StandardFonts } from 'pdf-lib';
@@ -461,7 +465,7 @@ describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
     // attached, and nothing downstream can recompute how the text was
     // obtained. So the projection that carries the text carries the fact.
     const h = await pdfHarness({ 'res-scan': SCANNED_PDF });
-    vi.mocked(EXTRACTORS['pdf-text-layer']!.extract).mockResolvedValueOnce({
+    derivedSpy.extract.mockResolvedValueOnce({
       kind: 'extracted',
       text: 'recovered from a scan',
       items: [],
@@ -484,7 +488,7 @@ describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
     // came from OCR has to say so here too — otherwise half the gather paths
     // lose the provenance the other half carries.
     const h = await pdfHarness({ 'res-scan': SCANNED_PDF });
-    vi.mocked(EXTRACTORS['pdf-text-layer']!.extract).mockResolvedValueOnce({
+    derivedSpy.extract.mockResolvedValueOnce({
       kind: 'extracted', text: 'recovered from a scan', items: [], method: 'ocr', pdfClass: 'B',
     });
     try {

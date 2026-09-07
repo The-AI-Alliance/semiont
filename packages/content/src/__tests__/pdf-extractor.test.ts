@@ -12,7 +12,12 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { describe, it, expect } from 'vitest';
 import { extractPdfTextLayer } from '../extract-pdf-text-layer';
-import { EXTRACTORS } from '../content-extractor';
+import { derivingExtractorFor } from '../text-extractor';
+import type { AnchoredTextStore } from '../anchored-text-store';
+
+/** Deriving requires the store (READ-VS-EXTRACT P2); these cases are about the
+ *  extraction itself, so the store is a black hole that keeps nothing. */
+const NO_CACHE = { key: 'test', store: { read: async () => undefined, write: async () => {} } as unknown as AnchoredTextStore };
 import { classifyPdfError } from '../pdf-extractor';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -23,13 +28,13 @@ const KNOWN_PHRASE = 'known phrase from fixture';
 
 describe('pdfExtractor (Phase 1 registry slot)', () => {
     it("fills the 'pdf-text-layer' slot", () => {
-        expect(EXTRACTORS['pdf-text-layer']).not.toBeNull();
+        expect(derivingExtractorFor('application/pdf')).not.toBeNull();
     });
 
     it('class A: extracts the text layer with items and pdfClass', async () => {
-        const ex = EXTRACTORS['pdf-text-layer'];
+        const ex = derivingExtractorFor('application/pdf');
         expect(ex).not.toBeNull();
-        const out = await ex!.extract(readFixture('single-line.pdf'), 'application/pdf');
+        const out = await ex!.extract(readFixture('single-line.pdf'), 'application/pdf', NO_CACHE);
         expect(out).not.toHaveProperty('declined');
         if (out.kind === 'declined') throw new Error('unreachable');
         expect(out.text).toContain(KNOWN_PHRASE);
@@ -41,25 +46,25 @@ describe('pdfExtractor (Phase 1 registry slot)', () => {
     });
 
     it("class B: scanned PDF declines 'no-text-layer'", async () => {
-        const ex = EXTRACTORS['pdf-text-layer'];
+        const ex = derivingExtractorFor('application/pdf');
         expect(ex).not.toBeNull();
-        const out = await ex!.extract(readFixture('scanned.pdf'), 'application/pdf');
+        const out = await ex!.extract(readFixture('scanned.pdf'), 'application/pdf', NO_CACHE);
         expect(out).toEqual({ kind: 'declined', declined: 'no-text-layer' });
     });
 
     it("class G: corrupt bytes decline 'corrupt'", async () => {
-        const ex = EXTRACTORS['pdf-text-layer'];
+        const ex = derivingExtractorFor('application/pdf');
         expect(ex).not.toBeNull();
-        const out = await ex!.extract(Buffer.from('not a pdf at all', 'utf8'), 'application/pdf');
+        const out = await ex!.extract(Buffer.from('not a pdf at all', 'utf8'), 'application/pdf', NO_CACHE);
         expect(out).toEqual({ kind: 'declined', declined: 'corrupt' });
     });
 });
 
 describe('class C — hybrid native/scanned routing (Phase 3)', () => {
     const extract = async (fixture: string) => {
-        const ex = EXTRACTORS['pdf-text-layer'];
+        const ex = derivingExtractorFor('application/pdf');
         expect(ex).not.toBeNull();
-        return ex!.extract(readFixture(fixture), 'application/pdf');
+        return ex!.extract(readFixture(fixture), 'application/pdf', NO_CACHE);
     };
 
     it('names the pages it could not read, and labels the document hybrid', async () => {
@@ -90,9 +95,9 @@ describe('class C — hybrid native/scanned routing (Phase 3)', () => {
 
 describe('class D — table structure (Phase 2)', () => {
     const extract = async (fixture: string) => {
-        const ex = EXTRACTORS['pdf-text-layer'];
+        const ex = derivingExtractorFor('application/pdf');
         expect(ex).not.toBeNull();
-        const out = await ex!.extract(readFixture(fixture), 'application/pdf');
+        const out = await ex!.extract(readFixture(fixture), 'application/pdf', NO_CACHE);
         if (out.kind === 'declined') throw new Error(`unexpected decline: ${out.declined}`);
         return out;
     };
@@ -135,9 +140,9 @@ describe('class D — table structure (Phase 2)', () => {
 
 describe('class E — AcroForm field values (Phase 2)', () => {
     const extract = async (fixture: string) => {
-        const ex = EXTRACTORS['pdf-text-layer'];
+        const ex = derivingExtractorFor('application/pdf');
         expect(ex).not.toBeNull();
-        const out = await ex!.extract(readFixture(fixture), 'application/pdf');
+        const out = await ex!.extract(readFixture(fixture), 'application/pdf', NO_CACHE);
         if (out.kind === 'declined') throw new Error(`unexpected decline: ${out.declined}`);
         return out;
     };

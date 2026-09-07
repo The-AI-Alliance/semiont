@@ -71,7 +71,6 @@ vi.mock('@semiont/content', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@semiont/content')>();
   return {
     ...actual,
-    EXTRACTORS: { ...actual.EXTRACTORS, 'pdf-text-layer': { extract: vi.fn(), yieldsGeometry: true } },
     // PDF citation geometry (P4): the worker re-anchors claims through the
     // extracted text layer; tests supply it.
     extractPdfTextLayer: vi.fn(),
@@ -918,7 +917,7 @@ describe('handleJob orchestration', () => {
   // ── Detection media-type gate (MEDIA-TYPES.md Phase 3c) ──────────────
   // browse.resourceContent() sends Accept: text/plain and TextDecoder-
   // decodes whatever returns, so a detection job on a binary resource
-  // would feed mojibake to the LLM. The gate checks textExtractionOf
+  // would feed mojibake to the LLM. The gate checks textSourceOf
   // on the resource's primary media type before fetching.
 
   describe('detection media-type gate', () => {
