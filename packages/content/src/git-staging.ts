@@ -1,32 +1,10 @@
 /**
- * Staging the working tree for a human, off the event loop.
+ * Deferred, deduped `git add`. The index is for humans who commit by hand, so
+ * it must be current within seconds, not after every change.
  *
- * **Who the index is for.** The Archivist stages; operators commit, branch and
- * merge by hand. Nothing in the codebase runs `git commit` or reads the index
- * — so the requirement is *"current within seconds whenever someone looks"*,
- * not *"current synchronously after every change"*. Those two readings differ
- * by three orders of magnitude in work done, and the code had been written to
- * the second.
- *
- * **What it replaces.** Every appended event ran `execFileSync('git', ['add',
- * …])`. Synchronous, so the duration was not latency on the append — it was
- * time this process could serve nothing else, and the Archivist answers every
- * `browse:*` read and (post SINGLE-KB-MOUNT) every content read. A detection
- * job appending 1,400 annotations to ONE resource spawned 1,400 blocking
- * subprocesses to stage ONE path.
- *
- * **Two properties, and the second is the larger win.** Deduping by path turns
- * those 1,400 invocations into one; going async keeps the loop free while it
- * runs. Async alone would have kept all 1,400.
- *
- * **Serialized, because git's index is single-writer.** Concurrent `git add`
- * contends on `index.lock`, which fails rather than retries — so one worker,
- * one invocation at a time, per repository.
- *
- * **Lazy by construction.** Nothing starts at import: no timer, no worker, no
- * subprocess until something is actually staged. `@semiont/jobs` imports this
- * package for `EXTRACTORS` alone and runs where there is no KB mount and no
- * git; it must carry no live machinery.
+ * Serialized per repo — git's index is single-writer, and concurrent `git add`
+ * fails on `index.lock` rather than retrying. Created on first use, never at
+ * import: consumers of this package may never stage anything.
  */
 
 import { execFile } from 'child_process';

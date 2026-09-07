@@ -61,18 +61,7 @@ export class EventStorage {
   // Per-resource sequence tracking: resourceId -> sequence number
   private resourceSequences: Map<string, number> = new Map();
 
-  /**
-   * Staging is DEFERRED and deduped (GIT-OFF-THE-EVENT-LOOP). The index exists
-   * for a human who commits by hand — nothing in the codebase commits or reads
-   * it — so it must be current within seconds, not synchronously per append.
-   *
-   * This is the hot path the change was for: appending 1,400 annotations to
-   * one resource re-staged ONE file 1,400 times, each a blocking subprocess on
-   * the loop that also answers every `browse:*` read. Deduped, that is one
-   * path and one invocation.
-   *
-   * Created on first append, never at import.
-   */
+  /** Deferred, deduped staging: many appends to one file stage it once. */
   private _stager?: Stager;
   private stager(): Stager {
     if (!this._stager) this._stager = createStager(this.project.root);
