@@ -2,6 +2,7 @@ import type { ResourceId, components, AnchoredTextAnswer } from '@semiont/core';
 import { textExtractionOf } from '@semiont/core';
 import { EXTRACTORS, type ContentReads, type ExtractionDecline } from '@semiont/content';
 import { buildTextAnnotation, buildPdfAnnotation, type BuildAnnotation } from '../../processors';
+import { DeterministicJobError } from '../../failure-class';
 
 type Agent = components['schemas']['Agent'];
 
@@ -101,6 +102,24 @@ export async function prepareDetection(
       case 'not-yet': return { declined: 'not-yet' };
       case 'no-map':  return { declined: 'no-map' };
       case 'unknown': return { declined: 'unknown' };
+      default: {
+        // `answer` narrows to `never` only while every member of
+        // `AnchoredTextAnswer` is handled above. Widen the wire without
+        // deciding retry-vs-terminal for the new member HERE and this stops
+        // compiling — which is the whole point, because the alternative is
+        // silent: control would fall out of this branch into the byte path
+        // below and re-derive a geometry-bearing PDF locally, restoring the
+        // second-producer bug this design exists to remove.
+        //
+        // Not dead code at runtime, either. The union crosses a process
+        // boundary, so a worker running against a newer Smelter can receive a
+        // kind it was never compiled with. Terminal rather than transient:
+        // retrying cannot teach this build a member it does not have.
+        const unhandled: never = answer;
+        throw new DeterministicJobError(
+          `Unhandled anchored-text answer for resource ${resourceId}: ${JSON.stringify(unhandled)}`,
+        );
+      }
     }
   }
 
