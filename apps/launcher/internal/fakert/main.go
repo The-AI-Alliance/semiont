@@ -803,6 +803,28 @@ func pull(image string) {
 	fmt.Printf("Pulled %s\n", image)
 }
 
+// statProbe records whether FAKERT_STAT_PATH exists at the moment a service
+// `run` arrives — one line per run, "present" or "absent", appended to
+// FAKERT_STAT_LOG. This is how a test pins host-side ordering (a store
+// clear) against the boot's container starts: fakert executes at exactly
+// the instant the real runtime would attach the mount.
+func statProbe() {
+	p, out := os.Getenv("FAKERT_STAT_PATH"), os.Getenv("FAKERT_STAT_LOG")
+	if p == "" || out == "" {
+		return
+	}
+	state := "absent"
+	if _, err := os.Stat(p); err == nil {
+		state = "present"
+	}
+	f, err := os.OpenFile(out, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintln(f, state)
+}
+
 // run handles both probe containers (busybox) and detached service starts.
 func run(args []string) {
 	joined := strings.Join(args, " ")
@@ -810,6 +832,7 @@ func run(args []string) {
 		busybox(args, joined)
 		return
 	}
+	statProbe()
 	detached := false
 	var ports []string
 	name := ""

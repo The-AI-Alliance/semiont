@@ -104,6 +104,10 @@ type stateStoreSpec struct {
 	// auto-cleans and rebuilds instead of refusing. False = system of
 	// record (database): existing data is never auto-deleted.
 	projection bool
+	// owner: the role whose image stamps this store — the writer whose code
+	// the contents reflect. Exactly one service takes the stamped mount path
+	// per store; sharers mount via stateMountsShared.
+	owner string
 }
 
 // stateMount: one -v within a store. sub "" mounts the store dir itself.
@@ -118,12 +122,14 @@ var stateStores = map[string]stateStoreSpec{
 		dir:    "postgres",
 		mounts: []stateMount{{"", "/var/lib/postgresql/data"}},
 		env:    []string{"PGDATA=/var/lib/postgresql/data/pgdata"},
+		owner:  "database",
 	},
 	// Qdrant just writes files; a plain mount works (Phase 0, 7/7).
 	"vectors": {
 		dir:        "qdrant",
 		mounts:     []stateMount{{"", "/qdrant/storage"}},
 		projection: true,
+		owner:      "vectors",
 	},
 	// Neo4j's entrypoint gates on `test -w` of /data and /logs and insists
 	// on chowning an unwritable mount root — refused on virtiofs, and
@@ -134,6 +140,7 @@ var stateStores = map[string]stateStoreSpec{
 		mounts:     []stateMount{{"data", "/data"}, {"logs", "/logs"}},
 		mode:       0o777,
 		projection: true,
+		owner:      "graph",
 	},
 	// The gateway's own derived state: the anchored-text store, one coordinate
 	// map per representation, ~2.9s/page of OCR to rebuild. Unmounted it lives
@@ -153,6 +160,7 @@ var stateStores = map[string]stateStoreSpec{
 		dir:        "anchored-text",
 		mounts:     []stateMount{{"", "/anchored-text"}},
 		projection: true,
+		owner:      "smelter",
 	},
 	// The XDG state tree, shared across the Archivist (projection writer —
 	// owns the stamp), the librarian (reads views), and the gateway (jobs
@@ -161,7 +169,26 @@ var stateStores = map[string]stateStoreSpec{
 		dir:        "state",
 		mounts:     []stateMount{{"", "/semiont-state"}},
 		projection: true,
+		owner:      "archivist",
 	},
+}
+
+// clearStoreContents empties a store dir without unlinking the dir itself.
+// Delete-and-recreate orphans every container share attached to the old
+// directory (Apple container virtiofs, measured 2026-09-07: the attached
+// container sees an empty mount and ENOENT on writes, forever); clearing
+// contents is invisible to attached shares.
+func clearStoreContents(sd string) error {
+	entries, err := os.ReadDir(sd)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if err := os.RemoveAll(filepath.Join(sd, e.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // storeDir: the store's directory under a root's state dir.

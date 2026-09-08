@@ -11,9 +11,11 @@ package launcher
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -60,6 +62,7 @@ type executor interface {
 	ensureModels(base string, models []modelNeed)               // pull configured ollama models that are absent
 	stateMounts(role, image, root string) ([]string, bool)      // persistent-state run args; !ok = refuse (data written by another image)
 	stateMountsShared(role, root string) ([]string, bool)       // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
+	resolveStoreStamps(fc flowCtx) bool                         // preflight: every store's mismatch refuse/clear, before the first container run (SHARED-STORE-CLEAR-PREFLIGHT)
 	val(live, plan string) string                               // mode-scoped value (kb root, admin password)
 	rtName() string
 
@@ -737,10 +740,70 @@ func (x *liveExec) ensureModels(base string, models []modelNeed) {
 	ensureOllamaModels(x.u, base, models)
 }
 
+// resolveStoreStamp is THE decider for existing store data vs the launching
+// image: refuse for the system of record (database — user rows), clear
+// CONTENTS for projections (rebuildable from the log). Never unlinks the
+// store dir: an attached share survives a contents-clear and is orphaned
+// forever by delete-and-recreate (measured 2026-09-07).
+func (x *liveExec) resolveStoreStamp(role, image, root string) bool {
+	spec := stateStores[role]
+	dir := stateRootDir(root)
+	sd := spec.storeDir(root)
+	meta := loadRootMeta(dir)
+	prev := meta.Stores[role].Image
+	if prev == "" || prev == image {
+		return true
+	}
+	if storeDirNonEmpty(sd) {
+		if !spec.projection {
+			x.u.fail("%s state at %s was written by %s; this config launches %s.", role, sd, prev, image)
+			fmt.Fprintln(os.Stderr, "  That data is not auto-deleted. Remove it first: semiont clean --store "+role)
+			return false
+		}
+		x.u.log("%s state at %s was written by %s; this config launches %s — projections rebuild, so clearing it.",
+			role, sd, prev, image)
+		if err := clearStoreContents(sd); err != nil {
+			x.u.fail("cannot clear %s state %s: %v", role, sd, err)
+			return false
+		}
+	}
+	// Restamp NOW, not at the owner's prep: the old image's output is gone,
+	// and a resolution that leaves the old stamp re-fires at the owner's own
+	// stateMounts — clearing whatever an earlier-booting sharer wrote into
+	// the store in between (the P5 live gate caught exactly this: the
+	// gateway's fresh jobs tree, cleared at archivist prep).
+	meta.Stores[role] = storeMeta{Image: image}
+	saveRootMeta(dir, meta)
+	return true
+}
+
+// resolveStoreStamps runs every store's stamp resolution in PREFLIGHT. The
+// state store is shared — the gateway and librarian attach what the
+// archivist stamps — so a clear at the owner's own prep lands mid-boot,
+// after sharers attached (SHARED-STORE-CLEAR-PREFLIGHT).
+func (x *liveExec) resolveStoreStamps(fc flowCtx) bool {
+	for _, role := range slices.Sorted(maps.Keys(stateStores)) {
+		spec := stateStores[role]
+		var img string
+		if rp, ok := fc.plan.Roles[spec.owner]; ok {
+			if rp.Obligation != obligationProvided {
+				continue // remote or absent: this boot mounts no such store
+			}
+			img = rp.Image
+		} else {
+			img = image(spec.owner, fc.version)
+		}
+		if !x.resolveStoreStamp(role, img, fc.root) {
+			return false
+		}
+	}
+	return true
+}
+
 // stateMounts prepares a role's persistent state dir and returns the run
 // args that mount it (LAUNCHER-STATE.md). The image-mismatch split lives
-// here: database data is user rows — refuse, fix-it names the clean
-// command; projections (vectors/graph) auto-clean and rebuild.
+// in resolveStoreStamp: database data is user rows — refuse, fix-it names
+// the clean command; projections (vectors/graph) auto-clean and rebuild.
 func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 	args := stateMountArgs(role, root)
 	if len(args) == 0 {
@@ -750,21 +813,10 @@ func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 	dir := stateRootDir(root)
 	sd := spec.storeDir(root)
 	meta := loadRootMeta(dir)
-	if prev := meta.Stores[role].Image; prev != "" && prev != image && storeDirNonEmpty(sd) {
-		if spec.projection {
-			// A projection of the event log: staleness is rebuildable, so a
-			// mismatch clears rather than refuses.
-			x.u.log("%s state at %s was written by %s; this config launches %s — projections rebuild, so clearing it.",
-				role, sd, prev, image)
-			if err := os.RemoveAll(sd); err != nil {
-				x.u.fail("cannot clear %s state %s: %v", role, sd, err)
-				return nil, false
-			}
-		} else {
-			x.u.fail("%s state at %s was written by %s; this config launches %s.", role, sd, prev, image)
-			fmt.Fprintln(os.Stderr, "  That data is not auto-deleted. Remove it first: semiont clean --store "+role)
-			return nil, false
-		}
+	// A full start has already resolved the stamp in preflight (this re-check
+	// no-ops on the emptied dir); single-service starts resolve here.
+	if !x.resolveStoreStamp(role, image, root) {
+		return nil, false
 	}
 	for _, m := range spec.mounts {
 		mp := filepath.Join(sd, m.sub)
@@ -1059,6 +1111,11 @@ func (x *planExec) stateMounts(role, _, root string) ([]string, bool) {
 func (x *planExec) stateMountsShared(role, root string) ([]string, bool) {
 	x.c("mount %s state (shared; the stamp stays with its owning service)", role)
 	return stateMountArgs(role, root), true
+}
+
+func (x *planExec) resolveStoreStamps(flowCtx) bool {
+	x.c("resolve persistent-store stamps before any container runs: a database mismatch refuses; a projection mismatch clears the store's contents (the dir itself is kept, so attached shares survive)")
+	return true
 }
 
 func (x *planExec) val(_, plan string) string { return plan }

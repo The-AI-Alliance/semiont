@@ -85,6 +85,7 @@ podman rm semiont-librarian
 # append [environments.local.archivist] host/port (launcher-staged topology) to worker.toml
 # append [environments.local.archivist] host/port (launcher-staged topology) to smelter.toml
 # append [environments.local.archivist] host/port (launcher-staged topology) to librarian.toml
+# resolve persistent-store stamps before any container runs: a database mismatch refuses; a projection mismatch clears the store's contents (the dir itself is kept, so attached shares survive)
 container image pull ghcr.io/the-ai-alliance/semiont-gateway:latest
 container image pull ghcr.io/the-ai-alliance/semiont-worker:latest
 container image pull ghcr.io/the-ai-alliance/semiont-smelter:latest
