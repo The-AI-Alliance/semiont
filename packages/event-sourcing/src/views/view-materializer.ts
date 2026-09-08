@@ -483,6 +483,8 @@ export class ViewMaterializer {
     );
     this.logger?.info('[ViewMaterializer] Rebuilding resource views', { count: resourceIds.length });
     let skipped = 0;
+    const materialized = new Set<string>();
+    const failed = new Set<string>();
     for (const rid of resourceIds) {
       try {
         const events = await eventLog.getEvents(rid);
@@ -490,12 +492,14 @@ export class ViewMaterializer {
 
         const view = this.materializeFromEvents(events, rid);
         await this.viewStorage.save(rid, view);
+        materialized.add(rid as unknown as string);
 
         for (const event of events) {
           await this.materializeStorageUriIndex(rid, event);
         }
       } catch (error) {
         skipped++;
+        failed.add(rid as unknown as string);
         this.logger?.error('[ViewMaterializer] Failed to rebuild resource view', {
           resourceId: String(rid),
           error: error instanceof Error ? error.message : String(error),
@@ -503,11 +507,41 @@ export class ViewMaterializer {
       }
     }
 
+    const reaped = await this.reapOrphanedViews(materialized, failed);
+
     this.logger?.info('[ViewMaterializer] Rebuild complete', {
       systemEvents: systemEvents.length,
       resources: resourceIds.length,
       skipped,
+      reaped,
     });
+  }
+
+  /**
+   * Delete views the log no longer justifies. Without this the pass is
+   * upsert-only, and a log rewrite leaves ghosts that the weaver's catalog —
+   * which is these views — heals on every boot.
+   *
+   * A resource whose rebuild threw is kept: a transient read failure must not
+   * read as "the log does not justify this view".
+   */
+  private async reapOrphanedViews(materialized: Set<string>, failed: Set<string>): Promise<number> {
+    let reaped = 0;
+
+    for (const view of await this.viewStorage.getAll()) {
+      const id = view.resource['@id'];
+      if (!id || id === '__system__') continue;
+      if (materialized.has(id) || failed.has(id)) continue;
+
+      await this.viewStorage.delete(id as unknown as ResourceId);
+      reaped++;
+      this.logger?.warn('[ViewMaterializer] Reaped view unjustified by the log', { resourceId: id });
+    }
+
+    if (reaped > 0) {
+      this.logger?.warn('[ViewMaterializer] Views reaped', { count: reaped });
+    }
+    return reaped;
   }
 
   /**

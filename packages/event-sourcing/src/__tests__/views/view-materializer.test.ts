@@ -1319,5 +1319,90 @@ describe('ViewMaterializer', () => {
       const source = fakeEventSource({});
       await expect(materializer.rebuildAll(source)).resolves.toBeUndefined();
     });
+
+    /**
+     * The reap. `rebuildAll` was upsert-only, so a log rewrite left views the
+     * log no longer justifies behind forever — and the weaver's catalog IS the
+     * views, so it healed ghosts on every boot.
+     */
+    describe('reaping views the log no longer justifies', () => {
+      function seedView(rid: any, name: string) {
+        return viewStorage.save(rid, {
+          resource: {
+            '@context': 'https://schema.org/',
+            '@id': rid,
+            name,
+            representations: [],
+            archived: false,
+            entityTypes: [],
+          },
+          annotations: { resourceId: rid, annotations: [], version: 0, updatedAt: '' },
+        });
+      }
+
+      it('deletes a view whose resource is absent from the log', async () => {
+        const kept = resourceId('doc1');
+        const orphan = resourceId('doc-pruned');
+        await seedView(kept, 'Doc One');
+        await seedView(orphan, 'Ghost');
+
+        await materializer.rebuildAll(
+          fakeEventSource({ [kept as string]: [createdEvent(kept, 'Doc One', 1)] })
+        );
+
+        expect(await viewStorage.exists(orphan)).toBe(false);
+        expect(await viewStorage.exists(kept)).toBe(true);
+      });
+
+      it('deletes a view whose log stream is empty', async () => {
+        const orphan = resourceId('doc-emptied');
+        await seedView(orphan, 'Ghost');
+
+        // The id survives in the log index but its events are gone — the shape
+        // a prune leaves behind, and the one rebuildAll used to skip silently.
+        await materializer.rebuildAll(fakeEventSource({ [orphan as string]: [] }));
+
+        expect(await viewStorage.exists(orphan)).toBe(false);
+      });
+
+      it('keeps every view the log still justifies', async () => {
+        const r1 = resourceId('doc1');
+        const r2 = resourceId('doc2');
+        await seedView(r1, 'Stale One');
+        await seedView(r2, 'Stale Two');
+
+        await materializer.rebuildAll(
+          fakeEventSource({
+            __system__: [entityTypeAddedEvent('Person', 1)],
+            [r1 as string]: [createdEvent(r1, 'Doc One', 1)],
+            [r2 as string]: [createdEvent(r2, 'Doc Two', 1)],
+          })
+        );
+
+        expect((await viewStorage.get(r1))?.resource.name).toBe('Doc One');
+        expect((await viewStorage.get(r2))?.resource.name).toBe('Doc Two');
+      });
+
+      it('keeps a view whose rebuild failed rather than reaping it', async () => {
+        const broken = resourceId('doc-unreadable');
+        await seedView(broken, 'Still Here');
+
+        const source = {
+          async getEvents(rid: any) {
+            if ((rid as string) === (broken as string)) throw new Error('log read failed');
+            return [];
+          },
+          async getAllResourceIds() {
+            return [broken] as any[];
+          },
+        };
+
+        await materializer.rebuildAll(source);
+
+        // A transient read error must never be read as "the log does not
+        // justify this view" — that would turn a retryable fault into deletion.
+        expect(await viewStorage.exists(broken)).toBe(true);
+      });
+    });
   });
 });
