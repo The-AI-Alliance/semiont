@@ -9,10 +9,11 @@
 # looping, and `semiont stop` (TERM) is forwarded and never fought.
 #
 # ONE COPY, parameterized by environment — a second copy would be two places
-# deciding one policy. Required:
+# deciding one policy. Invoked by boot.sh with the image CMD as arguments —
+# the command to supervise arrives as "$@", stated once, in CMD
+# (ORCHESTRATOR-NATIVE-IMAGES D4). Required environment:
 #
 #   SUPERVISE_NAME    service name, used in every event line and the state dir
-#   SUPERVISE_ENTRY   absolute path to the node entry point
 #   SUPERVISE_PROBE   health URL polled once armed
 #
 # LOGGING, deliberately minimal: the child writes to STDOUT exactly as before —
@@ -27,11 +28,10 @@
 # runtime log — restart without the durable record, by design, not by accident.
 
 : "${SUPERVISE_NAME:?supervise.sh: SUPERVISE_NAME is required}"
-: "${SUPERVISE_ENTRY:?supervise.sh: SUPERVISE_ENTRY is required}"
 : "${SUPERVISE_PROBE:?supervise.sh: SUPERVISE_PROBE is required}"
+[ "$#" -gt 0 ] || { echo "supervise.sh: no command given — expected the image CMD as arguments"; exit 1; }
 
 NAME="$SUPERVISE_NAME"
-ENTRY="$SUPERVISE_ENTRY"
 PROBE_URL="$SUPERVISE_PROBE"
 
 # The child reads this back to report `semiont.process.restarts`, so the path
@@ -73,7 +73,7 @@ while [ -z "$stopping" ]; do
   # "starting <name>" is the line the restart-count provider counts. Changing
   # its shape breaks `semiont.process.restarts` in every service.
   note "starting $NAME (rapid failures so far: $rapid)"
-  node "$ENTRY" &
+  "$@" &
   child=$!
 
   # Health self-probe: arms after the FIRST success (boot readiness is the

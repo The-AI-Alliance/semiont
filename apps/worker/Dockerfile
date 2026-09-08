@@ -66,15 +66,19 @@ EXPOSE 24100
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:24100/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
-# The supervisor, not node directly (ARCHIVIST-STAYS-UP P1, generalized by
-# GATEWAY-SUPERVISION F1): restarts a crashed child, probes and kills a hung
-# one, refuses to loop on a deterministic boot failure, and keeps a death
-# record on the state mount that survives the container. ONE copy, shared by
-# every service — a second would be two places deciding one policy.
-# DISPOSABLE: under a real orchestrator (k8s, ECS, Nomad) DELETE this — do not
-# port it. Their restart policy does the same job, and two would disagree.
+# tini is PID 1; boot.sh runs the CMD directly unless the run sets
+# SEMIONT_SUPERVISE (the launcher does, for local placement — the one runtime
+# with no restart policy of its own). Supervised, a crashed child restarts, a
+# hung one is probed and killed, a deterministic boot failure fails fast, and
+# every death is recorded — durably where a writable /semiont-state is
+# mounted, in /tmp otherwise. Unsupervised, the image is a conventional
+# one-process container: it exits on child death, and the platform's own
+# restart policy is the only one in play. ONE copy of these scripts, shared
+# by every service — a second would be two places deciding one policy.
+RUN apk add --no-cache tini
 COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
+COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 ENV SUPERVISE_NAME=worker \
-    SUPERVISE_ENTRY=/usr/local/lib/node_modules/@semiont/jobs/dist/worker-main.js \
     SUPERVISE_PROBE=http://localhost:24100/health
-CMD ["/bin/sh", "/usr/local/bin/supervise.sh"]
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
+CMD ["node", "/usr/local/lib/node_modules/@semiont/jobs/dist/worker-main.js"]

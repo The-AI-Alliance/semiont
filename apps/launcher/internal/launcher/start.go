@@ -818,6 +818,7 @@ func gatewayArgs(stage, addr, secret, jwt, version string, port int, userEnv, ot
 		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_WORKER_SECRET="+secret,
 		"--env", "JWT_SECRET="+jwt)
+	a = append(a, superviseEnv()...)
 	return append(a, image("gateway", version))
 }
 
@@ -835,6 +836,16 @@ func gatewayArgs(stage, addr, secret, jwt, version string, port int, userEnv, ot
 // to update two of them.
 func gatewayHostEnv(addr string) []string {
 	return []string{"--env", "GATEWAY_HOST=" + addr, "--env", "BACKEND_HOST=" + addr}
+}
+
+// superviseEnv is the per-run supervision opt-in (ORCHESTRATOR-NATIVE-IMAGES
+// D3): boot.sh wraps the image CMD in the shared supervisor only when this is
+// set. Local placement is the one place with no orchestrator restart policy,
+// so every service builder passes it; compose and user manifests never do —
+// their platform restarts. Defined once because five call sites spelling the
+// same pair is five chances to update four of them.
+func superviseEnv() []string {
+	return []string{"--env", "SEMIONT_SUPERVISE=1"}
 }
 
 // sidecarArgs covers the three make-meaning sidecars (worker / smelter /
@@ -856,6 +867,7 @@ func sidecarArgs(svc string, port int, stage, addr, secret, version string, user
 		// WHOLE TOML eagerly, so every consumer needs every ${VAR} defined
 		// (the same reason the Archivist gets POSTGRES_HOST).
 		"--env", "SEMIONT_WORKER_SECRET="+secret)
+	a = append(a, superviseEnv()...)
 	a = append(a, extra...)
 	return append(a, image(svc, version))
 }
@@ -885,6 +897,7 @@ func archivistArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []
 		"--env", "POSTGRES_HOST="+addr,
 		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_WORKER_SECRET="+secret)
+	a = append(a, superviseEnv()...)
 	return append(a, image("archivist", version))
 }
 
@@ -914,6 +927,7 @@ func librarianArgs(stage, addr, secret, version string, userEnv, otel []string, 
 		"--env", "POSTGRES_HOST="+addr,
 		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_WORKER_SECRET="+secret)
+	a = append(a, superviseEnv()...)
 	return append(a, image("librarian", version))
 }
 
@@ -927,6 +941,7 @@ func browserArgs(version string, port int) []string {
 	if dir := stateDir(); dir != "" {
 		a = append(a, "-v", filepath.Join(dir, "discovery")+":/discovery:ro")
 	}
+	a = append(a, superviseEnv()...)
 	return append(a, image("browser", version))
 }
 

@@ -41,12 +41,14 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
-# The supervisor, not node directly (ARCHIVIST-STAYS-UP P1, generalized by
-# GATEWAY-SUPERVISION F1). The HEALTHCHECK above states a contract no runtime
-# can enforce — Apple container has no --restart, docker cannot restart on
-# unhealthy — so without this the browser declares health and can do nothing
-# about losing it. A dead browser is the stack's most user-visible failure:
-# every user gets a blank page, where a dead sidecar only degrades a feature.
+# tini is PID 1; boot.sh runs the CMD directly unless the run sets
+# SEMIONT_SUPERVISE (the launcher does, for local placement — the one runtime
+# with no restart policy of its own: the HEALTHCHECK above states a contract
+# neither Apple container nor docker can act on there). A dead browser is the
+# stack's most user-visible failure: every user gets a blank page, where a
+# dead sidecar only degrades a feature. Unsupervised, the image is a
+# conventional one-process container — it exits on child death, and the
+# platform's own restart policy is the only one in play.
 #
 # Deliberately the cheap half of supervision. The browser mounts no writable
 # /semiont-state (only /discovery, read-only), so supervise.sh falls back to
@@ -55,10 +57,10 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 # record would be a worse coupling than the gap it closes, and a supervised
 # container no longer exits on child death, so `container logs` keeps the
 # crash history for as long as it matters.
-# DISPOSABLE: under a real orchestrator (k8s, ECS, Nomad) DELETE this — do not
-# port it. Their restart policy does the same job, and two would disagree.
+RUN apk add --no-cache tini
 COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
+COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 ENV SUPERVISE_NAME=browser \
-    SUPERVISE_ENTRY=/app/node_modules/@semiont/browser/server.js \
     SUPERVISE_PROBE=http://localhost:3000/
-CMD ["/bin/sh", "/usr/local/bin/supervise.sh"]
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
+CMD ["node", "/app/node_modules/@semiont/browser/server.js"]
