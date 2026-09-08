@@ -219,6 +219,7 @@ through the same OTLP endpoint. No extra config required — the
 | `semiont.bus.resume_gap`     | counter          | `bus.resume_gap.reason`                                 | Gateway SSE: a resume that degraded to a gap  |
 | `semiont.bus.unanswerable`   | counter          | `bus.channel`                                           | Gateway `/bus/emit`: a request that reached zero subscribers |
 | `semiont.bus.correlation.size` | observable gauge | `correlation.kind` (`claims`/`retained_replies`)      | Gateway correlation registry occupancy        |
+| `semiont.process.restarts`   | observable gauge | (none)                                                  | Every supervised service — times the in-container supervisor restarted the process, read back from the supervisor's event log. The series exists only when the run set `SEMIONT_SUPERVISE` (local stacks); absent, not `0`, everywhere else |
 
 Additional vars:
 
