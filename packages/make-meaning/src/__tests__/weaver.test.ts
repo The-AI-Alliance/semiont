@@ -1419,6 +1419,93 @@ describe('Weaver', () => {
       expect(JSON.stringify(orphanWarn)).toContain('clean --store state');
     });
 
+    // GRAPH-DIVERGENCE-DEPTH P1. `divergenceOf` compared five hand-picked facts
+    // while the codec writes a dozen, so anything outside that list could go
+    // wrong unseen. The comparison is now against what the CODEC says the graph
+    // should hold — not against the view, which the graph is not a copy of.
+    const viewAnn = (over: Record<string, unknown> = {}) => ({
+      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+      type: 'Annotation' as const,
+      id: annotationId('ann-div'),
+      motivation: 'commenting' as const,
+      created: '2020-01-01T00:00:00.000Z',
+      target: { source: 'placeholder' },
+      body: [],
+      creator: { '@type': 'Person' as const, id: 'did:semiont:user:u1', name: 'Ada' },
+      ...over,
+    });
+
+    const seedOneAnnotation = async (rid: string) => {
+      await eventStore.appendEvent({
+        type: 'yield:created', resourceId: resourceId(rid), userId: userId('user1'), version: 1,
+        payload: { name: 'Div', format: 'text/plain', contentChecksum: 'h-dv' },
+      });
+      await eventStore.appendEvent({
+        type: 'mark:added', resourceId: resourceId(rid), userId: userId('user1'), version: 1,
+        payload: { annotation: { ...viewAnn(), target: { source: rid } } },
+      });
+      await tick();
+    };
+
+    it('reports divergence on a stored property outside the old five-fact list', async () => {
+      await consumer.stop();
+      weaverUnit.dispose();
+      graphDb = new MemoryGraphDatabase();
+      consumer = await wireWeaver(graphDb);
+
+      const rid = `div-creator-${Date.now()}`;
+      await seedOneAnnotation(rid);
+
+      // Same id, same body — the graph's annotation is source-only, and the log
+      // says it should carry a selector. The old check compared the id SET and
+      // the bodies, so it called this clean. (Deliberately not `creator`: the
+      // fold derives that from the event, so it is held out — see divergenceOf.)
+      serveBrowseReads([rid], {
+        [rid]: [{ ...viewAnn(),
+                  target: { source: rid, selector: { type: 'TextQuoteSelector', exact: 'Black Hawk' } } }],
+      });
+      const summary = await consumer.reconcile();
+
+      expect(summary.divergent).toBe(1);
+    });
+
+    it('reports NO divergence for a field the codec does not write — the graph is not a copy of the views', async () => {
+      await consumer.stop();
+      weaverUnit.dispose();
+      graphDb = new MemoryGraphDatabase();
+      consumer = await wireWeaver(graphDb);
+
+      const rid = `div-wat-${Date.now()}`;
+      await seedOneAnnotation(rid);
+
+      // `wasAttributedTo` rides on ~99.8% of real annotations and the graph has
+      // no use for it, so the encoder never writes it. A comparison that flagged
+      // it would flag the entire corpus. The graph is a purpose-built projection,
+      // not an isomorphic copy.
+      serveBrowseReads([rid], {
+        [rid]: [{ ...viewAnn(), target: { source: rid },
+                  wasAttributedTo: [{ '@type': 'Person', id: 'did:semiont:user:u1', name: 'Ada' }] }],
+      });
+      const summary = await consumer.reconcile();
+
+      expect(summary.divergent).toBe(0);
+    });
+
+    it('reports NO divergence when the graph holds exactly what the codec says it should', async () => {
+      await consumer.stop();
+      weaverUnit.dispose();
+      graphDb = new MemoryGraphDatabase();
+      consumer = await wireWeaver(graphDb);
+
+      const rid = `div-match-${Date.now()}`;
+      await seedOneAnnotation(rid);
+
+      serveBrowseReads([rid], { [rid]: [{ ...viewAnn(), target: { source: rid } }] });
+      const summary = await consumer.reconcile();
+
+      expect(summary.divergent).toBe(0);
+    });
+
     it('a clean graph reconciles with zero divergence and no heals', async () => {
       await consumer.stop();
       weaverUnit.dispose();

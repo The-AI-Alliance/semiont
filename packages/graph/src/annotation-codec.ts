@@ -18,6 +18,7 @@
 
 import { annotationId as makeAnnotationId } from '@semiont/core';
 import { getBodySource, getExactText, getTargetSelector, getTargetSource } from '@semiont/core';
+import { getEntityTypes } from '@semiont/ontology';
 import type { Annotation, AnnotationCategory, CreateAnnotationInternal } from '@semiont/core';
 
 /**
@@ -49,10 +50,10 @@ export function motivationForCategory(category: AnnotationCategory): Annotation[
 /**
  * Mint the annotation a create request describes.
  *
- * `created` is a parameter rather than a `new Date()` here so the codec stays
- * pure — and so it is visible at each call site that the graph stamps its own
- * write time. `CreateAnnotationInternal` carries no timestamp, so the event's
- * own time does not reach this projection at all.
+ * `created` comes from the input, which carries the AUTHORED moment from the
+ * event. It used to be a second parameter, and every store passed
+ * `new Date().toISOString()` into it — so the graph stamped its own write time
+ * and a rebuild collapsed every annotation to the rebuild moment.
  */
 export function buildAnnotation(input: CreateAnnotationInternal): Annotation {
   const annotation: Annotation = {
@@ -183,4 +184,22 @@ function decodeSelector(raw: string | undefined): AnnotationSelector | undefined
   const parsed = JSON.parse(raw);
   if (!parsed || Object.keys(parsed).length === 0) return undefined;
   return parsed;
+}
+
+/**
+ * What the graph is SUPPOSED to hold for this annotation — the codec's own
+ * statement of it, obtained by round-tripping through both halves.
+ *
+ * The graph is a purpose-built projection, not a copy of the views: it stores
+ * what graph queries need and nothing else. `wasAttributedTo`, for instance,
+ * rides on almost every annotation in the log and the encoder deliberately
+ * writes none of it. So "is the graph correct?" cannot be answered by comparing
+ * it to a view — only by comparing it to what this module says it should be.
+ *
+ * Callers get a value scoped to exactly the fields the encoder writes, in the
+ * decoded shape, free of any store's physical dialect. Widen or narrow the
+ * encoder and this follows automatically; there is no second list to maintain.
+ */
+export function intendedGraphAnnotation(annotation: Annotation): Annotation {
+  return decodeAnnotation(encodeAnnotation(annotation), getEntityTypes(annotation));
 }

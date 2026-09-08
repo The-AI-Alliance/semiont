@@ -31,7 +31,34 @@ const node = (created: unknown, modified?: unknown) => ({
   },
 });
 
+/**
+ * What a neo4j DateTime's `toString()` actually produces, measured against
+ * 5.26.28 through the real driver:
+ *
+ *   '…07.000Z' -> '…07Z'            (a zero fraction is dropped)
+ *   '…07.123Z' -> '…07.123000000Z'  (any other is padded to nanoseconds)
+ *
+ * Only a timestamp with no fractional part survives — and nothing produces
+ * those, since every producer stamps `new Date().toISOString()`.
+ */
+const neo4jTemporalToString = (iso: string): string =>
+  iso.replace(/\.000Z$/, 'Z').replace(/\.(\d{3})Z$/, '.$1000000Z');
+
 describe('parseAnnotationNode — temporals leave as ISO strings, never driver objects', () => {
+  // Writes stopped coercing `created` to a temporal, so new rows round-trip
+  // verbatim. Rows written BEFORE that hold a temporal, and this is what they
+  // read back as — a different string than the log carried. It is why the fix
+  // has to be paired with a rebuild, and why a rebuild BEFORE the fix does not
+  // help: it re-creates the loss.
+  it('a legacy temporal row reads back REFORMATTED — the string the log carried is not recoverable from it', () => {
+    const AUTHORED = '2020-03-04T05:06:07.000Z';
+    const legacy = parseAnnotationNode(node(driverDateTime(neo4jTemporalToString(AUTHORED))));
+
+    expect(legacy.created).toBe('2020-03-04T05:06:07Z');
+    expect(legacy.created).not.toBe(AUTHORED);
+    expect(Date.parse(legacy.created!)).toBe(Date.parse(AUTHORED)); // same instant, different string
+  });
+
   it('serializes a native DateTime `created` to its ISO string', () => {
     const ann = parseAnnotationNode(node(driverDateTime('2026-08-19T01:02:03.000000000Z')));
     expect(ann.created).toBe('2026-08-19T01:02:03.000000000Z');

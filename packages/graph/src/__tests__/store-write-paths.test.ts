@@ -95,20 +95,20 @@ function neo4jStore(): { db: Neo4jGraphDatabase; recorded: Recorded[] } {
       recorded.push({ cypher, params, props });
 
       // A resource write names its properties in the query rather than passing
-      // a bag, so the params ARE the stored node — `created` excepted, which
-      // the query stores as a native temporal.
+      // a bag, so the params ARE the stored node. `created` included: it is
+      // stored as the string it arrived as, not coerced to a temporal.
       if (cypher.includes('UNWIND $resources')) {
         const batch = params.resources as Array<Record<string, unknown>>;
         return {
           records: batch.map(r => ({
             get: (key: string) =>
-              key === 'd' ? { properties: { ...r, created: { toString: () => String(r.created) } } } : [],
+              key === 'd' ? { properties: r } : [],
           })),
         };
       }
 
       if (cypher.includes('MERGE (d:Resource')) {
-        const stored = { ...params, created: { toString: () => String(params.created) } };
+        const stored = { ...params };
         return { records: [{ get: (key: string) => (key === 'd' ? { properties: stored } : []) }] };
       }
 
@@ -116,10 +116,10 @@ function neo4jStore(): { db: Neo4jGraphDatabase; recorded: Recorded[] } {
       // result, which is enough to see the query it asked for.
       if (!params.props) return { records: [] };
 
-      // `SET a.created = datetime($created)` — what comes back out is a
-      // temporal object whose toString() is the ISO form.
-      const stored = { ...props, created: { toString: () => props.created } };
-      return { records: [{ get: (key: string) => (key === 'a' ? { properties: stored } : []) }] };
+      // The annotation write is `SET a = $props` — the codec's string, stored as
+      // written and read back verbatim. It used to re-set `created` as a native
+      // temporal, whose toString() reformatted the value on the way out.
+      return { records: [{ get: (key: string) => (key === 'a' ? { properties: props } : []) }] };
     },
     close: async () => {},
   };
@@ -140,11 +140,12 @@ describe('neo4j write path', () => {
     expect(Object.values(recorded[0]!.props)).not.toContain('{}');
   });
 
-  it('applies the codec bag verbatim and re-sets created as a temporal', async () => {
+  it('applies the codec bag verbatim, with no re-set of created', async () => {
     const { db, recorded } = neo4jStore();
     await db.createAnnotation(HIGHLIGHT);
 
-    expect(recorded[0]!.cypher).toContain('SET a = $props, a.created = datetime($created)');
+    expect(recorded[0]!.cypher).toContain('SET a = $props');
+    expect(recorded[0]!.cypher).not.toContain('datetime(');
     expect(recorded[0]!.props.selector).toBe(JSON.stringify(QUOTE_SELECTOR));
     expect(recorded[0]!.props.exact).toBe('Black Hawk');
     expect(recorded[0]!.props.type).toBe('TextualBody');
@@ -154,10 +155,10 @@ describe('neo4j write path', () => {
     const { db, recorded } = neo4jStore();
     await db.createAnnotation(SOURCE_ONLY);
 
-    expect(recorded[0]!.params.created).toBe(AUTHORED);
+    expect(recorded[0]!.props.created).toBe(AUTHORED);
   });
 
-  it('reads its own write back as the annotation it wrote, temporal and all', async () => {
+  it('reads its own write back as the annotation it wrote, created byte-for-byte', async () => {
     const { db } = neo4jStore();
     const written = await db.createAnnotation(SOURCE_ONLY);
 

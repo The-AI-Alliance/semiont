@@ -11,6 +11,7 @@ set -euo pipefail
 # G3  the applied mark has a single writer (noteApplied + the catch-up seed)
 # G4  weave:applied has a single emitter (noteApplied)
 # G5  the fan-in channel list and the fold's switch cases stay in sync
+# G6  divergenceOf compares against the codec, not a hand-written field list
 #
 # Exit code: 0 if clean, 1 if violations found.
 
@@ -84,7 +85,24 @@ if [ "$CHANNELS" != "$CASES" ]; then
   FAIL=1
 fi
 
+# ---------------------------------------------------------------------------
+# G6: the divergence check derives its comparison from the codec.
+#
+# `divergenceOf` used to compare five hand-picked facts while the codec wrote a
+# dozen, so anything outside that list could go wrong unseen — the body check
+# was added for exactly that reason, and only for bodies. The comparison is now
+# `intendedGraphAnnotation`, which scopes itself to whatever the encoder writes
+# and follows it when it changes. A field list restated here is a mirror with
+# nothing keeping it in sync, which is what this gate exists to prevent.
+# ---------------------------------------------------------------------------
+if ! grep -q "intendedGraphAnnotation" "$WEAVER"; then
+  echo "❌ G6: divergenceOf no longer compares against the codec's intendedGraphAnnotation."
+  echo "   A hand-written list of fields to compare is a restatement of a shape"
+  echo "   the codec owns — derive it, do not retype it."
+  FAIL=1
+fi
+
 if [ "$FAIL" -ne 0 ]; then
   exit 1
 fi
-echo "✅ Weaver invariants G1–G5 hold"
+echo "✅ Weaver invariants G1–G6 hold"

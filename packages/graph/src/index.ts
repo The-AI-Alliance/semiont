@@ -17,6 +17,7 @@ export { compareByRecencyThenId } from './interface';
 export { getGraphDatabase, createGraphDatabase, closeGraphDatabase } from './factory';
 
 // Implementations (for direct use if needed)
+export { intendedGraphAnnotation } from './annotation-codec';
 export { Neo4jGraphDatabase } from './implementations/neo4j';
 export { NeptuneGraphDatabase } from './implementations/neptune';
 export { JanusGraphDatabase } from './implementations/janusgraph';
