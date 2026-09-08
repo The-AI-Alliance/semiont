@@ -55,6 +55,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 # record would be a worse coupling than the gap it closes, and a supervised
 # container no longer exits on child death, so `container logs` keeps the
 # crash history for as long as it matters.
+# DISPOSABLE: under a real orchestrator (k8s, ECS, Nomad) DELETE this — do not
+# port it. Their restart policy does the same job, and two would disagree.
 COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
 ENV SUPERVISE_NAME=browser \
     SUPERVISE_ENTRY=/app/node_modules/@semiont/browser/server.js \

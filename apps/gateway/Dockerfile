@@ -247,6 +247,8 @@ RUN test -f "$GATEWAY_DIR/dist/index.js" \
 # re-deriving DATABASE_URL and re-running migrations on every restart would
 # add latency to exactly the path that needs to be fast, and `migrate deploy`
 # is the container's job, not the supervisor's.
+# DISPOSABLE: under a real orchestrator (k8s, ECS, Nomad) DELETE this — do not
+# port it. Their restart policy does the same job, and two would disagree.
 COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
 ENV SUPERVISE_NAME=gateway \
     SUPERVISE_PROBE=http://localhost:4000/api/health

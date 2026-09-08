@@ -75,6 +75,8 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
 # one, refuses to loop on a deterministic boot failure, and keeps a death
 # record on the state mount that survives the container. ONE copy, shared by
 # every service — a second would be two places deciding one policy.
+# DISPOSABLE: under a real orchestrator (k8s, ECS, Nomad) DELETE this — do not
+# port it. Their restart policy does the same job, and two would disagree.
 COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
 ENV SUPERVISE_NAME=librarian \
     SUPERVISE_ENTRY=/usr/local/lib/node_modules/@semiont/make-meaning/dist/librarian-main.js \
