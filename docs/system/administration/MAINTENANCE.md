@@ -122,7 +122,7 @@ semiont start --clean-ollama         # Remove the model cache volume and exit
 Services log structured JSON to stdout. There is no aggregation layer and no retention policy to manage — the container engine holds the logs, and containers run without `--rm` so a crashed service's logs survive.
 
 ```bash
-semiont logs                                    # All five services
+semiont logs                                    # All seven services
 semiont logs --service gateway | grep -i error
 ```
 

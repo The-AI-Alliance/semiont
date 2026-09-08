@@ -129,4 +129,4 @@ Edges in the graph reflect the actual `package.json` `dependencies` field for ea
 
 - **[../../packages/README.md](../../packages/README.md)** — alphabetized package catalog with one-line descriptions and npm links.
 - **[KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md)** — what runs *inside* `@semiont/make-meaning` (the five KB actors).
-- **[CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md)** — how these packages get assembled into the four Semiont-code containers.
+- **[CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md)** — how these packages get assembled into the seven Semiont-code containers.

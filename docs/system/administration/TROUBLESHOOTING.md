@@ -12,7 +12,7 @@ Almost every investigation starts here:
 
 ```bash
 semiont status                     # What is up, and what is healthy
-semiont logs                       # Follow all six Semiont services
+semiont logs                       # Follow all seven Semiont services
 semiont logs --service gateway     # Follow one
 ```
 
