@@ -45,8 +45,8 @@ indistinguishable from data.
 
 One build, three consumers:
 
-- **Container** — `semiont-browser`, the usual case. Entrypoint `node server.js`; npm is
-  removed from the runtime image.
+- **Container** — `semiont-browser`, the usual case. CMD `node server.js` under a `tini`
+  entrypoint; npm is removed from the runtime image.
 - **npm** — `@semiont/browser`: the built `dist/` plus `server.js`, with no runtime
   dependencies.
 - **Desktop** — `apps/desktop` uses this app's `dist/` as its Tauri frontend.
