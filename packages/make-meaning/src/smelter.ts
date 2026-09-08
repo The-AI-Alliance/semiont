@@ -51,6 +51,18 @@ import { busRequest, type BusRequestPrimitive } from '@semiont/core';
 import { partitionByType } from './batch-utils';
 import type { SmelterEvent } from './smelter-actor-state-unit';
 
+/**
+ * Census declarations (`SMELTER_AWAITED_OPERATIONS`, service-channels.ts) for
+ * the operations this module awaits over the wire. The `satisfies` at each
+ * call site keeps a declaration and its operation from drifting; the census
+ * beside the list fails COMPILATION naming the operation when the list and
+ * these declarations disagree (the worker-runtime pattern —
+ * .plans/WORKER-ANCHORED-TEXT-CHANNEL.md P3).
+ */
+export type SmelterResourceReadAwaits = 'browse:resource-requested';
+export type SmelterAnnotationsReadAwaits = 'browse:annotations-requested';
+export type SmelterCatalogPageAwaits = 'browse:resources-requested';
+
 // Media dispatch is core's, keyed by the media type's `TextSource`
 // strategy (`.plans/SMELTER-MEDIA-TYPES.md`, narrowed by READ-VS-EXTRACT P2).
 // 'none' declines — settle skipped, reason 'no-extractor' — so binary types
@@ -571,7 +583,7 @@ export class Smelter {
   private async resolveEntityTypes(resourceId: string): Promise<string[]> {
     const { resource } = await busRequest(
       this.bus,
-      'browse:resource-requested',
+      'browse:resource-requested' satisfies SmelterResourceReadAwaits,
       { resourceId },
     );
     return getResourceEntityTypes(resource);
@@ -636,7 +648,7 @@ export class Smelter {
 
     const { annotations } = await busRequest(
       this.bus,
-      'browse:annotations-requested',
+      'browse:annotations-requested' satisfies SmelterAnnotationsReadAwaits,
       { resourceId: rid },
     );
     for (const annotation of annotations) {
@@ -885,7 +897,7 @@ export class Smelter {
         if (!rid) continue;
         const { annotations } = await busRequest(
           this.bus,
-          'browse:annotations-requested',
+          'browse:annotations-requested' satisfies SmelterAnnotationsReadAwaits,
           { resourceId: rid },
         );
         for (const annotation of annotations) {
@@ -1054,7 +1066,7 @@ export class Smelter {
     for (;;) {
       const page = await busRequest(
         this.bus,
-        'browse:resources-requested',
+        'browse:resources-requested' satisfies SmelterCatalogPageAwaits,
         { archived: false, offset: all.length, limit: Smelter.RECONCILE_PAGE_SIZE },
       );
       all.push(...page.resources);
