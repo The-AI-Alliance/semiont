@@ -258,14 +258,32 @@ if ! $RT run --rm -v "$REPO_ROOT":/workspace -v /tmp/semiont-npmcache:/root/.npm
 fi
 
 step "Checking packages/sdk-go/client_gen.go against specs/openapi.json..."
-GOCACHE_DIR=/tmp/semiont-gocache
+# Both Go caches are PER-CONSUMER (-build suffix), not shared with other
+# container consumers (agent sessions, the pre-commit hook). The old shared
+# /tmp/semiont-gomodcache was corrupted three times by concurrent container
+# VMs extracting into it — Go's cache locking is flock, which does not hold
+# across VM boundaries over virtiofs — and a truncated extraction is trusted
+# forever ("cannot embed directory ... contains no embeddable files").
+# This script cannot run concurrently with itself (port 4873), so a private
+# cache is effectively serial, and the class is gone rather than patched.
+GOCACHE_DIR=/tmp/semiont-gocache-build
 # The MODULE cache is persisted too, not just the build cache. Without it every
 # run re-downloads the whole oapi-codegen tree (~100 MB, 21 modules), which is
 # why a DNS blip could take this gate down. (/tmp, not $TMPDIR: Apple Container
 # cannot sustain mounts from /var/folders. Go writes the module cache
 # read-only, so `chmod -R u+w` before removing it by hand.)
-GOMODCACHE_DIR=/tmp/semiont-gomodcache
+GOMODCACHE_DIR=/tmp/semiont-gomodcache-build
 mkdir -p "$GOCACHE_DIR" "$GOMODCACHE_DIR"
+# One-time seed from the legacy shared cache's download dir (a pure
+# content-addressed store — safe to copy, never to share live), so the first
+# -build run costs a local copy instead of a 100 MB re-fetch. The legacy dir
+# is frozen: nothing writes it any more, and it can be deleted once every
+# consumer has seeded.
+if [[ ! -d "$GOMODCACHE_DIR/cache/download" && -d /tmp/semiont-gomodcache/cache/download ]]; then
+  step "Seeding the module cache from the legacy shared downloads (one-time local copy)..."
+  mkdir -p "$GOMODCACHE_DIR/cache"
+  cp -R /tmp/semiont-gomodcache/cache/download "$GOMODCACHE_DIR/cache/download"
+fi
 # Caching alone is not enough: `go run <pkg>@<version>` resolves the version
 # against the proxy on EVERY run — including a deprecation lookup — so a
 # populated cache still needed the network. Pointing GOPROXY at the cache's own
@@ -879,8 +897,8 @@ fi
 # the :local images (SEMIONT_VERSION=local semiont start). Built inside
 # golang:1.25 targeting the host platform — no Go toolchain on the host, the
 # same philosophy as the npm builds above. The Go build cache persists under
-# /tmp/semiont-gocache (/tmp, not $TMPDIR — Apple Container cannot sustain
-# mounts from /var/folders).
+# /tmp/semiont-gocache-build (/tmp, not $TMPDIR — Apple Container cannot
+# sustain mounts from /var/folders).
 
 banner "LAUNCHER"
 
