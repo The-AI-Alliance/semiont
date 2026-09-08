@@ -20,9 +20,14 @@
  *     exactly their inbound request/signal rosters.
  *
  * Each awaited-operations list restates a fact the code owns (which
- * operations that service calls `busRequest` on); its gate is `busRequest`'s
- * `isSubscribed` probe — an operation missing here fails IMMEDIATELY with
- * `bus.unsubscribed` naming the channel, never a silent 30 s timeout.
+ * operations that service calls `busRequest` on); its gate is the build-time
+ * census beside each list: every awaiting site declares its operation next to
+ * the call (a `*Awaits` alias, `satisfies`-tied to the literal), and a drift
+ * between a list and its declarations fails COMPILATION with the operation
+ * named (the worker-runtime pattern — .plans/WORKER-ANCHORED-TEXT-CHANNEL.md,
+ * whose subject was exactly such an omission killing every PDF detection
+ * job). `busRequest`'s `isSubscribed` probe remains the runtime backstop for
+ * an await nobody declared.
  */
 
 import { replyChannelsFor, type BusOperationKey, type EventMap } from '@semiont/core';
@@ -31,6 +36,16 @@ import { GATHERER_CHANNELS } from './gatherer';
 import { STOWER_CHANNELS } from './stower';
 import { BROWSER_CHANNELS } from './browser';
 import { CLONE_TOKEN_CHANNELS } from './clone-token-manager';
+import type {
+  SmelterResourceReadAwaits,
+  SmelterAnnotationsReadAwaits,
+  SmelterCatalogPageAwaits,
+} from './smelter';
+import type {
+  WeaverCatalogPageAwaits,
+  WeaverEventsReadAwaits,
+  WeaverAnnotationsReadAwaits,
+} from './weaver';
 
 // ── Smelter ──────────────────────────────────────────────────────────
 
@@ -45,6 +60,18 @@ export const SMELTER_AWAITED_OPERATIONS = [
 export const SMELTER_REPLY_CHANNELS: readonly (keyof EventMap)[] =
   replyChannelsFor(SMELTER_AWAITED_OPERATIONS);
 
+type DeclaredSmelterAwaits =
+  | SmelterResourceReadAwaits
+  | SmelterAnnotationsReadAwaits
+  | SmelterCatalogPageAwaits;
+type SmelterAwaitCensusDrift =
+  | Exclude<DeclaredSmelterAwaits, (typeof SMELTER_AWAITED_OPERATIONS)[number]>
+  | Exclude<(typeof SMELTER_AWAITED_OPERATIONS)[number], DeclaredSmelterAwaits>;
+/** The build-time census gate — see the header. Drift names the operation. */
+export const smelterAwaitCensus: [SmelterAwaitCensusDrift] extends [never]
+  ? 'in-census'
+  : SmelterAwaitCensusDrift = 'in-census';
+
 // ── Weaver ───────────────────────────────────────────────────────────
 
 /** The operations the Weaver awaits replies to (catch-up + reconcile reads). */
@@ -57,6 +84,18 @@ export const WEAVER_AWAITED_OPERATIONS = [
 /** The Weaver transport's global SSE channel set. */
 export const WEAVER_REPLY_CHANNELS: readonly (keyof EventMap)[] =
   replyChannelsFor(WEAVER_AWAITED_OPERATIONS);
+
+type DeclaredWeaverAwaits =
+  | WeaverCatalogPageAwaits
+  | WeaverEventsReadAwaits
+  | WeaverAnnotationsReadAwaits;
+type WeaverAwaitCensusDrift =
+  | Exclude<DeclaredWeaverAwaits, (typeof WEAVER_AWAITED_OPERATIONS)[number]>
+  | Exclude<(typeof WEAVER_AWAITED_OPERATIONS)[number], DeclaredWeaverAwaits>;
+/** The build-time census gate — see the header. Drift names the operation. */
+export const weaverAwaitCensus: [WeaverAwaitCensusDrift] extends [never]
+  ? 'in-census'
+  : WeaverAwaitCensusDrift = 'in-census';
 
 // ── Librarian ────────────────────────────────────────────────────────
 

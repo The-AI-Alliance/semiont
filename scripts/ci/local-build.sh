@@ -199,6 +199,213 @@ for img in $IMAGES; do
   fi
 done
 
+# --- Drift gates (FIRST: they are the most common failure, and they need only
+# the repo plus a container — failing here costs seconds, not the ten minutes
+# of package and image builds that used to run before them) ---
+
+if [[ "$IMAGES_ONLY" != true ]]; then
+
+# --- bus registry drift gate ---
+#
+# specs/src/bus/registry.json is the AUTHORITY for the event bus: channels,
+# payload shapes, and the request/reply operations. BOTH languages are
+# generated from it — packages/core/src/bus-protocol.ts + bus-operations.ts
+# (TypeScript) and packages/sdk-go/bus/*_gen.go — so an edit to one language's
+# generated file, or a registry change without regeneration, is drift that
+# would let the two sides disagree at runtime. Each generator's --check diffs
+# without writing.
+
+banner "BUS REGISTRY DRIFT GATE"
+
+step "Checking generated bus files against specs/src/bus/registry.json..."
+if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace node:24-alpine \
+  sh -c 'node scripts/bus/generate-ts.mjs --check && node scripts/bus/generate-go.mjs --check'; then
+  ok "bus registry and both generated languages agree"
+else
+  fail "Generated bus files are STALE (or were hand-edited) — they must match specs/src/bus/registry.json."
+  echo ""
+  echo -e "  Regenerate both languages and commit:"
+  echo ""
+  echo -e "    ${BOLD}node scripts/bus/generate-ts.mjs${RESET}   (packages/core/src/bus-protocol.ts, bus-operations.ts)"
+  echo -e "    ${BOLD}node scripts/bus/generate-go.mjs${RESET}   (packages/sdk-go/bus/*_gen.go)"
+  echo ""
+  echo -e "  Channels and operations are edited in ${BOLD}specs/src/bus/registry.json${RESET}, never in the generated files."
+  echo ""
+  exit 1
+fi
+
+# --- sdk-go drift gate ---
+#
+# packages/sdk-go/client_gen.go is GENERATED from specs/openapi.json and
+# COMMITTED (see packages/sdk-go/README.md). Nothing regenerates it
+# automatically, so a spec change can leave it stale. This gate regenerates
+# to a scratch path inside the container (never the working tree — builds
+# don't mutate source) and diffs: byte-identical or fail. Deterministic
+# because the generator version is pinned.
+
+banner "SDK-GO DRIFT GATE"
+
+# specs/openapi.json is a BUILD ARTIFACT bundled from specs/src/. With the
+# gates running before the package builds, the copy a prior build left may be
+# stale or absent — bundle fresh first. Version pinned to the repo's
+# devDependency, same as CI.
+step "Bundling specs/src into specs/openapi.json..."
+mkdir -p /tmp/semiont-npmcache
+if ! $RT run --rm -v "$REPO_ROOT":/workspace -v /tmp/semiont-npmcache:/root/.npm -w /workspace node:24-alpine \
+  npx --yes @redocly/cli@2.34.0 bundle specs/src/openapi.json -o specs/openapi.json >/dev/null; then
+  fail "Could not bundle the OpenAPI spec (redocly; output above)."
+  exit 1
+fi
+
+step "Checking packages/sdk-go/client_gen.go against specs/openapi.json..."
+# Both Go caches are PER-CONSUMER (-build suffix), not shared with other
+# container consumers (agent sessions, the pre-commit hook). The old shared
+# /tmp/semiont-gomodcache was corrupted three times by concurrent container
+# VMs extracting into it — Go's cache locking is flock, which does not hold
+# across VM boundaries over virtiofs — and a truncated extraction is trusted
+# forever ("cannot embed directory ... contains no embeddable files").
+# This script cannot run concurrently with itself (port 4873), so a private
+# cache is effectively serial, and the class is gone rather than patched.
+GOCACHE_DIR=/tmp/semiont-gocache-build
+# The MODULE cache is persisted too, not just the build cache. Without it every
+# run re-downloads the whole oapi-codegen tree (~100 MB, 21 modules), which is
+# why a DNS blip could take this gate down. (/tmp, not $TMPDIR: Apple Container
+# cannot sustain mounts from /var/folders. Go writes the module cache
+# read-only, so `chmod -R u+w` before removing it by hand.)
+GOMODCACHE_DIR=/tmp/semiont-gomodcache-build
+mkdir -p "$GOCACHE_DIR" "$GOMODCACHE_DIR"
+# One-time seed from the legacy shared cache's download dir (a pure
+# content-addressed store — safe to copy, never to share live), so the first
+# -build run costs a local copy instead of a 100 MB re-fetch. The legacy dir
+# is frozen: nothing writes it any more, and it can be deleted once every
+# consumer has seeded.
+if [[ ! -d "$GOMODCACHE_DIR/cache/download" && -d /tmp/semiont-gomodcache/cache/download ]]; then
+  step "Seeding the module cache from the legacy shared downloads (one-time local copy)..."
+  mkdir -p "$GOMODCACHE_DIR/cache"
+  cp -R /tmp/semiont-gomodcache/cache/download "$GOMODCACHE_DIR/cache/download"
+fi
+# Caching alone is not enough: `go run <pkg>@<version>` resolves the version
+# against the proxy on EVERY run — including a deprecation lookup — so a
+# populated cache still needed the network. Pointing GOPROXY at the cache's own
+# download dir (a valid module proxy) serves the pinned generator locally and
+# falls through to the network only on a miss. Measured both ways: warm cache
+# succeeds with the network proxies removed entirely; a cold cache still
+# populates through the fallback.
+GOPROXY_CACHED='file:///go/pkg/mod/cache/download,https://proxy.golang.org,direct'
+
+# Generation and comparison report SEPARATELY. Collapsing them into one `&&`
+# made every generator failure — a DNS blip fetching oapi-codegen, an
+# unreadable spec, a container that never started — print "the OpenAPI spec
+# changed without regenerating the Go client": a specific cause the gate had
+# not established, and one that sends the reader to regenerate a file that was
+# never stale. Ignorance is not a finding.
+DRIFT_RC=0
+# Output is tee'd, not just streamed: the exit-3 handler below reads it to tell a
+# CORRUPT MODULE CACHE from a network failure, and the two have opposite remedies.
+# `set -o pipefail` (line 2) is what makes `$?` the container's code rather than
+# tee's — without it this silently reports success on every failure.
+DRIFT_LOG=$(mktemp "${TMPDIR:-/tmp}/semiont-drift.XXXXXX")
+$RT run --rm \
+  -v "$REPO_ROOT":/workspace \
+  -v "$GOCACHE_DIR":/root/.cache/go-build \
+  -v "$GOMODCACHE_DIR":/go/pkg/mod \
+  -e GOPROXY="$GOPROXY_CACHED" \
+  -w /workspace \
+  golang:1.25 \
+  sh -c 'go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
+           -generate types,client,skip-prune -package semiont \
+           -o /tmp/client_gen.check.go specs/openapi.json || exit 3
+         diff -q /tmp/client_gen.check.go packages/sdk-go/client_gen.go >/dev/null || exit 4' \
+  2>&1 | tee "$DRIFT_LOG" \
+  || DRIFT_RC=$?
+
+case "$DRIFT_RC" in
+  0)
+    ok "packages/sdk-go matches the spec"
+    rm -f "$DRIFT_LOG"
+    ;;
+  4)
+    fail "packages/sdk-go/client_gen.go is STALE — the OpenAPI spec changed without regenerating the Go client."
+    echo ""
+    echo -e "  Regenerate and commit it:"
+    echo ""
+    echo -e "    ${BOLD}cd packages/sdk-go && go generate ./...${RESET}"
+    echo -e "    ${BOLD}git add packages/sdk-go/client_gen.go${RESET}   (then commit)"
+    echo ""
+    exit 1
+    ;;
+  *)
+    fail "The sdk-go drift gate could not RUN (the generator exited $DRIFT_RC; its output is above)."
+    echo ""
+    echo -e "  This says nothing about whether the Go client is stale — the check never got"
+    echo -e "  far enough to compare."
+    echo ""
+    # Two causes, opposite remedies. Telling someone to wait for the network when
+    # the module cache is corrupt makes them wait for a network that is already
+    # working, and the next run fails identically.
+    #
+    # The cache holds `cache/download` (module ZIPs — a valid proxy, and what
+    # GOPROXY_CACHED points at) beside the EXTRACTED trees. A run killed
+    # mid-extraction leaves a partial tree that no amount of network fixes; Go
+    # re-extracts from the downloads offline once the bad tree is gone.
+    # `cannot embed` / `no embeddable files` is the shape a TRUNCATED extraction
+    # produces, and it was missing here until it cost a diagnosis (2026-08-24).
+    # Go has two embed failures and they read nothing alike: a pattern matching
+    # nothing says "no matching files found", while a directory that survived
+    # with its subdirectories but none of its files says "cannot embed directory
+    # X: contains no embeddable files". The second is precisely the corrupt-cache
+    # signature — the tree is THERE, so Go trusts it and never re-extracts, and
+    # every retry fails identically. Matching only the first sent the reader to
+    # the network branch below to wait out a network that was already working.
+    if grep -qiE 'no such file or directory|no matching files found|cannot embed|no embeddable files|pattern .*: .*matching|cannot find package' "$DRIFT_LOG"; then
+      echo -e "  ${BOLD}Cause: a corrupt Go module cache, not the network.${RESET} A previous run was"
+      echo -e "  interrupted mid-extraction and left a partial module tree."
+      echo ""
+      echo -e "  Purge the EXTRACTED trees and keep the downloads (no re-fetch, works offline):"
+      echo ""
+      echo -e "    ${BOLD}chmod -R u+w $GOMODCACHE_DIR${RESET}"
+      echo -e "    ${BOLD}find $GOMODCACHE_DIR -mindepth 1 -maxdepth 1 ! -name cache -exec rm -rf {} +${RESET}"
+      echo ""
+      # Everything else in this repo runs in a container, so the reflex is to run
+      # this there too. It fails: rm returns "Permission denied" on the virtiofs
+      # mount even as root, and the tree survives looking untouched.
+      echo -e "  ${DIM}Run those on the HOST, not in a container — rm fails with Permission${RESET}"
+      echo -e "  ${DIM}denied through the mount, even as root, and leaves the cache corrupt.${RESET}"
+      echo ""
+      echo -e "  ${DIM}Do NOT use \`go clean -modcache\` — it deletes cache/download too, costing a${RESET}"
+      echo -e "  ${DIM}~100 MB re-fetch of the 21-module oapi-codegen tree and reintroducing the${RESET}"
+      echo -e "  ${DIM}network dependency GOPROXY_CACHED exists to remove.${RESET}"
+      echo ""
+      # GOPROXY_CACHED is itself a file:// proxy, so a COLD cache with the network
+      # also down produces this same wording. The purge is safe either way (Go
+      # re-extracts from the downloads), but it will not help that case.
+      echo -e "  ${DIM}If the purge changes nothing, the cache was cold rather than corrupt —${RESET}"
+      echo -e "  ${DIM}the file:// proxy reports the same error for a missing module. Treat it${RESET}"
+      echo -e "  ${DIM}as the network case below.${RESET}"
+    else
+      echo -e "  A failed module fetch (${BOLD}proxy.golang.org${RESET}) is the usual cause; retry once the"
+      echo -e "  network is back, and the pinned generator will be cached in"
+      echo -e "  ${BOLD}${GOMODCACHE_DIR}${RESET} for subsequent offline runs."
+    fi
+    echo ""
+    echo -e "  ${DIM}Generator output kept at: $DRIFT_LOG${RESET}"
+    echo ""
+    exit 1
+    ;;
+esac
+
+step "Checking the generated Go client covers every schema..."
+if ! $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace node:24-alpine \
+  node scripts/ci/check-go-schema-coverage.mjs; then
+  fail "The generated Go client is missing schemas (see above)."
+  echo ""
+  echo -e "    ${BOLD}cd packages/sdk-go && go generate ./...${RESET}"
+  echo ""
+  exit 1
+fi
+
+fi
+
 # --- Start fresh Verdaccio ---
 
 banner "LOCAL REGISTRY"
@@ -684,183 +891,14 @@ if [[ "$IMAGES_ONLY" == true ]]; then
 fi
 
 
-# --- bus registry drift gate ---
-#
-# specs/src/bus/registry.json is the AUTHORITY for the event bus: channels,
-# payload shapes, and the request/reply operations. BOTH languages are
-# generated from it — packages/core/src/bus-protocol.ts + bus-operations.ts
-# (TypeScript) and packages/sdk-go/bus/*_gen.go — so an edit to one language's
-# generated file, or a registry change without regeneration, is drift that
-# would let the two sides disagree at runtime. Each generator's --check diffs
-# without writing.
-
-banner "BUS REGISTRY DRIFT GATE"
-
-step "Checking generated bus files against specs/src/bus/registry.json..."
-if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace node:24-alpine \
-  sh -c 'node scripts/bus/generate-ts.mjs --check && node scripts/bus/generate-go.mjs --check'; then
-  ok "bus registry and both generated languages agree"
-else
-  fail "Generated bus files are STALE (or were hand-edited) — they must match specs/src/bus/registry.json."
-  echo ""
-  echo -e "  Regenerate both languages and commit:"
-  echo ""
-  echo -e "    ${BOLD}node scripts/bus/generate-ts.mjs${RESET}   (packages/core/src/bus-protocol.ts, bus-operations.ts)"
-  echo -e "    ${BOLD}node scripts/bus/generate-go.mjs${RESET}   (packages/sdk-go/bus/*_gen.go)"
-  echo ""
-  echo -e "  Channels and operations are edited in ${BOLD}specs/src/bus/registry.json${RESET}, never in the generated files."
-  echo ""
-  exit 1
-fi
-
-# --- sdk-go drift gate ---
-#
-# packages/sdk-go/client_gen.go is GENERATED from specs/openapi.json and
-# COMMITTED (see packages/sdk-go/README.md). Nothing regenerates it
-# automatically, so a spec change can leave it stale. This gate regenerates
-# to a scratch path inside the container (never the working tree — builds
-# don't mutate source) and diffs: byte-identical or fail. Deterministic
-# because the generator version is pinned.
-
-banner "SDK-GO DRIFT GATE"
-
-step "Checking packages/sdk-go/client_gen.go against specs/openapi.json..."
-GOCACHE_DIR=/tmp/semiont-gocache
-# The MODULE cache is persisted too, not just the build cache. Without it every
-# run re-downloads the whole oapi-codegen tree (~100 MB, 21 modules), which is
-# why a DNS blip could take this gate down. (/tmp, not $TMPDIR: Apple Container
-# cannot sustain mounts from /var/folders. Go writes the module cache
-# read-only, so `chmod -R u+w` before removing it by hand.)
-GOMODCACHE_DIR=/tmp/semiont-gomodcache
-mkdir -p "$GOCACHE_DIR" "$GOMODCACHE_DIR"
-# Caching alone is not enough: `go run <pkg>@<version>` resolves the version
-# against the proxy on EVERY run — including a deprecation lookup — so a
-# populated cache still needed the network. Pointing GOPROXY at the cache's own
-# download dir (a valid module proxy) serves the pinned generator locally and
-# falls through to the network only on a miss. Measured both ways: warm cache
-# succeeds with the network proxies removed entirely; a cold cache still
-# populates through the fallback.
-GOPROXY_CACHED='file:///go/pkg/mod/cache/download,https://proxy.golang.org,direct'
-
-# Generation and comparison report SEPARATELY. Collapsing them into one `&&`
-# made every generator failure — a DNS blip fetching oapi-codegen, an
-# unreadable spec, a container that never started — print "the OpenAPI spec
-# changed without regenerating the Go client": a specific cause the gate had
-# not established, and one that sends the reader to regenerate a file that was
-# never stale. Ignorance is not a finding.
-DRIFT_RC=0
-# Output is tee'd, not just streamed: the exit-3 handler below reads it to tell a
-# CORRUPT MODULE CACHE from a network failure, and the two have opposite remedies.
-# `set -o pipefail` (line 2) is what makes `$?` the container's code rather than
-# tee's — without it this silently reports success on every failure.
-DRIFT_LOG=$(mktemp "${TMPDIR:-/tmp}/semiont-drift.XXXXXX")
-$RT run --rm \
-  -v "$REPO_ROOT":/workspace \
-  -v "$GOCACHE_DIR":/root/.cache/go-build \
-  -v "$GOMODCACHE_DIR":/go/pkg/mod \
-  -e GOPROXY="$GOPROXY_CACHED" \
-  -w /workspace \
-  golang:1.25 \
-  sh -c 'go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
-           -generate types,client,skip-prune -package semiont \
-           -o /tmp/client_gen.check.go specs/openapi.json || exit 3
-         diff -q /tmp/client_gen.check.go packages/sdk-go/client_gen.go >/dev/null || exit 4' \
-  2>&1 | tee "$DRIFT_LOG" \
-  || DRIFT_RC=$?
-
-case "$DRIFT_RC" in
-  0)
-    ok "packages/sdk-go matches the spec"
-    rm -f "$DRIFT_LOG"
-    ;;
-  4)
-    fail "packages/sdk-go/client_gen.go is STALE — the OpenAPI spec changed without regenerating the Go client."
-    echo ""
-    echo -e "  Regenerate and commit it:"
-    echo ""
-    echo -e "    ${BOLD}cd packages/sdk-go && go generate ./...${RESET}"
-    echo -e "    ${BOLD}git add packages/sdk-go/client_gen.go${RESET}   (then commit)"
-    echo ""
-    exit 1
-    ;;
-  *)
-    fail "The sdk-go drift gate could not RUN (the generator exited $DRIFT_RC; its output is above)."
-    echo ""
-    echo -e "  This says nothing about whether the Go client is stale — the check never got"
-    echo -e "  far enough to compare."
-    echo ""
-    # Two causes, opposite remedies. Telling someone to wait for the network when
-    # the module cache is corrupt makes them wait for a network that is already
-    # working, and the next run fails identically.
-    #
-    # The cache holds `cache/download` (module ZIPs — a valid proxy, and what
-    # GOPROXY_CACHED points at) beside the EXTRACTED trees. A run killed
-    # mid-extraction leaves a partial tree that no amount of network fixes; Go
-    # re-extracts from the downloads offline once the bad tree is gone.
-    # `cannot embed` / `no embeddable files` is the shape a TRUNCATED extraction
-    # produces, and it was missing here until it cost a diagnosis (2026-08-24).
-    # Go has two embed failures and they read nothing alike: a pattern matching
-    # nothing says "no matching files found", while a directory that survived
-    # with its subdirectories but none of its files says "cannot embed directory
-    # X: contains no embeddable files". The second is precisely the corrupt-cache
-    # signature — the tree is THERE, so Go trusts it and never re-extracts, and
-    # every retry fails identically. Matching only the first sent the reader to
-    # the network branch below to wait out a network that was already working.
-    if grep -qiE 'no such file or directory|no matching files found|cannot embed|no embeddable files|pattern .*: .*matching|cannot find package' "$DRIFT_LOG"; then
-      echo -e "  ${BOLD}Cause: a corrupt Go module cache, not the network.${RESET} A previous run was"
-      echo -e "  interrupted mid-extraction and left a partial module tree."
-      echo ""
-      echo -e "  Purge the EXTRACTED trees and keep the downloads (no re-fetch, works offline):"
-      echo ""
-      echo -e "    ${BOLD}chmod -R u+w $GOMODCACHE_DIR${RESET}"
-      echo -e "    ${BOLD}find $GOMODCACHE_DIR -mindepth 1 -maxdepth 1 ! -name cache -exec rm -rf {} +${RESET}"
-      echo ""
-      # Everything else in this repo runs in a container, so the reflex is to run
-      # this there too. It fails: rm returns "Permission denied" on the virtiofs
-      # mount even as root, and the tree survives looking untouched.
-      echo -e "  ${DIM}Run those on the HOST, not in a container — rm fails with Permission${RESET}"
-      echo -e "  ${DIM}denied through the mount, even as root, and leaves the cache corrupt.${RESET}"
-      echo ""
-      echo -e "  ${DIM}Do NOT use \`go clean -modcache\` — it deletes cache/download too, costing a${RESET}"
-      echo -e "  ${DIM}~100 MB re-fetch of the 21-module oapi-codegen tree and reintroducing the${RESET}"
-      echo -e "  ${DIM}network dependency GOPROXY_CACHED exists to remove.${RESET}"
-      echo ""
-      # GOPROXY_CACHED is itself a file:// proxy, so a COLD cache with the network
-      # also down produces this same wording. The purge is safe either way (Go
-      # re-extracts from the downloads), but it will not help that case.
-      echo -e "  ${DIM}If the purge changes nothing, the cache was cold rather than corrupt —${RESET}"
-      echo -e "  ${DIM}the file:// proxy reports the same error for a missing module. Treat it${RESET}"
-      echo -e "  ${DIM}as the network case below.${RESET}"
-    else
-      echo -e "  A failed module fetch (${BOLD}proxy.golang.org${RESET}) is the usual cause; retry once the"
-      echo -e "  network is back, and the pinned generator will be cached in"
-      echo -e "  ${BOLD}${GOMODCACHE_DIR}${RESET} for subsequent offline runs."
-    fi
-    echo ""
-    echo -e "  ${DIM}Generator output kept at: $DRIFT_LOG${RESET}"
-    echo ""
-    exit 1
-    ;;
-esac
-
-step "Checking the generated Go client covers every schema..."
-if ! $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace node:24-alpine \
-  node scripts/ci/check-go-schema-coverage.mjs; then
-  fail "The generated Go client is missing schemas (see above)."
-  echo ""
-  echo -e "    ${BOLD}cd packages/sdk-go && go generate ./...${RESET}"
-  echo ""
-  exit 1
-fi
-
 # --- Build the launcher (host binary) ---
 #
 # The semiont launcher is a static Go binary that runs on the HOST and drives
 # the :local images (SEMIONT_VERSION=local semiont start). Built inside
 # golang:1.25 targeting the host platform — no Go toolchain on the host, the
 # same philosophy as the npm builds above. The Go build cache persists under
-# /tmp/semiont-gocache (/tmp, not $TMPDIR — Apple Container cannot sustain
-# mounts from /var/folders).
+# /tmp/semiont-gocache-build (/tmp, not $TMPDIR — Apple Container cannot
+# sustain mounts from /var/folders).
 
 banner "LAUNCHER"
 

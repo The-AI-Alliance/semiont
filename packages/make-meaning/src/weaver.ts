@@ -79,6 +79,15 @@ import { partitionByType } from './batch-utils.js';
 import type { Annotation, CreateAnnotationInternal } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 
+/**
+ * Census declarations (`WEAVER_AWAITED_OPERATIONS`, service-channels.ts) for
+ * the operations this module awaits over the wire — see the note on
+ * `SmelterResourceReadAwaits` for the mechanism.
+ */
+export type WeaverCatalogPageAwaits = 'browse:resources-requested';
+export type WeaverEventsReadAwaits = 'browse:events-requested';
+export type WeaverAnnotationsReadAwaits = 'browse:annotations-requested';
+
 export class Weaver {
   // Catch-up paging (not timing — page size is a payload concern)
   private static readonly CATCHUP_PAGE_SIZE = 200;
@@ -293,7 +302,7 @@ export class Weaver {
   private async fetchAllResources(): Promise<ResourceDescriptor[]> {
     const resources: ResourceDescriptor[] = [];
     for (;;) {
-      const page = await busRequest(this.bus, 'browse:resources-requested', {
+      const page = await busRequest(this.bus, 'browse:resources-requested' satisfies WeaverCatalogPageAwaits, {
         offset: resources.length,
         limit: Weaver.CATCHUP_PAGE_SIZE,
       });
@@ -305,7 +314,7 @@ export class Weaver {
 
   /** A resource's full event history over the bus, sorted by sequence. */
   private async fetchResourceEvents(resourceId: string): Promise<StoredEvent[]> {
-    const reply = await busRequest(this.bus, 'browse:events-requested', { resourceId });
+    const reply = await busRequest(this.bus, 'browse:events-requested' satisfies WeaverEventsReadAwaits, { resourceId });
     return [...(reply.events as StoredEvent[])]
       .sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
   }
@@ -510,7 +519,7 @@ export class Weaver {
       return 'entity-types-mismatch';
     }
 
-    const { annotations } = await busRequest(this.bus, 'browse:annotations-requested', { resourceId: rid });
+    const { annotations } = await busRequest(this.bus, 'browse:annotations-requested' satisfies WeaverAnnotationsReadAwaits, { resourceId: rid });
     const graphAnnotations = await graphDb.getResourceAnnotations(makeResourceId(rid));
     const viewIds = new Set(annotations.map((a) => String(a.id)));
     const graphIds = new Set(graphAnnotations.map((a) => String(a.id)));

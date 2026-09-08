@@ -416,6 +416,11 @@ describe('worker-runtime — stall watchdog (WORKER-LIVENESS.md P3)', () => {
 describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)', () => {
   it('WORKER_CHANNELS carries exactly the reply channels of the operations the worker awaits', () => {
     expect([...WORKER_CHANNELS].sort()).toEqual([
+      // Canonical-geometry consult replies (SMELTER-OWNS-OCR P2) — the pair
+      // whose absence killed every PDF detection job
+      // (.plans/WORKER-ANCHORED-TEXT-CHANNEL.md).
+      'browse:anchored-text-failed',
+      'browse:anchored-text-result',
       'browse:resource-failed',
       'browse:resource-result',
       'job:claim-failed',
