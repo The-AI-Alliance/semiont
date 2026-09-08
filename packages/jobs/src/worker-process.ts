@@ -113,6 +113,17 @@ export interface WorkerProcessConfig {
  * on whether the event is a cross-subscriber broadcast.
  */
 /**
+ * Census declarations (`WORKER_AWAITED_OPERATIONS`, worker-runtime.ts) for the
+ * two operations THIS module awaits. `MarkCommitAwaits` is tied to its call by
+ * a `satisfies`; the descriptor read has no operation literal to tie to — it
+ * awaits through the SDK (`session.client.browse.resource(...).fresh()`), so
+ * its declaration is by convention until SDK bus-backed methods carry their
+ * operation in their own type (the census's recorded endgame).
+ */
+export type MarkCommitAwaits = 'mark:commit';
+export type DescriptorReadAwaits = 'browse:resource-requested';
+
+/**
  * How long a unit's commit may take before the worker treats the sink as down.
  *
  * Generous relative to an append — the batch is one unit's annotations and the
@@ -143,7 +154,7 @@ async function commitAnnotations(
   if (annotations.length === 0) return;
   await busRequest(
     workerBusAsPrimitive((session.client.transport as HttpTransport).actor),
-    'mark:commit',
+    'mark:commit' satisfies MarkCommitAwaits,
     { resourceId, annotations },
     MARK_COMMIT_TIMEOUT_MS,
   );

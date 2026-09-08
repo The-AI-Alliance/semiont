@@ -25,6 +25,13 @@ import { busRequest, isArray, isNumber, isString } from '@semiont/core';
 import type { WorkerBus } from '@semiont/sdk';
 import { workerBusAsPrimitive } from './worker-bus-primitive.js';
 
+/**
+ * The bus operation the claim path AWAITS (census declaration — see
+ * `WORKER_AWAITED_OPERATIONS` in worker-runtime.ts). The `satisfies` at the
+ * call site keeps this alias and the actual operation from drifting.
+ */
+export type JobClaimAwaits = 'job:claim';
+
 
 export interface JobAssignment {
   jobId: string;
@@ -157,7 +164,7 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
       // reply's `response` (the claimed job).
       // `job:claimed`'s response is an untyped `Record<string, unknown>`, so narrow
       // it to the claimed-job shape the worker reads.
-      const job = (await busRequest(requestBus, 'job:claim', { jobId: assignment.jobId }, 10_000)) as {
+      const job = (await busRequest(requestBus, 'job:claim' satisfies JobClaimAwaits, { jobId: assignment.jobId }, 10_000)) as {
         params?: Record<string, unknown>;
         metadata?: { userId?: string; completedUnits?: unknown; retryCount?: unknown; maxRetries?: unknown };
       };

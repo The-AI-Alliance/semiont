@@ -14,7 +14,9 @@
  */
 
 import { startWorkerProcess } from './worker-process';
-import type { WorkerVitals } from './job-claim-adapter';
+import type { MarkCommitAwaits, DescriptorReadAwaits } from './worker-process';
+import type { WorkerVitals, JobClaimAwaits } from './job-claim-adapter';
+import type { ConsultAnchoredTextAwaits } from './workers/detection/prepare-detection';
 import type { InferenceClient } from '@semiont/inference';
 import { hostname } from 'os';
 import {
@@ -192,15 +194,24 @@ export function startStallWatchdog(opts: StallWatchdogOptions): { dispose(): voi
  * worker subscribes exactly its own operations' reply channels instead.
  *
  * This list restates a fact the code owns (which operations worker code
- * paths call `busRequest` on); its gate is `busRequest`'s `isSubscribed`
- * probe — an operation missing here fails IMMEDIATELY with
- * `bus.unsubscribed` naming the channel, never a silent 30 s timeout.
+ * paths call `busRequest` on); its gate is the build-time census below
+ * (`workerAwaitCensus`): every awaiting site declares its operation next to
+ * the call, and an operation awaited but missing here fails COMPILATION with
+ * the operation named. `busRequest`'s `isSubscribed` probe remains the
+ * runtime backstop for an await nobody declared — a loud `bus.unsubscribed`
+ * at first use, never a silent 30 s timeout.
  * (`job:queued` is not here: it is a broadcast, added by the claim
  * adapter via `addChannels`.)
  */
 export const WORKER_AWAITED_OPERATIONS = [
   'job:claim',
   'browse:resource-requested',
+  // Canonical geometry for a geometry-bearing detection: the consult behind
+  // `ConsultAnchoredText` (SMELTER-OWNS-OCR P2). Its omission broke every
+  // PDF detection job at the transport probe
+  // (.plans/WORKER-ANCHORED-TEXT-CHANNEL.md); the census below now fails the
+  // BUILD when this list and the declared awaits drift.
+  'browse:anchored-text-requested',
   // Durability acknowledgement for a unit's annotations (JOB-RESTART-SAFETY
   // P6). The worker AWAITS this one — a unit may not advance until its
   // annotations are in the event log — so its replies must be in the narrow
@@ -210,6 +221,34 @@ export const WORKER_AWAITED_OPERATIONS = [
 
 /** The derived global SSE channel set for a worker's transport. */
 export const WORKER_CHANNELS: readonly string[] = replyChannelsFor(WORKER_AWAITED_OPERATIONS);
+
+/**
+ * The build-time census gate (WORKER-ANCHORED-TEXT-CHANNEL F2).
+ *
+ * `WORKER_AWAITED_OPERATIONS` restates a fact the code owns — which
+ * operations worker paths call `busRequest` on — and one of those calls
+ * hides behind an injected seam (`ConsultAnchoredText` → the SDK), where no
+ * grep and no runtime probe-before-shipping can see it. So every awaiting
+ * site DECLARES its operation next to the call (the `*Awaits` aliases), the
+ * declarations are assembled here, and this constant compiles ONLY when the
+ * list and the declarations agree in BOTH directions. Drift fails the build
+ * with the drifted operation named in the type error — at build time, not at
+ * the first live job. `busRequest`'s `bus.unsubscribed` probe remains the
+ * runtime backstop for an await nobody declared.
+ */
+type DeclaredWorkerAwaits =
+  | JobClaimAwaits             // job-claim-adapter.ts — claiming an announced job
+  | DescriptorReadAwaits       // worker-process.ts — the resource descriptor read
+  | MarkCommitAwaits           // worker-process.ts — the durability ack (JOB-RESTART-SAFETY P6)
+  | ConsultAnchoredTextAwaits; // prepare-detection.ts — canonical geometry (SMELTER-OWNS-OCR P2)
+
+type WorkerAwaitCensusDrift =
+  | Exclude<DeclaredWorkerAwaits, (typeof WORKER_AWAITED_OPERATIONS)[number]>
+  | Exclude<(typeof WORKER_AWAITED_OPERATIONS)[number], DeclaredWorkerAwaits>;
+
+export const workerAwaitCensus: [WorkerAwaitCensusDrift] extends [never]
+  ? 'in-census'
+  : WorkerAwaitCensusDrift = 'in-census';
 
 export function parseGatewayUrl(url: string): { protocol: 'http' | 'https'; host: string; port: number } {
   const parsed = new URL(url);
@@ -353,10 +392,10 @@ export async function startAgentWorker(
     jobTypes: group.jobTypes,
     inferenceClient: group.client,
     generator,
-    // The extraction seam's cache, consulted over the bus and never written
-    // (ANCHORED-TEXT-TO-SMELTER D2): the Smelter owns this store, the
-    // Archivist answers the checksum-addressed read, and a worker that
-    // misses extracts locally and discards.
+    // Byte reads for decode-path media only. A geometry-bearing type's text
+    // never comes from bytes here — it is CONSULTED from the Smelter's
+    // canonical anchored text over the bus (SMELTER-OWNS-OCR P2), and this
+    // worker cannot derive even by mistake (READ-VS-EXTRACT P2).
     contentReads,
     logger,
   });

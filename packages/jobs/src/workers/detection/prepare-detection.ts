@@ -43,6 +43,18 @@ export type DetectionDecline = {
 export type ConsultAnchoredText = (resourceId: ResourceId) => Promise<AnchoredTextAnswer>;
 
 /**
+ * The bus operation the consult AWAITS — declared WITH the seam, because the
+ * call itself lives behind the SDK (`browse.resourceAnchoredText`), where
+ * neither a grep for `busRequest(` nor the transport's types can see it. The
+ * worker's subscription census (`WORKER_AWAITED_OPERATIONS`,
+ * worker-runtime.ts) must carry this operation, and fails to COMPILE with
+ * this operation named in the error when it does not — every PDF detection
+ * job died on exactly that omission
+ * (.plans/WORKER-ANCHORED-TEXT-CHANNEL.md).
+ */
+export type ConsultAnchoredTextAwaits = 'browse:anchored-text-requested';
+
+/**
  * For one detection job, resolve the text the model detects over and the
  * media-appropriate way to turn a detected span into a stored annotation.
  *
