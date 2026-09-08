@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
-import { createActorStateUnit } from '../actor-state-unit';
+import { createActorStateUnit, EMIT_RETRY } from '../actor-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 // The SSE/fetch harness lives in helpers/mock-conn.ts (shared with the
 // liveness property suite). Importing it stubs the global fetch.
@@ -132,22 +132,35 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('emit rejects (does not hang) when its timeout aborts the POST (P7)', async () => {
+  it('emit retries a timeout, then rejects (does not hang) when the budget runs out (P7)', async () => {
     // When the deadline fires, `AbortSignal.timeout` rejects the fetch with a
     // TimeoutError; the caller must receive that rejection — a job failure the
     // queue classifies transient — rather than an unsettled promise. (The
     // deadline itself is a native timer vitest's fake clock does not drive, so
     // this pins the propagation the deadline produces, and the pin above pins
     // that the deadline is wired.)
-    mockFetch.mockRejectedValueOnce(new DOMException('The operation timed out.', 'TimeoutError'));
+    //
+    // SIDECAR-BOOT-RESILIENCE P2 changed WHEN that rejection arrives: a deadline
+    // is the definition of "try again", so the emit now spends its budget first.
+    // The no-hang guarantee is unchanged and is what this still pins — it is the
+    // budget, not the first failure, that bounds the wait. `mockRejectedValue`
+    // (not `…Once`) so every attempt times out; fake timers drive the retry
+    // sleeps, which are ordinary `setTimeout`s even though the deadline is not.
+    vi.useFakeTimers();
+    mockFetch.mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'));
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
       channels: [],
     });
 
-    await expect(stateUnit.emit('mark:added', { annotationId: 'a-1' })).rejects.toThrow(/timed out/i);
+    const rejects = expect(stateUnit.emit('mark:added', { annotationId: 'a-1' }))
+      .rejects.toThrow(/timed out/i);
+    await vi.advanceTimersByTimeAsync(60_000);
+    await rejects;
+    expect(mockFetch).toHaveBeenCalledTimes(EMIT_RETRY.attempts);
 
+    vi.useRealTimers();
     stateUnit.dispose();
   });
 
@@ -463,6 +476,51 @@ describe('createActorStateUnit', () => {
 
     await expect(stateUnit.emit('match:search-requested', { correlationId: 'c-1' }))
       .rejects.toThrow(/400.*Bus emit validation failed/);
+
+    stateUnit.dispose();
+  });
+
+  it('emit RETRIES a 429 and resolves — the gateway is up and asking us to wait', async () => {
+    // SIDECAR-BOOT-RESILIENCE P2. A 429 rejected on the first attempt, and the
+    // sidecars treat a failed boot emit as fatal, so one rate-limit refusal
+    // killed a projector outright (2026-09-07 weaver incident). Retry is
+    // compliance with the gateway's own instruction, not optimism.
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 429, statusText: 'Too Many Requests', text: async () => 'retry when one settles' });
+    mockFetch.mockResolvedValueOnce({ ok: true });
+
+    const stateUnit = createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: [] });
+
+    await expect(stateUnit.emit('mark:added', { annotationId: 'a-1' })).resolves.toBe(-1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    stateUnit.dispose();
+  });
+
+  it('emit does NOT retry a 401 — the gateway is up and rejected us', async () => {
+    // The asymmetry that made a status-blind predicate wrong in both directions:
+    // 429 and 401 both mean "the gateway answered", and only one of them is an
+    // invitation to try again. Retrying auth failures would burn the budget and
+    // delay a real error reaching the caller.
+    mockFetch.mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized', text: async () => 'token expired' });
+
+    const stateUnit = createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: [] });
+
+    await expect(stateUnit.emit('mark:added', { annotationId: 'a-1' })).rejects.toThrow(/401/);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    stateUnit.dispose();
+  });
+
+  it('emit exposes the status as a FIELD, not only inside the message', async () => {
+    // D1. A predicate that recovered the status by parsing it back out of prose
+    // would be a second statement of the same fact, in the fragile direction —
+    // and `isRetryableRequestError` reads the field.
+    mockFetch.mockResolvedValue({ ok: false, status: 403, statusText: 'Forbidden', text: async () => 'nope' });
+
+    const stateUnit = createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: [] });
+
+    await expect(stateUnit.emit('mark:added', { annotationId: 'a-1' }))
+      .rejects.toMatchObject({ name: 'APIError', status: 403 });
 
     stateUnit.dispose();
   });

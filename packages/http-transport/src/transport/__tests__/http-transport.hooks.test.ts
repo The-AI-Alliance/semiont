@@ -33,7 +33,8 @@ vi.mock('ky', () => {
 });
 
 import ky, { HTTPError } from 'ky';
-import { HttpTransport, APIError } from '../http-transport';
+import { HttpTransport } from '../http-transport';
+import { APIError } from '../api-error';
 
 const testBaseUrl = baseUrl('http://localhost:4000');
 

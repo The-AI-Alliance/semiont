@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { SemiontError, type TransportErrorCode } from '@semiont/core';
 
-import { APIError } from '../http-transport';
+import { APIError } from '../api-error';
 
 describe('APIError', () => {
   describe('classifyApiCode (via constructor)', () => {
