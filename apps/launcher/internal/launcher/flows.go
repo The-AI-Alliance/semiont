@@ -86,6 +86,13 @@ func flowFullStart(x executor, fc flowCtx) int {
 	x.initStack(fc.root, fc.opts.configName, fc.version, addr, stage)
 	x.recordPorts(checks)
 
+	// Store stamps resolve HERE, before the first container run: the state
+	// store is shared, and a clear at its owner's prep would land after the
+	// gateway attached it (SHARED-STORE-CLEAR-PREFLIGHT).
+	if !x.resolveStoreStamps(fc) {
+		return 1
+	}
+
 	x.banner("Pulling Images")
 	if fc.version == "local" {
 		x.say(sayLog, "Using locally-built %s images (skipping pull)", x.bold(":local"))

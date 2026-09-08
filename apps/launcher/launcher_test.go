@@ -765,6 +765,90 @@ func TestStateImageMismatchRefuses(t *testing.T) {
 	}
 }
 
+// SHARED-STORE-CLEAR-PREFLIGHT P1: the state store is SHARED — the gateway
+// and librarian attach what the archivist stamps — so its mismatch-clear
+// must resolve before the boot's first service container runs. A clear at
+// the stamp owner's own prep delete-and-recreates a directory earlier
+// services have already attached, orphaning their virtiofs shares (measured
+// 2026-09-07: ls total 0, every write ENOENT, 14 e2e failures).
+func TestSharedStoreClearResolvesBeforeFirstRun(t *testing.T) {
+	s := newScenario(t, "container")
+	dir := stateRootFor(s.home, testKBKey)
+	sentinel := filepath.Join(dir, "state", "stale-view")
+	if err := os.MkdirAll(filepath.Dir(sentinel), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sentinel, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	meta := `{"kbRoot":"` + s.kb + `","stores":{"state":{"image":"ghcr.io/the-ai-alliance/semiont-archivist:0.0.0-old"}}}`
+	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	statLog := filepath.Join(s.fakertDir, "stat.log")
+	s.extraEnv = append(s.extraEnv, "FAKERT_STAT_PATH="+sentinel, "FAKERT_STAT_LOG="+statLog)
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("start with a state-store mismatch must boot: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	b, err := os.ReadFile(statLog)
+	if err != nil {
+		t.Fatalf("stat log (did no service container run?): %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	// "present" at the first service run means the clear had not resolved
+	// yet — it will delete-and-recreate a mount another container already
+	// attached. "absent" throughout also proves the clear happened at all.
+	for i, l := range lines {
+		if l != "absent" {
+			t.Fatalf("state-store sentinel still %s at service run %d of %d — the mismatch-clear resolved mid-boot, after a sharer attached", l, i+1, len(lines))
+		}
+	}
+}
+
+// SHARED-STORE-CLEAR-PREFLIGHT P2: a clear removes a store's CONTENTS and
+// keeps the mount-root directory itself. Delete-and-recreate orphans every
+// share attached to the old directory (Apple container virtiofs, measured
+// 2026-09-07); a contents-clear is invisible to attached shares. The test
+// holds the directory open across the boot — exactly what an attached share
+// does — and checks it was never unlinked: an open handle to a deleted
+// directory has link count zero. (Inode-number comparison cannot pin this:
+// an immediate recreate reuses the freed inode number.)
+func TestStoreClearKeepsMountRootDir(t *testing.T) {
+	s := newScenario(t, "container")
+	dir := stateRootFor(s.home, testKBKey)
+	sd := filepath.Join(dir, "state")
+	if err := os.MkdirAll(sd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sd, "stale-view"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	meta := `{"kbRoot":"` + s.kb + `","stores":{"state":{"image":"ghcr.io/the-ai-alliance/semiont-archivist:0.0.0-old"}}}`
+	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	held, err := os.Open(sd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("start with a state-store mismatch must boot: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(sd, "stale-view")); err == nil {
+		t.Error("stale state-store contents survived the mismatch-clear")
+	}
+	fi, err := held.Stat()
+	if err != nil {
+		t.Fatalf("stat of the held state-store handle: %v", err)
+	}
+	if st, ok := fi.Sys().(*syscall.Stat_t); ok && st.Nlink == 0 {
+		t.Error("the state store dir was unlinked by the clear — every share attached before it is orphaned; clear contents, keep the directory")
+	}
+}
+
 func TestStateProjectionAutoCleans(t *testing.T) {
 	s := newScenario(t, "container")
 	// Graph/vectors are PROJECTIONS of the event log: data written by a
