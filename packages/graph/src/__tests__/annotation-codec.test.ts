@@ -16,6 +16,7 @@ import type { Annotation, CreateAnnotationInternal } from '@semiont/core';
 import {
   buildAnnotation,
   encodeAnnotation,
+  intendedGraphAnnotation,
   motivationForCategory,
   storedAnnotationType,
   type AnnotationProperties,
@@ -301,5 +302,65 @@ describe('D7: memorygraph is a faithful reference, not a store where the bug is 
         creator: CREATOR,
       } as unknown as CreateAnnotationInternal)
     ).rejects.toThrow(/missing required field: motivation/);
+  });
+});
+
+/**
+ * `intendedGraphAnnotation` is what a caller asks when it wants to know whether
+ * a graph is correct. It answers "what should the graph hold for this
+ * annotation?" — deliberately NOT "what does the view hold?", because the graph
+ * is a purpose-built projection rather than a copy of the views.
+ *
+ * The weaver's reconcile compares against it, so these are the properties that
+ * check depends on, pinned where the function lives.
+ */
+describe('intendedGraphAnnotation — what the graph is supposed to hold', () => {
+  const full: Annotation = {
+    '@context': 'http://www.w3.org/ns/anno.jsonld',
+    type: 'Annotation',
+    id: annotationId('ann-intent'),
+    motivation: 'highlighting',
+    target: { source: 'res-1', selector: QUOTE_SELECTOR as never },
+    creator: CREATOR,
+    created: CREATED,
+  };
+
+  it('drops a field the encoder does not write, rather than reporting it as missing', () => {
+    // `wasAttributedTo` is on nearly every annotation in a real log and the
+    // encoder writes none of it. A comparison that expected it in the graph
+    // would flag the whole corpus, which is why this scopes itself instead.
+    const intended = intendedGraphAnnotation({
+      ...full,
+      wasAttributedTo: [{ '@type': 'Person', id: 'did:semiont:user:u1', name: 'Ada' }],
+    } as Annotation);
+
+    expect('wasAttributedTo' in intended).toBe(false);
+  });
+
+  it('keeps every field the encoder does write', () => {
+    const intended = intendedGraphAnnotation(full);
+
+    expect(intended.id).toBe(full.id);
+    expect(intended.motivation).toBe('highlighting');
+    expect(intended.created).toBe(CREATED);
+    expect(intended.target).toEqual({ source: 'res-1', selector: QUOTE_SELECTOR });
+    expect(intended.creator).toEqual(CREATOR);
+  });
+
+  it('is idempotent — the answer is itself a fixed point', () => {
+    // Without this a comparison against it could never settle: a graph holding
+    // exactly the intended content would re-derive to something else again.
+    const once = intendedGraphAnnotation(full);
+    expect(intendedGraphAnnotation(once)).toEqual(once);
+  });
+
+  it('carries entity tags through as tagging body items, the way the store rebuilds them', () => {
+    const tagged = intendedGraphAnnotation({
+      ...full,
+      motivation: 'tagging',
+      body: [{ type: 'TextualBody', value: 'Person', purpose: 'tagging' }],
+    } as Annotation);
+
+    expect(tagged.body).toEqual([{ type: 'TextualBody', value: 'Person', purpose: 'tagging' }]);
   });
 });
