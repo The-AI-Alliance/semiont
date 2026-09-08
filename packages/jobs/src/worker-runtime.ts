@@ -14,7 +14,7 @@
  */
 
 import { startWorkerProcess } from './worker-process';
-import type { MarkCommitAwaits, DescriptorReadAwaits } from './worker-process';
+import type { MarkCommitAwaits, DescriptorReadAwaits, DurabilityProbeAwaits } from './worker-process';
 import type { WorkerVitals, JobClaimAwaits } from './job-claim-adapter';
 import type { ConsultAnchoredTextAwaits } from './workers/detection/prepare-detection';
 import type { InferenceClient } from '@semiont/inference';
@@ -217,6 +217,11 @@ export const WORKER_AWAITED_OPERATIONS = [
   // annotations are in the event log — so its replies must be in the narrow
   // channel set or every commit fails fast with `bus.unsubscribed`.
   'mark:commit',
+  // The durability probe for a commit whose acknowledgement never routed
+  // (COMMIT-ACK-FALSE-FAILURE F1). SINGULAR by design: the annotation LIST
+  // channel is the multi-MB fan-out this narrowing exists to keep out, and a
+  // rare error path is no reason to let it back in.
+  'browse:annotation-requested',
 ] as const satisfies readonly BusOperationKey[];
 
 /** The derived global SSE channel set for a worker's transport. */
@@ -240,6 +245,7 @@ type DeclaredWorkerAwaits =
   | JobClaimAwaits             // job-claim-adapter.ts — claiming an announced job
   | DescriptorReadAwaits       // worker-process.ts — the resource descriptor read
   | MarkCommitAwaits           // worker-process.ts — the durability ack (JOB-RESTART-SAFETY P6)
+  | DurabilityProbeAwaits      // worker-process.ts — did the batch land? (COMMIT-ACK-FALSE-FAILURE F1)
   | ConsultAnchoredTextAwaits; // prepare-detection.ts — canonical geometry (SMELTER-OWNS-OCR P2)
 
 type WorkerAwaitCensusDrift =

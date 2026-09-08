@@ -29,10 +29,10 @@ import {
 } from './types';
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
-import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, findClaimSpan, capabilitiesOf, type EventMap, busRequest} from '@semiont/core';
+import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, annotationId as makeAnnotationId, findClaimSpan, capabilitiesOf, type EventMap, busRequest, BusRequestError } from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
-import type { Logger, components } from '@semiont/core';
+import type { Logger, components, AssembledAnnotation } from '@semiont/core';
 import { workerBusAsPrimitive } from './worker-bus-primitive.js';
 import { extractPdfTextLayer, type ContentReads } from '@semiont/content';
 import { prepareDetection } from './workers/detection/prepare-detection';
@@ -114,14 +114,25 @@ export interface WorkerProcessConfig {
  */
 /**
  * Census declarations (`WORKER_AWAITED_OPERATIONS`, worker-runtime.ts) for the
- * two operations THIS module awaits. `MarkCommitAwaits` is tied to its call by
- * a `satisfies`; the descriptor read has no operation literal to tie to — it
- * awaits through the SDK (`session.client.browse.resource(...).fresh()`), so
- * its declaration is by convention until SDK bus-backed methods carry their
+ * three operations THIS module awaits. `MarkCommitAwaits` is tied to its call by
+ * a `satisfies`; the other two have no operation literal to tie to — they
+ * await through the SDK (`session.client.browse.*(...).fresh()`), so
+ * their declarations are by convention until SDK bus-backed methods carry their
  * operation in their own type (the census's recorded endgame).
  */
 export type MarkCommitAwaits = 'mark:commit';
 export type DescriptorReadAwaits = 'browse:resource-requested';
+/**
+ * The durability probe (COMMIT-ACK-FALSE-FAILURE F1).
+ *
+ * Deliberately the SINGULAR read, not `browse:annotations-requested`. Reply
+ * channels are global fan-out, and the annotation LIST channel is the one
+ * measured at ~85 multi-MB frames/min during the 2026-09-03 worker OOM — the
+ * reason `WORKER_CHANNELS` was narrowed in the first place. Re-subscribing it
+ * to serve a rare error path would undo that fix; one annotation's frame is
+ * small.
+ */
+export type DurabilityProbeAwaits = 'browse:annotation-requested';
 
 /**
  * How long a unit's commit may take before the worker treats the sink as down.
@@ -149,15 +160,64 @@ const MARK_COMMIT_TIMEOUT_MS = 60_000;
 async function commitAnnotations(
   session: SemiontSession,
   resourceId: string,
-  annotations: readonly unknown[],
+  annotations: readonly { readonly id: string }[],
 ): Promise<void> {
   if (annotations.length === 0) return;
-  await busRequest(
-    workerBusAsPrimitive((session.client.transport as HttpTransport).actor),
-    'mark:commit' satisfies MarkCommitAwaits,
-    { resourceId, annotations },
-    MARK_COMMIT_TIMEOUT_MS,
-  );
+  try {
+    await busRequest(
+      workerBusAsPrimitive((session.client.transport as HttpTransport).actor),
+      'mark:commit' satisfies MarkCommitAwaits,
+      { resourceId, annotations },
+      MARK_COMMIT_TIMEOUT_MS,
+    );
+  } catch (error) {
+    if (!(error instanceof BusRequestError) || error.code !== 'bus.timeout') throw error;
+    if (!(await batchIsDurable(session, resourceId, annotations))) throw error;
+    // The batch is in the log; only the acknowledgement was lost. Returning
+    // here IS the fix — see `batchIsDurable`.
+  }
+}
+
+/**
+ * Did the batch land? (COMMIT-ACK-FALSE-FAILURE F1.)
+ *
+ * A lost `mark:commit-ok` says nothing about the event log. Measured
+ * 2026-09-08: a 51-minute Person detection appended all 1,673 of its
+ * annotations, the gateway then went down, the ack could not route, and the
+ * job reported FAILED over durable data — indistinguishable, to a user, from
+ * having produced nothing. The outcome must follow the durable fact, not the
+ * arrival of a message.
+ *
+ * Only the LAST annotation is probed, and that is sufficient rather than
+ * approximate: `handleMarkCommit` appends a batch strictly in order and stops
+ * at the first failure (`stower.ts`, pinned by
+ * `stower-commit-idempotence.test.ts`), so the last id being present means every
+ * earlier one is too. Probing all of them would be 1,673 round trips; probing
+ * the list channel would re-subscribe the frames that OOM'd the worker (see
+ * `DurabilityProbeAwaits`).
+ *
+ * Every non-answer resolves to `false` — retry — and that asymmetry is
+ * deliberate. Since F3 the log refuses a duplicate, so a needless retry costs
+ * one re-run of the unit; a wrong `true` loses the whole unit silently, which
+ * is the false-success the acknowledgement was introduced to kill. When the
+ * probe is unreachable the truthful answer is neither, and forcing it into
+ * failure here is the INDETERMINATE state this plan's F2 exists to name.
+ */
+async function batchIsDurable(
+  session: SemiontSession,
+  resourceId: string,
+  annotations: readonly { readonly id: string }[],
+): Promise<boolean> {
+  const last = annotations[annotations.length - 1];
+  if (!last) return false;
+  try {
+    await session.client.browse
+      .annotation(makeResourceId(resourceId), makeAnnotationId(String(last.id)))
+      .fresh();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function emitEvent<K extends keyof EventMap>(
@@ -650,7 +710,7 @@ async function handleJobInner(
     // resource, so they are one batch keyed by `newResourceId` — a different
     // resource from the provenance edge above, which is why they cannot share
     // a commit.
-    const citationRefs: unknown[] = [];
+    const citationRefs: AssembledAnnotation['annotation'][] = [];
     if (genResult.format === 'application/pdf' && genResult.citations.length > 0) {
       const layer = await extractPdfTextLayer(genResult.content);
       if (!layer) {

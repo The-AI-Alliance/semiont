@@ -55,10 +55,23 @@ export interface KnowledgeBase {
  *  accessions, moves, removes and resolves — it never serves bytes. */
 export type ContentLifecycle = Pick<WorkingTreeStore, 'register' | 'move' | 'remove' | 'resolveUri'>;
 
-/** The record's single write seam. `Stower` is the only appendEvent caller
- *  anywhere in make-meaning or the gateway (post-#1252): single-owner by
- *  construction. A second caller is a design smell, not a wiring chore. */
-export type EventAppends = Pick<EventStore, 'appendEvent'>;
+/**
+ * The record's single write seam. `Stower` is the only appendEvent caller
+ * anywhere in make-meaning or the gateway (post-#1252): single-owner by
+ * construction. A second caller is a design smell, not a wiring chore.
+ *
+ * It carries a read — `viewStorage.get`, narrowed to `get` — because one write
+ * path is at-least-once and must not duplicate the log
+ * (COMMIT-ACK-FALSE-FAILURE F3): `mark:commit` diffs its batch against what the
+ * resource already holds. This does NOT reverse JOB-RESTART-SAFETY HD1, which
+ * rejected read-before-write for a WORKER reading a REMOTE store mid-recovery
+ * — "the thing it would read is exactly what is down". This read is inside the
+ * Archivist, against the store it is about to write, and cannot be down
+ * relative to itself.
+ */
+export type EventAppends = Pick<EventStore, 'appendEvent'> & {
+  readonly viewStorage: Pick<ViewStorage, 'get'>;
+};
 
 /** Read-only reach into the event store: the log for queries, the
  *  materializer for on-demand view assembly (`assembleResourceGraph`). */

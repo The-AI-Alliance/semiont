@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { firstValueFrom, take } from 'rxjs';
 import { EventBus, resourceId, type Logger } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
-import { Stower } from '../stower';
+import { Stower, type StowerStores } from '../stower';
 
 const silentLogger: Logger = {
   debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
@@ -22,10 +22,28 @@ const silentLogger: Logger = {
 const RID = 'res-job-under-test';
 const USER = 'did:web:test:users:test';
 
-/** Only `eventStore.appendEvent` is exercised by these three handlers. */
+/**
+ * The write seam these handlers use, typed as `StowerStores` rather than cast.
+ *
+ * It was `as never`, and that cast cost three green tests: when `mark:commit`
+ * grew its at-least-once guard (COMMIT-ACK-FALSE-FAILURE F3) and the seam grew
+ * `viewStorage`, `tsc` had nothing to check and the stub went on satisfying a
+ * shape that no longer existed — the failure surfaced only at runtime, as
+ * "Cannot read properties of undefined". Typed, the next widening fails the
+ * BUILD here, naming the missing member.
+ */
 function stubStores() {
   const appendEvent = vi.fn().mockResolvedValue(undefined);
-  return { appendEvent, stores: { eventStore: { appendEvent } } as never };
+  const stores: StowerStores = {
+    content: { register: vi.fn(), move: vi.fn(), remove: vi.fn(), resolveUri: vi.fn() } as unknown as StowerStores['content'],
+    eventStore: {
+      appendEvent,
+      // No resource holds anything yet, so every annotation in a batch is new
+      // and every append still runs.
+      viewStorage: { get: vi.fn().mockResolvedValue(null) },
+    } as unknown as StowerStores['eventStore'],
+  };
+  return { appendEvent, stores };
 }
 
 const jobEvent = (over: Record<string, unknown> = {}) => ({
