@@ -65,4 +65,10 @@ EXPOSE 24102
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:24102/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
+RUN apk add --no-cache tini
+COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
+COPY scripts/container/boot.sh /usr/local/bin/boot.sh
+ENV SUPERVISE_NAME=weaver \
+    SUPERVISE_PROBE=http://localhost:24102/health
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
 CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/weaver-main.js"]

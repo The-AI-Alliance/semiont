@@ -363,6 +363,16 @@ Only a small number of environment variables are used:
 | `SEMIONT_VERSION` | Image tag to run (`local` uses locally built images) | No (defaults to `latest`) |
 | `ANTHROPIC_API_KEY` | Resolved from `${ANTHROPIC_API_KEY}` in config | If using Anthropic (not needed for Ollama-only) |
 | `POSTGRES_PASSWORD` | Resolved from `${POSTGRES_PASSWORD}` in config | If using variable refs |
+| `SEMIONT_SUPERVISE` | Runs the service under an in-container supervisor that restarts a crashed process and kills a hung one. Any non-empty value enables it. | No — **set by the launcher for local runs; do not set it yourself** |
+
+`SEMIONT_SUPERVISE` exists because a laptop has no scheduler: `semiont start` brings the stack up and
+exits, so nothing outside a container would restart a service that died. Every other way of running
+these images already has something that does that job — compose's `restart:` policy, a Kubernetes
+`restartPolicy` and liveness probe, an ECS or Nomad task policy — and a container that restarts
+itself defeats them, because it never exits and a crash-looping process reads as healthy. So the
+images run one process and exit by default, and only the launcher's local path opts in. Codespace
+stacks do not set it either: compose owns the services inside. See
+[DEPLOYMENT.md](./DEPLOYMENT.md) for restart ownership on each supported path.
 
 Variable references in the config use `${VAR_NAME}` syntax. The launcher leaves them verbatim when it stages the file; interpolation happens inside the container at load time, so the values never pass through your shell history or the launcher's logs.
 

@@ -360,6 +360,35 @@ func TestStartDefaultBoot(t *testing.T) {
 	mustContain(t, "stdout", stdout, "SEMIONT_WORKER_SECRET=<redacted>")
 }
 
+// The launcher half of the split supervision gate (ORCHESTRATOR-NATIVE-IMAGES
+// D3/D6; the image half is scripts/compliance/audit-supervision.sh). Published
+// images run their CMD directly — supervision is a per-run opt-in, and LOCAL
+// placement is the one place with no orchestrator restart policy, so the
+// launcher must grant it to every service it starts. A service missing the
+// flag runs silently unsupervised: its first crash stays down, which is
+// exactly the outage the supervisor exists to prevent.
+func TestStartOptsEveryServiceIntoSupervision(t *testing.T) {
+	s := newScenario(t, "container")
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	seen := map[string]bool{}
+	for _, line := range strings.Split(s.argv(t), "\n") {
+		for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "browser"} {
+			if strings.Contains(line, " --name semiont-"+svc+" ") {
+				seen[svc] = true
+				mustContain(t, "semiont-"+svc+" run argv", line, "--env SEMIONT_SUPERVISE=1")
+			}
+		}
+	}
+	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "browser"} {
+		if !seen[svc] {
+			t.Errorf("no run argv for semiont-%s — the gate saw nothing to check", svc)
+		}
+	}
+}
+
 func TestStartDaemonDownAdvisesSystemStart(t *testing.T) {
 	s := newScenario(t, "container")
 	// The Apple container apiserver is down: the first command that NEEDS

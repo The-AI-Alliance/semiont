@@ -69,13 +69,18 @@ value derived from config.
 
 ## Boot and shutdown
 
-The container entrypoint runs three steps before the server exists:
+The container entrypoint (`tini` as PID 1, exec'ing `gateway-boot.sh`) runs
+three steps before the server exists:
 
 1. **Derive `DATABASE_URL`** (`dist/cli/db-url.js`) from the staged config, so
    the password never appears in `container inspect`.
 2. **`prisma migrate deploy`** — a separate process, which is why the URL is
-   derived outside the server rather than inside it.
-3. **`node dist/index.js`** — as PID 1, so it receives `SIGTERM` directly.
+   derived outside the server rather than inside it. Both steps run once per
+   container, never per restart.
+3. **`node dist/index.js`** — the image CMD, exec'd by the shared `boot.sh`:
+   directly when `SEMIONT_SUPERVISE` is unset (the container exits when the
+   server dies), under the shared supervisor when the launcher sets it for
+   local runs. `tini` forwards `SIGTERM` either way.
 
 Startup then refuses rather than degrades. A missing `services.gateway`, an
 absent `JWT_SECRET`, a knowledge base that declares no identity, or a missing

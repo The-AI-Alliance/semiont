@@ -75,7 +75,7 @@ container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-browser:la
 
 Want to verify image provenance before running? See [Supply-chain verification](./administration/IMAGES.md#supply-chain-verification).
 
-**Running from source instead of published images:** build all five images
+**Running from source instead of published images:** build all seven images
 from a monorepo working tree with
 [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) (they get the
 local-only `:local` tag, never pushed, and are loaded into every container

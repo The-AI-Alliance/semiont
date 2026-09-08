@@ -142,8 +142,13 @@ async function authenticate(): Promise<string> {
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
-  const { initObservabilityNode } = await import('@semiont/observability/node');
+  const { initObservabilityNode, registerSupervisorRestartCount } = await import('@semiont/observability/node');
   initObservabilityNode({ serviceName: 'semiont-smelter' });
+  // Supervised, but with no writable /semiont-state: `supervise.sh` keeps its
+  // event log in /tmp and exports the resolved path. That is enough for the
+  // LIVE count — the container does not exit when the child restarts — and
+  // only surviving container teardown would need a mount (F2, declined).
+  registerSupervisorRestartCount();
 
   logger.info('Authenticating', { baseUrl });
   const tokenSubject = new BehaviorSubject<AccessToken | null>(makeAccessToken(await authenticate()));

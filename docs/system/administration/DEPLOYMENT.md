@@ -18,7 +18,7 @@ cloud container platform.
 
 ## What gets deployed
 
-Five published service images, plus the infrastructure containers a stack needs
+Seven published service images, plus the infrastructure containers a stack needs
 (`postgres`, `neo4j`, `qdrant`, and `ollama` for local inference):
 
 | Image | Role | Port |
@@ -28,6 +28,8 @@ Five published service images, plus the infrastructure containers a stack needs
 | `ghcr.io/the-ai-alliance/semiont-worker` | Job / generation worker | 24100 |
 | `ghcr.io/the-ai-alliance/semiont-smelter` | Embedding / vector pipeline | 24101 |
 | `ghcr.io/the-ai-alliance/semiont-weaver` | Graph projection | 24102 |
+| `ghcr.io/the-ai-alliance/semiont-archivist` | Git-backed record, projection writer | 24103 |
+| `ghcr.io/the-ai-alliance/semiont-librarian` | Gatherer / view reader | 24104 |
 
 Images are built and published by CI, not by the CLI — see [IMAGES.md](./IMAGES.md).
 
@@ -50,6 +52,13 @@ semiont stop                  # tear down
 `semiont start --runtime codespace` places the stack in a GitHub Codespace instead of locally. Full
 reference: [apps/launcher](../../../apps/launcher/README.md).
 
+**Restart is the launcher's job on this path, and only on this path.** A laptop has no scheduler:
+`semiont start` brings the stack up and exits, so nothing outside a container would restart a
+crashed or hung service. For local runs the launcher therefore enables an in-container supervisor,
+which restarts a crashed process, kills one that stops answering its health endpoint, and gives up
+rather than looping on a boot failure. Codespace stacks do not use it — compose owns the services
+inside — and neither does any other path below.
+
 ---
 
 ## Supported path 2 — `docker compose`
@@ -64,6 +73,11 @@ docker compose -f .semiont/compose/backend.yml pull    # refresh a cached :lates
 
 Equivalent end state to `semiont start`. Pin a version with `SEMIONT_VERSION`; select an inference
 config with `SEMIONT_CONFIG`. See the header comments in that compose file for the current options.
+
+Restart is compose's job here — the images run one process and exit when it dies, so a `restart:`
+policy behaves normally. Note that compose restarts on **exit**, not on **unhealthy**: a process
+that hangs while still holding its port will not be replaced. If that matters, use a scheduler with
+liveness probes, or run an autoheal sidecar.
 
 ---
 
@@ -82,12 +96,16 @@ solve:
   (`services.gateway.publicURL`, …), not by any platform-specific mechanism.
 - **Persistence.** PostgreSQL, Neo4j, and Qdrant need durable volumes. The KB's `.semiont/events/`
   directory is the **system of record** and must survive container replacement.
-- **The KB working tree.** The gateway bind-mounts the KB repo at `/kb`. On a multi-node scheduler
+- **The KB working tree.** The Archivist bind-mounts the KB repo at `/kb`. On a multi-node scheduler
   that means a shared filesystem or a different content strategy.
 - **Ingress and TLS.** The Browser serves on 3000 and the gateway on 4000; terminating TLS and
   routing to them is platform work.
 - **Migrations.** The gateway applies Prisma migrations at startup; no external migration step is
   required, but the database must be reachable before the gateway becomes healthy.
+- **Restart and liveness.** Each image runs `tini` as PID 1 wrapping a single service process, and
+  the container exits when that process dies, so your platform's restart policy and liveness probe
+  behave as they normally would. Nothing restarts anything from inside the container on this path,
+  and nothing needs to be disabled.
 
 Platform notes, including a fuller ECS Fargate checklist:
 [platforms/AWS.md](../platforms/AWS.md).

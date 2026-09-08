@@ -51,6 +51,7 @@ echo ""
 echo "🐳 Checking boot contract (B1-B3) and test-env hygiene (H1)..."
 bash "$COMPLIANCE_DIR/audit-boot-contract.sh"
 bash "$COMPLIANCE_DIR/audit-test-env-hygiene.sh"
+bash "$COMPLIANCE_DIR/audit-supervision.sh"
 echo ""
 
 # Weaver structural invariants (WEAVER-AXIOMS.md G1–G5)

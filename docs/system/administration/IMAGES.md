@@ -5,12 +5,15 @@ this repository.
 
 ## Overview
 
-This repo publishes **5 container images** to GitHub Container Registry
+This repo publishes **7 container images** to GitHub Container Registry
 (ghcr.io):
 
 - **semiont-browser** — Vite + React SPA (the Semiont Browser), served as a
   static container.
 - **semiont-gateway** — the API server + unified bus gateway.
+- **semiont-archivist** — the KB record actor: the working tree's single
+  writer and byte authority.
+- **semiont-librarian** — the search/match actor (Gatherer + Matcher).
 - **semiont-worker** — the annotation/generation worker pool.
 - **semiont-smelter** — the embedding/vector pipeline actor.
 - **semiont-weaver** — the graph-projection actor.
@@ -22,7 +25,7 @@ bind-mount per-KB TOML config at runtime; nothing KB-specific is baked into
 any image. The consuming entry point is the host-installed
 [`semiont` launcher](../../../apps/launcher/README.md)
 (`brew install the-ai-alliance/semiont/semiont`): `semiont start` pulls all
-five and starts them alongside the infrastructure containers. See
+seven and starts them alongside the infrastructure containers. See
 [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)
 for the canonical KB shape.
 
@@ -63,15 +66,17 @@ session model; see [HUMAN-UI.md](../HUMAN-UI.md)).
 
 [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/orgs/The-AI-Alliance/packages?repo_name=semiont)
 
-The four gateway-side services are published as runtime images that
+The six service images are published as runtime images that
 **bundle the published `@semiont/*` npm packages** at the requested version —
 the publish workflow refuses to build until the matching packages exist on
 npm (`npm view` gate), so an image version always equals the npm version it
-carries. All four run `node:24-alpine` (the Browser runs `node:26-alpine`).
+carries. All six run `node:24-alpine` (the Browser runs `node:26-alpine`).
 
 | Image | What runs | Bundled packages | Port | Dockerfile |
 |---|---|---|---|---|
 | `semiont-gateway` | API server + bus gateway | `@semiont/gateway` | 4000 | [apps/gateway/Dockerfile](../../../apps/gateway/Dockerfile) |
+| `semiont-archivist` | KB record actor (tree single-writer, byte authority) | `@semiont/make-meaning` | 24103 | [apps/archivist/Dockerfile](../../../apps/archivist/Dockerfile) |
+| `semiont-librarian` | search/match actor (Gatherer + Matcher) | `@semiont/make-meaning` | 24104 | [apps/librarian/Dockerfile](../../../apps/librarian/Dockerfile) |
 | `semiont-worker` | annotation/generation worker pool | `@semiont/jobs` | 24100 | [apps/worker/Dockerfile](../../../apps/worker/Dockerfile) |
 | `semiont-smelter` | embedding/vector pipeline actor | `@semiont/make-meaning` | 24101 | [apps/smelter/Dockerfile](../../../apps/smelter/Dockerfile) |
 | `semiont-weaver` | graph-projection actor | `@semiont/make-meaning` | 24102 | [apps/weaver/Dockerfile](../../../apps/weaver/Dockerfile) |
@@ -82,10 +87,10 @@ This is what lets one attested image serve every knowledge base — KB repos
 carry no Dockerfiles and no image builds of their own.
 
 **Workflow:** [.github/workflows/publish-service-images.yml](../../../.github/workflows/publish-service-images.yml)
-(a matrix over the four services).
+(a matrix over the six services).
 
 **Local dev loop:** [scripts/ci/local-build.sh](../../../scripts/ci/local-build.sh)
-builds all five images from the working tree as
+builds all seven images from the working tree as
 `ghcr.io/the-ai-alliance/semiont-<svc>:local` (via a throwaway local
 verdaccio; never pushed), fanning each built image out to every other
 container engine on the machine so any `--runtime` finds them. A KB stack
@@ -140,7 +145,7 @@ gh workflow run publish-service-images.yml --field version=0.5.13 --field tag_la
 
 ## Supply-Chain Verification
 
-Every image published to GHCR — the Browser and all four service
+Every image published to GHCR — the Browser and all six service
 images — carries two cryptographic attestations stored as OCI
 artifacts alongside the image:
 
@@ -163,8 +168,8 @@ Requires the [GitHub CLI](https://cli.github.com/). No keys to
 manage — verification uses Sigstore's transparency log.
 
 ```bash
-# <image> is any of: semiont-browser, semiont-gateway, semiont-worker,
-# semiont-smelter, semiont-weaver
+# <image> is any of: semiont-browser, semiont-gateway, semiont-archivist,
+# semiont-librarian, semiont-worker, semiont-smelter, semiont-weaver
 gh attestation verify \
   oci://ghcr.io/the-ai-alliance/<image>:VERSION \
   --owner The-AI-Alliance

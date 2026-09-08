@@ -7,6 +7,27 @@ by driving your container runtime (Apple `container`, Docker, or Podman)
 directly. It replaces the `.semiont/scripts/{start,logs,stop}.sh` trio that
 used to be synced into every KB repository.
 
+## What this is for
+
+The launcher is the **laptop path**: one command brings up a full stack on a
+machine with no scheduler running. It is not the only way to run Semiont, and
+it is not a dependency of the service images.
+
+The published images are standalone artifacts. They run against whatever
+PostgreSQL, Neo4j, Qdrant and inference you already have, under docker compose,
+Kubernetes, ECS or Nomad, with no launcher involved — see
+[DEPLOYMENT.md](../../docs/system/administration/DEPLOYMENT.md) for the
+supported paths and the contract each one must satisfy.
+
+What the launcher adds on top of `run` is the part those platforms leave to
+you: per-root state directories with ownership stamps and mismatch rules,
+config staging and `${VAR}` delivery, the shared worker secret, the discovery
+document, explicit memory ceilings, start ordering, and readiness gates.
+
+What it deliberately is **not** is a scheduler. `semiont start` brings the
+stack up and exits; nothing stays resident to reconcile desired state. That one
+fact explains a good deal of what follows, including how services stay alive.
+
 ## Install
 
 ```sh
@@ -572,6 +593,33 @@ cannot know what else the host is doing. On docker/podman the sum is quiet by
 design: caps are not reservations there, and the runtime's own VM setting is
 the real budget.
 
+### Keeping services alive
+
+`semiont start` exits once the stack is up, so nothing outside a container is
+left watching it. On a laptop that would mean a service that crashes at 2am
+stays dead until you notice.
+
+For **local** runs the launcher therefore sets `SEMIONT_SUPERVISE`, which
+starts each service under a small in-container supervisor: it restarts a
+crashed process, kills one that stops answering its health endpoint after
+having answered it at least once, and gives up rather than looping when a
+process dies on boot five times in a row — a deterministic refusal should be
+visible, not buried under restarts. `semiont.process.restarts` carries the
+count, so a service that is quietly flapping shows up in metrics instead of
+only in logs.
+
+This is local-only, deliberately. **Codespace stacks do not get it**: compose
+owns the services inside a codespace, and its `restart:` policy does the job.
+Nor do the images supervise themselves — a container that restarts its own
+process never exits, so a compose `restart:` policy, a Kubernetes liveness
+probe or an ECS task policy would all be defeated by it, and a crash-looping
+process would read as perfectly healthy from outside.
+
+**The limit worth knowing:** the supervisor restarts a dead *process*, never a
+dead *container*. If the runtime or the host VM kills the container itself,
+nothing notices until the next `semiont status`. Closing that gap would need
+something resident on the host, which the launcher deliberately is not.
+
 ### Where state lives
 
 Local-stack databases persist across restarts. Each local semiont root gets
@@ -605,6 +653,17 @@ targets another root — a literal key is how you remove *orphaned* state
 whose KB directory no longer exists). It refuses while a recorded stack is
 using the state — stop first. `stop` itself never touches state; stopping
 and restarting is exactly the round trip persistence exists for.
+
+**Two homes, not one — and they only look alike on macOS.** Per-root stores
+live under the launcher's *data* home, described above. The machine-level view
+— the discovery document the Browser mounts — lives under its *state* home
+instead. On macOS both resolve to `~/Library/Application Support/semiont`, so
+`roots/` and `discovery/` sit side by side and the distinction is invisible. On
+Linux they are deliberately different trees: `$XDG_DATA_HOME/semiont/roots/<key>`
+(default `~/.local/share/…`) for a root's data, `$XDG_STATE_HOME/semiont/discovery`
+(default `~/.local/state/…`) for the machine-level view. `semiont clean` scopes
+to a root's data and never touches discovery, which the next stack mutation
+regenerates regardless.
 
 ## Development
 

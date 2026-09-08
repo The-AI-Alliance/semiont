@@ -48,8 +48,12 @@ solve these yourself:
   (`services.gateway.publicURL`, and so on), not by any AWS-specific mechanism.
 - **Persistence.** PostgreSQL, Neo4j, and Qdrant need durable volumes. The KB's `.semiont/events/`
   directory is the system of record and must survive task replacement.
-- **The KB working tree.** The gateway bind-mounts the KB repo at `/kb`. On a cluster you need a
+- **The KB working tree.** The Archivist bind-mounts the KB repo at `/kb`. On a cluster you need a
   shared filesystem or a different content strategy.
+- **Restart and liveness.** Each image runs `tini` as PID 1 wrapping a single service process and
+  exits when it dies — your task restart policy and health checks behave normally. Do not set
+  `SEMIONT_SUPERVISE`; the in-container supervisor is the launcher's substitute for exactly the
+  restart policy ECS already has.
 
 None of the above is tested or supported. Treat a cloud deployment as your own integration.
 

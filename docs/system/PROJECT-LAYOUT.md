@@ -44,7 +44,7 @@ The stack itself is run by the host-installed
 (`brew install the-ai-alliance/semiont/semiont`) — a single static binary,
 not a file in the KB repo. From inside the project: `semiont start` brings up
 the infrastructure (Neo4j, Qdrant, Ollama if not already running, PostgreSQL)
-and the six Semiont services, all in containers, pulling the published
+and the seven Semiont services, all in containers, pulling the published
 images and bind-mounting the `.semiont/semiontconfig/{name}.toml` config of
 your choice (`--config`); `semiont logs` follows all services, `[svc]`-prefixed;
 `semiont status` health-checks them; `semiont stop` removes the stack (the

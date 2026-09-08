@@ -166,24 +166,10 @@ async function main() {
   initObservabilityNode({ serviceName: 'semiont-archivist' });
 
   // Report the supervisor's restart count on its behalf: `supervise.sh` is
-  // POSIX shell with no OTel, but it already keeps a durable event log on the
-  // state mount, and one `starting archivist` line is written per life.
-  // A crash LOOP is otherwise invisible to everything but `container logs`.
-  const { registerRestartCountProvider } = await import('@semiont/observability');
-  const supervisorEvents = '/semiont-state/archivist-supervisor/events.log';
-  registerRestartCountProvider(async () => {
-    try {
-      const { readFile } = await import('node:fs/promises');
-      const log = await readFile(supervisorEvents, 'utf-8');
-      // Lives, not restarts: the first start is life 1, so a healthy process
-      // reports 0 and any non-zero value is a real restart.
-      return Math.max(0, log.split('\n').filter((l) => l.includes('starting archivist')).length - 1);
-    } catch {
-      // No supervisor (dev runs it directly) or the log is unreadable — report
-      // nothing rather than a fabricated zero that would read as "healthy".
-      return 0;
-    }
-  });
+  // POSIX shell with no OTel, but it keeps a durable event log and exports
+  // its path. A crash LOOP is otherwise invisible to `container logs` alone.
+  const { registerSupervisorRestartCount } = await import('@semiont/observability/node');
+  registerSupervisorRestartCount();
 
   logger.info('Authenticating', { baseUrl });
   const tokenSubject = new BehaviorSubject<AccessToken | null>(makeAccessToken(await authenticate()));

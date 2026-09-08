@@ -122,29 +122,39 @@ func TestExactlyOneContainerMountsTheKB(t *testing.T) {
 	}
 }
 
-// ARCHIVIST-STAYS-UP P1: the archivist's image runs under the supervisor —
-// the only restart mechanism that can be true on all three runtimes (Apple
-// container has no --restart at all; probed 2026-09-04). Asserted against
-// the files, never by running anything.
+// ARCHIVIST-STAYS-UP P1: the archivist restarts on crash and on hang — the
+// only mechanism that can be true on all three runtimes (Apple container has
+// no --restart at all; probed 2026-09-04). Supervision is a per-run opt-in
+// now (ORCHESTRATOR-NATIVE-IMAGES D3: the launcher passes SEMIONT_SUPERVISE
+// and boot.sh wraps the CMD), so this asserts the image half — the shared
+// supervisor on board, parameterized for the archivist — against the files,
+// never by running anything. The launcher half is
+// TestStartOptsEveryServiceIntoSupervision.
 func TestArchivistRunsUnderTheSupervisor(t *testing.T) {
 	df, err := os.ReadFile(filepath.Join("..", "..", "..", "archivist", "Dockerfile"))
 	if err != nil {
 		t.Fatalf("reading the archivist Dockerfile: %v", err)
 	}
-	if !strings.Contains(string(df), "supervise.sh") {
-		t.Fatal("the archivist Dockerfile does not run supervise.sh — a crashed or hung Archivist stays down, and its absence looks like a frontend hang")
+	for what, want := range map[string]string{
+		"the shared supervisor":              "scripts/container/supervise.sh",
+		"the boot entrypoint that arms it":   "scripts/container/boot.sh",
+		"the entry point, stated once (CMD)": "dist/archivist-main.js",
+		"the supervisor's probe target":      "SUPERVISE_PROBE=http://localhost:24103/health",
+	} {
+		if !strings.Contains(string(df), want) {
+			t.Errorf("the archivist Dockerfile is missing %s (expected to find %q) — a crashed or hung Archivist stays down, and its absence looks like a frontend hang", what, want)
+		}
 	}
-	sup, err := os.ReadFile(filepath.Join("..", "..", "..", "archivist", "supervise.sh"))
+	sup, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "scripts", "container", "supervise.sh"))
 	if err != nil {
 		t.Fatalf("reading supervise.sh: %v", err)
 	}
 	s := string(sup)
 	for what, want := range map[string]string{
-		"the archivist entry point":            "dist/archivist-main.js",
 		"a durable log on the state mount":     "/semiont-state/",
 		"a TERM trap (semiont stop wins)":      "trap",
 		"a rapid-failure cap (fail-fast boot)": "MAX_RAPID",
-		"the health self-probe":                "/health",
+		"the env-driven health self-probe":     "SUPERVISE_PROBE",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("supervise.sh is missing %s (expected to find %q)", what, want)
@@ -152,10 +162,10 @@ func TestArchivistRunsUnderTheSupervisor(t *testing.T) {
 	}
 }
 
-// Each service's health port is hand-written in four homes (TS main const,
-// Dockerfile EXPOSE, Dockerfile HEALTHCHECK, launcher portNeed) — five for the
-// archivist, whose supervisor probes it too. They can't be derived across
-// three languages, so this gate keeps them agreeing.
+// Each service's health port is hand-written in five homes (TS main const,
+// Dockerfile EXPOSE, Dockerfile HEALTHCHECK, Dockerfile SUPERVISE_PROBE,
+// launcher portNeed). They can't be derived across three languages, so this
+// gate keeps them agreeing.
 func TestServiceHealthPortsAgreeAcrossAllHomes(t *testing.T) {
 	mains := map[string]string{
 		"worker":    filepath.Join("..", "..", "..", "..", "packages", "jobs", "src", "worker-main.ts"),
@@ -167,6 +177,7 @@ func TestServiceHealthPortsAgreeAcrossAllHomes(t *testing.T) {
 	tsPort := regexp.MustCompile(`const healthPort = (\d+)`)
 	exposePort := regexp.MustCompile(`(?m)^EXPOSE (\d+)`)
 	healthURL := regexp.MustCompile(`localhost:(\d+)/health`)
+	probeURL := regexp.MustCompile(`SUPERVISE_PROBE=http://localhost:(\d+)/health`)
 	for svc, mainPath := range mains {
 		want := roles[svc].ports[0].port
 
@@ -191,13 +202,8 @@ func TestServiceHealthPortsAgreeAcrossAllHomes(t *testing.T) {
 		if m := healthURL.FindSubmatch(df); m == nil || string(m[1]) != fmt.Sprint(want) {
 			t.Errorf("%s: Dockerfile HEALTHCHECK URL disagrees with launcher portNeed %d", svc, want)
 		}
-	}
-	// The archivist's fifth home: the supervisor's own probe.
-	sup, err := os.ReadFile(filepath.Join("..", "..", "..", "archivist", "supervise.sh"))
-	if err != nil {
-		t.Fatalf("reading supervise.sh: %v", err)
-	}
-	if m := healthURL.FindSubmatch(sup); m == nil || string(m[1]) != fmt.Sprint(roles["archivist"].ports[0].port) {
-		t.Errorf("supervise.sh probes a port that is not the archivist's %d", roles["archivist"].ports[0].port)
+		if m := probeURL.FindSubmatch(df); m == nil || string(m[1]) != fmt.Sprint(want) {
+			t.Errorf("%s: Dockerfile SUPERVISE_PROBE disagrees with launcher portNeed %d — the supervisor would probe the wrong port and kill a healthy child", svc, want)
+		}
 	}
 }
