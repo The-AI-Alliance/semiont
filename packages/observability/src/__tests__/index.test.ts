@@ -50,6 +50,7 @@ import {
   recordSubscriberConnect,
   recordSubscriberDisconnect,
   registerJobQueueProvider,
+  registerRestartCountProvider,
   registerVectorIndexSizeProvider,
   withActorSpan,
   withSpan,
@@ -478,6 +479,38 @@ describe('registerVectorIndexSizeProvider', () => {
     const metricsByName = collectMetrics();
     const gauge = metricsByName.get('semiont.vector.index.size')!;
     expect(gauge[0]?.value).toBe(999);
+  });
+});
+
+describe('registerRestartCountProvider', () => {
+  // Order matters: cumulative aggregation re-exports a gauge's last observation
+  // on every later flush, so the undefined case must run before any real one.
+  it('skips the observation entirely when the provider returns undefined', async () => {
+    registerRestartCountProvider(() => undefined);
+    await flushMetrics();
+
+    const metricsByName = collectMetrics();
+    const gauge = metricsByName.get('semiont.process.restarts') ?? [];
+    expect(gauge).toHaveLength(0);
+  });
+
+  it('observes 0 as a real reading — a healthy supervised process, not "unknown"', async () => {
+    registerRestartCountProvider(() => 0);
+    await flushMetrics();
+
+    const metricsByName = collectMetrics();
+    const gauge = metricsByName.get('semiont.process.restarts');
+    expect(gauge).toBeDefined();
+    expect(gauge![0]?.value).toBe(0);
+  });
+
+  it('supports an async provider', async () => {
+    registerRestartCountProvider(async () => 3);
+    await flushMetrics();
+
+    const metricsByName = collectMetrics();
+    const gauge = metricsByName.get('semiont.process.restarts')!;
+    expect(gauge[0]?.value).toBe(3);
   });
 });
 
