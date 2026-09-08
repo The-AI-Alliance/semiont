@@ -25,6 +25,7 @@
  * blowing up bundles for every consumer.
  */
 
+import { recordAbnormalTermination, registerProcessLifetimeMetrics } from './index.js';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { heapStats } from './runtime-stats';
 import { context, metrics, propagation, trace } from '@opentelemetry/api';
@@ -202,6 +203,37 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
   };
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);
+
+  registerProcessLifetimeMetrics();
+
+  // A fatal path must leave a RECORD, not just a stack trace on stdout.
+  //
+  // Semantics are deliberately unchanged: Node treats an unhandled rejection
+  // and an uncaught exception as fatal, and so do we. Registering a listener
+  // would normally SUPPRESS that, which is why each handler re-raises after
+  // recording — swallowing here would convert a loud crash into a silent
+  // wedged process, which is strictly worse than the bug that motivated this.
+  const fatal = (reason: string) => (err: unknown) => {
+    const detail = err instanceof Error ? err.message : String(err);
+    try {
+      recordAbnormalTermination(reason, detail);
+    } catch {
+      // Telemetry must never be the reason a crash report is lost.
+    }
+    // Best-effort export before the process goes; bounded so a dead collector
+    // cannot hold a dying process open.
+    const flushed = Promise.all([
+      tracerProviderInstance?.forceFlush().catch(() => {}),
+      meterProviderInstance?.forceFlush().catch(() => {}),
+    ]);
+    const bounded = new Promise((resolve) => setTimeout(resolve, 2_000).unref?.());
+    void Promise.race([flushed, bounded]).finally(() => {
+      console.error(`[fatal] ${reason}: ${detail}`);
+      process.exit(1);
+    });
+  };
+  process.on('unhandledRejection', fatal('unhandledRejection'));
+  process.on('uncaughtException', fatal('uncaughtException'));
 
   return true;
 }
