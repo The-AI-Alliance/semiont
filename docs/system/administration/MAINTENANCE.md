@@ -106,7 +106,8 @@ The verbose report calls out **orphaned** state — state whose KB directory no 
 
 ```bash
 semiont clean --dry-run              # What would go, and how big
-semiont clean --store vectors        # One store: database, graph, or vectors
+semiont clean --store vectors        # One store: database, graph, vectors,
+                                     #   anchored-text, or state
 semiont clean --root <path|name|key> # Another root, including an orphan
 ```
 
