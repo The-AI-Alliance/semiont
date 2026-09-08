@@ -140,8 +140,13 @@ for (const jobType of ALL_JOB_TYPES) {
 async function main() {
   // Tier 2 observability — must come before any spanning code. No-op if
   // no OTEL_EXPORTER_OTLP_ENDPOINT (or OTEL_SDK_DISABLED=true).
-  const { initObservabilityNode } = await import('@semiont/observability/node');
+  const { initObservabilityNode, registerSupervisorRestartCount } = await import('@semiont/observability/node');
   initObservabilityNode({ serviceName: 'semiont-worker' });
+  // Supervised, but with no writable /semiont-state: `supervise.sh` keeps its
+  // event log in /tmp and exports the resolved path. That is enough for the
+  // LIVE count — the container does not exit when the child restarts — and
+  // only surviving container teardown would need a mount (F2, declined).
+  registerSupervisorRestartCount();
 
   logger.info('Starting agents', {
     baseUrl: gatewayBaseUrl,
