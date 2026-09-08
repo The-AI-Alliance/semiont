@@ -582,6 +582,91 @@ export function registerFactPumpDepthProvider(provider: () => number): void {
   }
 }
 
+let _gitStagingFailureCounter: Counter | undefined;
+
+/**
+ * A staging command that could not be run. Staging the index is a CONVENIENCE
+ * — the event log is the system of record — so a failure here is degraded
+ * service, never a reason to exit. But degraded must be VISIBLE: this counter
+ * is what stops "the index is quietly stale" from being invisible.
+ */
+export function recordGitStagingFailure(reason: 'index-lock' | 'other'): void {
+  if (!_gitStagingFailureCounter) {
+    _gitStagingFailureCounter = meter().createCounter('semiont.git.staging.failures', {
+      description: 'Staging commands abandoned after retries; the index may be stale',
+    });
+  }
+  _gitStagingFailureCounter.add(1, { reason });
+}
+
+/**
+ * Process lifetime telemetry (ARCHIVIST-GIT-STAGER-CRASH).
+ *
+ * A supervised process that dies and comes back is INVISIBLE in logs unless
+ * someone greps for boot lines, and every request in flight when it died looks
+ * to its caller like a hang. On 2026-09-08 that cost a multi-hour hunt through
+ * search, qdrant, neo4j and the SSE transport for a crash loop that one metric
+ * would have named immediately.
+ *
+ * `start_time` is the diagnostic, not uptime: a CHANGE in it is unambiguous
+ * proof of a restart, and uptime is derivable from it.
+ */
+const PROCESS_START_TIME_SECONDS = Math.floor(Date.now() / 1000);
+let _processStartTimeGauge: ObservableGauge | undefined;
+let _restartCountGauge: ObservableGauge | undefined;
+let _restartCountProvider: (() => Promise<number> | number) | undefined;
+let _abnormalExitCounter: Counter | undefined;
+
+/** Register `semiont.process.start_time`. Called by `initObservability*`. */
+export function registerProcessLifetimeMetrics(): void {
+  if (_processStartTimeGauge) return;
+  _processStartTimeGauge = meter().createObservableGauge('semiont.process.start_time', {
+    description: 'Unix seconds at which this process started; a change means it restarted',
+    unit: 's',
+  });
+  _processStartTimeGauge.addCallback((observer) => observer.observe(PROCESS_START_TIME_SECONDS));
+}
+
+/**
+ * Supply a restart count. The Archivist's supervisor is POSIX shell and cannot
+ * emit OTel, but it already keeps a durable event log on the state mount — so
+ * the supervised child reads it and reports the count on the supervisor's
+ * behalf.
+ */
+export function registerRestartCountProvider(
+  provider: () => Promise<number> | number,
+): void {
+  _restartCountProvider = provider;
+  if (!_restartCountGauge) {
+    _restartCountGauge = meter().createObservableGauge('semiont.process.restarts', {
+      description: 'Times the supervisor has restarted this service',
+    });
+    _restartCountGauge.addCallback(async (observer) => {
+      if (_restartCountProvider) observer.observe(await _restartCountProvider());
+    });
+  }
+}
+
+/**
+ * Record that this process is dying abnormally, and mark the active span so a
+ * trace shows a span that ENDED IN DEATH rather than one that simply never
+ * ends. Never swallows: callers re-raise, so Node's own semantics are intact.
+ */
+export function recordAbnormalTermination(reason: string, detail?: string): void {
+  if (!_abnormalExitCounter) {
+    _abnormalExitCounter = meter().createCounter('semiont.process.abnormal_exit', {
+      description: 'Process terminations that were not a clean shutdown',
+    });
+  }
+  _abnormalExitCounter.add(1, { reason });
+  const active = trace.getActiveSpan();
+  if (active) {
+    active.setStatus({ code: SpanStatusCode.ERROR, message: `${reason}: ${detail ?? ''}`.trim() });
+    active.setAttribute('semiont.process.abnormal_exit', reason);
+    active.end();
+  }
+}
+
 export function registerVectorIndexSizeProvider(
   provider: () => Promise<number> | number,
 ): void {

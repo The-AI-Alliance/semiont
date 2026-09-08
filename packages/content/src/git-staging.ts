@@ -8,8 +8,9 @@
  */
 
 import { execFile } from 'child_process';
+import { resolve } from 'path';
 import { promisify } from 'util';
-import { recordGitCommand } from '@semiont/observability';
+import { recordGitCommand, recordGitStagingFailure } from '@semiont/observability';
 
 const run = promisify(execFile);
 
@@ -36,10 +37,48 @@ export interface Stager {
   dispose(): Promise<void>;
 }
 
+/**
+ * git exposes NO index-lock wait — `core.filesRefLockTimeout` and friends cover
+ * refs, packed-refs, reftable and credentials, not the index — and `git add`
+ * against a held lock fails in ~21 ms. So the wait is ours. Measured
+ * 2026-09-08: this schedule absorbed an 800 ms external hold on attempt 5, at
+ * 0.85 s of a ~3.15 s budget.
+ */
+const LOCK_RETRY_DELAYS_MS = [50, 100, 200, 400, 800, 1600];
+
+/** ONLY the lock race is retried; a bad pathspec or a broken repo fails fast. */
+const isIndexLockContention = (error: unknown): boolean =>
+  typeof error === 'object' &&
+  error !== null &&
+  (error as { code?: unknown }).code === 128 &&
+  String((error as { stderr?: unknown }).stderr ?? '').includes('index.lock');
+
 const DEFAULT_FLUSH_MS = 250;
 const DEFAULT_MAX_WAIT_MS = 2_000;
 
+/**
+ * One Stager per repo, keyed by resolved path.
+ *
+ * git's index is single-writer, and this module serializes per INSTANCE. Two
+ * instances on one repo — the content store and the event log each built their
+ * own — each believed it was the only writer and raced the other into
+ * `index.lock`, killing the Archivist (ARCHIVIST-GIT-STAGER-CRASH).
+ *
+ * The FIRST caller's options win. A later caller cannot silently re-tune a
+ * shared stager's debounce out from under the first.
+ */
+const stagers = new Map<string, Stager>();
+
 export function createStager(cwd: string, options: StagerOptions = {}): Stager {
+  const key = resolve(cwd);
+  const existing = stagers.get(key);
+  if (existing) return existing;
+  const stager = buildStager(key, options);
+  stagers.set(key, stager);
+  return stager;
+}
+
+function buildStager(cwd: string, options: StagerOptions = {}): Stager {
   const flushMs = options.flushMs ?? DEFAULT_FLUSH_MS;
   const maxWaitMs = options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS;
 
@@ -52,7 +91,16 @@ export function createStager(cwd: string, options: StagerOptions = {}): Stager {
   const git = async (args: string[]): Promise<void> => {
     const started = performance.now();
     try {
-      await run('git', args, { cwd });
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await run('git', args, { cwd });
+          return;
+        } catch (error) {
+          const last = attempt >= LOCK_RETRY_DELAYS_MS.length;
+          if (last || !isIndexLockContention(error)) throw error;
+          await new Promise((r) => setTimeout(r, LOCK_RETRY_DELAYS_MS[attempt]!));
+        }
+      }
     } finally {
       recordGitCommand(args[0] ?? 'git', performance.now() - started);
     }
@@ -74,7 +122,29 @@ export function createStager(cwd: string, options: StagerOptions = {}): Stager {
     const batch = [...queued];
     queued.clear();
     oldestAt = undefined;
-    return serialize(() => git(['add', ...batch]));
+    return serialize(() =>
+      git(['add', ...batch]).catch((error: unknown) => {
+        // `queued` was emptied BEFORE the command ran, so a dropped batch is
+        // permanently missing from the index — a quieter failure than the
+        // crash and harder to notice. Re-queue it.
+        //
+        // ONLY for a lock race that outlived the retries. Re-queueing a
+        // PERMANENT failure (bad pathspec, broken repo) would re-arm forever,
+        // spinning one subprocess per cycle and burying the real error.
+        const lock = isIndexLockContention(error);
+        if (lock) {
+          for (const path of batch) queued.add(path);
+          if (oldestAt === undefined) oldestAt = Date.now();
+          arm();
+        }
+        // NEVER rethrow. Staging the index is not in the critical path; a
+        // failure is DEGRADED, not down. Rejecting here is what killed the
+        // Archivist, and it would keep killing it through any caller that
+        // forgot a `.catch` — so the guarantee lives at this boundary rather
+        // than in every caller's discipline.
+        recordGitStagingFailure(lock ? 'index-lock' : 'other');
+      }),
+    );
   };
 
   const arm = () => {
@@ -96,7 +166,13 @@ export function createStager(cwd: string, options: StagerOptions = {}): Stager {
       arm();
     },
     run(args) {
-      return drain().then(() => serialize(() => git(args)));
+      return drain().then(() =>
+        serialize(() =>
+          git(args).catch((error: unknown) => {
+            recordGitStagingFailure(isIndexLockContention(error) ? 'index-lock' : 'other');
+          }),
+        ),
+      );
     },
     flush() {
       return drain();
@@ -105,6 +181,7 @@ export function createStager(cwd: string, options: StagerOptions = {}): Stager {
       return queued.size;
     },
     async dispose() {
+      stagers.delete(cwd);
       await drain();
       disposed = true;
       clearTimer();

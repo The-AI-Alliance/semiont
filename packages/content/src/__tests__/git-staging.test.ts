@@ -113,3 +113,63 @@ describe('git staging queue', () => {
     expect(staged()).toEqual(['last.txt']);
   });
 });
+
+/**
+ * ARCHIVIST-GIT-STAGER-CRASH — a lost `index.lock` race must not be fatal, must
+ * not lose work, and must not happen to ourselves.
+ *
+ * Measured 2026-09-08: two `createStager` calls on one repo (content +
+ * event log) raced, `git add` failed, the rejection was unhandled on the
+ * debounced timer path, and Node killed the Archivist — 9 boots in 5 minutes.
+ * Every request in flight died with it and read to its caller as a hang.
+ */
+describe('index.lock contention', () => {
+  const lockPath = () => join(root, '.git', 'index.lock');
+
+  it('a `git add` that loses the index.lock race is not an unhandled rejection', async () => {
+    const rejections: unknown[] = [];
+    const onRejection = (reason: unknown) => rejections.push(reason);
+    process.on('unhandledRejection', onRejection);
+    try {
+      await fs.writeFile(lockPath(), '');
+      const stager = createStager(root, { flushMs: 10, maxWaitMs: 20 });
+      stager.add(await write('doomed.txt'));
+      // Long enough for the debounce to fire and git to fail.
+      await new Promise((r) => setTimeout(r, 400));
+      expect(rejections).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onRejection);
+      await fs.rm(lockPath(), { force: true });
+    }
+  });
+
+  it('a batch that lost the race is retried, not dropped', async () => {
+    await fs.writeFile(lockPath(), '');
+    const stager = createStager(root, { flushMs: 10, maxWaitMs: 20 });
+    stager.add(await write('survivor.txt'));
+    // First attempt fails against the held lock.
+    await new Promise((r) => setTimeout(r, 120));
+    // The external holder (a person, or another tool) finishes.
+    await fs.rm(lockPath(), { force: true });
+    await stager.flush();
+    // `drain()` clears `queued` BEFORE running git, so a merely-caught
+    // rejection would drop this path forever and leave the index stale.
+    expect(staged()).toContain('survivor.txt');
+  });
+
+  it('a PERMANENT staging failure degrades — it never rejects, so it can never be fatal', async () => {
+    const stager = createStager(root, { flushMs: 5, maxWaitMs: 20 });
+    stager.add('never-existed.txt'); // pathspec matches nothing: git fails, always
+    // Staging the index is a convenience; the event log is the record. A
+    // failure here is degraded service, and MUST NOT reach a caller as a
+    // rejection — one missing `.catch` anywhere would be fatal again.
+    await expect(stager.flush()).resolves.toBeUndefined();
+    await expect(stager.dispose()).resolves.toBeUndefined();
+  });
+
+  it('one repo gets ONE stager — callers cannot race each other', () => {
+    // The content store and the event log each created their own; each
+    // serialized internally and neither serialized against the other.
+    expect(createStager(root)).toBe(createStager(root));
+  });
+});
