@@ -1378,7 +1378,45 @@ describe('Weaver', () => {
 
       expect(summary.divergent).toBe(1);
       expect(summary.healed).toBe(1);
+      // The guardrail for the orphan branch below: a resource that HAS events
+      // is a real heal, never an orphan. This is also the post-clean shape —
+      // `semiont clean` empties the graph, so every resource reports
+      // `missing-node` and heals from the log. An orphan check keyed on
+      // `missing-node` rather than on zero events would swallow all of it.
+      expect(summary.orphaned).toBe(0);
       expect((await graphDb.getResource(resourceId(rid)))?.name).toBe('Healed');
+    });
+
+    // VIEW-LOG-RECONCILIATION P1. A catalogued resource whose log holds nothing
+    // is an ORPHANED VIEW — someone rewrote history and the views projection
+    // was never invalidated. Healing it replays zero events and writes nothing,
+    // so the same divergence returns on the next boot, forever. Reporting that
+    // as a heal is what let the condition run unnoticed on the template KB for
+    // an unknown number of boots (bugs/weaver-fatal-429-and-phantom-view-heal-wave).
+    it('reports a catalogued resource with no events as an orphan, not a heal', async () => {
+      await consumer.stop();
+      weaverUnit.dispose();
+      graphDb = new MemoryGraphDatabase();
+      consumer = await wireWeaver(graphDb);
+
+      // In the catalog, absent from the log — no events are appended for it.
+      const rid = `rec-orphan-${Date.now()}`;
+      serveBrowseReads([rid]);
+      vi.mocked(mockLogger.warn).mockClear();
+      const summary = await consumer.reconcile();
+
+      expect(summary.divergent).toBe(1);
+      expect(summary.orphaned).toBe(1);
+      expect(summary.healed).toBe(0);
+      expect(summary.healFailures).toBe(0);
+
+      // The operator is the mechanism now — `clean --store state` is the
+      // repair, and the breadcrumb has to say so or nobody knows to run it.
+      const orphanWarn = vi.mocked(mockLogger.warn).mock.calls.find(
+        ([msg]) => typeof msg === 'string' && msg.includes('orphaned view'),
+      );
+      expect(orphanWarn, 'reconcile must warn about the orphaned view').toBeDefined();
+      expect(JSON.stringify(orphanWarn)).toContain('clean --store state');
     });
 
     it('a clean graph reconciles with zero divergence and no heals', async () => {

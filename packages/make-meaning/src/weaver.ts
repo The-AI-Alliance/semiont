@@ -429,11 +429,12 @@ export class Weaver {
    * benign. Run after `catchUp()`, mirroring the Smelter's
    * subscribe → catch-up → reconcile startup order.
    */
-  async reconcile(): Promise<{ resourcesChecked: number; divergent: number; healed: number; healFailures: number }> {
+  async reconcile(): Promise<{ resourcesChecked: number; divergent: number; healed: number; healFailures: number; orphaned: number }> {
     const resources = await this.fetchAllResources();
     let divergent = 0;
     let healed = 0;
     let healFailures = 0;
+    let orphaned = 0;
 
     for (const resource of resources) {
       const rid = resource['@id'];
@@ -445,12 +446,29 @@ export class Weaver {
       divergent++;
       this.logger.warn('Reconcile divergence — healing from the log', { resourceId: String(rid), reason });
       const result = await this.rebuildResource(makeResourceId(String(rid)));
-      if (result.eventsFailed === 0) healed++;
+      // Zero events for a CATALOGUED resource is not a heal — it is an
+      // orphaned view. The log is the system of record, the catalog comes from
+      // the views, and a view the log cannot justify means history was
+      // rewritten without invalidating the projection. Replaying nothing
+      // writes nothing, so counting it as healed reports success for a
+      // divergence that returns identically on the next boot, forever.
+      //
+      // Keyed on the event count, never on the divergence reason: after
+      // `semiont clean` every resource legitimately reports `missing-node` and
+      // heals from the log, and an orphan check keyed on that would swallow
+      // the whole rebuild.
+      if (result.eventCount === 0) {
+        orphaned++;
+        this.logger.warn(
+          'Reconcile found an orphaned view — the log has no events for this resource, so healing wrote nothing',
+          { resourceId: String(rid), reason, remedy: 'semiont stop && semiont clean --store state && semiont start' },
+        );
+      } else if (result.eventsFailed === 0) healed++;
       else healFailures++;
     }
 
-    const summary = { resourcesChecked: resources.length, divergent, healed, healFailures };
-    if (divergent > 0 || healFailures > 0) {
+    const summary = { resourcesChecked: resources.length, divergent, healed, healFailures, orphaned };
+    if (divergent > 0 || healFailures > 0 || orphaned > 0) {
       this.logger.warn('Weaver reconcile found divergence', summary);
     } else {
       this.logger.info('Weaver reconcile complete — projection matches the catalog', summary);
@@ -911,7 +929,7 @@ export class Weaver {
    * Rebuild entire resource from events.
    * Bypasses the live pipeline — reads directly from event store.
    */
-  async rebuildResource(resourceId: ResourceId): Promise<{ eventsApplied: number; eventsFailed: number }> {
+  async rebuildResource(resourceId: ResourceId): Promise<{ eventCount: number; eventsApplied: number; eventsFailed: number }> {
     const graphDb = this.ensureInitialized();
     this.logger.info('Rebuilding resource from events', { resourceId });
 
@@ -941,7 +959,7 @@ export class Weaver {
     }
 
     this.logger.info('Resource rebuild complete', { resourceId, eventCount: events.length, eventsFailed });
-    return { eventsApplied: events.length - eventsFailed, eventsFailed };
+    return { eventCount: events.length, eventsApplied: events.length - eventsFailed, eventsFailed };
   }
 
   /**
