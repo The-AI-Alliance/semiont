@@ -98,6 +98,7 @@ export const makeAnnotationPayload = (aid: string, rid: string): Annotation => (
   // axioms compare a replayed projection against a reference fold, and a
   // clock-derived value would differ between the two.
   created: '2026-01-01T00:00:00.000Z',
+  creator: { '@type': 'Person', '@id': 'did:web:test:users:axioms', name: 'axioms' },
 });
 
 // ── The reference fold (the model M in W4/W5) ───────────────────────────────

@@ -211,7 +211,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              d.entityTypes = $entityTypes,
              d.format = $format,
              d.archived = $archived,
-             d.created = datetime($created),
+             d.created = $created,
              d.creator = $creator,
              d.contentChecksum = $contentChecksum,
              d.sourceAnnotationId = $sourceAnnotationId,
@@ -407,7 +407,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         ? `MATCH (from:Resource {id: $targetSource})
            MATCH (to:Resource {id: $bodySource})
            CREATE (a:Annotation:${motivationLabel})
-           SET a = $props, a.created = datetime($created)
+           SET a = $props
            CREATE (a)-[:BELONGS_TO]->(from)
            CREATE (a)-[:REFERENCES]->(to)
            FOREACH (entityType IN $entityTypes |
@@ -417,7 +417,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
            RETURN a`
         : `MATCH (d:Resource {id: $targetSource})
            CREATE (a:Annotation:${motivationLabel})
-           SET a = $props, a.created = datetime($created)
+           SET a = $props
            CREATE (a)-[:BELONGS_TO]->(d)
            FOREACH (entityType IN $entityTypes |
              MERGE (et:EntityType {name: entityType})
@@ -427,7 +427,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       const result = await session.run(cypher, {
         props,
-        created: annotation.created,
         targetSource,
         bodySource: bodySource ?? null,
         entityTypes,
@@ -1006,7 +1005,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
              d.entityTypes = r.entityTypes,
              d.format = r.format,
              d.archived = r.archived,
-             d.created = datetime(r.created),
+             d.created = r.created,
              d.creator = r.creator,
              d.contentChecksum = r.contentChecksum,
              d.sourceAnnotationId = r.sourceAnnotationId,
@@ -1179,8 +1178,12 @@ export function parseAnnotationNode(node: any, entityTypes: string[] = []): Anno
 /**
  * Flatten a node's properties to the strings the codec reads.
  *
- * `created` is stored as `datetime($created)`, so the driver hands back a
- * native temporal object whose `toString()` is the ISO form — the coercion
+ * `created` is stored as the codec's own string, so it round-trips verbatim.
+ * Rows written before that change hold a native temporal instead, and the
+ * driver hands those back as an object whose `toString()` REFORMATS the value
+ * (a zero fraction elided, any other padded to nanoseconds) — so a legacy row
+ * reads back with a different string than the log carried, until a rebuild
+ * replaces it. The coercion
  * that has to happen before the codec sees a value it is entitled to treat
  * as a string. This seam is untyped, so only a test can see it slip.
  */

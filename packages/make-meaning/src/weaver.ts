@@ -49,6 +49,7 @@ import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { didToAgent, burstBuffer, errField, busRequest } from '@semiont/core';
 import type { BusRequestPrimitive, EventMap } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
+import { intendedGraphAnnotation } from '@semiont/graph';
 import type { PersistedEvent, StoredEvent, EventOfType, ResourceId, Logger} from '@semiont/core';
 import type { WeaverCheckpoint } from './weaver-checkpoint.js';
 
@@ -518,16 +519,35 @@ export class Weaver {
       if (!graphIds.has(id)) return 'annotation-set-mismatch';
     }
 
-    // Content depth (W9-deep): membership equality is blind to a body
-    // mutated in place — a corrupted graph doc with the right id reconciled
-    // as clean. Compare bodies canonically against the view's truth.
-    const bodyKey = (a: { body?: unknown }) => Weaver.canonicalJson(a.body ?? []);
+    // Content depth. Membership equality is blind to an annotation mutated in
+    // place, and comparing bodies alone (W9-deep) left every other stored
+    // property — creator, motivation, the selector, created — able to go wrong
+    // unseen.
+    //
+    // The comparison is against what the CODEC says the graph should hold, not
+    // against the view. The graph is a purpose-built projection, not a copy:
+    // `wasAttributedTo` rides on nearly every annotation in the log and the
+    // encoder writes none of it, so a view-equality check would flag the entire
+    // corpus. Round-tripping the view through the codec scopes the comparison to
+    // exactly the fields the graph is meant to carry, and widens or narrows
+    // automatically when the encoder does.
+    //
+    // `creator` is taken from the GRAPH rather than the view, and not for
+    // convenience: the fold derives it from the EVENT's userId (`didToAgent`),
+    // never from the annotation, so the view does not hold the graph's
+    // reference for it. A heal replays the log and re-derives the same value,
+    // so a creator "mismatch" could never be repaired — comparing it could only
+    // manufacture permanent divergence and heal every resource on every boot.
+    // Supplying it also keeps the round-trip total: `creator` is optional on the
+    // wire, and the codec requires it, so a sparse view annotation would
+    // otherwise throw out of a routine divergence check.
     const viewById = new Map(annotations.map((a) => [String(a.id), a]));
     for (const graphAnnotation of graphAnnotations) {
       const viewAnnotation = viewById.get(String(graphAnnotation.id));
       if (!viewAnnotation) continue; // set equality established above
-      if (bodyKey(graphAnnotation) !== bodyKey(viewAnnotation)) {
-        return 'annotation-body-mismatch';
+      const intended = intendedGraphAnnotation({ ...viewAnnotation, creator: graphAnnotation.creator });
+      if (Weaver.canonicalJson(graphAnnotation) !== Weaver.canonicalJson(intended)) {
+        return 'annotation-content-mismatch';
       }
     }
 

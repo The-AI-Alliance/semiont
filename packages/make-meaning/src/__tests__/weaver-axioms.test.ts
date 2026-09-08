@@ -450,7 +450,7 @@ describe('W8 — recovery convergence', () => {
 
 // ── W9 — Reconcile fixed point + v1 detection completeness ─────────────────
 
-type OobMutation = 'delete-node' | 'flip-archived' | 'mutate-tags' | 'drop-annotation';
+type OobMutation = 'delete-node' | 'flip-archived' | 'mutate-tags' | 'drop-annotation' | 'corrupt-annotation-content';
 
 describe('W9 — reconcile detects and heals out-of-band divergence', () => {
   // ∀ σ, ∀ single oob mutation δ in the v1 class: reconcile detects δ and
@@ -459,7 +459,7 @@ describe('W9 — reconcile detects and heals out-of-band divergence', () => {
     await fc.assert(
       fc.asyncProperty(
         historyArb,
-        fc.constantFrom<OobMutation>('delete-node', 'flip-archived', 'mutate-tags', 'drop-annotation'),
+        fc.constantFrom<OobMutation>('delete-node', 'flip-archived', 'mutate-tags', 'drop-annotation', 'corrupt-annotation-content'),
         fc.nat(10),
         async (history, mutation, pick) => {
           const rig = await buildWeaverRig();
@@ -476,6 +476,10 @@ describe('W9 — reconcile detects and heals out-of-band divergence', () => {
 
             // One out-of-band mutation the Weaver never witnesses.
             let mutated = true;
+            // `dumpGraph` records annotation IDs, not their content, so a
+            // content corruption is invisible to the JSON diff below. It is
+            // still a real change — flag it so the detection assertion runs.
+            let contentCorrupted = false;
             switch (mutation) {
               case 'delete-node':
                 await rig.graph.deleteResource(mkRid(rid));
@@ -489,6 +493,18 @@ describe('W9 — reconcile detects and heals out-of-band divergence', () => {
               case 'mutate-tags':
                 await rig.graph.updateResource(mkRid(rid), { entityTypes: ['OobPhantomTag'] });
                 break;
+              case 'corrupt-annotation-content': {
+                // A stored property OUTSIDE the id set and the body — exactly
+                // what the old five-fact check could not see (GRAPH-DIVERGENCE-DEPTH).
+                const anns = model.resources.get(rid)?.annotations ?? new Set<string>();
+                const [first] = anns;
+                if (!first) { mutated = false; break; }
+                await rig.graph.updateAnnotation(mkAid(first), {
+                  target: { source: rid, selector: { type: 'TextQuoteSelector', exact: 'oob-corruption' } },
+                });
+                contentCorrupted = true;
+                break;
+              }
               case 'drop-annotation': {
                 const anns = model.resources.get(rid)?.annotations ?? new Set<string>();
                 const [first] = anns;
@@ -500,8 +516,8 @@ describe('W9 — reconcile detects and heals out-of-band divergence', () => {
             // A mutation that changes nothing observable (e.g. phantom tag
             // equal to current set) may legitimately not diverge.
             const before = dumpModel(model);
-            const changed = mutated &&
-              JSON.stringify((await dumpGraph(rig.graph)).resources) !== JSON.stringify(before.resources);
+            const changed = mutated && (contentCorrupted ||
+              JSON.stringify((await dumpGraph(rig.graph)).resources) !== JSON.stringify(before.resources));
 
             const summary = await rig.weaver.reconcile();
             if (changed) expect(summary.divergent).toBeGreaterThanOrEqual(1);
@@ -519,11 +535,12 @@ describe('W9 — reconcile detects and heals out-of-band divergence', () => {
     );
   });
 
-  // Was RED (v1 boundary) → GREEN 2026-07-18: reconcile's divergenceOf now
-  // compares annotation BODIES canonically (key-order-independent) against
-  // the view's truth, so a corrupted-in-place body reads as
-  // 'annotation-body-mismatch' and heals from the log — membership equality
-  // alone was blind to it (#845 deep-equality checkbox).
+  // Was RED (v1 boundary) → GREEN 2026-07-18, widened 2026-09-07: divergenceOf
+  // compared annotation BODIES canonically, which caught corruption in place
+  // where membership equality could not (#845 deep-equality checkbox). It now
+  // compares the WHOLE annotation against what the codec says the graph should
+  // hold, so this reads as 'annotation-content-mismatch' — body corruption is
+  // one case of it rather than the only one it can see.
   it('W9-deep: reconcile detects in-place annotation body corruption', async () => {
     const rig = await buildWeaverRig();
     const rid = 'res-deep';
