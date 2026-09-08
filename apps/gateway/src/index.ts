@@ -345,6 +345,18 @@ if (config.env?.NODE_ENV !== 'test') {
   const { initObservabilityNode } = await import('@semiont/observability/node');
   initObservabilityNode({ serviceName: 'semiont-gateway' });
 
+  // `semiont.process.restarts` (GATEWAY-SUPERVISION F3). The supervisor is
+  // POSIX shell and cannot emit OTel, but it keeps a durable event log on the
+  // state mount and writes one `starting gateway` line per life — so the child
+  // reports the count on its behalf. The supervisor exports the log path and
+  // the service name; nothing here restates either.
+  //
+  // F2 (this file) and F3 (the metric) are not redundant: metrics leave over
+  // OTLP and a process that dies before flushing never gets the last word out,
+  // while the file survives even a torn-down container. They fail differently.
+  const { registerSupervisorRestartCount } = await import('@semiont/observability/node');
+  registerSupervisorRestartCount();
+
   // BEFORE serve(), and deliberately unguarded: this validates JWT_SECRET,
   // site.domain, and site.oauthAllowedDomains — without all three the process
   // cannot authenticate anyone, so it must not accept connections.

@@ -237,10 +237,24 @@ RUN test -f "$GATEWAY_DIR/dist/index.js" \
 # Optional:
 #   DATABASE_URL   — set it to override the config-derived value (an external or
 #                    TLS-requiring database); when set, the derivation is skipped
+# The supervisor, not node directly (GATEWAY-SUPERVISION F1/F2). On
+# 2026-09-08 the gateway died mid-job, stayed dead until a human noticed, and
+# the restart destroyed every log line from the dead process — the cause is
+# unrecoverable. The supervisor restarts a crashed child and keeps a death
+# record on the state mount that outlives the container.
+#
+# It wraps ONLY the server. The two boot steps below run once per container:
+# re-deriving DATABASE_URL and re-running migrations on every restart would
+# add latency to exactly the path that needs to be fast, and `migrate deploy`
+# is the container's job, not the supervisor's.
+COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
+ENV SUPERVISE_NAME=gateway \
+    SUPERVISE_PROBE=http://localhost:4000/api/health
 CMD set -e; \
     if [ -z "${DATABASE_URL:-}" ]; then \
       DATABASE_URL="$(node "$GATEWAY_DIR/dist/cli/db-url.js")"; \
       export DATABASE_URL; \
     fi; \
     (cd "$GATEWAY_DIR" && npx prisma migrate deploy --schema=prisma/schema.prisma); \
-    exec node "$GATEWAY_DIR/dist/index.js"
+    SUPERVISE_ENTRY="$GATEWAY_DIR/dist/index.js"; export SUPERVISE_ENTRY; \
+    exec /bin/sh /usr/local/bin/supervise.sh

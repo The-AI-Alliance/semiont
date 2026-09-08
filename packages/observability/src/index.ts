@@ -614,7 +614,7 @@ export function recordGitStagingFailure(reason: 'index-lock' | 'other'): void {
 const PROCESS_START_TIME_SECONDS = Math.floor(Date.now() / 1000);
 let _processStartTimeGauge: ObservableGauge | undefined;
 let _restartCountGauge: ObservableGauge | undefined;
-let _restartCountProvider: (() => Promise<number> | number) | undefined;
+let _restartCountProvider: (() => Promise<number | undefined> | number | undefined) | undefined;
 let _abnormalExitCounter: Counter | undefined;
 
 /** Register `semiont.process.start_time`. Called by `initObservability*`. */
@@ -628,13 +628,20 @@ export function registerProcessLifetimeMetrics(): void {
 }
 
 /**
- * Supply a restart count. The Archivist's supervisor is POSIX shell and cannot
- * emit OTel, but it already keeps a durable event log on the state mount — so
- * the supervised child reads it and reports the count on the supervisor's
- * behalf.
+ * Supply a restart count. A supervisor is POSIX shell and cannot emit OTel, but
+ * it keeps a durable event log on the state mount — so the supervised child
+ * reads it and reports the count on the supervisor's behalf.
+ *
+ * **Return `undefined` for "cannot tell", never `0`.** A process running
+ * without a supervisor (dev, or a direct `node` invocation) has no restart
+ * history to report, and 0 is not that — 0 is the value a HEALTHY supervised
+ * process reports, so an unsupervised one publishing 0 is indistinguishable
+ * from a supervised one that has never crashed. `undefined` skips the
+ * observation entirely and the series simply has no point, which is what
+ * "unknown" looks like in a time series.
  */
 export function registerRestartCountProvider(
-  provider: () => Promise<number> | number,
+  provider: () => Promise<number | undefined> | number | undefined,
 ): void {
   _restartCountProvider = provider;
   if (!_restartCountGauge) {
@@ -642,7 +649,10 @@ export function registerRestartCountProvider(
       description: 'Times the supervisor has restarted this service',
     });
     _restartCountGauge.addCallback(async (observer) => {
-      if (_restartCountProvider) observer.observe(await _restartCountProvider());
+      if (!_restartCountProvider) return;
+      const count = await _restartCountProvider();
+      // Not `if (count)` — 0 is a real, meaningful reading.
+      if (count !== undefined) observer.observe(count);
     });
   }
 }

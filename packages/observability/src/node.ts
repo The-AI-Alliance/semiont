@@ -25,7 +25,7 @@
  * blowing up bundles for every consumer.
  */
 
-import { recordAbnormalTermination, registerProcessLifetimeMetrics } from './index.js';
+import { recordAbnormalTermination, registerProcessLifetimeMetrics, registerRestartCountProvider } from './index.js';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { heapStats } from './runtime-stats';
 import { context, metrics, propagation, trace } from '@opentelemetry/api';
@@ -236,6 +236,43 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
   process.on('uncaughtException', fatal('uncaughtException'));
 
   return true;
+}
+
+/**
+ * Report the supervisor's restart count for this service
+ * (GATEWAY-SUPERVISION F3). Call once, after `initObservabilityNode`.
+ *
+ * `scripts/container/supervise.sh` is POSIX shell and cannot emit OTel, but it
+ * writes one `starting <name>` line per life to a durable event log and
+ * exports that log's path and the service name to the child. This reads them
+ * back. A crash LOOP is otherwise invisible to everything but `container logs`.
+ *
+ * Both halves of the contract — the path and the marker — come from the
+ * environment, so nothing here restates what the shell already decided. This
+ * lives in `node.ts` rather than beside `registerRestartCountProvider` in
+ * `index.ts` because it reads a file: `index.ts` imports no node builtins, and
+ * `./web` depends on it staying that way.
+ */
+export function registerSupervisorRestartCount(): void {
+  const events = process.env['SUPERVISE_EVENTS'];
+  const name = process.env['SUPERVISE_NAME'];
+  // Unsupervised (dev, or a direct `node dist/index.js`). Register no provider
+  // at all, so the gauge is never created and the series simply does not exist
+  // — as opposed to existing and reading 0, which is what a healthy supervised
+  // process reports.
+  if (!events || !name) return;
+  registerRestartCountProvider(async () => {
+    try {
+      const { readFile } = await import('node:fs/promises');
+      const log = await readFile(events, 'utf-8');
+      // Lives, not restarts: the first start is life 1, so a healthy process
+      // reports 0 and any non-zero value is a real restart.
+      return Math.max(0, log.split('\n').filter((l) => l.includes(`starting ${name}`)).length - 1);
+    } catch {
+      // The log went unreadable mid-life. Report nothing, never 0.
+      return undefined;
+    }
+  });
 }
 
 /** Force-flush + shutdown both SDKs. Test cleanup, not production. */

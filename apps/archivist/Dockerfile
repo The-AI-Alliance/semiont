@@ -114,8 +114,13 @@ EXPOSE 24103
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:24103/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
-# The supervisor, not node directly (ARCHIVIST-STAYS-UP P1): restarts a
-# crashed child, probes and kills a hung one, keeps the pre-death log on the
-# state mount. No runtime restart mechanism exists on all three runtimes.
-COPY apps/archivist/supervise.sh /usr/local/bin/supervise.sh
+# The supervisor, not node directly (ARCHIVIST-STAYS-UP P1, generalized by
+# GATEWAY-SUPERVISION F1): restarts a crashed child, probes and kills a hung
+# one, refuses to loop on a deterministic boot failure, and keeps a death
+# record on the state mount that survives the container. ONE copy, shared by
+# every service — a second would be two places deciding one policy.
+COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
+ENV SUPERVISE_NAME=archivist \
+    SUPERVISE_ENTRY=/usr/local/lib/node_modules/@semiont/make-meaning/dist/archivist-main.js \
+    SUPERVISE_PROBE=http://localhost:24103/health
 CMD ["/bin/sh", "/usr/local/bin/supervise.sh"]

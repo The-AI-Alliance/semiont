@@ -164,8 +164,11 @@ async function authenticate(): Promise<string> {
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
-  const { initObservabilityNode } = await import('@semiont/observability/node');
+  const { initObservabilityNode, registerSupervisorRestartCount } = await import('@semiont/observability/node');
   initObservabilityNode({ serviceName: 'semiont-librarian' });
+  // The Librarian is supervised and mounts /semiont-state, so the durable
+  // record already existed here — nothing read it into a metric until now.
+  registerSupervisorRestartCount();
 
   logger.info('Authenticating', { baseUrl });
   const tokenSubject = new BehaviorSubject<AccessToken | null>(makeAccessToken(await authenticate()));
