@@ -598,7 +598,8 @@ entrypoint refuses to boot unless its `test -w` gate passes, and Apple
 container's virtiofs won't let it chown a mount root.)
 
 `semiont clean` is the one way this state dies: it removes the current
-root's state directory (`--store database|vectors|graph` scopes to one
+root's state directory (`--store database|vectors|graph|anchored-text|state`
+scopes to one
 store; `--dry-run` shows what would go, with sizes; `--root <path|name|key>`
 targets another root — a literal key is how you remove *orphaned* state
 whose KB directory no longer exists). It refuses while a recorded stack is

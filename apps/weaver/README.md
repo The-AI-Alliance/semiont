@@ -71,14 +71,19 @@ Two environment variables:
 
 ## Startup catch-up and reconcile
 
-On boot it runs two passes, both fatal on failure — a weaver that cannot catch up is
-projecting a graph of unknown freshness. Both are idempotent, so a restart re-runs them, and
-`/health` reports each one's phase and summary.
+On boot it runs two passes. Both are idempotent, so a restart re-runs them, and `/health`
+reports each one's phase and summary.
 
 **Catch-up** replays what it missed while down, from the checkpoint forward (full replay if
 the checkpoint is gone). **Reconcile** then diffs the projection against what the views serve
 and heals divergence from the log — the backstop for damage the accounting cannot witness: a
 wiped graph volume, an out-of-band mutation.
+
+**A failed pass does not kill the process.** It used to: both rethrew into the catch-all
+around `main()`, and under no restart policy that meant gone until a human noticed — one
+refused bus request was enough. A failed repair pass is a data condition, so the weaver now
+survives it and logs an error. That error is the only operator-visible signal that the
+projection may be stale; nothing else reports it, and `/health` does not fold it in.
 
 So a restart heals missed events and drift. **It does not re-derive events it has already
 applied.** Reconcile compares a fixed set of facts — node presence, archived flag, entity
@@ -86,6 +91,12 @@ types, the annotation id set, and annotation bodies — so a change to what the 
 *stores* outside that set, such as a new denormalized property on a node, is invisible to it.
 After that kind of change, run `weave:rebuild`, and verify the projection actually carries
 what you expect rather than trusting the command's success line.
+
+**An orphaned view is reported, not healed.** A resource in the catalog whose log holds no
+events cannot be rebuilt — replaying nothing writes nothing — so reconcile counts it as
+`orphaned` rather than `healed` and warns with the remedy. It means history was rewritten
+without invalidating the views; the archivist's startup rebuild reaps such views, and
+`semiont clean --store state` clears them outright.
 
 ## Related
 

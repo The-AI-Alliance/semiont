@@ -27,6 +27,13 @@ Three actors, and they move together on purpose:
 Plus the annotation-assembly and annotation-context handlers, the entity-type bootstrap, and the
 startup view rebuild — this is the one rebuild owner.
 
+**The startup rebuild also reaps.** It replays the log and writes a view for every resource it
+finds, then **deletes the views the log no longer justifies**. Without that step the pass is
+upsert-only, and a log rewrite leaves views behind that nothing ever clears — the weaver's
+catalog is those views, so it spends every boot trying to heal resources that no longer exist.
+A view whose rebuild *threw* is kept rather than reaped: a transient read failure must not read
+as "the log does not justify this." Each reap is logged by resource id, with a count.
+
 **Why these cannot be split.** Stower writes the events and projections Browser reads;
 separating them opens a cross-process read-after-write window over the same state. And git is
 single-writer — the working-tree store shells out to `git add`/`git mv`, so two processes on one
@@ -71,7 +78,9 @@ Librarian, Worker) dial them directly via `archivistContentReads`.
 Mount the KB at `/kb` and the shared state and anchored-text directories at their declared
 paths; the image fixes the container-side paths so the launcher passes no path env. Set
 `SEMIONT_WORKER_SECRET` — it authenticates to the gateway with it and requires it on its own
-surface. `SEMIONT_SKIP_REBUILD=true` skips the startup view rebuild.
+surface. `SEMIONT_SKIP_REBUILD=true` skips the startup view rebuild — and with it the reap, so views
+the log no longer justifies survive until a rebuild runs or `semiont clean --store state`
+clears them.
 
 **The heap ceiling is explicit, and paired.** The image sets
 `NODE_OPTIONS=--max-old-space-size=1536` against a 2 GB container allocation. Without it V8

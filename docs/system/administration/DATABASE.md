@@ -112,7 +112,7 @@ external PostgreSQL will differ.
 ```bash
 semiont stop
 semiont clean                      # every store
-semiont clean --store database     # PostgreSQL only, leaving graph and vectors
+semiont clean --store database     # PostgreSQL only, leaving every other store
 semiont clean --dry-run            # what would go, and how big
 semiont start
 ```

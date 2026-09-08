@@ -13,8 +13,11 @@ package launcher
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 )
 
 const cleanUsage = `Usage: semiont clean [options]
@@ -30,8 +33,10 @@ user accounts those tokens name lived in the PostgreSQL data just removed.
 A --store clean keeps the secret.
 
 Options:
-  --store <role>   Remove one store only: database, vectors, graph, or
-                   anchored-text
+  --store <role>   Remove one store only: database, vectors, graph,
+                   anchored-text, or state (views + the gateway's jobs
+                   queue; views rebuild from the event log on next start,
+                   queued jobs are lost)
   --root <value>   Another root: a path, a registered basename, or a state
                    key as listed by status --verbose (how orphaned state,
                    whose KB directory no longer exists, is named)
@@ -72,7 +77,7 @@ func Clean(args []string) int {
 	}
 	if store != "" {
 		if _, ok := stateStores[store]; !ok {
-			u.fail("Unknown store %q (stores with persistent state: anchored-text, database, graph, vectors)", store)
+			u.fail("Unknown store %q (stores with persistent state: %s)", store, strings.Join(slices.Sorted(maps.Keys(stateStores)), ", "))
 			return 1
 		}
 	}
