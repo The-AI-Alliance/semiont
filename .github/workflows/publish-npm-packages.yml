@@ -22,6 +22,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    outputs:
+      version: ${{ steps.version.outputs.publish }}
 
     steps:
       - name: Checkout repository
@@ -122,3 +124,26 @@ jobs:
             done <<< "$MANIFEST"
             echo '```'
           } >> $GITHUB_STEP_SUMMARY
+
+  # The images bundle the packages this workflow just published, so this is the
+  # only place that knows they are ready. Dispatching from here removes the
+  # hand-run step where `tag_latest` was forgotten on 0.5.33, leaving every
+  # image's :latest on the previous release and no fleet KB able to run it.
+  trigger-images:
+    name: Trigger image publishes (runs separately)
+    needs: publish
+    if: inputs.stable_release == true && inputs.dry_run != true
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Trigger browser and service image workflows
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          for wf in publish-browser.yml publish-service-images.yml; do
+            gh workflow run "$wf" --field version="$VERSION" --field tag_latest=true
+            echo "Triggered $wf @ $VERSION (tag_latest=true)"
+          done
