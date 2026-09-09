@@ -1,7 +1,7 @@
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
 import { chunkText, estimateTokens, getLocaleEnglishName, isObject, isString, type Logger } from '@semiont/core';
 import { boundedGenerateStructured, boundedGenerateWithMetadata } from '../inference-call';
-import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, DETECTION_TEMPERATURE, YIELD_COLLAPSE_BAND, YieldCollapseError } from './detection-chunking';
+import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, DETECTION_TEMPERATURE, YIELD_COLLAPSE_BAND, YieldCollapseError, type UnderReportedPiece } from './detection-chunking';
 
 /**
  * Entity reference extracted from text — pre-reconciliation.
@@ -138,6 +138,7 @@ ${piece}
     throw new YieldCollapseError(
       `Extraction found ${items.length} entities where a count call reports ~${counted} mentions (band ×${YIELD_COLLAPSE_BAND}) on a ${piece.length}-char chunk — silent yield collapse (F7): deterministic — a same-size retry returns the identical under-report.`,
       [...items],
+      { found: items.length, counted, pieceChars: piece.length },
     );
   }
 }
@@ -150,11 +151,13 @@ export async function extractEntities(
   logger: Logger,
   sourceLanguage?: string,
   onActivity?: (completedChunks: number, totalChunks: number) => void,
+  /** A floor-accepted piece's evidence, as it is accepted. */
+  onUnderReport?: (verdict: UnderReportedPiece) => void,
   /**
    * This chunk's entities, awaited before the loop continues: the caller
    * commits them, and the loop must not run ahead of durability. Unlike
    * `onActivity` (a liveness heartbeat, which may repeat), this fires exactly
-   * once per chunk, including the last.
+   * once per chunk, including the last. Kept LAST on every detection seam.
    */
   onChunkResults?: (items: ExtractedEntity[]) => Promise<void>,
 ): Promise<ExtractedEntity[]> {
@@ -286,7 +289,7 @@ Example output:
       // Usage rides back so the telemetry record carries what the call COST
       // beside what it yielded — the provider's own counts, not an estimate.
       return { items: response.items, ...(response.usage ? { usage: response.usage } : {}) };
-    }, logger);
+    }, logger, onUnderReport);
 
     const fromChunk: ExtractedEntity[] = [];
     for (const e of items) {

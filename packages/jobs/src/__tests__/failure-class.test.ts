@@ -54,7 +54,7 @@ describe('classifyFailure (A4)', () => {
     // measured bit-identical across retries AND budget regimes, so spending
     // the retry budget on it is pure waste. Pinned at the seam so the
     // inheritance cannot be silently severed.
-    expect(classifyFailure(new YieldCollapseError('found 3 of 50 counted mentions'))).toBe('deterministic');
+    expect(classifyFailure(new YieldCollapseError('found 3 of 50 counted mentions', [], { found: 3, counted: 50, pieceChars: 100 }))).toBe('deterministic');
   });
 
   it('an unreadable structured response with any other stop reason stays retryable — sampling may fix it', () => {

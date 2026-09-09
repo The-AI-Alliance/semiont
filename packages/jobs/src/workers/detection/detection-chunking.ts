@@ -115,13 +115,24 @@ export const YIELD_COLLAPSE_BAND = 2;
  * evidence sits far below anything the probe validated. The warning and the
  * 'collapsed' telemetry rows are the durable record; re-detection heals.
  */
+/** A floor-accepted piece's evidence: what extraction found against what a
+ * count call reported, over a piece of this size. Facts only — never a
+ * judgment against an expected yield. */
+export interface UnderReportedPiece {
+  found: number;
+  counted: number;
+  pieceChars: number;
+}
+
 export class YieldCollapseError extends DeterministicJobError {
   override readonly name = 'YieldCollapseError';
   /** What the flagged extraction DID find — every span write-time-verified,
    * so discarding it at the floor would add loss on top of the under-report.
    * Carried on the error because the flag site cannot know whether descent
-   * remains possible; the floor is the subdivider's knowledge. */
-  constructor(message: string, readonly salvage: unknown[] = []) {
+   * remains possible; the floor is the subdivider's knowledge. The verdict
+   * rides beside it so an acceptance can report evidence, not a message
+   * string. */
+  constructor(message: string, readonly salvage: unknown[], readonly verdict: UnderReportedPiece) {
     super(message);
   }
 }
@@ -294,6 +305,9 @@ export async function callChunkSubdividing<T>(
   chunking: ChunkingConfig,
   call: (piece: string) => Promise<ChunkCallResult<T>>,
   logger?: Logger,
+  /** A floor-accepted piece's evidence, as it is accepted. Only the floor
+   * reports: a collapse healed by descent is telemetry, not result. */
+  onUnderReport?: (verdict: UnderReportedPiece) => void,
 ): Promise<T[]> {
   // One telemetry record per model call, successes AND failures
   // (DETECTION-QUALITY-THROUGHPUT P1). This is the only place `depth` and
@@ -357,6 +371,7 @@ export async function callChunkSubdividing<T>(
             salvaged: error.salvage.length,
             error: error.message,
           });
+          onUnderReport?.(error.verdict);
           return error.salvage as T[];
         }
         // At the size floor honest overflow is impossible, so truncation

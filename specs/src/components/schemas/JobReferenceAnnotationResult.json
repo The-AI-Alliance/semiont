@@ -7,7 +7,7 @@
       "enum": [
         "reference-annotation"
       ],
-      "description": "Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1)."
+      "description": "Discriminant \u2014 every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1)."
     },
     "totalFound": {
       "type": "integer",
@@ -20,6 +20,10 @@
     "errors": {
       "type": "integer",
       "description": "Number of errors encountered"
+    },
+    "underReportedPieces": {
+      "type": "integer",
+      "description": "Total floor-accepted under-reported pieces across the job's units. Absent means none \u2014 the per-unit evidence rides the terminal progress frame's completedItems; this keeps the result self-describing without the progress stream."
     }
   },
   "required": [

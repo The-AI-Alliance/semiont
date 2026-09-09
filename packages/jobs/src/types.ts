@@ -12,6 +12,7 @@
  */
 
 import type { JobId, EntityType, ResourceId, UserId, GenerationJobParams, TagSchema } from '@semiont/core';
+import type { components } from '@semiont/core';
 
 export type JobType = 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
 export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
@@ -159,14 +160,12 @@ export interface DetectionProgress {
 }
 
 /**
- * Detection job result
+ * Detection job result — derived from the spec, not restated: the wire owns
+ * this shape (`JobReferenceAnnotationResult`). The hand-written interface it
+ * replaces was a mirror, caught when a spec field it lacked compiled anyway
+ * through a spread's suppressed excess-property check.
  */
-export interface DetectionResult {
-  kind: 'reference-annotation';
-  totalFound: number;
-  totalEmitted: number;
-  errors: number;
-}
+export type DetectionResult = components['schemas']['JobReferenceAnnotationResult'];
 
 /**
  * Generation job progress

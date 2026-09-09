@@ -332,7 +332,7 @@ describe('extractEntities', () => {
         const emitted: string[][] = [];
 
         await extractEntities(
-          bigText, ['Person'], client, false, LOGGER, undefined, undefined,
+          bigText, ['Person'], client, false, LOGGER, undefined, undefined, undefined,
           async (items) => { order.push(`emit:${emitted.length}`); emitted.push(items.map((e) => e.exact)); },
         );
 
@@ -354,7 +354,7 @@ describe('extractEntities', () => {
 
         await expect(
           extractEntities(
-            bigText, ['Person'], client, false, LOGGER, undefined, undefined,
+            bigText, ['Person'], client, false, LOGGER, undefined, undefined, undefined,
             async () => { throw new Error('mark:commit failed: sink down'); },
           ),
         ).rejects.toThrow(/sink down/);

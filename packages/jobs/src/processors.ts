@@ -558,6 +558,7 @@ export async function processReferenceJob(
   let totalFound = 0;
   let totalEmitted = 0;
   let errors = 0;
+  let totalUnderReportedPieces = 0;
 
   onProgress(10, { code: 'loading' }, { requestParams });
 
@@ -616,6 +617,8 @@ export async function processReferenceJob(
     const dedupe = makeSpanDeduper();
     let unitFound = 0;
     let unitPersisted = 0;
+    // What remains unknown at the unit's end: floor-accepted pieces, folded.
+    let underReported: { pieces: number; found: number; counted: number } | undefined;
     await extractEntities(
       content, [entityTypeName], inferenceClient, params.includeDescriptiveReferences ?? false, logger,
       params.sourceLanguage,
@@ -625,6 +628,13 @@ export async function processReferenceJob(
       // advance — the stall watchdog, janitor and client timeout need a signal,
       // not a monotone.
       () => emitTypeProgress(entityTypeName),
+      (verdict) => {
+        underReported = {
+          pieces: (underReported?.pieces ?? 0) + 1,
+          found: (underReported?.found ?? 0) + verdict.found,
+          counted: (underReported?.counted ?? 0) + verdict.counted,
+        };
+      },
       async (chunkEntities) => {
         unitFound += chunkEntities.length;
         const built: Annotation[] = [];
@@ -662,7 +672,9 @@ export async function processReferenceJob(
       value: entityTypeName,
       foundCount: unitFound,
       persistedCount: unitPersisted,
+      ...(underReported ? { underReported } : {}),
     });
+    if (underReported) totalUnderReportedPieces += underReported.pieces;
     completed++;
     emitTypeProgress(entityTypeName);
   });
@@ -677,7 +689,10 @@ export async function processReferenceJob(
   });
 
   return {
-    result: { kind: 'reference-annotation', totalFound, totalEmitted, errors },
+    result: {
+      kind: 'reference-annotation', totalFound, totalEmitted, errors,
+      ...(totalUnderReportedPieces > 0 ? { underReportedPieces: totalUnderReportedPieces } : {}),
+    },
   };
 }
 
