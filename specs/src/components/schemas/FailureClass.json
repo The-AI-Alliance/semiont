@@ -1,0 +1,5 @@
+{
+  "type": "string",
+  "enum": ["transient", "deterministic"],
+  "description": "Worker-side classification of a job failure, made where the error is still typed (at the gateway it is already a flattened string, and message-regex classification is the drift this exists to avoid). 'deterministic' — the same request cannot succeed on a second attempt — skips the retry budget. ABSENT means unrecognised, which is deliberately not the same claim as 'transient': only KNOWN-deterministic failures carry the class, because mis-reading a transient failure as deterministic halves reliability while the reverse costs one wasted attempt."
+}

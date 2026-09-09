@@ -110,6 +110,45 @@ describe('Stower job:* handlers', () => {
     expect('annotationId' in appendEvent.mock.calls[0][0].payload).toBe(false);
   });
 
+  // ── job:failed carries the worker's JUDGMENTS, not just its message ──────
+  //
+  // The durable record must not be lossier than the producer that wrote it.
+  // `failureClass` and `willRetry` are computed in the worker, where the error
+  // is still typed; at the log they are unrecoverable, because the only other
+  // witness is a flattened English string. Without them an auditor reading a
+  // run of job:failed events cannot tell a recovering job from a dead one, nor
+  // a deterministic refusal from weather — and job:failed is a permanent fact
+  // of the resource, not operational state.
+  it('persists failureClass and willRetry onto job:failed', async () => {
+    bus.get('job:fail').next(jobEvent({
+      error: 'Bus request timed out after 60000ms on mark:commit-ok',
+      failureClass: 'transient',
+      willRetry: true,
+    }) as never);
+    await settle();
+
+    const event = appendEvent.mock.calls[0][0];
+    expect(event.type).toBe('job:failed');
+    expect(event.payload).toMatchObject({
+      error: 'Bus request timed out after 60000ms on mark:commit-ok',
+      failureClass: 'transient',
+      willRetry: true,
+    });
+  });
+
+  it('omits either when the worker did not state it — absent is not false', async () => {
+    // Absent `failureClass` means UNRECOGNISED, which is a different claim from
+    // 'transient'; `willRetry: false` asserts the run is over. Defaulting either
+    // would write a judgment nobody made into a log nobody can rewrite — the
+    // same rule the annotationId case above follows.
+    bus.get('job:fail').next(jobEvent({ error: 'boom' }) as never);
+    await settle();
+
+    const payload = appendEvent.mock.calls[0][0].payload;
+    expect('failureClass' in payload).toBe(false);
+    expect('willRetry' in payload).toBe(false);
+  });
+
   it.each([
     ['job:start'],
     ['job:complete'],

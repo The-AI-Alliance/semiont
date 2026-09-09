@@ -404,6 +404,24 @@ func (e ExtractionDeclinedKind) Valid() bool {
 	}
 }
 
+// Defines values for FailureClass.
+const (
+	Deterministic FailureClass = "deterministic"
+	Transient     FailureClass = "transient"
+)
+
+// Valid indicates whether the value is a known member of the FailureClass enum.
+func (e FailureClass) Valid() bool {
+	switch e {
+	case Deterministic:
+		return true
+	case Transient:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FileEntryType.
 const (
 	File FileEntryType = "file"
@@ -614,24 +632,6 @@ func (e JobDeclinedResultReason) Valid() bool {
 	case JobDeclinedResultReasonNoTextLayer:
 		return true
 	case JobDeclinedResultReasonTooLarge:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for JobFailCommandFailureClass.
-const (
-	Deterministic JobFailCommandFailureClass = "deterministic"
-	Transient     JobFailCommandFailureClass = "transient"
-)
-
-// Valid indicates whether the value is a known member of the JobFailCommandFailureClass enum.
-func (e JobFailCommandFailureClass) Valid() bool {
-	switch e {
-	case Deterministic:
-		return true
-	case Transient:
 		return true
 	default:
 		return false
@@ -2413,6 +2413,9 @@ type ExtractionOutcome struct {
 	union json.RawMessage
 }
 
+// FailureClass Worker-side classification of a job failure, made where the error is still typed (at the gateway it is already a flattened string, and message-regex classification is the drift this exists to avoid). 'deterministic' — the same request cannot succeed on a second attempt — skips the retry budget. ABSENT means unrecognised, which is deliberately not the same claim as 'transient': only KNOWN-deterministic failures carry the class, because mis-reading a transient failure as deterministic halves reliability while the reverse costs one wasted attempt.
+type FailureClass string
+
 // FileEntry defines model for FileEntry.
 type FileEntry struct {
 	// AnnotationCount Number of annotations on this resource (only when tracked is true)
@@ -3029,9 +3032,9 @@ type JobFailCommand struct {
 	CompletedUnits *[]string `json:"completedUnits,omitempty"`
 	Error          string    `json:"error"`
 
-	// FailureClass Worker-side classification of the failure, made where the error is still typed. 'deterministic' — the same request cannot succeed on a second attempt — skips the retry budget; absent or 'transient' retries as before. Only KNOWN-deterministic failures carry the class.
-	FailureClass *JobFailCommandFailureClass `json:"failureClass,omitempty"`
-	JobId        string                      `json:"jobId"`
+	// FailureClass Worker-side classification of a job failure, made where the error is still typed (at the gateway it is already a flattened string, and message-regex classification is the drift this exists to avoid). 'deterministic' — the same request cannot succeed on a second attempt — skips the retry budget. ABSENT means unrecognised, which is deliberately not the same claim as 'transient': only KNOWN-deterministic failures carry the class, because mis-reading a transient failure as deterministic halves reliability while the reverse costs one wasted attempt.
+	FailureClass *FailureClass `json:"failureClass,omitempty"`
+	JobId        string        `json:"jobId"`
 
 	// JobType Type of background job
 	JobType    JobType `json:"jobType"`
@@ -3041,19 +3044,21 @@ type JobFailCommand struct {
 	WillRetry *bool `json:"willRetry,omitempty"`
 }
 
-// JobFailCommandFailureClass Worker-side classification of the failure, made where the error is still typed. 'deterministic' — the same request cannot succeed on a second attempt — skips the retry budget; absent or 'transient' retries as before. Only KNOWN-deterministic failures carry the class.
-type JobFailCommandFailureClass string
-
-// JobFailedPayload Payload for job:failed domain event
+// JobFailedPayload Payload for the job:failed domain event — a permanent fact of the resource, not operational state. It carries the judgments the worker COMPUTED, not just its message: at the log they are otherwise unrecoverable, the only remaining witness being a flattened English string.
 type JobFailedPayload struct {
 	// AnnotationId Annotation this job was attached to, when applicable
 	AnnotationId *string `json:"annotationId,omitempty"`
-	Details      *string `json:"details,omitempty"`
 	Error        string  `json:"error"`
-	JobId        string  `json:"jobId"`
+
+	// FailureClass Worker-side classification of a job failure, made where the error is still typed (at the gateway it is already a flattened string, and message-regex classification is the drift this exists to avoid). 'deterministic' — the same request cannot succeed on a second attempt — skips the retry budget. ABSENT means unrecognised, which is deliberately not the same claim as 'transient': only KNOWN-deterministic failures carry the class, because mis-reading a transient failure as deterministic halves reliability while the reverse costs one wasted attempt.
+	FailureClass *FailureClass `json:"failureClass,omitempty"`
+	JobId        string        `json:"jobId"`
 
 	// JobType Type of background job
 	JobType JobType `json:"jobType"`
+
+	// WillRetry Whether the worker computed that the queue would re-queue this job (same predicate the queue applies, `willRetryAfter`). Absent means the worker stated nothing. Without it a reader of the log cannot tell a run recovering across several job:failed events from that many dead jobs.
+	WillRetry *bool `json:"willRetry,omitempty"`
 }
 
 // JobGenerationResult Result of a completed generation job. The worker creates the resource first (the yield:create round-trip returns the id), then emits job:complete carrying it — so resourceId is always present on the wire.

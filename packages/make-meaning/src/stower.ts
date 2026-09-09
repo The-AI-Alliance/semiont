@@ -711,6 +711,14 @@ export class Stower {
         jobType: event.jobType,
         ...(event.annotationId ? { annotationId: event.annotationId } : {}),
         error: event.error,
+        // The worker's JUDGMENTS, not just its message. Both are computed where
+        // the error is still typed and are unrecoverable here — the only other
+        // witness in the log is `error`, a flattened English string. Spread
+        // conditionally: absent `failureClass` means UNRECOGNISED, a different
+        // claim from 'transient', and defaulting either would write a judgment
+        // nobody made into a log nobody can rewrite.
+        ...(event.failureClass !== undefined ? { failureClass: event.failureClass } : {}),
+        ...(event.willRetry !== undefined ? { willRetry: event.willRetry } : {}),
       },
     });
   }

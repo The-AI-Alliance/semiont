@@ -1,12 +1,31 @@
 {
   "type": "object",
-  "description": "Payload for job:failed domain event",
+  "description": "Payload for the job:failed domain event \u2014 a permanent fact of the resource, not operational state. It carries the judgments the worker COMPUTED, not just its message: at the log they are otherwise unrecoverable, the only remaining witness being a flattened English string.",
   "properties": {
-    "jobId": { "type": "string" },
-    "jobType": { "$ref": "JobType.json" },
-    "annotationId": { "type": "string", "description": "Annotation this job was attached to, when applicable" },
-    "error": { "type": "string" },
-    "details": { "type": "string" }
+    "jobId": {
+      "type": "string"
+    },
+    "jobType": {
+      "$ref": "JobType.json"
+    },
+    "annotationId": {
+      "type": "string",
+      "description": "Annotation this job was attached to, when applicable"
+    },
+    "error": {
+      "type": "string"
+    },
+    "failureClass": {
+      "$ref": "./FailureClass.json"
+    },
+    "willRetry": {
+      "type": "boolean",
+      "description": "Whether the worker computed that the queue would re-queue this job (same predicate the queue applies, `willRetryAfter`). Absent means the worker stated nothing. Without it a reader of the log cannot tell a run recovering across several job:failed events from that many dead jobs."
+    }
   },
-  "required": ["jobId", "jobType", "error"]
+  "required": [
+    "jobId",
+    "jobType",
+    "error"
+  ]
 }

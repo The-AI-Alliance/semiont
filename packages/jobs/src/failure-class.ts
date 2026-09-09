@@ -14,11 +14,13 @@
  * to avoid. The class rides the `job:fail` payload; `failJob` consumes it.
  */
 
-import { isNumber, isObject, isString } from '@semiont/core';
+import { isNumber, isObject, isString, type components } from '@semiont/core';
 import { StructuredReadError } from '@semiont/inference';
 import { InferenceTimeoutError } from './workers/inference-call';
 
-export type FailureClass = 'transient' | 'deterministic';
+/** Derived from the spec, not restated: the wire owns this vocabulary
+ *  (`FailureClass.json`, referenced by job:fail and job:failed alike). */
+export type FailureClass = components['schemas']['FailureClass'];
 
 /**
  * Marker for failures WE know cannot succeed on a second identical attempt —
