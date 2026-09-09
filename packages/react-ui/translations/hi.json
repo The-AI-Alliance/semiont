@@ -225,10 +225,7 @@
     "comment": "टिप्पणियां",
     "tag": "टैग",
     "annotationsFailed": "एनोटेशन लोड नहीं हो सके।",
-    "retry": "पुनः प्रयास करें",
-    "completenessClean": "पहचान पूर्ण",
-    "completenessUnderReported": "आंशिक पहचान — कुछ हिस्से कम रिपोर्ट हुए",
-    "completenessIncomplete": "आंशिक पहचान — प्रक्रिया पूरी नहीं हुई"
+    "retry": "पुनः प्रयास करें"
   },
   "StatisticsPanel": {
     "title": "सांख्यिकी",
@@ -492,6 +489,8 @@
     "decline_encrypted": "यह PDF पासवर्ड-सुरक्षित है, इसका पाठ नहीं पढ़ा जा सकता।",
     "decline_corrupt": "यह PDF पढ़ा नहीं जा सका — फ़ाइल क्षतिग्रस्त हो सकती है।",
     "decline_too-large": "यह दस्तावेज़ पाठ निकालने के लिए बहुत बड़ा है।",
-    "decline_empty": "इस दस्तावेज़ में एनोटेट करने योग्य कोई पाठ नहीं है।"
+    "decline_empty": "इस दस्तावेज़ में एनोटेट करने योग्य कोई पाठ नहीं है।",
+    "annotationCompletePartial": "पहचान अधूरी रही — {{pieces}} हिस्से कम रिपोर्ट हुए",
+    "annotationFailedPartial": "पहचान विफल — {{kept}} पूर्ण प्रकारों के परिणाम रखे गए"
   }
 }

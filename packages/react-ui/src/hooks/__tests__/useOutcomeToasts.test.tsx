@@ -175,3 +175,75 @@ describe('useOutcomeToasts', () => {
     expect(showError).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * RD4's partiality reporting lives HERE, on the ephemeral surface — a toast
+ * makes no claim of durable resource state, which is all the system can back
+ * until END-STATES HD1 gives the verdict a schema-named, projected home (the
+ * persistent badge was removed for exactly that reason, 2026-09-09).
+ *
+ * The rows mirror the wire's absence discipline: absent underReportedPieces
+ * IS the claim of cleanliness (mutation-proven on the emitter) — success copy,
+ * never a re-derived count. And a retryable failure toasts NOTHING: the wire
+ * calls it "a setback, not an ending", and an error toast on a run that then
+ * recovers reports a recovering run as a failed one.
+ */
+describe('useOutcomeToasts — partiality (RD4 on the ephemeral surface)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('complete with under-reported pieces → info naming the shortfall, not success', () => {
+    const { eventBus } = setup();
+    act(() => {
+      eventBus.get('job:complete').next(jobComplete({
+        result: { kind: 'reference-annotation', totalFound: 9, totalEmitted: 6, errors: 0, underReportedPieces: 3 },
+      }) as never);
+    });
+    expect(showInfo).toHaveBeenCalledWith('annotationCompletePartial(pieces=3)');
+    expect(showSuccess).not.toHaveBeenCalled();
+  });
+
+  it('complete with the field ABSENT → plain success; cleanliness is never re-derived', () => {
+    const { eventBus } = setup();
+    act(() => {
+      eventBus.get('job:complete').next(jobComplete({
+        result: { kind: 'reference-annotation', totalFound: 6, totalEmitted: 6, errors: 0 },
+      }) as never);
+    });
+    expect(showSuccess).toHaveBeenCalledWith('annotationComplete');
+    expect(showInfo).not.toHaveBeenCalled();
+  });
+
+  it('a RETRYABLE failure toasts nothing — a setback is not an ending', () => {
+    const { eventBus } = setup();
+    act(() => {
+      eventBus.get('job:fail').next({
+        resourceId: RID, jobId: 'job-1', jobType: 'highlight-annotation',
+        error: 'transient', willRetry: true,
+      } as never);
+    });
+    expect(showError).not.toHaveBeenCalled();
+    expect(showInfo).not.toHaveBeenCalled();
+  });
+
+  it('a terminal failure with completed units → error that says the finds were kept', () => {
+    const { eventBus } = setup();
+    act(() => {
+      eventBus.get('job:fail').next({
+        resourceId: RID, jobId: 'job-1', jobType: 'reference-annotation',
+        error: 'boom', willRetry: false, completedUnits: ['Person', 'Place'],
+      } as never);
+    });
+    expect(showError).toHaveBeenCalledWith('annotationFailedPartial(kept=2)');
+  });
+
+  it('a terminal failure with nothing completed → the plain failure path, unchanged', () => {
+    const { eventBus } = setup();
+    act(() => {
+      eventBus.get('job:fail').next({
+        resourceId: RID, jobId: 'job-1', jobType: 'highlight-annotation',
+        error: 'boom', willRetry: false,
+      } as never);
+    });
+    expect(showError).toHaveBeenCalledWith('boom');
+  });
+});

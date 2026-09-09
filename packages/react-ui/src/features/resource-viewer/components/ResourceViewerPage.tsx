@@ -235,7 +235,6 @@ export function ResourceViewerPage({
   const pendingAnnotation = useObservable(stateUnit?.mark.pendingAnnotation$) ?? null;
   const assistingMotivation = useObservable(stateUnit?.mark.assistingMotivation$) ?? null;
   const progress = useObservable(stateUnit?.mark.progress$) ?? null;
-  const assistOutcome = useObservable(stateUnit?.mark.outcome$) ?? null;
   const activePanel = useObservable(stateUnit?.browse.activePanel$) ?? null;
   const scrollToAnnotationId = useObservable(stateUnit?.browse.scrollToAnnotationId$) ?? null;
   const panelInitialTab = useObservable(stateUnit?.browse.panelInitialTab$) ?? null;
@@ -608,7 +607,6 @@ export function ResourceViewerPage({
                 annotateMode={annotateMode}
                 assistingMotivation={assistingMotivation}
                 progress={progress}
-                assistOutcome={assistOutcome}
                 pendingAnnotation={pendingAnnotation}
                 allEntityTypes={allEntityTypes}
                 annotationsError={annotationsError}

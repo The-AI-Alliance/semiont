@@ -225,10 +225,7 @@
     "comment": "Komentar",
     "tag": "Tag",
     "annotationsFailed": "Tidak dapat memuat anotasi.",
-    "retry": "Coba lagi",
-    "completenessClean": "Deteksi selesai",
-    "completenessUnderReported": "Terdeteksi sebagian — beberapa bagian kurang terlaporkan",
-    "completenessIncomplete": "Terdeteksi sebagian — proses tidak selesai"
+    "retry": "Coba lagi"
   },
   "StatisticsPanel": {
     "title": "Statistik",
@@ -492,6 +489,8 @@
     "decline_encrypted": "PDF ini dilindungi kata sandi, teksnya tidak dapat dibaca.",
     "decline_corrupt": "PDF ini tidak dapat dibaca — berkas mungkin rusak.",
     "decline_too-large": "Dokumen ini terlalu besar untuk diekstrak teksnya.",
-    "decline_empty": "Dokumen ini tidak memiliki teks untuk dianotasi."
+    "decline_empty": "Dokumen ini tidak memiliki teks untuk dianotasi.",
+    "annotationCompletePartial": "Deteksi selesai tidak lengkap — {{pieces}} bagian kurang terlaporkan",
+    "annotationFailedPartial": "Deteksi gagal — temuan dari {{kept}} tipe yang selesai dipertahankan"
   }
 }

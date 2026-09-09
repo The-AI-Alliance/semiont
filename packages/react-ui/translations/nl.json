@@ -225,10 +225,7 @@
     "comment": "Opmerkingen",
     "tag": "Labels",
     "annotationsFailed": "Kan de annotaties niet laden.",
-    "retry": "Opnieuw proberen",
-    "completenessClean": "Detectie voltooid",
-    "completenessUnderReported": "Gedeeltelijk gedetecteerd — sommige delen ondergerapporteerd",
-    "completenessIncomplete": "Gedeeltelijk gedetecteerd — de run is niet voltooid"
+    "retry": "Opnieuw proberen"
   },
   "StatisticsPanel": {
     "title": "Statistieken",
@@ -492,6 +489,8 @@
     "decline_encrypted": "Deze PDF is met een wachtwoord beveiligd; de tekst is onleesbaar.",
     "decline_corrupt": "Deze PDF kon niet gelezen worden — het bestand is mogelijk beschadigd.",
     "decline_too-large": "Dit document is te groot om tekst uit te halen.",
-    "decline_empty": "Dit document bevat geen tekst om te annoteren."
+    "decline_empty": "Dit document bevat geen tekst om te annoteren.",
+    "annotationCompletePartial": "Detectie onvolledig beëindigd — {{pieces}} deel/delen ondergerapporteerd",
+    "annotationFailedPartial": "Detectie mislukt — resultaten van {{kept}} voltooide typen zijn bewaard"
   }
 }

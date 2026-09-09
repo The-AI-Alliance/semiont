@@ -225,10 +225,7 @@
     "comment": "Comments",
     "tag": "Tags",
     "annotationsFailed": "Could not load annotations.",
-    "retry": "Try again",
-    "completenessClean": "Detection complete",
-    "completenessUnderReported": "Partially detected — some pieces under-reported",
-    "completenessIncomplete": "Partially detected — the run did not finish"
+    "retry": "Try again"
   },
   "StatisticsPanel": {
     "title": "Statistics",
@@ -492,6 +489,8 @@
     "decline_encrypted": "This PDF is password-protected, so its text can’t be read.",
     "decline_corrupt": "This PDF couldn’t be read — the file may be damaged.",
     "decline_too-large": "This document is too large to extract text from.",
-    "decline_empty": "This document has no text to annotate."
+    "decline_empty": "This document has no text to annotate.",
+    "annotationCompletePartial": "Detection finished incompletely — {{pieces}} piece(s) under-reported",
+    "annotationFailedPartial": "Detection failed — finds from {{kept}} completed type(s) were kept"
   }
 }

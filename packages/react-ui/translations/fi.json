@@ -225,10 +225,7 @@
     "comment": "Kommentit",
     "tag": "Tunnisteet",
     "annotationsFailed": "Merkintöjä ei voitu ladata.",
-    "retry": "Yritä uudelleen",
-    "completenessClean": "Tunnistus valmis",
-    "completenessUnderReported": "Osittain tunnistettu — osa jäi aliraportoiduksi",
-    "completenessIncomplete": "Osittain tunnistettu — ajo ei valmistunut"
+    "retry": "Yritä uudelleen"
   },
   "StatisticsPanel": {
     "title": "Tilastot",
@@ -492,6 +489,8 @@
     "decline_encrypted": "Tämä PDF on salasanasuojattu, joten tekstiä ei voi lukea.",
     "decline_corrupt": "Tätä PDF:ää ei voitu lukea — tiedosto voi olla vaurioitunut.",
     "decline_too-large": "Tämä asiakirja on liian suuri tekstin poimintaan.",
-    "decline_empty": "Tässä asiakirjassa ei ole merkittävää tekstiä."
+    "decline_empty": "Tässä asiakirjassa ei ole merkittävää tekstiä.",
+    "annotationCompletePartial": "Tunnistus päättyi epätäydellisenä — {{pieces}} osaa aliraportoitu",
+    "annotationFailedPartial": "Tunnistus epäonnistui — {{kept}} valmiin tyypin löydökset säilytettiin"
   }
 }

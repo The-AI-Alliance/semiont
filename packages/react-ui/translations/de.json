@@ -225,10 +225,7 @@
     "comment": "Kommentare",
     "tag": "Tags",
     "annotationsFailed": "Annotationen konnten nicht geladen werden.",
-    "retry": "Erneut versuchen",
-    "completenessClean": "Erkennung abgeschlossen",
-    "completenessUnderReported": "Teilweise erkannt — einige Abschnitte untererfasst",
-    "completenessIncomplete": "Teilweise erkannt — der Lauf wurde nicht beendet"
+    "retry": "Erneut versuchen"
   },
   "StatisticsPanel": {
     "title": "Statistiken",
@@ -492,6 +489,8 @@
     "decline_encrypted": "Dieses PDF ist passwortgeschützt, der Text ist nicht lesbar.",
     "decline_corrupt": "Dieses PDF konnte nicht gelesen werden — die Datei ist womöglich beschädigt.",
     "decline_too-large": "Dieses Dokument ist zu groß für die Textextraktion.",
-    "decline_empty": "Dieses Dokument enthält keinen Text zum Annotieren."
+    "decline_empty": "Dieses Dokument enthält keinen Text zum Annotieren.",
+    "annotationCompletePartial": "Erkennung unvollständig beendet — {{pieces}} Abschnitt(e) untererfasst",
+    "annotationFailedPartial": "Erkennung fehlgeschlagen — Funde aus {{kept}} abgeschlossenen Typen wurden behalten"
   }
 }

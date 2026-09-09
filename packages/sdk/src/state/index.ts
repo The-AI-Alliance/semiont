@@ -56,7 +56,6 @@ export {
 export {
   createMarkStateUnit,
   type MarkStateUnit,
-  type MarkAssistOutcome,
   type PendingAnnotation,
 } from './flows/mark-state-unit';
 

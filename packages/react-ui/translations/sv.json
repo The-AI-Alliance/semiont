@@ -225,10 +225,7 @@
     "comment": "Kommentarer",
     "tag": "Taggar",
     "annotationsFailed": "Det gick inte att läsa in annoteringarna.",
-    "retry": "Försök igen",
-    "completenessClean": "Detektering klar",
-    "completenessUnderReported": "Delvis detekterad — vissa delar underrapporterade",
-    "completenessIncomplete": "Delvis detekterad — körningen slutfördes inte"
+    "retry": "Försök igen"
   },
   "StatisticsPanel": {
     "title": "Statistik",
@@ -492,6 +489,8 @@
     "decline_encrypted": "Denna PDF är lösenordsskyddad och texten går inte att läsa.",
     "decline_corrupt": "Denna PDF kunde inte läsas — filen kan vara skadad.",
     "decline_too-large": "Detta dokument är för stort för att extrahera text ur.",
-    "decline_empty": "Detta dokument har ingen text att annotera."
+    "decline_empty": "Detta dokument har ingen text att annotera.",
+    "annotationCompletePartial": "Detektering avslutad ofullständigt — {{pieces}} del(ar) underrapporterade",
+    "annotationFailedPartial": "Detektering misslyckades — fynd från {{kept}} slutförda typer behölls"
   }
 }
