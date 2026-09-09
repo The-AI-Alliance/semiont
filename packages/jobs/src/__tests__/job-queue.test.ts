@@ -8,7 +8,8 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { FsJobQueue as JobQueue } from '../fs-job-queue';
-import type { JobStatus, PendingJob, RunningJob, CompleteJob, FailedJob, DetectionParams, DetectionProgress, DetectionResult } from '../types';
+import type { JobStatus, PendingJob, RunningJob, CompleteJob, FailedJob, DetectionParams, DetectionProgress } from '../types';
+import type { JobReferenceAnnotationResult } from '@semiont/core';
 import type { GenerationJobParams } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { entityType, jobId, userId, resourceId, EventBus } from '@semiont/core';
@@ -71,7 +72,7 @@ function createRunningDetectionJob(id: string): RunningJob<DetectionParams, Dete
   };
 }
 
-function createCompleteDetectionJob(id: string): CompleteJob<DetectionParams, DetectionResult> {
+function createCompleteDetectionJob(id: string): CompleteJob<DetectionParams, JobReferenceAnnotationResult> {
   return {
     status: 'complete',
     metadata: {

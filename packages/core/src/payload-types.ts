@@ -19,6 +19,15 @@ export type Selector =
   | components['schemas']['FragmentSelector'];
 
 export type GatheredContext = components['schemas']['GatheredContext'];
+
+// Detection job results, under the spec's own names — the wire owns these
+// shapes, and a differently-named local alias is a rename layer, not a
+// derivation.
+export type JobReferenceAnnotationResult = components['schemas']['JobReferenceAnnotationResult'];
+export type JobHighlightAnnotationResult = components['schemas']['JobHighlightAnnotationResult'];
+export type JobCommentAnnotationResult = components['schemas']['JobCommentAnnotationResult'];
+export type JobAssessmentAnnotationResult = components['schemas']['JobAssessmentAnnotationResult'];
+export type JobTagAnnotationResult = components['schemas']['JobTagAnnotationResult'];
 /**
  * The `job:create` params shape for `jobType: 'generation'` — one type shared
  * by the write side (sdk `yield.fromContext` → `runGeneration`) and the read

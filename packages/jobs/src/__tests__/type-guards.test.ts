@@ -16,8 +16,8 @@ import {
   type CancelledJob,
   type DetectionParams,
   type DetectionProgress,
-  type DetectionResult,
 } from '../types';
+import type { JobReferenceAnnotationResult } from '@semiont/core';
 import { jobId, entityType, userId, resourceId } from '@semiont/core';
 
 // Helper functions to create test jobs
@@ -70,7 +70,7 @@ function createRunningJob(): RunningJob<DetectionParams, DetectionProgress> {
   };
 }
 
-function createCompleteJob(): CompleteJob<DetectionParams, DetectionResult> {
+function createCompleteJob(): CompleteJob<DetectionParams, JobReferenceAnnotationResult> {
   return {
     status: 'complete',
     metadata: {

@@ -16,7 +16,7 @@ import { compileTypst, MAX_COMPILE_REPAIRS } from './workers/generation/typst-co
 import { withinByteBudget, MAX_PDF_BYTES } from '@semiont/content';
 import { resolveCitationTokens, collectContextResourceIds, type GenerationCitation } from './workers/generation/citation-resolver';
 import { annotationIdFor } from '@semiont/event-sourcing';
-import { didToAgent, GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type ResourceId, type SupportedMediaType, type components } from '@semiont/core';
+import { didToAgent, GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type ResourceId, type SupportedMediaType, type components, type JobReferenceAnnotationResult, type JobHighlightAnnotationResult, type JobCommentAnnotationResult, type JobAssessmentAnnotationResult, type JobTagAnnotationResult } from '@semiont/core';
 import { reconcileSelector, createFragmentSelector, locate, type ReconciledSelector, type AnchoredText } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type {
@@ -25,11 +25,6 @@ import type {
   AssessmentDetectionParams,
   DetectionParams,
   TagDetectionParams,
-  HighlightDetectionResult,
-  CommentDetectionResult,
-  AssessmentDetectionResult,
-  DetectionResult,
-  TagDetectionResult,
   GenerationResult,
 } from './types';
 import { noteAnchor } from './workers/detection/anchor-audit';
@@ -372,7 +367,7 @@ export async function processHighlightJob(
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[]) => Promise<void>,
-): Promise<ProcessorResult<HighlightDetectionResult>> {
+): Promise<ProcessorResult<JobHighlightAnnotationResult>> {
   const echo = detectionEcho(params);
 
   onProgress(10, { code: 'loading' }, echo);
@@ -435,7 +430,7 @@ export async function processCommentJob(
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[]) => Promise<void>,
-): Promise<ProcessorResult<CommentDetectionResult>> {
+): Promise<ProcessorResult<JobCommentAnnotationResult>> {
   const echo = detectionEcho(params);
 
   onProgress(10, { code: 'loading' }, echo);
@@ -484,7 +479,7 @@ export async function processAssessmentJob(
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[]) => Promise<void>,
-): Promise<ProcessorResult<AssessmentDetectionResult>> {
+): Promise<ProcessorResult<JobAssessmentAnnotationResult>> {
   const echo = detectionEcho(params);
 
   onProgress(10, { code: 'loading' }, echo);
@@ -551,7 +546,7 @@ export async function processReferenceJob(
   signal?: AbortSignal,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete?: (annotations: Annotation[]) => Promise<void>,
-): Promise<{ result: DetectionResult }> {
+): Promise<{ result: JobReferenceAnnotationResult }> {
   const entityTypeNames = params.entityTypes.map(String);
   const requestParams = [{ label: 'entity-types' as const, value: entityTypeNames.join(', ') }];
   const completedItems: CompletedItem[] = [];
@@ -713,7 +708,7 @@ export async function processTagJob(
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[]) => Promise<void>,
-): Promise<ProcessorResult<TagDetectionResult>> {
+): Promise<ProcessorResult<JobTagAnnotationResult>> {
   onProgress(10, { code: 'loading' });
   onProgress(30, { code: 'analyzing-tags' });
 
