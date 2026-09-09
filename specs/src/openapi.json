@@ -402,6 +402,12 @@
       "GatherSummaryRequest": {
         "$ref": "components/schemas/GatherSummaryRequest.json"
       },
+      "DurabilityEvidence": {
+        "$ref": "components/schemas/DurabilityEvidence.json"
+      },
+      "FailureClass": {
+        "$ref": "components/schemas/FailureClass.json"
+      },
       "GatheredContext": {
         "$ref": "components/schemas/GatheredContext.json"
       },

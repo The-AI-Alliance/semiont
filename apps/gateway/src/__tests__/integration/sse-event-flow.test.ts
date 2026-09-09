@@ -198,7 +198,6 @@ describe('SSE Event Flow - End-to-End', () => {
         jobId: testJobId,
         jobType: 'reference-annotation',
         error: 'AI service unavailable',
-        details: 'Connection timeout after 30s'
       }
     });
 
