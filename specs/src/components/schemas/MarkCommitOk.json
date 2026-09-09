@@ -12,7 +12,7 @@
       "properties": {
         "persisted": {
           "type": "integer",
-          "description": "Annotations this commit appended to the event log. Equals the batch size on success — a retry re-appends what already landed rather than counting it out, because the annotation fold is idempotent by id and the log is append-only. Not a dedupe count."
+          "description": "Annotations the command named that are durable in the event log. Equals the batch size on success, on a first commit and on a retry alike — the commit appends only what the resource does not already hold, so a wholly-redundant retry has still succeeded and says so. Not an append tally: a caller must never have to read a 0 as 'all good'."
         },
         "annotationIds": {
           "type": "array",

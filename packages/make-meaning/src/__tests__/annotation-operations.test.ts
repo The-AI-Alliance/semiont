@@ -871,7 +871,13 @@ describe('AnnotationOperations', () => {
       const failBus = new EventBus();
       const failingStores: StowerStores = {
         content: { register: vi.fn(), move: vi.fn(), remove: vi.fn(), resolveUri: vi.fn() } as unknown as StowerStores['content'],
-        eventStore: { appendEvent: vi.fn().mockRejectedValue(new Error('disk full')) } as StowerStores['eventStore'],
+        eventStore: {
+          appendEvent: vi.fn().mockRejectedValue(new Error('disk full')),
+          // `mark:commit` diffs its batch against the resource's view before
+          // appending (COMMIT-ACK-FALSE-FAILURE F3); an empty resource holds
+          // nothing, so every annotation is new and the append still runs.
+          viewStorage: { get: vi.fn().mockResolvedValue(null) },
+        } as StowerStores['eventStore'],
       };
       const failStower = new Stower(failingStores, failBus, suiteProject, mockLogger);
       await failStower.initialize();

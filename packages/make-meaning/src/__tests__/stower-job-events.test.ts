@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { firstValueFrom, take } from 'rxjs';
 import { EventBus, resourceId, type Logger } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
-import { Stower } from '../stower';
+import { Stower, type StowerStores } from '../stower';
 
 const silentLogger: Logger = {
   debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
@@ -22,10 +22,28 @@ const silentLogger: Logger = {
 const RID = 'res-job-under-test';
 const USER = 'did:web:test:users:test';
 
-/** Only `eventStore.appendEvent` is exercised by these three handlers. */
+/**
+ * The write seam these handlers use, typed as `StowerStores` rather than cast.
+ *
+ * It was `as never`, and that cast cost three green tests: when `mark:commit`
+ * grew its at-least-once guard (COMMIT-ACK-FALSE-FAILURE F3) and the seam grew
+ * `viewStorage`, `tsc` had nothing to check and the stub went on satisfying a
+ * shape that no longer existed — the failure surfaced only at runtime, as
+ * "Cannot read properties of undefined". Typed, the next widening fails the
+ * BUILD here, naming the missing member.
+ */
 function stubStores() {
   const appendEvent = vi.fn().mockResolvedValue(undefined);
-  return { appendEvent, stores: { eventStore: { appendEvent } } as never };
+  const stores: StowerStores = {
+    content: { register: vi.fn(), move: vi.fn(), remove: vi.fn(), resolveUri: vi.fn() } as unknown as StowerStores['content'],
+    eventStore: {
+      appendEvent,
+      // No resource holds anything yet, so every annotation in a batch is new
+      // and every append still runs.
+      viewStorage: { get: vi.fn().mockResolvedValue(null) },
+    } as unknown as StowerStores['eventStore'],
+  };
+  return { appendEvent, stores };
 }
 
 const jobEvent = (over: Record<string, unknown> = {}) => ({
@@ -90,6 +108,61 @@ describe('Stower job:* handlers', () => {
     bus.get('job:complete').next(jobEvent() as never);
     await settle();
     expect('annotationId' in appendEvent.mock.calls[0][0].payload).toBe(false);
+  });
+
+  // ── job:failed carries the worker's JUDGMENTS, not just its message ──────
+  //
+  // The durable record must not be lossier than the producer that wrote it.
+  // `failureClass` and `willRetry` are computed in the worker, where the error
+  // is still typed; at the log they are unrecoverable, because the only other
+  // witness is a flattened English string. Without them an auditor reading a
+  // run of job:failed events cannot tell a recovering job from a dead one, nor
+  // a deterministic refusal from weather — and job:failed is a permanent fact
+  // of the resource, not operational state.
+  it('persists failureClass and willRetry onto job:failed', async () => {
+    bus.get('job:fail').next(jobEvent({
+      error: 'Bus request timed out after 60000ms on mark:commit-ok',
+      failureClass: 'transient',
+      willRetry: true,
+    }) as never);
+    await settle();
+
+    const event = appendEvent.mock.calls[0][0];
+    expect(event.type).toBe('job:failed');
+    expect(event.payload).toMatchObject({
+      error: 'Bus request timed out after 60000ms on mark:commit-ok',
+      failureClass: 'transient',
+      willRetry: true,
+    });
+  });
+
+  it('omits either when the worker did not state it — absent is not false', async () => {
+    // Absent `failureClass` means UNRECOGNISED, which is a different claim from
+    // 'transient'; `willRetry: false` asserts the run is over. Defaulting either
+    // would write a judgment nobody made into a log nobody can rewrite — the
+    // same rule the annotationId case above follows.
+    bus.get('job:fail').next(jobEvent({ error: 'boom' }) as never);
+    await settle();
+
+    const payload = appendEvent.mock.calls[0][0].payload;
+    expect('failureClass' in payload).toBe(false);
+    expect('willRetry' in payload).toBe(false);
+  });
+
+  it.each([
+    ['job:complete', 'job:completed', 'probe-confirmed'],
+    ['job:fail', 'job:failed', 'probe-unreachable'],
+  ])('%s persists how durability was established', async (channel, persisted, durability) => {
+    // The evidentiary half of the same rule: an acknowledged completion and one
+    // inferred from a probe are different claims, and "the log said no" is a
+    // different claim from "the log never answered". Four states, and without
+    // this field the log holds two.
+    bus.get(channel as 'job:complete').next(jobEvent({ error: 'e', durability }) as never);
+    await settle();
+
+    const event = appendEvent.mock.calls[0][0];
+    expect(event.type).toBe(persisted);
+    expect(event.payload.durability).toBe(durability);
   });
 
   it.each([

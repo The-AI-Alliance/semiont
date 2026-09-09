@@ -421,6 +421,11 @@ describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)'
       // (.plans/WORKER-ANCHORED-TEXT-CHANNEL.md).
       'browse:anchored-text-failed',
       'browse:anchored-text-result',
+      // The durability probe for a commit whose ack never routed
+      // (COMMIT-ACK-FALSE-FAILURE F1). The SINGULAR annotation read, chosen
+      // precisely so the list channel below stays out.
+      'browse:annotation-failed',
+      'browse:annotation-result',
       'browse:resource-failed',
       'browse:resource-result',
       'job:claim-failed',

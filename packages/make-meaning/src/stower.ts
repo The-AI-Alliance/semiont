@@ -382,38 +382,61 @@ export class Stower {
    *
    * Appends are sequential, not concurrent: the event log is the system of
    * record and a batch that half-lands under concurrency is harder to reason
-   * about than one that stops at the first failure. A partial batch is
-   * reported as a failure and the worker retries the WHOLE unit, which is safe
-   * because ids are deterministic (P3) and the annotation fold is idempotent
-   * by id — re-appending what already landed changes nothing.
+   * about than one that stops at the first failure.
+   *
+   * This channel is AT-LEAST-ONCE, and the log must not grow on a repeat
+   * (COMMIT-ACK-FALSE-FAILURE F3). Two paths re-send a batch that already
+   * landed: an acknowledgement lost after a successful append (the unit is
+   * never checkpointed, so the retry re-runs exactly the unit that landed), and
+   * a partial batch, reported as a failure and retried whole. Deterministic ids
+   * (JOB-RESTART-SAFETY P3) made those safe for the PROJECTIONS — the resource
+   * view and the graph both refuse a duplicate id — but a projection's guard
+   * says nothing about the log, which appends whatever it is handed. The result
+   * was a green graph over a doubled log: silent, and not undoable.
+   *
+   * So the batch is diffed against what the resource already holds. ONE view
+   * read per commit, never per annotation: the view for a 1,673-annotation
+   * resource is ~3 MB, and re-reading it per append would cost gigabytes of
+   * parsing for a single job.
    */
   private async handleMarkCommit(event: EventMap['mark:commit']): Promise<void> {
     if (!event._userId) {
       throw new Error('mark:commit missing _userId (gateway injection)');
     }
     const annotations = (event.annotations ?? []) as Annotation[];
+    const rid = resourceId(event.resourceId);
     try {
-      let persisted = 0;
+      const view = await this.stores.eventStore.viewStorage.get(rid);
+      const present = new Set((view?.annotations.annotations ?? []).map((a) => String(a.id)));
+
       for (const annotation of annotations) {
+        if (present.has(String(annotation.id))) continue;
         await this.stores.eventStore.appendEvent({
           type: 'mark:added',
-          resourceId: resourceId(event.resourceId),
+          resourceId: rid,
           userId: makeUserId(event._userId),
           version: 1,
           payload: { annotation },
         });
-        persisted++;
+        // A batch may name the same annotation twice; the view read cannot see
+        // an append this loop just made.
+        present.add(String(annotation.id));
       }
       this.logger.debug('Committed annotation batch', {
-        correlationId: event.correlationId, resourceId: event.resourceId, persisted,
+        correlationId: event.correlationId, resourceId: event.resourceId, persisted: annotations.length,
       });
       this.eventBus.get('mark:commit-ok').next({
         correlationId: event.correlationId,
-        response: { persisted, annotationIds: annotations.map((a) => String(a.id)) },
+        // The DURABLE count, which is what the acknowledgement means ("every
+        // annotation named by the command is in the event log"). Not an append
+        // tally: a retry whose annotations are all already present has
+        // succeeded, and must be indistinguishable from the first commit or the
+        // caller would have to interpret a 0 that means "all good".
+        response: { persisted: annotations.length, annotationIds: annotations.map((a) => String(a.id)) },
       });
     } catch (error) {
       // No partial success is reported. The worker retries the unit whole, and
-      // the idempotent fold makes the already-landed fraction a no-op.
+      // the diff above makes the already-landed fraction a no-op.
       this.logger.error('Failed to commit annotation batch', {
         correlationId: event.correlationId, error: errField(error),
       });
@@ -670,6 +693,10 @@ export class Stower {
         jobType: event.jobType,
         ...(event.annotationId ? { annotationId: event.annotationId } : {}),
         result: event.result,
+        // How durability was ESTABLISHED (COMMIT-ACK-FALSE-FAILURE). An
+        // acknowledged batch and one inferred from a probe are different
+        // claims; absent means the question never arose.
+        ...(event.durability !== undefined ? { durability: event.durability } : {}),
       },
     });
   }
@@ -688,6 +715,18 @@ export class Stower {
         jobType: event.jobType,
         ...(event.annotationId ? { annotationId: event.annotationId } : {}),
         error: event.error,
+        // The worker's JUDGMENTS, not just its message. Both are computed where
+        // the error is still typed and are unrecoverable here — the only other
+        // witness in the log is `error`, a flattened English string. Spread
+        // conditionally: absent `failureClass` means UNRECOGNISED, a different
+        // claim from 'transient', and defaulting either would write a judgment
+        // nobody made into a log nobody can rewrite.
+        ...(event.failureClass !== undefined ? { failureClass: event.failureClass } : {}),
+        ...(event.willRetry !== undefined ? { willRetry: event.willRetry } : {}),
+        // How durability was ESTABLISHED (COMMIT-ACK-FALSE-FAILURE). An
+        // acknowledged batch and one inferred from a probe are different
+        // claims; absent means the question never arose.
+        ...(event.durability !== undefined ? { durability: event.durability } : {}),
       },
     });
   }

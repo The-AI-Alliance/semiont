@@ -33,9 +33,10 @@
 import { GEN_REQUIRED, minimalContext } from './fixtures/generation-fixtures';
 import { referenceIdOf } from '../worker-process';
 import { Subject, BehaviorSubject } from 'rxjs';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { extractPdfTextLayer } from '@semiont/content';
 import type { SemiontSession } from '@semiont/sdk';
+import { BusRequestError } from '@semiont/core';
 import type { JobType } from '@semiont/core';
 import type { ActiveJob, JobClaimAdapter } from '../job-claim-adapter';
 import { handleJob, type WorkerProcessConfig } from '../worker-process';
@@ -114,24 +115,59 @@ function makeFakeSessionAndAdapter() {
     if (!s) { s = new Subject(); replyStreams.set(channel, s); }
     return s;
   };
-  const commitSink: { mode: 'ok' | 'fail' | 'silent' } = { mode: 'ok' };
+  /**
+   * The stand-in Archivist's disposition — and, separately, what the log holds
+   * because of it. The two are not the same fact, which is the entire subject
+   * of COMMIT-ACK-FALSE-FAILURE:
+   *
+   *   ok         appended, acknowledged
+   *   ack-lost   APPENDED, acknowledgement never routed  ← the measured bug
+   *   silent     never arrived, so nothing appended, nothing answered
+   *   fail       refused, nothing appended
+   *
+   * `ack-lost` and `silent` are indistinguishable to the worker's `busRequest`
+   * — both are a `bus.timeout` — and they are opposite truths about the data.
+   * Telling them apart is what F1 is for, so the fake must be able to be each.
+   */
+  const commitSink: { mode: 'ok' | 'fail' | 'silent' | 'ack-lost' | 'first-ok-then-lost' } = { mode: 'ok' };
+  let commitCount = 0;
+  /** The event log's annotation set for RID, as the stand-in Archivist holds it. */
+  const landed: Array<{ id: string }> = [];
+  /** Whether the durability probe can be answered at all. */
+  const probeSink: { mode: 'answer' | 'unreachable' } = { mode: 'answer' };
 
   const transportEmit = vi.fn(async (channel: string, payload: Record<string, unknown>, scope?: string) => {
     busEmits.push({ channel, payload, scope });
-    if (channel === 'mark:commit' && commitSink.mode !== 'silent') {
+    if (channel === 'mark:commit') {
+      commitCount++;
       const correlationId = payload.correlationId as string;
       const annotations = (payload.annotations ?? []) as Array<{ id: string }>;
-      // Answer on the next tick, as a real Archivist would.
-      queueMicrotask(() => {
-        if (commitSink.mode === 'ok') {
-          replyStream('mark:commit-ok').next({
-            correlationId,
-            response: { persisted: annotations.length, annotationIds: annotations.map((a) => String(a.id)) },
-          });
-        } else {
-          replyStream('mark:commit-failed').next({ correlationId, message: 'sink down' });
+      const mode = commitSink.mode === 'first-ok-then-lost'
+        ? (commitCount === 1 ? 'ok' : 'ack-lost')
+        : commitSink.mode;
+      if (mode === 'ok' || mode === 'ack-lost') {
+        // Appended idempotently by annotation id — the contract F3 gives the
+        // real Stower. Modelling it here keeps this fake from claiming a
+        // property the log does not have; the double-SEND it cannot hide is
+        // asserted directly, by counting `mark:commit` emits.
+        for (const a of annotations) {
+          if (!landed.some((l) => String(l.id) === String(a.id))) landed.push(a);
         }
-      });
+      }
+      // Answer on the next tick, as a real Archivist would — unless the reply
+      // path is gone, which is both timeout modes.
+      if (mode === 'ok' || mode === 'fail') {
+        queueMicrotask(() => {
+          if (mode === 'ok') {
+            replyStream('mark:commit-ok').next({
+              correlationId,
+              response: { persisted: annotations.length, annotationIds: annotations.map((a) => String(a.id)) },
+            });
+          } else {
+            replyStream('mark:commit-failed').next({ correlationId, message: 'sink down' });
+          }
+        });
+      }
     }
     return 1;
   });
@@ -170,6 +206,23 @@ function makeFakeSessionAndAdapter() {
         resourceAnchoredText: vi.fn(async (_rid: string) => ({
           kind: 'extracted', text: 'the content', items: [], method: 'pdf-text-layer',
         })),
+        // The durability probe (COMMIT-ACK-FALSE-FAILURE F1). What the log
+        // actually holds — the only evidence that can separate a lost
+        // acknowledgement from a lost batch. Rejects when absent, as the real
+        // read does (`browse:annotation-failed`, "Annotation not found").
+        annotation: vi.fn((_rid: string, aid: string) => ({
+          fresh: async () => {
+            // `probeSink` plays the read being UNANSWERABLE, which is a
+            // different fact from the read answering "no" — `bus.timeout`
+            // versus `bus.rejected`, and opposite epistemic states.
+            if (probeSink.mode === 'unreachable') {
+              throw new BusRequestError('Bus request timed out after 30000ms on browse:annotation-result', 'bus.timeout');
+            }
+            const hit = landed.find((a) => String(a.id) === String(aid));
+            if (!hit) throw new BusRequestError('Annotation not found', 'bus.rejected');
+            return hit;
+          },
+        })),
       },
       yield: {
         resource: vi.fn(async (data: Parameters<SemiontSession['client']['yield']['resource']>[0]) => {
@@ -188,7 +241,7 @@ function makeFakeSessionAndAdapter() {
     touchActivity: vi.fn(() => adapterCalls.push({ method: 'touchActivity', args: [] })),
   } as unknown as JobClaimAdapter;
 
-  return { session, transportHandlers, adapter, busEmits, yieldResourceCalls, adapterCalls };
+  return { session, transportHandlers, adapter, busEmits, yieldResourceCalls, adapterCalls, commitSink, landed, probeSink };
 }
 
 function makeConfig(session: SemiontSession): WorkerProcessConfig {
@@ -757,7 +810,10 @@ describe('handleJob orchestration', () => {
         Object.keys(h.busEmits.find(e => e.channel === channel)!.payload as object).sort();
 
       expect(keysOf('job:start')).toEqual(['jobId', 'jobType', 'resourceId']);
-      expect(keysOf('job:complete')).toEqual(['jobId', 'jobType', 'resourceId', 'result']);
+      // `job:start` stays bare: nothing has been committed yet, so there is no
+      // durability to state. Every TERMINAL payload carries how durability was
+      // established (COMMIT-ACK-FALSE-FAILURE) — here, an acknowledged commit.
+      expect(keysOf('job:complete')).toEqual(['durability', 'jobId', 'jobType', 'resourceId', 'result']);
       // The commit carries a batch and a correlationId (busRequest sets the
       // latter), not a single annotation.
       expect(keysOf('mark:commit')).toEqual(['annotations', 'correlationId', 'resourceId']);
@@ -1597,5 +1653,223 @@ describe('startWorkerProcess — job:fail carries the failure class (ABANDONED-I
 
     vi.doUnmock('../job-claim-adapter');
     vi.resetModules();
+  });
+});
+
+describe('a lost acknowledgement is not a lost batch (COMMIT-ACK-FALSE-FAILURE)', () => {
+  // Measured 2026-09-08: a Person detection ran 51 minutes over a 102-page PDF,
+  // the Archivist appended all 1,673 annotations, the gateway then went down,
+  // and 60 s later the job reported
+  //
+  //     Job failed — Bus request timed out after 60000ms on mark:commit-ok
+  //
+  // Nothing was lost. The status was simply wrong — and a user cannot tell that
+  // apart from total loss, which after 51 minutes of paid inference is the
+  // whole problem.
+  //
+  // The worker derives its outcome from whether a MESSAGE arrived. It must
+  // derive it from whether the WORK LANDED. Both facts are available: the
+  // annotations are addressable by their own (content-derived) ids.
+
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  /** Drive `handleJob` past `MARK_COMMIT_TIMEOUT_MS` without waiting a real minute. */
+  async function runPastCommitTimeout(h: ReturnType<typeof makeFakeSessionAndAdapter>) {
+    vi.mocked(processHighlightJob).mockResolvedValue({
+      annotations: [{ id: 'a1' }, { id: 'a2' }] as never,
+      result: { highlightsFound: 2, highlightsCreated: 2 } as never,
+    });
+    const run = handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
+    const settled = run.then(() => 'completed' as const, (e) => e as Error);
+    await vi.advanceTimersByTimeAsync(61_000);
+    return settled;
+  }
+
+  it('reports SUCCESS when the annotations are durable and only the ack was lost', async () => {
+    const h = makeFakeSessionAndAdapter();
+    h.commitSink.mode = 'ack-lost';
+
+    const outcome = await runPastCommitTimeout(h);
+
+    // The batch is in the log — that is the fact the outcome owes its answer to.
+    expect(h.landed.map((a) => a.id)).toEqual(['a1', 'a2']);
+    expect(outcome, `job reported failure over durable data: ${outcome instanceof Error ? outcome.message : ''}`)
+      .toBe('completed');
+    expect(h.busEmits.map((e) => e.channel)).toContain('job:complete');
+    expect(h.busEmits.map((e) => e.channel)).not.toContain('job:fail');
+  });
+
+  it('still FAILS when the batch never landed — the probe must not launder a real loss', async () => {
+    // The guard on the fix. `silent` and `ack-lost` are the same timeout to the
+    // worker and opposite truths about the data; a probe that answered "durable"
+    // for both would convert this plan's false failure into a false SUCCESS,
+    // which is the defect the acknowledgement was introduced to kill.
+    const h = makeFakeSessionAndAdapter();
+    h.commitSink.mode = 'silent';
+
+    const outcome = await runPastCommitTimeout(h);
+
+    expect(h.landed).toEqual([]);
+    expect(outcome).toBeInstanceOf(Error);
+    expect(h.busEmits.map((e) => e.channel)).not.toContain('job:complete');
+  });
+
+  it('does not re-send a batch it has verified durable', async () => {
+    // Pins the probe against ONE tempting wrong shape: "re-commit and see" —
+    // idempotency at the log (F3) makes a second commit harmless to the data,
+    // so it looks like a free way to answer the question. It is not. It doubles
+    // the work, and in the measured scenario the gateway is DOWN, so the
+    // re-commit just times out again and answers nothing. Ask the log what it
+    // holds; do not write to it to find out.
+    const h = makeFakeSessionAndAdapter();
+    h.commitSink.mode = 'ack-lost';
+
+    await runPastCommitTimeout(h);
+
+    expect(h.busEmits.filter((e) => e.channel === 'mark:commit')).toHaveLength(1);
+  });
+});
+
+describe('the record says HOW durability was established (COMMIT-ACK-FALSE-FAILURE)', () => {
+  // Auditable provenance, not a status badge. After the probe landed there were
+  // four distinct evidentiary states collapsing into two records: an
+  // acknowledged completion read exactly like one inferred from a single
+  // annotation's presence, and "the log says it isn't there" read exactly like
+  // "the log never answered". A record that cannot tell diligence from a gap
+  // cannot be audited.
+  //
+  // The field carries the OBSERVATION, never a conclusion. `probe-refused` says
+  // the read returned a failure reply — not that the annotations are absent,
+  // which the worker does not know: a read that threw for its own reasons comes
+  // back on the same channel.
+
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  async function run(h: ReturnType<typeof makeFakeSessionAndAdapter>) {
+    vi.mocked(processHighlightJob).mockResolvedValue({
+      annotations: [{ id: 'a1' }, { id: 'a2' }] as never,
+      result: { highlightsFound: 2, highlightsCreated: 2 } as never,
+    });
+    const settled = handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'))
+      .then(() => 'completed' as const, (e) => e as Error);
+    await vi.advanceTimersByTimeAsync(61_000);
+    return settled;
+  }
+
+  const terminal = (h: ReturnType<typeof makeFakeSessionAndAdapter>, channel: string) =>
+    h.busEmits.find((e) => e.channel === channel)?.payload as Record<string, unknown> | undefined;
+
+  it('an acknowledged commit completes as acknowledged', async () => {
+    const h = makeFakeSessionAndAdapter();
+    await run(h);
+    expect(terminal(h, 'job:complete')).toMatchObject({ durability: 'acknowledged' });
+  });
+
+  it('a completion rescued by the probe says so — it is a weaker claim', async () => {
+    // Inferred from ONE annotation's presence, resting on the Stower's
+    // append-ordering invariant. True, and not the same evidence as an ack.
+    const h = makeFakeSessionAndAdapter();
+    h.commitSink.mode = 'ack-lost';
+    await run(h);
+    expect(terminal(h, 'job:complete')).toMatchObject({ durability: 'probe-confirmed' });
+  });
+
+  /**
+   * `job:fail` is emitted by the OUTER catch in startWorkerProcess, not by
+   * handleJob (which throws), so the failure-side record can only be observed
+   * through the real entry point.
+   */
+  async function runToFailure(setup: (h: ReturnType<typeof makeFakeSessionAndAdapter>) => void) {
+    const { BehaviorSubject } = await import('rxjs');
+    const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
+    vi.doMock('../job-claim-adapter', () => ({
+      createJobClaimAdapter: vi.fn(() => ({
+        activeJob$: activeJob$.asObservable(),
+        isProcessing$: { subscribe: vi.fn() }, jobsCompleted$: { subscribe: vi.fn() },
+        errors$: { subscribe: vi.fn() }, start: vi.fn(), stop: vi.fn(),
+        completeJob: vi.fn(), failJob: vi.fn(), dispose: vi.fn(), vitals: vi.fn(),
+        touchActivity: vi.fn(),
+      })),
+    }));
+    vi.resetModules();
+    const { startWorkerProcess } = await import('../worker-process');
+
+    vi.mocked(processHighlightJob).mockResolvedValue({
+      annotations: [{ id: 'a1' }, { id: 'a2' }] as never,
+      result: { highlightsFound: 2, highlightsCreated: 2 } as never,
+    });
+    const h = makeFakeSessionAndAdapter();
+    setup(h);
+    startWorkerProcess(makeConfig(h.session));
+    activeJob$.next(makeJob('highlight-annotation'));
+    // Past the commit's 60 s bound on the fake clock; advanceTimersByTimeAsync
+    // flushes the detached promise chain startWorkerProcess runs the job on.
+    await vi.advanceTimersByTimeAsync(61_000);
+
+    vi.doUnmock('../job-claim-adapter');
+    vi.resetModules();
+    return h.busEmits.find((e) => e.channel === 'job:fail')?.payload as Record<string, unknown> | undefined;
+  }
+
+  it('a probe that was answered "no" is recorded as refused, not as absence', async () => {
+    const payload = await runToFailure((h) => { h.commitSink.mode = 'silent'; });
+    expect(payload).toMatchObject({ durability: 'probe-refused' });
+  });
+
+  it('a probe nobody answered is recorded as unreachable', async () => {
+    // The measured incident's own branch, and the one the plain record could
+    // never distinguish from the case above.
+    const payload = await runToFailure((h) => {
+      h.commitSink.mode = 'ack-lost';
+      h.probeSink.mode = 'unreachable';
+    });
+    expect(payload).toMatchObject({ durability: 'probe-unreachable' });
+  });
+
+  it('the original failure message survives — the field adds evidence, it does not replace it', async () => {
+    const payload = await runToFailure((h) => {
+      h.commitSink.mode = 'ack-lost';
+      h.probeSink.mode = 'unreachable';
+    });
+    expect(String(payload?.error)).toContain('mark:commit-ok');
+  });
+
+  it('a job whose LAST batch needed the probe does not claim the first batch\'s ack', async () => {
+    // Generation commits twice — provenance on the source, citations on the
+    // derived resource. If the fold kept the FIRST answer, a job could report
+    // 'acknowledged' while part of its output rests on an inferred probe: an
+    // overstatement, and precisely what this field exists to prevent. Weakest
+    // evidence wins, because that is the strongest claim still true of the job.
+    vi.mocked(processGenerationJob).mockResolvedValue({
+      content: new TextEncoder().encode('Paris is the capital of France.'),
+      title: 'Answer',
+      format: 'text/markdown',
+      citations: [{ resourceId: 'ctx-9', start: 0, end: 31, exact: 'Paris is the capital of France.' }],
+      result: {} as never,
+    } as never);
+    const h = makeFakeSessionAndAdapter();
+    h.commitSink.mode = 'first-ok-then-lost';
+
+    const settled = handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { cite: true }))
+      .then(() => 'completed' as const, (e) => e as Error);
+    await vi.advanceTimersByTimeAsync(61_000);
+    expect(await settled).toBe('completed');
+
+    expect(h.busEmits.filter((e) => e.channel === 'mark:commit')).toHaveLength(2);
+    expect(terminal(h, 'job:complete')).toMatchObject({ durability: 'probe-confirmed' });
+  });
+
+  it('a job that committed nothing states nothing — absent is not a value', async () => {
+    // No batch, so no durability question arose. Writing 'acknowledged' here
+    // would be a manufactured claim.
+    vi.mocked(processHighlightJob).mockResolvedValue({
+      annotations: [] as never,
+      result: { highlightsFound: 0, highlightsCreated: 0 } as never,
+    });
+    const h = makeFakeSessionAndAdapter();
+    await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
+    expect(terminal(h, 'job:complete')).not.toHaveProperty('durability');
   });
 });

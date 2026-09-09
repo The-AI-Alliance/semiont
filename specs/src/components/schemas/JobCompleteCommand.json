@@ -21,6 +21,9 @@
     },
     "result": {
       "$ref": "./JobResult.json"
+    },
+    "durability": {
+      "$ref": "./DurabilityEvidence.json"
     }
   },
   "required": [
