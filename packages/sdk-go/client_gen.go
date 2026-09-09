@@ -3171,6 +3171,9 @@ type JobProgress struct {
 	// EntitiesEmitted Annotations emitted so far (reference-annotation)
 	EntitiesEmitted *int `json:"entitiesEmitted,omitempty"`
 
+	// EntitiesExpected Cumulative mentions the count-verifier priced across the pieces accepted so far — the denominator for a real progress bar (found of ~expected). Approximate by nature (the count saturates on very large pieces) and monotonically growing within a run. ABSENT when the provider does not verify detection yield, or before any piece has been priced: no claim, never zero.
+	EntitiesExpected *int `json:"entitiesExpected,omitempty"`
+
 	// EntitiesFound Entities found so far (reference-annotation)
 	EntitiesFound *int `json:"entitiesFound,omitempty"`
 

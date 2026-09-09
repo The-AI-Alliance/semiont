@@ -108,7 +108,7 @@ async function assertYieldNotCollapsed(
   items: readonly unknown[],
   entityTypesDescription: string,
   logger: Logger,
-): Promise<void> {
+): Promise<number | undefined> {
   const prompt = `Count every mention of: ${entityTypesDescription} in the following text. Repeated mentions of the same entity count separately. Respond with only the number.
 
 Text:
@@ -125,11 +125,11 @@ ${piece}
       pieceChars: piece.length,
       error: err instanceof Error ? err.message : String(err),
     });
-    return;
+    return undefined;
   }
   if (counted === undefined) {
     logger.warn('Count-verifier answer carried no number — yield check skipped for this chunk', { pieceChars: piece.length });
-    return;
+    return undefined;
   }
   if (items.length * YIELD_COLLAPSE_BAND < counted) {
     // The salvage rides the error: descent discards it (a smaller re-run does
@@ -141,6 +141,7 @@ ${piece}
       { found: items.length, counted, pieceChars: piece.length },
     );
   }
+  return counted;
 }
 
 export async function extractEntities(
@@ -153,6 +154,8 @@ export async function extractEntities(
   onActivity?: (completedChunks: number, totalChunks: number) => void,
   /** A floor-accepted piece's evidence, as it is accepted. */
   onUnderReport?: (verdict: UnderReportedPiece) => void,
+  /** Each accepted piece's count-verifier expectation — the denominator. */
+  onCounted?: (counted: number) => void,
   /**
    * This chunk's entities, awaited before the loop continues: the caller
    * commits them, and the loop must not run ahead of durability. Unlike
@@ -283,13 +286,17 @@ Example output:
       // And a CLEAN response can still be a silent under-report (F7) — the
       // count-verifier is the only signal for that, and a flag throws the
       // collapse verdict so subdivision changes the input.
-      if (verifyYield) {
-        await assertYieldNotCollapsed(client, piece, response.items, entityTypesDescription, logger);
-      }
+      const counted = verifyYield
+        ? await assertYieldNotCollapsed(client, piece, response.items, entityTypesDescription, logger)
+        : undefined;
       // Usage rides back so the telemetry record carries what the call COST
       // beside what it yielded — the provider's own counts, not an estimate.
-      return { items: response.items, ...(response.usage ? { usage: response.usage } : {}) };
-    }, logger, onUnderReport);
+      return {
+        items: response.items,
+        ...(response.usage ? { usage: response.usage } : {}),
+        ...(counted !== undefined ? { counted } : {}),
+      };
+    }, logger, onUnderReport, onCounted);
 
     const fromChunk: ExtractedEntity[] = [];
     for (const e of items) {

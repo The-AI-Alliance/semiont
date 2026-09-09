@@ -284,6 +284,8 @@ export interface ChunkCallResult<T> {
   items: T[];
   /** The provider's own token counts, when it reported any. Never estimated. */
   usage?: TokenUsage;
+  /** The count-verifier's expectation for this piece, when one was priced. */
+  counted?: number;
 }
 
 /** Which shape of failure this was — they demand opposite responses, so the
@@ -308,6 +310,11 @@ export async function callChunkSubdividing<T>(
   /** A floor-accepted piece's evidence, as it is accepted. Only the floor
    * reports: a collapse healed by descent is telemetry, not result. */
   onUnderReport?: (verdict: UnderReportedPiece) => void,
+  /** Each ACCEPTED piece's count-verifier expectation — successes, floor
+   * re-rolls, floor-accepted salvage. A flagged piece that descends reports
+   * nothing: its children's counts replace it, or the same text is priced
+   * twice. */
+  onCounted?: (counted: number) => void,
 ): Promise<T[]> {
   // One telemetry record per model call, successes AND failures
   // (DETECTION-QUALITY-THROUGHPUT P1). This is the only place `depth` and
@@ -321,6 +328,8 @@ export async function callChunkSubdividing<T>(
         items: result.items.length, depth, reroll, outcome: 'success',
         ...(result.usage ? { inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens } : {}),
       });
+      // A success is always accepted — only failures subdivide.
+      if (result.counted !== undefined) onCounted?.(result.counted);
       return result;
     } catch (error) {
       // A failed call still cost its input and its wall time — the descent's
@@ -372,6 +381,7 @@ export async function callChunkSubdividing<T>(
             error: error.message,
           });
           onUnderReport?.(error.verdict);
+          onCounted?.(error.verdict.counted);
           return error.salvage as T[];
         }
         // At the size floor honest overflow is impossible, so truncation

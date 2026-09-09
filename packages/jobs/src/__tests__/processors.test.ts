@@ -319,7 +319,7 @@ describe('processReferenceJob', () => {
   it('runs multiple entity types and commits each exactly once', async () => {
     // Each type returns its own entity (verbatim in the content so anchoring holds).
     const content = 'Paris and Ada and Sony are here.';
-    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, onChunkResults) => {
+    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, onChunkResults) => {
       const t = String(types[0]);
       const map: Record<string, any> = {
         Location: [{ exact: 'Paris', entityType: 'Location' }],
@@ -392,7 +392,7 @@ describe('processReferenceJob', () => {
   it('reports each unit once even when types finish OUT OF ORDER', async () => {
     const content = 'Paris and Ada are here.';
     // Location resolves slowly, Person fast — completion order reversed.
-    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, onChunkResults) => {
+    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, onChunkResults) => {
       const t = String(types[0]);
       const items = t === 'Location'
         ? (await new Promise((r) => setTimeout(r, 20)), [{ exact: 'Paris', entityType: 'Location' }])
@@ -1241,6 +1241,7 @@ describe('locale threading', () => {
         'content', ['Location'], client, false, LOGGER, 'fr',
         expect.any(Function), // chunk-boundary progress heartbeat
         expect.any(Function), // under-report verdicts
+        expect.any(Function), // accepted-piece counts
         expect.any(Function), // chunk-results emission
       );
     });
@@ -1955,7 +1956,7 @@ describe('processReferenceJob — unit commits (A3)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('checkpoints each completed unit — including empty ones — and stops at the failing unit', async () => {
-    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, onChunkResults) => {
+    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, onChunkResults) => {
       const t = String(types[0]);
       if (t === 'Person') {
         const items = [{ exact: 'Greeley', start: 0, end: 7, entityType: 'Person' }];
@@ -2096,7 +2097,7 @@ describe('chunk-grain emission — processors', () => {
 
   it('processReferenceJob emits per chunk; onUnitComplete is the checkpoint, carrying no annotations', async () => {
     vi.mocked(extractEntities).mockImplementation(
-      async (_c, _t, _cl, _i, _l, _sl, _onActivity, _verdicts, onChunkResults) => {
+      async (_c, _t, _cl, _i, _l, _sl, _onActivity, _verdicts, _counts, onChunkResults) => {
         await onChunkResults!([{ exact: 'important', entityType: 'Person' }] as never);
         await onChunkResults!([{ exact: 'critical', entityType: 'Person' }] as never);
         return [] as never;
@@ -2130,7 +2131,7 @@ describe('under-report verdicts on the terminal surface', () => {
   it('a floor-accepted piece surfaces on the unit entry and the result aggregate', async () => {
     vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
       const onUnderReport = args[7] as (v: unknown) => void;
-      const onChunkResults = args[8] as (i: unknown[]) => Promise<void>;
+      const onChunkResults = args[9] as (i: unknown[]) => Promise<void>;
       onUnderReport({ found: 1, counted: 4, pieceChars: 530 });
       await onChunkResults([{ exact: 'Paris', entityType: 'Location' }]);
       return [] as never;
@@ -2158,7 +2159,7 @@ describe('under-report verdicts on the terminal surface', () => {
       const onUnderReport = args[7] as (v: unknown) => void;
       onUnderReport({ found: 1, counted: 4, pieceChars: 530 });
       onUnderReport({ found: 2, counted: 9, pieceChars: 610 });
-      await (args[8] as (i: unknown[]) => Promise<void>)([]);
+      await (args[9] as (i: unknown[]) => Promise<void>)([]);
       return [] as never;
     });
     const progress = vi.fn();
@@ -2198,5 +2199,59 @@ describe('under-report verdicts on the terminal surface', () => {
       content, makeInferenceClient(), { resourceId: RID, density: 5 },
       textBuild(content), vi.fn(), cb));
     expect('underReportedPieces' in (result as unknown as Record<string, unknown>)).toBe(false);
+  });
+});
+
+// The denominator (RD5): the count-verifier's expectation, cumulative on the
+// progress surface, so the UI can draw "69 of ~290". Absent without a
+// verifying provider — no claim, not zero.
+describe('entitiesExpected on the progress surface', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  const content = 'Paris and Berlin and Rome';
+
+  it('accumulates count-verifier expectations across chunks and units', async () => {
+    vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
+      const onCounted = args[8] as (c: number) => void;
+      const onChunkResults = args[9] as (i: unknown[]) => Promise<void>;
+      onCounted(4);
+      await onChunkResults([{ exact: 'Paris', entityType: 'Location' }]);
+      onCounted(3);
+      await onChunkResults([]);
+      return [] as never;
+    });
+    const progress = vi.fn();
+
+    await processReferenceJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild(content), progress, LOGGER, async () => {}, undefined, async () => {},
+    );
+
+    const frames = progress.mock.calls.map((c) => c[2] as Record<string, unknown>);
+    const expectedSeen = frames.map((f) => f?.entitiesExpected).filter((v) => v !== undefined);
+    expect(expectedSeen.at(-1)).toBe(7);
+    // Cumulative, never shrinking.
+    for (let i = 1; i < expectedSeen.length; i++) {
+      expect(expectedSeen[i] as number).toBeGreaterThanOrEqual(expectedSeen[i - 1] as number);
+    }
+  });
+
+  it('absent when the provider does not verify — no claim, not zero', async () => {
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
+      { exact: 'Paris', entityType: 'Location' },
+    ] as never));
+    const progress = vi.fn();
+
+    await processReferenceJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild(content), progress, LOGGER, async () => {}, undefined, async () => {},
+    );
+
+    for (const call of progress.mock.calls) {
+      const frame = call[2] as Record<string, unknown> | undefined;
+      expect(frame && 'entitiesExpected' in frame ? frame.entitiesExpected : undefined).toBeUndefined();
+    }
   });
 });

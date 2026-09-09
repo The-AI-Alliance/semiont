@@ -559,6 +559,9 @@ export async function processReferenceJob(
   let totalEmitted = 0;
   let errors = 0;
   let totalUnderReportedPieces = 0;
+  // The denominator: cumulative count-verifier expectations over accepted
+  // pieces. Zero means no piece was priced — the frame then carries nothing.
+  let totalExpected = 0;
 
   onProgress(10, { code: 'loading' }, { requestParams });
 
@@ -585,6 +588,7 @@ export async function processReferenceJob(
       processed: completed,
       total,
       entitiesFound: totalFound,
+      ...(totalExpected > 0 ? { entitiesExpected: totalExpected } : {}),
       entitiesEmitted: totalEmitted,
       completedItems: [...completedItems],
       requestParams,
@@ -635,6 +639,10 @@ export async function processReferenceJob(
           counted: (underReported?.counted ?? 0) + verdict.counted,
         };
       },
+      (counted) => {
+        totalExpected += counted;
+        emitTypeProgress(entityTypeName);
+      },
       async (chunkEntities) => {
         unitFound += chunkEntities.length;
         const built: Annotation[] = [];
@@ -684,6 +692,7 @@ export async function processReferenceJob(
   // each unit, so the LAST unit's entry — and on a single-type job, every
   // entry — was never reported anywhere (DETECTION-QUALITY-THROUGHPUT P1).
   onProgress(100, { code: 'complete-created', count: totalEmitted, kind: 'reference' }, {
+    ...(totalExpected > 0 ? { entitiesExpected: totalExpected } : {}),
     completedItems: [...completedItems],
     requestParams,
   });

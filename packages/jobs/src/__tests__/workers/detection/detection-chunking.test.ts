@@ -333,6 +333,59 @@ describe('callChunkSubdividing', () => {
     expect(calls.length).toBeGreaterThan(1); // it descended rather than propagating
   });
 
+  // ── The denominator: accepted pieces report their count (RD5) ───────────
+  //
+  // The count-verifier already prices every verified piece; the denominator is
+  // those counts, summed over pieces whose results were ACCEPTED. A flagged
+  // piece that descends contributes nothing — its children's counts replace
+  // it — or the denominator double-counts the text it re-reads.
+  describe('accepted pieces report their count', () => {
+    it('every successful piece with a count reports it', async () => {
+      const counts: number[] = [];
+      const result = await callChunkSubdividing('reference', CHUNK, CHUNKING,
+        async () => ({ items: ['a', 'b'], counted: 7 }),
+        undefined, undefined, (c) => { counts.push(c); });
+      expect(result).toEqual(['a', 'b']);
+      expect(counts).toEqual([7]);
+    });
+
+    it('a piece without a count reports nothing', async () => {
+      const counts: number[] = [];
+      await callChunkSubdividing('reference', CHUNK, CHUNKING,
+        async () => ({ items: ['a'] }),
+        undefined, undefined, (c) => { counts.push(c); });
+      expect(counts).toEqual([]);
+    });
+
+    it('a flagged piece that descends is replaced by its children — no double count', async () => {
+      let first = true;
+      const counts: number[] = [];
+      await callChunkSubdividing('reference', CHUNK, CHUNKING, async (piece) => {
+        if (first) {
+          first = false;
+          throw new YieldCollapseError('found 1 of 50', [], { found: 1, counted: 50, pieceChars: piece.length });
+        }
+        return { items: [piece.length], counted: 5 };
+      }, undefined, undefined, (c) => { counts.push(c); });
+      expect(counts.length).toBeGreaterThan(1);   // one per child piece
+      expect(counts).not.toContain(50);            // the discarded flag's count
+      expect(counts.every((c) => c === 5)).toBe(true);
+    });
+
+    it('a floor acceptance reports the verdict count — the salvage was accepted, so its expectation stands', async () => {
+      const tiny = 'word '.repeat(20);
+      const counts: number[] = [];
+      const reported: unknown[] = [];
+      const result = await callChunkSubdividing<string>(
+        'reference', tiny, { chunkSize: 1_000, overlap: 16 },
+        async () => { throw new YieldCollapseError('found 1 of 4', ['kept'], { found: 1, counted: 4, pieceChars: tiny.length }); },
+        undefined, (v) => { reported.push(v); }, (c) => { counts.push(c); });
+      expect(result).toEqual(['kept']);
+      expect(counts).toEqual([4]);
+      expect(reported).toHaveLength(1);
+    });
+  });
+
   // ── The verdict reaches the caller (DETECTION-END-STATES P1) ────────────
   //
   // The floor acceptance is the one place an under-report becomes RESULT
