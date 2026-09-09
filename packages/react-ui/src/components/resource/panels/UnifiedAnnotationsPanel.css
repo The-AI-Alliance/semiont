@@ -127,31 +127,3 @@
 }
 
 /* Motivation-specific detection styles moved to /styles/motivations/*.css */
-/* RD4 completeness badge (DETECTION-RESULT-STREAMING P3): the settled verdict
-   of the last assist run, keyed to the tab it ran for. */
-.semiont-unified-panel__completeness {
-  margin: 0.5rem var(--semiont-panel-padding) 0;
-  padding: 0.25rem 0.6rem;
-  border-radius: 9999px;
-  border: 1px solid currentColor;
-  font-size: 0.75rem;
-  width: fit-content;
-}
-
-.semiont-unified-panel__completeness[data-verdict="clean"] {
-  color: var(--semiont-color-success-dark);
-}
-
-.semiont-unified-panel__completeness[data-verdict="under-reported"],
-.semiont-unified-panel__completeness[data-verdict="incomplete"] {
-  color: var(--semiont-color-warning-dark);
-}
-
-[data-theme="dark"] .semiont-unified-panel__completeness[data-verdict="clean"] {
-  color: var(--semiont-color-success-light);
-}
-
-[data-theme="dark"] .semiont-unified-panel__completeness[data-verdict="under-reported"],
-[data-theme="dark"] .semiont-unified-panel__completeness[data-verdict="incomplete"] {
-  color: var(--semiont-color-warning-light);
-}

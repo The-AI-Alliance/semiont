@@ -225,10 +225,7 @@
     "comment": "Kommentarer",
     "tag": "Tags",
     "annotationsFailed": "Annoteringerne kunne ikke indlæses.",
-    "retry": "Prøv igen",
-    "completenessClean": "Detektion fuldført",
-    "completenessUnderReported": "Delvist detekteret — nogle dele underrapporteret",
-    "completenessIncomplete": "Delvist detekteret — kørslen blev ikke færdig"
+    "retry": "Prøv igen"
   },
   "StatisticsPanel": {
     "title": "Statistik",
@@ -492,6 +489,8 @@
     "decline_encrypted": "Denne PDF er adgangskodebeskyttet, så teksten kan ikke læses.",
     "decline_corrupt": "Denne PDF kunne ikke læses — filen er måske beskadiget.",
     "decline_too-large": "Dette dokument er for stort til at udtrække tekst fra.",
-    "decline_empty": "Dette dokument har ingen tekst at annotere."
+    "decline_empty": "Dette dokument har ingen tekst at annotere.",
+    "annotationCompletePartial": "Detektion afsluttet ufuldstændigt — {{pieces}} del(e) underrapporteret",
+    "annotationFailedPartial": "Detektion mislykkedes — fund fra {{kept}} fuldførte typer blev bevaret"
   }
 }

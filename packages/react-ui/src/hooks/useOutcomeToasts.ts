@@ -87,14 +87,30 @@ export function useOutcomeToasts(resourceId: string): void {
         // `decline_no-text-layer` etc. — the code IS the key suffix, so a new
         // reason on the wire needs copy and the translations gate says so.
         showInfo(t(`decline_${reason}`));
+      } else if (event.result?.kind === 'reference-annotation' && event.result.underReportedPieces !== undefined) {
+        // RD4 on the ephemeral surface: the run finished but the count-verifier
+        // accepted under-reported pieces. Info, not success — and only when the
+        // wire SAYS so: absence is the emitter's mutation-proven claim of
+        // cleanliness, never re-derived here.
+        showInfo(t('annotationCompletePartial', { pieces: event.result.underReportedPieces }));
       } else {
         showSuccess(t('annotationComplete'));
       }
     },
     'job:fail': (event) => {
       if (event.resourceId !== resourceId) return;
+      // A failure the queue will retry is "a setback, not an ending"
+      // (JOB-RESTART-SAFETY P5): the run continues on a fresh attempt and the
+      // progress display stays live. An error toast here reported a
+      // recovering run as a failed one.
+      if (event.willRetry === true) return;
       if (event.jobType === 'generation') {
         showError(t('generationFailed', { detail: event.error }));
+      } else if (event.completedUnits && event.completedUnits.length > 0) {
+        // RD4: the terminal failure left durable finds standing (partial
+        // results STAND — retraction is rejected). Say so, so the annotations
+        // on screen are not mistaken for a complete run's.
+        showError(t('annotationFailedPartial', { kept: event.completedUnits.length }));
       } else {
         showError(event.error || t('annotationFailed'));
       }

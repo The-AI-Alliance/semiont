@@ -225,10 +225,7 @@
     "comment": "Commenti",
     "tag": "Etichette",
     "annotationsFailed": "Impossibile caricare le annotazioni.",
-    "retry": "Riprova",
-    "completenessClean": "Rilevamento completato",
-    "completenessUnderReported": "Rilevamento parziale — alcune parti sottostimate",
-    "completenessIncomplete": "Rilevamento parziale — l'esecuzione non è terminata"
+    "retry": "Riprova"
   },
   "StatisticsPanel": {
     "title": "Statistiche",
@@ -492,6 +489,8 @@
     "decline_encrypted": "Questo PDF è protetto da password e il testo non è leggibile.",
     "decline_corrupt": "Impossibile leggere questo PDF — il file potrebbe essere danneggiato.",
     "decline_too-large": "Questo documento è troppo grande per estrarne il testo.",
-    "decline_empty": "Questo documento non contiene testo da annotare."
+    "decline_empty": "Questo documento non contiene testo da annotare.",
+    "annotationCompletePartial": "Rilevamento terminato in modo incompleto — {{pieces}} parte/i sottostimate",
+    "annotationFailedPartial": "Rilevamento non riuscito — i risultati di {{kept}} tipi completati sono stati conservati"
   }
 }

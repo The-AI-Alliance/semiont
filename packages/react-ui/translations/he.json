@@ -225,10 +225,7 @@
     "comment": "תגובות",
     "tag": "תגיות",
     "annotationsFailed": "לא ניתן לטעון את ההערות.",
-    "retry": "נסה שוב",
-    "completenessClean": "הזיהוי הושלם",
-    "completenessUnderReported": "זיהוי חלקי — חלקים מסוימים דווחו בחסר",
-    "completenessIncomplete": "זיהוי חלקי — הריצה לא הסתיימה"
+    "retry": "נסה שוב"
   },
   "StatisticsPanel": {
     "title": "סטטיסטיקה",
@@ -492,6 +489,8 @@
     "decline_encrypted": "קובץ PDF זה מוגן בסיסמה ולא ניתן לקרוא את הטקסט.",
     "decline_corrupt": "לא ניתן היה לקרוא קובץ PDF זה — ייתכן שהקובץ פגום.",
     "decline_too-large": "מסמך זה גדול מדי לחילוץ טקסט.",
-    "decline_empty": "במסמך זה אין טקסט להערה."
+    "decline_empty": "במסמך זה אין טקסט להערה.",
+    "annotationCompletePartial": "הזיהוי הסתיים באופן חלקי — {{pieces}} חלקים דווחו בחסר",
+    "annotationFailedPartial": "הזיהוי נכשל — הממצאים מ-{{kept}} סוגים שהושלמו נשמרו"
   }
 }

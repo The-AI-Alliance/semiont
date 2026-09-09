@@ -225,10 +225,7 @@
     "comment": "Yorumlar",
     "tag": "Etiketler",
     "annotationsFailed": "Açıklamalar yüklenemedi.",
-    "retry": "Tekrar dene",
-    "completenessClean": "Algılama tamamlandı",
-    "completenessUnderReported": "Kısmen algılandı — bazı bölümler eksik raporlandı",
-    "completenessIncomplete": "Kısmen algılandı — çalışma tamamlanmadı"
+    "retry": "Tekrar dene"
   },
   "StatisticsPanel": {
     "title": "İstatistikler",
@@ -492,6 +489,8 @@
     "decline_encrypted": "Bu PDF parola korumalı, metni okunamıyor.",
     "decline_corrupt": "Bu PDF okunamadı — dosya bozuk olabilir.",
     "decline_too-large": "Bu belge metin çıkarmak için fazla büyük.",
-    "decline_empty": "Bu belgede açıklama eklenecek metin yok."
+    "decline_empty": "Bu belgede açıklama eklenecek metin yok.",
+    "annotationCompletePartial": "Algılama eksik tamamlandı — {{pieces}} bölüm eksik raporlandı",
+    "annotationFailedPartial": "Algılama başarısız — tamamlanan {{kept}} türün bulguları korundu"
   }
 }

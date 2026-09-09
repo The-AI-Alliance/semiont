@@ -225,10 +225,7 @@
     "comment": "Komentáře",
     "tag": "Štítky",
     "annotationsFailed": "Anotace se nepodařilo načíst.",
-    "retry": "Zkusit znovu",
-    "completenessClean": "Detekce dokončena",
-    "completenessUnderReported": "Částečně detekováno — některé části podhodnoceny",
-    "completenessIncomplete": "Částečně detekováno — běh nebyl dokončen"
+    "retry": "Zkusit znovu"
   },
   "StatisticsPanel": {
     "title": "Statistiky",
@@ -492,6 +489,8 @@
     "decline_encrypted": "Toto PDF je chráněno heslem, jeho text nelze přečíst.",
     "decline_corrupt": "Toto PDF nebylo možné přečíst — soubor může být poškozen.",
     "decline_too-large": "Tento dokument je příliš velký na extrakci textu.",
-    "decline_empty": "Tento dokument neobsahuje text k anotaci."
+    "decline_empty": "Tento dokument neobsahuje text k anotaci.",
+    "annotationCompletePartial": "Detekce skončila neúplně — {{pieces}} část(í) podhodnoceno",
+    "annotationFailedPartial": "Detekce selhala — nálezy z {{kept}} dokončených typů zůstaly"
   }
 }

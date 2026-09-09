@@ -225,10 +225,7 @@
     "comment": "评论",
     "tag": "标签",
     "annotationsFailed": "无法加载注释。",
-    "retry": "重试",
-    "completenessClean": "检测完成",
-    "completenessUnderReported": "部分检测 — 某些部分报告不足",
-    "completenessIncomplete": "部分检测 — 运行未完成"
+    "retry": "重试"
   },
   "StatisticsPanel": {
     "title": "统计",
@@ -492,6 +489,8 @@
     "decline_encrypted": "此 PDF 受密码保护，无法读取其文本。",
     "decline_corrupt": "无法读取此 PDF — 文件可能已损坏。",
     "decline_too-large": "此文档过大，无法提取文本。",
-    "decline_empty": "此文档没有可批注的文本。"
+    "decline_empty": "此文档没有可批注的文本。",
+    "annotationCompletePartial": "检测未完整结束 — {{pieces}} 个部分报告不足",
+    "annotationFailedPartial": "检测失败 — 已保留 {{kept}} 个已完成类型的结果"
   }
 }

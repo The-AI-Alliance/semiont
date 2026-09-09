@@ -225,10 +225,7 @@
     "comment": "التعليقات",
     "tag": "العلامات",
     "annotationsFailed": "تعذّر تحميل التعليقات التوضيحية.",
-    "retry": "إعادة المحاولة",
-    "completenessClean": "اكتمل الكشف",
-    "completenessUnderReported": "كشف جزئي — بعض الأجزاء ناقصة الإبلاغ",
-    "completenessIncomplete": "كشف جزئي — لم تكتمل العملية"
+    "retry": "إعادة المحاولة"
   },
   "StatisticsPanel": {
     "title": "الإحصائيات",
@@ -492,6 +489,8 @@
     "decline_encrypted": "هذا الملف محمي بكلمة مرور، ولا يمكن قراءة نصه.",
     "decline_corrupt": "تعذّرت قراءة هذا الملف — قد يكون تالفًا.",
     "decline_too-large": "هذا المستند أكبر من أن يُستخرج نصه.",
-    "decline_empty": "لا يحتوي هذا المستند على نص لتوسيمه."
+    "decline_empty": "لا يحتوي هذا المستند على نص لتوسيمه.",
+    "annotationCompletePartial": "اكتمل الكشف جزئيًا — {{pieces}} جزء ناقص الإبلاغ",
+    "annotationFailedPartial": "فشل الكشف — تم الاحتفاظ بنتائج {{kept}} نوع مكتمل"
   }
 }

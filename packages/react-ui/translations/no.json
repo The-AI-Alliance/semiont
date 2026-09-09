@@ -225,10 +225,7 @@
     "comment": "Kommentarer",
     "tag": "Merker",
     "annotationsFailed": "Kunne ikke laste annoteringene.",
-    "retry": "Prøv igjen",
-    "completenessClean": "Deteksjon fullført",
-    "completenessUnderReported": "Delvis detektert — noen deler underrapportert",
-    "completenessIncomplete": "Delvis detektert — kjøringen ble ikke fullført"
+    "retry": "Prøv igjen"
   },
   "StatisticsPanel": {
     "title": "Statistikk",
@@ -492,6 +489,8 @@
     "decline_encrypted": "Denne PDF-en er passordbeskyttet, så teksten kan ikke leses.",
     "decline_corrupt": "Denne PDF-en kunne ikke leses — filen kan være skadet.",
     "decline_too-large": "Dette dokumentet er for stort til å hente ut tekst fra.",
-    "decline_empty": "Dette dokumentet har ingen tekst å merke."
+    "decline_empty": "Dette dokumentet har ingen tekst å merke.",
+    "annotationCompletePartial": "Deteksjon fullført ufullstendig — {{pieces}} del(er) underrapportert",
+    "annotationFailedPartial": "Deteksjon mislyktes — funn fra {{kept}} fullførte typer ble beholdt"
   }
 }

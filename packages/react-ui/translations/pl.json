@@ -225,10 +225,7 @@
     "comment": "Komentarze",
     "tag": "Tagi",
     "annotationsFailed": "Nie można załadować adnotacji.",
-    "retry": "Spróbuj ponownie",
-    "completenessClean": "Wykrywanie zakończone",
-    "completenessUnderReported": "Wykryto częściowo — część fragmentów niedoraportowana",
-    "completenessIncomplete": "Wykryto częściowo — przebieg nie został ukończony"
+    "retry": "Spróbuj ponownie"
   },
   "StatisticsPanel": {
     "title": "Statystyki",
@@ -492,6 +489,8 @@
     "decline_encrypted": "Ten PDF jest chroniony hasłem, tekstu nie można odczytać.",
     "decline_corrupt": "Nie udało się odczytać tego PDF-a — plik może być uszkodzony.",
     "decline_too-large": "Ten dokument jest zbyt duży, aby wyodrębnić tekst.",
-    "decline_empty": "Ten dokument nie zawiera tekstu do adnotacji."
+    "decline_empty": "Ten dokument nie zawiera tekstu do adnotacji.",
+    "annotationCompletePartial": "Wykrywanie zakończone niekompletnie — {{pieces}} fragment(ów) niedoraportowanych",
+    "annotationFailedPartial": "Wykrywanie nie powiodło się — wyniki z {{kept}} ukończonych typów zachowano"
   }
 }

@@ -225,10 +225,7 @@
     "comment": "Commentaires",
     "tag": "Étiquettes",
     "annotationsFailed": "Impossible de charger les annotations.",
-    "retry": "Réessayer",
-    "completenessClean": "Détection terminée",
-    "completenessUnderReported": "Détection partielle — certaines parties sous-déclarées",
-    "completenessIncomplete": "Détection partielle — l'exécution ne s'est pas terminée"
+    "retry": "Réessayer"
   },
   "StatisticsPanel": {
     "title": "Statistiques",
@@ -492,6 +489,8 @@
     "decline_encrypted": "Ce PDF est protégé par mot de passe, son texte est illisible.",
     "decline_corrupt": "Ce PDF n’a pas pu être lu — le fichier est peut-être endommagé.",
     "decline_too-large": "Ce document est trop volumineux pour en extraire le texte.",
-    "decline_empty": "Ce document ne contient aucun texte à annoter."
+    "decline_empty": "Ce document ne contient aucun texte à annoter.",
+    "annotationCompletePartial": "Détection terminée incomplète — {{pieces}} partie(s) sous-déclarée(s)",
+    "annotationFailedPartial": "Échec de la détection — les résultats de {{kept}} type(s) terminés ont été conservés"
   }
 }

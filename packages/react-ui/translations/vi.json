@@ -225,10 +225,7 @@
     "comment": "Bình luận",
     "tag": "Thẻ",
     "annotationsFailed": "Không thể tải chú thích.",
-    "retry": "Thử lại",
-    "completenessClean": "Phát hiện hoàn tất",
-    "completenessUnderReported": "Phát hiện một phần — một số phần bị báo cáo thiếu",
-    "completenessIncomplete": "Phát hiện một phần — quá trình chưa hoàn thành"
+    "retry": "Thử lại"
   },
   "StatisticsPanel": {
     "title": "Thống kê",
@@ -492,6 +489,8 @@
     "decline_encrypted": "PDF này được bảo vệ bằng mật khẩu nên không đọc được văn bản.",
     "decline_corrupt": "Không đọc được PDF này — tệp có thể bị hỏng.",
     "decline_too-large": "Tài liệu này quá lớn để trích xuất văn bản.",
-    "decline_empty": "Tài liệu này không có văn bản để chú thích."
+    "decline_empty": "Tài liệu này không có văn bản để chú thích.",
+    "annotationCompletePartial": "Phát hiện kết thúc không đầy đủ — {{pieces}} phần bị báo cáo thiếu",
+    "annotationFailedPartial": "Phát hiện thất bại — kết quả từ {{kept}} loại đã hoàn thành được giữ lại"
   }
 }

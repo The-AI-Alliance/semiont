@@ -225,10 +225,7 @@
     "comment": "Comentarii",
     "tag": "Etichete",
     "annotationsFailed": "Nu s-au putut încărca adnotările.",
-    "retry": "Încearcă din nou",
-    "completenessClean": "Detectare completă",
-    "completenessUnderReported": "Detectare parțială — unele părți subraportate",
-    "completenessIncomplete": "Detectare parțială — rularea nu s-a încheiat"
+    "retry": "Încearcă din nou"
   },
   "StatisticsPanel": {
     "title": "Statistici",
@@ -492,6 +489,8 @@
     "decline_encrypted": "Acest PDF este protejat prin parolă, textul nu poate fi citit.",
     "decline_corrupt": "Acest PDF nu a putut fi citit — fișierul poate fi deteriorat.",
     "decline_too-large": "Acest document este prea mare pentru extragerea textului.",
-    "decline_empty": "Acest document nu are text de adnotat."
+    "decline_empty": "Acest document nu are text de adnotat.",
+    "annotationCompletePartial": "Detectarea s-a încheiat incomplet — {{pieces}} părți subraportate",
+    "annotationFailedPartial": "Detectarea a eșuat — rezultatele din {{kept}} tipuri finalizate au fost păstrate"
   }
 }

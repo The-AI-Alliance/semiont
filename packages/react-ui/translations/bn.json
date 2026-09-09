@@ -225,10 +225,7 @@
     "comment": "মন্তব্যসমূহ",
     "tag": "ট্যাগসমূহ",
     "annotationsFailed": "টীকা লোড করা যায়নি।",
-    "retry": "আবার চেষ্টা করুন",
-    "completenessClean": "শনাক্তকরণ সম্পূর্ণ",
-    "completenessUnderReported": "আংশিক শনাক্ত — কিছু অংশ কম রিপোর্ট হয়েছে",
-    "completenessIncomplete": "আংশিক শনাক্ত — প্রক্রিয়াটি শেষ হয়নি"
+    "retry": "আবার চেষ্টা করুন"
   },
   "StatisticsPanel": {
     "title": "পরিসংখ্যান",
@@ -492,6 +489,8 @@
     "decline_encrypted": "এই PDF পাসওয়ার্ড-সুরক্ষিত, লেখা পড়া যাচ্ছে না।",
     "decline_corrupt": "এই PDF পড়া যায়নি — ফাইলটি ক্ষতিগ্রস্ত হতে পারে।",
     "decline_too-large": "এই নথিটি এত বড় যে লেখা বের করা যাচ্ছে না।",
-    "decline_empty": "এই নথিতে টীকা দেওয়ার মতো কোনো লেখা নেই।"
+    "decline_empty": "এই নথিতে টীকা দেওয়ার মতো কোনো লেখা নেই।",
+    "annotationCompletePartial": "শনাক্তকরণ অসম্পূর্ণভাবে শেষ হয়েছে — {{pieces}}টি অংশ কম রিপোর্ট হয়েছে",
+    "annotationFailedPartial": "শনাক্তকরণ ব্যর্থ — {{kept}}টি সম্পূর্ণ প্রকারের ফলাফল রাখা হয়েছে"
   }
 }

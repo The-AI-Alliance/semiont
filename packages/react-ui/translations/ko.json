@@ -225,10 +225,7 @@
     "comment": "댓글",
     "tag": "태그",
     "annotationsFailed": "주석을 불러올 수 없습니다.",
-    "retry": "다시 시도",
-    "completenessClean": "감지 완료",
-    "completenessUnderReported": "부분 감지 — 일부가 과소 보고됨",
-    "completenessIncomplete": "부분 감지 — 실행이 완료되지 않음"
+    "retry": "다시 시도"
   },
   "StatisticsPanel": {
     "title": "통계",
@@ -492,6 +489,8 @@
     "decline_encrypted": "이 PDF는 암호로 보호되어 텍스트를 읽을 수 없습니다.",
     "decline_corrupt": "이 PDF를 읽지 못했습니다 — 파일이 손상되었을 수 있습니다.",
     "decline_too-large": "이 문서는 너무 커서 텍스트를 추출할 수 없습니다.",
-    "decline_empty": "이 문서에는 주석을 달 텍스트가 없습니다."
+    "decline_empty": "이 문서에는 주석을 달 텍스트가 없습니다.",
+    "annotationCompletePartial": "감지가 불완전하게 끝났습니다 — {{pieces}}개 과소 보고됨",
+    "annotationFailedPartial": "감지 실패 — 완료된 {{kept}}개 유형의 결과는 유지됩니다"
   }
 }

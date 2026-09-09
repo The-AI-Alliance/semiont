@@ -225,10 +225,7 @@
     "comment": "Comentários",
     "tag": "Tags",
     "annotationsFailed": "Não foi possível carregar as anotações.",
-    "retry": "Tentar novamente",
-    "completenessClean": "Detecção concluída",
-    "completenessUnderReported": "Detecção parcial — algumas partes subnotificadas",
-    "completenessIncomplete": "Detecção parcial — a execução não terminou"
+    "retry": "Tentar novamente"
   },
   "StatisticsPanel": {
     "title": "Estatísticas",
@@ -492,6 +489,8 @@
     "decline_encrypted": "Este PDF está protegido por palavra-passe e o texto não pode ser lido.",
     "decline_corrupt": "Não foi possível ler este PDF — o ficheiro pode estar danificado.",
     "decline_too-large": "Este documento é demasiado grande para extrair texto.",
-    "decline_empty": "Este documento não tem texto para anotar."
+    "decline_empty": "Este documento não tem texto para anotar.",
+    "annotationCompletePartial": "Detecção terminou incompleta — {{pieces}} parte(s) subnotificadas",
+    "annotationFailedPartial": "Detecção falhou — os resultados de {{kept}} tipo(s) concluídos foram mantidos"
   }
 }
