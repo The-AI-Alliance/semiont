@@ -277,7 +277,8 @@
     "noText": "Ingen tekst",
     "incomingReferencesFailed": "Indgående referencer kunne ikke indlæses.",
     "retry": "Prøv igen",
-    "entityTypesFailed": "Enhedstyper kunne ikke indlæses."
+    "entityTypesFailed": "Enhedstyper kunne ikke indlæses.",
+    "tally": "{{found}} af ~{{expected}} entiteter"
   },
   "KeyboardShortcuts": {
     "title": "Tastaturgenveje",

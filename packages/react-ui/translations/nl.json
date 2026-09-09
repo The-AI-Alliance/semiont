@@ -277,7 +277,8 @@
     "noText": "Geen tekst",
     "incomingReferencesFailed": "Kan de inkomende referenties niet laden.",
     "retry": "Opnieuw proberen",
-    "entityTypesFailed": "Kan de entiteitstypen niet laden."
+    "entityTypesFailed": "Kan de entiteitstypen niet laden.",
+    "tally": "{{found}} van ~{{expected}} entiteiten"
   },
   "KeyboardShortcuts": {
     "title": "Sneltoetsen",

@@ -277,7 +277,8 @@
     "noText": "Nessun testo",
     "incomingReferencesFailed": "Impossibile caricare i riferimenti in entrata.",
     "retry": "Riprova",
-    "entityTypesFailed": "Impossibile caricare i tipi di entità."
+    "entityTypesFailed": "Impossibile caricare i tipi di entità.",
+    "tally": "{{found}} di ~{{expected}} entità"
   },
   "KeyboardShortcuts": {
     "title": "Scorciatoie da Tastiera",

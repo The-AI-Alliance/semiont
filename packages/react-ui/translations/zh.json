@@ -277,7 +277,8 @@
     "noText": "无文本",
     "incomingReferencesFailed": "无法加载传入引用。",
     "retry": "重试",
-    "entityTypesFailed": "无法加载实体类型。"
+    "entityTypesFailed": "无法加载实体类型。",
+    "tally": "约 {{expected}} 个实体中的 {{found}} 个"
   },
   "KeyboardShortcuts": {
     "title": "键盘快捷键",

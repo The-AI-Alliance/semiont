@@ -277,7 +277,8 @@
     "noText": "Ei tekstiä",
     "incomingReferencesFailed": "Saapuvia viitteitä ei voitu ladata.",
     "retry": "Yritä uudelleen",
-    "entityTypesFailed": "Entiteettityyppejä ei voitu ladata."
+    "entityTypesFailed": "Entiteettityyppejä ei voitu ladata.",
+    "tally": "{{found}} / ~{{expected}} entiteettiä"
   },
   "KeyboardShortcuts": {
     "title": "Pikanäppäimet",

@@ -277,7 +277,8 @@
     "noText": "Fără text",
     "incomingReferencesFailed": "Nu s-au putut încărca referințele primite.",
     "retry": "Încearcă din nou",
-    "entityTypesFailed": "Nu s-au putut încărca tipurile de entitate."
+    "entityTypesFailed": "Nu s-au putut încărca tipurile de entitate.",
+    "tally": "{{found}} din ~{{expected}} entități"
   },
   "KeyboardShortcuts": {
     "title": "Comenzi rapide de la tastatură",

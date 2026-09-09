@@ -277,7 +277,8 @@
     "noText": "कोई टेक्स्ट नहीं",
     "incomingReferencesFailed": "इनकमिंग संदर्भ लोड नहीं हो सके।",
     "retry": "पुनः प्रयास करें",
-    "entityTypesFailed": "इकाई प्रकार लोड नहीं हो सके।"
+    "entityTypesFailed": "इकाई प्रकार लोड नहीं हो सके।",
+    "tally": "~{{expected}} इकाइयों में से {{found}}"
   },
   "KeyboardShortcuts": {
     "title": "कीबोर्ड शॉर्टकट",

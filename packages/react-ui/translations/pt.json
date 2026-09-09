@@ -277,7 +277,8 @@
     "noText": "Sem texto",
     "incomingReferencesFailed": "Não foi possível carregar as referências recebidas.",
     "retry": "Tentar novamente",
-    "entityTypesFailed": "Não foi possível carregar os tipos de entidade."
+    "entityTypesFailed": "Não foi possível carregar os tipos de entidade.",
+    "tally": "{{found}} de ~{{expected}} entidades"
   },
   "KeyboardShortcuts": {
     "title": "Atalhos de Teclado",

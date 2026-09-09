@@ -277,7 +277,8 @@
     "noText": "Không có văn bản",
     "incomingReferencesFailed": "Không thể tải tham chiếu đến.",
     "retry": "Thử lại",
-    "entityTypesFailed": "Không thể tải loại thực thể."
+    "entityTypesFailed": "Không thể tải loại thực thể.",
+    "tally": "{{found}} trong ~{{expected}} thực thể"
   },
   "KeyboardShortcuts": {
     "title": "Phím tắt",

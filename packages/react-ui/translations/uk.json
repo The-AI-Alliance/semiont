@@ -277,7 +277,8 @@
     "noText": "Немає тексту",
     "incomingReferencesFailed": "Не вдалося завантажити вхідні посилання.",
     "retry": "Спробувати знову",
-    "entityTypesFailed": "Не вдалося завантажити типи сутностей."
+    "entityTypesFailed": "Не вдалося завантажити типи сутностей.",
+    "tally": "{{found}} з ~{{expected}} сутностей"
   },
   "KeyboardShortcuts": {
     "title": "Комбінації клавіш",

@@ -277,7 +277,8 @@
     "noText": "Ingen text",
     "incomingReferencesFailed": "Det gick inte att läsa in inkommande referenser.",
     "retry": "Försök igen",
-    "entityTypesFailed": "Det gick inte att läsa in entitetstyper."
+    "entityTypesFailed": "Det gick inte att läsa in entitetstyper.",
+    "tally": "{{found}} av ~{{expected}} entiteter"
   },
   "KeyboardShortcuts": {
     "title": "Tangentbordsgenvägar",

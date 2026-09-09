@@ -277,7 +277,8 @@
     "noText": "Metin yok",
     "incomingReferencesFailed": "Gelen referanslar yüklenemedi.",
     "retry": "Tekrar dene",
-    "entityTypesFailed": "Varlık türleri yüklenemedi."
+    "entityTypesFailed": "Varlık türleri yüklenemedi.",
+    "tally": "~{{expected}} varlıktan {{found}}"
   },
   "KeyboardShortcuts": {
     "title": "Klavye Kısayolları",

@@ -277,7 +277,8 @@
     "noText": "テキストなし",
     "incomingReferencesFailed": "受信リファレンスを読み込めませんでした。",
     "retry": "再試行",
-    "entityTypesFailed": "エンティティタイプを読み込めませんでした。"
+    "entityTypesFailed": "エンティティタイプを読み込めませんでした。",
+    "tally": "{{found}} / 約{{expected}} 件のエンティティ"
   },
   "KeyboardShortcuts": {
     "title": "キーボードショートカット",

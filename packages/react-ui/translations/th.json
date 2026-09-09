@@ -277,7 +277,8 @@
     "noText": "ไม่มีข้อความ",
     "incomingReferencesFailed": "ไม่สามารถโหลดการอ้างอิงขาเข้าได้",
     "retry": "ลองอีกครั้ง",
-    "entityTypesFailed": "ไม่สามารถโหลดประเภทเอนทิตีได้"
+    "entityTypesFailed": "ไม่สามารถโหลดประเภทเอนทิตีได้",
+    "tally": "{{found}} จากประมาณ {{expected}} เอนทิตี"
   },
   "KeyboardShortcuts": {
     "title": "ปุ่มลัดแป้นพิมพ์",

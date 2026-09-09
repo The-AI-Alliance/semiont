@@ -277,7 +277,8 @@
     "noText": "Žádný text",
     "incomingReferencesFailed": "Příchozí reference se nepodařilo načíst.",
     "retry": "Zkusit znovu",
-    "entityTypesFailed": "Typy entit se nepodařilo načíst."
+    "entityTypesFailed": "Typy entit se nepodařilo načíst.",
+    "tally": "{{found}} z ~{{expected}} entit"
   },
   "KeyboardShortcuts": {
     "title": "Klávesové zkratky",

@@ -277,7 +277,8 @@
     "noText": "Kein Text",
     "incomingReferencesFailed": "Eingehende Referenzen konnten nicht geladen werden.",
     "retry": "Erneut versuchen",
-    "entityTypesFailed": "Entitätstypen konnten nicht geladen werden."
+    "entityTypesFailed": "Entitätstypen konnten nicht geladen werden.",
+    "tally": "{{found}} von ~{{expected}} Entitäten"
   },
   "KeyboardShortcuts": {
     "title": "Tastenkombinationen",

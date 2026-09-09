@@ -277,7 +277,8 @@
     "noText": "Tidak ada teks",
     "incomingReferencesFailed": "Tidak dapat memuat referensi masuk.",
     "retry": "Coba lagi",
-    "entityTypesFailed": "Tidak dapat memuat tipe entitas."
+    "entityTypesFailed": "Tidak dapat memuat tipe entitas.",
+    "tally": "{{found}} dari ~{{expected}} entitas"
   },
   "KeyboardShortcuts": {
     "title": "Pintasan Keyboard",

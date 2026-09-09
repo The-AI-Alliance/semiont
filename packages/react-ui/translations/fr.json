@@ -277,7 +277,8 @@
     "noText": "Aucun texte",
     "incomingReferencesFailed": "Impossible de charger les références entrantes.",
     "retry": "Réessayer",
-    "entityTypesFailed": "Impossible de charger les types d'entité."
+    "entityTypesFailed": "Impossible de charger les types d'entité.",
+    "tally": "{{found}} sur ~{{expected}} entités"
   },
   "KeyboardShortcuts": {
     "title": "Raccourcis clavier",

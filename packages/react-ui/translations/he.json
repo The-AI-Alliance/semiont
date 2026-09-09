@@ -277,7 +277,8 @@
     "noText": "אין טקסט",
     "incomingReferencesFailed": "לא ניתן לטעון את ההפניות הנכנסות.",
     "retry": "נסה שוב",
-    "entityTypesFailed": "לא ניתן לטעון את סוגי הישויות."
+    "entityTypesFailed": "לא ניתן לטעון את סוגי הישויות.",
+    "tally": "{{found}} מתוך ~{{expected}} ישויות"
   },
   "KeyboardShortcuts": {
     "title": "קיצורי מקלדת",

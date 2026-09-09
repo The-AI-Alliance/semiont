@@ -277,7 +277,8 @@
     "noText": "Brak tekstu",
     "incomingReferencesFailed": "Nie można załadować przychodzących referencji.",
     "retry": "Spróbuj ponownie",
-    "entityTypesFailed": "Nie można załadować typów encji."
+    "entityTypesFailed": "Nie można załadować typów encji.",
+    "tally": "{{found}} z ~{{expected}} encji"
   },
   "KeyboardShortcuts": {
     "title": "Skróty klawiszowe",

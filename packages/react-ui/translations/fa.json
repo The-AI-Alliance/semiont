@@ -277,7 +277,8 @@
     "noText": "بدون متن",
     "incomingReferencesFailed": "بارگذاری ارجاعات ورودی ممکن نشد.",
     "retry": "تلاش مجدد",
-    "entityTypesFailed": "بارگذاری انواع موجودیت ممکن نشد."
+    "entityTypesFailed": "بارگذاری انواع موجودیت ممکن نشد.",
+    "tally": "{{found}} از ~{{expected}} موجودیت"
   },
   "KeyboardShortcuts": {
     "title": "میانبرهای صفحه‌کلید",

@@ -277,7 +277,8 @@
     "noText": "Tiada teks",
     "incomingReferencesFailed": "Tidak dapat memuatkan rujukan masuk.",
     "retry": "Cuba lagi",
-    "entityTypesFailed": "Tidak dapat memuatkan jenis entiti."
+    "entityTypesFailed": "Tidak dapat memuatkan jenis entiti.",
+    "tally": "{{found}} daripada ~{{expected}} entiti"
   },
   "KeyboardShortcuts": {
     "title": "Pintasan Papan Kekunci",

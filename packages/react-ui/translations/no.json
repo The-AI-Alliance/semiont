@@ -277,7 +277,8 @@
     "noText": "Ingen tekst",
     "incomingReferencesFailed": "Kunne ikke laste innkommende referanser.",
     "retry": "Prøv igjen",
-    "entityTypesFailed": "Kunne ikke laste entitetstyper."
+    "entityTypesFailed": "Kunne ikke laste entitetstyper.",
+    "tally": "{{found}} av ~{{expected}} entiteter"
   },
   "KeyboardShortcuts": {
     "title": "Tastatursnarveier",
