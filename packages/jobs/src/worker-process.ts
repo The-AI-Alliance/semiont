@@ -548,12 +548,12 @@ async function handleJobInner(
   };
 
   if (jobType === 'highlight-annotation') {
-    const { annotations, result } = await processHighlightJob(
+    const { result } = await processHighlightJob(
       ready!.text, inferenceClient, asJobParams<HighlightDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
+      // The durability write, per chunk, awaited; folds into the terminal
+      // durability evidence like every commit.
+      async (annotations) => { record(await commitAnnotations(session, String(resourceId), annotations)); },
     );
-    // Durable before the job claims success: `job:complete` after a lost batch
-    // is the silent-loss shape P6 removes.
-    record(await commitAnnotations(session, String(resourceId), annotations));
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
       result,
@@ -561,12 +561,12 @@ async function handleJobInner(
     adapter.completeJob();
 
   } else if (jobType === 'comment-annotation') {
-    const { annotations, result } = await processCommentJob(
+    const { result } = await processCommentJob(
       ready!.text, inferenceClient, asJobParams<CommentDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
+      // The durability write, per chunk, awaited; folds into the terminal
+      // durability evidence like every commit.
+      async (annotations) => { record(await commitAnnotations(session, String(resourceId), annotations)); },
     );
-    // Durable before the job claims success: `job:complete` after a lost batch
-    // is the silent-loss shape P6 removes.
-    record(await commitAnnotations(session, String(resourceId), annotations));
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
       result,
@@ -574,12 +574,12 @@ async function handleJobInner(
     adapter.completeJob();
 
   } else if (jobType === 'assessment-annotation') {
-    const { annotations, result } = await processAssessmentJob(
+    const { result } = await processAssessmentJob(
       ready!.text, inferenceClient, asJobParams<AssessmentDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
+      // The durability write, per chunk, awaited; folds into the terminal
+      // durability evidence like every commit.
+      async (annotations) => { record(await commitAnnotations(session, String(resourceId), annotations)); },
     );
-    // Durable before the job claims success: `job:complete` after a lost batch
-    // is the silent-loss shape P6 removes.
-    record(await commitAnnotations(session, String(resourceId), annotations));
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
       result,
@@ -604,36 +604,24 @@ async function handleJobInner(
 
     const { result } = await processReferenceJob(
       ready!.text, inferenceClient, remaining, ready!.buildAnnotation, onProgress, config.logger,
-      async (unit, annotations) => {
-        // Gate the unit on DURABILITY, not on emission (JOB-RESTART-SAFETY P6).
-        //
-        // `emitEvent` resolves when the bus accepts the command, which says
-        // nothing about the event log. Advancing on that is how a down
-        // Archivist lost a whole unit silently — and how a flapping one hung
-        // the worker forever, waiting on a confirmation nothing was going to
-        // send. `mark:commit` answers only after every annotation is appended,
-        // and busRequest bounds the wait, so an outage becomes a retryable
-        // failure instead of either.
-        //
-        // The retry is safe to repeat whole: ids are deterministic (P3) and
-        // the annotation fold is idempotent by id, so re-committing the
-        // fraction that already landed changes nothing. That is required, not
-        // belt-and-braces — the ack itself can be lost after a successful
-        // append, so at-least-once is unavoidable here.
-        record(await commitAnnotations(session, String(resourceId), annotations));
+      async (unit) => {
+        // By the time this fires, every chunk of the unit has committed
+        // through the awaited callback below — the checkpoint trails the log,
+        // never leads it. Durable so a crashed worker's retry skips the unit
+        // (the janitor recovers a job that already records it); the in-memory
+        // `committed` still feeds the job:fail payload on a clean failure. A
+        // unit failing mid-stream never reaches here; its landed chunks
+        // re-commit on retry into a log that dedupes by id.
         committed.push(unit);
-        // Durable checkpoint the moment the unit lands (JOB-RESTART-SAFETY
-        // P2): if this worker dies before the next unit — or before any
-        // job:fail — the janitor recovers a job that already records this
-        // unit, so the retry skips it. The in-memory `committed` still
-        // feeds the job:fail payload on a clean failure; this makes the
-        // crash path durable too.
         await emitEvent(session, 'job:checkpoint', {
           jobId: job.jobId,
           completedUnits: [...committed],
         });
       },
       signal,
+      // The durability write, per chunk, awaited; folds into the terminal
+      // durability evidence like every commit.
+      async (annotations) => { record(await commitAnnotations(session, String(resourceId), annotations)); },
     );
     // Cooperative cancellation (JOB-RESTART-SAFETY P4): the loop stopped
     // because a cancel was requested for this job. Announce it so the queue
@@ -656,12 +644,12 @@ async function handleJobInner(
     adapter.completeJob();
 
   } else if (jobType === 'tag-annotation') {
-    const { annotations, result } = await processTagJob(
+    const { result } = await processTagJob(
       ready!.text, inferenceClient, asJobParams<TagDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
+      // The durability write, per chunk, awaited; folds into the terminal
+      // durability evidence like every commit.
+      async (annotations) => { record(await commitAnnotations(session, String(resourceId), annotations)); },
     );
-    // Durable before the job claims success: `job:complete` after a lost batch
-    // is the silent-loss shape P6 removes.
-    record(await commitAnnotations(session, String(resourceId), annotations));
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
       result,

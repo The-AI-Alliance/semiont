@@ -35,8 +35,8 @@ import type { TagSchema } from '@semiont/core';
  * scaffold (`buildPrompt('')`) — no literals. The prompt receives one chunk;
  * `parse` reconciles against the FULL document (the callers close over it),
  * so offsets index into the whole resource with no re-anchoring arithmetic.
- * Overlap duplicates pass through — the processor's span-keyed
- * `dedupeAnnotations` is the single dedupe point.
+ * Overlap duplicates pass through — the processor's span-keyed seen-set is
+ * the single dedupe point.
  *
  * `onActivity` fires whenever the detection is demonstrably alive: at each
  * chunk boundary (the count advances) AND periodically while one inference
@@ -53,6 +53,13 @@ async function detectInChunks<T>(
   elementSchema: ElementSchema,
   parse: (items: unknown[]) => T[],
   onActivity?: (completedChunks: number, totalChunks: number) => void,
+  /**
+   * This chunk's parsed matches, awaited before the loop continues: the
+   * caller commits them, and the loop must not run ahead of durability.
+   * Unlike `onActivity` (a liveness heartbeat, which may repeat), this fires
+   * exactly once per chunk, including the last.
+   */
+  onChunkResults?: (parsed: T[]) => Promise<void>,
 ): Promise<T[]> {
   const limits = await client.limits();
   const scaffoldTokens = estimateTokens(buildPrompt(''));
@@ -78,7 +85,9 @@ async function detectInChunks<T>(
       // beside what it yielded — the provider's own counts, not an estimate.
       return { items: response.items, ...(response.usage ? { usage: response.usage } : {}) };
     });
-    collected.push(...parse(items));
+    const fromChunk = parse(items);
+    collected.push(...fromChunk);
+    await onChunkResults?.(fromChunk);
     if (i < chunks.length - 1) {
       onActivity?.(i + 1, chunks.length);
     }
@@ -105,6 +114,8 @@ export class AnnotationDetection {
     language?: string,
     sourceLanguage?: string,
     onActivity?: (completedChunks: number, totalChunks: number) => void,
+    /** This chunk's matches, as the chunk completes. */
+    onChunkResults?: (matches: CommentMatch[]) => Promise<void>,
   ): Promise<CommentMatch[]> {
     return detectInChunks(
       client, content,
@@ -112,6 +123,7 @@ export class AnnotationDetection {
       'comment', COMMENT_ELEMENT_SCHEMA,
       (items) => MotivationParsers.parseComments(items, content),
       onActivity,
+      onChunkResults,
     );
   }
 
@@ -129,6 +141,8 @@ export class AnnotationDetection {
     density?: number,
     sourceLanguage?: string,
     onActivity?: (completedChunks: number, totalChunks: number) => void,
+    /** This chunk's matches, as the chunk completes. */
+    onChunkResults?: (matches: HighlightMatch[]) => Promise<void>,
   ): Promise<HighlightMatch[]> {
     return detectInChunks(
       client, content,
@@ -136,6 +150,7 @@ export class AnnotationDetection {
       'highlight', HIGHLIGHT_ELEMENT_SCHEMA,
       (items) => MotivationParsers.parseHighlights(items, content),
       onActivity,
+      onChunkResults,
     );
   }
 
@@ -155,6 +170,8 @@ export class AnnotationDetection {
     language?: string,
     sourceLanguage?: string,
     onActivity?: (completedChunks: number, totalChunks: number) => void,
+    /** This chunk's matches, as the chunk completes. */
+    onChunkResults?: (matches: AssessmentMatch[]) => Promise<void>,
   ): Promise<AssessmentMatch[]> {
     return detectInChunks(
       client, content,
@@ -162,6 +179,7 @@ export class AnnotationDetection {
       'assessment', ASSESSMENT_ELEMENT_SCHEMA,
       (items) => MotivationParsers.parseAssessments(items, content),
       onActivity,
+      onChunkResults,
     );
   }
 
@@ -184,6 +202,12 @@ export class AnnotationDetection {
     category: string,
     sourceLanguage?: string,
     onActivity?: (completedChunks: number, totalChunks: number) => void,
+    /**
+     * This chunk's matches, ANCHORED before they leave: `parse` here yields
+     * raw tags, so this path runs `validateTagOffsets` per chunk — a per-item
+     * anchor against the full document, so partitioning changes nothing.
+     */
+    onChunkResults?: (matches: TagMatch[]) => Promise<void>,
   ): Promise<TagMatch[]> {
     const categoryInfo = schema.tags.find((t) => t.name === category);
     if (!categoryInfo) {
@@ -206,6 +230,9 @@ export class AnnotationDetection {
       'tag', TAG_ELEMENT_SCHEMA,
       (items) => MotivationParsers.parseTags(items),
       onActivity,
+      onChunkResults
+        ? async (raw) => onChunkResults(MotivationParsers.validateTagOffsets(raw, content, category))
+        : undefined,
     );
     return MotivationParsers.validateTagOffsets(parsedTags, content, category);
   }

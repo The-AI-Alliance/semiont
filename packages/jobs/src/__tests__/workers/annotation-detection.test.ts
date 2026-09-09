@@ -449,6 +449,73 @@ describe('AnnotationDetection', () => {
       expect(result.some(h => h.exact === 'GAMMASPAN')).toBe(true);
     });
 
+    // `detectInChunks` is the shared loop for all four motivations, so
+    // pinning it here pins highlight, comment, assessment and tag together.
+    describe('chunk-grain emission', () => {
+      it('emits each chunk\'s matches as that chunk completes, not once at the end', async () => {
+        const client = new MockInferenceClient(
+          [highlight('ALPHASPAN'), highlight('GAMMASPAN')],
+          undefined,
+          SMALL_SHARED_LIMITS,
+        );
+        const emitted: string[][] = [];
+
+        await AnnotationDetection.detectHighlights(
+          bigContent, client, undefined, undefined, undefined, undefined,
+          async (matches) => { emitted.push(matches.map((m) => m.exact)); },
+        );
+
+        // One emission per chunk, each carrying only its own chunk's finds —
+        // and the LAST chunk's must be out too (a loop that emitted only
+        // between chunks, like the liveness heartbeat does, would drop it).
+        expect(emitted.length).toBeGreaterThan(1);
+        expect(emitted.flat()).toContain('ALPHASPAN');
+        expect(emitted.flat()).toContain('GAMMASPAN');
+        expect(emitted.every((e) => e.length <= 1)).toBe(true);
+      });
+
+      it('the TAG path emits ANCHORED matches, not raw spans', async () => {
+        // The one motivation whose `parse` yields raw tags; without the
+        // per-chunk anchoring the emitted objects carry no offsets and no
+        // category at all.
+        const client = new MockInferenceClient(
+          [highlight('ALPHASPAN'), highlight('GAMMASPAN')],
+          undefined,
+          SMALL_SHARED_LIMITS,
+        );
+        const emitted: any[] = [];
+
+        await AnnotationDetection.detectTags(
+          bigContent, client, IMRAD_SCHEMA, 'introduction', undefined, undefined,
+          async (matches) => { emitted.push(...matches); },
+        );
+
+        expect(emitted.length).toBeGreaterThan(0);
+        for (const m of emitted) {
+          expect(m.category).toBe('introduction');
+          expect(typeof m.start).toBe('number');
+          expect(typeof m.end).toBe('number');
+          // Anchored against the FULL document, not the chunk the model saw.
+          expect(bigContent.slice(m.start, m.end)).toBe(m.exact);
+        }
+      });
+
+      it('AWAITS the emission — a commit that fails fails the job', async () => {
+        const client = new MockInferenceClient(
+          [highlight('ALPHASPAN'), highlight('GAMMASPAN')],
+          undefined,
+          SMALL_SHARED_LIMITS,
+        );
+
+        await expect(
+          AnnotationDetection.detectHighlights(
+            bigContent, client, undefined, undefined, undefined, undefined,
+            async () => { throw new Error('mark:commit failed: sink down'); },
+          ),
+        ).rejects.toThrow(/sink down/);
+      });
+    });
+
     it('reconciles a late-chunk span to whole-document offsets', async () => {
       const client = new MockInferenceClient(
         [highlight('ALPHASPAN'), highlight('GAMMASPAN')],

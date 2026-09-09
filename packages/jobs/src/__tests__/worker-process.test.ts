@@ -244,6 +244,17 @@ function makeFakeSessionAndAdapter() {
   return { session, transportHandlers, adapter, busEmits, yieldResourceCalls, adapterCalls, commitSink, landed, probeSink };
 }
 
+/**
+ * Stub a motivation processor: annotations leave through the awaited
+ * chunk-commit callback (argument 5), the return carries only the result.
+ */
+const emitting = (r: { annotations: unknown[]; result: unknown }) =>
+  (async (...args: unknown[]) => {
+    const onChunkComplete = args[5] as (a: unknown[]) => Promise<void>;
+    await onChunkComplete(r.annotations);
+    return { result: r.result } as never;
+  }) as never;
+
 function makeConfig(session: SemiontSession): WorkerProcessConfig {
   return {
     session,
@@ -319,10 +330,10 @@ describe('handleJob orchestration', () => {
     });
 
     it('emits job:start, mark:create per annotation, then job:complete', async () => {
-      vi.mocked(processHighlightJob).mockResolvedValue({
+      vi.mocked(processHighlightJob).mockImplementation(emitting({
         annotations: [{ id: 'a1' }, { id: 'a2' }] as never,
         result: { highlightsFound: 2, highlightsCreated: 2 } as never,
-      });
+      }));
       const h = makeFakeSessionAndAdapter();
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
@@ -337,10 +348,10 @@ describe('handleJob orchestration', () => {
 
   describe('comment-annotation', () => {
     it('emits job:start, one mark:create, then job:complete', async () => {
-      vi.mocked(processCommentJob).mockResolvedValue({
+      vi.mocked(processCommentJob).mockImplementation(emitting({
         annotations: [{ id: 'c1' }] as never,
         result: { commentsFound: 1, commentsCreated: 1 } as never,
-      });
+      }));
       const h = makeFakeSessionAndAdapter();
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('comment-annotation'));
@@ -353,10 +364,10 @@ describe('handleJob orchestration', () => {
 
   describe('assessment-annotation', () => {
     it('emits job:start, mark:create per annotation, then job:complete', async () => {
-      vi.mocked(processAssessmentJob).mockResolvedValue({
+      vi.mocked(processAssessmentJob).mockImplementation(emitting({
         annotations: [{ id: 'a1' }] as never,
         result: { assessmentsFound: 1, assessmentsCreated: 1 } as never,
-      });
+      }));
       const h = makeFakeSessionAndAdapter();
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('assessment-annotation'));
@@ -373,10 +384,10 @@ describe('handleJob orchestration', () => {
 
   describe('tag-annotation', () => {
     it('emits job:start, mark:create per annotation, then job:complete', async () => {
-      vi.mocked(processTagJob).mockResolvedValue({
+      vi.mocked(processTagJob).mockImplementation(emitting({
         annotations: [{ id: 't1' }] as never,
         result: { tagsFound: 1, tagsCreated: 1 } as never,
-      });
+      }));
       const h = makeFakeSessionAndAdapter();
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('tag-annotation'));
@@ -798,10 +809,10 @@ describe('handleJob orchestration', () => {
       // past the compiler. It did: `userId` rode every job lifecycle emit
       // even though only `_userId` (gateway-injected) is declared. This
       // pins the payload shapes so the next one is caught here instead.
-      vi.mocked(processHighlightJob).mockResolvedValue({
+      vi.mocked(processHighlightJob).mockImplementation(emitting({
         annotations: [{ id: 'a1' }] as never,
         result: { highlightsFound: 1, highlightsCreated: 1 } as never,
-      });
+      }));
       const h = makeFakeSessionAndAdapter();
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
@@ -857,13 +868,13 @@ describe('handleJob orchestration', () => {
     const minted = () => ({ annotations: [{ id: 'a1' }] as never, result: {} as never });
 
     const JOB_TYPE_COVERAGE: Record<JobType, Coverage> = {
-      'highlight-annotation':  { exercise: {}, commits: 1, setup: () => { vi.mocked(processHighlightJob).mockResolvedValue(minted()); } },
-      'comment-annotation':    { exercise: {}, commits: 1, setup: () => { vi.mocked(processCommentJob).mockResolvedValue(minted()); } },
-      'assessment-annotation': { exercise: {}, commits: 1, setup: () => { vi.mocked(processAssessmentJob).mockResolvedValue(minted()); } },
+      'highlight-annotation':  { exercise: {}, commits: 1, setup: () => { vi.mocked(processHighlightJob).mockImplementation(emitting(minted())); } },
+      'comment-annotation':    { exercise: {}, commits: 1, setup: () => { vi.mocked(processCommentJob).mockImplementation(emitting(minted())); } },
+      'assessment-annotation': { exercise: {}, commits: 1, setup: () => { vi.mocked(processAssessmentJob).mockImplementation(emitting(minted())); } },
       'tag-annotation':        {
         exercise: { schema: { id: 's', name: 's', categories: [{ name: 'catA' }] } },
         commits: 1,
-        setup: () => { vi.mocked(processTagJob).mockResolvedValue(minted()); },
+        setup: () => { vi.mocked(processTagJob).mockImplementation(emitting(minted())); },
       },
 
       // Generation mints on TWO resources — the provenance edge on the SOURCE,
@@ -1006,19 +1017,19 @@ describe('handleJob orchestration', () => {
     };
     const PDF_FANOUT: PdfFanoutCase[] = [
       { jobType: 'highlight-annotation',
-        arm: () => { vi.mocked(processHighlightJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
+        arm: () => { vi.mocked(processHighlightJob).mockImplementation(emitting({ annotations: [] as never, result: {} as never })); },
         lastCall: () => vi.mocked(processHighlightJob).mock.calls[0] },
       { jobType: 'comment-annotation',
-        arm: () => { vi.mocked(processCommentJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
+        arm: () => { vi.mocked(processCommentJob).mockImplementation(emitting({ annotations: [] as never, result: {} as never })); },
         lastCall: () => vi.mocked(processCommentJob).mock.calls[0] },
       { jobType: 'assessment-annotation',
-        arm: () => { vi.mocked(processAssessmentJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
+        arm: () => { vi.mocked(processAssessmentJob).mockImplementation(emitting({ annotations: [] as never, result: {} as never })); },
         lastCall: () => vi.mocked(processAssessmentJob).mock.calls[0] },
       { jobType: 'reference-annotation',
         arm: () => { vi.mocked(processReferenceJob).mockResolvedValue({ result: {} as never }); },
         lastCall: () => vi.mocked(processReferenceJob).mock.calls[0] },
       { jobType: 'tag-annotation',
-        arm: () => { vi.mocked(processTagJob).mockResolvedValue({ annotations: [] as never, result: {} as never }); },
+        arm: () => { vi.mocked(processTagJob).mockImplementation(emitting({ annotations: [] as never, result: {} as never })); },
         lastCall: () => vi.mocked(processTagJob).mock.calls[0] },
     ];
 
@@ -1131,10 +1142,10 @@ describe('handleJob orchestration', () => {
     it('proceeds for a registry-miss text subtype (RFC 2046 fallback)', async () => {
       // Imported content can carry unregistered text/* types — the
       // import-leniency invariant. They decode, so detection runs.
-      vi.mocked(processCommentJob).mockResolvedValue({
+      vi.mocked(processCommentJob).mockImplementation(emitting({
         annotations: [] as never,
         result: { commentsFound: 0, commentsCreated: 0 } as never,
-      });
+      }));
       const h = makeFakeSessionAndAdapter();
       vi.mocked(h.session.client.browse.resource).mockReturnValue({
         fresh: async () => ({
@@ -1178,10 +1189,10 @@ describe('handleJob orchestration', () => {
 
 describe('handleJob — global job-completion', () => {
   it('emits job:complete exactly once, globally (no scope)', async () => {
-    vi.mocked(processHighlightJob).mockResolvedValue({
+    vi.mocked(processHighlightJob).mockImplementation(emitting({
       annotations: [] as never,
       result: {} as never,
-    });
+    }));
     const h = makeFakeSessionAndAdapter();
 
     await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
@@ -1192,10 +1203,10 @@ describe('handleJob — global job-completion', () => {
   });
 
   it('emits job:start globally (no scope — not a resource broadcast)', async () => {
-    vi.mocked(processHighlightJob).mockResolvedValue({
+    vi.mocked(processHighlightJob).mockImplementation(emitting({
       annotations: [] as never,
       result: {} as never,
-    });
+    }));
     const h = makeFakeSessionAndAdapter();
 
     await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
@@ -1206,10 +1217,10 @@ describe('handleJob — global job-completion', () => {
   });
 
   it('emits mark:create globally (the per-annotation create command is not a resource broadcast)', async () => {
-    vi.mocked(processHighlightJob).mockResolvedValue({
+    vi.mocked(processHighlightJob).mockImplementation(emitting({
       annotations: [{ id: 'a1' }] as never,
       result: {} as never,
-    });
+    }));
     const h = makeFakeSessionAndAdapter();
 
     await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
@@ -1319,10 +1330,10 @@ describe('startWorkerProcess', () => {
 
     const startWorkerProcess = await loadStartWorkerProcess();
 
-    vi.mocked(processHighlightJob).mockResolvedValue({
+    vi.mocked(processHighlightJob).mockImplementation(emitting({
       annotations: [] as never,
       result: {} as never,
-    });
+    }));
 
     const h = makeFakeSessionAndAdapter();
     startWorkerProcess(makeConfig(h.session));
@@ -1455,11 +1466,9 @@ describe('referenceIdOf', () => {
 
 
 // ── Checkpointed resume (ABANDONED-INFERENCE P2, A3) ──────────────────
-// The worker owns the unit commit: it passes `onUnitComplete` into
-// `processReferenceJob`, COMMITS the unit's annotations as they complete
-// (the post-run batch was N2's mechanism), accumulates the completed unit
-// names, carries them on job:fail, and skips checkpointed units on a
-// retried claim.
+// The worker owns durability: the chunk-commit callback is the effect (per
+// chunk), `onUnitComplete` the control state (per unit); completed unit names
+// ride job:fail, and a retried claim skips them.
 //
 // The commit is one acknowledged batch per unit, not N fire-and-forget
 // creates (JOB-RESTART-SAFETY P6): the unit may not count until its
@@ -1468,10 +1477,12 @@ describe('referenceIdOf', () => {
 describe('reference-annotation — checkpointed resume', () => {
   it('commits once per unit, awaiting durability, with no post-run re-emission', async () => {
     vi.mocked(processReferenceJob).mockImplementation(
-      async (_content, _client, _params, _build, _progress, _logger, onUnitComplete) => {
-        await onUnitComplete('Person', [{ id: 'r1' }] as never);
-        await onUnitComplete('Date', [] as never);
-        await onUnitComplete('Location', [{ id: 'r2' }, { id: 'r3' }] as never);
+      async (_content, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
+        await onChunkComplete!([{ id: 'r1' }] as never);
+        await onUnitComplete('Person');
+        await onUnitComplete('Date'); // empty unit: nothing to commit, still checkpoints
+        await onChunkComplete!([{ id: 'r2' }, { id: 'r3' }] as never);
+        await onUnitComplete('Location');
         return { result: { kind: 'reference-annotation', totalFound: 3, totalEmitted: 3, errors: 0 } as never };
       },
     );
@@ -1512,8 +1523,9 @@ describe('reference-annotation — checkpointed resume', () => {
     // the queue moves the still-running job to cancelled/ rather than mark it
     // done, and never fails it.
     vi.mocked(processReferenceJob).mockImplementation(
-      async (_content, _client, _params, _build, _progress, _logger, onUnitComplete) => {
-        await onUnitComplete('Person', [{ id: 'r1' }] as never);
+      async (_content, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
+        await onChunkComplete!([{ id: 'r1' }] as never);
+        await onUnitComplete('Person');
         return { result: { kind: 'reference-annotation', totalFound: 1, totalEmitted: 1, errors: 0 } as never };
       },
     );
@@ -1581,9 +1593,10 @@ describe('startWorkerProcess — job:fail carries the checkpoint (A3 i/iv feed)'
     // Two units commit, then the third stalls — the failure payload must
     // name what completed so the retry can skip it.
     vi.mocked(processReferenceJob).mockImplementation(
-      async (_content, _client, _params, _build, _progress, _logger, onUnitComplete) => {
-        await onUnitComplete('Person', [{ id: 'a1' }] as never);
-        await onUnitComplete('Date', [] as never);
+      async (_content, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
+        await onChunkComplete!([{ id: 'a1' }] as never);
+        await onUnitComplete('Person');
+        await onUnitComplete('Date');
         throw new Error('Location stalled');
       },
     );
@@ -1676,10 +1689,10 @@ describe('a lost acknowledgement is not a lost batch (COMMIT-ACK-FALSE-FAILURE)'
 
   /** Drive `handleJob` past `MARK_COMMIT_TIMEOUT_MS` without waiting a real minute. */
   async function runPastCommitTimeout(h: ReturnType<typeof makeFakeSessionAndAdapter>) {
-    vi.mocked(processHighlightJob).mockResolvedValue({
+    vi.mocked(processHighlightJob).mockImplementation(emitting({
       annotations: [{ id: 'a1' }, { id: 'a2' }] as never,
       result: { highlightsFound: 2, highlightsCreated: 2 } as never,
-    });
+    }));
     const run = handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
     const settled = run.then(() => 'completed' as const, (e) => e as Error);
     await vi.advanceTimersByTimeAsync(61_000);
@@ -1748,10 +1761,10 @@ describe('the record says HOW durability was established (COMMIT-ACK-FALSE-FAILU
   afterEach(() => { vi.useRealTimers(); });
 
   async function run(h: ReturnType<typeof makeFakeSessionAndAdapter>) {
-    vi.mocked(processHighlightJob).mockResolvedValue({
+    vi.mocked(processHighlightJob).mockImplementation(emitting({
       annotations: [{ id: 'a1' }, { id: 'a2' }] as never,
       result: { highlightsFound: 2, highlightsCreated: 2 } as never,
-    });
+    }));
     const settled = handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'))
       .then(() => 'completed' as const, (e) => e as Error);
     await vi.advanceTimersByTimeAsync(61_000);
@@ -1796,10 +1809,10 @@ describe('the record says HOW durability was established (COMMIT-ACK-FALSE-FAILU
     vi.resetModules();
     const { startWorkerProcess } = await import('../worker-process');
 
-    vi.mocked(processHighlightJob).mockResolvedValue({
+    vi.mocked(processHighlightJob).mockImplementation(emitting({
       annotations: [{ id: 'a1' }, { id: 'a2' }] as never,
       result: { highlightsFound: 2, highlightsCreated: 2 } as never,
-    });
+    }));
     const h = makeFakeSessionAndAdapter();
     setup(h);
     startWorkerProcess(makeConfig(h.session));
@@ -1864,10 +1877,10 @@ describe('the record says HOW durability was established (COMMIT-ACK-FALSE-FAILU
   it('a job that committed nothing states nothing — absent is not a value', async () => {
     // No batch, so no durability question arose. Writing 'acknowledged' here
     // would be a manufactured claim.
-    vi.mocked(processHighlightJob).mockResolvedValue({
+    vi.mocked(processHighlightJob).mockImplementation(emitting({
       annotations: [] as never,
       result: { highlightsFound: 0, highlightsCreated: 0 } as never,
-    });
+    }));
     const h = makeFakeSessionAndAdapter();
     await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
     expect(terminal(h, 'job:complete')).not.toHaveProperty('durability');

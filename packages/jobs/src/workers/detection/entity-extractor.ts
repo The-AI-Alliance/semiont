@@ -150,6 +150,13 @@ export async function extractEntities(
   logger: Logger,
   sourceLanguage?: string,
   onActivity?: (completedChunks: number, totalChunks: number) => void,
+  /**
+   * This chunk's entities, awaited before the loop continues: the caller
+   * commits them, and the loop must not run ahead of durability. Unlike
+   * `onActivity` (a liveness heartbeat, which may repeat), this fires exactly
+   * once per chunk, including the last.
+   */
+  onChunkResults?: (items: ExtractedEntity[]) => Promise<void>,
 ): Promise<ExtractedEntity[]> {
 
   // Format entity types for the prompt
@@ -281,12 +288,12 @@ Example output:
       return { items: response.items, ...(response.usage ? { usage: response.usage } : {}) };
     }, logger);
 
+    const fromChunk: ExtractedEntity[] = [];
     for (const e of items) {
       // No dedupe here: overlap duplicates from adjacent chunks pass through
-      // to the processor's span-keyed dedupeAnnotations — the single dedupe
-      // point.
+      // to the caller's decider — the single dedupe point.
       if (isObject(e) && isString(e.exact) && isString(e.entityType)) {
-        collected.push({
+        fromChunk.push({
           exact: e.exact,
           entityType: e.entityType,
           ...(isString(e.prefix) ? { prefix: e.prefix } : {}),
@@ -296,6 +303,8 @@ Example output:
         logger.debug('Dropped malformed LLM entity', { entity: e });
       }
     }
+    collected.push(...fromChunk);
+    await onChunkResults?.(fromChunk);
 
     // Chunk boundary: the count advances (real progress).
     if (i < chunks.length - 1) {
