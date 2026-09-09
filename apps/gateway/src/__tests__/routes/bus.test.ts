@@ -1258,6 +1258,25 @@ describe('bus routes', () => {
       expect(String((failures[0] as { message?: string }).message)).toMatch(/subscrib/i);
     });
 
+    it("carries code 'peer-unavailable' — the class, not just the sentence", async () => {
+      // The gateway already RECORDED this condition for metrics
+      // (`recordUnanswerableRequest` → `semiont_bus_unanswerable_total`) and could
+      // not tell the caller. A consumer wanting to distinguish "the peer has not
+      // connected yet" from "the command was refused" had to match a substring —
+      // which is why the weaver's boot passes treated a startup race as a
+      // permanent data condition and gave up (2026-09-09).
+      const failures: Record<string, unknown>[] = [];
+      eventBus.get(FAILED).subscribe((v) => failures.push(v as Record<string, unknown>));
+
+      await emit({
+        channel: REQ,
+        clientId: 'client-code',
+        payload: { correlationId: 'c-coded', resourceId: 'r-3', options: OPTS },
+      });
+
+      expect(failures[0]?.code).toBe('peer-unavailable');
+    });
+
     // Without the cid the frame is dropped by the delivery filter as a
     // REPLY-SHAPE violation — the failure would be synthesized and then
     // silently discarded, in exactly the outage this phase exists for.

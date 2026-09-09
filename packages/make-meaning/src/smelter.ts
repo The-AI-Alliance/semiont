@@ -49,6 +49,7 @@ import { chunkText } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import { busRequest, type BusRequestPrimitive } from '@semiont/core';
 import { partitionByType } from './batch-utils';
+import { fetchCatalogPages, type CATALOG_CHANNEL } from './catalog-pages';
 import type { SmelterEvent } from './smelter-actor-state-unit';
 
 /**
@@ -61,7 +62,7 @@ import type { SmelterEvent } from './smelter-actor-state-unit';
  */
 export type SmelterResourceReadAwaits = 'browse:resource-requested';
 export type SmelterAnnotationsReadAwaits = 'browse:annotations-requested';
-export type SmelterCatalogPageAwaits = 'browse:resources-requested';
+export type SmelterCatalogPageAwaits = typeof CATALOG_CHANNEL;
 
 // Media dispatch is core's, keyed by the media type's `TextSource`
 // strategy (`.plans/SMELTER-MEDIA-TYPES.md`, narrowed by READ-VS-EXTRACT P2).
@@ -1061,16 +1062,10 @@ export class Smelter {
   }
 
   /** Page through `browse:resources-requested` until the catalog is exhausted. */
-  private async listAllResources(): Promise<ResourceDescriptor[]> {
-    const all: ResourceDescriptor[] = [];
-    for (;;) {
-      const page = await busRequest(
-        this.bus,
-        'browse:resources-requested' satisfies SmelterCatalogPageAwaits,
-        { archived: false, offset: all.length, limit: Smelter.RECONCILE_PAGE_SIZE },
-      );
-      all.push(...page.resources);
-      if (page.resources.length === 0 || all.length >= page.total) return all;
-    }
+  /** Shared with the weaver since 2026-09-09 — see `catalog-pages.ts` for why the
+   *  retry lives at the page rather than around the pass. `archived: false` is
+   *  the smelter's own filter and the one difference between the two loops. */
+  private listAllResources(): Promise<ResourceDescriptor[]> {
+    return fetchCatalogPages(this.bus, { limit: Smelter.RECONCILE_PAGE_SIZE, archived: false });
   }
 }

@@ -75,6 +75,7 @@ export interface WeaverTiming {
 }
 import { resourceId as makeResourceId, annotationId as makeAnnotationId, findBodyItem } from '@semiont/core';
 import { partitionByType } from './batch-utils.js';
+import { fetchCatalogPages, type CATALOG_CHANNEL } from './catalog-pages.js';
 
 import type { Annotation, CreateAnnotationInternal } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
@@ -84,7 +85,7 @@ import type { ResourceDescriptor } from '@semiont/core';
  * the operations this module awaits over the wire — see the note on
  * `SmelterResourceReadAwaits` for the mechanism.
  */
-export type WeaverCatalogPageAwaits = 'browse:resources-requested';
+export type WeaverCatalogPageAwaits = typeof CATALOG_CHANNEL;
 export type WeaverEventsReadAwaits = 'browse:events-requested';
 export type WeaverAnnotationsReadAwaits = 'browse:annotations-requested';
 
@@ -299,17 +300,17 @@ export class Weaver {
    * store attachment — in-process and standalone alike, catch-up and
    * rebuild ride `browse:resources-requested` / `browse:events-requested`.
    */
-  private async fetchAllResources(): Promise<ResourceDescriptor[]> {
-    const resources: ResourceDescriptor[] = [];
-    for (;;) {
-      const page = await busRequest(this.bus, 'browse:resources-requested' satisfies WeaverCatalogPageAwaits, {
-        offset: resources.length,
-        limit: Weaver.CATCHUP_PAGE_SIZE,
-      });
-      resources.push(...page.resources);
-      if (page.resources.length === 0 || resources.length >= page.total) break;
-    }
-    return resources;
+  /**
+   * Shared with the smelter since 2026-09-09 — the two had identical paging
+   * loops, and one of them is where the retry belongs: `browse:*` is answered by
+   * the ARCHIVIST, so a weaver that authenticates first asks a channel nobody is
+   * subscribed to yet and used to give up for the life of the process.
+   * `WeaverCatalogPageAwaits` is now DERIVED from the channel this actually
+   * requests (`typeof CATALOG_CHANNEL`), so the roster and the request cannot
+   * disagree — where before they were two literals tied by `satisfies`.
+   */
+  private fetchAllResources(): Promise<ResourceDescriptor[]> {
+    return fetchCatalogPages(this.bus, { limit: Weaver.CATCHUP_PAGE_SIZE });
   }
 
   /** A resource's full event history over the bus, sorted by sequence. */

@@ -10,6 +10,8 @@
  * here is the only recovery it gets.
  */
 
+import { BusRequestError } from './bus-request';
+
 export interface RetryPolicy {
   /** Total attempts, including the first one. */
   attempts: number;
@@ -122,6 +124,30 @@ const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([429, 503, 504]);
  * will not change its mind. A 429 differs — the gateway is up and *asking* us to
  * wait, so the same "it answered" fact points the other way.
  */
+/**
+ * True when the service that answers a bus channel has not connected yet.
+ *
+ * A startup race, not a refusal: the gateway synthesizes this when a request's
+ * channel has no subscriber, and the peer it is waiting for is usually seconds
+ * away. The weaver's boot passes used to treat it as a data condition and give up
+ * for the life of the process — an empty graph projection behind a healthy
+ * `/health`, with live traffic then advancing the applied mark past events that
+ * were never projected (2026-09-09).
+ *
+ * Narrow on purpose, and note what it EXCLUDES: `bus.unsubscribed` means *this*
+ * transport is not subscribed to the reply channel — a local misconfiguration
+ * caught before emitting, which retrying cannot fix and would only delay. The two
+ * codes sound alike and mean opposite ends of the same wire; the predicate is
+ * where that distinction has to hold.
+ *
+ * Takes a `BusRequestError` rather than any `{ code }` object: the code is a wire
+ * value, and `busRequest` is the one place it is mapped into this vocabulary. An
+ * object that did not come through there has not been classified.
+ */
+export function isPeerUnavailable(error: unknown): boolean {
+  return error instanceof BusRequestError && error.code === 'bus.peer-unavailable';
+}
+
 export function isRetryableRequestError(error: unknown): boolean {
   if (isTransientFetchError(error)) return true;
   if (typeof error !== 'object' || error === null) return false;

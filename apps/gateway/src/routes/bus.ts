@@ -1046,6 +1046,16 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
               const { _userId: _injected, ...echo } = payload as Record<string, unknown>;
               const failure = {
                 ...echo,
+                // The machine-readable class, so a caller can BRANCH on this
+                // rather than parse the sentence. It is the one failure the
+                // gateway synthesizes that is transient by nature — the peer is
+                // usually seconds from connecting — and the weaver's boot passes
+                // gave up on it for the life of the process because they could
+                // not tell it apart from a refusal (2026-09-09: empty graph
+                // behind a healthy /health). `busRequest` maps it to
+                // `bus.peer-unavailable`; `isPeerUnavailable` is what retries on
+                // it.
+                code: 'peer-unavailable' as const,
                 message: `No subscriber for ${channel}: the service that answers it is not connected`,
               };
               recordUnanswerableRequest(channel);

@@ -9,10 +9,12 @@ import {
   retryWithBackoff,
   isTransientFetchError,
   isRetryableRequestError,
+  isPeerUnavailable,
   STARTUP_FETCH_RETRY,
   type RetryAttemptInfo,
   type HttpStatusError,
 } from '../retry';
+import { BusRequestError } from '../bus-request';
 
 const FAST = { attempts: 4, initialDelayMs: 1, maxDelayMs: 4 };
 
@@ -196,6 +198,37 @@ describe('isRetryableRequestError (SIDECAR-BOOT-RESILIENCE P1)', () => {
     expect(isRetryableRequestError(undefined)).toBe(false);
     // A status that is not a number is not a status — never coerce.
     expect(isRetryableRequestError(Object.assign(new Error('x'), { status: '429' }))).toBe(false);
+  });
+});
+
+describe('isPeerUnavailable', () => {
+  // The condition the weaver's boot passes gave up on: `browse:*` is answered by
+  // the archivist, which had not subscribed 3 s into a boot. Both passes failed
+  // 12 ms apart and never retried, and the KB came up with an empty graph behind
+  // a healthy /health (2026-09-09).
+  it('accepts the promoted peer-unavailable failure', () => {
+    expect(isPeerUnavailable(new BusRequestError('no subscriber', 'bus.peer-unavailable'))).toBe(true);
+  });
+
+  it('rejects bus.unsubscribed — the SAME-SOUNDING code that must not retry', () => {
+    // `bus.unsubscribed` means *this* transport is not subscribed to the reply
+    // channel: a local misconfiguration, caught before emitting, that no amount of
+    // waiting fixes. Retrying it would spend the budget papering over a
+    // programming error — which is why the two codes are named apart.
+    expect(isPeerUnavailable(new BusRequestError('not subscribed', 'bus.unsubscribed'))).toBe(false);
+  });
+
+  it('rejects every other bus failure — a refusal is not a delay', () => {
+    for (const code of ['bus.rejected', 'bus.timeout', 'bus.unauthorized', 'bus.forbidden', 'bus.not-found', 'bus.closed', 'bus.bad-payload'] as const) {
+      expect(isPeerUnavailable(new BusRequestError('x', code)), code).toBe(false);
+    }
+  });
+
+  it('rejects anything that is not a BusRequestError', () => {
+    // Structure, not a bare string field: a plain object carrying the same code
+    // did not come from `busRequest` and has not been through its mapping.
+    expect(isPeerUnavailable(Object.assign(new Error('x'), { code: 'bus.peer-unavailable' }))).toBe(false);
+    expect(isPeerUnavailable(undefined)).toBe(false);
   });
 });
 
