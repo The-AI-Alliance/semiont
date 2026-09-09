@@ -58,6 +58,23 @@ detect_runtime() {
 
 RT=$(detect_runtime)
 
+# --- Go toolchain (derived, not restated) ---
+#
+# The Go version is a fact apps/launcher/go.mod owns. Every workflow already
+# derives it (actions/setup-go's go-version-file); this script was the one place
+# it was hand-copied, in four spots. That mattered: the whole reason go.mod pins
+# the PATCH is so the scan and the build agree on one compiler, and a local build
+# silently using a different one defeats exactly that.
+#
+# No fallback. A missing toolchain line fails here rather than quietly selecting
+# some other compiler.
+GO_TOOLCHAIN="$(sed -n 's/^toolchain go\([0-9][0-9.]*\)$/\1/p' "$REPO_ROOT/apps/launcher/go.mod")"
+if [[ -z "$GO_TOOLCHAIN" ]]; then
+  fail "No 'toolchain goX.Y.Z' line in apps/launcher/go.mod — cannot choose a Go image."
+  exit 1
+fi
+GO_IMAGE="golang:${GO_TOOLCHAIN}"
+
 # --- Failure cleanup trap ---
 # On failure, stop and remove the Verdaccio container so the next run starts
 # clean. Disabled at the end of the happy path so Verdaccio keeps running for
@@ -311,7 +328,7 @@ $RT run --rm \
   -v "$GOMODCACHE_DIR":/go/pkg/mod \
   -e GOPROXY="$GOPROXY_CACHED" \
   -w /workspace \
-  golang:1.27 \
+  "$GO_IMAGE" \
   sh -c 'go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
            -generate types,client,skip-prune -package semiont \
            -o /tmp/client_gen.check.go specs/openapi.json || exit 3
@@ -895,10 +912,10 @@ fi
 #
 # The semiont launcher is a static Go binary that runs on the HOST and drives
 # the :local images (SEMIONT_VERSION=local semiont start). Built inside
-# golang:1.27 targeting the host platform — no Go toolchain on the host, the
-# same philosophy as the npm builds above. The Go build cache persists under
-# /tmp/semiont-gocache-build (/tmp, not $TMPDIR — Apple Container cannot
-# sustain mounts from /var/folders).
+# $GO_IMAGE (derived from apps/launcher/go.mod) targeting the host platform — no
+# Go toolchain on the host, the same philosophy as the npm builds above. The Go
+# build cache persists under /tmp/semiont-gocache-build (/tmp, not $TMPDIR —
+# Apple Container cannot sustain mounts from /var/folders).
 
 banner "LAUNCHER"
 
@@ -914,7 +931,7 @@ case "$(uname -m)" in
 esac
 
 mkdir -p "$GOCACHE_DIR" "$GOMODCACHE_DIR"
-step "Building the semiont launcher (${LAUNCHER_GOOS}/${LAUNCHER_GOARCH}) in golang:1.27..."
+step "Building the semiont launcher (${LAUNCHER_GOOS}/${LAUNCHER_GOARCH}) in ${GO_IMAGE}..."
 $RT run --rm \
   -v "$REPO_ROOT":/workspace \
   -v "$GOCACHE_DIR":/root/.cache/go-build \
@@ -922,7 +939,7 @@ $RT run --rm \
   -w /workspace/apps/launcher \
   -e GOPROXY="$GOPROXY_CACHED" \
   -e GOOS="$LAUNCHER_GOOS" -e GOARCH="$LAUNCHER_GOARCH" -e CGO_ENABLED=0 \
-  golang:1.27 \
+  "$GO_IMAGE" \
   go build -o dist/semiont .
 ok "apps/launcher/dist/semiont built"
 
