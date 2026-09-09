@@ -58,6 +58,12 @@ COPY LICENSE /home/semiont/LICENSE
 COPY apps/librarian/NOTICE /home/semiont/NOTICE
 
 WORKDIR /home/semiont
+# Supervision runtime — ROOT-TIME on purpose: apk refuses to run and
+# /usr/local/bin refuses writes once USER drops privileges below.
+RUN apk add --no-cache tini
+COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
+COPY scripts/container/boot.sh /usr/local/bin/boot.sh
+
 USER semiont
 
 ENV NODE_ENV=production
@@ -70,9 +76,6 @@ EXPOSE 24104
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:24104/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
-RUN apk add --no-cache tini
-COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
-COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 ENV SUPERVISE_NAME=librarian \
     SUPERVISE_PROBE=http://localhost:24104/health
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]

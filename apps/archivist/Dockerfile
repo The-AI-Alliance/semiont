@@ -69,6 +69,12 @@ COPY apps/archivist/NOTICE /home/semiont/NOTICE
 
 WORKDIR /kb
 RUN chown semiont:nodejs /kb
+# Supervision runtime — ROOT-TIME on purpose: apk refuses to run and
+# /usr/local/bin refuses writes once USER drops privileges below.
+RUN apk add --no-cache tini
+COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
+COPY scripts/container/boot.sh /usr/local/bin/boot.sh
+
 USER semiont
 
 ENV NODE_ENV=production
@@ -114,9 +120,6 @@ EXPOSE 24103
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:24103/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
-RUN apk add --no-cache tini
-COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
-COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 ENV SUPERVISE_NAME=archivist \
     SUPERVISE_PROBE=http://localhost:24103/health
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
