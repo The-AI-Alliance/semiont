@@ -29,7 +29,7 @@ import {
 } from './types';
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
-import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, annotationId as makeAnnotationId, findClaimSpan, capabilitiesOf, type EventMap, busRequest, BusRequestError } from '@semiont/core';
+import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, annotationId as makeAnnotationId, findClaimSpan, capabilitiesOf, isObject, isString, type EventMap, busRequest, BusRequestError } from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components, AssembledAnnotation } from '@semiont/core';
@@ -72,6 +72,8 @@ export function referenceIdOf(job: { type: string; params: Record<string, unknow
 }
 
 type Agent = components['schemas']['Agent'];
+/** Derived from the spec; the wire owns this vocabulary. */
+type DurabilityEvidence = components['schemas']['DurabilityEvidence'];
 
 /**
  * What the user is told when a resource cannot be read. Keyed by the
@@ -161,8 +163,8 @@ async function commitAnnotations(
   session: SemiontSession,
   resourceId: string,
   annotations: readonly { readonly id: string }[],
-): Promise<void> {
-  if (annotations.length === 0) return;
+): Promise<DurabilityEvidence | undefined> {
+  if (annotations.length === 0) return undefined;
   try {
     await busRequest(
       workerBusAsPrimitive((session.client.transport as HttpTransport).actor),
@@ -170,11 +172,33 @@ async function commitAnnotations(
       { resourceId, annotations },
       MARK_COMMIT_TIMEOUT_MS,
     );
+    return 'acknowledged';
   } catch (error) {
     if (!(error instanceof BusRequestError) || error.code !== 'bus.timeout') throw error;
-    if (!(await batchIsDurable(session, resourceId, annotations))) throw error;
+    const evidence = await probeDurability(session, resourceId, annotations);
     // The batch is in the log; only the acknowledgement was lost. Returning
-    // here IS the fix — see `batchIsDurable`.
+    // here IS the fix — see `probeDurability`.
+    if (evidence === 'probe-confirmed') return evidence;
+    // Not established. The failure carries WHAT WAS OBSERVED out to the
+    // terminal record, which is the only place it can still be told.
+    throw new CommitDurabilityError(error.message, evidence, error);
+  }
+}
+
+/**
+ * A commit that could not be established as durable, carrying the observation
+ * out to `job:fail`.
+ *
+ * Subclasses nothing meaningful on purpose: `classifyFailure` recognises
+ * neither this nor the `BusRequestError` it wraps, so both land `undefined` —
+ * retryable — exactly as before. The message is the original's, so the
+ * persisted `error` string is unchanged; this adds evidence beside it rather
+ * than replacing it.
+ */
+export class CommitDurabilityError extends Error {
+  override readonly name = 'CommitDurabilityError';
+  constructor(message: string, readonly durability: DurabilityEvidence, cause: unknown) {
+    super(message, { cause });
   }
 }
 
@@ -203,20 +227,31 @@ async function commitAnnotations(
  * probe is unreachable the truthful answer is neither, and forcing it into
  * failure here is the INDETERMINATE state this plan's F2 exists to name.
  */
-async function batchIsDurable(
+async function probeDurability(
   session: SemiontSession,
   resourceId: string,
   annotations: readonly { readonly id: string }[],
-): Promise<boolean> {
+): Promise<Exclude<DurabilityEvidence, 'acknowledged'>> {
   const last = annotations[annotations.length - 1];
-  if (!last) return false;
+  if (!last) return 'probe-unreachable';
   try {
     await session.client.browse
       .annotation(makeResourceId(resourceId), makeAnnotationId(String(last.id)))
       .fresh();
-    return true;
-  } catch {
-    return false;
+    return 'probe-confirmed';
+  } catch (error) {
+    // A failure REPLY (`bus.rejected`) means the read was answered and did not
+    // produce the annotation. That is not the same as "the annotations are
+    // absent" — a read that threw for its own reasons answers on the same
+    // channel — so the record says what was observed and lets the reader judge.
+    // Anything else (`bus.timeout`, `bus.closed`) means nobody answered.
+    // Discriminated STRUCTURALLY, on the code the error carries, not by
+    // `instanceof`: a second copy of @semiont/core anywhere in the tree makes
+    // the prototype check fail, and it would fail SILENTLY — degrading a
+    // refusal into "unreachable", which is the one distinction this field
+    // exists to make. (Observed exactly that under vi.resetModules.)
+    const code = isObject(error) && isString(error.code) ? error.code : undefined;
+    return code === 'bus.rejected' ? 'probe-refused' : 'probe-unreachable';
   }
 }
 
@@ -297,6 +332,10 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
             error: message,
             ...(completedUnits && completedUnits.length > 0 ? { completedUnits } : {}),
             ...(failureClass !== undefined ? { failureClass } : {}),
+            // What the commit path OBSERVED about durability, when the failure
+            // came from a commit at all. Present only on that path: absent means
+            // the question never arose, never that durability was ruled out.
+            ...(error instanceof CommitDurabilityError ? { durability: error.durability } : {}),
             // Whether this failure is the END, answered by the same predicate
             // the queue applies at failJob (JOB-RESTART-SAFETY P5). Without
             // it a client cannot tell a recovering run from a dead one: it
@@ -402,6 +441,20 @@ async function handleJobInner(
   // ignores it. UI consumers filter by `jobType` and/or `annotationId`
   // in the payload.
 
+  // What this job's commits ESTABLISHED, folded across every batch it makes
+  // (a reference job commits per unit; generation commits on two resources).
+  // Weakest wins: one batch rescued by the probe makes the whole completion a
+  // probe-confirmed claim, because that is the strongest thing still true of
+  // the job as a whole. Undefined until a batch actually commits — a job that
+  // mints nothing states nothing.
+  let durability: DurabilityEvidence | undefined;
+  const record = (evidence: DurabilityEvidence | undefined) => {
+    if (evidence === undefined) return;
+    if (durability === undefined || durability === 'acknowledged') durability = evidence;
+  };
+  /** Every TERMINAL payload; `job:start` deliberately uses the bare base. */
+  const terminalBase = () => ({ ...lifecycleBase, ...(durability ? { durability } : {}) });
+
   await emitEvent(session, 'job:start', lifecycleBase);
 
   if (!config.jobTypes.includes(jobType)) {
@@ -459,7 +512,7 @@ async function handleJobInner(
       // empty) — the resource legitimately has nothing to detect over. A clean
       // completion carrying the reason, not a failure.
       await emitEvent(session, 'job:complete', {
-        ...lifecycleBase,
+        ...terminalBase(),
         result: {
           kind: 'declined',
           declined: true,
@@ -484,7 +537,7 @@ async function handleJobInner(
     // P2 gave the processors codes worth forwarding.)
     adapter.touchActivity();
     emitEvent(session, 'job:report-progress', {
-      ...lifecycleBase,
+      ...terminalBase(),
       percentage,
       progress: {
         percentage, message,
@@ -500,9 +553,9 @@ async function handleJobInner(
     );
     // Durable before the job claims success: `job:complete` after a lost batch
     // is the silent-loss shape P6 removes.
-    await commitAnnotations(session, String(resourceId), annotations);
+    record(await commitAnnotations(session, String(resourceId), annotations));
     await emitEvent(session, 'job:complete', {
-      ...lifecycleBase,
+      ...terminalBase(),
       result,
     });
     adapter.completeJob();
@@ -513,9 +566,9 @@ async function handleJobInner(
     );
     // Durable before the job claims success: `job:complete` after a lost batch
     // is the silent-loss shape P6 removes.
-    await commitAnnotations(session, String(resourceId), annotations);
+    record(await commitAnnotations(session, String(resourceId), annotations));
     await emitEvent(session, 'job:complete', {
-      ...lifecycleBase,
+      ...terminalBase(),
       result,
     });
     adapter.completeJob();
@@ -526,9 +579,9 @@ async function handleJobInner(
     );
     // Durable before the job claims success: `job:complete` after a lost batch
     // is the silent-loss shape P6 removes.
-    await commitAnnotations(session, String(resourceId), annotations);
+    record(await commitAnnotations(session, String(resourceId), annotations));
     await emitEvent(session, 'job:complete', {
-      ...lifecycleBase,
+      ...terminalBase(),
       result,
     });
     adapter.completeJob();
@@ -567,7 +620,7 @@ async function handleJobInner(
         // fraction that already landed changes nothing. That is required, not
         // belt-and-braces — the ack itself can be lost after a successful
         // append, so at-least-once is unavoidable here.
-        await commitAnnotations(session, String(resourceId), annotations);
+        record(await commitAnnotations(session, String(resourceId), annotations));
         committed.push(unit);
         // Durable checkpoint the moment the unit lands (JOB-RESTART-SAFETY
         // P2): if this worker dies before the next unit — or before any
@@ -590,14 +643,14 @@ async function handleJobInner(
     // clean terminal, not a failure.
     if (signal?.aborted) {
       await emitEvent(session, 'job:cancel', {
-        ...lifecycleBase,
+        ...terminalBase(),
         ...(committed.length > 0 ? { completedUnits: [...committed] } : {}),
       });
       adapter.completeJob();
       return;
     }
     await emitEvent(session, 'job:complete', {
-      ...lifecycleBase,
+      ...terminalBase(),
       result,
     });
     adapter.completeJob();
@@ -608,9 +661,9 @@ async function handleJobInner(
     );
     // Durable before the job claims success: `job:complete` after a lost batch
     // is the silent-loss shape P6 removes.
-    await commitAnnotations(session, String(resourceId), annotations);
+    record(await commitAnnotations(session, String(resourceId), annotations));
     await emitEvent(session, 'job:complete', {
-      ...lifecycleBase,
+      ...terminalBase(),
       result,
     });
     adapter.completeJob();
@@ -691,7 +744,7 @@ async function handleJobInner(
         },
         generator,
       );
-      await commitAnnotations(session, String(resourceId), [provenanceRef]);
+      record(await commitAnnotations(session, String(resourceId), [provenanceRef]));
     }
 
     // Inline citations: mint each as a linking annotation ON THE DERIVED
@@ -764,10 +817,10 @@ async function handleJobInner(
       }
     }
 
-    await commitAnnotations(session, String(newResourceId), citationRefs);
+    record(await commitAnnotations(session, String(newResourceId), citationRefs));
 
     await emitEvent(session, 'job:complete', {
-      ...lifecycleBase,
+      ...terminalBase(),
       result: { kind: 'generation', resourceId: newResourceId, resourceName: genResult.title, truncated: genResult.result.truncated },
     });
     adapter.completeJob();

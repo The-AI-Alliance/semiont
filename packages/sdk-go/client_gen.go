@@ -290,6 +290,30 @@ func (e DiscoveryDocumentVersion) Valid() bool {
 	}
 }
 
+// Defines values for DurabilityEvidence.
+const (
+	Acknowledged     DurabilityEvidence = "acknowledged"
+	ProbeConfirmed   DurabilityEvidence = "probe-confirmed"
+	ProbeRefused     DurabilityEvidence = "probe-refused"
+	ProbeUnreachable DurabilityEvidence = "probe-unreachable"
+)
+
+// Valid indicates whether the value is a known member of the DurabilityEvidence enum.
+func (e DurabilityEvidence) Valid() bool {
+	switch e {
+	case Acknowledged:
+		return true
+	case ProbeConfirmed:
+		return true
+	case ProbeRefused:
+		return true
+	case ProbeUnreachable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ExtractedTextKind.
 const (
 	Extracted ExtractedTextKind = "extracted"
@@ -2291,6 +2315,9 @@ type DiscoveryDocument struct {
 // DiscoveryDocumentVersion Document schema version. Consumers MUST check it and ignore documents they do not understand.
 type DiscoveryDocumentVersion int
 
+// DurabilityEvidence How a job's annotations were established as durable — the OBSERVATION, never a conclusion drawn from it. 'acknowledged': the event log confirmed the batch (mark:commit-ok). 'probe-confirmed': the acknowledgement was lost and a later read found the batch's last annotation present — true, but a weaker claim than an ack, since it rests on the log appending a batch in order and stopping at the first failure. 'probe-refused': the read returned a failure reply; note this does NOT assert the annotations are absent, because a read that failed for its own reasons answers on the same channel. 'probe-unreachable': no answer came at all, so nothing was established either way. ABSENT means the question never arose — a job that committed no annotations. Never defaulted: a manufactured value here is a claim nobody made, in a log nobody can rewrite.
+type DurabilityEvidence string
+
 // EnrichedResourceEvent defines model for EnrichedResourceEvent.
 type EnrichedResourceEvent struct {
 	Annotation *Annotation `json:"annotation,omitempty"`
@@ -2944,7 +2971,10 @@ type JobCompleteCommand struct {
 
 	// AnnotationId Annotation this job is attached to, when applicable. Lets the UI route completion feedback (toast, resolve state) to a specific annotation.
 	AnnotationId *string `json:"annotationId,omitempty"`
-	JobId        string  `json:"jobId"`
+
+	// Durability How a job's annotations were established as durable — the OBSERVATION, never a conclusion drawn from it. 'acknowledged': the event log confirmed the batch (mark:commit-ok). 'probe-confirmed': the acknowledgement was lost and a later read found the batch's last annotation present — true, but a weaker claim than an ack, since it rests on the log appending a batch in order and stopping at the first failure. 'probe-refused': the read returned a failure reply; note this does NOT assert the annotations are absent, because a read that failed for its own reasons answers on the same channel. 'probe-unreachable': no answer came at all, so nothing was established either way. ABSENT means the question never arose — a job that committed no annotations. Never defaulted: a manufactured value here is a claim nobody made, in a log nobody can rewrite.
+	Durability *DurabilityEvidence `json:"durability,omitempty"`
+	JobId      string              `json:"jobId"`
 
 	// JobType Type of background job
 	JobType    JobType `json:"jobType"`
@@ -2961,6 +2991,9 @@ type JobCompletedPayload struct {
 
 	// AnnotationUri For generation: URI of annotation that triggered generation
 	AnnotationUri *string `json:"annotationUri,omitempty"`
+
+	// Durability How a job's annotations were established as durable — the OBSERVATION, never a conclusion drawn from it. 'acknowledged': the event log confirmed the batch (mark:commit-ok). 'probe-confirmed': the acknowledgement was lost and a later read found the batch's last annotation present — true, but a weaker claim than an ack, since it rests on the log appending a batch in order and stopping at the first failure. 'probe-refused': the read returned a failure reply; note this does NOT assert the annotations are absent, because a read that failed for its own reasons answers on the same channel. 'probe-unreachable': no answer came at all, so nothing was established either way. ABSENT means the question never arose — a job that committed no annotations. Never defaulted: a manufactured value here is a claim nobody made, in a log nobody can rewrite.
+	Durability *DurabilityEvidence `json:"durability,omitempty"`
 
 	// FoundCount For detection: total entities found
 	FoundCount *int   `json:"foundCount,omitempty"`
@@ -3030,7 +3063,10 @@ type JobFailCommand struct {
 
 	// CompletedUnits Entity-type units whose annotations were fully emitted before this failure (checkpointed resume). The queue records them on the retried job's metadata; a retried claim skips them so completed work is neither redone nor duplicated.
 	CompletedUnits *[]string `json:"completedUnits,omitempty"`
-	Error          string    `json:"error"`
+
+	// Durability How a job's annotations were established as durable — the OBSERVATION, never a conclusion drawn from it. 'acknowledged': the event log confirmed the batch (mark:commit-ok). 'probe-confirmed': the acknowledgement was lost and a later read found the batch's last annotation present — true, but a weaker claim than an ack, since it rests on the log appending a batch in order and stopping at the first failure. 'probe-refused': the read returned a failure reply; note this does NOT assert the annotations are absent, because a read that failed for its own reasons answers on the same channel. 'probe-unreachable': no answer came at all, so nothing was established either way. ABSENT means the question never arose — a job that committed no annotations. Never defaulted: a manufactured value here is a claim nobody made, in a log nobody can rewrite.
+	Durability *DurabilityEvidence `json:"durability,omitempty"`
+	Error      string              `json:"error"`
 
 	// FailureClass Worker-side classification of a job failure, made where the error is still typed (at the gateway it is already a flattened string, and message-regex classification is the drift this exists to avoid). 'deterministic' — the same request cannot succeed on a second attempt — skips the retry budget. ABSENT means unrecognised, which is deliberately not the same claim as 'transient': only KNOWN-deterministic failures carry the class, because mis-reading a transient failure as deterministic halves reliability while the reverse costs one wasted attempt.
 	FailureClass *FailureClass `json:"failureClass,omitempty"`
@@ -3048,7 +3084,10 @@ type JobFailCommand struct {
 type JobFailedPayload struct {
 	// AnnotationId Annotation this job was attached to, when applicable
 	AnnotationId *string `json:"annotationId,omitempty"`
-	Error        string  `json:"error"`
+
+	// Durability How a job's annotations were established as durable — the OBSERVATION, never a conclusion drawn from it. 'acknowledged': the event log confirmed the batch (mark:commit-ok). 'probe-confirmed': the acknowledgement was lost and a later read found the batch's last annotation present — true, but a weaker claim than an ack, since it rests on the log appending a batch in order and stopping at the first failure. 'probe-refused': the read returned a failure reply; note this does NOT assert the annotations are absent, because a read that failed for its own reasons answers on the same channel. 'probe-unreachable': no answer came at all, so nothing was established either way. ABSENT means the question never arose — a job that committed no annotations. Never defaulted: a manufactured value here is a claim nobody made, in a log nobody can rewrite.
+	Durability *DurabilityEvidence `json:"durability,omitempty"`
+	Error      string              `json:"error"`
 
 	// FailureClass Worker-side classification of a job failure, made where the error is still typed (at the gateway it is already a flattened string, and message-regex classification is the drift this exists to avoid). 'deterministic' — the same request cannot succeed on a second attempt — skips the retry budget. ABSENT means unrecognised, which is deliberately not the same claim as 'transient': only KNOWN-deterministic failures carry the class, because mis-reading a transient failure as deterministic halves reliability while the reverse costs one wasted attempt.
 	FailureClass *FailureClass `json:"failureClass,omitempty"`

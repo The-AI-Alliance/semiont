@@ -693,6 +693,10 @@ export class Stower {
         jobType: event.jobType,
         ...(event.annotationId ? { annotationId: event.annotationId } : {}),
         result: event.result,
+        // How durability was ESTABLISHED (COMMIT-ACK-FALSE-FAILURE). An
+        // acknowledged batch and one inferred from a probe are different
+        // claims; absent means the question never arose.
+        ...(event.durability !== undefined ? { durability: event.durability } : {}),
       },
     });
   }
@@ -719,6 +723,10 @@ export class Stower {
         // nobody made into a log nobody can rewrite.
         ...(event.failureClass !== undefined ? { failureClass: event.failureClass } : {}),
         ...(event.willRetry !== undefined ? { willRetry: event.willRetry } : {}),
+        // How durability was ESTABLISHED (COMMIT-ACK-FALSE-FAILURE). An
+        // acknowledged batch and one inferred from a probe are different
+        // claims; absent means the question never arose.
+        ...(event.durability !== undefined ? { durability: event.durability } : {}),
       },
     });
   }

@@ -150,6 +150,22 @@ describe('Stower job:* handlers', () => {
   });
 
   it.each([
+    ['job:complete', 'job:completed', 'probe-confirmed'],
+    ['job:fail', 'job:failed', 'probe-unreachable'],
+  ])('%s persists how durability was established', async (channel, persisted, durability) => {
+    // The evidentiary half of the same rule: an acknowledged completion and one
+    // inferred from a probe are different claims, and "the log said no" is a
+    // different claim from "the log never answered". Four states, and without
+    // this field the log holds two.
+    bus.get(channel as 'job:complete').next(jobEvent({ error: 'e', durability }) as never);
+    await settle();
+
+    const event = appendEvent.mock.calls[0][0];
+    expect(event.type).toBe(persisted);
+    expect(event.payload.durability).toBe(durability);
+  });
+
+  it.each([
     ['job:start'],
     ['job:complete'],
     ['job:fail'],

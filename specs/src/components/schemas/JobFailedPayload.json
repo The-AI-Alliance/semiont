@@ -21,6 +21,9 @@
     "willRetry": {
       "type": "boolean",
       "description": "Whether the worker computed that the queue would re-queue this job (same predicate the queue applies, `willRetryAfter`). Absent means the worker stated nothing. Without it a reader of the log cannot tell a run recovering across several job:failed events from that many dead jobs."
+    },
+    "durability": {
+      "$ref": "./DurabilityEvidence.json"
     }
   },
   "required": [
