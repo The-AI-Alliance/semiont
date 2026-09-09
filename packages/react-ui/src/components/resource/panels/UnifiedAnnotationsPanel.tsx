@@ -5,7 +5,8 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components, Selector } from '@semiont/core';
 type JobProgress = components['schemas']['JobProgress'];
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
-import type { SemiontSession } from '@semiont/sdk';
+import type { SemiontSession, MarkAssistOutcome } from '@semiont/sdk';
+import { assistCompleteness } from '../../../lib/assist-completeness';
 import { annotatorKeyForMotivation, type Annotator, type AnnotatorKey } from '../../../lib/annotation-registry';
 import { StatisticsPanel } from './StatisticsPanel';
 import { HighlightPanel } from './HighlightPanel';
@@ -66,6 +67,12 @@ interface UnifiedAnnotationsPanelProps {
   // Annotation assistance state (per motivation)
   assistingMotivation?: Motivation | null;
   progress?: JobProgress | null;
+  /**
+   * The SETTLED terminal verdict of the last assist run (RD4,
+   * DETECTION-RESULT-STREAMING P3). Fanned out per tab exactly like
+   * `progress`: only the tab whose motivation the run belonged to badges.
+   */
+  assistOutcome?: MarkAssistOutcome | null;
 
   // Unified pending annotation (for creating new annotations)
   pendingAnnotation: PendingAnnotation | null;
@@ -258,6 +265,26 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
           );
         })}
       </div>
+
+      {(() => {
+        // RD4's completeness badge. Rendered only from a SETTLED outcome —
+        // mid-run absence of verdicts means "not run yet", never clean — and
+        // only on the tab whose motivation the run belonged to. No outcome,
+        // no badge: there is deliberately no "unknown" state.
+        const annotator = props.annotators[activeTab];
+        if (!annotator || props.assistOutcome?.motivation !== annotator.motivation) return null;
+        const verdict = assistCompleteness(props.assistOutcome, (grouped[activeTab] || []).length);
+        if (!verdict) return null;
+        const label =
+          verdict === 'clean' ? t('completenessClean') :
+          verdict === 'under-reported' ? t('completenessUnderReported') :
+          t('completenessIncomplete');
+        return (
+          <div className="semiont-unified-panel__completeness" data-verdict={verdict} role="status">
+            {label}
+          </div>
+        );
+      })()}
 
       {/* Tab Content */}
       <div className="semiont-unified-panel__content">
