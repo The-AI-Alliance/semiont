@@ -639,7 +639,6 @@ export async function processReferenceJob(
         emitTypeProgress(entityTypeName);
       },
       async (chunkEntities) => {
-        unitFound += chunkEntities.length;
         const built: Annotation[] = [];
         for (const entity of chunkEntities) {
           const reconciled = reconcileSelector(content, {
@@ -662,14 +661,20 @@ export async function processReferenceJob(
         // Awaited: a failed commit fails the unit before it can checkpoint;
         // the retry re-runs it whole, into a log that dedupes by id.
         await onChunkComplete?.(fresh);
+        // Tallies move only PAST the awaited commit — a chunk that fails to
+        // commit contributes nothing anywhere — and the numerator advances at
+        // the same grain as the denominator: per chunk, in the same frame
+        // family the viewer's found-of-~expected tally reads.
+        unitFound += chunkEntities.length;
         unitPersisted += fresh.length;
+        totalFound += chunkEntities.length;
+        totalEmitted += fresh.length;
+        emitTypeProgress(entityTypeName);
       },
     );
 
     // Every chunk of this unit is durable; only now may it checkpoint.
     await onUnitComplete(entityTypeName);
-    totalEmitted += unitPersisted;
-    totalFound += unitFound;
     // Found vs persisted, per unit — the gap between them is this flow's yield.
     completedItems.push({
       value: entityTypeName,

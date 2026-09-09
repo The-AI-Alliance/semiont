@@ -2237,6 +2237,34 @@ describe('entitiesExpected on the progress surface', () => {
     }
   });
 
+  it('the numerator advances at the same grain as the denominator', async () => {
+    // Copilot's PR-1337 finding: expected grew per chunk while found waited
+    // for the unit — "0 of ~37" for an entire single-type run, annotations
+    // painting all the while. Found and emitted must move as chunks COMMIT.
+    vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
+      const onCounted = args[8] as (c: number) => void;
+      const onChunkResults = args[9] as (i: unknown[]) => Promise<void>;
+      onCounted(4);
+      await onChunkResults([{ exact: 'Paris', entityType: 'Location' }]);
+      onCounted(3);
+      await onChunkResults([{ exact: 'Berlin', entityType: 'Location' }]);
+      return [] as never;
+    });
+    const progress = vi.fn();
+
+    await processReferenceJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild(content), progress, LOGGER, async () => {}, undefined, async () => {},
+    );
+
+    const frames = progress.mock.calls.map((c) => c[2] as Record<string, unknown> | undefined);
+    // Mid-unit: after the first chunk committed, a frame must say found 1 —
+    // not hold 0 until the unit settles.
+    expect(frames.some((f) => f?.entitiesFound === 1 && f?.entitiesEmitted === 1)).toBe(true);
+    expect(frames.some((f) => f?.entitiesFound === 2)).toBe(true);
+  });
+
   it('absent when the provider does not verify — no claim, not zero', async () => {
     vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'Paris', entityType: 'Location' },
