@@ -1,12 +1,17 @@
 module github.com/The-AI-Alliance/semiont/apps/launcher
 
-go 1.25
+go 1.27
 
-// Pinned to the patch, not the minor: `go 1.25` let CI resolve to whatever
-// 1.25.x it had (1.25.12), which govulncheck fails on — five stdlib CVEs, all
-// fixed in 1.25.13. actions/setup-go reads this line from go-version-file, so
-// the scan and the build agree on one compiler.
-toolchain go1.25.13
+// Pinned to the patch, not the minor: `go 1.27` alone lets CI resolve to
+// whatever 1.27.x it happens to have, and a stdlib CVE fixed in a later patch
+// then fails govulncheck on a compiler nobody chose. actions/setup-go reads
+// this line from go-version-file, so the scan and the build agree on one
+// compiler.
+//
+// 1.25.13 -> 1.27.1 (2026-09-08): CI installs govulncheck @latest, v1.8.0
+// published requiring go >= 1.26, and every Go job went red against
+// GOTOOLCHAIN=local. The floor moves with the tool.
+toolchain go1.27.1
 
 require (
 	github.com/The-AI-Alliance/semiont/packages/sdk-go v0.0.0-00010101000000-000000000000

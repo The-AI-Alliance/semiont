@@ -311,7 +311,7 @@ $RT run --rm \
   -v "$GOMODCACHE_DIR":/go/pkg/mod \
   -e GOPROXY="$GOPROXY_CACHED" \
   -w /workspace \
-  golang:1.25 \
+  golang:1.27 \
   sh -c 'go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
            -generate types,client,skip-prune -package semiont \
            -o /tmp/client_gen.check.go specs/openapi.json || exit 3
@@ -895,7 +895,7 @@ fi
 #
 # The semiont launcher is a static Go binary that runs on the HOST and drives
 # the :local images (SEMIONT_VERSION=local semiont start). Built inside
-# golang:1.25 targeting the host platform — no Go toolchain on the host, the
+# golang:1.27 targeting the host platform — no Go toolchain on the host, the
 # same philosophy as the npm builds above. The Go build cache persists under
 # /tmp/semiont-gocache-build (/tmp, not $TMPDIR — Apple Container cannot
 # sustain mounts from /var/folders).
@@ -914,7 +914,7 @@ case "$(uname -m)" in
 esac
 
 mkdir -p "$GOCACHE_DIR" "$GOMODCACHE_DIR"
-step "Building the semiont launcher (${LAUNCHER_GOOS}/${LAUNCHER_GOARCH}) in golang:1.25..."
+step "Building the semiont launcher (${LAUNCHER_GOOS}/${LAUNCHER_GOARCH}) in golang:1.27..."
 $RT run --rm \
   -v "$REPO_ROOT":/workspace \
   -v "$GOCACHE_DIR":/root/.cache/go-build \
@@ -922,7 +922,7 @@ $RT run --rm \
   -w /workspace/apps/launcher \
   -e GOPROXY="$GOPROXY_CACHED" \
   -e GOOS="$LAUNCHER_GOOS" -e GOARCH="$LAUNCHER_GOARCH" -e CGO_ENABLED=0 \
-  golang:1.25 \
+  golang:1.27 \
   go build -o dist/semiont .
 ok "apps/launcher/dist/semiont built"
 
