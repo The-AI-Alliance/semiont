@@ -484,9 +484,22 @@ func ghCodespace(args []string, joined string) {
 		// codespace reports Shutdown until something wakes it, exactly as
 		// GitHub does. Without this the fake stays Available forever and
 		// tests can't tell a wake-avoiding command from a waking one.
+		//
+		// And real gh 404s when the target does not exist (GitHub's 720h
+		// retention reap) — the fidelity that pins stop --delete against a
+		// reaped record. Membership is what `list` would print.
 		for i, a := range args {
 			if a == "-c" && i+1 < len(args) {
-				recordState(args[i+1], "Shutdown")
+				name := args[i+1]
+				body := os.Getenv("FAKERT_GH_CS_LIST")
+				if body == "" {
+					body = "[" + strings.Join(createdCodespaces(), ",") + "]"
+				}
+				if !strings.Contains(applyStateEvents(body), `"`+name+`"`) {
+					fmt.Fprintln(os.Stderr, "error fetching codespace information: HTTP 404: Not Found")
+					os.Exit(1)
+				}
+				recordState(name, "Shutdown")
 			}
 		}
 	case "ssh":

@@ -2887,6 +2887,55 @@ func TestCodespaceDidRefreshConfirmsAndReportsDrift(t *testing.T) {
 	}
 }
 
+// Every codespace reaches "reaped": the launcher itself passes
+// --retention-period 720h, so GitHub deletes a stopped codespace after 30
+// days and the record outlives it. start must fail FAST with the real
+// reason — not poll a ghost as "Provisioning" for ten minutes — and it must
+// not auto-create (user-decided: a paid VM is a cost event, never a bug-fix
+// side effect).
+func TestStartFailsFastOnReapedCodespace(t *testing.T) {
+	s := newCodespaceScenario(t)
+	writeCodespaceState(t, s) // record names fake-cs-1; gh list reports [] — reaped
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo)
+	if code != 1 {
+		t.Fatalf("start on a reaped codespace: want fail-fast exit 1, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	all := stdout + stderr
+	mustContain(t, "fail-fast reason and remedy", all,
+		"no longer exists",
+		"semiont stop --repo "+csRepo+" --delete")
+	if strings.Contains(all, "Waiting for the codespace VM") {
+		t.Errorf("start polled a ghost instead of failing fast:\n%s", all)
+	}
+	if strings.Contains(string(mustLogOrEmpty(s)), "gh codespace create") {
+		t.Errorf("start auto-created a codespace from a stale record")
+	}
+}
+
+// --delete's goal state is "no codespace, no record". A codespace GitHub
+// already reaped is halfway there; the delete must finish the job (forget
+// the record, exit 0) instead of failing on the 404 and leaving the record
+// as a permanent dead end.
+func TestStopDeleteForgetsReapedCodespace(t *testing.T) {
+	s := newCodespaceScenario(t)
+	writeCodespaceState(t, s)
+	stdout, stderr, code := s.run(t, "stop", "--repo", csRepo, "--delete")
+	if code != 0 {
+		t.Fatalf("stop --delete on a reaped codespace: want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "delete output", stdout+stderr, "already", "record")
+	if b, err := os.ReadFile(statePathFor(s.home)); err == nil && strings.Contains(string(b), "codespace:"+csRepo) {
+		t.Errorf("record kept after --delete on a reaped codespace:\n%s", b)
+	}
+}
+
+// mustLogOrEmpty: the argv log, or empty when no runtime call was made —
+// distinct from mustLog, which fails the test on absence.
+func mustLogOrEmpty(s *scenario) []byte {
+	b, _ := os.ReadFile(s.log)
+	return b
+}
+
 func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {
 	s := newCodespaceScenario(t)
 	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
