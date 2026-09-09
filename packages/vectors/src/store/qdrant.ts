@@ -10,6 +10,7 @@ import type { QdrantClient, Schemas } from '@qdrant/js-client-rest';
 import type { ResourceId, AnnotationId } from '@semiont/core';
 import type { VectorStore, EmbeddingChunk, AnnotationPayload, VectorSearchResult, SearchOptions, ResourceStamp } from './interface';
 import { mergeByResource } from './merge';
+import { resolveDimensions } from '../embedding/resolve-dimensions';
 
 /**
  * Generate a deterministic UUID v5-style ID from an arbitrary string.
@@ -125,8 +126,14 @@ export class QdrantVectorStore implements VectorStore {
     // resolved HERE and nowhere else: an existing collection already encodes
     // its vector size, and consulting the provider to re-derive a number we
     // would not use is exactly the eager-probe coupling this avoids.
+    //
+    // And HERE is also where the retry belongs, not around `connect()`: wrapping
+    // connect would re-run `getCollection` and both `ensurePayloadIndex` calls on
+    // every attempt — idempotent, but it widens the retry over operations that
+    // were not failing. Only this one call needs the provider to be live.
+    const size = await resolveDimensions(this.config.dimensions);
     await this.qdrant.createCollection(name, {
-      vectors: { size: await this.config.dimensions(), distance: 'Cosine' },
+      vectors: { size, distance: 'Cosine' },
     });
   }
 

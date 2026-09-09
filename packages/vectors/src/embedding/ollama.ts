@@ -6,6 +6,7 @@
  */
 
 import type { EmbeddingProvider } from './interface';
+import { EmbeddingProviderError } from './provider-error';
 
 export interface OllamaEmbeddingConfig {
   model: string;
@@ -34,7 +35,7 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Ollama embed error ${response.status}: ${body}`);
+      throw new EmbeddingProviderError('ollama', response.status, this.config.model, body);
     }
 
     const json = await response.json() as { embeddings: number[][] };
@@ -56,7 +57,7 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Ollama embed error ${response.status}: ${body}`);
+      throw new EmbeddingProviderError('ollama', response.status, this.config.model, body);
     }
 
     const json = await response.json() as { embeddings: number[][] };
