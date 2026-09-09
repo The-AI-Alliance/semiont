@@ -52,10 +52,37 @@ export interface RetryAttemptInfo {
 }
 
 /**
+ * The worst-case wall clock a policy can spend.
+ *
+ * Derived, because it was being restated by hand in three places — a docstring
+ * saying "~39s", a test recomputing the sum, and a reader doing arithmetic to
+ * decide whether some other deadline could cut it short. Any of those can drift
+ * from the policy the moment someone edits it, and the drift is silent.
+ *
+ * `perAttemptMs` is the caller's per-attempt deadline. **Pass it, or the answer
+ * is a lower bound rather than a ceiling**: delays are bounded by the policy, but
+ * an unbounded attempt makes the total unbounded too, which is how a budget of
+ * "12 attempts" ends up meaning nothing under packet loss. `0` (the default)
+ * answers the delay sum alone, for a caller whose attempts cannot hang.
+ *
+ * Worst case, not expected: equal jitter puts each wait in [cap/2, cap), so the
+ * true wait averages ~75% of this. A ceiling is what a deadline needs to clear.
+ */
+export function retryBudgetMs(policy: RetryPolicy, perAttemptMs = 0): number {
+  let cap = policy.initialDelayMs;
+  let total = perAttemptMs;
+  for (let i = 1; i < policy.attempts; i++) {
+    total += cap + perAttemptMs;
+    cap = Math.min(cap * 2, policy.maxDelayMs);
+  }
+  return total;
+}
+
+/**
  * Default policy for startup connections to the gateway: 8 attempts with delay
- * ceilings 1s, 2s, 4s, then capped at 8s — up to ~39s of patience before giving
- * up. "Up to", because the backoff is equal-jittered: each wait lands in
- * [cap/2, cap), so the worst case is that sum and the expected case is ~75% of it.
+ * ceilings 1s, 2s, 4s, then capped at 8s. `retryBudgetMs` is the authority on
+ * how long that is; the equal-jittered backoff means the expected wait is ~75%
+ * of the ceiling it reports.
  */
 export const STARTUP_FETCH_RETRY: RetryPolicy = {
   attempts: 8,

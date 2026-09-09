@@ -108,6 +108,28 @@ async function createJobQueue(
 // restarts — so the gateway can reach these connects before Neo4j/Qdrant/
 // Ollama are listening. Failing fast turns an unrecoverable hang into a crash
 // the restart policy retries until the dependency is up.
+/**
+ * The startup deadline: how long a boot waits for a dependency that retries
+ * NOTHING (Neo4j, Qdrant) before crashing so the restart policy can try again.
+ *
+ * **It can be raced by a retry, and that is a landmine, so it is gated.** The
+ * three sidecar mains do not use `withStartupTimeout`, so nothing is broken today
+ * — but `resolveDimensions` waits out a model pull for longer than this, and the
+ * day someone wraps those mains "for consistency" the race would kill the retry
+ * mid-flight and reproduce the original crash-loop wearing a new message.
+ *
+ * **The right fix is a DEADLINE, not a bigger number.** `resolveDimensions`'s
+ * worst case is ~5 min against this 60s; a numeric gate demanding budget < deadline
+ * would force a budget too short to outlast a model pull, and raising this to
+ * clear it would make every other dependency hang for 5 min before anyone noticed.
+ * The two cannot be reconciled as constants because they are not the same kind of
+ * thing — this is a wall-clock ceiling, that is a work budget.
+ *
+ * What reconciles them is passing an `AbortSignal` down so the retry stops when
+ * the caller's deadline fires — the standard move (Go's `context.Context`, gRPC
+ * deadlines), available here with zero dependencies. Until then this interaction
+ * is a documented hazard rather than a guarded one, and that is the honest label.
+ */
 export const STARTUP_CONNECT_TIMEOUT_MS = 60_000;
 
 export async function withStartupTimeout<T>(what: string, work: Promise<T>): Promise<T> {

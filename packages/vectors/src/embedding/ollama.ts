@@ -6,7 +6,7 @@
  */
 
 import type { EmbeddingProvider } from './interface';
-import { EmbeddingProviderError } from './provider-error';
+import { EmbeddingProviderError, EMBED_TIMEOUT_MS } from './provider-error';
 
 export interface OllamaEmbeddingConfig {
   model: string;
@@ -27,6 +27,7 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
     const response = await fetch(`${baseURL}/api/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(EMBED_TIMEOUT_MS),
       body: JSON.stringify({
         model: this.config.model,
         input: text,
@@ -49,6 +50,7 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
     const response = await fetch(`${baseURL}/api/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(EMBED_TIMEOUT_MS),
       body: JSON.stringify({
         model: this.config.model,
         input: texts,

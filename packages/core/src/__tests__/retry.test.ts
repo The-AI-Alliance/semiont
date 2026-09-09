@@ -10,6 +10,7 @@ import {
   isTransientFetchError,
   isRetryableRequestError,
   isPeerUnavailable,
+  retryBudgetMs,
   STARTUP_FETCH_RETRY,
   type RetryAttemptInfo,
   type HttpStatusError,
@@ -234,13 +235,19 @@ describe('isPeerUnavailable', () => {
 
 describe('STARTUP_FETCH_RETRY', () => {
   it('waits ~39s worst case — inside the 30–60s startup window', () => {
-    let delay = STARTUP_FETCH_RETRY.initialDelayMs;
-    let total = 0;
-    for (let i = 1; i < STARTUP_FETCH_RETRY.attempts; i++) {
-      total += delay;
-      delay = Math.min(delay * 2, STARTUP_FETCH_RETRY.maxDelayMs);
-    }
+    // Was a hand-rolled copy of the same loop `retryBudgetMs` runs — a second
+    // implementation of the policy's own arithmetic, free to drift from it.
+    const total = retryBudgetMs(STARTUP_FETCH_RETRY);
     expect(total).toBeGreaterThanOrEqual(30_000);
     expect(total).toBeLessThanOrEqual(60_000);
+  });
+
+  it('counts a per-attempt deadline into the ceiling', () => {
+    // The distinction that matters under packet loss: delays are bounded by the
+    // policy, attempts are not unless the caller bounds them. A budget that
+    // ignores the attempt is a lower bound wearing a ceiling's name.
+    const delaysOnly = retryBudgetMs(STARTUP_FETCH_RETRY);
+    expect(retryBudgetMs(STARTUP_FETCH_RETRY, 5_000))
+      .toBe(delaysOnly + 5_000 * STARTUP_FETCH_RETRY.attempts);
   });
 });

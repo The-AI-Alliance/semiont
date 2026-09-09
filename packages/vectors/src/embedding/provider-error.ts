@@ -13,6 +13,20 @@
 
 export type EmbeddingProviderName = 'ollama' | 'voyage';
 
+/**
+ * Deadline on ONE embedding request.
+ *
+ * Without it a retry budget is a count with no wall clock: delays are bounded by
+ * the policy, but a `fetch` with no signal can sit in TCP retransmit for minutes
+ * under loss, so N attempts × unbounded is unbounded. `/bus/emit` learned this
+ * already — the caller's deadline governs one attempt, the policy governs the set.
+ *
+ * 15s rather than something tighter because Ollama can spend real time LOADING a
+ * model into memory on the first embed after a pull lands. That is a success in
+ * progress, and a 5s deadline would abort it just as it was about to work.
+ */
+export const EMBED_TIMEOUT_MS = 15_000;
+
 export class EmbeddingProviderError extends Error {
   readonly provider: EmbeddingProviderName;
   readonly status: number;
