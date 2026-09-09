@@ -159,17 +159,20 @@
 
 /* The subject and the parameters are context for the status, not peers of it. */
 .semiont-assist-progress__subject,
+.semiont-assist-progress__tally,
 .semiont-assist-progress__params {
   font-size: var(--semiont-text-xs);
   color: var(--semiont-text-secondary);
 }
 
 [data-theme="dark"] .semiont-assist-progress__subject,
+[data-theme="dark"] .semiont-assist-progress__tally,
 [data-theme="dark"] .semiont-assist-progress__params {
   color: var(--semiont-text-secondary);
 }
 
-.semiont-assist-progress__subject {
+.semiont-assist-progress__subject,
+.semiont-assist-progress__tally {
   font-variant-numeric: tabular-nums;
 }
 

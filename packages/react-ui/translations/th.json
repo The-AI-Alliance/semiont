@@ -225,7 +225,10 @@
     "comment": "ความคิดเห็น",
     "tag": "แท็ก",
     "annotationsFailed": "ไม่สามารถโหลดคำอธิบายประกอบได้",
-    "retry": "ลองอีกครั้ง"
+    "retry": "ลองอีกครั้ง",
+    "completenessClean": "การตรวจจับเสร็จสมบูรณ์",
+    "completenessUnderReported": "ตรวจจับได้บางส่วน — บางส่วนรายงานไม่ครบ",
+    "completenessIncomplete": "ตรวจจับได้บางส่วน — การทำงานไม่เสร็จสิ้น"
   },
   "StatisticsPanel": {
     "title": "สถิติ",
@@ -274,7 +277,8 @@
     "noText": "ไม่มีข้อความ",
     "incomingReferencesFailed": "ไม่สามารถโหลดการอ้างอิงขาเข้าได้",
     "retry": "ลองอีกครั้ง",
-    "entityTypesFailed": "ไม่สามารถโหลดประเภทเอนทิตีได้"
+    "entityTypesFailed": "ไม่สามารถโหลดประเภทเอนทิตีได้",
+    "tally": "{{found}} จากประมาณ {{expected}} เอนทิตี"
   },
   "KeyboardShortcuts": {
     "title": "ปุ่มลัดแป้นพิมพ์",

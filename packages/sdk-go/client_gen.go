@@ -3143,6 +3143,18 @@ type JobProgress struct {
 		// PersistedCount Annotations actually persisted for it — post-dedupe and post-durability-acknowledgement, so it counts what the event log holds, not what the model proposed. Beside foundCount this is the per-unit yield the sizing work is judged by. Present on flows whose units persist as they complete (reference-annotation); the tagging flow reports the same fact as byCategory on its result, because its annotations are built after the per-category loop.
 		PersistedCount *int `json:"persistedCount,omitempty"`
 
+		// UnderReported Present only when pieces of this unit were accepted at the subdivision floor while a count call said more was present. The unit completed, but incompletely — this carries the EVIDENCE (found vs counted, over how many pieces), never a judgment against any expected yield. Absent means complete: genuinely absent, not defaulted.
+		UnderReported *struct {
+			// Counted Mentions the count calls reported across those pieces (approximate by nature).
+			Counted int `json:"counted"`
+
+			// Found Annotations extraction did find on those pieces — every span write-time-verified.
+			Found int `json:"found"`
+
+			// Pieces Floor-accepted pieces in this unit.
+			Pieces int `json:"pieces"`
+		} `json:"underReported,omitempty"`
+
 		// Value The item, shown verbatim.
 		Value string `json:"value"`
 	} `json:"completedItems,omitempty"`
@@ -3158,6 +3170,9 @@ type JobProgress struct {
 
 	// EntitiesEmitted Annotations emitted so far (reference-annotation)
 	EntitiesEmitted *int `json:"entitiesEmitted,omitempty"`
+
+	// EntitiesExpected Cumulative mentions the count-verifier priced across the pieces accepted so far — the denominator for a real progress bar (found of ~expected). Approximate by nature (the count saturates on very large pieces) and monotonically growing within a run. ABSENT when the provider does not verify detection yield, or before any piece has been priced: no claim, never zero.
+	EntitiesExpected *int `json:"entitiesExpected,omitempty"`
 
 	// EntitiesFound Entities found so far (reference-annotation)
 	EntitiesFound *int `json:"entitiesFound,omitempty"`
@@ -3319,6 +3334,9 @@ type JobReferenceAnnotationResult struct {
 
 	// TotalFound Total entities found
 	TotalFound int `json:"totalFound"`
+
+	// UnderReportedPieces Total floor-accepted under-reported pieces across the job's units. Absent means none — the per-unit evidence rides the terminal progress frame's completedItems; this keeps the result self-describing without the progress stream.
+	UnderReportedPieces *int `json:"underReportedPieces,omitempty"`
 }
 
 // JobReferenceAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).

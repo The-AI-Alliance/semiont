@@ -225,7 +225,10 @@
     "comment": "评论",
     "tag": "标签",
     "annotationsFailed": "无法加载注释。",
-    "retry": "重试"
+    "retry": "重试",
+    "completenessClean": "检测完成",
+    "completenessUnderReported": "部分检测 — 某些部分报告不足",
+    "completenessIncomplete": "部分检测 — 运行未完成"
   },
   "StatisticsPanel": {
     "title": "统计",
@@ -274,7 +277,8 @@
     "noText": "无文本",
     "incomingReferencesFailed": "无法加载传入引用。",
     "retry": "重试",
-    "entityTypesFailed": "无法加载实体类型。"
+    "entityTypesFailed": "无法加载实体类型。",
+    "tally": "约 {{expected}} 个实体中的 {{found}} 个"
   },
   "KeyboardShortcuts": {
     "title": "键盘快捷键",

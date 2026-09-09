@@ -1,7 +1,7 @@
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
 import { chunkText, estimateTokens, getLocaleEnglishName, isObject, isString, type Logger } from '@semiont/core';
 import { boundedGenerateStructured, boundedGenerateWithMetadata } from '../inference-call';
-import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, DETECTION_TEMPERATURE, YIELD_COLLAPSE_BAND, YieldCollapseError } from './detection-chunking';
+import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, DETECTION_TEMPERATURE, YIELD_COLLAPSE_BAND, YieldCollapseError, type UnderReportedPiece } from './detection-chunking';
 
 /**
  * Entity reference extracted from text — pre-reconciliation.
@@ -108,7 +108,7 @@ async function assertYieldNotCollapsed(
   items: readonly unknown[],
   entityTypesDescription: string,
   logger: Logger,
-): Promise<void> {
+): Promise<number | undefined> {
   const prompt = `Count every mention of: ${entityTypesDescription} in the following text. Repeated mentions of the same entity count separately. Respond with only the number.
 
 Text:
@@ -125,11 +125,11 @@ ${piece}
       pieceChars: piece.length,
       error: err instanceof Error ? err.message : String(err),
     });
-    return;
+    return undefined;
   }
   if (counted === undefined) {
     logger.warn('Count-verifier answer carried no number — yield check skipped for this chunk', { pieceChars: piece.length });
-    return;
+    return undefined;
   }
   if (items.length * YIELD_COLLAPSE_BAND < counted) {
     // The salvage rides the error: descent discards it (a smaller re-run does
@@ -138,8 +138,10 @@ ${piece}
     throw new YieldCollapseError(
       `Extraction found ${items.length} entities where a count call reports ~${counted} mentions (band ×${YIELD_COLLAPSE_BAND}) on a ${piece.length}-char chunk — silent yield collapse (F7): deterministic — a same-size retry returns the identical under-report.`,
       [...items],
+      { found: items.length, counted, pieceChars: piece.length },
     );
   }
+  return counted;
 }
 
 export async function extractEntities(
@@ -150,6 +152,17 @@ export async function extractEntities(
   logger: Logger,
   sourceLanguage?: string,
   onActivity?: (completedChunks: number, totalChunks: number) => void,
+  /** A floor-accepted piece's evidence, as it is accepted. */
+  onUnderReport?: (verdict: UnderReportedPiece) => void,
+  /** Each accepted piece's count-verifier expectation — the denominator. */
+  onCounted?: (counted: number) => void,
+  /**
+   * This chunk's entities, awaited before the loop continues: the caller
+   * commits them, and the loop must not run ahead of durability. Unlike
+   * `onActivity` (a liveness heartbeat, which may repeat), this fires exactly
+   * once per chunk, including the last. Kept LAST on every detection seam.
+   */
+  onChunkResults?: (items: ExtractedEntity[]) => Promise<void>,
 ): Promise<ExtractedEntity[]> {
 
   // Format entity types for the prompt
@@ -273,20 +286,24 @@ Example output:
       // And a CLEAN response can still be a silent under-report (F7) — the
       // count-verifier is the only signal for that, and a flag throws the
       // collapse verdict so subdivision changes the input.
-      if (verifyYield) {
-        await assertYieldNotCollapsed(client, piece, response.items, entityTypesDescription, logger);
-      }
+      const counted = verifyYield
+        ? await assertYieldNotCollapsed(client, piece, response.items, entityTypesDescription, logger)
+        : undefined;
       // Usage rides back so the telemetry record carries what the call COST
       // beside what it yielded — the provider's own counts, not an estimate.
-      return { items: response.items, ...(response.usage ? { usage: response.usage } : {}) };
-    }, logger);
+      return {
+        items: response.items,
+        ...(response.usage ? { usage: response.usage } : {}),
+        ...(counted !== undefined ? { counted } : {}),
+      };
+    }, logger, onUnderReport, onCounted);
 
+    const fromChunk: ExtractedEntity[] = [];
     for (const e of items) {
       // No dedupe here: overlap duplicates from adjacent chunks pass through
-      // to the processor's span-keyed dedupeAnnotations — the single dedupe
-      // point.
+      // to the caller's decider — the single dedupe point.
       if (isObject(e) && isString(e.exact) && isString(e.entityType)) {
-        collected.push({
+        fromChunk.push({
           exact: e.exact,
           entityType: e.entityType,
           ...(isString(e.prefix) ? { prefix: e.prefix } : {}),
@@ -296,6 +313,8 @@ Example output:
         logger.debug('Dropped malformed LLM entity', { entity: e });
       }
     }
+    collected.push(...fromChunk);
+    await onChunkResults?.(fromChunk);
 
     // Chunk boundary: the count advances (real progress).
     if (i < chunks.length - 1) {

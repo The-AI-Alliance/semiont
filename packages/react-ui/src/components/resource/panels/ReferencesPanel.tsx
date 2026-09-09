@@ -381,6 +381,8 @@ export function ReferencesPanel({
               onDismiss: () => session?.client.mark.dismissProgress(),
               translations: assistProgressTranslations(ta, {
                 found: (count: number) => t('found', { count }),
+                // RD5: rendered only when the wire prices a denominator.
+                tally: (found: number, expected: number) => t('tally', { found, expected }),
               }),
             }}
             form={

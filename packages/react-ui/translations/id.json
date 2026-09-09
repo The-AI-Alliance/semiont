@@ -225,7 +225,10 @@
     "comment": "Komentar",
     "tag": "Tag",
     "annotationsFailed": "Tidak dapat memuat anotasi.",
-    "retry": "Coba lagi"
+    "retry": "Coba lagi",
+    "completenessClean": "Deteksi selesai",
+    "completenessUnderReported": "Terdeteksi sebagian — beberapa bagian kurang terlaporkan",
+    "completenessIncomplete": "Terdeteksi sebagian — proses tidak selesai"
   },
   "StatisticsPanel": {
     "title": "Statistik",
@@ -274,7 +277,8 @@
     "noText": "Tidak ada teks",
     "incomingReferencesFailed": "Tidak dapat memuat referensi masuk.",
     "retry": "Coba lagi",
-    "entityTypesFailed": "Tidak dapat memuat tipe entitas."
+    "entityTypesFailed": "Tidak dapat memuat tipe entitas.",
+    "tally": "{{found}} dari ~{{expected}} entitas"
   },
   "KeyboardShortcuts": {
     "title": "Pintasan Keyboard",

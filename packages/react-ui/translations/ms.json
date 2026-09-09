@@ -225,7 +225,10 @@
     "comment": "Ulasan",
     "tag": "Tag",
     "annotationsFailed": "Tidak dapat memuatkan anotasi.",
-    "retry": "Cuba lagi"
+    "retry": "Cuba lagi",
+    "completenessClean": "Pengesanan selesai",
+    "completenessUnderReported": "Dikesan sebahagian — beberapa bahagian kurang dilaporkan",
+    "completenessIncomplete": "Dikesan sebahagian — larian tidak selesai"
   },
   "StatisticsPanel": {
     "title": "Statistik",
@@ -274,7 +277,8 @@
     "noText": "Tiada teks",
     "incomingReferencesFailed": "Tidak dapat memuatkan rujukan masuk.",
     "retry": "Cuba lagi",
-    "entityTypesFailed": "Tidak dapat memuatkan jenis entiti."
+    "entityTypesFailed": "Tidak dapat memuatkan jenis entiti.",
+    "tally": "{{found}} daripada ~{{expected}} entiti"
   },
   "KeyboardShortcuts": {
     "title": "Pintasan Papan Kekunci",

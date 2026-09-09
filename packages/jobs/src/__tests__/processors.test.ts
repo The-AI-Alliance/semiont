@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GEN_REQUIRED } from './fixtures/generation-fixtures';
 import { resourceId, entityType } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
-import type { components, TagSchema, GatheredContext, Logger } from '@semiont/core';
+import type { components, TagSchema, GatheredContext, Logger, Annotation } from '@semiont/core';
 
 type Agent = components['schemas']['Agent'];
 
@@ -119,6 +119,26 @@ function makeInferenceClient(): InferenceClient {
   } as unknown as InferenceClient;
 }
 
+/**
+ * Deliver mocked matches through the chunk-results callback (the last
+ * positional argument) in one chunk — a plain mockResolvedValue starves the
+ * processor of results entirely.
+ */
+const inOneChunk = (matches: unknown[]) => (async (...args: unknown[]) => {
+  const cb = args[args.length - 1];
+  if (typeof cb === 'function') await (cb as (m: unknown[]) => Promise<void>)(matches);
+  return matches;
+}) as never;
+
+/** Run a motivation processor, collecting its chunk-committed annotations. */
+async function collected<R>(
+  run: (onChunkComplete: (a: Annotation[]) => Promise<void>) => Promise<{ result: R }>,
+): Promise<{ annotations: Annotation[]; result: R }> {
+  const annotations: Annotation[] = [];
+  const { result } = await run(async (batch) => { annotations.push(...batch); });
+  return { annotations, result };
+}
+
 const LOGGER = {
   debug: vi.fn(),
   info: vi.fn(),
@@ -136,19 +156,18 @@ describe('processHighlightJob', () => {
     // Content must actually contain the highlighted substrings — the
     // buildTextAnnotation invariant verifies content[start, end] === exact.
     const content = 'important text and the critical part is here.';
-    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
       { exact: 'important', start: 0, end: 9 },
       { exact: 'critical', start: content.indexOf('critical'), end: content.indexOf('critical') + 'critical'.length },
-    ]);
+    ]));
 
     const progress = vi.fn();
-    const result = await processHighlightJob(
+    const result = await collected((onChunkComplete) => processHighlightJob(
       content,
       makeInferenceClient(),
       { resourceId: RID, density: 5 },
       textBuild(content),
-      progress,
-    );
+      progress, onChunkComplete));
 
     expect(result.annotations).toHaveLength(2);
     expect(result.annotations[0]).toMatchObject({
@@ -172,18 +191,17 @@ describe('processHighlightJob', () => {
     // and collapses every bodiless PDF highlight to one. Two distinct spans
     // must survive as two annotations, anchored by FragmentSelector geometry.
     const content = PDF_LAYER.text; // 'alpha beta\ngamma delta'
-    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
       { exact: 'alpha', start: 0, end: 5 },
       { exact: 'delta', start: 17, end: 22 },
-    ]);
+    ]));
 
-    const result = await processHighlightJob(
+    const result = await collected((onChunkComplete) => processHighlightJob(
       content,
       makeInferenceClient(),
       { resourceId: RID, density: 5 },
       pdfBuild(PDF_LAYER),
-      vi.fn(),
-    );
+      vi.fn(), onChunkComplete));
 
     expect(result.annotations).toHaveLength(2);
     expect(result.result).toEqual({ kind: 'highlight-annotation', highlightsFound: 2, highlightsCreated: 2 });
@@ -199,17 +217,16 @@ describe('processCommentJob', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('produces commenting annotations with TextualBody', async () => {
-    vi.mocked(AnnotationDetection.detectComments).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectComments).mockImplementation(inOneChunk([
       { exact: 'passage', start: 0, end: 7, comment: 'interesting point' },
-    ]);
+    ]));
 
-    const result = await processCommentJob(
+    const result = await collected((onChunkComplete) => processCommentJob(
       'passage here',
       makeInferenceClient(),
       { resourceId: RID, density: 3 },
       textBuild('passage here'),
-      vi.fn(),
-    );
+      vi.fn(), onChunkComplete));
 
     expect(result.annotations).toHaveLength(1);
     expect((result.annotations[0] as any).motivation).toBe('commenting');
@@ -228,17 +245,16 @@ describe('processAssessmentJob', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('produces assessing annotations with TextualBody', async () => {
-    vi.mocked(AnnotationDetection.detectAssessments).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectAssessments).mockImplementation(inOneChunk([
       { exact: 'claim', start: 0, end: 5, assessment: 'dubious' },
-    ]);
+    ]));
 
-    const result = await processAssessmentJob(
+    const result = await collected((onChunkComplete) => processAssessmentJob(
       'claim made',
       makeInferenceClient(),
       { resourceId: RID, density: 3 },
       textBuild('claim made'),
-      vi.fn(),
-    );
+      vi.fn(), onChunkComplete));
 
     expect(result.annotations).toHaveLength(1);
     expect((result.annotations[0] as any).motivation).toBe('assessing');
@@ -259,10 +275,10 @@ describe('processReferenceJob', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('produces linking annotations and tracks per-entity-type progress', async () => {
-    vi.mocked(extractEntities).mockResolvedValue([
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'Paris', start: 0, end: 5, entityType: 'Location' } as any,
       { exact: 'Berlin', start: 10, end: 16, entityType: 'Location' } as any,
-    ]);
+    ]));
 
     const progress = vi.fn();
     const committed: unknown[] = [];
@@ -273,7 +289,9 @@ describe('processReferenceJob', () => {
       textBuild('Paris and Berlin'),
       progress,
       LOGGER,
-      async (_unit, annotations) => {
+      async () => {},
+      undefined,
+      async (annotations) => {
         committed.push(...annotations);
       },
     );
@@ -301,14 +319,16 @@ describe('processReferenceJob', () => {
   it('runs multiple entity types and commits each exactly once', async () => {
     // Each type returns its own entity (verbatim in the content so anchoring holds).
     const content = 'Paris and Ada and Sony are here.';
-    vi.mocked(extractEntities).mockImplementation(async (_c, types) => {
+    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, onChunkResults) => {
       const t = String(types[0]);
       const map: Record<string, any> = {
         Location: [{ exact: 'Paris', entityType: 'Location' }],
         Person: [{ exact: 'Ada', entityType: 'Person' }],
         Organization: [{ exact: 'Sony', entityType: 'Organization' }],
       };
-      return map[t] ?? [];
+      const items = map[t] ?? [];
+      await onChunkResults?.(items);
+      return items;
     });
 
     const units: string[] = [];
@@ -372,10 +392,13 @@ describe('processReferenceJob', () => {
   it('reports each unit once even when types finish OUT OF ORDER', async () => {
     const content = 'Paris and Ada are here.';
     // Location resolves slowly, Person fast — completion order reversed.
-    vi.mocked(extractEntities).mockImplementation(async (_c, types) => {
+    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, onChunkResults) => {
       const t = String(types[0]);
-      if (t === 'Location') { await new Promise((r) => setTimeout(r, 20)); return [{ exact: 'Paris', entityType: 'Location' }] as any; }
-      return [{ exact: 'Ada', entityType: 'Person' }] as any;
+      const items = t === 'Location'
+        ? (await new Promise((r) => setTimeout(r, 20)), [{ exact: 'Paris', entityType: 'Location' }])
+        : [{ exact: 'Ada', entityType: 'Person' }];
+      await onChunkResults?.(items as any);
+      return items as any;
     });
 
     const progress = vi.fn();
@@ -395,10 +418,10 @@ describe('processReferenceJob', () => {
   it('counts errors when reconciliation drops an entity (text not in source)', async () => {
     // 'good' is in the content; 'BADTEXT' is not — reconcileSelector drops
     // the second entity, the processor counts an error.
-    vi.mocked(extractEntities).mockResolvedValue([
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'good', start: 0, end: 4, entityType: 'Thing' } as any,
       { exact: 'BADTEXT', start: 99, end: 106, entityType: 'Thing' } as any,
-    ]);
+    ]));
 
     const committed: unknown[] = [];
     const outcome = await processReferenceJob(
@@ -408,7 +431,9 @@ describe('processReferenceJob', () => {
       textBuild('good stuff'),
       vi.fn(),
       LOGGER,
-      async (_unit, annotations) => {
+      async () => {},
+      undefined,
+      async (annotations) => {
         committed.push(...annotations);
       },
     );
@@ -418,7 +443,7 @@ describe('processReferenceJob', () => {
   });
 
   it('returns zero counts when no entities are found — and still commits the empty unit', async () => {
-    vi.mocked(extractEntities).mockResolvedValue([]);
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([]));
 
     const onUnitComplete = vi.fn(async () => {});
     const outcome = await processReferenceJob(
@@ -432,7 +457,7 @@ describe('processReferenceJob', () => {
     );
 
     // Legitimately-empty is a completed unit (A3 v) — a retry must skip it.
-    expect(onUnitComplete).toHaveBeenCalledExactlyOnceWith('Location', []);
+    expect(onUnitComplete).toHaveBeenCalledExactlyOnceWith('Location');
     expect(outcome.result).toEqual({ kind: 'reference-annotation', totalFound: 0, totalEmitted: 0, errors: 0 });
   });
 });
@@ -460,11 +485,11 @@ describe('processReferenceJob — unit completion gates on the commit (P6)', () 
   it('reports found AND persisted per unit — the gap between them is the yield', async () => {
     // Three proposals, two distinct spans: the duplicate collapses in dedupe,
     // so found and persisted must differ here or the test proves nothing.
-    vi.mocked(extractEntities).mockResolvedValue([
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'Paris', start: 0, end: 5, entityType: 'Location' } as any,
       { exact: 'Paris', start: 0, end: 5, entityType: 'Location' } as any,
       { exact: 'Berlin', start: 10, end: 16, entityType: 'Location' } as any,
-    ]);
+    ]));
     const onProgress = vi.fn();
 
     await processReferenceJob(
@@ -488,10 +513,11 @@ describe('processReferenceJob — unit completion gates on the commit (P6)', () 
   });
 
   it('a rejecting sink stops the unit counting, and the failure reaches the caller', async () => {
-    vi.mocked(extractEntities).mockResolvedValue([
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'Paris', start: 0, end: 5, entityType: 'Location' } as any,
-    ]);
-    const onUnitComplete = vi.fn(async () => { throw new Error('mark:commit failed: sink down'); });
+    ]));
+    const onUnitComplete = vi.fn(async () => {});
+    const onChunkComplete = vi.fn(async () => { throw new Error('mark:commit failed: sink down'); });
 
     await expect(processReferenceJob(
       'Paris and Berlin',
@@ -501,37 +527,39 @@ describe('processReferenceJob — unit completion gates on the commit (P6)', () 
       vi.fn(),
       LOGGER,
       onUnitComplete,
+      undefined,
+      onChunkComplete,
     )).rejects.toThrow(/sink down/);
 
-    // The point of the phase: an un-acked unit must NOT be reported complete.
-    // Swallowing here is what turned an Archivist outage into silent data
-    // loss — the unit would advance, the checkpoint would record it, and a
-    // resume would skip work that never persisted.
-    expect(onUnitComplete).toHaveBeenCalledTimes(1);
+    // The point of the phase: an un-acked chunk must NOT let the unit
+    // checkpoint. Swallowing here is what turned an Archivist outage into
+    // silent data loss — the unit would advance, the checkpoint would record
+    // it, and a resume would skip work that never persisted.
+    expect(onChunkComplete).toHaveBeenCalledTimes(1);
+    expect(onUnitComplete).not.toHaveBeenCalled();
   });
 
   it('a sink that recovers lets the unit through and counts it once', async () => {
-    vi.mocked(extractEntities).mockResolvedValue([
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'Paris', start: 0, end: 5, entityType: 'Location' } as any,
-    ]);
+    ]));
     let attempt = 0;
-    const onUnitComplete = vi.fn(async () => {
+    const onChunkComplete = vi.fn(async () => {
       if (++attempt === 1) throw new Error('mark:commit failed: sink down');
     });
 
-    // First pass fails at the unit boundary.
+    // First pass fails at the chunk commit.
     await expect(processReferenceJob(
       'Paris and Berlin', makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Location')] },
-      textBuild('Paris and Berlin'), vi.fn(), LOGGER, onUnitComplete,
+      textBuild('Paris and Berlin'), vi.fn(), LOGGER, async () => {}, undefined, onChunkComplete,
     )).rejects.toThrow();
 
-    // The retry — the whole unit again, which is safe because ids are
-    // deterministic (P3) and the annotation fold is idempotent by id.
+    // The retry — the whole unit again; the log dedupes by id.
     const outcome = await processReferenceJob(
       'Paris and Berlin', makeInferenceClient(),
       { resourceId: RID, entityTypes: [entityType('Location')] },
-      textBuild('Paris and Berlin'), vi.fn(), LOGGER, onUnitComplete,
+      textBuild('Paris and Berlin'), vi.fn(), LOGGER, async () => {}, undefined, onChunkComplete,
     );
 
     expect(outcome.result).toEqual({ kind: 'reference-annotation', totalFound: 1, totalEmitted: 1, errors: 0 });
@@ -544,21 +572,20 @@ describe('processTagJob', () => {
 
   it('produces tagging annotations grouped by category', async () => {
     vi.mocked(AnnotationDetection.detectTags)
-      .mockResolvedValueOnce([
+      .mockImplementationOnce(inOneChunk([
         { exact: 'foo', start: 0, end: 3, category: 'catA' } as any,
         { exact: 'bar', start: 4, end: 7, category: 'catA' } as any,
-      ])
-      .mockResolvedValueOnce([
+      ]))
+      .mockImplementationOnce(inOneChunk([
         { exact: 'baz', start: 8, end: 11, category: 'catB' } as any,
-      ]);
+      ]));
 
-    const result = await processTagJob(
+    const result = await collected((onChunkComplete) => processTagJob(
       'foo bar baz',
       makeInferenceClient(),
       { resourceId: RID, schema: SCHEMA_1, categories: ['catA', 'catB'] },
       textBuild('foo bar baz'),
-      vi.fn(),
-    );
+      vi.fn(), onChunkComplete));
 
     expect(result.annotations).toHaveLength(3);
     expect(result.annotations.every((a: any) => a.motivation === 'tagging')).toBe(true);
@@ -947,17 +974,16 @@ describe('annotation attribution composition', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('stamps both creator (Person) and generator (Software) on human-prompted AI work', async () => {
-    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
       { exact: 'snippet', start: 0, end: 7 },
-    ]);
+    ]));
 
-    const result = await processHighlightJob(
+    const result = await collected((onChunkComplete) => processHighlightJob(
       'snippet',
       makeInferenceClient(),
       { resourceId: RID, density: 1 },
       textBuild('snippet'),
-      vi.fn(),
-    );
+      vi.fn(), onChunkComplete));
 
     const ann = result.annotations[0] as Record<string, unknown>;
     const creator = ann['creator'] as { '@type': string; '@id': string };
@@ -980,17 +1006,16 @@ describe('annotation attribution composition', () => {
     // Autonomous-agent work: the worker's principal DID *is* the agent.
     // creator and generator share an @id; wasAttributedTo collapses to one.
     const autonomousDid = GENERATOR['@id'];
-    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
       { exact: 'snippet', start: 0, end: 7 },
-    ]);
+    ]));
 
-    const result = await processHighlightJob(
+    const result = await collected((onChunkComplete) => processHighlightJob(
       'snippet',
       makeInferenceClient(),
       { resourceId: RID, density: 1 },
       textBuild('snippet', autonomousDid),
-      vi.fn(),
-    );
+      vi.fn(), onChunkComplete));
 
     const ann = result.annotations[0] as Record<string, unknown>;
     const wasAttributedTo = ann['wasAttributedTo'] as Array<{ '@id': string }>;
@@ -1000,26 +1025,26 @@ describe('annotation attribution composition', () => {
   });
 
   it('applies the same attribution shape across every motivation', async () => {
-    vi.mocked(AnnotationDetection.detectComments).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectComments).mockImplementation(inOneChunk([
       { exact: 'x', start: 0, end: 1, comment: 'c' },
-    ]);
-    vi.mocked(AnnotationDetection.detectAssessments).mockResolvedValue([
+    ]));
+    vi.mocked(AnnotationDetection.detectAssessments).mockImplementation(inOneChunk([
       { exact: 'x', start: 0, end: 1, assessment: 'a' },
-    ]);
-    vi.mocked(extractEntities).mockResolvedValue([
+    ]));
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'x', start: 0, end: 1, entityType: 'Person' } as any,
-    ]);
-    vi.mocked(AnnotationDetection.detectTags).mockResolvedValue([
+    ]));
+    vi.mocked(AnnotationDetection.detectTags).mockImplementation(inOneChunk([
       { exact: 'x', start: 0, end: 1, category: 'c' },
-    ]);
+    ]));
 
     const referenceCommitted: unknown[] = [];
     const sources = await Promise.all([
-      processCommentJob('x', makeInferenceClient(), { resourceId: RID, density: 1 }, textBuild('x'), vi.fn()),
-      processAssessmentJob('x', makeInferenceClient(), { resourceId: RID, density: 1 }, textBuild('x'), vi.fn()),
+      collected((onChunkComplete) => processCommentJob('x', makeInferenceClient(), { resourceId: RID, density: 1 }, textBuild('x'), vi.fn(), onChunkComplete)),
+      collected((onChunkComplete) => processAssessmentJob('x', makeInferenceClient(), { resourceId: RID, density: 1 }, textBuild('x'), vi.fn(), onChunkComplete)),
       processReferenceJob('x', makeInferenceClient(), { resourceId: RID, entityTypes: [entityType('Person')] }, textBuild('x'), vi.fn(), LOGGER,
-        async (_unit, annotations) => { referenceCommitted.push(...annotations); }),
-      processTagJob('x', makeInferenceClient(), { resourceId: RID, schema: 'schema-1', categories: ['c'], sourceLanguage: 'en' } as never, textBuild('x'), vi.fn()),
+        async () => {}, undefined, async (annotations) => { referenceCommitted.push(...annotations); }),
+      collected((onChunkComplete) => processTagJob('x', makeInferenceClient(), { resourceId: RID, schema: 'schema-1', categories: ['c'], sourceLanguage: 'en' } as never, textBuild('x'), vi.fn(), onChunkComplete)),
     ]);
 
     const firstAnnotations = [
@@ -1055,17 +1080,16 @@ describe('locale threading', () => {
 
   describe('annotation body locale', () => {
     it('stamps params.language on the comment TextualBody', async () => {
-      vi.mocked(AnnotationDetection.detectComments).mockResolvedValue([
+      vi.mocked(AnnotationDetection.detectComments).mockImplementation(inOneChunk([
         { exact: 'passage', start: 0, end: 7, comment: 'commentaire' },
-      ]);
+      ]));
 
-      const result = await processCommentJob(
+      const result = await collected((onChunkComplete) => processCommentJob(
         'passage here',
         makeInferenceClient(),
         { resourceId: RID, language: 'fr' },
         textBuild('passage here'),
-        vi.fn(),
-      );
+        vi.fn(), onChunkComplete));
 
       expect((result.annotations[0] as any).body).toEqual([
         { type: 'TextualBody', value: 'commentaire', purpose: 'commenting', format: 'text/plain', language: 'fr' },
@@ -1073,17 +1097,16 @@ describe('locale threading', () => {
     });
 
     it('stamps params.language on the assessment TextualBody', async () => {
-      vi.mocked(AnnotationDetection.detectAssessments).mockResolvedValue([
+      vi.mocked(AnnotationDetection.detectAssessments).mockImplementation(inOneChunk([
         { exact: 'claim', start: 0, end: 5, assessment: 'évaluation' },
-      ]);
+      ]));
 
-      const result = await processAssessmentJob(
+      const result = await collected((onChunkComplete) => processAssessmentJob(
         'claim made',
         makeInferenceClient(),
         { resourceId: RID, language: 'fr' },
         textBuild('claim made'),
-        vi.fn(),
-      );
+        vi.fn(), onChunkComplete));
 
       expect((result.annotations[0] as any).body).toEqual({
         type: 'TextualBody', value: 'évaluation', purpose: 'assessing', format: 'text/plain', language: 'fr',
@@ -1091,9 +1114,9 @@ describe('locale threading', () => {
     });
 
     it('stamps params.language on the unresolved-reference TextualBody', async () => {
-      vi.mocked(extractEntities).mockResolvedValue([
+      vi.mocked(extractEntities).mockImplementation(inOneChunk([
         { exact: 'Paris', start: 0, end: 5, entityType: 'Location' } as any,
-      ]);
+      ]));
 
       const committed: unknown[] = [];
       await processReferenceJob(
@@ -1103,7 +1126,9 @@ describe('locale threading', () => {
         textBuild('Paris'),
         vi.fn(),
         LOGGER,
-        async (_unit, annotations) => {
+        async () => {},
+        undefined,
+        async (annotations) => {
           committed.push(...annotations);
         },
       );
@@ -1114,17 +1139,16 @@ describe('locale threading', () => {
     });
 
     it('stamps params.language on the tagging TextualBody (not the classifying one)', async () => {
-      vi.mocked(AnnotationDetection.detectTags).mockResolvedValueOnce([
+      vi.mocked(AnnotationDetection.detectTags).mockImplementationOnce(inOneChunk([
         { exact: 'foo', start: 0, end: 3, category: 'Issue' } as any,
-      ]);
+      ]));
 
-      const result = await processTagJob(
+      const result = await collected((onChunkComplete) => processTagJob(
         'foo bar',
         makeInferenceClient(),
         { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'], language: 'de' },
         textBuild('foo bar'),
-        vi.fn(),
-      );
+        vi.fn(), onChunkComplete));
 
       // Only the tagging body carries `language` — the classifying body is
       // a schema-id reference and has no natural-language interpretation.
@@ -1135,17 +1159,16 @@ describe('locale threading', () => {
     });
 
     it('defaults to "en" when params.language is omitted (comment)', async () => {
-      vi.mocked(AnnotationDetection.detectComments).mockResolvedValue([
+      vi.mocked(AnnotationDetection.detectComments).mockImplementation(inOneChunk([
         { exact: 'passage', start: 0, end: 7, comment: 'note' },
-      ]);
+      ]));
 
-      const result = await processCommentJob(
+      const result = await collected((onChunkComplete) => processCommentJob(
         'passage here',
         makeInferenceClient(),
         { resourceId: RID },
         textBuild('passage here'),
-        vi.fn(),
-      );
+        vi.fn(), onChunkComplete));
 
       expect((result.annotations[0] as any).body[0].language).toBe('en');
     });
@@ -1156,55 +1179,55 @@ describe('locale threading', () => {
     // a positional argument. We assert each detection mock saw it.
 
     it('forwards sourceLanguage to detectHighlights', async () => {
-      vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([]);
+      vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([]));
       const client = makeInferenceClient();
 
-      await processHighlightJob(
+      await collected((onChunkComplete) => processHighlightJob(
         'content', client,
         { resourceId: RID, sourceLanguage: 'fr' },
-        textBuild('content'), vi.fn(),
-      );
+        textBuild('content'), vi.fn(), onChunkComplete));
 
       expect(AnnotationDetection.detectHighlights).toHaveBeenCalledWith(
         'content', client, undefined, undefined, 'fr',
         expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
+        expect.any(Function), // chunk-results emission
       );
     });
 
     it('forwards sourceLanguage and language to detectComments', async () => {
-      vi.mocked(AnnotationDetection.detectComments).mockResolvedValue([]);
+      vi.mocked(AnnotationDetection.detectComments).mockImplementation(inOneChunk([]));
       const client = makeInferenceClient();
 
-      await processCommentJob(
+      await collected((onChunkComplete) => processCommentJob(
         'content', client,
         { resourceId: RID, language: 'de', sourceLanguage: 'fr' },
-        textBuild('content'), vi.fn(),
-      );
+        textBuild('content'), vi.fn(), onChunkComplete));
 
       expect(AnnotationDetection.detectComments).toHaveBeenCalledWith(
         'content', client, undefined, undefined, undefined, 'de', 'fr',
         expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
+        expect.any(Function), // chunk-results emission
       );
     });
 
     it('forwards sourceLanguage and language to detectAssessments', async () => {
-      vi.mocked(AnnotationDetection.detectAssessments).mockResolvedValue([]);
+      vi.mocked(AnnotationDetection.detectAssessments).mockImplementation(inOneChunk([]));
       const client = makeInferenceClient();
 
-      await processAssessmentJob(
+      await collected((onChunkComplete) => processAssessmentJob(
         'content', client,
         { resourceId: RID, language: 'es', sourceLanguage: 'pt' },
-        textBuild('content'), vi.fn(),
-      );
+        textBuild('content'), vi.fn(), onChunkComplete));
 
       expect(AnnotationDetection.detectAssessments).toHaveBeenCalledWith(
         'content', client, undefined, undefined, undefined, 'es', 'pt',
         expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
+        expect.any(Function), // chunk-results emission
       );
     });
 
     it('forwards sourceLanguage to extractEntities for reference detection', async () => {
-      vi.mocked(extractEntities).mockResolvedValue([]);
+      vi.mocked(extractEntities).mockImplementation(inOneChunk([]));
       const client = makeInferenceClient();
 
       await processReferenceJob(
@@ -1216,39 +1239,42 @@ describe('locale threading', () => {
 
       expect(extractEntities).toHaveBeenCalledWith(
         'content', ['Location'], client, false, LOGGER, 'fr',
-        expect.any(Function), // chunk-boundary progress heartbeat (Phase 3a)
+        expect.any(Function), // chunk-boundary progress heartbeat
+        expect.any(Function), // under-report verdicts
+        expect.any(Function), // accepted-piece counts
+        expect.any(Function), // chunk-results emission
       );
     });
 
     it('forwards sourceLanguage to detectTags', async () => {
-      vi.mocked(AnnotationDetection.detectTags).mockResolvedValue([]);
+      vi.mocked(AnnotationDetection.detectTags).mockImplementation(inOneChunk([]));
       const client = makeInferenceClient();
 
-      await processTagJob(
+      await collected((onChunkComplete) => processTagJob(
         'content', client,
         { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'], sourceLanguage: 'fr' },
-        textBuild('content'), vi.fn(),
-      );
+        textBuild('content'), vi.fn(), onChunkComplete));
 
       // Worker now receives the full schema (resolved by the dispatcher),
       // not a schemaId.
       expect(AnnotationDetection.detectTags).toHaveBeenCalledWith(
         'content', client, SCHEMA_1, 'Issue', 'fr',
         expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
+        expect.any(Function), // chunk-results emission
       );
     });
 
     it('passes undefined sourceLanguage when caller omits it', async () => {
-      vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([]);
+      vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([]));
       const client = makeInferenceClient();
 
-      await processHighlightJob(
-        'content', client, { resourceId: RID }, textBuild('content'), vi.fn(),
-      );
+      await collected((onChunkComplete) => processHighlightJob(
+        'content', client, { resourceId: RID }, textBuild('content'), vi.fn(), onChunkComplete));
 
       expect(AnnotationDetection.detectHighlights).toHaveBeenCalledWith(
         'content', client, undefined, undefined, undefined,
         expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
+        expect.any(Function), // chunk-results emission
       );
     });
 
@@ -1297,9 +1323,9 @@ describe('buildTextAnnotation invariant', () => {
 
   it('throws when content.substring(start, end) !== exact', async () => {
     // Highlight at offsets 0-9 but content there is "the quick" — mismatch.
-    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
       { exact: 'important', start: 0, end: 9 },
-    ]);
+    ]));
 
     await expect(
       processHighlightJob(
@@ -1308,6 +1334,7 @@ describe('buildTextAnnotation invariant', () => {
         { resourceId: RID, density: 5 },
         textBuild('the quick brown fox'),
         vi.fn(),
+        async () => {},
       ),
     ).rejects.toThrow(/buildTextAnnotation invariant: content\.substring/);
   });
@@ -1315,9 +1342,9 @@ describe('buildTextAnnotation invariant', () => {
   it('throws when prefix does not align with content adjacent to start', async () => {
     // exact aligns, but prefix is bogus.
     const content = 'alpha BETA gamma';
-    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
       { exact: 'BETA', start: 6, end: 10, prefix: 'WRONG PREFIX' },
-    ]);
+    ]));
 
     await expect(
       processHighlightJob(
@@ -1326,15 +1353,16 @@ describe('buildTextAnnotation invariant', () => {
         { resourceId: RID, density: 5 },
         textBuild(content),
         vi.fn(),
+        async () => {},
       ),
     ).rejects.toThrow(/buildTextAnnotation invariant: content prefix-slice/);
   });
 
   it('throws when suffix does not align with content adjacent to end', async () => {
     const content = 'alpha BETA gamma';
-    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
       { exact: 'BETA', start: 6, end: 10, suffix: 'WRONG SUFFIX' },
-    ]);
+    ]));
 
     await expect(
       processHighlightJob(
@@ -1343,14 +1371,15 @@ describe('buildTextAnnotation invariant', () => {
         { resourceId: RID, density: 5 },
         textBuild(content),
         vi.fn(),
+        async () => {},
       ),
     ).rejects.toThrow(/buildTextAnnotation invariant: content suffix-slice/);
   });
 
   it('error message names the resource id and motivation', async () => {
-    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
       { exact: 'never appears', start: 0, end: 13 },
-    ]);
+    ]));
 
     await expect(
       processHighlightJob(
@@ -1359,6 +1388,7 @@ describe('buildTextAnnotation invariant', () => {
         { resourceId: RID, density: 5 },
         textBuild('short'),
         vi.fn(),
+        async () => {},
       ),
     ).rejects.toThrow(new RegExp(`resource ${RID}, motivation highlighting`));
   });
@@ -1378,19 +1408,22 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
 
   it('highlight: no offsets in LLM response, reconciler anchors via unique-match', async () => {
     const content = 'preamble important text and more.';
-    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(async (text) => {
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation((async (...args: unknown[]) => {
+      const text = args[0] as string;
       const { MotivationParsers } = await import('../workers/detection/motivation-parsers');
       const fake = [{ exact: 'important' }];
-      return MotivationParsers.parseHighlights(fake, text);
-    });
+      const parsed = MotivationParsers.parseHighlights(fake, text);
+      const cb = args[args.length - 1];
+      if (typeof cb === 'function') await (cb as (x: unknown[]) => Promise<void>)(parsed as never);
+      return parsed;
+    }) as never);
 
-    const result = await processHighlightJob(
+    const result = await collected((onChunkComplete) => processHighlightJob(
       content,
       makeInferenceClient(),
       { resourceId: RID, density: 5 },
       textBuild(content),
-      vi.fn(),
-    );
+      vi.fn(), onChunkComplete));
 
     expect(result.annotations).toHaveLength(1);
     const ann = result.annotations[0] as any;
@@ -1405,7 +1438,8 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
     // source, extract a fresh prefix that no longer overlaps.
     const exact = 'The question for decision';
     const content = `Kenison, C.J.\n${exact} by this appeal.`;
-    vi.mocked(AnnotationDetection.detectTags).mockImplementation(async (text) => {
+    vi.mocked(AnnotationDetection.detectTags).mockImplementation((async (...args: unknown[]) => {
+      const text = args[0] as string;
       const { MotivationParsers } = await import('../workers/detection/motivation-parsers');
       const fake = [
         {
@@ -1414,17 +1448,19 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
           suffix: ' by this appeal.',
         },
       ];
-      const parsed = MotivationParsers.parseTags(fake);
-      return MotivationParsers.validateTagOffsets(parsed, text, 'Issue');
-    });
+      // detectTags delivers only ANCHORED matches; the stand-in does too.
+      const parsed = MotivationParsers.validateTagOffsets(MotivationParsers.parseTags(fake), text, 'Issue');
+      const cb = args[args.length - 1];
+      if (typeof cb === 'function') await (cb as (x: unknown[]) => Promise<void>)(parsed as never);
+      return parsed;
+    }) as never);
 
-    const result = await processTagJob(
+    const result = await collected((onChunkComplete) => processTagJob(
       content,
       makeInferenceClient(),
       { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'] },
       textBuild(content),
-      vi.fn(),
-    );
+      vi.fn(), onChunkComplete));
 
     expect(result.annotations).toHaveLength(1);
     const ann = result.annotations[0] as any;
@@ -1439,10 +1475,10 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
   });
 
   it('reference: hallucinated exact is dropped and counted as an error', async () => {
-    vi.mocked(extractEntities).mockResolvedValue([
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'Alice', start: 0, end: 5, entityType: 'Person' } as any,
       { exact: 'NoSuchPerson', start: 99, end: 111, entityType: 'Person' } as any,
-    ]);
+    ]));
 
     const committed: unknown[] = [];
     const outcome = await processReferenceJob(
@@ -1452,7 +1488,9 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
       textBuild('Alice went to Paris.'),
       vi.fn(),
       LOGGER,
-      async (_unit, annotations) => {
+      async () => {},
+      undefined,
+      async (annotations) => {
         committed.push(...annotations);
       },
     );
@@ -1473,21 +1511,25 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
     // can no longer hint; prefix/suffix that don't match anywhere yields
     // first-of-many, which is the first occurrence.
     const content = 'X foo Y foo Z foo W'; // foo at 2, 8, 14
-    vi.mocked(AnnotationDetection.detectComments).mockImplementation(async (text) => {
+    vi.mocked(AnnotationDetection.detectComments).mockImplementation((async (...args: unknown[]) => {
+      const text = args[0] as string;
+      void text;
       const { MotivationParsers } = await import('../workers/detection/motivation-parsers');
       const fake = [
         { exact: 'foo', prefix: 'IRRELEVANT_PREFIX', suffix: 'IRRELEVANT_SUFFIX', comment: 'one of them' },
       ];
-      return MotivationParsers.parseComments(fake, text);
-    });
+      const parsed = MotivationParsers.parseComments(fake, text);
+      const cb = args[args.length - 1];
+      if (typeof cb === 'function') await (cb as (x: unknown[]) => Promise<void>)(parsed as never);
+      return parsed;
+    }) as never);
 
-    const result = await processCommentJob(
+    const result = await collected((onChunkComplete) => processCommentJob(
       content,
       makeInferenceClient(),
       { resourceId: RID, density: 3 },
       textBuild(content),
-      vi.fn(),
-    );
+      vi.fn(), onChunkComplete));
 
     expect(result.annotations).toHaveLength(1);
     const ann = result.annotations[0] as any;
@@ -1498,21 +1540,25 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
 
   it('comment: matching prefix disambiguates to the right occurrence', async () => {
     const content = 'X foo Y foo Z foo W';
-    vi.mocked(AnnotationDetection.detectComments).mockImplementation(async (text) => {
+    vi.mocked(AnnotationDetection.detectComments).mockImplementation((async (...args: unknown[]) => {
+      const text = args[0] as string;
+      void text;
       const { MotivationParsers } = await import('../workers/detection/motivation-parsers');
       const fake = [
         { exact: 'foo', prefix: 'Y ', suffix: ' Z', comment: 'middle one' },
       ];
-      return MotivationParsers.parseComments(fake, text);
-    });
+      const parsed = MotivationParsers.parseComments(fake, text);
+      const cb = args[args.length - 1];
+      if (typeof cb === 'function') await (cb as (x: unknown[]) => Promise<void>)(parsed as never);
+      return parsed;
+    }) as never);
 
-    const result = await processCommentJob(
+    const result = await collected((onChunkComplete) => processCommentJob(
       content,
       makeInferenceClient(),
       { resourceId: RID, density: 3 },
       textBuild(content),
-      vi.fn(),
-    );
+      vi.fn(), onChunkComplete));
 
     expect(result.annotations).toHaveLength(1);
     const ann = result.annotations[0] as any;
@@ -1536,11 +1582,11 @@ describe('annotation de-duplication', () => {
   it('reference: three entries collapsing onto the same span yield one annotation', async () => {
     // 'Paris' appears once; three LLM entries with non-distinctive context
     // all reconcile (first-of-many) to that single occurrence.
-    vi.mocked(extractEntities).mockResolvedValue([
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'Paris', entityType: 'Location' },
       { exact: 'Paris', entityType: 'Location' },
       { exact: 'Paris', entityType: 'Location' },
-    ] as any);
+    ] as any));
 
     const committed: unknown[] = [];
     const outcome = await processReferenceJob(
@@ -1550,7 +1596,9 @@ describe('annotation de-duplication', () => {
       textBuild('A trip to Paris.'),
       vi.fn(),
       LOGGER,
-      async (_unit, annotations) => {
+      async () => {},
+      undefined,
+      async (annotations) => {
         committed.push(...annotations);
       },
     );
@@ -1564,8 +1612,8 @@ describe('annotation de-duplication', () => {
     // 'Mercury' tagged as both a Planet and an Element on the same span —
     // different bodies, so both survive.
     vi.mocked(extractEntities)
-      .mockResolvedValueOnce([{ exact: 'Mercury', entityType: 'Planet' }] as any)
-      .mockResolvedValueOnce([{ exact: 'Mercury', entityType: 'Element' }] as any);
+      .mockImplementationOnce(inOneChunk([{ exact: 'Mercury', entityType: 'Planet' }] as any))
+      .mockImplementationOnce(inOneChunk([{ exact: 'Mercury', entityType: 'Element' }] as any));
 
     const committed: unknown[] = [];
     const outcome = await processReferenceJob(
@@ -1575,7 +1623,9 @@ describe('annotation de-duplication', () => {
       textBuild('The metal Mercury is dense.'),
       vi.fn(),
       LOGGER,
-      async (_unit, annotations) => {
+      async () => {},
+      undefined,
+      async (annotations) => {
         committed.push(...annotations);
       },
     );
@@ -1586,18 +1636,17 @@ describe('annotation de-duplication', () => {
 
   it('highlight: duplicate identical highlights collapse to one', async () => {
     const content = 'Only one phrase here to highlight.';
-    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
       { exact: 'one phrase', start: 5, end: 15 },
       { exact: 'one phrase', start: 5, end: 15 },
-    ]);
+    ]));
 
-    const result = await processHighlightJob(
+    const result = await collected((onChunkComplete) => processHighlightJob(
       content,
       makeInferenceClient(),
       { resourceId: RID, density: 5 },
       textBuild(content),
-      vi.fn(),
-    );
+      vi.fn(), onChunkComplete));
 
     expect(result.annotations).toHaveLength(1);
     expect(result.result.highlightsCreated).toBe(1);
@@ -1606,18 +1655,17 @@ describe('annotation de-duplication', () => {
 
   it('tag: identical tags collapse and byCategory reflects the deduped count', async () => {
     const content = 'Issue: the duty of care.';
-    vi.mocked(AnnotationDetection.detectTags).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectTags).mockImplementation(inOneChunk([
       { exact: 'duty of care', start: 11, end: 23, category: 'Issue' },
       { exact: 'duty of care', start: 11, end: 23, category: 'Issue' },
-    ]);
+    ]));
 
-    const result = await processTagJob(
+    const result = await collected((onChunkComplete) => processTagJob(
       content,
       makeInferenceClient(),
       { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'] },
       textBuild(content),
-      vi.fn(),
-    );
+      vi.fn(), onChunkComplete));
 
     expect(result.annotations).toHaveLength(1);
     expect(result.result.tagsCreated).toBe(1);
@@ -1651,15 +1699,14 @@ describe('progress messages are codes, not prose (A6)', () => {
 
   it('highlight: loading → analyzing → creating-annotations → complete-created', async () => {
     const content = 'A critical finding and a second one.';
-    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
       { exact: 'critical', start: content.indexOf('critical'), end: content.indexOf('critical') + 8 },
-    ]);
+    ]));
 
     const progress = vi.fn();
-    await processHighlightJob(
+    await collected((onChunkComplete) => processHighlightJob(
       content, makeInferenceClient(), { resourceId: RID, density: 5 },
-      textBuild(content), progress,
-    );
+      textBuild(content), progress, onChunkComplete));
 
     const messages = messagesFrom(progress);
     expect(messages[0]).toEqual({ code: 'loading' });
@@ -1671,9 +1718,9 @@ describe('progress messages are codes, not prose (A6)', () => {
   });
 
   it('reference: detecting-entities carries the entity type as a param, not in a sentence', async () => {
-    vi.mocked(extractEntities).mockResolvedValue([
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'Paris', entityType: 'Location' } as never,
-    ]);
+    ]));
 
     const progress = vi.fn();
     await processReferenceJob(
@@ -1691,16 +1738,15 @@ describe('progress messages are codes, not prose (A6)', () => {
 
   it('tag: its own analyzing and creating codes, distinct from the annotation ones', async () => {
     const content = 'Issue: the duty of care.';
-    vi.mocked(AnnotationDetection.detectTags).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectTags).mockImplementation(inOneChunk([
       { exact: 'duty of care', start: 11, end: 23, category: 'Issue' },
-    ]);
+    ]));
 
     const progress = vi.fn();
-    await processTagJob(
+    await collected((onChunkComplete) => processTagJob(
       content, makeInferenceClient(),
       { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'] },
-      textBuild(content), progress,
-    );
+      textBuild(content), progress, onChunkComplete));
 
     const messages = messagesFrom(progress);
     expect(messages).toContainEqual({ code: 'analyzing-tags' });
@@ -1714,20 +1760,20 @@ describe('progress messages are codes, not prose (A6)', () => {
     // The sweeping guard: whatever a processor reports, it is an object with
     // a `code`. A string here is the defect this phase exists to remove.
     const content = 'A critical finding.';
-    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
       { exact: 'critical', start: 2, end: 10 },
-    ]);
-    vi.mocked(AnnotationDetection.detectComments).mockResolvedValue([
+    ]));
+    vi.mocked(AnnotationDetection.detectComments).mockImplementation(inOneChunk([
       { exact: 'critical', start: 2, end: 10, comment: 'note' },
-    ]);
-    vi.mocked(AnnotationDetection.detectAssessments).mockResolvedValue([
+    ]));
+    vi.mocked(AnnotationDetection.detectAssessments).mockImplementation(inOneChunk([
       { exact: 'critical', start: 2, end: 10, assessment: 'weak' },
-    ]);
+    ]));
 
     const progress = vi.fn();
-    await processHighlightJob(content, makeInferenceClient(), { resourceId: RID }, textBuild(content), progress);
-    await processCommentJob(content, makeInferenceClient(), { resourceId: RID }, textBuild(content), progress);
-    await processAssessmentJob(content, makeInferenceClient(), { resourceId: RID }, textBuild(content), progress);
+    await collected((onChunkComplete) => processHighlightJob(content, makeInferenceClient(), { resourceId: RID }, textBuild(content), progress, onChunkComplete));
+    await collected((onChunkComplete) => processCommentJob(content, makeInferenceClient(), { resourceId: RID }, textBuild(content), progress, onChunkComplete));
+    await collected((onChunkComplete) => processAssessmentJob(content, makeInferenceClient(), { resourceId: RID }, textBuild(content), progress, onChunkComplete));
 
     const messages = messagesFrom(progress);
     expect(messages.length).toBeGreaterThan(6);
@@ -1751,16 +1797,15 @@ describe('request parameters ride every event', () => {
 
   it('comment: every event carries the instructions, as a CODE plus the raw value', async () => {
     const content = 'A critical finding.';
-    vi.mocked(AnnotationDetection.detectComments).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectComments).mockImplementation(inOneChunk([
       { exact: 'critical', start: 2, end: 10, comment: 'note' },
-    ]);
+    ]));
 
     const progress = vi.fn();
-    await processCommentJob(
+    await collected((onChunkComplete) => processCommentJob(
       content, makeInferenceClient(),
       { resourceId: RID, instructions: 'Focus on methodology', tone: 'scholarly', density: 5 },
-      textBuild(content), progress,
-    );
+      textBuild(content), progress, onChunkComplete));
 
     const extras = extrasFrom(progress);
     expect(extras.length).toBeGreaterThan(1);
@@ -1777,16 +1822,15 @@ describe('request parameters ride every event', () => {
     // The label is localized by the client; the value never is — translating
     // someone's own instructions back at them would be absurd.
     const content = 'A critical finding.';
-    vi.mocked(AnnotationDetection.detectHighlights).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
       { exact: 'critical', start: 2, end: 10 },
-    ]);
+    ]));
 
     const progress = vi.fn();
-    await processHighlightJob(
+    await collected((onChunkComplete) => processHighlightJob(
       content, makeInferenceClient(),
       { resourceId: RID, instructions: '  Mark the Führer-era citations  ' },
-      textBuild(content), progress,
-    );
+      textBuild(content), progress, onChunkComplete));
 
     const params = extrasFrom(progress)[0]?.requestParams as Array<{ label: string; value: string }>;
     expect(params[0]?.label).toBe('instructions');
@@ -1796,14 +1840,13 @@ describe('request parameters ride every event', () => {
   it('omits the block entirely when the user supplied nothing to echo', async () => {
     // An empty array would render an empty box. Absent means absent.
     const content = 'A critical finding.';
-    vi.mocked(AnnotationDetection.detectAssessments).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectAssessments).mockImplementation(inOneChunk([
       { exact: 'critical', start: 2, end: 10, assessment: 'weak' },
-    ]);
+    ]));
 
     const progress = vi.fn();
-    await processAssessmentJob(
-      content, makeInferenceClient(), { resourceId: RID }, textBuild(content), progress,
-    );
+    await collected((onChunkComplete) => processAssessmentJob(
+      content, makeInferenceClient(), { resourceId: RID }, textBuild(content), progress, onChunkComplete));
 
     for (const extra of extrasFrom(progress)) {
       expect(extra?.requestParams).toBeUndefined();
@@ -1811,9 +1854,9 @@ describe('request parameters ride every event', () => {
   });
 
   it('reference: the entity types survive to the terminal event too', async () => {
-    vi.mocked(extractEntities).mockResolvedValue([
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'Paris', entityType: 'Location' } as never,
-    ]);
+    ]));
 
     const progress = vi.fn();
     await processReferenceJob(
@@ -1841,9 +1884,9 @@ describe('what is in flight is reported one way (CLEAN-PROGRESS A4/A5)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('reference: the entity type rides `current`, kind-tagged, with its position', async () => {
-    vi.mocked(extractEntities).mockResolvedValue([
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'Paris', entityType: 'Location' } as never,
-    ]);
+    ]));
 
     const progress = vi.fn();
     await processReferenceJob(
@@ -1865,16 +1908,15 @@ describe('what is in flight is reported one way (CLEAN-PROGRESS A4/A5)', () => {
     // processTagJob already loops per category; it just never said so. This is
     // the parity gap Copilot flagged on #1179, now a one-field change.
     const content = 'Issue: the duty of care.';
-    vi.mocked(AnnotationDetection.detectTags).mockResolvedValue([
+    vi.mocked(AnnotationDetection.detectTags).mockImplementation(inOneChunk([
       { exact: 'duty of care', start: 11, end: 23, category: 'Issue' },
-    ]);
+    ]));
 
     const progress = vi.fn();
-    await processTagJob(
+    await collected((onChunkComplete) => processTagJob(
       content, makeInferenceClient(),
       { resourceId: RID, schema: SCHEMA_1, categories: ['Issue', 'Holding'] },
-      textBuild(content), progress,
-    );
+      textBuild(content), progress, onChunkComplete));
 
     const withCurrent = extrasFrom(progress).filter((e) => e?.current);
     expect(withCurrent.length).toBeGreaterThan(0);
@@ -1888,9 +1930,9 @@ describe('what is in flight is reported one way (CLEAN-PROGRESS A4/A5)', () => {
   it('no producer emits the old flow-specific field names', async () => {
     // The whole point: one vocabulary. A reappearance of any of these is the
     // regression this lane exists to prevent.
-    vi.mocked(extractEntities).mockResolvedValue([
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'Paris', entityType: 'Location' } as never,
-    ]);
+    ]));
     const progress = vi.fn();
     await processReferenceJob(
       'Paris', makeInferenceClient(),
@@ -1906,27 +1948,29 @@ describe('what is in flight is reported one way (CLEAN-PROGRESS A4/A5)', () => {
   });
 });
 
-// ── Checkpointed resume (ABANDONED-INFERENCE P2, A3) ──────────────────
-// The unit is the entity type. A unit either completed — its annotations
-// handed to `onUnitComplete` and accepted — or it contributes nothing.
-// Emission moves INTO the loop via the callback (the post-run batch was
-// N2's mechanism); the processor returns only the result.
+// ── Checkpointed resume (A3) ──────────────────────────────────────────
+// A unit either completed — every chunk committed, its checkpoint fired —
+// or it contributes nothing.
 
 describe('processReferenceJob — unit commits (A3)', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('commits each completed unit through onUnitComplete — including empty ones — and stops at the failing unit', async () => {
-    vi.mocked(extractEntities).mockImplementation(async (_c, types) => {
+  it('checkpoints each completed unit — including empty ones — and stops at the failing unit', async () => {
+    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, onChunkResults) => {
       const t = String(types[0]);
-      if (t === 'Person') return [{ exact: 'Greeley', start: 0, end: 7, entityType: 'Person' }] as never;
-      if (t === 'Date') return [] as never; // legitimately-empty unit (RED v)
+      if (t === 'Person') {
+        const items = [{ exact: 'Greeley', start: 0, end: 7, entityType: 'Person' }];
+        await onChunkResults?.(items as never);
+        return items as never;
+      }
+      if (t === 'Date') { await onChunkResults?.([] as never); return [] as never; } // legitimately-empty unit (RED v)
       throw new Error('Location stalled');
     });
 
-    const committed: Array<{ unit: string; count: number }> = [];
-    const onUnitComplete = vi.fn(async (unit: string, annotations: unknown[]) => {
-      committed.push({ unit, count: annotations.length });
-    });
+    const units: string[] = [];
+    const counts: Record<string, number> = {};
+    let current = '';
+    const onUnitComplete = vi.fn(async (unit: string) => { units.push(unit); });
 
     await expect(
       processReferenceJob(
@@ -1934,23 +1978,27 @@ describe('processReferenceJob — unit commits (A3)', () => {
         makeInferenceClient(),
         { resourceId: RID, entityTypes: [entityType('Person'), entityType('Date'), entityType('Location')] },
         textBuild('Greeley went west'),
-        vi.fn(),
+        vi.fn((_pct, _msg, extra?: { current?: { value?: string } }) => {
+          if (extra?.current?.value) current = extra.current.value;
+        }),
         LOGGER,
         onUnitComplete,
+        undefined,
+        async (annotations) => { counts[current] = (counts[current] ?? 0) + annotations.length; },
       ),
     ).rejects.toThrow('Location stalled');
 
-    // Units 1..k committed in order, the failing unit contributed nothing.
-    expect(committed).toEqual([
-      { unit: 'Person', count: 1 },
-      { unit: 'Date', count: 0 },
-    ]);
+    // Units 1..k checkpointed in order, the failing unit contributed nothing.
+    expect(units).toEqual(['Person', 'Date']);
+    expect(counts['Person']).toBe(1);
+    expect(counts['Location']).toBeUndefined();
   });
 
-  it('a rejected unit commit fails the run — the unit is not silently kept', async () => {
-    vi.mocked(extractEntities).mockResolvedValue([
+  it('a rejected chunk commit fails the run — the unit is not silently kept', async () => {
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'Greeley', start: 0, end: 7, entityType: 'Person' },
-    ] as never);
+    ] as never));
+    const onUnitComplete = vi.fn(async () => {});
 
     await expect(
       processReferenceJob(
@@ -1960,17 +2008,21 @@ describe('processReferenceJob — unit commits (A3)', () => {
         textBuild('Greeley went west'),
         vi.fn(),
         LOGGER,
+        onUnitComplete,
+        undefined,
         vi.fn(async () => {
           throw new Error('emit refused');
         }),
       ),
     ).rejects.toThrow('emit refused');
+    // And it never checkpointed: control state cannot outrun the effect.
+    expect(onUnitComplete).not.toHaveBeenCalled();
   });
 
-  it('returns only the result — the callback owns emission, nothing is returned twice', async () => {
-    vi.mocked(extractEntities).mockResolvedValue([
+  it('returns only the result — the chunk callback owns emission, nothing is returned twice', async () => {
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'Greeley', start: 0, end: 7, entityType: 'Person' },
-    ] as never);
+    ] as never));
 
     const seen: unknown[][] = [];
     const outcome = await processReferenceJob(
@@ -1980,7 +2032,9 @@ describe('processReferenceJob — unit commits (A3)', () => {
       textBuild('Greeley went west'),
       vi.fn(),
       LOGGER,
-      vi.fn(async (_unit: string, annotations: unknown[]) => {
+      async () => {},
+      undefined,
+      vi.fn(async (annotations: unknown[]) => {
         seen.push(annotations);
       }),
     );
@@ -1989,5 +2043,243 @@ describe('processReferenceJob — unit commits (A3)', () => {
     expect(outcome.result).toEqual({ kind: 'reference-annotation', totalFound: 1, totalEmitted: 1, errors: 0 });
     expect(seen).toHaveLength(1);
     expect(seen[0]).toHaveLength(1);
+  });
+});
+
+// The decisive property is the overlap test: a duplicate spanning two chunks
+// must be emitted once, which only a seen-set carried ACROSS chunks can do.
+describe('chunk-grain emission — processors', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  const content = 'important text and the critical part is here.';
+  const at = (w: string) => ({ exact: w, start: content.indexOf(w), end: content.indexOf(w) + w.length });
+
+  it('processHighlightJob commits each chunk as it lands, not one batch at the end', async () => {
+    // Two chunks: the mocked loop hands each to the processor in turn.
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(
+      async (_c, _cl, _i, _d, _sl, _onActivity, onChunkResults) => {
+        await onChunkResults!([at('important')] as never);
+        await onChunkResults!([at('critical')] as never);
+        return [at('important'), at('critical')] as never;
+      },
+    );
+    const committed: string[][] = [];
+
+    await processHighlightJob(
+      content, makeInferenceClient(), { resourceId: RID, density: 5 },
+      textBuild(content), vi.fn(),
+      async (anns) => { committed.push(anns.map((a: any) => a.target.selector[1].exact)); },
+    );
+
+    expect(committed).toEqual([['important'], ['critical']]);
+  });
+
+  it('an overlap duplicate spanning two chunks is committed ONCE', async () => {
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(
+      async (_c, _cl, _i, _d, _sl, _onActivity, onChunkResults) => {
+        await onChunkResults!([at('important')] as never);
+        await onChunkResults!([at('important'), at('critical')] as never);
+        return [] as never;
+      },
+    );
+    const committed: string[] = [];
+
+    const { result } = await processHighlightJob(
+      content, makeInferenceClient(), { resourceId: RID, density: 5 },
+      textBuild(content), vi.fn(),
+      async (anns) => { committed.push(...anns.map((a: any) => a.target.selector[1].exact)); },
+    );
+
+    expect(committed).toEqual(['important', 'critical']);
+    // And the reported count matches what was actually committed.
+    expect((result as any).highlightsCreated).toBe(2);
+  });
+
+  it('processReferenceJob emits per chunk; onUnitComplete is the checkpoint, carrying no annotations', async () => {
+    vi.mocked(extractEntities).mockImplementation(
+      async (_c, _t, _cl, _i, _l, _sl, _onActivity, _verdicts, _counts, onChunkResults) => {
+        await onChunkResults!([{ exact: 'important', entityType: 'Person' }] as never);
+        await onChunkResults!([{ exact: 'critical', entityType: 'Person' }] as never);
+        return [] as never;
+      },
+    );
+    const committed: string[][] = [];
+    const checkpoints: unknown[][] = [];
+
+    await processReferenceJob(
+      content, makeInferenceClient(), { resourceId: RID, entityTypes: ['Person'] } as never,
+      textBuild(content), vi.fn(), LOGGER,
+      (...args: unknown[]) => { checkpoints.push(args); return Promise.resolve(); },
+      undefined,
+      async (anns: any[]) => { committed.push(anns.map((a) => a.target.selector[1].exact)); },
+    );
+
+    expect(committed).toEqual([['important'], ['critical']]);
+    expect(checkpoints).toHaveLength(1);
+    expect(checkpoints[0]).toEqual(['Person']);
+  });
+});
+
+// A floor-accepted under-report is RESULT, not archaeology: the unit records
+// what remains unknown at its end, and a clean unit records nothing — absence
+// is a claim, never a default.
+describe('under-report verdicts on the terminal surface', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  const content = 'Paris and Berlin and Rome';
+
+  it('a floor-accepted piece surfaces on the unit entry and the result aggregate', async () => {
+    vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
+      const onUnderReport = args[7] as (v: unknown) => void;
+      const onChunkResults = args[9] as (i: unknown[]) => Promise<void>;
+      onUnderReport({ found: 1, counted: 4, pieceChars: 530 });
+      await onChunkResults([{ exact: 'Paris', entityType: 'Location' }]);
+      return [] as never;
+    });
+    const progress = vi.fn();
+
+    const outcome = await processReferenceJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild(content), progress, LOGGER, async () => {}, undefined, async () => {},
+    );
+
+    const last = progress.mock.calls.at(-1)![2] as { completedItems?: Array<Record<string, unknown>> };
+    expect(last.completedItems).toEqual([
+      {
+        value: 'Location', foundCount: 1, persistedCount: 1,
+        underReported: { pieces: 1, found: 1, counted: 4 },
+      },
+    ]);
+    expect(outcome.result.underReportedPieces).toBe(1);
+  });
+
+  it('two flagged pieces in one unit fold into one summary', async () => {
+    vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
+      const onUnderReport = args[7] as (v: unknown) => void;
+      onUnderReport({ found: 1, counted: 4, pieceChars: 530 });
+      onUnderReport({ found: 2, counted: 9, pieceChars: 610 });
+      await (args[9] as (i: unknown[]) => Promise<void>)([]);
+      return [] as never;
+    });
+    const progress = vi.fn();
+
+    const outcome = await processReferenceJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild(content), progress, LOGGER, async () => {}, undefined, async () => {},
+    );
+
+    const last = progress.mock.calls.at(-1)![2] as { completedItems?: Array<Record<string, unknown>> };
+    expect(last.completedItems![0]!.underReported).toEqual({ pieces: 2, found: 3, counted: 13 });
+    expect(outcome.result.underReportedPieces).toBe(2);
+  });
+
+  it('a clean unit carries NO verdict — genuinely absent, not defaulted', async () => {
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
+      { exact: 'Paris', entityType: 'Location' },
+    ] as never));
+    const progress = vi.fn();
+
+    const outcome = await processReferenceJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild(content), progress, LOGGER, async () => {}, undefined, async () => {},
+    );
+
+    const last = progress.mock.calls.at(-1)![2] as { completedItems?: Array<Record<string, unknown>> };
+    expect('underReported' in last.completedItems![0]!).toBe(false);
+    expect('underReportedPieces' in outcome.result).toBe(false);
+  });
+
+  it('the four motivation paths carry no verdict vocabulary', async () => {
+    // No verifier runs there; the vocabulary must not leak into their results.
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([]));
+    const { result } = await collected((cb) => processHighlightJob(
+      content, makeInferenceClient(), { resourceId: RID, density: 5 },
+      textBuild(content), vi.fn(), cb));
+    expect('underReportedPieces' in (result as unknown as Record<string, unknown>)).toBe(false);
+  });
+});
+
+// The denominator (RD5): the count-verifier's expectation, cumulative on the
+// progress surface, so the UI can draw "69 of ~290". Absent without a
+// verifying provider — no claim, not zero.
+describe('entitiesExpected on the progress surface', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  const content = 'Paris and Berlin and Rome';
+
+  it('accumulates count-verifier expectations across chunks and units', async () => {
+    vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
+      const onCounted = args[8] as (c: number) => void;
+      const onChunkResults = args[9] as (i: unknown[]) => Promise<void>;
+      onCounted(4);
+      await onChunkResults([{ exact: 'Paris', entityType: 'Location' }]);
+      onCounted(3);
+      await onChunkResults([]);
+      return [] as never;
+    });
+    const progress = vi.fn();
+
+    await processReferenceJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild(content), progress, LOGGER, async () => {}, undefined, async () => {},
+    );
+
+    const frames = progress.mock.calls.map((c) => c[2] as Record<string, unknown>);
+    const expectedSeen = frames.map((f) => f?.entitiesExpected).filter((v) => v !== undefined);
+    expect(expectedSeen.at(-1)).toBe(7);
+    // Cumulative, never shrinking.
+    for (let i = 1; i < expectedSeen.length; i++) {
+      expect(expectedSeen[i] as number).toBeGreaterThanOrEqual(expectedSeen[i - 1] as number);
+    }
+  });
+
+  it('the numerator advances at the same grain as the denominator', async () => {
+    // Copilot's PR-1337 finding: expected grew per chunk while found waited
+    // for the unit — "0 of ~37" for an entire single-type run, annotations
+    // painting all the while. Found and emitted must move as chunks COMMIT.
+    vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
+      const onCounted = args[8] as (c: number) => void;
+      const onChunkResults = args[9] as (i: unknown[]) => Promise<void>;
+      onCounted(4);
+      await onChunkResults([{ exact: 'Paris', entityType: 'Location' }]);
+      onCounted(3);
+      await onChunkResults([{ exact: 'Berlin', entityType: 'Location' }]);
+      return [] as never;
+    });
+    const progress = vi.fn();
+
+    await processReferenceJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild(content), progress, LOGGER, async () => {}, undefined, async () => {},
+    );
+
+    const frames = progress.mock.calls.map((c) => c[2] as Record<string, unknown> | undefined);
+    // Mid-unit: after the first chunk committed, a frame must say found 1 —
+    // not hold 0 until the unit settles.
+    expect(frames.some((f) => f?.entitiesFound === 1 && f?.entitiesEmitted === 1)).toBe(true);
+    expect(frames.some((f) => f?.entitiesFound === 2)).toBe(true);
+  });
+
+  it('absent when the provider does not verify — no claim, not zero', async () => {
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
+      { exact: 'Paris', entityType: 'Location' },
+    ] as never));
+    const progress = vi.fn();
+
+    await processReferenceJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Location')] },
+      textBuild(content), progress, LOGGER, async () => {}, undefined, async () => {},
+    );
+
+    for (const call of progress.mock.calls) {
+      const frame = call[2] as Record<string, unknown> | undefined;
+      expect(frame && 'entitiesExpected' in frame ? frame.entitiesExpected : undefined).toBeUndefined();
+    }
   });
 });

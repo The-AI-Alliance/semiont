@@ -225,7 +225,10 @@
     "comment": "نظرات",
     "tag": "برچسب‌ها",
     "annotationsFailed": "بارگذاری حاشیه‌نویسی‌ها ممکن نشد.",
-    "retry": "تلاش مجدد"
+    "retry": "تلاش مجدد",
+    "completenessClean": "تشخیص کامل شد",
+    "completenessUnderReported": "تشخیص جزئی — برخی بخش‌ها کمتر گزارش شده‌اند",
+    "completenessIncomplete": "تشخیص جزئی — اجرا به پایان نرسید"
   },
   "StatisticsPanel": {
     "title": "آمار",
@@ -274,7 +277,8 @@
     "noText": "بدون متن",
     "incomingReferencesFailed": "بارگذاری ارجاعات ورودی ممکن نشد.",
     "retry": "تلاش مجدد",
-    "entityTypesFailed": "بارگذاری انواع موجودیت ممکن نشد."
+    "entityTypesFailed": "بارگذاری انواع موجودیت ممکن نشد.",
+    "tally": "{{found}} از ~{{expected}} موجودیت"
   },
   "KeyboardShortcuts": {
     "title": "میانبرهای صفحه‌کلید",

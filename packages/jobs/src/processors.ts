@@ -16,7 +16,7 @@ import { compileTypst, MAX_COMPILE_REPAIRS } from './workers/generation/typst-co
 import { withinByteBudget, MAX_PDF_BYTES } from '@semiont/content';
 import { resolveCitationTokens, collectContextResourceIds, type GenerationCitation } from './workers/generation/citation-resolver';
 import { annotationIdFor } from '@semiont/event-sourcing';
-import { didToAgent, GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type ResourceId, type SupportedMediaType, type components } from '@semiont/core';
+import { didToAgent, GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type ResourceId, type SupportedMediaType, type components, type JobReferenceAnnotationResult, type JobHighlightAnnotationResult, type JobCommentAnnotationResult, type JobAssessmentAnnotationResult, type JobTagAnnotationResult } from '@semiont/core';
 import { reconcileSelector, createFragmentSelector, locate, type ReconciledSelector, type AnchoredText } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type {
@@ -25,11 +25,6 @@ import type {
   AssessmentDetectionParams,
   DetectionParams,
   TagDetectionParams,
-  HighlightDetectionResult,
-  CommentDetectionResult,
-  AssessmentDetectionResult,
-  DetectionResult,
-  TagDetectionResult,
   GenerationResult,
 } from './types';
 import { noteAnchor } from './workers/detection/anchor-audit';
@@ -103,8 +98,12 @@ type JobProgressMessage = components['schemas']['JobProgressMessage'];
  *  typed as one rather than as `string`. */
 export type Motivation = Annotation['motivation'];
 
+/**
+ * A detection processor returns only its result. Annotations leave through
+ * `onChunkComplete`, per chunk — a return that also carried them would be a
+ * second path to the same write.
+ */
 export interface ProcessorResult<R> {
-  annotations: Annotation[];
   result: R;
 }
 
@@ -167,16 +166,25 @@ function annotationDedupeKey(ann: Record<string, unknown>): string {
  *
  * Applied identically by every processor below.
  */
-function dedupeAnnotations(annotations: Annotation[]): Annotation[] {
+/**
+ * THE dedupe decider — one mechanism for all five detection types, held
+ * across a stream of chunk batches: adjacent chunks overlap, so the same
+ * span arrives twice, and there is no post-pass to collapse it in. Scope it
+ * to one emission stream — per unit for reference detection, per job for the
+ * four motivations. Never add a batch post-pass beside it (gated).
+ */
+function makeSpanDeduper(): (annotations: Annotation[]) => Annotation[] {
   const seen = new Set<string>();
-  const out: Annotation[] = [];
-  for (const ann of annotations) {
-    const key = annotationDedupeKey(ann);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(ann);
-  }
-  return out;
+  return (annotations) => {
+    const out: Annotation[] = [];
+    for (const ann of annotations) {
+      const key = annotationDedupeKey(ann);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(ann);
+    }
+    return out;
+  };
 }
 
 export function buildTextAnnotation(
@@ -296,7 +304,21 @@ export function buildPdfAnnotation(
       )
     : '';
   const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
-  if (rects.length === 0 || !normalize(coveredText).includes(normalize(match.exact))) {
+  // Two distinct failures, reported distinctly. Merged, both printed "covered
+  // text does not contain exact" — which sends anyone debugging an empty cover
+  // to inspect text matching that never ran. Same class deliberately: both stay
+  // plain `Error`, so `classifyFailure` leaves them unrecognized and therefore
+  // retryable (ABANDONED-INFERENCE HD2 is one-sided — only KNOWN-deterministic
+  // failures skip the budget). No rects LOOKS deterministic, but the stored map
+  // is keyed by content checksum, so a retry after the bytes change reads a
+  // different map and can legitimately succeed.
+  if (rects.length === 0) {
+    throw new Error(
+      `buildPdfAnnotation invariant: no rects located for offsets ${match.start}-${match.end} ` +
+        `for resource ${resourceId}, motivation ${motivation}`,
+    );
+  }
+  if (!normalize(coveredText).includes(normalize(match.exact))) {
     throw new Error(
       `buildPdfAnnotation invariant: covered text does not contain exact ` +
         `for resource ${resourceId}, motivation ${motivation}`,
@@ -343,31 +365,36 @@ export async function processHighlightJob(
   params: HighlightDetectionParams,
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
-): Promise<ProcessorResult<HighlightDetectionResult>> {
+  /** This chunk's novel annotations, awaited: the durability write. */
+  onChunkComplete: (annotations: Annotation[]) => Promise<void>,
+): Promise<ProcessorResult<JobHighlightAnnotationResult>> {
   const echo = detectionEcho(params);
 
   onProgress(10, { code: 'loading' }, echo);
   onProgress(30, { code: 'analyzing' }, echo);
 
-  const highlights = await AnnotationDetection.detectHighlights(
+  const dedupe = makeSpanDeduper();
+  let found = 0;
+  let created = 0;
+  await AnnotationDetection.detectHighlights(
     content, inferenceClient, params.instructions, params.density, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
     (completed, total) => onProgress(30 + Math.round((completed / total) * 30), { code: 'analyzing' }, echo),
+    async (matches) => {
+      found += matches.length;
+      // Highlights carry no body — motivation:'highlighting' on a target
+      // is a complete annotation per the W3C Web Annotation Model.
+      const fresh = dedupe(matches.map((h) => buildAnnotation('highlighting', h)));
+      created += fresh.length;
+      onProgress(60, { code: 'creating-annotations', count: created }, echo);
+      await onChunkComplete(fresh);
+    },
   );
 
-  onProgress(60, { code: 'creating-annotations', count: highlights.length }, echo);
-
-  // Highlights carry no body — motivation:'highlighting' on a target
-  // is a complete annotation per the W3C Web Annotation Model.
-  const annotations = dedupeAnnotations(highlights.map((h) =>
-    buildAnnotation('highlighting', h),
-  ));
-
-  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'highlight' }, echo);
+  onProgress(100, { code: 'complete-created', count: created, kind: 'highlight' }, echo);
 
   return {
-    annotations,
-    result: { kind: 'highlight-annotation', highlightsFound: highlights.length, highlightsCreated: annotations.length },
+    result: { kind: 'highlight-annotation', highlightsFound: found, highlightsCreated: created },
   };
 }
 
@@ -401,39 +428,46 @@ export async function processCommentJob(
   params: CommentDetectionParams,
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
-): Promise<ProcessorResult<CommentDetectionResult>> {
+  /** This chunk's novel annotations, awaited: the durability write. */
+  onChunkComplete: (annotations: Annotation[]) => Promise<void>,
+): Promise<ProcessorResult<JobCommentAnnotationResult>> {
   const echo = detectionEcho(params);
 
   onProgress(10, { code: 'loading' }, echo);
   onProgress(30, { code: 'analyzing' }, echo);
 
-  const comments = await AnnotationDetection.detectComments(
-    content, inferenceClient, params.instructions, params.tone, params.density,
-    params.language, params.sourceLanguage,
-    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
-    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), { code: 'analyzing' }, echo),
-  );
-
-  onProgress(60, { code: 'creating-annotations', count: comments.length }, echo);
-
   // The body's `language` reflects the locale the LLM was asked to write in
   // (`params.language` — the user's UI locale). Defaults to 'en' when the
   // caller didn't specify, matching what the LLM produces by default.
   const bodyLanguage = params.language ?? 'en';
-  const annotations = dedupeAnnotations(comments.map((c) =>
-    // Match the pre-#651 CommentAnnotationWorker: include format and
-    // language on the body TextualBody. Optional in the schema, but
-    // consumers that do language-aware rendering rely on them.
-    buildAnnotation('commenting', c, [
-      { type: 'TextualBody', value: c.comment, purpose: 'commenting', format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
-    ]),
-  ));
+  const dedupe = makeSpanDeduper();
+  let found = 0;
+  let created = 0;
+  await AnnotationDetection.detectComments(
+    content, inferenceClient, params.instructions, params.tone, params.density,
+    params.language, params.sourceLanguage,
+    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
+    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), { code: 'analyzing' }, echo),
+    async (comments) => {
+      found += comments.length;
+      const fresh = dedupe(comments.map((c) =>
+        // Match the pre-#651 CommentAnnotationWorker: include format and
+        // language on the body TextualBody. Optional in the schema, but
+        // consumers that do language-aware rendering rely on them.
+        buildAnnotation('commenting', c, [
+          { type: 'TextualBody', value: c.comment, purpose: 'commenting', format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
+        ]),
+      ));
+      created += fresh.length;
+      onProgress(60, { code: 'creating-annotations', count: created }, echo);
+      await onChunkComplete(fresh);
+    },
+  );
 
-  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'comment' }, echo);
+  onProgress(100, { code: 'complete-created', count: created, kind: 'comment' }, echo);
 
   return {
-    annotations,
-    result: { kind: 'comment-annotation', commentsFound: comments.length, commentsCreated: annotations.length },
+    result: { kind: 'comment-annotation', commentsFound: found, commentsCreated: created },
   };
 }
 
@@ -443,39 +477,46 @@ export async function processAssessmentJob(
   params: AssessmentDetectionParams,
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
-): Promise<ProcessorResult<AssessmentDetectionResult>> {
+  /** This chunk's novel annotations, awaited: the durability write. */
+  onChunkComplete: (annotations: Annotation[]) => Promise<void>,
+): Promise<ProcessorResult<JobAssessmentAnnotationResult>> {
   const echo = detectionEcho(params);
 
   onProgress(10, { code: 'loading' }, echo);
   onProgress(30, { code: 'analyzing' }, echo);
 
-  const assessments = await AnnotationDetection.detectAssessments(
+  const bodyLanguage = params.language ?? 'en';
+  const dedupe = makeSpanDeduper();
+  let found = 0;
+  let created = 0;
+  await AnnotationDetection.detectAssessments(
     content, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
     (completed, total) => onProgress(30 + Math.round((completed / total) * 30), { code: 'analyzing' }, echo),
+    async (assessments) => {
+      found += assessments.length;
+      const fresh = dedupe(assessments.map((a) =>
+        // Single-object body with purpose aligned to motivation, matching the
+        // pre-#651 AssessmentAnnotationWorker's shape and the majority of
+        // persisted assessments. Do not switch to an array or to
+        // purpose='describing' — that loses the "this is an assessment, not
+        // a description" signal and breaks existing readers that access
+        // `body.value` directly on the object.
+        buildAnnotation('assessing', a, {
+          type: 'TextualBody', value: a.assessment, purpose: 'assessing', format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage,
+        }),
+      ));
+      created += fresh.length;
+      onProgress(60, { code: 'creating-annotations', count: created }, echo);
+      await onChunkComplete(fresh);
+    },
   );
 
-  onProgress(60, { code: 'creating-annotations', count: assessments.length }, echo);
-
-  const bodyLanguage = params.language ?? 'en';
-  const annotations = dedupeAnnotations(assessments.map((a) =>
-    // Single-object body with purpose aligned to motivation, matching the
-    // pre-#651 AssessmentAnnotationWorker's shape and the majority of
-    // persisted assessments. Do not switch to an array or to
-    // purpose='describing' — that loses the "this is an assessment, not
-    // a description" signal and breaks existing readers that access
-    // `body.value` directly on the object.
-    buildAnnotation('assessing', a, {
-      type: 'TextualBody', value: a.assessment, purpose: 'assessing', format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage,
-    }),
-  ));
-
-  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'assessment' }, echo);
+  onProgress(100, { code: 'complete-created', count: created, kind: 'assessment' }, echo);
 
   return {
-    annotations,
-    result: { kind: 'assessment-annotation', assessmentsFound: assessments.length, assessmentsCreated: annotations.length },
+    result: { kind: 'assessment-annotation', assessmentsFound: found, assessmentsCreated: created },
   };
 }
 
@@ -495,15 +536,27 @@ export async function processReferenceJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
   logger: Logger,
-  onUnitComplete: (entityType: string, annotations: Annotation[]) => Promise<void>,
+  /**
+   * The CHECKPOINT, fired once per unit after every one of its chunks has
+   * committed. It carries no annotations — the effect already happened per
+   * chunk through `onChunkComplete`, and a unit callback that also carried
+   * them would be a second commit path.
+   */
+  onUnitComplete: (entityType: string) => Promise<void>,
   signal?: AbortSignal,
-): Promise<{ result: DetectionResult }> {
+  /** This chunk's novel annotations, awaited: the durability write. */
+  onChunkComplete?: (annotations: Annotation[]) => Promise<void>,
+): Promise<{ result: JobReferenceAnnotationResult }> {
   const entityTypeNames = params.entityTypes.map(String);
   const requestParams = [{ label: 'entity-types' as const, value: entityTypeNames.join(', ') }];
   const completedItems: CompletedItem[] = [];
   let totalFound = 0;
   let totalEmitted = 0;
   let errors = 0;
+  let totalUnderReportedPieces = 0;
+  // The denominator: cumulative count-verifier expectations over accepted
+  // pieces. Zero means no piece was priced — the frame then carries nothing.
+  let totalExpected = 0;
 
   onProgress(10, { code: 'loading' }, { requestParams });
 
@@ -530,6 +583,7 @@ export async function processReferenceJob(
       processed: completed,
       total,
       entitiesFound: totalFound,
+      ...(totalExpected > 0 ? { entitiesExpected: totalExpected } : {}),
       entitiesEmitted: totalEmitted,
       completedItems: [...completedItems],
       requestParams,
@@ -549,17 +603,6 @@ export async function processReferenceJob(
 
     emitTypeProgress(entityTypeName);
 
-    const extractedEntities = await extractEntities(
-      content, [entityTypeName], inferenceClient, params.includeDescriptiveReferences ?? false, logger,
-      params.sourceLanguage,
-      // Liveness heartbeat (DETECTION-HEARTBEAT): fires at chunk boundaries and
-      // every ~15 s while a call is in flight, so a long single-chunk call is
-      // not silent. It repeats the current position rather than inventing an
-      // advance — the stall watchdog, janitor and client timeout need a signal,
-      // not a monotone.
-      () => emitTypeProgress(entityTypeName),
-    );
-
     // Unresolved reference body: the entity type as a tagging TextualBody,
     // stamped with the body locale to match the comment/assess/tag pattern.
     // The bind flow later appends a SpecificResource (purpose: 'linking') via
@@ -569,42 +612,77 @@ export async function processReferenceJob(
       { type: 'TextualBody' as const, value: entityTypeName, purpose: 'tagging' as const, format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
     ];
 
-    const built: Annotation[] = [];
-    for (const entity of extractedEntities) {
-      const reconciled = reconcileSelector(content, {
-        exact: entity.exact,
-        ...(entity.prefix !== undefined ? { prefix: entity.prefix } : {}),
-        ...(entity.suffix !== undefined ? { suffix: entity.suffix } : {}),
-      });
-      if (!reconciled) {
-        logger.error('Entity dropped — text not found in source', {
-          text: entity.exact,
-          entityType: entity.entityType,
-        });
-        errors++;
-        continue;
-      }
-      noteAnchor('reference', entity.exact, reconciled.anchorMethod, logger);
-      const ann = buildAnnotation('linking', toMatch(reconciled), unresolvedBody);
-      built.push(ann);
-    }
+    // One deduper per unit, held across its chunks.
+    const dedupe = makeSpanDeduper();
+    let unitFound = 0;
+    let unitPersisted = 0;
+    // What remains unknown at the unit's end: floor-accepted pieces, folded.
+    let underReported: { pieces: number; found: number; counted: number } | undefined;
+    await extractEntities(
+      content, [entityTypeName], inferenceClient, params.includeDescriptiveReferences ?? false, logger,
+      params.sourceLanguage,
+      // Liveness heartbeat (DETECTION-HEARTBEAT): fires at chunk boundaries and
+      // every ~15 s while a call is in flight, so a long single-chunk call is
+      // not silent. It repeats the current position rather than inventing an
+      // advance — the stall watchdog, janitor and client timeout need a signal,
+      // not a monotone.
+      () => emitTypeProgress(entityTypeName),
+      (verdict) => {
+        underReported = {
+          pieces: (underReported?.pieces ?? 0) + 1,
+          found: (underReported?.found ?? 0) + verdict.found,
+          counted: (underReported?.counted ?? 0) + verdict.counted,
+        };
+      },
+      (counted) => {
+        totalExpected += counted;
+        emitTypeProgress(entityTypeName);
+      },
+      async (chunkEntities) => {
+        const built: Annotation[] = [];
+        for (const entity of chunkEntities) {
+          const reconciled = reconcileSelector(content, {
+            exact: entity.exact,
+            ...(entity.prefix !== undefined ? { prefix: entity.prefix } : {}),
+            ...(entity.suffix !== undefined ? { suffix: entity.suffix } : {}),
+          });
+          if (!reconciled) {
+            logger.error('Entity dropped — text not found in source', {
+              text: entity.exact,
+              entityType: entity.entityType,
+            });
+            errors++;
+            continue;
+          }
+          noteAnchor('reference', entity.exact, reconciled.anchorMethod, logger);
+          built.push(buildAnnotation('linking', toMatch(reconciled), unresolvedBody));
+        }
+        const fresh = dedupe(built);
+        // Awaited: a failed commit fails the unit before it can checkpoint;
+        // the retry re-runs it whole, into a log that dedupes by id.
+        await onChunkComplete?.(fresh);
+        // Tallies move only PAST the awaited commit — a chunk that fails to
+        // commit contributes nothing anywhere — and the numerator advances at
+        // the same grain as the denominator: per chunk, in the same frame
+        // family the viewer's found-of-~expected tally reads.
+        unitFound += chunkEntities.length;
+        unitPersisted += fresh.length;
+        totalFound += chunkEntities.length;
+        totalEmitted += fresh.length;
+        emitTypeProgress(entityTypeName);
+      },
+    );
 
-    // De-dupe within the unit, then COMMIT: the awaited callback emits the
-    // unit's annotations, and only after it resolves does the unit count
-    // anywhere — a unit whose commit fails contributes nothing (unit
-    // atomicity, A3).
-    const unitAnnotations = dedupeAnnotations(built);
-    await onUnitComplete(entityTypeName, unitAnnotations);
-    totalEmitted += unitAnnotations.length;
-    totalFound += extractedEntities.length;
-    // Found vs persisted, per unit: the model proposed `extractedEntities`, the
-    // log holds `unitAnnotations` after dedupe and the commit ack. The gap
-    // between them is this flow's yield (DETECTION-QUALITY-THROUGHPUT P1).
+    // Every chunk of this unit is durable; only now may it checkpoint.
+    await onUnitComplete(entityTypeName);
+    // Found vs persisted, per unit — the gap between them is this flow's yield.
     completedItems.push({
       value: entityTypeName,
-      foundCount: extractedEntities.length,
-      persistedCount: unitAnnotations.length,
+      foundCount: unitFound,
+      persistedCount: unitPersisted,
+      ...(underReported ? { underReported } : {}),
     });
+    if (underReported) totalUnderReportedPieces += underReported.pieces;
     completed++;
     emitTypeProgress(entityTypeName);
   });
@@ -614,12 +692,16 @@ export async function processReferenceJob(
   // each unit, so the LAST unit's entry — and on a single-type job, every
   // entry — was never reported anywhere (DETECTION-QUALITY-THROUGHPUT P1).
   onProgress(100, { code: 'complete-created', count: totalEmitted, kind: 'reference' }, {
+    ...(totalExpected > 0 ? { entitiesExpected: totalExpected } : {}),
     completedItems: [...completedItems],
     requestParams,
   });
 
   return {
-    result: { kind: 'reference-annotation', totalFound, totalEmitted, errors },
+    result: {
+      kind: 'reference-annotation', totalFound, totalEmitted, errors,
+      ...(totalUnderReportedPieces > 0 ? { underReportedPieces: totalUnderReportedPieces } : {}),
+    },
   };
 }
 
@@ -629,12 +711,23 @@ export async function processTagJob(
   params: TagDetectionParams,
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
-): Promise<ProcessorResult<TagDetectionResult>> {
+  /** This chunk's novel annotations, awaited: the durability write. */
+  onChunkComplete: (annotations: Annotation[]) => Promise<void>,
+): Promise<ProcessorResult<JobTagAnnotationResult>> {
   onProgress(10, { code: 'loading' });
   onProgress(30, { code: 'analyzing-tags' });
 
-  const allTags = [];
+  const bodyLanguage = params.language ?? 'en';
+  // One deduper across every category: they share an emission stream, and
+  // the key includes the body, so only true repeats collapse.
+  const dedupe = makeSpanDeduper();
+  let found = 0;
+  let created = 0;
+  // byCategory counts the DEDUPED set so the per-category counts match what
+  // is actually stored. The category is the first (tagging) TextualBody.
+  const byCategory: Record<string, number> = {};
   const completedItems: CompletedItem[] = [];
+
   for (let c = 0; c < params.categories.length; c++) {
     const category = params.categories[c]!;
     // The loop always existed; it just never reported itself, so the tag flow
@@ -650,7 +743,8 @@ export async function processTagJob(
       { code: 'analyzing-tags' },
       position(),
     );
-    const categoryTags = await AnnotationDetection.detectTags(
+    let categoryFound = 0;
+    await AnnotationDetection.detectTags(
       content, inferenceClient, params.schema, category, params.sourceLanguage,
       // Liveness (chunk boundaries + in-flight heartbeat): this category's
       // slice of the 30–60 band.
@@ -659,43 +753,38 @@ export async function processTagJob(
         { code: 'analyzing-tags' },
         position(),
       ),
+      async (matches) => {
+        categoryFound += matches.length;
+        const fresh = dedupe(matches.map((t) => {
+          const cat = t.category ?? 'unknown';
+          // Two-body shape matches the pre-#651 TagAnnotationWorker and every
+          // persisted tag annotation: the category as a tagging TextualBody,
+          // plus the tagging-schema id as a classifying TextualBody. The
+          // classifying body is the only trace of schema provenance in the
+          // event log — do not drop it.
+          return buildAnnotation('tagging', t, [
+            { type: 'TextualBody', value: cat,              purpose: 'tagging',     format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
+            { type: 'TextualBody', value: params.schema.id, purpose: 'classifying', format: 'text/plain' satisfies SupportedMediaType },
+          ]);
+        }));
+        created += fresh.length;
+        for (const ann of fresh) {
+          const body = (ann as { body?: Array<{ value?: unknown }> }).body;
+          const cat = Array.isArray(body) && typeof body[0]?.value === 'string' ? body[0].value : 'unknown';
+          byCategory[cat] = (byCategory[cat] ?? 0) + 1;
+        }
+        onProgress(60, { code: 'creating-tag-annotations', count: created });
+        await onChunkComplete(fresh);
+      },
     );
-    completedItems.push({ value: category, foundCount: categoryTags.length });
-    allTags.push(...categoryTags);
-  }
-  const tags = allTags;
-
-  onProgress(60, { code: 'creating-tag-annotations', count: tags.length });
-
-  const bodyLanguage = params.language ?? 'en';
-  const annotations = dedupeAnnotations(tags.map((t) => {
-    const category = t.category ?? 'unknown';
-    // Two-body shape matches the pre-#651 TagAnnotationWorker and every
-    // persisted tag annotation: the category as a tagging TextualBody,
-    // plus the tagging-schema id as a classifying TextualBody. The
-    // classifying body is the only trace of schema provenance in the
-    // event log — do not drop it.
-    return buildAnnotation('tagging', t, [
-      { type: 'TextualBody', value: category,         purpose: 'tagging',     format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
-      { type: 'TextualBody', value: params.schema.id, purpose: 'classifying', format: 'text/plain' satisfies SupportedMediaType },
-    ]);
-  }));
-
-  // byCategory is computed from the *deduped* set so the per-category
-  // counts match what's actually stored. The category is the first
-  // (tagging) TextualBody's value.
-  const byCategory: Record<string, number> = {};
-  for (const ann of annotations) {
-    const body = (ann as { body?: Array<{ value?: unknown }> }).body;
-    const category = Array.isArray(body) && typeof body[0]?.value === 'string' ? body[0].value : 'unknown';
-    byCategory[category] = (byCategory[category] ?? 0) + 1;
+    found += categoryFound;
+    completedItems.push({ value: category, foundCount: categoryFound });
   }
 
-  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'tag' });
+  onProgress(100, { code: 'complete-created', count: created, kind: 'tag' });
 
   return {
-    annotations,
-    result: { kind: 'tag-annotation', tagsFound: tags.length, tagsCreated: annotations.length, byCategory },
+    result: { kind: 'tag-annotation', tagsFound: found, tagsCreated: created, byCategory },
   };
 }
 

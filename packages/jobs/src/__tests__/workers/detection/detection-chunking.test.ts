@@ -326,11 +326,117 @@ describe('callChunkSubdividing', () => {
     let first = true;
     const result = await callChunkSubdividing('reference', CHUNK, CHUNKING, async (piece) => {
       calls.push(piece);
-      if (first) { first = false; throw new YieldCollapseError('found 3 of 50 counted mentions'); }
+      if (first) { first = false; throw new YieldCollapseError('found 3 of 50 counted mentions', [], { found: 3, counted: 50, pieceChars: 100 }); }
       return { items: [piece.length] };
     });
     expect(result.length).toBeGreaterThan(0);
     expect(calls.length).toBeGreaterThan(1); // it descended rather than propagating
+  });
+
+  // ── The denominator: accepted pieces report their count (RD5) ───────────
+  //
+  // The count-verifier already prices every verified piece; the denominator is
+  // those counts, summed over pieces whose results were ACCEPTED. A flagged
+  // piece that descends contributes nothing — its children's counts replace
+  // it — or the denominator double-counts the text it re-reads.
+  describe('accepted pieces report their count', () => {
+    it('every successful piece with a count reports it', async () => {
+      const counts: number[] = [];
+      const result = await callChunkSubdividing('reference', CHUNK, CHUNKING,
+        async () => ({ items: ['a', 'b'], counted: 7 }),
+        undefined, undefined, (c) => { counts.push(c); });
+      expect(result).toEqual(['a', 'b']);
+      expect(counts).toEqual([7]);
+    });
+
+    it('a piece without a count reports nothing', async () => {
+      const counts: number[] = [];
+      await callChunkSubdividing('reference', CHUNK, CHUNKING,
+        async () => ({ items: ['a'] }),
+        undefined, undefined, (c) => { counts.push(c); });
+      expect(counts).toEqual([]);
+    });
+
+    it('a flagged piece that descends is replaced by its children — no double count', async () => {
+      let first = true;
+      const counts: number[] = [];
+      await callChunkSubdividing('reference', CHUNK, CHUNKING, async (piece) => {
+        if (first) {
+          first = false;
+          throw new YieldCollapseError('found 1 of 50', [], { found: 1, counted: 50, pieceChars: piece.length });
+        }
+        return { items: [piece.length], counted: 5 };
+      }, undefined, undefined, (c) => { counts.push(c); });
+      expect(counts.length).toBeGreaterThan(1);   // one per child piece
+      expect(counts).not.toContain(50);            // the discarded flag's count
+      expect(counts.every((c) => c === 5)).toBe(true);
+    });
+
+    it('a floor acceptance reports the verdict count — the salvage was accepted, so its expectation stands', async () => {
+      const tiny = 'word '.repeat(20);
+      const counts: number[] = [];
+      const reported: unknown[] = [];
+      const result = await callChunkSubdividing<string>(
+        'reference', tiny, { chunkSize: 1_000, overlap: 16 },
+        async () => { throw new YieldCollapseError('found 1 of 4', ['kept'], { found: 1, counted: 4, pieceChars: tiny.length }); },
+        undefined, (v) => { reported.push(v); }, (c) => { counts.push(c); });
+      expect(result).toEqual(['kept']);
+      expect(counts).toEqual([4]);
+      expect(reported).toHaveLength(1);
+    });
+  });
+
+  // ── The verdict reaches the caller (DETECTION-END-STATES P1) ────────────
+  //
+  // The floor acceptance is the one place an under-report becomes RESULT
+  // rather than failure, and until now nothing above the subdivider could see
+  // it happen. The verdict records what remains unknown at the END — a
+  // collapse healed by descent reports nothing.
+  describe('floor-accepted under-reports reach the caller', () => {
+    const verdictOf = (found: number, counted: number, pieceChars: number) =>
+      ({ found, counted, pieceChars });
+
+    it('a floor acceptance reports its evidence through onUnderReport', async () => {
+      const tiny = 'word '.repeat(20);
+      const boom = new YieldCollapseError(
+        'found 1 of 4 counted mentions',
+        ['the-one-found'],
+        verdictOf(1, 4, tiny.length),
+      );
+      const reported: unknown[] = [];
+
+      const result = await callChunkSubdividing<string>(
+        'reference', tiny, { chunkSize: 1_000, overlap: 16 },
+        async () => { throw boom; },
+        undefined,
+        (v) => { reported.push(v); },
+      );
+
+      expect(result).toEqual(['the-one-found']);
+      expect(reported).toEqual([verdictOf(1, 4, tiny.length)]);
+    });
+
+    it('a successful call reports nothing', async () => {
+      const reported: unknown[] = [];
+      const result = await callChunkSubdividing('entity', CHUNK, CHUNKING,
+        async () => ({ items: ['a'] }), undefined, (v) => { reported.push(v); });
+      expect(result).toEqual(['a']);
+      expect(reported).toEqual([]);
+    });
+
+    it('a collapse healed by descent reports nothing — the descent is telemetry, not result', async () => {
+      let first = true;
+      const reported: unknown[] = [];
+      const result = await callChunkSubdividing('entity', CHUNK, CHUNKING, async (piece) => {
+        if (first) {
+          first = false;
+          throw new YieldCollapseError('found 3 of 50', [], verdictOf(3, 50, piece.length));
+        }
+        return { items: [piece.length] };
+      }, undefined, (v) => { reported.push(v); });
+      expect(result.length).toBeGreaterThan(0);
+      expect(reported).toEqual([]);
+    });
   });
 
   it('never re-runs a piece that cannot shrink — a no-op descent is the floor (P4 attempt 1)', async () => {
@@ -339,7 +445,7 @@ describe('callChunkSubdividing', () => {
     // identical call returned the identical verdict. Once a piece fits inside
     // the smaller chunk size, descent changes nothing; it is AT its floor
     // regardless of the arithmetic floor. Collapse there: one call, propagate.
-    const boom = new YieldCollapseError('found 1 of 4 counted mentions', ['the-one-found']);
+    const boom = new YieldCollapseError('found 1 of 4 counted mentions', ['the-one-found'], { found: 1, counted: 4, pieceChars: 100 });
     const tiny = 'word '.repeat(20); // ~25 tokens — fits any half-size here
     const calls: string[] = [];
     const result = await callChunkSubdividing<string>('reference', tiny, { chunkSize: 1_000, overlap: 16 }, async (piece) => {
@@ -371,7 +477,7 @@ describe('callChunkSubdividing', () => {
     // what extraction did find, every span write-time-verified — flows
     // through with a loud warning instead of nuking the unit. No re-roll
     // either way: the collapse is deterministic.
-    const boom = new YieldCollapseError('found 1 of 4 counted mentions', ['salvaged-entity']);
+    const boom = new YieldCollapseError('found 1 of 4 counted mentions', ['salvaged-entity'], { found: 1, counted: 4, pieceChars: 400 });
     const small = 'a'.repeat(400);
     const calls: string[] = [];
     const warn = vi.fn();
@@ -531,7 +637,7 @@ describe('callChunkSubdividing telemetry', () => {
     // is a policy above the telemetry, and the metric is the durable trace of
     // every under-report, accepted or not.
     const result = await callChunkSubdividing<string>('reference', 'a'.repeat(400), { chunkSize: 8, overlap: 16 }, async () => {
-      throw new YieldCollapseError('found 3 of 50 counted mentions', []);
+      throw new YieldCollapseError('found 3 of 50 counted mentions', [], { found: 3, counted: 50, pieceChars: 100 });
     });
     expect(result).toEqual([]);
 

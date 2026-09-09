@@ -225,7 +225,10 @@
     "comment": "التعليقات",
     "tag": "العلامات",
     "annotationsFailed": "تعذّر تحميل التعليقات التوضيحية.",
-    "retry": "إعادة المحاولة"
+    "retry": "إعادة المحاولة",
+    "completenessClean": "اكتمل الكشف",
+    "completenessUnderReported": "كشف جزئي — بعض الأجزاء ناقصة الإبلاغ",
+    "completenessIncomplete": "كشف جزئي — لم تكتمل العملية"
   },
   "StatisticsPanel": {
     "title": "الإحصائيات",
@@ -274,7 +277,8 @@
     "noText": "لا يوجد نص",
     "incomingReferencesFailed": "تعذّر تحميل المراجع الواردة.",
     "retry": "إعادة المحاولة",
-    "entityTypesFailed": "تعذّر تحميل أنواع الكيانات."
+    "entityTypesFailed": "تعذّر تحميل أنواع الكيانات.",
+    "tally": "{{found}} من ~{{expected}} كيانًا"
   },
   "KeyboardShortcuts": {
     "title": "اختصارات لوحة المفاتيح",

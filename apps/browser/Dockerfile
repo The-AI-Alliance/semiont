@@ -29,6 +29,12 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 WORKDIR /app
 RUN chown semiont:nodejs /app
+# Supervision runtime — ROOT-TIME on purpose: apk refuses to run and
+# /usr/local/bin refuses writes once USER drops privileges below.
+RUN apk add --no-cache tini
+COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
+COPY scripts/container/boot.sh /usr/local/bin/boot.sh
+
 USER semiont
 
 COPY --from=installer --chown=semiont:nodejs /app /app
@@ -41,9 +47,6 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
-RUN apk add --no-cache tini
-COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
-COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 ENV SUPERVISE_NAME=browser \
     SUPERVISE_PROBE=http://localhost:3000/
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]

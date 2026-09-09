@@ -225,7 +225,10 @@
     "comment": "Komentáře",
     "tag": "Štítky",
     "annotationsFailed": "Anotace se nepodařilo načíst.",
-    "retry": "Zkusit znovu"
+    "retry": "Zkusit znovu",
+    "completenessClean": "Detekce dokončena",
+    "completenessUnderReported": "Částečně detekováno — některé části podhodnoceny",
+    "completenessIncomplete": "Částečně detekováno — běh nebyl dokončen"
   },
   "StatisticsPanel": {
     "title": "Statistiky",
@@ -274,7 +277,8 @@
     "noText": "Žádný text",
     "incomingReferencesFailed": "Příchozí reference se nepodařilo načíst.",
     "retry": "Zkusit znovu",
-    "entityTypesFailed": "Typy entit se nepodařilo načíst."
+    "entityTypesFailed": "Typy entit se nepodařilo načíst.",
+    "tally": "{{found}} z ~{{expected}} entit"
   },
   "KeyboardShortcuts": {
     "title": "Klávesové zkratky",

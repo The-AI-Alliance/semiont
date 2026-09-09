@@ -18,10 +18,31 @@ export interface PendingAnnotation {
   motivation: Motivation;
 }
 
+/**
+ * The SETTLED terminal verdict of an assist run, mirroring `yield`'s
+ * `YieldOutcome` (DETECTION-RESULT-STREAMING P3, RD4). Only terminal shapes
+ * enter it: `complete` from the assist stream, or a terminal `job:fail`
+ * (`willRetry !== true`) — a retryable failure is a setback inside a live
+ * run, not a state to badge. Null while running, before any run, and after
+ * dismissal; it lives and dies with the progress display.
+ *
+ * `underReportedPieces` preserves WIRE ABSENCE (RD4): absent means the run
+ * was clean — mutation-proven on the emitting side — so no zero is ever
+ * manufactured here for a consumer to mistake for a counted result.
+ *
+ * Local runs only: the terminal `job:fail` is attributed via the assist in
+ * flight, so another client's failed job on this resource settles nothing
+ * here (it still toasts through useOutcomeToasts' own subscription).
+ */
+export type MarkAssistOutcome =
+  | { kind: 'complete'; motivation: Motivation; underReportedPieces?: number }
+  | { kind: 'incomplete'; motivation: Motivation; completedUnits?: string[] };
+
 export interface MarkStateUnit extends StateUnit {
   pendingAnnotation$: Observable<PendingAnnotation | null>;
   assistingMotivation$: Observable<Motivation | null>;
   progress$: Observable<JobProgress | null>;
+  outcome$: Observable<MarkAssistOutcome | null>;
 }
 
 type SelectionData = EventMap['mark:select-comment'];
@@ -44,6 +65,7 @@ export function createMarkStateUnit(
   const pendingAnnotation$ = new BehaviorSubject<PendingAnnotation | null>(null);
   const assistingMotivation$ = new BehaviorSubject<Motivation | null>(null);
   const progress$ = new BehaviorSubject<JobProgress | null>(null);
+  const outcome$ = new BehaviorSubject<MarkAssistOutcome | null>(null);
 
   // A finished run STAYS on screen (CLEAN-PROGRESS D1). There is no dismissal
   // timer: the result line — "Created 7 references" — is the one thing in the
@@ -116,6 +138,7 @@ export function createMarkStateUnit(
   subs.push(client.bus.get('mark:assist-request').subscribe((event) => {
     assistingMotivation$.next(event.motivation);
     progress$.next(null);
+    outcome$.next(null);
 
     // Silence detector, NOT a timeout (DETECTION-HEARTBEAT D6). The job
     // outlives the client's attention: a run the UI gave up on still
@@ -163,6 +186,16 @@ export function createMarkStateUnit(
         // by useOutcomeToasts (react-ui), which subscribes job:complete /
         // job:fail directly — not through this Observable.
         if (e.kind === 'progress') progress$.next(e.data);
+        if (e.kind === 'complete') {
+          const result = e.data.result;
+          const pieces = result?.kind === 'reference-annotation' ? result.underReportedPieces : undefined;
+          outcome$.next({
+            kind: 'complete',
+            motivation: event.motivation,
+            // Spread-conditional: wire absence stays absent (RD4).
+            ...(pieces !== undefined ? { underReportedPieces: pieces } : {}),
+          });
+        }
       },
       complete: () => {
         // Resolves the UI whenever it arrives — including long after the
@@ -183,19 +216,35 @@ export function createMarkStateUnit(
     subs.push(assistSub);
   }));
 
+  subs.push(client.bus.get('job:fail').subscribe((e) => {
+    const motivation = assistingMotivation$.getValue();
+    if (motivation === null) return;               // no local assist in flight
+    if (e.resourceId !== resourceId) return;
+    if (e.jobType === 'generation') return;        // yield's flow, not mark's
+    if (e.willRetry === true) return;              // recovering, not settled
+    outcome$.next({
+      kind: 'incomplete',
+      motivation,
+      ...(e.completedUnits ? { completedUnits: e.completedUnits } : {}),
+    });
+  }));
+
   subs.push(client.bus.get('mark:progress-dismiss').subscribe(() => {
     progress$.next(null);
+    outcome$.next(null);
   }));
 
   return {
     pendingAnnotation$: pendingAnnotation$.asObservable(),
     assistingMotivation$: assistingMotivation$.asObservable(),
     progress$: progress$.asObservable(),
+    outcome$: outcome$.asObservable(),
     dispose() {
       subs.forEach(s => s.unsubscribe());
       pendingAnnotation$.complete();
       assistingMotivation$.complete();
       progress$.complete();
+      outcome$.complete();
     },
   };
 }

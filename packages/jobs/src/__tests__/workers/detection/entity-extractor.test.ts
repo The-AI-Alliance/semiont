@@ -305,6 +305,62 @@ describe('extractEntities', () => {
       });
     });
 
+    describe('chunk-grain emission', () => {
+      /** Records interleaving of model calls and result emissions. */
+      function tracingClient(perChunk: Array<Array<{ exact: string; entityType: string }>>) {
+        const order: string[] = [];
+        let call = 0;
+        const client = {
+          type: 'mock' as const,
+          modelId: 'mock-model',
+          limits: async () => SMALL_SHARED_LIMITS,
+          generateText: async () => '[]',
+          generateStructured: async () => {
+            const i = call++;
+            order.push(`infer:${i}`);
+            return { items: perChunk[Math.min(i, perChunk.length - 1)] ?? [], stopReason: 'end_turn' };
+          },
+        } as unknown as InferenceClient;
+        return { client, order };
+      }
+
+      it('emits each chunk\'s entities as that chunk completes, not once at the end', async () => {
+        const { client, order } = tracingClient([
+          [{ exact: 'AAA', entityType: 'Person' }],
+          [{ exact: 'BBB', entityType: 'Person' }],
+        ]);
+        const emitted: string[][] = [];
+
+        await extractEntities(
+          bigText, ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined,
+          async (items) => { order.push(`emit:${emitted.length}`); emitted.push(items.map((e) => e.exact)); },
+        );
+
+        // Only a LATER chunk can tell per-chunk emission from cumulative:
+        // chunk 0's looks identical either way.
+        expect(emitted.length).toBeGreaterThan(1);
+        expect(emitted[0]).toEqual(['AAA']);
+        expect(emitted.every((e) => e.length <= 1)).toBe(true);
+        expect(emitted[1]).not.toContain('AAA');
+
+        // The property that makes it streaming: chunk 0's results are out
+        // before chunk 1's inference begins. A loop that flattened and emitted
+        // at the end would order every infer before every emit.
+        expect(order.indexOf('emit:0')).toBeLessThan(order.indexOf('infer:1'));
+      });
+
+      it('AWAITS the emission — a commit that fails fails the job', async () => {
+        const { client } = tracingClient([[{ exact: 'AAA', entityType: 'Person' }]]);
+
+        await expect(
+          extractEntities(
+            bigText, ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined,
+            async () => { throw new Error('mark:commit failed: sink down'); },
+          ),
+        ).rejects.toThrow(/sink down/);
+      });
+    });
+
     it('fails the job when the structured read throws mid-chunk — never a short-array completion', async () => {
       // STRUCTURED-INFERENCE Phase 1 (declared RED): extraction must consume
       // the structured surface, whose mid-chunk throw aborts the job and

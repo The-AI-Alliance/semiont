@@ -225,7 +225,10 @@
     "comment": "Kommentit",
     "tag": "Tunnisteet",
     "annotationsFailed": "Merkintöjä ei voitu ladata.",
-    "retry": "Yritä uudelleen"
+    "retry": "Yritä uudelleen",
+    "completenessClean": "Tunnistus valmis",
+    "completenessUnderReported": "Osittain tunnistettu — osa jäi aliraportoiduksi",
+    "completenessIncomplete": "Osittain tunnistettu — ajo ei valmistunut"
   },
   "StatisticsPanel": {
     "title": "Tilastot",
@@ -274,7 +277,8 @@
     "noText": "Ei tekstiä",
     "incomingReferencesFailed": "Saapuvia viitteitä ei voitu ladata.",
     "retry": "Yritä uudelleen",
-    "entityTypesFailed": "Entiteettityyppejä ei voitu ladata."
+    "entityTypesFailed": "Entiteettityyppejä ei voitu ladata.",
+    "tally": "{{found}} / ~{{expected}} entiteettiä"
   },
   "KeyboardShortcuts": {
     "title": "Pikanäppäimet",

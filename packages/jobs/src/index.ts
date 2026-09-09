@@ -43,12 +43,7 @@ export type {
   AssessmentDetectionProgress,
   CommentDetectionProgress,
   TagDetectionProgress,
-  DetectionResult,
   GenerationResult,
-  HighlightDetectionResult,
-  AssessmentDetectionResult,
-  CommentDetectionResult,
-  TagDetectionResult,
 } from './types';
 
 export {

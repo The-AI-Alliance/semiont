@@ -225,7 +225,10 @@
     "comment": "Kommentarer",
     "tag": "Tags",
     "annotationsFailed": "Annoteringerne kunne ikke indlæses.",
-    "retry": "Prøv igen"
+    "retry": "Prøv igen",
+    "completenessClean": "Detektion fuldført",
+    "completenessUnderReported": "Delvist detekteret — nogle dele underrapporteret",
+    "completenessIncomplete": "Delvist detekteret — kørslen blev ikke færdig"
   },
   "StatisticsPanel": {
     "title": "Statistik",
@@ -274,7 +277,8 @@
     "noText": "Ingen tekst",
     "incomingReferencesFailed": "Indgående referencer kunne ikke indlæses.",
     "retry": "Prøv igen",
-    "entityTypesFailed": "Enhedstyper kunne ikke indlæses."
+    "entityTypesFailed": "Enhedstyper kunne ikke indlæses.",
+    "tally": "{{found}} af ~{{expected}} entiteter"
   },
   "KeyboardShortcuts": {
     "title": "Tastaturgenveje",

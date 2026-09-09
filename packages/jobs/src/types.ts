@@ -12,6 +12,7 @@
  */
 
 import type { JobId, EntityType, ResourceId, UserId, GenerationJobParams, TagSchema } from '@semiont/core';
+import type { JobReferenceAnnotationResult, JobHighlightAnnotationResult, JobCommentAnnotationResult, JobAssessmentAnnotationResult, JobTagAnnotationResult } from '@semiont/core';
 
 export type JobType = 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
 export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
@@ -158,15 +159,6 @@ export interface DetectionProgress {
   entitiesEmitted: number;
 }
 
-/**
- * Detection job result
- */
-export interface DetectionResult {
-  kind: 'reference-annotation';
-  totalFound: number;
-  totalEmitted: number;
-  errors: number;
-}
 
 /**
  * Generation job progress
@@ -198,14 +190,6 @@ export interface HighlightDetectionProgress {
   message?: string;
 }
 
-/**
- * Highlight detection job result
- */
-export interface HighlightDetectionResult {
-  kind: 'highlight-annotation';
-  highlightsFound: number;
-  highlightsCreated: number;
-}
 
 /**
  * Assessment detection job progress
@@ -216,14 +200,6 @@ export interface AssessmentDetectionProgress {
   message?: string;
 }
 
-/**
- * Assessment detection job result
- */
-export interface AssessmentDetectionResult {
-  kind: 'assessment-annotation';
-  assessmentsFound: number;
-  assessmentsCreated: number;
-}
 
 /**
  * Comment detection job progress
@@ -234,14 +210,6 @@ export interface CommentDetectionProgress {
   message?: string;
 }
 
-/**
- * Comment detection job result
- */
-export interface CommentDetectionResult {
-  kind: 'comment-annotation';
-  commentsFound: number;
-  commentsCreated: number;
-}
 
 /**
  * Tag detection job progress
@@ -255,15 +223,6 @@ export interface TagDetectionProgress {
   message?: string;
 }
 
-/**
- * Tag detection job result
- */
-export interface TagDetectionResult {
-  kind: 'tag-annotation';
-  tagsFound: number;
-  tagsCreated: number;
-  byCategory: Record<string, number>;
-}
 
 // ============================================================================
 // Generic Job State Types
@@ -338,12 +297,12 @@ export type Job<P, PG, R> =
 // Concrete Job Types
 // ============================================================================
 
-export type DetectionJob = Job<DetectionParams, DetectionProgress, DetectionResult>;
+export type DetectionJob = Job<DetectionParams, DetectionProgress, JobReferenceAnnotationResult>;
 export type GenerationJob = Job<GenerationJobParams, YieldProgress, GenerationResult>;
-export type HighlightDetectionJob = Job<HighlightDetectionParams, HighlightDetectionProgress, HighlightDetectionResult>;
-export type AssessmentDetectionJob = Job<AssessmentDetectionParams, AssessmentDetectionProgress, AssessmentDetectionResult>;
-export type CommentDetectionJob = Job<CommentDetectionParams, CommentDetectionProgress, CommentDetectionResult>;
-export type TagDetectionJob = Job<TagDetectionParams, TagDetectionProgress, TagDetectionResult>;
+export type HighlightDetectionJob = Job<HighlightDetectionParams, HighlightDetectionProgress, JobHighlightAnnotationResult>;
+export type AssessmentDetectionJob = Job<AssessmentDetectionParams, AssessmentDetectionProgress, JobAssessmentAnnotationResult>;
+export type CommentDetectionJob = Job<CommentDetectionParams, CommentDetectionProgress, JobCommentAnnotationResult>;
+export type TagDetectionJob = Job<TagDetectionParams, TagDetectionProgress, JobTagAnnotationResult>;
 
 /**
  * Discriminated union of all job types

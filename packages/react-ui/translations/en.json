@@ -225,7 +225,10 @@
     "comment": "Comments",
     "tag": "Tags",
     "annotationsFailed": "Could not load annotations.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "completenessClean": "Detection complete",
+    "completenessUnderReported": "Partially detected — some pieces under-reported",
+    "completenessIncomplete": "Partially detected — the run did not finish"
   },
   "StatisticsPanel": {
     "title": "Statistics",
@@ -274,7 +277,8 @@
     "noText": "No text",
     "incomingReferencesFailed": "Could not load incoming references.",
     "retry": "Try again",
-    "entityTypesFailed": "Could not load entity types."
+    "entityTypesFailed": "Could not load entity types.",
+    "tally": "{{found}} of ~{{expected}} entities"
   },
   "KeyboardShortcuts": {
     "title": "Keyboard Shortcuts",

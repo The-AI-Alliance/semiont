@@ -225,7 +225,10 @@
     "comment": "Bình luận",
     "tag": "Thẻ",
     "annotationsFailed": "Không thể tải chú thích.",
-    "retry": "Thử lại"
+    "retry": "Thử lại",
+    "completenessClean": "Phát hiện hoàn tất",
+    "completenessUnderReported": "Phát hiện một phần — một số phần bị báo cáo thiếu",
+    "completenessIncomplete": "Phát hiện một phần — quá trình chưa hoàn thành"
   },
   "StatisticsPanel": {
     "title": "Thống kê",
@@ -274,7 +277,8 @@
     "noText": "Không có văn bản",
     "incomingReferencesFailed": "Không thể tải tham chiếu đến.",
     "retry": "Thử lại",
-    "entityTypesFailed": "Không thể tải loại thực thể."
+    "entityTypesFailed": "Không thể tải loại thực thể.",
+    "tally": "{{found}} trong ~{{expected}} thực thể"
   },
   "KeyboardShortcuts": {
     "title": "Phím tắt",

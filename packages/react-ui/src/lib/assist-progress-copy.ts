@@ -151,7 +151,7 @@ export function assistParamLabel(t: Translate): (code: string) => string {
  */
 export function assistProgressTranslations(
   t: Translate,
-  extra?: Pick<AssistProgressTranslations, 'found'>,
+  extra?: Pick<AssistProgressTranslations, 'found' | 'tally'>,
 ): AssistProgressTranslations {
   return {
     cancel: t('cancel'),

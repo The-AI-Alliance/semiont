@@ -225,7 +225,10 @@
     "comment": "Comentários",
     "tag": "Tags",
     "annotationsFailed": "Não foi possível carregar as anotações.",
-    "retry": "Tentar novamente"
+    "retry": "Tentar novamente",
+    "completenessClean": "Detecção concluída",
+    "completenessUnderReported": "Detecção parcial — algumas partes subnotificadas",
+    "completenessIncomplete": "Detecção parcial — a execução não terminou"
   },
   "StatisticsPanel": {
     "title": "Estatísticas",
@@ -274,7 +277,8 @@
     "noText": "Sem texto",
     "incomingReferencesFailed": "Não foi possível carregar as referências recebidas.",
     "retry": "Tentar novamente",
-    "entityTypesFailed": "Não foi possível carregar os tipos de entidade."
+    "entityTypesFailed": "Não foi possível carregar os tipos de entidade.",
+    "tally": "{{found}} de ~{{expected}} entidades"
   },
   "KeyboardShortcuts": {
     "title": "Atalhos de Teclado",

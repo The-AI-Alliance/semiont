@@ -225,7 +225,10 @@
     "comment": "মন্তব্যসমূহ",
     "tag": "ট্যাগসমূহ",
     "annotationsFailed": "টীকা লোড করা যায়নি।",
-    "retry": "আবার চেষ্টা করুন"
+    "retry": "আবার চেষ্টা করুন",
+    "completenessClean": "শনাক্তকরণ সম্পূর্ণ",
+    "completenessUnderReported": "আংশিক শনাক্ত — কিছু অংশ কম রিপোর্ট হয়েছে",
+    "completenessIncomplete": "আংশিক শনাক্ত — প্রক্রিয়াটি শেষ হয়নি"
   },
   "StatisticsPanel": {
     "title": "পরিসংখ্যান",
@@ -274,7 +277,8 @@
     "noText": "কোনো পাঠ্য নেই",
     "incomingReferencesFailed": "ইনকামিং রেফারেন্স লোড করা যায়নি।",
     "retry": "আবার চেষ্টা করুন",
-    "entityTypesFailed": "সত্তার ধরন লোড করা যায়নি।"
+    "entityTypesFailed": "সত্তার ধরন লোড করা যায়নি।",
+    "tally": "~{{expected}} সত্তার মধ্যে {{found}}"
   },
   "KeyboardShortcuts": {
     "title": "কীবোর্ড শর্টকাট",

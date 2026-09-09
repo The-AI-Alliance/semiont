@@ -60,6 +60,13 @@ COPY LICENSE apps/gateway/NOTICE /home/semiont/
 
 WORKDIR /kb
 RUN chown semiont:nodejs /kb
+# Supervision runtime — ROOT-TIME on purpose: apk refuses to run and
+# /usr/local/bin refuses writes once USER drops privileges below.
+RUN apk add --no-cache tini
+COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
+COPY scripts/container/boot.sh /usr/local/bin/boot.sh
+COPY scripts/container/gateway-boot.sh /usr/local/bin/gateway-boot.sh
+
 USER semiont
 
 ENV NODE_ENV=production
@@ -83,10 +90,6 @@ RUN test -f "$GATEWAY_DIR/dist/index.js" \
     command -v semiont-useradd >/dev/null \
       || { echo "semiont-useradd is not on PATH — \`semiont useradd\` execs it by name; check the package's bin entry and the PATH above"; exit 1; }
 
-RUN apk add --no-cache tini
-COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
-COPY scripts/container/boot.sh /usr/local/bin/boot.sh
-COPY scripts/container/gateway-boot.sh /usr/local/bin/gateway-boot.sh
 ENV SUPERVISE_NAME=gateway \
     SUPERVISE_PROBE=http://localhost:4000/api/health
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/gateway-boot.sh"]

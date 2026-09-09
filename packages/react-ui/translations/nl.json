@@ -225,7 +225,10 @@
     "comment": "Opmerkingen",
     "tag": "Labels",
     "annotationsFailed": "Kan de annotaties niet laden.",
-    "retry": "Opnieuw proberen"
+    "retry": "Opnieuw proberen",
+    "completenessClean": "Detectie voltooid",
+    "completenessUnderReported": "Gedeeltelijk gedetecteerd — sommige delen ondergerapporteerd",
+    "completenessIncomplete": "Gedeeltelijk gedetecteerd — de run is niet voltooid"
   },
   "StatisticsPanel": {
     "title": "Statistieken",
@@ -274,7 +277,8 @@
     "noText": "Geen tekst",
     "incomingReferencesFailed": "Kan de inkomende referenties niet laden.",
     "retry": "Opnieuw proberen",
-    "entityTypesFailed": "Kan de entiteitstypen niet laden."
+    "entityTypesFailed": "Kan de entiteitstypen niet laden.",
+    "tally": "{{found}} van ~{{expected}} entiteiten"
   },
   "KeyboardShortcuts": {
     "title": "Sneltoetsen",

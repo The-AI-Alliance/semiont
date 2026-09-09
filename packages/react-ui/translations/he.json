@@ -225,7 +225,10 @@
     "comment": "תגובות",
     "tag": "תגיות",
     "annotationsFailed": "לא ניתן לטעון את ההערות.",
-    "retry": "נסה שוב"
+    "retry": "נסה שוב",
+    "completenessClean": "הזיהוי הושלם",
+    "completenessUnderReported": "זיהוי חלקי — חלקים מסוימים דווחו בחסר",
+    "completenessIncomplete": "זיהוי חלקי — הריצה לא הסתיימה"
   },
   "StatisticsPanel": {
     "title": "סטטיסטיקה",
@@ -274,7 +277,8 @@
     "noText": "אין טקסט",
     "incomingReferencesFailed": "לא ניתן לטעון את ההפניות הנכנסות.",
     "retry": "נסה שוב",
-    "entityTypesFailed": "לא ניתן לטעון את סוגי הישויות."
+    "entityTypesFailed": "לא ניתן לטעון את סוגי הישויות.",
+    "tally": "{{found}} מתוך ~{{expected}} ישויות"
   },
   "KeyboardShortcuts": {
     "title": "קיצורי מקלדת",

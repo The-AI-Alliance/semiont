@@ -44,6 +44,14 @@ export interface AssistProgressTranslations {
   paramLabel: (code: string) => string;
   /** Completed entity-type log line (reference flow only). */
   found?: (count: number) => string;
+  /**
+   * The found-of-~expected tally (reference flow only, RD5). Rendered only
+   * when the wire carries BOTH counts: `entitiesExpected` absent means the
+   * provider priced nothing — no claim — and a denominator is never
+   * manufactured from it. The ~ is the copy's to render: the wire calls the
+   * number approximate and the words should too.
+   */
+  tally?: (found: number, expected: number) => string;
 }
 
 /**
@@ -178,6 +186,14 @@ export function AssistProgress({
             : progress.message ? tr.message(progress.message) : tr.inProgress}
         </span>
       </div>
+
+      {/* RD5: the honest denominator. Present only when the count-verifier
+          priced one — both counts from the wire, zero manufactured. */}
+      {tr.tally && progress.entitiesFound !== undefined && progress.entitiesExpected !== undefined && (
+        <div className="semiont-assist-progress__tally" data-testid="semiont-assist-tally">
+          {tr.tally(progress.entitiesFound, progress.entitiesExpected)}
+        </div>
+      )}
 
       {/* H3: stage above, subject beneath. */}
       {current && (

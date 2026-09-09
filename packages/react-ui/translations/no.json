@@ -225,7 +225,10 @@
     "comment": "Kommentarer",
     "tag": "Merker",
     "annotationsFailed": "Kunne ikke laste annoteringene.",
-    "retry": "Prøv igjen"
+    "retry": "Prøv igjen",
+    "completenessClean": "Deteksjon fullført",
+    "completenessUnderReported": "Delvis detektert — noen deler underrapportert",
+    "completenessIncomplete": "Delvis detektert — kjøringen ble ikke fullført"
   },
   "StatisticsPanel": {
     "title": "Statistikk",
@@ -274,7 +277,8 @@
     "noText": "Ingen tekst",
     "incomingReferencesFailed": "Kunne ikke laste innkommende referanser.",
     "retry": "Prøv igjen",
-    "entityTypesFailed": "Kunne ikke laste entitetstyper."
+    "entityTypesFailed": "Kunne ikke laste entitetstyper.",
+    "tally": "{{found}} av ~{{expected}} entiteter"
   },
   "KeyboardShortcuts": {
     "title": "Tastatursnarveier",
