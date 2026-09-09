@@ -225,7 +225,10 @@
     "comment": "Коментарі",
     "tag": "Теги",
     "annotationsFailed": "Не вдалося завантажити анотації.",
-    "retry": "Спробувати знову"
+    "retry": "Спробувати знову",
+    "completenessClean": "Виявлення завершено",
+    "completenessUnderReported": "Виявлено частково — деякі частини недозвітовані",
+    "completenessIncomplete": "Виявлено частково — виконання не завершилося"
   },
   "StatisticsPanel": {
     "title": "Статистика",

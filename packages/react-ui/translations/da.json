@@ -225,7 +225,10 @@
     "comment": "Kommentarer",
     "tag": "Tags",
     "annotationsFailed": "Annoteringerne kunne ikke indlæses.",
-    "retry": "Prøv igen"
+    "retry": "Prøv igen",
+    "completenessClean": "Detektion fuldført",
+    "completenessUnderReported": "Delvist detekteret — nogle dele underrapporteret",
+    "completenessIncomplete": "Delvist detekteret — kørslen blev ikke færdig"
   },
   "StatisticsPanel": {
     "title": "Statistik",

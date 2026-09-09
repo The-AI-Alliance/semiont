@@ -225,7 +225,10 @@
     "comment": "Kommentit",
     "tag": "Tunnisteet",
     "annotationsFailed": "Merkintöjä ei voitu ladata.",
-    "retry": "Yritä uudelleen"
+    "retry": "Yritä uudelleen",
+    "completenessClean": "Tunnistus valmis",
+    "completenessUnderReported": "Osittain tunnistettu — osa jäi aliraportoiduksi",
+    "completenessIncomplete": "Osittain tunnistettu — ajo ei valmistunut"
   },
   "StatisticsPanel": {
     "title": "Tilastot",

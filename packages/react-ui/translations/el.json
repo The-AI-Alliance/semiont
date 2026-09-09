@@ -225,7 +225,10 @@
     "comment": "Σχόλια",
     "tag": "Ετικέτες",
     "annotationsFailed": "Δεν ήταν δυνατή η φόρτωση των σχολιασμών.",
-    "retry": "Δοκιμάστε ξανά"
+    "retry": "Δοκιμάστε ξανά",
+    "completenessClean": "Η ανίχνευση ολοκληρώθηκε",
+    "completenessUnderReported": "Μερική ανίχνευση — ορισμένα τμήματα αναφέρθηκαν ελλιπώς",
+    "completenessIncomplete": "Μερική ανίχνευση — η εκτέλεση δεν ολοκληρώθηκε"
   },
   "StatisticsPanel": {
     "title": "Στατιστικά",

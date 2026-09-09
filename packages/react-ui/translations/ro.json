@@ -225,7 +225,10 @@
     "comment": "Comentarii",
     "tag": "Etichete",
     "annotationsFailed": "Nu s-au putut încărca adnotările.",
-    "retry": "Încearcă din nou"
+    "retry": "Încearcă din nou",
+    "completenessClean": "Detectare completă",
+    "completenessUnderReported": "Detectare parțială — unele părți subraportate",
+    "completenessIncomplete": "Detectare parțială — rularea nu s-a încheiat"
   },
   "StatisticsPanel": {
     "title": "Statistici",

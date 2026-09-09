@@ -225,7 +225,10 @@
     "comment": "Opmerkingen",
     "tag": "Labels",
     "annotationsFailed": "Kan de annotaties niet laden.",
-    "retry": "Opnieuw proberen"
+    "retry": "Opnieuw proberen",
+    "completenessClean": "Detectie voltooid",
+    "completenessUnderReported": "Gedeeltelijk gedetecteerd — sommige delen ondergerapporteerd",
+    "completenessIncomplete": "Gedeeltelijk gedetecteerd — de run is niet voltooid"
   },
   "StatisticsPanel": {
     "title": "Statistieken",

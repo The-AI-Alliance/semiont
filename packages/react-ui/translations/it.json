@@ -225,7 +225,10 @@
     "comment": "Commenti",
     "tag": "Etichette",
     "annotationsFailed": "Impossibile caricare le annotazioni.",
-    "retry": "Riprova"
+    "retry": "Riprova",
+    "completenessClean": "Rilevamento completato",
+    "completenessUnderReported": "Rilevamento parziale — alcune parti sottostimate",
+    "completenessIncomplete": "Rilevamento parziale — l'esecuzione non è terminata"
   },
   "StatisticsPanel": {
     "title": "Statistiche",

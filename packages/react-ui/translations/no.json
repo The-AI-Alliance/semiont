@@ -225,7 +225,10 @@
     "comment": "Kommentarer",
     "tag": "Merker",
     "annotationsFailed": "Kunne ikke laste annoteringene.",
-    "retry": "Prøv igjen"
+    "retry": "Prøv igjen",
+    "completenessClean": "Deteksjon fullført",
+    "completenessUnderReported": "Delvis detektert — noen deler underrapportert",
+    "completenessIncomplete": "Delvis detektert — kjøringen ble ikke fullført"
   },
   "StatisticsPanel": {
     "title": "Statistikk",

@@ -225,7 +225,10 @@
     "comment": "Yorumlar",
     "tag": "Etiketler",
     "annotationsFailed": "Açıklamalar yüklenemedi.",
-    "retry": "Tekrar dene"
+    "retry": "Tekrar dene",
+    "completenessClean": "Algılama tamamlandı",
+    "completenessUnderReported": "Kısmen algılandı — bazı bölümler eksik raporlandı",
+    "completenessIncomplete": "Kısmen algılandı — çalışma tamamlanmadı"
   },
   "StatisticsPanel": {
     "title": "İstatistikler",

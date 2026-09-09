@@ -225,7 +225,10 @@
     "comment": "Comments",
     "tag": "Tags",
     "annotationsFailed": "Could not load annotations.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "completenessClean": "Detection complete",
+    "completenessUnderReported": "Partially detected — some pieces under-reported",
+    "completenessIncomplete": "Partially detected — the run did not finish"
   },
   "StatisticsPanel": {
     "title": "Statistics",

@@ -225,7 +225,10 @@
     "comment": "التعليقات",
     "tag": "العلامات",
     "annotationsFailed": "تعذّر تحميل التعليقات التوضيحية.",
-    "retry": "إعادة المحاولة"
+    "retry": "إعادة المحاولة",
+    "completenessClean": "اكتمل الكشف",
+    "completenessUnderReported": "كشف جزئي — بعض الأجزاء ناقصة الإبلاغ",
+    "completenessIncomplete": "كشف جزئي — لم تكتمل العملية"
   },
   "StatisticsPanel": {
     "title": "الإحصائيات",

@@ -225,7 +225,10 @@
     "comment": "Ulasan",
     "tag": "Tag",
     "annotationsFailed": "Tidak dapat memuatkan anotasi.",
-    "retry": "Cuba lagi"
+    "retry": "Cuba lagi",
+    "completenessClean": "Pengesanan selesai",
+    "completenessUnderReported": "Dikesan sebahagian — beberapa bahagian kurang dilaporkan",
+    "completenessIncomplete": "Dikesan sebahagian — larian tidak selesai"
   },
   "StatisticsPanel": {
     "title": "Statistik",

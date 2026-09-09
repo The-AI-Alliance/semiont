@@ -225,7 +225,10 @@
     "comment": "Komentáře",
     "tag": "Štítky",
     "annotationsFailed": "Anotace se nepodařilo načíst.",
-    "retry": "Zkusit znovu"
+    "retry": "Zkusit znovu",
+    "completenessClean": "Detekce dokončena",
+    "completenessUnderReported": "Částečně detekováno — některé části podhodnoceny",
+    "completenessIncomplete": "Částečně detekováno — běh nebyl dokončen"
   },
   "StatisticsPanel": {
     "title": "Statistiky",

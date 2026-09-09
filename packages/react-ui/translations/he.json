@@ -225,7 +225,10 @@
     "comment": "תגובות",
     "tag": "תגיות",
     "annotationsFailed": "לא ניתן לטעון את ההערות.",
-    "retry": "נסה שוב"
+    "retry": "נסה שוב",
+    "completenessClean": "הזיהוי הושלם",
+    "completenessUnderReported": "זיהוי חלקי — חלקים מסוימים דווחו בחסר",
+    "completenessIncomplete": "זיהוי חלקי — הריצה לא הסתיימה"
   },
   "StatisticsPanel": {
     "title": "סטטיסטיקה",

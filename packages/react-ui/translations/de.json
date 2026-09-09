@@ -225,7 +225,10 @@
     "comment": "Kommentare",
     "tag": "Tags",
     "annotationsFailed": "Annotationen konnten nicht geladen werden.",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "completenessClean": "Erkennung abgeschlossen",
+    "completenessUnderReported": "Teilweise erkannt — einige Abschnitte untererfasst",
+    "completenessIncomplete": "Teilweise erkannt — der Lauf wurde nicht beendet"
   },
   "StatisticsPanel": {
     "title": "Statistiken",

@@ -225,7 +225,10 @@
     "comment": "टिप्पणियां",
     "tag": "टैग",
     "annotationsFailed": "एनोटेशन लोड नहीं हो सके।",
-    "retry": "पुनः प्रयास करें"
+    "retry": "पुनः प्रयास करें",
+    "completenessClean": "पहचान पूर्ण",
+    "completenessUnderReported": "आंशिक पहचान — कुछ हिस्से कम रिपोर्ट हुए",
+    "completenessIncomplete": "आंशिक पहचान — प्रक्रिया पूरी नहीं हुई"
   },
   "StatisticsPanel": {
     "title": "सांख्यिकी",

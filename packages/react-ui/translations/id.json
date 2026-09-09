@@ -225,7 +225,10 @@
     "comment": "Komentar",
     "tag": "Tag",
     "annotationsFailed": "Tidak dapat memuat anotasi.",
-    "retry": "Coba lagi"
+    "retry": "Coba lagi",
+    "completenessClean": "Deteksi selesai",
+    "completenessUnderReported": "Terdeteksi sebagian — beberapa bagian kurang terlaporkan",
+    "completenessIncomplete": "Terdeteksi sebagian — proses tidak selesai"
   },
   "StatisticsPanel": {
     "title": "Statistik",

@@ -225,7 +225,10 @@
     "comment": "Komentarze",
     "tag": "Tagi",
     "annotationsFailed": "Nie można załadować adnotacji.",
-    "retry": "Spróbuj ponownie"
+    "retry": "Spróbuj ponownie",
+    "completenessClean": "Wykrywanie zakończone",
+    "completenessUnderReported": "Wykryto częściowo — część fragmentów niedoraportowana",
+    "completenessIncomplete": "Wykryto częściowo — przebieg nie został ukończony"
   },
   "StatisticsPanel": {
     "title": "Statystyki",

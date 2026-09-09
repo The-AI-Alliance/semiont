@@ -225,7 +225,10 @@
     "comment": "コメント",
     "tag": "タグ",
     "annotationsFailed": "アノテーションを読み込めませんでした。",
-    "retry": "再試行"
+    "retry": "再試行",
+    "completenessClean": "検出が完了しました",
+    "completenessUnderReported": "部分的に検出 — 一部が過少報告されています",
+    "completenessIncomplete": "部分的に検出 — 実行が完了しませんでした"
   },
   "StatisticsPanel": {
     "title": "統計",

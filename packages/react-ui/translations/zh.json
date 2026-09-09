@@ -225,7 +225,10 @@
     "comment": "评论",
     "tag": "标签",
     "annotationsFailed": "无法加载注释。",
-    "retry": "重试"
+    "retry": "重试",
+    "completenessClean": "检测完成",
+    "completenessUnderReported": "部分检测 — 某些部分报告不足",
+    "completenessIncomplete": "部分检测 — 运行未完成"
   },
   "StatisticsPanel": {
     "title": "统计",

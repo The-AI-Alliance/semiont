@@ -225,7 +225,10 @@
     "comment": "نظرات",
     "tag": "برچسب‌ها",
     "annotationsFailed": "بارگذاری حاشیه‌نویسی‌ها ممکن نشد.",
-    "retry": "تلاش مجدد"
+    "retry": "تلاش مجدد",
+    "completenessClean": "تشخیص کامل شد",
+    "completenessUnderReported": "تشخیص جزئی — برخی بخش‌ها کمتر گزارش شده‌اند",
+    "completenessIncomplete": "تشخیص جزئی — اجرا به پایان نرسید"
   },
   "StatisticsPanel": {
     "title": "آمار",

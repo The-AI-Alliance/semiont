@@ -225,7 +225,10 @@
     "comment": "Comentarios",
     "tag": "Etiquetas",
     "annotationsFailed": "No se pudieron cargar las anotaciones.",
-    "retry": "Intentar de nuevo"
+    "retry": "Intentar de nuevo",
+    "completenessClean": "Detección completa",
+    "completenessUnderReported": "Detección parcial — algunas partes subregistradas",
+    "completenessIncomplete": "Detección parcial — la ejecución no terminó"
   },
   "StatisticsPanel": {
     "title": "Estadísticas",

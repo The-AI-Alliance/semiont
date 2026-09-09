@@ -225,7 +225,10 @@
     "comment": "Kommentarer",
     "tag": "Taggar",
     "annotationsFailed": "Det gick inte att läsa in annoteringarna.",
-    "retry": "Försök igen"
+    "retry": "Försök igen",
+    "completenessClean": "Detektering klar",
+    "completenessUnderReported": "Delvis detekterad — vissa delar underrapporterade",
+    "completenessIncomplete": "Delvis detekterad — körningen slutfördes inte"
   },
   "StatisticsPanel": {
     "title": "Statistik",
