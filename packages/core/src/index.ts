@@ -137,6 +137,10 @@ export { burstBuffer, type BurstBufferOptions } from './operators/burst-buffer';
 // for stream-style callers in packages/make-meaning)
 export { serializePerKey } from './serialize-per-key';
 
+// Bounded concurrency across callers (for a shared downstream: one local model
+// process, a rate-limited API). Sibling to serializePerKey, which bounds per key.
+export { boundedGate } from './bounded-gate';
+
 // Logger interface (framework-agnostic)
 export type { Logger } from './logger';
 export { errField } from './logger';
