@@ -221,6 +221,49 @@ export function isRetryableRequestError(error: unknown): boolean {
  * delay. The final error (retryable budget exhausted, or the first
  * non-retryable one) is rethrown verbatim.
  */
+/**
+ * Race `work` against a deadline, handing it the deadline as a signal.
+ *
+ * The other half of what this module owns: `retryWithBackoff` consumes an
+ * `AbortSignal`, this produces one. A race alone can only ABANDON slow work —
+ * work that retries never learns the deadline exists, and the two end up kept
+ * compatible by hand.
+ *
+ * ONE timer drives both the abort and the rejection. `AbortSignal.timeout()`
+ * schedules its own, so the signal and the race could fire at different moments,
+ * which is the problem this exists to remove.
+ *
+ * `hint` is the caller's operational context, appended to the message — core
+ * cannot know whether a restart policy is watching.
+ */
+export async function withDeadline<T>(
+  what: string,
+  timeoutMs: number,
+  work: (signal: AbortSignal) => Promise<T>,
+  hint?: string,
+): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work(controller.signal),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          const expired = new Error(
+            `${what} did not become available within ${timeoutMs / 1000}s.${hint ? ` ${hint}` : ''}`,
+          );
+          // Abort BEFORE rejecting, so retrying work stops rather than being left
+          // running behind a settled race.
+          controller.abort(expired);
+          reject(expired);
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 export async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   isRetryable: (error: unknown) => boolean,

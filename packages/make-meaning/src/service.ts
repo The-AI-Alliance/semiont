@@ -8,7 +8,7 @@
 import { FsJobQueue, STALL_THRESHOLD_MS, type JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore } from '@semiont/event-sourcing';
 import type { SemiontProject, SemiontState } from '@semiont/core/node';
-import { EventBus, type Logger, jobId } from '@semiont/core';
+import { EventBus, withDeadline, type Logger, jobId } from '@semiont/core';
 import { registerJobQueueProvider, registerVectorIndexSizeProvider } from '@semiont/observability';
 import { resolveActorInference, type MakeMeaningConfig } from './config';
 import { from } from 'rxjs';
@@ -100,78 +100,28 @@ async function createJobQueue(
   return { jobQueue, jobStatusSubscription };
 }
 
-// Startup dependency connects are BOUNDED. Docker's `restart: on-failure`
-// only rescues a process that EXITS; an unbounded await on a slow dependency
-// hangs forever and the container sits unhealthy indefinitely. Observed live
-// on a Codespaces resume (2026-07-20): all ten containers restart at once and
-// `depends_on` does not apply — it governs `compose up`, not daemon-driven
-// restarts — so the gateway can reach these connects before Neo4j/Qdrant/
-// Ollama are listening. Failing fast turns an unrecoverable hang into a crash
-// the restart policy retries until the dependency is up.
 /**
- * The startup deadline: how long a boot waits for a dependency that retries
- * NOTHING (Neo4j, Qdrant) before crashing so the restart policy can try again.
+ * How long a boot waits for a dependency, and why exiting is the right end.
  *
- * **It can be raced by a retry, and that is a landmine, so it is gated.** The
- * three sidecar mains do not use `withStartupTimeout`, so nothing is broken today
- * — but `resolveDimensions` waits out a model pull for longer than this, and the
- * day someone wraps those mains "for consistency" the race would kill the retry
- * mid-flight and reproduce the original crash-loop wearing a new message.
+ * Docker's `restart: on-failure` only rescues a process that EXITS; an unbounded
+ * await on a slow dependency hangs forever and the container sits unhealthy.
+ * Observed on a Codespaces resume (2026-07-20): all ten containers restart at
+ * once and `depends_on` does not apply — it governs `compose up`, not
+ * daemon-driven restarts — so connects can reach Neo4j/Qdrant/Ollama before they
+ * are listening.
  *
- * **The right fix is a DEADLINE, not a bigger number.** `resolveDimensions`'s
- * worst case is ~5 min against this 60s; a numeric gate demanding budget < deadline
- * would force a budget too short to outlast a model pull, and raising this to
- * clear it would make every other dependency hang for 5 min before anyone noticed.
- * The two cannot be reconciled as constants because they are not the same kind of
- * thing — this is a wall-clock ceiling, that is a work budget.
- *
- * What reconciles them is passing an `AbortSignal` down so the retry stops when
- * the caller's deadline fires — the standard move (Go's `context.Context`, gRPC
- * deadlines), available here with zero dependencies. Until then this interaction
- * is a documented hazard rather than a guarded one, and that is the honest label.
+ * 60s is this fleet's answer, not a general one, which is why it lives here and
+ * `withDeadline` lives in core. It can be raced by work that retries — the
+ * embedding provider waits ~5 min — and that is safe because `withDeadline` hands
+ * the deadline down: the retry stops when this fires instead of being abandoned
+ * mid-flight.
  */
 export const STARTUP_CONNECT_TIMEOUT_MS = 60_000;
 
-export async function withStartupTimeout<T>(
-  what: string,
-  /**
-   * Takes the deadline rather than being a bare promise (2026-09-09). The race
-   * alone could only ABANDON slow work; work that RETRIES never learned the
-   * deadline existed, so the two were kept compatible by hand — and a boot path
-   * whose retry outlived this timeout would be killed just before it succeeded.
-   * Handing the signal down makes that unbuildable instead of documented.
-   */
-  work: (signal: AbortSignal) => Promise<T>,
-): Promise<T> {
-  // ONE timer drives both the abort and the rejection, deliberately.
-  // `AbortSignal.timeout()` would have been the obvious shape and is wrong here:
-  // it schedules its own independent deadline, so the signal and the race could
-  // fire at different moments — reintroducing, inside one function, exactly the
-  // two-uncoordinated-deadlines problem this parameter exists to remove. (It is
-  // also backed by a native timer no test clock can drive.)
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      work(controller.signal),
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => {
-          const expired = new Error(
-            `${what} did not become available within ${STARTUP_CONNECT_TIMEOUT_MS / 1000}s. ` +
-              `Exiting so the container restart policy can retry — it is normal for a dependency ` +
-              `to be slow when every service restarts at once.`,
-          );
-          // Abort BEFORE rejecting, so work that is retrying sees the deadline
-          // and stops rather than being left running behind a settled race.
-          controller.abort(expired);
-          reject(expired);
-        }, STARTUP_CONNECT_TIMEOUT_MS);
-      }),
-    ]);
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
-}
+/** Operator context core cannot know: something is watching for the exit. */
+export const RESTART_HINT =
+  'Exiting so the container restart policy can retry — it is normal for a dependency ' +
+  'to be slow when every service restarts at once.';
 
 /**
  * Connect the shared stores both composition roots need: graph, event store,
@@ -193,7 +143,8 @@ async function connectStores(
   // 2026-07-20 hang took a live investigation precisely because these three
   // steps were silent.
   logger.info('Connecting to graph database', { type: graphConfig.type });
-  const graphDb = await withStartupTimeout('Graph database', () => getGraphDatabase(graphConfig));
+  const graphDb = await withDeadline('Graph database', STARTUP_CONNECT_TIMEOUT_MS,
+    () => getGraphDatabase(graphConfig), RESTART_HINT);
   const eventStore = createEventStoreCore(project, eventBus, logger.child({ component: 'event-store' }));
 
   // The vector pair is mandatory and explicitly configured (MANDATORY-
@@ -205,13 +156,13 @@ async function connectStores(
   const embeddingConfig = config.services.embedding;
   const { createVectorStore, createEmbeddingProvider } = await import('@semiont/vectors');
   logger.info('Connecting to embedding provider', { type: embeddingConfig.type, model: embeddingConfig.model });
-  const embeddingProvider = await withStartupTimeout(
-    'Embedding provider',
-    () => createEmbeddingProvider(embeddingConfig),
+  const embeddingProvider = await withDeadline(
+    'Embedding provider', STARTUP_CONNECT_TIMEOUT_MS,
+    () => createEmbeddingProvider(embeddingConfig), RESTART_HINT,
   );
   logger.info('Connecting to vector store', { type: vectorsConfig.type });
-  const vectorStore = await withStartupTimeout(
-    'Vector store',
+  const vectorStore = await withDeadline(
+    'Vector store', STARTUP_CONNECT_TIMEOUT_MS,
     (signal) => createVectorStore({
       // The deadline this call is already being raced against, handed down so
       // the dimension-probe retry stops when it fires instead of being abandoned
@@ -229,6 +180,7 @@ async function connectStores(
       // Qdrant whose collections already exist, never consults the provider.
       dimensions: () => embeddingProvider.dimensions(),
     }),
+    RESTART_HINT,
   );
   if (vectorsConfig.type === 'memory') {
     // L4 breadcrumb: the named cost of the named choice — this index lives

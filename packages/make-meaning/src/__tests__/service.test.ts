@@ -275,9 +275,9 @@ describe('Make-Meaning Service', () => {
   });
 });
 
-// The 2026-07-20 startup-hang fix (withStartupTimeout) wrapped the three
-// dependency connects and announced each one. The helper is unit-tested in
-// startup-timeout.test.ts; THIS exercises the call sites — hermetically:
+// The 2026-07-20 startup-hang fix bounded the three dependency connects and
+// announced each one. The helper is core's `withDeadline`, unit-tested there;
+// THIS exercises the call sites — hermetically:
 // a memory vector store connects in-process, and the embedding provider's
 // only startup network call (the dimension-discovery probe) is served by a
 // stubbed fetch.
