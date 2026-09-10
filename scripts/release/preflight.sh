@@ -13,9 +13,10 @@ REPO=The-AI-Alliance/semiont
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 
-PASS=0; FAIL=0
-ok()  { printf '  \033[32mok\033[0m   %s\n' "$1"; PASS=$((PASS+1)); }
-bad() { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
+PASS=0; FAIL=0; PENDING=0
+ok()    { printf '  \033[32mok\033[0m   %s\n' "$1"; PASS=$((PASS+1)); }
+bad()   { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
+wait_() { printf '  \033[33mwait\033[0m %s\n' "$1"; PENDING=$((PENDING+1)); }
 
 # ls-remote reads the remote without fetching, so this is accurate even when the
 # local clone is stale and leaves the working tree untouched.
@@ -55,15 +56,18 @@ fi
 gh api "repos/$REPO/commits/$SHA/check-runs?per_page=100" --jq '.check_runs[] | "\(.conclusion // .status)\t\(.name)"' > "$WORK/checks.txt" 2>/dev/null
 
 if [ ! -s "$WORK/checks.txt" ]; then
-  bad "no check runs reported for $SHA — CI may not have started"
+  wait_ "no check runs reported for $SHA yet — CI may not have started"
 else
   total=$(wc -l < "$WORK/checks.txt" | tr -d ' ')
-  failed=$(awk -F'\t' '$1!="success" && $1!="skipped" && $1!="neutral"' "$WORK/checks.txt")
-  if [ -z "$failed" ]; then
-    ok "all $total check runs on $SHA are green"
-  else
-    while IFS=$'\t' read -r st name; do bad "check '$name' is $st"; done <<< "$failed"
-  fi
+  # A check still running is not a failing check. Conflating them means every
+  # run in the minutes after a merge reports red, which teaches the reader to
+  # ignore red.
+  pending=$(awk -F'\t' '$1=="queued" || $1=="in_progress" || $1=="pending" || $1=="waiting"' "$WORK/checks.txt")
+  failed=$(awk -F'\t' '$1!="success" && $1!="skipped" && $1!="neutral" && $1!="queued" && $1!="in_progress" && $1!="pending" && $1!="waiting"' "$WORK/checks.txt")
+
+  [ -n "$failed" ] && while IFS=$'\t' read -r st name; do bad "check '$name' concluded $st"; done <<< "$failed"
+  [ -n "$pending" ] && while IFS=$'\t' read -r st name; do wait_ "check '$name' is still $st"; done <<< "$pending"
+  [ -z "$failed" ] && [ -z "$pending" ] && ok "all $total check runs on $SHA are green"
 fi
 
 # --------------------------------------------------- previous release published
@@ -73,10 +77,14 @@ if [ -n "$PREV" ]; then
 fi
 
 # ---------------------------------------------------------------------- verdict
-printf '\n\033[1m%d passed, %d failed\033[0m\n' "$PASS" "$FAIL"
+printf '\n\033[1m%d passed, %d failed, %d pending\033[0m\n' "$PASS" "$FAIL" "$PENDING"
 if [ "$FAIL" -ne 0 ]; then
   printf '\n\033[31mNot releasable.\033[0m Fix the above first.\n'
   exit 1
+fi
+if [ "$PENDING" -ne 0 ]; then
+  printf '\n\033[33mNot ready yet.\033[0m Nothing has failed; re-run when CI finishes.\n'
+  exit 2
 fi
 
 cat <<EOF
