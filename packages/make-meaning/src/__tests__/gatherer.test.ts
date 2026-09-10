@@ -48,6 +48,7 @@ function createMockStores(): GathererStores {
   return {
     views: { get: vi.fn(async () => null) },
     content: { getBinary: vi.fn(async () => ({ data: new ArrayBuffer(0), contentType: 'text/plain' })) },
+    anchoredText: vi.fn(async () => ({ kind: 'unknown' as const })),
     graph: {
       getResource: vi.fn(async () => null),
       getResourceConnections: vi.fn(async () => []),

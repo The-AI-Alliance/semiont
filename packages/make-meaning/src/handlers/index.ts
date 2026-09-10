@@ -17,6 +17,8 @@ import type { JobQueue } from '@semiont/jobs';
 
 import type { KnowledgeSystem } from '../knowledge-system.js';
 import { workingTreeContentReads } from '../knowledge-base.js';
+import { anchoredTextOverBus } from '../anchored-text-ask.js';
+import { asBusRequestPrimitive } from '../bus-request-local.js';
 import { registerAnnotationAssemblyHandler } from './annotation-assembly.js';
 import { registerAnnotationContextHandler, registerGatherSummaryHandler } from './annotation-lookups.js';
 import { registerBindUpdateBodyHandler } from './bind-update-body.js';
@@ -65,7 +67,13 @@ export function registerBusHandlers(
   registerAnnotationAssemblyHandler(eventBus, kb, logger);
   registerAnnotationContextHandler(
     eventBus,
-    { views: kb.views, content: workingTreeContentReads(kb.views, kb.content) },
+    {
+      views: kb.views,
+      content: workingTreeContentReads(kb.views, kb.content),
+      // Derived text rides the same bus read everywhere; in this root the
+      // Browser answers in-process.
+      anchoredText: anchoredTextOverBus(asBusRequestPrimitive(eventBus)),
+    },
     logger,
   );
   registerGatherSummaryHandler(eventBus, knowledgeSystem.gatherer, logger);

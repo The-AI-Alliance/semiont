@@ -55,6 +55,7 @@ function makeStores(overrides: Partial<GathererStores> = {}): GathererStores {
       }),
     },
     content: { getBinary: async () => ({ data: new ArrayBuffer(0), contentType: 'text/plain' }) },
+    anchoredText: async () => ({ kind: 'unknown' as const }),
     graph: {
       getResource: async (rid) => descriptor(String(rid), 'Gather Target'),
       getResourceConnections: async () => [],

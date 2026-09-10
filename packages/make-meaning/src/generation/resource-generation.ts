@@ -37,15 +37,23 @@ Write a 2-3 sentence summary that captures the key points and would help someone
 }
 
 /**
- * Generate smart suggestions for a reference
+ * Generate smart suggestions for a reference.
+ *
+ * Named parameters, deliberately (bugs/gather-ships-raw-pdf-bytes P2): two
+ * positional `string`s let a caller splice an entire document into the
+ * TITLE slot with tsc silent — which is exactly what happened. `title` is a
+ * name; `stub` is optional short placeholder content and is bounded here so
+ * no caller can turn the prompt into a document.
  */
+const STUB_BOUND_CHARS = 500;
+
 export async function generateReferenceSuggestions(
-  referenceTitle: string,
+  reference: { title: string; entityType?: string; stub?: string },
   client: InferenceClient,
-  entityType?: string,
-  currentContent?: string
 ): Promise<string[] | null> {
-  const prompt = `For a reference titled "${referenceTitle}"${entityType ? ` (type: ${entityType})` : ''}${currentContent ? ` with current stub: "${currentContent}"` : ''}, suggest 3 specific, actionable next steps or related topics to explore.
+  const { title, entityType } = reference;
+  const stub = reference.stub?.slice(0, STUB_BOUND_CHARS);
+  const prompt = `For a reference titled "${title}"${entityType ? ` (type: ${entityType})` : ''}${stub ? ` with current stub: "${stub}"` : ''}, suggest 3 specific, actionable next steps or related topics to explore.
 
 Format as a simple list, one suggestion per line.`;
 

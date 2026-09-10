@@ -65,7 +65,8 @@ import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
 import { createInferenceClient } from '@semiont/inference';
 import { Matcher } from './matcher';
 import { Gatherer } from './gatherer';
-import { LIBRARIAN_INBOUND_CHANNELS, LIBRARIAN_OUTBOUND_CHANNELS } from './service-channels';
+import { LIBRARIAN_INBOUND_CHANNELS, LIBRARIAN_OUTBOUND_CHANNELS, LIBRARIAN_REPLY_CHANNELS } from './service-channels';
+import { anchoredTextOverBus } from './anchored-text-ask';
 import { createWeaveProgress } from './weave-progress';
 import { createSmeltProgress } from './smelt-progress';
 import { registerGatherSummaryHandler } from './handlers/annotation-lookups';
@@ -227,11 +228,13 @@ async function main() {
     baseUrl: makeBaseUrl(baseUrl),
     token$: tokenSubject,
     tokenRefresher: refreshToken,
-    // Exactly the inbound roster — never the full bridged set, whose global
-    // reply fan-out is the worker-OOM failure mode. This process awaits no
-    // wire replies (busRequest's isSubscribed gate fails fast if one is ever
-    // added without growing the roster), so inbound IS the subscription.
-    channels: LIBRARIAN_INBOUND_CHANNELS,
+    // The inbound roster plus the awaited-reply channels — never the full
+    // bridged set, whose global reply fan-out is the worker-OOM failure
+    // mode. This process awaits ONE wire reply (the anchored-text ask behind
+    // gather's text dispatcher); the census in service-channels.ts pins the
+    // list, and busRequest's isSubscribed gate fails fast if an await is
+    // ever added without growing it.
+    channels: [...LIBRARIAN_INBOUND_CHANNELS, ...LIBRARIAN_REPLY_CHANNELS],
   });
   // Bytes from the Archivist, not the gateway (SINGLE-KB-MOUNT P4): the
   // gateway's content routes proxy onto this same call, so dialing it added
@@ -256,7 +259,17 @@ async function main() {
   await matcher.initialize();
 
   const gatherer = new Gatherer(
-    { views, content: contentReads, graph: graphDb, vectors: vectorStore, weaveProgress, smeltProgress },
+    {
+      views,
+      content: contentReads,
+      // Derived text for pdf-text-layer media: the anchored-text bus read,
+      // over this transport (the Archivist answers).
+      anchoredText: anchoredTextOverBus(httpTransport),
+      graph: graphDb,
+      vectors: vectorStore,
+      weaveProgress,
+      smeltProgress,
+    },
     localBus,
     createInferenceClient(resolveActorInference(config, 'gatherer'), logger.child({ component: 'inference-client-gatherer' })),
     config.gather.settleTimeoutMs,

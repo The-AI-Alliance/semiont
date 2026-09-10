@@ -509,11 +509,12 @@ function gatherDegradeCounter(): Counter {
  * Record a gather degraded by a projection read barrier: `'vectors'` — the
  * Smelter settle barrier timed out (semanticContext shipped absent);
  * `'graph'` — the Weaver applied barrier + poll floor exhausted (projection
- * lag surfaced as a distinct failure). Fleet-alertable counterpart of the
- * `[gather DEGRADED]` L4 breadcrumbs — a rising rate on either label means
- * that pipeline is not keeping up.
+ * lag surfaced as a distinct failure); `'suggestions'` — the summary/
+ * suggestions inference garnish threw and the gather shipped without it.
+ * Fleet-alertable counterpart of the `[gather DEGRADED]` L4 breadcrumbs — a
+ * rising rate on a label means that pipeline is not keeping up.
  */
-export function recordGatherDegrade(projection: 'graph' | 'vectors'): void {
+export function recordGatherDegrade(projection: 'graph' | 'vectors' | 'suggestions'): void {
   gatherDegradeCounter().add(1, { projection });
 }
 

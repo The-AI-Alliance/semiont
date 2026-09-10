@@ -4,6 +4,7 @@
 
 import type { components } from './types';
 import type { ResourceDescriptor } from './graph';
+import { derivesTextOf, textSourceOf } from './media-types';
 
 type Representation = components['schemas']['Representation'];
 
@@ -165,6 +166,22 @@ export function getNodeEncoding(charset: string): BufferEncoding {
  * ```
  */
 export function decodeRepresentation(buffer: Buffer, mediaType: string): string {
+  // The chokepoint gate (bugs/gather-ships-raw-pdf-bytes P1): decoding is
+  // only legitimate for media whose bytes ARE its text — not for derived-text
+  // media (the anchored-text read answers those) and not for media with no
+  // text at all. A PDF reaching this function used to become megabytes of
+  // mojibake; refusing here means no caller — present or future — can decode
+  // bytes that were never text, which is why this gate supersedes a caller
+  // census. Category, not mechanism: a new strategy declares its side in
+  // core's exhaustive category maps and this gate follows automatically.
+  const source = textSourceOf(mediaType);
+  if (derivesTextOf(mediaType) || source === 'none') {
+    throw new Error(
+      `decodeRepresentation refused ${mediaType}: its text source is '${source}' — ` +
+      `derived text comes from the anchored-text read, never from decoding bytes`,
+    );
+  }
+
   // Extract charset from mediaType (e.g., "text/plain; charset=iso-8859-1")
   const charsetMatch = mediaType.match(/charset=([^\s;]+)/i);
   const charset = (charsetMatch?.[1] || 'utf-8').toLowerCase();

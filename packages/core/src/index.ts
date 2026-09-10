@@ -314,6 +314,7 @@ export {
   mediaTypeForExtension,
   textSourceOf,
   yieldsGeometryOf,
+  derivesTextOf,
   isAnnotatable,
   AUTHORABLE_MEDIA_TYPES,
   EMBEDDABLE_MEDIA_TYPES,

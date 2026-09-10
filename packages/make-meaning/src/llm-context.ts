@@ -15,6 +15,7 @@ import type { GatheredContext } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { VectorStore } from '@semiont/vectors';
 import { SmeltProgressTimeout, type SmeltProgress } from './smelt-progress';
+import type { AnchoredTextAsk } from './anchored-text-ask';
 import type { ContentReads } from '@semiont/content';
 import { recordGatherDegrade } from '@semiont/observability';
 
@@ -30,6 +31,8 @@ import type { ResourceDescriptor } from '@semiont/core';
 export interface ResourceGatherReads {
   views: Pick<ViewStorage, 'get'>;
   content: ContentReads;
+  /** Derived text for `pdf-text-layer` media — the anchored-text bus read. */
+  anchoredText: AnchoredTextAsk;
   graph: KnowledgeGraphReads['graph'];
   vectors: Pick<VectorStore, 'searchByResource'>;
   weaveProgress: KnowledgeGraphReads['weaveProgress'];
@@ -112,20 +115,40 @@ export class LLMContext {
       );
     }
 
-    // Generate summary if requested
-    const summary = options.includeSummary && mainContent
-      ? await generateResourceSummary(
+    // The inference garnish — summary + reference suggestions — runs ONLY
+    // when the caller asked (`includeSummary`): gather reads as a read
+    // operation, and an unrequested inference round trip inside it was an
+    // oversight, now a decision (bugs/gather-ships-raw-pdf-bytes P3). Its
+    // failure DEGRADES to absent with one breadcrumb — the vectors barrier
+    // below models the posture — because a gather that can assemble the
+    // graph must never fail outright over an optional garnish.
+    let summary: string | undefined;
+    let suggestedReferences: string[] | undefined;
+    if (options.includeSummary && mainContent) {
+      try {
+        summary = await generateResourceSummary(
           mainDoc.name,
           mainContent,
           getResourceEntityTypes(mainDoc),
           inferenceClient
-        )
-      : undefined;
-
-    // Generate reference suggestions if we have content
-    const suggestedReferences = mainContent
-      ? await generateReferenceSuggestions(mainContent, inferenceClient)
-      : undefined;
+        );
+        // The suggestion prompt takes the resource NAME in its title slot
+        // (P2) — never the content, which for a large resource is a document
+        // where a name belongs.
+        suggestedReferences = (await generateReferenceSuggestions(
+          { title: mainDoc.name, entityType: getResourceEntityTypes(mainDoc)[0] },
+          inferenceClient,
+        )) ?? undefined;
+      } catch (error) {
+        recordGatherDegrade('suggestions');
+        logger.warn('[gather DEGRADED] summary/suggestions absent — the inference garnish threw', {
+          resourceId: resourceIdStr,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        summary = undefined;
+        suggestedReferences = undefined;
+      }
+    }
 
     const content: { main?: string; related?: Record<string, string> } = {};
     if (mainContent) content.main = mainContent;

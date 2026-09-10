@@ -12,7 +12,7 @@
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider, VectorSearchResult } from '@semiont/vectors';
 import { generateResourceSummary } from './generation/resource-generation';
-import { getBodySource, getTargetSource, getTargetSelector, getResourceEntityTypes, getResourceId, getTextPositionSelector, getPrimaryRepresentation, getStorageUri, decodeRepresentation, deriveViews } from '@semiont/core';
+import { getBodySource, getTargetSource, getTargetSelector, getResourceEntityTypes, getTextPositionSelector, getStorageUri, deriveViews } from '@semiont/core';
 import type { components, GatheredContext } from '@semiont/core';
 
 import type {
@@ -30,6 +30,7 @@ import type { ViewStorage } from '@semiont/event-sourcing';
 import type { GraphDatabase } from '@semiont/graph';
 import type { VectorStore } from '@semiont/vectors';
 import type { ContentReads } from '@semiont/content';
+import type { AnchoredTextAsk } from './anchored-text-ask.js';
 
 /** The view slice the annotation reads run on (EXTRACT-ARCHIVIST P1). */
 type ViewGet = { views: Pick<ViewStorage, 'get'> };
@@ -44,6 +45,8 @@ type ViewGet = { views: Pick<ViewStorage, 'get'> };
 export interface AnnotationGatherReads {
   views: Pick<ViewStorage, 'get'>;
   content: ContentReads;
+  /** Derived text for `pdf-text-layer` media — the anchored-text bus read. */
+  anchoredText: AnchoredTextAsk;
   graph: KnowledgeGraphReads['graph'] & Pick<GraphDatabase, 'getEntityTypeStats'>;
   vectors: Pick<VectorStore, 'searchAnnotations'>;
   weaveProgress: KnowledgeGraphReads['weaveProgress'];
@@ -152,15 +155,20 @@ export class AnnotationContext {
       targetDoc = targetView?.resource || null;
     }
 
-    // Build source context if requested
+    // Build source context if requested. Text arrives through the
+    // dispatcher (bugs/gather-ships-raw-pdf-bytes P1): decode media decode,
+    // pdf-text-layer media answer from the anchored text — whose offsets
+    // are what TextPositionSelectors index — and an absent derived text
+    // skips the slice rather than killing the build.
     let sourceContext;
     if (includeSourceContext) {
       if (!getStorageUri(sourceDoc)) {
         throw new Error('Source content not found: no storageUri');
       }
-      const primaryRep = getPrimaryRepresentation(sourceDoc);
-      const { data: sourceContent } = await kb.content.getBinary(resourceId);
-      const contentStr = decodeRepresentation(Buffer.from(sourceContent), primaryRep?.mediaType ?? 'text/plain');
+      const contentStr = await ResourceContext.getResourceContent(sourceDoc, kb);
+      if (contentStr === undefined) {
+        logger?.warn('Source context skipped — no text for this media yet', { resourceId });
+      } else {
 
       const targetSelectorRaw = getTargetSelector(annotation.target);
 
@@ -205,15 +213,17 @@ export class AnnotationContext {
       } else {
         logger?.warn('Unknown selector type', { type: (targetSelector as any).type });
       }
+      }
     }
 
-    // Build target context if requested and available
+    // Build target context if requested and available — through the same
+    // dispatcher; a target with no text yet simply contributes none.
     let targetContext;
     if (includeTargetContext && targetDoc) {
-      if (getStorageUri(targetDoc) && bodySource) {
-        const targetRep = getPrimaryRepresentation(targetDoc);
-        const { data: targetContent } = await kb.content.getBinary(createResourceId(bodySource));
-        const contentStr = decodeRepresentation(Buffer.from(targetContent), targetRep?.mediaType ?? 'text/plain');
+      const contentStr = getStorageUri(targetDoc) && bodySource
+        ? await ResourceContext.getResourceContent(targetDoc, kb)
+        : undefined;
+      if (contentStr !== undefined) {
 
         targetContext = {
           content: contentStr.slice(0, contextWindow * 2),
@@ -491,7 +501,7 @@ Summary:`;
     resourceId: ResourceId,
     contextBefore: number,
     contextAfter: number,
-    kb: ViewGet & { content: ContentReads }
+    kb: ViewGet & { content: ContentReads; anchoredText: AnchoredTextAsk }
   ): Promise<AnnotationContextResponse> {
     // Get annotation from view storage
     const annotation = await this.getAnnotation(annotationId, resourceId, kb);
@@ -509,7 +519,10 @@ Summary:`;
     }
 
     // Get content from representation store
-    const contentStr = await this.getResourceContent(resource, kb.content);
+    const contentStr = await ResourceContext.getResourceContent(resource, kb);
+    if (contentStr === undefined) {
+      throw new Error('Resource content not found: no text for this media (not decoded, and no derived text yet)');
+    }
 
     // Extract context based on annotation position
     const context = this.extractAnnotationContext(annotation, contentStr, contextBefore, contextAfter);
@@ -536,7 +549,7 @@ Summary:`;
   static async generateAnnotationSummary(
     annotationId: AnnotationId,
     resourceId: ResourceId,
-    kb: ViewGet & { content: ContentReads },
+    kb: ViewGet & { content: ContentReads; anchoredText: AnchoredTextAsk },
     inferenceClient: InferenceClient,
   ): Promise<ContextualSummaryResponse> {
     // Get annotation from view storage
@@ -555,7 +568,10 @@ Summary:`;
     }
 
     // Get content from representation store
-    const contentStr = await this.getResourceContent(resource, kb.content);
+    const contentStr = await ResourceContext.getResourceContent(resource, kb);
+    if (contentStr === undefined) {
+      throw new Error('Resource content not found: no text for this media (not decoded, and no derived text yet)');
+    }
 
     // Extract annotation text with context (fixed 500 chars for summary)
     const contextSize = 500;
@@ -580,24 +596,6 @@ Summary:`;
         after: context.after.substring(0, 200), // First 200 chars
       },
     };
-  }
-
-  /**
-   * Get resource content as string. ResourceId-keyed (D-CONTENT b): the
-   * primary representation's `storageUri` stays the has-content signal, the
-   * fetch goes by id.
-   */
-  private static async getResourceContent(
-    resource: ResourceDescriptor,
-    content: ContentReads
-  ): Promise<string> {
-    const id = getResourceId(resource);
-    if (!getStorageUri(resource) || !id) {
-      throw new Error('Resource content not found: no storageUri');
-    }
-    const primaryRep = getPrimaryRepresentation(resource);
-    const { data } = await content.getBinary(createResourceId(id));
-    return decodeRepresentation(Buffer.from(data), primaryRep?.mediaType ?? 'text/plain');
   }
 
   /**

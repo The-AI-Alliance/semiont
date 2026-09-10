@@ -63,6 +63,8 @@ import { createFactPump } from './fact-pump';
 import { registerAnnotationAssemblyHandler } from './handlers/annotation-assembly';
 import { registerAnnotationContextHandler } from './handlers/annotation-lookups';
 import { workingTreeContentReads } from './knowledge-base';
+import { anchoredTextOverBus } from './anchored-text-ask';
+import { asBusRequestPrimitive } from './bus-request-local';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
 import { wireEnrichment } from './event-enrichment';
 
@@ -268,9 +270,15 @@ async function main() {
   // the gateway only because "the gateway is the byte path" — a premise D1
   // reversed. Here the byte read is the same in-process resolution the HTTP
   // face serves, rather than a hop back to whoever holds the mount.
+  // Derived text rides the same bus read everywhere; here our own Browser
+  // answers on the local bus.
   registerAnnotationContextHandler(
     localBus,
-    { views, content: workingTreeContentReads(views, content) },
+    {
+      views,
+      content: workingTreeContentReads(views, content),
+      anchoredText: anchoredTextOverBus(asBusRequestPrimitive(localBus)),
+    },
     logger,
   );
 
