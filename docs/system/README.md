@@ -26,6 +26,7 @@ The deeper story splits across the docs below — each focused on one diagram an
 | **[CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md)** | Multi-container deployment: how the seven Semiont containers (gateway, archivist, librarian, worker, smelter, weaver, browser) and the infrastructure containers (postgres, neo4j, qdrant, ollama, the OTel collector, jaeger, prometheus) fit together; the unified bus contract and `SemiontSession`; deployment platforms. *Diagrams: who talks to whom · what attaches to what.* |
 | **[ANCHORING.md](ANCHORING.md)** | How an annotation knows *where* it points: the shared `AnchoredText` vocabulary, the `locate`/`textUnder` inverse pair, and the pipeline that gives a scanned page a coordinate map — derived once at ingest, stored, served behind the settle barrier, and read by the canvas. Why annotation targets are fixed at birth. |
 | **[PACKAGE-ARCHITECTURE.md](PACKAGE-ARCHITECTURE.md)** | The workspace packages organized by layer (foundation → wire → SDK → AI → application logic), the actual `package.json` dependency graph, and the five architectural principles that govern dependency direction. *Diagram: layered package dependencies.* |
+| **[RETRY-AND-DEADLINES.md](RETRY-AND-DEADLINES.md)** | How peers wait for each other: the four retry policies (who waits, for what, how long), which failures qualify, and the four-layer rule for where a retry belongs. Why a deadline and a retry are one contract, and why the budgets chain. |
 
 ## Operations
 

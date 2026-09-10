@@ -212,6 +212,21 @@ func (e BrowseDirectoryRequestSort) Valid() bool {
 	}
 }
 
+// Defines values for CommandErrorCode.
+const (
+	PeerUnavailable CommandErrorCode = "peer-unavailable"
+)
+
+// Valid indicates whether the value is a known member of the CommandErrorCode enum.
+func (e CommandErrorCode) Valid() bool {
+	switch e {
+	case PeerUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CookieConsentNecessary.
 const (
 	CookieConsentNecessaryTrue CookieConsentNecessary = true
@@ -2155,6 +2170,9 @@ type CollaboratorEntry struct {
 
 // CommandError Error response for failed bus commands. Replaces native Error objects on the EventBus so payloads are serializable and OpenAPI-typed.
 type CommandError struct {
+	// Code Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response.
+	Code *CommandErrorCode `json:"code,omitempty"`
+
 	// CorrelationId Optional correlation id echoed from the originating command. When present, the failure event can be matched back to the specific command that failed.
 	CorrelationId *string `json:"correlationId,omitempty"`
 
@@ -2164,6 +2182,9 @@ type CommandError struct {
 	// Message Human-readable error message
 	Message string `json:"message"`
 }
+
+// CommandErrorCode Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response.
+type CommandErrorCode string
 
 // ContentFormat Content format as a MIME type, optionally with parameters. The base type (everything before the first ';') MUST be a SupportedMediaType; parameters such as charset are preserved as metadata. Semantic validation happens in code at the create/yield boundary — there is deliberately no pattern here, the vocabulary lives in SupportedMediaType. Examples: text/plain, text/plain; charset=iso-8859-1, text/markdown; charset=windows-1252, image/png, application/pdf
 type ContentFormat = string

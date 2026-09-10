@@ -6,6 +6,7 @@
  */
 
 import type { EmbeddingProvider } from './interface';
+import { EmbeddingProviderError, EMBED_TIMEOUT_MS } from './provider-error';
 
 export interface VoyageConfig {
   apiKey: string;
@@ -35,6 +36,7 @@ export class VoyageEmbeddingProvider implements EmbeddingProvider {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${this.config.apiKey}`,
       },
+      signal: AbortSignal.timeout(EMBED_TIMEOUT_MS),
       body: JSON.stringify({
         model: this.config.model,
         input: texts,
@@ -43,7 +45,7 @@ export class VoyageEmbeddingProvider implements EmbeddingProvider {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Voyage API error ${response.status}: ${body}`);
+      throw new EmbeddingProviderError('voyage', response.status, this.config.model, body);
     }
 
     const json = await response.json() as { data: Array<{ embedding: number[] }> };

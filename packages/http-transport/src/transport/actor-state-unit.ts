@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, isRetryableRequestError, type components, type ConnectionState, type StateUnit, type RetryPolicy } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, equalJitter, isRetryableRequestError, type components, type ConnectionState, type StateUnit, type RetryPolicy } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -357,7 +357,11 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   const backoffDelay = () => {
     const cap = Math.min(reconnectMs * 2 ** retryAttempt, MAX_RECONNECT_MS);
     retryAttempt++;
-    return cap / 2 + Math.random() * (cap / 2);
+    // `equalJitter` is core's — this loop and `retryWithBackoff` carried
+    // identical copies of the formula, agreeing by coincidence. The CEILING
+    // stays this loop's own (it backs off per reconnect attempt, not per retry
+    // policy); only the jitter is shared, which is the part that must not drift.
+    return equalJitter(cap);
   };
 
   const connect = async (keepPrevious = false) => {

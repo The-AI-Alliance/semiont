@@ -26,7 +26,7 @@ import { createSmelterActorStateUnit, type SmelterActorStateUnit } from './smelt
 import { Smelter } from './smelter';
 import { SMELTER_REPLY_CHANNELS } from './service-channels';
 import { HttpTransport } from '@semiont/http-transport';
-import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader, retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY } from '@semiont/core';
+import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader, retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY, withDeadline } from '@semiont/core';
 import { runBootPass } from './boot-pass';
 import type { AccessToken } from '@semiont/core';
 import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
@@ -86,6 +86,7 @@ const healthPort = 24101;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
 import { registerVectorIndexSizeProvider } from '@semiont/observability';
+import { STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
 const logger = createProcessLogger('smelter');
 
 // ── Auth ─────────────────────────────────────────────────────────────
@@ -172,19 +173,25 @@ async function main() {
     });
   }, 12 * 60 * 60 * 1000);
 
-  const embeddingProvider = await createEmbeddingProvider({
-    type: embeddingType,
-    model: embeddingModel,
-    baseURL: embeddingBaseURL,
-  });
+  // Bounded (see the archivist's note): an unbounded await on a dependency that
+  // is not up hangs the container, and `restart: on-failure` cannot rescue a
+  // process that never exits.
+  const embeddingProvider = await withDeadline('Embedding provider', STARTUP_CONNECT_TIMEOUT_MS,
+    () => createEmbeddingProvider({
+      type: embeddingType,
+      model: embeddingModel,
+      baseURL: embeddingBaseURL,
+    }), RESTART_HINT);
   logger.info('Embedding provider ready', { type: embeddingType, model: embeddingModel });
 
-  const vectorStore = await createVectorStore({
-    type: 'qdrant',
-    host: qdrantHost,
-    port: qdrantPort,
-    dimensions: () => embeddingProvider.dimensions(),
-  });
+  const vectorStore = await withDeadline('Vector store', STARTUP_CONNECT_TIMEOUT_MS,
+    (signal) => createVectorStore({
+      signal,
+      type: 'qdrant',
+      host: qdrantHost,
+      port: qdrantPort,
+      dimensions: () => embeddingProvider.dimensions(),
+    }), RESTART_HINT);
   logger.info('Vector store ready', { host: qdrantHost, port: qdrantPort });
 
   // Tier 3 observability: report index point count. Polled at the

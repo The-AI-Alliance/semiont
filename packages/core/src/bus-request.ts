@@ -26,7 +26,35 @@ export type BusRequestErrorCode =
   | 'bus.unauthorized'
   | 'bus.forbidden'
   | 'bus.not-found'
-  | 'bus.unsubscribed';
+  /**
+   * THIS transport is not subscribed to the reply channel — a local
+   * misconfiguration, caught before emitting. Not to be confused with
+   * `bus.peer-unavailable`, which is the opposite end: the channel HAS no
+   * subscriber because the service that answers it has not connected yet.
+   */
+  | 'bus.unsubscribed'
+  /**
+   * The service that answers this channel is not connected. Transient by
+   * nature — a peer still starting — and therefore the one failure class on
+   * this list worth retrying.
+   */
+  | 'bus.peer-unavailable';
+
+/**
+ * A failure's own `code` (CommandError, wire) → this client vocabulary.
+ *
+ * One mapping site, deliberately: the `classifyApiCode(status)` pattern. Left
+ * unmapped, a consumer would reach into `details.payload.code` and there would be
+ * two ways to ask the same question, with the next consumer picking the other.
+ *
+ * An unrecognized code degrades to `bus.rejected` rather than being trusted
+ * through: the value crosses a process boundary from a peer that may be newer
+ * than this build, and inventing a `BusRequestErrorCode` nobody handles is worse
+ * than the honest fallback it would otherwise have had.
+ */
+function classifyFailureCode(code: unknown): BusRequestErrorCode {
+  return code === 'peer-unavailable' ? 'bus.peer-unavailable' : 'bus.rejected';
+}
 
 export class BusRequestError extends SemiontError {
   declare code: BusRequestErrorCode;
@@ -158,7 +186,7 @@ export async function busRequest<Op extends BusOperationKey>(
       filter((e) => e.correlationId === correlationId),
       map((e) => ({
         ok: false as const,
-        error: new BusRequestError((e.message as string) ?? 'Bus request rejected', 'bus.rejected', {
+        error: new BusRequestError((e.message as string) ?? 'Bus request rejected', classifyFailureCode(e.code), {
           channel: failureChannel,
           correlationId,
           payload: e,

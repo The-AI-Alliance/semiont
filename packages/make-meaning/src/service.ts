@@ -8,7 +8,7 @@
 import { FsJobQueue, STALL_THRESHOLD_MS, type JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore } from '@semiont/event-sourcing';
 import type { SemiontProject, SemiontState } from '@semiont/core/node';
-import { EventBus, type Logger, jobId } from '@semiont/core';
+import { EventBus, withDeadline, type Logger, jobId } from '@semiont/core';
 import { registerJobQueueProvider, registerVectorIndexSizeProvider } from '@semiont/observability';
 import { resolveActorInference, type MakeMeaningConfig } from './config';
 import { from } from 'rxjs';
@@ -100,39 +100,28 @@ async function createJobQueue(
   return { jobQueue, jobStatusSubscription };
 }
 
-// Startup dependency connects are BOUNDED. Docker's `restart: on-failure`
-// only rescues a process that EXITS; an unbounded await on a slow dependency
-// hangs forever and the container sits unhealthy indefinitely. Observed live
-// on a Codespaces resume (2026-07-20): all ten containers restart at once and
-// `depends_on` does not apply — it governs `compose up`, not daemon-driven
-// restarts — so the gateway can reach these connects before Neo4j/Qdrant/
-// Ollama are listening. Failing fast turns an unrecoverable hang into a crash
-// the restart policy retries until the dependency is up.
+/**
+ * How long a boot waits for a dependency, and why exiting is the right end.
+ *
+ * Docker's `restart: on-failure` only rescues a process that EXITS; an unbounded
+ * await on a slow dependency hangs forever and the container sits unhealthy.
+ * Observed on a Codespaces resume (2026-07-20): all ten containers restart at
+ * once and `depends_on` does not apply — it governs `compose up`, not
+ * daemon-driven restarts — so connects can reach Neo4j/Qdrant/Ollama before they
+ * are listening.
+ *
+ * 60s is this fleet's answer, not a general one, which is why it lives here and
+ * `withDeadline` lives in core. It can be raced by work that retries — the
+ * embedding provider waits ~5 min — and that is safe because `withDeadline` hands
+ * the deadline down: the retry stops when this fires instead of being abandoned
+ * mid-flight.
+ */
 export const STARTUP_CONNECT_TIMEOUT_MS = 60_000;
 
-export async function withStartupTimeout<T>(what: string, work: Promise<T>): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      work,
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(
-          () =>
-            reject(
-              new Error(
-                `${what} did not become available within ${STARTUP_CONNECT_TIMEOUT_MS / 1000}s. ` +
-                  `Exiting so the container restart policy can retry — it is normal for a dependency ` +
-                  `to be slow when every service restarts at once.`,
-              ),
-            ),
-          STARTUP_CONNECT_TIMEOUT_MS,
-        );
-      }),
-    ]);
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
-}
+/** Operator context core cannot know: something is watching for the exit. */
+export const RESTART_HINT =
+  'Exiting so the container restart policy can retry — it is normal for a dependency ' +
+  'to be slow when every service restarts at once.';
 
 /**
  * Connect the shared stores both composition roots need: graph, event store,
@@ -154,7 +143,8 @@ async function connectStores(
   // 2026-07-20 hang took a live investigation precisely because these three
   // steps were silent.
   logger.info('Connecting to graph database', { type: graphConfig.type });
-  const graphDb = await withStartupTimeout('Graph database', getGraphDatabase(graphConfig));
+  const graphDb = await withDeadline('Graph database', STARTUP_CONNECT_TIMEOUT_MS,
+    () => getGraphDatabase(graphConfig), RESTART_HINT);
   const eventStore = createEventStoreCore(project, eventBus, logger.child({ component: 'event-store' }));
 
   // The vector pair is mandatory and explicitly configured (MANDATORY-
@@ -166,14 +156,18 @@ async function connectStores(
   const embeddingConfig = config.services.embedding;
   const { createVectorStore, createEmbeddingProvider } = await import('@semiont/vectors');
   logger.info('Connecting to embedding provider', { type: embeddingConfig.type, model: embeddingConfig.model });
-  const embeddingProvider = await withStartupTimeout(
-    'Embedding provider',
-    createEmbeddingProvider(embeddingConfig),
+  const embeddingProvider = await withDeadline(
+    'Embedding provider', STARTUP_CONNECT_TIMEOUT_MS,
+    () => createEmbeddingProvider(embeddingConfig), RESTART_HINT,
   );
   logger.info('Connecting to vector store', { type: vectorsConfig.type });
-  const vectorStore = await withStartupTimeout(
-    'Vector store',
-    createVectorStore({
+  const vectorStore = await withDeadline(
+    'Vector store', STARTUP_CONNECT_TIMEOUT_MS,
+    (signal) => createVectorStore({
+      // The deadline this call is already being raced against, handed down so
+      // the dimension-probe retry stops when it fires instead of being abandoned
+      // mid-flight. This is the whole point of the signal parameter.
+      signal,
       type: vectorsConfig.type,
       host: vectorsConfig.host,
       port: vectorsConfig.port,
@@ -186,6 +180,7 @@ async function connectStores(
       // Qdrant whose collections already exist, never consults the provider.
       dimensions: () => embeddingProvider.dimensions(),
     }),
+    RESTART_HINT,
   );
   if (vectorsConfig.type === 'memory') {
     // L4 breadcrumb: the named cost of the named choice — this index lives

@@ -6,6 +6,7 @@
  */
 
 import type { EmbeddingProvider } from './interface';
+import { EmbeddingProviderError, EMBED_TIMEOUT_MS } from './provider-error';
 
 export interface OllamaEmbeddingConfig {
   model: string;
@@ -26,6 +27,7 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
     const response = await fetch(`${baseURL}/api/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(EMBED_TIMEOUT_MS),
       body: JSON.stringify({
         model: this.config.model,
         input: text,
@@ -34,7 +36,7 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Ollama embed error ${response.status}: ${body}`);
+      throw new EmbeddingProviderError('ollama', response.status, this.config.model, body);
     }
 
     const json = await response.json() as { embeddings: number[][] };
@@ -48,6 +50,7 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
     const response = await fetch(`${baseURL}/api/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(EMBED_TIMEOUT_MS),
       body: JSON.stringify({
         model: this.config.model,
         input: texts,
@@ -56,7 +59,7 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Ollama embed error ${response.status}: ${body}`);
+      throw new EmbeddingProviderError('ollama', response.status, this.config.model, body);
     }
 
     const json = await response.json() as { embeddings: number[][] };

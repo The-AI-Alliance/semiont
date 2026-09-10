@@ -97,6 +97,22 @@ jobs:
           gh workflow run publish-npm-packages.yml --field stable_release=true
           echo "Triggered publish-npm-packages.yml (stable release)"
 
+  trigger-launcher:
+    name: Trigger launcher release (runs separately)
+    needs: tag
+    if: inputs.dry_run != true
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Trigger launcher release workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run launcher-release.yml --ref "${{ needs.tag.outputs.tag }}"
+          echo "Triggered launcher-release.yml at ${{ needs.tag.outputs.tag }}"
+
   desktop:
     needs: tag
     if: inputs.dry_run != true && inputs.desktop == true

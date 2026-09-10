@@ -8,9 +8,10 @@ name: Launcher Release
 # Requires the TAP_GITHUB_TOKEN secret: a token with write access to
 # The-AI-Alliance/homebrew-semiont, used by goreleaser to push the formula.
 
+# Dispatched by release.yml once the tag lands. A `push: tags` trigger cannot be
+# used here: release.yml pushes the tag with GITHUB_TOKEN, and GitHub does not
+# raise workflow-triggering events for GITHUB_TOKEN-authored pushes.
 on:
-  push:
-    tags: ['v*']
   workflow_dispatch:
 
 permissions:

@@ -1,6 +1,59 @@
 import { describe, it, expect } from 'vitest';
 import { userToDid, userToAgent, didToAgent, agentToDid, softwareToAgent, kbDid } from '../did-utils';
 
+import { validators } from '../openapi';
+
+/**
+ * One legacy `userId` makes an entire reply unemittable.
+ *
+ * Observed 2026-09-09: nine resources in a live KB, eight carrying
+ * `did:web:localhost:users:pingel` and one carrying a raw CUID
+ * (`cmmvann9g00003007ofcst9c2`) from events dated 2026-03-26, before the DID
+ * convention. `@id` is `format: "uri"` in every Agent branch, so the CUID failed
+ * all three and `browse:resources-result` was rejected whole — **all nine
+ * resources**, permanently and deterministically, with the caller seeing only a
+ * reply that never arrived.
+ *
+ * The event log is append-only and those events are correct history, so the fix
+ * is necessarily on the read side.
+ */
+describe('didToAgent never emits a non-URI @id (2026-09-09)', () => {
+  const CUID = 'cmmvann9g00003007ofcst9c2';
+
+  it.each([
+    ['a user DID', 'did:web:localhost:users:pingel'],
+    ['an agent DID', 'did:web:localhost:agents:ollama:llama3'],
+    ['the measured legacy CUID', CUID],
+    ['an unrecognized non-URI string', 'invalid-did-format'],
+    ['an empty string', ''],
+    ['null', null],
+    ['undefined', undefined],
+    ['a bare scheme with no path', 'did:'],
+  ])('validates against the Agent schema: %s', (_label, input) => {
+    // THE assertion whose absence let this ship. The unit tests checked the SHAPE
+    // `didToAgent` returns and never checked it against the SCHEMA that governs
+    // it — a hand-written expectation standing in for the spec, which is the
+    // mirror this codebase refuses elsewhere. Ajv is the authority here, not a
+    // second table of what we think a URI looks like.
+    const agent = didToAgent(input as string | null | undefined);
+    expect(validators.Agent(agent), JSON.stringify(agent)).toBe(true);
+  });
+
+  it('keeps a valid DID as @id — the eight good resources are untouched', () => {
+    expect(didToAgent('did:web:localhost:users:pingel')['@id']).toBe('did:web:localhost:users:pingel');
+    expect(didToAgent('did:web:localhost:agents:ollama:llama3')['@id']).toBe('did:web:localhost:agents:ollama:llama3');
+  });
+
+  it('surfaces the CUID as `name`, so nothing is silently lost', () => {
+    // Dropping `@id` must not erase the identity. A reader still sees which
+    // actor this was, which is what makes the tolerance honest rather than a
+    // quiet discard.
+    const agent = didToAgent(CUID);
+    expect(agent).not.toHaveProperty('@id');
+    expect(agent.name).toBe(CUID);
+  });
+});
+
 describe('@semiont/core - did-utils', () => {
   describe('userToDid', () => {
     it('should convert user to DID:WEB format using email', () => {
@@ -170,29 +223,24 @@ describe('@semiont/core - did-utils', () => {
       });
     });
 
-    it('falls back to a Person Agent for malformed DIDs', () => {
+    it('falls back to a Person Agent for malformed DIDs, WITHOUT an @id', () => {
+      // Changed 2026-09-09. This test used to assert `@id === 'invalid-did-format'`
+      // and passed — pinning a value the wire rejects. `@id` is `format: "uri"` in
+      // all three Agent branches, so a non-URI fails every branch and takes the
+      // whole `browse:resources-result` reply down with it.
       const agent = didToAgent('invalid-did-format');
       expect(agent['@type']).toBe('Person');
-      expect(agent['@id']).toBe('invalid-did-format');
+      expect(agent).not.toHaveProperty('@id');
       expect(agent.name).toBe('invalid-did-format');
     });
 
-    it('returns an unknown placeholder for empty/null DIDs', () => {
-      expect(didToAgent('')).toEqual({
-        '@type': 'Person',
-        '@id': 'unknown',
-        name: 'unknown',
-      });
-      expect(didToAgent(null)).toEqual({
-        '@type': 'Person',
-        '@id': 'unknown',
-        name: 'unknown',
-      });
-      expect(didToAgent(undefined)).toEqual({
-        '@type': 'Person',
-        '@id': 'unknown',
-        name: 'unknown',
-      });
+    it('returns a named-but-unidentified Person for empty/null DIDs', () => {
+      // The `'unknown'` fabrication is gone. `@id` is NOT required by any branch,
+      // so omitting it validates — which makes the old placeholder strictly worse
+      // than absence: it invented a value AND broke the wire.
+      expect(didToAgent('')).toEqual({ '@type': 'Person', name: 'unknown' });
+      expect(didToAgent(null)).toEqual({ '@type': 'Person', name: 'unknown' });
+      expect(didToAgent(undefined)).toEqual({ '@type': 'Person', name: 'unknown' });
     });
 
     it('preserves the original DID as @id', () => {

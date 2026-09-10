@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"bufio"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -45,3 +46,39 @@ func TestSplitCRLines(t *testing.T) {
 		t.Errorf("split = %v, want %v", lines, want)
 	}
 }
+
+// SHARED classifier for "what state is this codespace in", extracted because
+// three call sites decided it independently and only status got it right
+// (#1058 fixed status alone; ensure/wait/stop kept the old confusion —
+// .plans/bugs/codespace-record-outlives-github-retention.md). Absence from a
+// SUCCESSFUL list is a state ("deleted"); only a failed or impossible query
+// is "unqueryable". The distinction is the whole point: one justifies
+// forgetting a record, the other never does.
+func TestClassifyCodespaceState(t *testing.T) {
+	live := []codespaceInstance{
+		{Name: "other-one", State: "Shutdown", Repository: "o/r"},
+		{Name: "mine", State: "Provisioning", Repository: "o/r"},
+	}
+	cases := []struct {
+		name      string
+		instances []codespaceInstance
+		listErr   error
+		ghPresent bool
+		lookup    string
+		want      string
+	}{
+		{"absent from a successful list is DELETED", live, nil, true, "reaped-by-retention", "deleted"},
+		{"empty successful list is DELETED, not unqueryable", nil, nil, true, "mine", "deleted"},
+		{"list error is unqueryable", live, errIsUnqueryable, true, "mine", "unqueryable"},
+		{"no gh on PATH is unqueryable", live, nil, false, "mine", "unqueryable"},
+		{"present: GitHub's state verbatim", live, nil, true, "mine", "Provisioning"},
+		{"present: verbatim even when the state is odd", []codespaceInstance{{Name: "mine", State: "Rebuilding"}}, nil, true, "mine", "Rebuilding"},
+	}
+	for _, tc := range cases {
+		if got := classifyCodespaceState(tc.instances, tc.listErr, tc.ghPresent, tc.lookup); got != tc.want {
+			t.Errorf("%s: classifyCodespaceState = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+var errIsUnqueryable = errors.New("gh exploded")

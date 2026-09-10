@@ -45,8 +45,7 @@ import {
   isTransientFetchError,
   STARTUP_FETCH_RETRY,
   errField,
-  type AccessToken,
-} from '@semiont/core';
+  type AccessToken, withDeadline } from '@semiont/core';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 import { createEventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore, createAnchoredTextStore, type AnchoredTextStore } from '@semiont/content';
@@ -115,6 +114,7 @@ const healthPort = 24103;
 
 import { registerFactPumpDepthProvider } from '@semiont/observability';
 import { createProcessLogger } from '@semiont/observability/process-logger';
+import { STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
 const logger = createProcessLogger('archivist');
 
 // ── Auth ─────────────────────────────────────────────────────────────
@@ -214,19 +214,29 @@ async function main() {
   const smeltProgress = createSmeltProgress(localBus);
 
   logger.info('Connecting to graph database', { type: graphConfig.type });
-  const graphDb = await getGraphDatabase(graphConfig);
+  // Bounded, like the gateway's connects have been since 2026-07-20 and unlike
+  // this main until now: an unbounded await on a dependency that is not up leaves
+  // the container hung and unhealthy, where `restart: on-failure` only rescues a
+  // process that EXITS. The vector store gets the deadline as a signal because
+  // creating a collection retries while the embedding model warms up — this stops
+  // that retry rather than abandoning it mid-flight.
+  const graphDb = await withDeadline('Graph database', STARTUP_CONNECT_TIMEOUT_MS,
+    () => getGraphDatabase(graphConfig), RESTART_HINT);
 
   const embeddingConfig = config.services.embedding;
   logger.info('Connecting to embedding provider', { type: embeddingConfig.type, model: embeddingConfig.model });
-  const embeddingProvider = await createEmbeddingProvider(embeddingConfig);
+  const embeddingProvider = await withDeadline('Embedding provider', STARTUP_CONNECT_TIMEOUT_MS,
+    () => createEmbeddingProvider(embeddingConfig), RESTART_HINT);
   const vectorsConfig = config.services.vectors;
   logger.info('Connecting to vector store', { type: vectorsConfig.type });
-  const vectorStore = await createVectorStore({
-    type: vectorsConfig.type,
-    host: vectorsConfig.host,
-    port: vectorsConfig.port,
-    dimensions: () => embeddingProvider.dimensions(),
-  });
+  const vectorStore = await withDeadline('Vector store', STARTUP_CONNECT_TIMEOUT_MS,
+    (signal) => createVectorStore({
+      signal,
+      type: vectorsConfig.type,
+      host: vectorsConfig.host,
+      port: vectorsConfig.port,
+      dimensions: () => embeddingProvider.dimensions(),
+    }), RESTART_HINT);
 
   // ── Actors ─────────────────────────────────────────────────────────
   const stower = new Stower(

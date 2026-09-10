@@ -9,10 +9,13 @@ import {
   retryWithBackoff,
   isTransientFetchError,
   isRetryableRequestError,
+  isPeerUnavailable,
+  retryBudgetMs,
   STARTUP_FETCH_RETRY,
   type RetryAttemptInfo,
   type HttpStatusError,
 } from '../retry';
+import { BusRequestError } from '../bus-request';
 
 const FAST = { attempts: 4, initialDelayMs: 1, maxDelayMs: 4 };
 
@@ -199,15 +202,94 @@ describe('isRetryableRequestError (SIDECAR-BOOT-RESILIENCE P1)', () => {
   });
 });
 
+describe("a caller's deadline outranks the budget", () => {
+  it('stops retrying once the signal aborts, mid-budget', async () => {
+    // The reason this parameter exists: a caller racing its own timeout against
+    // work that retries otherwise has two numbers it must keep compatible BY
+    // HAND, in two packages — and the day they stop being compatible, the race
+    // kills a retry that was about to succeed. Measured on the embedding path:
+    // a ~5 min budget under a 60s deadline, reconcilable as numbers only by
+    // making one of them wrong.
+    const controller = new AbortController();
+    let calls = 0;
+
+    await expect(
+      retryWithBackoff(
+        async () => { calls++; if (calls === 2) controller.abort(); throw fetchFailed(); },
+        isTransientFetchError,
+        { attempts: 10, initialDelayMs: 1, maxDelayMs: 1 },
+        undefined,
+        controller.signal,
+      ),
+    ).rejects.toThrow('fetch failed');
+
+    // Stopped at 2 of a 10-attempt budget, and rethrew the REAL error rather
+    // than an abort — the caller wants to know what was failing.
+    expect(calls).toBe(2);
+  });
+
+  it('is unaffected by a signal that never fires', async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    await expect(
+      retryWithBackoff(
+        async () => { calls++; throw fetchFailed(); },
+        isTransientFetchError,
+        { attempts: 3, initialDelayMs: 1, maxDelayMs: 1 },
+        undefined,
+        controller.signal,
+      ),
+    ).rejects.toThrow();
+    expect(calls).toBe(3);
+  });
+});
+
+describe('isPeerUnavailable', () => {
+  // The condition the weaver's boot passes gave up on: `browse:*` is answered by
+  // the archivist, which had not subscribed 3 s into a boot. Both passes failed
+  // 12 ms apart and never retried, and the KB came up with an empty graph behind
+  // a healthy /health (2026-09-09).
+  it('accepts the promoted peer-unavailable failure', () => {
+    expect(isPeerUnavailable(new BusRequestError('no subscriber', 'bus.peer-unavailable'))).toBe(true);
+  });
+
+  it('rejects bus.unsubscribed — the SAME-SOUNDING code that must not retry', () => {
+    // `bus.unsubscribed` means *this* transport is not subscribed to the reply
+    // channel: a local misconfiguration, caught before emitting, that no amount of
+    // waiting fixes. Retrying it would spend the budget papering over a
+    // programming error — which is why the two codes are named apart.
+    expect(isPeerUnavailable(new BusRequestError('not subscribed', 'bus.unsubscribed'))).toBe(false);
+  });
+
+  it('rejects every other bus failure — a refusal is not a delay', () => {
+    for (const code of ['bus.rejected', 'bus.timeout', 'bus.unauthorized', 'bus.forbidden', 'bus.not-found', 'bus.closed', 'bus.bad-payload'] as const) {
+      expect(isPeerUnavailable(new BusRequestError('x', code)), code).toBe(false);
+    }
+  });
+
+  it('rejects anything that is not a BusRequestError', () => {
+    // Structure, not a bare string field: a plain object carrying the same code
+    // did not come from `busRequest` and has not been through its mapping.
+    expect(isPeerUnavailable(Object.assign(new Error('x'), { code: 'bus.peer-unavailable' }))).toBe(false);
+    expect(isPeerUnavailable(undefined)).toBe(false);
+  });
+});
+
 describe('STARTUP_FETCH_RETRY', () => {
   it('waits ~39s worst case — inside the 30–60s startup window', () => {
-    let delay = STARTUP_FETCH_RETRY.initialDelayMs;
-    let total = 0;
-    for (let i = 1; i < STARTUP_FETCH_RETRY.attempts; i++) {
-      total += delay;
-      delay = Math.min(delay * 2, STARTUP_FETCH_RETRY.maxDelayMs);
-    }
+    // Was a hand-rolled copy of the same loop `retryBudgetMs` runs — a second
+    // implementation of the policy's own arithmetic, free to drift from it.
+    const total = retryBudgetMs(STARTUP_FETCH_RETRY);
     expect(total).toBeGreaterThanOrEqual(30_000);
     expect(total).toBeLessThanOrEqual(60_000);
+  });
+
+  it('counts a per-attempt deadline into the ceiling', () => {
+    // The distinction that matters under packet loss: delays are bounded by the
+    // policy, attempts are not unless the caller bounds them. A budget that
+    // ignores the attempt is a lower bound wearing a ceiling's name.
+    const delaysOnly = retryBudgetMs(STARTUP_FETCH_RETRY);
+    expect(retryBudgetMs(STARTUP_FETCH_RETRY, 5_000))
+      .toBe(delaysOnly + 5_000 * STARTUP_FETCH_RETRY.attempts);
   });
 });

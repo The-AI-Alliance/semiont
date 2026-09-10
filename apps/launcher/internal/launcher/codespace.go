@@ -483,6 +483,25 @@ type codespaceInstance struct {
 	Repository string `json:"repository"`
 }
 
+// classifyCodespaceState is THE decider for "what state is this codespace
+// in", over an already-fetched list. Three call sites used to decide it
+// independently and only status got it right (#1058): absence from a
+// SUCCESSFUL list is a state — "deleted", the normal end of every codespace
+// under the launcher's own 720h retention — while a failed or impossible
+// query is "unqueryable". Only "deleted" ever justifies forgetting a record.
+// A present codespace reports GitHub's state verbatim.
+func classifyCodespaceState(instances []codespaceInstance, listErr error, ghPresent bool, name string) string {
+	if !ghPresent || listErr != nil {
+		return "unqueryable"
+	}
+	for _, c := range instances {
+		if c.Name == name {
+			return c.State
+		}
+	}
+	return "deleted"
+}
+
 func ghCodespaceList(repo string) ([]codespaceInstance, error) {
 	out, err := capture("gh", "codespace", "list", "--json", "name,state,repository")
 	if err != nil {
@@ -626,16 +645,24 @@ func createCodespace(u *ui, repo string, opts startOptions) (string, int) {
 // blocks until it is connectable (measured: ~19s), which also proves the
 // ssh path the credentials read needs.
 func ensureCodespaceAvailable(u *ui, repo, name string) int {
-	state := ""
-	if instances, err := ghCodespaceList(repo); err == nil {
-		for _, c := range instances {
-			if c.Name == name {
-				state = c.State
-			}
-		}
+	ghHere := onPath("gh")
+	var instances []codespaceInstance
+	var lerr error
+	if ghHere {
+		instances, lerr = ghCodespaceList(repo)
 	}
+	state := classifyCodespaceState(instances, lerr, ghHere, name)
 	if state == "Available" {
 		return 0
+	}
+	// "deleted" is the NORMAL end of every codespace (the launcher's own
+	// 720h retention) — fail in two seconds with the real reason, never
+	// poll a ghost. No auto-create: a paid VM is an explicit choice.
+	if state == "deleted" {
+		u.fail("Codespace %s no longer exists — GitHub deleted it under the 30-day retention set at create.", name)
+		fmt.Fprintln(os.Stderr, "  Forget the record:  semiont stop --repo "+repo+" --delete")
+		fmt.Fprintln(os.Stderr, "  Then create fresh:  semiont start --runtime codespace --repo "+repo)
+		return 1
 	}
 	if state == "Shutdown" {
 		u.log("Codespace is stopped — waking it %s", u.dim("(connecting is what resumes a codespace; ~20s)"))
@@ -658,22 +685,26 @@ func ensureCodespaceAvailable(u *ui, repo, name string) int {
 func waitCodespaceAvailable(u *ui, repo, name string) int {
 	t0 := time.Now()
 	lastBeat := t0
-	state := "Provisioning"
+	state := ""
 	for i := 0; i < 300; i++ {
 		instances, err := ghCodespaceList(repo)
-		if err == nil {
-			for _, c := range instances {
-				if c.Name != name {
-					continue
-				}
-				state = c.State
-				if state == "Available" {
-					if u.color {
-						fmt.Print("\r\033[K")
-					}
-					return 0
-				}
+		// Never print a state that was not observed: the old seed of
+		// "Provisioning" had this wait narrating a ghost for ten minutes
+		// when the codespace was already reaped.
+		state = classifyCodespaceState(instances, err, true, name)
+		if state == "Available" {
+			if u.color {
+				fmt.Print("\r\033[K")
 			}
+			return 0
+		}
+		if state == "deleted" {
+			if u.color {
+				fmt.Print("\r\033[K")
+			}
+			u.fail("Codespace %s no longer exists — deleted while waiting for it.", name)
+			fmt.Fprintln(os.Stderr, "  Forget the record:  semiont stop --repo "+repo+" --delete")
+			return 1
 		}
 		if i == 0 {
 			u.log("Waiting for the codespace VM %s", u.dim("(GitHub reports Provisioning until the machine is up)"))
@@ -964,7 +995,7 @@ func reconcileDid(u *ui, st *stackState, force bool) {
 		fmt.Fprintf(os.Stderr, "    running:  %s\n", remote)
 		fmt.Fprintln(os.Stderr, "    The codespace is running a different KB than when the record was made")
 		fmt.Fprintln(os.Stderr, "    (a re-created codespace, or an edited .semiont/config). Nothing was")
-		fmt.Fprintln(os.Stderr, "    changed here — forget the stale record with: semiont stop --repo "+st.Repo+" --delete")
+		fmt.Fprintln(os.Stderr, "    changed here — delete that codespace and its record with: semiont stop --repo "+st.Repo+" --delete")
 	}
 }
 
@@ -1045,9 +1076,26 @@ func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int 
 		_ = syscall.Kill(st.ForwardPID, syscall.SIGTERM)
 	}
 	if del {
+		// --delete's goal state is "no codespace, no record". A codespace
+		// GitHub already reaped (720h retention) is halfway there: skip the
+		// delete, forget the record, exit 0 — the old path treated the 404
+		// as failure and left the record a permanent dead end.
+		instances, lerr := ghCodespaceList(st.Repo)
+		if classifyCodespaceState(instances, lerr, true, st.Codespace) == "deleted" {
+			forgetStack("codespace:" + st.Repo)
+			u.ok("GitHub had already removed codespace %s (30-day retention) — record forgotten.", st.Codespace)
+			return 0
+		}
 		u.log("Deleting codespace %s %s", u.bold(st.Codespace), u.dim("("+st.Repo+" — destroys its state and credentials)"))
 		u.echoCmd("gh", "codespace", "delete", "-c", st.Codespace, "--force")
 		if out, err := captureBoth("gh", "codespace", "delete", "-c", st.Codespace, "--force"); err != nil {
+			// The genuine race: present when classified above, reaped
+			// between the two calls. Already-deleted is the goal state.
+			if strings.Contains(out, "HTTP 404") {
+				forgetStack("codespace:" + st.Repo)
+				u.ok("GitHub had already removed codespace %s — record forgotten.", st.Codespace)
+				return 0
+			}
 			u.fail("Delete failed: %s", strings.TrimSpace(out))
 			return 1
 		}
@@ -1084,19 +1132,15 @@ func statusCodespace(u *ui, st *stackState, refresh bool) int {
 	// Distinguish three different things that all used to look alike:
 	// GitHub says it's gone, GitHub says it's not ready, and we could not
 	// ask at all. Only the first justifies telling anyone to delete a record.
-	state := ""
-	if !onPath("gh") {
-		state = "unqueryable"
-	} else if instances, err := ghCodespaceList(st.Repo); err != nil {
-		state = "unqueryable"
-	} else {
-		state = "deleted"
-		for _, c := range instances {
-			if c.Name == st.Codespace {
-				state = c.State
-			}
-		}
+	// (This was the reference implementation classifyCodespaceState was
+	// extracted from — #1058 fixed it here first and nowhere else.)
+	ghHere := onPath("gh")
+	var instances []codespaceInstance
+	var lerr error
+	if ghHere {
+		instances, lerr = ghCodespaceList(st.Repo)
 	}
+	state := classifyCodespaceState(instances, lerr, ghHere, st.Codespace)
 	stateDetail := "state: " + state
 	if f, ok := fetchCodespaceFacts()[st.Codespace]; ok {
 		if f.Machine != "" {

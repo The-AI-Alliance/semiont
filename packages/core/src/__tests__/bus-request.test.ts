@@ -126,6 +126,60 @@ describe('busRequest', () => {
     });
   });
 
+  it("promotes a failure's own code — 'peer-unavailable' becomes bus.peer-unavailable", async () => {
+    // The gateway synthesizes a failure when a request's channel has NO
+    // SUBSCRIBER — the service that answers it has not connected yet. Flattening
+    // that to 'bus.rejected' alongside a permission denial makes a startup race
+    // and a refusal indistinguishable, and the weaver's boot pass gave up for the
+    // life of the process on exactly this (2026-09-09: empty graph behind a
+    // healthy /health).
+    //
+    // Promoted HERE, at the one place the wire fact enters the client
+    // vocabulary — the `classifyApiCode` pattern. Left in `details.payload.code`
+    // instead, every consumer would reach through the nesting and there would be
+    // two ways to ask the same question.
+    const bus = makeBus(RESULT, FAILURE);
+    const captured = busRequest(bus, EMIT, {}).catch((e) => e);
+    await Promise.resolve();
+    const cid = bus.emitPayload!.correlationId as string;
+
+    bus.failureSubject.next({
+      correlationId: cid,
+      code: 'peer-unavailable',
+      message: 'No subscriber for browse:resources-requested: the service that answers it is not connected',
+    });
+
+    const err = await captured;
+    expect(err).toBeInstanceOf(BusRequestError);
+    expect(err.code).toBe('bus.peer-unavailable');
+    expect(err.message).toMatch(/No subscriber/);
+  });
+
+  it('still says bus.rejected for a failure carrying no code', async () => {
+    // Every other failure channel is untouched: `code` is optional on the wire,
+    // and absence keeps today's behaviour exactly.
+    const bus = makeBus(RESULT, FAILURE);
+    const captured = busRequest(bus, EMIT, {}).catch((e) => e);
+    await Promise.resolve();
+    const cid = bus.emitPayload!.correlationId as string;
+
+    bus.failureSubject.next({ correlationId: cid, message: 'permission denied' });
+    expect((await captured).code).toBe('bus.rejected');
+  });
+
+  it('ignores an unrecognized code rather than trusting it', async () => {
+    // The code arrives over the wire from a peer that may be newer than this
+    // build. An unknown value must not become a `BusRequestErrorCode` nobody can
+    // handle — it degrades to 'bus.rejected', which is what it would have been.
+    const bus = makeBus(RESULT, FAILURE);
+    const captured = busRequest(bus, EMIT, {}).catch((e) => e);
+    await Promise.resolve();
+    const cid = bus.emitPayload!.correlationId as string;
+
+    bus.failureSubject.next({ correlationId: cid, code: 'something-from-the-future', message: 'x' });
+    expect((await captured).code).toBe('bus.rejected');
+  });
+
   it('attaches structured details on bus.rejected', async () => {
     const bus = makeBus(RESULT, FAILURE);
     const captured = busRequest(bus, EMIT, {}).catch((e) => e);
