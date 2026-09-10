@@ -38,17 +38,38 @@ jobs:
         # A just-published version takes minutes to reach the registry packument
         # even though npmjs.com shows it instantly, so a single `npm view` right
         # after publish fails on a package that is genuinely there. Poll.
+        #
+        # Waiting only for @semiont/browser is not enough: the install resolves
+        # its whole @semiont/* closure at the same version, and those index
+        # independently. version.json owns which packages publish, so wait for
+        # all of them rather than restating a dependency list that would drift.
         run: |
-          for attempt in $(seq 1 20); do
-            if npm view "@semiont/browser@${{ inputs.version }}" version >/dev/null 2>&1; then
-              echo "✅ @semiont/browser@${{ inputs.version }} exists (attempt $attempt)"
-              exit 0
+          PKGS=$(node -e "
+            const v = JSON.parse(require('fs').readFileSync('version.json','utf-8'));
+            const names = Object.entries(v.packages)
+              .filter(([, p]) => p.publish)
+              .map(([key, p]) => {
+                const pub = p.stage ? require('path').join(p.dir, 'package.publish.json') : null;
+                return pub ? JSON.parse(require('fs').readFileSync(pub,'utf-8')).name : key;
+              });
+            console.log(names.join(' '));
+          ")
+          echo "Waiting on: $PKGS"
+          for pkg in $PKGS; do
+            found=""
+            for attempt in $(seq 1 20); do
+              if npm view "${pkg}@${{ inputs.version }}" version >/dev/null 2>&1; then
+                found=yes; break
+              fi
+              echo "waiting for ${pkg}@${{ inputs.version }} to index (attempt $attempt/20)"
+              sleep 30
+            done
+            if [ -z "$found" ]; then
+              echo "❌ ${pkg}@${{ inputs.version }} not on npm after 10 minutes"
+              exit 1
             fi
-            echo "waiting for @semiont/browser@${{ inputs.version }} to index (attempt $attempt/20)"
-            sleep 30
           done
-          echo "❌ @semiont/browser@${{ inputs.version }} not on npm after 10 minutes"
-          exit 1
+          echo "✅ every published @semiont package exists at ${{ inputs.version }}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.3.0
