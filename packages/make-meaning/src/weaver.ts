@@ -75,7 +75,7 @@ export interface WeaverTiming {
 }
 import { resourceId as makeResourceId, annotationId as makeAnnotationId, findBodyItem } from '@semiont/core';
 import { partitionByType } from './batch-utils.js';
-import { fetchCatalogPages, type CATALOG_CHANNEL } from './catalog-pages.js';
+import { browseAllResources, type RESOURCES_CHANNEL } from './browse-resources.js';
 
 import type { Annotation, CreateAnnotationInternal } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
@@ -85,7 +85,7 @@ import type { ResourceDescriptor } from '@semiont/core';
  * the operations this module awaits over the wire — see the note on
  * `SmelterResourceReadAwaits` for the mechanism.
  */
-export type WeaverCatalogPageAwaits = typeof CATALOG_CHANNEL;
+export type WeaverCatalogPageAwaits = typeof RESOURCES_CHANNEL;
 export type WeaverEventsReadAwaits = 'browse:events-requested';
 export type WeaverAnnotationsReadAwaits = 'browse:annotations-requested';
 
@@ -306,11 +306,11 @@ export class Weaver {
    * the ARCHIVIST, so a weaver that authenticates first asks a channel nobody is
    * subscribed to yet and used to give up for the life of the process.
    * `WeaverCatalogPageAwaits` is now DERIVED from the channel this actually
-   * requests (`typeof CATALOG_CHANNEL`), so the roster and the request cannot
+   * requests (`typeof RESOURCES_CHANNEL`), so the roster and the request cannot
    * disagree — where before they were two literals tied by `satisfies`.
    */
   private fetchAllResources(): Promise<ResourceDescriptor[]> {
-    return fetchCatalogPages(this.bus, { limit: Weaver.CATCHUP_PAGE_SIZE });
+    return browseAllResources(this.bus, { limit: Weaver.CATCHUP_PAGE_SIZE });
   }
 
   /** A resource's full event history over the bus, sorted by sequence. */

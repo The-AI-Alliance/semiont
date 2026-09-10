@@ -49,7 +49,7 @@ import { chunkText } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import { busRequest, type BusRequestPrimitive } from '@semiont/core';
 import { partitionByType } from './batch-utils';
-import { fetchCatalogPages, type CATALOG_CHANNEL } from './catalog-pages';
+import { browseAllResources, type RESOURCES_CHANNEL } from './browse-resources';
 import type { SmelterEvent } from './smelter-actor-state-unit';
 
 /**
@@ -62,7 +62,7 @@ import type { SmelterEvent } from './smelter-actor-state-unit';
  */
 export type SmelterResourceReadAwaits = 'browse:resource-requested';
 export type SmelterAnnotationsReadAwaits = 'browse:annotations-requested';
-export type SmelterCatalogPageAwaits = typeof CATALOG_CHANNEL;
+export type SmelterCatalogPageAwaits = typeof RESOURCES_CHANNEL;
 
 // Media dispatch is core's, keyed by the media type's `TextSource`
 // strategy (`.plans/SMELTER-MEDIA-TYPES.md`, narrowed by READ-VS-EXTRACT P2).
@@ -1062,10 +1062,10 @@ export class Smelter {
   }
 
   /** Page through `browse:resources-requested` until the catalog is exhausted. */
-  /** Shared with the weaver since 2026-09-09 — see `catalog-pages.ts` for why the
+  /** Shared with the weaver since 2026-09-09 — see `browse-resources.ts` for why the
    *  retry lives at the page rather than around the pass. `archived: false` is
    *  the smelter's own filter and the one difference between the two loops. */
   private listAllResources(): Promise<ResourceDescriptor[]> {
-    return fetchCatalogPages(this.bus, { limit: Smelter.RECONCILE_PAGE_SIZE, archived: false });
+    return browseAllResources(this.bus, { limit: Smelter.RECONCILE_PAGE_SIZE, archived: false });
   }
 }

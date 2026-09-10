@@ -1,19 +1,14 @@
 /**
- * The catalog enumeration survives an archivist that has not connected yet.
- *
- * `browse:*` is answered by the archivist. A weaver that finishes authenticating
- * first asks a channel with no subscriber, and the gateway synthesizes a failure
- * — measured 3 s into a boot on 2026-09-09, both boot passes failing 12 ms apart
- * and giving up for the life of the process. The KB came up with an empty graph
- * behind a healthy `/health`, and live traffic then advanced the applied mark past
- * events that were never projected, leaving damage catch-up structurally cannot
- * repair.
+ * Listing resources survives an archivist that has not subscribed yet — the
+ * startup race that left a KB with an empty graph behind a healthy `/health`.
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { BusRequestError, type BusRequestPrimitive } from '@semiont/core';
 import { BehaviorSubject, Subject, Observable } from 'rxjs';
-import { fetchCatalogPages } from '../catalog-pages';
+import { browseAllResources, RESOURCE_LISTING_RETRY } from '../browse-resources';
+import { retryBudgetMs, STARTUP_FETCH_RETRY } from '@semiont/core';
+import { EMBEDDING_PROVIDER_RETRY, EMBED_TIMEOUT_MS } from '@semiont/vectors';
 
 /**
  * A bus whose reply to each page is scripted:
@@ -60,14 +55,14 @@ function scriptedBus(replies: ScriptedReply[]) {
 
 const page = (n: number, total: number) => ({ resources: Array.from({ length: n }, (_, i) => ({ '@id': `r-${i}` })), total });
 
-describe('fetchCatalogPages', () => {
+describe('listAllResources', () => {
   afterEach(() => { vi.useRealTimers(); });
 
   it('retries a page whose answering service is not connected yet', async () => {
     vi.useFakeTimers();
     const { bus, emitted } = scriptedBus([null, null, page(2, 2)]);
 
-    const pages = fetchCatalogPages(bus, { limit: 50 });
+    const pages = browseAllResources(bus, { limit: 50 });
     await vi.advanceTimersByTimeAsync(60_000);
 
     expect(await pages).toHaveLength(2);
@@ -75,14 +70,11 @@ describe('fetchCatalogPages', () => {
   });
 
   it('does NOT re-request a page that already succeeded', async () => {
-    // The property that makes this per-REQUEST retry rather than per-pass, and
-    // the reason it obeys SIDECAR-BOOT-RESILIENCE D3 instead of contradicting it:
-    // re-running a whole pass to recover one refusal re-sends every emit that
-    // already worked, which is the amplification that wedged the weaver.
+    // Per-request, not per-pass: a pass retry re-sends every page that worked.
     vi.useFakeTimers();
     const { bus, emitted } = scriptedBus([page(2, 4), null, page(2, 4)]);
 
-    const pages = fetchCatalogPages(bus, { limit: 2 });
+    const pages = browseAllResources(bus, { limit: 2 });
     await vi.advanceTimersByTimeAsync(60_000);
 
     expect(await pages).toHaveLength(4);
@@ -91,36 +83,53 @@ describe('fetchCatalogPages', () => {
   });
 
   it('gives up after the budget, so a genuinely absent peer still surfaces', async () => {
-    // D4 is untouched: the error propagates and `runBootPass` logs and continues.
-    // A retry that never gave up would trade this bug for a worse one.
     vi.useFakeTimers();
     const { bus } = scriptedBus(Array(20).fill(null));
 
-    const rejects = expect(fetchCatalogPages(bus, { limit: 50 })).rejects.toThrow(/No subscriber/);
-    await vi.advanceTimersByTimeAsync(120_000);
+    const rejects = expect(browseAllResources(bus, { limit: 50 })).rejects.toThrow(/No subscriber/);
+    // Driven off the policy, not a literal: RESOURCE_LISTING_RETRY's budget grew from 39s
+    // to ~6 min when it stopped borrowing STARTUP_FETCH_RETRY, and a hard-coded
+    // advance would have silently stopped exercising the give-up path.
+    await vi.advanceTimersByTimeAsync(retryBudgetMs(RESOURCE_LISTING_RETRY) * 2);
     await rejects;
   });
 
   it('passes `archived` only when the caller sets it', async () => {
-    // The smelter excludes archived resources; the weaver projects them too. The
-    // one difference between the two loops this replaced, preserved explicitly.
     const { bus: a, emitted: ea } = scriptedBus([page(0, 0)]);
-    await fetchCatalogPages(a, { limit: 10, archived: false });
+    await browseAllResources(a, { limit: 10, archived: false });
     expect(ea[0]).toMatchObject({ archived: false, limit: 10 });
 
     const { bus: b, emitted: eb } = scriptedBus([page(0, 0)]);
-    await fetchCatalogPages(b, { limit: 500 });
+    await browseAllResources(b, { limit: 500 });
     expect(eb[0]).not.toHaveProperty('archived');
   });
 
   it('does not retry a refusal — only a peer that has not connected', async () => {
-    // `bus.rejected` is a command the answering service considered and refused.
-    // Waiting does not change its mind, and spending the budget on it delays a
-    // real error reaching the caller. The narrowness of `isPeerUnavailable` is
-    // what keeps these apart.
+    // A refusal is not a delay — `isPeerUnavailable`'s narrowness keeps them apart.
     const { bus, emitted } = scriptedBus(['refused']);
 
-    await expect(fetchCatalogPages(bus, { limit: 50 })).rejects.toBeInstanceOf(BusRequestError);
+    await expect(browseAllResources(bus, { limit: 50 })).rejects.toBeInstanceOf(BusRequestError);
     expect(emitted).toHaveLength(1);
+  });
+});
+
+describe('RESOURCE_LISTING_RETRY outlasts an archivist boot', () => {
+  it('is sized by a relationship, not a guess', () => {
+    // The archivist's own boot retries twice — auth, then the embedding provider.
+    // Waiting less means giving up on an archivist that is still starting.
+    const archivistBoot =
+      retryBudgetMs(STARTUP_FETCH_RETRY) +
+      retryBudgetMs(EMBEDDING_PROVIDER_RETRY, EMBED_TIMEOUT_MS);
+
+    expect(
+      retryBudgetMs(RESOURCE_LISTING_RETRY),
+      `RESOURCE_LISTING_RETRY (${Math.round(retryBudgetMs(RESOURCE_LISTING_RETRY) / 1000)}s) must outlast a ` +
+        `worst-case archivist boot (${Math.round(archivistBoot / 1000)}s: auth + embedding ` +
+        `provider). Raise RESOURCE_LISTING_RETRY, or shorten what the archivist waits for.`,
+    ).toBeGreaterThan(archivistBoot);
+  });
+
+  it('does not borrow STARTUP_FETCH_RETRY, which is sized for the gateway', () => {
+    expect(retryBudgetMs(RESOURCE_LISTING_RETRY)).toBeGreaterThan(retryBudgetMs(STARTUP_FETCH_RETRY));
   });
 });
