@@ -7,22 +7,36 @@ Release lifecycle scripts. `version-bump.sh` runs on the host with just `jq` and
 
 | Script | Purpose | Requires |
 |--------|---------|----------|
+| `preflight.sh` | Decide whether origin/main is releasable | `gh`, `jq`, `git` |
+| `notes-context.sh` | Assemble PR bodies and planning docs for the post | `gh`, `jq` |
+| `announce.sh` | Lint a release post, and post it on `--post` | `gh` |
+| `verify-release.sh` | Check a published release across every channel | `gh`, `jq`, `curl` |
 | `version-bump.sh` | Bump version across all packages, commit, push the branch | `jq`, `git` |
 | `version.mjs` | Show, sync, or set version | `node` |
-| `verify-release.sh` | Check a published release across every channel | `gh`, `jq`, `curl` |
 
 ## Typical Release Flow
 
 One dispatch publishes everything; each stage triggers the next one it unblocks.
+Every step is a script, so none of it depends on remembering a flag.
 
 ```bash
-# 1. CI green on the commit you intend to release, then:
-gh workflow run release.yml --field desktop=true
+# 1. Is main releasable? Checks version sync, a free tag, and CI green on the
+#    exact origin/main sha. Prints the release command on success.
+./scripts/release/preflight.sh
 
-# 2. When the runs finish, verify the artifacts themselves:
-./scripts/release/verify-release.sh 0.5.33
+# 2. Publish every channel.
+gh workflow run release.yml
 
-# 3. Announce, then bump on a branch and open the PR:
+# 3. Write the post from assembled context, never from commit subjects.
+./scripts/release/notes-context.sh          # writes .release-notes-context.md
+#    ... read it, draft the post, first line = the discussion title ...
+./scripts/release/announce.sh 0.5.34 draft.md          # lint
+./scripts/release/announce.sh 0.5.34 draft.md --post   # publish
+
+# 4. Verify the artifacts themselves, not the workflow conclusions.
+./scripts/release/verify-release.sh 0.5.34
+
+# 5. Bump on a branch and open the PR.
 ./scripts/release/version-bump.sh patch
 ```
 
@@ -77,3 +91,32 @@ npm run version:show    # Display current version across all packages
 npm run version:sync    # Sync version.json to all package.json files
 npm run version:set     # Set a specific version
 ```
+
+## preflight.sh
+
+Reads `origin/main` over the wire with `git ls-remote` and the contents API, so a
+stale or dirty local clone cannot make a bad commit look releasable.
+
+CI status comes from that commit's own check runs. `gh run list --limit 1` is not
+used anywhere: it returns whatever run the API surfaces first, which is routinely
+not the newest, and has reported a phantom head more than once.
+
+## notes-context.sh
+
+Writes `.release-notes-context.md` (gitignored) holding every substantive PR
+merged since the last release **with its full body**, the dependency and bump PRs
+listed separately rather than filtered silently, and the planning docs modified
+in the same window.
+
+Commit subjects compress away the origin and the measurement — the thing that
+makes a post worth reading. Assembling the context first is what stops a post
+being written from titles.
+
+## announce.sh
+
+Blocking checks are objectively-wrong things: a release link that resolves
+nowhere, a title a reader cannot parse, a `.plans/` path nobody outside the
+working tree can open. Style calls — bullet length, whether a deep release
+carries a whitepaper section — warn but do not block, because a deliberately
+substantive bullet is a legitimate authorial choice and a gate that overrules
+taste just gets bypassed.

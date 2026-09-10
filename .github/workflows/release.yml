@@ -10,11 +10,13 @@ on:
         required: false
         type: boolean
         default: false
+      # Every release since 0.5.26 has wanted the desktop apps, so the flag
+      # defaults on. Turn it off deliberately for a release that ships none.
       desktop:
         description: 'Build and publish desktop apps'
         required: false
         type: boolean
-        default: false
+        default: true
 
 jobs:
   tag:

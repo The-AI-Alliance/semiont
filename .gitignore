@@ -98,6 +98,9 @@ apps/*/scripts/*.d.ts.map
 # Ephemeral Planning Documents
 .plans
 
+# Assembled by scripts/release/notes-context.sh; quotes .plans content verbatim
+.release-notes-context.md
+
 # Compliance audit generated files
 **/scripts/symbols.json
 # Generated compliance reports (all of them — never enumerate outputs by hand)
