@@ -69,8 +69,27 @@ jobs:
         # A just-published version takes minutes to reach the registry packument
         # even though npmjs.com shows it instantly, so a single `npm view` right
         # after publish fails on a package that is genuinely there. Poll.
+        #
+        # Waiting only for this service's own entry point is not enough: the
+        # install resolves that package's whole @semiont/* closure at the same
+        # version, and on 0.5.34 make-meaning had indexed while @semiont/jobs and
+        # @semiont/inference had not, so the gate passed and the build died in
+        # `npm install`. version.json owns which packages publish, so wait for
+        # all of them rather than restating a per-service dependency list that
+        # would drift the first time an import changed.
         run: |
-          for pkg in ${{ matrix.verify_packages }}; do
+          PKGS=$(node -e "
+            const v = JSON.parse(require('fs').readFileSync('version.json','utf-8'));
+            const names = Object.entries(v.packages)
+              .filter(([, p]) => p.publish)
+              .map(([key, p]) => {
+                const pub = p.stage ? require('path').join(p.dir, 'package.publish.json') : null;
+                return pub ? JSON.parse(require('fs').readFileSync(pub,'utf-8')).name : key;
+              });
+            console.log(names.join(' '));
+          ")
+          echo "Waiting on: $PKGS"
+          for pkg in $PKGS; do
             found=""
             for attempt in $(seq 1 20); do
               if npm view "${pkg}@${{ inputs.version }}" version >/dev/null 2>&1; then
@@ -84,7 +103,7 @@ jobs:
               exit 1
             fi
           done
-          echo "✅ ${{ matrix.service }} packages exist at ${{ inputs.version }}"
+          echo "✅ every published @semiont package exists at ${{ inputs.version }}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.3.0

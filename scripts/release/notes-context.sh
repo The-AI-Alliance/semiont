@@ -14,15 +14,21 @@ set -uo pipefail
 REPO=The-AI-Alliance/semiont
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
-PREV="${1:-$(gh release list -R "$REPO" --limit 1 --json tagName --jq '.[0].tagName')}"
-[ -n "$PREV" ] || { echo "cannot determine previous tag" >&2; exit 2; }
+# The window is "what produced the version in version.json", so the previous tag
+# is the newest release that is NOT that version. Taking the newest release
+# outright breaks the moment the tag is cut — which is exactly when these notes
+# get written — and yields an empty window rather than an error.
+CURRENT=$(gh api "repos/$REPO/contents/version.json" --jq .content | base64 -d | jq -r .version)
+PREV="${1:-$(gh release list -R "$REPO" --limit 10 --json tagName \
+             --jq "[.[] | select(.tagName != \"v$CURRENT\")] | .[0].tagName")}"
+[ -n "$PREV" ] && [ "$PREV" != "null" ] || { echo "cannot determine previous tag" >&2; exit 2; }
 
-SINCE=$(gh api "repos/$REPO/git/ref/tags/${PREV#refs/tags/}" --jq .object.sha 2>/dev/null \
-        | xargs -I{} gh api "repos/$REPO/commits/{}" --jq .commit.committer.date 2>/dev/null)
+TAG_SHA=$(gh api "repos/$REPO/git/ref/tags/${PREV#refs/tags/}" --jq .object.sha 2>/dev/null)
+SINCE=$(gh api "repos/$REPO/commits/$TAG_SHA" --jq .commit.committer.date 2>/dev/null)
 [ -n "$SINCE" ] || { echo "cannot date $PREV" >&2; exit 2; }
 
 OUT="$ROOT/.release-notes-context.md"
-NEXT=$(gh api "repos/$REPO/contents/version.json" --jq .content | base64 -d | jq -r .version)
+NEXT="$CURRENT"
 
 {
   echo "# Release-notes context: $PREV -> $NEXT"
@@ -36,9 +42,13 @@ NEXT=$(gh api "repos/$REPO/contents/version.json" --jq .content | base64 -d | jq
 
 # The skill drops dependabot from the post; this lists them separately rather
 # than filtering silently, so a security bump that mattered can still be seen.
+# The previous tag sits ON the merge commit of that release's last PR, and that
+# PR's mergedAt lands a hair after the commit's own timestamp — so a purely
+# time-based window re-reports the previous release's final PR every time.
+# Excluding the tagged commit by sha closes it exactly, with no timestamp fudge.
 PRS=$(gh pr list -R "$REPO" --state merged --limit 100 \
-        --json number,title,author,mergedAt,url,body,files \
-        --jq "[.[] | select(.mergedAt > \"$SINCE\")] | sort_by(.number)")
+        --json number,title,author,mergedAt,url,body,files,mergeCommit \
+        --jq "[.[] | select(.mergedAt > \"$SINCE\") | select(.mergeCommit.oid != \"$TAG_SHA\")] | sort_by(.number)")
 
 # Headings inside a PR body are demoted so they cannot be mistaken for this
 # document's own sections when skimming.
