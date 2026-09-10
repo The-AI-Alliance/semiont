@@ -1,13 +1,40 @@
 /**
- * Bounded retry with exponential backoff.
+ * Retry: the mechanism, and the classifications core itself owns.
  *
- * Exists for startup-critical network calls in long-running peers (worker,
- * smelter, weaver): each authenticates against the KS the moment its
- * container starts, and the gateway may not be reachable for a few seconds
- * (gateway restart, container-network warm-up). Orchestration runs these
- * processes with `--rm` and no restart policy, so a process that dies on
- * the first `TypeError: fetch failed` is dead for good — the retry window
- * here is the only recovery it gets.
+ * Originally just `retryWithBackoff`, for startup-critical calls in long-running
+ * peers — each authenticates the moment its container starts, the gateway may not
+ * be reachable for a few seconds, and orchestration runs them with `--rm` and no
+ * restart policy, so a process that dies on the first `TypeError: fetch failed` is
+ * dead for good. That is still the shape; the module has grown a family around it.
+ *
+ * **What lives HERE — the mechanism, because it is one fact each:**
+ *   - `RetryPolicy` / `retryWithBackoff` — the loop, deadline-aware
+ *   - `equalJitter` — the backoff curve, shared with the SSE reconnect
+ *   - `retryBudgetMs` — how long a policy can take, derived rather than restated
+ *   - the predicates that narrow an error type CORE owns (`isTransientFetchError`
+ *     over `fetch`'s `TypeError`, `isRetryableRequestError` over `HttpStatusError`,
+ *     `isPeerUnavailable` over `BusRequestError`)
+ *
+ * **What deliberately does NOT — the judgment, because each is local knowledge:**
+ *   - **policies.** `EMIT_RETRY` (http-transport), `EMBEDDING_PROVIDER_RETRY`
+ *     (vectors). A policy answers *how long does THIS wait*, and centralizing that
+ *     is what caused a bug: the embedding path borrowed `STARTUP_FETCH_RETRY` —
+ *     sized for "until a peer starts listening" — to wait out a model download,
+ *     and its ceiling expired just before the thing it was waiting for arrived.
+ *     Two facts that happen to be measured in seconds are still two facts.
+ *   - **deadlines.** `EMIT_TIMEOUT_MS`, `EMBED_TIMEOUT_MS`,
+ *     `STARTUP_CONNECT_TIMEOUT_MS`, each with the call it bounds.
+ *   - **predicates over another package's errors.** `isColdModelError` is
+ *     `@semiont/vectors`'; core has no business knowing an Ollama 404 means
+ *     "not pulled yet".
+ *
+ * `STARTUP_FETCH_RETRY` is the one policy here, and only because five boot paths
+ * genuinely share the one question it answers.
+ *
+ * **Deadlines beat budgets.** `retryWithBackoff` takes an optional `AbortSignal`
+ * so a caller racing its own timeout can stop the retry, instead of the two
+ * numbers having to be kept compatible by hand across packages. That is the
+ * `context.Context` / gRPC-deadline move, with the platform's own primitive.
  */
 
 import { BusRequestError } from './bus-request';
@@ -25,7 +52,13 @@ export interface RetryPolicy {
  * Equal jitter: half the computed ceiling, plus a random share of the other
  * half — delay ∈ [cap/2, cap).
  *
- * Unconditional, not an option (SIDECAR-BOOT-RESILIENCE P2). Every caller of
+ * **One home, because it is one fact.** `retryWithBackoff` and the SSE reconnect
+ * loop (`actor-state-unit.ts`) both need it and carried byte-identical copies —
+ * two implementations agreeing by coincidence, free to drift the first time
+ * either is tuned. The reconnect computes its own ceiling (`reconnectMs · 2ⁿ`,
+ * capped); only the jitter is shared, which is the part that must not diverge.
+ *
+ * Unconditional in `retryWithBackoff`, not an option. Every caller of
  * `retryWithBackoff` is a container in a fleet that boots together and retries
  * against ONE gateway, which is precisely the lockstep this exists to break: N
  * peers backing off by an identical schedule re-converge on the same instant and
@@ -33,11 +66,9 @@ export interface RetryPolicy {
  * reachable by default-choosing, and nobody would ever pass `false`.
  *
  * The worst case is unchanged — `delay <= cap` still holds, so the patience
- * budget a policy advertises stays true; only the expected wait drops. Same
- * formula the SSE reconnect already uses (`actor-state-unit.ts`, D1a), so the two
- * backoffs behave alike rather than each inventing a curve.
+ * budget a policy advertises stays true; only the expected wait drops, to ~75%.
  */
-function equalJitter(cap: number): number {
+export function equalJitter(cap: number): number {
   return cap / 2 + Math.random() * (cap / 2);
 }
 
@@ -195,12 +226,24 @@ export async function retryWithBackoff<T>(
   isRetryable: (error: unknown) => boolean,
   policy: RetryPolicy,
   onRetry?: (info: RetryAttemptInfo) => void,
+  signal?: AbortSignal,
 ): Promise<T> {
   let cap = policy.initialDelayMs;
   for (let attempt = 1; ; attempt++) {
     try {
       return await fn();
     } catch (error) {
+      // The caller's deadline outranks the budget. Without this, a caller that
+      // races its own timeout against work that retries has two numbers it must
+      // keep compatible by hand — and the day they stop being compatible, the
+      // race kills a retry that was about to succeed.
+      //
+      // Checked BETWEEN attempts, not during one: the in-flight call carries its
+      // own deadline (`/bus/emit`'s EMIT_TIMEOUT_MS, the providers'
+      // EMBED_TIMEOUT_MS), so the worst overshoot is that one bound rather than
+      // unbounded. Threading the signal into every leaf call would close that gap
+      // and is not worth its plumbing yet.
+      if (signal?.aborted) throw error;
       if (attempt >= policy.attempts || !isRetryable(error)) throw error;
       // `delayMs` reported to `onRetry` is the ACTUAL wait, not the ceiling —
       // a log that printed the ceiling would describe a schedule nobody ran.

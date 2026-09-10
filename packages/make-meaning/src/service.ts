@@ -132,23 +132,40 @@ async function createJobQueue(
  */
 export const STARTUP_CONNECT_TIMEOUT_MS = 60_000;
 
-export async function withStartupTimeout<T>(what: string, work: Promise<T>): Promise<T> {
+export async function withStartupTimeout<T>(
+  what: string,
+  /**
+   * Takes the deadline rather than being a bare promise (2026-09-09). The race
+   * alone could only ABANDON slow work; work that RETRIES never learned the
+   * deadline existed, so the two were kept compatible by hand — and a boot path
+   * whose retry outlived this timeout would be killed just before it succeeded.
+   * Handing the signal down makes that unbuildable instead of documented.
+   */
+  work: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  // ONE timer drives both the abort and the rejection, deliberately.
+  // `AbortSignal.timeout()` would have been the obvious shape and is wrong here:
+  // it schedules its own independent deadline, so the signal and the race could
+  // fire at different moments — reintroducing, inside one function, exactly the
+  // two-uncoordinated-deadlines problem this parameter exists to remove. (It is
+  // also backed by a native timer no test clock can drive.)
+  const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
-      work,
+      work(controller.signal),
       new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(
-          () =>
-            reject(
-              new Error(
-                `${what} did not become available within ${STARTUP_CONNECT_TIMEOUT_MS / 1000}s. ` +
-                  `Exiting so the container restart policy can retry — it is normal for a dependency ` +
-                  `to be slow when every service restarts at once.`,
-              ),
-            ),
-          STARTUP_CONNECT_TIMEOUT_MS,
-        );
+        timer = setTimeout(() => {
+          const expired = new Error(
+            `${what} did not become available within ${STARTUP_CONNECT_TIMEOUT_MS / 1000}s. ` +
+              `Exiting so the container restart policy can retry — it is normal for a dependency ` +
+              `to be slow when every service restarts at once.`,
+          );
+          // Abort BEFORE rejecting, so work that is retrying sees the deadline
+          // and stops rather than being left running behind a settled race.
+          controller.abort(expired);
+          reject(expired);
+        }, STARTUP_CONNECT_TIMEOUT_MS);
       }),
     ]);
   } finally {
@@ -176,7 +193,7 @@ async function connectStores(
   // 2026-07-20 hang took a live investigation precisely because these three
   // steps were silent.
   logger.info('Connecting to graph database', { type: graphConfig.type });
-  const graphDb = await withStartupTimeout('Graph database', getGraphDatabase(graphConfig));
+  const graphDb = await withStartupTimeout('Graph database', () => getGraphDatabase(graphConfig));
   const eventStore = createEventStoreCore(project, eventBus, logger.child({ component: 'event-store' }));
 
   // The vector pair is mandatory and explicitly configured (MANDATORY-
@@ -190,12 +207,16 @@ async function connectStores(
   logger.info('Connecting to embedding provider', { type: embeddingConfig.type, model: embeddingConfig.model });
   const embeddingProvider = await withStartupTimeout(
     'Embedding provider',
-    createEmbeddingProvider(embeddingConfig),
+    () => createEmbeddingProvider(embeddingConfig),
   );
   logger.info('Connecting to vector store', { type: vectorsConfig.type });
   const vectorStore = await withStartupTimeout(
     'Vector store',
-    createVectorStore({
+    (signal) => createVectorStore({
+      // The deadline this call is already being raced against, handed down so
+      // the dimension-probe retry stops when it fires instead of being abandoned
+      // mid-flight. This is the whole point of the signal parameter.
+      signal,
       type: vectorsConfig.type,
       host: vectorsConfig.host,
       port: vectorsConfig.port,

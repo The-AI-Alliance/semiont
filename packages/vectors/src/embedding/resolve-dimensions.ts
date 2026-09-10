@@ -57,9 +57,14 @@ export const EMBEDDING_PROVIDER_RETRY: RetryPolicy = {
 const notReady = (error: unknown): boolean =>
   isColdModelError(error) || isTransientFetchError(error);
 
-export async function resolveDimensions(dimensions: () => Promise<number>): Promise<number> {
+export async function resolveDimensions(
+  dimensions: () => Promise<number>,
+  /** The caller's boot deadline, if it has one. Stops the retry when it fires,
+   *  so a caller racing a timeout against this cannot cut it short by surprise. */
+  signal?: AbortSignal,
+): Promise<number> {
   try {
-    return await retryWithBackoff(dimensions, notReady, EMBEDDING_PROVIDER_RETRY);
+    return await retryWithBackoff(dimensions, notReady, EMBEDDING_PROVIDER_RETRY, undefined, signal);
   } catch (error) {
     // `isColdModelError`, NOT `instanceof EmbeddingProviderError`: a 401 is also
     // one of those, and swapping the check let a bad API key fall through to the

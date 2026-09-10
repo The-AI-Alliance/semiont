@@ -43,6 +43,9 @@ export interface QdrantConfig {
   port: number;
   /** Resolves the embedding dimensionality; called only when creating a collection. */
   dimensions: () => Promise<number>;
+  /** The caller's boot deadline. Resolving the dimensionality retries while the
+   *  provider warms up, and this is what stops it if the caller gives up first. */
+  signal?: AbortSignal;
 }
 
 /** The payload fields a stamp is read from — one list for the scroll and the
@@ -131,7 +134,7 @@ export class QdrantVectorStore implements VectorStore {
     // connect would re-run `getCollection` and both `ensurePayloadIndex` calls on
     // every attempt — idempotent, but it widens the retry over operations that
     // were not failing. Only this one call needs the provider to be live.
-    const size = await resolveDimensions(this.config.dimensions);
+    const size = await resolveDimensions(this.config.dimensions, this.config.signal);
     await this.qdrant.createCollection(name, {
       vectors: { size, distance: 'Cosine' },
     });

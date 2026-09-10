@@ -23,6 +23,8 @@ export interface VectorStoreConfig {
    * without touching the embedding provider at all.
    */
   dimensions: () => Promise<number>;
+  /** The caller's boot deadline, passed to whatever retries while warming up. */
+  signal?: AbortSignal;
 }
 
 export async function createVectorStore(config: VectorStoreConfig): Promise<VectorStore> {
@@ -34,6 +36,7 @@ export async function createVectorStore(config: VectorStoreConfig): Promise<Vect
       host: config.host ?? 'localhost',
       port: config.port ?? 6333,
       dimensions: config.dimensions,
+      ...(config.signal ? { signal: config.signal } : {}),
     });
   } else {
     // MemoryVectorStore holds whatever vectors it is handed — it never reads a

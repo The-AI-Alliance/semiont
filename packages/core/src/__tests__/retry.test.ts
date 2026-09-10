@@ -202,6 +202,48 @@ describe('isRetryableRequestError (SIDECAR-BOOT-RESILIENCE P1)', () => {
   });
 });
 
+describe("a caller's deadline outranks the budget", () => {
+  it('stops retrying once the signal aborts, mid-budget', async () => {
+    // The reason this parameter exists: a caller racing its own timeout against
+    // work that retries otherwise has two numbers it must keep compatible BY
+    // HAND, in two packages — and the day they stop being compatible, the race
+    // kills a retry that was about to succeed. Measured on the embedding path:
+    // a ~5 min budget under a 60s deadline, reconcilable as numbers only by
+    // making one of them wrong.
+    const controller = new AbortController();
+    let calls = 0;
+
+    await expect(
+      retryWithBackoff(
+        async () => { calls++; if (calls === 2) controller.abort(); throw fetchFailed(); },
+        isTransientFetchError,
+        { attempts: 10, initialDelayMs: 1, maxDelayMs: 1 },
+        undefined,
+        controller.signal,
+      ),
+    ).rejects.toThrow('fetch failed');
+
+    // Stopped at 2 of a 10-attempt budget, and rethrew the REAL error rather
+    // than an abort — the caller wants to know what was failing.
+    expect(calls).toBe(2);
+  });
+
+  it('is unaffected by a signal that never fires', async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    await expect(
+      retryWithBackoff(
+        async () => { calls++; throw fetchFailed(); },
+        isTransientFetchError,
+        { attempts: 3, initialDelayMs: 1, maxDelayMs: 1 },
+        undefined,
+        controller.signal,
+      ),
+    ).rejects.toThrow();
+    expect(calls).toBe(3);
+  });
+});
+
 describe('isPeerUnavailable', () => {
   // The condition the weaver's boot passes gave up on: `browse:*` is answered by
   // the archivist, which had not subscribed 3 s into a boot. Both passes failed
