@@ -75,3 +75,18 @@ export function boundedGate(concurrency: number): <T>(work: () => Promise<T>) =>
       jobs$.next({ run: work, resolve, reject } as unknown as Job<never>);
     });
 }
+
+/**
+ * How a provider batches work behind its gate.
+ *
+ * The SHAPE lives here so a provider cannot ship half a policy; the VALUES are
+ * each provider's, because the constraints differ in kind — a local
+ * single-model process and a rate-limited cloud API with a request-size ceiling
+ * have no honest shared number.
+ */
+export interface BatchPolicy {
+  /** Maximum items in one request. Bounded by the provider's request-size ceiling, where it has one. */
+  sliceSize: number;
+  /** Maximum requests in flight to this provider, per process. See `boundedGate`. */
+  concurrency: number;
+}

@@ -22,7 +22,7 @@
  *     sized for "until a peer starts listening" — to wait out a model download,
  *     and its ceiling expired just before the thing it was waiting for arrived.
  *     Two facts that happen to be measured in seconds are still two facts.
- *   - **deadlines.** `EMIT_TIMEOUT_MS`, `EMBED_TIMEOUT_MS`,
+ *   - **deadlines.** `EMIT_TIMEOUT_MS`, `EMBED_ROUND_TRIP_TIMEOUT_MS`,
  *     `STARTUP_CONNECT_TIMEOUT_MS`, each with the call it bounds.
  *   - **predicates over another package's errors.** `isColdModelError` is
  *     `@semiont/vectors`'; core has no business knowing an Ollama 404 means
@@ -283,7 +283,7 @@ export async function retryWithBackoff<T>(
       //
       // Checked BETWEEN attempts, not during one: the in-flight call carries its
       // own deadline (`/bus/emit`'s EMIT_TIMEOUT_MS, the providers'
-      // EMBED_TIMEOUT_MS), so the worst overshoot is that one bound rather than
+      // EMBED_ROUND_TRIP_TIMEOUT_MS), so the worst overshoot is that one bound rather than
       // unbounded. Threading the signal into every leaf call would close that gap
       // and is not worth its plumbing yet.
       if (signal?.aborted) throw error;

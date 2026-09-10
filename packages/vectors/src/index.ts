@@ -21,7 +21,9 @@ export type { VoyageConfig } from './embedding/voyage';
 export { OllamaEmbeddingProvider } from './embedding/ollama';
 export type { OllamaEmbeddingConfig } from './embedding/ollama';
 export { createEmbeddingProvider } from './embedding/factory';
-export { EMBED_TIMEOUT_MS, EmbeddingProviderError, isColdModelError } from './embedding/provider-error';
+export { EMBED_ROUND_TRIP_TIMEOUT_MS, EmbeddingProviderError, isColdModelError } from './embedding/provider-error';
+export { OLLAMA_BATCH_POLICY } from './embedding/ollama';
+export { VOYAGE_BATCH_POLICY } from './embedding/voyage';
 export { EMBEDDING_PROVIDER_RETRY, resolveDimensions } from './embedding/resolve-dimensions';
 export type { EmbeddingConfig } from './embedding/factory';
 
