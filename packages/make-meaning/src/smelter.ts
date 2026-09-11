@@ -149,15 +149,26 @@ function sameStringSet(a: string[], b: string[]): boolean {
 
 export type SmelterInput = SmelterEvent | SmelterWorkItem;
 
-const WORK_ITEM_TYPES: ReadonlySet<string> = new Set<SmelterWorkItem['type']>([
-  'smelt:embed', 'smelt:restamp', 'smelt:reanchor', 'smelt:purge', 'smelt:embed-annotation', 'smelt:purge-annotation',
-]);
+/**
+ * Every work-item type, and only those. `satisfies Record<…, true>` demands a
+ * key for each member of the union, so a type added to `SmelterWorkItem` and
+ * forgotten here fails to compile — instead of reading as a live event at
+ * runtime, never ticking the drain's counter, and hanging `reconcile()`.
+ */
+const WORK_ITEM_TYPES = {
+  'smelt:embed': true,
+  'smelt:restamp': true,
+  'smelt:reanchor': true,
+  'smelt:purge': true,
+  'smelt:embed-annotation': true,
+  'smelt:purge-annotation': true,
+} satisfies Record<SmelterWorkItem['type'], true>;
 
 function isWorkItem(input: SmelterInput): input is SmelterWorkItem {
-  // Literal set, not a prefix match: `smelt:settled` is the Smelter's
+  // An exact list, not a prefix match: `smelt:settled` is the Smelter's
   // OUTBOUND decision signal (never a mailbox input) and must not read as
-  // work (SMELTER-INDEX-SYNC A1).
-  return WORK_ITEM_TYPES.has(input.type);
+  // work (SMELTER-INDEX-SYNC A1). `hasOwn`, so an inherited key never matches.
+  return Object.hasOwn(WORK_ITEM_TYPES, input.type);
 }
 
 /**
