@@ -693,6 +693,10 @@ export class Stower {
         jobType: event.jobType,
         ...(event.annotationId ? { annotationId: event.annotationId } : {}),
         result: event.result,
+        // Which attempt produced this. Always present on the wire, so always
+        // persisted: the log is where a campaign's spend is reconstructed, and
+        // without it the record cannot say a document ran twice.
+        ...(event.attempt !== undefined ? { attempt: event.attempt } : {}),
         // How durability was ESTABLISHED (COMMIT-ACK-FALSE-FAILURE). An
         // acknowledged batch and one inferred from a probe are different
         // claims; absent means the question never arose.
@@ -715,6 +719,10 @@ export class Stower {
         jobType: event.jobType,
         ...(event.annotationId ? { annotationId: event.annotationId } : {}),
         error: event.error,
+        // Which attempt produced this. Always present on the wire, so always
+        // persisted: the log is where a campaign's spend is reconstructed, and
+        // without it the record cannot say a document ran twice.
+        ...(event.attempt !== undefined ? { attempt: event.attempt } : {}),
         // The worker's JUDGMENTS, not just its message. Both are computed where
         // the error is still typed and are unrecoverable here — the only other
         // witness in the log is `error`, a flattened English string. Spread
