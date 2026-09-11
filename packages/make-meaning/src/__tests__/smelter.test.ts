@@ -725,6 +725,29 @@ describe('Smelter.reconcile', () => {
     expect((await vectorStore.listResourceStamps()).size).toBe(250);
   });
 
+  it('reports OUTCOMES, not plans — and every planned embed lands in exactly one bucket', async () => {
+    contentByResourceId.set('res-out-ok', 'Real content that indexes.');
+    contentByResourceId.set('res-out-blank', '   ');
+    // `res-out-gone` is absent from the map, so its content read fails: transient.
+    const smelter = createSmelter([
+      resourceDescriptor('res-out-ok'),
+      resourceDescriptor('res-out-blank'),
+      resourceDescriptor('res-out-gone'),
+    ]);
+    const summary = await smelter.reconcile();
+
+    // Counted the PLAN before: "embedded 3" printed while 1 of 3 landed.
+    expect(summary.resourcesEmbedded).toBe(1);
+    expect(summary.resourcesSkipped).toEqual({ empty: 1 });
+    expect(summary.resourcesUnavailable).toBe(1);
+    expect(summary.resourcesFailed).toBe(0);
+
+    // The property a planned count can never violate, and so never checked: the
+    // buckets partition the plan. A terminal that records nothing shows up here.
+    const skipped = Object.values(summary.resourcesSkipped).reduce((total, n) => total + (n ?? 0), 0);
+    expect(summary.resourcesEmbedded + skipped + summary.resourcesUnavailable + summary.resourcesFailed).toBe(3);
+  });
+
   it('reports extraction coverage in the summary — eligible vs indexed, declines are the gap', async () => {
     // Phase 1 (#744): eligibility counts extractor existence (md + pdf; zip
     // has no extractor), indexed counts what actually embedded (the scanned
@@ -1036,5 +1059,118 @@ describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHOR
     } finally {
       h.smelter.stop();
     }
+  });
+});
+
+/**
+ * A decision the Smelter makes about a resource, once that resource is
+ * identified, must be readable by an operator
+ * (bugs/smelter-skip-and-fail-decisions-are-invisible.md P1).
+ *
+ * A 217 MB book vanished from indexing with zero log lines, three runs in a
+ * row: its terminal emitted `smelt:settled` — the read-your-writes barrier, for
+ * other PROCESSES — and nothing an operator could read.
+ *
+ * Every case runs BOTH embed paths. A three-event burst on one resource sends
+ * the first event solo through `embedResource` and batches the other two through
+ * `batchResourceCreated`, so the count of breadcrumbs is the assertion: a fix
+ * covering only one path leaves one line where three are owed.
+ *
+ * `mockLogger` is shared across this file and never cleared, so every assertion
+ * filters by a resourceId no other test uses.
+ */
+describe('Smelter decisions not to index are readable', () => {
+  let events$: Subject<SmelterEvent>;
+  let contentByResourceId: Map<string, string>;
+  let bus: ReturnType<typeof createFakeKsBus>;
+  let smelter: Smelter;
+
+  async function start(contentType = 'text/plain'): Promise<void> {
+    events$ = new Subject<SmelterEvent>();
+    contentByResourceId = new Map();
+    bus = createFakeKsBus([]);
+    const vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    smelter = new Smelter(
+      events$,
+      EMPTY,
+      vectorStore,
+      createMockEmbeddingProvider(),
+      createMockContentTransport(contentByResourceId, contentType),
+      memoryAnchoredStore(),
+      bus,
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+  }
+
+  afterEach(() => {
+    smelter.stop();
+  });
+
+  const warnsFor = (resourceId: string) =>
+    vi.mocked(mockLogger.warn).mock.calls.filter(([, meta]) => meta?.resourceId === resourceId);
+
+  /** One solo event (`embedResource`), then two batched (`batchResourceCreated`). */
+  const burst = (resourceId: string) => {
+    for (let i = 0; i < 3; i++) events$.next({ type: 'yield:created', resourceId, payload: {} });
+  };
+
+  it('a decline speaks at warn, with its reason and checksum — on BOTH embed paths', async () => {
+    await start('image/png');   // a media type nothing can read → `no-extractor`
+    contentByResourceId.set('res-skip-decline', 'pixels, not text');
+    burst('res-skip-decline');
+    await tick();
+
+    const warns = warnsFor('res-skip-decline');
+    expect(warns).toHaveLength(3);
+    for (const [, meta] of warns) {
+      expect(meta).toMatchObject({ reason: 'no-extractor', contentChecksum: expect.any(String) });
+    }
+  });
+
+  it('an empty resource speaks too — on BOTH embed paths', async () => {
+    await start();
+    contentByResourceId.set('res-skip-empty', '  \n\t  ');
+    burst('res-skip-empty');
+    await tick();
+
+    const warns = warnsFor('res-skip-empty');
+    expect(warns).toHaveLength(3);
+    for (const [, meta] of warns) {
+      expect(meta).toMatchObject({ reason: 'empty', contentChecksum: expect.any(String) });
+    }
+  });
+
+  it('the breadcrumb sits BESIDE the barrier, never instead of it', async () => {
+    await start();
+    contentByResourceId.set('res-skip-barrier', '   ');
+    events$.next({ type: 'yield:updated', resourceId: 'res-skip-barrier', payload: {} });
+    await tick();
+
+    expect(warnsFor('res-skip-barrier')).toHaveLength(1);
+    expect(bus.emitted).toContainEqual({
+      channel: 'smelt:settled',
+      payload: expect.objectContaining({ resourceId: 'res-skip-barrier', outcome: 'skipped', reason: 'empty' }),
+    });
+  });
+
+  it('unavailable speaks once per terminal, carrying the error — and does NOT settle', async () => {
+    await start();
+    // Absent from the map, so the content read throws: transient (A2).
+    burst('res-skip-gone');
+    await tick();
+
+    const warns = warnsFor('res-skip-gone');
+    expect(warns).toHaveLength(3);   // once per terminal — never doubled
+    for (const [, meta] of warns) expect(meta).toHaveProperty('error');
+
+    // Settling 'skipped' would tell a barrier waiter the map will NEVER exist,
+    // which is false for a transient condition: it degrades to its bounded
+    // timeout instead, and a retry finds the store.
+    const settled = bus.emitted.filter((e) => e.channel === 'smelt:settled' && e.payload.resourceId === 'res-skip-gone');
+    expect(settled).toHaveLength(0);
   });
 });

@@ -75,7 +75,16 @@ export type SmelterCatalogPageAwaits = typeof RESOURCES_CHANNEL;
 // declines scanned/encrypted/corrupt PDFs with their class reason.
 
 export interface ReconcileSummary {
+  /** Planned embeds that landed in the vector store — an OUTCOME from the
+   *  drain, never the plan. With the next three fields it partitions the
+   *  planned embeds exactly. */
   resourcesEmbedded: number;
+  /** Planned embeds the Smelter declined, by reason — each one also logged. */
+  resourcesSkipped: Partial<Record<SkipReason, number>>;
+  /** Planned embeds whose content could not be read — transient. */
+  resourcesUnavailable: number;
+  /** Planned embeds that threw before concluding or indexing. */
+  resourcesFailed: number;
   /** Tag-only drift healed by payload restamps — never embedding calls (S13). */
   resourcesRestamped: number;
   /** Lost anchored-text artifacts re-derived by re-extraction — never
@@ -153,8 +162,63 @@ type SkipReason = NonNullable<EventMap['smelt:settled']['reason']>;
 
 type FetchedContent =
   | { kind: 'text'; text: string; checksum: string; machineRead: boolean }
-  | { kind: 'skipped'; checksum: string; reason: SkipReason }
+  | { kind: 'skipped'; checksum: string; contentType: string; reason: SkipReason }
+  | { kind: 'unavailable'; error: unknown };
+
+/** The brand only `conclude` mints. Module-private, so nothing outside this
+ *  file can forge a `Concluded`. */
+const CONCLUDED: unique symbol = Symbol('smelter.concluded');
+
+/**
+ * A decision not to index a resource, already made readable to an operator.
+ *
+ * `prepareEmbed` must return either this or a ready record, and only `conclude`
+ * — which logs the decision — can produce one. So a new way to decline indexing
+ * cannot be written silently: a bare `return;` fails to compile, and a
+ * hand-built `{ kind: 'concluded' }` lacks the brand
+ * (bugs/smelter-skip-and-fail-decisions-are-invisible.md).
+ */
+interface Concluded {
+  readonly kind: 'concluded';
+  readonly [CONCLUDED]: true;
+}
+
+/** One resource, prepared: ready to embed, or concluded without embedding. */
+type EmbedPrep =
+  | { kind: 'ready'; rid: ResourceId; chunks: string[]; checksum: string; entityTypes: string[]; machineRead: boolean }
+  | Concluded;
+
+/** What one resource's embed came to — the reconcile summary's unit of account. */
+type EmbedOutcome =
+  | { kind: 'indexed' }
+  | { kind: 'skipped'; reason: SkipReason }
   | { kind: 'unavailable' };
+
+/** Partition a reconcile's planned embeds by what each came to. A planned
+ *  resource with no recorded outcome threw before concluding or indexing. */
+function tallyEmbedOutcomes(planned: readonly string[], outcomes: ReadonlyMap<string, EmbedOutcome>) {
+  let embedded = 0;
+  let unavailable = 0;
+  let failed = 0;
+  const skipped: Partial<Record<SkipReason, number>> = {};
+  for (const rid of planned) {
+    const outcome = outcomes.get(rid);
+    if (!outcome) {
+      failed++;
+      continue;
+    }
+    switch (outcome.kind) {
+      case 'indexed': embedded++; break;
+      case 'unavailable': unavailable++; break;
+      case 'skipped': skipped[outcome.reason] = (skipped[outcome.reason] ?? 0) + 1; break;
+      default: {
+        const unreachable: never = outcome;
+        return unreachable;
+      }
+    }
+  }
+  return { embedded, skipped, unavailable, failed };
+}
 
 export class Smelter {
   private static readonly RECONCILE_PAGE_SIZE = 200;
@@ -167,6 +231,12 @@ export class Smelter {
   private pipelineSubscription: Subscription | null = null;
   private _eventsProcessed = 0;
   private _reconcileState: ReconcileState = { phase: 'pending' };
+  /**
+   * What each resource's embed came to during the reconcile in flight; null
+   * otherwise. The summary reads it scoped to the reconcile's own plan, so a
+   * live event for some other resource landing mid-drain cannot inflate it.
+   */
+  private reconcileOutcomes: Map<string, EmbedOutcome> | null = null;
   private workDone = 0;
   private workFailed = 0;
   private workWaiter: { target: number; resolve: () => void } | null = null;
@@ -291,7 +361,8 @@ export class Smelter {
       // items and the applyBatchByType default case — which is where
       // `smelt:reanchor` runs, so the rebuild command's partial-failure
       // reply is exact); the embed batch paths count a run that returned
-      // as fully succeeded, with per-item skips logged where they happen.
+      // as fully succeeded, with per-item skips concluded — and logged — in
+      // `conclude`.
       let succeeded = 0;
       try {
         if (run.length === 1) {
@@ -486,9 +557,11 @@ export class Smelter {
    * Resolve a resource's embeddable text: bytes via the content transport,
    * gated to media types that decode as text, decoded charset-aware. The
    * checksum is over the raw bytes actually read — stamped onto the vectors
-   * so reconciliation can compare against the catalog's claim (S12). Returns
-   * null (logged) when the resource doesn't decode as text, is unavailable,
-   * or is empty — callers skip it.
+   * so reconciliation can compare against the catalog's claim (S12).
+   *
+   * Decisions come back as values, never as log lines: a skip or an
+   * unavailable read carries what an operator needs, and `prepareEmbed`
+   * concludes it in exactly one place.
    */
   private async fetchEmbeddableText(resourceId: string): Promise<FetchedContent> {
     try {
@@ -506,8 +579,7 @@ export class Smelter {
        // because both hold the store; decoding is a pure function over bytes.
       const extractor = derivingExtractorFor(contentType);
       if (!extractor && textSourceOf(contentType) === 'none') {
-        this.logger.debug('Skipping resource with no way to read its media type', { resourceId, contentType });
-        return { kind: 'skipped', checksum, reason: 'no-extractor' };
+        return { kind: 'skipped', checksum, contentType, reason: 'no-extractor' };
       }
       // The cache seam (PERSIST-ANCHORS P2c, decision C): derivation consults
       // the artifact store for this exact byte content and, on a miss, the
@@ -521,8 +593,7 @@ export class Smelter {
         // decodes to SOME string, and emptiness is the caller's call below.
         : { kind: 'extracted', text: decodeRepresentation(bytes, contentType), method: 'text-passthrough' };
       if (extracted.kind === 'declined') {
-        this.logger.debug('Extractor declined', { resourceId, contentType, reason: extracted.declined });
-        return { kind: 'skipped', checksum, reason: extracted.declined };
+        return { kind: 'skipped', checksum, contentType, reason: extracted.declined };
       }
       if (extracted.ocrConfidence && extracted.ocrConfidence.lowConfidenceWords > 0) {
         // Extraction quality, not anchor quality: the vectors and any
@@ -551,10 +622,9 @@ export class Smelter {
       // can tell the difference once the chunk travels alone.
       return extracted.text.trim()
         ? { kind: 'text', text: extracted.text, checksum, machineRead: extracted.method === 'ocr' }
-        : { kind: 'skipped', checksum, reason: 'empty' };
+        : { kind: 'skipped', checksum, contentType, reason: 'empty' };
     } catch (error) {
-      this.logger.warn('Content unavailable for embedding', { resourceId, error: errField(error) });
-      return { kind: 'unavailable' };
+      return { kind: 'unavailable', error };
     }
   }
 
@@ -592,36 +662,84 @@ export class Smelter {
 
   private async embedResource(event: SmelterInput, logMessage: string): Promise<void> {
     const rid = event.resourceId;
+    // Not a decision about a resource — there is no resource to decide about,
+    // so it is exempt from `conclude`. Slated for deletion rather than a log
+    // line: `SmelterEvent` types `resourceId` optional though every channel it
+    // carries is resource-scoped (smelter-skip-and-fail-decisions-are-invisible,
+    // group B).
     if (!rid) return;
 
-    const fetched = await this.fetchEmbeddableText(rid);
-    if (fetched.kind === 'unavailable') return;
-    if (fetched.kind === 'skipped') {
-      // A decline is a decision: converge the store too. An eligible
-      // resource whose current bytes yield no text must not keep vectors
-      // from earlier bytes (S11) — transient failures, by contrast, never
-      // reach here and never touch the store (A2).
-      await this.vectorStore.deleteResourceVectors(makeResourceId(rid));
-      await this.emitSettled(rid, fetched.checksum, 'skipped', fetched.reason);
-      return;
-    }
+    const prep = await this.prepareEmbed(rid);
+    if (prep.kind === 'concluded') return;
 
-    const chunks = chunkText(fetched.text, this.chunkingConfig);
-    if (chunks.length === 0) {
-      await this.vectorStore.deleteResourceVectors(makeResourceId(rid));
-      await this.emitSettled(rid, fetched.checksum, 'skipped', 'empty');
-      return;
-    }
-
-    const entityTypes = await this.resolveEntityTypes(rid);
-    const embeddings = await this.embeddingProvider.embedBatch(chunks);
-    const embeddingChunks: EmbeddingChunk[] = chunks.map((t, i) => ({
+    const embeddings = await this.embeddingProvider.embedBatch(prep.chunks);
+    const embeddingChunks: EmbeddingChunk[] = prep.chunks.map((t, i) => ({
       chunkIndex: i, text: t, embedding: embeddings[i],
     }));
 
-    await this.vectorStore.upsertResourceVectors(makeResourceId(rid), embeddingChunks, fetched.checksum, entityTypes, fetched.machineRead);
-    await this.emitSettled(rid, fetched.checksum, 'indexed');
-    this.logger.info(logMessage, { resourceId: rid, chunks: chunks.length });
+    await this.vectorStore.upsertResourceVectors(prep.rid, embeddingChunks, prep.checksum, prep.entityTypes, prep.machineRead);
+    await this.emitSettled(rid, prep.checksum, 'indexed');
+    this.reconcileOutcomes?.set(rid, { kind: 'indexed' });
+    this.logger.info(logMessage, { resourceId: rid, chunks: prep.chunks.length });
+  }
+
+  /**
+   * Every decision about whether to embed one resource, in one place — the
+   * path both `embedResource` and `batchResourceCreated` take.
+   *
+   * The return type is the enforcement: a ready record or a `Concluded`, and
+   * only `conclude` mints the latter. Chunking carries no emptiness check of
+   * its own — `fetchEmbeddableText` has already turned empty-after-trim into
+   * `skipped: 'empty'`, and `chunkText` yields at least one chunk for any text
+   * with a non-whitespace character.
+   */
+  private async prepareEmbed(rid: string): Promise<EmbedPrep> {
+    const fetched = await this.fetchEmbeddableText(rid);
+    if (fetched.kind !== 'text') return this.conclude(rid, fetched);
+
+    return {
+      kind: 'ready',
+      rid: makeResourceId(rid),
+      chunks: chunkText(fetched.text, this.chunkingConfig),
+      checksum: fetched.checksum,
+      entityTypes: await this.resolveEntityTypes(rid),
+      machineRead: fetched.machineRead,
+    };
+  }
+
+  /**
+   * The only way to decline indexing a resource, and so the only minter of
+   * `Concluded`. Does what every such decision owes: an operator-readable
+   * breadcrumb, always; for a skip, store convergence and the barrier signal.
+   *
+   * The breadcrumb is written first, so an effect that throws below still
+   * leaves the decision readable; the outcome is recorded last, so a throw
+   * counts as a failure rather than a skip. And it sits BESIDE `emitSettled`,
+   * never inside it — the settle signal is the read-your-writes barrier for
+   * other processes, the log line is for an operator.
+   */
+  private async conclude(rid: string, fetched: Exclude<FetchedContent, { kind: 'text' }>): Promise<Concluded> {
+    if (fetched.kind === 'skipped') {
+      this.logger.warn('Smelter did not index resource', {
+        resourceId: rid,
+        reason: fetched.reason,
+        contentType: fetched.contentType,
+        contentChecksum: fetched.checksum,
+      });
+      // A decline is a decision: converge the store too. An eligible resource
+      // whose current bytes yield no text must not keep vectors from earlier
+      // bytes (S11).
+      await this.vectorStore.deleteResourceVectors(makeResourceId(rid));
+      await this.emitSettled(rid, fetched.checksum, 'skipped', fetched.reason);
+      this.reconcileOutcomes?.set(rid, { kind: 'skipped', reason: fetched.reason });
+    } else {
+      // Transient (A2): no settle, no store change. Settling 'skipped' would
+      // tell a barrier waiter the map will never exist, which is false — it
+      // degrades to its bounded timeout instead, and a retry finds the store.
+      this.logger.warn('Smelter could not read resource content', { resourceId: rid, error: errField(fetched.error) });
+      this.reconcileOutcomes?.set(rid, { kind: 'unavailable' });
+    }
+    return { kind: 'concluded', [CONCLUDED]: true };
   }
 
   private async handleResourceArchived(event: SmelterInput): Promise<void> {
@@ -709,32 +827,17 @@ export class Smelter {
    * embedBatch() call, then index per resource.
    */
   private async batchResourceCreated(events: SmelterInput[]): Promise<number> {
-    const resourceData: { rid: ResourceId; chunks: string[]; checksum: string; entityTypes: string[]; machineRead: boolean }[] = [];
+    const ready: Extract<EmbedPrep, { kind: 'ready' }>[] = [];
     const allChunks: string[] = [];
 
     for (const event of events) {
       const rid = event.resourceId;
-      if (!rid) continue;
+      if (!rid) continue;   // group B — see embedResource
 
-      const fetched = await this.fetchEmbeddableText(rid);
-      if (fetched.kind === 'unavailable') continue;
-      if (fetched.kind === 'skipped') {
-        // Decline = decision: converge the store (S11) — see embedResource.
-        await this.vectorStore.deleteResourceVectors(makeResourceId(rid));
-        await this.emitSettled(rid, fetched.checksum, 'skipped', fetched.reason);
-        continue;
-      }
-
-      const chunks = chunkText(fetched.text, this.chunkingConfig);
-      if (chunks.length === 0) {
-        await this.vectorStore.deleteResourceVectors(makeResourceId(rid));
-        await this.emitSettled(rid, fetched.checksum, 'skipped', 'empty');
-        continue;
-      }
-
-      const entityTypes = await this.resolveEntityTypes(rid);
-      resourceData.push({ rid: makeResourceId(rid), chunks, checksum: fetched.checksum, entityTypes, machineRead: fetched.machineRead });
-      allChunks.push(...chunks);
+      const prep = await this.prepareEmbed(rid);
+      if (prep.kind === 'concluded') continue;
+      ready.push(prep);
+      allChunks.push(...prep.chunks);
     }
 
     if (allChunks.length === 0) return events.length;
@@ -742,12 +845,13 @@ export class Smelter {
     const allEmbeddings = await this.embeddingProvider.embedBatch(allChunks);
 
     let offset = 0;
-    for (const { rid, chunks, checksum, entityTypes, machineRead } of resourceData) {
+    for (const { rid, chunks, checksum, entityTypes, machineRead } of ready) {
       const embeddingChunks: EmbeddingChunk[] = chunks.map((t, i) => ({
         chunkIndex: i, text: t, embedding: allEmbeddings[offset + i],
       }));
       await this.vectorStore.upsertResourceVectors(rid, embeddingChunks, checksum, entityTypes, machineRead);
       await this.emitSettled(String(rid), checksum, 'indexed');
+      this.reconcileOutcomes?.set(String(rid), { kind: 'indexed' });
       this.logger.info('Batch-indexed resource', { resourceId: String(rid), chunks: chunks.length });
       offset += chunks.length;
     }
@@ -832,6 +936,8 @@ export class Smelter {
       throw new Error('Smelter.reconcile() requires initialize() — work items drain through the pipeline');
     }
     this._reconcileState = { phase: 'running' };
+    const outcomes = new Map<string, EmbedOutcome>();
+    this.reconcileOutcomes = outcomes;
     try {
       const [indexedResources, indexedAnnotations, anchoredKeys] = await Promise.all([
         this.vectorStore.listResourceStamps(),
@@ -921,8 +1027,15 @@ export class Smelter {
 
       await this.drain(work);
 
+      const embeds = tallyEmbedOutcomes(
+        work.filter((w) => w.type === 'smelt:embed').map((w) => w.resourceId),
+        outcomes,
+      );
       const summary: ReconcileSummary = {
-        resourcesEmbedded: work.filter((w) => w.type === 'smelt:embed').length,
+        resourcesEmbedded: embeds.embedded,
+        resourcesSkipped: embeds.skipped,
+        resourcesUnavailable: embeds.unavailable,
+        resourcesFailed: embeds.failed,
         resourcesRestamped: work.filter((w) => w.type === 'smelt:restamp').length,
         resourcesReanchored: work.filter((w) => w.type === 'smelt:reanchor').length,
         resourceVectorsDeleted: work.filter((w) => w.type === 'smelt:purge').length,
@@ -941,6 +1054,9 @@ export class Smelter {
       };
       this.logger.error('Reconcile failed', { error: errField(error) });
       throw error;
+    } finally {
+      // Only if still ours: never clear a map a later reconcile installed.
+      if (this.reconcileOutcomes === outcomes) this.reconcileOutcomes = null;
     }
   }
 
