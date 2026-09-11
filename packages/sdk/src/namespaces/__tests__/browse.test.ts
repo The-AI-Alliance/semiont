@@ -395,10 +395,17 @@ describe('BrowseNamespace', () => {
       expect((list![0].body as any[])[0]).toMatchObject({ source: 'res-target' });
     });
 
-    it('mark:body-updated without annotation → no-op', async () => {
+    it('mark:body-updated without annotation → invalidates list + events (never keeps the stale body)', async () => {
       await firstDefined(browse.annotations(RID));
-      eventBus.get('mark:body-updated').next(stored({ resourceId: RID, payload: { annotationId: AID } }) as any);
       expect(emitSpy).toHaveBeenCalledTimes(1);
+      // Unenriched: the view no longer held the annotation when the EventStore
+      // enriched the event, so there is nothing to write through. This used to
+      // be a no-op, which left the old body on screen; B13c in
+      // cache-semantics.test.ts is the contract clause.
+      eventBus.get('mark:body-updated').next(stored({ resourceId: RID, payload: { annotationId: AID } }));
+      await firstDefined(browse.annotations(RID));
+      // annotations refetch + events refetch = 2 additional emits
+      expect(emitSpy).toHaveBeenCalledTimes(3);
     });
 
     it('mark:entity-tag-added → invalidates annotation list + resource detail', async () => {
