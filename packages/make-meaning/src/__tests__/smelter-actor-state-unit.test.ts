@@ -1,57 +1,23 @@
 /**
  * createSmelterActorStateUnit — unit tests.
  *
- * The state unit takes a shared bus and attaches smelter-channel fan-in.
- * We fake the bus with a minimal object that satisfies the WorkerBus shape
- * and drive events through RxJS subjects. No HTTP or SSE involved.
+ * The state unit takes a shared bus and attaches smelter-channel fan-in. The
+ * bus is the harness fake, whose `push` is typed per channel — so these tests
+ * can only put on the bus what the bus actually carries. No HTTP or SSE.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BehaviorSubject, Subject, firstValueFrom } from 'rxjs';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { firstValueFrom } from 'rxjs';
 import { take, toArray } from 'rxjs/operators';
 import { createSmelterActorStateUnit, type SmelterEvent } from '../smelter-actor-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
-import type { WorkerBus } from '@semiont/sdk';
-import type { ConnectionState } from '@semiont/core';
-
-function fakeBus() {
-  const channels = new Set<string>();
-  const streams = new Map<string, Subject<any>>();
-
-  const getStream = (channel: string): Subject<any> => {
-    let s = streams.get(channel);
-    if (!s) {
-      s = new Subject();
-      streams.set(channel, s);
-    }
-    return s;
-  };
-
-  const bus: WorkerBus = {
-    addChannels: vi.fn((cs: readonly string[]) => {
-      cs.forEach((c) => channels.add(c));
-    }),
-    on$: vi.fn((channel: string) => getStream(channel).asObservable()),
-    // In-process fixture: replies are pushed synchronously onto the streams
-    // above, so 'open' is the truth, not a stub (BUS-ATTACH-GATE.md).
-    state$: new BehaviorSubject<ConnectionState>('open'),
-    // Required by the WorkerBus shape; the smelter state unit is a silent
-    // sink (SMELTER-AXIOMS.md, D3) and never calls it.
-    emit: vi.fn(async () => -1),
-  };
-
-  return {
-    bus,
-    channels,
-    pushEvent: (channel: string, payload: any) => getStream(channel).next(payload),
-  };
-}
+import { createFakeWorkerBus, yieldCreated, annotationEvent } from './helpers/smelter-harness';
 
 describe('createSmelterActorStateUnit', () => {
-  let h: ReturnType<typeof fakeBus>;
+  let h: ReturnType<typeof createFakeWorkerBus>;
 
   beforeEach(() => {
-    h = fakeBus();
+    h = createFakeWorkerBus();
   });
 
   it('extends the shared bus with all 9 smelter channels on start', () => {
@@ -71,30 +37,35 @@ describe('createSmelterActorStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('events$ merges all channels into typed SmelterEvents', async () => {
+  it('passes each StoredEvent through verbatim — never re-wrapped', async () => {
     const stateUnit = createSmelterActorStateUnit({ bus: h.bus });
     stateUnit.start();
 
     const collected = firstValueFrom(stateUnit.events$.pipe(take(2), toArray()));
 
-    h.pushEvent('yield:created', { resourceId: 'r-1', storageUri: '/a/b' });
-    h.pushEvent('mark:added', { resourceId: 'r-1', annotation: { id: 'a-1' } });
+    const created = yieldCreated('r-1');
+    const added = annotationEvent('r-1', 'a-1', 'quoted');
+    h.push('yield:created', created);
+    h.push('mark:added', added);
 
-    const events = await collected;
-    expect(events).toHaveLength(2);
-    expect(events[0]!.type).toBe('yield:created');
-    expect(events[0]!.resourceId).toBe('r-1');
-    expect(events[1]!.type).toBe('mark:added');
+    const [first, second] = await collected;
+    // The same object — not a copy, not an envelope around it. A fan-in that
+    // re-nested the message under its own `payload` once made handlers read
+    // `event.payload.annotationId` one level too shallow, silently.
+    expect(first).toBe(created);
+    expect(second).toBe(added);
 
     stateUnit.dispose();
   });
 
   it('an event with no resource cannot be constructed', () => {
-    // @ts-expect-error — resourceId is required. Every channel the Smelter hears
-    // is resource-scoped on the wire (none is a SystemEventType), so "no resource"
-    // is not a state an event can be in — and nine guards once defended it.
-    const noResource: SmelterEvent = { type: 'yield:created', payload: {} };
-    expect(noResource).toBeDefined();
+    // A real event minus exactly one field, so the directive below holds on
+    // `resourceId` alone: every channel the Smelter hears is a resource event
+    // on the wire (none is a SystemEventType).
+    const { resourceId: _dropped, ...noResource } = yieldCreated('r-1');
+    // @ts-expect-error — resourceId is required
+    const event: SmelterEvent = noResource;
+    expect(event).toBeDefined();
   });
 
   it('start() is idempotent', () => {
@@ -111,7 +82,7 @@ describe('SmelterActorStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
     // No owned surfaces: `events$` is derived from the injected bus's `on$`.
     assertStateUnitAxioms({
-      setup: () => createSmelterActorStateUnit({ bus: fakeBus().bus }),
+      setup: () => createSmelterActorStateUnit({ bus: createFakeWorkerBus().bus }),
       invocations: (u) => [() => u.start()],
     });
   });

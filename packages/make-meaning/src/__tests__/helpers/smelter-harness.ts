@@ -15,14 +15,15 @@
 
 import { vi } from 'vitest';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
-import type { ExtractionOutcome, ConnectionState, Logger, EventMap, IContentTransport, components } from '@semiont/core';
+import type { Annotation, ExtractionOutcome, ConnectionState, Logger, EventMap, IContentTransport, components } from '@semiont/core';
+import { annotationId as makeAnnotationId, resourceId as makeResourceId, userId as makeUserId } from '@semiont/core';
 import type { AnchoredTextStore } from '@semiont/content';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { BusRequestPrimitive } from '@semiont/core';
-import type { SmelterEvent } from '../../smelter-actor-state-unit';
+import type { WorkerBus } from '@semiont/sdk';
+import type { SmelterChannel } from '../../smelter-actor-state-unit';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-type Annotation = components['schemas']['Annotation'];
 
 export const mockLogger: Logger = {
   debug: vi.fn(),
@@ -53,7 +54,7 @@ export function makeAnnotation(resourceId: string, annotationId: string, exact: 
   return {
     '@context': 'http://www.w3.org/ns/anno.jsonld',
     type: 'Annotation',
-    id: annotationId,
+    id: makeAnnotationId(annotationId),
     motivation: 'highlighting',
     target: {
       source: resourceId,
@@ -66,14 +67,114 @@ export function makeAnnotation(resourceId: string, annotationId: string, exact: 
   };
 }
 
-export function annotationEvent(resourceId: string, annotationId: string, exact: string): SmelterEvent {
+// ── Domain events, exactly as the bus delivers them ──────────────────────────
+//
+// A full `StoredEvent`: the envelope below, with the body under `.payload`.
+// Each builder is typed against its own `EventMap` entry, so a fixture cannot
+// drift from the wire. The flat `{ type, resourceId, payload }` literals these
+// replace hid a live bug: no type held them to the real shape, and the Smelter
+// read `mark:removed` one level too shallow for as long as they stood.
+
+let sequence = 0;
+
+function envelope(resourceId: string) {
+  sequence += 1;
   return {
+    id: `evt-${sequence}`,
+    timestamp: new Date(0).toISOString(),
+    resourceId: makeResourceId(resourceId),
+    userId: makeUserId('did:web:test.example:users:harness'),
+    version: 1,
+    metadata: { sequenceNumber: sequence },
+  };
+}
+
+export const yieldCreated = (resourceId: string): EventMap['yield:created'] => ({
+  ...envelope(resourceId),
+  type: 'yield:created',
+  payload: { name: resourceId, format: 'text/plain', contentChecksum: 'harness' },
+});
+
+export const yieldUpdated = (resourceId: string): EventMap['yield:updated'] => ({
+  ...envelope(resourceId),
+  type: 'yield:updated',
+  payload: { contentChecksum: 'harness' },
+});
+
+export const yieldRepresentationAdded = (resourceId: string): EventMap['yield:representation-added'] => ({
+  ...envelope(resourceId),
+  type: 'yield:representation-added',
+  payload: { representation: { mediaType: 'text/plain' } },
+});
+
+export const markArchived = (resourceId: string): EventMap['mark:archived'] => ({
+  ...envelope(resourceId),
+  type: 'mark:archived',
+  payload: {},
+});
+
+export const markUnarchived = (resourceId: string): EventMap['mark:unarchived'] => ({
+  ...envelope(resourceId),
+  type: 'mark:unarchived',
+  payload: {},
+});
+
+export function annotationEvent(resourceId: string, annotationId: string, exact: string): EventMap['mark:added'] {
+  return {
+    ...envelope(resourceId),
     type: 'mark:added',
-    resourceId,
-    payload: {
-      resourceId,
-      annotation: makeAnnotation(resourceId, annotationId, exact),
-    },
+    payload: { annotation: makeAnnotation(resourceId, annotationId, exact) },
+  };
+}
+
+export const markRemoved = (resourceId: string, annotationId: string): EventMap['mark:removed'] => ({
+  ...envelope(resourceId),
+  type: 'mark:removed',
+  payload: { annotationId: makeAnnotationId(annotationId) },
+});
+
+export const markEntityTagAdded = (resourceId: string, entityType: string): EventMap['mark:entity-tag-added'] => ({
+  ...envelope(resourceId),
+  type: 'mark:entity-tag-added',
+  payload: { entityType },
+});
+
+export const markEntityTagRemoved = (resourceId: string, entityType: string): EventMap['mark:entity-tag-removed'] => ({
+  ...envelope(resourceId),
+  type: 'mark:entity-tag-removed',
+  payload: { entityType },
+});
+
+/**
+ * A `WorkerBus` whose domain channels are fed by `push` — typed per channel,
+ * so a test can only put on the bus what the bus actually carries.
+ */
+export function createFakeWorkerBus() {
+  const streams = new Map<string, Subject<unknown>>();
+  const channels = new Set<string>();
+  const stream = (channel: string): Subject<unknown> => {
+    let s = streams.get(channel);
+    if (!s) {
+      s = new Subject<unknown>();
+      streams.set(channel, s);
+    }
+    return s;
+  };
+  const bus: WorkerBus = {
+    addChannels: vi.fn((cs: readonly string[]) => {
+      cs.forEach((c) => channels.add(c));
+    }),
+    // The one unavoidable cast: `WorkerBus.on$<T>(channel: string)` takes a
+    // free `T` it cannot derive from the channel, so no implementation can
+    // produce one without asserting it. Typing `on$` by channel removes it.
+    on$: <T,>(channel: string) => stream(channel).asObservable() as Observable<T>,
+    state$: new BehaviorSubject<ConnectionState>('open'),
+    emit: vi.fn(async () => -1),
+  };
+  return {
+    bus,
+    channels,
+    push: <K extends SmelterChannel>(channel: K, event: EventMap[K]) => stream(channel).next(event),
   };
 }
 

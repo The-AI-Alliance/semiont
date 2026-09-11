@@ -27,7 +27,8 @@ import {
   createMockEmbeddingProvider,
   createContentTransport,
   createFakeKsBus,
-  resourceDescriptor } from './helpers/smelter-harness';
+  resourceDescriptor,
+  yieldCreated } from './helpers/smelter-harness';
 
 const mockLogger: Logger = {
   debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
@@ -111,7 +112,7 @@ describe('Smelter publishes derived anchored text', () => {
       'application/pdf',
     );
 
-    events$.next({ type: 'smelt:embed', resourceId: RID, payload: {} });
+    events$.next(yieldCreated(RID));
     await settle();
 
     expect(put).toHaveBeenCalledTimes(1);
@@ -137,7 +138,7 @@ describe('Smelter publishes derived anchored text', () => {
       storeRecording(put),
     );
 
-    events$.next({ type: 'smelt:embed', resourceId: RID, payload: {} });
+    events$.next(yieldCreated(RID));
     await settle();
 
     expect(put).not.toHaveBeenCalled();
@@ -156,7 +157,7 @@ describe('Smelter publishes derived anchored text', () => {
       storeRecording(vi.fn(), true),
     );
 
-    events$.next({ type: 'smelt:embed', resourceId: RID, payload: {} });
+    events$.next(yieldCreated(RID));
     await settle();
 
     expect(vi.mocked(mockLogger.error)).not.toHaveBeenCalled();

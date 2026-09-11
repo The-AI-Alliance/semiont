@@ -48,6 +48,7 @@ import type { ChunkingConfig } from '@semiont/core';
 import { chunkText } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import { busRequest, type BusRequestPrimitive } from '@semiont/core';
+import { getEntityTypes } from '@semiont/ontology';
 import { partitionByType } from './batch-utils';
 import { browseAllResources, type RESOURCES_CHANNEL } from './browse-resources';
 import type { SmelterEvent } from './smelter-actor-state-unit';
@@ -121,14 +122,23 @@ export interface SmelterTiming {
 /**
  * Reconcile-planner work items — enqueued through the same mailbox as wire
  * events. Distinct `smelt:*` types make forged domain events unrepresentable
- * (`.plans/SMELTER-AXIOMS.md`, D1); the shared shape lets the per-resource
- * lanes and batch paths serve both kinds of input.
+ * (`.plans/SMELTER-AXIOMS.md`, D1). The two annotation items carry the body
+ * TYPE of the domain event they stand in for, so one handler reading
+ * `event.payload.annotation` or `.annotationId` is correct for the live event
+ * and the planned item alike — the two cannot diverge in shape.
  */
-export interface SmelterWorkItem {
-  type: 'smelt:embed' | 'smelt:restamp' | 'smelt:reanchor' | 'smelt:purge' | 'smelt:embed-annotation' | 'smelt:purge-annotation';
-  resourceId: string;
-  payload: Record<string, unknown>;
-}
+export type SmelterWorkItem =
+  | { type: 'smelt:embed' | 'smelt:restamp' | 'smelt:reanchor' | 'smelt:purge'; resourceId: string; payload: Record<string, never> }
+  | { type: 'smelt:embed-annotation'; resourceId: string; payload: EventMap['mark:added']['payload'] }
+  | { type: 'smelt:purge-annotation'; resourceId: string; payload: EventMap['mark:removed']['payload'] };
+
+/** An annotation to index — live, or planned by reconcile. */
+type AnnotationAdd = EventMap['mark:added'] | Extract<SmelterWorkItem, { type: 'smelt:embed-annotation' }>;
+/** An annotation vector to delete — live, or planned by reconcile. */
+type AnnotationRemove = EventMap['mark:removed'] | Extract<SmelterWorkItem, { type: 'smelt:purge-annotation' }>;
+
+const isAnnotationAdd = (input: SmelterInput): input is AnnotationAdd =>
+  input.type === 'mark:added' || input.type === 'smelt:embed-annotation';
 
 /** Set equality over tag lists — order-insensitive, duplicate-tolerant. */
 function sameStringSet(a: string[], b: string[]): boolean {
@@ -398,7 +408,8 @@ export class Smelter {
         return this.batchResourceCreated(events);
       case 'mark:added':
       case 'smelt:embed-annotation':
-        return this.batchAnnotationAdded(events);
+        // A run is one type (partitionByType), so the guard keeps every item.
+        return this.batchAnnotationAdded(events.filter(isAnnotationAdd));
       default: {
         let processed = 0;
         for (const event of events) {
@@ -764,23 +775,16 @@ export class Smelter {
     }
   }
 
-  private async handleAnnotationAdded(event: SmelterInput): Promise<void> {
-    const annotation = event.payload.annotation as Annotation | undefined;
-    if (!annotation?.id) return;
-
-    const rid = event.resourceId;
-
-    await this.indexAnnotation(rid, annotation);
+  private async handleAnnotationAdded(event: AnnotationAdd): Promise<void> {
+    await this.indexAnnotation(event.resourceId, event.payload.annotation);
   }
 
   private async indexAnnotation(rid: string, annotation: Annotation): Promise<void> {
-    if (!annotation.id) return;
-
     const selector = getTargetSelector(annotation.target);
     const exactText = getExactText(selector);
     if (!exactText?.trim()) return;
 
-    const aid = makeAnnotationId(annotation.id);
+    const aid = annotation.id;
     const embedding = await this.embeddingProvider.embed(exactText);
 
     // An annotation quotes its resource's text, so it inherits that text's
@@ -793,8 +797,8 @@ export class Smelter {
     const payload: AnnotationPayload = {
       annotationId: aid,
       resourceId: makeResourceId(rid),
-      motivation: annotation.motivation ?? '',
-      entityTypes: ((annotation as Record<string, unknown>).entityTypes as string[] | undefined) ?? [],
+      motivation: annotation.motivation,
+      entityTypes: getEntityTypes(annotation),
       exactText,
       ...(stamp?.machineRead ? { machineRead: true } : {}),
     };
@@ -802,12 +806,10 @@ export class Smelter {
     this.logger.info('Indexed annotation', { annotationId: String(aid) });
   }
 
-  private async handleAnnotationRemoved(event: SmelterInput): Promise<void> {
-    const annotationId = event.payload.annotationId as string | undefined;
-    if (!annotationId) return;
-    const aid = makeAnnotationId(annotationId);
+  private async handleAnnotationRemoved(event: AnnotationRemove): Promise<void> {
+    const aid = event.payload.annotationId;
     await this.vectorStore.deleteAnnotationVector(aid);
-    this.logger.info('Deleted annotation vector', { annotationId });
+    this.logger.info('Deleted annotation vector', { annotationId: aid });
   }
 
   /**
@@ -850,7 +852,7 @@ export class Smelter {
    * Batch-embed exact texts from multiple mark:added events in a single
    * embedBatch() call, then index per annotation.
    */
-  private async batchAnnotationAdded(events: SmelterInput[]): Promise<number> {
+  private async batchAnnotationAdded(events: AnnotationAdd[]): Promise<number> {
     const annotationData: {
       rid: ResourceId;
       aid: AnnotationId;
@@ -860,21 +862,17 @@ export class Smelter {
     }[] = [];
 
     for (const event of events) {
-      const annotation = event.payload.annotation as Annotation | undefined;
-      if (!annotation?.id) continue;
-
-      const rid = event.resourceId;
-
+      const annotation = event.payload.annotation;
       const selector = getTargetSelector(annotation.target);
       const exactText = getExactText(selector);
       if (!exactText?.trim()) continue;
 
       annotationData.push({
-        rid: makeResourceId(rid),
-        aid: makeAnnotationId(annotation.id),
+        rid: makeResourceId(event.resourceId),
+        aid: annotation.id,
         exactText,
-        motivation: annotation.motivation ?? '',
-        entityTypes: ((annotation as Record<string, unknown>).entityTypes as string[] | undefined) ?? [],
+        motivation: annotation.motivation,
+        entityTypes: getEntityTypes(annotation),
       });
     }
 
@@ -1007,7 +1005,7 @@ export class Smelter {
         if (!liveAnnotationIds.has(aid)) {
           // An orphan's anchor is unknown — the annotation no longer exists
           // in the catalog — so the orphan's own id keys its lane.
-          work.push({ type: 'smelt:purge-annotation', resourceId: aid, payload: { annotationId: aid } });
+          work.push({ type: 'smelt:purge-annotation', resourceId: aid, payload: { annotationId: makeAnnotationId(aid) } });
         }
       }
 

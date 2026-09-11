@@ -14,18 +14,8 @@
  */
 
 import { Observable, merge } from 'rxjs';
-import { map } from 'rxjs/operators';
 import type { WorkerBus } from '@semiont/sdk';
 import type { EventMap, StateUnit } from '@semiont/core';
-
-export interface SmelterEvent {
-  type: string;
-  /** Required, because every channel below is a resource event on the wire —
-   *  none is a `SystemEventType`. The actor reads it from the typed channel, so
-   *  a smelter channel without one would fail to compile there. */
-  resourceId: string;
-  payload: Record<string, unknown>;
-}
 
 export interface SmelterActorStateUnitOptions {
   bus: WorkerBus;
@@ -43,7 +33,17 @@ const SMELTER_CHANNELS = [
   'mark:entity-tag-removed',
 ] as const;
 
-type SmelterChannel = (typeof SMELTER_CHANNELS)[number];
+export type SmelterChannel = (typeof SMELTER_CHANNELS)[number];
+
+/**
+ * A domain event exactly as the bus delivers it — a full `StoredEvent`, body
+ * under `.payload` — passed through verbatim, as the Weaver's fan-in does.
+ * Derived from `EventMap`, never re-shaped: an envelope that re-nests the
+ * message under its own `payload` field is how a handler once read
+ * `event.payload.annotationId` one level too shallow with nothing to object.
+ * Every channel above is a resource event, so `resourceId` is required here.
+ */
+export type SmelterEvent = EventMap[SmelterChannel];
 
 // Commands ride their own stream, never the event mailbox (the
 // weave:rebuild idiom): a command handler plans work items and AWAITS
@@ -63,21 +63,7 @@ export function createSmelterActorStateUnit(options: SmelterActorStateUnitOption
   let started = false;
 
   const events$ = merge(
-    ...SMELTER_CHANNELS.map((channel) =>
-      // `resourceId` is derived from the wire. Every event carries one on
-      // `EventBase`, but only resource events REQUIRE it: a system channel added
-      // here widens it to `| undefined`, which the required `resourceId` on
-      // `SmelterEvent` rejects — so this list cannot drift onto one silently.
-      // `payload` keeps its untyped view on purpose — its real shape is an open
-      // question (smelter-skip-and-fail-decisions-are-invisible).
-      bus.on$<Pick<EventMap[SmelterChannel], 'resourceId'> & Record<string, unknown>>(channel).pipe(
-        map((event): SmelterEvent => ({
-          type: channel,
-          resourceId: event.resourceId,
-          payload: event,
-        })),
-      ),
-    ),
+    ...SMELTER_CHANNELS.map((channel) => bus.on$<SmelterEvent>(channel)),
   );
 
   const rebuildAnchors$ = bus.on$<EventMap['smelt:rebuild-anchors']>('smelt:rebuild-anchors');

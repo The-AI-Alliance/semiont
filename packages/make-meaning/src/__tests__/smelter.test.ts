@@ -19,7 +19,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { BehaviorSubject, EMPTY, Observable, Subject } from 'rxjs';
 import type { ExtractionOutcome, EventMap, components } from '@semiont/core';
-import { resourceId as makeResourceId, chunkText } from '@semiont/core';
+import { resourceId as makeResourceId, annotationId as makeAnnotationId, chunkText } from '@semiont/core';
 import { calculateChecksum, extractPdfTextLayer } from '@semiont/content';
 
 /** The real deriving extractor with `extract` spied — one instance, so a
@@ -43,7 +43,7 @@ import { MemoryVectorStore } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { BusRequestPrimitive, ConnectionState } from '@semiont/core';
 import { Smelter } from '../smelter';
-import type { SmelterEvent } from '../smelter-actor-state-unit';
+import { createSmelterActorStateUnit, type SmelterEvent } from '../smelter-actor-state-unit';
 import {
   mockLogger,
   deterministicEmbed,
@@ -53,7 +53,9 @@ import {
   resourceDescriptor,
   createMockContentTransport,
   createContentTransport,
-  createFakeKsBus, memoryAnchoredStore } from './helpers/smelter-harness';
+  createFakeKsBus, memoryAnchoredStore,
+  createFakeWorkerBus, markRemoved,
+  yieldCreated, yieldUpdated, yieldRepresentationAdded, markArchived, markUnarchived, markEntityTagAdded, markEntityTagRemoved } from './helpers/smelter-harness';
 import { NATIVE_PDF, SCANNED_PDF, TABLE_PDF } from './helpers/pdf-fixtures';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -100,7 +102,7 @@ describe('Smelter', () => {
   it('indexes resource vectors on yield:created', async () => {
     contentByResourceId.set('res-fox', 'The quick brown fox jumps over the lazy dog.');
 
-    events$.next({ type: 'yield:created', resourceId: 'res-fox', payload: {} });
+    events$.next(yieldCreated('res-fox'));
     await tick();
 
     expect(embeddingProvider.embedBatch).toHaveBeenCalled();
@@ -111,7 +113,7 @@ describe('Smelter', () => {
   });
 
   it('skips resources whose content cannot be fetched', async () => {
-    events$.next({ type: 'yield:created', resourceId: 'res-missing', payload: {} });
+    events$.next(yieldCreated('res-missing'));
     await tick();
 
     expect(embeddingProvider.embedBatch).not.toHaveBeenCalled();
@@ -119,13 +121,13 @@ describe('Smelter', () => {
 
   it('re-embeds resource when yield:updated fires', async () => {
     contentByResourceId.set('res-updated', 'Initial content for update test.');
-    events$.next({ type: 'yield:created', resourceId: 'res-updated', payload: {} });
+    events$.next(yieldCreated('res-updated'));
     await tick();
 
     const callsAfterCreate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
 
     contentByResourceId.set('res-updated', 'Replaced content after update event.');
-    events$.next({ type: 'yield:updated', resourceId: 'res-updated', payload: {} });
+    events$.next(yieldUpdated('res-updated'));
     await tick();
 
     const callsAfterUpdate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
@@ -137,12 +139,12 @@ describe('Smelter', () => {
 
   it('re-embeds resource when yield:representation-added fires', async () => {
     contentByResourceId.set('res-repr', 'Resource with a new representation.');
-    events$.next({ type: 'yield:created', resourceId: 'res-repr', payload: {} });
+    events$.next(yieldCreated('res-repr'));
     await tick();
 
     const callsAfterCreate = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
 
-    events$.next({ type: 'yield:representation-added', resourceId: 'res-repr', payload: {} });
+    events$.next(yieldRepresentationAdded('res-repr'));
     await tick();
 
     const callsAfterRepr = (embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length;
@@ -161,14 +163,14 @@ describe('Smelter', () => {
 
   it('deletes resource vectors on mark:archived', async () => {
     contentByResourceId.set('res-archive', 'Content to be archived.');
-    events$.next({ type: 'yield:created', resourceId: 'res-archive', payload: {} });
+    events$.next(yieldCreated('res-archive'));
     await tick();
 
     const queryVec = deterministicEmbed('Content to be archived');
     let results = await vectorStore.searchResources(queryVec, { limit: 5 });
     expect(results.length).toBeGreaterThan(0);
 
-    events$.next({ type: 'mark:archived', resourceId: 'res-archive', payload: {} });
+    events$.next(markArchived('res-archive'));
     await tick();
 
     results = await vectorStore.searchResources(queryVec, { limit: 5 });
@@ -183,7 +185,7 @@ describe('Smelter', () => {
     let results = await vectorStore.searchAnnotations(queryVec, { limit: 5 });
     expect(results.length).toBeGreaterThan(0);
 
-    events$.next({ type: 'mark:removed', resourceId: 'res-1', payload: { annotationId: 'ann-removed' } });
+    events$.next(markRemoved('res-1', 'ann-removed'));
     await tick();
 
     results = await vectorStore.searchAnnotations(queryVec, { limit: 5 });
@@ -195,9 +197,9 @@ describe('Smelter', () => {
 
     // burstBuffer is leading-edge: the first event passes through solo, the
     // next two accumulate into one batch → one embedBatch call covering both.
-    events$.next({ type: 'yield:created', resourceId: 'res-burst', payload: {} });
-    events$.next({ type: 'yield:created', resourceId: 'res-burst', payload: {} });
-    events$.next({ type: 'yield:created', resourceId: 'res-burst', payload: {} });
+    events$.next(yieldCreated('res-burst'));
+    events$.next(yieldCreated('res-burst'));
+    events$.next(yieldCreated('res-burst'));
     await tick();
 
     expect(embeddingProvider.embedBatch).toHaveBeenCalledTimes(2);
@@ -208,7 +210,7 @@ describe('Smelter', () => {
   it('processes mixed-type bursts as ordered same-type runs', async () => {
     contentByResourceId.set('res-mixed', 'Mixed burst resource content.');
 
-    events$.next({ type: 'yield:created', resourceId: 'res-mixed', payload: {} });
+    events$.next(yieldCreated('res-mixed'));
     events$.next(annotationEvent('res-mixed', 'ann-mixed', 'mixed burst annotation'));
     await tick();
 
@@ -220,7 +222,7 @@ describe('Smelter', () => {
 
   it('counts processed events for the health endpoint', async () => {
     contentByResourceId.set('res-count', 'Counted content.');
-    events$.next({ type: 'yield:created', resourceId: 'res-count', payload: {} });
+    events$.next(yieldCreated('res-count'));
     await tick();
 
     expect(smelter.eventsProcessed).toBeGreaterThan(0);
@@ -259,20 +261,20 @@ describe('Smelter mark:unarchived', () => {
     );
     smelter.initialize();
     try {
-      events$.next({ type: 'yield:created', resourceId: 'res-cycle', payload: {} });
+      events$.next(yieldCreated('res-cycle'));
       events$.next(annotationEvent('res-cycle', 'ann-cycle', 'exact text that returns'));
       await tick();
       expect((await vectorStore.listResourceStamps()).has('res-cycle')).toBe(true);
       expect((await vectorStore.listAnnotationIds()).has('ann-cycle')).toBe(true);
 
       // Archive deletes both — pins existing behavior.
-      events$.next({ type: 'mark:archived', resourceId: 'res-cycle', payload: {} });
+      events$.next(markArchived('res-cycle'));
       await tick();
       expect((await vectorStore.listResourceStamps()).has('res-cycle')).toBe(false);
       expect((await vectorStore.listAnnotationIds()).has('ann-cycle')).toBe(false);
 
       // Unarchive must bring both back without waiting for a restart.
-      events$.next({ type: 'mark:unarchived', resourceId: 'res-cycle', payload: {} });
+      events$.next(markUnarchived('res-cycle'));
       await tick();
       expect((await vectorStore.listResourceStamps()).has('res-cycle')).toBe(true);
       expect((await vectorStore.listAnnotationIds()).has('ann-cycle')).toBe(true);
@@ -317,7 +319,7 @@ describe('Smelter smelt:settled signal', () => {
     const text = 'Content whose settlement is announced.';
     const h = await harness(new Map([['res-sig', text]]));
     try {
-      h.events$.next({ type: 'yield:created', resourceId: 'res-sig', payload: {} });
+      h.events$.next(yieldCreated('res-sig'));
       await tick();
       expect(settledSignals(h.bus)).toEqual([
         { resourceId: 'res-sig', contentChecksum: calculateChecksum(text), outcome: 'indexed' },
@@ -331,7 +333,7 @@ describe('Smelter smelt:settled signal', () => {
     const bytes = 'not really a zip, but gated by media type';
     const h = await harness(new Map([['res-zip', bytes]]), 'application/zip');
     try {
-      h.events$.next({ type: 'yield:created', resourceId: 'res-zip', payload: {} });
+      h.events$.next(yieldCreated('res-zip'));
       await tick();
       expect(settledSignals(h.bus)).toEqual([
         { resourceId: 'res-zip', contentChecksum: calculateChecksum(bytes), outcome: 'skipped', reason: 'no-extractor' },
@@ -345,7 +347,7 @@ describe('Smelter smelt:settled signal', () => {
   it('never settles on transient failures — an error is not a decision', async () => {
     const h = await harness(new Map());
     try {
-      h.events$.next({ type: 'yield:created', resourceId: 'res-unreachable', payload: {} });
+      h.events$.next(yieldCreated('res-unreachable'));
       await tick();
       expect(settledSignals(h.bus)).toEqual([]);
     } finally {
@@ -362,7 +364,7 @@ describe('Smelter smelt:settled signal', () => {
     const bytes = '%PDF-1.7 pretend PDF bytes';
     const h = await harness(new Map([['res-pdf', bytes]]), 'application/pdf');
     try {
-      h.events$.next({ type: 'yield:created', resourceId: 'res-pdf', payload: {} });
+      h.events$.next(yieldCreated('res-pdf'));
       await tick();
       expect(settledSignals(h.bus)).toEqual([
         { resourceId: 'res-pdf', contentChecksum: calculateChecksum(bytes), outcome: 'skipped', reason: 'corrupt' },
@@ -377,7 +379,7 @@ describe('Smelter smelt:settled signal', () => {
     const blank = '   \n  \t ';
     const h = await harness(new Map([['res-blank', blank]]));
     try {
-      h.events$.next({ type: 'yield:created', resourceId: 'res-blank', payload: {} });
+      h.events$.next(yieldCreated('res-blank'));
       await tick();
       expect(settledSignals(h.bus)).toEqual([
         { resourceId: 'res-blank', contentChecksum: calculateChecksum(blank), outcome: 'skipped', reason: 'empty' },
@@ -396,7 +398,7 @@ describe('Smelter smelt:settled signal', () => {
     const text = '# Title\n\n' + 'A paragraph of body prose, repeated to force chunking. '.repeat(40);
     const h = await harness(new Map([['res-md', text]]), 'text/markdown');
     try {
-      h.events$.next({ type: 'yield:created', resourceId: 'res-md', payload: {} });
+      h.events$.next(yieldCreated('res-md'));
       await tick();
       const expectedChunks = chunkText(text, { chunkSize: 512, overlap: 64 });
       expect(expectedChunks.length).toBeGreaterThan(1);
@@ -443,7 +445,7 @@ describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
   it('class A: a native PDF embeds — chunks from the text layer, stamp from the raw bytes', async () => {
     const h = await pdfHarness({ 'res-native': NATIVE_PDF });
     try {
-      h.events$.next({ type: 'yield:created', resourceId: 'res-native', payload: {} });
+      h.events$.next(yieldCreated('res-native'));
       await tick();
       const layer = await extractPdfTextLayer(NATIVE_PDF);
       const expectedChunks = chunkText(layer!.text, { chunkSize: 512, overlap: 64 });
@@ -473,7 +475,7 @@ describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
       pdfClass: 'B',
     });
     try {
-      h.events$.next({ type: 'yield:created', resourceId: 'res-scan', payload: {} });
+      h.events$.next(yieldCreated('res-scan'));
       await tick();
       const [result] = await h.vectorStore.searchResources(deterministicEmbed('recovered from a scan'), { limit: 5 });
       expect(result!.resourceId).toBe('res-scan');
@@ -492,7 +494,7 @@ describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
       kind: 'extracted', text: 'recovered from a scan', items: [], method: 'ocr', pdfClass: 'B',
     });
     try {
-      h.events$.next({ type: 'yield:created', resourceId: 'res-scan', payload: {} });
+      h.events$.next(yieldCreated('res-scan'));
       await tick();
       h.events$.next(annotationEvent('res-scan', 'ann-scan', 'recovered from a scan'));
       await tick();
@@ -508,7 +510,7 @@ describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
   it('leaves the stamp off a PDF read directly from its text layer', async () => {
     const h = await pdfHarness({ 'res-native': NATIVE_PDF });
     try {
-      h.events$.next({ type: 'yield:created', resourceId: 'res-native', payload: {} });
+      h.events$.next(yieldCreated('res-native'));
       await tick();
       const results = await h.vectorStore.searchResources(deterministicEmbed('anything'), { limit: 5 });
       expect(results.length).toBeGreaterThan(0);
@@ -523,7 +525,7 @@ describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
     // together — the whole point of shaping before the shared chunker.
     const h = await pdfHarness({ 'res-table': TABLE_PDF });
     try {
-      h.events$.next({ type: 'yield:created', resourceId: 'res-table', payload: {} });
+      h.events$.next(yieldCreated('res-table'));
       await tick();
       expect(h.embeddingProvider.embedBatch).toHaveBeenCalledTimes(1);
       const chunks = vi.mocked(h.embeddingProvider.embedBatch).mock.calls[0]![0];
@@ -538,7 +540,7 @@ describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
   it("class B: a scanned PDF declines — skipped, reason 'no-text-layer', no vectors", async () => {
     const h = await pdfHarness({ 'res-scanned': SCANNED_PDF });
     try {
-      h.events$.next({ type: 'yield:created', resourceId: 'res-scanned', payload: {} });
+      h.events$.next(yieldCreated('res-scanned'));
       await tick();
       expect(settled(h.bus)).toEqual([
         { resourceId: 'res-scanned', contentChecksum: calculateChecksum(Buffer.from(SCANNED_PDF)), outcome: 'skipped', reason: 'no-text-layer' },
@@ -577,7 +579,7 @@ describe('Smelter entity-tag stamps', () => {
     );
     smelter.initialize();
     try {
-      events$.next({ type: 'yield:created', resourceId: 'res-tags', payload: {} });
+      events$.next(yieldCreated('res-tags'));
       await tick();
       const queryVec = deterministicEmbed(text);
       expect((await vectorStore.searchResources(queryVec, { limit: 5 })).length).toBeGreaterThan(0);
@@ -585,7 +587,7 @@ describe('Smelter entity-tag stamps', () => {
 
       // The catalog moves on: the resource is tagged Question…
       descriptor.entityTypes = ['Question'];
-      events$.next({ type: 'mark:entity-tag-added', resourceId: 'res-tags', payload: { entityType: 'Question' } });
+      events$.next(markEntityTagAdded('res-tags', 'Question'));
       await tick();
 
       // …and the stamp must follow: question-exclusion recall drops it,
@@ -595,7 +597,7 @@ describe('Smelter entity-tag stamps', () => {
 
       // Tag removed: the stamp follows back.
       descriptor.entityTypes = [];
-      events$.next({ type: 'mark:entity-tag-removed', resourceId: 'res-tags', payload: { entityType: 'Question' } });
+      events$.next(markEntityTagRemoved('res-tags', 'Question'));
       await tick();
       expect((await vectorStore.searchResources(queryVec, { limit: 5, filter: { excludeEntityTypes: ['Question'] } })).length).toBeGreaterThan(0);
       expect((embeddingProvider.embedBatch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(embedCallsAfterCreate);
@@ -934,7 +936,7 @@ describe('Smelter embed consults the artifact store before extracting (PERSIST-A
     );
     smelter.initialize();
     try {
-      events$.next({ type: 'yield:created', resourceId: 'res-cachehit', payload: {} });
+      events$.next(yieldCreated('res-cachehit'));
       await tick();
 
       expect(embeddingProvider.embedBatch).toHaveBeenCalledWith(
@@ -1115,7 +1117,7 @@ describe('Smelter decisions not to index are readable', () => {
 
   /** One solo event (`embedResource`), then two batched (`batchResourceCreated`). */
   const burst = (resourceId: string) => {
-    for (let i = 0; i < 3; i++) events$.next({ type: 'yield:created', resourceId, payload: {} });
+    for (let i = 0; i < 3; i++) events$.next(yieldCreated(resourceId));
   };
 
   it('a decline speaks at warn, with its reason and checksum — on BOTH embed paths', async () => {
@@ -1147,7 +1149,7 @@ describe('Smelter decisions not to index are readable', () => {
   it('the breadcrumb sits BESIDE the barrier, never instead of it', async () => {
     await start();
     contentByResourceId.set('res-skip-barrier', '   ');
-    events$.next({ type: 'yield:updated', resourceId: 'res-skip-barrier', payload: {} });
+    events$.next(yieldUpdated('res-skip-barrier'));
     await tick();
 
     expect(warnsFor('res-skip-barrier')).toHaveLength(1);
@@ -1172,5 +1174,73 @@ describe('Smelter decisions not to index are readable', () => {
     // timeout instead, and a retry finds the store.
     const settled = bus.emitted.filter((e) => e.channel === 'smelt:settled' && e.payload.resourceId === 'res-skip-gone');
     expect(settled).toHaveLength(0);
+  });
+});
+
+/**
+ * Live annotation events, driven through the REAL actor.
+ *
+ * Every other test here pushes events straight into the Smelter, which skips
+ * the one seam where this bug lived: the actor turning a bus message into what
+ * the Smelter reads. It wrapped the whole `StoredEvent` as its own `payload`,
+ * so handlers reading `event.payload.annotationId` reached one level too
+ * shallow. Removals were silent no-ops, and additions worked only because the
+ * Archivist's enricher also copies the annotation to the top level.
+ */
+describe('Smelter behind the real actor — live annotation events reach their handlers', () => {
+  let vectorStore: MemoryVectorStore;
+  let wire: ReturnType<typeof createFakeWorkerBus>;
+  let smelter: Smelter;
+
+  beforeEach(async () => {
+    vectorStore = new MemoryVectorStore();
+    await vectorStore.connect();
+    wire = createFakeWorkerBus();
+    const actor = createSmelterActorStateUnit({ bus: wire.bus });
+    actor.start();
+    smelter = new Smelter(
+      actor.events$,
+      EMPTY,
+      vectorStore,
+      createMockEmbeddingProvider(),
+      createMockContentTransport(new Map()),
+      memoryAnchoredStore(),
+      createFakeKsBus([]),
+      { chunkSize: 512, overlap: 64 },
+      { burstWindowMs: 50, maxBatchSize: 100, idleTimeoutMs: 200 },
+      mockLogger,
+    );
+    smelter.initialize();
+  });
+
+  afterEach(() => {
+    smelter.stop();
+  });
+
+  it('a live mark:added indexes the annotation from the event body, enriched or not', async () => {
+    // Deliberately unenriched: the Smelter must read the event's own body, not
+    // depend on the top-level copy an enricher may or may not have added.
+    wire.push('mark:added', annotationEvent('res-live', 'ann-live', 'the live annotation'));
+    await tick();
+
+    const hits = await vectorStore.searchAnnotations(deterministicEmbed('the live annotation'), { limit: 5 });
+    expect(hits.map((h) => h.annotationId)).toContain('ann-live');
+  });
+
+  it('a live mark:removed deletes the annotation vector', async () => {
+    const aid = makeAnnotationId('ann-gone');
+    await vectorStore.upsertAnnotationVector(aid, deterministicEmbed('a doomed annotation'), {
+      annotationId: aid,
+      resourceId: makeResourceId('res-live'),
+      motivation: 'highlighting',
+      entityTypes: [],
+      exactText: 'a doomed annotation',
+    });
+
+    wire.push('mark:removed', markRemoved('res-live', 'ann-gone'));
+    await tick();
+
+    const hits = await vectorStore.searchAnnotations(deterministicEmbed('a doomed annotation'), { limit: 5 });
+    expect(hits.map((h) => h.annotationId)).not.toContain('ann-gone');
   });
 });
