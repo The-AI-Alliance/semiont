@@ -305,9 +305,15 @@ describe('callChunkSubdividing', () => {
     expect(calls).toHaveLength(1);
   });
 
-  it('does NOT subdivide on failures size cannot fix — unreadable end_turn, plain errors', async () => {
+  it('does NOT subdivide on failures size cannot fix — plain errors', async () => {
+    // `end_turn` unreadable was in this list until 2026-09-11 and moved out
+    // deliberately: one killed a 26-minute attempt at chunk 25 of 49 after 24
+    // clean rounds on the same prompt, so the malformation was content-driven
+    // and subdivision is the one lever that can change it. It is depth-capped
+    // rather than size-floored so a systematic malformation still fails fast —
+    // see the `end_turn` describe below. A plain error stays here: nothing
+    // about it says size, so nothing about size can fix it.
     for (const boom of [
-      new StructuredReadError('parsed to object, not an array', 'end_turn'),
       new Error('model exploded'),
     ]) {
       const calls: string[] = [];
@@ -436,6 +442,68 @@ describe('callChunkSubdividing', () => {
       }, undefined, (v) => { reported.push(v); });
       expect(result.length).toBeGreaterThan(0);
       expect(reported).toEqual([]);
+    });
+  });
+
+  // An `end_turn` unreadable response killed a 26-minute attempt at chunk 25 of
+  // 49 — the model FINISHED and emitted unparseable JSON, which was neither
+  // truncation nor `unknown`, so it escalated straight to job death and
+  // discarded ~24 successful rounds. It belongs with the other unreadables:
+  // at DETECTION_TEMPERATURE = 0 a same-size re-roll provably returns the
+  // identical response, so changing the INPUT is the only remedy that can work.
+  describe("an 'end_turn' unreadable response subdivides instead of killing the job", () => {
+    it('descends and keeps the other pieces’ work', async () => {
+      const calls: string[] = [];
+      let first = true;
+      const result = await callChunkSubdividing('reference', CHUNK, CHUNKING, async (piece) => {
+        calls.push(piece);
+        if (first) { first = false; throw new StructuredReadError('response is not valid JSON', 'end_turn'); }
+        return { items: [piece.length] };
+      });
+      expect(calls[0]).toBe(CHUNK);
+      expect(calls.length).toBeGreaterThan(1);
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it('still escalates when every piece fails — a retry that never gives up is a worse bug', async () => {
+      const boom = new StructuredReadError('response is not valid JSON', 'end_turn');
+      await expect(
+        callChunkSubdividing('reference', CHUNK, CHUNKING, async () => { throw boom; }),
+      ).rejects.toBe(boom);
+    });
+
+    it('descends a BOUNDED number of times when the malformation is systematic', async () => {
+      // The cost half of the design: a model answering this prompt shape wrongly
+      // everywhere must not re-read the same content indefinitely. Measured at
+      // 3 — the original call plus MAX_SUBDIVISION_DEPTH levels.
+      //
+      // Honest about what this does NOT pin: on this fixture a size-floored
+      // descent also makes 3 calls, because the descent aborts at the first
+      // failing sub-piece rather than exploring siblings. So this asserts
+      // TERMINATION and its cost, not the depth-cap-versus-size-floor choice —
+      // which is made in the source for the case where they do diverge.
+      const calls: string[] = [];
+      await expect(
+        callChunkSubdividing('reference', CHUNK, CHUNKING, async (piece) => {
+          calls.push(piece);
+          throw new StructuredReadError('response is not valid JSON', 'end_turn');
+        }),
+      ).rejects.toThrow(/not valid JSON/);
+      expect(calls.length).toBe(3);
+    });
+
+    it('gets no floor re-roll — at temperature 0 the identical call returns the identical failure', async () => {
+      // Same rule the collapse verdict follows. Truncation keeps its one
+      // sanctioned re-roll; this must not acquire one.
+      const tiny = 'word '.repeat(20);
+      const calls: string[] = [];
+      await expect(
+        callChunkSubdividing('reference', tiny, { chunkSize: 1_000, overlap: 16 }, async (piece) => {
+          calls.push(piece);
+          throw new StructuredReadError('response is not valid JSON', 'end_turn');
+        }),
+      ).rejects.toThrow(/not valid JSON/);
+      expect(calls).toHaveLength(1);
     });
   });
 
