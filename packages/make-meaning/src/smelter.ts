@@ -38,7 +38,7 @@
 import { Observable, Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { burstBuffer, errField } from '@semiont/core';
-import type { Logger, Annotation, ResourceId, AnnotationId, ResourceDescriptor, EventMap } from '@semiont/core';
+import type { Logger, Annotation, ResourceId, ResourceDescriptor, EventMap } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes, textSourceOf, yieldsGeometryOf, decodeRepresentation } from '@semiont/core';
 import { calculateChecksum, derivingExtractorFor, type AnchoredTextStore, type ContentReads, type ExtractedText, type ExtractionDecline } from '@semiont/content';
@@ -797,24 +797,38 @@ export class Smelter {
 
     const aid = annotation.id;
     const embedding = await this.embeddingProvider.embed(exactText);
+    const [payload] = await this.annotationPayloads([{ rid: makeResourceId(rid), annotation, exactText }]);
+    await this.vectorStore.upsertAnnotationVector(aid, embedding, payload);
+    this.logger.info('Indexed annotation', { annotationId: String(aid) });
+  }
 
-    // An annotation quotes its resource's text, so it inherits that text's
-    // provenance — but the annotation record does not carry it, and
-    // re-deriving it would mean re-extracting (for a scan, re-running OCR).
-    // Read it from the resource's own stamp instead: one targeted lookup,
-    // trivial beside the embedding call just made.
-    const stamp = await this.vectorStore.getResourceStamp(makeResourceId(rid));
-
-    const payload: AnnotationPayload = {
-      annotationId: aid,
-      resourceId: makeResourceId(rid),
+  /**
+   * The vector payload for each annotation — the one place it is built, so
+   * the single and batch paths cannot drift apart.
+   *
+   * An annotation quotes its resource's text, so it inherits that text's
+   * provenance — but the annotation record does not carry it, and
+   * re-deriving it would mean re-extracting (for a scan, re-running OCR).
+   * Read it from the resource's own stamp instead: one targeted lookup per
+   * resource, trivial beside the embedding call.
+   */
+  private async annotationPayloads(
+    items: readonly { rid: ResourceId; annotation: Annotation; exactText: string }[],
+  ): Promise<AnnotationPayload[]> {
+    const machineRead = new Map<ResourceId, boolean>();
+    for (const { rid } of items) {
+      if (!machineRead.has(rid)) {
+        machineRead.set(rid, (await this.vectorStore.getResourceStamp(rid))?.machineRead === true);
+      }
+    }
+    return items.map(({ rid, annotation, exactText }) => ({
+      annotationId: annotation.id,
+      resourceId: rid,
       motivation: annotation.motivation,
       entityTypes: getEntityTypes(annotation),
       exactText,
-      ...(stamp?.machineRead ? { machineRead: true } : {}),
-    };
-    await this.vectorStore.upsertAnnotationVector(aid, embedding, payload);
-    this.logger.info('Indexed annotation', { annotationId: String(aid) });
+      ...(machineRead.get(rid) ? { machineRead: true } : {}),
+    }));
   }
 
   private async handleAnnotationRemoved(event: AnnotationRemove): Promise<void> {
@@ -864,13 +878,7 @@ export class Smelter {
    * embedBatch() call, then index per annotation.
    */
   private async batchAnnotationAdded(events: AnnotationAdd[]): Promise<number> {
-    const annotationData: {
-      rid: ResourceId;
-      aid: AnnotationId;
-      exactText: string;
-      motivation: string;
-      entityTypes: string[];
-    }[] = [];
+    const annotationData: { rid: ResourceId; annotation: Annotation; exactText: string }[] = [];
 
     for (const event of events) {
       const annotation = event.payload.annotation;
@@ -878,13 +886,7 @@ export class Smelter {
       const exactText = getExactText(selector);
       if (!exactText?.trim()) continue;
 
-      annotationData.push({
-        rid: makeResourceId(event.resourceId),
-        aid: annotation.id,
-        exactText,
-        motivation: annotation.motivation,
-        entityTypes: getEntityTypes(annotation),
-      });
+      annotationData.push({ rid: makeResourceId(event.resourceId), annotation, exactText });
     }
 
     if (annotationData.length === 0) return events.length;
@@ -892,13 +894,11 @@ export class Smelter {
     const allEmbeddings = await this.embeddingProvider.embedBatch(
       annotationData.map((a) => a.exactText),
     );
+    const payloads = await this.annotationPayloads(annotationData);
 
-    for (let i = 0; i < annotationData.length; i++) {
-      const { rid, aid, exactText, motivation, entityTypes } = annotationData[i];
-      const payload: AnnotationPayload = {
-        annotationId: aid, resourceId: rid, motivation, entityTypes, exactText,
-      };
-      await this.vectorStore.upsertAnnotationVector(aid, allEmbeddings[i], payload);
+    for (let i = 0; i < payloads.length; i++) {
+      const aid = payloads[i].annotationId;
+      await this.vectorStore.upsertAnnotationVector(aid, allEmbeddings[i], payloads[i]);
       this.logger.info('Batch-indexed annotation', { annotationId: String(aid) });
     }
 

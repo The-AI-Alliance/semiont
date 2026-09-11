@@ -507,6 +507,33 @@ describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
     }
   });
 
+  it('annotations indexed in a burst inherit the stamp too — the batch path, not only the single one', async () => {
+    // burstBuffer is leading-edge: the first mark:added takes the single path,
+    // the next two land inside the window and take the batch path — the one a
+    // detection burst, and every reconcile re-embed, rides.
+    const h = await pdfHarness({ 'res-scan': SCANNED_PDF });
+    derivedSpy.extract.mockResolvedValueOnce({
+      kind: 'extracted', text: 'recovered from a scan', items: [], method: 'ocr', pdfClass: 'B',
+    });
+    try {
+      h.events$.next(yieldCreated('res-scan'));
+      await tick();
+      h.events$.next(annotationEvent('res-scan', 'ann-solo', 'recovered'));
+      h.events$.next(annotationEvent('res-scan', 'ann-burst-1', 'from a'));
+      h.events$.next(annotationEvent('res-scan', 'ann-burst-2', 'scan'));
+      await tick();
+
+      // Proof the burst took the batch path: one embedBatch over its two quotes.
+      expect(h.embeddingProvider.embedBatch).toHaveBeenCalledWith(['from a', 'scan']);
+      const results = await h.vectorStore.searchAnnotations(deterministicEmbed('recovered from a scan'), { limit: 5 });
+      expect(Object.fromEntries(results.map((r) => [r.annotationId, r.machineRead]))).toEqual({
+        'ann-solo': true, 'ann-burst-1': true, 'ann-burst-2': true,
+      });
+    } finally {
+      h.smelter.stop();
+    }
+  });
+
   it('leaves the stamp off a PDF read directly from its text layer', async () => {
     const h = await pdfHarness({ 'res-native': NATIVE_PDF });
     try {
