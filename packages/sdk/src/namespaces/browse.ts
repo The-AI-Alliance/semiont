@@ -34,8 +34,6 @@ import type {
   ResourceList,
 } from './types';
 type StoredEventResponse = components['schemas']['StoredEventResponse'];
-type EnrichedResourceEvent = components['schemas']['EnrichedResourceEvent'];
-
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 type AnnotationsListResponse = components['schemas']['GetAnnotationsResponse'];
 
@@ -728,10 +726,16 @@ export class BrowseNamespace implements IBrowseNamespace {
     });
 
     this.on('mark:body-updated', (event) => {
-      const enriched = event as unknown as EnrichedResourceEvent;
-      if (!enriched.resourceId || !enriched.annotation) return;
-      this.updateAnnotationInPlace(enriched.resourceId as ResourceId, enriched.annotation as Annotation);
-      this.invalidateResourceEvents(enriched.resourceId as ResourceId);
+      if (event.annotation) {
+        this.updateAnnotationInPlace(event.resourceId, event.annotation);
+      } else {
+        // Unenriched: the view no longer held the annotation when the
+        // EventStore enriched this event, so there is nothing to write
+        // through. Revalidate both caches rather than keep the old body.
+        this.invalidateAnnotationList(event.resourceId);
+        this.removeAnnotationDetail(event.payload.annotationId);
+      }
+      this.invalidateResourceEvents(event.resourceId);
     });
 
     this.on('mark:entity-tag-added', this.onEntityTagChanged);

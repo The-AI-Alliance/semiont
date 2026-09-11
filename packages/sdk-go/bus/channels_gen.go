@@ -93,13 +93,13 @@ const (
 	// not emittable (no registered schema)
 	YieldCloneCreateFailed Channel = "yield:clone-create-failed"
 
-	// payload: StoredEvent(mark:added) — not emittable
+	// payload: EnrichedEvent(mark:added) — not emittable
 	MarkAdded Channel = "mark:added"
 
-	// payload: StoredEvent(mark:removed) — not emittable
+	// payload: EnrichedEvent(mark:removed) — not emittable
 	MarkRemoved Channel = "mark:removed"
 
-	// payload: StoredEvent(mark:body-updated) — not emittable
+	// payload: EnrichedEvent(mark:body-updated) — not emittable
 	MarkBodyUpdated Channel = "mark:body-updated"
 
 	// payload: StoredEvent(mark:entity-tag-added) — not emittable

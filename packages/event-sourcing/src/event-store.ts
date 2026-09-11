@@ -15,6 +15,7 @@
 
 import type {
   EventInput,
+  EnrichedEvent,
   StoredEvent,
   ResourceId,
   Logger,
@@ -26,7 +27,7 @@ import type { ViewStorage } from './storage/view-storage';
 import { EventLog } from './event-log';
 import { ViewManager, type ViewManagerConfig } from './view-manager';
 
-export type EnrichEvent = (event: StoredEvent, resourceId: ResourceId) => Promise<StoredEvent>;
+export type EnrichEvent = (event: StoredEvent, resourceId: ResourceId) => Promise<EnrichedEvent>;
 
 export class EventStore {
   readonly log: EventLog;
@@ -103,7 +104,7 @@ export class EventStore {
     });
 
     // 3. Enrich (attach post-materialization data like annotations)
-    let publishEvent = storedEvent;
+    let publishEvent: EnrichedEvent = storedEvent;
     if (this.enrichEvent && resourceId !== '__system__') {
       publishEvent = await timed('enrich', () => this.enrichEvent!(storedEvent, resourceId as ResourceId));
     }

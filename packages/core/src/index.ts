@@ -77,6 +77,7 @@ export type {
   EventMetadata,
   EventSignature,
   StoredEvent,
+  EnrichedEvent,
   BodyOperation,
   BodyItem,
   EventQuery,

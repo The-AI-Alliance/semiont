@@ -30,7 +30,7 @@ import type { components } from './types';
 import type { AnnotationId, ResourceId } from './identifiers';
 import type { Annotation } from './annotation-types';
 import type { ResourceDescriptor } from './graph';
-import type { StoredEvent } from './event-base';
+import type { EnrichedEvent, StoredEvent } from './event-base';
 import type { EventOfType } from './persisted-events';
 import type { AnchorRect } from './bus-ui-types';
 
@@ -65,6 +65,8 @@ type BindUpdateBodyCommand =
  *
  * Convention:
  * - Domain events (past tense): StoredEvent<Interface> — branded types
+ * - Annotation-mutating events: EnrichedEvent<Interface> — the stored event
+ *   plus the annotation the EventStore attaches before publishing
  * - Commands/reads/results/UI: OpenAPI schema refs — plain strings
  * - void: UI-only signals with no payload
  */
@@ -119,9 +121,9 @@ export type EventMap = {
   // ========================================================================
 
   // Domain events (branded — system of record)
-  'mark:added': StoredEvent<EventOfType<'mark:added'>>;
-  'mark:removed': StoredEvent<EventOfType<'mark:removed'>>;
-  'mark:body-updated': StoredEvent<EventOfType<'mark:body-updated'>>;
+  'mark:added': EnrichedEvent<EventOfType<'mark:added'>>;
+  'mark:removed': EnrichedEvent<EventOfType<'mark:removed'>>;
+  'mark:body-updated': EnrichedEvent<EventOfType<'mark:body-updated'>>;
   'mark:entity-tag-added': StoredEvent<EventOfType<'mark:entity-tag-added'>>;
   'mark:entity-tag-removed': StoredEvent<EventOfType<'mark:entity-tag-removed'>>;
   'mark:archived': StoredEvent<EventOfType<'mark:archived'>>;

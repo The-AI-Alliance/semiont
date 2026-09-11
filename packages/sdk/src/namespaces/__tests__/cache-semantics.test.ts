@@ -75,7 +75,7 @@ function fakeMarkRemoved(rId: ResourceId, annIdStr: string): StoredEvent<EventOf
 function fakeMarkBodyUpdated(
   rId: ResourceId,
   updated: Annotation,
-): StoredEvent<EventOfType<'mark:body-updated'>> {
+): EventMap['mark:body-updated'] {
   return {
     id: `evt-${updated.id}-body-updated`,
     type: 'mark:body-updated',
@@ -83,11 +83,9 @@ function fakeMarkBodyUpdated(
     userId: TEST_USER_ID,
     version: 1,
     timestamp: '2026-01-01T00:00:00Z',
-    // The on-the-wire AnnotationBodyUpdatedPayload describes ops, not
-    // the final annotation. The enriched-event shape (what handlers
-    // actually receive after ViewMaterializer runs) carries the full
-    // annotation as a top-level `annotation` field; the test augments
-    // this StoredEvent with that field after construction.
+    // The body describes ops, not the final annotation; the EventStore's
+    // enrichment carries that at the top level. Unenriched here — callers
+    // add `annotation` when the case under test has one.
     payload: { annotationId: updated.id, operations: [] },
     metadata: TEST_METADATA,
   };
@@ -671,6 +669,25 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
     });
   });
 
+  describe('B13c — an unenriched body update revalidates instead of going stale', () => {
+    it('refetches the list when mark:body-updated arrives without its annotation', async () => {
+      const { browse, eventBus, emitSpy } = createHarness();
+      // An active observer, so invalidation revalidates (B7).
+      const sub = browse.annotations(RID).subscribe(() => {});
+      await firstDefined(browse.annotations(RID));
+      const listFetches = () => emitSpy.mock.calls.filter(([ch]) => ch === 'browse:annotations-requested').length;
+      const before = listFetches();
+
+      // No top-level `annotation`: the enricher declined, so there is nothing to
+      // write through. Returning early left the old body on screen.
+      eventBus.get('mark:body-updated').next(fakeMarkBodyUpdated(RID, mockAnnotation(AID, 'res-1')));
+      await flush();
+
+      expect(listFetches()).toBeGreaterThan(before);
+      sub.unsubscribe();
+    });
+  });
+
   describe('B13b — update-in-place writes through without a fetch', () => {
     it('mark:body-updated writes the annotation into both list and detail caches', async () => {
       const { browse, eventBus, emitSpy } = createHarness();
@@ -688,13 +705,8 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
         body: [newBody],
       };
 
-      // browse.ts's `mark:body-updated` handler reads `.annotation` via an
-      // EnrichedResourceEvent cast that's off the main StoredEvent type.
-      // We construct a StoredEvent (type-valid for Subject.next) and
-      // augment it with the enriched-annotation field the handler expects.
-      const storedBody = fakeMarkBodyUpdated(RID, updated);
-      (storedBody as unknown as { annotation: Annotation }).annotation = updated;
-      eventBus.get('mark:body-updated').next(storedBody);
+      // The enriched annotation the EventStore attaches, typed by EventMap.
+      eventBus.get('mark:body-updated').next({ ...fakeMarkBodyUpdated(RID, updated), annotation: updated });
       await flush();
 
       const list = await firstDefined(browse.annotations(RID));
