@@ -20,7 +20,10 @@ import type { EventMap, StateUnit } from '@semiont/core';
 
 export interface SmelterEvent {
   type: string;
-  resourceId?: string;
+  /** Required, because every channel below is a resource event on the wire —
+   *  none is a `SystemEventType`. The actor reads it from the typed channel, so
+   *  a smelter channel without one would fail to compile there. */
+  resourceId: string;
   payload: Record<string, unknown>;
 }
 
@@ -39,6 +42,8 @@ const SMELTER_CHANNELS = [
   'mark:entity-tag-added',
   'mark:entity-tag-removed',
 ] as const;
+
+type SmelterChannel = (typeof SMELTER_CHANNELS)[number];
 
 // Commands ride their own stream, never the event mailbox (the
 // weave:rebuild idiom): a command handler plans work items and AWAITS
@@ -59,11 +64,17 @@ export function createSmelterActorStateUnit(options: SmelterActorStateUnitOption
 
   const events$ = merge(
     ...SMELTER_CHANNELS.map((channel) =>
-      bus.on$<Record<string, unknown>>(channel).pipe(
-        map((payload) => ({
+      // `resourceId` is derived from the wire. Every event carries one on
+      // `EventBase`, but only resource events REQUIRE it: a system channel added
+      // here widens it to `| undefined`, which the required `resourceId` on
+      // `SmelterEvent` rejects — so this list cannot drift onto one silently.
+      // `payload` keeps its untyped view on purpose — its real shape is an open
+      // question (smelter-skip-and-fail-decisions-are-invisible).
+      bus.on$<Pick<EventMap[SmelterChannel], 'resourceId'> & Record<string, unknown>>(channel).pipe(
+        map((event): SmelterEvent => ({
           type: channel,
-          resourceId: payload.resourceId as string | undefined,
-          payload,
+          resourceId: event.resourceId,
+          payload: event,
         })),
       ),
     ),

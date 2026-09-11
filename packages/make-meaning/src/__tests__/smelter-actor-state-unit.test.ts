@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BehaviorSubject, Subject, firstValueFrom } from 'rxjs';
 import { take, toArray } from 'rxjs/operators';
-import { createSmelterActorStateUnit } from '../smelter-actor-state-unit';
+import { createSmelterActorStateUnit, type SmelterEvent } from '../smelter-actor-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 import type { WorkerBus } from '@semiont/sdk';
 import type { ConnectionState } from '@semiont/core';
@@ -87,6 +87,14 @@ describe('createSmelterActorStateUnit', () => {
     expect(events[1]!.type).toBe('mark:added');
 
     stateUnit.dispose();
+  });
+
+  it('an event with no resource cannot be constructed', () => {
+    // @ts-expect-error — resourceId is required. Every channel the Smelter hears
+    // is resource-scoped on the wire (none is a SystemEventType), so "no resource"
+    // is not a state an event can be in — and nine guards once defended it.
+    const noResource: SmelterEvent = { type: 'yield:created', payload: {} };
+    expect(noResource).toBeDefined();
   });
 
   it('start() is idempotent', () => {

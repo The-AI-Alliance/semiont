@@ -283,7 +283,7 @@ export class Smelter {
 
   initialize(): void {
     this.pipelineSubscription = this.eventSubject.pipe(
-      groupBy((e: SmelterInput) => e.resourceId ?? '__unknown__'),
+      groupBy((e: SmelterInput) => e.resourceId),
       mergeMap((group) =>
         group.pipe(
           burstBuffer<SmelterInput>({
@@ -481,7 +481,6 @@ export class Smelter {
    */
   private async restampResource(event: SmelterInput): Promise<void> {
     const rid = event.resourceId;
-    if (!rid) return;
     const entityTypes = await this.resolveEntityTypes(rid);
     await this.vectorStore.updateResourceEntityTypes(makeResourceId(rid), entityTypes);
     this.logger.info('Restamped resource entity types', { resourceId: rid, entityTypes });
@@ -502,7 +501,6 @@ export class Smelter {
    */
   private async reanchorResource(event: SmelterInput): Promise<void> {
     const rid = event.resourceId;
-    if (!rid) return;
     const { data, contentType } = await this.content.getBinary(makeResourceId(rid));
     const bytes = Buffer.from(data);
     const extractor = derivingExtractorFor(contentType);
@@ -548,7 +546,6 @@ export class Smelter {
 
   private async handleResourcePurge(event: SmelterInput): Promise<void> {
     const rid = event.resourceId;
-    if (!rid) return;
     await this.vectorStore.deleteResourceVectors(makeResourceId(rid));
     this.logger.info('Reconcile deleted orphan resource vectors', { resourceId: rid });
   }
@@ -662,12 +659,6 @@ export class Smelter {
 
   private async embedResource(event: SmelterInput, logMessage: string): Promise<void> {
     const rid = event.resourceId;
-    // Not a decision about a resource — there is no resource to decide about,
-    // so it is exempt from `conclude`. Slated for deletion rather than a log
-    // line: `SmelterEvent` types `resourceId` optional though every channel it
-    // carries is resource-scoped (smelter-skip-and-fail-decisions-are-invisible,
-    // group B).
-    if (!rid) return;
 
     const prep = await this.prepareEmbed(rid);
     if (prep.kind === 'concluded') return;
@@ -744,7 +735,6 @@ export class Smelter {
 
   private async handleResourceArchived(event: SmelterInput): Promise<void> {
     const rid = event.resourceId;
-    if (!rid) return;
     await this.vectorStore.deleteResourceVectors(makeResourceId(rid));
     // Annotations anchored to an archived resource must not surface in
     // search either — and reconcile() treats them as orphans, so deleting
@@ -761,7 +751,6 @@ export class Smelter {
    */
   private async handleResourceUnarchived(event: SmelterInput): Promise<void> {
     const rid = event.resourceId;
-    if (!rid) return;
 
     await this.embedResource(event, 'Re-embedded unarchived resource');
 
@@ -780,7 +769,6 @@ export class Smelter {
     if (!annotation?.id) return;
 
     const rid = event.resourceId;
-    if (!rid) return;
 
     await this.indexAnnotation(rid, annotation);
   }
@@ -832,7 +820,6 @@ export class Smelter {
 
     for (const event of events) {
       const rid = event.resourceId;
-      if (!rid) continue;   // group B — see embedResource
 
       const prep = await this.prepareEmbed(rid);
       if (prep.kind === 'concluded') continue;
@@ -877,7 +864,6 @@ export class Smelter {
       if (!annotation?.id) continue;
 
       const rid = event.resourceId;
-      if (!rid) continue;
 
       const selector = getTargetSelector(annotation.target);
       const exactText = getExactText(selector);
