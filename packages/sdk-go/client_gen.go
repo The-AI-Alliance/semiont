@@ -2993,6 +2993,9 @@ type JobCompleteCommand struct {
 	// AnnotationId Annotation this job is attached to, when applicable. Lets the UI route completion feedback (toast, resolve state) to a specific annotation.
 	AnnotationId *string `json:"annotationId,omitempty"`
 
+	// Attempt Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows.
+	Attempt *int `json:"attempt,omitempty"`
+
 	// Durability How a job's annotations were established as durable — the OBSERVATION, never a conclusion drawn from it. 'acknowledged': the event log confirmed the batch (mark:commit-ok). 'probe-confirmed': the acknowledgement was lost and a later read found the batch's last annotation present — true, but a weaker claim than an ack, since it rests on the log appending a batch in order and stopping at the first failure. 'probe-refused': the read returned a failure reply; note this does NOT assert the annotations are absent, because a read that failed for its own reasons answers on the same channel. 'probe-unreachable': no answer came at all, so nothing was established either way. ABSENT means the question never arose — a job that committed no annotations. Never defaulted: a manufactured value here is a claim nobody made, in a log nobody can rewrite.
 	Durability *DurabilityEvidence `json:"durability,omitempty"`
 	JobId      string              `json:"jobId"`
@@ -3012,6 +3015,9 @@ type JobCompletedPayload struct {
 
 	// AnnotationUri For generation: URI of annotation that triggered generation
 	AnnotationUri *string `json:"annotationUri,omitempty"`
+
+	// Attempt Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows.
+	Attempt *int `json:"attempt,omitempty"`
 
 	// Durability How a job's annotations were established as durable — the OBSERVATION, never a conclusion drawn from it. 'acknowledged': the event log confirmed the batch (mark:commit-ok). 'probe-confirmed': the acknowledgement was lost and a later read found the batch's last annotation present — true, but a weaker claim than an ack, since it rests on the log appending a batch in order and stopping at the first failure. 'probe-refused': the read returned a failure reply; note this does NOT assert the annotations are absent, because a read that failed for its own reasons answers on the same channel. 'probe-unreachable': no answer came at all, so nothing was established either way. ABSENT means the question never arose — a job that committed no annotations. Never defaulted: a manufactured value here is a claim nobody made, in a log nobody can rewrite.
 	Durability *DurabilityEvidence `json:"durability,omitempty"`
@@ -3082,6 +3088,9 @@ type JobFailCommand struct {
 	// AnnotationId Annotation this job is attached to, when applicable. Lets the UI route failure feedback (error toast, revert state) to a specific annotation.
 	AnnotationId *string `json:"annotationId,omitempty"`
 
+	// Attempt Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows.
+	Attempt *int `json:"attempt,omitempty"`
+
 	// CompletedUnits Entity-type units whose annotations were fully emitted before this failure (checkpointed resume). The queue records them on the retried job's metadata; a retried claim skips them so completed work is neither redone nor duplicated.
 	CompletedUnits *[]string `json:"completedUnits,omitempty"`
 
@@ -3105,6 +3114,9 @@ type JobFailCommand struct {
 type JobFailedPayload struct {
 	// AnnotationId Annotation this job was attached to, when applicable
 	AnnotationId *string `json:"annotationId,omitempty"`
+
+	// Attempt Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows.
+	Attempt *int `json:"attempt,omitempty"`
 
 	// Durability How a job's annotations were established as durable — the OBSERVATION, never a conclusion drawn from it. 'acknowledged': the event log confirmed the batch (mark:commit-ok). 'probe-confirmed': the acknowledgement was lost and a later read found the batch's last annotation present — true, but a weaker claim than an ack, since it rests on the log appending a batch in order and stopping at the first failure. 'probe-refused': the read returned a failure reply; note this does NOT assert the annotations are absent, because a read that failed for its own reasons answers on the same channel. 'probe-unreachable': no answer came at all, so nothing was established either way. ABSENT means the question never arose — a job that committed no annotations. Never defaulted: a manufactured value here is a claim nobody made, in a log nobody can rewrite.
 	Durability *DurabilityEvidence `json:"durability,omitempty"`
@@ -3370,7 +3382,10 @@ type JobReportProgressCommand struct {
 
 	// AnnotationId Annotation this job is attached to, when applicable. Lets the UI attach progress visuals to a specific annotation (e.g. a reference whose generation is running).
 	AnnotationId *string `json:"annotationId,omitempty"`
-	JobId        string  `json:"jobId"`
+
+	// Attempt Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows.
+	Attempt *int   `json:"attempt,omitempty"`
+	JobId   string `json:"jobId"`
 
 	// JobType Type of background job
 	JobType    JobType `json:"jobType"`
@@ -3393,7 +3408,10 @@ type JobStartCommand struct {
 
 	// AnnotationId Annotation this job is attached to, when applicable. Set for annotation-scoped jobs like generation (from a specific reference). Unset for resource-scoped jobs like bulk reference/tag/highlight detection.
 	AnnotationId *string `json:"annotationId,omitempty"`
-	JobId        string  `json:"jobId"`
+
+	// Attempt Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows.
+	Attempt *int   `json:"attempt,omitempty"`
+	JobId   string `json:"jobId"`
 
 	// JobType Type of background job
 	JobType    JobType `json:"jobType"`

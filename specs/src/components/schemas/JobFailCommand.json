@@ -15,6 +15,10 @@
     "jobType": {
       "$ref": "./JobType.json"
     },
+    "attempt": {
+      "type": "integer",
+      "description": "Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run \u2014 and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows."
+    },
     "annotationId": {
       "type": "string",
       "description": "Annotation this job is attached to, when applicable. Lets the UI route failure feedback (error toast, revert state) to a specific annotation."

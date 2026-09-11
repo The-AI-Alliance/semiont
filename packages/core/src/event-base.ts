@@ -63,6 +63,21 @@ export type StoredEvent<T extends EventBase = PersistedEvent> = T & {
   signature?: EventSignature;
 };
 
+/**
+ * A persisted event as the bus delivers it once the EventStore's enrich step
+ * has run: the stored event, plus — for events that mutate an annotation — that
+ * annotation as it stands in the view. The fields are the spec's
+ * (`EnrichedResourceEvent` beyond `StoredEventResponse`), with the annotation
+ * branded like every annotation at this layer. Optional, because enrichment
+ * declines when the view no longer holds the annotation: always, for a removal.
+ * Which channels carry it is declared in the bus registry (`enriched`).
+ */
+export type EnrichedEvent<T extends EventBase = PersistedEvent> = StoredEvent<T> & EnrichmentFields;
+
+type EnrichmentFields =
+  & Omit<components['schemas']['EnrichedResourceEvent'], keyof components['schemas']['StoredEventResponse']>
+  & { annotation?: Annotation };
+
 // ── Body operation types (OpenAPI-derived) ───────────────────────────────────
 
 export type BodyItem = components['schemas']['TextualBody'] | components['schemas']['SpecificResource'];

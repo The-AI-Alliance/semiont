@@ -15,9 +15,13 @@
  *     from `BUS_OPERATIONS` over the operations they await; their
  *     domain-event channels are added by their actor state units at
  *     `start()`.
- *   - The LIBRARIAN and ARCHIVIST answer operations and fold broadcast
- *     signals but never await a wire reply, so their transports carry
- *     exactly their inbound request/signal rosters.
+ *   - The LIBRARIAN answers operations AND awaits one read (the anchored-text
+ *     ask behind gather's text dispatcher), so its transport carries its
+ *     inbound roster plus that operation's reply channels.
+ *   - The ARCHIVIST answers operations and folds broadcast signals but never
+ *     awaits a wire reply, so its transport carries exactly its inbound
+ *     request/signal roster. (Its own anchored-text ask runs on its LOCAL
+ *     bus — the Browser beside it answers — so no wire reply is awaited.)
  *
  * Each awaited-operations list restates a fact the code owns (which
  * operations that service calls `busRequest` on); its gate is the build-time
@@ -33,6 +37,7 @@
 import { replyChannelsFor, type BusOperationKey, type EventMap } from '@semiont/core';
 import { MATCHER_CHANNELS } from './matcher';
 import { GATHERER_CHANNELS } from './gatherer';
+import type { AnchoredTextAskAwaits } from './anchored-text-ask';
 import { STOWER_CHANNELS } from './stower';
 import { BROWSER_CHANNELS } from './browser';
 import { CLONE_TOKEN_CHANNELS } from './clone-token-manager';
@@ -119,6 +124,28 @@ export const LIBRARIAN_INBOUND_CHANNELS = [
 /** Every reply channel the Librarian's outbound pump forwards — derived over the inbound set. */
 export const LIBRARIAN_OUTBOUND_CHANNELS: readonly (keyof EventMap)[] =
   replyChannelsFor(LIBRARIAN_INBOUND_CHANNELS);
+
+/**
+ * The operations the Librarian awaits replies to: the anchored-text ask
+ * behind gather's text dispatcher (bugs/gather-ships-raw-pdf-bytes P1 —
+ * derived text for `pdf-text-layer` media, answered by the Archivist).
+ */
+export const LIBRARIAN_AWAITED_OPERATIONS = [
+  'browse:anchored-text-requested',
+] as const satisfies readonly BusOperationKey[];
+
+/** The Librarian transport's awaited-reply SSE channels, beyond its inbound roster. */
+export const LIBRARIAN_REPLY_CHANNELS: readonly (keyof EventMap)[] =
+  replyChannelsFor(LIBRARIAN_AWAITED_OPERATIONS);
+
+type DeclaredLibrarianAwaits = AnchoredTextAskAwaits;
+type LibrarianAwaitCensusDrift =
+  | Exclude<DeclaredLibrarianAwaits, (typeof LIBRARIAN_AWAITED_OPERATIONS)[number]>
+  | Exclude<(typeof LIBRARIAN_AWAITED_OPERATIONS)[number], DeclaredLibrarianAwaits>;
+/** The build-time census gate — see the header. Drift names the operation. */
+export const librarianAwaitCensus: [LibrarianAwaitCensusDrift] extends [never]
+  ? 'in-census'
+  : LibrarianAwaitCensusDrift = 'in-census';
 
 // ── Archivist ────────────────────────────────────────────────────────
 

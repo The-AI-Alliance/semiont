@@ -77,6 +77,7 @@ export type {
   EventMetadata,
   EventSignature,
   StoredEvent,
+  EnrichedEvent,
   BodyOperation,
   BodyItem,
   EventQuery,
@@ -136,6 +137,11 @@ export { burstBuffer, type BurstBufferOptions } from './operators/burst-buffer';
 // Per-key serialization (for RPC-style callers; see also RxJS groupBy + concatMap
 // for stream-style callers in packages/make-meaning)
 export { serializePerKey } from './serialize-per-key';
+
+// Bounded concurrency across callers (for a shared downstream: one local model
+// process, a rate-limited API). Sibling to serializePerKey, which bounds per key.
+export { boundedGate } from './bounded-gate';
+export type { BatchPolicy } from './bounded-gate';
 
 // Logger interface (framework-agnostic)
 export type { Logger } from './logger';
@@ -314,6 +320,7 @@ export {
   mediaTypeForExtension,
   textSourceOf,
   yieldsGeometryOf,
+  derivesTextOf,
   isAnnotatable,
   AUTHORABLE_MEDIA_TYPES,
   EMBEDDABLE_MEDIA_TYPES,

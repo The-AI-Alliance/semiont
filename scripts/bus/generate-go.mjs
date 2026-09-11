@@ -59,7 +59,7 @@ const channelLines = wireChannels.map((c) => {
   const doc = c.validate
     ? `payload: ${c.validate}`
     : c.shape === 'storedEvent'
-      ? `payload: StoredEvent(${c.event}) — not emittable`
+      ? `payload: ${c.enriched ? 'EnrichedEvent' : 'StoredEvent'}(${c.event}) — not emittable`
       : c.shape === 'void'
         ? 'no payload — not emittable'
         : 'not emittable (no registered schema)';

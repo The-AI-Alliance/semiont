@@ -14,15 +14,8 @@
  */
 
 import { Observable, merge } from 'rxjs';
-import { map } from 'rxjs/operators';
 import type { WorkerBus } from '@semiont/sdk';
 import type { EventMap, StateUnit } from '@semiont/core';
-
-export interface SmelterEvent {
-  type: string;
-  resourceId?: string;
-  payload: Record<string, unknown>;
-}
 
 export interface SmelterActorStateUnitOptions {
   bus: WorkerBus;
@@ -39,6 +32,18 @@ const SMELTER_CHANNELS = [
   'mark:entity-tag-added',
   'mark:entity-tag-removed',
 ] as const;
+
+export type SmelterChannel = (typeof SMELTER_CHANNELS)[number];
+
+/**
+ * A domain event exactly as the bus delivers it — a full `StoredEvent`, body
+ * under `.payload` — passed through verbatim, as the Weaver's fan-in does.
+ * Derived from `EventMap`, never re-shaped: an envelope that re-nests the
+ * message under its own `payload` field is how a handler once read
+ * `event.payload.annotationId` one level too shallow with nothing to object.
+ * Every channel above is a resource event, so `resourceId` is required here.
+ */
+export type SmelterEvent = EventMap[SmelterChannel];
 
 // Commands ride their own stream, never the event mailbox (the
 // weave:rebuild idiom): a command handler plans work items and AWAITS
@@ -58,15 +63,7 @@ export function createSmelterActorStateUnit(options: SmelterActorStateUnitOption
   let started = false;
 
   const events$ = merge(
-    ...SMELTER_CHANNELS.map((channel) =>
-      bus.on$<Record<string, unknown>>(channel).pipe(
-        map((payload) => ({
-          type: channel,
-          resourceId: payload.resourceId as string | undefined,
-          payload,
-        })),
-      ),
-    ),
+    ...SMELTER_CHANNELS.map((channel) => bus.on$<SmelterEvent>(channel)),
   );
 
   const rebuildAnchors$ = bus.on$<EventMap['smelt:rebuild-anchors']>('smelt:rebuild-anchors');

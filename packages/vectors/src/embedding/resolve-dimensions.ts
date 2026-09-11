@@ -35,7 +35,7 @@ import { isColdModelError } from './provider-error';
  * constant is right when it is one fact; sharing it here would mean every future
  * adjustment to the gateway's patience silently moved this one.
  *
- * Worst case ≈ `retryBudgetMs(EMBEDDING_PROVIDER_RETRY, EMBED_TIMEOUT_MS)` — see
+ * Worst case ≈ `retryBudgetMs(EMBEDDING_PROVIDER_RETRY, EMBED_ROUND_TRIP_TIMEOUT_MS)` — see
  * `startup-timeout.test.ts`, which gates it against the deadline it could race.
  */
 export const EMBEDDING_PROVIDER_RETRY: RetryPolicy = {

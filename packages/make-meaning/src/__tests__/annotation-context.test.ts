@@ -81,6 +81,8 @@ describe('AnnotationContext', () => {
     kb = {
       views: eventStore.viewStorage,
       content: workingTreeContentReads(eventStore.viewStorage, workingTree),
+      // Text-media harness: the derived-text door is never consulted.
+      anchoredText: async () => ({ kind: 'unknown' as const }),
       graph: mockGraphDb,
       vectors: { searchAnnotations: vi.fn().mockResolvedValue([]) } as AnnotationGatherReads['vectors'],
       weaveProgress: { whenApplied: vi.fn(async () => {}) },

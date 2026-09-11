@@ -820,11 +820,14 @@ describe('handleJob orchestration', () => {
       const keysOf = (channel: string) =>
         Object.keys(h.busEmits.find(e => e.channel === channel)!.payload as object).sort();
 
-      expect(keysOf('job:start')).toEqual(['jobId', 'jobType', 'resourceId']);
+      // `attempt` rides every lifecycle payload including start — the queue can
+      // re-run a job before it ever emits progress, so the first event must
+      // already say which attempt it is.
+      expect(keysOf('job:start')).toEqual(['attempt', 'jobId', 'jobType', 'resourceId']);
       // `job:start` stays bare: nothing has been committed yet, so there is no
       // durability to state. Every TERMINAL payload carries how durability was
       // established (COMMIT-ACK-FALSE-FAILURE) — here, an acknowledged commit.
-      expect(keysOf('job:complete')).toEqual(['durability', 'jobId', 'jobType', 'resourceId', 'result']);
+      expect(keysOf('job:complete')).toEqual(['attempt', 'durability', 'jobId', 'jobType', 'resourceId', 'result']);
       // The commit carries a batch and a correlationId (busRequest sets the
       // latter), not a single annotation.
       expect(keysOf('mark:commit')).toEqual(['annotations', 'correlationId', 'resourceId']);
@@ -1884,5 +1887,45 @@ describe('the record says HOW durability was established (COMMIT-ACK-FALSE-FAILU
     const h = makeFakeSessionAndAdapter();
     await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
     expect(terminal(h, 'job:complete')).not.toHaveProperty('durability');
+  });
+});
+
+// A 26-minute attempt failed, the queue re-ran the whole job within a second,
+// and the operator-visible signal was NONE: heartbeats continued, the client
+// saw no fail event, and nothing anywhere said "this document is running for
+// the second time". Provider spend is already in Prometheus; what was missing
+// is the key that ties it to a re-run.
+describe('every event says which attempt produced it', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  const retried = (n: number) => makeJob('highlight-annotation', {}, [], { retryCount: n, maxRetries: 1 });
+
+  it('progress and the terminal event both carry the attempt number', async () => {
+    vi.mocked(processHighlightJob).mockImplementation((async (...args: unknown[]) => {
+      const onProgress = args[4] as (p: number, m: unknown) => void;
+      const onChunkComplete = args[5] as (a: unknown[]) => Promise<void>;
+      onProgress(60, { code: 'creating-annotations', count: 1 });
+      await onChunkComplete([{ id: 'a1' }]);
+      return { result: { highlightsFound: 1, highlightsCreated: 1 } } as never;
+    }) as never);
+    const h = makeFakeSessionAndAdapter();
+
+    await handleJob(h.adapter, makeConfig(h.session), retried(1));   // retryCount 1 ⇒ attempt 2
+
+    const progress = h.busEmits.filter((e) => e.channel === 'job:report-progress');
+    expect(progress.length).toBeGreaterThan(0);
+    for (const e of progress) {
+      expect((e.payload as Record<string, unknown>).attempt).toBe(2);
+    }
+    expect(h.busEmits.find((e) => e.channel === 'job:complete')!.payload).toMatchObject({ attempt: 2 });
+  });
+
+  it('a first attempt says 1 — the fact is always stated, never inferred from absence', async () => {
+    vi.mocked(processHighlightJob).mockImplementation(emitting({ annotations: [], result: { highlightsFound: 0, highlightsCreated: 0 } }));
+    const h = makeFakeSessionAndAdapter();
+
+    await handleJob(h.adapter, makeConfig(h.session), retried(0));
+
+    expect(h.busEmits.find((e) => e.channel === 'job:complete')!.payload).toMatchObject({ attempt: 1 });
   });
 });

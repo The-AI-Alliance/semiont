@@ -311,6 +311,37 @@ export function yieldsGeometryOf(format: string): boolean {
 }
 
 /**
+ * Whether a text source's output is DERIVED — produced by the Smelter and
+ * persisted as an anchored-text artifact — rather than read by decoding the
+ * bytes. "Decoding is not deriving" (READ-VS-EXTRACT).
+ *
+ * Exhaustive over `TextSource` on purpose, like its geometry sibling: a new
+ * strategy fails to compile here until someone declares its category.
+ * Private — `derivesTextOf` is the surface.
+ */
+const DERIVED_TEXT_BY_STRATEGY: Record<TextSource, boolean> = {
+  'decode': false,
+  'pdf-text-layer': true,
+  'none': false,
+};
+
+/**
+ * WHETHER a type's text is the Smelter's derived artifact instead of its own
+ * decoded bytes — the read-side dispatch a text READER needs
+ * (bugs/gather-ships-raw-pdf-bytes P1): derived text is answered by the
+ * anchored-text read; decoded text by `decodeRepresentation`, which refuses
+ * everything else.
+ *
+ * Deliberately a DISTINCT question from `yieldsGeometryOf`, though the
+ * answers coincide today: a future transcription strategy would derive text
+ * with no geometry. The mechanism literal (`pdf-text-layer`) stays confined
+ * to the extraction side, which genuinely dispatches per mechanism.
+ */
+export function derivesTextOf(format: string): boolean {
+  return DERIVED_TEXT_BY_STRATEGY[textSourceOf(format)];
+}
+
+/**
  * WHETHER a type can carry annotations — `anchoring` remains the authority on
  * HOW. Derived rather than stored: a parallel `annotatable` row field would be
  * two facts that can disagree, with nothing to adjudicate

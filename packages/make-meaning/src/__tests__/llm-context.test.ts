@@ -106,6 +106,8 @@ describe('LLM Context', () => {
     kb = {
       views: eventStore.viewStorage,
       content: workingTreeContentReads(eventStore.viewStorage, workingTree),
+      // Text-media harness: the derived-text door is never consulted.
+      anchoredText: async () => ({ kind: 'unknown' as const }),
       graph: graphDb,
       vectors: { searchByResource: vi.fn().mockResolvedValue([]) } as ResourceGatherReads['vectors'],
       weaveProgress: { whenApplied: vi.fn(async () => {}) },
@@ -378,16 +380,16 @@ describe('LLM Context', () => {
     });
   });
 
-  describe('reference suggestions', () => {
-    it('should generate reference suggestions when content available', async () => {
+  describe('reference suggestions (bugs/gather-ships-raw-pdf-bytes P2+P3)', () => {
+    it('generates suggestions when summary is requested and content available', async () => {
       mockClient.setResponses([
         'Summary',
-        JSON.stringify(['Ref 1', 'Ref 2', 'Ref 3'])
+        'Ref 1\nRef 2\nRef 3',
       ]);
 
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
-        { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
+        { depth: 1, maxResources: 10, includeContent: true, includeSummary: true },
         kb,
         mockClient,
         15_000,
@@ -398,10 +400,70 @@ describe('LLM Context', () => {
       expect(Array.isArray(resFocus(result).suggestedReferences)).toBe(true);
     });
 
-    it('should not generate reference suggestions when content not available', async () => {
+    it('P2: the suggestion prompt gets the resource NAME in the title slot, never the content', async () => {
+      mockClient.setResponses(['Summary', 'Ref 1\nRef 2']);
+      const spy = vi.spyOn(mockClient, 'generateText');
+
+      await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: true, includeSummary: true },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      const suggestionPrompt = spy.mock.calls
+        .map((call) => String(call[0]))
+        .find((prompt) => prompt.includes('For a reference titled'));
+      expect(suggestionPrompt).toBeDefined();
+      expect(suggestionPrompt).toContain('For a reference titled "LLM Context Test Resource"');
+      // The document body must not be spliced into the title slot.
+      expect(suggestionPrompt).not.toContain('This is test content for LLM context building.');
+      spy.mockRestore();
+    });
+
+    it('P3: gather is a read — no inference call at all unless includeSummary is set', async () => {
+      const spy = vi.spyOn(mockClient, 'generateText');
+
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
-        { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
+        { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      expect(spy).not.toHaveBeenCalled();
+      expect(resFocus(result).summary).toBeUndefined();
+      expect(resFocus(result).suggestedReferences).toBeUndefined();
+      spy.mockRestore();
+    });
+
+    it('P3: a throwing garnish degrades — the gather still returns graph and metadata', async () => {
+      const spy = vi.spyOn(mockClient, 'generateText').mockRejectedValue(new Error('inference down'));
+
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: true, includeSummary: true },
+        kb,
+        mockClient,
+        15_000,
+        mockLogger
+      );
+
+      expect(resFocus(result).resource).toBeDefined();
+      expect(result.graph.nodes.length).toBeGreaterThan(0);
+      expect(resFocus(result).summary).toBeUndefined();
+      expect(resFocus(result).suggestedReferences).toBeUndefined();
+      spy.mockRestore();
+    });
+
+    it('does not generate suggestions when content not available', async () => {
+      const result = await LLMContext.getResourceContext(
+        resourceId(testResourceId),
+        { depth: 1, maxResources: 10, includeContent: false, includeSummary: true },
         kb,
         mockClient,
         15_000,

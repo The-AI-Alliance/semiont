@@ -429,8 +429,14 @@ async function handleJobInner(
   // put out-of-contract data on a global channel — and would not be caught by
   // `emitEvent`'s typing, because TypeScript suppresses excess-property checks
   // for spreads and for variables passed by reference.
+  // 1-based, and on EVERY lifecycle event including progress: the queue re-runs
+  // a failed job silently, so without this an operator cannot tell a re-run from
+  // a first run, and the provider spend already counted in Prometheus cannot be
+  // attributed to a repeated document. Always stated, never left to absence —
+  // `attempt: 1` is a fact the emitter always knows.
+  const attempt = job.retryCount + 1;
   const lifecycleBase = {
-    resourceId, jobId, jobType,
+    resourceId, jobId, jobType, attempt,
     ...(annotationId ? { annotationId } : {}),
   };
 

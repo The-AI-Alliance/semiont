@@ -166,6 +166,21 @@ describe('Stower job:* handlers', () => {
   });
 
   it.each([
+    ['job:complete', 'job:completed'],
+    ['job:fail', 'job:failed'],
+  ])('%s persists which attempt produced it', async (channel, persisted) => {
+    // The durable record is where an operator reconstructs a campaign's spend.
+    // Dropping `attempt` here leaves the log unable to say a document ran twice
+    // — the exact blindness that let a 26-minute re-run go unnoticed.
+    bus.get(channel as 'job:complete').next(jobEvent({ error: 'e', attempt: 2 }) as never);
+    await settle();
+
+    const event = appendEvent.mock.calls[0][0];
+    expect(event.type).toBe(persisted);
+    expect(event.payload.attempt).toBe(2);
+  });
+
+  it.each([
     ['job:start'],
     ['job:complete'],
     ['job:fail'],

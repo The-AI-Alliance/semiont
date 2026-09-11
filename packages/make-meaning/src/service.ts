@@ -27,6 +27,8 @@ import { CloneTokenManager } from './clone-token-manager';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
 import { stopKnowledgeSystem, type KnowledgeSystem } from './knowledge-system';
 import { registerBusHandlers, registerGatewayBusHandlers } from './handlers';
+import { anchoredTextOverBus } from './anchored-text-ask';
+import { asBusRequestPrimitive } from './bus-request-local';
 import type { Subscription } from 'rxjs';
 
 export type { MakeMeaningConfig } from './config';
@@ -227,7 +229,13 @@ async function createKnowledgeSystemFromConfig(
   const gatherer = new Gatherer(
     // The content capability is ResourceId-keyed (D-CONTENT b); in-process
     // it wraps this root's own working tree behind the transport shape.
-    { ...kb, content: workingTreeContentReads(kb.views, kb.content) },
+    {
+      ...kb,
+      content: workingTreeContentReads(kb.views, kb.content),
+      // Derived text rides the same bus read everywhere; in this root the
+      // Browser answers in-process.
+      anchoredText: anchoredTextOverBus(asBusRequestPrimitive(eventBus)),
+    },
     eventBus,
     createInferenceClient(resolveActorInference(config, 'gatherer'), logger.child({ component: 'inference-client-gatherer' })),
     config.gather.settleTimeoutMs,

@@ -2283,3 +2283,56 @@ describe('entitiesExpected on the progress surface', () => {
     }
   });
 });
+
+// P0 for the 26-minute-attempt bug: a whole-job retry re-emitted from chunk 1
+// and left 164 exact duplicates (identical `exact` at identical `start`).
+// Content-addressed ids (JOB-RESTART-SAFETY P3) should have made that a no-op.
+// These pin the id contract at the emit site, which discriminates "the hash
+// input varies" from "something downstream appends anyway".
+describe('re-running a unit emits the SAME annotation ids', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  const content = 'Ada Lovelace met Charles Babbage in London.';
+  const ent = (exact: string) => ({ exact, entityType: 'Person' });
+
+  async function runOnce() {
+    const committed: string[] = [];
+    vi.mocked(extractEntities).mockImplementation(inOneChunk([
+      ent('Ada Lovelace'), ent('Charles Babbage'),
+    ] as never));
+    await processReferenceJob(
+      content, makeInferenceClient(),
+      { resourceId: RID, entityTypes: [entityType('Person')] },
+      textBuild(content), vi.fn(), LOGGER, async () => {}, undefined,
+      async (anns: any[]) => { committed.push(...anns.map((a) => String(a.id))); },
+    );
+    return committed;
+  }
+
+  it('two independent attempts over the same content mint identical ids', async () => {
+    const first = await runOnce();
+    const second = await runOnce();
+    expect(first.length).toBe(2);
+    expect(second).toEqual(first);
+  });
+
+  it('the id is stable across a differing bodyLanguage default', async () => {
+    // `unresolvedBody` carries `language: params.language ?? 'en'` and the body
+    // IS hashed. If a retry ever resolved that default differently, ids would
+    // diverge and both dedupe layers would fail together — the shape that best
+    // fits the measured duplicates.
+    const committed: string[][] = [];
+    for (const language of [undefined, 'en']) {
+      const got: string[] = [];
+      vi.mocked(extractEntities).mockImplementation(inOneChunk([ent('Ada Lovelace')] as never));
+      await processReferenceJob(
+        content, makeInferenceClient(),
+        { resourceId: RID, entityTypes: [entityType('Person')], ...(language ? { language } : {}) },
+        textBuild(content), vi.fn(), LOGGER, async () => {}, undefined,
+        async (anns: any[]) => { got.push(...anns.map((a) => String(a.id))); },
+      );
+      committed.push(got);
+    }
+    expect(committed[1]).toEqual(committed[0]);
+  });
+});

@@ -126,6 +126,22 @@ export function validateRegistry(reg) {
     }
   }
 
+  // ── a stored event's ts is its shape, event and enrichment, spelled out ─
+  // `ts` is emitted verbatim into EventMap, so it restates facts the entry
+  // already declares. Hold it to them: a channel marked `enriched` whose ts
+  // still says StoredEvent types every subscriber as if the EventStore attached
+  // nothing, and producer and consumer go back to casting across the gap.
+  for (const c of reg.channels) {
+    if (c.enriched !== undefined && (c.enriched !== true || c.shape !== 'storedEvent')) {
+      problems.push(`"${c.channel}" sets enriched: ${JSON.stringify(c.enriched)} — it is a flag (true or absent), and only a stored event can carry it`);
+    }
+    if (c.shape !== 'storedEvent') continue;
+    const expected = `${c.enriched === true ? 'EnrichedEvent' : 'StoredEvent'}<EventOfType<'${c.event}'>>`;
+    if (c.ts !== expected) {
+      problems.push(`"${c.channel}" is a${c.enriched === true ? 'n enriched' : ''} stored event, so its ts must be ${expected} — found ${c.ts}`);
+    }
+  }
+
   fail(problems);
 }
 

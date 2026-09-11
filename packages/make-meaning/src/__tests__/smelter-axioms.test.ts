@@ -38,7 +38,8 @@ import {
   resourceDescriptor,
   createContentTransport,
   createFakeKsBus,
-  type ContentEntry, memoryAnchoredStore } from './helpers/smelter-harness';
+  type ContentEntry, memoryAnchoredStore,
+  yieldCreated, yieldUpdated, yieldRepresentationAdded, markArchived, markUnarchived, markRemoved } from './helpers/smelter-harness';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 
 const CHUNKING: ChunkingConfig = { chunkSize: 512, overlap: 64 };
@@ -136,6 +137,16 @@ const nonEmptyTextCatalogArb: fc.Arbitrary<CatalogEntry[]> = fc
   )
   .map(toCatalog);
 
+/** One builder per bodiless resource-event kind. The generator's `kind` is a
+ *  union, which no single object literal can be typed against. */
+const RESOURCE_EVENT = {
+  'yield:created': yieldCreated,
+  'yield:updated': yieldUpdated,
+  'yield:representation-added': yieldRepresentationAdded,
+  'mark:archived': markArchived,
+  'mark:unarchived': markUnarchived,
+} satisfies Record<string, (resourceId: string) => SmelterEvent>;
+
 function eventArbFor(catalog: CatalogEntry[]): fc.Arbitrary<SmelterEvent> {
   return fc
     .record({
@@ -149,11 +160,11 @@ function eventArbFor(catalog: CatalogEntry[]): fc.Arbitrary<SmelterEvent> {
     .map(({ entry, kind, annIdx }): SmelterEvent => {
       if (kind === 'mark:added' || kind === 'mark:removed') {
         const ann = entry.annotations[annIdx % Math.max(1, entry.annotations.length)];
-        if (!ann) return { type: 'yield:created', resourceId: entry.rid, payload: {} };
+        if (!ann) return yieldCreated(entry.rid);
         if (kind === 'mark:added') return annotationEvent(entry.rid, ann.aid, ann.exact);
-        return { type: 'mark:removed', resourceId: entry.rid, payload: { annotationId: ann.aid } };
+        return markRemoved(entry.rid, ann.aid);
       }
-      return { type: kind, resourceId: entry.rid, payload: {} };
+      return RESOURCE_EVENT[kind](entry.rid);
     });
 }
 
@@ -432,7 +443,7 @@ describe('Smelter axioms', () => {
             () => { recSettled = true; },
             () => { recSettled = true; },
           );
-          for (const e of catalog) h.events$.next({ type: 'yield:updated', resourceId: e.rid, payload: {} });
+          for (const e of catalog) h.events$.next(yieldUpdated(e.rid));
           await pump(s, () => recSettled);
           await h.settle();
           await rec;
@@ -465,7 +476,7 @@ describe('Smelter axioms', () => {
           await waitUntil(() => s.count() >= 1, 1000);
           // The content moves on and a live update arrives.
           h.setText(rid, v2);
-          h.events$.next({ type: 'yield:updated', resourceId: rid, payload: {} });
+          h.events$.next(yieldUpdated(rid));
           // Soft wait: pre-R3 both reads are pending simultaneously; post-R3
           // the lane serializes them and the count never reaches 2.
           await waitUntil(() => s.count() >= 2, 200);
@@ -484,16 +495,24 @@ describe('Smelter axioms', () => {
 
   // S5 (FOPL): ∀ resource events e, ∀ payloads p,p′: mutation(e[p]) = mutation(e[p′])
   // — the mutation is a function of (type(e), rid(e)) and the transport at τ(e).
+  // Quantified over WELL-TYPED payloads: the body's own fields vary — `format`
+  // and `contentChecksum` among them, the two a careless change would reach
+  // for — while the embedding must still come from the transport's bytes (S12).
+  // A body the type forbids is unrepresentable, so it is no longer a case.
   it('S5: payload contents do not influence resource embedding', async () => {
     await fc.assert(
       fc.asyncProperty(
         ridArb,
         textArb,
-        fc.dictionary(fc.string({ maxLength: 8 }), fc.jsonValue({ maxDepth: 2 }), { maxKeys: 4 }),
-        async (rid, text, junk) => {
+        fc.record({
+          name: fc.string({ maxLength: 16 }),
+          format: fc.string({ maxLength: 16 }),
+          contentChecksum: fc.string({ maxLength: 16 }),
+        }),
+        async (rid, text, body) => {
           const h = await makeHarness({ catalog: [{ rid, mediaType: 'text/plain', text, annotations: [] }] });
           try {
-            h.events$.next({ type: 'yield:created', resourceId: rid, payload: junk });
+            h.events$.next({ ...yieldCreated(rid), payload: body });
             await h.settle();
             expect(h.lastUpsertTexts.get(rid)).toEqual(chunkText(text, CHUNKING));
           } finally {
@@ -516,7 +535,7 @@ describe('Smelter axioms', () => {
 
         const live = await makeHarness({ catalog });
         try {
-          for (const e of catalog) live.events$.next({ type: 'yield:created', resourceId: e.rid, payload: {} });
+          for (const e of catalog) live.events$.next(yieldCreated(e.rid));
           await live.settle();
           expect((await live.ids()).resources).toEqual(expected);
         } finally {
@@ -545,7 +564,7 @@ describe('Smelter axioms', () => {
     ];
     const h = await makeHarness({ catalog });
     try {
-      for (const e of catalog) h.events$.next({ type: 'yield:created', resourceId: e.rid, payload: {} });
+      for (const e of catalog) h.events$.next(yieldCreated(e.rid));
       await h.settle();
       expect((await h.ids()).resources).toEqual(['r-foo', 'r-json']);
     } finally {
@@ -714,7 +733,7 @@ describe('Smelter axioms', () => {
           await store.connect();
           const h1 = await makeHarness({ catalog, store });
           try {
-            for (const e of catalog) h1.events$.next({ type: 'yield:created', resourceId: e.rid, payload: {} });
+            for (const e of catalog) h1.events$.next(yieldCreated(e.rid));
             await h1.settle();
           } finally {
             h1.stop();
@@ -762,7 +781,7 @@ describe('Smelter axioms', () => {
           await store.connect();
           const h1 = await makeHarness({ catalog, store });
           try {
-            for (const e of catalog) h1.events$.next({ type: 'yield:created', resourceId: e.rid, payload: {} });
+            for (const e of catalog) h1.events$.next(yieldCreated(e.rid));
             await h1.settle();
           } finally {
             h1.stop();
@@ -807,7 +826,7 @@ describe('Smelter axioms', () => {
           const failRids = new Set(failed);
           const h = await makeHarness({ catalog, failRids });
           try {
-            for (const e of catalog) h.events$.next({ type: 'yield:created', resourceId: e.rid, payload: {} });
+            for (const e of catalog) h.events$.next(yieldCreated(e.rid));
             await h.settle();
 
             const signals = h.settledSignals();

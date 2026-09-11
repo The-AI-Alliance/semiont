@@ -1,6 +1,6 @@
 import { AnnotationContext } from './annotation-context';
 import type { EventStore, ViewStorage } from '@semiont/event-sourcing';
-import type { Annotation, ResourceId, StoredEvent } from '@semiont/core';
+import type { Annotation, EnrichedEvent, ResourceId, StoredEvent } from '@semiont/core';
 
 export function eventAnnotationId(event: StoredEvent): string | null {
   switch (event.type) {
@@ -36,6 +36,6 @@ export function wireEnrichment(eventStore: EventStore, kb: { views: Pick<ViewSto
     if (annId === null) return event;
     const annotation = await readAnnotationFromView(kb, resourceId, annId);
     if (annotation === null) return event;
-    return { ...event, annotation } as unknown as typeof event;
+    return { ...event, annotation } satisfies EnrichedEvent;
   });
 }

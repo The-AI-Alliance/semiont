@@ -8,8 +8,9 @@
  * single-index reads; anything that FUSES sources belongs to the Matcher.
  */
 
-import { decodeRepresentation, getResourceEntityTypes, getResourceId, resourceId as makeResourceId } from '@semiont/core';
+import { decodeRepresentation, derivesTextOf, getResourceEntityTypes, getResourceId, resourceId as makeResourceId, textSourceOf } from '@semiont/core';
 import { representationSource } from './representation.js';
+import type { AnchoredTextAsk } from './anchored-text-ask.js';
 import type { Logger, ResourceId } from '@semiont/core';
 import { compareByRecencyThenId, type GraphDatabase } from '@semiont/graph';
 import { mergeByResource, type EmbeddingProvider, type VectorStore } from '@semiont/vectors';
@@ -212,9 +213,11 @@ export class ResourceContext {
         try {
           // The descriptors are already in hand, so this takes the descriptor
           // half of the one resolution rather than re-reading the view
-          // (SINGLE-KB-MOUNT P3).
+          // (SINGLE-KB-MOUNT P3). Previews exist only for decode media: a
+          // binary row used to preview 200 chars of mojibake
+          // (bugs/gather-ships-raw-pdf-bytes P1 census).
           const source = representationSource(doc);
-          if (source) {
+          if (source && !derivesTextOf(source.mediaType) && textSourceOf(source.mediaType) !== 'none') {
             const contentBuffer = await kb.content.retrieve(source.storageUri);
             const contentPreview = decodeRepresentation(contentBuffer, source.mediaType).slice(0, 200);
             return { ...doc, content: contentPreview };
@@ -228,25 +231,41 @@ export class ResourceContext {
   }
 
   /**
-   * Get full content for a resource
-   * Retrieves and decodes the primary representation. ResourceId-keyed
-   * (EXTRACT-LIBRARIAN P3, D-CONTENT b): the descriptor's `storageUri` is the
-   * has-content signal; the fetch itself goes by id, so the standalone
-   * Librarian serves it over the transport.
+   * Get full content for a resource, as TEXT — the read-side dispatcher
+   * (bugs/gather-ships-raw-pdf-bytes P1): the media type decides where the
+   * text comes from, exactly as it decides who may derive it
+   * (SMELTER-OWNS-OCR).
+   *
+   * - `decode`         — the bytes ARE the text: fetch (ResourceId-keyed,
+   *                      D-CONTENT b) and charset-decode.
+   * - derived (`derivesTextOf`) — the text is the Smelter's artifact: the
+   *                      anchored-text read answers, and its classified
+   *                      absences (`not-yet`, `no-map`, `unknown`, a stored
+   *                      decline) all mean ABSENT — `undefined`, never `''`
+   *                      and never decoded bytes.
+   * - `none`           — this media has no text; neither door is touched.
    */
   static async getResourceContent(
     resource: ResourceDescriptor,
-    kb: { content: ContentReads }
+    kb: { content: ContentReads; anchoredText: AnchoredTextAsk }
   ): Promise<string | undefined> {
     const id = getResourceId(resource);
     const source = representationSource(resource);
-    if (source && id) {
-      // The transport reports the media type it served; the descriptor's is
-      // the same fact by construction (both come from the one resolution),
-      // so this decodes with what came back rather than re-deriving it.
-      const { data, contentType } = await kb.content.getBinary(makeResourceId(id));
-      return decodeRepresentation(Buffer.from(data), contentType);
+    if (!source || !id) return undefined;
+
+    // Category, not mechanism: a new strategy declares its side in core's
+    // exhaustive category maps (`derivesTextOf`), and this dispatch follows
+    // automatically — the mechanism literal stays on the extraction side.
+    if (textSourceOf(source.mediaType) === 'none') return undefined;
+    if (derivesTextOf(source.mediaType)) {
+      const answer = await kb.anchoredText(id);
+      return answer.kind === 'extracted' ? answer.text : undefined;
     }
-    return undefined;
+    // The bytes are the text. The transport reports the media type it
+    // served; the descriptor's is the same fact by construction (both come
+    // from the one resolution), so this decodes with what came back rather
+    // than re-deriving it.
+    const { data, contentType } = await kb.content.getBinary(makeResourceId(id));
+    return decodeRepresentation(Buffer.from(data), contentType);
   }
 }

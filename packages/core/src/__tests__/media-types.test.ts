@@ -17,6 +17,7 @@ import {
   textSourceOf,
   isAnnotatable,
   yieldsGeometryOf,
+  derivesTextOf,
   AUTHORABLE_MEDIA_TYPES,
   EMBEDDABLE_MEDIA_TYPES,
   GENERATABLE_MEDIA_TYPES,
@@ -193,6 +194,35 @@ describe('media-types registry', () => {
       // does not have for an unknown type, so it refuses.
       expect(textSourceOf('text/x-obscure-notation')).toBe('decode');
       expect(isAnnotatable('text/x-obscure-notation')).toBe(false);
+    });
+  });
+
+  describe('derivesTextOf (bugs/gather-ships-raw-pdf-bytes vocabulary refinement)', () => {
+    // "Decoding is not deriving" (READ-VS-EXTRACT): a reader asking "where
+    // does this media's text COME FROM?" needs the category, not the
+    // mechanism — the mechanism literal ('pdf-text-layer') stays confined to
+    // the extraction side, which genuinely dispatches on it.
+    it('is true where text is the Smelter\'s derived artifact', () => {
+      expect(derivesTextOf('application/pdf')).toBe(true);
+    });
+
+    it('is false for decoded text — the bytes are the text', () => {
+      expect(derivesTextOf('text/markdown')).toBe(false);
+      expect(derivesTextOf('application/json')).toBe(false);
+      expect(derivesTextOf('text/x-anything')).toBe(false); // RFC 2046 fallback
+    });
+
+    it('is false where there is no text at all — a different absence than decoded', () => {
+      expect(derivesTextOf('image/png')).toBe(false);
+      expect(derivesTextOf('application/x-unknown-binary')).toBe(false);
+    });
+
+    it('is a distinct question from geometry, though the answers coincide today', () => {
+      // A future transcription strategy would derive text with NO geometry;
+      // conflating the two helpers would make that unrepresentable.
+      for (const mt of ['application/pdf', 'text/plain', 'image/png']) {
+        expect(derivesTextOf(mt)).toBe(yieldsGeometryOf(mt));
+      }
     });
   });
 

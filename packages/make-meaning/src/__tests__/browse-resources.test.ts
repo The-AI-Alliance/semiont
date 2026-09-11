@@ -8,7 +8,7 @@ import { BusRequestError, type BusRequestPrimitive } from '@semiont/core';
 import { BehaviorSubject, Subject, Observable } from 'rxjs';
 import { browseAllResources, RESOURCE_LISTING_RETRY } from '../browse-resources';
 import { retryBudgetMs, STARTUP_FETCH_RETRY } from '@semiont/core';
-import { EMBEDDING_PROVIDER_RETRY, EMBED_TIMEOUT_MS } from '@semiont/vectors';
+import { EMBEDDING_PROVIDER_RETRY, EMBED_ROUND_TRIP_TIMEOUT_MS } from '@semiont/vectors';
 
 /**
  * A bus whose reply to each page is scripted:
@@ -119,7 +119,7 @@ describe('RESOURCE_LISTING_RETRY outlasts an archivist boot', () => {
     // Waiting less means giving up on an archivist that is still starting.
     const archivistBoot =
       retryBudgetMs(STARTUP_FETCH_RETRY) +
-      retryBudgetMs(EMBEDDING_PROVIDER_RETRY, EMBED_TIMEOUT_MS);
+      retryBudgetMs(EMBEDDING_PROVIDER_RETRY, EMBED_ROUND_TRIP_TIMEOUT_MS);
 
     expect(
       retryBudgetMs(RESOURCE_LISTING_RETRY),

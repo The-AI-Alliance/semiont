@@ -16,11 +16,12 @@ import type { ViewStorage } from '@semiont/event-sourcing';
 
 import { AnnotationContext } from '../annotation-context.js';
 import type { ContentReads } from '@semiont/content';
+import type { AnchoredTextAsk } from '../anchored-text-ask.js';
 import type { Gatherer } from '../gatherer.js';
 
 export function registerAnnotationContextHandler(
   eventBus: EventBus,
-  kb: { views: Pick<ViewStorage, 'get'>; content: ContentReads },
+  kb: { views: Pick<ViewStorage, 'get'>; content: ContentReads; anchoredText: AnchoredTextAsk },
   parentLogger: Logger,
 ): void {
   const logger = parentLogger.child({ component: 'annotation-lookups' });

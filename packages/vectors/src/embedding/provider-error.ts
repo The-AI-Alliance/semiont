@@ -14,7 +14,11 @@
 export type EmbeddingProviderName = 'ollama' | 'voyage';
 
 /**
- * Deadline on ONE embedding request.
+ * Deadline on ONE embedding request — one round trip, never a whole batch.
+ *
+ * It was named `EMBED_TIMEOUT_MS` while `embedBatch` sent a resource's entire
+ * chunk set as a single request, so this number silently bounded a whole book.
+ * Slicing made the name true; the rename keeps it from drifting back.
  *
  * Without it a retry budget is a count with no wall clock: delays are bounded by
  * the policy, but a `fetch` with no signal can sit in TCP retransmit for minutes
@@ -25,7 +29,7 @@ export type EmbeddingProviderName = 'ollama' | 'voyage';
  * model into memory on the first embed after a pull lands. That is a success in
  * progress, and a 5s deadline would abort it just as it was about to work.
  */
-export const EMBED_TIMEOUT_MS = 15_000;
+export const EMBED_ROUND_TRIP_TIMEOUT_MS = 15_000;
 
 export class EmbeddingProviderError extends Error {
   readonly provider: EmbeddingProviderName;
@@ -36,17 +40,32 @@ export class EmbeddingProviderError extends Error {
    *  happens to name the model while Voyage's does not. */
   readonly model: string;
   readonly body: string;
+  /** Which slice of a batch failed, when the failure came from a sliced batch.
+   *  An object rather than two more positional numbers: adjacent same-typed
+   *  parameters are how a caller silently passes the wrong thing. */
+  readonly slice?: { index: number; start: number; end: number };
 
-  constructor(provider: EmbeddingProviderName, status: number, model: string, body: string) {
+  constructor(
+    provider: EmbeddingProviderName,
+    status: number,
+    model: string,
+    body: string,
+    slice?: { index: number; start: number; end: number },
+  ) {
     // The message keeps its old shape — status included — so existing log lines
     // and anything matching on them read exactly as before. The fields are what
     // is new; the prose is not a step backwards.
-    super(`${provider} embed error ${status}: ${body}`);
+    super(
+      slice
+        ? `${provider} embed error ${status} (slice ${slice.index}, texts ${slice.start}–${slice.end}): ${body}`
+        : `${provider} embed error ${status}: ${body}`,
+    );
     this.name = 'EmbeddingProviderError';
     this.provider = provider;
     this.status = status;
     this.model = model;
     this.body = body;
+    if (slice) this.slice = slice;
   }
 }
 

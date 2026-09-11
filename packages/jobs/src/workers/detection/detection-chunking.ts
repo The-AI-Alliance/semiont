@@ -258,8 +258,33 @@ function unknownUnreadable(error: unknown): boolean {
   return error instanceof StructuredReadError && error.stopReason === 'unknown';
 }
 
+/**
+ * The model FINISHED and still emitted unparseable JSON — not cut off, not
+ * stopped for an unknown reason. Subdividable, but DEPTH-capped rather than
+ * size-floored, and the two halves of that are separately earned:
+ *
+ * Subdividable, because one of these killed a 26-minute attempt at chunk 25 of
+ * 49 while the preceding 24 chunks parsed cleanly on the same prompt and model
+ * — so the malformation was content-triggered drift, which changing the input
+ * can fix. A same-size retry cannot: DETECTION_TEMPERATURE is 0, so the
+ * identical call returns the identical response (the same reason a collapse
+ * verdict gets no re-roll).
+ *
+ * Depth-capped rather than size-floored, because if the drift is instead
+ * systematic — the model answering this prompt shape wrongly everywhere — every
+ * extra level re-reads the same content for the same verdict. Measured, the two
+ * settings often coincide (the descent aborts at the first failing sub-piece
+ * instead of exploring siblings, so cost is linear in depth, not geometric),
+ * and where they differ the cap is the cheaper wrong answer. Timeouts are
+ * capped on the same reasoning.
+ */
+function unreadableDespiteFinishing(error: unknown): boolean {
+  return error instanceof StructuredReadError && error.stopReason === 'end_turn';
+}
+
 function subdividable(error: unknown): boolean {
-  return error instanceof InferenceTimeoutError || truncation(error) || unknownUnreadable(error);
+  return error instanceof InferenceTimeoutError || truncation(error)
+    || unknownUnreadable(error) || unreadableDespiteFinishing(error);
 }
 
 /** Truncation in either surface: parsed-but-flagged (`assertNotTruncated`'s
