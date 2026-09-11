@@ -46,7 +46,7 @@ Each channel falls into one of five payload categories. The category tells you w
 
 | Category | Schema source | Validated at gateway | Persisted | Example |
 |---|---|---|---|---|
-| **Domain event** (`StoredEvent<...>`) | branded TypeScript wrapper | no — handlers emit | yes | `yield:created`, `mark:added`, `job:completed` |
+| **Domain event** (`StoredEvent<...>`; `EnrichedEvent<...>` where the EventStore enriches) | branded TypeScript wrapper | no — handlers emit | yes | `yield:created`, `mark:added`, `job:completed` |
 | **Command** | OpenAPI schema (`components['schemas']`) | yes — `/bus/emit` | no | `yield:create`, `mark:archive`, `match:search-requested` |
 | **Result / failure** | OpenAPI schema or inline `{ correlationId, ... }` | sometimes (whitelisted set) | no | `yield:create-ok`, `match:search-results`, `gather:failed` |
 | **UI signal** | OpenAPI schema or `void` | yes when schema-typed | no | `beckon:hover`, `panel:toggle`, `mark:selection-changed` |
@@ -197,6 +197,8 @@ The rule, by event kind:
 
 Domain events (past-tense `-ed` channels) are the only events that get appended to the event store. They're typed as `StoredEvent<EventOfType<...>>` in the EventMap rather than as OpenAPI schemas — they carry storage metadata (sequence number, stream position) on top of the domain payload.
 
+Events that mutate an annotation are typed `EnrichedEvent<EventOfType<...>>`: the stored event plus, at the top level, the annotation as it stands in the view, which the EventStore attaches after materializing and before publishing. Subscribers read it to update a cached annotation in place rather than refetch — `mark:body-updated`, for instance, carries only the body operations, not the annotation they produce. It is optional: enrichment declines when the view no longer holds the annotation, which is always the case for a removal, so a subscriber has to handle its absence. The registry marks these channels `"enriched": true`, and `validate-registry.mjs` holds every stored event's `ts` to its shape, event and enrichment, so the declaration and the generated type cannot drift apart.
+
 `PERSISTED_EVENT_TYPES` in [persisted-events.ts](../../packages/core/src/persisted-events.ts) is the list of channels the event-sourcing layer treats as durable. Adding a new domain event means adding it to that list — a `StoredEvent`-typed entry in `EventMap` that isn't in `PERSISTED_EVENT_TYPES` will fail typecheck.
 
 Commands, results, and UI signals are transient. They flow across the bus, drive handlers, and disappear. Only their downstream `-ed` events get recorded.
@@ -313,7 +315,7 @@ with the registry, naming the command to run.
 
 The compile-time discipline is strict by design. A new channel requires changes in two places (the registry and the OpenAPI schema), plus an SDK method to call it:
 
-1. **The registry** ([`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)) — add the channel with its payload (`shape` plus the OpenAPI schema name, or `storedEvent` / `void`), and its `validate` entry: the schema the `/bus/emit` route enforces, or `null` for non-validated. Then run `npm run generate:bus`, which writes the `EventMap` and `CHANNEL_SCHEMAS` entries in both languages. The generated `satisfies Record<EventName, ...>` clause still fails the typecheck if the two maps disagree.
+1. **The registry** ([`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)) — add the channel with its payload (`shape` plus the OpenAPI schema name, or `storedEvent` / `void` — a stored event that mutates an annotation also takes `"enriched": true`), and its `validate` entry: the schema the `/bus/emit` route enforces, or `null` for non-validated. Then run `npm run generate:bus`, which writes the `EventMap` and `CHANNEL_SCHEMAS` entries in both languages. The generated `satisfies Record<EventName, ...>` clause still fails the typecheck if the two maps disagree, and `validate-registry.mjs` refuses a stored event whose `ts` disagrees with its `shape`, `event` and `enriched`.
 2. **`PERSISTED_EVENT_TYPES`** (only if it's a `StoredEvent` domain event) and, for SSE delivery, the routing: a request/reply operation is declared as an `operations` entry in the **registry** (generated into `BUS_OPERATIONS`) (which *derives* its reply channels into `BRIDGED_CHANNELS`); a non-request/reply broadcast that should reach every client is added to the registry's **`bridgedBroadcasts.channels`**. You never hand-edit `BRIDGED_CHANNELS` — replies are derived, and broadcasts are registry data. Each list has its own completeness check, an equality test pins the derived bridged set, and `validate-registry.mjs` refuses a broadcast entry that is really an operation's reply.
 
 Then for the OpenAPI schema:
