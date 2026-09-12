@@ -141,6 +141,11 @@ export { serializePerKey } from './serialize-per-key';
 // Bounded concurrency across callers (for a shared downstream: one local model
 // process, a rate-limited API). Sibling to serializePerKey, which bounds per key.
 export { boundedGate } from './bounded-gate';
+
+// Which failures are worth another attempt, per context — one catalog so the
+// contexts' disagreements are visible rather than distributed.
+export { RETRY_RULES } from './retry-rules';
+export type { RetryRule, RetryFacts } from './retry-rules';
 export type { BatchPolicy } from './bounded-gate';
 
 // Logger interface (framework-agnostic)
