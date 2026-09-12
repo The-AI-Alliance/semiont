@@ -44,6 +44,35 @@ interface ModelDiscovery {
   structuredOutputsSupported: boolean;
 }
 
+/**
+ * Call-level retries, CHOSEN (RETRY-CLASSIFICATION P4) rather than inherited.
+ *
+ * Two is also SDK 0.123.0's default, and writing it down is the point: this was
+ * the last site in that plan's census still running on a vendor default, and the
+ * plan's finding is that unchosen defaults win silently. Pinned, a future SDK
+ * bump cannot change our retry behavior without someone editing this line.
+ *
+ * Two is right here on measured grounds, not taste:
+ * - **Fast failures cost almost nothing.** A 429, 409 or quick 5xx returns in
+ *   seconds, so three attempts are seconds — and the SDK honors `retry-after`,
+ *   which matters more now that entity types run concurrently
+ *   (DETECTION-QUALITY-THROUGHPUT P6) and 429 is the expected pushback.
+ * - **Slow failures never reach the retries.** `boundedGenerateStructured` wraps
+ *   the whole call in one 10-minute timer, and the SDK's own default timeout is
+ *   also 10 minutes, so a hung call trips OUR bound during the first attempt.
+ *
+ * What would change it: a repeatable mid-duration 5xx — a call that generates
+ * for minutes and then fails — is the one shape where these retries hurt, because
+ * attempt-plus-retry can outlast our bound and surface as `InferenceTimeoutError`,
+ * which `callChunkSubdividing` treats as size-shaped and answers by SUBDIVIDING.
+ * Smaller chunks cannot fix a server error. Depth-capping keeps that bounded, and
+ * it has not been observed; if it ever is, lower this number rather than teaching
+ * the subdivider about HTTP.
+ *
+ * Anthropic only. Nothing here is claimed about Ollama's client.
+ */
+const ANTHROPIC_MAX_RETRIES = 2;
+
 export class AnthropicInferenceClient implements InferenceClient {
   readonly type = 'anthropic' as const;
   // Hosted API: a single detection job uses a sliver of the account rate limit
@@ -65,6 +94,7 @@ export class AnthropicInferenceClient implements InferenceClient {
     this.client = new Anthropic({
       apiKey,
       baseURL: baseURL || 'https://api.anthropic.com',
+      maxRetries: ANTHROPIC_MAX_RETRIES,
     });
     this.modelId = model;
     this.logger = logger;

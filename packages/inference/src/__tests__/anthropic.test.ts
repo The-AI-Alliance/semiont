@@ -3,16 +3,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock the Anthropic SDK so we can assert the exact request shape and feed
 // canned responses. `vi.hoisted` makes the mocks available inside the
 // (hoisted) mock factory.
-const { createMock, retrieveMock, streamMock } = vi.hoisted(() => ({
+const { createMock, retrieveMock, streamMock, ctorMock } = vi.hoisted(() => ({
   createMock: vi.fn(),
   retrieveMock: vi.fn(),
   streamMock: vi.fn(),
+  ctorMock: vi.fn(),
 }));
 
 vi.mock('@anthropic-ai/sdk', () => ({
   default: class MockAnthropic {
     messages = { create: createMock, stream: streamMock };
     models = { retrieve: retrieveMock };
+    constructor(options: unknown) { ctorMock(options); }
   },
 }));
 
@@ -27,6 +29,21 @@ const CAPABLE_MODEL = {
   max_tokens: 64_000,
   capabilities: { structured_outputs: { supported: true } },
 };
+
+describe('AnthropicInferenceClient — the retry count is CHOSEN, not inherited', () => {
+  // RETRY-CLASSIFICATION P4. This was the last census site running on an
+  // unchosen vendor default, and that plan's whole finding is that unchosen
+  // defaults win silently. The value below happens to equal SDK 0.123.0's
+  // default, which is the point: writing it down changes no behavior today and
+  // stops a future SDK bump from changing it for us without anyone noticing.
+  it('passes maxRetries explicitly when constructing the SDK client', () => {
+    ctorMock.mockClear();
+    new AnthropicInferenceClient('key', 'model');
+
+    const options = ctorMock.mock.calls[0]![0] as { maxRetries?: number };
+    expect(options.maxRetries).toBe(2);
+  });
+});
 
 describe('AnthropicInferenceClient - structured generation is output_config, not tools or prefill', () => {
   beforeEach(() => {
