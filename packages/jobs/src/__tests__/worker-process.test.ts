@@ -1566,6 +1566,49 @@ describe('reference-annotation — checkpointed resume', () => {
     expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
   });
 
+  it('hands the claimed cursors to the processor so a partway unit resumes (CHUNK-GRAIN-RESUME P3)', async () => {
+    // The last link: P2 makes the cursor durable and puts it back on the claim,
+    // but a worker that never passes it on leaves the retry restarting from the
+    // top with the record showing a resume that never happened.
+    let seen: unknown;
+    vi.mocked(processReferenceJob).mockImplementation(
+      (async (...args: unknown[]) => {
+        seen = args[9];
+        return { result: { kind: 'reference-annotation', totalFound: 0, totalEmitted: 0, errors: 0 } } as never;
+      }) as never,
+    );
+    const h = makeFakeSessionAndAdapter();
+    const cursors = { Person: { next: 12_400, size: 560 } };
+
+    await handleJob(
+      h.adapter, makeConfig(h.session),
+      makeJob('reference-annotation', { entityTypes: ['Person'] }, [], { retryCount: 1, maxRetries: 3 }, cursors),
+    );
+
+    expect(seen).toEqual(cursors);
+  });
+
+  it('hands the claimed cursors to a motivation processor too', async () => {
+    // Four of the five types go through a different branch; wiring only the
+    // reference one would leave them silently restarting.
+    let seen: unknown;
+    vi.mocked(processHighlightJob).mockImplementation(
+      (async (...args: unknown[]) => {
+        seen = args[6];
+        return { result: { highlightsFound: 0, highlightsCreated: 0 } } as never;
+      }) as never,
+    );
+    const h = makeFakeSessionAndAdapter();
+    const cursors = { highlighting: { next: 8_000, size: 400 } };
+
+    await handleJob(
+      h.adapter, makeConfig(h.session),
+      makeJob('highlight-annotation', {}, [], { retryCount: 1, maxRetries: 3 }, cursors),
+    );
+
+    expect(seen).toEqual(cursors);
+  });
+
   it('cancellation stops at a unit boundary: emits job:cancel with the checkpoint, not job:complete (JOB-RESTART-SAFETY P4)', async () => {
     // The signal is aborted (a cancel was requested for this job). The real
     // processReferenceJob breaks its loop at the next unit boundary; the mock

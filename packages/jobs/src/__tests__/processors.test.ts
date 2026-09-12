@@ -319,7 +319,7 @@ describe('processReferenceJob', () => {
   it('runs multiple entity types and commits each exactly once', async () => {
     // Each type returns its own entity (verbatim in the content so anchoring holds).
     const content = 'Paris and Ada and Sony are here.';
-    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, onChunkResults) => {
+    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, _resume, onChunkResults) => {
       const t = String(types[0]);
       const map: Record<string, any> = {
         Location: [{ exact: 'Paris', entityType: 'Location' }],
@@ -392,7 +392,7 @@ describe('processReferenceJob', () => {
   it('reports each unit once even when types finish OUT OF ORDER', async () => {
     const content = 'Paris and Ada are here.';
     // Location resolves slowly, Person fast — completion order reversed.
-    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, onChunkResults) => {
+    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, _resume, onChunkResults) => {
       const t = String(types[0]);
       const items = t === 'Location'
         ? (await new Promise((r) => setTimeout(r, 20)), [{ exact: 'Paris', entityType: 'Location' }])
@@ -1190,6 +1190,7 @@ describe('locale threading', () => {
       expect(AnnotationDetection.detectHighlights).toHaveBeenCalledWith(
         'content', client, undefined, undefined, 'fr',
         expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
+        undefined,            // resume cursor — absent on a first attempt
         expect.any(Function), // chunk-results emission
       );
     });
@@ -1206,6 +1207,7 @@ describe('locale threading', () => {
       expect(AnnotationDetection.detectComments).toHaveBeenCalledWith(
         'content', client, undefined, undefined, undefined, 'de', 'fr',
         expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
+        undefined,            // resume cursor — absent on a first attempt
         expect.any(Function), // chunk-results emission
       );
     });
@@ -1222,6 +1224,7 @@ describe('locale threading', () => {
       expect(AnnotationDetection.detectAssessments).toHaveBeenCalledWith(
         'content', client, undefined, undefined, undefined, 'es', 'pt',
         expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
+        undefined,            // resume cursor — absent on a first attempt
         expect.any(Function), // chunk-results emission
       );
     });
@@ -1242,6 +1245,7 @@ describe('locale threading', () => {
         expect.any(Function), // chunk-boundary progress heartbeat
         expect.any(Function), // under-report verdicts
         expect.any(Function), // accepted-piece counts
+        undefined,            // resume cursor — absent on a first attempt
         expect.any(Function), // chunk-results emission
       );
     });
@@ -1260,6 +1264,7 @@ describe('locale threading', () => {
       expect(AnnotationDetection.detectTags).toHaveBeenCalledWith(
         'content', client, SCHEMA_1, 'Issue', 'fr',
         expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
+        undefined,            // resume cursor — absent on a first attempt
         expect.any(Function), // chunk-results emission
       );
     });
@@ -1274,6 +1279,7 @@ describe('locale threading', () => {
       expect(AnnotationDetection.detectHighlights).toHaveBeenCalledWith(
         'content', client, undefined, undefined, undefined,
         expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
+        undefined,            // resume cursor — absent on a first attempt
         expect.any(Function), // chunk-results emission
       );
     });
@@ -1956,7 +1962,7 @@ describe('processReferenceJob — unit commits (A3)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('checkpoints each completed unit — including empty ones — and stops at the failing unit', async () => {
-    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, onChunkResults) => {
+    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, _resume, onChunkResults) => {
       const t = String(types[0]);
       if (t === 'Person') {
         const items = [{ exact: 'Greeley', start: 0, end: 7, entityType: 'Person' }];
@@ -2057,7 +2063,7 @@ describe('chunk-grain emission — processors', () => {
   it('processHighlightJob commits each chunk as it lands, not one batch at the end', async () => {
     // Two chunks: the mocked loop hands each to the processor in turn.
     vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(
-      async (_c, _cl, _i, _d, _sl, _onActivity, onChunkResults) => {
+      async (_c, _cl, _i, _d, _sl, _onActivity, _resume, onChunkResults) => {
         await onChunkResults!([at('important')] as never, { next: 1_000, size: 250 });
         await onChunkResults!([at('critical')] as never, { next: 2_000, size: 250 });
         return [at('important'), at('critical')] as never;
@@ -2076,7 +2082,7 @@ describe('chunk-grain emission — processors', () => {
 
   it('an overlap duplicate spanning two chunks is committed ONCE', async () => {
     vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(
-      async (_c, _cl, _i, _d, _sl, _onActivity, onChunkResults) => {
+      async (_c, _cl, _i, _d, _sl, _onActivity, _resume, onChunkResults) => {
         await onChunkResults!([at('important')] as never, { next: 1_000, size: 250 });
         await onChunkResults!([at('important'), at('critical')] as never, { next: 2_000, size: 250 });
         return [] as never;
@@ -2097,7 +2103,7 @@ describe('chunk-grain emission — processors', () => {
 
   it('processReferenceJob emits per chunk; onUnitComplete is the checkpoint, carrying no annotations', async () => {
     vi.mocked(extractEntities).mockImplementation(
-      async (_c, _t, _cl, _i, _l, _sl, _onActivity, _verdicts, _counts, onChunkResults) => {
+      async (_c, _t, _cl, _i, _l, _sl, _onActivity, _verdicts, _counts, _resume, onChunkResults) => {
         await onChunkResults!([{ exact: 'important', entityType: 'Person' }] as never, { next: 1_000, size: 250 });
         await onChunkResults!([{ exact: 'critical', entityType: 'Person' }] as never, { next: 2_000, size: 250 });
         return [] as never;
@@ -2131,7 +2137,7 @@ describe('under-report verdicts on the terminal surface', () => {
   it('a floor-accepted piece surfaces on the unit entry and the result aggregate', async () => {
     vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
       const onUnderReport = args[7] as (v: unknown) => void;
-      const onChunkResults = args[9] as (i: unknown[]) => Promise<void>;
+      const onChunkResults = args[10] as (i: unknown[]) => Promise<void>;
       onUnderReport({ found: 1, counted: 4, pieceChars: 530 });
       await onChunkResults([{ exact: 'Paris', entityType: 'Location' }]);
       return [] as never;
@@ -2154,12 +2160,85 @@ describe('under-report verdicts on the terminal surface', () => {
     expect(outcome.result.underReportedPieces).toBe(1);
   });
 
+  // ── the unit → cursor lookup (CHUNK-GRAIN-RESUME P3) ────────────────────
+  //
+  // The processors are where a job's units get their NAMES — an entity type
+  // here, a category for tags, the motivation for the other three — so they are
+  // the only place the checkpoint's key can be matched to the run that has to
+  // consume it. A wrong or missing key is silent: the unit simply starts at the
+  // top and the retry re-pays for everything, with nothing in the record to say
+  // a resume was even attempted. (Mutating the lookup away left every other
+  // suite green, which is why these exist.)
+  describe('resume cursors reach the right unit', () => {
+    it('processHighlightJob hands its motivation\'s cursor to the detector', async () => {
+      let seen: unknown;
+      vi.mocked(AnnotationDetection.detectHighlights).mockImplementation((async (...args: unknown[]) => {
+        seen = args[6];
+        const cb = args[args.length - 1];
+        if (typeof cb === 'function') await (cb as (m: unknown[], c: unknown) => Promise<void>)([], { next: 1, size: 1 });
+        return [] as never;
+      }) as never);
+
+      await collected((onChunkComplete) => processHighlightJob(
+        'content', makeInferenceClient(), { resourceId: RID },
+        textBuild('content'), vi.fn(), onChunkComplete,
+        { highlighting: { next: 8_000, size: 400 } },
+      ));
+
+      expect(seen).toEqual({ next: 8_000, size: 400 });
+    });
+
+    it('processReferenceJob gives each entity type ITS OWN cursor', async () => {
+      // The keys are dynamic here, so a lookup that used the wrong one would
+      // resume a unit at another unit's position — reading the right number of
+      // characters into the wrong place, with no error anywhere.
+      const byType = new Map<string, unknown>();
+      vi.mocked(extractEntities).mockImplementation((async (...args: unknown[]) => {
+        byType.set(String((args[1] as string[])[0]), args[9]);
+        await (args[10] as (i: unknown[], c: unknown) => Promise<void>)([], { next: 1, size: 1 });
+        return [] as never;
+      }) as never);
+
+      await processReferenceJob(
+        'content', makeInferenceClient(),
+        { resourceId: RID, entityTypes: [entityType('Person'), entityType('Location')] },
+        textBuild('content'), vi.fn(), LOGGER, async () => {}, undefined, async () => {},
+        { Person: { next: 12_400, size: 560 }, Location: { next: 300, size: 900 } },
+      );
+
+      expect(byType.get('Person')).toEqual({ next: 12_400, size: 560 });
+      expect(byType.get('Location')).toEqual({ next: 300, size: 900 });
+    });
+
+    it('processTagJob keys on the CATEGORY, not the motivation', async () => {
+      // A tag job's units are its categories — each walks the whole document —
+      // so a single 'tagging' key would give every category one shared cursor.
+      const byCategory = new Map<string, unknown>();
+      vi.mocked(AnnotationDetection.detectTags).mockImplementation((async (...args: unknown[]) => {
+        byCategory.set(String(args[3]), args[6]);
+        const cb = args[args.length - 1];
+        if (typeof cb === 'function') await (cb as (m: unknown[], c: unknown) => Promise<void>)([], { next: 1, size: 1 });
+        return [] as never;
+      }) as never);
+
+      await processTagJob(
+        'content', makeInferenceClient(),
+        { resourceId: RID, schema: SCHEMA_1, categories: ['catA', 'catB'] } as never,
+        textBuild('content'), vi.fn(), async () => {},
+        { catA: { next: 4_000, size: 300 }, catB: { next: 9_000, size: 700 } },
+      );
+
+      expect(byCategory.get('catA')).toEqual({ next: 4_000, size: 300 });
+      expect(byCategory.get('catB')).toEqual({ next: 9_000, size: 700 });
+    });
+  });
+
   it('two flagged pieces in one unit fold into one summary', async () => {
     vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
       const onUnderReport = args[7] as (v: unknown) => void;
       onUnderReport({ found: 1, counted: 4, pieceChars: 530 });
       onUnderReport({ found: 2, counted: 9, pieceChars: 610 });
-      await (args[9] as (i: unknown[]) => Promise<void>)([]);
+      await (args[10] as (i: unknown[]) => Promise<void>)([]);
       return [] as never;
     });
     const progress = vi.fn();
@@ -2213,7 +2292,7 @@ describe('entitiesExpected on the progress surface', () => {
   it('accumulates count-verifier expectations across chunks and units', async () => {
     vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
       const onCounted = args[8] as (c: number) => void;
-      const onChunkResults = args[9] as (i: unknown[]) => Promise<void>;
+      const onChunkResults = args[10] as (i: unknown[]) => Promise<void>;
       onCounted(4);
       await onChunkResults([{ exact: 'Paris', entityType: 'Location' }]);
       onCounted(3);
@@ -2243,7 +2322,7 @@ describe('entitiesExpected on the progress surface', () => {
     // painting all the while. Found and emitted must move as chunks COMMIT.
     vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
       const onCounted = args[8] as (c: number) => void;
-      const onChunkResults = args[9] as (i: unknown[]) => Promise<void>;
+      const onChunkResults = args[10] as (i: unknown[]) => Promise<void>;
       onCounted(4);
       await onChunkResults([{ exact: 'Paris', entityType: 'Location' }]);
       onCounted(3);

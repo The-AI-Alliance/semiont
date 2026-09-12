@@ -20,7 +20,8 @@ import {
   deriveDetectionBudget,
   type AdaptiveChunk,
 } from '../../../workers/detection/detection-chunking';
-import type { CallOutcome } from '../../../workers/detection/chunk-size-controller';
+import { nextChunkSize, type CallOutcome } from '../../../workers/detection/chunk-size-controller';
+import type { UnitCursor } from '@semiont/core';
 
 /** Ollama shape — a shared window, the config the live gate runs on. No
  * published output rate, so the assumed-floor duration bound applies, exactly
@@ -45,13 +46,14 @@ async function run(
   text: string,
   outcome: (chunk: AdaptiveChunk, outputBudget: number) => CallOutcome,
   typesPerCall = 1,
+  resume?: UnitCursor,
 ) {
   const seen: AdaptiveChunk[] = [];
   const budget = budgetFor(typesPerCall);
   await runAdaptiveChunks(text, budget, async (chunk) => {
     seen.push(chunk);
     return outcome(chunk, budget.outputBudget);
-  });
+  }, resume);
   return { seen, budget };
 }
 
@@ -225,6 +227,66 @@ describe('runAdaptiveChunks', () => {
     })).rejects.toThrow('chunk 2 failed');
 
     expect(seen).toHaveLength(2);
+  });
+});
+
+// ── resuming from a checkpoint (CHUNK-GRAIN-RESUME P3) ────────────────────
+//
+// P2 made the cursor durable; this is the half that spends it. Without it the
+// cursor is a record nobody reads, and a retried job re-pays for every chunk it
+// already committed — the 26-minute attempt this arc exists to stop repeating.
+describe('runAdaptiveChunks — resuming', () => {
+  it('starts at the checkpointed position, not the top', async () => {
+    const text = prose(1500);
+    const { seen } = await run(text, (_c, out) => steady(out), 1, { next: 40_000, size: 4_500 });
+
+    expect(seen[0]!.at).toBe(40_000);
+    // And nothing before it is read again — the point is that the INFERENCE is
+    // not re-paid, not merely that the log would dedupe the annotations.
+    expect(Math.min(...seen.map((c) => c.at))).toBe(40_000);
+  });
+
+  it('seeds the size from the checkpoint and takes ONE shrink step (HD2 option C)', async () => {
+    // Neither of the losing options. Opening at the default would discard the
+    // calibration the dead attempt paid for over its earlier chunks; seeding
+    // unchanged would re-cut the identical failing piece, and at
+    // DETECTION_TEMPERATURE 0 an identical call returns an identical failure.
+    // The resume opens as if the last outcome were a failure — which it was,
+    // the job died.
+    const budget = budgetFor();
+    const seeded = 4_000;
+    const expected = nextChunkSize({ truncated: true }, seeded, budget.bounds);
+    expect(expected).toBeLessThan(seeded);
+
+    const { seen } = await run(prose(1500), (_c, out) => steady(out), 1, { next: 10_000, size: seeded });
+    expect(seen[0]!.size).toBe(expected);
+  });
+
+  it('opens at the budget when there is no checkpoint — a first attempt is unchanged', async () => {
+    const budget = budgetFor();
+    const { seen } = await run(prose(1500), (_c, out) => steady(out));
+
+    expect(seen[0]!.at).toBe(0);
+    expect(seen[0]!.size).toBe(budget.chunking.chunkSize);
+  });
+
+  it('keeps adapting after the resume — the seed is a start, not a lock', async () => {
+    // "Attempts should learn from previous attempts, but not be beholden to
+    // them." One shrink step of conservatism, then the ordinary feedback takes
+    // over and grows again on the first low-utilization outcome.
+    const { seen } = await run(prose(1500), (_c, out) => sparse(out), 1, { next: 10_000, size: 4_000 });
+
+    expect(seen.length).toBeGreaterThan(2);
+    expect(seen[1]!.piece.length).toBeGreaterThan(seen[0]!.piece.length);
+  });
+
+  it('does nothing when the checkpoint is already at the end', async () => {
+    // The unit finished its last chunk but died before it could be marked
+    // complete. Re-running it must cost no inference at all.
+    const text = prose(400);
+    const { seen } = await run(text, (_c, out) => steady(out), 1, { next: text.length, size: 4_500 });
+
+    expect(seen).toHaveLength(0);
   });
 });
 

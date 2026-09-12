@@ -607,6 +607,9 @@ async function handleJobInner(
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
+      // …and the other direction: where an earlier attempt left each unit
+      // (CHUNK-GRAIN-RESUME P3). Empty on a first attempt.
+      job.unitCursors,
     );
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
@@ -620,6 +623,9 @@ async function handleJobInner(
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
+      // …and the other direction: where an earlier attempt left each unit
+      // (CHUNK-GRAIN-RESUME P3). Empty on a first attempt.
+      job.unitCursors,
     );
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
@@ -633,6 +639,9 @@ async function handleJobInner(
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
+      // …and the other direction: where an earlier attempt left each unit
+      // (CHUNK-GRAIN-RESUME P3). Empty on a first attempt.
+      job.unitCursors,
     );
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
@@ -682,6 +691,9 @@ async function handleJobInner(
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
+      // …and the other direction: where an earlier attempt left each unit
+      // (CHUNK-GRAIN-RESUME P3). Empty on a first attempt.
+      job.unitCursors,
     );
     // Cooperative cancellation (JOB-RESTART-SAFETY P4): the loop stopped
     // because a cancel was requested for this job. Announce it so the queue
@@ -709,6 +721,9 @@ async function handleJobInner(
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
+      // …and the other direction: where an earlier attempt left each unit
+      // (CHUNK-GRAIN-RESUME P3). Empty on a first attempt.
+      job.unitCursors,
     );
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),

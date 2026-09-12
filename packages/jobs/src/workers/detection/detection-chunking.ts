@@ -24,7 +24,7 @@
  *   not a cost.
  */
 
-import { chunkText, cutChunk, type ChunkingConfig, type Logger } from '@semiont/core';
+import { chunkText, cutChunk, type ChunkingConfig, type Logger, type UnitCursor } from '@semiont/core';
 import { StructuredReadError, type InferenceLimits, type TokenUsage } from '@semiont/inference';
 import { recordDetectionCall } from '@semiont/observability';
 import { DeterministicJobError } from '../../failure-class';
@@ -300,14 +300,26 @@ export interface AdaptiveChunk {
  * durability (committing the chunk's annotations) still gates the next cut, and
  * a throw stops the walk where it stands rather than advancing past unprocessed
  * text.
+ *
+ * `resume` restarts a unit an earlier attempt left partway (CHUNK-GRAIN-RESUME
+ * P3) — the checkpoint P2 made durable, spent. Both halves of it matter and they
+ * are spent differently: the position is taken as given, while the size is
+ * seeded and then stepped ONCE, as if the last outcome had been a failure. It
+ * was: the job died. Opening at the budget instead would throw away the
+ * calibration the dead attempt paid for over its earlier chunks, and seeding
+ * unchanged would re-cut the identical piece — which at `DETECTION_TEMPERATURE`
+ * 0 returns the identical answer, failure included (HD2, option C).
  */
 export async function runAdaptiveChunks(
   text: string,
   budget: DetectionBudget,
   onChunk: (chunk: AdaptiveChunk) => Promise<CallOutcome>,
+  resume?: UnitCursor,
 ): Promise<void> {
-  let at = 0;
-  let size = budget.chunking.chunkSize;
+  let at = resume?.next ?? 0;
+  let size = resume
+    ? nextChunkSize({ truncated: true }, resume.size, budget.bounds)
+    : budget.chunking.chunkSize;
 
   while (at < text.length) {
     const { piece, next } = cutChunk(text, at, { chunkSize: size, overlap: budget.chunking.overlap });

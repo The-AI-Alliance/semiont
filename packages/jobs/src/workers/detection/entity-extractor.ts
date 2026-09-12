@@ -159,11 +159,17 @@ export async function extractEntities(
   onUnderReport?: (verdict: UnderReportedPiece) => void,
   /** Each accepted piece's count-verifier expectation — the denominator. */
   onCounted?: (counted: number) => void,
+  /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3). Absent on
+   * a first attempt, and then the run opens at the top exactly as before.
+   * Deliberately BEFORE the callback below, which stays last. */
+  resume?: UnitCursor,
   /**
    * This chunk's entities, awaited before the loop continues: the caller
    * commits them, and the loop must not run ahead of durability. Unlike
    * `onActivity` (a liveness heartbeat, which may repeat), this fires exactly
-   * once per chunk, including the last. Kept LAST on every detection seam.
+   * once per chunk, including the last. Kept LAST on every detection seam —
+   * test harnesses read it as the final positional argument, so a parameter
+   * appended after it silently starves them of results.
    *
    * `cursor` is where the run stands ONCE THIS CHUNK IS COMMITTED — the pair
    * CHUNK-GRAIN-RESUME checkpoints. It is handed over with the results rather
@@ -339,7 +345,7 @@ Example output:
     // the unit's completion itself.
     if (next < totalChars) onActivity?.(next, totalChars);
     return outcome;
-  });
+  }, resume);
 
   return collected;
 }

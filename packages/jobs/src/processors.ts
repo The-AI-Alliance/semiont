@@ -381,6 +381,10 @@ export async function processHighlightJob(
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
+  /** Where earlier attempts left each unit (CHUNK-GRAIN-RESUME P3), keyed the
+   * same way the checkpoint is. A unit absent here starts at the top, which is
+   * every unit of a first attempt. */
+  resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobHighlightAnnotationResult>> {
   const echo = detectionEcho(params);
 
@@ -394,6 +398,7 @@ export async function processHighlightJob(
     content, inferenceClient, params.instructions, params.density, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
     (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
+    resumeCursors?.['highlighting'],
     async (matches, cursor) => {
       found += matches.length;
       // Highlights carry no body — motivation:'highlighting' on a target
@@ -447,6 +452,10 @@ export async function processCommentJob(
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
+  /** Where earlier attempts left each unit (CHUNK-GRAIN-RESUME P3), keyed the
+   * same way the checkpoint is. A unit absent here starts at the top, which is
+   * every unit of a first attempt. */
+  resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobCommentAnnotationResult>> {
   const echo = detectionEcho(params);
 
@@ -465,6 +474,7 @@ export async function processCommentJob(
     params.language, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
     (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
+    resumeCursors?.['commenting'],
     async (comments, cursor) => {
       found += comments.length;
       const fresh = dedupe(comments.map((c) =>
@@ -496,6 +506,10 @@ export async function processAssessmentJob(
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
+  /** Where earlier attempts left each unit (CHUNK-GRAIN-RESUME P3), keyed the
+   * same way the checkpoint is. A unit absent here starts at the top, which is
+   * every unit of a first attempt. */
+  resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobAssessmentAnnotationResult>> {
   const echo = detectionEcho(params);
 
@@ -511,6 +525,7 @@ export async function processAssessmentJob(
     params.language, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
     (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
+    resumeCursors?.['assessing'],
     async (assessments, cursor) => {
       found += assessments.length;
       const fresh = dedupe(assessments.map((a) =>
@@ -563,6 +578,10 @@ export async function processReferenceJob(
   signal?: AbortSignal,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete?: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
+  /** Where earlier attempts left each entity-type unit (CHUNK-GRAIN-RESUME P3).
+   * A unit absent here starts at the top; units already COMPLETE never reach
+   * this function at all, the caller having filtered them out. */
+  resumeCursors?: Record<string, UnitCursor>,
 ): Promise<{ result: JobReferenceAnnotationResult }> {
   const entityTypeNames = params.entityTypes.map(String);
   const requestParams = [{ label: 'entity-types' as const, value: entityTypeNames.join(', ') }];
@@ -655,6 +674,7 @@ export async function processReferenceJob(
         totalExpected += counted;
         emitTypeProgress(entityTypeName);
       },
+      resumeCursors?.[entityTypeName],
       async (chunkEntities, cursor) => {
         const built: Annotation[] = [];
         for (const entity of chunkEntities) {
@@ -731,6 +751,10 @@ export async function processTagJob(
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
+  /** Where earlier attempts left each CATEGORY (CHUNK-GRAIN-RESUME P3) — a tag
+   * job's units are its categories, not its motivation: each walks the whole
+   * document, so one shared cursor would skip text for all but one of them. */
+  resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobTagAnnotationResult>> {
   onProgress(10, { code: 'loading' });
   onProgress(30, { code: 'analyzing-tags' });
@@ -771,6 +795,7 @@ export async function processTagJob(
         { code: 'analyzing-tags' },
         position(),
       ),
+      resumeCursors?.[category],
       async (matches, cursor) => {
         categoryFound += matches.length;
         const fresh = dedupe(matches.map((t) => {
