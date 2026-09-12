@@ -74,6 +74,21 @@ describe('nextChunkSize', () => {
     expect(next).toBe(Math.floor(5_333 * 3)); // 15,999 — the policy governed, not the default
   });
 
+  it('holds when the provider reported no usage — absent is not zero', () => {
+    // `usage` is optional on the inference interface and BOTH shipped clients
+    // emit it conditionally. Reading its absence as zero output would put
+    // utilization at 0%%, i.e. below `growBelow`, i.e. grow — every chunk, all
+    // the way to the ceiling, having measured nothing at all. The sizer moves
+    // on evidence or it does not move.
+    expect(nextChunkSize({ truncated: false }, 1_000, BOUNDS)).toBe(1_000);
+  });
+
+  it('still shrinks on a truncation with no usage reported', () => {
+    // A truncation IS evidence — the chunk demonstrably did not fit — and it
+    // needs no count to say so. Only the count-based branch requires a count.
+    expect(nextChunkSize({ truncated: true }, 1_000, BOUNDS)).toBe(700);
+  });
+
   it('holds on a degenerate (zero) budget rather than dividing by zero', () => {
     const next = nextChunkSize({ outputTokens: 0, truncated: false }, 6_000, { ...BOUNDS, outputBudget: 0 });
     expect(next).toBe(6_000);

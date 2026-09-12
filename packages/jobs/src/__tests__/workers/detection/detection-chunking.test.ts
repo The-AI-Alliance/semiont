@@ -233,7 +233,7 @@ describe('callChunkSubdividing', () => {
 
   it('passes a successful call through untouched — one invocation, no subdivision', async () => {
     const calls: string[] = [];
-    const result = await callChunkSubdividing('entity', CHUNK, CHUNKING, async (piece) => {
+    const { items: result } = await callChunkSubdividing('entity', CHUNK, CHUNKING, async (piece) => {
       calls.push(piece);
       return { items: ['a', 'b'] };
     });
@@ -243,7 +243,7 @@ describe('callChunkSubdividing', () => {
 
   it('a timeout on the full chunk retries with smaller pieces and collects their results', async () => {
     const calls: string[] = [];
-    const result = await callChunkSubdividing('entity', CHUNK, CHUNKING, async (piece) => {
+    const { items: result } = await callChunkSubdividing('entity', CHUNK, CHUNKING, async (piece) => {
       calls.push(piece);
       if (piece.length === CHUNK.length) throw new InferenceTimeoutError('bound');
       return { items: [`ok:${piece.length}`] };
@@ -261,7 +261,7 @@ describe('callChunkSubdividing', () => {
       new StructuredReadError('response is not valid JSON', 'max_tokens'),
     ]) {
       let first = true;
-      const result = await callChunkSubdividing('entity', CHUNK, CHUNKING, async (piece) => {
+      const { items: result } = await callChunkSubdividing('entity', CHUNK, CHUNKING, async (piece) => {
         if (first) { first = false; throw boom; }
         return { items: [piece.length] };
       });
@@ -280,7 +280,7 @@ describe('callChunkSubdividing', () => {
     // descend and change nothing.
     const calls: string[] = [];
     let first = true;
-    const result = await callChunkSubdividing('reference', CHUNK, CHUNKING, async (piece) => {
+    const { items: result } = await callChunkSubdividing('reference', CHUNK, CHUNKING, async (piece) => {
       calls.push(piece);
       if (first) { first = false; throw new StructuredReadError('response is not valid JSON', 'unknown'); }
       return { items: [piece.length] };
@@ -330,7 +330,7 @@ describe('callChunkSubdividing', () => {
     // returns the identical collapse, so changing the input is the one lever.
     const calls: string[] = [];
     let first = true;
-    const result = await callChunkSubdividing('reference', CHUNK, CHUNKING, async (piece) => {
+    const { items: result } = await callChunkSubdividing('reference', CHUNK, CHUNKING, async (piece) => {
       calls.push(piece);
       if (first) { first = false; throw new YieldCollapseError('found 3 of 50 counted mentions', [], { found: 3, counted: 50, pieceChars: 100 }); }
       return { items: [piece.length] };
@@ -348,7 +348,7 @@ describe('callChunkSubdividing', () => {
   describe('accepted pieces report their count', () => {
     it('every successful piece with a count reports it', async () => {
       const counts: number[] = [];
-      const result = await callChunkSubdividing('reference', CHUNK, CHUNKING,
+      const { items: result } = await callChunkSubdividing('reference', CHUNK, CHUNKING,
         async () => ({ items: ['a', 'b'], counted: 7 }),
         undefined, undefined, (c) => { counts.push(c); });
       expect(result).toEqual(['a', 'b']);
@@ -382,7 +382,7 @@ describe('callChunkSubdividing', () => {
       const tiny = 'word '.repeat(20);
       const counts: number[] = [];
       const reported: unknown[] = [];
-      const result = await callChunkSubdividing<string>(
+      const { items: result } = await callChunkSubdividing<string>(
         'reference', tiny, { chunkSize: 1_000, overlap: 16 },
         async () => { throw new YieldCollapseError('found 1 of 4', ['kept'], { found: 1, counted: 4, pieceChars: tiny.length }); },
         undefined, (v) => { reported.push(v); }, (c) => { counts.push(c); });
@@ -411,7 +411,7 @@ describe('callChunkSubdividing', () => {
       );
       const reported: unknown[] = [];
 
-      const result = await callChunkSubdividing<string>(
+      const { items: result } = await callChunkSubdividing<string>(
         'reference', tiny, { chunkSize: 1_000, overlap: 16 },
         async () => { throw boom; },
         undefined,
@@ -424,7 +424,7 @@ describe('callChunkSubdividing', () => {
 
     it('a successful call reports nothing', async () => {
       const reported: unknown[] = [];
-      const result = await callChunkSubdividing('entity', CHUNK, CHUNKING,
+      const { items: result } = await callChunkSubdividing('entity', CHUNK, CHUNKING,
         async () => ({ items: ['a'] }), undefined, (v) => { reported.push(v); });
       expect(result).toEqual(['a']);
       expect(reported).toEqual([]);
@@ -433,7 +433,7 @@ describe('callChunkSubdividing', () => {
     it('a collapse healed by descent reports nothing — the descent is telemetry, not result', async () => {
       let first = true;
       const reported: unknown[] = [];
-      const result = await callChunkSubdividing('entity', CHUNK, CHUNKING, async (piece) => {
+      const { items: result } = await callChunkSubdividing('entity', CHUNK, CHUNKING, async (piece) => {
         if (first) {
           first = false;
           throw new YieldCollapseError('found 3 of 50', [], verdictOf(3, 50, piece.length));
@@ -455,7 +455,7 @@ describe('callChunkSubdividing', () => {
     it('descends and keeps the other pieces’ work', async () => {
       const calls: string[] = [];
       let first = true;
-      const result = await callChunkSubdividing('reference', CHUNK, CHUNKING, async (piece) => {
+      const { items: result } = await callChunkSubdividing('reference', CHUNK, CHUNKING, async (piece) => {
         calls.push(piece);
         if (first) { first = false; throw new StructuredReadError('response is not valid JSON', 'end_turn'); }
         return { items: [piece.length] };
@@ -516,7 +516,7 @@ describe('callChunkSubdividing', () => {
     const boom = new YieldCollapseError('found 1 of 4 counted mentions', ['the-one-found'], { found: 1, counted: 4, pieceChars: 100 });
     const tiny = 'word '.repeat(20); // ~25 tokens — fits any half-size here
     const calls: string[] = [];
-    const result = await callChunkSubdividing<string>('reference', tiny, { chunkSize: 1_000, overlap: 16 }, async (piece) => {
+    const { items: result } = await callChunkSubdividing<string>('reference', tiny, { chunkSize: 1_000, overlap: 16 }, async (piece) => {
       calls.push(piece);
       throw boom;
     });
@@ -551,7 +551,7 @@ describe('callChunkSubdividing', () => {
     const warn = vi.fn();
     const logger = { warn, info: vi.fn(), debug: vi.fn(), error: vi.fn() } as never;
 
-    const result = await callChunkSubdividing<string>('reference', small, { chunkSize: 8, overlap: 16 }, async (piece) => {
+    const { items: result } = await callChunkSubdividing<string>('reference', small, { chunkSize: 8, overlap: 16 }, async (piece) => {
       calls.push(piece);
       throw boom;
     }, logger);
@@ -588,7 +588,7 @@ describe('callChunkSubdividing', () => {
     // overlap-derived size floor — only size-based descent can get there.
     const BIG = Array.from({ length: 400 }, (_, i) => `entry ${i} lorem ipsum dolor sit amet `).join('');
     const succeededAt: number[] = [];
-    const result = await callChunkSubdividing('entity', BIG, { chunkSize: 4_000, overlap: 16 }, async (piece) => {
+    const { items: result } = await callChunkSubdividing('entity', BIG, { chunkSize: 4_000, overlap: 16 }, async (piece) => {
       if (piece.length > 1_200) throw new StructuredReadError('response is not valid JSON', 'max_tokens');
       succeededAt.push(piece.length);
       return { items: [piece.length] };
@@ -603,7 +603,7 @@ describe('callChunkSubdividing', () => {
     // re-roll usually escapes; the deterministic rethrow alone would kill
     // a job the same piece passes on the next roll.
     const seen = new Map<string, number>();
-    const result = await callChunkSubdividing('entity', CHUNK, CHUNKING, async (piece) => {
+    const { items: result } = await callChunkSubdividing('entity', CHUNK, CHUNKING, async (piece) => {
       const n = (seen.get(piece) ?? 0) + 1;
       seen.set(piece, n);
       if (n === 1) throw new StructuredReadError('response is not valid JSON', 'max_tokens');
@@ -704,7 +704,7 @@ describe('callChunkSubdividing telemetry', () => {
     // RESOLVES — but the call's own record still says 'collapsed': acceptance
     // is a policy above the telemetry, and the metric is the durable trace of
     // every under-report, accepted or not.
-    const result = await callChunkSubdividing<string>('reference', 'a'.repeat(400), { chunkSize: 8, overlap: 16 }, async () => {
+    const { items: result } = await callChunkSubdividing<string>('reference', 'a'.repeat(400), { chunkSize: 8, overlap: 16 }, async () => {
       throw new YieldCollapseError('found 3 of 50 counted mentions', [], { found: 3, counted: 50, pieceChars: 100 });
     });
     expect(result).toEqual([]);

@@ -379,7 +379,7 @@ export async function processHighlightJob(
   await AnnotationDetection.detectHighlights(
     content, inferenceClient, params.instructions, params.density, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
-    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), { code: 'analyzing' }, echo),
+    (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
     async (matches) => {
       found += matches.length;
       // Highlights carry no body — motivation:'highlighting' on a target
@@ -447,7 +447,7 @@ export async function processCommentJob(
     content, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
-    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), { code: 'analyzing' }, echo),
+    (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
     async (comments) => {
       found += comments.length;
       const fresh = dedupe(comments.map((c) =>
@@ -493,7 +493,7 @@ export async function processAssessmentJob(
     content, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
-    (completed, total) => onProgress(30 + Math.round((completed / total) * 30), { code: 'analyzing' }, echo),
+    (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
     async (assessments) => {
       found += assessments.length;
       const fresh = dedupe(assessments.map((a) =>
@@ -748,8 +748,8 @@ export async function processTagJob(
       content, inferenceClient, params.schema, category, params.sourceLanguage,
       // Liveness (chunk boundaries + in-flight heartbeat): this category's
       // slice of the 30–60 band.
-      (completed, total) => onProgress(
-        30 + Math.round(((c + completed / total) / params.categories.length) * 30),
+      (consumedChars, totalChars) => onProgress(
+        30 + Math.round(((c + consumedChars / totalChars) / params.categories.length) * 30),
         { code: 'analyzing-tags' },
         position(),
       ),

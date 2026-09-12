@@ -11,9 +11,9 @@
  */
 
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
-import { chunkText, estimateTokens } from '@semiont/core';
+import { estimateTokens } from '@semiont/core';
 import { boundedGenerateStructured } from './inference-call';
-import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, DETECTION_TEMPERATURE } from './detection/detection-chunking';
+import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, runAdaptiveChunks, DETECTION_TEMPERATURE } from './detection/detection-chunking';
 import { MotivationPrompts } from './detection/motivation-prompts';
 import {
   MotivationParsers,
@@ -52,7 +52,7 @@ async function detectInChunks<T>(
   motivation: string,
   elementSchema: ElementSchema,
   parse: (items: unknown[]) => T[],
-  onActivity?: (completedChunks: number, totalChunks: number) => void,
+  onActivity?: (consumedChars: number, totalChars: number) => void,
   /**
    * This chunk's parsed matches, awaited before the loop continues: the
    * caller commits them, and the loop must not run ahead of durability.
@@ -65,33 +65,38 @@ async function detectInChunks<T>(
   const scaffoldTokens = estimateTokens(buildPrompt(''));
   // One motivation's spans per call — the single span family this prompt
   // asks for, the motivation-path analogue of one entity type.
-  const { chunking, outputBudget } = deriveDetectionBudget(limits, scaffoldTokens, 1);
-  const chunks = chunkText(content, chunking);
+  const budget = deriveDetectionBudget(limits, scaffoldTokens, 1);
+  const { outputBudget } = budget;
 
   const collected: T[] = [];
-  for (let i = 0; i < chunks.length; i++) {
+  await runAdaptiveChunks(content, budget, async ({ piece: chunk, size, at, next, totalChars }) => {
     // Structured surface: parsed elements or a throw — an unreadable model
     // response fails the job rather than reading as an empty detection. A
     // size-shaped failure (duration bound, truncation) subdivides in place
     // and retries smaller before it is allowed to fail the job.
-    const items = await callChunkSubdividing<unknown>(motivation, chunks[i]!, chunking, async (piece) => {
-      const response = await boundedGenerateStructured<unknown>(
-        client, buildPrompt(piece), outputBudget, DETECTION_TEMPERATURE, elementSchema,
-        // Still alive, same position (a long single call is otherwise silent).
-        () => onActivity?.(i, chunks.length),
-      );
-      assertNotTruncated(response, `${motivation} detection`, i + 1, chunks.length, outputBudget);
-      // Usage rides back so the telemetry record carries what the call COST
-      // beside what it yielded — the provider's own counts, not an estimate.
-      return { items: response.items, ...(response.usage ? { usage: response.usage } : {}) };
-    });
+    const { items, outcome } = await callChunkSubdividing<unknown>(
+      motivation, chunk, { chunkSize: size, overlap: budget.chunking.overlap },
+      async (piece) => {
+        const response = await boundedGenerateStructured<unknown>(
+          client, buildPrompt(piece), outputBudget, DETECTION_TEMPERATURE, elementSchema,
+          // Still alive, same position (a long single call is otherwise silent).
+          () => onActivity?.(at, totalChars),
+        );
+        assertNotTruncated(response, `${motivation} detection`, at, totalChars, outputBudget);
+        // Usage rides back so the telemetry record carries what the call COST
+        // beside what it yielded — the provider's own counts, not an estimate.
+        return { items: response.items, ...(response.usage ? { usage: response.usage } : {}) };
+      },
+    );
     const fromChunk = parse(items);
     collected.push(...fromChunk);
     await onChunkResults?.(fromChunk);
-    if (i < chunks.length - 1) {
-      onActivity?.(i + 1, chunks.length);
-    }
-  }
+    // Chunk boundary: the cursor advances (real progress). Only when text
+    // remains — the final cut has no boundary after it, and the caller reports
+    // the unit's completion itself.
+    if (next < totalChars) onActivity?.(next, totalChars);
+    return outcome;
+  });
   return collected;
 }
 
@@ -113,7 +118,7 @@ export class AnnotationDetection {
     density?: number,
     language?: string,
     sourceLanguage?: string,
-    onActivity?: (completedChunks: number, totalChunks: number) => void,
+    onActivity?: (consumedChars: number, totalChars: number) => void,
     /** This chunk's matches, as the chunk completes. */
     onChunkResults?: (matches: CommentMatch[]) => Promise<void>,
   ): Promise<CommentMatch[]> {
@@ -140,7 +145,7 @@ export class AnnotationDetection {
     instructions?: string,
     density?: number,
     sourceLanguage?: string,
-    onActivity?: (completedChunks: number, totalChunks: number) => void,
+    onActivity?: (consumedChars: number, totalChars: number) => void,
     /** This chunk's matches, as the chunk completes. */
     onChunkResults?: (matches: HighlightMatch[]) => Promise<void>,
   ): Promise<HighlightMatch[]> {
@@ -169,7 +174,7 @@ export class AnnotationDetection {
     density?: number,
     language?: string,
     sourceLanguage?: string,
-    onActivity?: (completedChunks: number, totalChunks: number) => void,
+    onActivity?: (consumedChars: number, totalChars: number) => void,
     /** This chunk's matches, as the chunk completes. */
     onChunkResults?: (matches: AssessmentMatch[]) => Promise<void>,
   ): Promise<AssessmentMatch[]> {
@@ -201,7 +206,7 @@ export class AnnotationDetection {
     schema: TagSchema,
     category: string,
     sourceLanguage?: string,
-    onActivity?: (completedChunks: number, totalChunks: number) => void,
+    onActivity?: (consumedChars: number, totalChars: number) => void,
     /**
      * This chunk's matches, ANCHORED before they leave: `parse` here yields
      * raw tags, so this path runs `validateTagOffsets` per chunk — a per-item
