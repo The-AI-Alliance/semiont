@@ -45,7 +45,7 @@ import type {
   UpdateUserResponse,
   ListUsersResponse,
 } from '@semiont/core';
-import { BRIDGED_CHANNELS } from '@semiont/core';
+import { BRIDGED_CHANNELS, RETRY_RULES } from '@semiont/core';
 
 type AuthResponse = components['schemas']['AuthResponse'];
 type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
@@ -137,13 +137,46 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     this.token$ = config.token$ ?? new BehaviorSubject<AccessToken | null>(null);
     this.logger = logger;
 
-    // Retry policy: when a refresher is configured, expand retry to also
-    // cover 401 (one attempt). Otherwise use the plain `retry` number.
+    // Retry policy: when a refresher is configured, a 401 earns one attempt
+    // after refreshing the token — on ANY method, since the request was
+    // rejected rather than processed. Otherwise use the plain `retry` number,
+    // which leaves ky's own defaults in place (they never retried POST).
+    //
+    // **`methods`/`statusCodes` are a superset PRE-FILTER, not the decision.**
+    // ky ANDs them independently, so they cannot express "the widened methods
+    // apply to 401 only" — the widening that lets a POST reach a 401 retry
+    // also admits POST/504. `shouldRetry` is the authoritative gate and
+    // rejects what the lists over-admit; the hooks suite's census test pins
+    // that the lists stay a superset of what `RETRY_RULES.transport` can
+    // approve, so the two cannot drift apart.
     const retryConfig = tokenRefresher
       ? {
           limit: 1,
           methods: ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'],
           statusCodes: [401, 408, 413, 429, 500, 502, 503, 504],
+          // One rule, stated in core with its reasoning: 401 on any method,
+          // every other status on idempotent methods only. A POST that got a
+          // 502 may already have been processed, and one of them mints a
+          // fresh resource id, so a repeat writes a second resource the
+          // caller never learns about.
+          //
+          // Narrowing only — `false` or `undefined`, never `true`. A `true`
+          // here would bypass ky's own remaining checks, including the one
+          // that retries `413` only when the response carries a retry-timing
+          // header. Deferring keeps that behavior exactly as it is.
+          //
+          // This is the gate rather than `beforeRetry` because ky awaits the
+          // full backoff delay before running that hook: rejecting there
+          // means sleeping ~300ms first, every time, to reach a decision
+          // that never depended on waiting.
+          shouldRetry: ({ error }: { error: Error }): false | undefined =>
+            error instanceof HTTPError &&
+            !RETRY_RULES.transport.retryable({
+              status: error.response.status,
+              method: error.request.method,
+            })
+              ? false
+              : undefined,
         }
       : retry;
 
@@ -166,18 +199,35 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         ],
         beforeRetry: tokenRefresher
           ? [
+              // Whether to retry is `shouldRetry`'s decision, above. This
+              // hook runs only once a retry is already confirmed, and does
+              // the one thing it is for: put a fresh credential on the
+              // request before it goes out again.
               async ({ request, error }) => {
                 if (!(error instanceof HTTPError) || error.response.status !== 401) {
                   return undefined;
                 }
+
+                // A 401 earns its retry only if a fresh credential arrives.
+                // Without one, repeating the request just gets rejected
+                // again, so the caller should have the 401 now.
+                //
+                // Stop by RETHROWING, never with `ky.stop`: `stop` resolves
+                // the caller's promise with `undefined`, after which the
+                // `.json()` shortcut dereferences nothing and the caller
+                // catches a TypeError instead of the auth failure. A
+                // rethrown original keeps ky's request-error path, so
+                // `beforeError` still runs and callers see the `APIError`
+                // they have always seen.
+                let newToken: string | null;
                 try {
-                  const newToken = await tokenRefresher();
-                  if (!newToken) return ky.stop;
-                  request.headers.set('Authorization', `Bearer ${newToken}`);
-                  return undefined;
+                  newToken = await tokenRefresher();
                 } catch {
-                  return ky.stop;
+                  throw error;
                 }
+                if (!newToken) throw error;
+                request.headers.set('Authorization', `Bearer ${newToken}`);
+                return undefined;
               },
             ]
           : [],
