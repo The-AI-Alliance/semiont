@@ -11,7 +11,7 @@
  * - State machine is explicit and type-safe
  */
 
-import type { JobId, EntityType, ResourceId, UserId, GenerationJobParams, TagSchema } from '@semiont/core';
+import type { JobId, EntityType, ResourceId, UserId, GenerationJobParams, TagSchema, UnitCursor } from '@semiont/core';
 import type { JobReferenceAnnotationResult, JobHighlightAnnotationResult, JobCommentAnnotationResult, JobAssessmentAnnotationResult, JobTagAnnotationResult } from '@semiont/core';
 
 export type JobType = 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
@@ -51,6 +51,18 @@ export interface JobMetadata {
    * duplicated.
    */
   completedUnits?: string[];
+  /**
+   * The finer grain `completedUnits` cannot express (CHUNK-GRAIN-RESUME P2):
+   * how far each UNFINISHED unit got, keyed by unit. Written per committed
+   * chunk, so a job that dies mid-unit resumes there rather than at the top —
+   * which for a one-unit job (every motivation job, and the 1958 document's
+   * single `Person` type) is the difference between resuming and restarting.
+   *
+   * A unit here is in progress, never complete; the two sets are disjoint by
+   * construction in `checkpointUnits`. Merged monotonically per unit, never
+   * unioned — see `mergeUnitCursors`.
+   */
+  unitCursors?: Record<string, UnitCursor>;
 }
 
 /**

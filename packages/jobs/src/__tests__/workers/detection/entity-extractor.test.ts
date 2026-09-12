@@ -339,7 +339,7 @@ describe('extractEntities', () => {
         const emitted: string[][] = [];
 
         await extractEntities(
-          bigText, ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined,
+          bigText, ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined, undefined,
           async (items) => { order.push(`emit:${emitted.length}`); emitted.push(items.map((e) => e.exact)); },
         );
 
@@ -361,7 +361,7 @@ describe('extractEntities', () => {
 
         await expect(
           extractEntities(
-            bigText, ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined,
+            bigText, ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined, undefined,
             async () => { throw new Error('mark:commit failed: sink down'); },
           ),
         ).rejects.toThrow(/sink down/);
@@ -506,6 +506,70 @@ describe('extractEntities', () => {
 
         expect(promptChars.length).toBeGreaterThan(2);
         expect(promptChars[1]!).toBeLessThan(promptChars[0]! * 0.85);
+      });
+    });
+
+    // ── resuming a unit (CHUNK-GRAIN-RESUME P3) ────────────────────────────
+    describe('resuming from a checkpoint', () => {
+      const RESUME_LIMITS = { contextTokens: 4_000, maxOutputTokens: 1_200, outputTokensPerHour: 3_600_000_000 };
+      const opener = 'OPENING_MARKER begins the document and appears nowhere else.';
+      const longText = [opener, ...Array.from(
+        { length: 900 },
+        (_, i) => `Paragraph ${i} mentions Alice and Bob among some ordinary filler words.`,
+      )].join(' ');
+
+      function promptRecordingClient() {
+        const prompts: string[] = [];
+        const client = {
+          type: 'mock' as const,
+          modelId: 'mock-model',
+          limits: async () => RESUME_LIMITS,
+          generateText: async () => '[]',
+          generateStructured: async (prompt: string) => {
+            prompts.push(prompt);
+            return { items: [], stopReason: 'end_turn', usage: { inputTokens: 400, outputTokens: 700 } };
+          },
+        } as unknown as InferenceClient;
+        return { client, prompts };
+      }
+
+      it('starts its first model call at the checkpoint, not the top of the document', async () => {
+        // The whole point of the arc: the retry must not RE-PAY for inference
+        // the dead attempt already bought. The log would dedupe the annotations
+        // either way — that is not the saving being claimed here.
+        const { client, prompts } = promptRecordingClient();
+        const at = 30_000;
+
+        await extractEntities(
+          longText, ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined,
+          { next: at, size: 600, found: 0, emitted: 0 },
+        );
+
+        expect(prompts.length).toBeGreaterThan(0);
+        expect(prompts[0]).not.toContain('OPENING_MARKER');
+        // And it really is at the cursor: the text there is in the first prompt.
+        expect(prompts[0]).toContain(longText.slice(at, at + 40));
+      });
+
+      it('reads the whole document when there is no checkpoint', async () => {
+        const { client, prompts } = promptRecordingClient();
+
+        await extractEntities(longText, ['Person'], client, false, LOGGER);
+
+        expect(prompts[0]).toContain('OPENING_MARKER');
+      });
+
+      it('costs no inference when the checkpoint is already at the end', async () => {
+        // The unit finished its last chunk and died before it could be marked
+        // complete. Re-running it must make no model call at all.
+        const { client, prompts } = promptRecordingClient();
+
+        await extractEntities(
+          longText, ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined,
+          { next: longText.length, size: 600, found: 0, emitted: 0 },
+        );
+
+        expect(prompts).toHaveLength(0);
       });
     });
 

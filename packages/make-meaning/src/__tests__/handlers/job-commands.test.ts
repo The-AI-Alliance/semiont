@@ -492,7 +492,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
     } as never);
 
     await vi.waitFor(() => {
-      expect(jobQueue.failJob).toHaveBeenCalledWith('job-f1', 'boom', undefined, undefined);
+      expect(jobQueue.failJob).toHaveBeenCalledWith('job-f1', 'boom', undefined, undefined, undefined);
     });
   });
 
@@ -506,7 +506,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
     } as never);
 
     await vi.waitFor(() => {
-      expect(jobQueue.failJob).toHaveBeenCalledWith('job-f2', 'Location stalled', ['Person', 'Date'], undefined);
+      expect(jobQueue.failJob).toHaveBeenCalledWith('job-f2', 'Location stalled', ['Person', 'Date'], undefined, undefined);
     });
   });
 
@@ -520,7 +520,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
     } as never);
 
     await vi.waitFor(() => {
-      expect(jobQueue.failJob).toHaveBeenCalledWith('job-f3', 'request exceeds size limits', undefined, 'deterministic');
+      expect(jobQueue.failJob).toHaveBeenCalledWith('job-f3', 'request exceeds size limits', undefined, 'deterministic', undefined);
     });
   });
 
@@ -561,7 +561,41 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
     } as never);
 
     await vi.waitFor(() => {
-      expect(jobQueue.checkpointUnits).toHaveBeenCalledWith('job-ckpt', ['Person', 'Location']);
+      expect(jobQueue.checkpointUnits).toHaveBeenCalledWith('job-ckpt', ['Person', 'Location'], undefined);
+    });
+  });
+
+  it('forwards per-unit cursors to the queue on job:checkpoint (CHUNK-GRAIN-RESUME P2)', async () => {
+    // This handler is the only path from the wire to the queue, so a cursor it
+    // drops is a cursor that never becomes durable — and the crash it exists to
+    // survive is exactly the one that emits no job:fail.
+    eventBus.get('job:checkpoint').next({
+      jobId: 'job-ckpt-cur',
+      completedUnits: ['Person'],
+      unitCursors: { Location: { next: 5_000, size: 800, found: 0, emitted: 0 } },
+    } as never);
+
+    await vi.waitFor(() => {
+      expect(jobQueue.checkpointUnits).toHaveBeenCalledWith(
+        'job-ckpt-cur', ['Person'], { Location: { next: 5_000, size: 800, found: 0, emitted: 0 } },
+      );
+    });
+  });
+
+  it('forwards per-unit cursors to failJob on job:fail (CHUNK-GRAIN-RESUME P2)', async () => {
+    // The clean-failure twin of the above: `failJob` rebuilds the retried
+    // record, so a cursor it never receives cannot reach the next attempt.
+    eventBus.get('job:fail').next({
+      jobId: 'job-f-cur',
+      error: 'stalled mid-unit',
+      completedUnits: [],
+      unitCursors: { Person: { next: 12_400, size: 560, found: 0, emitted: 0 } },
+    } as never);
+
+    await vi.waitFor(() => {
+      expect(jobQueue.failJob).toHaveBeenCalledWith(
+        'job-f-cur', 'stalled mid-unit', [], undefined, { Person: { next: 12_400, size: 560, found: 0, emitted: 0 } },
+      );
     });
   });
 

@@ -16,7 +16,7 @@ import { compileTypst, MAX_COMPILE_REPAIRS } from './workers/generation/typst-co
 import { withinByteBudget, MAX_PDF_BYTES } from '@semiont/content';
 import { resolveCitationTokens, collectContextResourceIds, type GenerationCitation } from './workers/generation/citation-resolver';
 import { annotationIdFor } from '@semiont/event-sourcing';
-import { didToAgent, GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type ResourceId, type SupportedMediaType, type components, type JobReferenceAnnotationResult, type JobHighlightAnnotationResult, type JobCommentAnnotationResult, type JobAssessmentAnnotationResult, type JobTagAnnotationResult } from '@semiont/core';
+import { didToAgent, GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type ResourceId, type SupportedMediaType, type components, type JobReferenceAnnotationResult, type JobHighlightAnnotationResult, type JobCommentAnnotationResult, type JobAssessmentAnnotationResult, type JobTagAnnotationResult, type UnitCursor } from '@semiont/core';
 import { reconcileSelector, createFragmentSelector, locate, type ReconciledSelector, type AnchoredText } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type {
@@ -359,6 +359,20 @@ export function buildPdfAnnotation(
   };
 }
 
+/**
+ * Where one unit stands once the chunk just handed over is durable
+ * (CHUNK-GRAIN-RESUME P2).
+ *
+ * The unit is named HERE rather than in the detection layer, which knows about
+ * chunks and nothing about jobs: for `reference-annotation` a unit is an entity
+ * type, for `tag-annotation` a category — both loop over several — and for the
+ * other three the job runs exactly one unit, its own motivation.
+ */
+export interface UnitCheckpoint {
+  unit: string;
+  cursor: UnitCursor;
+}
+
 export async function processHighlightJob(
   content: string,
   inferenceClient: InferenceClient,
@@ -366,7 +380,11 @@ export async function processHighlightJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
-  onChunkComplete: (annotations: Annotation[]) => Promise<void>,
+  onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
+  /** Where earlier attempts left each unit (CHUNK-GRAIN-RESUME P3), keyed the
+   * same way the checkpoint is. A unit absent here starts at the top, which is
+   * every unit of a first attempt. */
+  resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobHighlightAnnotationResult>> {
   const echo = detectionEcho(params);
 
@@ -374,20 +392,28 @@ export async function processHighlightJob(
   onProgress(30, { code: 'analyzing' }, echo);
 
   const dedupe = makeSpanDeduper();
-  let found = 0;
-  let created = 0;
+  // Seeded from what an earlier attempt already counted for this unit, so a
+  // resumed job's terminal record describes the document rather than the
+  // remainder it happened to run (CHUNK-GRAIN-RESUME HD3).
+  const prior = resumeCursors?.['highlighting'];
+  let found = prior?.found ?? 0;
+  let created = prior?.emitted ?? 0;
   await AnnotationDetection.detectHighlights(
     content, inferenceClient, params.instructions, params.density, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
     (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
-    async (matches) => {
+    resumeCursors?.['highlighting'],
+    async (matches, cursor) => {
       found += matches.length;
       // Highlights carry no body — motivation:'highlighting' on a target
       // is a complete annotation per the W3C Web Annotation Model.
       const fresh = dedupe(matches.map((h) => buildAnnotation('highlighting', h)));
       created += fresh.length;
       onProgress(60, { code: 'creating-annotations', count: created }, echo);
-      await onChunkComplete(fresh);
+      // One motivation per job, so exactly one unit — and with only one, a
+      // unit-grain checkpoint could record nothing until the whole document
+      // was done. The cursor is the entire resume story for these three types.
+      await onChunkComplete(fresh, { unit: 'highlighting', cursor: { ...cursor, found, emitted: created } });
     },
   );
 
@@ -429,7 +455,11 @@ export async function processCommentJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
-  onChunkComplete: (annotations: Annotation[]) => Promise<void>,
+  onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
+  /** Where earlier attempts left each unit (CHUNK-GRAIN-RESUME P3), keyed the
+   * same way the checkpoint is. A unit absent here starts at the top, which is
+   * every unit of a first attempt. */
+  resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobCommentAnnotationResult>> {
   const echo = detectionEcho(params);
 
@@ -441,14 +471,19 @@ export async function processCommentJob(
   // caller didn't specify, matching what the LLM produces by default.
   const bodyLanguage = params.language ?? 'en';
   const dedupe = makeSpanDeduper();
-  let found = 0;
-  let created = 0;
+  // Seeded from what an earlier attempt already counted for this unit, so a
+  // resumed job's terminal record describes the document rather than the
+  // remainder it happened to run (CHUNK-GRAIN-RESUME HD3).
+  const prior = resumeCursors?.['commenting'];
+  let found = prior?.found ?? 0;
+  let created = prior?.emitted ?? 0;
   await AnnotationDetection.detectComments(
     content, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
     (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
-    async (comments) => {
+    resumeCursors?.['commenting'],
+    async (comments, cursor) => {
       found += comments.length;
       const fresh = dedupe(comments.map((c) =>
         // Match the pre-#651 CommentAnnotationWorker: include format and
@@ -460,7 +495,7 @@ export async function processCommentJob(
       ));
       created += fresh.length;
       onProgress(60, { code: 'creating-annotations', count: created }, echo);
-      await onChunkComplete(fresh);
+      await onChunkComplete(fresh, { unit: 'commenting', cursor: { ...cursor, found, emitted: created } });
     },
   );
 
@@ -478,7 +513,11 @@ export async function processAssessmentJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
-  onChunkComplete: (annotations: Annotation[]) => Promise<void>,
+  onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
+  /** Where earlier attempts left each unit (CHUNK-GRAIN-RESUME P3), keyed the
+   * same way the checkpoint is. A unit absent here starts at the top, which is
+   * every unit of a first attempt. */
+  resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobAssessmentAnnotationResult>> {
   const echo = detectionEcho(params);
 
@@ -487,14 +526,19 @@ export async function processAssessmentJob(
 
   const bodyLanguage = params.language ?? 'en';
   const dedupe = makeSpanDeduper();
-  let found = 0;
-  let created = 0;
+  // Seeded from what an earlier attempt already counted for this unit, so a
+  // resumed job's terminal record describes the document rather than the
+  // remainder it happened to run (CHUNK-GRAIN-RESUME HD3).
+  const prior = resumeCursors?.['assessing'];
+  let found = prior?.found ?? 0;
+  let created = prior?.emitted ?? 0;
   await AnnotationDetection.detectAssessments(
     content, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
     (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
-    async (assessments) => {
+    resumeCursors?.['assessing'],
+    async (assessments, cursor) => {
       found += assessments.length;
       const fresh = dedupe(assessments.map((a) =>
         // Single-object body with purpose aligned to motivation, matching the
@@ -509,7 +553,7 @@ export async function processAssessmentJob(
       ));
       created += fresh.length;
       onProgress(60, { code: 'creating-annotations', count: created }, echo);
-      await onChunkComplete(fresh);
+      await onChunkComplete(fresh, { unit: 'assessing', cursor: { ...cursor, found, emitted: created } });
     },
   );
 
@@ -545,13 +589,22 @@ export async function processReferenceJob(
   onUnitComplete: (entityType: string) => Promise<void>,
   signal?: AbortSignal,
   /** This chunk's novel annotations, awaited: the durability write. */
-  onChunkComplete?: (annotations: Annotation[]) => Promise<void>,
+  onChunkComplete?: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
+  /** Where earlier attempts left each entity-type unit (CHUNK-GRAIN-RESUME P3).
+   * A unit absent here starts at the top; units already COMPLETE never reach
+   * this function at all, the caller having filtered them out. */
+  resumeCursors?: Record<string, UnitCursor>,
 ): Promise<{ result: JobReferenceAnnotationResult }> {
   const entityTypeNames = params.entityTypes.map(String);
   const requestParams = [{ label: 'entity-types' as const, value: entityTypeNames.join(', ') }];
   const completedItems: CompletedItem[] = [];
-  let totalFound = 0;
-  let totalEmitted = 0;
+  // Seeded with what earlier attempts already counted for the units this
+  // attempt is RESUMING. Units that completed earlier carry no cursor — they
+  // are filtered out before this function sees them — so their share is still
+  // missing from the job total. That is the pre-existing unit-grain gap, named
+  // in CHUNK-GRAIN-RESUME rather than silently half-fixed here.
+  let totalFound = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.found, 0);
+  let totalEmitted = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.emitted, 0);
   let errors = 0;
   let totalUnderReportedPieces = 0;
   // The denominator: cumulative count-verifier expectations over accepted
@@ -614,8 +667,13 @@ export async function processReferenceJob(
 
     // One deduper per unit, held across its chunks.
     const dedupe = makeSpanDeduper();
-    let unitFound = 0;
-    let unitPersisted = 0;
+    // Seeded from what earlier attempts already counted for THIS unit, so the
+    // terminal record describes the document rather than the remainder this
+    // attempt happened to run. Absent (a first attempt) means zero, which is
+    // the truth rather than a default.
+    const priorUnit = resumeCursors?.[entityTypeName];
+    let unitFound = priorUnit?.found ?? 0;
+    let unitPersisted = priorUnit?.emitted ?? 0;
     // What remains unknown at the unit's end: floor-accepted pieces, folded.
     let underReported: { pieces: number; found: number; counted: number } | undefined;
     await extractEntities(
@@ -638,7 +696,8 @@ export async function processReferenceJob(
         totalExpected += counted;
         emitTypeProgress(entityTypeName);
       },
-      async (chunkEntities) => {
+      resumeCursors?.[entityTypeName],
+      async (chunkEntities, cursor) => {
         const built: Annotation[] = [];
         for (const entity of chunkEntities) {
           const reconciled = reconcileSelector(content, {
@@ -658,15 +717,26 @@ export async function processReferenceJob(
           built.push(buildAnnotation('linking', toMatch(reconciled), unresolvedBody));
         }
         const fresh = dedupe(built);
+        // What this chunk makes true ONCE IT IS DURABLE. Computed before the
+        // commit because the checkpoint is written inside it and has to carry
+        // the running totals — a checkpoint reporting only this attempt's share
+        // would reset the count on every death — but assigned after, so the
+        // invariant below still holds.
+        const nextFound = unitFound + chunkEntities.length;
+        const nextEmitted = unitPersisted + fresh.length;
         // Awaited: a failed commit fails the unit before it can checkpoint;
-        // the retry re-runs it whole, into a log that dedupes by id.
-        await onChunkComplete?.(fresh);
+        // the cursor rides with it so the checkpoint trails the log by
+        // construction rather than by the caller remembering to order them.
+        await onChunkComplete?.(fresh, {
+          unit: entityTypeName,
+          cursor: { ...cursor, found: nextFound, emitted: nextEmitted },
+        });
         // Tallies move only PAST the awaited commit — a chunk that fails to
         // commit contributes nothing anywhere — and the numerator advances at
         // the same grain as the denominator: per chunk, in the same frame
         // family the viewer's found-of-~expected tally reads.
-        unitFound += chunkEntities.length;
-        unitPersisted += fresh.length;
+        unitFound = nextFound;
+        unitPersisted = nextEmitted;
         totalFound += chunkEntities.length;
         totalEmitted += fresh.length;
         emitTypeProgress(entityTypeName);
@@ -712,7 +782,11 @@ export async function processTagJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
-  onChunkComplete: (annotations: Annotation[]) => Promise<void>,
+  onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
+  /** Where earlier attempts left each CATEGORY (CHUNK-GRAIN-RESUME P3) — a tag
+   * job's units are its categories, not its motivation: each walks the whole
+   * document, so one shared cursor would skip text for all but one of them. */
+  resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobTagAnnotationResult>> {
   onProgress(10, { code: 'loading' });
   onProgress(30, { code: 'analyzing-tags' });
@@ -721,8 +795,14 @@ export async function processTagJob(
   // One deduper across every category: they share an emission stream, and
   // the key includes the body, so only true repeats collapse.
   const dedupe = makeSpanDeduper();
+  // Resumed tallies (CHUNK-GRAIN-RESUME HD3), and the two are seeded
+  // DIFFERENTLY because they accumulate differently. `found` sums each
+  // category's own running total at the end of that category, and those totals
+  // are already seeded — seeding here too would count the earlier attempt
+  // twice. `created` accumulates per chunk from this attempt only, so it must
+  // start at what earlier attempts committed.
   let found = 0;
-  let created = 0;
+  let created = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.emitted, 0);
   // byCategory counts the DEDUPED set so the per-category counts match what
   // is actually stored. The category is the first (tagging) TextualBody.
   const byCategory: Record<string, number> = {};
@@ -743,7 +823,11 @@ export async function processTagJob(
       { code: 'analyzing-tags' },
       position(),
     );
-    let categoryFound = 0;
+    // This category's own running tallies, seeded from its cursor so the
+    // checkpoint it writes stays continuable for a third attempt.
+    const priorCategory = resumeCursors?.[category];
+    let categoryFound = priorCategory?.found ?? 0;
+    let categoryCreated = priorCategory?.emitted ?? 0;
     await AnnotationDetection.detectTags(
       content, inferenceClient, params.schema, category, params.sourceLanguage,
       // Liveness (chunk boundaries + in-flight heartbeat): this category's
@@ -753,7 +837,8 @@ export async function processTagJob(
         { code: 'analyzing-tags' },
         position(),
       ),
-      async (matches) => {
+      resumeCursors?.[category],
+      async (matches, cursor) => {
         categoryFound += matches.length;
         const fresh = dedupe(matches.map((t) => {
           const cat = t.category ?? 'unknown';
@@ -774,7 +859,17 @@ export async function processTagJob(
           byCategory[cat] = (byCategory[cat] ?? 0) + 1;
         }
         onProgress(60, { code: 'creating-tag-annotations', count: created });
-        await onChunkComplete(fresh);
+        // The unit is the CATEGORY, not the motivation. `tag-annotation` loops
+        // over `params.categories`, each walking the whole document from zero,
+        // so a single 'tagging' key would have every category overwriting one
+        // cursor — and the monotone merge would keep the furthest, which is the
+        // right answer for at most one of them and silently skips text for the
+        // rest. Same shape as reference's entity types, for the same reason.
+        categoryCreated += fresh.length;
+        await onChunkComplete(fresh, {
+          unit: category,
+          cursor: { ...cursor, found: categoryFound, emitted: categoryCreated },
+        });
       },
     );
     found += categoryFound;

@@ -24,7 +24,7 @@
  *   not a cost.
  */
 
-import { chunkText, cutChunk, type ChunkingConfig, type Logger } from '@semiont/core';
+import { chunkText, cutChunk, type ChunkingConfig, type Logger, type UnitCursor } from '@semiont/core';
 import { StructuredReadError, type InferenceLimits, type TokenUsage } from '@semiont/inference';
 import { recordDetectionCall } from '@semiont/observability';
 import { DeterministicJobError } from '../../failure-class';
@@ -272,6 +272,14 @@ export function deriveDetectionBudget(
  * it. `at`/`next` over `totalChars` is exact progress — and, once
  * CHUNK-GRAIN-RESUME lands, the checkpoint identity a variable boundary forces
  * (an ordinal cannot name a chunk whose size is decided while the job runs). */
+/**
+ * The half of a `UnitCursor` the DETECTION layer can honestly report: where the
+ * walk stands and how it is cutting. The tallies belong to the processor, which
+ * owns unit identity and unit counts — this loop counts chunks, not annotations,
+ * and a zero it invented would be indistinguishable from a real one.
+ */
+export type ChunkCursor = Pick<UnitCursor, 'next' | 'size'>;
+
 export interface AdaptiveChunk {
   piece: string;
   /** The token size this piece was cut at. Hand it to `callChunkSubdividing`:
@@ -300,14 +308,26 @@ export interface AdaptiveChunk {
  * durability (committing the chunk's annotations) still gates the next cut, and
  * a throw stops the walk where it stands rather than advancing past unprocessed
  * text.
+ *
+ * `resume` restarts a unit an earlier attempt left partway (CHUNK-GRAIN-RESUME
+ * P3) — the checkpoint P2 made durable, spent. Both halves of it matter and they
+ * are spent differently: the position is taken as given, while the size is
+ * seeded and then stepped ONCE, as if the last outcome had been a failure. It
+ * was: the job died. Opening at the budget instead would throw away the
+ * calibration the dead attempt paid for over its earlier chunks, and seeding
+ * unchanged would re-cut the identical piece — which at `DETECTION_TEMPERATURE`
+ * 0 returns the identical answer, failure included (HD2, option C).
  */
 export async function runAdaptiveChunks(
   text: string,
   budget: DetectionBudget,
   onChunk: (chunk: AdaptiveChunk) => Promise<CallOutcome>,
+  resume?: UnitCursor,
 ): Promise<void> {
-  let at = 0;
-  let size = budget.chunking.chunkSize;
+  let at = resume?.next ?? 0;
+  let size = resume
+    ? nextChunkSize({ truncated: true }, resume.size, budget.bounds)
+    : budget.chunking.chunkSize;
 
   while (at < text.length) {
     const { piece, next } = cutChunk(text, at, { chunkSize: size, overlap: budget.chunking.overlap });

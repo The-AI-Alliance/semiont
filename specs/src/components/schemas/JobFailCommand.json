@@ -33,6 +33,13 @@
       },
       "description": "Entity-type units whose annotations were fully emitted before this failure (checkpointed resume). The queue records them on the retried job's metadata; a retried claim skips them so completed work is neither redone nor duplicated."
     },
+    "unitCursors": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "./UnitCursor.json"
+      },
+      "description": "How far each in-progress unit got, keyed by unit \u2014 the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward."
+    },
     "failureClass": {
       "$ref": "./FailureClass.json"
     },

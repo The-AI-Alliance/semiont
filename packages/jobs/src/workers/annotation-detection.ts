@@ -11,9 +11,9 @@
  */
 
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
-import { estimateTokens } from '@semiont/core';
+import { estimateTokens, type UnitCursor } from '@semiont/core';
 import { boundedGenerateStructured } from './inference-call';
-import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, runAdaptiveChunks, DETECTION_TEMPERATURE } from './detection/detection-chunking';
+import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, runAdaptiveChunks, type ChunkCursor, DETECTION_TEMPERATURE } from './detection/detection-chunking';
 import { MotivationPrompts } from './detection/motivation-prompts';
 import {
   MotivationParsers,
@@ -58,8 +58,15 @@ async function detectInChunks<T>(
    * caller commits them, and the loop must not run ahead of durability.
    * Unlike `onActivity` (a liveness heartbeat, which may repeat), this fires
    * exactly once per chunk, including the last.
+   *
+   * `cursor` is where the run stands once this chunk is committed — handed over
+   * WITH the results so a caller cannot record a position it has not made
+   * durable (CHUNK-GRAIN-RESUME P2).
    */
-  onChunkResults?: (parsed: T[]) => Promise<void>,
+  /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3).
+   * Before the callback below, which stays last. */
+  resume?: UnitCursor,
+  onChunkResults?: (parsed: T[], cursor: ChunkCursor) => Promise<void>,
 ): Promise<T[]> {
   const limits = await client.limits();
   const scaffoldTokens = estimateTokens(buildPrompt(''));
@@ -90,13 +97,13 @@ async function detectInChunks<T>(
     );
     const fromChunk = parse(items);
     collected.push(...fromChunk);
-    await onChunkResults?.(fromChunk);
+    await onChunkResults?.(fromChunk, { next, size });
     // Chunk boundary: the cursor advances (real progress). Only when text
     // remains — the final cut has no boundary after it, and the caller reports
     // the unit's completion itself.
     if (next < totalChars) onActivity?.(next, totalChars);
     return outcome;
-  });
+  }, resume);
   return collected;
 }
 
@@ -120,7 +127,10 @@ export class AnnotationDetection {
     sourceLanguage?: string,
     onActivity?: (consumedChars: number, totalChars: number) => void,
     /** This chunk's matches, as the chunk completes. */
-    onChunkResults?: (matches: CommentMatch[]) => Promise<void>,
+    /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3). */
+    resume?: UnitCursor,
+    /** This chunk's matches, as the chunk completes. Kept LAST. */
+    onChunkResults?: (matches: CommentMatch[], cursor: ChunkCursor) => Promise<void>,
   ): Promise<CommentMatch[]> {
     return detectInChunks(
       client, content,
@@ -128,6 +138,7 @@ export class AnnotationDetection {
       'comment', COMMENT_ELEMENT_SCHEMA,
       (items) => MotivationParsers.parseComments(items, content),
       onActivity,
+      resume,
       onChunkResults,
     );
   }
@@ -147,7 +158,10 @@ export class AnnotationDetection {
     sourceLanguage?: string,
     onActivity?: (consumedChars: number, totalChars: number) => void,
     /** This chunk's matches, as the chunk completes. */
-    onChunkResults?: (matches: HighlightMatch[]) => Promise<void>,
+    /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3). */
+    resume?: UnitCursor,
+    /** This chunk's matches, as the chunk completes. Kept LAST. */
+    onChunkResults?: (matches: HighlightMatch[], cursor: ChunkCursor) => Promise<void>,
   ): Promise<HighlightMatch[]> {
     return detectInChunks(
       client, content,
@@ -155,6 +169,7 @@ export class AnnotationDetection {
       'highlight', HIGHLIGHT_ELEMENT_SCHEMA,
       (items) => MotivationParsers.parseHighlights(items, content),
       onActivity,
+      resume,
       onChunkResults,
     );
   }
@@ -176,7 +191,10 @@ export class AnnotationDetection {
     sourceLanguage?: string,
     onActivity?: (consumedChars: number, totalChars: number) => void,
     /** This chunk's matches, as the chunk completes. */
-    onChunkResults?: (matches: AssessmentMatch[]) => Promise<void>,
+    /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3). */
+    resume?: UnitCursor,
+    /** This chunk's matches, as the chunk completes. Kept LAST. */
+    onChunkResults?: (matches: AssessmentMatch[], cursor: ChunkCursor) => Promise<void>,
   ): Promise<AssessmentMatch[]> {
     return detectInChunks(
       client, content,
@@ -184,6 +202,7 @@ export class AnnotationDetection {
       'assessment', ASSESSMENT_ELEMENT_SCHEMA,
       (items) => MotivationParsers.parseAssessments(items, content),
       onActivity,
+      resume,
       onChunkResults,
     );
   }
@@ -212,7 +231,10 @@ export class AnnotationDetection {
      * raw tags, so this path runs `validateTagOffsets` per chunk — a per-item
      * anchor against the full document, so partitioning changes nothing.
      */
-    onChunkResults?: (matches: TagMatch[]) => Promise<void>,
+    /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3). */
+    resume?: UnitCursor,
+    /** This chunk's matches, as the chunk completes. Kept LAST. */
+    onChunkResults?: (matches: TagMatch[], cursor: ChunkCursor) => Promise<void>,
   ): Promise<TagMatch[]> {
     const categoryInfo = schema.tags.find((t) => t.name === category);
     if (!categoryInfo) {
@@ -235,8 +257,9 @@ export class AnnotationDetection {
       'tag', TAG_ELEMENT_SCHEMA,
       (items) => MotivationParsers.parseTags(items),
       onActivity,
+      resume,
       onChunkResults
-        ? async (raw) => onChunkResults(MotivationParsers.validateTagOffsets(raw, content, category))
+        ? async (raw, cursor) => onChunkResults(MotivationParsers.validateTagOffsets(raw, content, category), cursor)
         : undefined,
     );
     return MotivationParsers.validateTagOffsets(parsedTags, content, category);

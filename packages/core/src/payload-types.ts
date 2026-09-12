@@ -28,6 +28,14 @@ export type JobHighlightAnnotationResult = components['schemas']['JobHighlightAn
 export type JobCommentAnnotationResult = components['schemas']['JobCommentAnnotationResult'];
 export type JobAssessmentAnnotationResult = components['schemas']['JobAssessmentAnnotationResult'];
 export type JobTagAnnotationResult = components['schemas']['JobTagAnnotationResult'];
+
+/**
+ * How far one unit of a job got, for a resume that starts mid-unit
+ * (CHUNK-GRAIN-RESUME P2). Spec-owned: it crosses the wire on three job
+ * commands and is read back off the claimed record's metadata, so the queue,
+ * the worker and the Go client all have to mean the same `{ next, size }`.
+ */
+export type UnitCursor = components['schemas']['UnitCursor'];
 /**
  * The `job:create` params shape for `jobType: 'generation'` — one type shared
  * by the write side (sdk `yield.fromContext` → `runGeneration`) and the read

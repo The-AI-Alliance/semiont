@@ -32,7 +32,7 @@ import { type HttpTransport } from '@semiont/http-transport';
 import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, annotationId as makeAnnotationId, findClaimSpan, capabilitiesOf, isObject, isString, type EventMap, busRequest, BusRequestError } from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
-import type { Logger, components, AssembledAnnotation } from '@semiont/core';
+import type { Logger, components, AssembledAnnotation, Annotation, UnitCursor } from '@semiont/core';
 import { workerBusAsPrimitive } from './worker-bus-primitive.js';
 import { extractPdfTextLayer, type ContentReads } from '@semiont/content';
 import { prepareDetection } from './workers/detection/prepare-detection';
@@ -48,6 +48,7 @@ import {
   buildPdfAnnotation,
   type OnProgress,
   type BuildAnnotation,
+  type UnitCheckpoint,
 } from './processors';
 
 /**
@@ -287,6 +288,12 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
   // it); cleared on every terminal outcome.
   const completedUnitsByJob = new Map<string, string[]>();
 
+  // The mid-unit half of the same checkpoint (CHUNK-GRAIN-RESUME P2). Kept
+  // beside `completedUnitsByJob` and for the same reason: `job:fail` is the
+  // clean-failure path, and without this a job that dies partway through its
+  // only unit reports a checkpoint that says nothing happened.
+  const unitCursorsByJob = new Map<string, Record<string, UnitCursor>>();
+
   // Cooperative cancellation (JOB-RESTART-SAFETY P4): a job:cancel-requested
   // targeting the ACTIVE job aborts its signal; the reference loop stops at
   // its next unit boundary and the job moves to cancelled/ carrying its
@@ -310,9 +317,10 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
     logger.info('Processing job', { jobId: job.jobId, type: job.type, resourceId: job.resourceId });
     const controller = new AbortController();
     activeCancel = { jobId: job.jobId, controller };
-    handleJob(adapter, config, job, completedUnitsByJob, controller.signal)
+    handleJob(adapter, config, job, completedUnitsByJob, controller.signal, unitCursorsByJob)
       .then(() => {
         completedUnitsByJob.delete(job.jobId);
+        unitCursorsByJob.delete(job.jobId);
       })
       .catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
@@ -321,7 +329,9 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
         const failureClass = classifyFailure(error);
         logger.error('Job failed', { jobId: job.jobId, error: message, failureClass, stack: error instanceof Error ? error.stack : undefined });
         const completedUnits = completedUnitsByJob.get(job.jobId);
+        const unitCursors = unitCursorsByJob.get(job.jobId);
         completedUnitsByJob.delete(job.jobId);
+        unitCursorsByJob.delete(job.jobId);
         const failAnnotationId = referenceIdOf(job);
         if (isJobType(job.type)) {
           emitEvent(session, 'job:fail', {
@@ -331,6 +341,10 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
             ...(failAnnotationId ? { annotationId: failAnnotationId } : {}),
             error: message,
             ...(completedUnits && completedUnits.length > 0 ? { completedUnits } : {}),
+            // Where each unfinished unit got to. Absent rather than `{}` when
+            // nothing was reached: an empty object would claim units were
+            // tracked and none progressed.
+            ...(unitCursors && Object.keys(unitCursors).length > 0 ? { unitCursors } : {}),
             ...(failureClass !== undefined ? { failureClass } : {}),
             // What the commit path OBSERVED about durability, when the failure
             // came from a commit at all. Present only on that path: absent means
@@ -372,13 +386,16 @@ export async function handleJob(
   // next unit boundary and the job moves to cancelled/. Standalone callers
   // omit it — an undefined signal never aborts.
   signal?: AbortSignal,
+  // The mid-unit half of the checkpoint, same sharing rule as
+  // `completedUnitsByJob`: filled here, read by the failure path.
+  unitCursorsByJob: Map<string, Record<string, UnitCursor>> = new Map(),
 ): Promise<void> {
   const start = performance.now();
   let outcome: 'completed' | 'failed' = 'completed';
   try {
     return await withSpan(
       `job:${job.type}`,
-      () => handleJobInner(adapter, config, job, completedUnitsByJob, signal),
+      () => handleJobInner(adapter, config, job, completedUnitsByJob, signal, unitCursorsByJob),
       {
         kind: SpanKind.CONSUMER,
         attrs: {
@@ -402,6 +419,7 @@ async function handleJobInner(
   job: ActiveJob,
   completedUnitsByJob: Map<string, string[]>,
   signal?: AbortSignal,
+  unitCursorsByJob: Map<string, Record<string, UnitCursor>> = new Map(),
 ): Promise<void> {
   const { session, inferenceClient, generator } = config;
   const { userId, jobId } = job;
@@ -553,12 +571,45 @@ async function handleJobInner(
     }).catch(() => {});
   };
 
+  /**
+   * Per-unit resume positions for THIS attempt (CHUNK-GRAIN-RESUME P2),
+   * reported on every checkpoint and carried onto a terminal failure.
+   * In-memory only: the durable copy is the queue's, merged monotonically,
+   * because two checkpoints can be in flight and the older can land last.
+   */
+  const unitCursors = new Map<string, UnitCursor>();
+
+  /**
+   * Commit a chunk's annotations, then record where that leaves its unit.
+   *
+   * The order is the contract — the checkpoint must never lead the log — and
+   * it is enforced by being ONE step rather than two callbacks a caller has to
+   * sequence correctly. A commit that throws checkpoints nothing, so the retry
+   * re-runs that chunk into a log that dedupes it by id.
+   */
+  const commitChunk = async (annotations: Annotation[], checkpoint: UnitCheckpoint) => {
+    record(await commitAnnotations(session, String(resourceId), annotations));
+    unitCursors.set(checkpoint.unit, checkpoint.cursor);
+    // Published to the caller's accumulator as it moves: the failure path runs
+    // OUTSIDE this function, so a cursor only this scope knows about would be
+    // lost on exactly the failures it exists to survive.
+    unitCursorsByJob.set(job.jobId, Object.fromEntries(unitCursors));
+    await emitEvent(session, 'job:checkpoint', {
+      jobId: job.jobId,
+      completedUnits: [...(completedUnitsByJob.get(job.jobId) ?? [])],
+      unitCursors: Object.fromEntries(unitCursors),
+    });
+  };
+
   if (jobType === 'highlight-annotation') {
     const { result } = await processHighlightJob(
       ready!.text, inferenceClient, asJobParams<HighlightDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
       // The durability write, per chunk, awaited; folds into the terminal
-      // durability evidence like every commit.
-      async (annotations) => { record(await commitAnnotations(session, String(resourceId), annotations)); },
+      // durability evidence like every commit, and carries the unit's cursor.
+      commitChunk,
+      // …and the other direction: where an earlier attempt left each unit
+      // (CHUNK-GRAIN-RESUME P3). Empty on a first attempt.
+      job.unitCursors,
     );
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
@@ -570,8 +621,11 @@ async function handleJobInner(
     const { result } = await processCommentJob(
       ready!.text, inferenceClient, asJobParams<CommentDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
       // The durability write, per chunk, awaited; folds into the terminal
-      // durability evidence like every commit.
-      async (annotations) => { record(await commitAnnotations(session, String(resourceId), annotations)); },
+      // durability evidence like every commit, and carries the unit's cursor.
+      commitChunk,
+      // …and the other direction: where an earlier attempt left each unit
+      // (CHUNK-GRAIN-RESUME P3). Empty on a first attempt.
+      job.unitCursors,
     );
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
@@ -583,8 +637,11 @@ async function handleJobInner(
     const { result } = await processAssessmentJob(
       ready!.text, inferenceClient, asJobParams<AssessmentDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
       // The durability write, per chunk, awaited; folds into the terminal
-      // durability evidence like every commit.
-      async (annotations) => { record(await commitAnnotations(session, String(resourceId), annotations)); },
+      // durability evidence like every commit, and carries the unit's cursor.
+      commitChunk,
+      // …and the other direction: where an earlier attempt left each unit
+      // (CHUNK-GRAIN-RESUME P3). Empty on a first attempt.
+      job.unitCursors,
     );
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
@@ -619,15 +676,24 @@ async function handleJobInner(
         // unit failing mid-stream never reaches here; its landed chunks
         // re-commit on retry into a log that dedupes by id.
         committed.push(unit);
+        // The unit is done, so it is no longer partway: dropping it keeps the
+        // reported payload consistent with what the queue stores, which treats
+        // the two sets as disjoint.
+        unitCursors.delete(unit);
+        unitCursorsByJob.set(job.jobId, Object.fromEntries(unitCursors));
         await emitEvent(session, 'job:checkpoint', {
           jobId: job.jobId,
           completedUnits: [...committed],
+          ...(unitCursors.size > 0 ? { unitCursors: Object.fromEntries(unitCursors) } : {}),
         });
       },
       signal,
       // The durability write, per chunk, awaited; folds into the terminal
-      // durability evidence like every commit.
-      async (annotations) => { record(await commitAnnotations(session, String(resourceId), annotations)); },
+      // durability evidence like every commit, and carries the unit's cursor.
+      commitChunk,
+      // …and the other direction: where an earlier attempt left each unit
+      // (CHUNK-GRAIN-RESUME P3). Empty on a first attempt.
+      job.unitCursors,
     );
     // Cooperative cancellation (JOB-RESTART-SAFETY P4): the loop stopped
     // because a cancel was requested for this job. Announce it so the queue
@@ -653,8 +719,11 @@ async function handleJobInner(
     const { result } = await processTagJob(
       ready!.text, inferenceClient, asJobParams<TagDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
       // The durability write, per chunk, awaited; folds into the terminal
-      // durability evidence like every commit.
-      async (annotations) => { record(await commitAnnotations(session, String(resourceId), annotations)); },
+      // durability evidence like every commit, and carries the unit's cursor.
+      commitChunk,
+      // …and the other direction: where an earlier attempt left each unit
+      // (CHUNK-GRAIN-RESUME P3). Empty on a first attempt.
+      job.unitCursors,
     );
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),

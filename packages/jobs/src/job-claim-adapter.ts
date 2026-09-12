@@ -21,7 +21,8 @@
  */
 
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
-import { busRequest, isArray, isNumber, isString } from '@semiont/core';
+import { busRequest, isArray, isNumber, isObject, isString } from '@semiont/core';
+import type { UnitCursor } from '@semiont/core';
 import type { WorkerBus } from '@semiont/sdk';
 import { workerBusAsPrimitive } from './worker-bus-primitive.js';
 
@@ -39,6 +40,36 @@ export interface JobAssignment {
   resourceId: string;
 }
 
+/**
+ * Narrow the claimed record's `unitCursors` metadata to usable cursors.
+ *
+ * A malformed or partial entry is DROPPED, never repaired: the unit then starts
+ * from the top, which costs inference but is always correct, whereas a
+ * manufactured position would skip text nobody ever read and the gap would be
+ * undetectable afterwards. Cursors for units already in `completedUnits` are
+ * dropped too — the queue keeps those sets disjoint, and a reader that trusted
+ * a stale one would resume a unit that is done.
+ */
+function readUnitCursors(raw: unknown, completedUnits: string[]): Record<string, UnitCursor> {
+  if (!isObject(raw)) return {};
+  const done = new Set(completedUnits);
+  const cursors: Record<string, UnitCursor> = {};
+  for (const [unit, value] of Object.entries(raw)) {
+    if (done.has(unit) || !isObject(value)) continue;
+    const { next, size, found, emitted } = value;
+    if (!isNumber(next) || !isNumber(size) || next < 0 || size < 1) continue;
+    // The tallies are required, and a cursor missing them is dropped WHOLE
+    // rather than resumed without them. Resuming would take the saving and then
+    // report a terminal record that counts only the remainder — the exact lie
+    // HD3 exists to remove. Dropping costs one re-run of a unit and yields a
+    // record that is true; a checkpoint written before this field existed reads
+    // as absent and takes that trade.
+    if (!isNumber(found) || !isNumber(emitted) || found < 0 || emitted < 0) continue;
+    cursors[unit] = { next, size, found, emitted };
+  }
+  return cursors;
+}
+
 export interface ActiveJob {
   jobId: string;
   type: string;
@@ -52,6 +83,14 @@ export interface ActiveJob {
    * neither redoes nor duplicates completed work. Empty on first attempts.
    */
   completedUnits: string[];
+  /**
+   * How far each UNFINISHED unit got on an earlier attempt
+   * (CHUNK-GRAIN-RESUME P2) — the grain `completedUnits` cannot express, and
+   * the only checkpoint a one-unit job can produce before it finishes. Empty
+   * on first attempts, and never overlapping `completedUnits`: a unit is
+   * either finished or partway, never both.
+   */
+  unitCursors: Record<string, UnitCursor>;
   /**
    * The claimed record's retry budget, carried so the worker can report
    * `willRetry` on `job:fail` (JOB-RESTART-SAFETY P5). It is the same budget
@@ -166,12 +205,13 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
       // it to the claimed-job shape the worker reads.
       const job = (await busRequest(requestBus, 'job:claim' satisfies JobClaimAwaits, { jobId: assignment.jobId }, 10_000)) as {
         params?: Record<string, unknown>;
-        metadata?: { userId?: string; completedUnits?: unknown; retryCount?: unknown; maxRetries?: unknown };
+        metadata?: { userId?: string; completedUnits?: unknown; unitCursors?: unknown; retryCount?: unknown; maxRetries?: unknown };
       };
 
       const completedUnits = isArray(job.metadata?.completedUnits)
         ? job.metadata.completedUnits.filter(isString)
         : [];
+      const unitCursors = readUnitCursors(job.metadata?.unitCursors, completedUnits);
 
       return {
         jobId: assignment.jobId,
@@ -180,6 +220,7 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
         userId: (job.metadata?.userId ?? '') as string,
         params: (job.params ?? {}) as Record<string, unknown>,
         completedUnits,
+        unitCursors,
         // Absent or malformed metadata reads as "no budget left" — a worker
         // that cannot see the budget must not claim a retry is coming.
         retryCount: isNumber(job.metadata?.retryCount) ? job.metadata.retryCount : 0,

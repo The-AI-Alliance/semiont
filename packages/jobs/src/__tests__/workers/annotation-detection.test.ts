@@ -461,7 +461,7 @@ describe('AnnotationDetection', () => {
         const emitted: string[][] = [];
 
         await AnnotationDetection.detectHighlights(
-          bigContent, client, undefined, undefined, undefined, undefined,
+          bigContent, client, undefined, undefined, undefined, undefined, undefined,
           async (matches) => { emitted.push(matches.map((m) => m.exact)); },
         );
 
@@ -486,7 +486,7 @@ describe('AnnotationDetection', () => {
         const emitted: any[] = [];
 
         await AnnotationDetection.detectTags(
-          bigContent, client, IMRAD_SCHEMA, 'introduction', undefined, undefined,
+          bigContent, client, IMRAD_SCHEMA, 'introduction', undefined, undefined, undefined,
           async (matches) => { emitted.push(...matches); },
         );
 
@@ -509,7 +509,7 @@ describe('AnnotationDetection', () => {
 
         await expect(
           AnnotationDetection.detectHighlights(
-            bigContent, client, undefined, undefined, undefined, undefined,
+            bigContent, client, undefined, undefined, undefined, undefined, undefined,
             async () => { throw new Error('mark:commit failed: sink down'); },
           ),
         ).rejects.toThrow(/sink down/);
@@ -639,6 +639,58 @@ describe('AnnotationDetection', () => {
         expect(promptChars.length).toBeGreaterThan(2);
         const steady = promptChars.slice(0, -1);
         expect(Math.max(...steady) - Math.min(...steady)).toBeLessThan(steady[0]! * 0.05);
+      });
+    });
+
+    // ── resuming a unit (CHUNK-GRAIN-RESUME P3) ────────────────────────────
+    //
+    // Four of the five detection types share `detectInChunks`, and each of them
+    // runs exactly one unit (tags one per category), so before the cursor a
+    // motivation job could checkpoint NOTHING until the whole document was
+    // done — a mid-document death restarted from zero every time.
+    describe('resuming from a checkpoint', () => {
+      const RESUME_LIMITS = { contextTokens: 4_000, maxOutputTokens: 1_200, outputTokensPerHour: 3_600_000_000 };
+      const opener = 'OPENING_MARKER begins the document and appears nowhere else.';
+      const longContent = [opener, ...Array.from(
+        { length: 900 },
+        (_, i) => `Paragraph ${i} states something ordinary about the subject under study.`,
+      )].join(' ');
+
+      function promptRecordingClient() {
+        const prompts: string[] = [];
+        const client = {
+          type: 'mock' as const,
+          modelId: 'mock-model',
+          limits: async () => RESUME_LIMITS,
+          generateText: async () => '[]',
+          generateStructured: async (prompt: string) => {
+            prompts.push(prompt);
+            return { items: [], stopReason: 'end_turn', usage: { inputTokens: 400, outputTokens: 700 } };
+          },
+        } as unknown as InferenceClient;
+        return { client, prompts };
+      }
+
+      it('starts its first model call at the checkpoint, not the top', async () => {
+        const { client, prompts } = promptRecordingClient();
+        const at = 30_000;
+
+        await AnnotationDetection.detectHighlights(
+          longContent, client, undefined, undefined, undefined, undefined,
+          { next: at, size: 600, found: 0, emitted: 0 },
+        );
+
+        expect(prompts.length).toBeGreaterThan(0);
+        expect(prompts[0]).not.toContain('OPENING_MARKER');
+        expect(prompts[0]).toContain(longContent.slice(at, at + 40));
+      });
+
+      it('reads the whole document when there is no checkpoint', async () => {
+        const { client, prompts } = promptRecordingClient();
+
+        await AnnotationDetection.detectHighlights(longContent, client);
+
+        expect(prompts[0]).toContain('OPENING_MARKER');
       });
     });
 

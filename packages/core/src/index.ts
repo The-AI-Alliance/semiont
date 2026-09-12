@@ -112,6 +112,7 @@ export type {
   JobCommentAnnotationResult,
   JobAssessmentAnnotationResult,
   JobTagAnnotationResult,
+  UnitCursor,
   GenerationJobParams,
   SelectionData,
   JobType,

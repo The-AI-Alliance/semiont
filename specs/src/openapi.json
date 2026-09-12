@@ -489,6 +489,9 @@
       "JobCheckpointCommand": {
         "$ref": "components/schemas/JobCheckpointCommand.json"
       },
+      "UnitCursor": {
+        "$ref": "./components/schemas/UnitCursor.json"
+      },
       "JobDeclinedResult": {
         "$ref": "components/schemas/JobDeclinedResult.json"
       },
