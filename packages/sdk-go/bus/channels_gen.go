@@ -96,7 +96,7 @@ const (
 	// payload: EnrichedEvent(mark:added) — not emittable
 	MarkAdded Channel = "mark:added"
 
-	// payload: EnrichedEvent(mark:removed) — not emittable
+	// payload: StoredEvent(mark:removed) — not emittable
 	MarkRemoved Channel = "mark:removed"
 
 	// payload: EnrichedEvent(mark:body-updated) — not emittable

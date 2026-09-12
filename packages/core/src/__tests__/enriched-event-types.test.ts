@@ -8,7 +8,9 @@
  * on either side fails silently on the other. Enforced by `tsc --noEmit`.
  */
 import { describe, it, expect } from 'vitest';
-import type { EventMap } from '../bus-protocol';
+import type { EventMap, EnrichedEventType } from '../bus-protocol';
+import type { PersistedEventType } from '../persisted-events';
+import { ENRICHED_EVENT_TYPES } from '../bus-protocol';
 import type { Annotation } from '../annotation-types';
 import { annotationId, resourceId, userId } from '../identifiers';
 
@@ -36,17 +38,23 @@ describe('EventMap — the channels the EventStore enriches', () => {
     const updated: EventMap['mark:body-updated'] = {
       ...envelope, type: 'mark:body-updated', payload: { annotationId: annotation.id, operations: [] }, annotation,
     };
-    const removed: EventMap['mark:removed'] = {
-      ...envelope, type: 'mark:removed', payload: { annotationId: annotation.id }, annotation,
-    };
-    expect([added, updated, removed].map((e) => e.annotation?.id)).toEqual(['ann-1', 'ann-1', 'ann-1']);
+    expect([added, updated].map((e) => e.annotation?.id)).toEqual(['ann-1', 'ann-1']);
   });
 
-  it('enrichment is optional — the enricher declines when the view no longer holds the annotation', () => {
-    const unenriched: EventMap['mark:removed'] = {
-      ...envelope, type: 'mark:removed', payload: { annotationId: annotation.id },
+  it('a REMOVAL is not enriched — the view no longer holds the annotation to attach', () => {
+    // `enriched` means "the published event carries the annotation when the view
+    // holds it". For a removal the view never does, so the flag promised
+    // something the enricher could not deliver: consumers reading `.annotation`
+    // got `undefined` at runtime while the type said it might be there. Now the
+    // type says what the wire always did.
+    const removed: EventMap['mark:removed'] = {
+      ...envelope,
+      type: 'mark:removed',
+      payload: { annotationId: annotation.id },
+      // @ts-expect-error — a removal carries no annotation
+      annotation,
     };
-    expect(unenriched.annotation).toBeUndefined();
+    expect(removed.type).toBe('mark:removed');
   });
 
   it('a channel the EventStore never enriches does not accept one', () => {
@@ -58,5 +66,49 @@ describe('EventMap — the channels the EventStore enriches', () => {
       annotation,
     };
     expect(archived.type).toBe('mark:archived');
+  });
+});
+
+/**
+ * The generated list against the generated `EventMap`, derived two different
+ * ways from one flag.
+ *
+ * `ENRICHED_EVENT_TYPES` comes from the registry's `enriched` flags; `ByKey`
+ * comes from which channels' generated types actually carry `annotation`. They
+ * agree only if the generator's filter reads the field it thinks it reads — so
+ * this catches a generator bug that no behavioral test could, because a wrongly
+ * filtered list still compiles and still dispatches, just over the wrong set.
+ */
+type Equal<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+
+/**
+ * Narrowed to `PersistedEventType`, and that is not tidiness — over all of
+ * `EventMap` this catches `mark:create` and `stream-connected`, two channels
+ * whose own payload type happens to have an `annotation` key. They are a command
+ * and a stream signal, not enriched stored events.
+ *
+ * The narrowing mirrors what `validate-registry.mjs` already enforces: the
+ * `enriched` flag is only allowed on a stored event. Without it this test would
+ * fail against a correct generator.
+ */
+type ByKey = {
+  [K in PersistedEventType]: 'annotation' extends keyof EventMap[K] ? K : never
+}[PersistedEventType];
+
+describe('ENRICHED_EVENT_TYPES', () => {
+  it('is exactly the channels whose EventMap type carries an annotation', () => {
+    const agree: Equal<EnrichedEventType, ByKey> = true;
+    expect(agree).toBe(true);
+  });
+
+  it('holds no duplicates', () => {
+    // Every generated list joins the cross-list census. A repeat collapses in
+    // the `[number]` union, so the TYPE cannot catch it.
+    const dups = ENRICHED_EVENT_TYPES.filter((c, i) => ENRICHED_EVENT_TYPES.indexOf(c) !== i);
+    expect(dups).toEqual([]);
+  });
+
+  it('no longer contains mark:removed', () => {
+    expect(ENRICHED_EVENT_TYPES).not.toContain('mark:removed');
   });
 });

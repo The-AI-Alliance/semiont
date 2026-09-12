@@ -65,12 +65,14 @@ export type StoredEvent<T extends EventBase = PersistedEvent> = T & {
 
 /**
  * A persisted event as the bus delivers it once the EventStore's enrich step
- * has run: the stored event, plus — for events that mutate an annotation — that
- * annotation as it stands in the view. The fields are the spec's
- * (`EnrichedResourceEvent` beyond `StoredEventResponse`), with the annotation
- * branded like every annotation at this layer. Optional, because enrichment
- * declines when the view no longer holds the annotation: always, for a removal.
- * Which channels carry it is declared in the bus registry (`enriched`).
+ * has run: the stored event, plus the annotation as it stands in the view. The
+ * fields are the spec's (`EnrichedResourceEvent` beyond `StoredEventResponse`),
+ * with the annotation branded like every annotation at this layer. Optional,
+ * because enrichment declines when the view no longer holds the annotation.
+ *
+ * **Which channels carry it is the registry's `enriched` flag, and only that.**
+ * A removal is not among them — the view never holds the annotation by then, so
+ * the flag would promise what the enricher cannot deliver.
  */
 export type EnrichedEvent<T extends EventBase = PersistedEvent> = StoredEvent<T> & EnrichmentFields;
 
