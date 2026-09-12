@@ -327,7 +327,7 @@ describe('processReferenceJob', () => {
         Organization: [{ exact: 'Sony', entityType: 'Organization' }],
       };
       const items = map[t] ?? [];
-      await onChunkResults?.(items);
+      await onChunkResults?.(items, { next: 1_000, size: 250 });
       return items;
     });
 
@@ -397,7 +397,7 @@ describe('processReferenceJob', () => {
       const items = t === 'Location'
         ? (await new Promise((r) => setTimeout(r, 20)), [{ exact: 'Paris', entityType: 'Location' }])
         : [{ exact: 'Ada', entityType: 'Person' }];
-      await onChunkResults?.(items as any);
+      await onChunkResults?.(items as any, { next: 1_000, size: 250 });
       return items as any;
     });
 
@@ -1960,10 +1960,10 @@ describe('processReferenceJob — unit commits (A3)', () => {
       const t = String(types[0]);
       if (t === 'Person') {
         const items = [{ exact: 'Greeley', start: 0, end: 7, entityType: 'Person' }];
-        await onChunkResults?.(items as never);
+        await onChunkResults?.(items as never, { next: 1_000, size: 250 });
         return items as never;
       }
-      if (t === 'Date') { await onChunkResults?.([] as never); return [] as never; } // legitimately-empty unit (RED v)
+      if (t === 'Date') { await onChunkResults?.([] as never, { next: 1_000, size: 250 }); return [] as never; } // legitimately-empty unit (RED v)
       throw new Error('Location stalled');
     });
 
@@ -2058,8 +2058,8 @@ describe('chunk-grain emission — processors', () => {
     // Two chunks: the mocked loop hands each to the processor in turn.
     vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(
       async (_c, _cl, _i, _d, _sl, _onActivity, onChunkResults) => {
-        await onChunkResults!([at('important')] as never);
-        await onChunkResults!([at('critical')] as never);
+        await onChunkResults!([at('important')] as never, { next: 1_000, size: 250 });
+        await onChunkResults!([at('critical')] as never, { next: 2_000, size: 250 });
         return [at('important'), at('critical')] as never;
       },
     );
@@ -2077,8 +2077,8 @@ describe('chunk-grain emission — processors', () => {
   it('an overlap duplicate spanning two chunks is committed ONCE', async () => {
     vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(
       async (_c, _cl, _i, _d, _sl, _onActivity, onChunkResults) => {
-        await onChunkResults!([at('important')] as never);
-        await onChunkResults!([at('important'), at('critical')] as never);
+        await onChunkResults!([at('important')] as never, { next: 1_000, size: 250 });
+        await onChunkResults!([at('important'), at('critical')] as never, { next: 2_000, size: 250 });
         return [] as never;
       },
     );
@@ -2098,8 +2098,8 @@ describe('chunk-grain emission — processors', () => {
   it('processReferenceJob emits per chunk; onUnitComplete is the checkpoint, carrying no annotations', async () => {
     vi.mocked(extractEntities).mockImplementation(
       async (_c, _t, _cl, _i, _l, _sl, _onActivity, _verdicts, _counts, onChunkResults) => {
-        await onChunkResults!([{ exact: 'important', entityType: 'Person' }] as never);
-        await onChunkResults!([{ exact: 'critical', entityType: 'Person' }] as never);
+        await onChunkResults!([{ exact: 'important', entityType: 'Person' }] as never, { next: 1_000, size: 250 });
+        await onChunkResults!([{ exact: 'critical', entityType: 'Person' }] as never, { next: 2_000, size: 250 });
         return [] as never;
       },
     );

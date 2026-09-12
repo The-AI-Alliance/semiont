@@ -10,7 +10,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { AnyJob, JobStatus, JobQueryFilters, CancelledJob, CompleteJob, FailedJob, PendingJob, RunningJob } from './types';
 import type { SemiontState } from '@semiont/core/node';
-import { jobId as toJobId, type JobId, type Logger, type EventBus } from '@semiont/core';
+import { jobId as toJobId, type JobId, type Logger, type EventBus, type UnitCursor } from '@semiont/core';
 import type { JobQueue } from './job-queue-interface';
 import { willRetryAfter } from './will-retry';
 
@@ -40,6 +40,42 @@ const STALE_RUNNING_MS = 30 * 60_000;
 
 /** Minimum spacing between progress writes per job — workers can be chatty. */
 const PROGRESS_WRITE_MIN_INTERVAL_MS = 5_000;
+
+/**
+ * Merge per-unit cursors monotonically (CHUNK-GRAIN-RESUME P2).
+ *
+ * `completedUnits` is a set, so unioning it converges under concurrent
+ * snapshots for free — a set only grows. A cursor has no such property: two
+ * checkpoints can be in flight at once and the OLDER one can land last, so a
+ * last-writer-wins would drag the resume position backward and the retry would
+ * re-pay for chunks it already committed. Keeping the furthest `next` per unit
+ * is what makes the merge order-independent.
+ *
+ * `next` and `size` move together because they are ONE observation of one
+ * chunk. Taking the furthest `next` from one snapshot and the `size` from
+ * another would describe a chunk that was never cut.
+ *
+ * A unit in `completed` has no cursor at all: "in progress, here" and
+ * "finished" are then structurally exclusive rather than a rule each reader has
+ * to remember, and a stale snapshot cannot resurrect a finished unit's cursor.
+ */
+function mergeUnitCursors(
+  existing: Record<string, UnitCursor> | undefined,
+  incoming: Record<string, UnitCursor> | undefined,
+  completed: string[],
+): Record<string, UnitCursor> {
+  const done = new Set(completed);
+  const merged: Record<string, UnitCursor> = {};
+  for (const [unit, cursor] of Object.entries({ ...existing })) {
+    if (!done.has(unit)) merged[unit] = cursor;
+  }
+  for (const [unit, cursor] of Object.entries({ ...incoming })) {
+    if (done.has(unit)) continue;
+    const held = merged[unit];
+    if (!held || cursor.next > held.next) merged[unit] = cursor;
+  }
+  return merged;
+}
 
 /** Terminal jobs (complete/failed/cancelled) are pruned after this long. */
 const RETENTION_HOURS = 24;
@@ -259,7 +295,7 @@ export class FsJobQueue implements JobQueue {
    * re-announced); after that it lands in `failed` with the error.
    * Returns null (and changes nothing) if the job isn't running.
    */
-  async failJob(jobId: JobId, error: string, completedUnits?: string[], failureClass?: 'transient' | 'deterministic'): Promise<'retried' | 'failed' | null> {
+  async failJob(jobId: JobId, error: string, completedUnits?: string[], failureClass?: 'transient' | 'deterministic', unitCursors?: Record<string, UnitCursor>): Promise<'retried' | 'failed' | null> {
     const job = await this.getJob(jobId);
     if (!job || job.status !== 'running') {
       return null;
@@ -273,9 +309,18 @@ export class FsJobQueue implements JobQueue {
     // every later rebuild) carries it forward; the terminal failed record
     // keeps it too, so the waste of a discarded run stays visible (D3).
     const checkpoint = [...new Set([...(job.metadata.completedUnits ?? []), ...(completedUnits ?? [])])];
-    const metadata = checkpoint.length > 0
-      ? { ...job.metadata, completedUnits: checkpoint }
-      : job.metadata;
+    // The mid-unit half of the same checkpoint (CHUNK-GRAIN-RESUME P2), merged
+    // by the same monotone rule the durable per-chunk writes use — `failJob`
+    // and `checkpointUnits` race on the same record, and whichever lands last
+    // must not drag a cursor back.
+    const cursors = mergeUnitCursors(job.metadata.unitCursors, unitCursors, checkpoint);
+    const { unitCursors: superseded, ...base } = job.metadata;
+    void superseded;
+    const metadata = {
+      ...base,
+      ...(checkpoint.length > 0 ? { completedUnits: checkpoint } : {}),
+      ...(Object.keys(cursors).length > 0 ? { unitCursors: cursors } : {}),
+    };
 
     // A known-deterministic failure skips the budget outright: the same
     // request cannot succeed on a second attempt, so a retry is guaranteed
@@ -319,15 +364,28 @@ export class FsJobQueue implements JobQueue {
    * non-running jobs. Written directly, like `recordProgress`, so it also
    * refreshes the mtime heartbeat.
    */
-  async checkpointUnits(jobId: JobId, completedUnits: string[]): Promise<void> {
+  async checkpointUnits(jobId: JobId, completedUnits: string[], unitCursors?: Record<string, UnitCursor>): Promise<void> {
     const job = await this.getJob(jobId);
     if (!job || job.status !== 'running') {
       return;
     }
     const merged = [...new Set([...(job.metadata.completedUnits ?? []), ...completedUnits])];
+    const cursors = mergeUnitCursors(job.metadata.unitCursors, unitCursors, merged);
+    // The prior value is destructured OUT rather than spread over: omitting a
+    // key from a spread leaves the old one in place, so the last unit to finish
+    // would keep a cursor pointing into work that is done.
+    const { unitCursors: superseded, ...metadata } = job.metadata;
+    void superseded;
     const updated: RunningJob<any, any> = {
       ...job,
-      metadata: { ...job.metadata, completedUnits: merged },
+      metadata: {
+        ...metadata,
+        completedUnits: merged,
+        // Absent rather than `{}`: an empty object would assert that units were
+        // tracked and none had progress, a different claim from a job that
+        // never reported a cursor at all.
+        ...(Object.keys(cursors).length > 0 ? { unitCursors: cursors } : {}),
+      },
     };
     await fs.writeFile(this.getJobPath(jobId, 'running'), JSON.stringify(updated, null, 2), 'utf-8');
   }

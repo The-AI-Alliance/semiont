@@ -825,6 +825,114 @@ describe('JobQueue', () => {
     });
   });
 
+  // ── per-unit cursors (CHUNK-GRAIN-RESUME P2) ──────────────────────────────
+  //
+  // `completedUnits` records whole units, so a job with ONE unit — every
+  // motivation job, and the 1958 document's single `Person` type — could record
+  // nothing until the entire document was done. A cursor is the finer grain, and
+  // it cannot be merged the way a set is: a set only grows, so a union converges
+  // on its own, while a cursor converges only if a stale snapshot can never move
+  // it back.
+  describe('checkpointUnits() — per-unit cursors', () => {
+    test('records how far an unfinished unit got, beside the finished ones', async () => {
+      await jobQueue.createJob(createRunningDetectionJob('job-cur1'));
+      await jobQueue.checkpointUnits(jobId('job-cur1'), [], { Person: { next: 5_000, size: 800 } });
+
+      const j = await jobQueue.getJob(jobId('job-cur1'));
+      expect(j?.metadata.unitCursors).toEqual({ Person: { next: 5_000, size: 800 } });
+      // The unit is NOT complete — that is the whole point of the grain.
+      expect(j?.metadata.completedUnits ?? []).toEqual([]);
+    });
+
+    test('advances a cursor as its unit progresses', async () => {
+      await jobQueue.createJob(createRunningDetectionJob('job-cur2'));
+      await jobQueue.checkpointUnits(jobId('job-cur2'), [], { Person: { next: 5_000, size: 800 } });
+      await jobQueue.checkpointUnits(jobId('job-cur2'), [], { Person: { next: 9_000, size: 560 } });
+
+      const j = await jobQueue.getJob(jobId('job-cur2'));
+      expect(j?.metadata.unitCursors).toEqual({ Person: { next: 9_000, size: 560 } });
+    });
+
+    test('an out-of-order checkpoint never moves a cursor backward', async () => {
+      // Two snapshots in flight; the older one lands last. A union would be
+      // safe here and a last-writer-wins would not: the resume position would
+      // regress and the job would re-pay for chunks it already committed.
+      await jobQueue.createJob(createRunningDetectionJob('job-cur3'));
+      await jobQueue.checkpointUnits(jobId('job-cur3'), [], { Person: { next: 9_000, size: 560 } });
+      await jobQueue.checkpointUnits(jobId('job-cur3'), [], { Person: { next: 2_000, size: 4_500 } });
+
+      const j = await jobQueue.getJob(jobId('job-cur3'));
+      // And `size` did not come from the loser either — the pair is ONE
+      // observation, and a mix would describe a chunk that never existed.
+      expect(j?.metadata.unitCursors).toEqual({ Person: { next: 9_000, size: 560 } });
+    });
+
+    test('tracks each unit independently', async () => {
+      await jobQueue.createJob(createRunningDetectionJob('job-cur4'));
+      await jobQueue.checkpointUnits(jobId('job-cur4'), [], { Person: { next: 5_000, size: 800 } });
+      await jobQueue.checkpointUnits(jobId('job-cur4'), [], { Location: { next: 1_200, size: 900 } });
+
+      const j = await jobQueue.getJob(jobId('job-cur4'));
+      expect(j?.metadata.unitCursors).toEqual({
+        Person: { next: 5_000, size: 800 },
+        Location: { next: 1_200, size: 900 },
+      });
+    });
+
+    test('a unit that completes drops its cursor — the two states are exclusive', async () => {
+      // "Skipped whole, whatever cursor it last carried" is made structural
+      // rather than left as a rule every reader has to remember: a completed
+      // unit simply has no cursor to misread.
+      await jobQueue.createJob(createRunningDetectionJob('job-cur5'));
+      await jobQueue.checkpointUnits(jobId('job-cur5'), [], { Person: { next: 5_000, size: 800 } });
+      await jobQueue.checkpointUnits(jobId('job-cur5'), ['Person']);
+
+      const j = await jobQueue.getJob(jobId('job-cur5'));
+      expect(j?.metadata.completedUnits).toEqual(['Person']);
+      expect(j?.metadata.unitCursors ?? {}).toEqual({});
+    });
+
+    test('a late cursor for an already-completed unit is dropped again', async () => {
+      // The convergence half of the rule above: a stale snapshot naming a unit
+      // that has since completed must not resurrect its cursor.
+      await jobQueue.createJob(createRunningDetectionJob('job-cur6'));
+      await jobQueue.checkpointUnits(jobId('job-cur6'), ['Person']);
+      await jobQueue.checkpointUnits(jobId('job-cur6'), [], { Person: { next: 5_000, size: 800 } });
+
+      const j = await jobQueue.getJob(jobId('job-cur6'));
+      expect(j?.metadata.unitCursors ?? {}).toEqual({});
+    });
+
+    test('a job that dies BETWEEN units behaves exactly as today', async () => {
+      // No regression to the landed unit-grain path: with no cursor reported,
+      // nothing new appears on the record — not an empty object, which would be
+      // a claim that units were tracked and none had progress.
+      await jobQueue.createJob(createRunningDetectionJob('job-cur7'));
+      await jobQueue.checkpointUnits(jobId('job-cur7'), ['Person']);
+
+      const j = await jobQueue.getJob(jobId('job-cur7'));
+      expect(j?.metadata.completedUnits).toEqual(['Person']);
+      expect('unitCursors' in (j?.metadata ?? {})).toBe(false);
+    });
+
+    test('a cursor survives a worker death into janitor recovery', async () => {
+      // P2's headline RED. The worker dies mid-unit without emitting job:fail,
+      // so only the durable running-file write can carry the cursor into the
+      // re-queued job for a later claim to read.
+      await jobQueue.createJob(createRunningDetectionJob('job-cur8'));
+      await jobQueue.checkpointUnits(jobId('job-cur8'), [], { Person: { next: 5_000, size: 800 } });
+
+      const filePath = path.join(project.jobsDir, 'running', 'job-cur8.json');
+      const past = new Date(Date.now() - 31 * 60_000);
+      await fs.utimes(filePath, past, past);
+
+      expect(await jobQueue.recoverStaleRunningJobs()).toBe(1);
+      const requeued = await jobQueue.getJob(jobId('job-cur8'));
+      expect(requeued?.status).toBe('pending');
+      expect(requeued?.metadata.unitCursors).toEqual({ Person: { next: 5_000, size: 800 } });
+    });
+  });
+
   describe('persistence across process restart (JOB-RESTART-SAFETY P1)', () => {
     // Job state lives on disk, so a job outlives the process that created it:
     // a SECOND queue instance over the SAME directory recovers a job the first

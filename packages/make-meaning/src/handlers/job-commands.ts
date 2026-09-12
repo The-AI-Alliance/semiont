@@ -225,7 +225,7 @@ export function registerJobCommandHandlers(
 
   eventBus.get('job:fail').subscribe(async (event) => {
     try {
-      const outcome = await jobQueue.failJob(jobId(event.jobId), event.error, event.completedUnits, event.failureClass);
+      const outcome = await jobQueue.failJob(jobId(event.jobId), event.error, event.completedUnits, event.failureClass, event.unitCursors);
       if (outcome === 'retried') {
         logger.info('Job re-queued for retry', { jobId: event.jobId });
       } else if (outcome === null) {
@@ -260,7 +260,7 @@ export function registerJobCommandHandlers(
   // covers the crash path failJob never sees.
   eventBus.get('job:checkpoint').subscribe(async (event) => {
     try {
-      await jobQueue.checkpointUnits(jobId(event.jobId), event.completedUnits);
+      await jobQueue.checkpointUnits(jobId(event.jobId), event.completedUnits, event.unitCursors);
     } catch (error) {
       logger.error('Failed to checkpoint job units', {
         jobId: event.jobId,

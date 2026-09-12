@@ -32,6 +32,7 @@
 
 import { GEN_REQUIRED, minimalContext } from './fixtures/generation-fixtures';
 import { referenceIdOf } from '../worker-process';
+import type { UnitCheckpoint } from '../processors';
 import { Subject, BehaviorSubject } from 'rxjs';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { extractPdfTextLayer } from '@semiont/content';
@@ -248,10 +249,14 @@ function makeFakeSessionAndAdapter() {
  * Stub a motivation processor: annotations leave through the awaited
  * chunk-commit callback (argument 5), the return carries only the result.
  */
-const emitting = (r: { annotations: unknown[]; result: unknown }) =>
+const emitting = (r: { annotations: unknown[]; result: unknown; unit?: string }) =>
   (async (...args: unknown[]) => {
-    const onChunkComplete = args[5] as (a: unknown[]) => Promise<void>;
-    await onChunkComplete(r.annotations);
+    // Typed with the checkpoint it actually takes: the looser
+    // `(a: unknown[]) => …` cast this replaced kept compiling when the seam
+    // grew a second argument, and the omission surfaced only at runtime as
+    // "Cannot read properties of undefined (reading 'unit')".
+    const onChunkComplete = args[5] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
+    await onChunkComplete(r.annotations, { unit: r.unit ?? 'highlighting', cursor: { next: 900, size: 220 } });
     return { result: r.result } as never;
   }) as never;
 
@@ -279,6 +284,9 @@ function makeJob(
   // Default: no retries budgeted, so a failure is terminal unless a test
   // says otherwise (JOB-RESTART-SAFETY P5).
   budget: { retryCount: number; maxRetries: number } = { retryCount: 0, maxRetries: 0 },
+  /** Mid-unit resume positions from an earlier attempt (CHUNK-GRAIN-RESUME
+   * P2). Empty is the first-attempt case every test but the resume ones want. */
+  unitCursors: ActiveJob['unitCursors'] = {},
 ): ActiveJob {
   return {
     jobId: JID,
@@ -290,6 +298,7 @@ function makeJob(
     // guard enforces it); overrides still win.
     params: { resourceId: RID, ...(type === 'generation' ? GEN_REQUIRED : {}), ...paramsOverride },
     completedUnits,
+    unitCursors,
   } as ActiveJob;
 }
 
@@ -339,7 +348,11 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
 
       expect(h.busEmits.map(e => e.channel))
-        .toEqual(['job:start', 'mark:commit', 'job:complete']);
+        // A `job:checkpoint` now trails every committed chunk, not only every
+        // completed unit (CHUNK-GRAIN-RESUME P2). For a one-unit job that is
+        // the ONLY checkpoint there can be before the job ends — which is
+        // precisely why the unit grain was too coarse for these four types.
+        .toEqual(['job:start', 'mark:commit', 'job:checkpoint', 'job:complete']);
       expect(h.busEmits.find(e => e.channel === 'job:complete')!.payload)
         .toMatchObject({ jobType: 'highlight-annotation', result: { highlightsFound: 2 } });
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
@@ -357,7 +370,11 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob('comment-annotation'));
 
       expect(h.busEmits.map(e => e.channel))
-        .toEqual(['job:start', 'mark:commit', 'job:complete']);
+        // A `job:checkpoint` now trails every committed chunk, not only every
+        // completed unit (CHUNK-GRAIN-RESUME P2). For a one-unit job that is
+        // the ONLY checkpoint there can be before the job ends — which is
+        // precisely why the unit grain was too coarse for these four types.
+        .toEqual(['job:start', 'mark:commit', 'job:checkpoint', 'job:complete']);
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
   });
@@ -373,7 +390,11 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob('assessment-annotation'));
 
       expect(h.busEmits.map(e => e.channel))
-        .toEqual(['job:start', 'mark:commit', 'job:complete']);
+        // A `job:checkpoint` now trails every committed chunk, not only every
+        // completed unit (CHUNK-GRAIN-RESUME P2). For a one-unit job that is
+        // the ONLY checkpoint there can be before the job ends — which is
+        // precisely why the unit grain was too coarse for these four types.
+        .toEqual(['job:start', 'mark:commit', 'job:checkpoint', 'job:complete']);
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
   });
@@ -393,7 +414,11 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob('tag-annotation'));
 
       expect(h.busEmits.map(e => e.channel))
-        .toEqual(['job:start', 'mark:commit', 'job:complete']);
+        // A `job:checkpoint` now trails every committed chunk, not only every
+        // completed unit (CHUNK-GRAIN-RESUME P2). For a one-unit job that is
+        // the ONLY checkpoint there can be before the job ends — which is
+        // precisely why the unit grain was too coarse for these four types.
+        .toEqual(['job:start', 'mark:commit', 'job:checkpoint', 'job:complete']);
       expect(h.busEmits.find(e => e.channel === 'job:complete')!.payload).toMatchObject({
         jobType: 'tag-annotation',
         result: { tagsFound: 1, tagsCreated: 1 },
@@ -1481,10 +1506,10 @@ describe('reference-annotation — checkpointed resume', () => {
   it('commits once per unit, awaiting durability, with no post-run re-emission', async () => {
     vi.mocked(processReferenceJob).mockImplementation(
       async (_content, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
-        await onChunkComplete!([{ id: 'r1' }] as never);
+        await onChunkComplete!([{ id: 'r1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220 } });
         await onUnitComplete('Person');
         await onUnitComplete('Date'); // empty unit: nothing to commit, still checkpoints
-        await onChunkComplete!([{ id: 'r2' }, { id: 'r3' }] as never);
+        await onChunkComplete!([{ id: 'r2' }, { id: 'r3' }] as never, { unit: 'Location', cursor: { next: 1_800, size: 330 } });
         await onUnitComplete('Location');
         return { result: { kind: 'reference-annotation', totalFound: 3, totalEmitted: 3, errors: 0 } as never };
       },
@@ -1501,9 +1526,12 @@ describe('reference-annotation — checkpointed resume', () => {
     expect(h.busEmits.map(e => e.channel))
       .toEqual([
         'job:start',
-        'mark:commit', 'job:checkpoint',   // Person (1 annotation)
-        'job:checkpoint',                   // Date (no annotations, no commit)
-        'mark:commit', 'job:checkpoint',    // Location (2 annotations, ONE batch)
+        // Two checkpoints per non-empty unit now: one trailing the chunk's
+        // commit (the mid-unit cursor), one at the unit boundary (the unit is
+        // complete and drops its cursor).
+        'mark:commit', 'job:checkpoint', 'job:checkpoint',  // Person (1 annotation)
+        'job:checkpoint',                                    // Date (empty unit, no commit)
+        'mark:commit', 'job:checkpoint', 'job:checkpoint',  // Location (2 annotations, ONE batch)
         'job:complete',
       ]);
 
@@ -1512,9 +1540,29 @@ describe('reference-annotation — checkpointed resume', () => {
     const commits = h.busEmits.filter(e => e.channel === 'mark:commit');
     expect(commits.map(c => (c.payload as { annotations: unknown[] }).annotations.length)).toEqual([1, 2]);
     // Each checkpoint carries the cumulative completed-unit set, so recovery
-    // after a crash between any two units resumes from the right place.
-    expect(h.busEmits.filter(e => e.channel === 'job:checkpoint').map(e => (e.payload as { completedUnits: string[] }).completedUnits))
-      .toEqual([['Person'], ['Person', 'Date'], ['Person', 'Date', 'Location']]);
+    // after a crash between any two units resumes from the right place. The
+    // chunk-grain checkpoints sit BEFORE their unit joins the set — a chunk
+    // being durable is not its unit being finished.
+    const checkpoints = h.busEmits.filter(e => e.channel === 'job:checkpoint')
+      .map(e => e.payload as { completedUnits: string[]; unitCursors?: Record<string, { next: number; size: number }> });
+    expect(checkpoints.map(c => c.completedUnits)).toEqual([
+      [],                                  // Person's chunk committed; the unit is still open
+      ['Person'],                          // Person complete
+      ['Person', 'Date'],                  // Date complete (empty unit)
+      ['Person', 'Date'],                  // Location's chunk committed
+      ['Person', 'Date', 'Location'],      // Location complete
+    ]);
+    // And the cursor appears while its unit is open, then goes ABSENT when the
+    // unit completes: "partway here" and "finished" are never both true, and
+    // absent is the honest encoding of "nothing is partway" — an empty object
+    // would claim units were tracked and none had progress.
+    expect(checkpoints.map(c => c.unitCursors)).toEqual([
+      { Person: { next: 900, size: 220 } },
+      undefined,
+      undefined,
+      { Location: { next: 1_800, size: 330 } },
+      undefined,
+    ]);
     expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
   });
 
@@ -1527,7 +1575,7 @@ describe('reference-annotation — checkpointed resume', () => {
     // done, and never fails it.
     vi.mocked(processReferenceJob).mockImplementation(
       async (_content, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
-        await onChunkComplete!([{ id: 'r1' }] as never);
+        await onChunkComplete!([{ id: 'r1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220 } });
         await onUnitComplete('Person');
         return { result: { kind: 'reference-annotation', totalFound: 1, totalEmitted: 1, errors: 0 } as never };
       },
@@ -1597,7 +1645,7 @@ describe('startWorkerProcess — job:fail carries the checkpoint (A3 i/iv feed)'
     // name what completed so the retry can skip it.
     vi.mocked(processReferenceJob).mockImplementation(
       async (_content, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
-        await onChunkComplete!([{ id: 'a1' }] as never);
+        await onChunkComplete!([{ id: 'a1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220 } });
         await onUnitComplete('Person');
         await onUnitComplete('Date');
         throw new Error('Location stalled');
@@ -1903,9 +1951,9 @@ describe('every event says which attempt produced it', () => {
   it('progress and the terminal event both carry the attempt number', async () => {
     vi.mocked(processHighlightJob).mockImplementation((async (...args: unknown[]) => {
       const onProgress = args[4] as (p: number, m: unknown) => void;
-      const onChunkComplete = args[5] as (a: unknown[]) => Promise<void>;
+      const onChunkComplete = args[5] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
       onProgress(60, { code: 'creating-annotations', count: 1 });
-      await onChunkComplete([{ id: 'a1' }]);
+      await onChunkComplete([{ id: 'a1' }], { unit: 'highlighting', cursor: { next: 900, size: 220 } });
       return { result: { highlightsFound: 1, highlightsCreated: 1 } } as never;
     }) as never);
     const h = makeFakeSessionAndAdapter();

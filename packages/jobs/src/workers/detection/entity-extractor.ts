@@ -1,5 +1,5 @@
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
-import { estimateTokens, getLocaleEnglishName, isObject, isString, type Logger } from '@semiont/core';
+import { estimateTokens, getLocaleEnglishName, isObject, isString, type Logger, type UnitCursor } from '@semiont/core';
 import { boundedGenerateStructured, boundedGenerateWithMetadata } from '../inference-call';
 import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, runAdaptiveChunks, DETECTION_TEMPERATURE, YIELD_COLLAPSE_BAND, YieldCollapseError, type UnderReportedPiece } from './detection-chunking';
 
@@ -164,8 +164,14 @@ export async function extractEntities(
    * commits them, and the loop must not run ahead of durability. Unlike
    * `onActivity` (a liveness heartbeat, which may repeat), this fires exactly
    * once per chunk, including the last. Kept LAST on every detection seam.
+   *
+   * `cursor` is where the run stands ONCE THIS CHUNK IS COMMITTED — the pair
+   * CHUNK-GRAIN-RESUME checkpoints. It is handed over with the results rather
+   * than reported separately so the two cannot drift: a caller that records the
+   * position without durably committing the annotations would checkpoint ahead
+   * of the log.
    */
-  onChunkResults?: (items: ExtractedEntity[]) => Promise<void>,
+  onChunkResults?: (items: ExtractedEntity[], cursor: UnitCursor) => Promise<void>,
 ): Promise<ExtractedEntity[]> {
 
   // Format entity types for the prompt
@@ -326,7 +332,7 @@ Example output:
       }
     }
     collected.push(...fromChunk);
-    await onChunkResults?.(fromChunk);
+    await onChunkResults?.(fromChunk, { next, size });
 
     // Chunk boundary: the cursor advances (real progress). Only when text
     // remains — the final cut has no boundary after it, and the caller reports
