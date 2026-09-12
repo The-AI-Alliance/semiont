@@ -4605,7 +4605,15 @@ type TokenRefreshResponse struct {
 // UnitCursor How far a single unit got, for a resume that starts mid-unit rather than redoing it (CHUNK-GRAIN-RESUME P2). A unit is an entity type for reference-annotation, and the job's own motivation for the other annotation types — which is why a unit-grain checkpoint alone was too coarse: those jobs have exactly one unit, so nothing could be recorded until the whole document was done.
 //
 // MERGE IS MONOTONE PER UNIT, not a union. `completedUnits` is a set and converges under concurrent snapshots because a set only grows; a cursor converges only if a stale snapshot can never move it backward.
+//
+// IT CARRIES THE UNIT'S RUNNING TALLIES TOO, and they are required. A resumed unit counts only the chunks it actually runs, so without them a retry's terminal record reports the remainder of the document as if it were the whole — measured at totalFound 19 where the document yielded 25. The position and the tallies are ONE observation of the same committed chunk; splitting them would let a resume take the saving and still report a number nobody can trust.
 type UnitCursor struct {
+	// Emitted Annotations actually committed for this unit through the last committed chunk, after dedupe. The pair (found, emitted) is what the job's terminal result reports, so a resumed unit seeds both and its record describes the whole document rather than one attempt's share.
+	Emitted int `json:"emitted"`
+
+	// Found Items detection has returned for this unit through the last committed chunk — the numerator a resumed attempt continues from rather than restarting at zero. Counts what the model reported, before dedupe.
+	Found int `json:"found"`
+
 	// Next Characters consumed once the last COMMITTED chunk completed — the resume position. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for.
 	Next int `json:"next"`
 

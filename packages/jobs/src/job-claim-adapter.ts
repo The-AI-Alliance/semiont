@@ -56,9 +56,16 @@ function readUnitCursors(raw: unknown, completedUnits: string[]): Record<string,
   const cursors: Record<string, UnitCursor> = {};
   for (const [unit, value] of Object.entries(raw)) {
     if (done.has(unit) || !isObject(value)) continue;
-    const { next, size } = value;
+    const { next, size, found, emitted } = value;
     if (!isNumber(next) || !isNumber(size) || next < 0 || size < 1) continue;
-    cursors[unit] = { next, size };
+    // The tallies are required, and a cursor missing them is dropped WHOLE
+    // rather than resumed without them. Resuming would take the saving and then
+    // report a terminal record that counts only the remainder — the exact lie
+    // HD3 exists to remove. Dropping costs one re-run of a unit and yields a
+    // record that is true; a checkpoint written before this field existed reads
+    // as absent and takes that trade.
+    if (!isNumber(found) || !isNumber(emitted) || found < 0 || emitted < 0) continue;
+    cursors[unit] = { next, size, found, emitted };
   }
   return cursors;
 }

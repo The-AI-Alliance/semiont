@@ -1,7 +1,7 @@
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
 import { estimateTokens, getLocaleEnglishName, isObject, isString, type Logger, type UnitCursor } from '@semiont/core';
 import { boundedGenerateStructured, boundedGenerateWithMetadata } from '../inference-call';
-import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, runAdaptiveChunks, DETECTION_TEMPERATURE, YIELD_COLLAPSE_BAND, YieldCollapseError, type UnderReportedPiece } from './detection-chunking';
+import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, runAdaptiveChunks, type ChunkCursor, DETECTION_TEMPERATURE, YIELD_COLLAPSE_BAND, YieldCollapseError, type UnderReportedPiece } from './detection-chunking';
 
 /**
  * Entity reference extracted from text — pre-reconciliation.
@@ -177,7 +177,7 @@ export async function extractEntities(
    * position without durably committing the annotations would checkpoint ahead
    * of the log.
    */
-  onChunkResults?: (items: ExtractedEntity[], cursor: UnitCursor) => Promise<void>,
+  onChunkResults?: (items: ExtractedEntity[], cursor: ChunkCursor) => Promise<void>,
 ): Promise<ExtractedEntity[]> {
 
   // Format entity types for the prompt

@@ -238,7 +238,7 @@ describe('runAdaptiveChunks', () => {
 describe('runAdaptiveChunks — resuming', () => {
   it('starts at the checkpointed position, not the top', async () => {
     const text = prose(1500);
-    const { seen } = await run(text, (_c, out) => steady(out), 1, { next: 40_000, size: 4_500 });
+    const { seen } = await run(text, (_c, out) => steady(out), 1, { next: 40_000, size: 4_500, found: 0, emitted: 0 });
 
     expect(seen[0]!.at).toBe(40_000);
     // And nothing before it is read again — the point is that the INFERENCE is
@@ -258,7 +258,7 @@ describe('runAdaptiveChunks — resuming', () => {
     const expected = nextChunkSize({ truncated: true }, seeded, budget.bounds);
     expect(expected).toBeLessThan(seeded);
 
-    const { seen } = await run(prose(1500), (_c, out) => steady(out), 1, { next: 10_000, size: seeded });
+    const { seen } = await run(prose(1500), (_c, out) => steady(out), 1, { next: 10_000, size: seeded, found: 0, emitted: 0 });
     expect(seen[0]!.size).toBe(expected);
   });
 
@@ -274,7 +274,7 @@ describe('runAdaptiveChunks — resuming', () => {
     // "Attempts should learn from previous attempts, but not be beholden to
     // them." One shrink step of conservatism, then the ordinary feedback takes
     // over and grows again on the first low-utilization outcome.
-    const { seen } = await run(prose(1500), (_c, out) => sparse(out), 1, { next: 10_000, size: 4_000 });
+    const { seen } = await run(prose(1500), (_c, out) => sparse(out), 1, { next: 10_000, size: 4_000, found: 0, emitted: 0 });
 
     expect(seen.length).toBeGreaterThan(2);
     expect(seen[1]!.piece.length).toBeGreaterThan(seen[0]!.piece.length);
@@ -284,7 +284,7 @@ describe('runAdaptiveChunks — resuming', () => {
     // The unit finished its last chunk but died before it could be marked
     // complete. Re-running it must cost no inference at all.
     const text = prose(400);
-    const { seen } = await run(text, (_c, out) => steady(out), 1, { next: text.length, size: 4_500 });
+    const { seen } = await run(text, (_c, out) => steady(out), 1, { next: text.length, size: 4_500, found: 0, emitted: 0 });
 
     expect(seen).toHaveLength(0);
   });

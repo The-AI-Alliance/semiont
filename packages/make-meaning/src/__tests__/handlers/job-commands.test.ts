@@ -572,12 +572,12 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
     eventBus.get('job:checkpoint').next({
       jobId: 'job-ckpt-cur',
       completedUnits: ['Person'],
-      unitCursors: { Location: { next: 5_000, size: 800 } },
+      unitCursors: { Location: { next: 5_000, size: 800, found: 0, emitted: 0 } },
     } as never);
 
     await vi.waitFor(() => {
       expect(jobQueue.checkpointUnits).toHaveBeenCalledWith(
-        'job-ckpt-cur', ['Person'], { Location: { next: 5_000, size: 800 } },
+        'job-ckpt-cur', ['Person'], { Location: { next: 5_000, size: 800, found: 0, emitted: 0 } },
       );
     });
   });
@@ -589,12 +589,12 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
       jobId: 'job-f-cur',
       error: 'stalled mid-unit',
       completedUnits: [],
-      unitCursors: { Person: { next: 12_400, size: 560 } },
+      unitCursors: { Person: { next: 12_400, size: 560, found: 0, emitted: 0 } },
     } as never);
 
     await vi.waitFor(() => {
       expect(jobQueue.failJob).toHaveBeenCalledWith(
-        'job-f-cur', 'stalled mid-unit', [], undefined, { Person: { next: 12_400, size: 560 } },
+        'job-f-cur', 'stalled mid-unit', [], undefined, { Person: { next: 12_400, size: 560, found: 0, emitted: 0 } },
       );
     });
   });

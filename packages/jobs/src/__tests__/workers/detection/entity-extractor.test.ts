@@ -542,7 +542,7 @@ describe('extractEntities', () => {
 
         await extractEntities(
           longText, ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined,
-          { next: at, size: 600 },
+          { next: at, size: 600, found: 0, emitted: 0 },
         );
 
         expect(prompts.length).toBeGreaterThan(0);
@@ -566,7 +566,7 @@ describe('extractEntities', () => {
 
         await extractEntities(
           longText, ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined,
-          { next: longText.length, size: 600 },
+          { next: longText.length, size: 600, found: 0, emitted: 0 },
         );
 
         expect(prompts).toHaveLength(0);

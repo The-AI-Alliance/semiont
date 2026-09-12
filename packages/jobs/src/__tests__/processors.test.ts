@@ -2160,6 +2160,80 @@ describe('under-report verdicts on the terminal surface', () => {
     expect(outcome.result.underReportedPieces).toBe(1);
   });
 
+  // ── the terminal record describes the DOCUMENT, not one attempt ─────────
+  //
+  // `totalFound` is documented as "Total entities found", and before this a
+  // retry reported only the chunks it happened to run: measured at 19 where the
+  // document yielded 25. The landed unit-grain retry had the same defect at
+  // coarser grain — every skipped unit's counts simply vanished. The tallies
+  // ride the checkpoint (HD3, user 2026-09-12) precisely so a resumed attempt
+  // can continue the count instead of restarting it.
+  describe('resumed tallies', () => {
+    it('seeds the unit counters from the checkpoint so the result covers the whole document', async () => {
+      vi.mocked(extractEntities).mockImplementation((async (...args: unknown[]) => {
+        await (args[10] as (i: unknown[], c: unknown) => Promise<void>)(
+          [{ exact: 'Paris', entityType: 'Location' }],
+          { next: 9_000, size: 250, found: 0, emitted: 0 },
+        );
+        return [] as never;
+      }) as never);
+
+      const outcome = await processReferenceJob(
+        content, makeInferenceClient(),
+        { resourceId: RID, entityTypes: [entityType('Location')] },
+        textBuild(content), vi.fn(), LOGGER, async () => {}, undefined, async () => {},
+        // An earlier attempt already found 20 and committed 18 for this unit.
+        { Location: { next: 5_000, size: 250, found: 20, emitted: 18 } },
+      );
+
+      // 20 + this attempt's 1 found; 18 + this attempt's 1 emitted.
+      expect(outcome.result.totalFound).toBe(21);
+      expect(outcome.result.totalEmitted).toBe(19);
+    });
+
+    it('starts at zero for a unit with no checkpoint — a first attempt is unchanged', async () => {
+      vi.mocked(extractEntities).mockImplementation((async (...args: unknown[]) => {
+        await (args[10] as (i: unknown[], c: unknown) => Promise<void>)(
+          [{ exact: 'Paris', entityType: 'Location' }],
+          { next: 9_000, size: 250, found: 0, emitted: 0 },
+        );
+        return [] as never;
+      }) as never);
+
+      const outcome = await processReferenceJob(
+        content, makeInferenceClient(),
+        { resourceId: RID, entityTypes: [entityType('Location')] },
+        textBuild(content), vi.fn(), LOGGER, async () => {}, undefined, async () => {});
+
+      expect(outcome.result.totalFound).toBe(1);
+      expect(outcome.result.totalEmitted).toBe(1);
+    });
+
+    it('reports the RUNNING tallies on each chunk checkpoint, not just this attempt\'s', async () => {
+      // The checkpoint a resumed attempt writes has to be continuable in turn —
+      // a third attempt seeds from it. Reporting only the current attempt's
+      // share would reset the count every time the job died.
+      const seen: unknown[] = [];
+      vi.mocked(extractEntities).mockImplementation((async (...args: unknown[]) => {
+        await (args[10] as (i: unknown[], c: unknown) => Promise<void>)(
+          [{ exact: 'Paris', entityType: 'Location' }],
+          { next: 9_000, size: 250, found: 0, emitted: 0 },
+        );
+        return [] as never;
+      }) as never);
+
+      await processReferenceJob(
+        content, makeInferenceClient(),
+        { resourceId: RID, entityTypes: [entityType('Location')] },
+        textBuild(content), vi.fn(), LOGGER, async () => {}, undefined,
+        async (_a, checkpoint) => { seen.push(checkpoint.cursor); },
+        { Location: { next: 5_000, size: 250, found: 20, emitted: 18 } },
+      );
+
+      expect(seen).toEqual([{ next: 9_000, size: 250, found: 21, emitted: 19 }]);
+    });
+  });
+
   // ── the unit → cursor lookup (CHUNK-GRAIN-RESUME P3) ────────────────────
   //
   // The processors are where a job's units get their NAMES — an entity type
@@ -2182,10 +2256,10 @@ describe('under-report verdicts on the terminal surface', () => {
       await collected((onChunkComplete) => processHighlightJob(
         'content', makeInferenceClient(), { resourceId: RID },
         textBuild('content'), vi.fn(), onChunkComplete,
-        { highlighting: { next: 8_000, size: 400 } },
+        { highlighting: { next: 8_000, size: 400, found: 0, emitted: 0 } },
       ));
 
-      expect(seen).toEqual({ next: 8_000, size: 400 });
+      expect(seen).toEqual({ next: 8_000, size: 400, found: 0, emitted: 0 });
     });
 
     it('processReferenceJob gives each entity type ITS OWN cursor', async () => {
@@ -2203,11 +2277,11 @@ describe('under-report verdicts on the terminal surface', () => {
         'content', makeInferenceClient(),
         { resourceId: RID, entityTypes: [entityType('Person'), entityType('Location')] },
         textBuild('content'), vi.fn(), LOGGER, async () => {}, undefined, async () => {},
-        { Person: { next: 12_400, size: 560 }, Location: { next: 300, size: 900 } },
+        { Person: { next: 12_400, size: 560, found: 0, emitted: 0 }, Location: { next: 300, size: 900, found: 0, emitted: 0 } },
       );
 
-      expect(byType.get('Person')).toEqual({ next: 12_400, size: 560 });
-      expect(byType.get('Location')).toEqual({ next: 300, size: 900 });
+      expect(byType.get('Person')).toEqual({ next: 12_400, size: 560, found: 0, emitted: 0 });
+      expect(byType.get('Location')).toEqual({ next: 300, size: 900, found: 0, emitted: 0 });
     });
 
     it('processTagJob keys on the CATEGORY, not the motivation', async () => {
@@ -2225,11 +2299,11 @@ describe('under-report verdicts on the terminal surface', () => {
         'content', makeInferenceClient(),
         { resourceId: RID, schema: SCHEMA_1, categories: ['catA', 'catB'] } as never,
         textBuild('content'), vi.fn(), async () => {},
-        { catA: { next: 4_000, size: 300 }, catB: { next: 9_000, size: 700 } },
+        { catA: { next: 4_000, size: 300, found: 0, emitted: 0 }, catB: { next: 9_000, size: 700, found: 0, emitted: 0 } },
       );
 
-      expect(byCategory.get('catA')).toEqual({ next: 4_000, size: 300 });
-      expect(byCategory.get('catB')).toEqual({ next: 9_000, size: 700 });
+      expect(byCategory.get('catA')).toEqual({ next: 4_000, size: 300, found: 0, emitted: 0 });
+      expect(byCategory.get('catB')).toEqual({ next: 9_000, size: 700, found: 0, emitted: 0 });
     });
   });
 

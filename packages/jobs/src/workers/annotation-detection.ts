@@ -13,7 +13,7 @@
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
 import { estimateTokens, type UnitCursor } from '@semiont/core';
 import { boundedGenerateStructured } from './inference-call';
-import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, runAdaptiveChunks, DETECTION_TEMPERATURE } from './detection/detection-chunking';
+import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, runAdaptiveChunks, type ChunkCursor, DETECTION_TEMPERATURE } from './detection/detection-chunking';
 import { MotivationPrompts } from './detection/motivation-prompts';
 import {
   MotivationParsers,
@@ -66,7 +66,7 @@ async function detectInChunks<T>(
   /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3).
    * Before the callback below, which stays last. */
   resume?: UnitCursor,
-  onChunkResults?: (parsed: T[], cursor: UnitCursor) => Promise<void>,
+  onChunkResults?: (parsed: T[], cursor: ChunkCursor) => Promise<void>,
 ): Promise<T[]> {
   const limits = await client.limits();
   const scaffoldTokens = estimateTokens(buildPrompt(''));
@@ -130,7 +130,7 @@ export class AnnotationDetection {
     /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3). */
     resume?: UnitCursor,
     /** This chunk's matches, as the chunk completes. Kept LAST. */
-    onChunkResults?: (matches: CommentMatch[], cursor: UnitCursor) => Promise<void>,
+    onChunkResults?: (matches: CommentMatch[], cursor: ChunkCursor) => Promise<void>,
   ): Promise<CommentMatch[]> {
     return detectInChunks(
       client, content,
@@ -161,7 +161,7 @@ export class AnnotationDetection {
     /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3). */
     resume?: UnitCursor,
     /** This chunk's matches, as the chunk completes. Kept LAST. */
-    onChunkResults?: (matches: HighlightMatch[], cursor: UnitCursor) => Promise<void>,
+    onChunkResults?: (matches: HighlightMatch[], cursor: ChunkCursor) => Promise<void>,
   ): Promise<HighlightMatch[]> {
     return detectInChunks(
       client, content,
@@ -194,7 +194,7 @@ export class AnnotationDetection {
     /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3). */
     resume?: UnitCursor,
     /** This chunk's matches, as the chunk completes. Kept LAST. */
-    onChunkResults?: (matches: AssessmentMatch[], cursor: UnitCursor) => Promise<void>,
+    onChunkResults?: (matches: AssessmentMatch[], cursor: ChunkCursor) => Promise<void>,
   ): Promise<AssessmentMatch[]> {
     return detectInChunks(
       client, content,
@@ -234,7 +234,7 @@ export class AnnotationDetection {
     /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3). */
     resume?: UnitCursor,
     /** This chunk's matches, as the chunk completes. Kept LAST. */
-    onChunkResults?: (matches: TagMatch[], cursor: UnitCursor) => Promise<void>,
+    onChunkResults?: (matches: TagMatch[], cursor: ChunkCursor) => Promise<void>,
   ): Promise<TagMatch[]> {
     const categoryInfo = schema.tags.find((t) => t.name === category);
     if (!categoryInfo) {

@@ -836,21 +836,21 @@ describe('JobQueue', () => {
   describe('checkpointUnits() — per-unit cursors', () => {
     test('records how far an unfinished unit got, beside the finished ones', async () => {
       await jobQueue.createJob(createRunningDetectionJob('job-cur1'));
-      await jobQueue.checkpointUnits(jobId('job-cur1'), [], { Person: { next: 5_000, size: 800 } });
+      await jobQueue.checkpointUnits(jobId('job-cur1'), [], { Person: { next: 5_000, size: 800, found: 0, emitted: 0 } });
 
       const j = await jobQueue.getJob(jobId('job-cur1'));
-      expect(j?.metadata.unitCursors).toEqual({ Person: { next: 5_000, size: 800 } });
+      expect(j?.metadata.unitCursors).toEqual({ Person: { next: 5_000, size: 800, found: 0, emitted: 0 } });
       // The unit is NOT complete — that is the whole point of the grain.
       expect(j?.metadata.completedUnits ?? []).toEqual([]);
     });
 
     test('advances a cursor as its unit progresses', async () => {
       await jobQueue.createJob(createRunningDetectionJob('job-cur2'));
-      await jobQueue.checkpointUnits(jobId('job-cur2'), [], { Person: { next: 5_000, size: 800 } });
-      await jobQueue.checkpointUnits(jobId('job-cur2'), [], { Person: { next: 9_000, size: 560 } });
+      await jobQueue.checkpointUnits(jobId('job-cur2'), [], { Person: { next: 5_000, size: 800, found: 0, emitted: 0 } });
+      await jobQueue.checkpointUnits(jobId('job-cur2'), [], { Person: { next: 9_000, size: 560, found: 0, emitted: 0 } });
 
       const j = await jobQueue.getJob(jobId('job-cur2'));
-      expect(j?.metadata.unitCursors).toEqual({ Person: { next: 9_000, size: 560 } });
+      expect(j?.metadata.unitCursors).toEqual({ Person: { next: 9_000, size: 560, found: 0, emitted: 0 } });
     });
 
     test('an out-of-order checkpoint never moves a cursor backward', async () => {
@@ -858,24 +858,24 @@ describe('JobQueue', () => {
       // safe here and a last-writer-wins would not: the resume position would
       // regress and the job would re-pay for chunks it already committed.
       await jobQueue.createJob(createRunningDetectionJob('job-cur3'));
-      await jobQueue.checkpointUnits(jobId('job-cur3'), [], { Person: { next: 9_000, size: 560 } });
-      await jobQueue.checkpointUnits(jobId('job-cur3'), [], { Person: { next: 2_000, size: 4_500 } });
+      await jobQueue.checkpointUnits(jobId('job-cur3'), [], { Person: { next: 9_000, size: 560, found: 0, emitted: 0 } });
+      await jobQueue.checkpointUnits(jobId('job-cur3'), [], { Person: { next: 2_000, size: 4_500, found: 0, emitted: 0 } });
 
       const j = await jobQueue.getJob(jobId('job-cur3'));
       // And `size` did not come from the loser either — the pair is ONE
       // observation, and a mix would describe a chunk that never existed.
-      expect(j?.metadata.unitCursors).toEqual({ Person: { next: 9_000, size: 560 } });
+      expect(j?.metadata.unitCursors).toEqual({ Person: { next: 9_000, size: 560, found: 0, emitted: 0 } });
     });
 
     test('tracks each unit independently', async () => {
       await jobQueue.createJob(createRunningDetectionJob('job-cur4'));
-      await jobQueue.checkpointUnits(jobId('job-cur4'), [], { Person: { next: 5_000, size: 800 } });
-      await jobQueue.checkpointUnits(jobId('job-cur4'), [], { Location: { next: 1_200, size: 900 } });
+      await jobQueue.checkpointUnits(jobId('job-cur4'), [], { Person: { next: 5_000, size: 800, found: 0, emitted: 0 } });
+      await jobQueue.checkpointUnits(jobId('job-cur4'), [], { Location: { next: 1_200, size: 900, found: 0, emitted: 0 } });
 
       const j = await jobQueue.getJob(jobId('job-cur4'));
       expect(j?.metadata.unitCursors).toEqual({
-        Person: { next: 5_000, size: 800 },
-        Location: { next: 1_200, size: 900 },
+        Person: { next: 5_000, size: 800, found: 0, emitted: 0 },
+        Location: { next: 1_200, size: 900, found: 0, emitted: 0 },
       });
     });
 
@@ -884,7 +884,7 @@ describe('JobQueue', () => {
       // rather than left as a rule every reader has to remember: a completed
       // unit simply has no cursor to misread.
       await jobQueue.createJob(createRunningDetectionJob('job-cur5'));
-      await jobQueue.checkpointUnits(jobId('job-cur5'), [], { Person: { next: 5_000, size: 800 } });
+      await jobQueue.checkpointUnits(jobId('job-cur5'), [], { Person: { next: 5_000, size: 800, found: 0, emitted: 0 } });
       await jobQueue.checkpointUnits(jobId('job-cur5'), ['Person']);
 
       const j = await jobQueue.getJob(jobId('job-cur5'));
@@ -897,7 +897,7 @@ describe('JobQueue', () => {
       // that has since completed must not resurrect its cursor.
       await jobQueue.createJob(createRunningDetectionJob('job-cur6'));
       await jobQueue.checkpointUnits(jobId('job-cur6'), ['Person']);
-      await jobQueue.checkpointUnits(jobId('job-cur6'), [], { Person: { next: 5_000, size: 800 } });
+      await jobQueue.checkpointUnits(jobId('job-cur6'), [], { Person: { next: 5_000, size: 800, found: 0, emitted: 0 } });
 
       const j = await jobQueue.getJob(jobId('job-cur6'));
       expect(j?.metadata.unitCursors ?? {}).toEqual({});
@@ -920,7 +920,7 @@ describe('JobQueue', () => {
       // so only the durable running-file write can carry the cursor into the
       // re-queued job for a later claim to read.
       await jobQueue.createJob(createRunningDetectionJob('job-cur8'));
-      await jobQueue.checkpointUnits(jobId('job-cur8'), [], { Person: { next: 5_000, size: 800 } });
+      await jobQueue.checkpointUnits(jobId('job-cur8'), [], { Person: { next: 5_000, size: 800, found: 0, emitted: 0 } });
 
       const filePath = path.join(project.jobsDir, 'running', 'job-cur8.json');
       const past = new Date(Date.now() - 31 * 60_000);
@@ -929,7 +929,7 @@ describe('JobQueue', () => {
       expect(await jobQueue.recoverStaleRunningJobs()).toBe(1);
       const requeued = await jobQueue.getJob(jobId('job-cur8'));
       expect(requeued?.status).toBe('pending');
-      expect(requeued?.metadata.unitCursors).toEqual({ Person: { next: 5_000, size: 800 } });
+      expect(requeued?.metadata.unitCursors).toEqual({ Person: { next: 5_000, size: 800, found: 0, emitted: 0 } });
     });
   });
 

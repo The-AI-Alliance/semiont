@@ -303,6 +303,54 @@ describe('claimed-job checkpoint (A3)', () => {
     adapter.dispose();
   });
 
+  it('surfaces metadata.unitCursors on the ActiveJob (CHUNK-GRAIN-RESUME P3)', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    adapter.start();
+
+    h.pushEvent('job:queued', { jobId: 'jc-cur', jobType: 'reference-annotation', resourceId: 'r1' });
+    await new Promise((r) => setTimeout(r, 0));
+    h.pushEvent('job:claimed', {
+      correlationId: h.emits[0]!.payload.correlationId,
+      response: { params: {}, metadata: {
+        userId: 'u1', completedUnits: [],
+        unitCursors: { Person: { next: 12_400, size: 560, found: 20, emitted: 18 } },
+      } },
+    });
+
+    const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
+    expect(active?.unitCursors).toEqual({ Person: { next: 12_400, size: 560, found: 20, emitted: 18 } });
+
+    adapter.dispose();
+  });
+
+  it('drops a cursor missing its tallies WHOLE rather than resuming without them', async () => {
+    // A position without counts would let the retry take the saving and then
+    // report a terminal record describing only the remainder — the lie HD3
+    // exists to remove. Dropping costs one re-run and yields a true record, and
+    // it is also how a checkpoint written before the tallies existed reads.
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    adapter.start();
+
+    h.pushEvent('job:queued', { jobId: 'jc-cur2', jobType: 'reference-annotation', resourceId: 'r1' });
+    await new Promise((r) => setTimeout(r, 0));
+    h.pushEvent('job:claimed', {
+      correlationId: h.emits[0]!.payload.correlationId,
+      response: { params: {}, metadata: {
+        userId: 'u1', completedUnits: [],
+        unitCursors: {
+          Person: { next: 12_400, size: 560 },                              // pre-tally shape
+          Location: { next: 900, size: 300, found: 4, emitted: 4 },          // complete
+        },
+      } },
+    });
+
+    const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
+    // The position is dropped with the counts — not kept and zero-filled.
+    expect(active?.unitCursors).toEqual({ Location: { next: 900, size: 300, found: 4, emitted: 4 } });
+
+    adapter.dispose();
+  });
+
   it('defaults completedUnits to empty when the record carries none', async () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();

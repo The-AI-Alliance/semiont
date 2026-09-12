@@ -392,8 +392,12 @@ export async function processHighlightJob(
   onProgress(30, { code: 'analyzing' }, echo);
 
   const dedupe = makeSpanDeduper();
-  let found = 0;
-  let created = 0;
+  // Seeded from what an earlier attempt already counted for this unit, so a
+  // resumed job's terminal record describes the document rather than the
+  // remainder it happened to run (CHUNK-GRAIN-RESUME HD3).
+  const prior = resumeCursors?.['highlighting'];
+  let found = prior?.found ?? 0;
+  let created = prior?.emitted ?? 0;
   await AnnotationDetection.detectHighlights(
     content, inferenceClient, params.instructions, params.density, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
@@ -409,7 +413,7 @@ export async function processHighlightJob(
       // One motivation per job, so exactly one unit — and with only one, a
       // unit-grain checkpoint could record nothing until the whole document
       // was done. The cursor is the entire resume story for these three types.
-      await onChunkComplete(fresh, { unit: 'highlighting', cursor });
+      await onChunkComplete(fresh, { unit: 'highlighting', cursor: { ...cursor, found, emitted: created } });
     },
   );
 
@@ -467,8 +471,12 @@ export async function processCommentJob(
   // caller didn't specify, matching what the LLM produces by default.
   const bodyLanguage = params.language ?? 'en';
   const dedupe = makeSpanDeduper();
-  let found = 0;
-  let created = 0;
+  // Seeded from what an earlier attempt already counted for this unit, so a
+  // resumed job's terminal record describes the document rather than the
+  // remainder it happened to run (CHUNK-GRAIN-RESUME HD3).
+  const prior = resumeCursors?.['commenting'];
+  let found = prior?.found ?? 0;
+  let created = prior?.emitted ?? 0;
   await AnnotationDetection.detectComments(
     content, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
@@ -487,7 +495,7 @@ export async function processCommentJob(
       ));
       created += fresh.length;
       onProgress(60, { code: 'creating-annotations', count: created }, echo);
-      await onChunkComplete(fresh, { unit: 'commenting', cursor });
+      await onChunkComplete(fresh, { unit: 'commenting', cursor: { ...cursor, found, emitted: created } });
     },
   );
 
@@ -518,8 +526,12 @@ export async function processAssessmentJob(
 
   const bodyLanguage = params.language ?? 'en';
   const dedupe = makeSpanDeduper();
-  let found = 0;
-  let created = 0;
+  // Seeded from what an earlier attempt already counted for this unit, so a
+  // resumed job's terminal record describes the document rather than the
+  // remainder it happened to run (CHUNK-GRAIN-RESUME HD3).
+  const prior = resumeCursors?.['assessing'];
+  let found = prior?.found ?? 0;
+  let created = prior?.emitted ?? 0;
   await AnnotationDetection.detectAssessments(
     content, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
@@ -541,7 +553,7 @@ export async function processAssessmentJob(
       ));
       created += fresh.length;
       onProgress(60, { code: 'creating-annotations', count: created }, echo);
-      await onChunkComplete(fresh, { unit: 'assessing', cursor });
+      await onChunkComplete(fresh, { unit: 'assessing', cursor: { ...cursor, found, emitted: created } });
     },
   );
 
@@ -586,8 +598,13 @@ export async function processReferenceJob(
   const entityTypeNames = params.entityTypes.map(String);
   const requestParams = [{ label: 'entity-types' as const, value: entityTypeNames.join(', ') }];
   const completedItems: CompletedItem[] = [];
-  let totalFound = 0;
-  let totalEmitted = 0;
+  // Seeded with what earlier attempts already counted for the units this
+  // attempt is RESUMING. Units that completed earlier carry no cursor — they
+  // are filtered out before this function sees them — so their share is still
+  // missing from the job total. That is the pre-existing unit-grain gap, named
+  // in CHUNK-GRAIN-RESUME rather than silently half-fixed here.
+  let totalFound = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.found, 0);
+  let totalEmitted = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.emitted, 0);
   let errors = 0;
   let totalUnderReportedPieces = 0;
   // The denominator: cumulative count-verifier expectations over accepted
@@ -650,8 +667,13 @@ export async function processReferenceJob(
 
     // One deduper per unit, held across its chunks.
     const dedupe = makeSpanDeduper();
-    let unitFound = 0;
-    let unitPersisted = 0;
+    // Seeded from what earlier attempts already counted for THIS unit, so the
+    // terminal record describes the document rather than the remainder this
+    // attempt happened to run. Absent (a first attempt) means zero, which is
+    // the truth rather than a default.
+    const priorUnit = resumeCursors?.[entityTypeName];
+    let unitFound = priorUnit?.found ?? 0;
+    let unitPersisted = priorUnit?.emitted ?? 0;
     // What remains unknown at the unit's end: floor-accepted pieces, folded.
     let underReported: { pieces: number; found: number; counted: number } | undefined;
     await extractEntities(
@@ -695,16 +717,26 @@ export async function processReferenceJob(
           built.push(buildAnnotation('linking', toMatch(reconciled), unresolvedBody));
         }
         const fresh = dedupe(built);
+        // What this chunk makes true ONCE IT IS DURABLE. Computed before the
+        // commit because the checkpoint is written inside it and has to carry
+        // the running totals — a checkpoint reporting only this attempt's share
+        // would reset the count on every death — but assigned after, so the
+        // invariant below still holds.
+        const nextFound = unitFound + chunkEntities.length;
+        const nextEmitted = unitPersisted + fresh.length;
         // Awaited: a failed commit fails the unit before it can checkpoint;
         // the cursor rides with it so the checkpoint trails the log by
         // construction rather than by the caller remembering to order them.
-        await onChunkComplete?.(fresh, { unit: entityTypeName, cursor });
+        await onChunkComplete?.(fresh, {
+          unit: entityTypeName,
+          cursor: { ...cursor, found: nextFound, emitted: nextEmitted },
+        });
         // Tallies move only PAST the awaited commit — a chunk that fails to
         // commit contributes nothing anywhere — and the numerator advances at
         // the same grain as the denominator: per chunk, in the same frame
         // family the viewer's found-of-~expected tally reads.
-        unitFound += chunkEntities.length;
-        unitPersisted += fresh.length;
+        unitFound = nextFound;
+        unitPersisted = nextEmitted;
         totalFound += chunkEntities.length;
         totalEmitted += fresh.length;
         emitTypeProgress(entityTypeName);
@@ -763,8 +795,14 @@ export async function processTagJob(
   // One deduper across every category: they share an emission stream, and
   // the key includes the body, so only true repeats collapse.
   const dedupe = makeSpanDeduper();
+  // Resumed tallies (CHUNK-GRAIN-RESUME HD3), and the two are seeded
+  // DIFFERENTLY because they accumulate differently. `found` sums each
+  // category's own running total at the end of that category, and those totals
+  // are already seeded — seeding here too would count the earlier attempt
+  // twice. `created` accumulates per chunk from this attempt only, so it must
+  // start at what earlier attempts committed.
   let found = 0;
-  let created = 0;
+  let created = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.emitted, 0);
   // byCategory counts the DEDUPED set so the per-category counts match what
   // is actually stored. The category is the first (tagging) TextualBody.
   const byCategory: Record<string, number> = {};
@@ -785,7 +823,11 @@ export async function processTagJob(
       { code: 'analyzing-tags' },
       position(),
     );
-    let categoryFound = 0;
+    // This category's own running tallies, seeded from its cursor so the
+    // checkpoint it writes stays continuable for a third attempt.
+    const priorCategory = resumeCursors?.[category];
+    let categoryFound = priorCategory?.found ?? 0;
+    let categoryCreated = priorCategory?.emitted ?? 0;
     await AnnotationDetection.detectTags(
       content, inferenceClient, params.schema, category, params.sourceLanguage,
       // Liveness (chunk boundaries + in-flight heartbeat): this category's
@@ -823,7 +865,11 @@ export async function processTagJob(
         // cursor — and the monotone merge would keep the furthest, which is the
         // right answer for at most one of them and silently skips text for the
         // rest. Same shape as reference's entity types, for the same reason.
-        await onChunkComplete(fresh, { unit: category, cursor });
+        categoryCreated += fresh.length;
+        await onChunkComplete(fresh, {
+          unit: category,
+          cursor: { ...cursor, found: categoryFound, emitted: categoryCreated },
+        });
       },
     );
     found += categoryFound;

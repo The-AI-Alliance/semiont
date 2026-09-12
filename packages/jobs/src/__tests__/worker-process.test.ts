@@ -256,7 +256,7 @@ const emitting = (r: { annotations: unknown[]; result: unknown; unit?: string })
     // grew a second argument, and the omission surfaced only at runtime as
     // "Cannot read properties of undefined (reading 'unit')".
     const onChunkComplete = args[5] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
-    await onChunkComplete(r.annotations, { unit: r.unit ?? 'highlighting', cursor: { next: 900, size: 220 } });
+    await onChunkComplete(r.annotations, { unit: r.unit ?? 'highlighting', cursor: { next: 900, size: 220, found: 0, emitted: 0 } });
     return { result: r.result } as never;
   }) as never;
 
@@ -1506,10 +1506,10 @@ describe('reference-annotation — checkpointed resume', () => {
   it('commits once per unit, awaiting durability, with no post-run re-emission', async () => {
     vi.mocked(processReferenceJob).mockImplementation(
       async (_content, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
-        await onChunkComplete!([{ id: 'r1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220 } });
+        await onChunkComplete!([{ id: 'r1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220, found: 0, emitted: 0 } });
         await onUnitComplete('Person');
         await onUnitComplete('Date'); // empty unit: nothing to commit, still checkpoints
-        await onChunkComplete!([{ id: 'r2' }, { id: 'r3' }] as never, { unit: 'Location', cursor: { next: 1_800, size: 330 } });
+        await onChunkComplete!([{ id: 'r2' }, { id: 'r3' }] as never, { unit: 'Location', cursor: { next: 1_800, size: 330, found: 0, emitted: 0 } });
         await onUnitComplete('Location');
         return { result: { kind: 'reference-annotation', totalFound: 3, totalEmitted: 3, errors: 0 } as never };
       },
@@ -1557,10 +1557,10 @@ describe('reference-annotation — checkpointed resume', () => {
     // absent is the honest encoding of "nothing is partway" — an empty object
     // would claim units were tracked and none had progress.
     expect(checkpoints.map(c => c.unitCursors)).toEqual([
-      { Person: { next: 900, size: 220 } },
+      { Person: { next: 900, size: 220, found: 0, emitted: 0 } },
       undefined,
       undefined,
-      { Location: { next: 1_800, size: 330 } },
+      { Location: { next: 1_800, size: 330, found: 0, emitted: 0 } },
       undefined,
     ]);
     expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
@@ -1578,7 +1578,7 @@ describe('reference-annotation — checkpointed resume', () => {
       }) as never,
     );
     const h = makeFakeSessionAndAdapter();
-    const cursors = { Person: { next: 12_400, size: 560 } };
+    const cursors = { Person: { next: 12_400, size: 560, found: 0, emitted: 0 } };
 
     await handleJob(
       h.adapter, makeConfig(h.session),
@@ -1599,7 +1599,7 @@ describe('reference-annotation — checkpointed resume', () => {
       }) as never,
     );
     const h = makeFakeSessionAndAdapter();
-    const cursors = { highlighting: { next: 8_000, size: 400 } };
+    const cursors = { highlighting: { next: 8_000, size: 400, found: 0, emitted: 0 } };
 
     await handleJob(
       h.adapter, makeConfig(h.session),
@@ -1618,7 +1618,7 @@ describe('reference-annotation — checkpointed resume', () => {
     // done, and never fails it.
     vi.mocked(processReferenceJob).mockImplementation(
       async (_content, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
-        await onChunkComplete!([{ id: 'r1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220 } });
+        await onChunkComplete!([{ id: 'r1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220, found: 0, emitted: 0 } });
         await onUnitComplete('Person');
         return { result: { kind: 'reference-annotation', totalFound: 1, totalEmitted: 1, errors: 0 } as never };
       },
@@ -1688,7 +1688,7 @@ describe('startWorkerProcess — job:fail carries the checkpoint (A3 i/iv feed)'
     // name what completed so the retry can skip it.
     vi.mocked(processReferenceJob).mockImplementation(
       async (_content, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
-        await onChunkComplete!([{ id: 'a1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220 } });
+        await onChunkComplete!([{ id: 'a1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220, found: 0, emitted: 0 } });
         await onUnitComplete('Person');
         await onUnitComplete('Date');
         throw new Error('Location stalled');
@@ -1996,7 +1996,7 @@ describe('every event says which attempt produced it', () => {
       const onProgress = args[4] as (p: number, m: unknown) => void;
       const onChunkComplete = args[5] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
       onProgress(60, { code: 'creating-annotations', count: 1 });
-      await onChunkComplete([{ id: 'a1' }], { unit: 'highlighting', cursor: { next: 900, size: 220 } });
+      await onChunkComplete([{ id: 'a1' }], { unit: 'highlighting', cursor: { next: 900, size: 220, found: 0, emitted: 0 } });
       return { result: { highlightsFound: 1, highlightsCreated: 1 } } as never;
     }) as never);
     const h = makeFakeSessionAndAdapter();

@@ -272,6 +272,14 @@ export function deriveDetectionBudget(
  * it. `at`/`next` over `totalChars` is exact progress — and, once
  * CHUNK-GRAIN-RESUME lands, the checkpoint identity a variable boundary forces
  * (an ordinal cannot name a chunk whose size is decided while the job runs). */
+/**
+ * The half of a `UnitCursor` the DETECTION layer can honestly report: where the
+ * walk stands and how it is cutting. The tallies belong to the processor, which
+ * owns unit identity and unit counts — this loop counts chunks, not annotations,
+ * and a zero it invented would be indistinguishable from a real one.
+ */
+export type ChunkCursor = Pick<UnitCursor, 'next' | 'size'>;
+
 export interface AdaptiveChunk {
   piece: string;
   /** The token size this piece was cut at. Hand it to `callChunkSubdividing`:

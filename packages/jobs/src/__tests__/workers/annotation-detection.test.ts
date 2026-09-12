@@ -677,7 +677,7 @@ describe('AnnotationDetection', () => {
 
         await AnnotationDetection.detectHighlights(
           longContent, client, undefined, undefined, undefined, undefined,
-          { next: at, size: 600 },
+          { next: at, size: 600, found: 0, emitted: 0 },
         );
 
         expect(prompts.length).toBeGreaterThan(0);
