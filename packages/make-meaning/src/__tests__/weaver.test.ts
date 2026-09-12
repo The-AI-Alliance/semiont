@@ -37,7 +37,7 @@ import { resourceId, userId, annotationId, EventBus } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import { MemoryGraphDatabase } from '@semiont/graph';
-import type { StoredEvent, EventMap, PersistedEventType } from '@semiont/core';
+import type { EventMap, PersistedEventType } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
