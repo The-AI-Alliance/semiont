@@ -1,5 +1,5 @@
 /**
- * Adaptive chunk sizing (DETECTION-QUALITY-THROUGHPUT P2) — DRAFT.
+ * Adaptive chunk sizing (DETECTION-QUALITY-THROUGHPUT P2) — the sizing RULE.
  *
  * `deriveDetectionBudget` picks ONE input size for every document from provider
  * limits alone. It cannot see the document, so it is sized for a worst-case
@@ -14,7 +14,9 @@
  * halved-and-retried, a chunk that outruns the guillotine times out and is
  * halved-and-retried. So the sizer does not model truncation or duration; it
  * only keeps chunks in a band that uses the budget well, and the net below it
- * forgives an overshoot. That safety net is why this is a step rule and not a
+ * forgives an overshoot. `bounds.ceiling` is therefore the WINDOW fit, not either
+ * derived input size: on a shared window both of those come back at exactly the
+ * density guess this function exists to replace, leaving nothing to grow into. That safety net is why this is a step rule and not a
  * control loop (user direction, 2026-09-04: keep it simple).
  *
  * "Maximize, don't predict": the only thing that grows a chunk is a MEASURED
@@ -22,9 +24,11 @@
  * (#1121's ban). Re-evaluated every chunk, so it tracks a gradient (sparse
  * intro → dense index) rather than betting the run on the first sample.
  *
- * Pure and feedback-only — unit-testable in isolation. Wiring into
- * `detectInChunks` (and the checkpoint interaction a variable boundary implies)
- * is the GREEN step, deliberately not here.
+ * Pure and feedback-only — unit-testable in isolation. The loop that applies it is
+ * `runAdaptiveChunks` in `detection-chunking.ts`, which both detection paths drive:
+ * `extractEntities` (reference) and `detectInChunks` (highlight, comment, assessment,
+ * tag). It cuts chunk N+1 only after chunk N has reported, which is the only ordering
+ * in which this function's output can reach anything.
  */
 
 /** What one chunk's call produced — the minimum the sizer needs. Duration and
@@ -32,8 +36,15 @@
  * backstopped by subdivision, so utilization is the only signal that sizing
  * acts on. (P1 telemetry records the fuller picture separately.) */
 export interface CallOutcome {
-  /** Provider-reported output tokens for the chunk. */
-  outputTokens: number;
+  /** Provider-reported output tokens for the chunk, ABSENT when the provider
+   * reported none.
+   *
+   * Absent is not zero. `usage` is optional on the inference interface and both
+   * real clients emit it conditionally, so a run against a provider that stays
+   * silent would read as "this chunk produced nothing", i.e. 0%% of the budget,
+   * i.e. grow — every chunk, to the ceiling, on no evidence whatsoever. That is
+   * the precise inverse of "maximize, don't predict". Unmeasured holds. */
+  outputTokens?: number;
   /** The chunk hit a size-shaped bound (truncation or the guillotine), even if
    * subdivision then recovered it. Forces a shrink regardless of the count —
    * the signal that the last size was too big for this stretch. */
@@ -98,7 +109,7 @@ function clamp(value: number, lo: number, hi: number): number {
  *
  * A truncated chunk, or one whose output filled more than `shrinkAbove` of the
  * budget, eases the next chunk down; one that used less than `growBelow` grows
- * it; in between, hold. Always clamped to `[floor, ceiling]`. That is the whole
+ * it; in between — or with nothing measured at all — hold. Always clamped to `[floor, ceiling]`. That is the whole
  * rule — the hard bounds are subdivision's job, not this function's.
  */
 export function nextChunkSize(
@@ -112,6 +123,9 @@ export function nextChunkSize(
   const hold = () => clamp(current, bounds.floor, bounds.ceiling);
 
   if (outcome.truncated) return shrink();
+  // No measurement, no move. A truncation above is evidence even without a
+  // count; an absent count on its own is not.
+  if (outcome.outputTokens === undefined) return hold();
   // A zero/absent budget cannot inform utilization; hold rather than divide by
   // zero or grow blindly.
   if (bounds.outputBudget <= 0) return hold();

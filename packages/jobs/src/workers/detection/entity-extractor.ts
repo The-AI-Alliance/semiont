@@ -1,7 +1,7 @@
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
-import { chunkText, estimateTokens, getLocaleEnglishName, isObject, isString, type Logger } from '@semiont/core';
+import { estimateTokens, getLocaleEnglishName, isObject, isString, type Logger } from '@semiont/core';
 import { boundedGenerateStructured, boundedGenerateWithMetadata } from '../inference-call';
-import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, DETECTION_TEMPERATURE, YIELD_COLLAPSE_BAND, YieldCollapseError, type UnderReportedPiece } from './detection-chunking';
+import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, runAdaptiveChunks, DETECTION_TEMPERATURE, YIELD_COLLAPSE_BAND, YieldCollapseError, type UnderReportedPiece } from './detection-chunking';
 
 /**
  * Entity reference extracted from text — pre-reconciliation.
@@ -61,10 +61,13 @@ const ENTITY_ELEMENT_SCHEMA: ElementSchema = {
  *   anchor decisions, drops). Required so dropped/filtered entities never
  *   disappear silently.
  * @param sourceLanguage - BCP-47 tag for the source content's language
- * @param onActivity - Invoked with (completedChunks, totalChunks) whenever
- *   the extraction is demonstrably alive: at each chunk boundary (the count
+ * @param onActivity - Invoked with (consumedChars, totalChars) whenever the
+ *   extraction is demonstrably alive: at each chunk boundary (the cursor
  *   advances) AND periodically while a single inference call is in flight
- *   (the count repeats — liveness, not progress). The caller MUST forward
+ *   (the position repeats — liveness, not progress). Characters, not chunk
+ *   ordinals: chunk sizing is decided as the run goes, so there is no chunk
+ *   total to divide by — and the cursor was always the more honest numerator,
+ *   since boundary-seeking already made chunks unequal. The caller MUST forward
  *   this to its progress channel: progress is the worker's liveness
  *   heartbeat for the stall watchdog, and the client's timeout is an
  *   INTER-EMISSION one, so a silent single-chunk run kills a healthy job
@@ -151,7 +154,7 @@ export async function extractEntities(
   includeDescriptiveReferences: boolean,
   logger: Logger,
   sourceLanguage?: string,
-  onActivity?: (completedChunks: number, totalChunks: number) => void,
+  onActivity?: (consumedChars: number, totalChars: number) => void,
   /** A floor-accepted piece's evidence, as it is accepted. */
   onUnderReport?: (verdict: UnderReportedPiece) => void,
   /** Each accepted piece's count-verifier expectation — the denominator. */
@@ -244,59 +247,68 @@ Example output:
   const scaffoldTokens = estimateTokens(buildPrompt(''));
   // One call asks for every type in `entityTypes` — the processor's per-type
   // loop passes one, so this is 1 in production today.
-  const { chunking, outputBudget } = deriveDetectionBudget(limits, scaffoldTokens, entityTypes.length);
-  const chunks = chunkText(exact, chunking);
+  const budget = deriveDetectionBudget(limits, scaffoldTokens, entityTypes.length);
+  const { chunking, outputBudget } = budget;
 
   logger.debug('Sending entity extraction request', {
     entityTypes: entityTypesDescription,
-    chunks: chunks.length,
-    chunkSizeTokens: chunking.chunkSize,
+    chars: exact.length,
+    // The size the run OPENS at, and how far measured yield may move it. The
+    // chunk COUNT is deliberately absent: with sizing decided as the run goes,
+    // there is no honest total until the cursor reaches the end.
+    openingChunkSizeTokens: chunking.chunkSize,
+    ceilingChunkSizeTokens: budget.bounds.ceiling,
     outputBudget,
   });
 
   const collected: ExtractedEntity[] = [];
-  for (let i = 0; i < chunks.length; i++) {
+  await runAdaptiveChunks(exact, budget, async ({ piece: chunk, size, at, next, totalChars }) => {
     // The structured surface returns parsed elements or THROWS — an
     // unreadable model response is a job failure, never a silent []. A
     // size-shaped failure (duration bound, truncation) subdivides in place
     // and retries smaller before it is allowed to fail the job.
-    const items = await callChunkSubdividing<unknown>('reference', chunks[i]!, chunking, async (piece) => {
-      const response = await boundedGenerateStructured<unknown>(
-        client,
-        buildPrompt(piece),
-        outputBudget,
-        DETECTION_TEMPERATURE,
-        ENTITY_ELEMENT_SCHEMA,
-        // Still alive, same position: a long single call would otherwise emit
-        // nothing at all between start and finish.
-        () => onActivity?.(i, chunks.length),
-        logger,
-      );
-      logger.debug('Got entity extraction response', {
-        chunk: i + 1,
-        chunks: chunks.length,
-        pieceChars: piece.length,
-        items: response.items.length,
-      });
+    const { items, outcome } = await callChunkSubdividing<unknown>(
+      'reference', chunk, { chunkSize: size, overlap: chunking.overlap },
+      async (piece) => {
+        const response = await boundedGenerateStructured<unknown>(
+          client,
+          buildPrompt(piece),
+          outputBudget,
+          DETECTION_TEMPERATURE,
+          ENTITY_ELEMENT_SCHEMA,
+          // Still alive, same position: a long single call would otherwise emit
+          // nothing at all between start and finish.
+          () => onActivity?.(at, totalChars),
+          logger,
+        );
+        logger.debug('Got entity extraction response', {
+          at,
+          totalChars,
+          chunkSizeTokens: size,
+          pieceChars: piece.length,
+          items: response.items.length,
+        });
 
-      // Truncation is data loss, not "no entities" — check it BEFORE
-      // consuming: a truncated structured response can still carry a valid
-      // partial array, so the items themselves cannot signal the loss.
-      assertNotTruncated(response, 'Entity extraction', i + 1, chunks.length, outputBudget);
-      // And a CLEAN response can still be a silent under-report (F7) — the
-      // count-verifier is the only signal for that, and a flag throws the
-      // collapse verdict so subdivision changes the input.
-      const counted = verifyYield
-        ? await assertYieldNotCollapsed(client, piece, response.items, entityTypesDescription, logger)
-        : undefined;
-      // Usage rides back so the telemetry record carries what the call COST
-      // beside what it yielded — the provider's own counts, not an estimate.
-      return {
-        items: response.items,
-        ...(response.usage ? { usage: response.usage } : {}),
-        ...(counted !== undefined ? { counted } : {}),
-      };
-    }, logger, onUnderReport, onCounted);
+        // Truncation is data loss, not "no entities" — check it BEFORE
+        // consuming: a truncated structured response can still carry a valid
+        // partial array, so the items themselves cannot signal the loss.
+        assertNotTruncated(response, 'Entity extraction', at, totalChars, outputBudget);
+        // And a CLEAN response can still be a silent under-report (F7) — the
+        // count-verifier is the only signal for that, and a flag throws the
+        // collapse verdict so subdivision changes the input.
+        const counted = verifyYield
+          ? await assertYieldNotCollapsed(client, piece, response.items, entityTypesDescription, logger)
+          : undefined;
+        // Usage rides back so the telemetry record carries what the call COST
+        // beside what it yielded — the provider's own counts, not an estimate.
+        return {
+          items: response.items,
+          ...(response.usage ? { usage: response.usage } : {}),
+          ...(counted !== undefined ? { counted } : {}),
+        };
+      },
+      logger, onUnderReport, onCounted,
+    );
 
     const fromChunk: ExtractedEntity[] = [];
     for (const e of items) {
@@ -316,11 +328,12 @@ Example output:
     collected.push(...fromChunk);
     await onChunkResults?.(fromChunk);
 
-    // Chunk boundary: the count advances (real progress).
-    if (i < chunks.length - 1) {
-      onActivity?.(i + 1, chunks.length);
-    }
-  }
+    // Chunk boundary: the cursor advances (real progress). Only when text
+    // remains — the final cut has no boundary after it, and the caller reports
+    // the unit's completion itself.
+    if (next < totalChars) onActivity?.(next, totalChars);
+    return outcome;
+  });
 
   return collected;
 }

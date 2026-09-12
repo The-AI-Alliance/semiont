@@ -38,6 +38,7 @@
  */
 
 import { BusRequestError } from './bus-request';
+import { RETRY_RULES } from './retry-rules';
 
 export interface RetryPolicy {
   /** Total attempts, including the first one. */
@@ -149,25 +150,19 @@ export interface HttpStatusError extends Error {
   readonly status: number;
 }
 
-/**
- * Statuses that mean *up, but not now* — the server is answering, and its
- * answer is "try again".
- *
- *  - `429` — the gateway's own rate limiter; its body says to retry when one
- *            settles. Retrying is compliance, not hope.
- *  - `503` — unavailable, explicitly temporary by RFC 9110.
- *  - `504` — an upstream deadline, which the next attempt may well beat.
- *
- * Everything else is excluded deliberately, including `500`: 503 and 504 are
- * promises to recover, while an unclassified server fault is not — retrying it
- * inside a boot pass just replays whatever broke it.
- */
-const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([429, 503, 504]);
+
 
 /**
  * True for failures worth another attempt: the connection never landed
  * (`isTransientFetchError`), the server answered "not now"
- * (`RETRYABLE_STATUSES`), or our own deadline expired.
+ * (`RETRY_RULES.boot`), or our own deadline expired.
+ *
+ * The status half is DERIVED from `RETRY_RULES.boot` rather than restated here.
+ * It used to be a private `RETRYABLE_STATUSES` set holding the same three
+ * numbers, which made the taxonomy a second opinion instead of the answer — and
+ * a second opinion in the same package is the exact defect RETRY-CLASSIFICATION
+ * exists to remove. The reasoning for those three, and for excluding `500`, now
+ * lives once, in the rule.
  *
  * The timeout case is the one that is easy to get wrong. `AbortSignal.timeout()`
  * rejects with a **DOMException named `TimeoutError`**, not a `TypeError` —
@@ -211,7 +206,7 @@ export function isRetryableRequestError(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   if ((error as { name?: unknown }).name === 'TimeoutError') return true;
   const status = (error as { status?: unknown }).status;
-  return typeof status === 'number' && RETRYABLE_STATUSES.has(status);
+  return typeof status === 'number' && RETRY_RULES.boot.retryable({ status });
 }
 
 /**

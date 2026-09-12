@@ -24,11 +24,12 @@
  *   not a cost.
  */
 
-import { chunkText, type ChunkingConfig, type Logger } from '@semiont/core';
+import { chunkText, cutChunk, type ChunkingConfig, type Logger } from '@semiont/core';
 import { StructuredReadError, type InferenceLimits, type TokenUsage } from '@semiont/inference';
 import { recordDetectionCall } from '@semiont/observability';
 import { DeterministicJobError } from '../../failure-class';
 import { INFERENCE_TIMEOUT_MS, InferenceTimeoutError } from '../inference-call';
+import { nextChunkSize, type CallOutcome, type SizingBounds } from './chunk-size-controller';
 
 /**
  * A `max_tokens` stop reason means the model's JSON was cut off mid-stream.
@@ -42,9 +43,9 @@ import { INFERENCE_TIMEOUT_MS, InferenceTimeoutError } from '../inference-call';
  * input truncates the same way, so a retry is guaranteed waste and the
  * throw carries the deterministic class (ABANDONED-INFERENCE P3, A4).
  */
-export function assertNotTruncated(response: { stopReason: string }, label: string, chunk: number, totalChunks: number, outputBudget: number): void {
+export function assertNotTruncated(response: { stopReason: string }, label: string, at: number, totalChars: number, outputBudget: number): void {
   if (response.stopReason === 'max_tokens') {
-    throw new DeterministicJobError(`${label} response truncated (max_tokens) on chunk ${chunk}/${totalChunks} despite the derived output budget of ${outputBudget} tokens — failing the job rather than under-reporting annotations.`);
+    throw new DeterministicJobError(`${label} response truncated (max_tokens) at character ${at} of ${totalChars} despite the derived output budget of ${outputBudget} tokens — failing the job rather than under-reporting annotations.`);
   }
 }
 
@@ -138,10 +139,15 @@ export class YieldCollapseError extends DeterministicJobError {
 }
 
 export interface DetectionBudget {
-  /** Feed to `chunkText` — `chunkSize` is the derived input budget (tokens). */
+  /** The chunk size a run OPENS at (tokens), plus the overlap every cut keeps.
+   * Opening, not fixed: `runAdaptiveChunks` moves the size within `bounds` as
+   * the document reports what it actually costs. */
   chunking: ChunkingConfig;
   /** Pass as `maxTokens` on every per-chunk inference call. */
   outputBudget: number;
+  /** How far the sizer may move the chunk size, in either direction. Derived
+   * from the same provider arithmetic — never tuning. */
+  bounds: SizingBounds;
 }
 
 /**
@@ -221,6 +227,20 @@ export function deriveDetectionBudget(
   // The demand is PER TYPE ASKED FOR, so a K-type call divides the input
   // share by K. Still no density modeling: same one policy, content never
   // enters.
+  // The window fit: the largest input that still leaves the WHOLE output budget
+  // room beside it. This is the sizer's ceiling, and it is the only hard bound
+  // on input there is — the two derivations above are not.
+  //
+  // The 1:2 rule below is a GUESS about how much output a chunk will demand,
+  // and on a shared window it is baked into the 1:3 split as well, which is why
+  // the ceiling cannot be read off either of them (both come back at exactly
+  // the guess, leaving no room to grow into on precisely the self-hosted
+  // providers the live gate runs). The duration bound is real but bounds
+  // GENERATION, so it belongs to `outputBudget`; it reaches input only through
+  // the same ratio guess. `nextChunkSize` exists to replace that guess with
+  // measurement, so the guess opens the run and the window caps it.
+  const capacityInput = contextTokens - scaffoldTokens - outputBudget;
+
   inputBudget = Math.min(inputBudget, Math.floor(outputBudget / (2 * typesPerCall)));
 
   if (inputBudget <= OVERLAP_TOKENS) {
@@ -232,7 +252,69 @@ export function deriveDetectionBudget(
   return {
     chunking: { chunkSize: inputBudget, overlap: OVERLAP_TOKENS },
     outputBudget,
+    bounds: {
+      // Two overlaps: at the floor a chunk is still half text it has not seen
+      // before, so the cursor keeps making progress rather than re-reading its
+      // own tail. Clamped under the opening size, because a cramped window can
+      // derive an opening below even that — and a floor above the opening would
+      // clamp every proposal upward, silently reversing the sizer.
+      floor: Math.min(inputBudget, 2 * OVERLAP_TOKENS),
+      // Never below the opening: a degenerate window can make the fit
+      // arithmetic smaller than the size already chosen, and a ceiling under
+      // the opening would clamp every proposal DOWN on the first call.
+      ceiling: Math.max(inputBudget, capacityInput),
+      outputBudget,
+    },
   };
+}
+
+/** One chunk handed out by `runAdaptiveChunks`, with the cursor either side of
+ * it. `at`/`next` over `totalChars` is exact progress — and, once
+ * CHUNK-GRAIN-RESUME lands, the checkpoint identity a variable boundary forces
+ * (an ordinal cannot name a chunk whose size is decided while the job runs). */
+export interface AdaptiveChunk {
+  piece: string;
+  /** The token size this piece was cut at. Hand it to `callChunkSubdividing`:
+   * a descent halves from the size that actually failed, not from the size the
+   * run opened at, which adaptivity has long since left behind. */
+  size: number;
+  /** Characters consumed BEFORE this chunk — the in-flight liveness position. */
+  at: number;
+  /** Characters consumed once this chunk completes — the boundary position. */
+  next: number;
+  /** The document's length. */
+  totalChars: number;
+}
+
+/**
+ * Walk a document in chunks whose size is decided by the chunks before them.
+ *
+ * `chunkText` fixes every boundary up front from provider limits alone, which
+ * is why the sizing rule could exist for a week and change nothing: a
+ * measurement taken on chunk N had nowhere to land. Here chunk N+1 is cut only
+ * after chunk N has reported, so the run opens at the static density guess and
+ * then moves — a sparse document climbing toward the window's real capacity
+ * (fewer, bigger calls), a dense one easing off before it pays a subdivision.
+ *
+ * `onChunk` returns what the chunk cost. It is awaited, so the caller's own
+ * durability (committing the chunk's annotations) still gates the next cut, and
+ * a throw stops the walk where it stands rather than advancing past unprocessed
+ * text.
+ */
+export async function runAdaptiveChunks(
+  text: string,
+  budget: DetectionBudget,
+  onChunk: (chunk: AdaptiveChunk) => Promise<CallOutcome>,
+): Promise<void> {
+  let at = 0;
+  let size = budget.chunking.chunkSize;
+
+  while (at < text.length) {
+    const { piece, next } = cutChunk(text, at, { chunkSize: size, overlap: budget.chunking.overlap });
+    const outcome = await onChunk({ piece, size, at, next, totalChars: text.length });
+    at = next;
+    size = nextChunkSize(outcome, size, budget.bounds);
+  }
 }
 
 /**
@@ -305,6 +387,15 @@ function truncation(error: unknown): boolean {
  * span-keyed dedupe. On a failure subdivision cannot fix, the ORIGINAL
  * error propagates so classification sees what actually happened.
  */
+/** What `callChunkSubdividing` produced AND what it cost — the second half is
+ * what `runAdaptiveChunks` sizes the next chunk from. Accumulated across the
+ * whole descent, because the caller's own `call` closure sees one piece at a
+ * time and cannot know a subdivision happened at all. */
+export interface SubdividedCall<T> {
+  items: T[];
+  outcome: CallOutcome;
+}
+
 export interface ChunkCallResult<T> {
   items: T[];
   /** The provider's own token counts, when it reported any. Never estimated. */
@@ -340,7 +431,17 @@ export async function callChunkSubdividing<T>(
    * nothing: its children's counts replace it, or the same text is priced
    * twice. */
   onCounted?: (counted: number) => void,
-): Promise<T[]> {
+): Promise<SubdividedCall<T>> {
+  // The chunk's cost, summed over however many calls its descent takes. Both
+  // are recorded where EVERY call passes, so a subdivision cannot hide from
+  // them.
+  let outputTokens = 0;
+  let sizeShaped = false;
+  // A descent's calls must ALL report usage for the sum to mean anything: a
+  // partial sum under-counts, and under-counting biases toward growth — the
+  // one direction that costs a truncation to discover was wrong.
+  let callsMade = 0;
+  let callsMeasured = 0;
   // One telemetry record per model call, successes AND failures
   // (DETECTION-QUALITY-THROUGHPUT P1). This is the only place `depth` and
   // `reroll` exist, so it is the only place a complete record can be written.
@@ -348,6 +449,11 @@ export async function callChunkSubdividing<T>(
     const start = performance.now();
     try {
       const result = await call(piece);
+      callsMade += 1;
+      if (result.usage) {
+        callsMeasured += 1;
+        outputTokens += result.usage.outputTokens;
+      }
       recordDetectionCall({
         label, pieceChars: piece.length, durationMs: performance.now() - start,
         items: result.items.length, depth, reroll, outcome: 'success',
@@ -372,6 +478,10 @@ export async function callChunkSubdividing<T>(
       return (await recorded(piece, depth, false)).items;
     } catch (error) {
       if (!subdividable(error)) throw error;
+      // Size-shaped, so the size was wrong — true whether or not the descent
+      // below rescues it. The next chunk must not be cut at a size this one
+      // already paid to discover was too big.
+      sizeShaped = true;
       const half = Math.floor(chunkSize / 2);
       // Truncation descends by SIZE: demand halves with each subdivision,
       // so descent terminates — and list-dense text (registers, indexes)
@@ -432,5 +542,10 @@ export async function callChunkSubdividing<T>(
       return collected;
     }
   }
-  return attempt(chunk, chunking.chunkSize, 0);
+  const items = await attempt(chunk, chunking.chunkSize, 0);
+  const measured = callsMade > 0 && callsMeasured === callsMade;
+  return {
+    items,
+    outcome: { truncated: sizeShaped, ...(measured ? { outputTokens } : {}) },
+  };
 }

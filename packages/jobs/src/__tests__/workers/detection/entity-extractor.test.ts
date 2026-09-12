@@ -296,12 +296,19 @@ describe('extractEntities', () => {
 
       const totalChunks = client.calls.length;
       expect(totalChunks).toBeGreaterThan(1);
-      // A boundary sits between chunks: N chunks → N−1 boundary events, each
-      // (completedChunks, totalChunks) with completedChunks increasing.
+      // A boundary sits BETWEEN chunks: N chunks → N−1 boundary events. Each
+      // carries (consumedChars, totalChars) — characters, not ordinals, because
+      // chunk sizing is now decided as the run goes and there is no chunk total
+      // to divide by. The cursor was always the more honest numerator anyway:
+      // boundary-seeking made chunks unequal long before sizing did, so
+      // "chunk 3 of 10" was never 30% of the document.
       expect(onChunk.mock.calls.length).toBe(totalChunks - 1);
-      onChunk.mock.calls.forEach(([completed, total], idx) => {
-        expect(completed).toBe(idx + 1);
-        expect(total).toBe(totalChunks);
+      let previous = 0;
+      onChunk.mock.calls.forEach(([consumed, total]) => {
+        expect(consumed).toBeGreaterThan(previous);
+        expect(consumed).toBeLessThan(bigText.length);
+        expect(total).toBe(bigText.length);
+        previous = consumed;
       });
     });
 
@@ -410,10 +417,11 @@ describe('extractEntities', () => {
         } as unknown as InferenceClient;
 
         const activity: Array<[number, number]> = [];
+        const content = 'Alice went to Paris.';
         // Small content → exactly one chunk → zero boundary events.
         const pending = extractEntities(
-          'Alice went to Paris.', ['Person'], client, false, LOGGER, undefined,
-          (completed, total) => activity.push([completed, total]),
+          content, ['Person'], client, false, LOGGER, undefined,
+          (consumed, total) => activity.push([consumed, total]),
         );
 
         // Let limits()/derivation settle, then sit inside the model call.
@@ -421,14 +429,84 @@ describe('extractEntities', () => {
 
         // Liveness arrived without any chunk boundary being crossed…
         expect(activity.length).toBeGreaterThanOrEqual(2);
-        // …and it does NOT invent progress: the count stays put (D3).
-        expect(activity.every(([completed, total]) => completed === 0 && total === 1)).toBe(true);
+        // …and it does NOT invent progress: the cursor stays put (D3). Nothing
+        // has been consumed, because the one call has not returned.
+        expect(activity.every(([consumed, total]) => consumed === 0 && total === content.length)).toBe(true);
 
         finish({ items: [], stopReason: 'end_turn' });
         await pending;
       } finally {
         vi.useRealTimers();
       }
+    });
+
+    // ── adaptive sizing, end to end (DETECTION-QUALITY-THROUGHPUT P2) ──────
+    //
+    // The driver and the sizing rule have their own suites. What only a test
+    // here can show is that THIS loop is wired to them: that a measurement
+    // taken on chunk N reaches the cut of chunk N+1, through
+    // `callChunkSubdividing`'s outcome and `runAdaptiveChunks`' cursor.
+    describe('adaptive chunk sizing', () => {
+      // Separate ceilings, so the window leaves real headroom above the 1:2
+      // density guess. (The shared-window fixture above is allocated to the
+      // last token by construction — nothing to grow into.)
+      const HEADROOM_LIMITS = { contextTokens: 4_000, maxOutputTokens: 1_200, outputTokensPerHour: 3_600_000_000 };
+      const longText = Array.from(
+        { length: 900 },
+        (_, i) => `Paragraph ${i} mentions Alice and Bob among some ordinary filler words.`,
+      ).join(' ');
+
+      /** Records each model call's prompt length. The scaffold is constant, so
+       * differences between prompts ARE differences between chunks. */
+      function sizingClient(usage?: { inputTokens: number; outputTokens: number }) {
+        const promptChars: number[] = [];
+        const client = {
+          type: 'mock' as const,
+          modelId: 'mock-model',
+          limits: async () => HEADROOM_LIMITS,
+          generateText: async () => '[]',
+          generateStructured: async (prompt: string) => {
+            promptChars.push(prompt.length);
+            return { items: [], stopReason: 'end_turn', ...(usage ? { usage } : {}) };
+          },
+        } as unknown as InferenceClient;
+        return { client, promptChars };
+      }
+
+      it('grows the chunk once measured output shows the budget going unused', async () => {
+        // 60 of a 1200-token budget — 5%%, far under `growBelow`.
+        const { client, promptChars } = sizingClient({ inputTokens: 400, outputTokens: 60 });
+
+        await extractEntities(longText, ['Person'], client, false, LOGGER);
+
+        expect(promptChars.length).toBeGreaterThan(2);
+        expect(promptChars[1]!).toBeGreaterThan(promptChars[0]! * 1.2);
+        expect(promptChars[2]!).toBeGreaterThan(promptChars[1]! * 1.2);
+      });
+
+      it('holds the chunk when the provider reports no usage at all', async () => {
+        // `usage` is optional on the inference interface. Absent must read as
+        // "nothing measured" and hold — never as "produced nothing", which is
+        // 0%% utilization and would grow every chunk to the ceiling having
+        // learned nothing. Against a silent provider an adaptive run is
+        // indistinguishable from the static one it replaced.
+        const { client, promptChars } = sizingClient();
+
+        await extractEntities(longText, ['Person'], client, false, LOGGER);
+
+        expect(promptChars.length).toBeGreaterThan(2);
+        const steady = promptChars.slice(0, -1);
+        expect(Math.max(...steady) - Math.min(...steady)).toBeLessThan(steady[0]! * 0.05);
+      });
+
+      it('eases the chunk down once measured output nears the budget', async () => {
+        const { client, promptChars } = sizingClient({ inputTokens: 400, outputTokens: 1_150 });
+
+        await extractEntities(longText, ['Person'], client, false, LOGGER);
+
+        expect(promptChars.length).toBeGreaterThan(2);
+        expect(promptChars[1]!).toBeLessThan(promptChars[0]! * 0.85);
+      });
     });
 
     it('makes exactly one call and no boundary reports when content fits the derived budget', async () => {

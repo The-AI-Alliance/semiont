@@ -563,10 +563,82 @@ describe('AnnotationDetection', () => {
 
       const totalChunks = client.calls.length;
       expect(totalChunks).toBeGreaterThan(1);
+      // A boundary sits BETWEEN chunks: N chunks → N−1 boundary events. Each
+      // carries (consumedChars, totalChars) — characters, not ordinals, because
+      // chunk sizing is now decided as the run goes and there is no chunk total
+      // to divide by. The cursor was always the more honest numerator anyway:
+      // boundary-seeking made chunks unequal long before sizing did, so
+      // "chunk 3 of 10" was never 30% of the document.
       expect(onChunk.mock.calls.length).toBe(totalChunks - 1);
-      onChunk.mock.calls.forEach(([completed, total], idx) => {
-        expect(completed).toBe(idx + 1);
-        expect(total).toBe(totalChunks);
+      let previous = 0;
+      onChunk.mock.calls.forEach(([consumed, total]) => {
+        expect(consumed).toBeGreaterThan(previous);
+        expect(consumed).toBeLessThan(bigContent.length);
+        expect(total).toBe(bigContent.length);
+        previous = consumed;
+      });
+    });
+
+    // ── adaptive sizing, end to end (DETECTION-QUALITY-THROUGHPUT P2) ──────
+    //
+    // `detectInChunks` is ONE loop shared by highlight, comment, assessment and
+    // tag — four of the five detection types. The reference path has the same
+    // tests in its own suite; without these, mutating this loop to discard the
+    // measurement it just took left every suite green.
+    describe('adaptive chunk sizing', () => {
+      // Separate ceilings, so the window leaves headroom above the 1:2 density
+      // guess (a shared window is allocated to the last token by construction).
+      const HEADROOM_LIMITS = { contextTokens: 4_000, maxOutputTokens: 1_200, outputTokensPerHour: 3_600_000_000 };
+      const longContent = Array.from(
+        { length: 900 },
+        (_, i) => `Paragraph ${i} states something ordinary about the subject under study.`,
+      ).join(' ');
+
+      /** Records each model call's prompt length; the scaffold is constant, so
+       * differences between prompts ARE differences between chunks. */
+      function sizingClient(usage?: { inputTokens: number; outputTokens: number }) {
+        const promptChars: number[] = [];
+        const client = {
+          type: 'mock' as const,
+          modelId: 'mock-model',
+          limits: async () => HEADROOM_LIMITS,
+          generateText: async () => '[]',
+          generateStructured: async (prompt: string) => {
+            promptChars.push(prompt.length);
+            return { items: [], stopReason: 'end_turn', ...(usage ? { usage } : {}) };
+          },
+        } as unknown as InferenceClient;
+        return { client, promptChars };
+      }
+
+      it('grows the chunk once measured output shows the budget going unused', async () => {
+        const { client, promptChars } = sizingClient({ inputTokens: 400, outputTokens: 60 });
+
+        await AnnotationDetection.detectHighlights(longContent, client);
+
+        expect(promptChars.length).toBeGreaterThan(2);
+        expect(promptChars[1]!).toBeGreaterThan(promptChars[0]! * 1.2);
+        expect(promptChars[2]!).toBeGreaterThan(promptChars[1]! * 1.2);
+      });
+
+      it('eases the chunk down once measured output nears the budget', async () => {
+        const { client, promptChars } = sizingClient({ inputTokens: 400, outputTokens: 1_150 });
+
+        await AnnotationDetection.detectHighlights(longContent, client);
+
+        expect(promptChars.length).toBeGreaterThan(2);
+        expect(promptChars[1]!).toBeLessThan(promptChars[0]! * 0.85);
+      });
+
+      it('holds the chunk when the provider reports no usage at all', async () => {
+        // Absent is not zero — see the identical case on the reference path.
+        const { client, promptChars } = sizingClient();
+
+        await AnnotationDetection.detectHighlights(longContent, client);
+
+        expect(promptChars.length).toBeGreaterThan(2);
+        const steady = promptChars.slice(0, -1);
+        expect(Math.max(...steady) - Math.min(...steady)).toBeLessThan(steady[0]! * 0.05);
       });
     });
 
@@ -616,14 +688,16 @@ describe('AnnotationDetection', () => {
         const activity: Array<[number, number]> = [];
         const pending = AnnotationDetection.detectHighlights(
           testContent, client, undefined, undefined, undefined,
-          (completed, total) => activity.push([completed, total]),
+          (consumed, total) => activity.push([consumed, total]),
         );
 
         await vi.advanceTimersByTimeAsync(45_000);
 
         expect(activity.length).toBeGreaterThanOrEqual(2);
         // Liveness, not invented progress: the position never advances (D3).
-        expect(activity.every(([completed, total]) => completed === 0 && total === 1)).toBe(true);
+        // …and it does NOT invent progress: the cursor stays put (D3). Nothing
+        // has been consumed, because the one call has not returned.
+        expect(activity.every(([consumed, total]) => consumed === 0 && total === testContent.length)).toBe(true);
 
         finish({ items: [], stopReason: 'end_turn' });
         await pending;
