@@ -14,7 +14,7 @@
  * to avoid. The class rides the `job:fail` payload; `failJob` consumes it.
  */
 
-import { isNumber, isObject, isString, type components } from '@semiont/core';
+import { isNumber, isObject, isString, RETRY_RULES, type components } from '@semiont/core';
 import { StructuredReadError } from '@semiont/inference';
 import { InferenceTimeoutError } from './workers/inference-call';
 
@@ -37,11 +37,15 @@ export class DeterministicJobError extends Error {
 /**
  * The taxonomy, and its provider coupling — THE part that will drift:
  *
- * - `@anthropic-ai/sdk` errors carry a numeric `status`. 408/429/5xx are
- *   environmental (throttles, overload, gateway weather) → transient. The
- *   remaining 4xx mean the request itself was rejected — invalid, too
- *   large, unauthorized — and re-sending it unchanged is guaranteed waste
- *   → deterministic.
+ * - `@anthropic-ai/sdk` errors carry a numeric `status`, and WHICH statuses are
+ *   worth another attempt is not decided here: it is `RETRY_RULES.job`
+ *   (RETRY-CLASSIFICATION P2). This file used to restate the same three
+ *   conditions, which made it a second opinion on a question core already
+ *   answered — and the census that found it showed that where a bare list and a
+ *   reasoned rule disagree, the list wins silently. The rule carries the
+ *   reasoning; this file carries the ONE thing the rule cannot know: that
+ *   anything else at or above 400 is a rejected request, and re-sending it
+ *   unchanged is guaranteed waste → deterministic.
  * - Aborts (`APIUserAbortError` from the SDK, `AbortError` from fetch/mock)
  *   are our own bound or shutdown tearing the transport down — nothing was
  *   judged → transient.
@@ -59,6 +63,24 @@ export function classifyFailure(error: unknown): FailureClass | undefined {
   if (error instanceof DeterministicJobError) return 'deterministic';
   if (error instanceof InferenceTimeoutError) return 'transient';
   if (error instanceof StructuredReadError && error.stopReason === 'max_tokens') return 'deterministic';
+  // A `StructuredReadError` with any OTHER stop reason falls through to
+  // `undefined` — retryable, and DECIDED rather than defaulted
+  // (RETRY-CLASSIFICATION P2, 2026-09-12).
+  //
+  // It only reaches here having exhausted `MAX_SUBDIVISION_DEPTH`, so
+  // `subdividable()` has already argued the opposite: at
+  // `DETECTION_TEMPERATURE` 0 the identical call returns the identical failure.
+  // That argument was decisive while chunk boundaries were fixed up front. It is
+  // not any more — CHUNK-GRAIN-RESUME HD2 (option C) seeds a resumed unit's size
+  // from the checkpoint and then takes one shrink step, so the retry re-cuts the
+  // poison piece at a DIFFERENT size and can genuinely come out differently. The
+  // price of being wrong fell with it: one chunk, not the whole prefix.
+  //
+  // It stays `undefined` rather than becoming `'transient'` on purpose. The wire
+  // vocabulary has two values, and this is neither: it is not weather, it is
+  // "retryable because the next attempt reads different input". Claiming
+  // `transient` would assert an environmental cause nobody established, and
+  // absent already means exactly what is true — unrecognised, so retryable.
   if (!isObject(error)) return undefined;
 
   const name = isString(error.name) ? error.name : '';
@@ -67,7 +89,7 @@ export function classifyFailure(error: unknown): FailureClass | undefined {
 
   const status = isNumber(error.status) ? error.status : undefined;
   if (status !== undefined) {
-    if (status === 408 || status === 429 || status >= 500) return 'transient';
+    if (RETRY_RULES.job.retryable({ status })) return 'transient';
     if (status >= 400) return 'deterministic';
   }
 
