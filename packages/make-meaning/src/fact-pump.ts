@@ -25,7 +25,7 @@
  */
 
 import { from, concatMap, tap, type Observable, type Subscription } from 'rxjs';
-import type { EventMap, Logger, ResourceId, StoredEvent } from '@semiont/core';
+import type { EventMap, Logger, PersistedEventType, ResourceId } from '@semiont/core';
 import { errField } from '@semiont/core';
 
 export interface FactPumpDeps {
@@ -48,18 +48,20 @@ export interface FactPump {
   unsubscribe(): void;
 }
 
-export function createFactPump(facts$: Observable<StoredEvent>, deps: FactPumpDeps): FactPump {
+/** One fact, on its own channel — what `archivist-main`'s merge already yields. */
+type Fact = EventMap[PersistedEventType];
+
+export function createFactPump(facts$: Observable<Fact>, deps: FactPumpDeps): FactPump {
   let depth = 0;
 
-  const publish = async (event: StoredEvent): Promise<void> => {
+  const publish = async (event: Fact): Promise<void> => {
     try {
-      const type = event.type as keyof EventMap;
       // Concurrent: the global and scoped emits are independent, and the
       // event is the same object in both. Ordering between EVENTS is the
       // concatMap below; this parallelism does not touch it.
       await Promise.all([
-        deps.emit(type, event as never),
-        ...(event.resourceId ? [deps.emit(type, event as never, event.resourceId)] : []),
+        deps.emit(event.type, event),
+        ...(event.resourceId ? [deps.emit(event.type, event, event.resourceId)] : []),
       ]);
     } catch (error) {
       // Never rethrow: one unreachable gateway must not tear down the pump

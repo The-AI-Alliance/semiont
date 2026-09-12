@@ -37,7 +37,7 @@ import { resourceId, userId, annotationId, EventBus } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import { MemoryGraphDatabase } from '@semiont/graph';
-import type { StoredEvent } from '@semiont/core';
+import type { EventMap, PersistedEventType } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -878,7 +878,15 @@ describe('Weaver', () => {
     let seq = 0;
     const nextSeq = () => ++seq;
 
-    const stored = (type: string, rid: string | undefined, payload: unknown): StoredEvent => ({
+    // Channel-generic, so a fixture is the type its channel carries rather than
+    // an erased `StoredEvent` the bus then has to be cast back into. The one
+    // remaining assertion is the payload's — these specs build partial payloads
+    // on purpose, which is the fixture's business and not the path's.
+    const stored = <K extends PersistedEventType>(
+      type: K,
+      rid: string | undefined,
+      payload: unknown,
+    ): EventMap[K] => ({
       id: uuidv4(),
       type,
       timestamp: new Date().toISOString(),
@@ -887,10 +895,10 @@ describe('Weaver', () => {
       version: 1,
       payload,
       metadata: { sequenceNumber: nextSeq() },
-    } as unknown as StoredEvent);
+    } as unknown as EventMap[K]);
 
-    const deliver = async (e: StoredEvent) => {
-      coreEventBus.getDomainEvent(e.type as Parameters<EventBus['getDomainEvent']>[0]).next(e);
+    const deliver = async <K extends PersistedEventType>(e: EventMap[K] & { type: K }) => {
+      coreEventBus.get(e.type).next(e);
       await tick();
     };
 
@@ -948,8 +956,8 @@ describe('Weaver', () => {
 
       const e = stored('mark:added', 'dup-add-burst', { annotation: annotation('ann-dup-burst', 'dup-add-burst') });
       // Same event twice in the same burst window — no tick between.
-      coreEventBus.getDomainEvent('mark:added').next(e);
-      coreEventBus.getDomainEvent('mark:added').next(e);
+      coreEventBus.get('mark:added').next(e);
+      coreEventBus.get('mark:added').next(e);
       await tick();
 
       const { annotations } = await graphDb.listAnnotations({ resourceId: resourceId('dup-add-burst') });
@@ -1282,11 +1290,11 @@ describe('Weaver', () => {
         id: annotationId(aid), motivation: 'commenting', target: { source: rid }, body: [],
         created: '2026-01-01T00:00:00.000Z',
       });
-      const pushMark = (aid: string, seq: number) => coreEventBus.getDomainEvent('mark:added').next({
+      const pushMark = (aid: string, seq: number) => coreEventBus.get('mark:added').next({
         id: uuidv4(), type: 'mark:added', timestamp: new Date().toISOString(),
         userId: userId('user1'), resourceId: resourceId(rid), version: 1,
         payload: { annotation: ann(aid) }, metadata: { sequenceNumber: seq },
-      } as unknown as StoredEvent);
+      } as unknown as EventMap['mark:added']);
       pushMark('ann-b1', 2);
       pushMark('ann-b2', 3);
       pushMark('ann-b3', 4);

@@ -23,8 +23,8 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { Subject } from 'rxjs';
-import type { Logger, StoredEvent } from '@semiont/core';
-import { resourceId as makeResourceId, userId } from '@semiont/core';
+import type { EventMap, Logger, PersistedEventType } from '@semiont/core';
+import { isNumber, isObject, resourceId as makeResourceId, userId } from '@semiont/core';
 import { createFactPump } from '../fact-pump';
 
 const mockLogger: Logger = {
@@ -34,26 +34,48 @@ const mockLogger: Logger = {
 
 const settle = () => new Promise((r) => setImmediate(r));
 
-function fact(seq: number, rid?: string): StoredEvent {
-  return {
-    id: `evt-${seq}`,
-    type: 'mark:added',
-    timestamp: new Date().toISOString(),
-    userId: userId('did:web:example:users:alice'),
-    version: 1,
-    ...(rid ? { resourceId: makeResourceId(rid) } : {}),
-    payload: {},
-    metadata: { sequenceNumber: seq },
-  } as unknown as StoredEvent;
+/** `deps.emit` is declared over every channel, so what reaches a mock is
+ *  `unknown` — narrowed by guard rather than asserted. */
+function seqOf(payload: unknown): number {
+  if (isObject(payload) && isObject(payload.metadata) && isNumber(payload.metadata.sequenceNumber)) {
+    return payload.metadata.sequenceNumber;
+  }
+  throw new Error('fact reached emit without metadata.sequenceNumber');
+}
+
+type Fact = EventMap[PersistedEventType];
+
+const envelope = (seq: number) => ({
+  id: `evt-${seq}`,
+  timestamp: new Date().toISOString(),
+  userId: userId('did:web:example:users:alice'),
+  version: 1,
+  metadata: { sequenceNumber: seq },
+});
+
+/**
+ * Cast-free, and that is the point: retyping the pump made the old single
+ * `as unknown as StoredEvent` fixture stop compiling, because it built one
+ * `mark:added` whose `resourceId` came and went. The types say that cannot
+ * happen — resource events REQUIRE a resourceId and only `frame:*` system
+ * events lack one — so the scoped and unscoped cases need different channels.
+ * The erased fixture had been hiding that for both.
+ */
+function scopedFact(seq: number, rid: string): EventMap['mark:archived'] {
+  return { ...envelope(seq), type: 'mark:archived', resourceId: makeResourceId(rid), payload: {} };
+}
+
+function systemFact(seq: number): EventMap['frame:entity-type-added'] {
+  return { ...envelope(seq), type: 'frame:entity-type-added', payload: { entityType: 'Person' } };
 }
 
 describe('fact pump', () => {
   it('publishes an unscoped fact once', async () => {
     const emit = vi.fn(async () => 1);
-    const facts$ = new Subject<StoredEvent>();
+    const facts$ = new Subject<Fact>();
     const pump = createFactPump(facts$, { emit, logger: mockLogger });
 
-    facts$.next(fact(1));
+    facts$.next(systemFact(1));
     await settle();
 
     expect(emit).toHaveBeenCalledTimes(1);
@@ -62,10 +84,10 @@ describe('fact pump', () => {
 
   it('publishes a resource-scoped fact globally AND to its scope', async () => {
     const emit = vi.fn(async () => 1);
-    const facts$ = new Subject<StoredEvent>();
+    const facts$ = new Subject<Fact>();
     const pump = createFactPump(facts$, { emit, logger: mockLogger });
 
-    facts$.next(fact(1, 'res-a'));
+    facts$.next(scopedFact(1, 'res-a'));
     await settle();
 
     expect(emit).toHaveBeenCalledTimes(2);
@@ -87,10 +109,10 @@ describe('fact pump', () => {
       inFlight -= 1;
       return 1;
     });
-    const facts$ = new Subject<StoredEvent>();
+    const facts$ = new Subject<Fact>();
     const pump = createFactPump(facts$, { emit, logger: mockLogger });
 
-    facts$.next(fact(1, 'res-a'));
+    facts$.next(scopedFact(1, 'res-a'));
     await settle();
     await settle();
 
@@ -103,13 +125,13 @@ describe('fact pump', () => {
     // why the growth in the bug report is still a hypothesis.
     let release: (() => void) | undefined;
     const emit = vi.fn(() => new Promise<number>((res) => { release = () => res(1); }));
-    const facts$ = new Subject<StoredEvent>();
+    const facts$ = new Subject<Fact>();
     const pump = createFactPump(facts$, { emit, logger: mockLogger });
 
     expect(pump.depth()).toBe(0);
-    facts$.next(fact(1));
-    facts$.next(fact(2));
-    facts$.next(fact(3));
+    facts$.next(systemFact(1));
+    facts$.next(systemFact(2));
+    facts$.next(systemFact(3));
     await settle();
 
     expect(pump.depth()).toBe(3);
@@ -125,16 +147,16 @@ describe('fact pump', () => {
     // event must not parallelise events against each other.
     const seen: number[] = [];
     const emit = vi.fn(async (_c: unknown, payload: unknown) => {
-      seen.push((payload as StoredEvent).metadata.sequenceNumber as number);
+      seen.push(seqOf(payload));
       await settle();
       return 1;
     });
-    const facts$ = new Subject<StoredEvent>();
+    const facts$ = new Subject<Fact>();
     const pump = createFactPump(facts$, { emit, logger: mockLogger });
 
-    facts$.next(fact(1));
-    facts$.next(fact(2));
-    facts$.next(fact(3));
+    facts$.next(systemFact(1));
+    facts$.next(systemFact(2));
+    facts$.next(systemFact(3));
     for (let i = 0; i < 12; i++) await settle();
 
     expect(seen).toEqual([1, 2, 3]);
@@ -145,12 +167,12 @@ describe('fact pump', () => {
     const emit = vi.fn()
       .mockRejectedValueOnce(new Error('gateway down'))
       .mockResolvedValue(1);
-    const facts$ = new Subject<StoredEvent>();
+    const facts$ = new Subject<Fact>();
     const pump = createFactPump(facts$, { emit, logger: mockLogger });
 
-    facts$.next(fact(1));
+    facts$.next(systemFact(1));
     await settle();
-    facts$.next(fact(2));
+    facts$.next(systemFact(2));
     await settle();
 
     expect(mockLogger.error).toHaveBeenCalled();
