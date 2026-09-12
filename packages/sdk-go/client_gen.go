@@ -2940,6 +2940,9 @@ type JobCancelCommand struct {
 	// JobType Type of background job
 	JobType    JobType `json:"jobType"`
 	ResourceId string  `json:"resourceId"`
+
+	// UnitCursors How far each in-progress unit got, keyed by unit — the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward.
+	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 }
 
 // JobCancelRequest Request to cancel a job. Target one running or pending job by `jobId` (JOB-RESTART-SAFETY P4), or a whole category of pending jobs by `jobType`. A `jobId`-targeted request that names a RUNNING job is honoured cooperatively by the owning worker, which stops at its next unit boundary and emits JobCancelCommand — the queue is never made to yank a running job out from under a live worker.
@@ -2965,6 +2968,9 @@ type JobCheckpointCommand struct {
 	// CompletedUnits Entity-type units whose annotations have been fully emitted so far. Unioned into the running job's metadata checkpoint; a retry after recovery skips them.
 	CompletedUnits []string `json:"completedUnits"`
 	JobId          string   `json:"jobId"`
+
+	// UnitCursors How far each in-progress unit got, keyed by unit — the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward.
+	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 }
 
 // JobClaimCommand Command to claim a pending job (atomic CAS: pending → running)
@@ -3105,6 +3111,9 @@ type JobFailCommand struct {
 	// JobType Type of background job
 	JobType    JobType `json:"jobType"`
 	ResourceId string  `json:"resourceId"`
+
+	// UnitCursors How far each in-progress unit got, keyed by unit — the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward.
+	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 
 	// WillRetry Whether the queue will re-queue this job for another attempt. Computed by the worker from the SAME predicate the queue applies at failJob (one decision site, `willRetryAfter` in @semiont/jobs) using the retry budget carried on the claimed record. FALSE (or absent) means this failure is TERMINAL: a client's job-watch stream ends here. TRUE means the work continues on a fresh attempt — the failure is an event, not the end, and a stream that terminated on it would report a recovering run as a failed one (JOB-RESTART-SAFETY P5).
 	WillRetry *bool `json:"willRetry,omitempty"`
@@ -4591,6 +4600,17 @@ type TokenRefreshRequest struct {
 // TokenRefreshResponse defines model for TokenRefreshResponse.
 type TokenRefreshResponse struct {
 	AccessToken string `json:"access_token"`
+}
+
+// UnitCursor How far a single unit got, for a resume that starts mid-unit rather than redoing it (CHUNK-GRAIN-RESUME P2). A unit is an entity type for reference-annotation, and the job's own motivation for the other annotation types — which is why a unit-grain checkpoint alone was too coarse: those jobs have exactly one unit, so nothing could be recorded until the whole document was done.
+//
+// MERGE IS MONOTONE PER UNIT, not a union. `completedUnits` is a set and converges under concurrent snapshots because a set only grows; a cursor converges only if a stale snapshot can never move it backward.
+type UnitCursor struct {
+	// Next Characters consumed once the last COMMITTED chunk completed — the resume position. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for.
+	Next int `json:"next"`
+
+	// Size The token size that last committed chunk was cut at — the calibration the attempt paid for over the chunks before it. A resume seeds from this and then takes ONE adaptive step, as if the last outcome were a failure, which it was: the job died. Seeding alone would re-cut the failing piece identically; opening at the default would discard the calibration. (CHUNK-GRAIN-RESUME HD2, option C.)
+	Size int `json:"size"`
 }
 
 // UpdateAnnotationBodyRequest defines model for UpdateAnnotationBodyRequest.
