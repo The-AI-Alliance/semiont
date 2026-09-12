@@ -101,6 +101,14 @@ const schemaLines = emitLines(
 // `satisfies` tails the generator owns) plus DATA and PROSE from the registry
 // — never an opaque frozen blob, which is what made the generated file
 // contain hand-edit zones that silently reverted.
+// DERIVED from the `enriched` flags, never a second list to keep in step: the
+// enricher dispatches on what this emits, so a flag with no case is a compile
+// error rather than an annotation that silently never arrives.
+const enrichedBody = reg.channels
+  .filter((c) => c.enriched)
+  .map((c) => `  '${c.channel}',`)
+  .join('\n');
+
 const broadcastBody = [
   reg.resourceBroadcasts.bodyComment,
   ...reg.resourceBroadcasts.channels.map((c) => `  '${c}',`),
@@ -124,6 +132,11 @@ const protocol =
   broadcastBody +
   '\n] as const satisfies readonly EventName[];\n\n' +
   'export type ResourceBroadcastType = typeof RESOURCE_BROADCAST_TYPES[number];\n\n' +
+  reg.docs.enrichedEvents +
+  '\nexport const ENRICHED_EVENT_TYPES = [\n' +
+  enrichedBody +
+  '\n] as const satisfies readonly PersistedEventType[];\n\n' +
+  'export type EnrichedEventType = typeof ENRICHED_EVENT_TYPES[number];\n\n' +
   reg.docs.channelSchemas +
   '\nexport const CHANNEL_SCHEMAS = {' +
   [...schemaLines, ...reg.preamble.schemasTail].join('\n') +

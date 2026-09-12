@@ -81,7 +81,14 @@ describe('wireEnrichment — what the EventStore publishes on the annotation cha
     );
   });
 
-  it('mark:removed goes out unenriched — the view no longer holds the annotation', async () => {
+  it('mark:removed goes out unenriched — it is not an enriched channel', async () => {
+    // The behaviour is unchanged; only its reason is. This used to read "the
+    // view no longer holds the annotation", which was true but described a
+    // runtime accident: the channel WAS flagged `enriched`, so the type promised
+    // an annotation the enricher could never attach. The flag is gone, so the
+    // absence is now declared rather than incidental — and reading `.annotation`
+    // here no longer compiles, which is why this asserts the key's absence the
+    // way its unenriched sibling below does.
     await addAnnotation();
     const published = nextOn('mark:removed');
     await eventStore.appendEvent({
@@ -89,7 +96,7 @@ describe('wireEnrichment — what the EventStore publishes on the annotation cha
       payload: { annotationId: annotation.id },
     });
 
-    expect((await published).annotation).toBeUndefined();
+    expect('annotation' in (await published)).toBe(false);
   });
 
   it('an event that touches no annotation goes out as it was stored', async () => {

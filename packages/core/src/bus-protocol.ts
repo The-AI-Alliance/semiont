@@ -31,7 +31,7 @@ import type { AnnotationId, ResourceId } from './identifiers';
 import type { Annotation } from './annotation-types';
 import type { ResourceDescriptor } from './graph';
 import type { EnrichedEvent, StoredEvent } from './event-base';
-import type { EventOfType } from './persisted-events';
+import type { EventOfType, PersistedEventType } from './persisted-events';
 import type { AnchorRect } from './bus-ui-types';
 
 // Branded overrides for OpenAPI command payloads that carry identifier
@@ -122,7 +122,7 @@ export type EventMap = {
 
   // Domain events (branded — system of record)
   'mark:added': EnrichedEvent<EventOfType<'mark:added'>>;
-  'mark:removed': EnrichedEvent<EventOfType<'mark:removed'>>;
+  'mark:removed': StoredEvent<EventOfType<'mark:removed'>>;
   'mark:body-updated': EnrichedEvent<EventOfType<'mark:body-updated'>>;
   'mark:entity-tag-added': StoredEvent<EventOfType<'mark:entity-tag-added'>>;
   'mark:entity-tag-removed': StoredEvent<EventOfType<'mark:entity-tag-removed'>>;
@@ -555,6 +555,27 @@ export const RESOURCE_BROADCAST_TYPES = [
 ] as const satisfies readonly EventName[];
 
 export type ResourceBroadcastType = typeof RESOURCE_BROADCAST_TYPES[number];
+
+/**
+ * Channels whose published event carries the annotation as it stands in the
+ * view — the registry's `enriched` flag, generated so the flag and the code
+ * that acts on it cannot disagree.
+ *
+ * The enricher switches on THIS list: a flag with no case fails to compile
+ * rather than silently never attaching, which consumers cannot detect because
+ * `annotation` is optional and their absent-branch is indistinguishable from
+ * a genuine decline.
+ *
+ * Typed `PersistedEventType`, not `EventName`: the validator already allows
+ * the flag only on a stored event, so this makes enriched ⊆ persisted a
+ * compile-time fact rather than a convention.
+ */
+export const ENRICHED_EVENT_TYPES = [
+  'mark:added',
+  'mark:body-updated',
+] as const satisfies readonly PersistedEventType[];
+
+export type EnrichedEventType = typeof ENRICHED_EVENT_TYPES[number];
 
 /**
  * Authoritative map from bus channel to OpenAPI schema name.

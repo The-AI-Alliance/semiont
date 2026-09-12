@@ -101,7 +101,8 @@ export type {
   ResourceBroadcastType,
   AnchorRect,
 } from './bus-protocol';
-export { RESOURCE_BROADCAST_TYPES, CHANNEL_SCHEMAS } from './bus-protocol';
+export { RESOURCE_BROADCAST_TYPES, ENRICHED_EVENT_TYPES, CHANNEL_SCHEMAS } from './bus-protocol';
+export type { EnrichedEventType } from './bus-protocol';
 
 // Payload type aliases (OpenAPI schema shortcuts used across the codebase)
 export type {
