@@ -111,11 +111,11 @@ export class EventStore {
 
     // 4. Publish to Core EventBus typed channels
     await timed('publish', () => {
-      this.coreEventBus.getDomainEvent(publishEvent.type).next(publishEvent);
+      this.coreEventBus.get(publishEvent.type).next(publishEvent);
 
       if (resourceId !== '__system__') {
         const scopedBus = this.coreEventBus.scope(resourceId as string);
-        scopedBus.getDomainEvent(publishEvent.type).next(publishEvent);
+        scopedBus.get(publishEvent.type).next(publishEvent);
       }
     });
 

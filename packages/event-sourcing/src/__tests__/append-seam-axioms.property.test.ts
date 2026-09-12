@@ -112,8 +112,8 @@ class PublishFirstEventStore {
   async appendEvent(event: EventInput): Promise<StoredEvent> {
     const rid = event.resourceId as ResourceId;
     const storedEvent = await this.log.append(event, rid);
-    this.bus.getDomainEvent(storedEvent.type).next(storedEvent);
-    this.bus.scope(String(rid)).getDomainEvent(storedEvent.type).next(storedEvent);
+    this.bus.get(storedEvent.type).next(storedEvent);
+    this.bus.scope(String(rid)).get(storedEvent.type).next(storedEvent);
     await this.views.materializeResource(rid, storedEvent, () => this.log.getEvents(rid));
     return storedEvent;
   }
@@ -203,8 +203,8 @@ async function collectViolations(
   };
 
   const subscriptions = [
-    bus.getDomainEvent('yield:created').subscribe(observe),
-    bus.getDomainEvent('mark:added').subscribe(observe),
+    bus.get('yield:created').subscribe(observe),
+    bus.get('mark:added').subscribe(observe),
   ];
 
   try {

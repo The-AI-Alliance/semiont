@@ -346,7 +346,7 @@ async function main() {
   // so serialising them only doubled the drain time. `depth()` is published as
   // a gauge: an unbounded backlog with no number is how this went undiagnosed.
   const factPump = createFactPump(
-    merge(...PERSISTED_EVENT_TYPES.map((type) => localBus.getDomainEvent(type))),
+    merge(...PERSISTED_EVENT_TYPES.map((type) => localBus.get(type))),
     { emit: (channel, payload, scope) => httpTransport.emit(channel, payload, scope), logger },
   );
   pumps.push({ unsubscribe: () => factPump.unsubscribe() } as Subscription);
