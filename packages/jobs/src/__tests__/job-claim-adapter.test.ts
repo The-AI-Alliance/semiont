@@ -1,42 +1,48 @@
 /**
  * createJobClaimAdapter — unit tests.
  *
- * The adapter takes a shared bus and attaches job-claim behaviour.
- * We fake the bus with a minimal object that exposes the three
- * methods the adapter uses (`on$`, `emit`, `addChannels`) and drive
- * events through RxJS subjects. No HTTP or SSE involved.
+ * The adapter takes a shared bus and attaches job-claim behaviour. The fake
+ * is built over a REAL `EventBus` rather than a `Map` of `Subject<any>`
+ * (WORKER-BUS-TYPED-BY-CHANNEL P2): core's bus is already typed per channel,
+ * so the fake needs no cast and cannot be fed a payload production would
+ * reject — the old `Subject<any>` map accepted anything, which is how this
+ * file's `job:queued` fixtures went years without `userId`. No HTTP or SSE.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { BehaviorSubject, Subject, firstValueFrom, skip, take } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, skip, take } from 'rxjs';
 import { createJobClaimAdapter } from '../job-claim-adapter';
 import type { WorkerBus } from '@semiont/sdk';
-import type { ConnectionState } from '@semiont/core';
+import { EventBus, type ConnectionState, type EventMap } from '@semiont/core';
 
 function fakeBus() {
-  const channels = new Set<string>();
-  const streams = new Map<string, Subject<any>>();
-  const emits: Array<{ channel: string; payload: any }> = [];
-
-  const getStream = (channel: string): Subject<any> => {
-    let s = streams.get(channel);
-    if (!s) {
-      s = new Subject();
-      streams.set(channel, s);
-    }
-    return s;
-  };
+  const channels = new Set<keyof EventMap>();
+  // A correlated union, not `{ channel: keyof EventMap; payload: <union> }`:
+  // the latter pairs every channel with every payload, so `.payload.jobId`
+  // would not typecheck even for an emit we know is `job:claim`. This shape
+  // lets `channel` narrow `payload` — the same correlation the bus itself
+  // now carries.
+  type Emitted = { [K in keyof EventMap]: { channel: K; payload: EventMap[K] } }[keyof EventMap];
+  const emits: Emitted[] = [];
+  const eventBus = new EventBus();
 
   const bus: WorkerBus = {
-    addChannels: vi.fn((cs: readonly string[]) => {
+    addChannels: vi.fn((cs: readonly (keyof EventMap)[]) => {
       cs.forEach((c) => channels.add(c));
     }),
-    on$: vi.fn((channel: string) => getStream(channel).asObservable()),
-    // In-process fixture: replies are pushed synchronously onto the streams
+    stream: <K extends keyof EventMap>(channel: K) => eventBus.get(channel).asObservable(),
+    // In-process fixture: replies are pushed synchronously onto the bus
     // above, so 'open' is the truth, not a stub (BUS-ATTACH-GATE.md).
     state$: new BehaviorSubject<ConnectionState>('open'),
-    emit: vi.fn(async (channel: string, payload: Record<string, unknown>) => {
-      emits.push({ channel, payload });
+    emit: vi.fn(async <K extends keyof EventMap>(channel: K, payload: EventMap[K]) => {
+      // TypeScript correlates `channel` with `payload` on READ (see
+      // `claimAt`) but not on WRITE through a type parameter: while `K` is
+      // unresolved it will not accept `{ channel: K; payload: EventMap[K] }`
+      // as a member of the mapped union. The pair is correct by
+      // construction — they are this call's own two arguments — so this is
+      // the harness's single assertion, and it is what buys narrowing at
+      // every read site.
+      emits.push({ channel, payload } as Emitted);
       return -1;
     }),
   };
@@ -44,8 +50,17 @@ function fakeBus() {
   return {
     bus,
     channels,
-    pushEvent: (channel: string, payload: any) => getStream(channel).next(payload),
+    pushEvent: <K extends keyof EventMap>(channel: K, payload: EventMap[K]) =>
+      eventBus.get(channel).next(payload),
     emits,
+    /** The `job:claim` these tests read, narrowed by its channel — no cast. */
+    claimAt: (i: number): EventMap['job:claim'] => {
+      const e = emits[i];
+      if (!e || e.channel !== 'job:claim') {
+        throw new Error(`emits[${i}] is ${e ? e.channel : 'missing'}, not job:claim`);
+      }
+      return e.payload;
+    },
   };
 }
 
@@ -60,7 +75,7 @@ describe('createJobClaimAdapter', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: ['generation'] });
     adapter.start();
 
-    h.pushEvent('job:queued', { jobId: 'j1', jobType: 'other', resourceId: 'r1' });
+    h.pushEvent('job:queued', { jobId: 'j1', jobType: 'other', resourceId: 'r1', userId: 'did:u1' });
     await new Promise((r) => setTimeout(r, 0));
 
     expect(h.emits).toEqual([]);
@@ -83,12 +98,12 @@ describe('createJobClaimAdapter', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: ['generation'] });
     adapter.start();
 
-    h.pushEvent('job:queued', { jobId: 'j1', jobType: 'generation', resourceId: 'r1' });
+    h.pushEvent('job:queued', { jobId: 'j1', jobType: 'generation', resourceId: 'r1', userId: 'did:u1' });
     await new Promise((r) => setTimeout(r, 0));
 
     expect(h.emits).toHaveLength(1);
-    const { channel, payload } = h.emits[0]!;
-    expect(channel).toBe('job:claim');
+    expect(h.emits[0]!.channel).toBe('job:claim');
+    const payload = h.claimAt(0);
     expect(payload.jobId).toBe('j1');
     expect(typeof payload.correlationId).toBe('string');
 
@@ -108,11 +123,11 @@ describe('createJobClaimAdapter', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
-    h.pushEvent('job:queued', { jobId: 'j2', jobType: 'generation', resourceId: 'r1' });
+    h.pushEvent('job:queued', { jobId: 'j2', jobType: 'generation', resourceId: 'r1', userId: 'did:u1' });
     await new Promise((r) => setTimeout(r, 0));
 
-    const corrId = h.emits[0]!.payload.correlationId;
-    h.pushEvent('job:claim-failed', { correlationId: corrId });
+    const corrId = h.claimAt(0).correlationId;
+    h.pushEvent('job:claim-failed', { correlationId: corrId, message: 'claim lost' });
 
     await new Promise((r) => setTimeout(r, 10));
     expect(await firstValueFrom(adapter.isProcessing$)).toBe(false);
@@ -124,10 +139,10 @@ describe('createJobClaimAdapter', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
-    h.pushEvent('job:queued', { jobId: 'j3', jobType: 'generation', resourceId: 'r1' });
+    h.pushEvent('job:queued', { jobId: 'j3', jobType: 'generation', resourceId: 'r1', userId: 'did:u1' });
     await new Promise((r) => setTimeout(r, 0));
     h.pushEvent('job:claimed', {
-      correlationId: h.emits[0]!.payload.correlationId,
+      correlationId: h.claimAt(0).correlationId,
       response: { params: {}, metadata: { userId: 'u' } },
     });
     await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
@@ -200,10 +215,10 @@ describe('createJobClaimAdapter', () => {
       const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
       adapter.start();
 
-      h.pushEvent('job:queued', { jobId: 'jv1', jobType: 'generation', resourceId: 'r1' });
+      h.pushEvent('job:queued', { jobId: 'jv1', jobType: 'generation', resourceId: 'r1', userId: 'did:u1' });
       await new Promise((r) => setTimeout(r, 0));
       h.pushEvent('job:claimed', {
-        correlationId: h.emits[0]!.payload.correlationId,
+        correlationId: h.claimAt(0).correlationId,
         response: { params: {}, metadata: { userId: 'u' } },
       });
       await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
@@ -230,7 +245,7 @@ describe('createJobClaimAdapter', () => {
       const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: ['generation'] });
       adapter.start();
 
-      h.pushEvent('job:queued', { jobId: 'jx', jobType: 'other-type', resourceId: 'r1' });
+      h.pushEvent('job:queued', { jobId: 'jx', jobType: 'other-type', resourceId: 'r1', userId: 'did:u1' });
       await new Promise((r) => setTimeout(r, 0));
 
       expect(adapter.vitals().lastQueuedEventAt).not.toBeNull();
@@ -256,10 +271,10 @@ describe('createJobClaimAdapter', () => {
       const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
       adapter.start();
 
-      h.pushEvent('job:queued', { jobId: 'jv2', jobType: 'generation', resourceId: 'r1' });
+      h.pushEvent('job:queued', { jobId: 'jv2', jobType: 'generation', resourceId: 'r1', userId: 'did:u1' });
       await new Promise((r) => setTimeout(r, 0));
       h.pushEvent('job:claimed', {
-        correlationId: h.emits[0]!.payload.correlationId,
+        correlationId: h.claimAt(0).correlationId,
         response: { params: {}, metadata: { userId: 'u' } },
       });
       await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
@@ -290,10 +305,10 @@ describe('claimed-job checkpoint (A3)', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
-    h.pushEvent('job:queued', { jobId: 'jc1', jobType: 'reference-annotation', resourceId: 'r1' });
+    h.pushEvent('job:queued', { jobId: 'jc1', jobType: 'reference-annotation', resourceId: 'r1', userId: 'did:u1' });
     await new Promise((r) => setTimeout(r, 0));
     h.pushEvent('job:claimed', {
-      correlationId: h.emits[0]!.payload.correlationId,
+      correlationId: h.claimAt(0).correlationId,
       response: { params: {}, metadata: { userId: 'u1', completedUnits: ['Person', 'Date'] } },
     });
 
@@ -307,10 +322,10 @@ describe('claimed-job checkpoint (A3)', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
-    h.pushEvent('job:queued', { jobId: 'jc-cur', jobType: 'reference-annotation', resourceId: 'r1' });
+    h.pushEvent('job:queued', { jobId: 'jc-cur', jobType: 'reference-annotation', resourceId: 'r1', userId: 'did:u1' });
     await new Promise((r) => setTimeout(r, 0));
     h.pushEvent('job:claimed', {
-      correlationId: h.emits[0]!.payload.correlationId,
+      correlationId: h.claimAt(0).correlationId,
       response: { params: {}, metadata: {
         userId: 'u1', completedUnits: [],
         unitCursors: { Person: { next: 12_400, size: 560, found: 20, emitted: 18 } },
@@ -331,10 +346,10 @@ describe('claimed-job checkpoint (A3)', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
-    h.pushEvent('job:queued', { jobId: 'jc-cur2', jobType: 'reference-annotation', resourceId: 'r1' });
+    h.pushEvent('job:queued', { jobId: 'jc-cur2', jobType: 'reference-annotation', resourceId: 'r1', userId: 'did:u1' });
     await new Promise((r) => setTimeout(r, 0));
     h.pushEvent('job:claimed', {
-      correlationId: h.emits[0]!.payload.correlationId,
+      correlationId: h.claimAt(0).correlationId,
       response: { params: {}, metadata: {
         userId: 'u1', completedUnits: [],
         unitCursors: {
@@ -355,10 +370,10 @@ describe('claimed-job checkpoint (A3)', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
-    h.pushEvent('job:queued', { jobId: 'jc2', jobType: 'reference-annotation', resourceId: 'r1' });
+    h.pushEvent('job:queued', { jobId: 'jc2', jobType: 'reference-annotation', resourceId: 'r1', userId: 'did:u1' });
     await new Promise((r) => setTimeout(r, 0));
     h.pushEvent('job:claimed', {
-      correlationId: h.emits[0]!.payload.correlationId,
+      correlationId: h.claimAt(0).correlationId,
       response: { params: {}, metadata: { userId: 'u1' } },
     });
 

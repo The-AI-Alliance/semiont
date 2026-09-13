@@ -94,7 +94,7 @@ export interface HttpTransportConfig {
    * A `busRequest` on an operation whose replies are outside this set
    * fails fast with `bus.unsubscribed` (see `BusRequestPrimitive`).
    */
-  channels?: readonly string[];
+  channels?: readonly (keyof EventMap)[];
 }
 
 export class HttpTransport implements ITransport, IGatewayOperations {
@@ -317,13 +317,20 @@ export class HttpTransport implements ITransport, IGatewayOperations {
       // scoped fan-in delivers nothing while no scope is held — and exactly
       // ONCE per event however many scopes are held (the per-scope
       // bridge-subs design would have duplicated delivery N×).
-      for (const channel of [...globalChannels, ...RESOURCE_SCOPED_CHANNELS]) {
-        this._actor.on$<Record<string, unknown>>(channel).subscribe((payload) => {
-          for (const bus of this.bridges) {
-            (bus.get(channel as keyof EventMap) as { next(v: unknown): void }).next(payload);
-          }
+      //
+      // Wired through a per-channel generic rather than inline in the loop.
+      // That is not style: inside `bridge`, `K` is ONE type, so `on$` and
+      // `bus.get` are provably the same channel's payload. Written inline the
+      // channel is a UNION, and calling `.next` on a union of `Subject`s makes
+      // the parameter the union of their payloads — so a `mark:added` payload
+      // would satisfy `yield:created` and no cast would be needed to let it.
+      // The old two casts here were hiding exactly that.
+      const bridge = <K extends keyof EventMap>(channel: K) => {
+        this._actor!.stream(channel).subscribe((payload) => {
+          for (const bus of this.bridges) bus.get(channel).next(payload);
         });
-      }
+      };
+      for (const channel of [...globalChannels, ...RESOURCE_SCOPED_CHANNELS]) bridge(channel);
     }
     return this._actor;
   }
@@ -341,16 +348,9 @@ export class HttpTransport implements ITransport, IGatewayOperations {
       `bus.emit:${channel as string}`,
       async () => {
         if (resourceScope !== undefined) {
-          return this.actor.emit(
-            channel as string,
-            payload as unknown as Record<string, unknown>,
-            resourceScope as string,
-          );
+          return this.actor.emit(channel, payload, resourceScope as string);
         }
-        return this.actor.emit(
-          channel as string,
-          payload as unknown as Record<string, unknown>,
-        );
+        return this.actor.emit(channel, payload);
       },
       {
         kind: SpanKind.PRODUCER,
@@ -366,12 +366,12 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     channel: K,
     handler: (payload: EventMap[K]) => void,
   ): () => void {
-    const sub = this.actor.on$<EventMap[K]>(channel as string).subscribe(handler);
+    const sub = this.actor.stream(channel).subscribe(handler);
     return () => sub.unsubscribe();
   }
 
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
-    return this.actor.on$<EventMap[K]>(channel as string);
+    return this.actor.stream(channel);
   }
 
   /**
@@ -428,7 +428,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
    * subscribed and this never gates; on a narrowed transport it turns a
    * doomed request into an immediate `bus.unsubscribed` error.
    */
-  isSubscribed(channel: string): boolean {
+  isSubscribed(channel: keyof EventMap): boolean {
     return this.actor.isSubscribed(channel);
   }
 

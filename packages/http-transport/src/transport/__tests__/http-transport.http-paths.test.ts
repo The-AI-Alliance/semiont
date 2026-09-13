@@ -26,7 +26,7 @@ vi.mock('ky', () => ({
 
 // Mock the local actor-state-unit so subscribeToResource ref-counting can be
 // asserted via spies without spinning up a real SSE connection. `pushEvent`
-// injects a wire event into the CURRENT actor's on$() fan-out (the bridge
+// injects a wire event into the CURRENT actor's stream() fan-out (the bridge
 // single-delivery test drives it).
 const actorHarness = {
   addChannels: vi.fn(),
@@ -49,7 +49,7 @@ vi.mock('../actor-state-unit', async (importOriginal) => {
       const events$ = new Subject<{ channel: string; payload: Record<string, unknown> }>();
       actorHarness.pushEvent = (channel, payload) => events$.next({ channel, payload });
       return {
-        on$: <T,>(channel: string) =>
+        stream: <T,>(channel: string) =>
           events$.pipe(filter((e) => e.channel === channel), map((e) => e.payload as T)),
         emit: vi.fn(),
         state$: new BehaviorSubject<string>('open').asObservable(),

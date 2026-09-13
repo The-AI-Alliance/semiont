@@ -43,7 +43,7 @@ describe('createActorStateUnit', () => {
     stateUnit.start();
 
     const gathered = firstValueFrom(
-      stateUnit.on$<{ resourceId: string }>('gather:requested'),
+      stateUnit.stream('gather:requested'),
     );
 
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
@@ -63,7 +63,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
     });
 
     stateUnit.start();
@@ -71,10 +71,10 @@ describe('createActorStateUnit', () => {
 
     const results1: unknown[] = [];
     const results2: unknown[] = [];
-    const sub1 = stateUnit.on$('test:event').subscribe((v) => results1.push(v));
-    const sub2 = stateUnit.on$('test:event').subscribe((v) => results2.push(v));
+    const sub1 = stateUnit.stream('beckon:hover').subscribe((v) => results1.push(v));
+    const sub2 = stateUnit.stream('beckon:hover').subscribe((v) => results2.push(v));
 
-    sse.push(sseChunk('bus-event', JSON.stringify({ channel: 'test:event', payload: { n: 1 } })));
+    sse.push(sseChunk('bus-event', JSON.stringify({ channel: 'beckon:hover', payload: { n: 1 } })));
 
     await vi.waitFor(() => expect(results1).toHaveLength(1));
 
@@ -95,7 +95,7 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    await stateUnit.emit('gather:complete', { correlationId: 'c-1', context: {} });
+    await stateUnit.emit('beckon:hover', { annotationId: 'a-1' });
 
     const [url, opts] = mockFetch.mock.calls[0] as [string, { method?: string; body: string }];
     expect(url).toBe('http://localhost:4000/bus/emit');
@@ -104,8 +104,8 @@ describe('createActorStateUnit', () => {
     // address, CORRELATED-REPLY-ROUTING D1) and a key-order-sensitive
     // string match makes every future wire field a spurious failure here.
     expect(JSON.parse(opts.body)).toEqual({
-      channel: 'gather:complete',
-      payload: { correlationId: 'c-1', context: {} },
+      channel: 'beckon:hover',
+      payload: { annotationId: 'a-1' },
       clientId: expect.any(String),
     });
 
@@ -124,7 +124,7 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    await stateUnit.emit('mark:added', { annotationId: 'a-1' });
+    await stateUnit.emit('beckon:hover', { annotationId: 'a-1' });
 
     const [, opts] = mockFetch.mock.calls[0] as [string, { signal?: unknown }];
     expect(opts.signal).toBeInstanceOf(AbortSignal);
@@ -154,7 +154,7 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    const rejects = expect(stateUnit.emit('mark:added', { annotationId: 'a-1' }))
+    const rejects = expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' }))
       .rejects.toThrow(/timed out/i);
     await vi.advanceTimersByTimeAsync(60_000);
     await rejects;
@@ -176,7 +176,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: () => '',              // the shape `token$.getValue() ?? ''` produces
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
     });
 
     stateUnit.start();
@@ -198,7 +198,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: () => token,
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
     });
 
     stateUnit.start();
@@ -228,7 +228,7 @@ describe('createActorStateUnit', () => {
     const rejected = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'expired-but-real-tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
     });
     const seen401: Array<{ status: number }> = [];
     rejected.errors$.subscribe((e) => seen401.push(e));
@@ -241,7 +241,7 @@ describe('createActorStateUnit', () => {
     const erroring = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'fine-tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
     });
     const seen500: Array<{ status: number }> = [];
     erroring.errors$.subscribe((e) => seen500.push(e));
@@ -265,7 +265,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: () => token,
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
       reconnectMs: 5_000,
     });
     let lastState = '';
@@ -299,7 +299,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'fine-tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
       reconnectMs: 5_000,
     });
     let lastState = '';
@@ -346,7 +346,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: () => token,
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
       reconnectMs: 5_000,
       tokenRefresher: refresher,
     });
@@ -377,7 +377,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'revoked-tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
       reconnectMs: 5_000,
       tokenRefresher: refresher,
     });
@@ -402,7 +402,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: () => token,
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
       reconnectMs: 5_000,
       tokenRefresher: refresher,
     });
@@ -430,7 +430,7 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    await expect(stateUnit.emit('mark:added', { annotationId: 'a-1' })).resolves.toBe(3);
+    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).resolves.toBe(3);
 
     stateUnit.dispose();
   });
@@ -448,8 +448,8 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    await expect(stateUnit.emit('mark:added', { annotationId: 'a-1' })).resolves.toBe(-1);
-    await expect(stateUnit.emit('mark:added', { annotationId: 'a-2' })).resolves.toBe(-1);
+    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).resolves.toBe(-1);
+    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-2' })).resolves.toBe(-1);
 
     stateUnit.dispose();
   });
@@ -474,7 +474,7 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    await expect(stateUnit.emit('match:search-requested', { correlationId: 'c-1' }))
+    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' }))
       .rejects.toThrow(/400.*Bus emit validation failed/);
 
     stateUnit.dispose();
@@ -490,7 +490,7 @@ describe('createActorStateUnit', () => {
 
     const stateUnit = createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: [] });
 
-    await expect(stateUnit.emit('mark:added', { annotationId: 'a-1' })).resolves.toBe(-1);
+    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).resolves.toBe(-1);
     expect(mockFetch).toHaveBeenCalledTimes(2);
 
     stateUnit.dispose();
@@ -505,7 +505,7 @@ describe('createActorStateUnit', () => {
 
     const stateUnit = createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: [] });
 
-    await expect(stateUnit.emit('mark:added', { annotationId: 'a-1' })).rejects.toThrow(/401/);
+    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).rejects.toThrow(/401/);
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
     stateUnit.dispose();
@@ -519,7 +519,7 @@ describe('createActorStateUnit', () => {
 
     const stateUnit = createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: [] });
 
-    await expect(stateUnit.emit('mark:added', { annotationId: 'a-1' }))
+    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' }))
       .rejects.toMatchObject({ name: 'APIError', status: 403 });
 
     stateUnit.dispose();
@@ -535,11 +535,11 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    await stateUnit.emit('mark:added', { annotationId: 'a-1' });
+    await stateUnit.emit('beckon:hover', { annotationId: 'a-1' });
     const unscoped = JSON.parse(mockFetch.mock.calls[0][1].body);
     expect(unscoped.scope).toBeUndefined();
 
-    await stateUnit.emit('mark:added', { annotationId: 'a-2' }, 'res-99');
+    await stateUnit.emit('beckon:hover', { annotationId: 'a-2' }, 'res-99');
     const scoped = JSON.parse(mockFetch.mock.calls[1][1].body);
     expect(scoped.scope).toBe('res-99');
 
@@ -552,7 +552,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
     });
 
     const states: string[] = [];
@@ -578,7 +578,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
     });
 
     const states: string[] = [];
@@ -609,16 +609,16 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['test:big'],
+      channels: ['beckon:hover'],
     });
 
     const results: unknown[] = [];
-    stateUnit.on$('test:big').subscribe((v) => results.push(v));
+    stateUnit.stream('beckon:hover').subscribe((v) => results.push(v));
     stateUnit.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
     const payload = { blob: 'x'.repeat(5000) };
-    const frame = sseChunk('bus-event', JSON.stringify({ channel: 'test:big', payload }));
+    const frame = sseChunk('bus-event', JSON.stringify({ channel: 'beckon:hover', payload }));
 
     // Split the frame into three chunks at points that fall inside the
     // data line and before the terminating "\n\n".
@@ -647,31 +647,31 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['test:big'],
+      channels: ['beckon:hover'],
     });
 
     const results: unknown[] = [];
-    stateUnit.on$<{ n?: number; blob?: string }>('test:big').subscribe((v) => results.push(v));
+    stateUnit.stream('beckon:hover').subscribe((v) => results.push(v));
     stateUnit.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
     const payload = { blob: 'y'.repeat(50_000) };
-    const frame = sseChunk('bus-event', JSON.stringify({ channel: 'test:big', payload }));
+    const frame = sseChunk('bus-event', JSON.stringify({ channel: 'beckon:hover', payload }));
     // Many small slices; 599 is coprime with the frame length's structure,
     // so cuts land mid-line, on header boundaries, and inside the trailer.
     for (let i = 0; i < frame.length; i += 599) {
       sse.push(frame.slice(i, i + 599));
     }
     // A boundary exactly on the newline that terminates the data line.
-    const two = sseChunk('bus-event', JSON.stringify({ channel: 'test:big', payload: { n: 1 } }));
+    const two = sseChunk('bus-event', JSON.stringify({ channel: 'beckon:hover', payload: { n: 1 } }));
     const cut = two.indexOf('\n', two.indexOf('data: ')) + 1;
     sse.push(two.slice(0, cut));
     sse.push(two.slice(cut));
     // Two complete events plus the head of a third in one read; the tail
     // of the third arrives separately.
-    const third = sseChunk('bus-event', JSON.stringify({ channel: 'test:big', payload: { n: 2 } }));
-    const fourth = sseChunk('bus-event', JSON.stringify({ channel: 'test:big', payload: { n: 3 } }));
-    const fifth = sseChunk('bus-event', JSON.stringify({ channel: 'test:big', payload: { n: 4 } }));
+    const third = sseChunk('bus-event', JSON.stringify({ channel: 'beckon:hover', payload: { n: 2 } }));
+    const fourth = sseChunk('bus-event', JSON.stringify({ channel: 'beckon:hover', payload: { n: 3 } }));
+    const fifth = sseChunk('bus-event', JSON.stringify({ channel: 'beckon:hover', payload: { n: 4 } }));
     sse.push(third + fourth + fifth.slice(0, 10));
     sse.push(fifth.slice(10));
 
@@ -711,17 +711,17 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
     });
 
     const results: unknown[] = [];
-    stateUnit.on$('test:event').subscribe((v) => results.push(v));
+    stateUnit.stream('beckon:hover').subscribe((v) => results.push(v));
 
     stateUnit.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
     sse.push(sseChunk('ping', ''));
-    sse.push(sseChunk('bus-event', JSON.stringify({ channel: 'test:event', payload: { n: 1 } })));
+    sse.push(sseChunk('bus-event', JSON.stringify({ channel: 'beckon:hover', payload: { n: 1 } })));
 
     await vi.waitFor(() => expect(results).toHaveLength(1));
     expect(results).toEqual([{ n: 1 }]);
@@ -738,7 +738,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
       reconnectMs: 100,
     });
 
@@ -768,7 +768,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
     });
 
     const states: string[] = [];
@@ -799,7 +799,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
       lazyRemoveMs: 150,
     });
 
@@ -831,7 +831,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
       reconnectMs: 100,
     });
 
@@ -854,7 +854,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
     });
 
     const states: string[] = [];
@@ -879,7 +879,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
       // Long enough that the retry timer doesn't fire during the wait;
       // we want to stay in `reconnecting`.
       reconnectMs: 10_000,
@@ -915,7 +915,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
       // Long, so the retry timer doesn't fire during the wait — we want to
       // sit in `reconnecting` long enough to cross the degraded threshold.
       reconnectMs: 10_000,
@@ -963,7 +963,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
     });
     stateUnit.start();
     stateUnit.stop();
@@ -995,7 +995,7 @@ describe('createActorStateUnit', () => {
       channels: ['mark:added'],
       saveLastEventId: () => order.push('stash'),
     });
-    stateUnit.on$('mark:added').subscribe(() => order.push('apply'));
+    stateUnit.stream('mark:added').subscribe(() => order.push('apply'));
 
     stateUnit.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
@@ -1025,7 +1025,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
     });
     stateUnit.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
@@ -1059,7 +1059,7 @@ describe('createActorStateUnit', () => {
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'tok',
-      channels: ['test:event'],
+      channels: ['beckon:hover'],
     });
     const states: string[] = [];
     stateUnit.state$.subscribe((s) => states.push(s));
@@ -1093,7 +1093,7 @@ describe('createActorStateUnit', () => {
       channels: ['browse:annotations-result'],
     });
     const received: unknown[] = [];
-    stateUnit.on$('browse:annotations-result').subscribe((p) => received.push(p));
+    stateUnit.stream('browse:annotations-result').subscribe((p) => received.push(p));
     stateUnit.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
@@ -1133,7 +1133,7 @@ describe('createActorStateUnit', () => {
       channels: ['browse:resource-result'],
     });
     const received: unknown[] = [];
-    stateUnit.on$('browse:resource-result').subscribe((p) => received.push(p));
+    stateUnit.stream('browse:resource-result').subscribe((p) => received.push(p));
     stateUnit.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
@@ -1170,7 +1170,7 @@ describe('createActorStateUnit', () => {
       channels: ['browse:resource-result'],
     });
     const received: unknown[] = [];
-    stateUnit.on$('browse:resource-result').subscribe((p) => received.push(p));
+    stateUnit.stream('browse:resource-result').subscribe((p) => received.push(p));
     stateUnit.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
@@ -1228,12 +1228,12 @@ describe('createActorStateUnit', () => {
       channels: ['mark:added'],
     });
     const received: unknown[] = [];
-    stateUnit.on$('mark:added').subscribe((p) => received.push(p));
+    stateUnit.stream('mark:added').subscribe((p) => received.push(p));
     stateUnit.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
     const c2 = mockConn({ defer: true });
-    stateUnit.addChannels(['other:channel']);
+    stateUnit.addChannels(['beckon:sparkle']);
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
 
     const frame = sseChunkId(
@@ -1275,12 +1275,12 @@ describe('createActorStateUnit', () => {
       channels: ['mark:added'],
     });
     const received: unknown[] = [];
-    stateUnit.on$('mark:added').subscribe((p) => received.push(p));
+    stateUnit.stream('mark:added').subscribe((p) => received.push(p));
     stateUnit.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
     const c2 = mockConn({ defer: true });
-    stateUnit.addChannels(['other:channel']);
+    stateUnit.addChannels(['beckon:sparkle']);
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     c2.open();
 
@@ -1304,7 +1304,7 @@ describe('ActorStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
     // Constructed but never start()ed — the SSE/timer/reconnect machinery is
     // exercised by the suite above. Here we pin the lifecycle contract on the owned
-    // `state$` (A5/A6/inert). `events$` is internal (reached via on$()), not a field.
+    // `state$` (A5/A6/inert). `events$` is internal (reached via stream()), not a field.
     assertStateUnitAxioms({
       setup: () => createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: ['gather:requested'] }),
       surfaces: (u) => [u.state$],
@@ -1584,7 +1584,7 @@ describe('multi-scope subscription matrix', () => {
 
     // A scope addition forces a reconnect — the same path a make-before-break
     // handover takes, so this covers the overlap case D1 argues about.
-    su.addChannels(['scoped:ch'], 'res-1');
+    su.addChannels(['beckon:focus'], 'res-1');
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
 
     // Assert presence before equality: two `undefined`s are equal, so a
@@ -1616,7 +1616,7 @@ describe('multi-scope subscription matrix', () => {
     const subscribed = bodyOf(0).clientId;
 
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ subscribers: 1 }) });
-    await su.emit('mark:added', { annotationId: 'a-1' });
+    await su.emit('beckon:hover', { annotationId: 'a-1' });
 
     const emitBody = JSON.parse((mockFetch.mock.calls[1]![1] as { body: string }).body) as
       { clientId?: string; payload: Record<string, unknown> };

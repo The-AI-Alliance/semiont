@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, equalJitter, isRetryableRequestError, type components, type ConnectionState, type StateUnit, type RetryPolicy } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, equalJitter, isRetryableRequestError, type components, type ConnectionState, type EventMap, type StateUnit, type RetryPolicy } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -122,8 +122,24 @@ export const EMIT_RETRY: RetryPolicy = {
 export const LINGER_MS = 1_000;
 
 export interface ActorStateUnit extends StateUnit {
-  on$<T = Record<string, unknown>>(channel: string): Observable<T>;
-  emit(channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<number>;
+  /**
+   * These two restate `WorkerBus` (WORKER-BUS-TYPED-BY-CHANNEL D3), and they
+   * cannot stop: `WorkerBus` lives in `@semiont/sdk`, and **sdk depends on
+   * this package, not the reverse** — importing it here would invert the
+   * dependency. So the copy is a MIRROR that cannot be derived, and it is
+   * GATED instead: `sdk/state/lib/__tests__/worker-bus-types.test.ts` fails to
+   * compile if `ActorStateUnit` stops satisfying `WorkerBus`. Keep them in
+   * step by hand; the gate says when you have not.
+   *
+   * Until the signature was typed, this copy also *insulated* this package —
+   * its own `on$` calls resolved against the loose local declaration, so
+   * narrowing `WorkerBus` never reached them.
+   *
+   * `emitScope` is the one genuine addition, so `emit` widens rather than
+   * merely repeating.
+   */
+  stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
+  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], emitScope?: string): Promise<number>;
   state$: Observable<ConnectionState>;
   /**
    * Refused connects (SSE-AUTH-RESILIENCE P2). One `SseConnectError` per
@@ -133,14 +149,14 @@ export interface ActorStateUnit extends StateUnit {
    */
   errors$: Observable<SseConnectError>;
   /** With `scope`: upsert channels into that scope's matrix entry. Without: global channels. */
-  addChannels(channels: string[], scope?: string): void;
+  addChannels(channels: readonly (keyof EventMap)[], scope?: string): void;
   /**
    * Whether `channel` is in the current GLOBAL subscription set — i.e. the
    * gateway delivers it on this connection. Correlated replies always ride
    * global channels, so this is `busRequest`'s fail-fast probe on a
    * narrowed-subscription transport (see `BusRequestPrimitive.isSubscribed`).
    */
-  isSubscribed(channel: string): boolean;
+  isSubscribed(channel: keyof EventMap): boolean;
   /** With `scope`: remove channels from that scope's entry (empty entry drops the scope). Without: global channels. */
   removeChannels(channels: string[], scope?: string): void;
   /**
@@ -739,14 +755,17 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   };
 
   return {
-    on$<T = Record<string, unknown>>(channel: string): Observable<T> {
+    stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
       return shared$.pipe(
         filter((e) => e.channel === channel),
-        map((e) => e.payload as T),
+        // The ONE surviving assertion, and the only honest one: SSE frames
+        // arrive as untyped JSON, so something has to name their shape. It is
+        // keyed by the channel rather than chosen by the caller (D2).
+        map((e) => e.payload as EventMap[K]),
       );
     },
 
-    emit: async (channel: string, payload: Record<string, unknown>, emitScope?: string): Promise<number> => {
+    emit: async <K extends keyof EventMap>(channel: K, payload: EventMap[K], emitScope?: string): Promise<number> => {
       // EMIT logging + bus.emit span live at the transport contract layer
       // (`HttpTransport.emit`). ActorStateUnit is plumbing. We do propagate the
       // active span's W3C traceparent on the outbound POST so the gateway
@@ -819,9 +838,9 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
     errors$: errors$.asObservable(),
 
-    isSubscribed: (channel: string) => globalChannels.has(channel),
+    isSubscribed: (channel: keyof EventMap) => globalChannels.has(channel),
 
-    addChannels: (channels: string[], scope?: string) => {
+    addChannels: (channels: readonly (keyof EventMap)[], scope?: string) => {
       let changed = false;
       if (scope !== undefined) {
         let entry = scopedSubscriptions.get(scope);

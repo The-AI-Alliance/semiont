@@ -13,6 +13,7 @@
  * previously got two DIDs that way (.plans/bugs/agent-did-host-skew.md).
  */
 
+import type { EventMap } from '@semiont/core';
 import { startWorkerProcess } from './worker-process';
 import type { MarkCommitAwaits, DescriptorReadAwaits, DurabilityProbeAwaits } from './worker-process';
 import type { WorkerVitals, JobClaimAwaits } from './job-claim-adapter';
@@ -225,7 +226,10 @@ export const WORKER_AWAITED_OPERATIONS = [
 ] as const satisfies readonly BusOperationKey[];
 
 /** The derived global SSE channel set for a worker's transport. */
-export const WORKER_CHANNELS: readonly string[] = replyChannelsFor(WORKER_AWAITED_OPERATIONS);
+// `replyChannelsFor` already returns `EventName[]`; annotating this
+// `readonly string[]` threw that proof away and was the only reason a
+// transport's channel roster was ever wider than the registry.
+export const WORKER_CHANNELS: readonly (keyof EventMap)[] = replyChannelsFor(WORKER_AWAITED_OPERATIONS);
 
 /**
  * The build-time census gate (WORKER-ANCHORED-TEXT-CHANNEL F2).

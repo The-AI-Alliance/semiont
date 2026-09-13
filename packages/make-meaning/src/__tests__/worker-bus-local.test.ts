@@ -16,7 +16,7 @@ describe('workerBusOverEventBus', () => {
     const bus = workerBusOverEventBus(eventBus);
 
     const seen: unknown[] = [];
-    bus.on$('mark:added').subscribe((e) => seen.push(e));
+    bus.stream('mark:added').subscribe((e) => seen.push(e));
 
     const stored = { type: 'mark:added', resourceId: 'r1', payload: {}, metadata: { sequenceNumber: 3 } };
     eventBus.get('mark:added').next(stored as never);

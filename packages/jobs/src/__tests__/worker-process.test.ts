@@ -184,7 +184,7 @@ function makeFakeSessionAndAdapter() {
           return () => {};
         }),
         actor: {
-          on$: vi.fn((channel: string) => replyStream(channel).asObservable()),
+          stream: vi.fn((channel: string) => replyStream(channel).asObservable()),
           emit: transportEmit,
           // 'open' is the attach gate's pass value (BUS-ATTACH-GATE); anything
           // else holds every busRequest until it times out.
