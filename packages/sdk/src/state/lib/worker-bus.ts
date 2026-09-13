@@ -1,45 +1,40 @@
 /**
- * WorkerBus — minimal channel-bus surface that worker-side adapters
- * (e.g. `JobClaimAdapter` in `@semiont/jobs`, `SmelterActorStateUnit` in
- * `@semiont/make-meaning`) need.
+ * WorkerBus — what a worker-side adapter needs from a bus, which is
+ * `BusRequestPrimitive` plus the one thing an SSE connection has and an
+ * in-process bus does not: the ability to widen its subscription set.
  *
- * Transport-neutral by design. HTTP `ActorStateUnit` (from `@semiont/http-transport`)
- * satisfies it directly; an in-process worker can pass a small shim around
- * an `EventBus` with a `() => Promise<void>` `emit` that calls into the
- * actor system.
+ * Transport-neutral by design. HTTP `ActorStateUnit` (from
+ * `@semiont/http-transport`) satisfies it directly; an in-process worker
+ * passes `workerBusOverEventBus`, a shim around a core `EventBus`.
  *
- * `addChannels` is optional because in-process buses receive every emit
- * implicitly — only HTTP needs to widen its SSE subscription set to
- * include worker-only channels (`job:queued`, `yield:created`, etc.).
+ * It did not always extend anything. Until 2026-09-12 it restated `emit`,
+ * `state$` and `isSubscribed` itself and called its stream method `on$`,
+ * which left it a near-copy of `BusRequestPrimitive` differing in one
+ * method's NAME — so `workerBusAsPrimitive` existed purely to rename `on$`
+ * to `stream`, and every worker-side `busRequest` was routed through it.
+ * Renaming the method deleted the adapter and the duplication together
+ * (WORKER-BUS-TYPED-BY-CHANNEL D4/D6).
+ *
+ * The types come from the channel name, never from a caller (D1): there is
+ * no type parameter to supply and no channel outside `EventMap` to name.
+ * `stream` was `on$<T = Record<string, unknown>>(channel: string)`, and the
+ * default was the real damage — a payload nobody had typed and one typed
+ * wrongly were the same type, so `job:queued`'s consumer could hand-write a
+ * copy of the spec's shape, drop `userId`, and compile for months.
  */
 
-import type { Observable } from 'rxjs';
-import type { ConnectionState } from '@semiont/core';
+import type { BusRequestPrimitive, EventMap } from '@semiont/core';
 
-export interface WorkerBus {
-  on$<T = Record<string, unknown>>(channel: string): Observable<T>;
+export interface WorkerBus extends BusRequestPrimitive {
   /**
-   * Matches `ITransport.emit`'s return: subscriber count, `-1` = unknown.
-   * Worker callers ignore it — the reply channel is their ack — but the
-   * shape must stay assignable from `ActorStateUnit.emit`.
+   * Widen the receive path to include `channels`.
+   *
+   * Optional because in-process buses receive every emit implicitly — only
+   * an SSE connection has a subscription set to widen, and only it has to be
+   * told about worker-only channels (`job:queued`, `yield:created`).
+   *
+   * Registry keys, not strings: a channel this cannot name is a channel
+   * nothing declares.
    */
-  emit(channel: string, payload: Record<string, unknown>): Promise<number>;
-  /**
-   * Connection state of the stream that delivers replies. Required
-   * (.plans/BUS-ATTACH-GATE.md D2): worker-side `busRequest`s gate their
-   * emit on it — a worker's first `job:claim` right after connect is
-   * exactly the attach-window emit the gate exists for. HTTP
-   * `ActorStateUnit` exposes it already; in-process shims report `'open'`
-   * (delivery is synchronous — there is no window).
-   */
-  state$: Observable<ConnectionState>;
-  addChannels?(channels: readonly string[]): void;
-  /**
-   * Whether the receive path delivers `channel` (see
-   * `BusRequestPrimitive.isSubscribed` in `@semiont/core`). HTTP
-   * `ActorStateUnit` exposes it so worker-side `busRequest`s on a
-   * narrowed subscription fail fast; in-process shims deliver every
-   * channel and omit it.
-   */
-  isSubscribed?(channel: string): boolean;
+  addChannels?(channels: readonly (keyof EventMap)[]): void;
 }

@@ -24,7 +24,6 @@ import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { busRequest, isArray, isNumber, isObject, isString } from '@semiont/core';
 import type { UnitCursor } from '@semiont/core';
 import type { WorkerBus } from '@semiont/sdk';
-import { workerBusAsPrimitive } from './worker-bus-primitive.js';
 
 /**
  * The bus operation the claim path AWAITS (census declaration — see
@@ -178,7 +177,8 @@ export interface JobClaimAdapter {
  */
 export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaimAdapter {
   const { bus, jobTypes } = options;
-  const requestBus = workerBusAsPrimitive(bus);
+  // `WorkerBus` IS a `BusRequestPrimitive` — no adapter (D6).
+  const requestBus = bus;
 
   const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
   const isProcessing$ = new BehaviorSubject<boolean>(false);
@@ -250,7 +250,7 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
       bus.addChannels?.(['job:queued']);
 
       jobSubscription = bus
-        .on$<{ jobId: string; jobType: string; resourceId: string }>('job:queued')
+        .stream('job:queued')
         .subscribe((event) => {
           // Every announcement received — matching or not — proves the
           // transport is alive; stamp before any filtering.

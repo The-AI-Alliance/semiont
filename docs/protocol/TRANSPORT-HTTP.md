@@ -327,7 +327,7 @@ buffered-loss bug class reintroduced.
 
 The rule is pinned as liveness axiom **L3** (enforced by
 `assertExactlyOnceDelivery` from `@semiont/core/testing`): an event written to any *live*
-connection's stream is delivered to `on$` subscribers exactly once,
+connection's stream is delivered to `stream` subscribers exactly once,
 wherever a handover / reconnect / scope change lands relative to it.
 The property suite
 ([actor-liveness.property.test.ts](../../packages/http-transport/src/transport/__tests__/actor-liveness.property.test.ts))

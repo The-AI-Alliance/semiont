@@ -220,14 +220,18 @@ Three layers, deliberately, because each catches what the others structurally ca
 The Go tests overlap the TypeScript ones on purpose. Both languages generate from one registry, so today they are a second opinion rather than the only guard; that redundancy is the point, because an artifact checked only against the thing that generated it can agree with a mistake indefinitely.
 
 ```ts
-// HttpTransport, on SSE receive:
-for (const channel of BRIDGED_CHANNELS) {
-  this.actor.on$(channel).subscribe((payload) => {
-    for (const bus of this.bridges) {
-      bus.get(channel).next(payload);
-    }
+// HttpTransport, on SSE receive. The per-channel generic is load-bearing:
+// inside `bridge`, `K` is ONE channel, so `stream` and `bus.get` are provably
+// the same channel's payload. Written inline over the loop, `channel` is a
+// UNION — and calling `.next` on a union of `Subject`s widens the parameter to
+// the union of their payloads, so a `mark:added` payload would satisfy
+// `yield:created` with nothing to catch it.
+const bridge = <K extends keyof EventMap>(channel: K) => {
+  this.actor.stream(channel).subscribe((payload) => {
+    for (const bus of this.bridges) bus.get(channel).next(payload);
   });
-}
+};
+for (const channel of BRIDGED_CHANNELS) bridge(channel);
 ```
 
 This is the *fan-in* set — what the transport pushes onto the client's bus. The set the client emits is open-ended and uses `transport.emit(channel, payload)` directly.

@@ -63,10 +63,10 @@ export function createSmelterActorStateUnit(options: SmelterActorStateUnitOption
   let started = false;
 
   const events$ = merge(
-    ...SMELTER_CHANNELS.map((channel) => bus.on$<SmelterEvent>(channel)),
+    ...SMELTER_CHANNELS.map((channel) => bus.stream(channel)),
   );
 
-  const rebuildAnchors$ = bus.on$<EventMap['smelt:rebuild-anchors']>('smelt:rebuild-anchors');
+  const rebuildAnchors$ = bus.stream('smelt:rebuild-anchors');
 
   return {
     events$,

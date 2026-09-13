@@ -14,16 +14,21 @@
  */
 
 import { vi } from 'vitest';
-import { BehaviorSubject, Observable, Subject } from 'rxjs';
-import type { Annotation, ExtractionOutcome, ConnectionState, Logger, EventMap, IContentTransport, components } from '@semiont/core';
-import { annotationId as makeAnnotationId, resourceId as makeResourceId, userId as makeUserId } from '@semiont/core';
+import { BehaviorSubject, Observable } from 'rxjs';
+import type { Annotation, ExtractionOutcome, ConnectionState, Logger, EventMap, IContentTransport, ResourceDescriptor as CoreResourceDescriptor } from '@semiont/core';
+import { EventBus, annotationId as makeAnnotationId, resourceId as makeResourceId, userId as makeUserId } from '@semiont/core';
 import type { AnchoredTextStore } from '@semiont/content';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { BusRequestPrimitive } from '@semiont/core';
 import type { WorkerBus } from '@semiont/sdk';
 import type { SmelterChannel } from '../../smelter-actor-state-unit';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+// Core's ResourceDescriptor, not the raw generated one. They differ: core
+// derives `RawResourceDescriptor & { '@id': ResourceId }`, and the browse
+// reply channels carry the branded form. Aliasing the raw type here meant the
+// fake produced descriptors the gateway never sends — invisible while the
+// fake cast its way past the channel's type.
+type ResourceDescriptor = CoreResourceDescriptor;
 
 export const mockLogger: Logger = {
   debug: vi.fn(),
@@ -150,38 +155,32 @@ export const markEntityTagRemoved = (resourceId: string, entityType: string): Ev
  * so a test can only put on the bus what the bus actually carries.
  */
 export function createFakeWorkerBus() {
-  const streams = new Map<string, Subject<unknown>>();
-  const channels = new Set<string>();
-  const stream = (channel: string): Subject<unknown> => {
-    let s = streams.get(channel);
-    if (!s) {
-      s = new Subject<unknown>();
-      streams.set(channel, s);
-    }
-    return s;
-  };
+  // A real `EventBus` rather than a `Map<string, Subject<unknown>>`: core's
+  // bus is already typed per channel, so the fake needs no cast and is truer
+  // to what production hands the state unit. The map version forced the one
+  // cast this comment used to apologise for.
+  const eventBus = new EventBus();
+  const channels = new Set<keyof EventMap>();
   const bus: WorkerBus = {
-    addChannels: vi.fn((cs: readonly string[]) => {
+    addChannels: vi.fn((cs: readonly (keyof EventMap)[]) => {
       cs.forEach((c) => channels.add(c));
     }),
-    // The one unavoidable cast: `WorkerBus.on$<T>(channel: string)` takes a
-    // free `T` it cannot derive from the channel, so no implementation can
-    // produce one without asserting it. Typing `on$` by channel removes it.
-    on$: <T,>(channel: string) => stream(channel).asObservable() as Observable<T>,
+    stream: <K extends keyof EventMap>(channel: K) => eventBus.get(channel).asObservable(),
     state$: new BehaviorSubject<ConnectionState>('open'),
     emit: vi.fn(async () => -1),
   };
   return {
     bus,
     channels,
-    push: <K extends SmelterChannel>(channel: K, event: EventMap[K]) => stream(channel).next(event),
+    push: <K extends SmelterChannel>(channel: K, event: EventMap[K]) =>
+      eventBus.get(channel).next(event),
   };
 }
 
 export function resourceDescriptor(id: string, mediaType = 'text/plain', checksum?: string, entityTypes: string[] = []): ResourceDescriptor {
   return {
     '@context': 'https://schema.org',
-    '@id': id,
+    '@id': makeResourceId(id),
     name: id,
     ...(entityTypes.length ? { entityTypes } : {}),
     representations: [{ mediaType, storageUri: `file://${id}.txt`, ...(checksum ? { checksum } : {}) }],
@@ -276,33 +275,53 @@ export function memoryAnchoredStore(
   };
 }
 
+/**
+ * A `BusRequestPrimitive` that answers the browse reads the Smelter makes.
+ *
+ * Over a real `EventBus`, not a `Map<string, Subject<Record<string, unknown>>>`.
+ * The map version was weaker than the interface it faked: `BusRequestPrimitive`
+ * has been channel-typed all along, and the fake cast its way out of that with
+ * `channel(name as string) as unknown as Observable<EventMap[K]>` — so its
+ * canned replies could drift from the spec with nothing to say so, which is
+ * exactly how `job:queued`'s consumer lost `userId` for months.
+ */
+/**
+ * One emit, with its channel and payload still paired. A plain
+ * `{ channel: keyof EventMap; payload: <union> }` pairs every channel with
+ * every payload, so `.payload.resourceId` would not typecheck even for an
+ * emit we know the channel of.
+ */
+export type Emitted = { [K in keyof EventMap]: { channel: K; payload: EventMap[K] } }[keyof EventMap];
+
 export function createFakeKsBus(
   resources: ResourceDescriptor[],
   annotationsByResource: Map<string, Annotation[]> = new Map(),
-): BusRequestPrimitive & { emitted: Array<{ channel: string; payload: Record<string, unknown> }> } {
-  const channels = new Map<string, Subject<Record<string, unknown>>>();
-  const channel = (name: string): Subject<Record<string, unknown>> => {
-    let subject = channels.get(name);
-    if (!subject) {
-      subject = new Subject<Record<string, unknown>>();
-      channels.set(name, subject);
-    }
-    return subject;
-  };
-  const emitted: Array<{ channel: string; payload: Record<string, unknown> }> = [];
+): BusRequestPrimitive & { emitted: readonly Emitted[] } {
+  const eventBus = new EventBus();
+  const emitted: Emitted[] = [];
 
   return {
     emitted,
     // In-process fake — replies are queued on emit, so 'open' is the truth.
     state$: new BehaviorSubject<ConnectionState>('open'),
     async emit<K extends keyof EventMap>(name: K, payload: EventMap[K]): Promise<number> {
-      const request = payload as Record<string, unknown>;
-      emitted.push({ channel: name as string, payload: request });
-      if (name === 'browse:resources-requested') {
-        const offset = (request.offset as number | undefined) ?? 0;
-        const limit = (request.limit as number | undefined) ?? 50;
-        queueMicrotask(() => channel('browse:resources-result').next({
-          correlationId: request.correlationId,
+      // The one assertion, and it buys every narrowing below. TypeScript
+      // correlates `channel` with `payload` on READ but not on WRITE through a
+      // type parameter: while `K` is unresolved it will not accept
+      // `{ channel: K; payload: EventMap[K] }` as a member of the union. The
+      // pair is correct by construction — it is this call's own arguments.
+      const request = { channel: name, payload } as Emitted;
+      emitted.push(request);
+
+      // `request.channel` narrows `request.payload`, so every field read below
+      // is checked against the registry instead of asserted off a
+      // `Record<string, unknown>`. The replies are checked too: they go onto a
+      // typed `EventBus`, so a canned response that is not the spec's shape is
+      // a compile error here rather than a passing test.
+      if (request.channel === 'browse:resources-requested') {
+        const { correlationId, offset = 0, limit = 50 } = request.payload;
+        queueMicrotask(() => eventBus.get('browse:resources-result').next({
+          correlationId,
           response: {
             resources: resources.slice(offset, offset + limit),
             total: resources.length,
@@ -311,23 +330,36 @@ export function createFakeKsBus(
             matchKind: 'lexical' as const,
           },
         }));
-      } else if (name === 'browse:resource-requested') {
-        const resource = resources.find((r) => r['@id'] === request.resourceId);
-        queueMicrotask(() => channel('browse:resource-result').next({
-          correlationId: request.correlationId,
-          response: { resource },
+      } else if (request.channel === 'browse:resource-requested') {
+        const { correlationId, resourceId } = request.payload;
+        const resource = resources.find((r) => r['@id'] === resourceId);
+        // Every id resolves: known ones from `resources`, unknown ones to a
+        // synthesized descriptor. That is the policy the old fake already
+        // had — it never failed a lookup — but it expressed "not found" by
+        // replying `{ resource: undefined }`, a shape no gateway sends and
+        // only a cast allowed. Suites here drive the Smelter with ids they
+        // never registered because the resource read is not what they test;
+        // failing those lookups would test something else.
+        const found = resource ?? resourceDescriptor(resourceId);
+        // The reply carries annotations and entityReferences too — another
+        // thing the cast hid, since the fake sent `{ resource }` alone.
+        const anns = annotationsByResource.get(resourceId) ?? [];
+        queueMicrotask(() => eventBus.get('browse:resource-result').next({
+          correlationId,
+          response: { resource: found, annotations: anns, entityReferences: [] },
         }));
-      } else if (name === 'browse:annotations-requested') {
-        const annotations = annotationsByResource.get(request.resourceId as string) ?? [];
-        queueMicrotask(() => channel('browse:annotations-result').next({
-          correlationId: request.correlationId,
+      } else if (request.channel === 'browse:annotations-requested') {
+        const { correlationId, resourceId } = request.payload;
+        const annotations = annotationsByResource.get(resourceId) ?? [];
+        queueMicrotask(() => eventBus.get('browse:annotations-result').next({
+          correlationId,
           response: { annotations, total: annotations.length },
         }));
       }
       return 1;
     },
     stream<K extends keyof EventMap>(name: K): Observable<EventMap[K]> {
-      return channel(name as string) as unknown as Observable<EventMap[K]>;
+      return eventBus.get(name).asObservable();
     },
   };
 }

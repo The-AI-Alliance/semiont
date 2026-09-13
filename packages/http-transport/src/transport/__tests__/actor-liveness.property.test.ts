@@ -119,7 +119,13 @@ function realActorSubject(): DeliverySubject {
   return {
     write: (id) => {
       conns[liveIdx].sse.push(
-        sseChunkId('bus-event', JSON.stringify({ channel: CHANNEL, payload: { id } }), `e-test:${id}`),
+        // The real `browse:resource-result` shape — the same one the L4 case
+        // below already used. `correlationId` carries the generated id.
+        sseChunkId(
+          'bus-event',
+          JSON.stringify({ channel: CHANNEL, payload: { correlationId: id, response: {} } }),
+          `e-test:${id}`,
+        ),
       );
     },
     transition: async () => {
@@ -153,7 +159,7 @@ function realActorSubject(): DeliverySubject {
       await vi.advanceTimersByTimeAsync(50);
     },
     teardown: () => actor.dispose(),
-    output$: actor.on$<{ id: string }>(CHANNEL).pipe(map((p) => p.id)),
+    output$: actor.stream(CHANNEL).pipe(map((p) => p.correlationId)),
   };
 }
 
@@ -234,7 +240,7 @@ describe('L4 — [bus LINGER] fires for a superseded-connection delivery', () =>
       channels: [CHANNEL],
     });
     const received: unknown[] = [];
-    actor.on$(CHANNEL).subscribe((p) => received.push(p));
+    actor.stream(CHANNEL).subscribe((p) => received.push(p));
     actor.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 

@@ -31,7 +31,7 @@ function fakeBus() {
     addChannels: vi.fn((cs: readonly string[]) => {
       cs.forEach((c) => channels.add(c));
     }),
-    on$: vi.fn((channel: string) => getStream(channel).asObservable()),
+    stream: vi.fn((channel: string) => getStream(channel).asObservable()),
     // In-process fixture: replies are pushed synchronously onto the streams
     // above, so 'open' is the truth, not a stub (BUS-ATTACH-GATE.md).
     state$: new BehaviorSubject<ConnectionState>('open'),

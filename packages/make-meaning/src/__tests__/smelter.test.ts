@@ -18,7 +18,7 @@
 
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { BehaviorSubject, EMPTY, Observable, Subject } from 'rxjs';
-import type { ExtractionOutcome, EventMap, components } from '@semiont/core';
+import type { ExtractionOutcome, EventMap, ResourceDescriptor as CoreResourceDescriptor } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId, chunkText } from '@semiont/core';
 import { calculateChecksum, extractPdfTextLayer } from '@semiont/content';
 
@@ -53,12 +53,13 @@ import {
   resourceDescriptor,
   createMockContentTransport,
   createContentTransport,
-  createFakeKsBus, memoryAnchoredStore,
+  createFakeKsBus, memoryAnchoredStore, type Emitted,
   createFakeWorkerBus, markRemoved,
   yieldCreated, yieldUpdated, yieldRepresentationAdded, markArchived, markUnarchived, markEntityTagAdded, markEntityTagRemoved } from './helpers/smelter-harness';
 import { NATIVE_PDF, SCANNED_PDF, TABLE_PDF } from './helpers/pdf-fixtures';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+// Core's branded descriptor — what the browse reply channels carry.
+type ResourceDescriptor = CoreResourceDescriptor;
 
 const tick = (ms = 400) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -289,8 +290,10 @@ describe('Smelter smelt:settled signal', () => {
   // existing decision points: 'indexed' after upsert, 'skipped' at the media
   // gate / empty text, and NOTHING on transient failures (an error is not a
   // decision — A2). Keyed by the checksum of the bytes inspected (D2).
-  function settledSignals(bus: { emitted: Array<{ channel: string; payload: Record<string, unknown> }> }) {
-    return bus.emitted.filter((e) => e.channel === 'smelt:settled').map((e) => e.payload);
+  function settledSignals(bus: { emitted: readonly Emitted[] }) {
+    return bus.emitted
+      .filter((e) => e.channel === 'smelt:settled')
+      .map((e) => e.payload);
   }
 
   async function harness(content: Map<string, string>, contentType = 'text/plain') {
@@ -414,7 +417,7 @@ describe('Smelter smelt:settled signal', () => {
 });
 
 describe('Smelter PDF embedding (Phase 1 — SMELTER-MEDIA-TYPES #744)', () => {
-  function settled(bus: { emitted: Array<{ channel: string; payload: Record<string, unknown> }> }) {
+  function settled(bus: { emitted: readonly Emitted[] }) {
     return bus.emitted.filter((e) => e.channel === 'smelt:settled').map((e) => e.payload);
   }
 
@@ -1031,12 +1034,20 @@ describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHOR
     );
     smelter.initialize();
 
+    // A type predicate, so `filter` narrows the ARRAY and the found reply
+    // keeps its channel↔payload pairing. A compound `find` predicate narrows
+    // inside the callback only, which is how `.payload.message` used to be
+    // read off a union that does not have it on every arm.
+    const isRebuildReply = (
+      e: Emitted,
+    ): e is Extract<Emitted, { channel: 'smelt:rebuild-anchors-ok' | 'smelt:rebuild-anchors-failed' }> =>
+      e.channel === 'smelt:rebuild-anchors-ok' || e.channel === 'smelt:rebuild-anchors-failed';
+
     const reply = async (correlationId: string) => {
       for (let i = 0; i < 200; i++) {
-        const hit = bus.emitted.find(
-          (e) => (e.channel === 'smelt:rebuild-anchors-ok' || e.channel === 'smelt:rebuild-anchors-failed')
-            && e.payload.correlationId === correlationId,
-        );
+        const hit = bus.emitted
+          .filter(isRebuildReply)
+          .find((e) => e.payload.correlationId === correlationId);
         if (hit) return hit;
         await new Promise((r) => setTimeout(r, 25));
       }
@@ -1082,8 +1093,12 @@ describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHOR
 
       // A rebuild that quietly skipped a resource would present exactly like
       // a document with no text — so it must not claim success.
-      expect(reply.channel).toBe('smelt:rebuild-anchors-failed');
-      expect(String(reply.payload.message)).toMatch(/1 of 2/);
+      // A narrowing assertion, not just an expectation: `message` exists on
+      // the failure arm only, so the check has to reach the type system too.
+      if (reply.channel !== 'smelt:rebuild-anchors-failed') {
+        throw new Error(`expected a failure reply, got ${reply.channel}`);
+      }
+      expect(reply.payload.message).toMatch(/1 of 2/);
       expect([...h.anchored.keys()]).toEqual([CS_A]);
     } finally {
       h.smelter.stop();

@@ -130,8 +130,12 @@ export interface BusRequestPrimitive {
    * the set fails fast with `bus.unsubscribed` instead of burning its
    * timeout on a reply that could never arrive. OPTIONAL: an in-process
    * transport delivers every channel and omits it.
+   *
+   * Registry keys, not strings: asking about a channel `EventMap` does not
+   * declare has no useful answer, and `busRequest` only ever asks about
+   * reply channels it derived from the registry in the first place.
    */
-  isSubscribed?(channel: string): boolean;
+  isSubscribed?(channel: keyof EventMap): boolean;
 }
 
 /**
@@ -167,7 +171,7 @@ export async function busRequest<Op extends BusOperationKey>(
   // that reads as network weather.
   if (bus.isSubscribed) {
     for (const replyChannel of [resultChannel, failureChannel]) {
-      if (!bus.isSubscribed(replyChannel as string)) {
+      if (!bus.isSubscribed(replyChannel)) {
         throw new BusRequestError(
           `Transport is not subscribed to reply channel ${replyChannel as string} — a reply to ${operation} can never arrive. Add this operation's reply channels to the transport's channel set.`,
           'bus.unsubscribed',

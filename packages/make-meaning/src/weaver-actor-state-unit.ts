@@ -55,10 +55,10 @@ export function createWeaverActorStateUnit(options: WeaverActorStateUnitOptions)
   // fold needs payload AND storage metadata (sequence numbers feed
   // `lastProcessed` / `weave:applied`).
   const events$ = merge(
-    ...WEAVER_CHANNELS.map((channel) => bus.on$<StoredEvent>(channel)),
+    ...WEAVER_CHANNELS.map((channel) => bus.stream(channel)),
   );
 
-  const rebuilds$ = bus.on$<EventMap['weave:rebuild']>('weave:rebuild');
+  const rebuilds$ = bus.stream('weave:rebuild');
 
   return {
     events$,

@@ -8,19 +8,21 @@
  * smelter fan-in's doc anticipated exactly this ("an in-process bus shim
  * if/when one exists").
  *
- * The WorkerBus surface is stringly-typed by design — channel names are
- * wire strings on every transport — so the EventMap typing is re-asserted
- * at the consumer boundary (e.g. the fan-in's `on$<StoredEvent>`), not here.
+ * No assertion here, and none needed: `WorkerBus` is now typed by channel
+ * (WORKER-BUS-TYPED-BY-CHANNEL) and `EventBus.get` already was, so the two
+ * agree on their own. The previous version cast twice —
+ * `channel as EventName` and `as unknown as Observable<T>` — to bridge a
+ * typed bus to an untyped surface, and called the erasure deliberate.
  */
 
 import { BehaviorSubject, type Observable } from 'rxjs';
-import type { ConnectionState, EventBus, EventMap, EventName } from '@semiont/core';
+import type { ConnectionState, EventBus, EventMap } from '@semiont/core';
 import type { WorkerBus } from '@semiont/sdk';
 
 export function workerBusOverEventBus(eventBus: EventBus): WorkerBus {
   return {
-    on$: <T = Record<string, unknown>>(channel: string): Observable<T> =>
-      eventBus.get(channel as EventName) as unknown as Observable<T>,
+    stream: <K extends keyof EventMap>(channel: K): Observable<EventMap[K]> =>
+      eventBus.get(channel).asObservable(),
 
     // In-process delivery is synchronous — there is no attach window to
     // lose a reply in, so `'open'` is the true state, not a stub. Post-
@@ -29,8 +31,10 @@ export function workerBusOverEventBus(eventBus: EventBus): WorkerBus {
     // (X1): the subject's mutators must not leak to consumers.
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
 
-    emit: async (channel: string, payload: Record<string, unknown>): Promise<number> => {
-      eventBus.get(channel as EventName).next(payload as EventMap[EventName]);
+    emit: async <K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<number> => {
+      // Two casts gone with the signature: `channel as EventName` and
+      // `payload as EventMap[EventName]`. Under one `K` the bus agrees.
+      eventBus.get(channel).next(payload);
       // In-process: no subscriber accounting — the ITransport "unknown" sentinel.
       return -1;
     },

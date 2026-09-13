@@ -33,7 +33,6 @@ import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourc
 
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components, AssembledAnnotation, Annotation, UnitCursor } from '@semiont/core';
-import { workerBusAsPrimitive } from './worker-bus-primitive.js';
 import { extractPdfTextLayer, type ContentReads } from '@semiont/content';
 import { prepareDetection } from './workers/detection/prepare-detection';
 import { classifyFailure, DeterministicJobError } from './failure-class';
@@ -168,7 +167,7 @@ async function commitAnnotations(
   if (annotations.length === 0) return undefined;
   try {
     await busRequest(
-      workerBusAsPrimitive((session.client.transport as HttpTransport).actor),
+      (session.client.transport as HttpTransport).actor,
       'mark:commit' satisfies MarkCommitAwaits,
       { resourceId, annotations },
       MARK_COMMIT_TIMEOUT_MS,
