@@ -18,6 +18,7 @@ import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 export type { PDFDocumentProxy };
 
 let workerSrc: string | undefined;
+let wasmUrl: string | undefined;
 
 /**
  * Supply the (Vite-resolved) pdf.js worker URL. Call once at app startup,
@@ -25,6 +26,23 @@ let workerSrc: string | undefined;
  */
 export function setPdfWorkerSrc(src: string): void {
   workerSrc = src;
+}
+
+/**
+ * Supply the directory URL (trailing slash) where pdf.js's wasm side-files
+ * are served — `openjpeg.wasm`, `jbig2.wasm`, `qcms_bg.wasm` and their JS
+ * fallbacks, under their ORIGINAL names: pdf.js builds each fetch URL as
+ * `wasmUrl + filename` itself, so a bundler-hashed asset can never be found.
+ * The host stages them (apps/browser: `scripts/copy-pdf-wasm.js` →
+ * `public/pdfjs/wasm/`) for the same reason the worker URL is handed in:
+ * this tsup-built library cannot resolve assets.
+ *
+ * Without it, pdf.js v6 cannot decode JPEG 2000 or JBIG2 images at all —
+ * scanned PDFs render without their images, and a page can wedge on the
+ * failed decode ("Dependent image isn't ready yet").
+ */
+export function setPdfWasmUrl(url: string): void {
+  wasmUrl = url;
 }
 
 let pdfjsPromise: Promise<typeof import('pdfjs-dist')> | undefined;
@@ -48,7 +66,7 @@ async function getPdfjs(): Promise<typeof import('pdfjs-dist')> {
  */
 export async function loadPdfDocument(url: string): Promise<PDFDocumentProxy> {
   const pdfjsLib = await getPdfjs();
-  return pdfjsLib.getDocument({ url }).promise;
+  return pdfjsLib.getDocument({ url, ...(wasmUrl ? { wasmUrl } : {}) }).promise;
 }
 
 /**

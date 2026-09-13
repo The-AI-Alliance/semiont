@@ -7,7 +7,7 @@ import App from './App';
 import './i18n/config'; // initialise i18next
 import './app/globals.css';
 import './styles/animations.css';
-import { setPdfWorkerSrc } from '@semiont/react-ui';
+import { setPdfWorkerSrc, setPdfWasmUrl } from '@semiont/react-ui';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // Hand react-ui the (Vite-resolved) pdf.js worker URL once at startup. This is
@@ -15,6 +15,12 @@ import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 // opened, so it stays code-split out of the main bundle. Replaces the old CDN
 // `copy-pdfjs.js` staging.
 setPdfWorkerSrc(pdfWorkerUrl);
+// The wasm image decoders (JPEG 2000, JBIG2, ICC) are fetched by pdf.js as
+// `wasmUrl + <original filename>`, so they are staged into public/ by
+// scripts/copy-pdf-wasm.js rather than bundled — a hashed asset name could
+// never be found. Without this, scanned PDFs lose their images and page
+// renders can wedge on the failed decode.
+setPdfWasmUrl(`${import.meta.env.BASE_URL}pdfjs/wasm/`);
 
 // Tier 2 observability. The OTel web SDK is hefty — code-splitting via
 // dynamic import keeps it out of the main bundle entirely when no
