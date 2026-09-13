@@ -63,6 +63,64 @@ type PdfSel = { type: string; value?: string; conformsTo?: string; exact?: strin
 const sels = (ann: ReturnType<typeof buildPdfAnnotation>): PdfSel[] => ann.target.selector as PdfSel[];
 const frags = (ann: ReturnType<typeof buildPdfAnnotation>) => sels(ann).filter(s => s.type === 'FragmentSelector');
 
+// A layer identical to LAYER except that one character of leading text has been
+// inserted — the shape a re-extraction takes if it ever emits one more (or one
+// fewer) character before the same visual span. Every offset shifts by one; the
+// GEOMETRY is untouched, because the words are still drawn in the same places.
+const SHIFTED_LAYER: PdfTextLayer = {
+  pages: [{ pageNumber: 1, widthPt: 612, heightPt: 792, textStart: 0, textEnd: 23, hasTextLayer: true }],
+  text: ' alpha beta\ngamma delta',
+  items: [
+    { start: 1,  end: 6,  page: 1, x: 72,  y: 720, width: 40, height: 12 }, // alpha
+    { start: 7,  end: 11, page: 1, x: 118, y: 720, width: 34, height: 12 }, // beta
+    { start: 12, end: 17, page: 1, x: 72,  y: 700, width: 45, height: 12 }, // gamma
+    { start: 18, end: 23, page: 1, x: 125, y: 700, width: 42, height: 12 }, // delta
+  ],
+  fields: [],
+};
+
+describe('a PDF annotation is identified by offsets it does not carry', () => {
+  // The defect, stated executably. `buildPdfAnnotation` deliberately stores NO
+  // TextPositionSelector — its own comment says the text layer is a derived
+  // artifact whose offsets are not a durable anchor — and then hashes the id
+  // over exactly those offsets.
+  //
+  // So two builds of the SAME visual span, against two extractions that differ
+  // only by a leading character, produce annotations that are identical in every
+  // stored field and different in `id`. Every dedupe layer keys on `id` and
+  // therefore lets both through, correctly; the identity was wrong upstream, and
+  // an operator sees duplicates with no error anywhere.
+  //
+  // This test asserts TODAY's behavior, and it is written to be FLIPPED if the
+  // identity is ever moved onto the durable anchor: the two ids would then be
+  // equal and the assertion below becomes `toBe`.
+  const span = { exact: 'gamma', start: 11, end: 16 };
+  const shifted = { exact: 'gamma', start: 12, end: 17 };
+
+  it('mints a DIFFERENT id for the same span when the extraction shifts by one character', () => {
+    const a = buildPdfAnnotation(LAYER, RID, USER_DID, GENERATOR, 'highlighting', span);
+    const b = buildPdfAnnotation(SHIFTED_LAYER, RID, USER_DID, GENERATOR, 'highlighting', shifted);
+
+    expect(a.id).not.toBe(b.id);
+  });
+
+  it('…while every field it actually STORES is identical — which is why the drift has no signature', () => {
+    const a = buildPdfAnnotation(LAYER, RID, USER_DID, GENERATOR, 'highlighting', span);
+    const b = buildPdfAnnotation(SHIFTED_LAYER, RID, USER_DID, GENERATOR, 'highlighting', shifted);
+
+    // Geometry: same page, same rectangle — the span did not move on the page.
+    expect(frags(b)).toEqual(frags(a));
+    // Quoted text: same.
+    const quoted = (ann: ReturnType<typeof buildPdfAnnotation>) =>
+      sels(ann).filter((sel) => sel.type === 'TextQuoteSelector').map((sel) => sel.exact);
+    expect(quoted(b)).toEqual(quoted(a));
+    // And neither carries the offsets their ids were computed from.
+    for (const ann of [a, b]) {
+      expect(sels(ann).some((sel) => sel.type === 'TextPositionSelector')).toBe(false);
+    }
+  });
+});
+
 describe('buildPdfAnnotation (#736 geometry tail)', () => {
   it('single-line span -> one FragmentSelector + a TextQuoteSelector, and no TextPositionSelector', () => {
     const ann = buildPdfAnnotation(LAYER, RID, USER_DID, GENERATOR, 'highlighting',
