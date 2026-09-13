@@ -36,7 +36,8 @@
     "pageOf": "Trang {{page}} / {{total}}",
     "pagination": "Điều hướng trang",
     "previous": "Trước",
-    "viewerLoading": "Đang tải trình xem PDF..."
+    "viewerLoading": "Đang tải trình xem PDF...",
+    "preparingTextLayer": "Đang chuẩn bị lớp văn bản — chú thích sẽ bật khi sẵn sàng"
   },
   "Toolbar": {
     "annotations": "Chú thích",
@@ -68,7 +69,12 @@
     "createdAt": "Ngày tạo",
     "modifiedAt": "Ngày sửa đổi",
     "attributedTo": "Được gán cho",
-    "derivedFrom": "Bắt nguồn từ"
+    "derivedFrom": "Bắt nguồn từ",
+    "textLayer": "Lớp văn bản",
+    "textLayerReady": "Sẵn sàng",
+    "textLayerPreparing": "Đang chuẩn bị…",
+    "textLayerNone": "Không có — không có văn bản trích xuất được",
+    "textLayerNotApplicable": "Không áp dụng"
   },
   "CollaborationPanel": {
     "title": "Cộng tác",

@@ -36,7 +36,8 @@
     "pageOf": "Sayfa {{page}} / {{total}}",
     "pagination": "Sayfa gezinmesi",
     "previous": "Önceki",
-    "viewerLoading": "PDF görüntüleyici yükleniyor..."
+    "viewerLoading": "PDF görüntüleyici yükleniyor...",
+    "preparingTextLayer": "Metin katmanı hazırlanıyor — hazır olduğunda ek açıklama etkinleşecek"
   },
   "Toolbar": {
     "annotations": "Açıklamalar",
@@ -68,7 +69,12 @@
     "createdAt": "Oluşturulma",
     "modifiedAt": "Değiştirilme",
     "attributedTo": "Atfedilen",
-    "derivedFrom": "Kaynağı"
+    "derivedFrom": "Kaynağı",
+    "textLayer": "Metin katmanı",
+    "textLayerReady": "Hazır",
+    "textLayerPreparing": "Hazırlanıyor…",
+    "textLayerNone": "Yok — çıkarılabilir metin yok",
+    "textLayerNotApplicable": "Uygulanamaz"
   },
   "CollaborationPanel": {
     "title": "İşbirliği",

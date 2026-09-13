@@ -36,7 +36,8 @@
     "pageOf": "第 {{page}} 页，共 {{total}} 页",
     "pagination": "页面导航",
     "previous": "上一页",
-    "viewerLoading": "正在加载 PDF 查看器..."
+    "viewerLoading": "正在加载 PDF 查看器...",
+    "preparingTextLayer": "正在准备文本层 — 就绪后将启用批注"
   },
   "Toolbar": {
     "annotations": "注释",
@@ -68,7 +69,12 @@
     "createdAt": "创建时间",
     "modifiedAt": "修改时间",
     "attributedTo": "归属于",
-    "derivedFrom": "派生自"
+    "derivedFrom": "派生自",
+    "textLayer": "文本层",
+    "textLayerReady": "就绪",
+    "textLayerPreparing": "准备中…",
+    "textLayerNone": "无 — 没有可提取的文本",
+    "textLayerNotApplicable": "不适用"
   },
   "CollaborationPanel": {
     "title": "协作",

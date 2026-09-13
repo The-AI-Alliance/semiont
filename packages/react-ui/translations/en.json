@@ -36,7 +36,8 @@
     "pageOf": "Page {{page}} of {{total}}",
     "pagination": "Page navigation",
     "previous": "Previous",
-    "viewerLoading": "Loading PDF viewer..."
+    "viewerLoading": "Loading PDF viewer...",
+    "preparingTextLayer": "Preparing the text layer — annotation will enable when it is ready"
   },
   "Toolbar": {
     "annotations": "Annotations",
@@ -68,7 +69,12 @@
     "createdAt": "Created",
     "modifiedAt": "Modified",
     "attributedTo": "Attributed to",
-    "derivedFrom": "Derived from"
+    "derivedFrom": "Derived from",
+    "textLayer": "Text layer",
+    "textLayerReady": "Ready",
+    "textLayerPreparing": "Preparing…",
+    "textLayerNone": "None — no extractable text",
+    "textLayerNotApplicable": "Not applicable"
   },
   "CollaborationPanel": {
     "title": "Collaboration",

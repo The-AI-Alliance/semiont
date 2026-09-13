@@ -36,7 +36,8 @@
     "pageOf": "Σελίδα {{page}} από {{total}}",
     "pagination": "Πλοήγηση σελίδων",
     "previous": "Προηγούμενη",
-    "viewerLoading": "Φόρτωση προβολής PDF..."
+    "viewerLoading": "Φόρτωση προβολής PDF...",
+    "preparingTextLayer": "Προετοιμασία του επιπέδου κειμένου — ο σχολιασμός θα ενεργοποιηθεί όταν είναι έτοιμο"
   },
   "Toolbar": {
     "annotations": "Σχολιασμοί",
@@ -68,7 +69,12 @@
     "createdAt": "Δημιουργήθηκε",
     "modifiedAt": "Τροποποιήθηκε",
     "attributedTo": "Αποδίδεται σε",
-    "derivedFrom": "Παράγεται από"
+    "derivedFrom": "Παράγεται από",
+    "textLayer": "Επίπεδο κειμένου",
+    "textLayerReady": "Έτοιμο",
+    "textLayerPreparing": "Προετοιμάζεται…",
+    "textLayerNone": "Κανένα — χωρίς εξαγώγιμο κείμενο",
+    "textLayerNotApplicable": "Δεν ισχύει"
   },
   "CollaborationPanel": {
     "title": "Συνεργασία",

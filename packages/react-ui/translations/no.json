@@ -36,7 +36,8 @@
     "pageOf": "Side {{page}} av {{total}}",
     "pagination": "Sidenavigasjon",
     "previous": "Forrige",
-    "viewerLoading": "Laster PDF-viser..."
+    "viewerLoading": "Laster PDF-viser...",
+    "preparingTextLayer": "Forbereder tekstlaget — annotering aktiveres når det er klart"
   },
   "Toolbar": {
     "annotations": "Annoteringer",
@@ -68,7 +69,12 @@
     "createdAt": "Opprettet",
     "modifiedAt": "Endret",
     "attributedTo": "Tilskrevet",
-    "derivedFrom": "Avledet fra"
+    "derivedFrom": "Avledet fra",
+    "textLayer": "Tekstlag",
+    "textLayerReady": "Klar",
+    "textLayerPreparing": "Forberedes…",
+    "textLayerNone": "Ingen — ingen tekst å hente ut",
+    "textLayerNotApplicable": "Ikke aktuelt"
   },
   "CollaborationPanel": {
     "title": "Samarbeid",

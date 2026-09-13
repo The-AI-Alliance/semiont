@@ -36,7 +36,8 @@
     "pageOf": "Сторінка {{page}} з {{total}}",
     "pagination": "Навігація сторінками",
     "previous": "Попередня",
-    "viewerLoading": "Завантаження переглядача PDF..."
+    "viewerLoading": "Завантаження переглядача PDF...",
+    "preparingTextLayer": "Готується текстовий шар — анотування ввімкнеться, щойно він буде готовий"
   },
   "Toolbar": {
     "annotations": "Анотації",
@@ -68,7 +69,12 @@
     "createdAt": "Створено",
     "modifiedAt": "Змінено",
     "attributedTo": "Авторство",
-    "derivedFrom": "Походить від"
+    "derivedFrom": "Походить від",
+    "textLayer": "Текстовий шар",
+    "textLayerReady": "Готовий",
+    "textLayerPreparing": "Готується…",
+    "textLayerNone": "Немає — немає тексту для видобування",
+    "textLayerNotApplicable": "Не застосовно"
   },
   "CollaborationPanel": {
     "title": "Співпраця",

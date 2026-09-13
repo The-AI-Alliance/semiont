@@ -36,7 +36,8 @@
     "pageOf": "Strona {{page}} z {{total}}",
     "pagination": "Nawigacja stron",
     "previous": "Poprzednia",
-    "viewerLoading": "Ładowanie przeglądarki PDF..."
+    "viewerLoading": "Ładowanie przeglądarki PDF...",
+    "preparingTextLayer": "Przygotowywanie warstwy tekstu — adnotacje włączą się, gdy będzie gotowa"
   },
   "Toolbar": {
     "annotations": "Adnotacje",
@@ -68,7 +69,12 @@
     "createdAt": "Utworzono",
     "modifiedAt": "Zmodyfikowano",
     "attributedTo": "Przypisano do",
-    "derivedFrom": "Pochodzi z"
+    "derivedFrom": "Pochodzi z",
+    "textLayer": "Warstwa tekstu",
+    "textLayerReady": "Gotowa",
+    "textLayerPreparing": "Przygotowywanie…",
+    "textLayerNone": "Brak — brak tekstu do wyodrębnienia",
+    "textLayerNotApplicable": "Nie dotyczy"
   },
   "CollaborationPanel": {
     "title": "Współpraca",

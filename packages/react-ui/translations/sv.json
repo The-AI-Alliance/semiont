@@ -36,7 +36,8 @@
     "pageOf": "Sida {{page}} av {{total}}",
     "pagination": "Sidnavigering",
     "previous": "Föregående",
-    "viewerLoading": "Läser in PDF-visare..."
+    "viewerLoading": "Läser in PDF-visare...",
+    "preparingTextLayer": "Textlagret förbereds — annotering aktiveras när det är klart"
   },
   "Toolbar": {
     "annotations": "Annoteringar",
@@ -68,7 +69,12 @@
     "createdAt": "Skapad",
     "modifiedAt": "Ändrad",
     "attributedTo": "Tillskriven",
-    "derivedFrom": "Härledd från"
+    "derivedFrom": "Härledd från",
+    "textLayer": "Textlager",
+    "textLayerReady": "Klart",
+    "textLayerPreparing": "Förbereds…",
+    "textLayerNone": "Inget — ingen text att extrahera",
+    "textLayerNotApplicable": "Ej tillämpligt"
   },
   "CollaborationPanel": {
     "title": "Samarbete",

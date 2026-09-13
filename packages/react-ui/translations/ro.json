@@ -36,7 +36,8 @@
     "pageOf": "Pagina {{page}} din {{total}}",
     "pagination": "Navigare pagini",
     "previous": "Anterioară",
-    "viewerLoading": "Se încarcă vizualizatorul PDF..."
+    "viewerLoading": "Se încarcă vizualizatorul PDF...",
+    "preparingTextLayer": "Se pregătește stratul de text — adnotarea se va activa când este gata"
   },
   "Toolbar": {
     "annotations": "Adnotări",
@@ -68,7 +69,12 @@
     "createdAt": "Creat",
     "modifiedAt": "Modificat",
     "attributedTo": "Atribuit",
-    "derivedFrom": "Derivat din"
+    "derivedFrom": "Derivat din",
+    "textLayer": "Strat de text",
+    "textLayerReady": "Gata",
+    "textLayerPreparing": "Se pregătește…",
+    "textLayerNone": "Niciunul — fără text extractibil",
+    "textLayerNotApplicable": "Nu se aplică"
   },
   "CollaborationPanel": {
     "title": "Colaborare",

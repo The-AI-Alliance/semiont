@@ -36,7 +36,8 @@
     "pageOf": "পৃষ্ঠা {{page}} / {{total}}",
     "pagination": "পৃষ্ঠা নেভিগেশন",
     "previous": "পূর্ববর্তী",
-    "viewerLoading": "PDF ভিউয়ার লোড হচ্ছে..."
+    "viewerLoading": "PDF ভিউয়ার লোড হচ্ছে...",
+    "preparingTextLayer": "টেক্সট স্তর প্রস্তুত হচ্ছে — প্রস্তুত হলে টীকা সক্রিয় হবে"
   },
   "Toolbar": {
     "annotations": "টীকাসমূহ",
@@ -68,7 +69,12 @@
     "createdAt": "তৈরির তারিখ",
     "modifiedAt": "পরিবর্তনের তারিখ",
     "attributedTo": "সম্পাদককৃত",
-    "derivedFrom": "থেকে উৎপন্ন"
+    "derivedFrom": "থেকে উৎপন্ন",
+    "textLayer": "টেক্সট স্তর",
+    "textLayerReady": "প্রস্তুত",
+    "textLayerPreparing": "প্রস্তুত হচ্ছে…",
+    "textLayerNone": "নেই — নিষ্কাশনযোগ্য টেক্সট নেই",
+    "textLayerNotApplicable": "প্রযোজ্য নয়"
   },
   "CollaborationPanel": {
     "title": "সহযোগিতা",

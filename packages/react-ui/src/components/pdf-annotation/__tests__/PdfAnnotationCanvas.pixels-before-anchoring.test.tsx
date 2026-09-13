@@ -52,6 +52,7 @@ describe('PdfAnnotationCanvas — pixels before anchoring', () => {
     const resourceAnchoredText = vi.fn(() => new Promise(() => { /* never settles */ }));
     const session = {
       client: { browse: { resourceAnchoredText } },
+      subscribe: () => () => {},
     } as unknown as SemiontSession;
 
     render(
@@ -76,6 +77,7 @@ describe('PdfAnnotationCanvas — pixels before anchoring', () => {
     const resourceAnchoredText = vi.fn(() => new Promise((r) => { resolveMap = r; }));
     const session = {
       client: { browse: { resourceAnchoredText } },
+      subscribe: () => () => {},
     } as unknown as SemiontSession;
 
     render(

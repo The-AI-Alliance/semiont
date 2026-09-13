@@ -1,9 +1,11 @@
 'use client';
 
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { readyValue, type SemiontSession, type YieldOutcome } from '@semiont/sdk';
 import { formatLocaleDisplay } from '@semiont/core';
 import { resourceId as makeResourceId, type components } from '@semiont/core';
+import { useEventSubscription } from '../../../contexts/useEventSubscription';
 import { useObservable } from '../../../hooks/useObservable';
 import { renderAgentLabel } from './agent-label';
 import { AssistShell } from './AssistShell';
@@ -77,6 +79,27 @@ export function ResourceInfoPanel({
   const t = useTranslations('ResourceInfoPanel');
   const ta = useTranslations('AssistProgress');
 
+  // The text layer's standing — the user-facing face of `smelt:settled`
+  // (ANNOTATE-DEFERS-ON-NOT-YET). The row renders the wire's own vocabulary,
+  // translated; `unknown` and not-yet-asked render NO row: no claim, no
+  // invented state. The bridged settle for THIS resource refreshes in place.
+  const [textLayerKind, setTextLayerKind] = useState<'extracted' | 'declined' | 'not-yet' | 'no-map' | 'unknown' | null>(null);
+  const refreshTextLayer = useCallback(() => {
+    if (!session) return;
+    session.client.browse.resourceAnchoredText(makeResourceId(resourceId)).then(
+      (answer) => setTextLayerKind(answer.kind),
+      () => { /* transport failure: keep whatever stood — no claim */ },
+    );
+  }, [session, resourceId]);
+  useEffect(() => {
+    setTextLayerKind(null);
+    refreshTextLayer();
+  }, [refreshTextLayer]);
+  useEventSubscription('smelt:settled', (settled) => {
+    if (settled.resourceId === resourceId) refreshTextLayer();
+  });
+  const showTextLayerRow = textLayerKind !== null && textLayerKind !== 'unknown';
+
   // Single attribution surface. `wasAttributedTo` is the canonical list
   // of responsible parties; if a producer set only `generator` we
   // render that as the attribution chain.
@@ -106,7 +129,7 @@ export function ResourceInfoPanel({
       </div>
 
       {/* Representation Section */}
-      {(primaryMediaType || primaryByteSize !== undefined) && (
+      {(primaryMediaType || primaryByteSize !== undefined || showTextLayerRow) && (
         <div className="semiont-resource-info-panel__section">
           <h3 className="semiont-resource-info-panel__heading">{t('representation')}</h3>
           <div className="semiont-resource-info-panel__field-group">
@@ -123,6 +146,17 @@ export function ResourceInfoPanel({
                 <span className="semiont-resource-info-panel__label">{t('byteSize')}</span>
                 <span className="semiont-resource-info-panel__value">
                   {primaryByteSize.toLocaleString()} bytes
+                </span>
+              </div>
+            )}
+            {showTextLayerRow && (
+              <div>
+                <span className="semiont-resource-info-panel__label">{t('textLayer')}</span>
+                <span className="semiont-resource-info-panel__value" data-kind={textLayerKind}>
+                  {textLayerKind === 'extracted' ? t('textLayerReady')
+                    : textLayerKind === 'not-yet' ? t('textLayerPreparing')
+                    : textLayerKind === 'declined' ? t('textLayerNone')
+                    : t('textLayerNotApplicable')}
                 </span>
               </div>
             )}

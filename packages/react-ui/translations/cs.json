@@ -36,7 +36,8 @@
     "pageOf": "Strana {{page}} z {{total}}",
     "pagination": "Stránkování",
     "previous": "Předchozí",
-    "viewerLoading": "Načítání prohlížeče PDF..."
+    "viewerLoading": "Načítání prohlížeče PDF...",
+    "preparingTextLayer": "Připravuje se textová vrstva — anotace se zapne, až bude hotová"
   },
   "Toolbar": {
     "annotations": "Anotace",
@@ -68,7 +69,12 @@
     "createdAt": "Vytvořeno",
     "modifiedAt": "Upraveno",
     "attributedTo": "Připsáno",
-    "derivedFrom": "Odvozeno z"
+    "derivedFrom": "Odvozeno z",
+    "textLayer": "Textová vrstva",
+    "textLayerReady": "Připravena",
+    "textLayerPreparing": "Připravuje se…",
+    "textLayerNone": "Žádná — žádný extrahovatelný text",
+    "textLayerNotApplicable": "Nevztahuje se"
   },
   "CollaborationPanel": {
     "title": "Spolupráce",

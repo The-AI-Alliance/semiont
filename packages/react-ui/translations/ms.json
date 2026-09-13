@@ -36,7 +36,8 @@
     "pageOf": "Halaman {{page}} daripada {{total}}",
     "pagination": "Navigasi halaman",
     "previous": "Sebelumnya",
-    "viewerLoading": "Memuatkan pemapar PDF..."
+    "viewerLoading": "Memuatkan pemapar PDF...",
+    "preparingTextLayer": "Menyediakan lapisan teks — anotasi akan diaktifkan apabila sedia"
   },
   "Toolbar": {
     "annotations": "Anotasi",
@@ -68,7 +69,12 @@
     "createdAt": "Dicipta",
     "modifiedAt": "Diubah suai",
     "attributedTo": "Dikaitkan dengan",
-    "derivedFrom": "Diperoleh daripada"
+    "derivedFrom": "Diperoleh daripada",
+    "textLayer": "Lapisan teks",
+    "textLayerReady": "Sedia",
+    "textLayerPreparing": "Sedang disediakan…",
+    "textLayerNone": "Tiada — tiada teks boleh diekstrak",
+    "textLayerNotApplicable": "Tidak berkenaan"
   },
   "CollaborationPanel": {
     "title": "Kolaborasi",
