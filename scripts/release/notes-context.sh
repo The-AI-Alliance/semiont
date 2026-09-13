@@ -67,18 +67,44 @@ echo "$PRS" | jq -r '
   echo
   echo "## Planning docs touched in this window"
   echo
-  echo "_Untracked, so matched by modification time. Read the ones behind the big PRs —"
-  echo "their Date / Origin / Status headers usually carry the whole story._"
+  echo "**A plan appearing here is NOT evidence its work shipped.** These are matched by"
+  echo "modification time only, so the list includes plans that were written, revised, or"
+  echo "abandoned in this window without being executed. The merged PRs above are the"
+  echo "evidence of what shipped; a plan supplies the *why* behind work that already"
+  echo "appears there. Never write a release-note claim whose only source is a plan."
   echo
 } >> "$OUT"
 
 if [ -d "$ROOT/.plans" ]; then
-  found=0
-  while IFS= read -r f; do
-    found=1
-    printf -- '- %s  (modified %s)\n' "${f#"$ROOT"/}" "$(date -r "$f" '+%Y-%m-%d %H:%M')"
-  done < <(find "$ROOT/.plans" -name '*.md' -newermt "$SINCE" 2>/dev/null | sort) >> "$OUT"
-  [ "$found" -eq 1 ] || echo "_none modified since ${SINCE}_" >> "$OUT"
+  # BSD find cannot parse an ISO8601 timestamp: `-newermt 2026-09-10T02:56:55Z`
+  # fails with "Can't parse date/time", and silencing that error turns nine
+  # modified plans into a confident "none". Convert the timestamp once and
+  # compare against a marker file, which every find accepts.
+  MARKER="$(mktemp)"
+  STAMP=$(date -ju -f '%Y-%m-%dT%H:%M:%SZ' "$SINCE" '+%Y%m%d%H%M.%S' 2>/dev/null \
+          || date -u -d "$SINCE" '+%Y%m%d%H%M.%S' 2>/dev/null)
+  if [ -z "$STAMP" ]; then
+    echo "cannot convert $SINCE for this platform's find" >&2
+    rm -f "$MARKER"; exit 2
+  fi
+  touch -t "$STAMP" "$MARKER"
+
+  # No 2>/dev/null here: a broken scan must be visible, not read as an empty one.
+  PLANS=$(find "$ROOT/.plans" -name '*.md' -newer "$MARKER" | sort)
+  rc=$?
+  rm -f "$MARKER"
+  if [ "$rc" -ne 0 ]; then
+    echo "scanning .plans failed (find exit $rc)" >&2
+    exit 2
+  fi
+
+  if [ -n "$PLANS" ]; then
+    while IFS= read -r f; do
+      printf -- '- %s  (modified %s)\n' "${f#"$ROOT"/}" "$(date -r "$f" '+%Y-%m-%d %H:%M')"
+    done <<< "$PLANS" >> "$OUT"
+  else
+    echo "_none modified since ${SINCE}_" >> "$OUT"
+  fi
 else
   echo "_no .plans directory_" >> "$OUT"
 fi
