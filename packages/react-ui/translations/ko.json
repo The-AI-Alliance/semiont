@@ -69,7 +69,12 @@
     "createdAt": "생성일",
     "modifiedAt": "수정일",
     "attributedTo": "귀속 대상",
-    "derivedFrom": "파생 출처"
+    "derivedFrom": "파생 출처",
+    "textLayer": "텍스트 레이어",
+    "textLayerReady": "준비됨",
+    "textLayerPreparing": "준비 중…",
+    "textLayerNone": "없음 — 추출 가능한 텍스트 없음",
+    "textLayerNotApplicable": "해당 없음"
   },
   "CollaborationPanel": {
     "title": "협업",

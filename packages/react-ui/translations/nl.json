@@ -69,7 +69,12 @@
     "createdAt": "Aangemaakt",
     "modifiedAt": "Gewijzigd",
     "attributedTo": "Toegeschreven aan",
-    "derivedFrom": "Afgeleid van"
+    "derivedFrom": "Afgeleid van",
+    "textLayer": "Tekstlaag",
+    "textLayerReady": "Gereed",
+    "textLayerPreparing": "Wordt voorbereid…",
+    "textLayerNone": "Geen — geen extraheerbare tekst",
+    "textLayerNotApplicable": "Niet van toepassing"
   },
   "CollaborationPanel": {
     "title": "Samenwerking",

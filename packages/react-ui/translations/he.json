@@ -69,7 +69,12 @@
     "createdAt": "נוצר",
     "modifiedAt": "עודכן",
     "attributedTo": "מיוחס ל",
-    "derivedFrom": "נגזר מ"
+    "derivedFrom": "נגזר מ",
+    "textLayer": "שכבת טקסט",
+    "textLayerReady": "מוכנה",
+    "textLayerPreparing": "בהכנה…",
+    "textLayerNone": "אין — אין טקסט לחילוץ",
+    "textLayerNotApplicable": "לא רלוונטי"
   },
   "CollaborationPanel": {
     "title": "שיתוף פעולה",

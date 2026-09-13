@@ -69,7 +69,12 @@
     "createdAt": "Erstellt",
     "modifiedAt": "Geändert",
     "attributedTo": "Zugeschrieben",
-    "derivedFrom": "Abgeleitet von"
+    "derivedFrom": "Abgeleitet von",
+    "textLayer": "Textebene",
+    "textLayerReady": "Bereit",
+    "textLayerPreparing": "Wird vorbereitet…",
+    "textLayerNone": "Keine — kein extrahierbarer Text",
+    "textLayerNotApplicable": "Nicht anwendbar"
   },
   "CollaborationPanel": {
     "title": "Zusammenarbeit",

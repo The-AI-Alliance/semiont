@@ -69,7 +69,12 @@
     "createdAt": "Luotu",
     "modifiedAt": "Muokattu",
     "attributedTo": "Tekijä",
-    "derivedFrom": "Johdettu"
+    "derivedFrom": "Johdettu",
+    "textLayer": "Tekstikerros",
+    "textLayerReady": "Valmis",
+    "textLayerPreparing": "Valmistellaan…",
+    "textLayerNone": "Ei ole — ei poimittavaa tekstiä",
+    "textLayerNotApplicable": "Ei sovellu"
   },
   "CollaborationPanel": {
     "title": "Yhteistyö",

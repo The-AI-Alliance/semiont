@@ -69,7 +69,12 @@
     "createdAt": "创建时间",
     "modifiedAt": "修改时间",
     "attributedTo": "归属于",
-    "derivedFrom": "派生自"
+    "derivedFrom": "派生自",
+    "textLayer": "文本层",
+    "textLayerReady": "就绪",
+    "textLayerPreparing": "准备中…",
+    "textLayerNone": "无 — 没有可提取的文本",
+    "textLayerNotApplicable": "不适用"
   },
   "CollaborationPanel": {
     "title": "协作",

@@ -971,6 +971,24 @@ export function PdfAnnotationCanvas({
     if (anchoredKind !== 'not-yet' && anchoredKind !== null) setAnchoredRetryAttempt(0);
   }, [anchoredKind]);
 
+  // P4, the push half: `smelt:settled` (bridged, P3) fires at the exact moment
+  // `not-yet` stops being true — re-ask immediately instead of riding out the
+  // ladder. Subscribed off the session PROP: this canvas renders provider-free
+  // by contract, so the provider-backed subscription hook is off limits here.
+  // An `indexed` settle serves the map; a `skipped` one serves the stored
+  // decline — either way the re-ask lands a terminal answer and the gate,
+  // the ladder, and this subscription all stand down together.
+  useEffect(() => {
+    if (!session || anchoredKind !== 'not-yet') return;
+    return session.subscribe('smelt:settled', (settled) => {
+      if (settled.resourceId !== resourceUri) return;
+      if (resourceAnchoredRef.current?.uri === resourceUri) resourceAnchoredRef.current = null;
+      void fetchResourceAnchored().then((map) => {
+        if (map) setAnchoredEpoch((e) => e + 1);
+      });
+    });
+  }, [session, anchoredKind, resourceUri, fetchResourceAnchored]);
+
   const pageProps = {
     scale,
     resourceUri,

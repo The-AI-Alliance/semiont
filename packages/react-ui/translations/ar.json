@@ -69,7 +69,12 @@
     "createdAt": "تاريخ الإنشاء",
     "modifiedAt": "تاريخ التعديل",
     "attributedTo": "منسوب إلى",
-    "derivedFrom": "مشتق من"
+    "derivedFrom": "مشتق من",
+    "textLayer": "طبقة النص",
+    "textLayerReady": "جاهزة",
+    "textLayerPreparing": "قيد التجهيز…",
+    "textLayerNone": "لا يوجد — لا نص قابل للاستخراج",
+    "textLayerNotApplicable": "غير منطبق"
   },
   "CollaborationPanel": {
     "title": "التعاون",

@@ -69,7 +69,12 @@
     "createdAt": "Oluşturulma",
     "modifiedAt": "Değiştirilme",
     "attributedTo": "Atfedilen",
-    "derivedFrom": "Kaynağı"
+    "derivedFrom": "Kaynağı",
+    "textLayer": "Metin katmanı",
+    "textLayerReady": "Hazır",
+    "textLayerPreparing": "Hazırlanıyor…",
+    "textLayerNone": "Yok — çıkarılabilir metin yok",
+    "textLayerNotApplicable": "Uygulanamaz"
   },
   "CollaborationPanel": {
     "title": "İşbirliği",

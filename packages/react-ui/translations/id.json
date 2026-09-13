@@ -69,7 +69,12 @@
     "createdAt": "Dibuat",
     "modifiedAt": "Diubah",
     "attributedTo": "Dikaitkan dengan",
-    "derivedFrom": "Diturunkan dari"
+    "derivedFrom": "Diturunkan dari",
+    "textLayer": "Lapisan teks",
+    "textLayerReady": "Siap",
+    "textLayerPreparing": "Menyiapkan…",
+    "textLayerNone": "Tidak ada — tidak ada teks yang dapat diekstrak",
+    "textLayerNotApplicable": "Tidak berlaku"
   },
   "CollaborationPanel": {
     "title": "Kolaborasi",

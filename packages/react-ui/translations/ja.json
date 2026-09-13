@@ -69,7 +69,12 @@
     "createdAt": "作成日時",
     "modifiedAt": "更新日時",
     "attributedTo": "帰属先",
-    "derivedFrom": "派生元"
+    "derivedFrom": "派生元",
+    "textLayer": "テキストレイヤー",
+    "textLayerReady": "準備完了",
+    "textLayerPreparing": "準備中…",
+    "textLayerNone": "なし — 抽出可能なテキストがありません",
+    "textLayerNotApplicable": "対象外"
   },
   "CollaborationPanel": {
     "title": "コラボレーション",

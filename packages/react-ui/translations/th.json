@@ -69,7 +69,12 @@
     "createdAt": "วันที่สร้าง",
     "modifiedAt": "วันที่แก้ไข",
     "attributedTo": "อ้างอิงถึง",
-    "derivedFrom": "ได้มาจาก"
+    "derivedFrom": "ได้มาจาก",
+    "textLayer": "เลเยอร์ข้อความ",
+    "textLayerReady": "พร้อม",
+    "textLayerPreparing": "กำลังเตรียม…",
+    "textLayerNone": "ไม่มี — ไม่มีข้อความให้สกัด",
+    "textLayerNotApplicable": "ไม่เกี่ยวข้อง"
   },
   "CollaborationPanel": {
     "title": "การทำงานร่วมกัน",

@@ -69,7 +69,12 @@
     "createdAt": "Δημιουργήθηκε",
     "modifiedAt": "Τροποποιήθηκε",
     "attributedTo": "Αποδίδεται σε",
-    "derivedFrom": "Παράγεται από"
+    "derivedFrom": "Παράγεται από",
+    "textLayer": "Επίπεδο κειμένου",
+    "textLayerReady": "Έτοιμο",
+    "textLayerPreparing": "Προετοιμάζεται…",
+    "textLayerNone": "Κανένα — χωρίς εξαγώγιμο κείμενο",
+    "textLayerNotApplicable": "Δεν ισχύει"
   },
   "CollaborationPanel": {
     "title": "Συνεργασία",

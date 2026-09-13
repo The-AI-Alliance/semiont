@@ -69,7 +69,12 @@
     "createdAt": "Creat",
     "modifiedAt": "Modificat",
     "attributedTo": "Atribuit",
-    "derivedFrom": "Derivat din"
+    "derivedFrom": "Derivat din",
+    "textLayer": "Strat de text",
+    "textLayerReady": "Gata",
+    "textLayerPreparing": "Se pregătește…",
+    "textLayerNone": "Niciunul — fără text extractibil",
+    "textLayerNotApplicable": "Nu se aplică"
   },
   "CollaborationPanel": {
     "title": "Colaborare",

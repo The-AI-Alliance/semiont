@@ -38,8 +38,20 @@ const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
 const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
 const root = () => document.querySelector('.semiont-pdf-annotation-canvas');
 
+type Fired = { channel: string; cb: (p: unknown) => void };
+const busSubs: Fired[] = [];
+const fireBus = (channel: string, payload: unknown) =>
+  act(async () => { for (const s of busSubs) if (s.channel === channel) s.cb(payload); });
+
 function mount(resourceAnchoredText: ReturnType<typeof vi.fn>) {
-  const session = { client: { browse: { resourceAnchoredText } } } as unknown as SemiontSession;
+  const session = {
+    client: { browse: { resourceAnchoredText } },
+    subscribe: (channel: string, cb: (p: unknown) => void) => {
+      const entry = { channel, cb };
+      busSubs.push(entry);
+      return () => { const i = busSubs.indexOf(entry); if (i >= 0) busSubs.splice(i, 1); };
+    },
+  } as unknown as SemiontSession;
   return render(
     <PdfAnnotationCanvas
       resourceUri={String(resourceId('123'))}
@@ -53,6 +65,7 @@ function mount(resourceAnchoredText: ReturnType<typeof vi.fn>) {
 describe('PdfAnnotationCanvas — bounded retry on not-yet', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    busSubs.length = 0;
     vi.useFakeTimers();
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { cb(0); return 0; });
   });
@@ -118,5 +131,55 @@ describe('PdfAnnotationCanvas — bounded retry on not-yet', () => {
     unmount();
     await advance(300_000);
     expect(ask).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * P4, the PUSH half: `smelt:settled` is bridged (P3), and it fires at the
+   * exact moment `not-yet` stops being true — no ladder wait when the
+   * broadcast arrives. Subscribed off the session PROP, not the provider
+   * hook: this canvas renders provider-free by contract.
+   */
+  describe('smelt:settled push', () => {
+    test('a matching settle while deferred re-asks immediately and flips the gate', async () => {
+      const ask = vi.fn()
+        .mockResolvedValueOnce({ kind: 'not-yet' })
+        .mockResolvedValue({ kind: 'extracted', pages: [] });
+      mount(ask);
+      await flush();
+      expect(root()).toHaveAttribute('data-annotate-deferred', 'true');
+
+      await fireBus('smelt:settled', { resourceId: String(resourceId('123')), contentChecksum: 'c', outcome: 'indexed' });
+      await flush();
+
+      expect(ask).toHaveBeenCalledTimes(2);      // no timer advance needed
+      expect(root()).toHaveAttribute('data-annotate-deferred', 'false');
+    });
+
+    test("another resource's settle is ignored", async () => {
+      const ask = vi.fn().mockResolvedValue({ kind: 'not-yet' });
+      mount(ask);
+      await flush();
+
+      await fireBus('smelt:settled', { resourceId: 'OTHER', contentChecksum: 'c', outcome: 'indexed' });
+      await flush();
+
+      expect(ask).toHaveBeenCalledTimes(1);
+    });
+
+    test('a skipped settle re-asks once and lands terminal — the decline is now servable', async () => {
+      const ask = vi.fn()
+        .mockResolvedValueOnce({ kind: 'not-yet' })
+        .mockResolvedValue({ kind: 'declined', reason: 'no-text-layer' });
+      mount(ask);
+      await flush();
+
+      await fireBus('smelt:settled', { resourceId: String(resourceId('123')), contentChecksum: 'c', outcome: 'skipped', reason: 'no-text-layer' });
+      await flush();
+      expect(ask).toHaveBeenCalledTimes(2);
+      expect(root()).toHaveAttribute('data-annotate-deferred', 'false');
+
+      await advance(300_000);                     // terminal: ladder stays dead
+      expect(ask).toHaveBeenCalledTimes(2);
+    });
   });
 });

@@ -69,7 +69,12 @@
     "createdAt": "Oprettet",
     "modifiedAt": "Ændret",
     "attributedTo": "Tilskrevet",
-    "derivedFrom": "Afledt af"
+    "derivedFrom": "Afledt af",
+    "textLayer": "Tekstlag",
+    "textLayerReady": "Klar",
+    "textLayerPreparing": "Forberedes…",
+    "textLayerNone": "Intet — ingen tekst at udtrække",
+    "textLayerNotApplicable": "Ikke relevant"
   },
   "CollaborationPanel": {
     "title": "Samarbejde",

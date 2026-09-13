@@ -69,7 +69,12 @@
     "createdAt": "Vytvořeno",
     "modifiedAt": "Upraveno",
     "attributedTo": "Připsáno",
-    "derivedFrom": "Odvozeno z"
+    "derivedFrom": "Odvozeno z",
+    "textLayer": "Textová vrstva",
+    "textLayerReady": "Připravena",
+    "textLayerPreparing": "Připravuje se…",
+    "textLayerNone": "Žádná — žádný extrahovatelný text",
+    "textLayerNotApplicable": "Nevztahuje se"
   },
   "CollaborationPanel": {
     "title": "Spolupráce",

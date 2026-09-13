@@ -69,7 +69,12 @@
     "createdAt": "ایجاد شده",
     "modifiedAt": "ویرایش شده",
     "attributedTo": "منتسب به",
-    "derivedFrom": "مشتق از"
+    "derivedFrom": "مشتق از",
+    "textLayer": "لایه متن",
+    "textLayerReady": "آماده",
+    "textLayerPreparing": "در حال آماده‌سازی…",
+    "textLayerNone": "ندارد — متن قابل استخراج نیست",
+    "textLayerNotApplicable": "کاربرد ندارد"
   },
   "CollaborationPanel": {
     "title": "همکاری",

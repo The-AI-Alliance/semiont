@@ -69,7 +69,12 @@
     "createdAt": "Skapad",
     "modifiedAt": "Ändrad",
     "attributedTo": "Tillskriven",
-    "derivedFrom": "Härledd från"
+    "derivedFrom": "Härledd från",
+    "textLayer": "Textlager",
+    "textLayerReady": "Klart",
+    "textLayerPreparing": "Förbereds…",
+    "textLayerNone": "Inget — ingen text att extrahera",
+    "textLayerNotApplicable": "Ej tillämpligt"
   },
   "CollaborationPanel": {
     "title": "Samarbete",

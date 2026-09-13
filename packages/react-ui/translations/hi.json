@@ -69,7 +69,12 @@
     "createdAt": "बनाया गया",
     "modifiedAt": "संशोधित",
     "attributedTo": "श्रेय दिया गया",
-    "derivedFrom": "से व्युत्पन्न"
+    "derivedFrom": "से व्युत्पन्न",
+    "textLayer": "टेक्स्ट परत",
+    "textLayerReady": "तैयार",
+    "textLayerPreparing": "तैयार हो रही है…",
+    "textLayerNone": "नहीं — निकालने योग्य टेक्स्ट नहीं",
+    "textLayerNotApplicable": "लागू नहीं"
   },
   "CollaborationPanel": {
     "title": "सहयोग",

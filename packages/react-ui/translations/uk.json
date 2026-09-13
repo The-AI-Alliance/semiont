@@ -69,7 +69,12 @@
     "createdAt": "Створено",
     "modifiedAt": "Змінено",
     "attributedTo": "Авторство",
-    "derivedFrom": "Походить від"
+    "derivedFrom": "Походить від",
+    "textLayer": "Текстовий шар",
+    "textLayerReady": "Готовий",
+    "textLayerPreparing": "Готується…",
+    "textLayerNone": "Немає — немає тексту для видобування",
+    "textLayerNotApplicable": "Не застосовно"
   },
   "CollaborationPanel": {
     "title": "Співпраця",

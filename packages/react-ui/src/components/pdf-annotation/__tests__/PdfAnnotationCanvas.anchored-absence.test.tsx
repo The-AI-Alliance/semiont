@@ -40,7 +40,10 @@ import { PdfAnnotationCanvas } from '../PdfAnnotationCanvas';
 
 function sessionAnswering(answer: Record<string, unknown>) {
   const resourceAnchoredText = vi.fn().mockResolvedValue(answer);
-  const session = { client: { browse: { resourceAnchoredText } } } as unknown as SemiontSession;
+  const session = {
+    client: { browse: { resourceAnchoredText } },
+    subscribe: () => () => {},
+  } as unknown as SemiontSession;
   return { session, resourceAnchoredText };
 }
 
@@ -156,7 +159,10 @@ describe('PdfAnnotationCanvas — the anchored cache honors retryability', () =>
       const resourceAnchoredText = vi.fn()
         .mockResolvedValueOnce({ kind: 'not-yet' })
         .mockResolvedValue({ kind: 'extracted', pages: [] });
-      const session = { client: { browse: { resourceAnchoredText } } } as unknown as SemiontSession;
+      const session = {
+    client: { browse: { resourceAnchoredText } },
+    subscribe: () => () => {},
+  } as unknown as SemiontSession;
       render(
         <PdfAnnotationCanvas
           resourceUri={String(resourceId('123'))}

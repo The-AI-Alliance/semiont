@@ -69,7 +69,12 @@
     "createdAt": "Opprettet",
     "modifiedAt": "Endret",
     "attributedTo": "Tilskrevet",
-    "derivedFrom": "Avledet fra"
+    "derivedFrom": "Avledet fra",
+    "textLayer": "Tekstlag",
+    "textLayerReady": "Klar",
+    "textLayerPreparing": "Forberedes…",
+    "textLayerNone": "Ingen — ingen tekst å hente ut",
+    "textLayerNotApplicable": "Ikke aktuelt"
   },
   "CollaborationPanel": {
     "title": "Samarbeid",
