@@ -36,7 +36,8 @@
     "pageOf": "পৃষ্ঠা {{page}} / {{total}}",
     "pagination": "পৃষ্ঠা নেভিগেশন",
     "previous": "পূর্ববর্তী",
-    "viewerLoading": "PDF ভিউয়ার লোড হচ্ছে..."
+    "viewerLoading": "PDF ভিউয়ার লোড হচ্ছে...",
+    "preparingTextLayer": "টেক্সট স্তর প্রস্তুত হচ্ছে — প্রস্তুত হলে টীকা সক্রিয় হবে"
   },
   "Toolbar": {
     "annotations": "টীকাসমূহ",

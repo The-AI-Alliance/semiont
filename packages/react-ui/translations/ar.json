@@ -36,7 +36,8 @@
     "pageOf": "صفحة {{page}} من {{total}}",
     "pagination": "ترقيم الصفحات",
     "previous": "السابق",
-    "viewerLoading": "جارٍ تحميل عارض PDF..."
+    "viewerLoading": "جارٍ تحميل عارض PDF...",
+    "preparingTextLayer": "جارٍ تجهيز طبقة النص — سيتم تفعيل التعليق عند جهوزها"
   },
   "Toolbar": {
     "annotations": "التعليقات التوضيحية",

@@ -36,7 +36,8 @@
     "pageOf": "Halaman {{page}} daripada {{total}}",
     "pagination": "Navigasi halaman",
     "previous": "Sebelumnya",
-    "viewerLoading": "Memuatkan pemapar PDF..."
+    "viewerLoading": "Memuatkan pemapar PDF...",
+    "preparingTextLayer": "Menyediakan lapisan teks — anotasi akan diaktifkan apabila sedia"
   },
   "Toolbar": {
     "annotations": "Anotasi",

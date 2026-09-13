@@ -36,7 +36,8 @@
     "pageOf": "Trang {{page}} / {{total}}",
     "pagination": "Điều hướng trang",
     "previous": "Trước",
-    "viewerLoading": "Đang tải trình xem PDF..."
+    "viewerLoading": "Đang tải trình xem PDF...",
+    "preparingTextLayer": "Đang chuẩn bị lớp văn bản — chú thích sẽ bật khi sẵn sàng"
   },
   "Toolbar": {
     "annotations": "Chú thích",

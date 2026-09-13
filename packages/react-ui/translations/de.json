@@ -36,7 +36,8 @@
     "pageOf": "Seite {{page}} von {{total}}",
     "pagination": "Seitennavigation",
     "previous": "Zurück",
-    "viewerLoading": "PDF-Betrachter wird geladen..."
+    "viewerLoading": "PDF-Betrachter wird geladen...",
+    "preparingTextLayer": "Textebene wird vorbereitet — Annotieren wird aktiviert, sobald sie bereit ist"
   },
   "Toolbar": {
     "annotations": "Annotationen",

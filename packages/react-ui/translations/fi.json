@@ -36,7 +36,8 @@
     "pageOf": "Sivu {{page}} / {{total}}",
     "pagination": "Sivunavigointi",
     "previous": "Edellinen",
-    "viewerLoading": "Ladataan PDF-katselinta..."
+    "viewerLoading": "Ladataan PDF-katselinta...",
+    "preparingTextLayer": "Tekstikerrosta valmistellaan — merkinnät otetaan käyttöön, kun se on valmis"
   },
   "Toolbar": {
     "annotations": "Merkinnät",

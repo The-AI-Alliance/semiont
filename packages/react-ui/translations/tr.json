@@ -36,7 +36,8 @@
     "pageOf": "Sayfa {{page}} / {{total}}",
     "pagination": "Sayfa gezinmesi",
     "previous": "Önceki",
-    "viewerLoading": "PDF görüntüleyici yükleniyor..."
+    "viewerLoading": "PDF görüntüleyici yükleniyor...",
+    "preparingTextLayer": "Metin katmanı hazırlanıyor — hazır olduğunda ek açıklama etkinleşecek"
   },
   "Toolbar": {
     "annotations": "Açıklamalar",

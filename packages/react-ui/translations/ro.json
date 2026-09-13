@@ -36,7 +36,8 @@
     "pageOf": "Pagina {{page}} din {{total}}",
     "pagination": "Navigare pagini",
     "previous": "Anterioară",
-    "viewerLoading": "Se încarcă vizualizatorul PDF..."
+    "viewerLoading": "Se încarcă vizualizatorul PDF...",
+    "preparingTextLayer": "Se pregătește stratul de text — adnotarea se va activa când este gata"
   },
   "Toolbar": {
     "annotations": "Adnotări",

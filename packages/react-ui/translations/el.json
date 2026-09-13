@@ -36,7 +36,8 @@
     "pageOf": "Σελίδα {{page}} από {{total}}",
     "pagination": "Πλοήγηση σελίδων",
     "previous": "Προηγούμενη",
-    "viewerLoading": "Φόρτωση προβολής PDF..."
+    "viewerLoading": "Φόρτωση προβολής PDF...",
+    "preparingTextLayer": "Προετοιμασία του επιπέδου κειμένου — ο σχολιασμός θα ενεργοποιηθεί όταν είναι έτοιμο"
   },
   "Toolbar": {
     "annotations": "Σχολιασμοί",

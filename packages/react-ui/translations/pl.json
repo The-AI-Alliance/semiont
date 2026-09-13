@@ -36,7 +36,8 @@
     "pageOf": "Strona {{page}} z {{total}}",
     "pagination": "Nawigacja stron",
     "previous": "Poprzednia",
-    "viewerLoading": "Ładowanie przeglądarki PDF..."
+    "viewerLoading": "Ładowanie przeglądarki PDF...",
+    "preparingTextLayer": "Przygotowywanie warstwy tekstu — adnotacje włączą się, gdy będzie gotowa"
   },
   "Toolbar": {
     "annotations": "Adnotacje",

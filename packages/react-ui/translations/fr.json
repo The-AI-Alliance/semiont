@@ -36,7 +36,8 @@
     "pageOf": "Page {{page}} sur {{total}}",
     "pagination": "Navigation des pages",
     "previous": "Précédent",
-    "viewerLoading": "Chargement de la visionneuse PDF..."
+    "viewerLoading": "Chargement de la visionneuse PDF...",
+    "preparingTextLayer": "Préparation de la couche de texte — l'annotation s'activera quand elle sera prête"
   },
   "Toolbar": {
     "annotations": "Annotations",

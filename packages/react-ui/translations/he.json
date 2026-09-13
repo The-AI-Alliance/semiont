@@ -36,7 +36,8 @@
     "pageOf": "עמוד {{page}} מתוך {{total}}",
     "pagination": "ניווט בין עמודים",
     "previous": "הקודם",
-    "viewerLoading": "טוען מציג PDF..."
+    "viewerLoading": "טוען מציג PDF...",
+    "preparingTextLayer": "מכין את שכבת הטקסט — ההערות יופעלו כשתהיה מוכנה"
   },
   "Toolbar": {
     "annotations": "הערות",

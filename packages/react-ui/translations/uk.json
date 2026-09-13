@@ -36,7 +36,8 @@
     "pageOf": "Сторінка {{page}} з {{total}}",
     "pagination": "Навігація сторінками",
     "previous": "Попередня",
-    "viewerLoading": "Завантаження переглядача PDF..."
+    "viewerLoading": "Завантаження переглядача PDF...",
+    "preparingTextLayer": "Готується текстовий шар — анотування ввімкнеться, щойно він буде готовий"
   },
   "Toolbar": {
     "annotations": "Анотації",

@@ -36,7 +36,8 @@
     "pageOf": "Página {{page}} de {{total}}",
     "pagination": "Navegação de páginas",
     "previous": "Anterior",
-    "viewerLoading": "Carregando visualizador de PDF..."
+    "viewerLoading": "Carregando visualizador de PDF...",
+    "preparingTextLayer": "Preparando a camada de texto — a anotação será ativada quando estiver pronta"
   },
   "Toolbar": {
     "annotations": "Anotações",

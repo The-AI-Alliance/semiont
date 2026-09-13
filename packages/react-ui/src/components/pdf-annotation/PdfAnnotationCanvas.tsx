@@ -110,6 +110,8 @@ interface PdfPageViewProps {
   hoverDelayMs: number;
   /** The document-wide server map, fetched once per resource by the parent. */
   fetchResourceAnchored: () => Promise<AnchoredText | null>;
+  /** Re-resolve trigger: a retry landed the map (P4). */
+  anchoredEpoch: number;
 }
 
 /**
@@ -123,6 +125,9 @@ interface PdfPageViewProps {
  * The drag lives here too because it needs this page's display dimensions and
  * this page's text; a drag can no more span pages than a rectangle can.
  */
+/** P4's re-ask ladder: quick first look, then patient — held at the top. */
+const ANCHORED_RETRY_LADDER_MS = [5_000, 15_000, 45_000] as const;
+
 function PdfPageView({
   doc,
   pageNumber,
@@ -136,6 +141,7 @@ function PdfPageView({
   selectedAnnotationId,
   hoverDelayMs,
   fetchResourceAnchored,
+  anchoredEpoch,
 }: PdfPageViewProps) {
   const [pageImageUrl, setPageImageUrl] = useState<string | null>(null);
   const [pageDimensions, setPageDimensions] = useState<{ width: number; height: number } | null>(null);
@@ -236,7 +242,10 @@ function PdfPageView({
     return () => {
       cancelled = true;
     };
-  }, [doc, pageNumber, scale, fetchResourceAnchored]);
+    // `anchoredEpoch` is deliberately a dep: a retry that lands the map
+    // re-resolves this page, so the first annotation after the flip carries
+    // its quote (ANNOTATE-DEFERS-ON-NOT-YET P4).
+  }, [doc, pageNumber, scale, fetchResourceAnchored, anchoredEpoch]);
 
   // Update display dimensions on resize
   useEffect(() => {
@@ -673,26 +682,46 @@ export function PdfAnnotationCanvas({
    * what lets a scrolling column mount many pages against a single fetch.
    *
    * The cache holds the in-flight promise so concurrent page loads share one
-   * fetch. Answers cache — including "no map" and a stored decline, which are
-   * definitive — but a transport failure clears the entry, so the next page
-   * load retries instead of pinning the whole document to geometry-only.
+   * fetch. TERMINAL answers cache — "no map", "unknown" and a stored decline
+   * are definitive — but the wire names retryability in the kind itself
+   * (AnchoredTextAbsent, ANNOTATE-DEFERS-ON-NOT-YET P1/D4): `not-yet` means
+   * the Smelter has not settled this content generation and the caller should
+   * come back, so it clears the entry the way a transport failure always has.
+   * Pinning it was how a scan opened mid-smelt stayed mapless for the whole
+   * mount — every annotation drawn on it permanently mute.
+   *
+   * The settled kind rides on the cache entry: the answer, not just the map,
+   * is the parent's fact (P2 lifts it into state to gate Annotate).
    */
   const resourceAnchoredRef = useRef<{ uri: string; outcome: Promise<AnchoredText | null> } | null>(null);
+  /** The last settled answer's kind — the parent's fact, lifted to state so the
+   *  Annotate gate re-renders when it changes (P2). Null until a scanned page
+   *  first asks; text documents never ask and are never gated. */
+  const [anchoredKind, setAnchoredKind] = useState<'extracted' | 'declined' | 'not-yet' | 'no-map' | 'unknown' | null>(null);
   const fetchResourceAnchored = useCallback((): Promise<AnchoredText | null> => {
     if (!session) return Promise.resolve(null); // no session yet — don't cache its absence
     const cached = resourceAnchoredRef.current;
     if (cached && cached.uri === resourceUri) return cached.outcome;
 
     const uri = resourceUri;
-    const outcome = session.client.browse.resourceAnchoredText(toResourceId(uri)).then(
-      (served) => (served && served.kind === 'extracted' ? served : null),
-      () => {
-        if (resourceAnchoredRef.current?.uri === uri) resourceAnchoredRef.current = null;
-        return null;
-      },
-    );
-    resourceAnchoredRef.current = { uri, outcome };
-    return outcome;
+    const entry: { uri: string; outcome: Promise<AnchoredText | null> } = {
+      uri,
+      outcome: session.client.browse.resourceAnchoredText(toResourceId(uri)).then(
+        (served) => {
+          if (served.kind === 'not-yet' && resourceAnchoredRef.current?.uri === uri) {
+            resourceAnchoredRef.current = null;
+          }
+          setAnchoredKind(served.kind);
+          return served.kind === 'extracted' ? served : null;
+        },
+        () => {
+          if (resourceAnchoredRef.current?.uri === uri) resourceAnchoredRef.current = null;
+          return null;
+        },
+      ),
+    };
+    resourceAnchoredRef.current = entry;
+    return entry.outcome;
   }, [session, resourceUri]);
 
   // The column's width decides every page's displayed height, so the
@@ -912,17 +941,48 @@ export function PdfAnnotationCanvas({
     }
   }, [currentPage]);
 
+  // D2: Annotate defers on `not-yet` — and ONLY on `not-yet`. The quote is
+  // captured at creation, so an annotation drawn before the map lands is
+  // permanently mute; waiting buys a strictly better annotation. The chosen
+  // mode is MASKED here, never overwritten — it activates on the flip.
+  const annotateDeferred = anchoredKind === 'not-yet';
+
+  // P4, the pull half: `not-yet` schedules a bounded re-ask — the wire's own
+  // name says RETRY — so the deferred state self-heals before `smelt:settled`
+  // is bridged, and after a missed broadcast once it is. The attempt counter
+  // is state, not a ref: re-scheduling rides the effect re-running.
+  const [anchoredRetryAttempt, setAnchoredRetryAttempt] = useState(0);
+  /** Bumped when a RETRY lands the map, so mounted pages re-resolve — the
+   *  gate opening onto a page still holding no map would mint exactly the
+   *  mute annotation D2 exists to prevent. */
+  const [anchoredEpoch, setAnchoredEpoch] = useState(0);
+  useEffect(() => {
+    if (anchoredKind !== 'not-yet') return;
+    const delay = ANCHORED_RETRY_LADDER_MS[Math.min(anchoredRetryAttempt, ANCHORED_RETRY_LADDER_MS.length - 1)]!;
+    const timer = setTimeout(() => {
+      void fetchResourceAnchored().then((map) => {
+        if (map) setAnchoredEpoch((e) => e + 1);
+      });
+      setAnchoredRetryAttempt((a) => a + 1);
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [anchoredKind, anchoredRetryAttempt, fetchResourceAnchored]);
+  useEffect(() => {
+    if (anchoredKind !== 'not-yet' && anchoredKind !== null) setAnchoredRetryAttempt(0);
+  }, [anchoredKind]);
+
   const pageProps = {
     scale,
     resourceUri,
     existingAnnotations,
-    drawingMode,
+    drawingMode: annotateDeferred ? null : drawingMode,
     selectedMotivation,
     session,
     hoveredAnnotationId,
     selectedAnnotationId,
     hoverDelayMs,
     fetchResourceAnchored,
+    anchoredEpoch,
   };
 
   if (errorKey) {
@@ -930,8 +990,13 @@ export function PdfAnnotationCanvas({
   }
 
   return (
-    <div className="semiont-pdf-annotation-canvas">
+    <div className="semiont-pdf-annotation-canvas" data-annotate-deferred={annotateDeferred ? 'true' : 'false'}>
       {isLoading && <div className="semiont-pdf-annotation-canvas__loading">{t('loading')}</div>}
+      {annotateDeferred && (
+        <div className="semiont-pdf-annotation-canvas__map-pending" role="status">
+          {t('preparingTextLayer')}
+        </div>
+      )}
 
       {pdfDoc && pageLayout === 'scroll' ? (
         <div className="semiont-pdf-annotation-canvas__viewport" data-axis={SCROLL_AXIS}>

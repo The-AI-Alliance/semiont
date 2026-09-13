@@ -36,7 +36,8 @@
     "pageOf": "Strana {{page}} z {{total}}",
     "pagination": "Stránkování",
     "previous": "Předchozí",
-    "viewerLoading": "Načítání prohlížeče PDF..."
+    "viewerLoading": "Načítání prohlížeče PDF...",
+    "preparingTextLayer": "Připravuje se textová vrstva — anotace se zapne, až bude hotová"
   },
   "Toolbar": {
     "annotations": "Anotace",

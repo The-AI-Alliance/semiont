@@ -36,7 +36,8 @@
     "pageOf": "Sida {{page}} av {{total}}",
     "pagination": "Sidnavigering",
     "previous": "Föregående",
-    "viewerLoading": "Läser in PDF-visare..."
+    "viewerLoading": "Läser in PDF-visare...",
+    "preparingTextLayer": "Textlagret förbereds — annotering aktiveras när det är klart"
   },
   "Toolbar": {
     "annotations": "Annoteringar",

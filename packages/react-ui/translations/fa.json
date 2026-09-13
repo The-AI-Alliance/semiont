@@ -36,7 +36,8 @@
     "pageOf": "صفحه {{page}} از {{total}}",
     "pagination": "ناوبری صفحه",
     "previous": "قبلی",
-    "viewerLoading": "در حال بارگذاری نمایشگر PDF..."
+    "viewerLoading": "در حال بارگذاری نمایشگر PDF...",
+    "preparingTextLayer": "در حال آماده‌سازی لایه متن — حاشیه‌نویسی پس از آماده شدن فعال می‌شود"
   },
   "Toolbar": {
     "annotations": "حاشیه‌نویسی‌ها",

@@ -36,7 +36,8 @@
     "pageOf": "หน้า {{page}} จาก {{total}}",
     "pagination": "การนำทางหน้า",
     "previous": "ก่อนหน้า",
-    "viewerLoading": "กำลังโหลดโปรแกรมดู PDF..."
+    "viewerLoading": "กำลังโหลดโปรแกรมดู PDF...",
+    "preparingTextLayer": "กำลังเตรียมเลเยอร์ข้อความ — จะเปิดใช้งานคำอธิบายเมื่อพร้อม"
   },
   "Toolbar": {
     "annotations": "คำอธิบายประกอบ",

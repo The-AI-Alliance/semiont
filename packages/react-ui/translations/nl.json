@@ -36,7 +36,8 @@
     "pageOf": "Pagina {{page}} van {{total}}",
     "pagination": "Paginanavigatie",
     "previous": "Vorige",
-    "viewerLoading": "PDF-viewer laden..."
+    "viewerLoading": "PDF-viewer laden...",
+    "preparingTextLayer": "Tekstlaag wordt voorbereid — annoteren wordt ingeschakeld zodra deze klaar is"
   },
   "Toolbar": {
     "annotations": "Annotaties",

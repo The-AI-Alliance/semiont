@@ -36,7 +36,8 @@
     "pageOf": "{{total}}페이지 중 {{page}}페이지",
     "pagination": "페이지 탐색",
     "previous": "이전",
-    "viewerLoading": "PDF 뷰어 로드 중..."
+    "viewerLoading": "PDF 뷰어 로드 중...",
+    "preparingTextLayer": "텍스트 레이어 준비 중 — 준비되면 주석이 활성화됩니다"
   },
   "Toolbar": {
     "annotations": "주석",

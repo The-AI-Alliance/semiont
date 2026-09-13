@@ -36,7 +36,8 @@
     "pageOf": "पृष्ठ {{page}} / {{total}}",
     "pagination": "पृष्ठ नेविगेशन",
     "previous": "पिछला",
-    "viewerLoading": "PDF व्यूअर लोड हो रहा है..."
+    "viewerLoading": "PDF व्यूअर लोड हो रहा है...",
+    "preparingTextLayer": "टेक्स्ट परत तैयार हो रही है — तैयार होने पर एनोटेशन सक्षम होगा"
   },
   "Toolbar": {
     "annotations": "एनोटेशन",
