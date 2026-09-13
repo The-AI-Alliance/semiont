@@ -622,7 +622,7 @@ func printRoots(u *ui, st *stackState) int {
 			fmt.Printf("%s%s\n", indent, u.dim(did))
 		}
 		if cfg != "" {
-			fmt.Printf("%s%s\n", indent, u.dim("config: "+cfg+" (used when --config is omitted)"))
+			fmt.Printf("%s%s\n", indent, u.dim("config: "+cfg+" (default)"))
 		}
 	}
 	// Addressed as file:// URLs, so a local KB and a github.com one read as

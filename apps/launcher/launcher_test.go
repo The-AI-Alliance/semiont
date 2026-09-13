@@ -3732,7 +3732,7 @@ func TestConfigStickiness(t *testing.T) {
 
 	// status surfaces the sticky config on the root's identity lines.
 	stdout, _, _ = s.run(t, "status")
-	mustContain(t, "status stdout", stdout, "config: ollama-gemma (used when --config is omitted)")
+	mustContain(t, "status stdout", stdout, "config: ollama-gemma (default)")
 
 	// A recorded preference whose file has since vanished fails with the
 	// provenance spelled out.
@@ -6861,4 +6861,98 @@ func TestYieldDelegateNeedsStorageUri(t *testing.T) {
 		t.Fatal("--delegate without --storage-uri must refuse")
 	}
 	mustContain(t, "refusal", stderr, "--storage-uri")
+}
+
+// The roots registry had an upsert and nothing else, so a row whose
+// directory vanished (a moved KB, a deleted trial root) was permanent
+// listing noise with no in-product removal — the same record-outlives-its-
+// subject shape as the reaped-codespace bug. forget drops exactly one row;
+// it deletes no files and no stack state.
+func TestForgetDropsRegistryRow(t *testing.T) {
+	s := newScenario(t, "container")
+	seedRootsRegistry(t, s,
+		`{"path":"/gone/trial-kb","did":"did:web:example.github.io:trial-kb","lastUsed":"2026-01-01T00:00:00Z"}`,
+		`{"path":"/somewhere/else-kb","did":"did:web:example.org","lastUsed":"2026-02-01T00:00:00Z"}`)
+
+	stdout, stderr, code := s.run(t, "forget", "trial-kb")
+	if code != 0 {
+		t.Fatalf("forget by basename: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "forget output", stdout+stderr, "Forgot", "/gone/trial-kb")
+	b, _ := os.ReadFile(rootsPathFor(s.home))
+	if strings.Contains(string(b), "/gone/trial-kb") {
+		t.Errorf("forgotten row still in roots.json:\n%s", b)
+	}
+	mustContain(t, "surviving row", string(b), "/somewhere/else-kb")
+
+	_, stderr, code = s.run(t, "forget", "nonesuch")
+	if code != 1 {
+		t.Fatalf("forget of an unregistered root: want exit 1, got %d", code)
+	}
+	mustContain(t, "unknown-root error", stderr, "not in the registry")
+}
+
+// State is keyed by did, so a moved KB's corpse row and its live twin share
+// one state dir — forgetting the corpse must NOT suggest `clean --root
+// <key>`, which would name the LIVE twin's state (observed live 2026-09-13:
+// the hint offered to clean the running family stack's postgres).
+func TestForgetCorpseWithLiveTwinSuggestsNoClean(t *testing.T) {
+	s := newScenario(t, "container")
+	seedRootsRegistry(t, s,
+		`{"path":"/gone/old/family","did":"did:web:pingel.org","lastUsed":"2026-01-01T00:00:00Z"}`,
+		`{"path":"`+s.kb+`","did":"did:web:pingel.org","lastUsed":"2026-02-01T00:00:00Z"}`)
+	// The shared state dir exists — the situation where the hint would fire.
+	if err := os.MkdirAll(filepath.Join(stateRootFor(s.home, "pingel.org")), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "forget", "/gone/old/family")
+	if code != 0 {
+		t.Fatalf("forget: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if strings.Contains(stdout+stderr, "semiont clean") {
+		t.Errorf("forgetting a corpse suggested cleaning state its live twin still owns:\n%s", stdout+stderr)
+	}
+}
+
+// A basename shared by two rows is exactly the moved-KB corpse situation —
+// refusing with both full paths beats guessing which one dies.
+func TestForgetRefusesAmbiguityAndRunningStack(t *testing.T) {
+	s := newScenario(t, "container")
+	seedRootsRegistry(t, s,
+		`{"path":"/old/place/family","did":"did:web:pingel.org","lastUsed":"2026-01-01T00:00:00Z"}`,
+		`{"path":"/new/place/family","did":"did:web:pingel.org","lastUsed":"2026-02-01T00:00:00Z"}`)
+	_, stderr, code := s.run(t, "forget", "family")
+	if code != 1 {
+		t.Fatalf("ambiguous basename: want exit 1, got %d", code)
+	}
+	mustContain(t, "ambiguity error", stderr, "/old/place/family", "/new/place/family")
+
+	// The running stack's row is refused — the registry is how status and
+	// --root find it; stop first.
+	seedRootsRegistry(t, s,
+		`{"path":"`+s.kb+`","did":"did:web:running.example","lastUsed":"2026-03-01T00:00:00Z"}`)
+	body := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"` + s.kb + `","services":{}}}}`
+	if err := os.WriteFile(statePathFor(s.home), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code = s.run(t, "forget", s.kb)
+	if code != 1 {
+		t.Fatalf("forget of the running stack's root: want exit 1, got %d", code)
+	}
+	mustContain(t, "running-stack refusal", stderr, "running stack", "semiont stop")
+	b, _ := os.ReadFile(rootsPathFor(s.home))
+	mustContain(t, "row kept", string(b), s.kb)
+}
+
+// seedRootsRegistry writes roots.json with the given row literals.
+func seedRootsRegistry(t *testing.T, s *scenario, rows ...string) {
+	t.Helper()
+	p := rootsPathFor(s.home)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"schema":1,"roots":[` + strings.Join(rows, ",") + `]}`
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
