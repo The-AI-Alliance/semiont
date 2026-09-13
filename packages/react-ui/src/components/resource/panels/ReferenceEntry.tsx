@@ -4,18 +4,13 @@ import type { Ref } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { Annotation } from '@semiont/core';
 import { resourceId } from '@semiont/core';
-import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelector, getSvgSelector, getTargetSelector } from '@semiont/core';
+import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelector, getSvgSelector, getTargetSelector, getPrimaryMediaType } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
-import type { SemiontSession } from '@semiont/sdk';
+import { readyValue, type SemiontSession } from '@semiont/sdk';
+import { useObservable } from '../../../hooks/useObservable';
 import { renderAgentLabel } from './agent-label';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
-
-// Extended annotation type with runtime properties added by gateway enrichment
-interface EnrichedAnnotation extends Annotation {
-  _resolvedDocumentName?: string;
-  _resolvedDocumentMediaType?: string;
-}
 
 interface ReferenceEntryProps {
   /** Session for interaction routing (browse.click etc.); the panel threads it. */
@@ -58,11 +53,20 @@ export function ReferenceEntry({
   const hasSvgSelector = getSvgSelector(selector);
   const annotationType = hasFragmentSelector ? 'Fragment annotation' : hasSvgSelector ? 'Image annotation' : 'Annotation';
 
-  // Extract resolved document name and media type if enriched by gateway
-  const enrichedReference = reference as EnrichedAnnotation;
-  const resolvedDocumentName = enrichedReference._resolvedDocumentName;
-  const resolvedDocumentMediaType = enrichedReference._resolvedDocumentMediaType;
-  const resourceIcon = getResourceIcon(resolvedDocumentMediaType);
+  // The link target's name and media type are the TARGET resource's facts,
+  // read from that resource through the SDK's cache where they are displayed
+  // (ANNOTATIONS-STAY-W3C D3) — the annotation itself stays exactly W3C.
+  // `browse.resource` is stable per id (cache + scope wrappers memoize), so
+  // subscribing straight off the render read is safe; `failed` is an emission,
+  // never a stream error, so `readyValue` covers every unresolved state. A
+  // stub has no resolved body and requests nothing; and unlike a value stapled
+  // onto the annotation, the name follows a rename of the target.
+  const targetState = useObservable(
+    semiont && resolvedResourceUri ? semiont.browse.resource(resourceId(resolvedResourceUri)) : null,
+  );
+  const target = targetState ? readyValue(targetState) : undefined;
+  const resolvedDocumentName = target?.name;
+  const resourceIcon = getResourceIcon(getPrimaryMediaType(target));
 
   const handleOpen = () => {
     if (resolvedResourceUri) {
@@ -154,11 +158,13 @@ export function ReferenceEntry({
           )}
           {!selectedText && (
             <div className="semiont-annotation-entry__meta">
-              {/* A resource-level annotation with a resolved, named target is
-                  a derivation (the shape generation mints — the vocabulary
-                  deliberately has no 'deriving' purpose): qualify the link
-                  line below instead of showing the generic type label. */}
-              {!selector && resolvedDocumentName ? t('derived') : annotationType}
+              {/* A resource-level annotation with a RESOLVED body is a
+                  derivation (the shape generation mints — the vocabulary
+                  deliberately has no 'deriving' purpose). Keyed off the fact
+                  bind wrote, not off the target's name having loaded: the
+                  name arrives asynchronously now, and a headline keyed on it
+                  would flicker (ANNOTATIONS-STAY-W3C D4). */}
+              {!selector && isResolved ? t('derived') : annotationType}
             </div>
           )}
           {resolvedDocumentName && (

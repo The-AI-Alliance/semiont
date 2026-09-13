@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, act } from '@testing-library/react';
+import { BehaviorSubject } from 'rxjs';
+import type { CacheState } from '@semiont/sdk';
+import type { ResourceDescriptor } from '@semiont/core';
+import { getResourceIcon } from '../../../../lib/resource-utils';
 import '@testing-library/jest-dom';
 import type { ComponentProps } from 'react';
 import { renderWithProviders, createTestSemiontWrapper } from '../../../../test-utils';
@@ -81,6 +85,21 @@ describe('ReferenceEntry', () => {
         {...props}
       />,
     );
+
+  const descriptor = (name: string, mediaType = 'text/plain'): ResourceDescriptor => ({
+    '@id': 'linked-doc',
+    name,
+    representations: [{ mediaType, checksum: 'c', byteSize: 1 }],
+  }) as unknown as ResourceDescriptor;
+
+  const ready = (value: ResourceDescriptor): CacheState<ResourceDescriptor> =>
+    ({ status: 'ready', value });
+
+  /** Point the session's resource cache at a controlled stream for the link target. */
+  const mockLinkTarget = (state: CacheState<ResourceDescriptor> | BehaviorSubject<CacheState<ResourceDescriptor>>) => {
+    const source$ = state instanceof BehaviorSubject ? state : new BehaviorSubject(state);
+    return vi.spyOn(session!.client.browse, 'resource').mockReturnValue(source$ as never);
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -176,17 +195,12 @@ describe('ReferenceEntry', () => {
       expect(screen.getByText('Image annotation')).toBeInTheDocument();
     });
 
-    it('should render resolved document name when enriched', () => {
+    it('should render the resolved document name, read from the SDK resource cache', () => {
       mockIsBodyResolved.mockReturnValue(true);
       mockGetBodySource.mockReturnValue('linked-doc');
+      mockLinkTarget(ready(descriptor('My Linked Document', 'text/plain')));
 
-      const enrichedRef = {
-        ...createMockReference(),
-        _resolvedDocumentName: 'My Linked Document',
-        _resolvedDocumentMediaType: 'text/plain',
-      };
-
-      renderEntry({ reference: enrichedRef as Annotation });
+      renderEntry();
 
       expect(screen.getByText(/My Linked Document/)).toBeInTheDocument();
     });
@@ -201,13 +215,9 @@ describe('ReferenceEntry', () => {
       mockGetAnnotationExactText.mockReturnValue('');
       mockIsBodyResolved.mockReturnValue(true);
       mockGetBodySource.mockReturnValue('gen-doc');
+      mockLinkTarget(ready(descriptor('generated from Cedar County, Iowa')));
 
-      const provenanceRef = {
-        ...createMockReference({ target: { source: 'resource-1' } }),
-        _resolvedDocumentName: 'generated from Cedar County, Iowa',
-      };
-
-      renderEntry({ reference: provenanceRef as Annotation });
+      renderEntry({ reference: createMockReference({ target: { source: 'resource-1' } }) });
 
       expect(screen.getByText('ReferencesPanel.derived')).toBeInTheDocument();
       expect(screen.queryByText('Annotation')).not.toBeInTheDocument();
@@ -432,6 +442,68 @@ describe('ReferenceEntry', () => {
 
       const entry = container.firstChild as HTMLElement;
       expect(entry).toHaveAttribute('data-type', 'reference');
+    });
+  });
+
+  // ANNOTATIONS-STAY-W3C P1: the annotation on the wire is exactly W3C — the
+  // linked resource's name and media type are read from THAT resource through
+  // the SDK's cache, where they are displayed. No `_resolved*` fields.
+  describe('Link target resolved through the SDK', () => {
+    it('shows name and media-type icon for a pure W3C annotation, sourced from browse.resource', () => {
+      mockIsBodyResolved.mockReturnValue(true);
+      mockGetBodySource.mockReturnValue('linked-doc');
+      const spy = mockLinkTarget(ready(descriptor('My Linked Document', 'text/markdown')));
+
+      renderEntry();
+
+      expect(screen.getByText(/My Linked Document/)).toBeInTheDocument();
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(getResourceIcon)).toHaveBeenCalledWith('text/markdown');
+    });
+
+    it('the name FOLLOWS the resource — a renamed descriptor re-renders the entry', () => {
+      mockIsBodyResolved.mockReturnValue(true);
+      mockGetBodySource.mockReturnValue('linked-doc');
+      const state$ = new BehaviorSubject<CacheState<ResourceDescriptor>>(ready(descriptor('Old Name')));
+      mockLinkTarget(state$);
+
+      renderEntry();
+      expect(screen.getByText(/Old Name/)).toBeInTheDocument();
+
+      act(() => state$.next(ready(descriptor('New Name'))));
+
+      expect(screen.getByText(/New Name/)).toBeInTheDocument();
+      expect(screen.queryByText(/Old Name/)).not.toBeInTheDocument();
+    });
+
+    it('a resource-level derivation headlines Derived BEFORE the name has loaded (keyed off isResolved)', () => {
+      mockGetAnnotationExactText.mockReturnValue('');
+      mockIsBodyResolved.mockReturnValue(true);
+      mockGetBodySource.mockReturnValue('gen-doc');
+      mockLinkTarget(new BehaviorSubject<CacheState<ResourceDescriptor>>({ status: 'pending' }));
+
+      renderEntry({ reference: createMockReference({ target: { source: 'resource-1' } }) });
+
+      expect(screen.getByText('ReferencesPanel.derived')).toBeInTheDocument();
+      expect(screen.queryByText('Annotation')).not.toBeInTheDocument();
+    });
+
+    it('a stub requests nothing — no browse.resource call for an unresolved reference', () => {
+      mockIsBodyResolved.mockReturnValue(false);
+      const spy = vi.spyOn(session!.client.browse, 'resource');
+
+      renderEntry();
+
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('a null session performs no lookup and renders without error', () => {
+      mockIsBodyResolved.mockReturnValue(true);
+      mockGetBodySource.mockReturnValue('linked-doc');
+
+      renderEntry({ session: null });
+
+      expect(screen.getByText(/referenced text/)).toBeInTheDocument();
     });
   });
 });
