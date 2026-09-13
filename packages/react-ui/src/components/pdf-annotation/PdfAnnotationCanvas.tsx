@@ -208,21 +208,21 @@ function PdfPageView({
         setPageDimensions({ width: viewport.width, height: viewport.height });
 
         // Anchoring and rendering are independent, and only one of them the
-        // reader is waiting on. Sequencing them put a network round-trip in
-        // front of the pixels on exactly the documents that need it most: a
-        // scanned page fetches its map from the server, and rendering behind
-        // that await is how "failing to quote it must not fail to show it"
-        // became true of errors but not of latency. Started together, the
-        // page appears on its own schedule.
-        const [anchored, { dataUrl }] = await Promise.all([
-          resolveAnchored(page),
-          renderPdfPageToDataUrl(page, scale),
-        ]);
-
+        // reader is waiting on. They start together, and the image is set the
+        // moment the render resolves — a `Promise.all` here once put the
+        // OPTIONAL half (the anchored map, a network fetch on exactly the
+        // scanned documents that need it most) in front of the pixels, so a
+        // slow or unanswered map request held a finished render off the
+        // screen. The map lands whenever it lands; anchoring "never rejects"
+        // covers its failures, and only the render can reach the catch below.
+        const anchoredPromise = resolveAnchored(page);
+        const { dataUrl } = await renderPdfPageToDataUrl(page, scale);
         if (cancelled) return;
-
-        setPageAnchored(anchored);
         setPageImageUrl(dataUrl);
+
+        const anchored = await anchoredPromise;
+        if (cancelled) return;
+        setPageAnchored(anchored);
       } catch (err) {
         if (cancelled) return;
 

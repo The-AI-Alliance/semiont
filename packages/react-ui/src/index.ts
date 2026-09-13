@@ -21,7 +21,7 @@ export * from './lib/media-url';
 export { createSearchPipeline, type SearchPipeline, type SearchPipelineOptions, type SearchState } from '@semiont/sdk';
 export * from './lib/annotation-overlay';
 export * from './lib/resource-utils';
-export { setPdfWorkerSrc } from './lib/browser-pdfjs';
+export { setPdfWorkerSrc, setPdfWasmUrl } from './lib/browser-pdfjs';
 export * from './lib/validation';
 
 // Hooks
