@@ -30,7 +30,7 @@
     "@anthropic-ai/sdk": "^0.123.0",
     "@semiont/core": "*",
     "@semiont/observability": "*",
-    "undici": "^7.29.0"
+    "undici": "^8.10.0"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.11",
