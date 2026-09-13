@@ -65,6 +65,43 @@ describe('wireEnrichment — what the EventStore publishes on the annotation cha
     expect((await published).annotation?.id).toBe('ann-enrich');
   });
 
+  // The enricher is the OTHER publication path for an annotation
+  // (ANNOTATIONS-STAY-W3C P2). The annotation-list reply has its own gate in
+  // annotation-stays-w3c.test.ts; this holds the bus to the same rule, because
+  // both read through `getAllAnnotations` and a decoration re-added there would
+  // reach subscribers as readily as readers.
+  //
+  // A LINKING annotation specifically: the server only ever decorated a
+  // resolved reference, so a commenting fixture would pass while the defect sat
+  // untouched.
+  it('a linking annotation goes out with no server-added keys', async () => {
+    const TARGET = resourceId('res-enrich-target');
+    await eventStore.appendEvent({
+      type: 'yield:created', resourceId: TARGET, userId: USER, version: 1,
+      payload: { name: 'Target doc', format: 'text/plain', contentChecksum: 'cs-target' },
+    });
+
+    const linking: Annotation = {
+      '@context': 'http://www.w3.org/ns/anno.jsonld',
+      type: 'Annotation',
+      id: annotationId('ann-linking'),
+      motivation: 'linking',
+      target: { source: RID, selector: { type: 'TextQuoteSelector', exact: 'quoted' } },
+      body: [{ type: 'SpecificResource', source: String(TARGET), purpose: 'linking' }],
+      created: '2026-01-01T00:00:00Z',
+    };
+
+    const published = nextOn('mark:added');
+    await eventStore.appendEvent({
+      type: 'mark:added', resourceId: RID, userId: USER, version: 1, payload: { annotation: linking },
+    });
+
+    const out = (await published).annotation!;
+    expect(out.id).toBe('ann-linking');
+    // Named, so a regression says which key came back.
+    expect(Object.keys(out).filter((k) => k.startsWith('_'))).toEqual([]);
+  });
+
   it('mark:body-updated carries the annotation AFTER the update — the new body, not the old', async () => {
     await addAnnotation();
     const published = nextOn('mark:body-updated');

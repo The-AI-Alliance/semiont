@@ -19,7 +19,6 @@ import type {
   ResourceId,
   ResourceAnnotations,
   AnnotationId,
-  AnnotationCategory,
   Logger,
 } from '@semiont/core';
 import { resourceId as createResourceId } from '@semiont/core';
@@ -370,80 +369,7 @@ Summary:`;
    */
   static async getAllAnnotations(resourceId: ResourceId, kb: ViewGet): Promise<Annotation[]> {
     const annotations = await this.getResourceAnnotations(resourceId, kb);
-
-    // Enrich resolved references with document names
-    return this.enrichResolvedReferences(annotations.annotations, kb);
-  }
-
-  /**
-   * Enrich reference annotations with resolved document names
-   * Adds _resolvedDocumentName property to annotations that link to documents
-   * @private
-   */
-  private static async enrichResolvedReferences(annotations: Annotation[], kb: ViewGet): Promise<Annotation[]> {
-    // Extract unique resolved resource IDs from reference annotations
-    const resolvedIds = new Set<string>();
-    for (const ann of annotations) {
-      if (ann.motivation === 'linking' && ann.body) {
-        const body = Array.isArray(ann.body) ? ann.body : [ann.body];
-        for (const item of body) {
-          if (item.type === 'SpecificResource' && item.purpose === 'linking' && item.source) {
-            resolvedIds.add(item.source);
-          }
-        }
-      }
-    }
-
-    if (resolvedIds.size === 0) {
-      return annotations;
-    }
-
-    // Batch fetch all resolved documents in parallel
-    const metadataPromises = Array.from(resolvedIds).map(async (id) => {
-      try {
-        const view = await kb.views.get(id as ResourceId);
-        if (view?.resource?.name) {
-          return {
-            id,
-            metadata: {
-              name: view.resource.name,
-              mediaType: view.resource.mediaType as string | undefined
-            }
-          };
-        }
-      } catch (e) {
-        // Document might not exist, skip
-      }
-      return null;
-    });
-
-    const results = await Promise.all(metadataPromises);
-    const idToMetadata = new Map<string, { name: string; mediaType?: string }>();
-    for (const result of results) {
-      if (result) {
-        idToMetadata.set(result.id, result.metadata);
-      }
-    }
-
-    // Add _resolvedDocumentName and _resolvedDocumentMediaType to annotations
-    return annotations.map(ann => {
-      if (ann.motivation === 'linking' && ann.body) {
-        const body = Array.isArray(ann.body) ? ann.body : [ann.body];
-        for (const item of body) {
-          if (item.type === 'SpecificResource' && item.purpose === 'linking' && item.source) {
-            const metadata = idToMetadata.get(item.source);
-            if (metadata) {
-              return {
-                ...ann,
-                _resolvedDocumentName: metadata.name,
-                _resolvedDocumentMediaType: metadata.mediaType
-              } as Annotation;
-            }
-          }
-        }
-      }
-      return ann;
-    });
+    return annotations.annotations;
   }
 
   /**
@@ -477,20 +403,6 @@ Summary:`;
   static async getAnnotation(annotationId: AnnotationId, resourceId: ResourceId, kb: ViewGet): Promise<Annotation | null> {
     const annotations = await this.getResourceAnnotations(resourceId, kb);
     return annotations.annotations.find((a: Annotation) => a.id === annotationId) || null;
-  }
-
-  /**
-   * List annotations with optional filtering
-   * @param filters - Optional filters like resourceId and type
-   * @throws Error if resourceId not provided (cross-resource queries not supported in view storage)
-   */
-  static async listAnnotations(filters: { resourceId?: ResourceId; type?: AnnotationCategory } | undefined, kb: ViewGet): Promise<Annotation[]> {
-    if (!filters?.resourceId) {
-      throw new Error('resourceId is required for annotation listing - cross-resource queries not supported in view storage');
-    }
-
-    // Use view storage directly
-    return this.getAllAnnotations(filters.resourceId, kb);
   }
 
   /**
