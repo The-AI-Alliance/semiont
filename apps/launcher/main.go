@@ -26,6 +26,7 @@ Stack lifecycle:
   logs      Follow the running stack's service logs
   stop      Stop the stack across all installed runtimes
   clean     Remove a root's persistent stack state (databases, event log, secrets)
+  roots     List every knowledge base this machine knows
   forget    Drop a root from the registry listing (deletes no files)
 
 Identity & auth:
@@ -105,6 +106,8 @@ func main() {
 		code = launcher.Stop(rest)
 	case "clean":
 		code = launcher.Clean(rest)
+	case "roots":
+		code = launcher.Roots(rest)
 	case "forget":
 		code = launcher.Forget(rest)
 	case "export":

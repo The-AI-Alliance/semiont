@@ -335,7 +335,7 @@ func warnICloudRoot(u *ui, root string) {
 
 const forgetUsage = `Usage: semiont forget <path|name>
 
-Drop one root from the launcher's registry — the KNOWLEDGE BASES listing and
+Drop one root from the launcher's registry — the "semiont roots" listing and
 --root resolution. The registry only remembers: forgetting deletes no KB
 files and no stack state. The running stack's root is refused; stop first.
 
@@ -387,7 +387,7 @@ func Forget(args []string) int {
 	switch {
 	case len(matches) == 0:
 		u.fail("%q is not in the registry.", arg)
-		fmt.Fprintln(os.Stderr, "  Registered roots: semiont status (KNOWLEDGE BASES)")
+		fmt.Fprintln(os.Stderr, "  Registered roots: semiont roots")
 		return 1
 	case len(matches) > 1:
 		u.fail("%q names %d registered roots — forget one by its full path:", arg, len(matches))

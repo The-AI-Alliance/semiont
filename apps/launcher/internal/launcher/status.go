@@ -235,14 +235,7 @@ func Status(args []string) int {
 	// so the "nothing here" line belongs here too.
 	if service == "" {
 		u.section("KNOWLEDGE BASES")
-		found := printRoots(u, st)
-		if rootFlag == "" {
-			found += printRemoteKBs(u, cs)
-		}
-		if found == 0 {
-			fmt.Printf("  %s\n", u.dim("(none — cd into a KB clone, set SEMIONT_ROOT, start with --root, "+
-				"or --runtime codespace --repo <owner>/<name>)"))
-		}
+		printRootsPointer(u, st, cs)
 	}
 	if service == "" && verbose {
 		printSessions(u, ss)
@@ -555,6 +548,89 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 	return healthy, 0
 }
 
+const rootsUsage = `Usage: semiont roots
+
+The full knowledge-base catalog: every KB this machine knows — file:// clones
+the launcher has used (roots.json), and https:// codespace-hosted repos with
+their state. The registry only remembers; drop an entry with semiont forget.
+
+  --help   Show this help
+`
+
+// Roots implements `semiont roots` — the catalog that lived inside status
+// until it outgrew a screen and pushed stack health out of view.
+func Roots(args []string) int {
+	u := newUI(false)
+	for _, a := range args {
+		switch a {
+		case "--help", "-h":
+			fmt.Print(rootsUsage)
+			return 0
+		default:
+			u.fail("Unknown argument: %s", a)
+			return 1
+		}
+	}
+	ss := loadStackSet()
+	u.section("KNOWLEDGE BASES")
+	found := printRoots(u, ss.Stacks["local"])
+	found += printRemoteKBs(u, codespaceStacks(ss))
+	if found == 0 {
+		fmt.Printf("  %s\n", u.dim("(none — cd into a KB clone, set SEMIONT_ROOT, start with --root, "+
+			"or --runtime codespace --repo <owner>/<name>)"))
+	}
+	return 0
+}
+
+// printRootsPointer is status's face of the catalog: the count, the verb
+// that owns the full tree, and the one contextual fact worth a line at
+// status-reading time — cwd being a DIFFERENT KB than the running stack's
+// root (being in template-kb while the stack runs family is a real gotcha).
+func printRootsPointer(u *ui, st *stackState, cs []*stackState) {
+	reg := loadRoots().Roots
+	n := len(reg) + len(cs)
+	cwd, _, cwdErr := resolveKBRoot()
+	if cwdErr == nil {
+		known := false
+		for _, e := range reg {
+			if e.Path == cwd {
+				known = true
+			}
+		}
+		// The tree included a cwd-discovered KB the registry has never
+		// seen; the count keeps doing so.
+		if !known {
+			n++
+		}
+	}
+	if n == 0 {
+		fmt.Printf("  %s\n", u.dim("(none — cd into a KB clone, set SEMIONT_ROOT, start with --root, "+
+			"or --runtime codespace --repo <owner>/<name>)"))
+	} else {
+		fmt.Printf("  %d known — full catalog: %s\n", n, u.bold("semiont roots"))
+	}
+	// Every ACTIVE stack stays scannable here, addressed exactly as its
+	// row in `semiont roots` (file:// local, https:// codespace) so the
+	// jump from pointer to catalog is one glance. Active is a local fact:
+	// the running local stack per stack.json, and a codespace whose
+	// forward is alive AND answering (forwardAlive) — a record whose
+	// tunnel is gone is history, not activity, and no gh round-trip is
+	// spent deciding.
+	if st != nil && st.KBRoot != "" {
+		fmt.Printf("  active: file://%s %s\n", st.KBRoot, u.dim("(the running local stack)"))
+	}
+	for _, c := range cs {
+		if !forwardAlive(c.ForwardPID, c.ForwardPort) {
+			continue
+		}
+		fmt.Printf("  active: https://github.com/%s %s\n", c.Repo,
+			u.dim(fmt.Sprintf("(codespace %s → http://localhost:%d)", c.Codespace, c.ForwardPort)))
+	}
+	if cwdErr == nil && st != nil && st.KBRoot != "" && cwd != st.KBRoot {
+		fmt.Printf("  %s\n", u.wrap(ansiYellow, "cwd KB: "+cwd+" — not the running stack's root"))
+	}
+}
+
 // printRoots reports the Semiont roots: every registered root (roots.json —
 // the launcher's memory of roots it has actually used), merged with the one
 // resolvable from here (SEMIONT_ROOT or cwd discovery) and the running
@@ -609,11 +685,6 @@ func printRoots(u *ui, st *stackState) int {
 		}
 		if ident := loadKBIdentity(p); ident != nil {
 			did, site = ident.didWeb(), ident.SiteName
-		}
-		// LOCAL STACK already printed this root's identity directly above;
-		// repeating it here is noise.
-		if st != nil && st.KBRoot == p {
-			did, site = "", ""
 		}
 		switch {
 		case did != "" && site != "":
