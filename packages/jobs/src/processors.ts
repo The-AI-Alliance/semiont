@@ -278,6 +278,26 @@ export function buildTextAnnotation(
  * layer is a derived artifact, not the stored content, so its char offsets are
  * not a durable anchor.
  *
+ * **And the `id` is hashed over exactly those offsets** — `annotationIdFor` gets
+ * `spanAnchor(match)`, i.e. `${start}:${end}:${exact}`. That is worth stating
+ * plainly, because it sits in tension with the paragraph above: identity here
+ * depends on something the annotation refuses to store, on the grounds that it is
+ * not durable. The consequence is not a corrupt write but an invisible one — an
+ * extraction that moved would re-identify the same visual span, and the two
+ * annotations would agree in every stored field (same rects, same quoted text) and
+ * differ only in `id`, so every dedupe layer would correctly let both through.
+ *
+ * It is left as it is on evidence, not by oversight. The offsets come from a
+ * derivation cached per content checksum and gated by a stamp that a release of
+ * `@semiont/content`, the PDF engine or its traineddata busts by design; measured
+ * across the caret-reachable engine move (pdfjs 6.2.108 → 6.3.289) over 1,192 pages
+ * of real documents, they did not move, and `pdf-offset-stability.test.ts` in
+ * `@semiont/content` now fails if they ever do. The OCR path is unmeasured, and a
+ * scanned document takes its whole text from there. If that gate ever fires, this
+ * is the line to revisit: hashing the DURABLE anchor instead (page geometry plus
+ * `exact`) makes identity depend only on what the annotation carries — at the cost
+ * of one round of new ids for every PDF annotation minted afterwards.
+ *
  * Write-time invariant (geometry <-> text): geometry is item-level (word runs),
  * so the covered items' text must *contain* `exact` (whitespace-normalized) —
  * containment, not reconstruction. An empty cover (no overlapping items -> no

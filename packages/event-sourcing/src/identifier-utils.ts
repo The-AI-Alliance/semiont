@@ -68,6 +68,33 @@ function canonical(value: unknown): string {
  * replaces produced, so nothing downstream that sized a column or a URL around
  * it changes, and ~126 bits, which is far more than a per-resource span space
  * needs.
+ *
+ * ## The no-op guarantee is conditional on `anchor`, and callers differ
+ *
+ * "Re-emitting is a no-op" holds exactly as far as `anchor` is stable, and that
+ * is the CALLER's property, not this function's. The two detection builders do
+ * not have it equally:
+ *
+ * - **Text** (`buildTextAnnotation`) passes `${start}:${end}:${exact}` and the
+ *   annotation STORES those offsets in a `TextPositionSelector`. Identity depends
+ *   only on fields the annotation carries, so the guarantee is unconditional and
+ *   any reader can verify it after the fact.
+ * - **PDF** (`buildPdfAnnotation`) passes the same shape, but the offsets come
+ *   from a text layer *derived* per attempt and are deliberately NOT stored — the
+ *   annotation carries page geometry and the quoted text instead. There the
+ *   guarantee holds only while that derivation is stable, and a reader holding two
+ *   annotations cannot tell whether they disagree because they are different facts
+ *   or because the text layer moved: every stored field would be identical.
+ *
+ * The derivation is cached per content checksum, but the entry is gated by a stamp
+ * over `@semiont/content`'s version plus the PDF engine and its traineddata, and
+ * that stamp is deliberately over-eager — **a release busts it and the same bytes
+ * are re-extracted by different code.** So the honest statement is: the PDF path's
+ * guarantee holds *per stamp generation*, and a release is the event that could end
+ * one. Measured 2026-09-12 across the caret-reachable engine move (pdfjs 6.2.108 →
+ * 6.3.289, 1,192 pages): the offsets did not move — and
+ * `pdf-offset-stability.test.ts` is what keeps that from being a one-time
+ * observation. The OCR path has not been measured.
  */
 export function annotationIdFor(identity: AnnotationIdentity): AnnotationId {
   const material = canonical({
