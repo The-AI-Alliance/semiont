@@ -1582,7 +1582,7 @@ func TestStatusMixed(t *testing.T) {
 		"LOCAL STACK", "database (PostgreSQL)", // tech rides in the SERVICE cell now
 		"PostgreSQL", "Neo4j", "Qdrant", "Ollama", "Jaeger",
 		"KNOWLEDGE BASES",
-		"(discovered from cwd)",
+		"semiont roots",
 		// The merged STATUS cell: mark + word, probe dimmed after. The
 		// diagnostic matrix each word pins: running-and-healthy, running-
 		// but-unhealthy, crashed, absent, host-provided.
@@ -2767,9 +2767,10 @@ func TestCodespaceWithoutGh(t *testing.T) {
 		t.Fatalf("status --repo without gh: want exit 1, got %d", code)
 	}
 	all := stdout + stderr
-	// The overview form must also refuse to call it deleted.
-	ov, _, _ := s3.run(t, "status")
-	mustContain(t, "overview", ov, "state unknown — gh unavailable")
+	// The catalog form must also refuse to call it deleted (the remote rows
+	// moved from status's overview to the roots verb).
+	ov, _, _ := s3.run(t, "roots")
+	mustContain(t, "roots catalog", ov, "state unknown — gh unavailable")
 	mustContain(t, "status output", all,
 		"Could not ask GitHub about this codespace",
 		"it may well be running")
@@ -2829,8 +2830,8 @@ func TestCodespaceDidIsRecordedNotInferred(t *testing.T) {
 	}
 	b, _ := os.ReadFile(statePathFor(s.home))
 	mustContain(t, "stack.json", string(b), `"kbDid": "did:web:example.github.io:test-kb"`)
-	stdout, _, _ := s.run(t, "status")
-	mustContain(t, "status", stdout, "did:web:example.github.io:test-kb")
+	stdout, _, _ := s.run(t, "roots")
+	mustContain(t, "roots", stdout, "did:web:example.github.io:test-kb")
 
 	// A --repo-only create has no clone to read — so it learns the identity
 	// from the codespace itself, over the ssh it is already making for the
@@ -2842,8 +2843,8 @@ func TestCodespaceDidIsRecordedNotInferred(t *testing.T) {
 	}
 	b, _ = os.ReadFile(statePathFor(s2.home))
 	mustContain(t, "stack.json", string(b), `"kbDid": "did:web:example.com:remote-kb"`)
-	stdout, _, _ = s2.run(t, "status")
-	mustContain(t, "status", stdout, "did:web:example.com:remote-kb")
+	stdout, _, _ = s2.run(t, "roots")
+	mustContain(t, "roots", stdout, "did:web:example.com:remote-kb")
 }
 
 func TestCodespaceDidRefreshConfirmsAndReportsDrift(t *testing.T) {
@@ -2959,6 +2960,12 @@ func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {
 	if strings.Contains(string(b), `"forwardPid"`) {
 		t.Errorf("stop left a dead forward pid recorded:\n%s", b)
 	}
+	// A record without a live forward is not "active" — status must not
+	// claim it (active = the forward answers locally, nothing less).
+	stdout, _, _ = s.run(t, "status")
+	if strings.Contains(stdout, "active: https://github.com/"+csRepo) {
+		t.Errorf("a stopped codespace (no forward) listed as active:\n%s", stdout)
+	}
 
 	// stop --delete: destroy and forget.
 	stdout, stderr, code = s.run(t, "stop", "--delete")
@@ -2996,13 +3003,24 @@ func TestCodespaceStatus(t *testing.T) {
 	// forward, credentials read fresh.
 	s.extraEnv = append(s.extraEnv,
 		`FAKERT_GH_CS_LIST=[{"name":"fake-cs-1","state":"Available","repository":"pingel-org/foo-kb"}]`)
-	// The default report LISTS remote repos; it no longer drills into one.
+	// The default report POINTS at the catalog; `semiont roots` lists the
+	// remote repos.
 	stdout, _, code := s.run(t, "status")
 	if code != 0 {
 		t.Fatalf("status: exit %d\nstdout:\n%s", code, stdout)
 	}
 	mustContain(t, "status stdout", stdout,
-		"LOCAL STACK", "KNOWLEDGE BASES", csRepo, "codespace fake-cs-1", "KNOWLEDGE BASES")
+		"LOCAL STACK", "KNOWLEDGE BASES", "semiont roots")
+	// The forward is dead (killServes above): a record without a live
+	// tunnel is history, not activity.
+	if strings.Contains(stdout, "active: https://github.com/"+csRepo) {
+		t.Errorf("dead forward listed as active:\n%s", stdout)
+	}
+	stdout, _, code = s.run(t, "roots")
+	if code != 0 {
+		t.Fatalf("roots: exit %d\nstdout:\n%s", code, stdout)
+	}
+	mustContain(t, "roots stdout", stdout, csRepo, "codespace fake-cs-1")
 
 	// --repo names ONE stack: full detail, health-coded, credentials fresh.
 	stdout, _, code = s.run(t, "status", "--repo", csRepo)
@@ -3017,6 +3035,12 @@ func TestCodespaceStatus(t *testing.T) {
 		// No credentials: status reports where to connect and how to make a
 		// user, never an account it cannot vouch for.
 		"connect at Host localhost, Port 4000", "semiont useradd --repo "+csRepo)
+
+	// The respawned forward makes it ACTIVE — bare status now says so,
+	// with the local port that answers.
+	stdout, _, _ = s.run(t, "status")
+	mustContain(t, "status after respawn", stdout,
+		"active: https://github.com/"+csRepo, "http://localhost:4000)")
 
 	// Stopped: honest stopped-but-existing, scriptably unhealthy.
 	s.killServes()
@@ -3184,8 +3208,14 @@ func TestMultiStackCodespaces(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("fleet status: exit %d\n%s", code, stdout)
 	}
-	mustContain(t, "status stdout", stdout,
-		"KNOWLEDGE BASES",
+	mustContain(t, "status stdout", stdout, "KNOWLEDGE BASES", "semiont roots",
+		"active: https://github.com/"+csRepo, "http://localhost:4000)",
+		"active: https://github.com/other/bar", "http://localhost:4001)")
+	stdout, _, code = s.run(t, "roots")
+	if code != 0 {
+		t.Fatalf("roots: exit %d\n%s", code, stdout)
+	}
+	mustContain(t, "roots stdout", stdout,
 		csRepo, "codespace fake-cs-1", "http://localhost:4000",
 		"other/bar", "codespace bar-cs-1", "http://localhost:4001")
 
@@ -3644,9 +3674,9 @@ func TestRootsRegistryAndRootFlag(t *testing.T) {
 		t.Errorf("dry-run mutated the registry:\n%s", after)
 	}
 
-	// status shows the registered root, with its did:web identity line.
-	stdout, _, _ = s.run(t, "status")
-	mustContain(t, "status stdout", stdout, "KNOWLEDGE BASES", s.kb, "last used ",
+	// roots shows the registered root, with its did:web identity line.
+	stdout, _, _ = s.run(t, "roots")
+	mustContain(t, "roots stdout", stdout, "KNOWLEDGE BASES", s.kb, "last used ",
 		"did:web:example.github.io:test-kb — Test Knowledge Base")
 }
 
@@ -3730,9 +3760,9 @@ func TestConfigStickiness(t *testing.T) {
 	b, _ = os.ReadFile(rootsPathFor(s.home))
 	mustContain(t, "roots.json after bogus config", string(b), `"config": "ollama-gemma"`)
 
-	// status surfaces the sticky config on the root's identity lines.
-	stdout, _, _ = s.run(t, "status")
-	mustContain(t, "status stdout", stdout, "config: ollama-gemma (used when --config is omitted)")
+	// roots surfaces the sticky config on the root's identity lines.
+	stdout, _, _ = s.run(t, "roots")
+	mustContain(t, "roots stdout", stdout, "config: ollama-gemma (default)")
 
 	// A recorded preference whose file has since vanished fails with the
 	// provenance spelled out.
@@ -5432,15 +5462,15 @@ func TestCodespaceCostFacts(t *testing.T) {
 	}
 	mustContain(t, "up-summary", stdout+stderr, "Machine premiumLinux 8c/32GB", "auto-stops after 60m idle")
 
-	stdout, _, _ = s.run(t, "status")
-	mustContain(t, "overview (Available)", stdout,
+	stdout, _, _ = s.run(t, "roots")
+	mustContain(t, "catalog (Available)", stdout,
 		"Available · premiumLinux 8c/32GB · up 2h")
 
 	if _, _, code := s.run(t, "stop"); code != 0 {
 		t.Fatal("stop")
 	}
-	stdout, _, _ = s.run(t, "status")
-	mustContain(t, "overview (Shutdown)", stdout,
+	stdout, _, _ = s.run(t, "roots")
+	mustContain(t, "catalog (Shutdown)", stdout,
 		"storage still bills; auto-deletes 2026-08-19, state and all")
 	if strings.Contains(stdout, "up 2h") {
 		t.Errorf("a stopped codespace claimed uptime:\n%s", stdout)
@@ -6861,4 +6891,149 @@ func TestYieldDelegateNeedsStorageUri(t *testing.T) {
 		t.Fatal("--delegate without --storage-uri must refuse")
 	}
 	mustContain(t, "refusal", stderr, "--storage-uri")
+}
+
+// The roots registry had an upsert and nothing else, so a row whose
+// directory vanished (a moved KB, a deleted trial root) was permanent
+// listing noise with no in-product removal — the same record-outlives-its-
+// subject shape as the reaped-codespace bug. forget drops exactly one row;
+// it deletes no files and no stack state.
+func TestForgetDropsRegistryRow(t *testing.T) {
+	s := newScenario(t, "container")
+	seedRootsRegistry(t, s,
+		`{"path":"/gone/trial-kb","did":"did:web:example.github.io:trial-kb","lastUsed":"2026-01-01T00:00:00Z"}`,
+		`{"path":"/somewhere/else-kb","did":"did:web:example.org","lastUsed":"2026-02-01T00:00:00Z"}`)
+
+	stdout, stderr, code := s.run(t, "forget", "trial-kb")
+	if code != 0 {
+		t.Fatalf("forget by basename: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "forget output", stdout+stderr, "Forgot", "/gone/trial-kb")
+	b, _ := os.ReadFile(rootsPathFor(s.home))
+	if strings.Contains(string(b), "/gone/trial-kb") {
+		t.Errorf("forgotten row still in roots.json:\n%s", b)
+	}
+	mustContain(t, "surviving row", string(b), "/somewhere/else-kb")
+
+	_, stderr, code = s.run(t, "forget", "nonesuch")
+	if code != 1 {
+		t.Fatalf("forget of an unregistered root: want exit 1, got %d", code)
+	}
+	mustContain(t, "unknown-root error", stderr, "not in the registry")
+}
+
+// State is keyed by did, so a moved KB's corpse row and its live twin share
+// one state dir — forgetting the corpse must NOT suggest `clean --root
+// <key>`, which would name the LIVE twin's state (observed live 2026-09-13:
+// the hint offered to clean the running family stack's postgres).
+func TestForgetCorpseWithLiveTwinSuggestsNoClean(t *testing.T) {
+	s := newScenario(t, "container")
+	seedRootsRegistry(t, s,
+		`{"path":"/gone/old/family","did":"did:web:pingel.org","lastUsed":"2026-01-01T00:00:00Z"}`,
+		`{"path":"`+s.kb+`","did":"did:web:pingel.org","lastUsed":"2026-02-01T00:00:00Z"}`)
+	// The shared state dir exists — the situation where the hint would fire.
+	if err := os.MkdirAll(filepath.Join(stateRootFor(s.home, "pingel.org")), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "forget", "/gone/old/family")
+	if code != 0 {
+		t.Fatalf("forget: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if strings.Contains(stdout+stderr, "semiont clean") {
+		t.Errorf("forgetting a corpse suggested cleaning state its live twin still owns:\n%s", stdout+stderr)
+	}
+}
+
+// A basename shared by two rows is exactly the moved-KB corpse situation —
+// refusing with both full paths beats guessing which one dies.
+func TestForgetRefusesAmbiguityAndRunningStack(t *testing.T) {
+	s := newScenario(t, "container")
+	seedRootsRegistry(t, s,
+		`{"path":"/old/place/family","did":"did:web:pingel.org","lastUsed":"2026-01-01T00:00:00Z"}`,
+		`{"path":"/new/place/family","did":"did:web:pingel.org","lastUsed":"2026-02-01T00:00:00Z"}`)
+	_, stderr, code := s.run(t, "forget", "family")
+	if code != 1 {
+		t.Fatalf("ambiguous basename: want exit 1, got %d", code)
+	}
+	mustContain(t, "ambiguity error", stderr, "/old/place/family", "/new/place/family")
+
+	// The running stack's row is refused — the registry is how status and
+	// --root find it; stop first.
+	seedRootsRegistry(t, s,
+		`{"path":"`+s.kb+`","did":"did:web:running.example","lastUsed":"2026-03-01T00:00:00Z"}`)
+	body := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"` + s.kb + `","services":{}}}}`
+	if err := os.WriteFile(statePathFor(s.home), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code = s.run(t, "forget", s.kb)
+	if code != 1 {
+		t.Fatalf("forget of the running stack's root: want exit 1, got %d", code)
+	}
+	mustContain(t, "running-stack refusal", stderr, "running stack", "semiont stop")
+	b, _ := os.ReadFile(rootsPathFor(s.home))
+	mustContain(t, "row kept", string(b), s.kb)
+}
+
+// seedRootsRegistry writes roots.json with the given row literals.
+func seedRootsRegistry(t *testing.T, s *scenario, rows ...string) {
+	t.Helper()
+	p := rootsPathFor(s.home)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"schema":1,"roots":[` + strings.Join(rows, ",") + `]}`
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The KNOWLEDGE BASES catalog outgrew the screen and pushed stack health
+// out of view — `semiont roots` owns it now; status keeps the section
+// header, a count + pointer, and one contextual line when cwd is a
+// DIFFERENT KB than the running stack's root.
+func TestRootsVerbOwnsTheCatalogStatusPoints(t *testing.T) {
+	s := newScenario(t, "container")
+	seedRootsRegistry(t, s,
+		`{"path":"`+s.kb+`","did":"did:web:example.github.io:test-kb","siteName":"Test Knowledge Base","config":"anthropic","lastUsed":"2026-09-01T00:00:00Z"}`,
+		`{"path":"/gone/other-kb","did":"did:web:example.org:other","lastUsed":"2026-08-01T00:00:00Z"}`)
+
+	stdout, stderr, code := s.run(t, "roots")
+	if code != 0 {
+		t.Fatalf("roots: exit %d\nstderr:\n%s", code, stderr)
+	}
+	// The prefix tree splits shared path stems across lines, so assert
+	// unsplit fragments: row details and leaf names, not full paths.
+	mustContain(t, "roots stdout", stdout,
+		"KNOWLEDGE BASES",
+		"last used 2026-09-01",
+		"did:web:example.github.io:test-kb — Test Knowledge Base",
+		"config: anthropic (default)",
+		"other-kb", "missing")
+
+	stdout, _, _ = s.run(t, "status")
+	mustContain(t, "status pointer", stdout, "KNOWLEDGE BASES", "2 known", "semiont roots")
+	for _, leak := range []string{"last used", "did:web:example.org:other"} {
+		if strings.Contains(stdout, leak) {
+			t.Errorf("status still renders the catalog (%q):\n%s", leak, stdout)
+		}
+	}
+}
+
+// The one contextual fact the old tree carried at status-reading time:
+// being inside template-kb while the stack runs family is a real gotcha.
+func TestStatusFlagsCwdKBDifferentFromRunningStack(t *testing.T) {
+	s := newScenario(t, "container")
+	other := mkKB(t)
+	body := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"` + other + `","services":{}}}}`
+	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePathFor(s.home), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, _ := s.run(t, "status") // cwd is s.kb — a KB, but not the stack's root
+	mustContain(t, "cwd mismatch", stdout+stderr, "cwd KB: "+s.kb, "not the running stack's root")
+	// Active stacks stay scannable in the slim section, addressed exactly
+	// as their rows in `semiont roots` — find one there in one glance.
+	mustContain(t, "active line", stdout, "active: file://"+other)
 }

@@ -1168,24 +1168,24 @@ func statusCodespace(u *ui, st *stackState, refresh bool) int {
 	case "unqueryable":
 		u.warn("Could not ask GitHub about this codespace (is 'gh' installed and authenticated?) — it may well be running.")
 		fmt.Fprintln(os.Stderr, "  Check directly:  gh codespace list")
-		printRoots(u, st)
+		printRootsPointer(u, nil, nil)
 		return 1
 	case "deleted":
 		u.warn("The recorded codespace no longer exists — forget the record with: semiont stop --delete")
-		printRoots(u, st)
+		printRootsPointer(u, nil, nil)
 		return 1
 	case "Available":
 	case "Shutdown":
 		fmt.Printf("  %s\n", u.dim("stopped — state and credentials persist; compute billing halted (storage still bills)"))
 		fmt.Printf("  Resume:   %s\n", u.bold("semiont start"))
-		printRoots(u, st)
+		printRootsPointer(u, nil, nil)
 		return 1
 	default:
 		// Queued / Provisioning / Starting / Rebuilding / Failed …: coming
 		// up (and billing) — NOT stopped. Saying "stopped, billing halted"
 		// here would be wrong on both counts.
 		fmt.Printf("  %s\n", u.dim("not ready yet (state: "+state+") — GitHub is still working on it; re-run semiont status"))
-		printRoots(u, st)
+		printRootsPointer(u, nil, nil)
 		return 1
 	}
 
@@ -1230,7 +1230,7 @@ func statusCodespace(u *ui, st *stackState, refresh bool) int {
 	fmt.Printf("  state      %s\n", statePath())
 	fmt.Printf("  forward    pid %d %s\n", st.ForwardPID, u.dim(fmt.Sprintf("(KB localhost:%d → codespace:%d)", st.ForwardPort, kbRemotePort)))
 
-	printRoots(u, st)
+	printRootsPointer(u, nil, nil)
 	if healthy {
 		return 0
 	}

@@ -123,6 +123,23 @@ func registerRootUse(path string, fullStart bool, config string) {
 	now := time.Now().UTC()
 	// Identity refreshes on every use — the KB's .semiont/config can change.
 	ident := loadKBIdentity(path)
+	// A moved KB re-registers its did at the new path, leaving the old
+	// path's row a corpse nothing else removes (and a basename collision
+	// for --root). Drop rows claiming THIS did at OTHER paths that no
+	// longer exist on disk; a same-did row whose path exists is a live
+	// clone, not a corpse, and stays.
+	if did := ident.didWeb(); did != "" {
+		kept := reg.Roots[:0]
+		for _, e := range reg.Roots {
+			if e.Did == did && e.Path != path {
+				if _, err := os.Stat(e.Path); err != nil {
+					continue
+				}
+			}
+			kept = append(kept, e)
+		}
+		reg.Roots = kept
+	}
 	found := false
 	for i := range reg.Roots {
 		if reg.Roots[i].Path == path {
@@ -314,4 +331,96 @@ func warnICloudRoot(u *ui, root string) {
 	if zone != "" {
 		u.warn("KB root %s is in an iCloud-managed folder — container reads can fail on iCloud-evicted files (errno -35), typically once the event log is non-empty. Prefer a non-synced path (e.g. ~/Developer).", root)
 	}
+}
+
+const forgetUsage = `Usage: semiont forget <path|name>
+
+Drop one root from the launcher's registry — the "semiont roots" listing and
+--root resolution. The registry only remembers: forgetting deletes no KB
+files and no stack state. The running stack's root is refused; stop first.
+
+  <path|name>   The root's path as listed, or its directory basename when
+                that names exactly one entry (a moved KB's old row keeps the
+                basename, so name collisions list the candidates).
+  --help        Show this help
+`
+
+// Forget removes a registry row: the exit for entries whose directory is
+// gone (a moved KB, a deleted trial root), which the registry's
+// annotate-don't-drop policy otherwise keeps forever.
+func Forget(args []string) int {
+	u := newUI(false)
+	arg := ""
+	for _, a := range args {
+		switch a {
+		case "--help", "-h":
+			fmt.Print(forgetUsage)
+			return 0
+		default:
+			if strings.HasPrefix(a, "-") || arg != "" {
+				u.fail("Unknown argument: %s", a)
+				return 1
+			}
+			arg = a
+		}
+	}
+	if arg == "" {
+		fmt.Print(forgetUsage)
+		return 1
+	}
+	reg := loadRoots()
+	var matches []int
+	abs, _ := filepath.Abs(arg)
+	for i, e := range reg.Roots {
+		if e.Path == arg || e.Path == abs {
+			matches = []int{i}
+			break
+		}
+	}
+	if len(matches) == 0 {
+		for i, e := range reg.Roots {
+			if filepath.Base(e.Path) == arg {
+				matches = append(matches, i)
+			}
+		}
+	}
+	switch {
+	case len(matches) == 0:
+		u.fail("%q is not in the registry.", arg)
+		fmt.Fprintln(os.Stderr, "  Registered roots: semiont roots")
+		return 1
+	case len(matches) > 1:
+		u.fail("%q names %d registered roots — forget one by its full path:", arg, len(matches))
+		for _, i := range matches {
+			fmt.Fprintln(os.Stderr, "    "+reg.Roots[i].Path)
+		}
+		return 1
+	}
+	e := reg.Roots[matches[0]]
+	if st := loadLocalState(); st != nil && st.KBRoot == e.Path {
+		u.fail("%s is the running stack's root (per %s).", e.Path, statePath())
+		fmt.Fprintln(os.Stderr, "  Stop it first: semiont stop")
+		return 1
+	}
+	reg.Roots = append(reg.Roots[:matches[0]], reg.Roots[matches[0]+1:]...)
+	saveRoots(reg)
+	u.ok("Forgot %s — registry entry removed. No files were deleted.", e.Path)
+	// Persistent stack state is keyed by identity, not by the registry: say
+	// so when some exists, or the forgotten row's state lives on unnamed.
+	// UNLESS a surviving row shares the did — state keys derive from the
+	// did, so that state belongs to the live twin, and suggesting `clean`
+	// here offers to delete a KB the user still uses (observed live
+	// 2026-09-13 on the moved family root).
+	for _, other := range reg.Roots {
+		if other.Did != "" && other.Did == e.Did {
+			return 0
+		}
+	}
+	if d := dataDir(); d != "" {
+		key := stateKeyFor(e.Did, e.Path)
+		if fi, err := os.Stat(filepath.Join(d, "roots", key)); err == nil && fi.IsDir() {
+			fmt.Println("  Persistent stack state remains. Remove it: semiont clean --root " + key)
+		}
+	}
+	return 0
 }
