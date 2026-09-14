@@ -108,6 +108,7 @@ export type { EnrichedEventType } from './bus-protocol';
 export type {
   Selector,
   GatheredContext,
+  CommandErrorCode,
   JobReferenceAnnotationResult,
   JobHighlightAnnotationResult,
   JobCommentAnnotationResult,

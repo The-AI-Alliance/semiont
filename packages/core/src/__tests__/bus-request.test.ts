@@ -155,6 +155,24 @@ describe('busRequest', () => {
     expect(err.message).toMatch(/No subscriber/);
   });
 
+  it("promotes 'not-found' — the verdict a caller may act destructively on", async () => {
+    // The archivist answers a missing resource with `code: 'not-found'`
+    // (TABS-REVALIDATE-ON-RESTORE P1). It must arrive distinguishable from a
+    // refusal: the SDK's tab validator DELETES a restored tab on this and keeps
+    // it on everything else, so collapsing it to 'bus.rejected' here would make
+    // the two decisions the same one.
+    const bus = makeBus(RESULT, FAILURE);
+    const captured = busRequest(bus, EMIT, {}).catch((e) => e);
+    await Promise.resolve();
+    const cid = bus.emitPayload!.correlationId as string;
+
+    bus.failureSubject.next({ correlationId: cid, code: 'not-found', message: 'Resource not found' });
+
+    const err = await captured;
+    expect(err).toBeInstanceOf(BusRequestError);
+    expect(err.code).toBe('bus.not-found');
+  });
+
   it('still says bus.rejected for a failure carrying no code', async () => {
     // Every other failure channel is untouched: `code` is optional on the wire,
     // and absence keeps today's behaviour exactly.

@@ -18,7 +18,13 @@
  */
 
 import { BehaviorSubject, Subject, type Observable } from 'rxjs';
-import { EventBus, type EventMap } from '@semiont/core';
+import {
+  BusRequestError,
+  EventBus,
+  getPrimaryRepresentation,
+  resourceId,
+  type EventMap,
+} from '@semiont/core';
 import {
   ACTIVE_KEY,
   clearStoredSession,
@@ -36,19 +42,17 @@ import type {
   KbSessionStatus,
   NewKnowledgeBase,
 } from './knowledge-base';
-import type { OpenResource } from './open-resource';
+import {
+  applyTabChecks,
+  sortOpenResources,
+  type OpenResource,
+  type TabCheck,
+} from './open-resource';
 import { SemiontSession } from './semiont-session';
 import { SessionSignals } from './session-signals';
 import { SemiontSessionError } from './errors';
 import type { SessionStorage } from './session-storage';
 import type { SessionFactory } from './session-factory';
-
-function sortOpenResources(resources: OpenResource[]): OpenResource[] {
-  return [...resources].sort((a, b) => {
-    if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
-    return a.openedAt - b.openedAt;
-  });
-}
 
 /**
  * Tabs are per-KB state: Record<kbId, OpenResource[]>. State from the
@@ -136,6 +140,8 @@ export class SemiontBrowser {
   private activating: Promise<void> | null = null;
   /** Per-KB tab lists; `openResources$` projects the active, connected KB's. */
   private openByKb: Record<string, OpenResource[]> = {};
+  /** The session whose tabs have been validated — the once-per-activation guard. */
+  private validatedFor: SemiontSession | null = null;
   /** Per-KB last-viewed resource; `lastViewedResource$` projects the active, connected KB's. */
   private lastViewedByKb: Record<string, string> = {};
 
@@ -173,9 +179,14 @@ export class SemiontBrowser {
     // the active, CONNECTED KB (gate: a live session). Connect/disconnect/
     // switch all surface as activeSession$ transitions, so one subscription
     // re-projects both; CRUD and cross-tab writes refresh explicitly.
-    this.activeSession$.subscribe(() => {
+    this.activeSession$.subscribe((session) => {
       this.refreshOpenResources();
       this.refreshLastViewedResource();
+      // Rehydrate, THEN revalidate (D1). The list above projects immediately
+      // — fast and offline-tolerant — and the claims in it are checked once
+      // there is a session to ask. Fire-and-forget: nothing waits on it, and
+      // a tab that fails to check simply stays.
+      void this.validateOpenResources(session);
     });
 
     // Sync the per-KB maps from other contexts (cross-tab/cross-process).
@@ -492,14 +503,104 @@ export class SemiontBrowser {
   }
 
   /**
+   * Check every restored tab against the KB it claims to be from, and drop
+   * the ones the KB says are not there (TABS-REVALIDATE-ON-RESTORE P3).
+   *
+   * Runs once per ACTIVATION, not per projection: CRUD and cross-tab writes
+   * re-project constantly, and re-reading every descriptor on each of those
+   * would be a different feature. Guarded on the session identity rather than
+   * a boolean so a KB switch — which is an activation — validates the newly
+   * active list.
+   *
+   * Quiet by design (D4): failures other than `not-found` are logged, and a
+   * removal needs no toast. The phantom silently ceasing to exist IS the
+   * correct outcome.
+   */
+  private async validateOpenResources(session: SemiontSession | null): Promise<void> {
+    const kbId = this.activeKbId$.getValue();
+    if (!session || !kbId || this.validatedFor === session) return;
+    this.validatedFor = session;
+
+    // Committed state here too, for the same reason `mutateOpenResources`
+    // reads it: a sibling context may have added a tab before this session
+    // activated, and that tab deserves checking like any other.
+    const ids = (loadOpenResourcesByKb(this.storage)[kbId] ?? []).map((tab) => tab.id);
+    if (ids.length === 0) return;
+
+    const checks = new Map<string, TabCheck>();
+    // Bounded concurrency (D4). Tab counts are small, so a fixed lane count
+    // beats any cleverer scheduler; the point is to not open N requests at
+    // once on a connection that just came up.
+    const lanes = Array.from({ length: Math.min(4, ids.length) }, async () => {
+      for (;;) {
+        const id = ids.shift();
+        if (id === undefined) return;
+        checks.set(id, await this.checkOpenResource(session, id));
+      }
+    });
+    await Promise.all(lanes);
+
+    // D4: logged, not surfaced — and aggregated, because an activation while
+    // the archivist is down would otherwise emit one line per tab.
+    const inconclusive = [...checks.values()].filter((c) => c.kind === 'unknown').length;
+    if (inconclusive > 0) {
+      // eslint-disable-next-line no-console
+      console.debug(
+        `[tabs] ${inconclusive} of ${checks.size} open resources could not be checked; keeping them`,
+      );
+    }
+
+    if (this.disposed || this.activeSession$.getValue() !== session) return;
+    this.mutateOpenResources((list) => applyTabChecks(list, checks));
+  }
+
+  /**
+   * One tab's verdict.
+   *
+   * `.fresh()` is the one-shot read: it fetches, updates the store the viewer
+   * reads from — so a validated tab is also a warmed cache entry (D5) — and
+   * rejects on failure, which is the only way the verdict reaches us.
+   *
+   * Only `bus.not-found` removes (D2/D6). It is a verdict from the event
+   * store, which is the system of record (D10); everything else is a symptom.
+   */
+  private async checkOpenResource(session: SemiontSession, id: string): Promise<TabCheck> {
+    try {
+      const descriptor = await session.client.browse.resource(resourceId(id)).fresh();
+      const name = descriptor.name;
+      const mediaType = getPrimaryRepresentation(descriptor)?.mediaType;
+      return { kind: 'ready', name, ...(mediaType ? { mediaType } : {}) };
+    } catch (error) {
+      if (error instanceof BusRequestError && error.code === 'bus.not-found') {
+        return { kind: 'gone' };
+      }
+      // Anything else: the tab stays. A transport fault is not a verdict.
+      return { kind: 'unknown' };
+    }
+  }
+
+  /**
    * All tab CRUD funnels through here: inert without an active, connected
    * KB (the projection gate), otherwise mutate that KB's list, persist the
    * whole map, and re-project.
+   *
+   * **Reads the COMMITTED map, not `this.openByKb`** (D11). The in-memory
+   * copy is a projection cache — any sibling context's write may already have
+   * outdated it — so mutating it and persisting was a plain lost update: two
+   * windows each adding a tab silently lost one. `SessionStorage.get` is
+   * synchronous, so read-modify-write costs a parse and closes it. It is also
+   * what makes revalidation safe across contexts: a removal is written
+   * against committed state, so a sibling's later add cannot resurrect it.
+   *
+   * The residual race is two processes interleaving inside one synchronous
+   * tick; `localStorage` has no compare-and-swap, so nothing built on it can
+   * close that.
    */
   private mutateOpenResources(mutate: (list: OpenResource[]) => OpenResource[]): void {
     const kbId = this.activeKbId$.getValue();
     if (!kbId || !this.activeSession$.getValue()) return;
-    this.openByKb = { ...this.openByKb, [kbId]: mutate(this.openByKb[kbId] ?? []) };
+    const committed = loadOpenResourcesByKb(this.storage);
+    this.openByKb = { ...committed, [kbId]: mutate(committed[kbId] ?? []) };
     this.persistOpenResources();
     this.refreshOpenResources();
   }

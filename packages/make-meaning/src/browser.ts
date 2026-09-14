@@ -175,17 +175,6 @@ export class Browser {
     }
   }
 
-  /**
-   * Serve the checksum-addressed consult (ANCHORED-TEXT-TO-SMELTER P2, D2) —
-   * the detection workers' read-through cache. The caller computed the key
-   * from bytes it already holds, so unlike the resource-addressed read there
-   * is nothing to resolve and no settle barrier: with no resourceId there is
-   * no content generation to wait on, and a miss means "extract it yourself".
-   * A hit — success or decline — is served whole, so the caller runs neither
-   * parser nor engine. Read-only over the wire: the Smelter is the sole
-   * writer and never answers here.
-   */
-
   private async handleBrowseResource(event: EventMap['browse:resource-requested']): Promise<void> {
     try {
       const response = await assembleResourceGraph(this.kb, resourceId(event.resourceId));
@@ -193,6 +182,7 @@ export class Browser {
       if (!response) {
         this.eventBus.get('browse:resource-failed').next({
           correlationId: event.correlationId,
+          code: 'not-found',
           message: 'Resource not found',
         });
         return;
@@ -203,6 +193,8 @@ export class Browser {
         response,
       });
     } catch (error) {
+      // No `code` here, deliberately: a thrown assembly is not evidence of
+      // absence, and the SDK deletes a restored tab on 'not-found'.
       this.logger.error('Browse resource failed', { resourceId: event.resourceId, error: errField(error) });
       this.eventBus.get('browse:resource-failed').next({
         correlationId: event.correlationId,
