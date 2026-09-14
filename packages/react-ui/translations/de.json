@@ -498,5 +498,13 @@
     "decline_empty": "Dieses Dokument enthält keinen Text zum Annotieren.",
     "annotationCompletePartial": "Erkennung unvollständig beendet — {{pieces}} Abschnitt(e) untererfasst",
     "annotationFailedPartial": "Erkennung fehlgeschlagen — Funde aus {{kept}} abgeschlossenen Typen wurden behalten"
+  },
+  "KbIdentityConflictModal": {
+    "title": "Eine andere Wissensbasis antwortet",
+    "registeredIdentity": "Registrierte Identität",
+    "answeringNow": "Antwortet jetzt",
+    "stateCleared": "Offene Tabs und letzte Position dieses Eintrags wurden gelöscht — sie beschrieben Inhalte, die diese Wissensbasis nicht hat. Der Registrierungseintrag selbst ist unverändert.",
+    "dismiss": "Schließen",
+    "reviewKnowledgeBases": "Wissensbasen überprüfen"
   }
 }

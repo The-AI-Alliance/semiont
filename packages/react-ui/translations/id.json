@@ -498,5 +498,13 @@
     "decline_empty": "Dokumen ini tidak memiliki teks untuk dianotasi.",
     "annotationCompletePartial": "Deteksi selesai tidak lengkap — {{pieces}} bagian kurang terlaporkan",
     "annotationFailedPartial": "Deteksi gagal — temuan dari {{kept}} tipe yang selesai dipertahankan"
+  },
+  "KbIdentityConflictModal": {
+    "title": "Basis pengetahuan yang berbeda sedang menjawab",
+    "registeredIdentity": "Identitas terdaftar",
+    "answeringNow": "Menjawab sekarang",
+    "stateCleared": "Tab terbuka dan posisi terakhir entri ini telah dihapus — semuanya menggambarkan konten yang tidak dimiliki basis pengetahuan ini. Entri registri itu sendiri tidak berubah.",
+    "dismiss": "Abaikan",
+    "reviewKnowledgeBases": "Tinjau basis pengetahuan"
   }
 }

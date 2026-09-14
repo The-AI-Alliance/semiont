@@ -498,5 +498,13 @@
     "decline_empty": "Dette dokument har ingen tekst at annotere.",
     "annotationCompletePartial": "Detektion afsluttet ufuldstændigt — {{pieces}} del(e) underrapporteret",
     "annotationFailedPartial": "Detektion mislykkedes — fund fra {{kept}} fuldførte typer blev bevaret"
+  },
+  "KbIdentityConflictModal": {
+    "title": "En anden vidensbase svarer",
+    "registeredIdentity": "Registreret identitet",
+    "answeringNow": "Svarer nu",
+    "stateCleared": "Åbne faner og seneste position for denne post er ryddet — de beskrev indhold, som denne vidensbase ikke har. Selve registreringsposten er uændret.",
+    "dismiss": "Afvis",
+    "reviewKnowledgeBases": "Gennemgå vidensbaser"
   }
 }

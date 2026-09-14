@@ -498,5 +498,13 @@
     "decline_empty": "Bu belgede açıklama eklenecek metin yok.",
     "annotationCompletePartial": "Algılama eksik tamamlandı — {{pieces}} bölüm eksik raporlandı",
     "annotationFailedPartial": "Algılama başarısız — tamamlanan {{kept}} türün bulguları korundu"
+  },
+  "KbIdentityConflictModal": {
+    "title": "Farklı bir bilgi tabanı yanıt veriyor",
+    "registeredIdentity": "Kayıtlı kimlik",
+    "answeringNow": "Şu anda yanıtlıyor",
+    "stateCleared": "Bu kaydın açık sekmeleri ve son konumu temizlendi — bu bilgi tabanında olmayan içeriği tarif ediyorlardı. Kayıt girdisinin kendisi değişmedi.",
+    "dismiss": "Kapat",
+    "reviewKnowledgeBases": "Bilgi tabanlarını gözden geçir"
   }
 }

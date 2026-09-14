@@ -498,5 +498,13 @@
     "decline_empty": "במסמך זה אין טקסט להערה.",
     "annotationCompletePartial": "הזיהוי הסתיים באופן חלקי — {{pieces}} חלקים דווחו בחסר",
     "annotationFailedPartial": "הזיהוי נכשל — הממצאים מ-{{kept}} סוגים שהושלמו נשמרו"
+  },
+  "KbIdentityConflictModal": {
+    "title": "בסיס ידע אחר עונה",
+    "registeredIdentity": "זהות רשומה",
+    "answeringNow": "עונה כעת",
+    "stateCleared": "הכרטיסיות הפתוחות והמיקום האחרון של רשומה זו נמחקו — הם תיארו תוכן שאין בבסיס ידע זה. רשומת הרישום עצמה לא השתנתה.",
+    "dismiss": "סגור",
+    "reviewKnowledgeBases": "סקירת בסיסי ידע"
   }
 }

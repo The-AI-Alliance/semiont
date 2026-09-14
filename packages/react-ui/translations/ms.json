@@ -498,5 +498,13 @@
     "decline_empty": "Dokumen ini tiada teks untuk dianotasi.",
     "annotationCompletePartial": "Pengesanan tamat tidak lengkap — {{pieces}} bahagian kurang dilaporkan",
     "annotationFailedPartial": "Pengesanan gagal — penemuan daripada {{kept}} jenis yang selesai dikekalkan"
+  },
+  "KbIdentityConflictModal": {
+    "title": "Pangkalan pengetahuan berbeza sedang menjawab",
+    "registeredIdentity": "Identiti berdaftar",
+    "answeringNow": "Menjawab sekarang",
+    "stateCleared": "Tab terbuka dan kedudukan terakhir entri ini telah dikosongkan — ia menggambarkan kandungan yang tiada dalam pangkalan pengetahuan ini. Entri pendaftaran itu sendiri tidak berubah.",
+    "dismiss": "Tutup",
+    "reviewKnowledgeBases": "Semak pangkalan pengetahuan"
   }
 }

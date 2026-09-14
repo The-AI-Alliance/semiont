@@ -498,5 +498,13 @@
     "decline_empty": "この文書には注釈を付けるテキストがありません。",
     "annotationCompletePartial": "検出は不完全に終了しました — {{pieces}} 件が過少報告",
     "annotationFailedPartial": "検出に失敗しました — 完了した {{kept}} 種類の結果は保持されます"
+  },
+  "KbIdentityConflictModal": {
+    "title": "別のナレッジベースが応答しています",
+    "registeredIdentity": "登録済みの識別情報",
+    "answeringNow": "現在応答中",
+    "stateCleared": "このエントリの開いているタブと最後の位置はクリアされました — このナレッジベースにない内容を指していたためです。レジストリのエントリ自体は変更されていません。",
+    "dismiss": "閉じる",
+    "reviewKnowledgeBases": "ナレッジベースを確認"
   }
 }

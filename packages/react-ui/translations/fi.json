@@ -498,5 +498,13 @@
     "decline_empty": "Tässä asiakirjassa ei ole merkittävää tekstiä.",
     "annotationCompletePartial": "Tunnistus päättyi epätäydellisenä — {{pieces}} osaa aliraportoitu",
     "annotationFailedPartial": "Tunnistus epäonnistui — {{kept}} valmiin tyypin löydökset säilytettiin"
+  },
+  "KbIdentityConflictModal": {
+    "title": "Eri tietokanta vastaa",
+    "registeredIdentity": "Rekisteröity identiteetti",
+    "answeringNow": "Vastaa nyt",
+    "stateCleared": "Tämän merkinnän avoimet välilehdet ja viimeisin sijainti on tyhjennetty — ne kuvasivat sisältöä, jota tässä tietokannassa ei ole. Itse rekisterimerkintä on ennallaan.",
+    "dismiss": "Hylkää",
+    "reviewKnowledgeBases": "Tarkista tietokannat"
   }
 }

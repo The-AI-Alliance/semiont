@@ -498,5 +498,13 @@
     "decline_empty": "Dit document bevat geen tekst om te annoteren.",
     "annotationCompletePartial": "Detectie onvolledig beëindigd — {{pieces}} deel/delen ondergerapporteerd",
     "annotationFailedPartial": "Detectie mislukt — resultaten van {{kept}} voltooide typen zijn bewaard"
+  },
+  "KbIdentityConflictModal": {
+    "title": "Een andere kennisbank antwoordt",
+    "registeredIdentity": "Geregistreerde identiteit",
+    "answeringNow": "Antwoordt nu",
+    "stateCleared": "Open tabbladen en laatste positie van deze vermelding zijn gewist — ze beschreven inhoud die deze kennisbank niet heeft. De registervermelding zelf is ongewijzigd.",
+    "dismiss": "Sluiten",
+    "reviewKnowledgeBases": "Kennisbanken controleren"
   }
 }

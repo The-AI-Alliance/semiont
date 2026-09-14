@@ -498,5 +498,13 @@
     "decline_empty": "Tento dokument neobsahuje text k anotaci.",
     "annotationCompletePartial": "Detekce skončila neúplně — {{pieces}} část(í) podhodnoceno",
     "annotationFailedPartial": "Detekce selhala — nálezy z {{kept}} dokončených typů zůstaly"
+  },
+  "KbIdentityConflictModal": {
+    "title": "Odpovídá jiná znalostní báze",
+    "registeredIdentity": "Registrovaná identita",
+    "answeringNow": "Nyní odpovídá",
+    "stateCleared": "Otevřené karty a poslední pozice tohoto záznamu byly vymazány — popisovaly obsah, který tato znalostní báze nemá. Samotný záznam v registru je beze změny.",
+    "dismiss": "Zavřít",
+    "reviewKnowledgeBases": "Zkontrolovat znalostní báze"
   }
 }

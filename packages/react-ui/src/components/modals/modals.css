@@ -644,3 +644,33 @@
   outline-color: var(--semiont-color-primary-400);
 }
 
+
+/* KB identity conflict (KB-IDENTITY-CHECKED-ON-ACTIVATION P2): two facts,
+   rendered apart — the registered entry and the identity that answered. */
+.semiont-kb-conflict__fact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-bottom: 0.75rem;
+  text-align: left;
+}
+
+.semiont-kb-conflict__fact-label {
+  font-size: var(--semiont-text-xs);
+  font-weight: 600;
+  color: var(--semiont-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.semiont-kb-conflict__kb-name {
+  font-weight: 600;
+  color: var(--semiont-text-primary);
+}
+
+.semiont-kb-conflict__did {
+  font-family: var(--semiont-font-mono, monospace);
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-secondary);
+  word-break: break-all;
+}

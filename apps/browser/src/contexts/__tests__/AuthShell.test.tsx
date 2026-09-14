@@ -26,6 +26,7 @@ vi.mock('@semiont/react-ui', async () => {
       <div data-testid="protected-error-boundary">{children}</div>,
     SessionExpiredModal: () => <div data-testid="session-expired-modal" />,
     PermissionDeniedModal: () => <div data-testid="permission-denied-modal" />,
+    KbIdentityConflictModal: () => <div data-testid="kb-identity-conflict-modal" />,
   };
 });
 
@@ -61,6 +62,12 @@ describe('AuthShell', () => {
     renderShell();
     const boundary = screen.getByTestId('protected-error-boundary');
     expect(boundary).toContainElement(screen.getByTestId('permission-denied-modal'));
+  });
+
+  it('mounts KbIdentityConflictModal inside the boundary', () => {
+    renderShell();
+    const boundary = screen.getByTestId('protected-error-boundary');
+    expect(boundary).toContainElement(screen.getByTestId('kb-identity-conflict-modal'));
   });
 
   it('renders children inside the boundary alongside the modals', () => {
