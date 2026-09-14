@@ -237,9 +237,50 @@ export class FsJobQueue implements JobQueue {
   }
 
   /**
+   * Serializes claims. This driver's atomicity is single-process by design,
+   * but `claimJob`'s contract must hold even against interleaved awaits in
+   * that one process — a read-check-write with await points in it can admit
+   * two winners without this chain (the TOCTOU the operation exists to kill).
+   */
+  private claimChain: Promise<unknown> = Promise.resolve();
+
+  async claimJob(jobIdArg: JobId): Promise<{ job: AnyJob } | { declined: 'not-found' | 'not-pending' }> {
+    const claim = this.claimChain.then(() => this.doClaim(jobIdArg));
+    // A failed claim must not wedge every later one.
+    this.claimChain = claim.catch(() => undefined);
+    return claim;
+  }
+
+  private async doClaim(jobIdArg: JobId): Promise<{ job: AnyJob } | { declined: 'not-found' | 'not-pending' }> {
+    const job = await this.getJob(jobIdArg);
+    if (!job) return { declined: 'not-found' };
+    if (job.status !== 'pending') return { declined: 'not-pending' };
+
+    // Progress starts empty: a just-claimed job has reported nothing yet.
+    // The typed progress shapes describe REPORTS, and the first report
+    // arrives from the worker via recordProgress.
+    const running: RunningJob<any, any> = {
+      status: 'running',
+      metadata: job.metadata,
+      params: job.params,
+      startedAt: new Date().toISOString(),
+      progress: {},
+    };
+    await this.transition(running, 'pending');
+    return { job: running };
+  }
+
+  /**
    * Update a job (atomic: delete old, write new)
    */
-  async updateJob(job: AnyJob, oldStatus?: JobStatus): Promise<void> {
+  /**
+   * Cross-status move (or in-place rewrite): delete old slot, write new.
+   * Private — the interface exposes named transitions only (JOB-QUEUE-DRIVER
+   * P0); a generic public patch is trivial on files and impossible on an
+   * in-flight message, so no driver may offer one. Re-entering `pending`
+   * announces, which is how failJob's retry reaches a listening worker.
+   */
+  private async transition(job: AnyJob, oldStatus?: JobStatus): Promise<void> {
     // If oldStatus provided, delete from old location
     if (oldStatus && oldStatus !== job.status) {
       const oldPath = this.getJobPath(job.metadata.id, oldStatus);
@@ -285,7 +326,7 @@ export class FsJobQueue implements JobQueue {
       completedAt: new Date().toISOString(),
       result,
     };
-    await this.updateJob(completed, 'running');
+    await this.transition(completed, 'running');
     return true;
   }
 
@@ -332,7 +373,7 @@ export class FsJobQueue implements JobQueue {
         metadata: { ...metadata, retryCount: job.metadata.retryCount + 1 },
         params: job.params,
       };
-      await this.updateJob(retried, 'running');
+      await this.transition(retried, 'running');
       return 'retried';
     }
 
@@ -348,7 +389,7 @@ export class FsJobQueue implements JobQueue {
       completedAt: new Date().toISOString(),
       error,
     };
-    await this.updateJob(failed, 'running');
+    await this.transition(failed, 'running');
     return 'failed';
   }
 
@@ -486,7 +527,7 @@ export class FsJobQueue implements JobQueue {
       completedAt: new Date().toISOString(),
     };
 
-    await this.updateJob(cancelledJob, oldStatus);
+    await this.transition(cancelledJob, oldStatus);
     return true;
   }
 

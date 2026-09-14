@@ -167,31 +167,17 @@ export function registerJobCommandHandlers(
     const { correlationId, jobId: jid } = command;
 
     try {
-      const job = await jobQueue.getJob(jobId(jid as string)) as {
-        metadata: Record<string, unknown>;
-        status: string;
-        params: unknown;
-      } | null;
-
-      if (!job) {
-        throw new Error('Job not found');
+      // One atomic operation (JOB-QUEUE-DRIVER P0) — the get-check-update
+      // this replaced was a check-then-act, safe only while a single
+      // process serialized every claim.
+      const result = await jobQueue.claimJob(jobId(jid as string));
+      if ('declined' in result) {
+        throw new Error(result.declined === 'not-found' ? 'Job not found' : 'Job already claimed');
       }
-      if (job.status !== 'pending') {
-        throw new Error('Job already claimed');
-      }
-
-      const runningJob = {
-        ...job,
-        status: 'running' as const,
-        startedAt: new Date().toISOString(),
-        progress: {},
-      };
-
-      await jobQueue.updateJob(runningJob as never, 'pending');
 
       eventBus.get('job:claimed').next({
         correlationId,
-        response: runningJob,
+        response: { ...result.job },
       });
     } catch (error) {
       eventBus.get('job:claim-failed').next({

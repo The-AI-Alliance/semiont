@@ -1,4 +1,4 @@
-import type { AnyJob, JobStatus } from './types';
+import type { AnyJob } from './types';
 import type { JobId, UnitCursor } from '@semiont/core';
 
 export interface JobQueue {
@@ -6,7 +6,17 @@ export interface JobQueue {
   destroy(): void;
   createJob(job: AnyJob): Promise<void>;
   getJob(jobId: JobId): Promise<AnyJob | null>;
-  updateJob(job: AnyJob, oldStatus?: JobStatus): Promise<void>;
+  /**
+   * Atomically claim a pending job for execution — the ONE transition that
+   * makes this a queue rather than a state store (JOB-QUEUE-DRIVER P0).
+   * pending → running, `startedAt` stamped, progress empty. Simultaneous
+   * claims of one job admit exactly one winner; the losers are DECLINED,
+   * never errors — `not-found` (no such job) or `not-pending` (already
+   * claimed, finished, or cancelled). Replaces the get-check-update
+   * composition in the claim handler, which was a check-then-act safe only
+   * while a single process serialized it.
+   */
+  claimJob(jobId: JobId): Promise<{ job: AnyJob } | { declined: 'not-found' | 'not-pending' }>;
   /** Move a running job to `complete`. Returns false if the job isn't running. */
   completeJob(jobId: JobId, result: Record<string, unknown>): Promise<boolean>;
   /**
