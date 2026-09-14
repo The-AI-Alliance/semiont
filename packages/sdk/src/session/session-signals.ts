@@ -27,17 +27,42 @@
 
 import { BehaviorSubject } from 'rxjs';
 
+/**
+ * What the registry entry claimed, and what answered.
+ *
+ * Both dids, because neither alone is actionable: the user has to recognise
+ * which KB they registered and which one is there now.
+ */
+export interface KbIdentityConflict {
+  expectedDid: string;
+  observedDid: string;
+}
+
 export class SessionSignals {
   readonly sessionExpiredAt$: BehaviorSubject<number | null>;
   readonly sessionExpiredMessage$: BehaviorSubject<string | null>;
   readonly permissionDeniedAt$: BehaviorSubject<number | null>;
   readonly permissionDeniedMessage$: BehaviorSubject<string | null>;
+  /**
+   * The KB at this entry's address reported a did other than the one the
+   * entry stores — a different knowledge base is answering
+   * (KB-IDENTITY-CHECKED-ON-ACTIVATION). Carries both dids so the UI can name
+   * what was expected and what answered.
+   *
+   * A signal, not a decision: the local state that claimed to be about the
+   * old KB is already voided by the time this fires, and re-registering under
+   * the new identity is a deliberate act the panel already has a flow for.
+   */
+  readonly kbIdentityConflictAt$: BehaviorSubject<number | null>;
+  readonly kbIdentityConflict$: BehaviorSubject<KbIdentityConflict | null>;
 
   constructor() {
     this.sessionExpiredAt$ = new BehaviorSubject<number | null>(null);
     this.sessionExpiredMessage$ = new BehaviorSubject<string | null>(null);
     this.permissionDeniedAt$ = new BehaviorSubject<number | null>(null);
     this.permissionDeniedMessage$ = new BehaviorSubject<string | null>(null);
+    this.kbIdentityConflictAt$ = new BehaviorSubject<number | null>(null);
+    this.kbIdentityConflict$ = new BehaviorSubject<KbIdentityConflict | null>(null);
   }
 
   notifySessionExpired(message: string | null): void {
@@ -54,6 +79,11 @@ export class SessionSignals {
     this.permissionDeniedAt$.next(Date.now());
   }
 
+  notifyKbIdentityConflict(conflict: KbIdentityConflict): void {
+    this.kbIdentityConflict$.next(conflict);
+    this.kbIdentityConflictAt$.next(Date.now());
+  }
+
   acknowledgeSessionExpired(): void {
     this.sessionExpiredAt$.next(null);
     this.sessionExpiredMessage$.next(null);
@@ -64,10 +94,17 @@ export class SessionSignals {
     this.permissionDeniedMessage$.next(null);
   }
 
+  acknowledgeKbIdentityConflict(): void {
+    this.kbIdentityConflictAt$.next(null);
+    this.kbIdentityConflict$.next(null);
+  }
+
   dispose(): void {
     this.sessionExpiredAt$.complete();
     this.sessionExpiredMessage$.complete();
     this.permissionDeniedAt$.complete();
     this.permissionDeniedMessage$.complete();
+    this.kbIdentityConflictAt$.complete();
+    this.kbIdentityConflict$.complete();
   }
 }

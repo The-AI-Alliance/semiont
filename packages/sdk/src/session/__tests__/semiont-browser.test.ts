@@ -10,6 +10,7 @@ const mockGetMe = vi.fn();
 const mockDispose = vi.fn();
 const mockRefreshToken = vi.fn();
 const mockResourceFresh = vi.fn();
+let mockAdminStatus: (() => Promise<unknown>) | null = null;
 
 vi.mock('../../client', async () => {
   const actual = await vi.importActual<typeof import('../../client')>('../../client');
@@ -25,6 +26,9 @@ vi.mock('../../client', async () => {
       const errorsSubject = new Subject();
       return { errorsSubject, errors$: errorsSubject.asObservable() };
     })();
+    // KB-IDENTITY P1: the identity check reads the did the KB reports.
+    // `undefined` models a transport with no admin namespace (D3's local case).
+    admin = mockAdminStatus === null ? undefined : { status: () => mockAdminStatus!() };
     // TABS-REVALIDATE P3: validation reads descriptors through `browse`.
     // `.fresh()` is the one-shot read (CACHE-CONTRACT D2 deleted the
     // `await`able surface), and it REJECTS on failure — which is how a
@@ -81,6 +85,11 @@ beforeEach(() => {
   mockDispose.mockReset();
   mockRefreshToken.mockReset();
   mockResourceFresh.mockReset();
+  // Default: a status with NO did — D3's "no verdict", which leaves state
+  // alone and hands off to the per-resource pass. Deliberately not a matching
+  // did: that would be per-KB, and a fixed one silently trips the identity
+  // check the moment a test activates a different KB.
+  mockAdminStatus = async () => ({ version: '1' });
   // Default: every tab validates, so tests that do not care are unaffected.
   mockResourceFresh.mockImplementation(async (id: string) => ({ '@id': id, name: `name-${id}` }));
   mockGetMe.mockResolvedValue({ id: 'u', email: 'x@y.z', name: 'X', isAdmin: false, isModerator: false });
@@ -498,6 +507,143 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
     const persisted = JSON.parse(storage.get(OPEN_RESOURCES_BY_KB_KEY)!) as Record<string, { id: string }[]>;
     expect(persisted[KB_A.id]!.map((r) => r.id).sort()).toEqual(['later', 'mine', 'theirs']);
+
+    await browser.dispose();
+  });
+
+  // ── KB-IDENTITY-CHECKED-ON-ACTIVATION P1 ───────────────────────────
+  // A registry entry claims a particular KB answers at a particular address.
+  // Addresses get reused. The claim is checked once there is a session to ask
+  // — and the did is read in ONE direction only: differs → act, matches →
+  // says nothing (a clone and a codespace of one repo share a did).
+
+  /** Both per-KB maps seeded for KB_A and KB_B, as a restore would leave them. */
+  function seedKbScopedState() {
+    storage.set(OPEN_RESOURCES_BY_KB_KEY, JSON.stringify({
+      [KB_A.id]: [{ id: 'a1', name: 'A1', openedAt: 0 }],
+      [KB_B.id]: [{ id: 'b1', name: 'B1', openedAt: 0 }],
+    }));
+    storage.set(LAST_VIEWED_RESOURCE_BY_KB_KEY, JSON.stringify({
+      [KB_A.id]: 'a1',
+      [KB_B.id]: 'b1',
+    }));
+  }
+
+  const readMap = (key: string) =>
+    JSON.parse(storage.get(key) ?? '{}') as Record<string, unknown>;
+
+  it('a KB reporting a DIFFERENT did voids that KB\'s tabs and last-viewed (D2)', async () => {
+    seedKbScopedState();
+    mockAdminStatus = async () => ({ did: 'did:web:someone-else.github.io:other-kb' });
+
+    const browser = await makeConnectedBrowser();
+    await settled();
+
+    expect(browser.openResources$.getValue()).toEqual([]);
+    expect(browser.lastViewedResource$.getValue()).toBeNull();
+    // The tab list empties through the write funnel (D7), which maps a list to
+    // a list — so the key remains with an empty list. The last-viewed entry has
+    // no funnel and is dropped outright. Both are "no claim about contents";
+    // the shapes differ because the write paths do.
+    expect(readMap(OPEN_RESOURCES_BY_KB_KEY)[KB_A.id]).toEqual([]);
+    expect(readMap(LAST_VIEWED_RESOURCE_BY_KB_KEY)[KB_A.id]).toBeUndefined();
+
+    await browser.dispose();
+  });
+
+  it('only the active KB is voided — other KBs keep both maps', async () => {
+    seedKbScopedState();
+    mockAdminStatus = async () => ({ did: 'did:web:someone-else.github.io:other-kb' });
+
+    const browser = await makeConnectedBrowser();
+    await settled();
+
+    expect(readMap(OPEN_RESOURCES_BY_KB_KEY)[KB_B.id]).toEqual([
+      { id: 'b1', name: 'B1', openedAt: 0 },
+    ]);
+    expect(readMap(LAST_VIEWED_RESOURCE_BY_KB_KEY)[KB_B.id]).toBe('b1');
+
+    await browser.dispose();
+  });
+
+  it('a matching did changes nothing — a match is not evidence about contents (D1)', async () => {
+    seedKbScopedState();
+    mockAdminStatus = async () => ({ did: KB_A.did });
+    const browser = await makeConnectedBrowser();
+    await settled();
+
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['a1']);
+    expect(readMap(LAST_VIEWED_RESOURCE_BY_KB_KEY)[KB_A.id]).toBe('a1');
+
+    await browser.dispose();
+  });
+
+  it('NO VERDICT is not a mismatch — three absences, three assertions (D3)', async () => {
+    // The guard that must never be weakened. Losing a user's tabs because the
+    // gateway was briefly down is strictly worse than the phantoms this fixes.
+    for (const [label, arrange] of [
+      ['status rejects', () => { mockAdminStatus = async () => { throw new Error('unreachable'); }; }],
+      ['status reports no did', () => { mockAdminStatus = async () => ({ version: '1' }); }],
+      ['no admin namespace at all', () => { mockAdminStatus = null; }],
+    ] as const) {
+      storage = new TestStorage();
+      seedKbScopedState();
+      arrange();
+
+      const browser = await makeConnectedBrowser();
+      await settled();
+
+      expect(browser.openResources$.getValue().map((r) => r.id), label).toEqual(['a1']);
+      expect(readMap(LAST_VIEWED_RESOURCE_BY_KB_KEY)[KB_A.id], label).toBe('a1');
+
+      await browser.dispose();
+    }
+  });
+
+  it('leaves the registry entry exactly as the user wrote it (D4)', async () => {
+    // Adopting the observed did would erase the only evidence a substitution
+    // happened, and sign the user in to a KB they never chose under the name
+    // of one they did. Re-registering is a deliberate act.
+    seedKbScopedState();
+    mockAdminStatus = async () => ({ did: 'did:web:someone-else.github.io:other-kb' });
+
+    const browser = await makeConnectedBrowser();
+    await settled();
+
+    const entry = (JSON.parse(storage.get(STORAGE_KEY)!) as typeof KB_A[])
+      .find((k) => k.id === KB_A.id)!;
+    expect(entry.did).toBe(KB_A.did);
+    expect(entry.label).toBe(KB_A.label);
+
+    await browser.dispose();
+  });
+
+  it('raises a conflict signal carrying both dids, and does not decide what to do', async () => {
+    seedKbScopedState();
+    const observed = 'did:web:someone-else.github.io:other-kb';
+    mockAdminStatus = async () => ({ did: observed });
+
+    const browser = await makeConnectedBrowser();
+    await settled();
+
+    const signals = browser.activeSignals$.getValue()!;
+    expect(signals.kbIdentityConflictAt$.getValue()).toEqual(expect.any(Number));
+    expect(signals.kbIdentityConflict$.getValue()).toEqual({
+      expectedDid: KB_A.did,
+      observedDid: observed,
+    });
+
+    await browser.dispose();
+  });
+
+  it('a mismatch stops the per-resource pass — those answers would be about the wrong KB (D5)', async () => {
+    seedKbScopedState();
+    mockAdminStatus = async () => ({ did: 'did:web:someone-else.github.io:other-kb' });
+
+    const browser = await makeConnectedBrowser();
+    await settled();
+
+    expect(mockResourceFresh).not.toHaveBeenCalled();
 
     await browser.dispose();
   });

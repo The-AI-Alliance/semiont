@@ -424,8 +424,12 @@ export class SemiontBrowser {
         return;
       }
 
-      this.activeSession$.next(session);
+      // Signals BEFORE the session, deliberately: emitting the session is
+      // what drives the activation-time validation pass, and an identity
+      // conflict is reported through the signals — so they have to be
+      // readable by the time that pass runs.
       this.activeSignals$.next(signals);
+      this.activeSession$.next(session);
     })();
 
     this.activating = activation;
@@ -521,6 +525,13 @@ export class SemiontBrowser {
     if (!session || !kbId || this.validatedFor === session) return;
     this.validatedFor = session;
 
+    // Identity first, and it short-circuits (KB-IDENTITY D5). If a different
+    // knowledge base is answering, every per-resource verdict below is an
+    // answer to a question asked of the wrong KB — meaningless even when it
+    // is `not-found`. One pass, one guard: two async passes racing on one
+    // activation is how the guard would stop meaning anything.
+    if (await this.voidIfIdentityChanged(session, kbId)) return;
+
     // Committed state here too, for the same reason `mutateOpenResources`
     // reads it: a sibling context may have added a tab before this session
     // activated, and that tab deserves checking like any other.
@@ -552,6 +563,58 @@ export class SemiontBrowser {
 
     if (this.disposed || this.activeSession$.getValue() !== session) return;
     this.mutateOpenResources((list) => applyTabChecks(list, checks));
+  }
+
+  /**
+   * Verify this KB is still the KB the registry entry claims, and void the
+   * state that is a claim about its contents if it is not
+   * (KB-IDENTITY-CHECKED-ON-ACTIVATION P1). Returns whether it voided.
+   *
+   * **The did is read in one direction only (D1).** A did is not unique — a
+   * local clone and a codespace of one repo share one — so it is authoritative
+   * for *differs* and says nothing for *matches*. A match concludes nothing
+   * about the contents; that is the wipe, and it is the per-resource pass's
+   * question.
+   *
+   * **No verdict is not a mismatch (D3), and this must never be weakened.** A
+   * status call that rejects, a response with no did, and a transport with no
+   * admin namespace at all are three different absences, and none of them is
+   * evidence of anything. Losing a user's tabs because the gateway was briefly
+   * down is strictly worse than the phantoms this addresses.
+   */
+  private async voidIfIdentityChanged(session: SemiontSession, kbId: string): Promise<boolean> {
+    const expectedDid = this.kbs$.getValue().find((k) => k.id === kbId)?.did;
+    if (!expectedDid) return false;
+
+    let observedDid: string | undefined;
+    try {
+      // `admin` is undefined by TRANSPORT capability, not user role: a
+      // `kind: 'local'` endpoint has no admin routes in-process and never
+      // will. `/api/status` itself needs authentication but not an admin
+      // role, so this is readable by any signed-in user.
+      observedDid = (await session.client.admin?.status())?.did;
+    } catch {
+      return false; // unreachable — a symptom, not a verdict
+    }
+    if (!observedDid || observedDid === expectedDid) return false;
+
+    // Both maps, at the same instant (D2). They are keyed the same way and
+    // both say "these resources are in that KB"; voiding one would leave the
+    // landing redirect pointing into a KB whose tabs were just cleared.
+    this.mutateOpenResources(() => []);
+    if (this.lastViewedByKb[kbId] !== undefined) {
+      const { [kbId]: _dropped, ...rest } = this.lastViewedByKb;
+      this.lastViewedByKb = rest;
+      this.storage.set(LAST_VIEWED_RESOURCE_BY_KB_KEY, JSON.stringify(this.lastViewedByKb));
+      this.refreshLastViewedResource();
+    }
+
+    // The registry entry itself is left exactly as the user wrote it (D4):
+    // overwriting `did`/`label` would erase the only evidence a substitution
+    // happened and sign them in to a KB they never chose under the name of one
+    // they did. Re-registering is a deliberate act; the panel has that flow.
+    this.activeSignals$.getValue()?.notifyKbIdentityConflict({ expectedDid, observedDid });
+    return true;
   }
 
   /**
