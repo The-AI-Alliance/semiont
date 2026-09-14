@@ -9,6 +9,7 @@ import { firstValueFrom, filter, skip, take } from 'rxjs';
 const mockGetMe = vi.fn();
 const mockDispose = vi.fn();
 const mockRefreshToken = vi.fn();
+const mockResourceFresh = vi.fn();
 
 vi.mock('../../client', async () => {
   const actual = await vi.importActual<typeof import('../../client')>('../../client');
@@ -24,6 +25,13 @@ vi.mock('../../client', async () => {
       const errorsSubject = new Subject();
       return { errorsSubject, errors$: errorsSubject.asObservable() };
     })();
+    // TABS-REVALIDATE P3: validation reads descriptors through `browse`.
+    // `.fresh()` is the one-shot read (CACHE-CONTRACT D2 deleted the
+    // `await`able surface), and it REJECTS on failure — which is how a
+    // `not-found` verdict reaches the tab policy at all.
+    browse = {
+      resource: (id: string) => ({ fresh: () => mockResourceFresh(id) }),
+    };
   }
   return {
     ...actual,
@@ -37,6 +45,7 @@ import { getBrowser } from '../registry';
 import { __resetForTests } from '../testing';
 import { storageKey, seedStoredSession, TestStorage } from './test-storage-helpers';
 import { STORAGE_KEY, ACTIVE_KEY, OPEN_RESOURCES_BY_KB_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY } from '../storage';
+import { BusRequestError } from '@semiont/core';
 
 const KB_A = {
   id: 'kb-a',
@@ -71,6 +80,9 @@ beforeEach(() => {
   mockGetMe.mockReset();
   mockDispose.mockReset();
   mockRefreshToken.mockReset();
+  mockResourceFresh.mockReset();
+  // Default: every tab validates, so tests that do not care are unaffected.
+  mockResourceFresh.mockImplementation(async (id: string) => ({ '@id': id, name: `name-${id}` }));
   mockGetMe.mockResolvedValue({ id: 'u', email: 'x@y.z', name: 'X', isAdmin: false, isModerator: false });
 });
 
@@ -333,6 +345,160 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     const before = browser.openResources$.getValue();
     browser.reorderOpenResources(0, 5);
     expect(browser.openResources$.getValue()).toEqual(before);
+    await browser.dispose();
+  });
+
+  // ── TABS-REVALIDATE-ON-RESTORE P3 ──────────────────────────────────
+  // A tab is a claim about a KB, and a claim is checked against the KB.
+  // The list projects immediately from storage; every entry is confirmed or
+  // dropped once there is a session to ask.
+
+  /** Seed a persisted tab list for KB_A, as a restore would leave it. */
+  function seedTabs(...ids: string[]) {
+    storage.set(OPEN_RESOURCES_BY_KB_KEY, JSON.stringify({
+      [KB_A.id]: ids.map((id, i) => ({ id, name: `stale-${id}`, openedAt: i, order: i })),
+    }));
+  }
+
+  /** The validation pass is fire-and-forget; let its microtasks drain. */
+  const settled = () => new Promise((r) => setTimeout(r, 0));
+
+  const notFound = () =>
+    new BusRequestError('Resource not found', 'bus.not-found', {});
+
+  it('drops a restored tab the KB says does not exist, and persists the removal', async () => {
+    seedTabs('gone', 'kept');
+    mockResourceFresh.mockImplementation(async (id: string) => {
+      if (id === 'gone') throw notFound();
+      return { '@id': id, name: `name-${id}` };
+    });
+
+    const browser = await makeConnectedBrowser();
+    await settled();
+
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['kept']);
+    const persisted = JSON.parse(storage.get(OPEN_RESOURCES_BY_KB_KEY)!) as Record<string, { id: string }[]>;
+    expect(persisted[KB_A.id]!.map((r) => r.id)).toEqual(['kept']);
+
+    await browser.dispose();
+  });
+
+  it('KEEPS a tab whose check fails for any reason other than not-found (D2)', async () => {
+    // The test that must never be weakened into "any failure removes". Wiping
+    // tabs because the archivist was briefly down is worse than phantoms.
+    seedTabs('peer', 'boom', 'slow');
+    mockResourceFresh.mockImplementation(async (id: string) => {
+      if (id === 'peer') throw new BusRequestError('no subscriber', 'bus.peer-unavailable', {});
+      if (id === 'boom') throw new Error('socket hang up');
+      if (id === 'slow') throw new BusRequestError('timed out', 'bus.timeout', {});
+      return { '@id': id, name: `name-${id}` };
+    });
+
+    const browser = await makeConnectedBrowser();
+    await settled();
+
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['peer', 'boom', 'slow']);
+
+    await browser.dispose();
+  });
+
+  it('refreshes a validated tab name and mediaType from the descriptor (D3)', async () => {
+    seedTabs('r1');
+    mockResourceFresh.mockImplementation(async () => ({
+      '@id': 'r1',
+      name: 'Current Title',
+      representations: [{ mediaType: 'application/pdf', storageUri: 'file://r1.pdf' }],
+    }));
+
+    const browser = await makeConnectedBrowser();
+    await settled();
+
+    const tab = browser.openResources$.getValue().find((r) => r.id === 'r1');
+    expect(tab?.name).toBe('Current Title');
+    expect(tab?.mediaType).toBe('application/pdf');
+
+    await browser.dispose();
+  });
+
+  it('validates once per activation, not once per projection', async () => {
+    seedTabs('r1', 'r2');
+    const browser = await makeConnectedBrowser();
+    await settled();
+    expect(mockResourceFresh).toHaveBeenCalledTimes(2);
+
+    // A projection refresh is not an activation: CRUD re-projects, and must
+    // not re-run the pass.
+    browser.addOpenResource('r3', 'Three');
+    browser.reorderOpenResources(0, 1);
+    await settled();
+    expect(mockResourceFresh).toHaveBeenCalledTimes(2);
+
+    await browser.dispose();
+  });
+
+  it('a KB switch validates the newly active list', async () => {
+    storage.set(OPEN_RESOURCES_BY_KB_KEY, JSON.stringify({
+      [KB_A.id]: [{ id: 'a1', name: 'A1', openedAt: 0 }],
+      [KB_B.id]: [{ id: 'b1', name: 'B1', openedAt: 0 }],
+    }));
+    const browser = await makeConnectedBrowser();
+    await settled();
+    expect(mockResourceFresh.mock.calls.map((c) => c[0])).toEqual(['a1']);
+
+    await browser.setActiveKb(KB_B.id);
+    await liveSession(browser);
+    await settled();
+    expect(mockResourceFresh.mock.calls.map((c) => c[0])).toEqual(['a1', 'b1']);
+
+    await browser.dispose();
+  });
+
+  it('a removal survives a sibling context\'s concurrent write, and the sibling tab survives too', async () => {
+    // The cross-tab case (D11). Another context writes the whole map while
+    // validation is in flight; neither side may lose its change.
+    seedTabs('gone', 'kept');
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => { release = r; });
+    mockResourceFresh.mockImplementation(async (id: string) => {
+      if (id === 'gone') { await gate; throw notFound(); }
+      return { '@id': id, name: `name-${id}` };
+    });
+
+    const browser = await makeConnectedBrowser();
+
+    // Sibling adds a tab from its own (still stale) view of the list.
+    storage.set(OPEN_RESOURCES_BY_KB_KEY, JSON.stringify({
+      [KB_A.id]: [
+        { id: 'gone', name: 'stale-gone', openedAt: 0, order: 0 },
+        { id: 'kept', name: 'stale-kept', openedAt: 1, order: 1 },
+        { id: 'sibling', name: 'Sibling', openedAt: 2, order: 2 },
+      ],
+    }));
+
+    release();
+    await settled();
+
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['kept', 'sibling']);
+
+    await browser.dispose();
+  });
+
+  it('two contexts each adding a tab do not lose one (D11 — older than this plan)', async () => {
+    // Nothing to do with validation: `mutateOpenResources` used to write from
+    // its in-memory copy, so whichever context wrote last erased the other.
+    const browser = await makeConnectedBrowser();
+    browser.addOpenResource('mine', 'Mine');
+
+    // A sibling context commits its own tab directly to storage.
+    const committed = JSON.parse(storage.get(OPEN_RESOURCES_BY_KB_KEY)!) as Record<string, unknown[]>;
+    committed[KB_A.id] = [...(committed[KB_A.id] ?? []), { id: 'theirs', name: 'Theirs', openedAt: 9, order: 9 }];
+    storage.set(OPEN_RESOURCES_BY_KB_KEY, JSON.stringify(committed));
+
+    browser.addOpenResource('later', 'Later');
+
+    const persisted = JSON.parse(storage.get(OPEN_RESOURCES_BY_KB_KEY)!) as Record<string, { id: string }[]>;
+    expect(persisted[KB_A.id]!.map((r) => r.id).sort()).toEqual(['later', 'mine', 'theirs']);
+
     await browser.dispose();
   });
 
