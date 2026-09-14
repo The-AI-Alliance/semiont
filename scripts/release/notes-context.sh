@@ -114,7 +114,8 @@ fi
   echo "## Checklist before writing"
   echo
   echo "- [ ] Read every PR body above, not a sample. A template-only body means go to the plan."
-  echo "- [ ] Read the planning docs behind the substantial PRs."
+  echo "- [ ] Read plans ONLY for the why behind a PR listed above. A plan modified in this"
+  echo "      window but matching no merged PR did not ship — do not write it up."
   echo "- [ ] Bullets stay one line each; depth goes in \`## Theme\` sections below the release link."
   echo "- [ ] No \`.plans/\` paths anywhere in the post — reviewers cannot see untracked files."
 } >> "$OUT"

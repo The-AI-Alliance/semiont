@@ -386,18 +386,22 @@ export class SemiontBrowser {
         return;
       }
 
-      // Route transport-level errors to the modal signals. The session's
-      // `errors$` re-publishes `client.transport.errors$` per the
-      // `ITransport` contract; the transport stamps `err.code` from the
-      // `TransportErrorCode` vocabulary so this routing stays
-      // transport-agnostic. `unauthorized` covers ad-hoc unauthorized
-      // requests (the proactive-refresh `onAuthFailed` path doesn't);
-      // `forbidden` has no recovery — surface it as permission-denied.
-      // The subscription ends naturally when `errors$` completes on
-      // transport dispose.
+      // Route transport-level errors through RECOVERY, not straight to the
+      // modal. A single `unauthorized` is not session death: requests race
+      // the refresh window, and the old direct wire fired "Session Expired
+      // — HTTP 401" over sessions that healed a beat later — and, for a
+      // truly dead session, WITHOUT clearing storage, so every reload
+      // restored the corpse and re-armed an effectively undismissable modal
+      // (both its buttons navigate — into the same loop; found live
+      // 2026-09-14). `session.refresh()` covers both ends: success heals in
+      // silence; exhaustion runs the session's own teardown — stored session
+      // cleared, `onAuthFailed` fires the modal once, with the session's own
+      // message instead of the raw transport line. `forbidden` has no
+      // recovery — surface it as permission-denied, unchanged. The
+      // subscription ends naturally when `errors$` completes on dispose.
       session.errors$.subscribe((err) => {
         if (err.code === 'unauthorized') {
-          signals.notifySessionExpired(err.message);
+          void session.refresh();
         } else if (err.code === 'forbidden') {
           signals.notifyPermissionDenied(err.message);
         }

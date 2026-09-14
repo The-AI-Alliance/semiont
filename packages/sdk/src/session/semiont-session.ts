@@ -295,6 +295,19 @@ export class SemiontSession {
       this.scheduleProactiveRefresh(newAccess);
       return tok;
     }
+    // You cannot expire a session that never existed. With no stored
+    // credentials there is nothing to refresh AND nothing to tear down —
+    // a 401 here just means "signed out", which the shell already renders.
+    // Declaring expiry anyway was the second act of the 2026-09-14 modal
+    // loop: `activeKnowledgeBaseId` persists forever, every load activates
+    // the KB credential-less, the actor's null-token connect 401s, and the
+    // "expired" modal re-armed on a session that had never signed in.
+    // (This also makes the REAL teardown below fire once: it clears the
+    // stored session, so any follow-up 401s take this quiet path.)
+    if (!getStoredSession(this.storage, this.kb.id)) {
+      this.token$.next(null);
+      return null;
+    }
     this.token$.next(null);
     clearStoredSession(this.storage, this.kb.id);
     this.onAuthFailed('Your session has expired. Please sign in again.');
