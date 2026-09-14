@@ -65,6 +65,8 @@ export interface JetStreamJobQueueOptions {
   staleRunningMs?: number;
   /** Lease redelivery window when THIS process stops heartbeating (default 30 s). */
   ackWaitMs?: number;
+  /** Re-announce + worker-death-sweep cadence (default 30 s; tests shrink it). */
+  tickMs?: number;
   /** Reconnect on connection loss (default true; tests turn it off). */
   reconnect?: boolean;
 }
@@ -88,9 +90,12 @@ export class JetStreamJobQueue implements JobQueue {
   private readonly held = new Map<string, { m: JsMsg; type: string }>();
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   private reconciling = false;
+  private tick: ReturnType<typeof setInterval> | null = null;
+  private ticking = false;
   private readonly lastProgressWrite = new Map<string, number>();
   private readonly staleRunningMs: number;
   private readonly ackWaitMs: number;
+  private readonly tickMs: number;
 
   constructor(
     private readonly options: JetStreamJobQueueOptions,
@@ -99,6 +104,7 @@ export class JetStreamJobQueue implements JobQueue {
   ) {
     this.staleRunningMs = options.staleRunningMs ?? 30 * 60_000;
     this.ackWaitMs = options.ackWaitMs ?? 30_000;
+    this.tickMs = options.tickMs ?? 30_000;
   }
 
   async initialize(): Promise<void> {
@@ -167,6 +173,35 @@ export class JetStreamJobQueue implements JobQueue {
         });
     }, Math.max(250, Math.floor(this.ackWaitMs / 4)));
     this.heartbeat.unref?.();
+
+    // The queue's periodic tick, mirroring the fs driver's internal janitor:
+    //  (a) RE-ANNOUNCE held pending deliveries — an announcement is a wake-up
+    //      with no memory, so a worker that was busy (or not yet connected)
+    //      when one fired must hear about still-unclaimed work again;
+    //  (b) SWEEP for worker death (`recoverStaleRunningJobs`) — `AckWait`
+    //      covers a dead GATEWAY; only this sweep covers a dead WORKER, and
+    //      rows do not sweep themselves (JOB-RESTART-SAFETY P7).
+    this.tick = setInterval(() => {
+      if (this.ticking) return;
+      this.ticking = true;
+      void (async () => {
+        for (const [id, held] of [...this.held]) {
+          const envelope = await this.read(toJobId(id));
+          if (envelope?.job.status === 'pending') this.announce(envelope.job);
+          void held;
+        }
+        await this.recoverStaleRunningJobs();
+      })()
+        .catch((error) => {
+          this.logger.warn('Job-queue tick failed', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        })
+        .finally(() => {
+          this.ticking = false;
+        });
+    }, this.tickMs);
+    this.tick.unref?.();
   }
 
   destroy(): void {
@@ -174,6 +209,8 @@ export class JetStreamJobQueue implements JobQueue {
     this.iter = null;
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.heartbeat = null;
+    if (this.tick) clearInterval(this.tick);
+    this.tick = null;
     this.held.clear();
     void this.nc?.close();
   }

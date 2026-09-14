@@ -297,6 +297,18 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	if role == "embedding" && rp.Obligation == obligationHostProcess {
 		return flowOllama(x, fc, "embedding", rp, addr)
 	}
+	// jobs without a [jobs] section is a WORKING DEFAULT, not a gap: the
+	// gateway's built-in fs queue serves the stack (JOB-QUEUE-DRIVER P2;
+	// P3 retires that driver and flips this to a refusal like vectors').
+	// The generic "not configured; skipping" banner block read as a
+	// misconfiguration to the first person who saw it — say what IS
+	// running instead, in one line, no banner.
+	if role == "jobs" && rp.Obligation == obligationAbsent {
+		x.say(sayLog, "jobs — fs driver: the gateway's built-in queue serves this stack; nothing to launch")
+		x.note("jobs: fs driver (the gateway's built-in queue) — nothing to launch")
+		x.record(role, "", "", providedNone, "", "fs")
+		return 0
+	}
 	disp := driverDisplay(role, rp.Driver)
 	x.banner(depRoleTitles[role] + " (" + disp + ")")
 	switch rp.Obligation {

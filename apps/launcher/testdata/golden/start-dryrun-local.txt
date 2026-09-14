@@ -49,7 +49,7 @@ container run -d --name semiont-otel-collector --memory 1G -p 4318:4318 -p 24110
 container run -d --name semiont-postgres --memory 1G -p 5432:5432 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
 # wait: tcp localhost:5432 (20s)
 # probe: container run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432
-# jobs: not referenced by the config — nothing to launch
+# jobs: fs driver (the gateway's built-in queue) — nothing to launch
 # mount state state (shared; the stamp stays with its owning service)
 container run -d --name semiont-gateway --publish 4000:4000 --memory 2G --volume <config-stage>/gateway.toml:/home/semiont/.semiontconfig:ro -v <home>/.local/share/semiont/roots/example.github.io-test-kb/state:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env POSTGRES_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env NATS_HOST=<host-addr> --env XDG_STATE_HOME=/semiont-state --env SEMIONT_WORKER_SECRET=<worker-secret> --env JWT_SECRET=<jwt-secret> --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-gateway:local
 # wait: http://localhost:4000/api/health (120s)

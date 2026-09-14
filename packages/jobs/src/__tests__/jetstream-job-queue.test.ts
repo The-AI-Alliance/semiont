@@ -141,6 +141,52 @@ describe('multi-instance — the property this plan exists to buy (JOB-QUEUE-DRI
   }, 30_000);
 });
 
+describe('the periodic tick — re-announce and worker-death sweep (driver-specific)', () => {
+  test('an unclaimed pending job is re-announced, and a stale running job recovers without an explicit sweep call', async () => {
+    const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'jetstream-tick-'));
+    const port = await freePort();
+    const server = spawn('nats-server', ['-js', '-sd', dataDir, '-p', String(port), '-a', '127.0.0.1'], { stdio: 'ignore' });
+    await waitForServer(port, server);
+    const servers = `127.0.0.1:${port}`;
+
+    const { EventBus, jobId } = await import('@semiont/core');
+    const { createPendingDetectionJob, createRunningDetectionJob } = await import('./job-queue-conformance');
+    const bus = new EventBus();
+    const announced: string[] = [];
+    bus.get('job:queued').subscribe((e) => announced.push(e.jobId as string));
+
+    const q = new JetStreamJobQueue({ servers, reconnect: false, tickMs: 300, staleRunningMs: 1 }, mockLogger, bus);
+    try {
+      await q.initialize();
+
+      // (a) re-announce: the delivery announces once on arrival, then the
+      // tick announces again while the job stays unclaimed.
+      await q.createJob(createPendingDetectionJob('job-tick-1'));
+      const deadline = Date.now() + 5_000;
+      while (announced.filter((id) => id === 'job-tick-1').length < 2) {
+        if (Date.now() > deadline) throw new Error(`re-announce never fired (announcements: ${announced.length})`);
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      // (b) wired sweep: a running job with staleRunningMs=1 recovers to
+      // pending via the tick alone — no recoverStaleRunningJobs call here.
+      await q.createJob(createRunningDetectionJob('job-tick-2'));
+      const deadline2 = Date.now() + 5_000;
+      for (;;) {
+        const j = await q.getJob(jobId('job-tick-2'));
+        if (j?.status === 'pending' && j.metadata.retryCount === 1) break;
+        if (Date.now() > deadline2) throw new Error(`sweep never recovered the stale job (status: ${j?.status})`);
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    } finally {
+      q.destroy();
+      await new Promise((r) => setTimeout(r, 100));
+      server.kill('SIGKILL');
+      await fs.rm(dataDir, { recursive: true, force: true });
+    }
+  }, 30_000);
+});
+
 runJobQueueConformance('JetStreamJobQueue', {
   async setup() {
     const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'jetstream-test-'));
