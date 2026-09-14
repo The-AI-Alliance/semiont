@@ -161,6 +161,10 @@ interface EnvironmentSection {
     host?: string;
     port?: number;
   };
+  jobs?: {
+    type?: 'fs' | 'jetstream';
+    servers?: string;
+  };
   site?: {
     domain?: string;
     siteName?: string;
@@ -548,6 +552,24 @@ export function loadTomlConfig(
       host: resolved.archivist.host,
       port: resolved.archivist.port ?? DEFAULT_ARCHIVIST_PORT,
     } as EnvironmentConfig['services']['archivist'];
+  }
+
+  // The job queue driver selection (JOB-QUEUE-DRIVER P2): jobQueueFor reads
+  // services.jobs. Same missing-middle failure shape as the archivist above —
+  // without this mapping a [jobs] section parses and then VANISHES, and the
+  // driver silently stays 'fs' on every real stack. A section that names no
+  // type refuses at load rather than falling through to 'fs' at the consumer:
+  // selection is stated, never inferred, never silently defaulted.
+  if (resolved.jobs) {
+    if (!resolved.jobs.type) {
+      throw new Error(
+        `[environments.${resolvedEnvironment}.jobs] names no type — add type = "fs" or "jetstream". Semiont selects the job queue driver from config; nothing is inferred.`,
+      );
+    }
+    services.jobs = {
+      type: resolved.jobs.type,
+      ...(resolved.jobs.servers ? { servers: resolved.jobs.servers } : {}),
+    };
   }
 
   // No browser service is emitted. The Browser is machine-level — one Browser

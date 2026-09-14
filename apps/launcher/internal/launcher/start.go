@@ -31,7 +31,7 @@ func configFreeService(svc string) bool {
 }
 
 var preflightNames = []string{
-	"semiont-otel-collector", "semiont-prometheus", "semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-postgres",
+	"semiont-otel-collector", "semiont-prometheus", "semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-nats", "semiont-postgres",
 	"semiont-gateway", "semiont-worker", "semiont-smelter", "semiont-weaver",
 	"semiont-archivist", "semiont-librarian",
 }
@@ -811,6 +811,10 @@ func gatewayArgs(stage, addr, secret, jwt, version string, port int, userEnv, ot
 		"--env", "NEO4J_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "OLLAMA_HOST="+addr,
+		// Only the gateway gets the broker address (JOB-QUEUE-DRIVER,
+		// topology ruling M): workers reach jobs over the bus, and the
+		// backend never leaves the stack.
+		"--env", "NATS_HOST="+addr,
 		// XDG_STATE_HOME rides in argv, NOT as an image ENV like
 		// SEMIONT_ROOT: it is a standard override project.ts already
 		// honours, and the env and its mount live in this one builder —

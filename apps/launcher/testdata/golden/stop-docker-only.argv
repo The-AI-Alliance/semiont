@@ -4,6 +4,7 @@ docker stop semiont-smelter
 docker stop semiont-worker
 docker stop semiont-librarian
 docker stop semiont-gateway
+docker stop semiont-nats
 docker stop semiont-postgres
 docker stop semiont-ollama
 docker stop semiont-qdrant
@@ -17,6 +18,7 @@ docker logs --tail 5000 semiont-smelter
 docker logs --tail 5000 semiont-worker
 docker logs --tail 5000 semiont-librarian
 docker logs --tail 5000 semiont-gateway
+docker logs --tail 5000 semiont-nats
 docker logs --tail 5000 semiont-postgres
 docker logs --tail 5000 semiont-ollama
 docker logs --tail 5000 semiont-qdrant
@@ -30,6 +32,7 @@ docker rm semiont-smelter
 docker rm semiont-worker
 docker rm semiont-librarian
 docker rm semiont-gateway
+docker rm semiont-nats
 docker rm semiont-postgres
 docker rm semiont-ollama
 docker rm semiont-qdrant

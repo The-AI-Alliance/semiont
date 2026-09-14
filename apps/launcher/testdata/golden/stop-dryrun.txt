@@ -13,6 +13,8 @@ container stop semiont-librarian
 container rm semiont-librarian
 container stop semiont-gateway
 container rm semiont-gateway
+container stop semiont-nats
+container rm semiont-nats
 container stop semiont-postgres
 container rm semiont-postgres
 container stop semiont-ollama
@@ -39,6 +41,8 @@ docker stop semiont-librarian
 docker rm semiont-librarian
 docker stop semiont-gateway
 docker rm semiont-gateway
+docker stop semiont-nats
+docker rm semiont-nats
 docker stop semiont-postgres
 docker rm semiont-postgres
 docker stop semiont-ollama
@@ -65,6 +69,8 @@ podman stop semiont-librarian
 podman rm semiont-librarian
 podman stop semiont-gateway
 podman rm semiont-gateway
+podman stop semiont-nats
+podman rm semiont-nats
 podman stop semiont-postgres
 podman rm semiont-postgres
 podman stop semiont-ollama

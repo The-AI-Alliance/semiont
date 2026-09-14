@@ -5,6 +5,7 @@ container logs semiont-prometheus
 container logs semiont-jaeger
 container logs semiont-neo4j
 container logs semiont-qdrant
+container logs semiont-nats
 container logs semiont-postgres
 container logs semiont-gateway
 container logs semiont-worker

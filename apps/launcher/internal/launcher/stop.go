@@ -47,7 +47,7 @@ targets a codespace stack, --runtime targets the local one.
 var stopNames = []string{
 	"semiont-archivist", "semiont-weaver", "semiont-smelter", "semiont-worker",
 	"semiont-librarian",
-	"semiont-gateway", "semiont-postgres", "semiont-ollama", "semiont-qdrant",
+	"semiont-gateway", "semiont-nats", "semiont-postgres", "semiont-ollama", "semiont-qdrant",
 	"semiont-neo4j", "semiont-otel-collector", "semiont-prometheus", "semiont-jaeger",
 }
 
@@ -464,7 +464,7 @@ func Stop(args []string) int {
 // stack's exact claims (older launcher's record, name-sweep path). 3000 is
 // absent: the Browser is not a stack member and its port is not the
 // stack's to verify.
-var fiatPorts = []int{24100, 24101, 24102, 24103, 24104, 4318, 24110, 16686, 14318, 9090}
+var fiatPorts = []int{24100, 24101, 24102, 24103, 24104, 4318, 24110, 16686, 14318, 9090, 4222}
 
 // verifyPortsReleased: stop's job isn't done until the ports are actually
 // free — runtimes release published ports asynchronously (Apple container's
