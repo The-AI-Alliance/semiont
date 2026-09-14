@@ -93,6 +93,12 @@ publish_pkg() {
 
   if [[ "$DRY_RUN" == "true" ]]; then
     echo -e "  ${YELLOW}dry-run${RESET}  $pkg_name@$pkg_version${label:+ ($label)}"
+  elif npm view "$pkg_name@$pkg_version" version --registry "$REGISTRY" "${NPMRC_ARGS[@]}" >/dev/null 2>&1; then
+    # A partial publish leaves earlier packages live and later ones missing, and
+    # npm refuses to republish a version — so without this the retry dies on the
+    # first already-published package and never reaches the ones that failed.
+    # Announced, never silent: a skip is a decision the log has to show.
+    echo -e "  ${DIM}exists${RESET}   $pkg_name@$pkg_version${label:+ ($label)} — already published, skipping"
   else
     # --loglevel=warn drops npm's per-file "Tarball Contents" listing, which for
     # react-ui alone is ~100 lines of dist/*.js and .map entries. Warnings and
