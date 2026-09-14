@@ -967,6 +967,9 @@
         },
         "archivist": {
           "$ref": "#/definitions/ArchivistServiceConfig"
+        },
+        "jobs": {
+          "$ref": "#/definitions/JobsServiceConfig"
         }
       },
       "required": [
@@ -1264,6 +1267,21 @@
         "project",
         "site"
       ],
+      "additionalProperties": false
+    },
+    "JobsServiceConfig": {
+      "type": "object",
+      "description": "The job queue driver (JOB-QUEUE-DRIVER P2). Selection is stated here, never inferred: 'fs' is the launcher-mounted filesystem queue (retires at P3); 'jetstream' is NATS JetStream — KV operational state plus stream-held leases. Absent section means 'fs' until P3 flips the default. 'servers' is the NATS address and may reference environment via ${VAR} placeholders — the CONFIG names the variable; code never invents one.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["fs", "jetstream"]
+        },
+        "servers": {
+          "type": "string"
+        }
+      },
+      "required": ["type"],
       "additionalProperties": false
     },
     "ArchivistServiceConfig": {

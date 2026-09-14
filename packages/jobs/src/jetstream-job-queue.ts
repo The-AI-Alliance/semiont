@@ -86,6 +86,7 @@ export class JetStreamJobQueue implements JobQueue {
   /** Delivered messages this process holds — the lease, keyed by jobId. */
   private readonly held = new Map<string, JsMsg>();
   private heartbeat: ReturnType<typeof setInterval> | null = null;
+  private reconciling = false;
   private readonly lastProgressWrite = new Map<string, number>();
   private readonly staleRunningMs: number;
   private readonly ackWaitMs: number;
@@ -143,12 +144,27 @@ export class JetStreamJobQueue implements JobQueue {
       },
     });
 
-    // The lease heartbeat: while this process is alive, its held deliveries
-    // never expire; when it dies, they redeliver after ackWait — that IS the
+    // The lease heartbeat doubles as RECONCILIATION (the multi-instance
+    // lease-settle pin): a held delivery whose job concluded on ANOTHER
+    // instance — its claim lost the CAS race, or a redelivery landed here
+    // after a gateway death — can only be settled by the holder, because
+    // nobody else has the delivery to ack. Terminal in KV → ack and drop;
+    // otherwise the lease extends. While this process is alive its leases
+    // never expire; when it dies they redeliver after ackWait — that IS the
     // gateway-death recovery path.
     this.heartbeat = setInterval(() => {
-      for (const m of this.held.values()) m.working();
-    }, Math.max(1_000, Math.floor(this.ackWaitMs / 3)));
+      if (this.reconciling) return;
+      this.reconciling = true;
+      void this.reconcileHeld()
+        .catch((error) => {
+          this.logger.warn('Held-lease reconciliation failed', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        })
+        .finally(() => {
+          this.reconciling = false;
+        });
+    }, Math.max(250, Math.floor(this.ackWaitMs / 4)));
     this.heartbeat.unref?.();
   }
 
@@ -491,6 +507,20 @@ export class JetStreamJobQueue implements JobQueue {
       }
     }
     return recovered;
+  }
+
+  /** The heartbeat body — extend live leases, settle concluded ones. */
+  private async reconcileHeld(): Promise<void> {
+    for (const [id, m] of [...this.held]) {
+      const envelope = await this.read(toJobId(id));
+      const status = envelope?.job.status;
+      if (!envelope || status === 'complete' || status === 'failed' || status === 'cancelled') {
+        this.held.delete(id);
+        m.ack();
+      } else {
+        m.working();
+      }
+    }
   }
 
   /**

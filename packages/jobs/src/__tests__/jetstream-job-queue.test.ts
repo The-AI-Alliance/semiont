@@ -17,7 +17,7 @@
  * the conformance suite never does.
  */
 
-import { vi } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import { spawn, type ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
@@ -72,6 +72,72 @@ async function waitForServer(port: number, proc: ChildProcess): Promise<void> {
     }
   }
 }
+
+describe('multi-instance — the property this plan exists to buy (JOB-QUEUE-DRIVER P2)', () => {
+  test('two gateways over one NATS: every job completes exactly once, and every lease settles', async () => {
+    const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'jetstream-multi-'));
+    const port = await freePort();
+    const server = spawn('nats-server', ['-js', '-sd', dataDir, '-p', String(port), '-a', '127.0.0.1'], { stdio: 'ignore' });
+    await waitForServer(port, server);
+    const servers = `127.0.0.1:${port}`;
+
+    // Short lease window so settle-reconciliation runs inside the test.
+    const a = new JetStreamJobQueue({ servers, reconnect: false, ackWaitMs: 2_000 }, mockLogger);
+    const b = new JetStreamJobQueue({ servers, reconnect: false, ackWaitMs: 2_000 }, mockLogger);
+    const raw = await connect({ servers, reconnect: false });
+    try {
+      await a.initialize();
+      await b.initialize();
+
+      const ids = Array.from({ length: 12 }, (_, i) => `job-multi-${i}`);
+      const { createPendingDetectionJob } = await import('./job-queue-conformance');
+      for (const id of ids) await a.createJob(createPendingDetectionJob(id));
+
+      // Let deliveries spread across both instances' consumers.
+      await new Promise((r) => setTimeout(r, 500));
+
+      // Worst case, deliberately: BOTH gateways race to claim EVERY job —
+      // at-least-once delivery, effects-once via the claim CAS. Exactly one
+      // winner per job completes it.
+      const { jobId } = await import('@semiont/core');
+      const winners: string[] = [];
+      await Promise.all(ids.flatMap((id) => [a, b].map(async (q) => {
+        const r = await q.claimJob(jobId(id));
+        if ('job' in r) {
+          await q.completeJob(jobId(id), { by: q === a ? 'a' : 'b' });
+          winners.push(id);
+        }
+      })));
+
+      expect(winners.sort()).toEqual([...ids].sort()); // each job exactly once
+      for (const id of ids) {
+        expect((await a.getJob(jobId(id)))?.status).toBe('complete');
+      }
+
+      // EVERY lease settles: a delivery held by the instance that LOST the
+      // claim (or that held a job the other instance completed) must be
+      // acked once the job is terminal — otherwise the work-queue stream
+      // never drains and the message redelivers forever.
+      const jsm = await raw.jetstreamManager();
+      const deadline = Date.now() + 10_000;
+      for (;;) {
+        const info = await jsm.streams.info('JOBS');
+        if (info.state.messages === 0) break;
+        if (Date.now() > deadline) {
+          throw new Error(`stream never drained: ${info.state.messages} lease(s) unsettled`);
+        }
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    } finally {
+      a.destroy();
+      b.destroy();
+      await raw.close();
+      await new Promise((r) => setTimeout(r, 100));
+      server.kill('SIGKILL');
+      await fs.rm(dataDir, { recursive: true, force: true });
+    }
+  }, 30_000);
+});
 
 runJobQueueConformance('JetStreamJobQueue', {
   async setup() {

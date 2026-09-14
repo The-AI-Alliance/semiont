@@ -51,7 +51,7 @@ jobs:
       - name: Install nats-server (jobs only)
         if: matrix.package == 'jobs'
         run: |
-          NATS_VERSION=v2.12.2
+          NATS_VERSION=v2.14.0
           curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
           sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
           nats-server --version

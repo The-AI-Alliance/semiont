@@ -1,6 +1,7 @@
 // Factory for creating graph database instances based on configuration
 
 import { GraphDatabase } from './interface';
+import { evaluateEnvPlaceholders } from '@semiont/core';
 import { NeptuneGraphDatabase } from './implementations/neptune';
 import { Neo4jGraphDatabase } from './implementations/neo4j';
 import { JanusGraphDatabase } from './implementations/janusgraph';
@@ -72,20 +73,6 @@ export function createGraphDatabase(config: GraphDatabaseConfig): GraphDatabase 
   }
 }
 
-// Helper function to evaluate environment variable placeholders
-function evaluateEnvVar(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-
-  // Replace ${VAR_NAME} with actual environment variable value
-  return value.replace(/\$\{([^}]+)\}/g, (match, varName) => {
-    const envValue = process.env[varName];
-    if (!envValue) {
-      throw new Error(`Environment variable ${varName} is not set. Referenced in configuration as ${match}`);
-    }
-    return envValue;
-  });
-}
-
 export async function getGraphDatabase(graphConfig: GraphServiceConfig): Promise<GraphDatabase> {
   if (!graphDatabaseInstance) {
     const config: GraphDatabaseConfig = {
@@ -118,16 +105,16 @@ export async function getGraphDatabase(graphConfig: GraphServiceConfig): Promise
       }
     } else if (graphConfig.type === 'neo4j') {
       if (graphConfig.uri) {
-        config.neo4jUri = evaluateEnvVar(graphConfig.uri);
+        config.neo4jUri = evaluateEnvPlaceholders(graphConfig.uri);
       }
       if (graphConfig.username) {
-        config.neo4jUsername = evaluateEnvVar(graphConfig.username);
+        config.neo4jUsername = evaluateEnvPlaceholders(graphConfig.username);
       }
       if (graphConfig.password) {
-        config.neo4jPassword = evaluateEnvVar(graphConfig.password);
+        config.neo4jPassword = evaluateEnvPlaceholders(graphConfig.password);
       }
       if (graphConfig.database) {
-        config.neo4jDatabase = evaluateEnvVar(graphConfig.database);
+        config.neo4jDatabase = evaluateEnvPlaceholders(graphConfig.database);
       }
     }
 
