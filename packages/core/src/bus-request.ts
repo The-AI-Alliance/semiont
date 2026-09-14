@@ -4,6 +4,7 @@ import { SemiontError } from './errors';
 import type { EventMap, EventName } from './bus-protocol';
 import type { ConnectionState } from './transport';
 import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
+import type { CommandErrorCode } from './payload-types';
 import { uuidV4 } from './id-generation';
 
 /**
@@ -18,13 +19,27 @@ export type BusReply<Op extends BusOperationKey> =
     ? R
     : void;
 
+/**
+ * What a failed `busRequest` can tell its caller.
+ *
+ * Two kinds of member, and the split is the point. `bus.not-found` and
+ * `bus.peer-unavailable` are facts the PEER stated, promoted from
+ * `CommandError.code` by `WIRE_TO_CLIENT` below. The rest are facts only this
+ * side knows — a timeout, a closed connection, a local misconfiguration — which
+ * is why the two vocabularies stay separate rather than collapsing into one.
+ *
+ * `bus.bad-payload`, `bus.unauthorized` and `bus.forbidden` were removed here
+ * (2026-09-13): zero producers, zero consumers, and the HTTP-shaped facts they
+ * named already live in `TransportErrorCode` with real producers
+ * (`classifyApiCode`). A member nothing can emit promises a distinction the
+ * system cannot make, and the next reader has no way to tell it apart from one
+ * that merely has not been reached yet.
+ */
 export type BusRequestErrorCode =
   | 'bus.timeout'
   | 'bus.rejected'
   | 'bus.closed'
-  | 'bus.bad-payload'
-  | 'bus.unauthorized'
-  | 'bus.forbidden'
+  /** The peer says this resource does not exist in its knowledge base. */
   | 'bus.not-found'
   /**
    * THIS transport is not subscribed to the reply channel — a local
@@ -47,13 +62,26 @@ export type BusRequestErrorCode =
  * unmapped, a consumer would reach into `details.payload.code` and there would be
  * two ways to ask the same question, with the next consumer picking the other.
  *
- * An unrecognized code degrades to `bus.rejected` rather than being trusted
- * through: the value crosses a process boundary from a peer that may be newer
- * than this build, and inventing a `BusRequestErrorCode` nobody handles is worse
- * than the honest fallback it would otherwise have had.
+ * Keyed by the generated `CommandErrorCode`, so a new wire member fails to
+ * compile here (TS2741) until someone decides what it means to a client. A
+ * ternary would have let it default silently to `bus.rejected` — a mirror of a
+ * spec-owned vocabulary with no gate.
  */
+const WIRE_TO_CLIENT: Record<CommandErrorCode, BusRequestErrorCode> = {
+  'peer-unavailable': 'bus.peer-unavailable',
+  'not-found': 'bus.not-found',
+};
+
+/**
+ * Read as `unknown`, because that is what crosses the boundary: the value comes
+ * from a peer that may be newer than this build. An unrecognized code degrades
+ * to `bus.rejected` rather than being trusted through — inventing a
+ * `BusRequestErrorCode` nobody handles is worse than the honest fallback.
+ */
+const WIRE_CODES = new Map<unknown, BusRequestErrorCode>(Object.entries(WIRE_TO_CLIENT));
+
 function classifyFailureCode(code: unknown): BusRequestErrorCode {
-  return code === 'peer-unavailable' ? 'bus.peer-unavailable' : 'bus.rejected';
+  return WIRE_CODES.get(code) ?? 'bus.rejected';
 }
 
 export class BusRequestError extends SemiontError {

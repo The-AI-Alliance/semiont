@@ -262,7 +262,7 @@ describe('isPeerUnavailable', () => {
   });
 
   it('rejects every other bus failure — a refusal is not a delay', () => {
-    for (const code of ['bus.rejected', 'bus.timeout', 'bus.unauthorized', 'bus.forbidden', 'bus.not-found', 'bus.closed', 'bus.bad-payload'] as const) {
+    for (const code of ['bus.rejected', 'bus.timeout', 'bus.not-found', 'bus.closed'] as const) {
       expect(isPeerUnavailable(new BusRequestError('x', code)), code).toBe(false);
     }
   });
