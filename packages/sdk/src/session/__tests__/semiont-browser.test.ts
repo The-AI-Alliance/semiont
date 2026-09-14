@@ -702,6 +702,30 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
       await browser.dispose();
     });
 
+    it('a 401 with NO stored credentials is not an expiry: no modal, no teardown theater', async () => {
+      // The field loop of 2026-09-14, second act: activeKnowledgeBaseId
+      // persists forever, so every load activates the KB signed-out; the
+      // actor connects with a null token, 401s, and refresh() -- with
+      // NOTHING to refresh -- declared "session expired" anyway. You cannot
+      // expire a session that never existed: the signed-out shell is the
+      // correct and sufficient UX, and the modal must stay silent.
+      storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+      storage.set(ACTIVE_KEY, KB_A.id);
+      // Deliberately NO seedStoredSession: registered + active, signed out.
+      const browser = makeBrowser();
+      const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+      const signals = browser.activeSignals$.getValue()!;
+
+      (session!.client.transport as unknown as { errorsSubject: { next: (v: unknown) => void } })
+        .errorsSubject.next({ code: 'unauthorized', message: 'HTTP 401: Unauthorized' });
+      await settled();
+
+      expect(signals.sessionExpiredAt$.getValue()).toBeNull();
+      expect(signals.sessionExpiredMessage$.getValue()).toBeNull();
+
+      await browser.dispose();
+    });
+
     it('forbidden still routes to permission-denied, untouched', async () => {
       const browser = await makeConnectedBrowser();
       const signals = browser.activeSignals$.getValue()!;
