@@ -13,6 +13,7 @@ import type { SemiontState } from '@semiont/core/node';
 import { jobId as toJobId, type JobId, type Logger, type EventBus, type UnitCursor } from '@semiont/core';
 import type { JobQueue } from './job-queue-interface';
 import { willRetryAfter } from './will-retry';
+import { mergeUnitCursors } from './checkpoint-merge';
 
 /**
  * How often pending jobs are re-announced on `job:queued` and stale
@@ -40,42 +41,6 @@ const STALE_RUNNING_MS = 30 * 60_000;
 
 /** Minimum spacing between progress writes per job — workers can be chatty. */
 const PROGRESS_WRITE_MIN_INTERVAL_MS = 5_000;
-
-/**
- * Merge per-unit cursors monotonically (CHUNK-GRAIN-RESUME P2).
- *
- * `completedUnits` is a set, so unioning it converges under concurrent
- * snapshots for free — a set only grows. A cursor has no such property: two
- * checkpoints can be in flight at once and the OLDER one can land last, so a
- * last-writer-wins would drag the resume position backward and the retry would
- * re-pay for chunks it already committed. Keeping the furthest `next` per unit
- * is what makes the merge order-independent.
- *
- * `next` and `size` move together because they are ONE observation of one
- * chunk. Taking the furthest `next` from one snapshot and the `size` from
- * another would describe a chunk that was never cut.
- *
- * A unit in `completed` has no cursor at all: "in progress, here" and
- * "finished" are then structurally exclusive rather than a rule each reader has
- * to remember, and a stale snapshot cannot resurrect a finished unit's cursor.
- */
-function mergeUnitCursors(
-  existing: Record<string, UnitCursor> | undefined,
-  incoming: Record<string, UnitCursor> | undefined,
-  completed: string[],
-): Record<string, UnitCursor> {
-  const done = new Set(completed);
-  const merged: Record<string, UnitCursor> = {};
-  for (const [unit, cursor] of Object.entries({ ...existing })) {
-    if (!done.has(unit)) merged[unit] = cursor;
-  }
-  for (const [unit, cursor] of Object.entries({ ...incoming })) {
-    if (done.has(unit)) continue;
-    const held = merged[unit];
-    if (!held || cursor.next > held.next) merged[unit] = cursor;
-  }
-  return merged;
-}
 
 /** Terminal jobs (complete/failed/cancelled) are pruned after this long. */
 const RETENTION_HOURS = 24;
