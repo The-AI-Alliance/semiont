@@ -498,5 +498,13 @@
     "decline_empty": "Ce document ne contient aucun texte à annoter.",
     "annotationCompletePartial": "Détection terminée incomplète — {{pieces}} partie(s) sous-déclarée(s)",
     "annotationFailedPartial": "Échec de la détection — les résultats de {{kept}} type(s) terminés ont été conservés"
+  },
+  "KbIdentityConflictModal": {
+    "title": "Une autre base de connaissances répond",
+    "registeredIdentity": "Identité enregistrée",
+    "answeringNow": "Répond actuellement",
+    "stateCleared": "Les onglets ouverts et la dernière position de cette entrée ont été effacés — ils décrivaient des contenus que cette base de connaissances n'a pas. L'entrée du registre elle-même est inchangée.",
+    "dismiss": "Ignorer",
+    "reviewKnowledgeBases": "Examiner les bases de connaissances"
   }
 }

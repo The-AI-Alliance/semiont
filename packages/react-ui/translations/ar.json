@@ -498,5 +498,13 @@
     "decline_empty": "لا يحتوي هذا المستند على نص لتوسيمه.",
     "annotationCompletePartial": "اكتمل الكشف جزئيًا — {{pieces}} جزء ناقص الإبلاغ",
     "annotationFailedPartial": "فشل الكشف — تم الاحتفاظ بنتائج {{kept}} نوع مكتمل"
+  },
+  "KbIdentityConflictModal": {
+    "title": "قاعدة معرفة مختلفة تستجيب",
+    "registeredIdentity": "الهوية المسجلة",
+    "answeringNow": "المستجيب الآن",
+    "stateCleared": "تم مسح علامات التبويب المفتوحة وآخر موضع لهذا الإدخال — فقد كانت تصف محتويات لا تملكها قاعدة المعرفة هذه. إدخال السجل نفسه لم يتغير.",
+    "dismiss": "تجاهل",
+    "reviewKnowledgeBases": "مراجعة قواعد المعرفة"
   }
 }

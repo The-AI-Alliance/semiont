@@ -498,5 +498,13 @@
     "decline_empty": "این سند متنی برای حاشیه‌نویسی ندارد.",
     "annotationCompletePartial": "تشخیص ناقص پایان یافت — {{pieces}} بخش کمتر گزارش شد",
     "annotationFailedPartial": "تشخیص ناموفق بود — یافته‌های {{kept}} نوع تکمیل‌شده حفظ شدند"
+  },
+  "KbIdentityConflictModal": {
+    "title": "پایگاه دانش دیگری پاسخ می‌دهد",
+    "registeredIdentity": "هویت ثبت‌شده",
+    "answeringNow": "اکنون پاسخ می‌دهد",
+    "stateCleared": "برگه‌های باز و آخرین موقعیت این مدخل پاک شد — آن‌ها محتوایی را توصیف می‌کردند که این پایگاه دانش ندارد. خودِ مدخل ثبت بدون تغییر است.",
+    "dismiss": "رد کردن",
+    "reviewKnowledgeBases": "بررسی پایگاه‌های دانش"
   }
 }

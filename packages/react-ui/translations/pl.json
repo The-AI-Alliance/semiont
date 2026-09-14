@@ -498,5 +498,13 @@
     "decline_empty": "Ten dokument nie zawiera tekstu do adnotacji.",
     "annotationCompletePartial": "Wykrywanie zakończone niekompletnie — {{pieces}} fragment(ów) niedoraportowanych",
     "annotationFailedPartial": "Wykrywanie nie powiodło się — wyniki z {{kept}} ukończonych typów zachowano"
+  },
+  "KbIdentityConflictModal": {
+    "title": "Odpowiada inna baza wiedzy",
+    "registeredIdentity": "Zarejestrowana tożsamość",
+    "answeringNow": "Odpowiada teraz",
+    "stateCleared": "Otwarte karty i ostatnia pozycja tego wpisu zostały wyczyszczone — opisywały treści, których ta baza wiedzy nie ma. Sam wpis rejestru pozostaje bez zmian.",
+    "dismiss": "Odrzuć",
+    "reviewKnowledgeBases": "Przejrzyj bazy wiedzy"
   }
 }

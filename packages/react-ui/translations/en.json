@@ -498,5 +498,13 @@
     "decline_empty": "This document has no text to annotate.",
     "annotationCompletePartial": "Detection finished incompletely — {{pieces}} piece(s) under-reported",
     "annotationFailedPartial": "Detection failed — finds from {{kept}} completed type(s) were kept"
+  },
+  "KbIdentityConflictModal": {
+    "title": "A different knowledge base is answering",
+    "registeredIdentity": "Registered identity",
+    "answeringNow": "Answering now",
+    "stateCleared": "Open tabs and last position for this entry have been cleared — they described contents this knowledge base does not have. The registry entry itself is unchanged.",
+    "dismiss": "Dismiss",
+    "reviewKnowledgeBases": "Review knowledge bases"
   }
 }

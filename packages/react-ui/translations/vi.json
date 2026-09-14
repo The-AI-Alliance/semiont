@@ -498,5 +498,13 @@
     "decline_empty": "Tài liệu này không có văn bản để chú thích.",
     "annotationCompletePartial": "Phát hiện kết thúc không đầy đủ — {{pieces}} phần bị báo cáo thiếu",
     "annotationFailedPartial": "Phát hiện thất bại — kết quả từ {{kept}} loại đã hoàn thành được giữ lại"
+  },
+  "KbIdentityConflictModal": {
+    "title": "Một cơ sở tri thức khác đang trả lời",
+    "registeredIdentity": "Danh tính đã đăng ký",
+    "answeringNow": "Đang trả lời",
+    "stateCleared": "Các thẻ đang mở và vị trí cuối của mục này đã bị xóa — chúng mô tả nội dung mà cơ sở tri thức này không có. Bản ghi đăng ký không thay đổi.",
+    "dismiss": "Bỏ qua",
+    "reviewKnowledgeBases": "Xem lại các cơ sở tri thức"
   }
 }

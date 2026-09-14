@@ -19,6 +19,7 @@ import {
   ProtectedErrorBoundary,
   SessionExpiredModal,
   PermissionDeniedModal,
+  KbIdentityConflictModal,
 } from '@semiont/react-ui';
 
 export function AuthShell({ children }: { children: React.ReactNode }) {
@@ -27,6 +28,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
     <ProtectedErrorBoundary resetKeys={[location.pathname]}>
       <SessionExpiredModal />
       <PermissionDeniedModal />
+      <KbIdentityConflictModal />
       {children}
     </ProtectedErrorBoundary>
   );

@@ -498,5 +498,13 @@
     "decline_empty": "Este documento no tiene texto que anotar.",
     "annotationCompletePartial": "La detección terminó incompleta — {{pieces}} parte(s) subregistradas",
     "annotationFailedPartial": "La detección falló — se conservaron los hallazgos de {{kept}} tipo(s) completados"
+  },
+  "KbIdentityConflictModal": {
+    "title": "Está respondiendo una base de conocimiento diferente",
+    "registeredIdentity": "Identidad registrada",
+    "answeringNow": "Respondiendo ahora",
+    "stateCleared": "Las pestañas abiertas y la última posición de esta entrada se han borrado — describían contenidos que esta base de conocimiento no tiene. La entrada del registro permanece sin cambios.",
+    "dismiss": "Descartar",
+    "reviewKnowledgeBases": "Revisar bases de conocimiento"
   }
 }

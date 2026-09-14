@@ -498,5 +498,13 @@
     "decline_empty": "此文档没有可批注的文本。",
     "annotationCompletePartial": "检测未完整结束 — {{pieces}} 个部分报告不足",
     "annotationFailedPartial": "检测失败 — 已保留 {{kept}} 个已完成类型的结果"
+  },
+  "KbIdentityConflictModal": {
+    "title": "另一个知识库正在应答",
+    "registeredIdentity": "已注册身份",
+    "answeringNow": "当前应答",
+    "stateCleared": "此条目的打开标签页和最后位置已被清除 — 它们描述的内容在该知识库中不存在。注册表条目本身未更改。",
+    "dismiss": "关闭",
+    "reviewKnowledgeBases": "检查知识库"
   }
 }

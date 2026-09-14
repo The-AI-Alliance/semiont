@@ -498,5 +498,13 @@
     "decline_empty": "Detta dokument har ingen text att annotera.",
     "annotationCompletePartial": "Detektering avslutad ofullständigt — {{pieces}} del(ar) underrapporterade",
     "annotationFailedPartial": "Detektering misslyckades — fynd från {{kept}} slutförda typer behölls"
+  },
+  "KbIdentityConflictModal": {
+    "title": "En annan kunskapsbas svarar",
+    "registeredIdentity": "Registrerad identitet",
+    "answeringNow": "Svarar nu",
+    "stateCleared": "Öppna flikar och senaste position för denna post har rensats — de beskrev innehåll som denna kunskapsbas inte har. Själva registerposten är oförändrad.",
+    "dismiss": "Avfärda",
+    "reviewKnowledgeBases": "Granska kunskapsbaser"
   }
 }

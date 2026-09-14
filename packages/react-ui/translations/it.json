@@ -498,5 +498,13 @@
     "decline_empty": "Questo documento non contiene testo da annotare.",
     "annotationCompletePartial": "Rilevamento terminato in modo incompleto — {{pieces}} parte/i sottostimate",
     "annotationFailedPartial": "Rilevamento non riuscito — i risultati di {{kept}} tipi completati sono stati conservati"
+  },
+  "KbIdentityConflictModal": {
+    "title": "Sta rispondendo una base di conoscenza diversa",
+    "registeredIdentity": "Identità registrata",
+    "answeringNow": "Risponde ora",
+    "stateCleared": "Le schede aperte e l'ultima posizione di questa voce sono state cancellate — descrivevano contenuti che questa base di conoscenza non ha. La voce del registro è invariata.",
+    "dismiss": "Ignora",
+    "reviewKnowledgeBases": "Rivedi le basi di conoscenza"
   }
 }

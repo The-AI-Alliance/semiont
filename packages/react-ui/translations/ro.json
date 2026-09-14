@@ -498,5 +498,13 @@
     "decline_empty": "Acest document nu are text de adnotat.",
     "annotationCompletePartial": "Detectarea s-a încheiat incomplet — {{pieces}} părți subraportate",
     "annotationFailedPartial": "Detectarea a eșuat — rezultatele din {{kept}} tipuri finalizate au fost păstrate"
+  },
+  "KbIdentityConflictModal": {
+    "title": "Răspunde o altă bază de cunoștințe",
+    "registeredIdentity": "Identitate înregistrată",
+    "answeringNow": "Răspunde acum",
+    "stateCleared": "Filele deschise și ultima poziție a acestei intrări au fost șterse — descriau conținut pe care această bază de cunoștințe nu îl are. Intrarea din registru rămâne neschimbată.",
+    "dismiss": "Închide",
+    "reviewKnowledgeBases": "Verificați bazele de cunoștințe"
   }
 }

@@ -498,5 +498,13 @@
     "decline_empty": "이 문서에는 주석을 달 텍스트가 없습니다.",
     "annotationCompletePartial": "감지가 불완전하게 끝났습니다 — {{pieces}}개 과소 보고됨",
     "annotationFailedPartial": "감지 실패 — 완료된 {{kept}}개 유형의 결과는 유지됩니다"
+  },
+  "KbIdentityConflictModal": {
+    "title": "다른 지식 베이스가 응답하고 있습니다",
+    "registeredIdentity": "등록된 식별 정보",
+    "answeringNow": "현재 응답 중",
+    "stateCleared": "이 항목의 열린 탭과 마지막 위치가 지워졌습니다 — 이 지식 베이스에 없는 콘텐츠를 가리키고 있었기 때문입니다. 레지스트리 항목 자체는 변경되지 않았습니다.",
+    "dismiss": "닫기",
+    "reviewKnowledgeBases": "지식 베이스 검토"
   }
 }
