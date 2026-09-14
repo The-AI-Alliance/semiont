@@ -83,19 +83,27 @@ function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: strin
   const activePanel = useObservable(browseStateUnit.activePanel$) ?? null;
   const { theme } = useTheme();
 
-  // The Account panel needs a session. Restored from a previous signed-in visit it
-  // is a dead end — "Sign in to a knowledge base to view your account" — while the
-  // empty state beside it says to sign in using the Knowledge Base panel. Open the
-  // panel we are pointing at. Decided once, not reactively: a deliberate click on
-  // Account while signed out should still show its message, not snap away.
+  // Signed out, only two panels are viable: Knowledge Base (the way forward)
+  // and Settings (works without a session). Everything else a previous visit
+  // persisted is a dead end here — Account renders a "sign in first" notice,
+  // and a RESOURCE panel (annotations/info/history/…) renders NOTHING at all:
+  // ToolbarPanels hides its container for non-common panels, which left the
+  // shell panel-less while its own message said to use the Knowledge Base
+  // panel. Redirect every non-viable panel to the one we are pointing at.
+  // Decided once, not reactively: a deliberate click on Account while signed
+  // out should still show its message, not snap away.
   const panelCorrected = useRef(false);
   useEffect(() => {
     // useObservable yields null on the first render, before the BehaviorSubject's
     // current value arrives. Spending the one-shot on that null would let the
-    // restored panel through on the render that actually carries it.
+    // restored panel through on the render that actually carries it. (A true
+    // "no panel" cannot reach this mount: readPanel() defaults to
+    // knowledge-base when nothing is persisted.)
     if (panelCorrected.current || activePanel === null) return;
     panelCorrected.current = true;
-    if (activePanel === 'user') browseStateUnit.openPanel('knowledge-base');
+    if (activePanel !== 'knowledge-base' && activePanel !== 'settings') {
+      browseStateUnit.openPanel('knowledge-base');
+    }
   }, [activePanel, browseStateUnit]);
 
   return (

@@ -89,6 +89,18 @@ describe('signed-out knowledge layout: which panel is open', () => {
     expect(seen.at(-1)).toBe('knowledge-base');
   });
 
+  it('a persisted RESOURCE panel gives way to the Knowledge Base panel', () => {
+    // The common case in the field: the last session ended on a document with
+    // the annotations panel open. On discover that panel renders NOTHING —
+    // ToolbarPanels hides its container for non-common panels — so the shell
+    // showed no panel at all while its own message said to use the KB panel.
+    localStorage.setItem('activeToolbarPanel', 'annotations');
+
+    renderSignedOut();
+
+    expect(seen.at(-1)).toBe('knowledge-base');
+  });
+
   it('leaves Settings alone — it works without a session', () => {
     localStorage.setItem('activeToolbarPanel', 'settings');
 
