@@ -24,7 +24,11 @@ vi.mock('fs', () => {
   };
 });
 
+vi.mock('../resource-graph', () => ({ assembleResourceGraph: vi.fn() }));
+
 import { promises as fsMock } from 'fs';
+import { assembleResourceGraph } from '../resource-graph';
+const mockAssemble = assembleResourceGraph as ReturnType<typeof vi.fn>;
 import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 const mockStat   = fsMock.stat   as ReturnType<typeof vi.fn>;
 const mockReaddir = fsMock.readdir as ReturnType<typeof vi.fn>;
@@ -659,6 +663,41 @@ describe('Browser actor', () => {
         expect(r.e.correlationId).toBe('cid-agents');
         expect(r.e.message).toContain('site.domain');
       });
+    });
+  });
+  // ── the resource read, and what its absence is allowed to claim ────────────
+
+  describe('browse:resource-requested', () => {
+    function failure() {
+      return new Promise<any>((resolve) => eventBus.get('browse:resource-failed').subscribe(resolve));
+    }
+
+    it("codes a missing resource 'not-found' — the verdict a tab can be deleted on", async () => {
+      // `assembleResourceGraph` materializes from the EVENT STORE, so null is
+      // the system of record saying this KB has no such resource — not a view
+      // lagging (TABS-REVALIDATE-ON-RESTORE D10). That is what earns a code:
+      // the SDK's tab validator removes on this and only this.
+      mockAssemble.mockResolvedValue(null);
+      const failed = failure();
+
+      eventBus.get('browse:resource-requested').next({ correlationId: 'cid-missing', resourceId: 'res-gone' });
+
+      const e = await failed;
+      expect(e.correlationId).toBe('cid-missing');
+      expect(e.code).toBe('not-found');
+    });
+
+    it('leaves a thrown failure code-less — an exception is not evidence of absence', async () => {
+      // The generic catch must never carry the code: a bug in assembly would
+      // otherwise read as "this resource does not exist" and delete the tab.
+      mockAssemble.mockRejectedValue(new Error('graph exploded'));
+      const failed = failure();
+
+      eventBus.get('browse:resource-requested').next({ correlationId: 'cid-boom', resourceId: 'res-here' });
+
+      const e = await failed;
+      expect(e.message).toBe('graph exploded');
+      expect(e.code).toBeUndefined();
     });
   });
 });
