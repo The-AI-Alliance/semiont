@@ -7,16 +7,17 @@ export interface JobQueue {
   createJob(job: AnyJob): Promise<void>;
   getJob(jobId: JobId): Promise<AnyJob | null>;
   /**
-   * Atomically claim a pending job for execution — the ONE transition that
-   * makes this a queue rather than a state store (JOB-QUEUE-DRIVER P0).
-   * pending → running, `startedAt` stamped, progress empty. Simultaneous
-   * claims of one job admit exactly one winner; the losers are DECLINED,
-   * never errors — `not-found` (no such job) or `not-pending` (already
-   * claimed, finished, or cancelled). Replaces the get-check-update
-   * composition in the claim handler, which was a check-then-act safe only
-   * while a single process serialized it.
+   * Atomically claim the NEXT pending job matching one of `types` — the ONE
+   * transition that makes this a queue rather than a state store
+   * (JOB-QUEUE-DRIVER P0; reshaped claim-by-TYPE in P2, while every worker
+   * is still ours). pending → running, `startedAt` stamped, progress empty.
+   * An announcement is a WAKE-UP, not a reservation: the claimed job may
+   * differ from any announced one, no ordering among matching pending jobs
+   * is promised, and an empty `types` accepts any type. Simultaneous claims
+   * admit one winner PER pending job; a claim that finds nothing is
+   * DECLINED (`none-available`), never an error.
    */
-  claimJob(jobId: JobId): Promise<{ job: AnyJob } | { declined: 'not-found' | 'not-pending' }>;
+  claimNextJob(types: string[]): Promise<{ job: AnyJob } | { declined: 'none-available' }>;
   /** Move a running job to `complete`. Returns false if the job isn't running. */
   completeJob(jobId: JobId, result: Record<string, unknown>): Promise<boolean>;
   /**

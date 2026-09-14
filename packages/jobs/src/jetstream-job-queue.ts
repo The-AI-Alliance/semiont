@@ -83,8 +83,9 @@ export class JetStreamJobQueue implements JobQueue {
   private jsm!: JetStreamManager;
   private kv!: KV;
   private iter: ConsumerMessages | null = null;
-  /** Delivered messages this process holds — the lease, keyed by jobId. */
-  private readonly held = new Map<string, JsMsg>();
+  /** Delivered messages this process holds — the lease, keyed by jobId,
+   *  with the job's type so a by-type claim can walk them without a read. */
+  private readonly held = new Map<string, { m: JsMsg; type: string }>();
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   private reconciling = false;
   private readonly lastProgressWrite = new Map<string, number>();
@@ -201,11 +202,11 @@ export class JetStreamJobQueue implements JobQueue {
     }
     switch (envelope.job.status) {
       case 'pending':
-        this.held.set(id, m);
+        this.held.set(id, { m, type: envelope.job.metadata.type });
         this.announce(envelope.job);
         break;
       case 'running':
-        this.held.set(id, m);
+        this.held.set(id, { m, type: envelope.job.metadata.type });
         break;
       default:
         m.ack();
@@ -279,11 +280,34 @@ export class JetStreamJobQueue implements JobQueue {
     return envelope?.job ?? null;
   }
 
-  async claimJob(jobIdArg: JobId): Promise<{ job: AnyJob } | { declined: 'not-found' | 'not-pending' }> {
-    return this.cas<{ job: AnyJob } | { declined: 'not-found' | 'not-pending' }>(
+  async claimNextJob(types: string[]): Promise<{ job: AnyJob } | { declined: 'none-available' }> {
+    const matches = (t: string) => types.length === 0 || types.includes(t);
+    // Lease-aligned fast path (topology memo, mechanic 1): deliveries this
+    // gateway already holds — the claim lands where the worker is connected.
+    for (const [id, held] of [...this.held]) {
+      if (!matches(held.type)) continue;
+      const won = await this.tryClaim(toJobId(id));
+      if (won) return won;
+    }
+    // Fallback: pending state whose delivery has not reached us — yet (a
+    // claim racing ahead of its delivery) or ever (another gateway holds
+    // it; KV is the authority, and that holder's reconcile settles the
+    // stale lease once this claim concludes the job).
+    for (const key of await this.allKeys()) {
+      const envelope = await this.read(toJobId(key));
+      if (!envelope || envelope.job.status !== 'pending' || !matches(envelope.job.metadata.type)) continue;
+      const won = await this.tryClaim(toJobId(key));
+      if (won) return won;
+    }
+    return { declined: 'none-available' };
+  }
+
+  /** CAS one pending job to running; null when someone else won it. */
+  private async tryClaim(jobIdArg: JobId): Promise<{ job: AnyJob } | null> {
+    return this.cas<{ job: AnyJob } | null>(
       jobIdArg,
       (job) => {
-        if (job.status !== 'pending') return { result: { declined: 'not-pending' as const } };
+        if (job.status !== 'pending') return { result: null };
         const running: RunningJob<any, any> = {
           status: 'running',
           metadata: job.metadata,
@@ -296,7 +320,7 @@ export class JetStreamJobQueue implements JobQueue {
           result: { job: running as AnyJob },
         };
       },
-      { declined: 'not-found' as const },
+      null,
     );
   }
 
@@ -368,7 +392,7 @@ export class JetStreamJobQueue implements JobQueue {
       const held = this.held.get(jobIdArg as string);
       if (held) {
         this.held.delete(jobIdArg as string);
-        held.nak();
+        held.m.nak();
       } else {
         const envelope = await this.read(jobIdArg);
         if (envelope) await this.js.publish(subjectFor(envelope.job), enc.encode(JSON.stringify({ jobId: jobIdArg })));
@@ -403,7 +427,7 @@ export class JetStreamJobQueue implements JobQueue {
     if (Date.now() - last < PROGRESS_WRITE_MIN_INTERVAL_MS) return;
     this.lastProgressWrite.set(jobIdArg as string, Date.now());
 
-    this.held.get(jobIdArg as string)?.working();
+    this.held.get(jobIdArg as string)?.m.working();
     await this.cas<void>(
       jobIdArg,
       (job) => {
@@ -511,14 +535,14 @@ export class JetStreamJobQueue implements JobQueue {
 
   /** The heartbeat body — extend live leases, settle concluded ones. */
   private async reconcileHeld(): Promise<void> {
-    for (const [id, m] of [...this.held]) {
+    for (const [id, held] of [...this.held]) {
       const envelope = await this.read(toJobId(id));
       const status = envelope?.job.status;
       if (!envelope || status === 'complete' || status === 'failed' || status === 'cancelled') {
         this.held.delete(id);
-        m.ack();
+        held.m.ack();
       } else {
-        m.working();
+        held.m.working();
       }
     }
   }
@@ -540,7 +564,7 @@ export class JetStreamJobQueue implements JobQueue {
     const held = this.held.get(jobIdArg as string);
     if (!held) return;
     this.held.delete(jobIdArg as string);
-    if (how === 'ack') held.ack();
-    else held.term();
+    if (how === 'ack') held.m.ack();
+    else held.m.term();
   }
 }

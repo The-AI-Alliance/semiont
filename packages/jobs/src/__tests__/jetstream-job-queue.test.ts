@@ -96,18 +96,20 @@ describe('multi-instance — the property this plan exists to buy (JOB-QUEUE-DRI
       // Let deliveries spread across both instances' consumers.
       await new Promise((r) => setTimeout(r, 500));
 
-      // Worst case, deliberately: BOTH gateways race to claim EVERY job —
-      // at-least-once delivery, effects-once via the claim CAS. Exactly one
-      // winner per job completes it.
+      // BOTH gateways drain the queue concurrently by type-claim — the
+      // mediated wire shape. Every claim takes the NEXT available job, so
+      // nothing races for a single id; the CAS still guarantees one winner
+      // per job when both fallbacks land on the same key.
       const { jobId } = await import('@semiont/core');
       const winners: string[] = [];
-      await Promise.all(ids.flatMap((id) => [a, b].map(async (q) => {
-        const r = await q.claimJob(jobId(id));
-        if ('job' in r) {
-          await q.completeJob(jobId(id), { by: q === a ? 'a' : 'b' });
-          winners.push(id);
+      await Promise.all([a, b].map(async (q) => {
+        for (;;) {
+          const r = await q.claimNextJob([]);
+          if ('declined' in r) break;
+          await q.completeJob(jobId(r.job.metadata.id as string), { by: q === a ? 'a' : 'b' });
+          winners.push(r.job.metadata.id as string);
         }
-      })));
+      }));
 
       expect(winners.sort()).toEqual([...ids].sort()); // each job exactly once
       for (const id of ids) {

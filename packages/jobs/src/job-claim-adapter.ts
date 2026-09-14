@@ -33,12 +33,6 @@ import type { WorkerBus } from '@semiont/sdk';
 export type JobClaimAwaits = 'job:claim';
 
 
-export interface JobAssignment {
-  jobId: string;
-  type: string;
-  resourceId: string;
-}
-
 /**
  * Narrow the claimed record's `unitCursors` metadata to usable cursors.
  *
@@ -196,29 +190,36 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
   let activeSince: number | null = null;
   const iso = (t: number | null): string | null => (t === null ? null : new Date(t).toISOString());
 
-  const claimJob = async (assignment: JobAssignment): Promise<ActiveJob | null> => {
+  const claimNext = async (): Promise<ActiveJob | null> => {
     try {
-      // Same request/reply path as the SDK: busRequest mints the correlationId,
-      // matches the job:claimed / job:claim-failed reply by it, and returns the
-      // reply's `response` (the claimed job).
-      // `job:claimed`'s response is an untyped `Record<string, unknown>`, so narrow
+      // Claim-by-type (JOB-QUEUE-DRIVER P2): the announcement was only the
+      // WAKE-UP — ask for the next pending job of this worker's types, which
+      // may not be the job announced. Same request/reply path as the SDK:
+      // busRequest mints the correlationId, matches the job:claimed /
+      // job:claim-failed reply by it, and returns the reply's `response`
+      // (the claimed job) — an untyped `Record<string, unknown>`, so narrow
       // it to the claimed-job shape the worker reads.
-      const job = (await busRequest(requestBus, 'job:claim' satisfies JobClaimAwaits, { jobId: assignment.jobId }, 10_000)) as {
+      const job = (await busRequest(requestBus, 'job:claim' satisfies JobClaimAwaits, { types: jobTypes }, 10_000)) as {
         params?: Record<string, unknown>;
-        metadata?: { userId?: string; completedUnits?: unknown; unitCursors?: unknown; retryCount?: unknown; maxRetries?: unknown };
+        metadata?: { id?: string; type?: string; userId?: string; completedUnits?: unknown; unitCursors?: unknown; retryCount?: unknown; maxRetries?: unknown };
       };
+
+      // The claimed job's identity now comes from the RESPONSE, not from
+      // any announcement. A record without one is unusable — decline it.
+      if (!isString(job.metadata?.id) || !isString(job.metadata?.type)) return null;
 
       const completedUnits = isArray(job.metadata?.completedUnits)
         ? job.metadata.completedUnits.filter(isString)
         : [];
       const unitCursors = readUnitCursors(job.metadata?.unitCursors, completedUnits);
+      const params = (job.params ?? {}) as Record<string, unknown>;
 
       return {
-        jobId: assignment.jobId,
-        type: assignment.type,
-        resourceId: assignment.resourceId,
+        jobId: job.metadata.id,
+        type: job.metadata.type,
+        resourceId: isString(params.resourceId) ? params.resourceId : '',
         userId: (job.metadata?.userId ?? '') as string,
-        params: (job.params ?? {}) as Record<string, unknown>,
+        params,
         completedUnits,
         unitCursors,
         // Absent or malformed metadata reads as "no budget left" — a worker
@@ -227,7 +228,7 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
         maxRetries: isNumber(job.metadata?.maxRetries) ? job.metadata.maxRetries : 0,
       };
     } catch {
-      // A claim-failed reply (job not pending / already claimed / queue error)
+      // A claim-failed reply (nothing pending of these types / queue error)
       // or a timeout surfaces as a thrown BusRequestError; in every case the
       // worker just moves on — matching the prior race() semantics (null).
       return null;
@@ -261,7 +262,7 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
           if (isProcessing$.getValue()) return;
 
           isProcessing$.next(true);
-          claimJob({ jobId: event.jobId, type: jobType, resourceId: event.resourceId })
+          claimNext()
             .then((job) => {
               if (job) {
                 const now = Date.now();

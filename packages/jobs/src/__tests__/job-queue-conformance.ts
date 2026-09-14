@@ -211,43 +211,59 @@ export function runJobQueueConformance(driverName: string, hooks: JobQueueConfor
       });
     });
 
-    describe('claimJob() — the one atomic claim (JOB-QUEUE-DRIVER P0)', () => {
-      test('claims a pending job: running, startedAt stamped, empty progress', async () => {
-        await jobQueue.createJob(createPendingDetectionJob('job-123'));
+    describe('claimNextJob() — the one atomic claim, by TYPE (JOB-QUEUE-DRIVER P2)', () => {
+      // Contract-level on purpose: everything asserted through the interface,
+      // nothing through the mechanism. Claim-by-type replaced claim-by-jobId:
+      // an announcement is a WAKE-UP, not a reservation — the claimed job may
+      // differ from any announced one, and no ordering among matching pending
+      // jobs is promised.
 
-        const result = await jobQueue.claimJob(jobId('job-123'));
+      test('claims a pending job of a requested type: running, startedAt stamped, empty progress', async () => {
+        await jobQueue.createJob(createPendingDetectionJob('job-123'));
+        await jobQueue.createJob(createPendingGenerationJob('job-gen'));
+
+        const result = await jobQueue.claimNextJob(['reference-annotation']);
 
         if ('declined' in result) throw new Error(`unexpected decline: ${result.declined}`);
+        expect(result.job.metadata.id).toBe(jobId('job-123'));
         expect(result.job.status).toBe('running');
         expect((result.job as { startedAt?: string }).startedAt).toBeTruthy();
         expect((result.job as { progress?: object }).progress).toEqual({});
 
-        const retrieved = await jobQueue.getJob(jobId('job-123'));
-        expect(retrieved?.status).toBe('running');
+        expect((await jobQueue.getJob(jobId('job-123')))?.status).toBe('running');
+        expect((await jobQueue.getJob(jobId('job-gen')))?.status).toBe('pending');
       });
 
-      test('declines an unknown job as not-found', async () => {
-        const result = await jobQueue.claimJob(jobId('job-nope'));
-        expect(result).toEqual({ declined: 'not-found' });
+      test('respects the type filter: no matching pending job declines as none-available', async () => {
+        await jobQueue.createJob(createPendingDetectionJob('job-only-detection'));
+
+        expect(await jobQueue.claimNextJob(['generation'])).toEqual({ declined: 'none-available' });
+        expect((await jobQueue.getJob(jobId('job-only-detection')))?.status).toBe('pending');
       });
 
-      test('declines a non-pending job as not-pending', async () => {
-        await jobQueue.createJob(createRunningDetectionJob('job-running'));
+      test('an empty types list accepts any type', async () => {
+        await jobQueue.createJob(createPendingGenerationJob('job-any'));
+
+        const result = await jobQueue.claimNextJob([]);
+        if ('declined' in result) throw new Error(`unexpected decline: ${result.declined}`);
+        expect(result.job.metadata.id).toBe(jobId('job-any'));
+      });
+
+      test('declines as none-available when nothing is pending at all', async () => {
+        await jobQueue.createJob(createRunningDetectionJob('job-already-running'));
         await jobQueue.createJob(createCompleteDetectionJob('job-done'));
 
-        expect(await jobQueue.claimJob(jobId('job-running'))).toEqual({ declined: 'not-pending' });
-        expect(await jobQueue.claimJob(jobId('job-done'))).toEqual({ declined: 'not-pending' });
+        expect(await jobQueue.claimNextJob([])).toEqual({ declined: 'none-available' });
       });
 
-      test('CONTRACT: concurrent claims of one job — exactly one wins', async () => {
-        // The reason claim is on the interface at all. Composed get-check-update
-        // was safe only because one process serialized it (the TOCTOU this
-        // operation replaced); a driver must make simultaneous claims admit
-        // exactly one winner, and the losers must be DECLINED, not errors.
+      test('CONTRACT: concurrent claims for one pending job — exactly one wins', async () => {
+        // The reason claim is atomic and on the interface. Simultaneous
+        // claims for a type with ONE pending job admit exactly one winner;
+        // the losers are DECLINED, not errors.
         await jobQueue.createJob(createPendingDetectionJob('job-contested'));
 
         const results = await Promise.all(
-          Array.from({ length: 5 }, () => jobQueue.claimJob(jobId('job-contested'))),
+          Array.from({ length: 5 }, () => jobQueue.claimNextJob(['reference-annotation'])),
         );
 
         const winners = results.filter((r) => 'job' in r);
@@ -255,8 +271,24 @@ export function runJobQueueConformance(driverName: string, hooks: JobQueueConfor
         expect(winners).toHaveLength(1);
         expect(declined).toHaveLength(4);
         for (const d of declined) {
-          expect(d).toEqual({ declined: 'not-pending' });
+          expect(d).toEqual({ declined: 'none-available' });
         }
+      });
+
+      test('CONTRACT: two claims against two pending jobs BOTH win, on different jobs', async () => {
+        // The property claim-by-type buys over claim-by-jobId: after one
+        // announcement two workers used to race for the SAME id and one
+        // always lost; now each claim takes the next available job.
+        await jobQueue.createJob(createPendingDetectionJob('job-race-1'));
+        await jobQueue.createJob(createPendingDetectionJob('job-race-2'));
+
+        const [r1, r2] = await Promise.all([
+          jobQueue.claimNextJob(['reference-annotation']),
+          jobQueue.claimNextJob(['reference-annotation']),
+        ]);
+
+        if ('declined' in r1 || 'declined' in r2) throw new Error('both claims must win');
+        expect(new Set([r1.job.metadata.id, r2.job.metadata.id]).size).toBe(2);
       });
     });
 

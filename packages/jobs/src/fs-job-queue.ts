@@ -209,25 +209,25 @@ export class FsJobQueue implements JobQueue {
    */
   private claimChain: Promise<unknown> = Promise.resolve();
 
-  async claimJob(jobIdArg: JobId): Promise<{ job: AnyJob } | { declined: 'not-found' | 'not-pending' }> {
-    const claim = this.claimChain.then(() => this.doClaim(jobIdArg));
+  async claimNextJob(types: string[]): Promise<{ job: AnyJob } | { declined: 'none-available' }> {
+    const claim = this.claimChain.then(() => this.doClaimNext(types));
     // A failed claim must not wedge every later one.
     this.claimChain = claim.catch(() => undefined);
     return claim;
   }
 
-  private async doClaim(jobIdArg: JobId): Promise<{ job: AnyJob } | { declined: 'not-found' | 'not-pending' }> {
-    const job = await this.getJob(jobIdArg);
-    if (!job) return { declined: 'not-found' };
-    if (job.status !== 'pending') return { declined: 'not-pending' };
+  private async doClaimNext(types: string[]): Promise<{ job: AnyJob } | { declined: 'none-available' }> {
+    const pending = await this.listJobs({ status: 'pending', limit: Number.MAX_SAFE_INTEGER });
+    const match = pending.find((j) => types.length === 0 || types.includes(j.metadata.type));
+    if (!match) return { declined: 'none-available' };
 
     // Progress starts empty: a just-claimed job has reported nothing yet.
     // The typed progress shapes describe REPORTS, and the first report
     // arrives from the worker via recordProgress.
     const running: RunningJob<any, any> = {
       status: 'running',
-      metadata: job.metadata,
-      params: job.params,
+      metadata: match.metadata,
+      params: match.params,
       startedAt: new Date().toISOString(),
       progress: {},
     };

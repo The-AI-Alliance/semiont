@@ -50,7 +50,7 @@ const SCHEMA: TagSchema = {
 interface MockJobQueue {
   createJob: ReturnType<typeof vi.fn>;
   getJob: ReturnType<typeof vi.fn>;
-  claimJob: ReturnType<typeof vi.fn>;
+  claimNextJob: ReturnType<typeof vi.fn>;
   completeJob: ReturnType<typeof vi.fn>;
   failJob: ReturnType<typeof vi.fn>;
   checkpointUnits: ReturnType<typeof vi.fn>;
@@ -63,7 +63,7 @@ function makeJobQueue(): MockJobQueue {
   return {
     createJob: vi.fn().mockResolvedValue(undefined),
     getJob: vi.fn().mockResolvedValue(null),
-    claimJob: vi.fn().mockResolvedValue({ declined: 'not-found' }),
+    claimNextJob: vi.fn().mockResolvedValue({ declined: 'none-available' }),
     completeJob: vi.fn().mockResolvedValue(true),
     failJob: vi.fn().mockResolvedValue('failed'),
     checkpointUnits: vi.fn().mockResolvedValue(undefined),
