@@ -23,11 +23,15 @@
  *    subject space — the deliberate, recorded weakening: contained while
  *    only the gateway connects; live if D1a's Archivist exception is taken.
  *
- * Inbox subjects are SUBSCRIBED here and published to by nobody yet:
- * addressed delivery becomes load-bearing at P3 (cross-replica), and which
- * side publishes to an inbox is exactly the claims-visibility question P3
- * decides. Frames arriving on an inbox carry an `{ channel, payload }`
- * envelope, since the subject no longer names the channel.
+ * Inbox subjects: SUBSCRIBED per `subscribeClient` address, PUBLISHED by
+ * `deliver` — the P3 resolution of "which side publishes to an inbox": the
+ * CLAIMING side does, announcing each accepted claim to the shared ledger
+ * address so every replica's ledger converges (`signal/ledger.ts` owns that
+ * policy; this driver moves envelopes). Per-client inboxes remain
+ * subscribed-and-unpublished — replies stay channel-broadcast under the
+ * gateway's entitlement gate. Frames arriving on an inbox carry an
+ * `{ channel, payload }` envelope, since the subject no longer names the
+ * channel.
  */
 import { JSONCodec, connect, type NatsConnection, type Subscription } from 'nats';
 import type {
@@ -146,6 +150,11 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
         ),
       );
       return { close: () => closeAll(subs) };
+    },
+
+    deliver(address, channel, payload): void {
+      const envelope: InboxEnvelope = { channel, payload };
+      nc.publish(inboxSubjectFor(address), codec.encode(envelope));
     },
 
     subscribeHandlers(group: string, channels: readonly string[], onFrame: OnFrame): PlaneSubscription {

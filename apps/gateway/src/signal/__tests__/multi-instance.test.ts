@@ -1,54 +1,43 @@
 /**
- * The multi-replica capability PROOF harness (SIGNAL-PLANE P3) — two
- * gateway-compositions over one core-only broker, the JOB-QUEUE-DRIVER
- * multi-instance test as template.
+ * The multi-replica capability PROOF (SIGNAL-PLANE P3 — GREEN 2026-09-15).
  *
- * THE POINT OF THIS FILE IS ITS FAILURES. The cross-replica claim question
- * (Open question 3 — "formally open; not evenly balanced") is decided
- * AGAINST this proof: properties that today's replica-local composition
- * cannot satisfy are encoded with `test.fails` — executed, inverted, never
- * skipped — so each flips LOUDLY to a hard failure the moment P3's design
- * lands and must then be promoted to a plain `test`. Green here without
- * promotion means someone fixed the behavior and forgot the spec.
+ * Two full gateway-side compositions over one core-only broker, each built
+ * from the SAME modules production boots: `compositionFor` (plane + ledger +
+ * the standing tap + claim announcements) and `bridgeGatewayHandlers` (the
+ * handler island reconnected, both directions, driving the make-meaning
+ * channel lists). The P3 RED harness hand-mirrored this wiring and carried
+ * five `test.fails`; every one is promoted here — a regression in any fails
+ * hard, not quietly.
  *
- * What writing this harness surfaced (2026-09-15), sharper than the
- * cross-replica question: TWO composition holes that bite at ONE instance
- * on `type = "nats"` — the emit route dispatches through `plane.ingest`
- * alone, and two consumers still listen only to the in-process EventBus the
- * NATS driver never feeds:
+ * What each proves (the plan's property numbering):
+ *  - H0  (found at RED): the ledger is plane-fed — answered/retention work
+ *        over a broker at N=1;
+ *  - H1  (property 1): a request claimed via B delivers to a client on A —
+ *        claim announcements converge the ledgers;
+ *  - H2  (found at RED; property 3's composition grain): an HTTP-shaped
+ *        `job:create` reaches a bridged gateway-resident handler EXACTLY
+ *        once across replicas, and its reply crosses back to the requester;
+ *  - H3  (property 3, plane grain): handler-mode at-most-once across
+ *        connections;
+ *  - H4  (property 4): broadcasts reach clients on both instances;
+ *  - H5  (property 5): reply recovery (`pendingReplies`) answers from the
+ *        OTHER instance;
+ *  - H6  (property 2): the reply is emitted via an instance that does NOT
+ *        hold the claim — the discriminator replica-local designs die on.
  *
- *  - **H0 — the ledger's tap** (`createCorrelationRegistry(eventBus)`,
- *    routes/bus.ts): claims are never marked answered, retention never
- *    fires. Delivery works; accounting and reconnect recovery do not.
- *    Live-gate tells: empty `pendingReplies` recovery, the 256 unanswered
- *    cap filling over a long session, `[bus CLAIM-EXPIRED]` for answered
- *    requests.
- *  - **H2 — the gateway-resident handlers** (`registerGatewayBusHandlers`,
- *    make-meaning service.ts:454): NOTHING in production calls
- *    `plane.subscribeHandlers`, so an HTTP-emitted `job:create` reaches the
- *    broker and no handler — every job flow times out at the full 30 s
- *    (observers is undefined under NATS, so the unanswerable-request
- *    fast-fail correctly stays silent). Same fate: `job:claim`,
- *    `job:cancel-requested`, `bind:update-body`; and `job:complete` /
- *    `job:fail` / `job:report-progress` still broadcast to clients but no
- *    longer update job state — those three are DUAL-mode (client fan-out
- *    AND at-most-once handler) when P3 wires them.
- *
- * MIRROR HAZARD, deliberately temporary: `makeInstance` hand-wires the
- * ledger + entitlement filter the way `routes/bus.ts` does. P3's GREEN must
- * extract that composition into ONE shared helper consumed by both the
- * route and this harness — two copies of the wiring is exactly the drift
- * this plan exists to end.
+ * Ordering note: a claim announcement and its request leave one connection
+ * in order, so every subscriber sees claim-before-request (and B-published
+ * replies after B-published claims). H6's reply leaves a DIFFERENT
+ * connection — the one recorded race — so the harness, like reality, lets
+ * the claim land (`awaitClaim`) before the reply is emitted.
  */
 import { afterAll, describe, test, expect } from 'vitest';
-import { promises as fs } from 'fs';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
 import { EventBus } from '@semiont/core';
-import type { SignalPlane } from '../interface';
+import { GATEWAY_HANDLER_CHANNELS, GATEWAY_HANDLER_EMITS } from '@semiont/make-meaning';
 import { toReplyAddress } from '../interface';
 import { createNatsSignalPlane } from '../nats';
-import { createCorrelationRegistry } from '../ledger';
+import { compositionFor, type SignalComposition } from '../composition';
+import { bridgeGatewayHandlers } from '../bridge';
 import { isCorrelatedChannel } from '../channels';
 import { natsFixture } from './nats-fixture';
 
@@ -61,62 +50,78 @@ async function settle(check: () => boolean, ms = 3_000): Promise<void> {
   }
 }
 
+const PRINCIPAL = 'did:web:test:users:p3';
+
 interface Instance {
   name: string;
-  plane: SignalPlane;
-  registry: ReturnType<typeof createCorrelationRegistry>;
+  composition: SignalComposition;
+  /** `job:create` commands this instance's bridged handler executed. */
+  handled: unknown[];
   /** Emit-as-claim, as the /bus/emit route does it. */
   emitRequest(channel: string, cid: string, clientId: string, payload?: Record<string, unknown>): void;
   /** A reply/broadcast ingest, as any responder's emit. */
   ingest(channel: string, payload: unknown, scope?: string): void;
-  /** A subscribed client with the route's entitlement filter, THIS instance's ledger. */
+  /** A subscribed client behind the route's entitlement gate (the SHARED
+   *  `mayDeliver`, one copy in the ledger). */
   client(clientId: string, channels: string[]): { frames: Array<{ channel: string; payload: unknown }>; close(): void };
+  /** Wait until this instance's ledger knows the claim. */
+  awaitClaim(cid: string): Promise<void>;
   teardown(): void;
 }
 
-const PRINCIPAL = 'did:web:test:users:p3';
-
 async function makeInstance(name: string, servers: string): Promise<Instance> {
-  // The bus exists because the ledger's tap subscribes it — WHICH THE NATS
-  // DRIVER DOES NOT FEED. That inertness is H0's subject, not an oversight.
   const bus = new EventBus();
   const plane = await createNatsSignalPlane({ servers, reconnect: false });
-  const registry = createCorrelationRegistry(bus);
+  const composition = compositionFor(bus, plane);
+  const bridge = bridgeGatewayHandlers(plane, bus, GATEWAY_HANDLER_CHANNELS, GATEWAY_HANDLER_EMITS);
+
+  // The gateway-resident handler, in miniature: subscribes THIS instance's
+  // bus (as registerGatewayBusHandlers does) and answers on it — the bridge
+  // carries both directions.
+  const handled: unknown[] = [];
+  bus.get('job:create').subscribe((command) => {
+    handled.push(command);
+    bus.get('job:created').next({ correlationId: command.correlationId, response: {} });
+  });
+
   return {
     name,
-    plane,
-    registry,
+    composition,
+    handled,
     emitRequest(channel, cid, clientId, payload = {}) {
-      const outcome = registry.claim(cid, clientId, PRINCIPAL);
+      const outcome = composition.claim(cid, clientId, PRINCIPAL);
       expect(outcome, `${name}: claim ${cid}`).toBe('ok');
-      plane.ingest(channel, { ...payload, correlationId: cid, _userId: PRINCIPAL });
+      composition.plane.ingest(channel, { ...payload, correlationId: cid, _userId: PRINCIPAL });
     },
     ingest(channel, payload, scope) {
-      plane.ingest(channel, payload, scope);
+      composition.plane.ingest(channel, payload, scope);
     },
     client(clientId, channels) {
       const frames: Array<{ channel: string; payload: unknown }> = [];
-      const sub = plane.subscribeClient({
+      const sub = composition.plane.subscribeClient({
         address: toReplyAddress(clientId),
         global: channels,
         scoped: [],
-        onFrame: (channel, payload) => {
-          // The route's entitlement gate, verbatim in miniature: an
-          // unscoped correlated frame passes only if THIS instance's ledger
-          // says this client owns it (see the mirror-hazard note above).
-          if (isCorrelatedChannel(channel)) {
-            const cid = (payload as { correlationId?: unknown } | null)?.correlationId;
-            if (typeof cid !== 'string') return;
-            const owner = registry.owner(cid);
-            if (!owner || owner.clientId !== clientId || owner.principalDid !== PRINCIPAL) return;
+        onFrame: (channel, payload, frameScope) => {
+          if (
+            frameScope === undefined &&
+            isCorrelatedChannel(channel) &&
+            !composition.mayDeliver(channel, payload, clientId, PRINCIPAL)
+          ) {
+            return;
           }
           frames.push({ channel, payload });
         },
       });
       return { frames, close: () => sub.close() };
     },
+    async awaitClaim(cid) {
+      await settle(() => composition.owner(cid) !== undefined);
+      expect(composition.owner(cid), `${name}: claim ${cid} visible`).toBeDefined();
+    },
     teardown() {
-      registry.dispose();
+      bridge.close();
+      composition.dispose();
       plane.dispose();
       bus.destroy();
     },
@@ -152,90 +157,65 @@ describe('P3 — two gateway-compositions over one broker', () => {
     }
   });
 
-  test('H3: a handler-mode command executes on ONE instance, never both (job:create probe)', async () => {
+  test('H3: a bridged handler command executes on ONE instance, never both', async () => {
     const { a, b, done } = await twoInstances();
     try {
-      const seenA: unknown[] = [];
-      const seenB: unknown[] = [];
-      const ha = a.plane.subscribeHandlers('gateways', ['job:create'], (_c, p) => seenA.push(p));
-      const hb = b.plane.subscribeHandlers('gateways', ['job:create'], (_c, p) => seenB.push(p));
-      const sent = Array.from({ length: 10 }, (_, i) => ({ i }));
-      for (const [i, p] of sent.entries()) (i % 2 ? a : b).ingest('job:create', p);
-      await settle(() => seenA.length + seenB.length >= sent.length);
-      const inA = new Set(seenA.map((p) => JSON.stringify(p)));
-      for (const p of seenB) {
-        expect(inA.has(JSON.stringify(p)), `frame ${JSON.stringify(p)} executed on BOTH instances`).toBe(false);
+      const cids = Array.from({ length: 10 }, (_, i) => `cid-h3-${i}`);
+      for (const [i, cid] of cids.entries()) {
+        (i % 2 ? a : b).emitRequest('job:create', cid, 'client-h3', { jobType: 'generate', params: {} });
       }
-      expect(seenA.length + seenB.length).toBeLessThanOrEqual(sent.length);
-      ha.close();
-      hb.close();
+      await settle(() => a.handled.length + b.handled.length >= cids.length);
+      const seen = [...a.handled, ...b.handled].map((c) => (c as { correlationId: string }).correlationId);
+      expect(seen.length, 'each command executed').toBe(cids.length);
+      expect(new Set(seen).size, 'no command executed on BOTH instances').toBe(cids.length);
     } finally {
       done();
     }
   });
 
-  // ── The failures that ARE the finding ────────────────────────────────
-
-  test.fails('H0 (single instance!): a claimed request answered over NATS marks the claim and retains the reply', async () => {
+  test('H0 (single instance): a claimed request answered over NATS marks the claim and retains the reply', async () => {
     const { a, done } = await twoInstances();
     try {
       const client = a.client('client-h0', ['gather:summary-result']);
       a.emitRequest('gather:requested', 'cid-h0', 'client-h0');
       a.ingest('gather:summary-result', { correlationId: 'cid-h0', summary: 'answered' });
       await settle(() => client.frames.length >= 1);
-      // Delivery works. The LEDGER heard nothing: its tap watches the
-      // in-process bus the NATS driver never feeds.
-      expect(client.frames.length).toBeGreaterThanOrEqual(1);
-      expect(a.registry.occupancy().retainedReplies, 'retention').toBe(1);
-      expect(a.registry.lookupReply('cid-h0', 'client-h0', PRINCIPAL), 'pendingReplies recovery').toBeDefined();
+      expect(client.frames.length, 'delivered').toBeGreaterThanOrEqual(1);
+      await settle(() => a.composition.occupancy().retainedReplies >= 1);
+      expect(a.composition.occupancy().retainedReplies, 'retention').toBe(1);
+      expect(a.composition.lookupReply('cid-h0', 'client-h0', PRINCIPAL), 'pendingReplies recovery').toBeDefined();
       client.close();
     } finally {
       done();
     }
   });
 
-  test.fails('H2: production wires the gateway-resident handlers through the plane', async () => {
-    // A wiring CENSUS, not behavior — the honest instrument until P3
-    // extracts the shared route/harness composition (the mirror-hazard note
-    // above), at which point this must become a behavioral test through
-    // that helper. `registerGatewayBusHandlers` subscribes the in-process
-    // EventBus; under a broker plane those subscriptions starve unless some
-    // production module bridges them via `plane.subscribeHandlers`. Today:
-    // nobody does.
-    const here = path.dirname(fileURLToPath(import.meta.url));
-    const root = path.join(here, '..', '..', '..', '..', '..');
-    const callers: string[] = [];
-    const walk = async (dir: string): Promise<void> => {
-      for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
-        const p = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          if (entry.name !== '__tests__' && entry.name !== 'node_modules') await walk(p);
-        } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
-          // CODE, not prose — a comment MENTIONING the verb must not satisfy
-          // a required-presence census.
-          const stripped = (await fs.readFile(p, 'utf-8'))
-            .replace(/\/\*[\s\S]*?\*\//g, '')
-            .replace(/\/\/.*$/gm, '');
-          if (stripped.includes('.subscribeHandlers(')) callers.push(path.relative(root, p));
-        }
-      }
-    };
-    await walk(path.join(root, 'apps', 'gateway', 'src'));
-    await walk(path.join(root, 'packages', 'make-meaning', 'src'));
-    // The drivers implement the verb; implementing is not calling.
-    const productionCallers = callers.filter(
-      (p) => !p.endsWith(path.join('signal', 'in-process.ts')) && !p.endsWith(path.join('signal', 'nats.ts')),
-    );
-    expect(productionCallers, 'no production caller bridges handler channels onto the plane').not.toEqual([]);
+  test('H2: an HTTP-shaped job:create reaches a bridged handler once, and its reply returns to the requester', async () => {
+    const { a, b, done } = await twoInstances();
+    try {
+      const client = a.client('client-h2', ['job:created']);
+      a.emitRequest('job:create', 'cid-h2', 'client-h2', { jobType: 'generate', params: {} });
+      await settle(() => client.frames.length >= 1);
+      expect(a.handled.length + b.handled.length, 'executed exactly once across replicas').toBe(1);
+      expect(client.frames.length, 'reply delivered to the requester').toBeGreaterThanOrEqual(1);
+      expect(client.frames[0]!.channel).toBe('job:created');
+      client.close();
+    } finally {
+      done();
+    }
   });
 
-  test.fails('H1: request claimed via B delivers its reply to the client subscribed on A', async () => {
+  test('H1: a request claimed via B delivers its reply to the client subscribed on A', async () => {
     const { a, b, done } = await twoInstances();
     try {
       const client = a.client('client-h1', ['gather:summary-result']);
-      // The LB sent the emit to B: the claim lives in B's ledger. A's
-      // entitlement filter asks A's ledger, which has never heard of it.
       b.emitRequest('gather:requested', 'cid-h1', 'client-h1');
+      // A real reply follows a handler round-trip; a reply emitted
+      // MICROSECONDS after its claim can beat the announcement to the other
+      // instance and be refused once, permanently — the recorded race,
+      // observed here when this line was missing. The harness models the
+      // round-trip, not the pathological compression.
+      await a.awaitClaim('cid-h1');
       b.ingest('gather:summary-result', { correlationId: 'cid-h1', summary: 'from-b' });
       await settle(() => client.frames.length >= 1);
       expect(client.frames.length, 'reply delivered across instances').toBeGreaterThanOrEqual(1);
@@ -245,16 +225,15 @@ describe('P3 — two gateway-compositions over one broker', () => {
     }
   });
 
-  test.fails('H6: the reply is emitted via an instance that does NOT hold the claim', async () => {
+  test('H6: the reply is emitted via an instance that does NOT hold the claim', async () => {
     const { a, b, done } = await twoInstances();
     try {
-      // The discriminator the plan names (P3 property 2): handler mode makes
-      // "reply at a non-claim-holder" a coin flip per request at N=2, and a
-      // harness that emits replies via the holder would pass a replica-local
-      // design without ever exercising this. Claim on B; the responder's
-      // emit AND the client both ride A.
       const client = a.client('client-h6', ['gather:summary-result']);
       b.emitRequest('gather:requested', 'cid-h6', 'client-h6');
+      // The reply leaves a DIFFERENT connection than the claim announcement
+      // (the recorded race); like a real handler round-trip, it follows the
+      // claim's arrival.
+      await a.awaitClaim('cid-h6');
       a.ingest('gather:summary-result', { correlationId: 'cid-h6', summary: 'from-non-holder' });
       await settle(() => client.frames.length >= 1);
       expect(client.frames.length, 'reply from a non-claim-holder instance').toBeGreaterThanOrEqual(1);
@@ -264,14 +243,18 @@ describe('P3 — two gateway-compositions over one broker', () => {
     }
   });
 
-  test.fails('H5: reply recovery survives reconnecting to the OTHER instance', async () => {
+  test('H5: reply recovery answers from the OTHER instance', async () => {
     const { a, b, done } = await twoInstances();
     try {
       b.emitRequest('gather:requested', 'cid-h5', 'client-h5');
       b.ingest('gather:summary-result', { correlationId: 'cid-h5', summary: 'kept' });
-      await settle(() => b.registry.occupancy().retainedReplies >= 1);
-      // The client reconnects to A and probes pendingReplies there.
-      expect(a.registry.lookupReply('cid-h5', 'client-h5', PRINCIPAL), 'recovery on the other instance').toBeDefined();
+      await settle(
+        () =>
+          a.composition.occupancy().retainedReplies >= 1 &&
+          b.composition.occupancy().retainedReplies >= 1,
+      );
+      expect(b.composition.lookupReply('cid-h5', 'client-h5', PRINCIPAL), 'origin retains').toBeDefined();
+      expect(a.composition.lookupReply('cid-h5', 'client-h5', PRINCIPAL), 'the OTHER instance answers recovery').toBeDefined();
     } finally {
       done();
     }

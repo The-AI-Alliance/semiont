@@ -9,10 +9,8 @@ import {
   SpanKind,
   injectTraceparent,
   recordBusEmit,
-  recordReplySuppressed,
   recordResumeGap,
   recordUnanswerableRequest,
-  registerCorrelationRegistryProvider,
   recordSubscriberConnect,
   recordSubscriberDisconnect,
   withSpan,
@@ -23,14 +21,12 @@ import {
   MAX_SCOPES,
   PENDING_REPLIES_MAX,
   SCOPE_WARN_THRESHOLD,
-  createInProcessSignalPlane,
+  compositionFor,
   isCorrelatedChannel,
-  isProgressChannel,
   toReplyAddress,
   type PlaneSubscription,
-  type SignalPlane,
 } from '../signal';
-import { correlationIdOf, createCorrelationRegistry } from '../signal/ledger';
+import { LEDGER_ADDRESS, correlationIdOf, createCorrelationRegistry } from '../signal/ledger';
 import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
 import { validators, formatErrors } from '@semiont/core/openapi';
 import type { HttpBindings } from '@hono/node-server';
@@ -190,6 +186,12 @@ function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSub
   if (typeof clientId !== 'string' || clientId === '') {
     return { error: '`clientId` is required (BusSubscribeRequest)' };
   }
+  // The shared ledger address (SIGNAL-PLANE P3): every replica's claim
+  // announcements fan out to subscriptions holding it, so a client wearing
+  // the name would receive the cluster's claim metadata. Reserved.
+  if (clientId === LEDGER_ADDRESS) {
+    return { error: `\`clientId\` "${clientId}" is reserved` };
+  }
   const global = rawGlobal === undefined ? [] : rawGlobal;
   if (!isStringArray(global)) return { error: '`global` must be an array of channel names' };
 
@@ -224,32 +226,17 @@ function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSub
 }
 
 /**
- * `plane` (SIGNAL-PLANE P2): the boot-selected driver. When absent — every
- * existing test constructs the router bare — each EventBus lazily gets an
- * in-process plane, which is exactly the pre-selection behavior. index.ts
- * passes the configured one; the NATS driver's async construction is why
- * selection happens at boot rather than here.
+ * Plane + ledger arrive through `compositionFor` (SIGNAL-PLANE P3 GREEN):
+ * boot pre-seeds the composition with the configured driver (index.ts —
+ * the NATS driver's async construction is why selection happens there);
+ * a bus nobody seeded — every existing test constructs the router bare —
+ * lazily composes an in-process plane, which is exactly the pre-selection
+ * behavior. The router owns no plane or registry state of its own anymore.
  */
-export function createBusRouter(authMiddleware: AuthMiddleware, plane?: SignalPlane) {
+export function createBusRouter(authMiddleware: AuthMiddleware) {
   const busRouter = new Hono<{ Variables: { user: User; principalDid: string; eventBus: EventBus; config: EnvironmentConfig } }>();
 
   busRouter.use('/bus/*', authMiddleware);
-
-  // One retention buffer per EventBus instance, wired on that bus's first
-  // subscribe. Lazy-on-first-subscribe is not a coverage hole: the attach
-  // gate guarantees a client holds an open connection before any busRequest
-  // emit, so a reply can only exist after some subscribe has run.
-  const registryByBus = new WeakMap<EventBus, ReturnType<typeof createCorrelationRegistry>>();
-  const planeByBus = new WeakMap<EventBus, SignalPlane>();
-  const planeFor = (bus: EventBus): SignalPlane => {
-    if (plane) return plane;
-    let lazy = planeByBus.get(bus);
-    if (!lazy) {
-      lazy = createInProcessSignalPlane(bus);
-      planeByBus.set(bus, lazy);
-    }
-    return lazy;
-  };
 
   busRouter.post('/bus/subscribe', async (c) => {
     const raw: unknown = await c.req.json().catch(() => null);
@@ -263,17 +250,8 @@ export function createBusRouter(authMiddleware: AuthMiddleware, plane?: SignalPl
     // presence pair below must name the principal on this connection.
     const subscriberDid = c.get('principalDid') as string | undefined;
 
-    let registry = registryByBus.get(eventBus);
-    if (!registry) {
-      registry = createCorrelationRegistry(eventBus);
-      registryByBus.set(eventBus, registry);
-      // Occupancy is the closest observable to the heap question two OOM
-      // investigations keep asking: a retained browse result is 1-2 MB and up
-      // to REPLY_RETENTION_MAX of them are held at once.
-      registerCorrelationRegistryProvider(() => registry!.occupancy());
-    }
-    const correlations = registry;
-    const plane = planeFor(eventBus);
+    const composition = compositionFor(eventBus);
+    const plane = composition.plane;
 
     if (scoped.length >= SCOPE_WARN_THRESHOLD) {
       getBusLogger().warn('large scope matrix', { scopeCount: scoped.length, cap: MAX_SCOPES });
@@ -511,47 +489,14 @@ export function createBusRouter(authMiddleware: AuthMiddleware, plane?: SignalPl
         }
       };
 
-      /**
-       * Ownership check for a frame on a correlated channel.
-       *
-       * Three negatives, deliberately distinguished:
-       *  - a result/failure with NO correlationId violates REPLY-SHAPE-STANDARD
-       *    → drop and warn (loud absence; never a manufactured broadcast);
-       *  - a NEVER-CLAIMED cid → drop silently. This is the structural
-       *    in-process case (`ResourceOperations` runs busRequest on the
-       *    gateway's own bus and consumes the reply in-process), not a lossy
-       *    mode — a warn here would fire on every in-process operation;
-       *  - a cid owned by someone else → drop silently. That is the routing
-       *    working.
-       * The genuinely lossy case, claimed-then-expired, is breadcrumbed at
-       * sweep time instead, which needs no tombstone here.
-       */
-      const mayDeliver = (channel: string, payload: unknown): boolean => {
-        const cid = correlationIdOf(payload);
-        if (!cid) {
-          if (!isProgressChannel(channel)) {
-            getBusLogger().warn('[bus REPLY-NO-CID] correlated frame without a correlationId', { channel });
-          }
-          return false;
-        }
-        const owner = correlations.owner(cid);
-        // Never claimed: the structural in-process case. Not counted — it
-        // fires on every in-process operation and would drown the signal.
-        if (!owner) return false;
-        if (owner.clientId === clientId && owner.principalDid === subscriberDid) return true;
-        // Owned by someone else. THIS is the amplification the filter removes,
-        // and the only one of the three refusals worth a counter.
-        recordReplySuppressed(channel);
-        return false;
-      };
-
       const willReplay = scoped.some((entry) => entry.lastEventId !== undefined);
       if (willReplay) mode = 'buffering';
 
       // One client-mode subscription over the whole matrix (SIGNAL-PLANE D2
       // group 2). The driver delivers every frame — it cannot refuse — and
-      // ENTITLEMENT stays here: an unscoped frame on a correlated channel
-      // passes the gateway's owner gate before it costs anything. The whole
+      // ENTITLEMENT stays above the seam: an unscoped frame on a correlated
+      // channel passes the ledger's owner gate (`mayDeliver`, ONE copy in
+      // signal/ledger.ts since P3) before it costs anything. The whole
       // amplification win: a non-owner returns after one Map lookup — no
       // stringify, no pending-write bytes, no buffer slot.
       planeSub = plane.subscribeClient({
@@ -559,7 +504,13 @@ export function createBusRouter(authMiddleware: AuthMiddleware, plane?: SignalPl
         global: channels,
         scoped,
         onFrame: (channel, payload, frameScope) => {
-          if (frameScope === undefined && isCorrelatedChannel(channel) && !mayDeliver(channel, payload)) return;
+          if (
+            frameScope === undefined &&
+            isCorrelatedChannel(channel) &&
+            !composition.mayDeliver(channel, payload, clientId, subscriberDid)
+          ) {
+            return;
+          }
           emitOrBuffer(channel, payload, frameScope);
         },
       });
@@ -624,7 +575,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware, plane?: SignalPl
       // Entries are not consumed: a repeat replay is idempotent by id.
       for (const cid of pendingReplies) {
         if (tornDown) break;
-        const retained = correlations.lookupReply(cid, clientId, subscriberDid);
+        const retained = composition.lookupReply(cid, clientId, subscriberDid);
         if (retained) {
           await writeBusEvent(retained.channel, retained.payload, undefined);
         }
@@ -667,7 +618,8 @@ export function createBusRouter(authMiddleware: AuthMiddleware, plane?: SignalPl
    */
   busRouter.post('/bus/emit', async (c) => {
     const eventBus = c.get('eventBus');
-    const plane = planeFor(eventBus);
+    const composition = compositionFor(eventBus);
+    const plane = composition.plane;
     const body = await c.req.json();
     const { channel, payload, scope } = body;
     const emitterClientId = typeof body.clientId === 'string' && body.clientId !== '' ? body.clientId : undefined;
@@ -725,12 +677,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware, plane?: SignalPl
           message: `clientId is required to emit ${channel} with a correlationId`,
         });
       }
-      let registry = registryByBus.get(eventBus);
-      if (!registry) {
-        registry = createCorrelationRegistry(eventBus);
-        registryByBus.set(eventBus, registry);
-      }
-      const outcome = registry.claim(claimCid, clientId, principalDid);
+      const outcome = composition.claim(claimCid, clientId, principalDid);
       if (outcome === 'conflict') {
         // A live cid claimed twice is a client bug — UUID collision is not a
         // real event — so it is refused rather than silently re-pointed.

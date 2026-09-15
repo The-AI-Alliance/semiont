@@ -35,6 +35,9 @@ export function createInProcessSignalPlane(
   const options = resolveSignalPlaneOptions(opts);
   const openSubs = new Set<Subscription>();
   const groups = new Map<string, HandlerGroup>();
+  /** Addressed delivery in-process: address → the onFrames subscribed under
+   *  it (an inbox subject under NATS; a plain map here). */
+  const inboxes = new Map<string, Set<OnFrame>>();
 
   const track = (s: Subscription): Subscription => {
     openSubs.add(s);
@@ -80,14 +83,31 @@ export function createInProcessSignalPlane(
           );
         }
       }
+      let box = inboxes.get(spec.address);
+      if (!box) {
+        box = new Set();
+        inboxes.set(spec.address, box);
+      }
+      box.add(spec.onFrame);
       return {
         close() {
           for (const s of subs) {
             s.unsubscribe();
             openSubs.delete(s);
           }
+          const held = inboxes.get(spec.address);
+          if (held) {
+            held.delete(spec.onFrame);
+            if (held.size === 0) inboxes.delete(spec.address);
+          }
         },
       };
+    },
+
+    deliver(address, channel, payload): void {
+      const box = inboxes.get(address);
+      if (!box) return;
+      for (const onFrame of box) onFrame(channel, payload, undefined);
     },
 
     subscribeHandlers(groupName, channels, onFrame): PlaneSubscription {
@@ -134,6 +154,7 @@ export function createInProcessSignalPlane(
       for (const s of openSubs) s.unsubscribe();
       openSubs.clear();
       groups.clear();
+      inboxes.clear();
     },
   };
 }

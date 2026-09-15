@@ -222,6 +222,48 @@ describe.each(drivers)('SignalPlane conformance — %s', (_name, make) => {
       teardown();
     }
   });
+
+  test('deliver: an addressed frame reaches EVERY subscriber of that address and nobody else', async () => {
+    const { plane, teardown } = await make();
+    try {
+      // Two holders of one address (the N-replica shared-ledger-address
+      // case P3 builds on) and a bystander. The envelope label is not
+      // registry vocabulary — the driver moves it opaque.
+      const h1 = collector();
+      const h2 = collector();
+      const other = collector();
+      plane.subscribeClient({ address: toReplyAddress('shared'), global: [], scoped: [], onFrame: h1.onFrame });
+      plane.subscribeClient({ address: toReplyAddress('shared'), global: [], scoped: [], onFrame: h2.onFrame });
+      plane.subscribeClient({ address: toReplyAddress('elsewhere'), global: [], scoped: [], onFrame: other.onFrame });
+      plane.deliver(toReplyAddress('shared'), 'x:label', { n: 7 });
+      await settle(() => h1.frames.length >= 1 && h2.frames.length >= 1);
+      for (const held of [h1, h2]) {
+        expect(held.frames.length).toBeGreaterThanOrEqual(1);
+        expect(held.frames[0]).toEqual({ channel: 'x:label', payload: { n: 7 }, scope: undefined });
+      }
+      await settle(() => other.frames.length > 0, 200);
+      expect(other.frames).toEqual([]);
+    } finally {
+      teardown();
+    }
+  });
+
+  test('deliver: closing the subscription ends addressed delivery too', async () => {
+    const { plane, teardown } = await make();
+    try {
+      const c = collector();
+      const sub = plane.subscribeClient({ address: toReplyAddress('closing'), global: [], scoped: [], onFrame: c.onFrame });
+      plane.deliver(toReplyAddress('closing'), 'x:label', { n: 1 });
+      await settle(() => c.frames.length >= 1);
+      expect(c.frames.length).toBeGreaterThanOrEqual(1);
+      sub.close();
+      plane.deliver(toReplyAddress('closing'), 'x:label', { n: 2 });
+      await settle(() => c.frames.length > 1, 200);
+      expect(c.frames.length).toBe(1);
+    } finally {
+      teardown();
+    }
+  });
 });
 
 describe('in-process extras — capabilities the CONTRACT leaves optional', () => {

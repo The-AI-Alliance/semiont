@@ -22,7 +22,13 @@ import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
 import { SemiontState } from '@semiont/core/node';
 import { type EnvironmentConfig, EventBus, evaluateEnvPlaceholders } from '@semiont/core';
-import { startMakeMeaningGateway, makeMeaningConfigFrom, requireKBName } from '@semiont/make-meaning';
+import {
+  GATEWAY_HANDLER_CHANNELS,
+  GATEWAY_HANDLER_EMITS,
+  startMakeMeaningGateway,
+  makeMeaningConfigFrom,
+  requireKBName,
+} from '@semiont/make-meaning';
 import { loadEnvironmentConfig } from '@semiont/core/node';
 
 import { User } from '@prisma/client';
@@ -192,6 +198,7 @@ import { adminRouter } from './routes/admin';
 import { createResourcesRouter } from './routes/resources/index';
 import { createBusRouter } from './routes/bus';
 import { createNatsSignalPlane } from './signal/nats';
+import { bridgeGatewayHandlers, compositionFor } from './signal';
 import { authMiddleware } from './middleware/auth';
 
 // Import for static OpenAPI spec
@@ -262,7 +269,26 @@ const signalPlane =
     : undefined;
 logger.info('Signal Plane driver selected', { driver: signalConfig?.type ?? 'in-process' });
 
-const busRouter = createBusRouter(authMiddleware, signalPlane);
+// The composition (P3): plane + ledger, seeded HERE with the configured
+// driver so the ledger's standing tap exists from boot; routes reach the
+// same composition through the bus.
+compositionFor(eventBus, signalPlane);
+
+// The handler bridge (P3, the H2 fix) — installed EXACTLY when the plane is
+// remote. Under the in-process driver the plane IS this bus: handlers hear
+// ingests directly and their emissions are already plane-visible, so a
+// bridge would double-deliver every frame. This conditional is the one
+// place composition acknowledges which driver won, beside the selection
+// itself.
+if (signalPlane) {
+  bridgeGatewayHandlers(signalPlane, eventBus, GATEWAY_HANDLER_CHANNELS, GATEWAY_HANDLER_EMITS);
+  logger.info('Signal Plane handler bridge active', {
+    consumed: GATEWAY_HANDLER_CHANNELS.length,
+    emitted: GATEWAY_HANDLER_EMITS.length,
+  });
+}
+
+const busRouter = createBusRouter(authMiddleware);
 app.route('/', busRouter);
 
 // API Resourceation root - redirect to appropriate format

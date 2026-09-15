@@ -18,17 +18,21 @@
  *       never two, across all instances (a queue group under NATS; a group of
  *       one here).
  *  3. **Correlated-reply addressing** — ADDRESS-ONLY, by ratified decision:
- *     the interface learns WHERE a reply goes (`ReplyAddress`), never WHETHER
+ *     the interface learns WHERE a frame goes (`ReplyAddress`), never WHETHER
  *     a principal is entitled to one, and never takes a `correlationId` —
  *     that key lives in 71 payload schemas today, and an interface parsing
  *     payloads for its routing key would be rebuilt by BUS-ROUTING-DECLARED
  *     P2 (the envelope migration). The gateway's ledger (`./ledger.ts` —
  *     gateway POLICY, not driver code) owns claims, entitlement and its
- *     refusals, and mints the address. Under this in-process driver,
- *     owner-only delivery is realized by the gateway's entitlement gate over
- *     client-mode fan-out; a remote driver realizes it structurally
- *     (`clientId` inbox subjects) — where claims live cross-replica is
- *     explicitly P3's open question, prejudged by nothing here.
+ *     refusals, and mints addresses. `deliver` is this group's publication
+ *     half (P3 GREEN): a frame published TO an address, reaching every
+ *     subscriber holding it and nobody else. What crosses it today is the
+ *     gateway's own claim announcements to the shared ledger address —
+ *     P3's cross-replica-claims resolution — carrying labels the registry
+ *     never sees; the driver moves the envelope and reads nothing.
+ *     Reply delivery itself stays client-mode fan-out under the gateway's
+ *     entitlement gate (per-client addressed replies remain an unexercised
+ *     optimization, recorded in the plan).
  *
  * Delivery contract (every plausible driver can sign it): at-most-once, best
  * effort, duplicates tolerated — consumers are idempotent. Ordering per
@@ -101,6 +105,13 @@ export interface SignalPlane {
    * each channel reaches at most one member of the group, never two.
    */
   subscribeHandlers(group: string, channels: readonly string[], onFrame: OnFrame): PlaneSubscription;
+  /**
+   * Addressed publication (verb group 3's other half): the frame reaches
+   * every `subscribeClient` holding `address`, and nobody else. `channel`
+   * here is an envelope label for the receiver's `onFrame` — it never maps
+   * to a channel subject, so it need not be registry vocabulary.
+   */
+  deliver(address: ReplyAddress, channel: string, payload: unknown): void;
   dispose(): void;
 }
 
