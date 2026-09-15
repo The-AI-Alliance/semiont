@@ -6,7 +6,7 @@
  */
 
 import { FsJobQueue, JetStreamJobQueue, STALL_THRESHOLD_MS, type JobQueue } from '@semiont/jobs';
-import { createEventStore as createEventStoreCore } from '@semiont/event-sourcing';
+import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
 import type { SemiontProject, SemiontState } from '@semiont/core/node';
 import { EventBus, withDeadline, type Logger, type JobsServiceConfig, jobId, evaluateEnvPlaceholders } from '@semiont/core';
 import { registerJobQueueProvider, registerVectorIndexSizeProvider } from '@semiont/observability';
@@ -352,6 +352,60 @@ export async function startMakeMeaning(
       jobStatusSubscription.unsubscribe();
       await knowledgeSystem.stop();
       logger.info('Make-Meaning service stopped');
+    },
+  };
+}
+
+// ─── Record-maintenance composition root (JOB-QUEUE-DRIVER follow-up) ─────────
+
+/**
+ * The event log this root connects, plus its teardown. NOT a
+ * `MakeMeaningService`: there are no actors, no job queue and no bus handlers
+ * here, so there is nothing to expose but the record itself.
+ */
+export interface MakeMeaningRecord {
+  eventStore: EventStore;
+  stop:       () => Promise<void>;
+}
+
+/**
+ * The record-maintenance root: the shared stores (graph, event store, views,
+ * content, vectors + embedding) and NOTHING that dispatches or serves jobs —
+ * no actors, no job queue, no bus command handlers.
+ *
+ * `startMakeMeaning` builds a job queue because the in-process /
+ * LocalTransport / embedding seam plays gateway-AND-worker in one process,
+ * and `root-parity.test.ts` holds it to the full job-command surface. An
+ * operator tool that only reads the event log and re-materializes views —
+ * `rebuild-projections` — is NOT that seam: it dispatches zero jobs and reads
+ * no job state. Handing it `startMakeMeaning` made it build a queue from
+ * `[services.jobs]`; harmless under the fs driver (a scratch-dir queue), but
+ * under jetstream it opened the hardcoded durable `gateway-claims` consumer on
+ * the live broker and SPLIT deliveries with the gateway, parking their leases
+ * with no worker attached (job starvation). Ruling M: the gateway is the SOLE
+ * broker holder, so a non-dispatching root builds no queue at all — and so
+ * never reads `[services.jobs]`.
+ */
+export async function connectRecord(
+  project: SemiontProject,
+  config: MakeMeaningConfig,
+  eventBus: EventBus,
+  logger: Logger,
+  options?: { skipRebuild?: boolean },
+): Promise<MakeMeaningRecord> {
+  assertMakeMeaningConfig(config);
+
+  const skipRebuild = options?.skipRebuild ?? (process.env.SEMIONT_SKIP_REBUILD === 'true');
+  const { kb } = await connectStores(project, config, eventBus, logger, skipRebuild);
+
+  return {
+    eventStore: kb.eventStore,
+    // The store half of `stopKnowledgeSystem` — the same teardown, minus the
+    // actors this root never built.
+    stop: async () => {
+      logger.info('Disconnecting make-meaning record');
+      kb.weaveProgress.dispose();
+      await kb.graph.disconnect();
     },
   };
 }

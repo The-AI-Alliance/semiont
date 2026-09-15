@@ -12,7 +12,7 @@
  *   npm run rebuild-projections --workspace=@semiont/make-meaning -- [resourceId] [--environment <env>]
  */
 
-import { startMakeMeaning } from '../service';
+import { connectRecord } from '../service';
 import { makeMeaningConfigFrom } from '../config';
 import { EventQuery } from '@semiont/event-sourcing';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
@@ -46,9 +46,12 @@ async function rebuildProjections(rId?: string, environment?: string) {
     );
   }
 
-  // Start make-meaning to get eventStore
-  const makeMeaning = await startMakeMeaning(new SemiontProject(projectRoot, { anchoredTextDir }), makeMeaningConfigFrom(config), eventBus, logger);
-  const { knowledgeSystem: { kb: { eventStore } } } = makeMeaning;
+  // Connect the record for read + re-materialize. This tool dispatches no
+  // jobs, so it uses the queue-free record root — never opening a broker
+  // consumer that would split the live gateway's deliveries (JOB-QUEUE-DRIVER
+  // ruling M).
+  const record = await connectRecord(new SemiontProject(projectRoot, { anchoredTextDir }), makeMeaningConfigFrom(config), eventBus, logger);
+  const { eventStore } = record;
   const query = new EventQuery(eventStore.log.storage);
 
   if (rId) {
@@ -93,8 +96,8 @@ async function rebuildProjections(rId?: string, environment?: string) {
     logger.info('For now, rebuild individual resources by ID');
   }
 
-  // Shutdown make-meaning
-  await makeMeaning.stop();
+  // Shutdown
+  await record.stop();
   eventBus.destroy();
 
   logger.info('Rebuild projections completed');
