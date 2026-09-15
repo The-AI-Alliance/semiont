@@ -2,7 +2,8 @@
 
 A host-installed CLI that runs a local Semiont stack — Neo4j, Qdrant, Ollama,
 PostgreSQL, the Semiont gateway, worker, smelter, weaver, archivist,
-librarian, and the Browser —
+librarian, the Browser, and (when a broker-backed driver is selected) a NATS
+`messaging` daemon —
 by driving your container runtime (Apple `container`, Docker, or Podman)
 directly. It replaces the `.semiont/scripts/{start,logs,stop}.sh` trio that
 used to be synced into every KB repository.
@@ -619,6 +620,33 @@ process would read as perfectly healthy from outside.
 dead *container*. If the runtime or the host VM kills the container itself,
 nothing notices until the next `semiont status`. Closing that gap would need
 something resident on the host, which the launcher deliberately is not.
+
+### The messaging daemon
+
+A single NATS container, addressed as `--service messaging`, appears only when
+the config selects a broker-backed driver — and one server carries whichever
+of the two ask for it:
+
+- `[jobs] type = "jetstream"` backs the job queue with JetStream (streams plus
+  KV), so the daemon runs `-js -sd /data` with a durable state mount.
+- `[signal] type = "nats"` moves the gateway's real-time fan-out onto core NATS
+  subjects — never JetStream (signals are not a record) — on the *same* server.
+
+Both sections must name the same `servers`; a start that finds them pointing at
+different addresses refuses, naming both, rather than run two brokers. When
+**only** `[signal]` selects it, the daemon runs *lean* — plain `nats`, no `-js`,
+no `-sd`, and no state mount provisioned — because a driver that wants no store
+gets no store (DRIVER-SCOPED-MOUNTS). `semiont status` lists it as
+`messaging (NATS)`.
+
+Unlike the Semiont service processes, this is a stock third-party image, so it
+is **outside the supervision census above**: nothing restarts it if it stops.
+On a broker outage the gateway keeps reading healthy and its emits fail until
+the broker returns; the recovery mechanism is to start the container again
+(`semiont start --service messaging`, or the runtime directly), after which the
+gateway reconnects on its own — no gateway restart. The gateway logs
+`[signal BROKER-DOWN]` when the connection drops and `[signal BROKER-RECONNECTED]`
+when it returns.
 
 ### Where state lives
 

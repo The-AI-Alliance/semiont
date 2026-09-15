@@ -9,7 +9,7 @@ Seven services run Semiont code. Each is a published container image; see [Conta
 | Service | Port | What runs | Bundled package | Docs |
 |---|---|---|---|---|
 | **browser** | 3000 | Static server for the Semiont Browser SPA | `semiont-browser` | [README](../../../apps/browser/README.md) |
-| **gateway** | 4000 | Auth, the bus relay, and the content proxy. **Hosts no actors** | `semiont-gateway` | [README](../../../apps/gateway/README.md) |
+| **gateway** | 4000 | Auth, the bus hub, and the content proxy. **Hosts no actors** | `semiont-gateway` | [README](../../../apps/gateway/README.md) |
 | **archivist** | 24103 | Keeps the system of record — Stower, Browser, CloneTokenManager | `@semiont/make-meaning` | [README](../../../apps/archivist/README.md) |
 | **librarian** | 24104 | Searches it — Gatherer, Matcher | `@semiont/make-meaning` | [README](../../../apps/librarian/README.md) |
 | **worker** | 24100 | Annotation/generation worker pool | `@semiont/jobs` | [README](../../../apps/worker/README.md) |
@@ -22,6 +22,13 @@ meaning-tier actors live in the Archivist and the Librarian. That split is enfor
 not by convention — `TestExactlyOneContainerMountsTheKB` pins it in the launcher's golden run
 arguments: exactly one container mounts the KB, and it is the Archivist.
 
+**The bus is a driver seam** (SIGNAL-PLANE). "Relays the bus" is the in-process default — one
+RxJS fabric inside the gateway process, the permanent local default. Selecting
+`[signal] type = "nats"` moves fan-out onto core NATS subjects on the shared `messaging`
+daemon instead, which is what lets the gateway run as multiple replicas; the driver is chosen
+in config and invisible to every bus client. See [Configuration](../administration/CONFIGURATION.md)
+and, for replicas, [Deployment](../administration/DEPLOYMENT.md).
+
 For what the actors inside those containers are responsible for, see [Knowledge System](../KNOWLEDGE-SYSTEM.md).
 
 ### Infrastructure dependencies
@@ -33,8 +40,9 @@ For what the actors inside those containers are responsible for, see [Knowledge 
 | **vectors** | Qdrant | 6333 | Embeddings and semantic search |
 | **inference** | Ollama | 11434 | Local LLM + embeddings (or Anthropic instead, for LLM) |
 | **traces** | Jaeger | 16686, 4318 | OTLP traces + metrics; on by default, `--no-observe` skips it |
+| **messaging** | NATS | 4222 | The broker, present only when `[jobs] type = "jetstream"` or `[signal] type = "nats"` is selected — JetStream streams back the job queue, core subjects the signal plane. Runs lean (no JetStream, no store) when only signals select it. See [Configuration](../administration/CONFIGURATION.md) |
 
-`embedding` is a role with no container of its own: in practice it is either the Ollama that `inference` already provides, or a remote service.
+`embedding` is a role with no container of its own: in practice it is either the Ollama that `inference` already provides, or a remote service. `messaging` is the inverse — a container with no fixed role: it runs only when a broker-backed driver is chosen, and what it carries depends on which one(s).
 
 ### Storage substrate
 
@@ -73,7 +81,7 @@ semiont stop --service worker      # Stop one service
 semiont clean                      # Remove persistent state (PostgreSQL, Qdrant, Neo4j)
 ```
 
-`--service` takes one of `gateway`, `worker`, `smelter`, `weaver`, `archivist`, `librarian`, `browser`, `database`, `graph`, `vectors`, `inference`, `embedding`, or `traces`. Omitting it means the whole stack — there is no `--service all`. `semiont stop` deliberately leaves persistent state behind so the next `start` reuses it; `semiont clean` is the only thing that removes it.
+`--service` takes one of `gateway`, `worker`, `smelter`, `weaver`, `archivist`, `librarian`, `browser`, `database`, `graph`, `vectors`, `inference`, `embedding`, `traces`, or `messaging` (present only when a broker-backed driver is selected). Omitting it means the whole stack — there is no `--service all`. `semiont stop` deliberately leaves persistent state behind so the next `start` reuses it; `semiont clean` is the only thing that removes it.
 
 Run `semiont <command> --help` for a command's options and `semiont --help` for the full verb list.
 

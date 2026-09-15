@@ -87,7 +87,7 @@ pattern: TS gets it free from the `never` default; Go needs its census extended.
 
 ## Identity: `_userId` is gateway-injected
 
-Commands that mutate state need to know who's making them. The convention: clients **never** set `_userId` themselves. The HTTP gateway reads the authenticated user from the JWT and stamps `_userId` onto the payload before forwarding to the in-process bus:
+Commands that mutate state need to know who's making them. The convention: clients **never** set `_userId` themselves. The HTTP gateway reads the authenticated user from the JWT and stamps `_userId` onto the payload before forwarding it onto the bus:
 
 ```ts
 // apps/gateway/src/routes/bus.ts
@@ -114,6 +114,8 @@ The underscore prefix is the convention's marker — anything starting with `_` 
 In-process transports (e.g. `LocalTransport` from `@semiont/make-meaning`) emit directly without a gateway hop. They're responsible for setting `_userId` themselves before publishing — if the call originated from an authenticated context, the local emit code must thread the user identity through.
 
 ## Correlation: request/response over a fan-out bus
+
+> **Where the bus lives (SIGNAL-PLANE).** Inside the gateway the bus is a *driver seam*, below the wire this document describes: the in-process driver (one RxJS fabric in the gateway process) is the default, and `[signal] type = "nats"` swaps in a NATS driver that fans out over core subjects across replicas. Neither the wire nor anything below changes — the gateway injects identity, applies entitlement, and mints correlation the same way under both, so this protocol and every SDK client are unaffected by the choice. See [Signal Plane configuration](../system/administration/CONFIGURATION.md).
 
 The bus is fan-out: every subscriber to a channel sees every event on it. Request/response semantics are layered on top via a `correlationId`:
 

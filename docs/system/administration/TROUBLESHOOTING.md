@@ -91,6 +91,19 @@ semiont logs --service gateway | grep -i "invalid token"
 
 Reconnecting the knowledge base gets a fresh token. Rotating `JWT_SECRET` invalidates every token previously issued, so treat a rotation as requiring every client to re-authenticate.
 
+### Commands hang, or real-time updates stop, on a NATS stack
+
+Applies only when `[signal] type = "nats"` or `[jobs] type = "jetstream"` is selected (a `messaging` container is running). If the broker is down, the gateway keeps serving and **`/api/health` stays 200** — it checks PostgreSQL, not the broker — but every bus emit fails: a command like a `job:create` runs to the full 30-second `busRequest` timeout instead of failing fast, and SSE clients stop receiving frames.
+
+```bash
+container ps --all | grep semiont-nats
+semiont logs --service gateway | grep -iE "BROKER-DOWN|BROKER-RECONNECTED"
+```
+
+`[signal BROKER-DOWN]` with no later `[signal BROKER-RECONNECTED]` confirms the outage. **Nothing restarts the broker for you** — it is a stock third-party image, outside the launcher's process supervision. Bring it back with `semiont start --service messaging` (or start the container directly); the gateway reconnects on its own, no gateway restart. A gateway that has been up since before the broker returned recovers without intervention — the client retries indefinitely by design.
+
+If `semiont status` shows the stack green while emits still fail, the served-health/wedged-bus gap above is why; trust the `BROKER-DOWN` breadcrumb over the health line.
+
 ### Database connection failures
 
 ```bash
