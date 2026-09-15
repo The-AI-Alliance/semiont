@@ -156,6 +156,8 @@ Cylinders are file state on the host; their edges are mounts and the direction o
 
 Every service-to-gateway bus edge in the first diagram authenticates via `POST /api/tokens/agent`, which exchanges a shared secret (`SEMIONT_WORKER_SECRET`) plus a `(provider, model)` identity for a JWT carrying a typed Software-agent DID (the smelter presents its embedding config; the weaver presents `(semiont, weaver)`); the existing auth middleware validates that JWT exactly as it would a user's. One nuance the drawing flattens: besides content bytes, the archivist's event read path also rides plain HTTP, by design. The split itself is why the partition exists — the record, retrieval, LLM, embedding, and graph-projection work run in separate V8 isolates, and the gateway stays responsive to human users.
 
+Both diagrams draw the **local default drivers** — `[jobs] type = "fs"` (the jobs-queue cylinder) and `[signal] type = "in-process"`. Selecting a broker-backed driver adds one infrastructure container the diagrams omit: `semiont-nats` (the launcher's `messaging` service), attached to the gateway alone. With `[jobs] type = "jetstream"` it runs JetStream (`-js`, a durable `/data` store) and the jobs-queue cylinder — mount included — leaves the stack; with `[signal] type = "nats"` the gateway's fan-out rides core NATS subjects on the same server, disjoint from the JetStream subject space. A root where only signals select it runs the daemon lean: no store created, no mount ([CONFIGURATION.md](administration/CONFIGURATION.md) documents both sections; [administration/DEPLOYMENT.md](administration/DEPLOYMENT.md) § Multiple gateway replicas is why you would).
+
 ### Who mounts what
 
 The second diagram draws the mounts; this table adds the discipline. Exactly one container mounts the KB tree — pinned by a launcher test; every other byte crosses HTTP or the bus. Shared stores have exactly one stamp holder, whose image change clears and rebuilds them.
@@ -203,7 +205,7 @@ The constraint is the **port contracts** — the bus (`/bus/emit`, `/bus/subscri
 | Environment | Compute | Storage | Graph | Users DB |
 |-------------|---------|---------|-------|----------|
 | **Local (KB stack)** | Containers (Apple `container` / Docker / Podman) | Filesystem (KB git repo, bind-mounted) | Neo4j (container) | PostgreSQL (container) |
-| **Production (AWS)** | ECS Fargate | S3/EFS | Neptune | RDS PostgreSQL |
+| **Your own integration** | Any container platform (see [DEPLOYMENT.md](administration/DEPLOYMENT.md)) | Volumes you provision; the KB tree reaches the Archivist | Neo4j | PostgreSQL (managed works) |
 
 ### Service management
 
