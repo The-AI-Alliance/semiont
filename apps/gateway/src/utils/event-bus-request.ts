@@ -80,7 +80,10 @@ export async function eventBusRequest<
         const frame = framePayload as { correlationId?: unknown; response?: unknown; message?: unknown } | null;
         if (frame === null || frame.correlationId !== correlationId) return;
         if (channel === successEvent) {
-          settle(() => resolve(frame.response));
+          // Wire payloads arrive unknown; the success channel's schema is the
+          // caller's contract, asserted here at the one boundary — the same
+          // trust the RxJS version expressed with `any` filters.
+          settle(() => resolve(frame.response as (EventMap[TSuccess] & { response: unknown })['response']));
         } else {
           settle(() => reject(new Error(typeof frame.message === 'string' ? frame.message : `bus request ${requestEvent} failed`)));
         }

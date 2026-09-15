@@ -81,7 +81,7 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
   const handled: unknown[] = [];
   bus.get('job:create').subscribe((command) => {
     handled.push(command);
-    bus.get('job:created').next({ correlationId: command.correlationId, response: {} });
+    bus.get('job:created').next({ correlationId: command.correlationId, response: { jobId: `job-${command.correlationId}` } });
   });
 
   return {
