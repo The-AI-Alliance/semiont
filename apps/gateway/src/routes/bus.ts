@@ -4,7 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import type { Context, Next } from 'hono';
 import type { EventBus, EventMap, StoredEvent, EnvironmentConfig } from '@semiont/core';
-import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, replyChannelsFor, resourceId as makeResourceId } from '@semiont/core';
+import { BUS_OPERATIONS, CHANNEL_ATTRS, CHANNEL_SCHEMAS, busLog, channelAttrsOf, resourceId as makeResourceId } from '@semiont/core';
 import type { Subscription } from 'rxjs';
 import {
   SpanKind,
@@ -161,26 +161,26 @@ export const MAX_REPLAY_BUFFER_EVENTS = 1_000;
 // this correlationId* — so they are one module rather than two (D4).
 
 /**
- * Every correlated channel: result, failure and progress of every registered
- * operation. Derived with the SHARED helper — `replyChannelsFor` is the one
- * home for this derivation (`packages/core/src/bus-request.ts`), already used
- * by the worker's `WORKER_CHANNELS` and all four make-meaning service rosters.
- * A hand-rolled union here would be the fifth restatement of it, and its own
- * docstring names that as the recurring unbridged-reply bug class.
+ * Delivery semantics come from the GENERATED classification
+ * (`CHANNEL_ATTRS`, BUS-ROUTING-DECLARED P1) — this file consumes attributes,
+ * it no longer derives partitions. The mapping onto the ledger's vocabulary:
+ * the correlated set is every channel delivered `'correlated'` OR
+ * `'streaming'` (result, failure and progress of every registered operation —
+ * progress frames refresh a claim's TTL but are never retained; a stream is
+ * not an answer). `replyChannelsFor` remains the runtime roster helper for
+ * workers and service rosters; the core classification suite asserts the two
+ * projections of the registry agree.
  */
-const CORRELATED_CHANNELS = new Set<string>(replyChannelsFor(Object.keys(BUS_OPERATIONS)));
+const isCorrelatedChannel = (channel: string): boolean => {
+  const d = channelAttrsOf(channel)?.delivery;
+  return d === 'correlated' || d === 'streaming';
+};
 
-/**
- * The progress subset of the above. A partition of one derived set, not a
- * restatement of it: progress frames refresh a claim's TTL (a streaming op
- * that is still reporting cannot expire mid-flight) but are never retained —
- * they are a stream, not an answer.
- */
-const PROGRESS_CHANNELS = new Set<string>(
-  Object.values(BUS_OPERATIONS).flatMap((op) =>
-    'progress' in op && op.progress ? [op.progress as string] : [],
-  ),
-);
+const isProgressChannel = (channel: string): boolean =>
+  channelAttrsOf(channel)?.delivery === 'streaming';
+
+const CORRELATED_CHANNELS: readonly string[] =
+  Object.keys(CHANNEL_ATTRS).filter(isCorrelatedChannel);
 
 /** Retained reply payloads: older than the caller's 30 s deadline is useless — 2× headroom. */
 export const REPLY_RETENTION_TTL_MS = 60_000;
@@ -313,7 +313,7 @@ export function createCorrelationRegistry(
     }
   };
 
-  const subs: Subscription[] = [...CORRELATED_CHANNELS].map((channel) =>
+  const subs: Subscription[] = CORRELATED_CHANNELS.map((channel) =>
     eventBus.get(channel as keyof EventMap).subscribe((payload) => {
       const cid = correlationIdOf(payload);
       if (!cid) return;
@@ -322,7 +322,7 @@ export function createCorrelationRegistry(
       // Any activity on the cid refreshes the claim, so a streaming op that is
       // still reporting progress cannot expire mid-flight.
       claim.claimedAt = now();
-      if (PROGRESS_CHANNELS.has(channel)) return; // refresh only; a stream is not an answer
+      if (isProgressChannel(channel)) return; // refresh only; a stream is not an answer
       if (!claim.answered) {
         claim.answered = true;
         release(claim.clientId);
@@ -732,7 +732,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       const mayDeliver = (channel: string, payload: unknown): boolean => {
         const cid = correlationIdOf(payload);
         if (!cid) {
-          if (!PROGRESS_CHANNELS.has(channel)) {
+          if (!isProgressChannel(channel)) {
             getBusLogger().warn('[bus REPLY-NO-CID] correlated frame without a correlationId', { channel });
           }
           return false;
@@ -752,7 +752,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       if (willReplay) mode = 'buffering';
 
       for (const channel of channels) {
-        const correlated = CORRELATED_CHANNELS.has(channel);
+        const correlated = isCorrelatedChannel(channel);
         subs.push(
           eventBus.get(channel as keyof EventMap).subscribe((payload) => {
             // The whole amplification win: a non-owner returns after one Map
