@@ -26,7 +26,7 @@ import {
   toReplyAddress,
   type PlaneSubscription,
 } from '../signal';
-import { LEDGER_ADDRESS, correlationIdOf, createCorrelationRegistry } from '../signal/ledger';
+import { LEDGER_ADDRESS, correlationIdOf } from '../signal/ledger';
 import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
 import { validators, formatErrors } from '@semiont/core/openapi';
 import type { HttpBindings } from '@hono/node-server';
@@ -160,7 +160,6 @@ export const MAX_REPLAY_BUFFER_EVENTS = 1_000;
 // is gateway POLICY and lives in ../signal/ledger, above the seam. The
 // matrix caps and the ledger budgets are the seam's construction options
 // (../signal/options — D8's seven, today's values as defaults).
-export { createCorrelationRegistry };
 
 const isStringArray = (v: unknown): v is string[] =>
   Array.isArray(v) && v.every((x) => typeof x === 'string');

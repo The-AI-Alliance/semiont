@@ -42,7 +42,6 @@ export interface SignalComposition {
   lookupReply(cid: string, clientId: string, principalDid: string | undefined): RetainedReply | undefined;
   mayDeliver(channel: string, payload: unknown, clientId: string, principalDid: string | undefined): boolean;
   occupancy(): { claims: number; retainedReplies: number };
-  size(): number;
   dispose(): void;
 }
 
@@ -90,7 +89,6 @@ export function compositionFor(eventBus: EventBus, plane?: SignalPlane): SignalC
     lookupReply: ledger.lookupReply,
     mayDeliver: ledger.mayDeliver,
     occupancy: ledger.occupancy,
-    size: ledger.size,
     dispose() {
       tap.close();
       ledger.dispose();

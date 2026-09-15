@@ -123,7 +123,6 @@ export function createCorrelationRegistry(
   announcementFor(cid: string, clientId: string, principalDid: string | undefined): unknown;
   /** Per-frame entitlement: may THIS subscriber see THIS unscoped frame? */
   mayDeliver(channel: string, payload: unknown, clientId: string, principalDid: string | undefined): boolean;
-  size(): number;
   /** Live claims and how many of them still hold a reply payload. */
   occupancy(): { claims: number; retainedReplies: number };
   dispose(): void;
@@ -314,9 +313,6 @@ export function createCorrelationRegistry(
         return undefined;
       }
       return claim.reply;
-    },
-    size() {
-      return claims.size;
     },
     occupancy() {
       let retainedReplies = 0;

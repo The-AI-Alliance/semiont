@@ -25,7 +25,8 @@ vi.mock('@semiont/observability', async (importOriginal) => ({
   registerCorrelationRegistryProvider: (p: unknown) => observed.registryProvider(p),
 }));
 
-import { createBusRouter, createCorrelationRegistry } from '../../routes/bus';
+import { createBusRouter } from '../../routes/bus';
+import { createCorrelationRegistry } from '../../signal/ledger';
 import { initializeLogger, getLogger } from '../../logger';
 
 const TEST_USER_ID = 'did:web:test:users:test' as UserId;
