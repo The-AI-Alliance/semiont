@@ -105,6 +105,13 @@ export class BusRequestError extends SemiontError {
  * (forward exactly the replies of the operations it answers). Restating a
  * reply channel by hand was the recurring unbridged-reply bug class.
  */
+/**
+ * The caller's request deadline. ONE home for the 30 s fact: `busRequest`'s
+ * default, and the gateway's retention-relationship assertion
+ * (SIGNAL-PLANE P0.1 q4 — retention ≥ 2× this), both derive from it.
+ */
+export const BUS_REQUEST_TIMEOUT_MS = 30_000;
+
 export function replyChannelsFor(channels: readonly string[]): EventName[] {
   const out = new Set<EventName>();
   for (const ch of channels) {
@@ -187,7 +194,7 @@ export async function busRequest<Op extends BusOperationKey>(
   bus: BusRequestPrimitive,
   operation: Op,
   payload: Record<string, unknown>,
-  timeoutMs = 30_000,
+  timeoutMs = BUS_REQUEST_TIMEOUT_MS,
 ): Promise<BusReply<Op>> {
   const correlationId = uuidV4();
   const fullPayload = { ...payload, correlationId };
