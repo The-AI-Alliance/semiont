@@ -18,7 +18,7 @@ export interface NatsFixture {
   stop(): void;
 }
 
-async function freePort(): Promise<number> {
+export async function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const srv = net.createServer();
     srv.listen(0, '127.0.0.1', () => {
@@ -35,7 +35,7 @@ async function freePort(): Promise<number> {
   });
 }
 
-async function waitForServer(port: number, proc: ChildProcess): Promise<void> {
+export async function waitForServer(port: number, proc: ChildProcess): Promise<void> {
   const deadline = Date.now() + 10_000;
   for (;;) {
     if (proc.exitCode !== null) throw new Error(`nats-server exited with ${proc.exitCode}`);

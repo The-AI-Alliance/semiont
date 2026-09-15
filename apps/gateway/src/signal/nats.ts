@@ -34,6 +34,7 @@
  * channel.
  */
 import { JSONCodec, connect, type NatsConnection, type Subscription } from 'nats';
+import { getLogger } from '../logger';
 import type {
   ClientSubscriptionSpec,
   IngestReceipt,
@@ -42,6 +43,8 @@ import type {
   SignalPlane,
 } from './interface';
 import { resolveSignalPlaneOptions, type SignalPlaneOptions } from './options';
+
+const getSignalLogger = () => getLogger().child({ component: 'signal' });
 
 export const SIGNAL_SUBJECT_PREFIX = 'sig.';
 
@@ -80,10 +83,38 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
   const options = resolveSignalPlaneOptions(opts);
   const nc: NatsConnection = await connect({
     servers: opts.servers,
+    // The plane's recovery story is "restart the broker manually" (Live
+    // gate, broker-down protocol) — so the client retries FOREVER. The
+    // library default (10 attempts, ~20 s) closed the connection
+    // permanently in the first live broker-down run: every emit 500'd
+    // even after the broker returned, and only a gateway restart would
+    // have recovered. Found by the gate, 2026-09-15.
+    maxReconnectAttempts: -1,
     ...(opts.reconnect === undefined ? {} : { reconnect: opts.reconnect }),
   });
   const codec = JSONCodec();
   const open = new Set<Subscription>();
+
+  // The connection-status watcher (Live gate, broker-down protocol item 3:
+  // degradation must produce a breadcrumb — "silence is itself a failure",
+  // LIVENESS-AXIOMS L4). With infinite reconnect the first live outage was
+  // QUIET: frames buffered client-side, callers got 202s, nothing logged.
+  // These two lines are what an operator greps during a broker outage.
+  // The loop ends when dispose() closes the connection.
+  void (async () => {
+    for await (const status of nc.status()) {
+      if (status.type === 'disconnect') {
+        getSignalLogger().warn(
+          '[signal BROKER-DOWN] NATS connection lost; frames buffer client-side until reconnect',
+          { servers: opts.servers },
+        );
+      } else if (status.type === 'reconnect') {
+        getSignalLogger().info('[signal BROKER-RECONNECTED] NATS connection restored', {
+          servers: opts.servers,
+        });
+      }
+    }
+  })();
 
   const track = (s: Subscription): Subscription => {
     open.add(s);

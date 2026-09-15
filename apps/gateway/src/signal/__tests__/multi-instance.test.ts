@@ -146,8 +146,15 @@ describe('P3 — two gateway-compositions over one broker', () => {
     try {
       const ca = a.client('client-a', ['beckon:focus']);
       const cb = b.client('client-b', ['beckon:focus']);
-      b.ingest('beckon:focus', { n: 1 });
-      await settle(() => ca.frames.length >= 1 && cb.frames.length >= 1);
+      // Emit-until-seen: a publish can beat the subscriptions' server-side
+      // registration (no barrier exists in the seam, deliberately), and a
+      // missed broadcast never retries. Duplicates are contract-tolerated,
+      // so repeating the emit is the honest barrier.
+      await settle(() => {
+        if (ca.frames.length >= 1 && cb.frames.length >= 1) return true;
+        b.ingest('beckon:focus', { n: 1 });
+        return false;
+      });
       expect(ca.frames.length, 'client on A').toBeGreaterThanOrEqual(1);
       expect(cb.frames.length, 'client on B').toBeGreaterThanOrEqual(1);
       ca.close();
