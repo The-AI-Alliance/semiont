@@ -165,6 +165,10 @@ interface EnvironmentSection {
     type?: 'fs' | 'jetstream';
     servers?: string;
   };
+  signal?: {
+    type?: 'in-process' | 'nats';
+    servers?: string;
+  };
   site?: {
     domain?: string;
     siteName?: string;
@@ -569,6 +573,28 @@ export function loadTomlConfig(
     services.jobs = {
       type: resolved.jobs.type,
       ...(resolved.jobs.servers ? { servers: resolved.jobs.servers } : {}),
+    };
+  }
+
+  // The Signal Plane driver selection (SIGNAL-PLANE P2): the gateway reads
+  // services.signal. Same missing-middle failure shape as [jobs] above, and
+  // one refusal MORE (D6): typed-but-INCOMPLETE refuses too — a
+  // type = "nats" with no servers would select a driver that cannot connect
+  // and surface as a hang instead of a config error.
+  if (resolved.signal) {
+    if (!resolved.signal.type) {
+      throw new Error(
+        `[environments.${resolvedEnvironment}.signal] names no type — add type = "in-process" or "nats". Semiont selects the Signal Plane driver from config; nothing is inferred.`,
+      );
+    }
+    if (resolved.signal.type === 'nats' && !resolved.signal.servers) {
+      throw new Error(
+        `[environments.${resolvedEnvironment}.signal] type = "nats" names no servers — add servers = "\${NATS_HOST}:4222". A typed-but-incomplete section refuses at load, never falls through.`,
+      );
+    }
+    services.signal = {
+      type: resolved.signal.type,
+      ...(resolved.signal.servers ? { servers: resolved.signal.servers } : {}),
     };
   }
 

@@ -89,6 +89,7 @@ type envConfig struct {
 	// Jobs selects the gateway's job-queue driver (JOB-QUEUE-DRIVER P2).
 	// Absent = the in-gateway fs driver; nothing to launch.
 	Jobs    *jobsCfg              `toml:"jobs"`
+	Signal  *signalCfg            `toml:"signal"`
 	Actors  map[string]bindingCfg `toml:"actors"`
 	Workers map[string]bindingCfg `toml:"workers"`
 	// Site is read ONLY to detect that it exists (KB-IDENTITY-VS-ADDRESS P4).
@@ -159,6 +160,14 @@ type databaseCfg struct {
 // and for jetstream a servers address whose host may be the launcher-injected
 // ${NATS_HOST} (provided) or anything else (externally provided broker).
 type jobsCfg struct {
+	Type    string `toml:"type"`
+	Servers string `toml:"servers"`
+}
+
+// signalCfg mirrors jobsCfg for [environments.<env>.signal] (SIGNAL-PLANE
+// P2): the gateway selects its Signal Plane driver from this section; the
+// LAUNCHER reads it only to decide whether the messaging daemon must run.
+type signalCfg struct {
 	Type    string `toml:"type"`
 	Servers string `toml:"servers"`
 }

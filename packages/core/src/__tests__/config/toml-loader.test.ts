@@ -339,6 +339,58 @@ ${MINIMAL_TOML}`;
     expect(cfg.services.jobs?.servers).toBe('10.0.0.9:4222');
   });
 
+  // SIGNAL-PLANE P2: the gateway selects the Signal Plane driver from
+  // services.signal. Same missing-middle shape as [jobs] above, and the same
+  // refusal discipline (D6): selection is stated, never inferred, never
+  // silently defaulted — and typed-but-INCOMPLETE refuses too, because a
+  // [signal] type="nats" with no servers would select a driver that cannot
+  // connect and surface as a hang instead of a config error.
+  it('maps [signal] to services.signal — type and servers pass through', () => {
+    const toml = `
+[environments.local.signal]
+type = "nats"
+servers = "nats.internal:4222"
+${MINIMAL_TOML}`;
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+    expect(cfg.services.signal).toEqual({
+      type: 'nats',
+      servers: 'nats.internal:4222',
+    });
+  });
+
+  it("emits no signal service when the section is absent (the consumer's in-process default)", () => {
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
+    expect(cfg.services.signal).toBeUndefined();
+  });
+
+  it('refuses a [signal] section that names no type', () => {
+    const toml = `
+[environments.local.signal]
+servers = "nats.internal:4222"
+${MINIMAL_TOML}`;
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+      .toThrow(/\[environments\.local\.signal\].*type/);
+  });
+
+  it('refuses [signal] type = "nats" with no servers — typed-but-incomplete never falls through', () => {
+    const toml = `
+[environments.local.signal]
+type = "nats"
+${MINIMAL_TOML}`;
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+      .toThrow(/\[environments\.local\.signal\].*servers/);
+  });
+
+  it('resolves ${VAR} placeholders in signal.servers from the loader env', () => {
+    const toml = `
+[environments.local.signal]
+type = "nats"
+servers = "\${NATS_HOST}:4222"
+${MINIMAL_TOML}`;
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), { NATS_HOST: '10.0.0.9' });
+    expect(cfg.services.signal?.servers).toBe('10.0.0.9:4222');
+  });
+
   // SINGLE-KB-MOUNT D4: the launcher stages the KB's committed identity into
   // the config it hands a container, under its own TOP-LEVEL key — never
   // [site], whose domain an environment section can override into an identity

@@ -61,7 +61,7 @@ var roles = map[string]roleSpec{
 	// idle with JetStream on (2026-09-15); the headroom is for stream
 	// replay after restart. Runs only when the config selects the
 	// jetstream jobs driver (JOB-QUEUE-DRIVER P2).
-	"jobs": {"NATS", "semiont-nats", []portNeed{{4222, "NATS"}}, "512M"},
+	"messaging": {"NATS", "semiont-nats", []portNeed{{4222, "NATS"}}, "512M"},
 	// graph 2G: a JVM auto-sizing its heap from visible memory — the silent
 	// 1G VM default was the known-tight spot on Apple container.
 	"graph":   {"Neo4j", "semiont-neo4j", []portNeed{{7474, "Neo4j HTTP"}, {7687, "Neo4j Bolt"}}, "2G"},
@@ -273,7 +273,7 @@ func serviceEndpoint(svc string, plan *launchPlan) string {
 		return "http://localhost:16686"
 	case "collector":
 		return "http://localhost:24110/metrics"
-	case "jobs":
+	case "messaging":
 		return "tcp:localhost:4222"
 	case "metrics":
 		return "http://localhost:9090/-/healthy"

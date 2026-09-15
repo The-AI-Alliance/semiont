@@ -21,7 +21,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
 import { SemiontState } from '@semiont/core/node';
-import { type EnvironmentConfig, EventBus } from '@semiont/core';
+import { type EnvironmentConfig, EventBus, evaluateEnvPlaceholders } from '@semiont/core';
 import { startMakeMeaningGateway, makeMeaningConfigFrom, requireKBName } from '@semiont/make-meaning';
 import { loadEnvironmentConfig } from '@semiont/core/node';
 
@@ -191,6 +191,7 @@ import { statusRouter } from './routes/status';
 import { adminRouter } from './routes/admin';
 import { createResourcesRouter } from './routes/resources/index';
 import { createBusRouter } from './routes/bus';
+import { createNatsSignalPlane } from './signal/nats';
 import { authMiddleware } from './middleware/auth';
 
 // Import for static OpenAPI spec
@@ -246,7 +247,22 @@ app.route('/', statusRouter);
 app.route('/', adminRouter);
 const resourcesRouter = createResourcesRouter();
 app.route('/', resourcesRouter);
-const busRouter = createBusRouter(authMiddleware);
+// ── Signal Plane selection (SIGNAL-PLANE P2, D6) ─────────────────────────
+// services.signal comes from [environments.<env>.signal]; absent means the
+// in-process driver, bit for bit (D7 — it never retires). The loader already
+// refused typed-but-incomplete, so a 'nats' selection here always has
+// servers. Under NATS the ingest receipt carries no observer count, so the
+// unanswerable-request fast-fail is absent and callers fall back to the
+// busRequest timeout — the recorded P2 consequence, restated at the
+// selection site so the operator reading this file learns it here.
+const signalConfig = config.services.signal;
+const signalPlane =
+  signalConfig?.type === 'nats'
+    ? await createNatsSignalPlane({ servers: evaluateEnvPlaceholders(signalConfig.servers ?? '') })
+    : undefined;
+logger.info('Signal Plane driver selected', { driver: signalConfig?.type ?? 'in-process' });
+
+const busRouter = createBusRouter(authMiddleware, signalPlane);
 app.route('/', busRouter);
 
 // API Resourceation root - redirect to appropriate format

@@ -23,7 +23,7 @@ type flowCtx struct {
 
 var depRoleTitles = map[string]string{
 	"graph": "Graph", "vectors": "Vectors", "database": "Database",
-	"embedding": "Embedding", "jobs": "Job Queue",
+	"embedding": "Embedding", "messaging": "Messaging",
 }
 
 // flowFullStart is THE full-start sequence: preflight → ports → staging →
@@ -168,7 +168,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	// The jobs broker (NATS, when the config selects the jetstream driver)
 	// is a gateway dependency like Postgres: the gateway's job queue dials
 	// it at boot. Absent config = the in-gateway fs driver; nothing runs.
-	if code := flowDepRole(x, "jobs", fc, addr); code != 0 {
+	if code := flowDepRole(x, "messaging", fc, addr); code != 0 {
 		return code
 	}
 
@@ -303,10 +303,10 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	// The generic "not configured; skipping" banner block read as a
 	// misconfiguration to the first person who saw it — say what IS
 	// running instead, in one line, no banner.
-	if role == "jobs" && rp.Obligation == obligationAbsent {
-		x.say(sayLog, "jobs — fs driver: the gateway's built-in queue serves this stack; nothing to launch")
-		x.note("jobs: fs driver (the gateway's built-in queue) — nothing to launch")
-		x.record(role, "", "", providedNone, "", "fs")
+	if role == "messaging" && rp.Obligation == obligationAbsent {
+		x.say(sayLog, "messaging — nothing to launch: jobs ride the gateway's fs queue; signals are in-process")
+		x.note("messaging: nothing to launch (jobs: fs driver; signal: in-process)")
+		x.record(role, "", "", providedNone, "", rp.Driver)
 		return 0
 	}
 	disp := driverDisplay(role, rp.Driver)
@@ -316,9 +316,17 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		// Persistent state rides the run argv (LAUNCHER-STATE.md): roles in
 		// stateStores mount their per-root dir; a database refusal (data
 		// written by another image) stops the start here.
-		extra, ok := x.stateMounts(role, rp.Image, fc.root)
-		if !ok {
-			return 1
+		// The LEAN daemon (SIGNAL-PLANE Open question 5 / DRIVER-SCOPED-
+		// MOUNTS): a signal-only messaging root runs core NATS with no
+		// store — provisioning follows the driver selection, and the
+		// launcher mounts no space the selected shape won't use.
+		var extra []string
+		if !(role == "messaging" && rp.Driver == "nats") {
+			var ok bool
+			extra, ok = x.stateMounts(role, rp.Image, fc.root)
+			if !ok {
+				return 1
+			}
 		}
 		args := providedRunArgs(role, rp, extra...)
 		id, ok := x.runDetached(args)
@@ -352,15 +360,15 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			}
 			x.say(sayOK, "database — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
 			x.record(role, id, rp.Image, providedLauncher, fmt.Sprintf("tcp:localhost:%d", rp.Port), rp.Driver)
-		case "jobs":
+		case "messaging":
 			// Same two-phase wait as Postgres: TCP up, then reachable on
 			// the container path the gateway will dial.
 			d, ok := x.waitTCP("NATS", addr, rp.Port, 15)
 			if !ok {
-				x.dumpLogs(roles["jobs"].container, "jobs")
+				x.dumpLogs(roles["messaging"].container, "messaging")
 				return 1
 			}
-			x.say(sayOK, "jobs — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
+			x.say(sayOK, "messaging — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
 			x.record(role, id, rp.Image, providedLauncher, fmt.Sprintf("tcp:localhost:%d", rp.Port), rp.Driver)
 		}
 	case obligationAbsent:
@@ -787,7 +795,7 @@ func flowOneService(x executor, fc flowCtx) int {
 			return 1
 		}
 		x.record(svc, id, args[len(args)-1], providedLauncher, serviceEndpoint(svc, fc.plan), "jaeger")
-	case "graph", "vectors", "database", "jobs":
+	case "graph", "vectors", "database", "messaging":
 		rp := fc.plan.Roles[svc]
 		disp := driverDisplay(svc, rp.Driver)
 		// The same persistence rules as a full start (LAUNCHER-STATE.md): a
@@ -819,9 +827,9 @@ func flowOneService(x executor, fc flowCtx) int {
 				x.dumpLogs(roles["database"].container, "database")
 				return 1
 			}
-		case "jobs":
+		case "messaging":
 			if d, ok = x.waitTCP(disp, addr, rp.Port, 15); !ok {
-				x.dumpLogs(roles["jobs"].container, "jobs")
+				x.dumpLogs(roles["messaging"].container, "messaging")
 				return 1
 			}
 		}

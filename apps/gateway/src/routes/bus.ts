@@ -223,7 +223,14 @@ function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSub
   return { global, scoped, pendingReplies, clientId };
 }
 
-export function createBusRouter(authMiddleware: AuthMiddleware) {
+/**
+ * `plane` (SIGNAL-PLANE P2): the boot-selected driver. When absent — every
+ * existing test constructs the router bare — each EventBus lazily gets an
+ * in-process plane, which is exactly the pre-selection behavior. index.ts
+ * passes the configured one; the NATS driver's async construction is why
+ * selection happens at boot rather than here.
+ */
+export function createBusRouter(authMiddleware: AuthMiddleware, plane?: SignalPlane) {
   const busRouter = new Hono<{ Variables: { user: User; principalDid: string; eventBus: EventBus; config: EnvironmentConfig } }>();
 
   busRouter.use('/bus/*', authMiddleware);
@@ -235,12 +242,13 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
   const registryByBus = new WeakMap<EventBus, ReturnType<typeof createCorrelationRegistry>>();
   const planeByBus = new WeakMap<EventBus, SignalPlane>();
   const planeFor = (bus: EventBus): SignalPlane => {
-    let plane = planeByBus.get(bus);
-    if (!plane) {
-      plane = createInProcessSignalPlane(bus);
-      planeByBus.set(bus, plane);
+    if (plane) return plane;
+    let lazy = planeByBus.get(bus);
+    if (!lazy) {
+      lazy = createInProcessSignalPlane(bus);
+      planeByBus.set(bus, lazy);
     }
-    return plane;
+    return lazy;
   };
 
   busRouter.post('/bus/subscribe', async (c) => {

@@ -105,9 +105,15 @@ var driverCatalog = map[string]map[string]driverSpec{
 	// runs inside the gateway and launches nothing. JetStream state rides
 	// the stamped store; the DRIVER provisions stream + KV bucket
 	// idempotently at initialize() — the launcher provides daemon + dir.
-	"jobs": {
+	// SIGNAL-PLANE D9: ONE daemon, TWO shapes, chosen by the jobs vote.
+	// "jetstream" (jobs want the broker): -js plus the stamped /data store.
+	// "nats" (signal-only): the LEAN daemon — core subjects, no -js, no
+	// store (DRIVER-SCOPED-MOUNTS: no space a selected driver won't use),
+	// and JetStream disabled server-side makes D3 structural on that root.
+	"messaging": {
 		"jetstream": {image: "nats:2.14.0-alpine", display: "NATS", defaultPort: 4222, portLabel: "NATS",
 			cmd: []string{"-js", "-sd", "/data"}},
+		"nats": {image: "nats:2.14.0-alpine", display: "NATS", defaultPort: 4222, portLabel: "NATS"},
 	},
 	"inference": {
 		"ollama": {image: "ollama/ollama", display: "Ollama", defaultPort: 11434, portLabel: "Ollama"},
@@ -327,7 +333,7 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 	addRole("graph")
 	addRole("vectors")
 	addRole("database")
-	addRole("jobs")
+	addRole("messaging")
 	checks = append(checks,
 		portNeed{plan.GatewayPort, "Gateway"},
 		portNeed{24100, "Worker"},
@@ -555,39 +561,78 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		plan.Roles["database"] = rp
 	}
 
-	// jobs — OPTIONAL (JOB-QUEUE-DRIVER P2). Absent or type = "fs": the
-	// in-gateway fs driver, nothing to launch. type = "jetstream" with
-	// servers at the launcher-injected ${NATS_HOST}: the launcher provides
-	// NATS. Any other address: an externally provided broker, probed only.
-	if j := env.Jobs; j == nil {
-		plan.Roles["jobs"] = rolePlan{Role: "jobs", Obligation: obligationAbsent}
-	} else {
+	// messaging — the shared NATS daemon (SIGNAL-PLANE D9). ONE role, TWO
+	// config sections voting: [jobs] type = "jetstream" and [signal]
+	// type = "nats" each need it; either alone starts it. When BOTH select
+	// NATS their servers must match — one role is one daemon; two sections
+	// naming two servers is a config error, never silently reconciled. The
+	// daemon SHAPE follows the jobs vote: jetstream → -js + the stamped
+	// store; signal-only → the lean core-subjects daemon.
+	j := env.Jobs
+	sig := env.Signal
+	if j != nil {
 		switch j.Type {
 		case "":
 			return nil, secErr("jobs", "missing required key %q", "type")
-		case "fs":
-			plan.Roles["jobs"] = rolePlan{Role: "jobs", Driver: "fs", Obligation: obligationAbsent}
-		case "jetstream":
-			if j.Servers == "" {
-				return nil, secErr("jobs", "missing required key %q (e.g. \"${NATS_HOST}:4222\")", "servers")
-			}
-			spec := driverCatalog["jobs"]["jetstream"]
-			host, port := parseHostPort(j.Servers)
-			if port == 0 {
-				port = spec.defaultPort
-			}
-			rp := rolePlan{Role: "jobs", Driver: "jetstream", Port: port}
-			if classify(host, "NATS_HOST") == obligationProvided {
-				rp.Obligation = obligationProvided
-				rp.Image = spec.image
-			} else {
-				rp.Obligation = obligationExternal
-				rp.Address = host
-			}
-			plan.Roles["jobs"] = rp
+		case "fs", "jetstream":
 		default:
 			return nil, secErr("jobs", "unknown type %q (use \"fs\", or \"jetstream\")", j.Type)
 		}
+		if j.Type == "jetstream" && j.Servers == "" {
+			return nil, secErr("jobs", "missing required key %q (e.g. \"${NATS_HOST}:4222\")", "servers")
+		}
+	}
+	if sig != nil {
+		switch sig.Type {
+		case "":
+			return nil, secErr("signal", "missing required key %q", "type")
+		case "in-process", "nats":
+		default:
+			return nil, secErr("signal", "unknown type %q (use \"in-process\", or \"nats\")", sig.Type)
+		}
+		if sig.Type == "nats" && sig.Servers == "" {
+			return nil, secErr("signal", "missing required key %q (e.g. \"${NATS_HOST}:4222\")", "servers")
+		}
+	}
+	jobsWantBroker := j != nil && j.Type == "jetstream"
+	signalWantsBroker := sig != nil && sig.Type == "nats"
+	if !jobsWantBroker && !signalWantsBroker {
+		fsDriver := ""
+		if j != nil && j.Type == "fs" {
+			fsDriver = "fs"
+		}
+		plan.Roles["messaging"] = rolePlan{Role: "messaging", Driver: fsDriver, Obligation: obligationAbsent}
+	} else {
+		servers := ""
+		if jobsWantBroker {
+			servers = j.Servers
+		}
+		if signalWantsBroker {
+			if servers != "" && sig.Servers != servers {
+				return nil, secErr("signal", "[jobs] and [signal] name different servers (%q vs %q) — one role is one daemon; they must match", j.Servers, sig.Servers)
+			}
+			if servers == "" {
+				servers = sig.Servers
+			}
+		}
+		daemonShape := "nats"
+		if jobsWantBroker {
+			daemonShape = "jetstream"
+		}
+		spec := driverCatalog["messaging"][daemonShape]
+		host, port := parseHostPort(servers)
+		if port == 0 {
+			port = spec.defaultPort
+		}
+		rp := rolePlan{Role: "messaging", Driver: daemonShape, Port: port}
+		if classify(host, "NATS_HOST") == obligationProvided {
+			rp.Obligation = obligationProvided
+			rp.Image = spec.image
+		} else {
+			rp.Obligation = obligationExternal
+			rp.Address = host
+		}
+		plan.Roles["messaging"] = rp
 	}
 
 	// embedding — REQUIRED, and a role the launcher never launches. Its
