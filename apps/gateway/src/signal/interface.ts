@@ -82,8 +82,15 @@ export interface IngestReceipt {
    * an upper bound for a correlated channel (owner filtering happens above
    * the plane). Zero is the signal the emit route's unanswerable-request
    * synthesis keys on.
+   *
+   * OPTIONAL, because only an in-process fabric can count: a broker driver
+   * reports NOTHING rather than a fabricated zero — zero means "dispatched
+   * to provably nobody", and a remote fabric cannot prove it. Consumers gate
+   * on `observers === 0`, so absence disables the fast-fail synthesis rather
+   * than mis-firing it (recorded consequence for the P2 selection and the
+   * Live gate).
    */
-  observers: number;
+  observers?: number;
 }
 
 export interface SignalPlane {

@@ -766,7 +766,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     // subscriber is not a subscriber to a scoped emit, and counting the
     // global subject would report a healthy fan-out for a signal nobody
     // scoped will receive.
-    let subscribers = 0;
+    let subscribers: number | undefined = 0;
 
     await withTraceparent(carrier, () =>
       withSpan(

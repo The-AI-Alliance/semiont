@@ -106,6 +106,18 @@ jobs:
           CI: true
           NODE_OPTIONS: "--max-old-space-size=8192"
 
+      # The signal-plane conformance suite (SIGNAL-PLANE P1) runs against a
+      # real nats-server spawned from PATH — a mocked broker would prove
+      # nothing about subjects, queue groups, or the wire codec. Same install
+      # as package-tests.yml's jobs step; CORE only is exercised (the fixture
+      # starts it without -js).
+      - name: Install nats-server (gateway signal-plane conformance)
+        run: |
+          NATS_VERSION=v2.14.0
+          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+
       - name: Run gateway unit tests
         run: |
           echo "Running gateway unit tests..."

@@ -13,7 +13,7 @@
  *  - the driver cannot refuse a delivery and never inspects a payload
  *    (P0.5): entitlement is the gateway's, above the seam.
  */
-import { describe, test, expect } from 'vitest';
+import { afterAll, describe, test, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +22,8 @@ import type { SignalPlane } from '../interface';
 import { toReplyAddress } from '../interface';
 import { resolveSignalPlaneOptions } from '../options';
 import { createInProcessSignalPlane } from '../in-process';
+import { createNatsSignalPlane } from '../nats';
+import { natsFixture } from './nats-fixture';
 
 /** Generous async settling: poll, never assume synchronous delivery. */
 async function settle(check: () => boolean, ms = 2_000): Promise<void> {
@@ -60,20 +62,33 @@ function expectInOrder(got: readonly unknown[], expected: readonly unknown[]): v
   expect(i, `delivered ${i}/${expected.length} in order`).toBe(expected.length);
 }
 
-const drivers: Array<[string, () => { plane: SignalPlane; teardown(): void }]> = [
+const drivers: Array<[string, () => Promise<{ plane: SignalPlane; teardown(): void }>]> = [
   [
     'in-process',
-    () => {
+    async () => {
       const bus = new EventBus();
       const plane = createInProcessSignalPlane(bus, resolveSignalPlaneOptions());
       return { plane, teardown: () => { plane.dispose(); bus.destroy(); } };
     },
   ],
+  [
+    'nats',
+    async () => {
+      const { servers } = await natsFixture();
+      const plane = await createNatsSignalPlane({ servers, reconnect: false });
+      return { plane, teardown: () => plane.dispose() };
+    },
+  ],
 ];
+
+afterAll(async () => {
+  const fixture = await natsFixture().catch(() => undefined);
+  fixture?.stop();
+});
 
 describe.each(drivers)('SignalPlane conformance — %s', (_name, make) => {
   test('client mode: an ingested frame reaches a global subscriber, with the payload intact', async () => {
-    const { plane, teardown } = make();
+    const { plane, teardown } = await make();
     try {
       const c = collector();
       plane.subscribeClient({ address: toReplyAddress('c1'), global: ['beckon:focus'], scoped: [], onFrame: c.onFrame });
@@ -87,7 +102,7 @@ describe.each(drivers)('SignalPlane conformance — %s', (_name, make) => {
   });
 
   test('client mode: EVERY subscriber receives a broadcast', async () => {
-    const { plane, teardown } = make();
+    const { plane, teardown } = await make();
     try {
       const a = collector();
       const b = collector();
@@ -103,7 +118,7 @@ describe.each(drivers)('SignalPlane conformance — %s', (_name, make) => {
   });
 
   test('scoped delivery: a scoped frame reaches only the matching scope entry, tagged with its scope', async () => {
-    const { plane, teardown } = make();
+    const { plane, teardown } = await make();
     try {
       const c = collector();
       plane.subscribeClient({
@@ -124,7 +139,7 @@ describe.each(drivers)('SignalPlane conformance — %s', (_name, make) => {
   });
 
   test('ordering holds per channel + scope (and nothing more is promised)', async () => {
-    const { plane, teardown } = make();
+    const { plane, teardown } = await make();
     try {
       const c = collector();
       plane.subscribeClient({ address: toReplyAddress('c1'), global: ['beckon:focus'], scoped: [], onFrame: c.onFrame });
@@ -137,21 +152,8 @@ describe.each(drivers)('SignalPlane conformance — %s', (_name, make) => {
     }
   });
 
-  test('ingest reports observers at dispatch; zero when nobody subscribes', async () => {
-    const { plane, teardown } = make();
-    try {
-      expect(plane.ingest('beckon:focus', { n: 0 }).observers).toBe(0);
-      const c = collector();
-      plane.subscribeClient({ address: toReplyAddress('c1'), global: ['beckon:focus'], scoped: [], onFrame: c.onFrame });
-      await settle(() => plane.ingest('beckon:focus', { n: 1 }).observers >= 1);
-      expect(plane.ingest('beckon:focus', { n: 2 }).observers).toBeGreaterThanOrEqual(1);
-    } finally {
-      teardown();
-    }
-  });
-
   test('close() ends delivery; other subscriptions are untouched', async () => {
-    const { plane, teardown } = make();
+    const { plane, teardown } = await make();
     try {
       const a = collector();
       const b = collector();
@@ -168,7 +170,7 @@ describe.each(drivers)('SignalPlane conformance — %s', (_name, make) => {
   });
 
   test('handler mode: a frame reaches AT MOST ONE member of a group, never two', async () => {
-    const { plane, teardown } = make();
+    const { plane, teardown } = await make();
     try {
       const m1 = collector();
       const m2 = collector();
@@ -190,7 +192,7 @@ describe.each(drivers)('SignalPlane conformance — %s', (_name, make) => {
   });
 
   test('handler mode and client mode are independent: a client subscriber still sees every frame', async () => {
-    const { plane, teardown } = make();
+    const { plane, teardown } = await make();
     try {
       const handler = collector();
       const client = collector();
@@ -206,7 +208,7 @@ describe.each(drivers)('SignalPlane conformance — %s', (_name, make) => {
   });
 
   test('P0.5 — the driver cannot refuse: a correlated-channel frame with a foreign key is delivered anyway', async () => {
-    const { plane, teardown } = make();
+    const { plane, teardown } = await make();
     try {
       const c = collector();
       // `gather:summary-result` is a correlated reply channel; the payload
@@ -218,6 +220,23 @@ describe.each(drivers)('SignalPlane conformance — %s', (_name, make) => {
       expect(c.frames.length).toBeGreaterThanOrEqual(1);
     } finally {
       teardown();
+    }
+  });
+});
+
+describe('in-process extras — capabilities the CONTRACT leaves optional', () => {
+  test('observer receipt: exact counts, zero when nobody subscribes (only an in-process fabric can count)', async () => {
+    const bus = new EventBus();
+    const plane = createInProcessSignalPlane(bus, resolveSignalPlaneOptions());
+    try {
+      expect(plane.ingest('beckon:focus', { n: 0 }).observers).toBe(0);
+      const c = collector();
+      plane.subscribeClient({ address: toReplyAddress('c1'), global: ['beckon:focus'], scoped: [], onFrame: c.onFrame });
+      expect(plane.ingest('beckon:focus', { n: 1 }).observers).toBeGreaterThanOrEqual(1);
+      await settle(() => c.frames.length >= 1);
+    } finally {
+      plane.dispose();
+      bus.destroy();
     }
   });
 });
