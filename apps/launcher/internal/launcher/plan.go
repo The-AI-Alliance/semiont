@@ -87,6 +87,7 @@ type driverSpec struct {
 	defaultPort int
 	portLabel   string // primary port's name in conflict errors
 	auxPorts    []portNeed
+	cmd         []string // trailing container args (NATS needs "-js -sd <dir>")
 }
 
 var driverCatalog = map[string]map[string]driverSpec{
@@ -98,6 +99,15 @@ var driverCatalog = map[string]map[string]driverSpec{
 	},
 	"database": {
 		"postgres": {image: "postgres:15.18-alpine", display: "PostgreSQL", defaultPort: 5432, portLabel: "PostgreSQL"},
+	},
+	// JOB-QUEUE-DRIVER P2: an upstream pin like postgres — no publish row,
+	// no NOTICE. "fs" is a valid config type but not a catalog driver: it
+	// runs inside the gateway and launches nothing. JetStream state rides
+	// the stamped store; the DRIVER provisions stream + KV bucket
+	// idempotently at initialize() — the launcher provides daemon + dir.
+	"jobs": {
+		"jetstream": {image: "nats:2.14.0-alpine", display: "NATS", defaultPort: 4222, portLabel: "NATS",
+			cmd: []string{"-js", "-sd", "/data"}},
 	},
 	"inference": {
 		"ollama": {image: "ollama/ollama", display: "Ollama", defaultPort: 11434, portLabel: "Ollama"},
@@ -280,7 +290,7 @@ func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
 	for _, e := range rp.Env {
 		a = append(a, "-e", e)
 	}
-	return append(a, rp.Image)
+	return append(append(a, rp.Image), spec.cmd...)
 }
 
 // ollamaRunArgs: the semiont-ollama `run -d` argv. Separate from
@@ -317,6 +327,7 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 	addRole("graph")
 	addRole("vectors")
 	addRole("database")
+	addRole("jobs")
 	checks = append(checks,
 		portNeed{plan.GatewayPort, "Gateway"},
 		portNeed{24100, "Worker"},
@@ -542,6 +553,41 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			rp.Address = d.Host
 		}
 		plan.Roles["database"] = rp
+	}
+
+	// jobs — OPTIONAL (JOB-QUEUE-DRIVER P2). Absent or type = "fs": the
+	// in-gateway fs driver, nothing to launch. type = "jetstream" with
+	// servers at the launcher-injected ${NATS_HOST}: the launcher provides
+	// NATS. Any other address: an externally provided broker, probed only.
+	if j := env.Jobs; j == nil {
+		plan.Roles["jobs"] = rolePlan{Role: "jobs", Obligation: obligationAbsent}
+	} else {
+		switch j.Type {
+		case "":
+			return nil, secErr("jobs", "missing required key %q", "type")
+		case "fs":
+			plan.Roles["jobs"] = rolePlan{Role: "jobs", Driver: "fs", Obligation: obligationAbsent}
+		case "jetstream":
+			if j.Servers == "" {
+				return nil, secErr("jobs", "missing required key %q (e.g. \"${NATS_HOST}:4222\")", "servers")
+			}
+			spec := driverCatalog["jobs"]["jetstream"]
+			host, port := parseHostPort(j.Servers)
+			if port == 0 {
+				port = spec.defaultPort
+			}
+			rp := rolePlan{Role: "jobs", Driver: "jetstream", Port: port}
+			if classify(host, "NATS_HOST") == obligationProvided {
+				rp.Obligation = obligationProvided
+				rp.Image = spec.image
+			} else {
+				rp.Obligation = obligationExternal
+				rp.Address = host
+			}
+			plan.Roles["jobs"] = rp
+		default:
+			return nil, secErr("jobs", "unknown type %q (use \"fs\", or \"jetstream\")", j.Type)
+		}
 	}
 
 	// embedding — REQUIRED, and a role the launcher never launches. Its

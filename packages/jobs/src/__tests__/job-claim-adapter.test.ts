@@ -104,13 +104,15 @@ describe('createJobClaimAdapter', () => {
     expect(h.emits).toHaveLength(1);
     expect(h.emits[0]!.channel).toBe('job:claim');
     const payload = h.claimAt(0);
-    expect(payload.jobId).toBe('j1');
+    // Claim-by-type (JOB-QUEUE-DRIVER P2): the request names the worker's
+    // TYPES; the claimed job's identity arrives in the response.
+    expect(payload.types).toEqual(['generation']);
     expect(typeof payload.correlationId).toBe('string');
 
     // Simulate successful claim response.
     h.pushEvent('job:claimed', {
       correlationId: payload.correlationId,
-      response: { params: { foo: 'bar' }, metadata: { userId: 'u1' } },
+      response: { params: { foo: 'bar' }, metadata: { id: 'j1', type: 'generation', userId: 'u1' } },
     });
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
@@ -143,7 +145,7 @@ describe('createJobClaimAdapter', () => {
     await new Promise((r) => setTimeout(r, 0));
     h.pushEvent('job:claimed', {
       correlationId: h.claimAt(0).correlationId,
-      response: { params: {}, metadata: { userId: 'u' } },
+      response: { params: {}, metadata: { id: 'j3', type: 'generation', userId: 'u' } },
     });
     await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
 
@@ -219,7 +221,7 @@ describe('createJobClaimAdapter', () => {
       await new Promise((r) => setTimeout(r, 0));
       h.pushEvent('job:claimed', {
         correlationId: h.claimAt(0).correlationId,
-        response: { params: {}, metadata: { userId: 'u' } },
+        response: { params: {}, metadata: { id: 'jv1', type: 'generation', userId: 'u' } },
       });
       await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
 
@@ -275,7 +277,7 @@ describe('createJobClaimAdapter', () => {
       await new Promise((r) => setTimeout(r, 0));
       h.pushEvent('job:claimed', {
         correlationId: h.claimAt(0).correlationId,
-        response: { params: {}, metadata: { userId: 'u' } },
+        response: { params: {}, metadata: { id: 'jv2', type: 'generation', userId: 'u' } },
       });
       await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
       adapter.errors$.subscribe(() => {});
@@ -309,7 +311,7 @@ describe('claimed-job checkpoint (A3)', () => {
     await new Promise((r) => setTimeout(r, 0));
     h.pushEvent('job:claimed', {
       correlationId: h.claimAt(0).correlationId,
-      response: { params: {}, metadata: { userId: 'u1', completedUnits: ['Person', 'Date'] } },
+      response: { params: {}, metadata: { id: 'jc1', type: 'generation', userId: 'u1', completedUnits: ['Person', 'Date'] } },
     });
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
@@ -327,6 +329,7 @@ describe('claimed-job checkpoint (A3)', () => {
     h.pushEvent('job:claimed', {
       correlationId: h.claimAt(0).correlationId,
       response: { params: {}, metadata: {
+        id: 'jc-cursor', type: 'generation',
         userId: 'u1', completedUnits: [],
         unitCursors: { Person: { next: 12_400, size: 560, found: 20, emitted: 18 } },
       } },
@@ -351,6 +354,7 @@ describe('claimed-job checkpoint (A3)', () => {
     h.pushEvent('job:claimed', {
       correlationId: h.claimAt(0).correlationId,
       response: { params: {}, metadata: {
+        id: 'jc-cursor', type: 'generation',
         userId: 'u1', completedUnits: [],
         unitCursors: {
           Person: { next: 12_400, size: 560 },                              // pre-tally shape
@@ -374,7 +378,7 @@ describe('claimed-job checkpoint (A3)', () => {
     await new Promise((r) => setTimeout(r, 0));
     h.pushEvent('job:claimed', {
       correlationId: h.claimAt(0).correlationId,
-      response: { params: {}, metadata: { userId: 'u1' } },
+      response: { params: {}, metadata: { id: 'jc4', type: 'generation', userId: 'u1' } },
     });
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));

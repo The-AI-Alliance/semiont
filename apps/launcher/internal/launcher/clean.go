@@ -34,9 +34,10 @@ A --store clean keeps the secret.
 
 Options:
   --store <role>   Remove one store only: database, vectors, graph,
-                   anchored-text, or state (views + the gateway's jobs
-                   queue; views rebuild from the event log on next start,
-                   queued jobs are lost)
+                   anchored-text, jobs (the NATS queue — pending work is
+                   dropped; jobs are re-submittable), or state (views + the
+                   gateway's fs jobs queue; views rebuild from the event
+                   log on next start, queued jobs are lost)
   --root <value>   Another root: a path, a registered basename, or a state
                    key as listed by status --verbose (how orphaned state,
                    whose KB directory no longer exists, is named)

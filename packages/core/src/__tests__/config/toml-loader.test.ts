@@ -288,6 +288,57 @@ ${MINIMAL_TOML}`;
     expect(cfg.services.archivist).toBeUndefined();
   });
 
+  // JOB-QUEUE-DRIVER P2: jobQueueFor reads services.jobs to select the driver.
+  // The mapping is the missing middle — the same failure shape the archivist
+  // tests above pin: the cutover added the schema and the consumer, and a
+  // [jobs] section that parses but never reaches services means the driver
+  // silently stays 'fs' on every real stack, unrepresentable in unit tests
+  // that hand jobQueueFor a JobsServiceConfig literal.
+  it('maps [jobs] to services.jobs — type and servers pass through', () => {
+    const toml = `
+[environments.local.jobs]
+type = "jetstream"
+servers = "nats.internal:4222"
+${MINIMAL_TOML}`;
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+    expect(cfg.services.jobs).toEqual({
+      type: 'jetstream',
+      servers: 'nats.internal:4222',
+    });
+  });
+
+  it("emits no jobs service when the section is absent (the consumer's 'fs' default, until P3)", () => {
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
+    expect(cfg.services.jobs).toBeUndefined();
+  });
+
+  // Selection is stated, never inferred — and never silently defaulted. A
+  // [jobs] section that names no type would reach jobQueueFor as neither 'fs'
+  // nor 'jetstream' and fall through to the fs driver: exactly the silent
+  // fallback selection-by-config exists to prevent. Refuse at load, naming
+  // the fix.
+  it('refuses a [jobs] section that names no type', () => {
+    const toml = `
+[environments.local.jobs]
+servers = "nats.internal:4222"
+${MINIMAL_TOML}`;
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+      .toThrow(/\[environments\.local\.jobs\].*type/);
+  });
+
+  // The real config's servers value is a ${VAR} placeholder (the launcher
+  // renders the variable into the gateway's env). The loader's uniform
+  // resolution covers it like every other section — pin that end to end.
+  it('resolves ${VAR} placeholders in jobs.servers from the loader env', () => {
+    const toml = `
+[environments.local.jobs]
+type = "jetstream"
+servers = "\${NATS_HOST}:4222"
+${MINIMAL_TOML}`;
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), { NATS_HOST: '10.0.0.9' });
+    expect(cfg.services.jobs?.servers).toBe('10.0.0.9:4222');
+  });
+
   // SINGLE-KB-MOUNT D4: the launcher stages the KB's committed identity into
   // the config it hands a container, under its own TOP-LEVEL key — never
   // [site], whose domain an environment section can override into an identity

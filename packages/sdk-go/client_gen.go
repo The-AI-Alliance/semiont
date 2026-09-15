@@ -2976,10 +2976,10 @@ type JobCheckpointCommand struct {
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 }
 
-// JobClaimCommand Command to claim a pending job (atomic CAS: pending → running)
+// JobClaimCommand Claim the NEXT pending job matching one of the requested types (atomic: pending → running). Claim-by-type replaced claim-by-jobId (JOB-QUEUE-DRIVER P2, landed while every worker is first-party): a job:queued announcement is a WAKE-UP, not a reservation — the claimed job may differ from the announced one, and two workers claiming after one announcement both succeed on different jobs instead of racing for one. An empty `types` accepts any type. The reply channels are unchanged: job:claimed carries the claimed job; job:claim-failed reports nothing-available exactly as it reported already-claimed.
 type JobClaimCommand struct {
-	CorrelationId string `json:"correlationId"`
-	JobId         string `json:"jobId"`
+	CorrelationId string   `json:"correlationId"`
+	Types         []string `json:"types"`
 }
 
 // JobCommentAnnotationResult Result of a completed comment-annotation job.

@@ -1497,7 +1497,7 @@ func TestStopSweepsAllRuntimes(t *testing.T) {
 	}
 	checkGolden(t, "stop-all-runtimes.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"Sweeping 13 container(s) across container, docker, podman",
+		"Sweeping 14 container(s) across container, docker, podman",
 		"container: none found",
 		"docker: none found",
 		"podman: none found",
@@ -3885,7 +3885,7 @@ func TestStackStateLifecycle(t *testing.T) {
 	}
 	// EXACTLY these roles, not at-least: fleet growth must fail here (a
 	// census gate; main_test cannot reach the roles table to derive one).
-	wantRoles := []string{"traces", "metrics", "collector", "graph", "vectors", "inference", "embedding", "database",
+	wantRoles := []string{"traces", "metrics", "collector", "graph", "vectors", "jobs", "inference", "embedding", "database",
 		"gateway", "worker", "smelter", "weaver", "archivist", "librarian"}
 	if len(st.Services) != len(wantRoles) {
 		got := make([]string, 0, len(st.Services))
@@ -3905,6 +3905,15 @@ func TestStackStateLifecycle(t *testing.T) {
 		e, ok := st.Services[role]
 		if !ok {
 			t.Errorf("service %q missing from record", role)
+			continue
+		}
+		// A not-configured role (jobs, on a config with no [jobs] section)
+		// is recorded as "none" and owns nothing — that IS its record.
+		if e.Provided == "none" {
+			if e.Container != "" || e.ID != "" || e.Image != "" || e.Endpoint != "" {
+				t.Errorf("%s: recorded not-configured yet carries container %q / id %q / image %q / endpoint %q",
+					role, e.Container, e.ID, e.Image, e.Endpoint)
+			}
 			continue
 		}
 		if e.Endpoint == "" {
@@ -7036,4 +7045,26 @@ func TestStatusFlagsCwdKBDifferentFromRunningStack(t *testing.T) {
 	// Active stacks stay scannable in the slim section, addressed exactly
 	// as their rows in `semiont roots` — find one there in one glance.
 	mustContain(t, "active line", stdout, "active: file://"+other)
+}
+
+// JOB-QUEUE-DRIVER P2 (launcher lane): a config whose [environments.*.jobs]
+// section selects the jetstream driver boots NATS — stamped store, -js -sd,
+// product port 4222 — BEFORE the gateway, whose env carries NATS_HOST. The
+// no-jobs-section case is proven by every existing boot golden staying
+// byte-identical.
+func TestStartJetStreamJobsBoot(t *testing.T) {
+	s := newScenario(t, "container")
+	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
+	b, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = append(b, []byte("\n[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${NATS_HOST}:4222\"\n")...)
+	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "jetstream.toml"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, stderr, code := s.run(t, "start", "--config", "jetstream"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	checkGolden(t, "start-jetstream-jobs-boot.argv", s.argv(t))
 }

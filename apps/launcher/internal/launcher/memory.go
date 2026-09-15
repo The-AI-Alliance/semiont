@@ -61,7 +61,7 @@ func startCeilingsGB(plan *launchPlan, opts startOptions) float64 {
 	if plan == nil {
 		return sum
 	}
-	for _, role := range []string{"graph", "vectors", "database"} {
+	for _, role := range []string{"graph", "vectors", "database", "jobs"} {
 		if plan.Roles[role].Obligation == obligationProvided {
 			sum += memCeilingGB(roles[role].mem)
 		}

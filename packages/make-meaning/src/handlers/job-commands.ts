@@ -164,34 +164,20 @@ export function registerJobCommandHandlers(
   });
 
   eventBus.get('job:claim').subscribe(async (command) => {
-    const { correlationId, jobId: jid } = command;
+    const { correlationId, types } = command;
 
     try {
-      const job = await jobQueue.getJob(jobId(jid as string)) as {
-        metadata: Record<string, unknown>;
-        status: string;
-        params: unknown;
-      } | null;
-
-      if (!job) {
-        throw new Error('Job not found');
+      // One atomic operation, by TYPE (JOB-QUEUE-DRIVER P0/P2): the
+      // announcement was only a wake-up, so the worker asks for the next
+      // job it can run rather than racing others for a specific id.
+      const result = await jobQueue.claimNextJob(Array.isArray(types) ? types.filter((t): t is string => typeof t === 'string') : []);
+      if ('declined' in result) {
+        throw new Error('No pending job of the requested types');
       }
-      if (job.status !== 'pending') {
-        throw new Error('Job already claimed');
-      }
-
-      const runningJob = {
-        ...job,
-        status: 'running' as const,
-        startedAt: new Date().toISOString(),
-        progress: {},
-      };
-
-      await jobQueue.updateJob(runningJob as never, 'pending');
 
       eventBus.get('job:claimed').next({
         correlationId,
-        response: runningJob,
+        response: { ...result.job },
       });
     } catch (error) {
       eventBus.get('job:claim-failed').next({

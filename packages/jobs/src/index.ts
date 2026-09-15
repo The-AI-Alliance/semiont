@@ -13,6 +13,7 @@
 // Job Queue
 export type { JobQueue } from './job-queue-interface';
 export { FsJobQueue } from './fs-job-queue';
+export { JetStreamJobQueue, type JetStreamJobQueueOptions } from './jetstream-job-queue';
 
 // Types
 export type {

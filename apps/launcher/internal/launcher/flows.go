@@ -23,7 +23,7 @@ type flowCtx struct {
 
 var depRoleTitles = map[string]string{
 	"graph": "Graph", "vectors": "Vectors", "database": "Database",
-	"embedding": "Embedding",
+	"embedding": "Embedding", "jobs": "Job Queue",
 }
 
 // flowFullStart is THE full-start sequence: preflight → ports → staging →
@@ -165,6 +165,12 @@ func flowFullStart(x executor, fc flowCtx) int {
 	if code := flowDepRole(x, "database", fc, addr); code != 0 {
 		return code
 	}
+	// The jobs broker (NATS, when the config selects the jetstream driver)
+	// is a gateway dependency like Postgres: the gateway's job queue dials
+	// it at boot. Absent config = the in-gateway fs driver; nothing runs.
+	if code := flowDepRole(x, "jobs", fc, addr); code != 0 {
+		return code
+	}
 
 	secret, ok := x.workerSecret()
 	if !ok {
@@ -291,6 +297,18 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	if role == "embedding" && rp.Obligation == obligationHostProcess {
 		return flowOllama(x, fc, "embedding", rp, addr)
 	}
+	// jobs without a [jobs] section is a WORKING DEFAULT, not a gap: the
+	// gateway's built-in fs queue serves the stack (JOB-QUEUE-DRIVER P2;
+	// P3 retires that driver and flips this to a refusal like vectors').
+	// The generic "not configured; skipping" banner block read as a
+	// misconfiguration to the first person who saw it — say what IS
+	// running instead, in one line, no banner.
+	if role == "jobs" && rp.Obligation == obligationAbsent {
+		x.say(sayLog, "jobs — fs driver: the gateway's built-in queue serves this stack; nothing to launch")
+		x.note("jobs: fs driver (the gateway's built-in queue) — nothing to launch")
+		x.record(role, "", "", providedNone, "", "fs")
+		return 0
+	}
 	disp := driverDisplay(role, rp.Driver)
 	x.banner(depRoleTitles[role] + " (" + disp + ")")
 	switch rp.Obligation {
@@ -327,12 +345,22 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			x.say(sayOK, "vectors — http://localhost:%d %s", rp.Port, x.dim("("+took(d)+")"))
 			x.record(role, id, rp.Image, providedLauncher, fmt.Sprintf("http://localhost:%d/readyz", rp.Port), rp.Driver)
 		case "database":
-			d, ok := x.waitPG(addr, rp.Port, 20)
+			d, ok := x.waitTCP("PostgreSQL", addr, rp.Port, 20)
 			if !ok {
 				x.dumpLogs(roles["database"].container, "database")
 				return 1
 			}
 			x.say(sayOK, "database — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
+			x.record(role, id, rp.Image, providedLauncher, fmt.Sprintf("tcp:localhost:%d", rp.Port), rp.Driver)
+		case "jobs":
+			// Same two-phase wait as Postgres: TCP up, then reachable on
+			// the container path the gateway will dial.
+			d, ok := x.waitTCP("NATS", addr, rp.Port, 15)
+			if !ok {
+				x.dumpLogs(roles["jobs"].container, "jobs")
+				return 1
+			}
+			x.say(sayOK, "jobs — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
 			x.record(role, id, rp.Image, providedLauncher, fmt.Sprintf("tcp:localhost:%d", rp.Port), rp.Driver)
 		}
 	case obligationAbsent:
@@ -759,7 +787,7 @@ func flowOneService(x executor, fc flowCtx) int {
 			return 1
 		}
 		x.record(svc, id, args[len(args)-1], providedLauncher, serviceEndpoint(svc, fc.plan), "jaeger")
-	case "graph", "vectors", "database":
+	case "graph", "vectors", "database", "jobs":
 		rp := fc.plan.Roles[svc]
 		disp := driverDisplay(svc, rp.Driver)
 		// The same persistence rules as a full start (LAUNCHER-STATE.md): a
@@ -787,8 +815,13 @@ func flowOneService(x executor, fc flowCtx) int {
 				return 1
 			}
 		case "database":
-			if d, ok = x.waitPG(addr, rp.Port, 20); !ok {
+			if d, ok = x.waitTCP(disp, addr, rp.Port, 20); !ok {
 				x.dumpLogs(roles["database"].container, "database")
+				return 1
+			}
+		case "jobs":
+			if d, ok = x.waitTCP(disp, addr, rp.Port, 15); !ok {
+				x.dumpLogs(roles["jobs"].container, "jobs")
 				return 1
 			}
 		}

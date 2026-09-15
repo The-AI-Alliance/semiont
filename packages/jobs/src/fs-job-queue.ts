@@ -13,6 +13,7 @@ import type { SemiontState } from '@semiont/core/node';
 import { jobId as toJobId, type JobId, type Logger, type EventBus, type UnitCursor } from '@semiont/core';
 import type { JobQueue } from './job-queue-interface';
 import { willRetryAfter } from './will-retry';
+import { mergeUnitCursors } from './checkpoint-merge';
 
 /**
  * How often pending jobs are re-announced on `job:queued` and stale
@@ -40,42 +41,6 @@ const STALE_RUNNING_MS = 30 * 60_000;
 
 /** Minimum spacing between progress writes per job — workers can be chatty. */
 const PROGRESS_WRITE_MIN_INTERVAL_MS = 5_000;
-
-/**
- * Merge per-unit cursors monotonically (CHUNK-GRAIN-RESUME P2).
- *
- * `completedUnits` is a set, so unioning it converges under concurrent
- * snapshots for free — a set only grows. A cursor has no such property: two
- * checkpoints can be in flight at once and the OLDER one can land last, so a
- * last-writer-wins would drag the resume position backward and the retry would
- * re-pay for chunks it already committed. Keeping the furthest `next` per unit
- * is what makes the merge order-independent.
- *
- * `next` and `size` move together because they are ONE observation of one
- * chunk. Taking the furthest `next` from one snapshot and the `size` from
- * another would describe a chunk that was never cut.
- *
- * A unit in `completed` has no cursor at all: "in progress, here" and
- * "finished" are then structurally exclusive rather than a rule each reader has
- * to remember, and a stale snapshot cannot resurrect a finished unit's cursor.
- */
-function mergeUnitCursors(
-  existing: Record<string, UnitCursor> | undefined,
-  incoming: Record<string, UnitCursor> | undefined,
-  completed: string[],
-): Record<string, UnitCursor> {
-  const done = new Set(completed);
-  const merged: Record<string, UnitCursor> = {};
-  for (const [unit, cursor] of Object.entries({ ...existing })) {
-    if (!done.has(unit)) merged[unit] = cursor;
-  }
-  for (const [unit, cursor] of Object.entries({ ...incoming })) {
-    if (done.has(unit)) continue;
-    const held = merged[unit];
-    if (!held || cursor.next > held.next) merged[unit] = cursor;
-  }
-  return merged;
-}
 
 /** Terminal jobs (complete/failed/cancelled) are pruned after this long. */
 const RETENTION_HOURS = 24;
@@ -237,9 +202,50 @@ export class FsJobQueue implements JobQueue {
   }
 
   /**
+   * Serializes claims. This driver's atomicity is single-process by design,
+   * but `claimJob`'s contract must hold even against interleaved awaits in
+   * that one process — a read-check-write with await points in it can admit
+   * two winners without this chain (the TOCTOU the operation exists to kill).
+   */
+  private claimChain: Promise<unknown> = Promise.resolve();
+
+  async claimNextJob(types: string[]): Promise<{ job: AnyJob } | { declined: 'none-available' }> {
+    const claim = this.claimChain.then(() => this.doClaimNext(types));
+    // A failed claim must not wedge every later one.
+    this.claimChain = claim.catch(() => undefined);
+    return claim;
+  }
+
+  private async doClaimNext(types: string[]): Promise<{ job: AnyJob } | { declined: 'none-available' }> {
+    const pending = await this.listJobs({ status: 'pending', limit: Number.MAX_SAFE_INTEGER });
+    const match = pending.find((j) => types.length === 0 || types.includes(j.metadata.type));
+    if (!match) return { declined: 'none-available' };
+
+    // Progress starts empty: a just-claimed job has reported nothing yet.
+    // The typed progress shapes describe REPORTS, and the first report
+    // arrives from the worker via recordProgress.
+    const running: RunningJob<any, any> = {
+      status: 'running',
+      metadata: match.metadata,
+      params: match.params,
+      startedAt: new Date().toISOString(),
+      progress: {},
+    };
+    await this.transition(running, 'pending');
+    return { job: running };
+  }
+
+  /**
    * Update a job (atomic: delete old, write new)
    */
-  async updateJob(job: AnyJob, oldStatus?: JobStatus): Promise<void> {
+  /**
+   * Cross-status move (or in-place rewrite): delete old slot, write new.
+   * Private — the interface exposes named transitions only (JOB-QUEUE-DRIVER
+   * P0); a generic public patch is trivial on files and impossible on an
+   * in-flight message, so no driver may offer one. Re-entering `pending`
+   * announces, which is how failJob's retry reaches a listening worker.
+   */
+  private async transition(job: AnyJob, oldStatus?: JobStatus): Promise<void> {
     // If oldStatus provided, delete from old location
     if (oldStatus && oldStatus !== job.status) {
       const oldPath = this.getJobPath(job.metadata.id, oldStatus);
@@ -285,7 +291,7 @@ export class FsJobQueue implements JobQueue {
       completedAt: new Date().toISOString(),
       result,
     };
-    await this.updateJob(completed, 'running');
+    await this.transition(completed, 'running');
     return true;
   }
 
@@ -332,7 +338,7 @@ export class FsJobQueue implements JobQueue {
         metadata: { ...metadata, retryCount: job.metadata.retryCount + 1 },
         params: job.params,
       };
-      await this.updateJob(retried, 'running');
+      await this.transition(retried, 'running');
       return 'retried';
     }
 
@@ -348,7 +354,7 @@ export class FsJobQueue implements JobQueue {
       completedAt: new Date().toISOString(),
       error,
     };
-    await this.updateJob(failed, 'running');
+    await this.transition(failed, 'running');
     return 'failed';
   }
 
@@ -486,7 +492,7 @@ export class FsJobQueue implements JobQueue {
       completedAt: new Date().toISOString(),
     };
 
-    await this.updateJob(cancelledJob, oldStatus);
+    await this.transition(cancelledJob, oldStatus);
     return true;
   }
 

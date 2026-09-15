@@ -35,7 +35,8 @@
     "@semiont/http-transport": "*",
     "@semiont/inference": "*",
     "@semiont/observability": "*",
-    "@semiont/sdk": "*"
+    "@semiont/sdk": "*",
+    "nats": "^2.29.3"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.11",

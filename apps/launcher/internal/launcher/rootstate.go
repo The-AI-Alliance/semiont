@@ -162,6 +162,18 @@ var stateStores = map[string]stateStoreSpec{
 		projection: true,
 		owner:      "smelter",
 	},
+	// JetStream's data dir (streams + KV buckets, one daemon). projection:
+	// true is a DECISION, not an inheritance (JOB-QUEUE-DRIVER P2): queued
+	// work is clearable operational state — jobs survive restarts via the
+	// mount, a deliberate clear drops re-submittable work, and job state
+	// stays out of KB exports. Same classification the jobs dir had on the
+	// state store.
+	"jobs": {
+		dir:        "nats",
+		mounts:     []stateMount{{"", "/data"}},
+		projection: true,
+		owner:      "jobs",
+	},
 	// The XDG state tree, shared across the Archivist (projection writer —
 	// owns the stamp), the librarian (reads views), and the gateway (jobs
 	// queue).

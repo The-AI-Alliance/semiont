@@ -1,4 +1,4 @@
-import type { AnyJob, JobStatus } from './types';
+import type { AnyJob } from './types';
 import type { JobId, UnitCursor } from '@semiont/core';
 
 export interface JobQueue {
@@ -6,7 +6,18 @@ export interface JobQueue {
   destroy(): void;
   createJob(job: AnyJob): Promise<void>;
   getJob(jobId: JobId): Promise<AnyJob | null>;
-  updateJob(job: AnyJob, oldStatus?: JobStatus): Promise<void>;
+  /**
+   * Atomically claim the NEXT pending job matching one of `types` — the ONE
+   * transition that makes this a queue rather than a state store
+   * (JOB-QUEUE-DRIVER P0; reshaped claim-by-TYPE in P2, while every worker
+   * is still ours). pending → running, `startedAt` stamped, progress empty.
+   * An announcement is a WAKE-UP, not a reservation: the claimed job may
+   * differ from any announced one, no ordering among matching pending jobs
+   * is promised, and an empty `types` accepts any type. Simultaneous claims
+   * admit one winner PER pending job; a claim that finds nothing is
+   * DECLINED (`none-available`), never an error.
+   */
+  claimNextJob(types: string[]): Promise<{ job: AnyJob } | { declined: 'none-available' }>;
   /** Move a running job to `complete`. Returns false if the job isn't running. */
   completeJob(jobId: JobId, result: Record<string, unknown>): Promise<boolean>;
   /**

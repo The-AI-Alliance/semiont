@@ -21,7 +21,7 @@ import (
 // launcher injects itself and never demands from the user.
 var injectedVars = map[string]bool{
 	"GATEWAY_HOST": true, "BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
-	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "SEMIONT_WORKER_SECRET": true,
+	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "NATS_HOST": true, "SEMIONT_WORKER_SECRET": true,
 }
 
 var envRefRe = regexp.MustCompile(`\$\{[A-Z_][A-Z0-9_]*\}`)
@@ -86,8 +86,11 @@ type envConfig struct {
 	Embedding  *embeddingCfg          `toml:"embedding"`
 	Inference  map[string]providerCfg `toml:"inference"`
 	Database   *databaseCfg           `toml:"database"`
-	Actors     map[string]bindingCfg  `toml:"actors"`
-	Workers    map[string]bindingCfg  `toml:"workers"`
+	// Jobs selects the gateway's job-queue driver (JOB-QUEUE-DRIVER P2).
+	// Absent = the in-gateway fs driver; nothing to launch.
+	Jobs    *jobsCfg              `toml:"jobs"`
+	Actors  map[string]bindingCfg `toml:"actors"`
+	Workers map[string]bindingCfg `toml:"workers"`
 	// Site is read ONLY to detect that it exists (KB-IDENTITY-VS-ADDRESS P4).
 	// The launcher never writes one — confgen.go emits no [site] section — so
 	// its presence means a human added it, and the gateway's TOML loader then
@@ -150,6 +153,14 @@ type databaseCfg struct {
 	User     string `toml:"user"`
 	Password string `toml:"password"`
 	Image    string `toml:"image"` // optional: override the catalog's default image
+}
+
+// jobsCfg mirrors the TypeScript JobsServiceConfig: type "fs" | "jetstream",
+// and for jetstream a servers address whose host may be the launcher-injected
+// ${NATS_HOST} (provided) or anything else (externally provided broker).
+type jobsCfg struct {
+	Type    string `toml:"type"`
+	Servers string `toml:"servers"`
 }
 
 type bindingCfg struct {

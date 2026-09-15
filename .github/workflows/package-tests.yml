@@ -45,6 +45,17 @@ jobs:
       - name: Install dependencies
         run: npm ci --include=optional
 
+      # The JetStream conformance suite (JOB-QUEUE-DRIVER P1) runs against a
+      # real nats-server spawned from PATH — a mocked broker would prove
+      # nothing about claim atomicity, CAS merges, or redelivery.
+      - name: Install nats-server (jobs only)
+        if: matrix.package == 'jobs'
+        run: |
+          NATS_VERSION=v2.14.0
+          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+
       - name: Build package dependencies only
         run: |
           # Only build packages that this package actually depends on at test-time

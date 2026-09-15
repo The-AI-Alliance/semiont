@@ -41,7 +41,7 @@ type executor interface {
 	pull(img string) bool
 	runDetached(args []string) (string, bool)                      // echo + run -d; returns runtime-reported id
 	waitHTTP(label, url string, seconds int) (time.Duration, bool) // wall-clock budget, not attempts
-	waitPG(addr string, port, seconds int) (time.Duration, bool)
+	waitTCP(label, addr string, port, seconds int) (time.Duration, bool)
 	probeTCP(role string, rp rolePlan) bool // external-role reachability
 	gatewayReachable(addr string, port int) bool
 	resolveAddr() (string, bool) // container→host address ("<host-addr>" in plan mode)
@@ -478,8 +478,8 @@ func (x *liveExec) waitHTTP(label, url string, seconds int) (time.Duration, bool
 	return waitForHTTP(x.u, label, url, seconds)
 }
 
-func (x *liveExec) waitPG(addr string, port, seconds int) (time.Duration, bool) {
-	return waitForPG(x.u, x.rt, addr, port, seconds)
+func (x *liveExec) waitTCP(label, addr string, port, seconds int) (time.Duration, bool) {
+	return waitForTCP(x.u, x.rt, label, addr, port, seconds)
 }
 
 func (x *liveExec) probeTCP(role string, rp rolePlan) bool {
@@ -993,7 +993,7 @@ func (x *planExec) waitHTTP(_, url string, seconds int) (time.Duration, bool) {
 	return 0, true
 }
 
-func (x *planExec) waitPG(addr string, port, seconds int) (time.Duration, bool) {
+func (x *planExec) waitTCP(_, addr string, port, seconds int) (time.Duration, bool) {
 	x.c("wait: tcp localhost:%d (%ds)", port, seconds)
 	x.c("probe: %s run --rm busybox:1.38.0 nc -z -w 2 %s %d", x.rt, addr, port)
 	return 0, true

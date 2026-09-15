@@ -31,7 +31,7 @@ func configFreeService(svc string) bool {
 }
 
 var preflightNames = []string{
-	"semiont-otel-collector", "semiont-prometheus", "semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-postgres",
+	"semiont-otel-collector", "semiont-prometheus", "semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-nats", "semiont-postgres",
 	"semiont-gateway", "semiont-worker", "semiont-smelter", "semiont-weaver",
 	"semiont-archivist", "semiont-librarian",
 }
@@ -809,6 +809,7 @@ func gatewayArgs(stage, addr, secret, jwt, version string, port int, userEnv, ot
 	a = append(a,
 		"--env", "POSTGRES_HOST="+addr,
 		"--env", "NEO4J_HOST="+addr,
+		"--env", "NATS_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "OLLAMA_HOST="+addr,
 		// XDG_STATE_HOME rides in argv, NOT as an image ENV like
@@ -861,6 +862,7 @@ func sidecarArgs(svc string, port int, stage, addr, secret, version string, user
 	a = append(a,
 		"--env", "OLLAMA_HOST="+addr,
 		"--env", "NEO4J_HOST="+addr,
+		"--env", "NATS_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "POSTGRES_HOST="+addr,
 		// Interpolation requirement only: loadEnvironmentConfig expands the
@@ -893,6 +895,7 @@ func archivistArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []
 	a = append(a,
 		"--env", "OLLAMA_HOST="+addr,
 		"--env", "NEO4J_HOST="+addr,
+		"--env", "NATS_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "POSTGRES_HOST="+addr,
 		"--env", "XDG_STATE_HOME=/semiont-state",
@@ -923,6 +926,7 @@ func librarianArgs(stage, addr, secret, version string, userEnv, otel []string, 
 	a = append(a,
 		"--env", "OLLAMA_HOST="+addr,
 		"--env", "NEO4J_HOST="+addr,
+		"--env", "NATS_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "POSTGRES_HOST="+addr,
 		"--env", "XDG_STATE_HOME=/semiont-state",

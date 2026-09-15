@@ -181,7 +181,7 @@ func (u *ui) stamp(event string) {
 // well-known local-dev values the summary table prints anyway.)
 var echoEnvAllowlist = map[string]bool{
 	"GATEWAY_HOST": true, "BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
-	"OLLAMA_HOST": true, "POSTGRES_HOST": true,
+	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "NATS_HOST": true,
 	"OTEL_EXPORTER_OTLP_ENDPOINT": true,
 }
 
@@ -436,14 +436,14 @@ func waitForHTTPTick(u *ui, name, url string, seconds int, tick func(elapsed tim
 	return time.Since(t0), false
 }
 
-// waitForPG waits for Postgres in two phases. Phase 1 polls the published
+// waitForTCP waits for a TCP service in two phases. Phase 1 polls the published
 // port from the host — no container spawn per attempt (the old pg_isready-in-
 // a-container loop cost a fresh VM per attempt under Apple Container).
 // Port-open implies ready with the official postgres image: its init-time
 // temporary server listens on the unix socket only, so TCP 5432 opens only
 // when the real server is up. Phase 2 is a single container-side probe
 // confirming the gateway path the services actually dial.
-func waitForPG(u *ui, rt, host string, port, seconds int) (time.Duration, bool) {
+func waitForTCP(u *ui, rt, label, host string, port, seconds int) (time.Duration, bool) {
 	t0 := time.Now()
 	deadline := t0.Add(time.Duration(seconds) * time.Second)
 	up := false
@@ -462,11 +462,11 @@ func waitForPG(u *ui, rt, host string, port, seconds int) (time.Duration, bool) 
 		time.Sleep(pollDelay(time.Since(t0)))
 	}
 	if !up {
-		u.fail("PostgreSQL did not open port %d within %ds (waited %s).", port, seconds, took(time.Since(t0)))
+		u.fail("%s did not open port %d within %ds (waited %s).", label, port, seconds, took(time.Since(t0)))
 		return time.Since(t0), false
 	}
 	if runSilent(rt, "run", "--rm", "busybox:1.38.0", "nc", "-z", "-w", "2", host, fmt.Sprintf("%d", port)) != nil {
-		u.fail("PostgreSQL is up on localhost:%d but not reachable from containers at %s:%d.", port, host, port)
+		u.fail("%s is up on localhost:%d but not reachable from containers at %s:%d.", label, port, host, port)
 		return time.Since(t0), false
 	}
 	return time.Since(t0), true
