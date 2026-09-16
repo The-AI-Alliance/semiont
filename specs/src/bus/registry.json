@@ -3862,10 +3862,14 @@
     "bodyComment": "  // Currently empty. `job:complete` / `job:fail` were moved to GLOBAL,\n  // `jobId`-keyed correlation delivery (#847): the dispatching caller\n  // filters by `jobId`, and resource viewers filter the same global stream\n  // by `resourceId` — no resource-scoped copy, so a client that is both\n  // dispatcher and viewer no longer receives it twice. This set remains as\n  // the extension point for *genuine* resource-bound broadcasts — events\n  // every viewer of a resource should see and no single caller owns (e.g.\n  // resource-generation progress for multiple viewers)."
   },
   "outboundCommands": {
-    "doc": "/**\n * Fire-and-forget commands toward the hub: emitted by a REMOTE process (the\n * worker's checkpoint and cancel), consumed by a gateway-resident handler, with\n * no reply pair — so they fit neither `operations` (which would demand replies)\n * nor `bridgedBroadcasts` (they fan IN, not out). Direction: outbound.\n */",
+    "doc": "/**\n * Wire-crossing frames OUTSIDE operations and broadcasts: no reply pair, and\n * consumed by the specific subscriber that wants them, never auto-subscribed\n * by every client. Three shapes live here: remote fire-and-forget commands\n * (the worker's checkpoint/cancel/start), the gateway's own relays\n * (mark:update-body toward the Stower), and wire-republished facts with one\n * targeted consumer (the fact pump's mark:body-updated for the bind reply;\n * the Weaver's weave:applied for the Librarian) — NOT bridgedBroadcasts,\n * which would globally auto-subscribe every browser and, for persisted\n * per-resource events, recreate the BRIDGE-GAPS double-delivery shape the\n * core invariants gate refuses. Direction: outbound.\n */",
     "channels": [
       "job:checkpoint",
-      "job:cancel"
+      "job:cancel",
+      "job:start",
+      "mark:update-body",
+      "mark:body-updated",
+      "weave:applied"
     ]
   },
   "inProcess": {
@@ -3878,13 +3882,11 @@
       "yield:move-failed",
       "mark:added",
       "mark:removed",
-      "mark:body-updated",
       "mark:entity-tag-added",
       "mark:entity-tag-removed",
       "mark:archived",
       "mark:unarchived",
       "mark:create",
-      "mark:update-body",
       "mark:body-update-failed",
       "mark:select-comment",
       "mark:select-tag",
@@ -3914,8 +3916,6 @@
       "job:started",
       "job:completed",
       "job:failed",
-      "job:start",
-      "weave:applied",
       "settings:theme-changed",
       "settings:line-numbers-toggled",
       "settings:locale-changed",
