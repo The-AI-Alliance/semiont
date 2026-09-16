@@ -24,6 +24,11 @@ export function workerBusOverEventBus(eventBus: EventBus): WorkerBus {
     stream: <K extends keyof EventMap>(channel: K): Observable<EventMap[K]> =>
       eventBus.get(channel).asObservable(),
 
+    // Every channel: this bus delivers every emit, so nothing can be outside
+    // its receive path. The true answer, not a stub — which is why the member
+    // is required rather than omitted.
+    isSubscribed: () => true,
+
     // In-process delivery is synchronous — there is no attach window to
     // lose a reply in, so `'open'` is the true state, not a stub. Post-
     // destroy use is guarded upstream: `eventBus.get()` throws on a

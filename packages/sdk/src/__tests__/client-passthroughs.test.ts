@@ -66,6 +66,8 @@ function makeMockTransport(): ITransport {
     healthCheck: vi.fn(),
     getStatus: vi.fn(),
     dispose: vi.fn(),
+    // Delivers whatever the test pushes at it — true of this double.
+    isSubscribed: () => true,
   } as unknown as ITransport;
 }
 

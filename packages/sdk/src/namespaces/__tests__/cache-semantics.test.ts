@@ -236,6 +236,8 @@ function createHarness(opts: HarnessOptions = {}) {
     bridgeInto: vi.fn(),
     state$: (opts.state$ ?? new BehaviorSubject<ConnectionState>('open')).asObservable() as never,
     dispose: vi.fn(),
+    // Delivers whatever the test pushes at it — true of this double.
+    isSubscribed: () => true,
   } as unknown as ITransport;
 
   const content: IContentTransport = {

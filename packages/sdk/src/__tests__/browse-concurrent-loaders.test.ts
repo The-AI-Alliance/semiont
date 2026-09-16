@@ -72,6 +72,10 @@ function makeComposingTransport(opts: { failFirstResourceFetchFor?: string } = {
   let pendingFailure = opts.failFirstResourceFetchFor;
 
   const transport = {
+
+    // Delivers whatever the test pushes at it — true of this double.
+
+    isSubscribed: () => true,
     baseUrl: 'http://test',
     emit: async (channel: string, payload: Record<string, unknown>) => {
       const rid = payload.resourceId as string;

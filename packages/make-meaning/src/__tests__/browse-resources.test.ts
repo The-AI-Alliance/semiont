@@ -4,8 +4,8 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { BusRequestError, type BusRequestPrimitive } from '@semiont/core';
-import { BehaviorSubject, Subject, Observable } from 'rxjs';
+import { BusRequestError, type BusRequestPrimitive, type ConnectionState } from '@semiont/core';
+import { BehaviorSubject, Subject } from 'rxjs';
 import { browseAllResources, RESOURCE_LISTING_RETRY } from '../browse-resources';
 import { retryBudgetMs, STARTUP_FETCH_RETRY } from '@semiont/core';
 import { EMBEDDING_PROVIDER_RETRY, EMBED_ROUND_TRIP_TIMEOUT_MS } from '@semiont/vectors';
@@ -24,8 +24,15 @@ function scriptedBus(replies: ScriptedReply[]) {
   const result = new Subject<Record<string, unknown>>();
   let call = 0;
 
-  const bus = {
-    state$: new BehaviorSubject('open').asObservable(),
+  // Typed as `BusRequestPrimitive`, not cast to it. The `as unknown as`
+  // double-cast this replaces hid a missing member from `tsc` — when
+  // `isSubscribed` became required (2026-09-16) the compiler said nothing and
+  // five tests failed at runtime with `bus.isSubscribed is not a function`.
+  // A cast to make a double compile hides the next gap the same way.
+  const bus: BusRequestPrimitive = {
+    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
+    // This double answers every channel from its scripted subjects.
+    isSubscribed: () => true,
     emit: vi.fn(async (_channel: unknown, payload: unknown) => {
       const p = payload as Record<string, unknown>;
       emitted.push(p);
@@ -46,9 +53,9 @@ function scriptedBus(replies: ScriptedReply[]) {
       return 1;
     }),
     stream: vi.fn((channel: unknown) =>
-      ((channel as string) === 'browse:resources-result' ? result : failure).asObservable() as unknown as Observable<never>,
-    ),
-  } as unknown as BusRequestPrimitive;
+      ((channel as string) === 'browse:resources-result' ? result : failure).asObservable(),
+    ) as BusRequestPrimitive['stream'],
+  };
 
   return { bus, emitted };
 }

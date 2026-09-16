@@ -141,6 +141,15 @@ export class LocalTransport implements ITransport {
     return this.bus.get(channel);
   }
 
+  /**
+   * Every channel: delivery here is bus-direct, so the receive path carries
+   * anything asked of it. The true answer for an in-process transport, which
+   * is why `isSubscribed` is a required member rather than an omitted one.
+   */
+  isSubscribed(_channel: keyof EventMap): boolean {
+    return true;
+  }
+
   subscribeToResource(_resourceId: ResourceId): () => void {
     // Local events are not scope-gated for delivery; emits to a scoped
     // channel still land on `bus.scope(...)` and any subscriber to that

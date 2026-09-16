@@ -45,7 +45,7 @@ import type {
   UpdateUserResponse,
   ListUsersResponse,
 } from '@semiont/core';
-import { BRIDGED_CHANNELS, RETRY_RULES } from '@semiont/core';
+import { BRIDGED_CHANNELS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS } from '@semiont/core';
 
 type AuthResponse = components['schemas']['AuthResponse'];
 type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
@@ -53,16 +53,6 @@ type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
 type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
 
 // ── Channel constants (mirror client.ts) ────────────────────────────────
-
-export const RESOURCE_SCOPED_CHANNELS = [
-  // Exclude channels already globally bridged: a channel in both lists is
-  // forwarded twice on a scoped connection (global copy → ephemeral id, scoped
-  // copy → persisted id) with different SSE ids, escaping the client dedup
-  // (.plans/bugs/BRIDGE-GAPS.md). Generalizes the former one-off
-  // `frame:entity-type-added` exclusion.
-  ...PERSISTED_EVENT_TYPES.filter((t) => !(BRIDGED_CHANNELS as readonly string[]).includes(t)),
-  ...RESOURCE_BROADCAST_TYPES,
-];
 
 export type TokenRefresher = () => Promise<string | null>;
 

@@ -21,6 +21,8 @@ function inertTransport(): ITransport {
     state$: new BehaviorSubject<ConnectionState>('open'),
     errors$: new Subject(),
     dispose: () => {},
+    // Delivers whatever the test pushes at it — true of this double.
+    isSubscribed: () => true,
   } as unknown as ITransport;
 }
 

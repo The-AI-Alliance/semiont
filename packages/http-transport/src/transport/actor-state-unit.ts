@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, equalJitter, isRetryableRequestError, type components, type ConnectionState, type EventMap, type StateUnit, type RetryPolicy } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type components, type ConnectionState, type EventMap, type StateUnit, type RetryPolicy } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -756,6 +756,28 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
   return {
     stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
+      // A channel this connection does not carry can never fire, and a
+      // stream that never fires is indistinguishable from a quiet system:
+      // on 2026-09-16 every worker sat idle on `stream('job:queued')` while
+      // the frame flowed on the broker, and the only tell was a null
+      // timestamp on /health. Refuse AT THE CALL, naming the channel.
+      //
+      // The question is wider than `isSubscribed`, which answers for the
+      // global set alone — correlated replies ride global channels, so that
+      // is the right question for `busRequest` and the wrong one here.
+      //
+      // A SCOPABLE channel passes even with no scope joined yet: `bridgeInto`
+      // wires every scoped channel up front so frames flow the moment a scope
+      // is subscribed, and that pre-wiring is correct. Asking the live scope
+      // entries instead would refuse the bridge its own subscription.
+      const scopable = (RESOURCE_SCOPED_CHANNELS as readonly string[]).includes(channel);
+      if (!globalChannels.has(channel) && !scopable) {
+        throw new BusRequestError(
+          `Transport is not subscribed to ${channel as string} — a frame on it can never arrive on this connection. Add the channel to this client's manifest.`,
+          'bus.unsubscribed',
+          { channel },
+        );
+      }
       return shared$.pipe(
         filter((e) => e.channel === channel),
         // The ONE surviving assertion, and the only honest one: SSE frames

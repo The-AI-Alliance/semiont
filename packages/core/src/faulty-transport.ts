@@ -213,6 +213,15 @@ export class FaultyTransport implements ITransport {
     return this.bus.get(channel);
   }
 
+  /**
+   * Every channel: delivery here is bus-direct, so the receive path carries
+   * anything asked of it. The true answer for an in-process transport, which
+   * is why `isSubscribed` is a required member rather than an omitted one.
+   */
+  isSubscribed(_channel: keyof EventMap): boolean {
+    return true;
+  }
+
   subscribeToResource(_rid: ResourceId): () => void {
     // Mirrors the real HttpTransport: distinct scopes COMPOSE
     // (MULTI-RESOURCE-SCOPE). Delivery here is bus-direct and never

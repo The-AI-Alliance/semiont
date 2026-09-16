@@ -55,6 +55,10 @@ function makeFakeTransport() {
   let onEmit: ((channel: string, payload: Record<string, unknown>) => void) | undefined;
 
   const transport = {
+
+    // Delivers whatever the test pushes at it — true of this double.
+
+    isSubscribed: () => true,
     baseUrl: 'http://test',
     emit: async (channel: string, payload: Record<string, unknown>) => {
       onEmit?.(channel, payload);

@@ -34,6 +34,8 @@ function makeFakeTransport() {
   // observably different from a cached one.
   let n = 0;
   const transport = {
+    // Delivers whatever the test pushes at it — true of this double.
+    isSubscribed: () => true,
     baseUrl: 'http://test',
     emit: async (channel: string, payload: Record<string, unknown>) => {
       if (channel === 'browse:annotations-requested') {

@@ -40,6 +40,10 @@ function makeFakeTransport() {
   const subscribeToResource = vi.fn((_rId: ResourceId) => () => {});
 
   const transport = {
+
+    // Delivers whatever the test pushes at it — true of this double.
+
+    isSubscribed: () => true,
     baseUrl: 'http://test',
     subscribeToResource,
     emit: async (channel: string, payload: Record<string, unknown>) => {

@@ -20,6 +20,10 @@ export function asBusRequestPrimitive(eventBus: EventBus): BusRequestPrimitive {
     stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
       return eventBus.get(channel).asObservable();
     },
+    // Every channel: an in-process bus delivers every emit, so the receive
+    // path carries anything asked of it. The true answer, which is why this
+    // is a required member rather than an omitted one.
+    isSubscribed: () => true,
     // In-process delivery is synchronous — no attach window, so `'open'` is
     // the true state (.plans/BUS-ATTACH-GATE.md). A destroyed bus throws at
     // `eventBus.get()` before the gate could matter. Published read-only

@@ -31,6 +31,11 @@ function fakeBus() {
       cs.forEach((c) => channels.add(c));
     }),
     stream: <K extends keyof EventMap>(channel: K) => eventBus.get(channel).asObservable(),
+    // This double delivers whatever a test pushes at it — subjects are created
+    // on demand — so `true` is the truth about it. It does not model a
+    // NARROWED set; that behavior is proven against the real ActorStateUnit,
+    // and against the real worker manifest by this plan's P3.
+    isSubscribed: () => true,
     // In-process fixture: replies are pushed synchronously onto the bus
     // above, so 'open' is the truth, not a stub (BUS-ATTACH-GATE.md).
     state$: new BehaviorSubject<ConnectionState>('open'),

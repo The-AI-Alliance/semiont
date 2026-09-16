@@ -54,6 +54,8 @@ function createMockTransport(responses: ResponseMap): { transport: ITransport; e
     bridgeInto: vi.fn(),
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
     dispose: vi.fn(),
+    // Delivers whatever the test pushes at it — true of this double.
+    isSubscribed: () => true,
   } as unknown as ITransport;
   return { transport, emitSpy };
 }

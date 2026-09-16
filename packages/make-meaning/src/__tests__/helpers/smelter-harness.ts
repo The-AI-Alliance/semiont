@@ -166,6 +166,11 @@ export function createFakeWorkerBus() {
       cs.forEach((c) => channels.add(c));
     }),
     stream: <K extends keyof EventMap>(channel: K) => eventBus.get(channel).asObservable(),
+    // This double delivers whatever a test pushes at it — subjects are created
+    // on demand — so `true` is the truth about it. It does not model a
+    // NARROWED set; that behavior is proven against the real ActorStateUnit,
+    // and against the real worker manifest by this plan's P3.
+    isSubscribed: () => true,
     state$: new BehaviorSubject<ConnectionState>('open'),
     emit: vi.fn(async () => -1),
   };
@@ -302,6 +307,9 @@ export function createFakeKsBus(
 
   return {
     emitted,
+    // This fake delivers whatever a test queues at it, so `true` is the truth
+    // about it — it models no narrowed set.
+    isSubscribed: () => true,
     // In-process fake — replies are queued on emit, so 'open' is the truth.
     state$: new BehaviorSubject<ConnectionState>('open'),
     async emit<K extends keyof EventMap>(name: K, payload: EventMap[K]): Promise<number> {

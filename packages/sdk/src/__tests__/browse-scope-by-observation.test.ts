@@ -52,6 +52,10 @@ function makeFakeTransport() {
   };
 
   const transport = {
+
+    // Delivers whatever the test pushes at it — true of this double.
+
+    isSubscribed: () => true,
     baseUrl: 'http://test',
     emit: async (channel: string, payload: Record<string, unknown>) => {
       respond(channel, 'browse:annotations-requested', payload, { annotations: [{ id: 'a1' }], total: 1 });
