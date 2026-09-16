@@ -79,3 +79,10 @@ export { generateResourceFromTopic } from './workers/generation/resource-generat
 // root: gather read-barrier budgets must degrade before this watchdog
 // fails fast.
 export { STALL_THRESHOLD_MS } from './worker-runtime';
+/**
+ * The worker's complete subscription manifest
+ * (CLIENT-SUBSCRIPTION-MANIFEST D2). Exported so a composition-grain test can
+ * subscribe the REAL set rather than a hand-written list of the channel it is
+ * testing — the grain every 2026-09-16 bring-up bug slipped through.
+ */
+export { WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS } from './worker-runtime';
