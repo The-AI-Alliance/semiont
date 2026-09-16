@@ -41,14 +41,11 @@ export class MatchNamespace implements IMatchNamespace {
         subscriber.error(new Error(e.error));
       });
 
-      this.transport.emit('match:search-requested', {
-        correlationId,
-        resourceId,
+      this.transport.emit('match:search-requested', { resourceId,
         referenceId,
         context,
         limit: options?.limit ?? 10,
-        useSemanticScoring: options?.useSemanticScoring ?? true,
-      }).catch((error) => {
+        useSemanticScoring: options?.useSemanticScoring ?? true, }, { correlationId: correlationId }).catch((error) => {
         // Don't propagate if a result or failure event already closed the
         // subscriber, or if the consumer disposed mid-flight. Otherwise
         // RxJS hosts the error as an uncaught exception.

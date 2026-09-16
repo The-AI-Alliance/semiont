@@ -102,7 +102,7 @@ describe('CloneTokenManager format selection', () => {
         ),
       ).pipe(timeout(5000)),
     );
-    eventBus.emit('yield:clone-token-requested', { correlationId: tokenCid, resourceId: sourceId });
+    eventBus.emit('yield:clone-token-requested', { resourceId: sourceId }, { correlationId: tokenCid });
     const token = await token$;
 
     const createCid = uuidv4();

@@ -23,11 +23,8 @@ export function createMatchStateUnit(
       timeout(60_000),
     ).subscribe({
       next: (result) => client.bus.emit('match:search-results', result),
-      error: (err) => client.bus.emit('match:search-failed', {
-        correlationId: event.correlationId,
-        referenceId: event.referenceId,
-        error: err instanceof Error ? err.message : String(err),
-      }),
+      error: (err) => client.bus.emit('match:search-failed', { referenceId: event.referenceId,
+        error: err instanceof Error ? err.message : String(err), }, { correlationId: event.correlationId }),
     });
     subs.push(searchSub);
   }));

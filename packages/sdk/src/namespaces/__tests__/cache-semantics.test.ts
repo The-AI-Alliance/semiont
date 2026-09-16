@@ -220,7 +220,7 @@ function createHarness(opts: HarnessOptions = {}) {
       });
     } else {
       queueMicrotask(() => {
-        transportBus.emit(resultChannel as never, { correlationId, response } as never);
+        transportBus.emit(resultChannel as never, { response } as never, { correlationId: correlationId });
       });
     }
   });

@@ -42,16 +42,10 @@ export function registerAnnotationContextHandler(
         kb,
       );
 
-      eventBus.emit('browse:annotation-context-result', {
-        correlationId,
-        response,
-      });
+      eventBus.emit('browse:annotation-context-result', { response, }, { correlationId: correlationId });
     } catch (error) {
       logger.warn('annotation-context failed', { correlationId, error: (error as Error).message });
-      eventBus.emit('browse:annotation-context-failed', {
-        correlationId,
-        message: (error as Error).message,
-      });
+      eventBus.emit('browse:annotation-context-failed', { message: (error as Error).message, }, { correlationId: correlationId });
     }
   });
 }
@@ -74,16 +68,10 @@ export function registerGatherSummaryHandler(
         makeResourceId(resId),
       );
 
-      eventBus.emit('gather:summary-result', {
-        correlationId,
-        response,
-      });
+      eventBus.emit('gather:summary-result', { response, }, { correlationId: correlationId });
     } catch (error) {
       logger.warn('gather:summary failed', { correlationId, error: (error as Error).message });
-      eventBus.emit('gather:summary-failed', {
-        correlationId,
-        message: (error as Error).message,
-      });
+      eventBus.emit('gather:summary-failed', { message: (error as Error).message, }, { correlationId: correlationId });
     }
   });
 }

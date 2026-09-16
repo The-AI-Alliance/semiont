@@ -94,13 +94,10 @@ describe('Stower mark:update-entity-types vocabulary gate', () => {
         ),
       ).pipe(take(1)),
     );
-    eventBus.emit('mark:update-entity-types', {
-      correlationId,
-      _userId: 'user-1',
+    eventBus.emit('mark:update-entity-types', { _userId: 'user-1',
       resourceId: rid,
       currentEntityTypes: current,
-      updatedEntityTypes: updated,
-    });
+      updatedEntityTypes: updated, }, { correlationId: correlationId });
     return reply.then((r) => ({ ...r, correlationId }));
   }
 

@@ -128,8 +128,8 @@ describe('useOutcomeToasts', () => {
     // requester and leaks other users' failures.
     const { eventBus } = setup();
     act(() => {
-      eventBus.emit('mark:create-failed', { correlationId: 'c-1', message: 'nope' } as never);
-      eventBus.emit('mark:delete-failed', { correlationId: 'c-2', message: 'nope' } as never);
+      eventBus.emit('mark:create-failed', { message: 'nope' } as never, { correlationId: 'c-1' });
+      eventBus.emit('mark:delete-failed', { message: 'nope' } as never, { correlationId: 'c-2' });
     });
     expect(showError).not.toHaveBeenCalled();
   });
@@ -137,7 +137,7 @@ describe('useOutcomeToasts', () => {
   it('bind:body-update-failed (raw wire reply) does NOT toast', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.emit('bind:body-update-failed', { correlationId: 'c-3', message: 'nope' } as never);
+      eventBus.emit('bind:body-update-failed', { message: 'nope' } as never, { correlationId: 'c-3' });
     });
     expect(showError).not.toHaveBeenCalled();
   });

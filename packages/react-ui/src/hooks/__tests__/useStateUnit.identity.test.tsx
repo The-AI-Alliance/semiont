@@ -70,6 +70,7 @@ function inMemoryTransport(
       return () => sub.unsubscribe();
     },
     stream: (channel) => bus.on(channel),
+    frames: (channel) => bus.frames(channel),
     subscribeToResource: () => () => {},
     bridgeInto: () => {},
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),

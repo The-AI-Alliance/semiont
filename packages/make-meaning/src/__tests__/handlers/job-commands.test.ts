@@ -606,7 +606,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
   it('reports 0 for a job that does not exist', async () => {
     jobQueue.getJob.mockResolvedValueOnce(null);
     const reply = firstValueFrom(eventBus.on('job:cancel-ok').pipe(take(1)));
-    eventBus.emit('job:cancel-requested', { correlationId: 'c1', jobId: 'job-ghost' } as never);
+    eventBus.emit('job:cancel-requested', { jobId: 'job-ghost' } as never, { correlationId: 'c1' });
 
     expect((await reply as any).response.cancelled).toBe(0);
     expect(jobQueue.cancelJob).not.toHaveBeenCalled();
@@ -617,7 +617,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
     // not a cancellable one, and moving it would rewrite history.
     jobQueue.getJob.mockResolvedValueOnce({ status: 'completed', metadata: { id: 'job-done' } });
     const reply = firstValueFrom(eventBus.on('job:cancel-ok').pipe(take(1)));
-    eventBus.emit('job:cancel-requested', { correlationId: 'c2', jobId: 'job-done' } as never);
+    eventBus.emit('job:cancel-requested', { jobId: 'job-done' } as never, { correlationId: 'c2' });
 
     expect((await reply as any).response.cancelled).toBe(0);
     expect(jobQueue.cancelJob).not.toHaveBeenCalled();
@@ -842,12 +842,9 @@ describe('registerJobCommandHandlers — generation dispatcher (context-derived 
       eventBus.on('job:create-failed') as never as import('rxjs').Observable<JobCreateFailedEvent>
     ).pipe(filter((e) => e.correlationId === cid), take(1));
     const outcome = firstValueFrom(race(created$, failed$));
-    eventBus.emit('job:create', {
-      correlationId: cid,
-      jobType: 'generation',
+    eventBus.emit('job:create', { jobType: 'generation',
       _userId: TEST_USER_DID,
-      ...command,
-    } as never);
+      ...command, } as never, { correlationId: cid });
     return outcome;
   }
 

@@ -34,7 +34,7 @@ function createMockTransport(
       const { resultChannel, response } = handler(payload);
       const correlationId = payload.correlationId as string;
       queueMicrotask(() => {
-        transportBus.emit(resultChannel as never, { correlationId, response } as never);
+        transportBus.emit(resultChannel as never, { response } as never, { correlationId: correlationId });
       });
     }
   });
@@ -100,7 +100,7 @@ describe('MarkNamespace', () => {
     const assertion = expect(m.delete(RID, AID)).rejects.toThrow(/denied/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    mock.transportBus.emit('mark:delete-failed' as never, { correlationId: cid, message: 'denied' } as never);
+    mock.transportBus.emit('mark:delete-failed' as never, { message: 'denied' } as never, { correlationId: cid });
     await assertion;
   });
 
@@ -119,7 +119,7 @@ describe('MarkNamespace', () => {
     const assertion = expect(m.archive(RID)).rejects.toThrow(/archive boom/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    mock.transportBus.emit('mark:archive-failed' as never, { correlationId: cid, message: 'archive boom' } as never);
+    mock.transportBus.emit('mark:archive-failed' as never, { message: 'archive boom' } as never, { correlationId: cid });
     await assertion;
   });
 
@@ -138,7 +138,7 @@ describe('MarkNamespace', () => {
     const assertion = expect(m.unarchive(RID)).rejects.toThrow(/file not found/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    mock.transportBus.emit('mark:unarchive-failed' as never, { correlationId: cid, message: 'Cannot unarchive: file not found at x' } as never);
+    mock.transportBus.emit('mark:unarchive-failed' as never, { message: 'Cannot unarchive: file not found at x' } as never, { correlationId: cid });
     await assertion;
   });
 
@@ -161,7 +161,7 @@ describe('MarkNamespace', () => {
     const assertion = expect(m.updateEntityTypes(RID, [], ['Person'])).rejects.toThrow(/rejected/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    mock.transportBus.emit('mark:update-entity-types-failed' as never, { correlationId: cid, message: 'rejected by handler' } as never);
+    mock.transportBus.emit('mark:update-entity-types-failed' as never, { message: 'rejected by handler' } as never, { correlationId: cid });
     await assertion;
   });
 
@@ -432,7 +432,7 @@ describe('BindNamespace', () => {
     ).rejects.toThrow(/rejected/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    mock.transportBus.emit('bind:body-update-failed' as never, { correlationId: cid, message: 'rejected by handler' } as never);
+    mock.transportBus.emit('bind:body-update-failed' as never, { message: 'rejected by handler' } as never, { correlationId: cid });
     await assertion;
   });
 });
@@ -557,7 +557,7 @@ describe('JobNamespace', () => {
     const assertion = expect(job.cancelByType('annotation')).rejects.toThrow(/queue down/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    mock.transportBus.emit('job:cancel-failed' as never, { correlationId: cid, message: 'queue down' } as never);
+    mock.transportBus.emit('job:cancel-failed' as never, { message: 'queue down' } as never, { correlationId: cid });
     await assertion;
   });
 });

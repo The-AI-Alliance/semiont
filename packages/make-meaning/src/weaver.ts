@@ -584,10 +584,7 @@ export class Weaver {
       this.logger.error('Weaver rebuild command failed', {
         resourceId: command.resourceId, error: errField(error),
       });
-      await this.bus.emit('weave:rebuild-failed', {
-        correlationId: command.correlationId,
-        message: error instanceof Error ? error.message : String(error),
-      });
+      await this.bus.emit('weave:rebuild-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: command.correlationId });
     }
   }
 

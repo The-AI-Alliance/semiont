@@ -125,21 +125,15 @@ export class Gatherer {
         this.logger,
       );
 
-      this.eventBus.emit('gather:complete', {
-        correlationId: event.correlationId,
-        annotationId: event.annotationId,
-        response,
-      });
+      this.eventBus.emit('gather:complete', { annotationId: event.annotationId,
+        response, }, { correlationId: event.correlationId });
     } catch (error) {
       this.logger.error('Gather annotation context failed', {
         annotationId: event.annotationId,
         error: errField(error),
       });
-      this.eventBus.emit('gather:failed', {
-        correlationId: event.correlationId,
-        annotationId: event.annotationId,
-        message: error instanceof Error ? error.message : String(error),
-      });
+      this.eventBus.emit('gather:failed', { annotationId: event.annotationId,
+        message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
     }
   }
 
@@ -158,21 +152,15 @@ export class Gatherer {
         this.logger,
       );
 
-      this.eventBus.emit('gather:resource-complete', {
-        correlationId: event.correlationId,
-        resourceId: event.resourceId,
-        response: result,
-      });
+      this.eventBus.emit('gather:resource-complete', { resourceId: event.resourceId,
+        response: result, }, { correlationId: event.correlationId });
     } catch (error) {
       this.logger.error('Gather resource context failed', {
         resourceId: event.resourceId,
         error: errField(error),
       });
-      this.eventBus.emit('gather:resource-failed', {
-        correlationId: event.correlationId,
-        resourceId: event.resourceId,
-        message: error instanceof Error ? error.message : String(error),
-      });
+      this.eventBus.emit('gather:resource-failed', { resourceId: event.resourceId,
+        message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
     }
   }
 

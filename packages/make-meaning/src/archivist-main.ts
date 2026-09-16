@@ -347,7 +347,7 @@ async function main() {
   // a gauge: an unbounded backlog with no number is how this went undiagnosed.
   const factPump = createFactPump(
     merge(...PERSISTED_EVENT_TYPES.map((type) => localBus.on(type))),
-    { emit: (channel, payload, scope) => httpTransport.emit(channel, payload, scope), logger },
+    { emit: (channel, payload, scope) => httpTransport.emit(channel, payload, { scope }), logger },
   );
   pumps.push({ unsubscribe: () => factPump.unsubscribe() } as Subscription);
   registerFactPumpDepthProvider(() => factPump.depth());

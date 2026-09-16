@@ -9,6 +9,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BehaviorSubject, Subject } from 'rxjs';
+import { map } from 'rxjs/operators';
 import type { BusRequestPrimitive } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
@@ -28,6 +29,9 @@ function fakeBus() {
 
   const bus: BusRequestPrimitive = {
     stream: vi.fn((channel: string) => getStream(channel).asObservable()),
+    frames: vi.fn((channel: string) =>
+      getStream(channel).asObservable().pipe(map((payload) => ({ payload }))),
+    ) as never,
     // This double delivers whatever a test pushes at it — subjects are created
     // on demand — so `true` is the truth about it. It does not model a
     // NARROWED set; that behavior is proven against the real ActorStateUnit,

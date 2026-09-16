@@ -97,15 +97,12 @@ describe('Stower constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () 
     const correlationId = 'p1-create-1';
     const ok = reply(eventBus.on('yield:create-ok'), eventBus.on('yield:create-failed'), correlationId);
 
-    eventBus.emit('yield:create', {
-      correlationId,
-      _userId: 'user-1',
+    eventBus.emit('yield:create', { _userId: 'user-1',
       name: 'doc.txt',
       format: 'text/plain',
       storageUri: 'file:///tmp/doc.txt',
       contentChecksum: 'sha-in',
-      byteSize: 5,
-    });
+      byteSize: 5, }, { correlationId: correlationId });
 
     const result = await ok;
     expect(result.response.resourceId).toBeTruthy();
@@ -162,13 +159,10 @@ describe('Stower constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () 
     const correlationId = 'p1-archive-1';
     const ok = reply(eventBus.on('mark:archive-ok'), eventBus.on('mark:archive-failed'), correlationId);
 
-    eventBus.emit('mark:archive', {
-      correlationId,
-      _userId: 'user-1',
+    eventBus.emit('mark:archive', { _userId: 'user-1',
       resourceId: 'res-arch-1',
       storageUri: 'file:///tmp/gone.txt',
-      keepFile: true,
-    });
+      keepFile: true, }, { correlationId: correlationId });
 
     await ok;
     expect(stores.content.remove).toHaveBeenCalledWith('file:///tmp/gone.txt', { keepFile: true, noGit: undefined });
@@ -265,7 +259,7 @@ describe('Browser constructs from capability doubles (EXTRACT-ARCHIVIST P1)', ()
     const correlationId = 'p1-annos-1';
     const ok = reply(eventBus.on('browse:annotations-result'), eventBus.on('browse:annotations-failed'), correlationId);
 
-    eventBus.emit('browse:annotations-requested', { correlationId, resourceId: String(rid) });
+    eventBus.emit('browse:annotations-requested', { resourceId: String(rid) }, { correlationId: correlationId });
 
     const result = await ok;
     expect(result.response.total).toBe(1);
@@ -287,7 +281,7 @@ describe('Browser constructs from capability doubles (EXTRACT-ARCHIVIST P1)', ()
     const correlationId = 'p1-res-1';
     const ok = reply(eventBus.on('browse:resource-result'), eventBus.on('browse:resource-failed'), correlationId);
 
-    eventBus.emit('browse:resource-requested', { correlationId, resourceId: String(rid) });
+    eventBus.emit('browse:resource-requested', { resourceId: String(rid) }, { correlationId: correlationId });
 
     const result = await ok;
     expect(result.response.resource.name).toBe('Assembled');
@@ -313,7 +307,7 @@ describe('Browser constructs from capability doubles (EXTRACT-ARCHIVIST P1)', ()
     const correlationId = 'p1-refby-1';
     const ok = reply(eventBus.on('browse:referenced-by-result'), eventBus.on('browse:referenced-by-failed'), correlationId);
 
-    eventBus.emit('browse:referenced-by-requested', { correlationId, resourceId: String(target) });
+    eventBus.emit('browse:referenced-by-requested', { resourceId: String(target) }, { correlationId: correlationId });
 
     const result = await ok;
     expect(result.response.referencedBy).toHaveLength(1);
@@ -362,7 +356,7 @@ describe('CloneTokenManager constructs from capability doubles (EXTRACT-ARCHIVIS
     const correlationId = 'p1-token-1';
     const ok = reply(eventBus.on('yield:clone-token-generated'), eventBus.on('yield:clone-token-failed'), correlationId);
 
-    eventBus.emit('yield:clone-token-requested', { correlationId, resourceId: String(rid) });
+    eventBus.emit('yield:clone-token-requested', { resourceId: String(rid) }, { correlationId: correlationId });
 
     const result = await ok;
     expect(result.response.token).toMatch(/^clone_/);
@@ -395,12 +389,12 @@ describe('CloneTokenManager constructs from capability doubles (EXTRACT-ARCHIVIS
 
     const tokenCid = 'p1-token-2';
     const token$ = reply(eventBus.on('yield:clone-token-generated'), eventBus.on('yield:clone-token-failed'), tokenCid);
-    eventBus.emit('yield:clone-token-requested', { correlationId: tokenCid, resourceId: String(rid) });
+    eventBus.emit('yield:clone-token-requested', { resourceId: String(rid) }, { correlationId: tokenCid });
     const { response: { token } } = await token$;
 
     const getCid = 'p1-get-1';
     const got$ = reply(eventBus.on('yield:clone-resource-result'), eventBus.on('yield:clone-resource-failed'), getCid);
-    eventBus.emit('yield:clone-resource-requested', { correlationId: getCid, token });
+    eventBus.emit('yield:clone-resource-requested', { token }, { correlationId: getCid });
 
     const { response } = await got$;
     expect(response.sourceResource.name).toBe('Held');

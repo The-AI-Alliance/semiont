@@ -92,7 +92,7 @@ describe('job:status-requested', () => {
     } as never);
 
     const pending = replyTo(bus);
-    bus.emit('job:status-requested', { correlationId: 'cid-ok', jobId: String(id) } as never);
+    bus.emit('job:status-requested', { jobId: String(id) } as never, { correlationId: 'cid-ok' });
 
     const reply = await pending;
     expect(reply.channel).toBe('job:status-result');
@@ -105,7 +105,7 @@ describe('job:status-requested', () => {
     // Not a resolve-with-nothing: the caller must be able to distinguish an
     // unknown id from a job it is allowed to see but which has no state yet.
     const pending = replyTo(bus);
-    bus.emit('job:status-requested', { correlationId: 'cid-missing', jobId: 'job-does-not-exist' } as never);
+    bus.emit('job:status-requested', { jobId: 'job-does-not-exist' } as never, { correlationId: 'cid-missing' });
 
     const reply = await pending;
     expect(reply.channel).toBe('job:status-failed');
@@ -119,7 +119,7 @@ describe('job:status-requested', () => {
     vi.spyOn(service.jobQueue, 'getJob').mockRejectedValueOnce(new Error('queue unreadable'));
 
     const pending = replyTo(bus);
-    bus.emit('job:status-requested', { correlationId: 'cid-boom', jobId: 'job-any' } as never);
+    bus.emit('job:status-requested', { jobId: 'job-any' } as never, { correlationId: 'cid-boom' });
 
     const reply = await pending;
     expect(reply.channel).toBe('job:status-failed');

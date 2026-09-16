@@ -38,7 +38,7 @@ function createMockTransport(responses: ResponseMap): { transport: ITransport; e
       const { resultChannel, response } = handler(payload);
       const correlationId = payload.correlationId as string;
       queueMicrotask(() => {
-        transportBus.emit(resultChannel as never, { correlationId, response } as never);
+        transportBus.emit(resultChannel as never, { response } as never, { correlationId: correlationId });
       });
     }
     return 1;

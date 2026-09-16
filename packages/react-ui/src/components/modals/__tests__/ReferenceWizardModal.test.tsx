@@ -534,11 +534,8 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     await userEvent.click(screen.getByRole('button', { name: T.search }));
     expect(screen.getByRole('button', { name: T.searching })).toBeDisabled();
 
-    client.bus.emit('match:search-failed', {
-      correlationId: 'c-1',
-      referenceId: 'ann-1',
-      error: '/bus/emit 400: Bus emit validation failed',
-    } as never);
+    client.bus.emit('match:search-failed', { referenceId: 'ann-1',
+      error: '/bus/emit 400: Bus emit validation failed', } as never, { correlationId: 'c-1' });
 
     // Still on configure-search, failure visible, retry available.
     expect(await screen.findByText(new RegExp(T.searchFailed))).toBeInTheDocument();
@@ -553,11 +550,8 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
     await userEvent.click(screen.getByRole('button', { name: T.search }));
 
-    client.bus.emit('match:search-failed', {
-      correlationId: 'c-2',
-      referenceId: 'someone-elses-annotation',
-      error: 'not ours',
-    } as never);
+    client.bus.emit('match:search-failed', { referenceId: 'someone-elses-annotation',
+      error: 'not ours', } as never, { correlationId: 'c-2' });
 
     expect(screen.getByRole('button', { name: T.searching })).toBeDisabled();
     expect(screen.queryByText(new RegExp(T.searchFailed))).not.toBeInTheDocument();
@@ -567,9 +561,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     const { client } = renderWizard();
     await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
     await userEvent.click(screen.getByRole('button', { name: T.search }));
-    client.bus.emit('match:search-failed', {
-      correlationId: 'c-1', referenceId: 'ann-1', error: 'boom',
-    } as never);
+    client.bus.emit('match:search-failed', { referenceId: 'ann-1', error: 'boom', } as never, { correlationId: 'c-1' });
     expect(await screen.findByText(new RegExp(T.searchFailed))).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: T.search }));

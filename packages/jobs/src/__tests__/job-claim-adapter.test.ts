@@ -28,6 +28,7 @@ function fakeBus() {
 
   const bus: BusRequestPrimitive = {
     stream: <K extends keyof EventMap>(channel: K) => eventBus.on(channel),
+    frames: <K extends keyof EventMap>(channel: K) => eventBus.frames(channel),
     // This double delivers whatever a test pushes at it — subjects are created
     // on demand — so `true` is the truth about it. It does not model a
     // NARROWED set; that behavior is proven against the real ActorStateUnit,

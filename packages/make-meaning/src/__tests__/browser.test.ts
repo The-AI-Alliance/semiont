@@ -122,7 +122,7 @@ describe('Browser actor', () => {
     const result$ = eventBus.on('browse:resources-result');
     const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-    eventBus.emit('browse:resources-requested', { correlationId: 'cid-mk', search: 'ouranos' });
+    eventBus.emit('browse:resources-requested', { search: 'ouranos' }, { correlationId: 'cid-mk' });
 
     const event = await resultPromise;
     expect(event.correlationId).toBe('cid-mk');
@@ -144,10 +144,7 @@ describe('Browser actor', () => {
         const failed$ = eventBus.on('browse:directory-failed');
         const resultPromise = new Promise<any>((resolve) => failed$.subscribe(resolve));
 
-        eventBus.emit('browse:directory-requested', {
-          correlationId: 'cid-1',
-          path,
-        });
+        eventBus.emit('browse:directory-requested', { path, }, { correlationId: 'cid-1' });
 
         const event = await resultPromise;
         expect(event.correlationId).toBe('cid-1');
@@ -160,7 +157,7 @@ describe('Browser actor', () => {
       const result$ = eventBus.on('browse:directory-result');
       const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-      eventBus.emit('browse:directory-requested', { correlationId: 'cid-2', path: '' });
+      eventBus.emit('browse:directory-requested', { path: '' }, { correlationId: 'cid-2' });
 
       const event = await resultPromise;
       expect(event.correlationId).toBe('cid-2');
@@ -172,7 +169,7 @@ describe('Browser actor', () => {
       const result$ = eventBus.on('browse:directory-result');
       const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-      eventBus.emit('browse:directory-requested', { correlationId: 'cid-3', path: 'docs' });
+      eventBus.emit('browse:directory-requested', { path: 'docs' }, { correlationId: 'cid-3' });
 
       const event = await resultPromise;
       expect(event.response.path).toBe('docs');
@@ -189,7 +186,7 @@ describe('Browser actor', () => {
     const failed$ = eventBus.on('browse:directory-failed');
     const resultPromise = new Promise<any>((resolve) => failed$.subscribe(resolve));
 
-    eventBus.emit('browse:directory-requested', { correlationId: 'cid-4', path: 'missing' });
+    eventBus.emit('browse:directory-requested', { path: 'missing' }, { correlationId: 'cid-4' });
 
     const event = await resultPromise;
     expect(event.message).toBe('path not found');
@@ -207,7 +204,7 @@ describe('Browser actor', () => {
     const result$ = eventBus.on('browse:directory-result');
     const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-    eventBus.emit('browse:directory-requested', { correlationId: 'cid-5', path: '' });
+    eventBus.emit('browse:directory-requested', { path: '' }, { correlationId: 'cid-5' });
 
     const { response } = await resultPromise;
     expect(response.entries).toHaveLength(2);
@@ -226,7 +223,7 @@ describe('Browser actor', () => {
     const result$ = eventBus.on('browse:directory-result');
     const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-    eventBus.emit('browse:directory-requested', { correlationId: 'cid-6', path: '' });
+    eventBus.emit('browse:directory-requested', { path: '' }, { correlationId: 'cid-6' });
 
     const { response } = await resultPromise;
     expect(response.entries).toHaveLength(1);
@@ -257,7 +254,7 @@ describe('Browser actor', () => {
     const result$ = eventBus.on('browse:directory-result');
     const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-    eventBus.emit('browse:directory-requested', { correlationId: 'cid-7', path: '' });
+    eventBus.emit('browse:directory-requested', { path: '' }, { correlationId: 'cid-7' });
 
     const { response } = await resultPromise;
     const entry = response.entries[0];
@@ -273,7 +270,7 @@ describe('Browser actor', () => {
     const result$ = eventBus.on('browse:directory-result');
     const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-    eventBus.emit('browse:directory-requested', { correlationId: 'cid-8', path: '' });
+    eventBus.emit('browse:directory-requested', { path: '' }, { correlationId: 'cid-8' });
 
     const { response } = await resultPromise;
     expect(response.entries[0].tracked).toBe(false);
@@ -293,7 +290,7 @@ describe('Browser actor', () => {
     const result$ = eventBus.on('browse:directory-result');
     const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-    eventBus.emit('browse:directory-requested', { correlationId: 'cid-9', path: '' });
+    eventBus.emit('browse:directory-requested', { path: '' }, { correlationId: 'cid-9' });
 
     const { response } = await resultPromise;
     const names = response.entries.map((e: any) => e.name);
@@ -312,7 +309,7 @@ describe('Browser actor', () => {
     const result$ = eventBus.on('browse:directory-result');
     const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-    eventBus.emit('browse:directory-requested', { correlationId: 'cid-10', path: '', sort: 'mtime' });
+    eventBus.emit('browse:directory-requested', { path: '', sort: 'mtime' }, { correlationId: 'cid-10' });
 
     const { response } = await resultPromise;
     expect(response.entries[0].name).toBe('new.txt');
@@ -685,7 +682,7 @@ describe('Browser actor', () => {
       mockAssemble.mockResolvedValue(null);
       const failed = failure();
 
-      eventBus.emit('browse:resource-requested', { correlationId: 'cid-missing', resourceId: 'res-gone' });
+      eventBus.emit('browse:resource-requested', { resourceId: 'res-gone' }, { correlationId: 'cid-missing' });
 
       const e = await failed;
       expect(e.correlationId).toBe('cid-missing');
@@ -698,7 +695,7 @@ describe('Browser actor', () => {
       mockAssemble.mockRejectedValue(new Error('graph exploded'));
       const failed = failure();
 
-      eventBus.emit('browse:resource-requested', { correlationId: 'cid-boom', resourceId: 'res-here' });
+      eventBus.emit('browse:resource-requested', { resourceId: 'res-here' }, { correlationId: 'cid-boom' });
 
       const e = await failed;
       expect(e.message).toBe('graph exploded');

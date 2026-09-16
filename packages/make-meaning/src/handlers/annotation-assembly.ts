@@ -63,12 +63,9 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { view
 
       inflight.set(cid, { annotationId: annotation.id });
 
-      eventBus.emit('mark:create', {
-        correlationId: cid,
-        annotation,
+      eventBus.emit('mark:create', { annotation,
         _userId,
-        resourceId: resourceId(resId as string),
-      } as never);
+        resourceId: resourceId(resId as string), } as never, { correlationId: cid });
 
       logger.info('Annotation assembled, awaiting persistence', {
         annotationId: annotation.id,
@@ -79,10 +76,7 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { view
         correlationId: cid,
         error: (error as Error).message,
       });
-      eventBus.emit('mark:create-failed', {
-        correlationId: cid,
-        message: (error as Error).message,
-      });
+      eventBus.emit('mark:create-failed', { message: (error as Error).message, }, { correlationId: cid });
     }
     })();
   });

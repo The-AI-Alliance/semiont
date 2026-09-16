@@ -25,6 +25,7 @@
  * built over this transport has no `.auth` / `.admin` namespaces.
  */
 
+import type { BusEnvelope, BusFrame } from '@semiont/core';
 import type { Observable, Subscription } from 'rxjs';
 import { BehaviorSubject, Subject } from 'rxjs';
 import type { SemiontError } from '@semiont/core';
@@ -101,10 +102,10 @@ export class LocalTransport implements ITransport {
   async emit<K extends keyof EventMap>(
     channel: K,
     payload: EventMap[K],
-    resourceScope?: ResourceId,
+    envelope?: BusEnvelope,
   ): Promise<number> {
-    busLog('EMIT', channel as string, payload, resourceScope as string | undefined);
-    recordBusEmit(channel as string, resourceScope as string | undefined);
+    busLog('EMIT', channel as string, payload, envelope?.scope as string | undefined);
+    recordBusEmit(channel as string, envelope?.scope as string | undefined);
     await withSpan(
       `bus.emit:${channel as string}`,
       () => {
@@ -114,14 +115,14 @@ export class LocalTransport implements ITransport {
         // Gateway-injected `_userId` isn't in every channel's declared payload,
         // so build the stamped object loosely and assert it back to EventMap[K].
         const stamped: Record<string, unknown> = { ...(payload as Record<string, unknown>), _userId: this.userId };
-        const target = resourceScope === undefined ? this.bus : this.bus.scope(resourceScope as string);
+        const target = envelope?.scope === undefined ? this.bus : this.bus.scope(envelope!.scope as string);
         target.emit(channel, stamped as EventMap[K]);
       },
       {
         kind: SpanKind.PRODUCER,
         attrs: {
           'bus.channel': channel as string,
-          ...(resourceScope ? { 'bus.scope': resourceScope as string } : {}),
+          ...(envelope?.scope ? { 'bus.scope': envelope?.scope as string } : {}),
         },
       },
     );
@@ -137,6 +138,10 @@ export class LocalTransport implements ITransport {
 
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
     return this.bus.on(channel);
+  }
+
+  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> {
+    return this.bus.frames(channel);
   }
 
   /**

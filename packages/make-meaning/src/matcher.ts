@@ -110,21 +110,15 @@ export class Matcher {
 
       const limited = event.limit ? scored.slice(0, event.limit) : scored;
 
-      this.eventBus.emit('match:search-results', {
-        correlationId: event.correlationId,
-        referenceId: event.referenceId,
-        response: limited,
-      });
+      this.eventBus.emit('match:search-results', { referenceId: event.referenceId,
+        response: limited, }, { correlationId: event.correlationId });
     } catch (error) {
       this.logger.error('Bind search failed', {
         referenceId: event.referenceId,
         error: errField(error),
       });
-      this.eventBus.emit('match:search-failed', {
-        correlationId: event.correlationId,
-        referenceId: event.referenceId,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      this.eventBus.emit('match:search-failed', { referenceId: event.referenceId,
+        error: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
     }
   }
 

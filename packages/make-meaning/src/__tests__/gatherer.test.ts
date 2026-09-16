@@ -115,11 +115,8 @@ describe('Gatherer', () => {
 
       const resultPromise = eventBus.on('gather:complete').pipe(take(1)).toPromise();
 
-      eventBus.emit('gather:requested', {
-        correlationId: 'test-corr-id',
-        annotationId: annotationId('ann-1'),
-        resourceId: resourceId('res-1'),
-      });
+      eventBus.emit('gather:requested', { annotationId: annotationId('ann-1'),
+        resourceId: resourceId('res-1'), }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       expect(result!.annotationId).toBe('ann-1');
@@ -141,11 +138,8 @@ describe('Gatherer', () => {
 
       const resultPromise = eventBus.on('gather:failed').pipe(take(1)).toPromise();
 
-      eventBus.emit('gather:requested', {
-        correlationId: 'test-corr-id',
-        annotationId: annotationId('ann-2'),
-        resourceId: resourceId('res-1'),
-      });
+      eventBus.emit('gather:requested', { annotationId: annotationId('ann-2'),
+        resourceId: resourceId('res-1'), }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       expect(result!.annotationId).toBe('ann-2');
@@ -214,11 +208,8 @@ describe('Gatherer', () => {
 
       vi.mocked(AnnotationContext.buildLLMContext).mockResolvedValue({} as any);
 
-      eventBus.emit('gather:requested', {
-        correlationId: 'test-corr-id',
-        annotationId: annotationId('ann-3'),
-        resourceId: resourceId('res-1'),
-      });
+      eventBus.emit('gather:requested', { annotationId: annotationId('ann-3'),
+        resourceId: resourceId('res-1'), }, { correlationId: 'test-corr-id' });
 
       // Give time for any processing
       await new Promise((resolve) => setTimeout(resolve, 50));

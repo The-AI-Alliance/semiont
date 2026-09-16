@@ -82,7 +82,7 @@ describe('mark:create-request refuses unannotatable targets (MEDIA-CAPABILITY-DI
   it('lets an annotatable target through unchanged', async () => {
     registerAnnotationAssemblyHandler(bus, kbServing('text/markdown'), silentLogger);
     const pending = outcomeOf(bus);
-    bus.emit('mark:create-request', { correlationId: 'cid-1', resourceId: RID, request, _userId: USER_DID } as never);
+    bus.emit('mark:create-request', { resourceId: RID, request, _userId: USER_DID } as never, { correlationId: 'cid-1' });
     expect((await pending).channel).toBe('mark:create');
   });
 
@@ -90,7 +90,7 @@ describe('mark:create-request refuses unannotatable targets (MEDIA-CAPABILITY-DI
     // `text/css` is a registry row with `anchoring: 'none'` — known, and declined.
     registerAnnotationAssemblyHandler(bus, kbServing('text/css'), silentLogger);
     const pending = outcomeOf(bus);
-    bus.emit('mark:create-request', { correlationId: 'cid-2', resourceId: RID, request, _userId: USER_DID } as never);
+    bus.emit('mark:create-request', { resourceId: RID, request, _userId: USER_DID } as never, { correlationId: 'cid-2' });
 
     const outcome = await pending;
     expect(outcome.channel).toBe('mark:create-failed');
@@ -104,7 +104,7 @@ describe('mark:create-request refuses unannotatable targets (MEDIA-CAPABILITY-DI
     // sanely for a type the registry cannot make vocabulary claims about.
     registerAnnotationAssemblyHandler(bus, kbServing('text/x-obscure-notation'), silentLogger);
     const pending = outcomeOf(bus);
-    bus.emit('mark:create-request', { correlationId: 'cid-3', resourceId: RID, request, _userId: USER_DID } as never);
+    bus.emit('mark:create-request', { resourceId: RID, request, _userId: USER_DID } as never, { correlationId: 'cid-3' });
 
     const outcome = await pending;
     expect(outcome.channel).toBe('mark:create-failed');

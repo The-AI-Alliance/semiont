@@ -156,10 +156,7 @@ export function registerJobCommandHandlers(
       });
     } catch (error) {
       logger.error('job:create failed', { correlationId, error: (error as Error).message });
-      eventBus.emit('job:create-failed', {
-        correlationId,
-        message: (error as Error).message,
-      });
+      eventBus.emit('job:create-failed', { message: (error as Error).message, }, { correlationId: correlationId });
     }
   });
 
@@ -180,10 +177,7 @@ export function registerJobCommandHandlers(
         response: { ...result.job },
       });
     } catch (error) {
-      eventBus.emit('job:claim-failed', {
-        correlationId,
-        message: (error as Error).message,
-      });
+      eventBus.emit('job:claim-failed', { message: (error as Error).message, }, { correlationId: correlationId });
     }
   });
 
@@ -292,10 +286,7 @@ export function registerJobCommandHandlers(
         jobType: event.jobType,
         error: (error as Error).message,
       });
-      eventBus.emit('job:cancel-failed', {
-        correlationId: event.correlationId,
-        message: (error as Error).message,
-      });
+      eventBus.emit('job:cancel-failed', { message: (error as Error).message, }, { correlationId: event.correlationId });
     }
   });
 
@@ -325,7 +316,7 @@ export function registerJobCommandHandlers(
     try {
       const job = await jobQueue.getJob(jobId(event.jobId));
       if (!job) {
-        eventBus.emit('job:status-failed', { correlationId: event.correlationId, message: 'Job not found' });
+        eventBus.emit('job:status-failed', { message: 'Job not found' }, { correlationId: event.correlationId });
         return;
       }
       eventBus.emit('job:status-result', {
@@ -344,10 +335,7 @@ export function registerJobCommandHandlers(
         },
       });
     } catch (error) {
-      eventBus.emit('job:status-failed', {
-        correlationId: event.correlationId,
-        message: error instanceof Error ? error.message : String(error),
-      });
+      eventBus.emit('job:status-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
     }
   });
 }

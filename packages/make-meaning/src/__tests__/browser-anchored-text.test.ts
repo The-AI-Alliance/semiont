@@ -61,7 +61,7 @@ async function ask(eventBus: EventBus, browser: Browser) {
   const reply = firstValueFrom(
     eventBus.on('browse:anchored-text-result').pipe(filter((e) => e.correlationId === 'c1'), take(1)),
   );
-  eventBus.emit('browse:anchored-text-requested', { correlationId: 'c1', resourceId: RID });
+  eventBus.emit('browse:anchored-text-requested', { resourceId: RID }, { correlationId: 'c1' });
   return reply;
 }
 
@@ -145,7 +145,7 @@ describe('browse:anchored-text-requested', () => {
     const failure = firstValueFrom(
       eventBus.on('browse:anchored-text-failed').pipe(filter((e) => e.correlationId === 'c1'), take(1)),
     );
-    eventBus.emit('browse:anchored-text-requested', { correlationId: 'c1', resourceId: RID });
+    eventBus.emit('browse:anchored-text-requested', { resourceId: RID }, { correlationId: 'c1' });
 
     expect((await failure).message).toContain('fold is broken');
   });

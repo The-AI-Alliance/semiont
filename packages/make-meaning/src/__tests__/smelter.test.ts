@@ -18,6 +18,7 @@
 
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { BehaviorSubject, EMPTY, Observable, Subject } from 'rxjs';
+import type { BusFrame } from '@semiont/core';
 import type { ExtractionOutcome, EventMap, ResourceDescriptor as CoreResourceDescriptor } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId, chunkText } from '@semiont/core';
 import { calculateChecksum, extractPdfTextLayer } from '@semiont/content';
@@ -820,6 +821,9 @@ describe('Smelter.reconcile', () => {
       },
       stream<K extends keyof EventMap>(): Observable<EventMap[K]> {
         return new Subject<EventMap[K]>();
+      },
+      frames<K extends keyof EventMap>(): Observable<BusFrame<EventMap[K]>> {
+        return new Subject<BusFrame<EventMap[K]>>();
       },
       // Nothing is outside this fixture's reach — the emit is what fails here.
       isSubscribed: () => true,

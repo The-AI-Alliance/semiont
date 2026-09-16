@@ -844,13 +844,10 @@ describe('AnnotationOperations', () => {
         ),
       );
 
-      eventBus.emit('mark:update-entity-types', {
-        correlationId,
-        _userId: 'user-1',
+      eventBus.emit('mark:update-entity-types', { _userId: 'user-1',
         resourceId: testResourceId,
         currentEntityTypes: ['Legacy'],
-        updatedEntityTypes: ['Person'],
-      });
+        updatedEntityTypes: ['Person'], }, { correlationId: correlationId });
 
       await ok$;
 
@@ -894,13 +891,10 @@ describe('AnnotationOperations', () => {
       // A REMOVAL, not an add: removals are never vocabulary-gated (the gate
       // would otherwise reject the tag before appendEvent runs), so this still
       // exercises the append-failure catch branch — the test's actual subject.
-      failBus.emit('mark:update-entity-types', {
-        correlationId,
-        _userId: 'user-1',
+      failBus.emit('mark:update-entity-types', { _userId: 'user-1',
         resourceId: testResourceId,
         currentEntityTypes: ['Person'],
-        updatedEntityTypes: [],
-      });
+        updatedEntityTypes: [], }, { correlationId: correlationId });
 
       const failure = await failed$;
       expect(failure.message).toContain('disk full');
