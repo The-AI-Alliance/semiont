@@ -42,17 +42,25 @@ NEXT="$CURRENT"
 
 # The skill drops dependabot from the post; this lists them separately rather
 # than filtering silently, so a security bump that mattered can still be seen.
+# gh's --jq output is re-parsed by a second jq below, and a PR body containing a
+# raw control character makes that intermediate JSON unparseable — which silently
+# emptied the entire PR section on 0.5.38. Fetch raw JSON and filter locally, once.
+PR_RAW="$(mktemp)"; PR_FILT="$(mktemp)"
+trap 'rm -f "$PR_RAW" "$PR_FILT"' EXIT
+gh pr list -R "$REPO" --state merged --limit 100 \
+  --json number,title,author,mergedAt,url,body,files,mergeCommit > "$PR_RAW"
+
 # The previous tag sits ON the merge commit of that release's last PR, and that
 # PR's mergedAt lands a hair after the commit's own timestamp — so a purely
 # time-based window re-reports the previous release's final PR every time.
 # Excluding the tagged commit by sha closes it exactly, with no timestamp fudge.
-PRS=$(gh pr list -R "$REPO" --state merged --limit 100 \
-        --json number,title,author,mergedAt,url,body,files,mergeCommit \
-        --jq "[.[] | select(.mergedAt > \"$SINCE\") | select(.mergeCommit.oid != \"$TAG_SHA\")] | sort_by(.number)")
+jq --arg since "$SINCE" --arg tagsha "$TAG_SHA" \
+   '[.[] | select(.mergedAt > $since) | select(.mergeCommit.oid != $tagsha)] | sort_by(.number)' \
+   "$PR_RAW" > "$PR_FILT"
 
-# Headings inside a PR body are demoted so they cannot be mistaken for this
-# document's own sections when skimming.
-echo "$PRS" | jq -r '
+# No 2>/dev/null anywhere below: a filter that breaks must fail loudly, not
+# produce a release post with no changes in it.
+jq -r '
   def noise: (.author.login | test("dependabot"))
           or (.title | test("^[a-z-]+\\(deps(-dev)?\\):"))
           or (.title | test("^bump version to "));
@@ -61,7 +69,7 @@ echo "$PRS" | jq -r '
   | ($real[] | "### PR #\(.number) — \(.title)\n_by \(.author.login), merged \(.mergedAt)_\n\nFiles: \([.files[].path] | length) changed\n\n\((.body // "_(no body)_") | gsub("(?m)^#"; "#####"))\n\n---\n")
   , "\n## Dependency and bump PRs (excluded from the post body)\n"
   , ($bots[] | "- #\(.number) \(.title)")
-' >> "$OUT" 2>/dev/null
+' "$PR_FILT" >> "$OUT"
 
 {
   echo
@@ -120,7 +128,8 @@ fi
   echo "- [ ] No \`.plans/\` paths anywhere in the post — reviewers cannot see untracked files."
 } >> "$OUT"
 
-n_real=$(echo "$PRS" | jq "[.[] | select(((.author.login | test(\"dependabot\")) or (.title | test(\"^[a-z-]+\\\\(deps(-dev)?\\\\):\")) or (.title | test(\"^bump version to \"))) | not)] | length")
-n_bot=$(echo "$PRS" | jq "[.[] | select((.author.login | test(\"dependabot\")) or (.title | test(\"^[a-z-]+\\\\(deps(-dev)?\\\\):\")) or (.title | test(\"^bump version to \")))] | length")
+NOISE_DEF='def noise: (.author.login | test("dependabot")) or (.title | test("^[a-z-]+\\(deps(-dev)?\\):")) or (.title | test("^bump version to "));'
+n_real=$(jq "$NOISE_DEF [.[] | select(noise | not)] | length" "$PR_FILT")
+n_bot=$(jq "$NOISE_DEF [.[] | select(noise)] | length" "$PR_FILT")
 echo "$n_real substantive PRs, $n_bot dependency PRs, window from $PREV"
 echo "$OUT"
