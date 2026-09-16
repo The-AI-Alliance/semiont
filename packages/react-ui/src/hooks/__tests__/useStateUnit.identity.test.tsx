@@ -21,10 +21,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { BehaviorSubject, map } from 'rxjs';
+import { BehaviorSubject, Subject, map } from 'rxjs';
 import { readyValue } from '@semiont/sdk';
-import type { ConnectionState } from '@semiont/core';
-import { EventBus } from '@semiont/core';
+import type { ConnectionState, SemiontError } from '@semiont/core';
+import { EventBus, baseUrl } from '@semiont/core';
 import { type ITransport, type IContentTransport } from '@semiont/core';
 import { BrowseNamespace } from '@semiont/sdk';
 import { useStateUnit } from '../useStateUnit';
@@ -36,13 +36,68 @@ const NINE_TYPES = [
 ];
 
 /**
+ * An in-memory `ITransport` over one `EventBus`, differing per test only in
+ * how `emit` answers.
+ *
+ * Typed as `ITransport` with NO cast, deliberately. These fakes were built as
+ * object literals behind `as unknown as ITransport`, and the cast hid three
+ * required members — `baseUrl`, `errors$` and `isSubscribed`. Only the one
+ * that happened to be CALLED blew up, and not even loudly: the SWR cache
+ * swallowed `bus.isSubscribed is not a function` into its retry-then-idle
+ * path, so the symptom was an empty entity-type list (CLIENT-SUBSCRIPTION-
+ * MANIFEST, 2026-09-16). Constructing through this signature makes the next
+ * required member a compile error instead.
+ *
+ * `isSubscribed` answers `true` honestly rather than as a stub: `stream()`
+ * here returns the bus subject for whatever channel is asked, so this
+ * transport genuinely does deliver every channel.
+ */
+function inMemoryTransport(
+  bus: EventBus,
+  onEmit: (channel: string, payload: Record<string, unknown>) => void,
+): ITransport {
+  return {
+    baseUrl: baseUrl('http://transport.test'),
+    // Adapting a spy here (rather than taking `ITransport['emit']` directly)
+    // is what keeps this literal cast-free: the interface contextually types
+    // `channel` and `payload`, and each test still asserts on its own spy.
+    emit: async (channel, payload) => {
+      onEmit(channel, payload as Record<string, unknown>);
+      return 1;
+    },
+    on: (channel, handler) => {
+      const sub = bus.get(channel).subscribe(handler);
+      return () => sub.unsubscribe();
+    },
+    stream: (channel) => bus.get(channel).asObservable(),
+    subscribeToResource: () => () => {},
+    bridgeInto: () => {},
+    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
+    isSubscribed: () => true,
+    errors$: new Subject<SemiontError>().asObservable(),
+    dispose: () => {},
+  };
+}
+
+/** The content half, which no test in this file exercises. */
+function inMemoryContent(): IContentTransport {
+  return {
+    putBinary: vi.fn(),
+    getBinary: vi.fn(),
+    getBinaryStream: vi.fn(),
+    getResourceGraph: vi.fn(),
+    dispose: vi.fn(),
+  };
+}
+
+/**
  * Build a minimal BrowseNamespace with a controllable mock transport. The
  * `answerEntityTypes` argument decides what the transport emits in response
  * to the next `browse:entity-types-requested`.
  */
 function makeBrowse(answerEntityTypes: string[]) {
   const transportBus = new EventBus();
-  const emit = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
+  const emit = vi.fn().mockImplementation((channel: string, payload: Record<string, unknown>) => {
     if (channel === 'browse:entity-types-requested') {
       const correlationId = payload.correlationId as string;
       queueMicrotask(() => {
@@ -51,26 +106,11 @@ function makeBrowse(answerEntityTypes: string[]) {
       });
     }
   });
-  const transport = {
-    emit,
-    on: <K extends never>(channel: K, handler: (p: never) => void) => {
-      const sub = (transportBus.get(channel) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
-      return () => sub.unsubscribe();
-    },
-    stream: <K extends never>(channel: K) => transportBus.get(channel),
-    subscribeToResource: vi.fn().mockReturnValue(() => {}),
-    bridgeInto: vi.fn(),
-    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-    dispose: vi.fn(),
-  } as unknown as ITransport;
-  const content: IContentTransport = {
-    putBinary: vi.fn(),
-    getBinary: vi.fn(),
-    getBinaryStream: vi.fn(),
-    getResourceGraph: vi.fn(),
-    dispose: vi.fn(),
-  };
-  return new BrowseNamespace(transport, new EventBus(), content);
+  return new BrowseNamespace(
+    inMemoryTransport(transportBus, emit),
+    new EventBus(),
+    inMemoryContent(),
+  );
 }
 
 /**
@@ -124,27 +164,12 @@ describe('useStateUnit identity seam — stale client references', () => {
     async () => {
       // Defer browseA's response so the client swap wins the race.
       const deferredTransportBus = new EventBus();
-      const deferredEmit = vi.fn().mockImplementation(async () => { /* never answers */ });
-      const deferredTransport = {
-        emit: deferredEmit,
-        on: <K extends never>(channel: K, handler: (p: never) => void) => {
-          const sub = (deferredTransportBus.get(channel) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
-          return () => sub.unsubscribe();
-        },
-        stream: <K extends never>(channel: K) => deferredTransportBus.get(channel),
-        subscribeToResource: vi.fn().mockReturnValue(() => {}),
-        bridgeInto: vi.fn(),
-        state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-        dispose: vi.fn(),
-      } as unknown as ITransport;
-      const deferredContent: IContentTransport = {
-        putBinary: vi.fn(),
-        getBinary: vi.fn(),
-        getBinaryStream: vi.fn(),
-        getResourceGraph: vi.fn(),
-        dispose: vi.fn(),
-      };
-      const browseA = new BrowseNamespace(deferredTransport, new EventBus(), deferredContent);
+      const deferredEmit = vi.fn().mockImplementation(() => { /* never answers */ });
+      const browseA = new BrowseNamespace(
+        inMemoryTransport(deferredTransportBus, deferredEmit),
+        new EventBus(),
+        inMemoryContent(),
+      );
       const browseB = makeBrowse(['FromBrowseB']);
 
       let observedTypes: string[] = [];
@@ -177,32 +202,17 @@ describe('useStateUnit identity seam — stale client references', () => {
       // it follows directly from the previous test's setup.
       const transportBus = new EventBus();
       const pendingCids: string[] = [];
-      const emit = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
+      const emit = vi.fn().mockImplementation((channel: string, payload: Record<string, unknown>) => {
         if (channel === 'browse:entity-types-requested') {
           pendingCids.push(payload.correlationId as string);
           // Don't respond yet — test resolves this manually.
         }
       });
-      const transport = {
-        emit,
-        on: <K extends never>(channel: K, handler: (p: never) => void) => {
-          const sub = (transportBus.get(channel) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
-          return () => sub.unsubscribe();
-        },
-        stream: <K extends never>(channel: K) => transportBus.get(channel),
-        subscribeToResource: vi.fn().mockReturnValue(() => {}),
-        bridgeInto: vi.fn(),
-        state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-        dispose: vi.fn(),
-      } as unknown as ITransport;
-      const content: IContentTransport = {
-        putBinary: vi.fn(),
-        getBinary: vi.fn(),
-        getBinaryStream: vi.fn(),
-        getResourceGraph: vi.fn(),
-        dispose: vi.fn(),
-      };
-      const browseA = new BrowseNamespace(transport, new EventBus(), content);
+      const browseA = new BrowseNamespace(
+        inMemoryTransport(transportBus, emit),
+        new EventBus(),
+        inMemoryContent(),
+      );
       const browseB = makeBrowse(NINE_TYPES);
 
       let observedTypes: string[] = [];
