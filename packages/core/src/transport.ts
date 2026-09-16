@@ -187,6 +187,15 @@ export interface ITransport {
   trackReply?(correlationId: string): () => void;
 
   /**
+   * Whether this transport's receive path delivers `channel`
+   * (`BusRequestPrimitive.isSubscribed` — every `ITransport` is passed to
+   * `busRequest`, so it answers the same question). REQUIRED: an in-process
+   * transport answers `true` for every channel because it delivers every
+   * emit, which is the true answer and not a stub.
+   */
+  isSubscribed(channel: keyof EventMap): boolean;
+
+  /**
    * Stream of transport-level errors surfaced from typed-wire methods or
    * other transport-mediated round-trips, just before they're thrown to
    * the caller. Each emission is a `SemiontError` (or subclass — HTTP

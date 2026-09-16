@@ -272,7 +272,7 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
   // Workers are HTTP-bound today; the actor is needed for the job-claim
   // protocol (SSE subscribe + ad-hoc channel adds). Cast to HttpTransport
   // is intentional: `LocalTransport` workers don't exist. The adapter
-  // itself is transport-neutral — see `WorkerBus` in
+  // itself is transport-neutral — see `BusRequestPrimitive` in
   // packages/sdk/src/state/lib/worker-bus.ts.
   const httpTransport = session.client.transport as HttpTransport;
   const adapter = createJobClaimAdapter({
@@ -302,7 +302,9 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
   // job's must be cooperative, or it would be yanked out from under a live
   // worker (the roach-motel race).
   let activeCancel: { jobId: string; controller: AbortController } | null = null;
-  httpTransport.actor.addChannels?.(['job:cancel-requested']);
+  // `job:cancel-requested` rides the worker manifest
+  // (`WORKER_CONSUMED_BROADCASTS`), declared once at construction rather than
+  // widened here.
   httpTransport.on('job:cancel-requested', (event) => {
     const targetId = (event as { jobId?: string }).jobId;
     if (targetId && activeCancel?.jobId === targetId) {

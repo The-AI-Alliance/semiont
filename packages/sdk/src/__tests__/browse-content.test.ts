@@ -9,22 +9,13 @@
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { BehaviorSubject, Subject } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { ConnectionState, IContentTransport, ITransport, ResourceId } from '@semiont/core';
+import type { IContentTransport, ITransport, ResourceId } from '@semiont/core';
 import { BrowseNamespace } from '../namespaces/browse';
+import { inMemoryTransport } from './helpers/in-memory-transport';
 
 function inertTransport(): ITransport {
-  return {
-    baseUrl: 'http://test',
-    emit: async () => {},
-    stream: () => new Subject().asObservable(),
-    subscribeToResource: () => () => {},
-    bridgeInto: () => {},
-    state$: new BehaviorSubject<ConnectionState>('open'),
-    errors$: new Subject(),
-    dispose: () => {},
-  } as unknown as ITransport;
+  return inMemoryTransport();
 }
 
 describe('browse content reads — pure pipe (SIMPLER-JSON-LD Phase 2)', () => {

@@ -62,7 +62,7 @@ export { CloneTokenManager } from './clone-token-manager';
 // Smelter — event-to-vector pipeline plus its domain-event fan-in state unit.
 // `smelter-main` (the standalone container entry point) wires the two together;
 // both are exported for callers that want to run the pipeline on top of their
-// own `WorkerBus`.
+// own `BusRequestPrimitive`.
 export {
   Smelter,
   type ReconcileSummary,

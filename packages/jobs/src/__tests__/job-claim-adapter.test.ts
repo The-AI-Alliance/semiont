@@ -12,11 +12,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BehaviorSubject, firstValueFrom, skip, take } from 'rxjs';
 import { createJobClaimAdapter } from '../job-claim-adapter';
-import type { WorkerBus } from '@semiont/sdk';
+import { WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS } from '../worker-runtime';
+import type { BusRequestPrimitive } from '@semiont/core';
 import { EventBus, type ConnectionState, type EventMap } from '@semiont/core';
 
 function fakeBus() {
-  const channels = new Set<keyof EventMap>();
   // A correlated union, not `{ channel: keyof EventMap; payload: <union> }`:
   // the latter pairs every channel with every payload, so `.payload.jobId`
   // would not typecheck even for an emit we know is `job:claim`. This shape
@@ -26,11 +26,13 @@ function fakeBus() {
   const emits: Emitted[] = [];
   const eventBus = new EventBus();
 
-  const bus: WorkerBus = {
-    addChannels: vi.fn((cs: readonly (keyof EventMap)[]) => {
-      cs.forEach((c) => channels.add(c));
-    }),
+  const bus: BusRequestPrimitive = {
     stream: <K extends keyof EventMap>(channel: K) => eventBus.get(channel).asObservable(),
+    // This double delivers whatever a test pushes at it — subjects are created
+    // on demand — so `true` is the truth about it. It does not model a
+    // NARROWED set; that behavior is proven against the real ActorStateUnit,
+    // and against the real worker manifest by this plan's P3.
+    isSubscribed: () => true,
     // In-process fixture: replies are pushed synchronously onto the bus
     // above, so 'open' is the truth, not a stub (BUS-ATTACH-GATE.md).
     state$: new BehaviorSubject<ConnectionState>('open'),
@@ -49,7 +51,6 @@ function fakeBus() {
 
   return {
     bus,
-    channels,
     pushEvent: <K extends keyof EventMap>(channel: K, payload: EventMap[K]) =>
       eventBus.get(channel).next(payload),
     emits,
@@ -84,20 +85,18 @@ describe('createJobClaimAdapter', () => {
     adapter.dispose();
   });
 
-  it('widens the shared actor with job:queued on start()', () => {
-    // The worker's transport subscribes only the reply channels it awaits —
-    // NOT BRIDGED_CHANNELS — so without this widening the adapter listens
-    // to a channel its own stream will never carry. This assertion was
-    // briefly inverted (2026-09-16, "redundant with the classification")
-    // and every worker sat idle with the frame live on the broker: the
-    // widening and the registry classification are BOTH load-bearing.
-    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
-    adapter.start();
-
-    expect(h.channels.has('job:queued')).toBe(true);
-    expect(h.bus.addChannels).toHaveBeenCalledWith(['job:queued']);
-
-    adapter.dispose();
+  it('job:queued is in the worker MANIFEST — the adapter no longer widens anything', () => {
+    // The worker's transport subscribes its manifest, NOT BRIDGED_CHANNELS,
+    // so a `job:queued` missing from the manifest is a channel the adapter's
+    // own stream can never carry. This assertion was briefly INVERTED
+    // (2026-09-16, "redundant with the classification") and every worker sat
+    // idle with the frame live on the broker.
+    //
+    // It now asserts the DECLARATION rather than a widening call: the
+    // widening verb is gone (P2), so the manifest is the only thing that can
+    // be wrong, and it is one constant instead of a call at a use site.
+    expect(WORKER_CONSUMED_BROADCASTS).toContain('job:queued');
+    expect(WORKER_CHANNELS).toContain('job:queued');
   });
 
   it('claims matching jobs and emits job:claim with a correlationId', async () => {
@@ -180,7 +179,11 @@ describe('createJobClaimAdapter', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
     adapter.start();
-    expect(h.bus.addChannels).toHaveBeenCalledTimes(1);
+    // One subscription, not two: a second start() must not double-consume
+    // the announcement stream. (Previously counted `addChannels` calls — a
+    // verb that no longer exists.)
+    h.pushEvent('job:queued', { jobId: 'j-idem', jobType: 'generation', resourceId: 'r1', userId: 'did:u1' });
+    expect(h.emits.filter((e) => e.channel === 'job:claim')).toHaveLength(1);
 
     adapter.dispose();
   });

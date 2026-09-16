@@ -18,22 +18,19 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { ConnectionState, IContentTransport, ITransport, ResourceId } from '@semiont/core';
+import type { EventMap } from '@semiont/core';
+import type { IContentTransport, ResourceId } from '@semiont/core';
 import { readyValue } from '../cache';
 import { BrowseNamespace } from '../namespaces/browse';
+import { inMemoryTransport } from './helpers/in-memory-transport';
+import { mockAnnotation } from './fixtures/annotation';
+import { mockResource } from './fixtures/resource';
 
 function makeFakeTransport() {
-  const subjects = new Map<string, Subject<Record<string, unknown>>>();
-  const subjectFor = (channel: string) => {
-    let s = subjects.get(channel);
-    if (!s) {
-      s = new Subject<Record<string, unknown>>();
-      subjects.set(channel, s);
-    }
-    return s;
-  };
+  // One typed bus: the transport streams from it and the test pushes into
+  // it, so a reply fixture is checked against the channel's declared payload.
+  const bus = new EventBus();
 
   const releases: Array<ReturnType<typeof vi.fn>> = [];
   const subscribeToResource = vi.fn((_rId: ResourceId) => {
@@ -42,33 +39,35 @@ function makeFakeTransport() {
     return release;
   });
 
-  const respond = (channel: string, resultChannel: string, payload: Record<string, unknown>, response: unknown) => {
-    if (channel === resultChannel) {
-      subjectFor(channel.replace('-requested', '-result')).next({
-        correlationId: payload.correlationId as string,
-        response,
-      });
+  // The result channel is NAMED, not derived by replacing '-requested' with
+  // '-result' in the request's name. String surgery on channel names cannot
+  // be checked against the registry, and the typed bus is what forced the
+  // issue: `bus.get(<computed string>)` has no payload type to check against.
+  const respond = <Req extends keyof EventMap, Res extends keyof EventMap>(
+    channel: string,
+    requestChannel: Req,
+    resultChannel: Res,
+    payload: Record<string, unknown>,
+    reply: Omit<EventMap[Res], 'correlationId'>,
+  ) => {
+    if (channel === requestChannel) {
+      bus.get(resultChannel).next({ correlationId: payload.correlationId as string, ...reply } as EventMap[Res]);
     }
   };
 
-  const transport = {
-    baseUrl: 'http://test',
-    emit: async (channel: string, payload: Record<string, unknown>) => {
-      respond(channel, 'browse:annotations-requested', payload, { annotations: [{ id: 'a1' }], total: 1 });
-      respond(channel, 'browse:resource-requested', payload, { resource: { id: 'res-1' } });
-      respond(channel, 'browse:events-requested', payload, { events: [] });
-      respond(channel, 'browse:referenced-by-requested', payload, { referencedBy: [] });
-      respond(channel, 'browse:entity-types-requested', payload, { entityTypes: [] });
-    },
-    stream: (channel: string): Observable<Record<string, unknown>> => subjectFor(channel).asObservable(),
+  const transport = inMemoryTransport({
+    bus,
     subscribeToResource,
-    bridgeInto: () => {},
-    state$: new BehaviorSubject<ConnectionState>('open'),
-    errors$: new Subject(),
-    dispose: () => {},
-  };
+    onEmit: (channel, payload) => {
+      respond(channel as string, 'browse:annotations-requested', 'browse:annotations-result', payload as Record<string, unknown>, { response: { annotations: [mockAnnotation('a1')], total: 1 } });
+      respond(channel as string, 'browse:resource-requested', 'browse:resource-result', payload as Record<string, unknown>, { response: { resource: mockResource('res-1'), annotations: [], entityReferences: [] } });
+      respond(channel as string, 'browse:events-requested', 'browse:events-result', payload as Record<string, unknown>, { response: { events: [], total: 0, resourceId: 'res-1' } });
+      respond(channel as string, 'browse:referenced-by-requested', 'browse:referenced-by-result', payload as Record<string, unknown>, { response: { referencedBy: [] } });
+      respond(channel as string, 'browse:entity-types-requested', 'browse:entity-types-result', payload as Record<string, unknown>, { response: { entityTypes: [] } });
+    },
+  });
 
-  return { transport: transport as unknown as ITransport, subscribeToResource, releases };
+  return { transport, subscribeToResource, releases };
 }
 
 const noopContent = {

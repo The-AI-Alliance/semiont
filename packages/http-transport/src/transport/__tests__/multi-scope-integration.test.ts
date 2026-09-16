@@ -16,7 +16,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
 import { EventBus, baseUrl, resourceId } from '@semiont/core';
 import { mockFetch, mockSSEResponse, sseChunkId } from './helpers/mock-conn';
-import { HttpTransport, RESOURCE_SCOPED_CHANNELS } from '../http-transport';
+import { RESOURCE_SCOPED_CHANNELS } from '@semiont/core';
+import { HttpTransport } from '../http-transport';
 
 type MatrixBody = {
   global: string[];

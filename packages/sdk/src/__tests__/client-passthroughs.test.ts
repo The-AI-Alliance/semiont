@@ -21,62 +21,36 @@ import {
   resourceId,
   annotationId,
   type AccessToken,
-  type EventMap,
 } from '@semiont/core';
 
 import { SemiontClient } from '../client';
 import { SemiontSession } from '../session/semiont-session';
 import { TestStorage } from '../session/__tests__/test-storage-helpers';
 import type { ConnectionState, ITransport, IContentTransport } from '@semiont/core';
+import { inMemoryTransport, gatewayOperationSpies, contentTransportSpies } from './helpers/in-memory-transport';
 
 const TEST_BASE = baseUrl('http://test.local');
 
 function makeMockTransport(): ITransport {
+  // Built through `inMemoryTransport` and then overridden with the spies these
+  // tests assert on. The overrides are typed as the interface's own members
+  // (`vi.fn<ITransport['emit']>()`), not bare `vi.fn()` — a bare spy types as
+  // `Mock<Procedure>` and satisfies nothing, which is how this double drifted
+  // from the contract behind its cast.
   const state$ = new BehaviorSubject<ConnectionState>('open');
-  const eventSubjects = new Map<string, Subject<unknown>>();
-  const getSubject = (channel: string): Subject<unknown> => {
-    if (!eventSubjects.has(channel)) eventSubjects.set(channel, new Subject<unknown>());
-    return eventSubjects.get(channel)!;
-  };
-
   return {
+    ...inMemoryTransport({ state$ }),
     baseUrl: TEST_BASE,
-    state$,
-    emit: vi.fn(async () => {}),
-    on: vi.fn((channel: string, handler: (p: unknown) => void) => {
-      const sub = getSubject(channel).subscribe(handler);
-      return () => sub.unsubscribe();
-    }) as unknown as ITransport['on'],
-    stream: vi.fn(<K extends keyof EventMap>(channel: K) =>
-      getSubject(channel as string).asObservable() as unknown as Observable<EventMap[K]>,
-    ),
-    subscribeToResource: vi.fn(() => () => {}),
-    bridgeInto: vi.fn(),
-    authenticatePassword: vi.fn(),
-    authenticateGoogle: vi.fn(),
-    refreshAccessToken: vi.fn(),
-    logout: vi.fn(),
-    acceptTerms: vi.fn(),
-    getCurrentUser: vi.fn(),
-    getMediaToken: vi.fn(),
-    listUsers: vi.fn(),
-    getUserStats: vi.fn(),
-    updateUser: vi.fn(),
-    getOAuthConfig: vi.fn(),
-    healthCheck: vi.fn(),
-    getStatus: vi.fn(),
-    dispose: vi.fn(),
-  } as unknown as ITransport;
+    emit: vi.fn<ITransport['emit']>(async () => 1),
+    subscribeToResource: vi.fn<ITransport['subscribeToResource']>(() => () => {}),
+    bridgeInto: vi.fn<ITransport['bridgeInto']>(),
+    dispose: vi.fn<ITransport['dispose']>(),
+    ...gatewayOperationSpies(),
+  };
 }
 
 function makeMockContent(): IContentTransport {
-  return {
-    putBinary: vi.fn(),
-    getBinary: vi.fn(),
-    getBinaryStream: vi.fn(),
-    getResourceGraph: vi.fn(),
-    dispose: vi.fn(),
-  };
+  return contentTransportSpies();
 }
 
 describe('SemiontClient lifecycle + namespace routing', () => {

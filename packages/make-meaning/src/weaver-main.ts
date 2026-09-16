@@ -19,10 +19,9 @@
  */
 
 import { BehaviorSubject } from 'rxjs';
-import { createWeaverActorStateUnit, type WeaverActorStateUnit } from './weaver-actor-state-unit';
+import { WEAVER_MANIFEST, createWeaverActorStateUnit, type WeaverActorStateUnit } from './weaver-actor-state-unit';
 import { Weaver, type WeaverTiming } from './weaver';
 import { FileWeaverCheckpoint } from './weaver-checkpoint';
-import { WEAVER_REPLY_CHANNELS } from './service-channels';
 import { HttpTransport } from '@semiont/http-transport';
 import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader, retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY } from '@semiont/core';
 import { runBootPass, type BootPassState } from './boot-pass';
@@ -169,11 +168,10 @@ async function main() {
     baseUrl: makeBaseUrl(baseUrl),
     token$: tokenSubject,
     tokenRefresher: refreshToken,
-    // Only the reply channels this process awaits — not the full bridged
-    // set, whose global reply fan-out is the worker-OOM failure mode. See
-    // WEAVER_AWAITED_OPERATIONS. The domain-event channels are added by
-    // the actor state unit's start() below.
-    channels: WEAVER_REPLY_CHANNELS,
+    // The whole manifest at construction — reply channels, the domain-event
+    // fold and the command channels — not the reply set plus a later
+    // widening. See WEAVER_MANIFEST.
+    channels: WEAVER_MANIFEST,
   });
   const actorStateUnit: WeaverActorStateUnit = createWeaverActorStateUnit({
     bus: httpTransport.actor,

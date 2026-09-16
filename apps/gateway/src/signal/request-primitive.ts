@@ -48,6 +48,10 @@ export function requestPrimitiveFor(eventBus: EventBus): BusRequestPrimitive {
         return () => sub.close();
       });
     },
+    // Every channel: `stream` subscribes the plane on demand for whatever
+    // channel it is handed, so there is no set to be outside of. The true
+    // answer for this primitive, not a stub.
+    isSubscribed: () => true,
     state$: OPEN,
   };
 }

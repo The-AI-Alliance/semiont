@@ -13,13 +13,13 @@
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { BehaviorSubject } from 'rxjs';
 import { EventBus } from '@semiont/core';
-import type { ConnectionState, ITransport, IContentTransport } from '@semiont/core';
+import type { ITransport, IContentTransport } from '@semiont/core';
 import { resourceContextFor } from '../../__tests__/fixtures/gathered-context';
 import { YieldNamespace } from '../yield';
 import { createYieldStateUnit } from '../../state/flows/yield-state-unit';
 import type { SemiontClient } from '../../client';
+import { inMemoryTransport } from '../../__tests__/helpers/in-memory-transport';
 import {
   GenerationStallError,
   deriveStallDeadlineMs,
@@ -43,18 +43,14 @@ function createMockTransport(responses: ResponseMap): { transport: ITransport; e
     }
     return 1;
   });
-  const transport = {
-    emit: emitSpy,
-    on: <K extends never>(channel: K, handler: (p: never) => void) => {
-      const sub = (transportBus.get(channel) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
-      return () => sub.unsubscribe();
+  const subscribeToResource = vi.fn().mockReturnValue(() => {});
+  const transport = inMemoryTransport({
+    bus: transportBus,
+    subscribeToResource,
+    onEmit: (channel, payload) => {
+      void emitSpy(channel, payload);
     },
-    stream: <K extends never>(channel: K) => transportBus.get(channel),
-    subscribeToResource: vi.fn().mockReturnValue(() => {}),
-    bridgeInto: vi.fn(),
-    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-    dispose: vi.fn(),
-  } as unknown as ITransport;
+  });
   return { transport, emitSpy };
 }
 

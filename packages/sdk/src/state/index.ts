@@ -9,7 +9,7 @@
 //              are atomic `Promise<void>` writes with no progress
 //              observables; a Frame state unit lands when the surface earns one.
 //   lib/     — substrate (`StateUnit` disposable interface, search pipeline,
-//              `WorkerBus` channel-IO interface)
+//              `BusRequestPrimitive` channel-IO interface)
 //
 // Domain-specific worker adapters live with their domain, not here.
 // `@semiont/jobs` houses `createJobClaimAdapter` (the job-claim protocol
@@ -28,7 +28,6 @@ export {
   type SearchPipelineOptions,
   type SearchState,
 } from './lib/search-pipeline';
-export type { WorkerBus } from './lib/worker-bus';
 
 // ── Flow state units ────────────────────────────────────────────────────
 

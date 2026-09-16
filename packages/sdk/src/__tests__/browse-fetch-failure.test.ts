@@ -28,10 +28,11 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { ConnectionState, IContentTransport, ITransport, ResourceId } from '@semiont/core';
+import type { EventMap } from '@semiont/core';
+import type { IContentTransport, ResourceId } from '@semiont/core';
 import { BrowseNamespace } from '../namespaces/browse';
+import { inMemoryTransport } from './helpers/in-memory-transport';
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -42,38 +43,28 @@ const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
  * transport's `stream(...)` hands back, so busRequest's subscriber receives it.
  */
 function makeFakeTransport() {
-  const subjects = new Map<string, Subject<Record<string, unknown>>>();
-  const subjectFor = (channel: string) => {
-    let s = subjects.get(channel);
-    if (!s) {
-      s = new Subject<Record<string, unknown>>();
-      subjects.set(channel, s);
-    }
-    return s;
-  };
+  // One typed bus: the transport streams from it and the test pushes into
+  // it, so a reply fixture is checked against the channel's declared payload.
+  const bus = new EventBus();
 
   let onEmit: ((channel: string, payload: Record<string, unknown>) => void) | undefined;
 
-  const transport = {
-    baseUrl: 'http://test',
-    emit: async (channel: string, payload: Record<string, unknown>) => {
-      onEmit?.(channel, payload);
+  const transport = inMemoryTransport({
+    bus,
+    onEmit: (channel, payload) => {
+      onEmit?.(channel as string, payload as Record<string, unknown>);
     },
-    stream: (channel: string): Observable<Record<string, unknown>> =>
-      subjectFor(channel).asObservable(),
-    subscribeToResource: () => () => {},
-    bridgeInto: () => {},
-    state$: new BehaviorSubject<ConnectionState>('open'),
-    errors$: new Subject(),
-    dispose: () => {},
-  };
+  });
 
   return {
-    transport: transport as unknown as ITransport,
+    transport,
     setOnEmit: (f: (channel: string, payload: Record<string, unknown>) => void) => {
       onEmit = f;
     },
-    push: (channel: string, payload: Record<string, unknown>) => subjectFor(channel).next(payload),
+    // Pushes ride the SAME typed bus the transport streams from, so an
+    // under-shaped fixture is a compile error rather than something the
+    // transport's cast hid.
+    push: <K extends keyof EventMap>(channel: K, payload: EventMap[K]) => bus.get(channel).next(payload),
   };
 }
 

@@ -40,7 +40,7 @@
 import { afterAll, describe, test, expect } from 'vitest';
 import { EventBus, busRequest, type BusOperationKey, type EventMap } from '@semiont/core';
 import { GATEWAY_HANDLER_CHANNELS, GATEWAY_HANDLER_EMITS } from '@semiont/make-meaning';
-import { JOB_QUEUE_EMITS } from '@semiont/jobs';
+import { JOB_QUEUE_EMITS, WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS } from '@semiont/jobs';
 import { toReplyAddress } from '../interface';
 import { createNatsSignalPlane } from '../nats';
 import { compositionFor, type SignalComposition } from '../composition';
@@ -286,18 +286,44 @@ describe('P3 — two gateway-compositions over one broker', () => {
     // registry's reply channel via its own emit.
     const { a, b, done } = await twoInstances();
     try {
+      let probesSeen = 0;
       const stower = b.composition.plane.subscribeClient({
         address: toReplyAddress('fake-stower'),
         global: ['yield:create'],
         scoped: [],
         onFrame: (_channel, payload) => {
-          const command = payload as { correlationId: string };
+          const command = payload as { correlationId?: string };
+          // A probe carries no correlationId and is only proof of life.
+          if (command.correlationId === undefined) {
+            probesSeen += 1;
+            return;
+          }
           b.ingest('yield:create-ok', {
             correlationId: command.correlationId,
             response: { resourceId: 'urn:semiont:r-h7' },
           });
         },
       });
+
+      // Prove B's subscription is LIVE on the broker before requesting.
+      //
+      // `subscribeClient` is synchronous, but registering the interest with
+      // NATS is not, and core NATS is at-most-once: a frame published before
+      // that registration lands is DROPPED, not delayed. The request then
+      // waits out its full deadline for a reply that was never going to come,
+      // which is why raising the timeout does not fix this and did not (CI,
+      // 2026-09-16, `timed out after 5000ms on yield:create-ok`).
+      //
+      // Same emit-until-seen shape as H4/H8/H9, for the same reason: the only
+      // way to know a subscription is live is for a frame to come back through
+      // it.
+      await settle(() => {
+        if (probesSeen > 0) return true;
+        a.ingest('yield:create', { name: 'h7-probe' });
+        return false;
+      });
+      expect(probesSeen, 'B subscription live before the request').toBeGreaterThan(0);
+
       const response = await a.request('yield:create', { name: 'h7' });
       expect(response).toEqual({ resourceId: 'urn:semiont:r-h7' });
       stower.close();
@@ -326,6 +352,60 @@ describe('P3 — two gateway-compositions over one broker', () => {
       });
       expect(worker.frames.length, 'worker heard the announcement').toBeGreaterThanOrEqual(1);
       expect(worker.frames[0]!.channel).toBe('job:queued');
+      worker.close();
+    } finally {
+      done();
+    }
+  });
+
+  test('H9: the REAL worker manifest hears the queue announcement (composition grain)', async () => {
+    // The grain gap every bring-up bug of 2026-09-16 slipped through. H8
+    // above proves the transport carries `job:queued` — but it composes its
+    // client with `['job:queued']` hand-written into the subscription list,
+    // so it is green whether or not any real worker subscribes that channel.
+    // The outage was exactly that difference: the frame was on the broker and
+    // the worker's own set did not name it. `lastQueuedEventAt: null` was the
+    // only tell.
+    //
+    // So compose WORKER_CHANNELS itself — the set a worker process actually
+    // constructs its transport with. Remove an entry from
+    // WORKER_CONSUMED_BROADCASTS and this goes red while H8 stays green.
+    const { a, b, done } = await twoInstances();
+    try {
+      const worker = b.client('worker-h9', [...WORKER_CHANNELS]);
+
+      // Both declared broadcasts, because both are load-bearing and neither
+      // is derivable from an operation: the queue announcement the adapter
+      // races for, and the cooperative cancel of a RUNNING job — which is an
+      // operation REQUEST channel the worker consumes and never answers, so
+      // it is absent from BRIDGED_CHANNELS and reaches a worker only by being
+      // named in the manifest.
+      expect([...WORKER_CONSUMED_BROADCASTS].sort()).toEqual(
+        ['job:cancel-requested', 'job:queued'],
+      );
+
+      await settle(() => {
+        if (worker.frames.some((f) => f.channel === 'job:queued')) return true;
+        // Emit-until-seen, as H4/H8: the queue driver re-announces on a timer
+        // in production, so repetition is the honest model too.
+        a.emitOnBus('job:queued', { jobId: 'job-h9', jobType: 'generate' });
+        return false;
+      });
+      expect(
+        worker.frames.some((f) => f.channel === 'job:queued'),
+        'a worker composed from the real manifest heard the announcement',
+      ).toBe(true);
+
+      await settle(() => {
+        if (worker.frames.some((f) => f.channel === 'job:cancel-requested')) return true;
+        a.ingest('job:cancel-requested', { jobId: 'job-h9', correlationId: 'cid-h9' });
+        return false;
+      });
+      expect(
+        worker.frames.some((f) => f.channel === 'job:cancel-requested'),
+        'the cooperative cancel reaches the same manifest-composed worker',
+      ).toBe(true);
+
       worker.close();
     } finally {
       done();

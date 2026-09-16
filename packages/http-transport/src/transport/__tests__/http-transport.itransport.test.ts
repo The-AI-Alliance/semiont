@@ -60,19 +60,26 @@ describe('HttpTransport ITransport delegation', () => {
     transport.dispose();
   });
 
+  // `beckon:focus`, not `beckon:hover`: these two tests assert SSE DELIVERY,
+  // and the registry declares `beckon:hover` `inProcess` — it never crosses
+  // the wire, so no gateway would ever send the frame this fixture pushed and
+  // no default client subscribes it. The stream refusal (2026-09-16,
+  // CLIENT-SUBSCRIPTION-MANIFEST P1) surfaced it: the fixture was proving
+  // fan-out over a channel that cannot arrive. `beckon:focus` is a
+  // bridgedBroadcast and proves the same filtering honestly.
   it('on delivers its own channel only, and the returned disposer stops delivery', async () => {
     const sse = mockSSEResponse();
     // A credential is required to connect at all (the SSE connect gate), so a
     // tokenless transport would never issue the subscribe this test waits on.
     const transport = new HttpTransport({ baseUrl: BASE, token$: token() });
 
-    const seen: EventMap['beckon:hover'][] = [];
-    const off = transport.on('beckon:hover', (p) => seen.push(p));
+    const seen: EventMap['beckon:focus'][] = [];
+    const off = transport.on('beckon:focus', (p) => seen.push(p));
     transport.actor.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
     sse.push(sseChunk('bus-event', JSON.stringify({
-      channel: 'beckon:hover', payload: { annotationId: 'a-1' },
+      channel: 'beckon:focus', payload: { annotationId: 'a-1' },
     })));
     await vi.waitFor(() => expect(seen).toHaveLength(1));
     expect(seen[0]).toEqual({ annotationId: 'a-1' });
@@ -83,14 +90,14 @@ describe('HttpTransport ITransport delegation', () => {
       channel: 'beckon:sparkle', payload: { annotationId: 'a-2' },
     })));
     sse.push(sseChunk('bus-event', JSON.stringify({
-      channel: 'beckon:hover', payload: { annotationId: 'a-3' },
+      channel: 'beckon:focus', payload: { annotationId: 'a-3' },
     })));
     await vi.waitFor(() => expect(seen).toHaveLength(2));
     expect(seen.map((p) => p.annotationId)).toEqual(['a-1', 'a-3']);
 
     off();
     sse.push(sseChunk('bus-event', JSON.stringify({
-      channel: 'beckon:hover', payload: { annotationId: 'a-4' },
+      channel: 'beckon:focus', payload: { annotationId: 'a-4' },
     })));
     await new Promise((r) => setTimeout(r, 10));
     expect(seen).toHaveLength(2);
@@ -104,13 +111,13 @@ describe('HttpTransport ITransport delegation', () => {
     // tokenless transport would never issue the subscribe this test waits on.
     const transport = new HttpTransport({ baseUrl: BASE, token$: token() });
 
-    const seen: EventMap['beckon:hover'][] = [];
-    const sub = transport.stream('beckon:hover').subscribe((p) => seen.push(p));
+    const seen: EventMap['beckon:focus'][] = [];
+    const sub = transport.stream('beckon:focus').subscribe((p) => seen.push(p));
     transport.actor.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
     sse.push(sseChunk('bus-event', JSON.stringify({
-      channel: 'beckon:hover', payload: { annotationId: 'a-1' },
+      channel: 'beckon:focus', payload: { annotationId: 'a-1' },
     })));
     await vi.waitFor(() => expect(seen).toEqual([{ annotationId: 'a-1' }]));
 

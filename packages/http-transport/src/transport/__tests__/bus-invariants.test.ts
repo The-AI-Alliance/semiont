@@ -3,7 +3,7 @@
  * bus channel-classification contract (see @semiont/core's
  * src/__tests__/bus-invariants.test.ts for the full picture).
  *
- * `RESOURCE_SCOPED_CHANNELS` is the per-resource (scoped) set this transport
+ * `RESOURCE_SCOPED_CHANNELS` (derived in @semiont/core) is the per-resource set this transport
  * subscribes to *on top of* the global `BRIDGED_CHANNELS`. The two MUST be
  * disjoint: a channel in both is forwarded twice — once globally, once scoped —
  * with different SSE ids, defeating the client's event-id dedup
@@ -14,8 +14,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { BRIDGED_CHANNELS } from '@semiont/core';
-import { RESOURCE_SCOPED_CHANNELS } from '../http-transport';
+import { BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS } from '@semiont/core';
 
 describe('http-transport channel-set invariants', () => {
   it('BRIDGED_CHANNELS and RESOURCE_SCOPED_CHANNELS are disjoint', () => {

@@ -66,6 +66,11 @@ function makeBus(
       }
       return new Subject<unknown>().asObservable() as unknown as Observable<EventMap[keyof EventMap]>;
     }) as BusRequestPrimitive['stream'],
+    // The default every real transport that delivers everything gives. Tests
+    // that exercise a NARROWED set override it per case below; before
+    // 2026-09-16 they had to, because omitting the member skipped the check
+    // entirely — the compatibility layer this default replaces.
+    isSubscribed: () => true,
   };
   return bus;
 }
@@ -678,7 +683,6 @@ describe('busRequest subscription fail-fast gate', () => {
 
   it('does not gate when both reply channels are subscribed', async () => {
     const bus = makeBus(RESULT, FAILURE);
-    bus.isSubscribed = () => true;
     const promise = busRequest(bus, EMIT, {});
     await Promise.resolve();
     const cid = bus.emitPayload!.correlationId as string;

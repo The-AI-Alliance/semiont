@@ -201,9 +201,9 @@ export function startStallWatchdog(opts: StallWatchdogOptions): { dispose(): voi
  * the operation named. `busRequest`'s `isSubscribed` probe remains the
  * runtime backstop for an await nobody declared — a loud `bus.unsubscribed`
  * at first use, never a silent 30 s timeout.
- * (`job:queued` is not here: it is a broadcast, not an awaited reply — the
- * claim adapter widens the worker's narrowed subscription set for it via
- * `addChannels`.)
+ * (`job:queued` is not here: it is a broadcast, not an awaited reply. The
+ * broadcasts a worker consumes are declared in `WORKER_CONSUMED_BROADCASTS`
+ * below, and `WORKER_CHANNELS` is the union.)
  */
 export const WORKER_AWAITED_OPERATIONS = [
   'job:claim',
@@ -226,11 +226,38 @@ export const WORKER_AWAITED_OPERATIONS = [
   'browse:annotation-requested',
 ] as const satisfies readonly BusOperationKey[];
 
-/** The derived global SSE channel set for a worker's transport. */
+/**
+ * The broadcasts a worker CONSUMES — announcements nobody replies to, which
+ * therefore derive from no operation.
+ *
+ * One home, because the alternative was proven: these lived as `addChannels`
+ * calls beside their consumers, so the worker's complete set existed nowhere
+ * and a widening could be deleted without any list getting shorter. That is
+ * the 2026-09-16 outage — every worker idle on a `job:queued` its transport
+ * would never carry, `lastQueuedEventAt: null`, nothing thrown and nothing
+ * logged.
+ *
+ * An entry here must have a consumer and a consumer must have an entry; the
+ * census beside this file asserts both directions.
+ */
+export const WORKER_CONSUMED_BROADCASTS = [
+  // The queue announcement the claim adapter races for.
+  'job:queued',
+  // Cooperative cancellation of the ACTIVE job (JOB-RESTART-SAFETY P4).
+  'job:cancel-requested',
+] as const satisfies readonly (keyof EventMap)[];
+
+/**
+ * The global SSE channel set for a worker's transport: the whole manifest,
+ * stated once and passed at construction. Nothing widens it afterwards.
+ */
 // `replyChannelsFor` already returns `EventName[]`; annotating this
 // `readonly string[]` threw that proof away and was the only reason a
 // transport's channel roster was ever wider than the registry.
-export const WORKER_CHANNELS: readonly (keyof EventMap)[] = replyChannelsFor(WORKER_AWAITED_OPERATIONS);
+export const WORKER_CHANNELS: readonly (keyof EventMap)[] = [
+  ...replyChannelsFor(WORKER_AWAITED_OPERATIONS),
+  ...WORKER_CONSUMED_BROADCASTS,
+];
 
 /**
  * The build-time census gate (WORKER-ANCHORED-TEXT-CHANNEL F2).

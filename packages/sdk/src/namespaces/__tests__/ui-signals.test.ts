@@ -7,9 +7,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { BehaviorSubject } from 'rxjs';
 import { EventBus, annotationId, resourceId } from '@semiont/core';
-import type { ConnectionState, EventMap } from '@semiont/core';
+import type { EventMap } from '@semiont/core';
 import { BeckonNamespace } from '../beckon';
 import { BindNamespace } from '../bind';
 import { BrowseNamespace } from '../browse';
@@ -18,40 +17,24 @@ import { MarkNamespace } from '../mark';
 import { MatchNamespace } from '../match';
 import { YieldNamespace } from '../yield';
 import type { ITransport, IContentTransport } from '@semiont/core';
+import { inMemoryTransport, gatewayOperationSpies, contentTransportSpies } from '../../__tests__/helpers/in-memory-transport';
 
 function makeMockTransport(): ITransport {
+  // `emit` is a typed spy because these tests assert WHETHER it was called —
+  // the wrapper-to-channel mapping (local bus vs wire) is the whole subject.
+  // Typed as the interface's member, not a bare `vi.fn()`.
   return {
-    emit: vi.fn().mockResolvedValue(undefined),
-    on: vi.fn().mockReturnValue(() => {}),
-    stream: vi.fn(),
-    subscribeToResource: vi.fn().mockReturnValue(() => {}),
-    bridgeInto: vi.fn(),
-    authenticatePassword: vi.fn(),
-    authenticateGoogle: vi.fn(),
-    refreshAccessToken: vi.fn(),
-    logout: vi.fn(),
-    acceptTerms: vi.fn(),
-    getCurrentUser: vi.fn(),
-    getMediaToken: vi.fn(),
-    listUsers: vi.fn(),
-    getUserStats: vi.fn(),
-    updateUser: vi.fn(),
-    getOAuthConfig: vi.fn(),
-    healthCheck: vi.fn(),
-    getStatus: vi.fn(),
-    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-    dispose: vi.fn(),
-  } as unknown as ITransport;
+    ...inMemoryTransport(),
+    emit: vi.fn<ITransport['emit']>(async () => 1),
+    subscribeToResource: vi.fn<ITransport['subscribeToResource']>(() => () => {}),
+    bridgeInto: vi.fn<ITransport['bridgeInto']>(),
+    dispose: vi.fn<ITransport['dispose']>(),
+    ...gatewayOperationSpies(),
+  };
 }
 
 function makeMockContent(): IContentTransport {
-  return {
-    putBinary: vi.fn(),
-    getBinary: vi.fn(),
-    getBinaryStream: vi.fn(),
-    getResourceGraph: vi.fn(),
-    dispose: vi.fn(),
-  };
+  return contentTransportSpies();
 }
 
 /**

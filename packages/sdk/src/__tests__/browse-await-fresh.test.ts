@@ -14,45 +14,31 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { ConnectionState, IContentTransport, ITransport, ResourceId } from '@semiont/core';
+import type { IContentTransport, ResourceId } from '@semiont/core';
 import { BrowseNamespace } from '../namespaces/browse';
+import { inMemoryTransport } from './helpers/in-memory-transport';
+import { mockAnnotation } from './fixtures/annotation';
 
 function makeFakeTransport() {
-  const subjects = new Map<string, Subject<Record<string, unknown>>>();
-  const subjectFor = (channel: string) => {
-    let s = subjects.get(channel);
-    if (!s) {
-      s = new Subject<Record<string, unknown>>();
-      subjects.set(channel, s);
-    }
-    return s;
-  };
-
   // Each annotations request returns a distinct result so a fresh fetch is
   // observably different from a cached one.
   let n = 0;
-  const transport = {
-    baseUrl: 'http://test',
-    emit: async (channel: string, payload: Record<string, unknown>) => {
+  const bus = new EventBus();
+  const transport = inMemoryTransport({
+    bus,
+    onEmit: (channel, payload) => {
       if (channel === 'browse:annotations-requested') {
         n += 1;
-        subjectFor('browse:annotations-result').next({
-          correlationId: payload.correlationId as string,
-          response: { annotations: [{ id: `a${n}` }], total: 1 },
+        bus.get('browse:annotations-result').next({
+          correlationId: (payload as { correlationId: string }).correlationId,
+          response: { annotations: [mockAnnotation(`a${n}`)], total: 1 },
         });
       }
     },
-    stream: (channel: string): Observable<Record<string, unknown>> => subjectFor(channel).asObservable(),
-    subscribeToResource: () => () => {},
-    bridgeInto: () => {},
-    state$: new BehaviorSubject<ConnectionState>('open'),
-    errors$: new Subject(),
-    dispose: () => {},
-  };
+  });
 
-  return { transport: transport as unknown as ITransport };
+  return { transport };
 }
 
 const noopContent = {

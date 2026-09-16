@@ -159,18 +159,29 @@ export interface BusRequestPrimitive {
   trackReply?(correlationId: string): () => void;
   /**
    * Whether this transport's receive path delivers `channel` — i.e. a reply
-   * published there can actually reach this process. Wire transports whose
-   * subscription set is configurable (a worker subscribing only the reply
-   * channels it awaits) implement this so `busRequest` on a channel outside
-   * the set fails fast with `bus.unsubscribed` instead of burning its
-   * timeout on a reply that could never arrive. OPTIONAL: an in-process
-   * transport delivers every channel and omits it.
+   * published there can actually reach this process. A transport whose
+   * subscription set is narrowed (a worker subscribing only the reply
+   * channels it awaits) answers from that set, so `busRequest` on a channel
+   * outside it fails fast with `bus.unsubscribed` instead of burning its
+   * timeout on a reply that could never arrive.
+   *
+   * REQUIRED. An in-process transport answers `true` for every channel,
+   * because it delivers every emit — that is the true answer, not a stub.
+   * It was optional until 2026-09-16, and the optionality was a
+   * compatibility layer: `busRequest` had to branch on whether the method
+   * existed, so the check ran or did not according to which implementation
+   * it held rather than according to what was true.
+   *
+   * Answers for the GLOBAL subscription set only. Correlated replies always
+   * ride global channels, so a scope-only subscription cannot deliver one —
+   * which is why a transport's `stream` refusal asks the wider question
+   * (global OR any scope) separately rather than reusing this.
    *
    * Registry keys, not strings: asking about a channel `EventMap` does not
    * declare has no useful answer, and `busRequest` only ever asks about
    * reply channels it derived from the registry in the first place.
    */
-  isSubscribed?(channel: keyof EventMap): boolean;
+  isSubscribed(channel: keyof EventMap): boolean;
 }
 
 /**
@@ -204,15 +215,13 @@ export async function busRequest<Op extends BusOperationKey>(
   // subscribed to this operation's reply channels can never deliver the
   // reply — fail loudly NOW, naming the fix, instead of a 30 s timeout
   // that reads as network weather.
-  if (bus.isSubscribed) {
-    for (const replyChannel of [resultChannel, failureChannel]) {
-      if (!bus.isSubscribed(replyChannel)) {
-        throw new BusRequestError(
-          `Transport is not subscribed to reply channel ${replyChannel as string} — a reply to ${operation} can never arrive. Add this operation's reply channels to the transport's channel set.`,
-          'bus.unsubscribed',
-          { channel: operation, resultChannel, failureChannel },
-        );
-      }
+  for (const replyChannel of [resultChannel, failureChannel]) {
+    if (!bus.isSubscribed(replyChannel)) {
+      throw new BusRequestError(
+        `Transport is not subscribed to reply channel ${replyChannel as string} — a reply to ${operation} can never arrive. Add this operation's reply channels to the transport's channel set.`,
+        'bus.unsubscribed',
+        { channel: operation, resultChannel, failureChannel },
+      );
     }
   }
 
