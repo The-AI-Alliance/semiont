@@ -4,7 +4,7 @@
  *
  * Subscribes to the nine graph-relevant channels on a shared bus and
  * exposes them as a single `StoredEvent`-typed `events$` stream.
- * Transport-neutral — the caller passes a `WorkerBus` (the in-process
+ * Transport-neutral — the caller passes a `BusRequestPrimitive` (the in-process
  * `workerBusOverEventBus` shim today, the HTTP `ActorStateUnit` once the
  * Weaver runs standalone). The state unit does not own the bus and does
  * not dispose it.
@@ -16,7 +16,8 @@
  */
 
 import { Observable, merge } from 'rxjs';
-import type { WorkerBus } from '@semiont/sdk';
+import type { BusRequestPrimitive } from '@semiont/core';
+import { WEAVER_REPLY_CHANNELS } from './service-channels';
 import type { EventMap, StateUnit, StoredEvent } from '@semiont/core';
 
 export const WEAVER_CHANNELS = [
@@ -32,10 +33,10 @@ export const WEAVER_CHANNELS = [
 ] as const;
 
 /** Commands addressed to the Weaver actor — separate from the domain-event fold. */
-const WEAVER_COMMAND_CHANNELS = ['weave:rebuild'] as const;
+export const WEAVER_COMMAND_CHANNELS = ['weave:rebuild'] as const;
 
 export interface WeaverActorStateUnitOptions {
-  bus: WorkerBus;
+  bus: BusRequestPrimitive;
 }
 
 export interface WeaverActorStateUnit extends StateUnit {
@@ -44,6 +45,17 @@ export interface WeaverActorStateUnit extends StateUnit {
   rebuilds$: Observable<EventMap['weave:rebuild']>;
   start(): void;
 }
+
+/**
+ * The Weaver's complete subscription manifest — what `weaver-main`
+ * constructs its transport with, stated once. See SMELTER_MANIFEST for why
+ * the whole set must exist before construction rather than after `start()`.
+ */
+export const WEAVER_MANIFEST: readonly (keyof EventMap)[] = [
+  ...WEAVER_REPLY_CHANNELS,
+  ...WEAVER_CHANNELS,
+  ...WEAVER_COMMAND_CHANNELS,
+];
 
 export function createWeaverActorStateUnit(options: WeaverActorStateUnitOptions): WeaverActorStateUnit {
   const { bus } = options;
@@ -66,7 +78,6 @@ export function createWeaverActorStateUnit(options: WeaverActorStateUnitOptions)
     start: () => {
       if (started) return;
       started = true;
-      bus.addChannels?.([...WEAVER_CHANNELS, ...WEAVER_COMMAND_CHANNELS]);
     },
     dispose: () => {
       // The bus is owned by the caller; the state unit only releases its own

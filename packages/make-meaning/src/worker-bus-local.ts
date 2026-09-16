@@ -1,14 +1,14 @@
 /**
- * workerBusOverEventBus — the in-process WorkerBus shim over the core
+ * workerBusOverEventBus — the in-process BusRequestPrimitive shim over the core
  * EventBus (WEAVER-ISOLATION P2).
  *
- * `WorkerBus` is the transport seam actor fan-ins consume
+ * `BusRequestPrimitive` is the transport seam actor fan-ins consume
  * (`SmelterActorStateUnit`, `WeaverActorStateUnit`): HTTP `ActorStateUnit`
  * in a standalone worker, this shim inside the gateway process. The
  * smelter fan-in's doc anticipated exactly this ("an in-process bus shim
  * if/when one exists").
  *
- * No assertion here, and none needed: `WorkerBus` is now typed by channel
+ * No assertion here, and none needed: `BusRequestPrimitive` is now typed by channel
  * (WORKER-BUS-TYPED-BY-CHANNEL) and `EventBus.get` already was, so the two
  * agree on their own. The previous version cast twice —
  * `channel as EventName` and `as unknown as Observable<T>` — to bridge a
@@ -17,9 +17,9 @@
 
 import { BehaviorSubject, type Observable } from 'rxjs';
 import type { ConnectionState, EventBus, EventMap } from '@semiont/core';
-import type { WorkerBus } from '@semiont/sdk';
+import type { BusRequestPrimitive } from '@semiont/core';
 
-export function workerBusOverEventBus(eventBus: EventBus): WorkerBus {
+export function workerBusOverEventBus(eventBus: EventBus): BusRequestPrimitive {
   return {
     stream: <K extends keyof EventMap>(channel: K): Observable<EventMap[K]> =>
       eventBus.get(channel).asObservable(),
@@ -42,11 +42,6 @@ export function workerBusOverEventBus(eventBus: EventBus): WorkerBus {
       eventBus.get(channel).next(payload);
       // In-process: no subscriber accounting — the ITransport "unknown" sentinel.
       return -1;
-    },
-
-    addChannels: () => {
-      // No-op: the in-process bus already delivers every emit; channel
-      // subscription sets are an SSE-gateway concern.
     },
   };
 }

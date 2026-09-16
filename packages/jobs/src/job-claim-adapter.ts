@@ -14,7 +14,7 @@
  * observables for job orchestration. It does **not** own the bus,
  * has no HTTP concerns, and has no modal state.
  *
- * The `bus` parameter is typed against the small `WorkerBus`
+ * The `bus` parameter is typed against the small `BusRequestPrimitive`
  * interface (from `@semiont/sdk`) so the adapter is transport-neutral.
  * HTTP workers pass `(session.client.transport as HttpTransport).actor`;
  * an in-process worker could pass a shim wrapping `client.bus`.
@@ -23,7 +23,7 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { busRequest, isArray, isNumber, isObject, isString } from '@semiont/core';
 import type { UnitCursor } from '@semiont/core';
-import type { WorkerBus } from '@semiont/sdk';
+import type { BusRequestPrimitive } from '@semiont/core';
 
 /**
  * The bus operation the claim path AWAITS (census declaration — see
@@ -96,7 +96,7 @@ export interface ActiveJob {
 
 export interface JobClaimAdapterOptions {
   /** Shared bus (typically the session's HTTP actor or an in-process bus shim). */
-  bus: WorkerBus;
+  bus: BusRequestPrimitive;
   /**
    * Job types this worker can process. Jobs of other types that
    * arrive on `job:queued` are ignored. Empty array = accept any.
@@ -171,7 +171,7 @@ export interface JobClaimAdapter {
  */
 export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaimAdapter {
   const { bus, jobTypes } = options;
-  // `WorkerBus` IS a `BusRequestPrimitive` — no adapter (D6).
+  // `BusRequestPrimitive` IS a `BusRequestPrimitive` — no adapter (D6).
   const requestBus = bus;
 
   const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
@@ -245,17 +245,10 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
       if (started) return;
       started = true;
       // BOTH halves are load-bearing, and each was a worker-starving bug:
-      // `job:queued` must be a declared bridged broadcast so the frame
-      // EXISTS on the wire (its old fallthrough classification silently
-      // severed it, 2026-09-16) — AND this widening must stay, because the
-      // WORKER's transport subscribes only the reply channels it awaits,
-      // not BRIDGED_CHANNELS. Deleting this line as "redundant with the
-      // classification" idled every worker with the frame flowing on the
-      // broker and `lastQueuedEventAt: null` as the only tell (same day).
-      // In-process buses receive every emit and need no widening, hence
-      // the optional chain.
-      bus.addChannels?.(['job:queued']);
-
+      // `job:queued` is declared twice over, and both halves are load-bearing:
+      // as a bridged broadcast so the frame exists on the wire at all, and in
+      // `WORKER_CONSUMED_BROADCASTS` so this process's transport carries it.
+      // The worker subscribes its manifest, not `BRIDGED_CHANNELS`.
       jobSubscription = bus
         .stream('job:queued')
         .subscribe((event) => {

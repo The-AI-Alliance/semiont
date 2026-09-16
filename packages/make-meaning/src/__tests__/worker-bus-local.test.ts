@@ -1,8 +1,8 @@
 /**
  * workerBusOverEventBus Tests (WEAVER-ISOLATION P2)
  *
- * The in-process WorkerBus shim over the core EventBus — the "in-process
- * bus shim" the smelter's fan-in anticipated. Lets any WorkerBus consumer
+ * The in-process BusRequestPrimitive shim over the core EventBus — the "in-process
+ * bus shim" the smelter's fan-in anticipated. Lets any BusRequestPrimitive consumer
  * (WeaverActorStateUnit today) run inside the gateway unchanged.
  */
 
@@ -35,13 +35,6 @@ describe('workerBusOverEventBus', () => {
     await bus.emit('weave:applied', { resourceId: 'r1', sequenceNumber: 4 });
 
     expect(seen).toEqual([{ resourceId: 'r1', sequenceNumber: 4 }]);
-  });
-
-  it('addChannels is a no-op — the in-process bus already delivers every emit', () => {
-    const eventBus = new EventBus();
-    const bus = workerBusOverEventBus(eventBus);
-
-    expect(() => bus.addChannels?.(['mark:added'])).not.toThrow();
   });
 
   // RED (CLIENT-SUBSCRIPTION-MANIFEST P1, D1) — every transport ANSWERS.

@@ -26,8 +26,6 @@ import type {
   components,
 } from '@semiont/core';
 import {
-  PERSISTED_EVENT_TYPES,
-  RESOURCE_BROADCAST_TYPES,
   SemiontError,
   busLog,
 } from '@semiont/core';

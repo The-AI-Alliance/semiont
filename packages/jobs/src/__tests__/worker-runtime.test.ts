@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Logger } from '@semiont/core';
-import { startAgentWorker, authenticateAgent, parseGatewayUrl, buildHealthPayload, startStallWatchdog, STALL_THRESHOLD_MS, STALL_CHECK_INTERVAL_MS, WORKER_CHANNELS, type AgentGroup, type AgentVitals } from '../worker-runtime';
+import { startAgentWorker, authenticateAgent, parseGatewayUrl, buildHealthPayload, startStallWatchdog, STALL_THRESHOLD_MS, STALL_CHECK_INTERVAL_MS, WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS, WORKER_AWAITED_OPERATIONS, type AgentGroup, type AgentVitals } from '../worker-runtime';
 import { startWorkerProcess } from '../worker-process';
 import type { InferenceClient } from '@semiont/inference';
 import { createServer, type Server } from 'http';
@@ -414,7 +414,14 @@ describe('worker-runtime — stall watchdog (WORKER-LIVENESS.md P3)', () => {
 });
 
 describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)', () => {
-  it('WORKER_CHANNELS carries exactly the reply channels of the operations the worker awaits', () => {
+  it('WORKER_CHANNELS is exactly the manifest: awaited replies PLUS declared broadcasts', () => {
+    // The explicit pin survives the manifest change deliberately: growing a
+    // worker's subscription set must stay a conscious edit to a literal list,
+    // which is the OOM protection this test was written for (2026-09-03).
+    // What changed in P2 is only that the list now also names the broadcasts
+    // the worker consumes — `WORKER_CONSUMED_BROADCASTS` — which previously
+    // reached the set through `addChannels` calls at their use sites and so
+    // appeared in no list at all.
     expect([...WORKER_CHANNELS].sort()).toEqual([
       // Canonical-geometry consult replies (SMELTER-OWNS-OCR P2) — the pair
       // whose absence killed every PDF detection job
@@ -436,14 +443,34 @@ describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)'
       // WORKER_AWAITED_OPERATIONS move together.
       'mark:commit-failed',
       'mark:commit-ok',
-    ]);
+      // Declared broadcasts (P2). Cooperative cancellation of the ACTIVE job:
+      // note this is an operation REQUEST channel that the worker consumes
+      // and never answers — the gateway's handler replies for PENDING jobs,
+      // the worker aborts for RUNNING ones. Two consumers, one contract.
+      'job:cancel-requested',
+      // The queue announcement the claim adapter races for. Deleting its
+      // declaration idled every worker (2026-09-16).
+      'job:queued',
+    ].sort());
   });
 
-  it('every worker channel is a bridged reply channel — the derivation cannot drift from the registry', async () => {
-    const { BRIDGED_CHANNELS } = await import('@semiont/core');
+  it('every worker channel is a registry reply or a DECLARED broadcast — the manifest cannot drift', async () => {
+    // Same reason as before — the set cannot drift from the registry — with
+    // the one legitimate widening named. `job:cancel-requested` is NOT in
+    // BRIDGED_CHANNELS: it is an operation request channel, so it fails the
+    // old "must be bridged" form while being exactly what the worker means
+    // to consume. Anything outside both sets is drift.
+    const { BRIDGED_CHANNELS, replyChannelsFor } = await import('@semiont/core');
+    const replies = new Set<string>(replyChannelsFor(WORKER_AWAITED_OPERATIONS));
+    const declared = new Set<string>(WORKER_CONSUMED_BROADCASTS);
     for (const channel of WORKER_CHANNELS) {
-      expect(BRIDGED_CHANNELS).toContain(channel);
+      expect(
+        replies.has(channel) || declared.has(channel),
+        `${channel} is neither an awaited reply nor a declared broadcast`,
+      ).toBe(true);
     }
+    // The replies half still must be registry-bridged.
+    for (const channel of replies) expect(BRIDGED_CHANNELS).toContain(channel);
   });
 
   it('the fat fan-out channels that OOMed the worker are NOT subscribed', () => {

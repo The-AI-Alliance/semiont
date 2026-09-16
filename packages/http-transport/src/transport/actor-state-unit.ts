@@ -123,17 +123,17 @@ export const LINGER_MS = 1_000;
 
 export interface ActorStateUnit extends StateUnit {
   /**
-   * These two restate `WorkerBus` (WORKER-BUS-TYPED-BY-CHANNEL D3), and they
-   * cannot stop: `WorkerBus` lives in `@semiont/sdk`, and **sdk depends on
+   * These two restate `BusRequestPrimitive` (WORKER-BUS-TYPED-BY-CHANNEL D3), and they
+   * cannot stop: `BusRequestPrimitive` lives in `@semiont/sdk`, and **sdk depends on
    * this package, not the reverse** — importing it here would invert the
    * dependency. So the copy is a MIRROR that cannot be derived, and it is
    * GATED instead: `sdk/state/lib/__tests__/worker-bus-types.test.ts` fails to
-   * compile if `ActorStateUnit` stops satisfying `WorkerBus`. Keep them in
+   * compile if `ActorStateUnit` stops satisfying `BusRequestPrimitive`. Keep them in
    * step by hand; the gate says when you have not.
    *
    * Until the signature was typed, this copy also *insulated* this package —
    * its own `on$` calls resolved against the loose local declaration, so
-   * narrowing `WorkerBus` never reached them.
+   * narrowing `BusRequestPrimitive` never reached them.
    *
    * `emitScope` is the one genuine addition, so `emit` widens rather than
    * merely repeating.

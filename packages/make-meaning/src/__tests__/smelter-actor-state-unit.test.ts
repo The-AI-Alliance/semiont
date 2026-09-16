@@ -9,7 +9,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { take, toArray } from 'rxjs/operators';
-import { createSmelterActorStateUnit, type SmelterEvent } from '../smelter-actor-state-unit';
+import {
+  createSmelterActorStateUnit,
+  SMELTER_MANIFEST,
+  SMELTER_CHANNELS,
+  SMELTER_COMMAND_CHANNELS,
+  type SmelterEvent,
+} from '../smelter-actor-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 import { createFakeWorkerBus, yieldCreated, annotationEvent } from './helpers/smelter-harness';
 
@@ -20,21 +26,18 @@ describe('createSmelterActorStateUnit', () => {
     h = createFakeWorkerBus();
   });
 
-  it('extends the shared bus with all 9 smelter channels on start', () => {
-    const stateUnit = createSmelterActorStateUnit({ bus: h.bus });
-    stateUnit.start();
-
-    expect(h.channels.has('yield:created')).toBe(true);
-    expect(h.channels.has('yield:updated')).toBe(true);
-    expect(h.channels.has('yield:representation-added')).toBe(true);
-    expect(h.channels.has('mark:archived')).toBe(true);
-    expect(h.channels.has('mark:unarchived')).toBe(true);
-    expect(h.channels.has('mark:added')).toBe(true);
-    expect(h.channels.has('mark:removed')).toBe(true);
-    expect(h.channels.has('mark:entity-tag-added')).toBe(true);
-    expect(h.channels.has('mark:entity-tag-removed')).toBe(true);
-
-    stateUnit.dispose();
+  it('every channel the fold streams is in the MANIFEST — declared, not widened', () => {
+    // Was: "extends the shared bus with all 9 smelter channels on start",
+    // counting a widening call. P2 deleted the verb — the fold's streams are
+    // built at construction, so the manifest must already contain them or
+    // the transport's own refusal throws at boot. Assert the declaration.
+    const manifest = new Set<string>(SMELTER_MANIFEST);
+    for (const channel of SMELTER_CHANNELS) {
+      expect(manifest.has(channel), `${channel} missing from SMELTER_MANIFEST`).toBe(true);
+    }
+    for (const channel of SMELTER_COMMAND_CHANNELS) {
+      expect(manifest.has(channel), `${channel} missing from SMELTER_MANIFEST`).toBe(true);
+    }
   });
 
   it('passes each StoredEvent through verbatim — never re-wrapped', async () => {
@@ -68,11 +71,18 @@ describe('createSmelterActorStateUnit', () => {
     expect(event).toBeDefined();
   });
 
-  it('start() is idempotent', () => {
+  it('start() is idempotent — one fold, not two', () => {
     const stateUnit = createSmelterActorStateUnit({ bus: h.bus });
+    const seen: string[] = [];
+    stateUnit.events$.subscribe((e) => seen.push(e.type));
     stateUnit.start();
     stateUnit.start();
-    expect(h.bus.addChannels).toHaveBeenCalledTimes(1);
+
+    // This counted `addChannels` calls until P2 deleted the widening verb.
+    // The real property was always this: a second start() must not deliver
+    // every event twice.
+    h.push('yield:created', yieldCreated('r-1'));
+    expect(seen).toEqual(['yield:created']);
 
     stateUnit.dispose();
   });

@@ -190,7 +190,6 @@ function makeFakeSessionAndAdapter() {
           // else holds every busRequest until it times out.
           state$: new BehaviorSubject('open'),
           isSubscribed: () => true,
-          addChannels: vi.fn(),
           removeChannels: vi.fn(),
         },
       },

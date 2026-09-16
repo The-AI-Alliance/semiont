@@ -1,6 +1,11 @@
 /**
  * A bus method's types come from the channel name (WORKER-BUS-TYPED-BY-CHANNEL P1).
  *
+ * Moved here from `@semiont/sdk` with its subject: the `WorkerBus` interface
+ * it guarded was deleted in CLIENT-SUBSCRIPTION-MANIFEST P2 once its one
+ * distinguishing member (`addChannels`) went, leaving a bare alias of this
+ * primitive. The gate follows the type it gates.
+ *
  * `on$<T = Record<string, unknown>>(channel: string)` let every caller name
  * its own payload type, checked against nothing — and the default made
  * "nobody typed this" indistinguishable from "this is typed". One consumer
@@ -15,8 +20,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { Observable } from 'rxjs';
-import type { EventMap } from '@semiont/core';
-import type { WorkerBus } from '../worker-bus';
+import type { EventMap, BusRequestPrimitive } from '../index';
 
 /**
  * Equality, not assignability: `Observable<Record<string, unknown>>` satisfies
@@ -27,7 +31,7 @@ type Equals<A, B> =
   (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 
 /** Payloads are INFERRED from the channel argument — no type argument given. */
-function inferenceProbe(bus: WorkerBus) {
+function inferenceProbe(bus: BusRequestPrimitive) {
   const added = bus.stream('mark:added');
   const exact: Equals<typeof added, Observable<EventMap['mark:added']>> = true;
 
@@ -40,18 +44,16 @@ function inferenceProbe(bus: WorkerBus) {
 }
 
 /** Everything the loose signature used to allow. */
-function rejectionProbe(bus: WorkerBus) {
+function rejectionProbe(bus: BusRequestPrimitive) {
   // @ts-expect-error — the caller does not choose the payload type
   bus.stream<{ wrong: true }>('mark:added');
   // @ts-expect-error — not a channel the registry declares
   bus.stream('no-such-channel');
-  // @ts-expect-error — `addChannels` takes registry keys, not strings
-  bus.addChannels?.(['no-such-channel']);
-  // @ts-expect-error — so does `isSubscribed`
-  bus.isSubscribed?.('no-such-channel');
+  // @ts-expect-error — `isSubscribed` takes registry keys, not strings
+  bus.isSubscribed('no-such-channel');
 }
 
-describe('WorkerBus.stream is typed by its channel', () => {
+describe('BusRequestPrimitive.stream is typed by its channel', () => {
   it('infers the payload from the channel name, and differs per channel', () => {
     expect(typeof inferenceProbe).toBe('function');
   });
@@ -64,7 +66,7 @@ describe('WorkerBus.stream is typed by its channel', () => {
   });
 });
 
-describe('WorkerBus.stream refuses what the old signature allowed', () => {
+describe('BusRequestPrimitive.stream refuses what the old signature allowed', () => {
   it('takes no caller-supplied type, and no channel off the registry', () => {
     expect(typeof rejectionProbe).toBe('function');
   });

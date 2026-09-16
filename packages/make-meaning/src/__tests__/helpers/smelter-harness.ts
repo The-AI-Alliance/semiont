@@ -20,7 +20,6 @@ import { EventBus, annotationId as makeAnnotationId, resourceId as makeResourceI
 import type { AnchoredTextStore } from '@semiont/content';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { BusRequestPrimitive } from '@semiont/core';
-import type { WorkerBus } from '@semiont/sdk';
 import type { SmelterChannel } from '../../smelter-actor-state-unit';
 
 // Core's ResourceDescriptor, not the raw generated one. They differ: core
@@ -151,7 +150,7 @@ export const markEntityTagRemoved = (resourceId: string, entityType: string): Ev
 });
 
 /**
- * A `WorkerBus` whose domain channels are fed by `push` — typed per channel,
+ * A `BusRequestPrimitive` whose domain channels are fed by `push` — typed per channel,
  * so a test can only put on the bus what the bus actually carries.
  */
 export function createFakeWorkerBus() {
@@ -160,11 +159,7 @@ export function createFakeWorkerBus() {
   // to what production hands the state unit. The map version forced the one
   // cast this comment used to apologise for.
   const eventBus = new EventBus();
-  const channels = new Set<keyof EventMap>();
-  const bus: WorkerBus = {
-    addChannels: vi.fn((cs: readonly (keyof EventMap)[]) => {
-      cs.forEach((c) => channels.add(c));
-    }),
+  const bus: BusRequestPrimitive = {
     stream: <K extends keyof EventMap>(channel: K) => eventBus.get(channel).asObservable(),
     // This double delivers whatever a test pushes at it — subjects are created
     // on demand — so `true` is the truth about it. It does not model a
@@ -176,7 +171,6 @@ export function createFakeWorkerBus() {
   };
   return {
     bus,
-    channels,
     push: <K extends SmelterChannel>(channel: K, event: EventMap[K]) =>
       eventBus.get(channel).next(event),
   };

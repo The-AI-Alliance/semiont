@@ -3,7 +3,7 @@
  *
  * Subscribes to the nine smelter-relevant channels on a shared bus and
  * exposes them as a single typed `events$` stream. Transport-neutral —
- * the caller passes a `WorkerBus` (HTTP `ActorStateUnit` today, an in-process
+ * the caller passes a `BusRequestPrimitive` (HTTP `ActorStateUnit` today, an in-process
  * bus shim if/when one exists). The state unit does not own the bus and does
  * not dispose it.
  *
@@ -14,14 +14,15 @@
  */
 
 import { Observable, merge } from 'rxjs';
-import type { WorkerBus } from '@semiont/sdk';
+import type { BusRequestPrimitive } from '@semiont/core';
+import { SMELTER_REPLY_CHANNELS } from './service-channels';
 import type { EventMap, StateUnit } from '@semiont/core';
 
 export interface SmelterActorStateUnitOptions {
-  bus: WorkerBus;
+  bus: BusRequestPrimitive;
 }
 
-const SMELTER_CHANNELS = [
+export const SMELTER_CHANNELS = [
   'yield:created',
   'yield:updated',
   'yield:representation-added',
@@ -49,7 +50,7 @@ export type SmelterEvent = EventMap[SmelterChannel];
 // weave:rebuild idiom): a command handler plans work items and AWAITS
 // their drain, so folding it into the per-resource lanes it drains into
 // would deadlock a scoped rebuild against its own work.
-const SMELTER_COMMAND_CHANNELS = ['smelt:rebuild-anchors'] as const;
+export const SMELTER_COMMAND_CHANNELS = ['smelt:rebuild-anchors'] as const;
 
 export interface SmelterActorStateUnit extends StateUnit {
   events$: Observable<SmelterEvent>;
@@ -57,6 +58,21 @@ export interface SmelterActorStateUnit extends StateUnit {
   rebuildAnchors$: Observable<EventMap['smelt:rebuild-anchors']>;
   start(): void;
 }
+
+/**
+ * The Smelter's complete subscription manifest — what `smelter-main`
+ * constructs its transport with, stated once.
+ *
+ * The fold's streams are built AT CONSTRUCTION, so every channel must be in
+ * the set before this unit exists; widening in `start()` left a window where
+ * consumption outran declaration, and P1's `stream` refusal rejected
+ * `yield:created` outright (globally bridged, so not scopable either).
+ */
+export const SMELTER_MANIFEST: readonly (keyof EventMap)[] = [
+  ...SMELTER_REPLY_CHANNELS,
+  ...SMELTER_CHANNELS,
+  ...SMELTER_COMMAND_CHANNELS,
+];
 
 export function createSmelterActorStateUnit(options: SmelterActorStateUnitOptions): SmelterActorStateUnit {
   const { bus } = options;
@@ -74,7 +90,6 @@ export function createSmelterActorStateUnit(options: SmelterActorStateUnitOption
     start: () => {
       if (started) return;
       started = true;
-      bus.addChannels?.([...SMELTER_CHANNELS, ...SMELTER_COMMAND_CHANNELS]);
     },
     dispose: () => {
       // The bus is owned by the caller; the state unit only releases its own
