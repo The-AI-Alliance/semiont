@@ -176,11 +176,20 @@ const operations =
 const bridged =
   BANNER +
   reg.preamble.bridgedHeader +
-  reg.bridgedBroadcasts.doc +
+  reg.audience.doc +
   '\nexport const BRIDGED_BROADCASTS = [\n' +
-  reg.bridgedBroadcasts.channels.map((c) => `  '${c}',`).join('\n') +
+  reg.audience.everyone.map((c) => `  '${c}',`).join('\n') +
   '\n] as const satisfies readonly EventName[];\n\n' +
-  reg.preamble.bridgedDerivation;
+  reg.preamble.bridgedDerivation +
+  // The scope-delivered set, now DECLARED rather than derived by subtraction.
+  // It was `PERSISTED_EVENT_TYPES minus BRIDGED_CHANNELS` in http-transport,
+  // which made membership a leftover nobody stated and hid eleven channels
+  // that said `inProcess` while being delivered to browsers every day.
+  '\n/**\n * The channels a client receives per RESOURCE SCOPE rather than globally —\n' +
+  ' * what `subscribeToResource` joins. `audience: scoped` in the registry.\n */\n' +
+  'export const RESOURCE_SCOPED_CHANNELS = [\n' +
+  reg.audience.scoped.map((c) => `  '${c}',`).join('\n') +
+  '\n] as const satisfies readonly EventName[];\n';
 
 // ── bus-classification.ts ──────────────────────────────────────────────
 // BUS-ROUTING-DECLARED D3/P1: three orthogonal attributes per channel,
@@ -202,7 +211,10 @@ for (const o of reg.operations) {
   setDelivery(o.failure, 'correlated');
   if (o.progress) setDelivery(o.progress, 'streaming');
 }
-for (const ch of reg.bridgedBroadcasts.channels) setDelivery(ch, 'broadcast');
+// `delivery` describes the OPERATION-reply modes only. It used to carry
+// 'broadcast' as well, which restated `audience: everyone` — one fact in two
+// places, and nothing consumed it. Who receives a frame is the audience axis;
+// delivery is how a REPLY is matched to its request.
 for (const ch of requestSet) {
   if (deliveryOf.has(ch)) throw new Error(`registry: "${ch}" is both a request and a delivered channel`);
 }
@@ -212,20 +224,15 @@ for (const ch of requestSet) {
 // decided — `job:queued` shipped as in-process and starved every worker
 // (.plans/bugs/job-queued-classified-in-process-starves-workers.md). Every
 // channel now names its class or the generator refuses.
-const commandSet = new Set(reg.outboundCommands.channels);
+const commandSet = new Set(reg.kind.command);
+const declaredSet = new Set(reg.audience.declared);
 const inProcessSet = new Set(reg.inProcess.channels);
-for (const ch of commandSet) {
-  if (requestSet.has(ch)) throw new Error(`registry: "${ch}" is both an operation request and an outboundCommand`);
-  if (deliveryOf.has(ch)) throw new Error(`registry: "${ch}" is both an outboundCommand and a delivered channel`);
-}
-for (const ch of inProcessSet) {
-  if (requestSet.has(ch) || commandSet.has(ch) || deliveryOf.has(ch)) {
-    throw new Error(`registry: "${ch}" is declared inProcess but also carries a wire class`);
-  }
-}
+// The cross-axis refusals live in validate-registry.mjs, which the generator
+// already runs and which a test suite exercises directly. What remains here
+// is the narrower question the ATTRIBUTES need answered.
 // Typo guard: a declaration for a channel the roster doesn't carry is drift.
 const roster = new Set(reg.channelOrder.eventMap);
-for (const ch of [...commandSet, ...inProcessSet]) {
+for (const ch of [...commandSet, ...declaredSet, ...inProcessSet]) {
   if (!roster.has(ch)) throw new Error(`registry: "${ch}" is classified but not in channelOrder.eventMap`);
 }
 
@@ -233,14 +240,15 @@ const attrLines = reg.channelOrder.eventMap.map((ch) => {
   const c = channelOr(ch, 'eventMap');
   const recorded = Boolean(c.event);
   const delivery = deliveryOf.get(ch);
+  const audienceOf = new Set([...reg.audience.everyone, ...reg.audience.scoped, ...reg.audience.declared]);
   const direction =
     requestSet.has(ch) || commandSet.has(ch) ? 'outbound'
-    : delivery ? 'inbound'
+    : delivery || audienceOf.has(ch) ? 'inbound'
     : inProcessSet.has(ch) ? 'in-process'
     : (() => {
         throw new Error(
           `registry: channel "${ch}" declares no direction — add it to operations, ` +
-          `outboundCommands, bridgedBroadcasts, or inProcess. There is no default.`,
+          `kind + audience, or inProcess. There is no default.`,
         );
       })();
   const tail = delivery ? `, delivery: '${delivery}'` : '';
@@ -258,9 +266,11 @@ export type ChannelDirection = 'outbound' | 'inbound' | 'in-process';
 
 /** How an INBOUND channel is delivered. Correlated replies are
  *  owner-addressed; streaming (progress) frames refresh a claim's TTL but are
- *  never retained; broadcasts go to every subscriber in scope. Only inbound
- *  channels carry this — absence on the others is a decision, not a gap. */
-export type ChannelDelivery = 'correlated' | 'streaming' | 'broadcast';
+ *  never retained. ONLY an operation's replies carry this: who receives a
+ *  frame is the audience axis, and a 'broadcast' value here used to restate
+ *  audience everyone with no consumer (WIRE-CROSSING-MODEL P1). Absence is a
+ *  decision, not a gap. */
+export type ChannelDelivery = 'correlated' | 'streaming';
 
 export interface ChannelAttrs {
   /** In PERSISTED_EVENT_TYPES — lands in the event log, the system of record. */

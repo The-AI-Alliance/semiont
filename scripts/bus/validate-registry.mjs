@@ -106,23 +106,104 @@ export function validateRegistry(reg) {
     }
   }
 
-  // ── bridgedBroadcasts holds only channels no operation owns ─────────────
-  // This is the rule the BRIDGED_BROADCASTS doc comment states in prose: a
-  // reply channel belongs in operations, where the bridged set DERIVES it.
-  // Listing one here duplicates it in BRIDGED_CHANNELS, and the gateway SSE
-  // forwarder maps `?channel=` entries 1:1 with no dedup — so every event on
-  // it is delivered twice (.plans/bugs/BRIDGE-GAPS.md).
-  const seenBroadcast = new Set();
-  for (const ch of reg.bridgedBroadcasts.channels) {
-    known(ch, 'bridgedBroadcasts.channels');
-    if (seenBroadcast.has(ch)) problems.push(`bridgedBroadcasts lists "${ch}" more than once`);
-    seenBroadcast.add(ch);
-    const owner = replies.get(ch);
-    if (owner) {
+  // ── the two crossing axes: kind and audience ────────────────────────────
+  //
+  // How a channel crosses the wire is DECLARED, never defaulted. The classes
+  // these replace were honest one at a time and dishonest as a set:
+  // `bridgedBroadcasts` meant both "crosses as fan-out" and "every default
+  // client auto-subscribes", `outboundCommands` held three shapes under one
+  // label, and `inProcess` said "never crosses" for channels delivered to
+  // browsers per resource scope every day.
+  //
+  // `kind` is the wire-crossing shape (operation | command | event) and is
+  // spelled `kind` rather than `shape` because `channels[]` entries already
+  // use `shape` for the PAYLOAD shape. `audience` is who receives it
+  // (everyone | scoped | declared).
+  //
+  // An OPERATION channel declares neither: both follow from `operations`, and
+  // restating a derivable fact is a mirror with nothing to gate it.
+  const KINDS = ['command', 'event'];
+  const AUDIENCES = ['everyone', 'scoped', 'declared'];
+
+  const axisOwner = (axis, values) => {
+    const owner = new Map();
+    for (const value of values) {
+      const list = axis?.[value] ?? [];
+      const seen = new Set();
+      for (const ch of list) {
+        known(ch, `${axis === reg.kind ? 'kind' : 'audience'}.${value}`);
+        if (seen.has(ch)) problems.push(`${value} lists "${ch}" more than once`);
+        seen.add(ch);
+        const prior = owner.get(ch);
+        if (prior) {
+          problems.push(
+            `"${ch}" is declared BOTH ${prior} and ${value} — a channel crosses exactly one way`,
+          );
+        } else {
+          owner.set(ch, value);
+        }
+      }
+    }
+    return owner;
+  };
+
+  const kindOf = axisOwner(reg.kind, KINDS);
+  const audienceOf = axisOwner(reg.audience, AUDIENCES);
+  const inProcessSet = new Set(reg.inProcess?.channels ?? []);
+
+  // An operation's channels are classified by derivation; hand-listing one
+  // lets the two disagree, and nothing would say which is right.
+  const operationChannels = new Set();
+  for (const op of reg.operations) {
+    operationChannels.add(op.request);
+    operationChannels.add(op.result);
+    operationChannels.add(op.failure);
+    if (op.progress) operationChannels.add(op.progress);
+  }
+  for (const ch of operationChannels) {
+    if (kindOf.has(ch)) {
+      problems.push(`"${ch}" belongs to an operation, so its kind is derived — remove it from kind.${kindOf.get(ch)}`);
+    }
+    if (audienceOf.has(ch)) {
+      problems.push(`"${ch}" belongs to an operation, so its audience is derived — remove it from audience.${audienceOf.get(ch)}`);
+    }
+  }
+
+  // `inProcess` means it never crosses. An audience means it does.
+  for (const ch of inProcessSet) {
+    if (audienceOf.has(ch)) {
+      problems.push(`"${ch}" is declared inProcess but also given audience.${audienceOf.get(ch)} — inProcess means it never crosses`);
+    }
+    if (kindOf.has(ch)) {
+      problems.push(`"${ch}" is declared inProcess but also given kind.${kindOf.get(ch)} — inProcess means it never crosses`);
+    }
+  }
+
+  // No fallthrough: a channel that is neither in-process nor part of an
+  // operation crosses the wire, and must say how and to whom.
+  for (const c of reg.channels) {
+    const ch = c.channel;
+    if (inProcessSet.has(ch) || operationChannels.has(ch)) continue;
+    if (!kindOf.has(ch)) {
       problems.push(
-        `bridgedBroadcasts lists "${ch}", but it is a reply of operation "${owner}" — ` +
-          `it is already bridged by derivation; listing it here double-delivers it`,
+        `channel "${ch}" declares no kind — add it to kind.command or kind.event, ` +
+          `or to inProcess if it never crosses. There is no default.`,
       );
+    }
+    if (!audienceOf.has(ch)) {
+      problems.push(
+        `channel "${ch}" declares no audience — add it to audience.everyone, ` +
+          `audience.scoped or audience.declared. There is no default.`,
+      );
+    }
+  }
+
+  // A directive for whichever single handler owns it, broadcast to every
+  // default client, is a combination no member wants. Refuse it rather than
+  // leave it expressible and untested.
+  for (const [ch, kind] of kindOf) {
+    if (kind === 'command' && audienceOf.get(ch) === 'everyone') {
+      problems.push(`"${ch}" is kind=command with audience=everyone — a directive is not a broadcast`);
     }
   }
 

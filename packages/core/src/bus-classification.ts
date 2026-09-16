@@ -16,9 +16,11 @@ export type ChannelDirection = 'outbound' | 'inbound' | 'in-process';
 
 /** How an INBOUND channel is delivered. Correlated replies are
  *  owner-addressed; streaming (progress) frames refresh a claim's TTL but are
- *  never retained; broadcasts go to every subscriber in scope. Only inbound
- *  channels carry this — absence on the others is a decision, not a gap. */
-export type ChannelDelivery = 'correlated' | 'streaming' | 'broadcast';
+ *  never retained. ONLY an operation's replies carry this: who receives a
+ *  frame is the audience axis, and a 'broadcast' value here used to restate
+ *  audience everyone with no consumer (WIRE-CROSSING-MODEL P1). Absence is a
+ *  decision, not a gap. */
+export type ChannelDelivery = 'correlated' | 'streaming';
 
 export interface ChannelAttrs {
   /** In PERSISTED_EVENT_TYPES — lands in the event log, the system of record. */
@@ -28,12 +30,12 @@ export interface ChannelAttrs {
 }
 
 export const CHANNEL_ATTRS = {
-  'yield:created':                    { recorded: true, direction: 'inbound', delivery: 'broadcast' },
-  'yield:cloned':                     { recorded: true, direction: 'inbound', delivery: 'broadcast' },
-  'yield:updated':                    { recorded: true, direction: 'inbound', delivery: 'broadcast' },
-  'yield:moved':                      { recorded: true, direction: 'inbound', delivery: 'broadcast' },
-  'yield:representation-added':       { recorded: true, direction: 'in-process' },
-  'yield:representation-removed':     { recorded: true, direction: 'in-process' },
+  'yield:created':                    { recorded: true, direction: 'inbound' },
+  'yield:cloned':                     { recorded: true, direction: 'inbound' },
+  'yield:updated':                    { recorded: true, direction: 'inbound' },
+  'yield:moved':                      { recorded: true, direction: 'inbound' },
+  'yield:representation-added':       { recorded: true, direction: 'inbound' },
+  'yield:representation-removed':     { recorded: true, direction: 'inbound' },
   'yield:create':                     { recorded: false, direction: 'outbound' },
   'yield:clone-persist':              { recorded: false, direction: 'outbound' },
   'yield:update':                     { recorded: false, direction: 'outbound' },
@@ -55,13 +57,13 @@ export const CHANNEL_ATTRS = {
   'yield:clone-resource-failed':      { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'yield:clone-created':              { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'yield:clone-create-failed':        { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'mark:added':                       { recorded: true, direction: 'in-process' },
-  'mark:removed':                     { recorded: true, direction: 'in-process' },
-  'mark:body-updated':                { recorded: true, direction: 'outbound' },
-  'mark:entity-tag-added':            { recorded: true, direction: 'in-process' },
-  'mark:entity-tag-removed':          { recorded: true, direction: 'in-process' },
-  'mark:archived':                    { recorded: true, direction: 'in-process' },
-  'mark:unarchived':                  { recorded: true, direction: 'in-process' },
+  'mark:added':                       { recorded: true, direction: 'inbound' },
+  'mark:removed':                     { recorded: true, direction: 'inbound' },
+  'mark:body-updated':                { recorded: true, direction: 'inbound' },
+  'mark:entity-tag-added':            { recorded: true, direction: 'inbound' },
+  'mark:entity-tag-removed':          { recorded: true, direction: 'inbound' },
+  'mark:archived':                    { recorded: true, direction: 'inbound' },
+  'mark:unarchived':                  { recorded: true, direction: 'inbound' },
   'mark:create-request':              { recorded: false, direction: 'outbound' },
   'mark:create':                      { recorded: false, direction: 'in-process' },
   'mark:delete':                      { recorded: false, direction: 'outbound' },
@@ -96,8 +98,8 @@ export const CHANNEL_ATTRS = {
   'mark:create-error':                { recorded: false, direction: 'in-process' },
   'mark:delete-error':                { recorded: false, direction: 'in-process' },
   'bind:body-error':                  { recorded: false, direction: 'in-process' },
-  'frame:entity-type-added':          { recorded: true, direction: 'inbound', delivery: 'broadcast' },
-  'frame:tag-schema-added':           { recorded: true, direction: 'inbound', delivery: 'broadcast' },
+  'frame:entity-type-added':          { recorded: true, direction: 'inbound' },
+  'frame:tag-schema-added':           { recorded: true, direction: 'inbound' },
   'frame:add-entity-type':            { recorded: false, direction: 'outbound' },
   'frame:add-tag-schema':             { recorded: false, direction: 'outbound' },
   'frame:entity-type-add-ok':         { recorded: false, direction: 'inbound', delivery: 'correlated' },
@@ -160,9 +162,9 @@ export const CHANNEL_ATTRS = {
   'browse:directory-requested':       { recorded: false, direction: 'outbound' },
   'browse:directory-result':          { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:directory-failed':          { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:click':                     { recorded: false, direction: 'inbound', delivery: 'broadcast' },
-  'browse:resource-open':             { recorded: false, direction: 'inbound', delivery: 'broadcast' },
-  'browse:resource-viewed':           { recorded: false, direction: 'inbound', delivery: 'broadcast' },
+  'browse:click':                     { recorded: false, direction: 'inbound' },
+  'browse:resource-open':             { recorded: false, direction: 'inbound' },
+  'browse:resource-viewed':           { recorded: false, direction: 'inbound' },
   'browse:entity-type-clicked':       { recorded: false, direction: 'in-process' },
   'panel:toggle':                     { recorded: false, direction: 'in-process' },
   'panel:open':                       { recorded: false, direction: 'in-process' },
@@ -174,17 +176,17 @@ export const CHANNEL_ATTRS = {
   'nav:push':                         { recorded: false, direction: 'in-process' },
   'nav:external':                     { recorded: false, direction: 'in-process' },
   'beckon:hover':                     { recorded: false, direction: 'in-process' },
-  'beckon:focus':                     { recorded: false, direction: 'inbound', delivery: 'broadcast' },
-  'beckon:sparkle':                   { recorded: false, direction: 'inbound', delivery: 'broadcast' },
-  'job:started':                      { recorded: true, direction: 'in-process' },
-  'job:completed':                    { recorded: true, direction: 'in-process' },
-  'job:failed':                       { recorded: true, direction: 'in-process' },
+  'beckon:focus':                     { recorded: false, direction: 'inbound' },
+  'beckon:sparkle':                   { recorded: false, direction: 'inbound' },
+  'job:started':                      { recorded: true, direction: 'inbound' },
+  'job:completed':                    { recorded: true, direction: 'inbound' },
+  'job:failed':                       { recorded: true, direction: 'inbound' },
   'job:start':                        { recorded: false, direction: 'outbound' },
-  'job:report-progress':              { recorded: false, direction: 'inbound', delivery: 'broadcast' },
-  'job:complete':                     { recorded: false, direction: 'inbound', delivery: 'broadcast' },
-  'job:fail':                         { recorded: false, direction: 'inbound', delivery: 'broadcast' },
+  'job:report-progress':              { recorded: false, direction: 'inbound' },
+  'job:complete':                     { recorded: false, direction: 'inbound' },
+  'job:fail':                         { recorded: false, direction: 'inbound' },
   'job:checkpoint':                   { recorded: false, direction: 'outbound' },
-  'job:queued':                       { recorded: false, direction: 'inbound', delivery: 'broadcast' },
+  'job:queued':                       { recorded: false, direction: 'inbound' },
   'job:cancel-requested':             { recorded: false, direction: 'outbound' },
   'job:cancel':                       { recorded: false, direction: 'outbound' },
   'job:status-requested':             { recorded: false, direction: 'outbound' },
@@ -198,8 +200,8 @@ export const CHANNEL_ATTRS = {
   'job:claim-failed':                 { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'job:cancel-ok':                    { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'job:cancel-failed':                { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'weave:applied':                    { recorded: false, direction: 'outbound' },
-  'smelt:settled':                    { recorded: false, direction: 'inbound', delivery: 'broadcast' },
+  'weave:applied':                    { recorded: false, direction: 'inbound' },
+  'smelt:settled':                    { recorded: false, direction: 'inbound' },
   'weave:rebuild':                    { recorded: false, direction: 'outbound' },
   'weave:rebuild-ok':                 { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'weave:rebuild-failed':             { recorded: false, direction: 'inbound', delivery: 'correlated' },
@@ -212,9 +214,9 @@ export const CHANNEL_ATTRS = {
   'settings:hover-delay-changed':     { recorded: false, direction: 'in-process' },
   'stream-connected':                 { recorded: false, direction: 'in-process' },
   'replay-window-exceeded':           { recorded: false, direction: 'in-process' },
-  'bus:resume-gap':                   { recorded: false, direction: 'inbound', delivery: 'broadcast' },
-  'session:joined':                   { recorded: false, direction: 'inbound', delivery: 'broadcast' },
-  'session:left':                     { recorded: false, direction: 'inbound', delivery: 'broadcast' },
+  'bus:resume-gap':                   { recorded: false, direction: 'inbound' },
+  'session:joined':                   { recorded: false, direction: 'inbound' },
+  'session:left':                     { recorded: false, direction: 'inbound' },
 } as const satisfies Record<EventName, ChannelAttrs>;
 
 const BY_CHANNEL: ReadonlyMap<string, ChannelAttrs> = new Map(Object.entries(CHANNEL_ATTRS));
