@@ -311,7 +311,7 @@ export function serveHistory(eventBus: EventBus, history: StoredEvent[]): () => 
   const model = foldModel(history);
 
   const subs = [
-    eventBus.get('browse:resources-requested').subscribe((req) => {
+    eventBus.on('browse:resources-requested').subscribe((req) => {
       const offset = (req as { offset?: number }).offset ?? 0;
       const limit = (req as { limit?: number }).limit ?? 20;
       const page = rids.slice(offset, offset + limit).map((id) => {
@@ -324,24 +324,24 @@ export function serveHistory(eventBus: EventBus, history: StoredEvent[]): () => 
           entityTypes: m ? [...m.tags] : [],
         };
       });
-      eventBus.get('browse:resources-result').next({
+      eventBus.emit('browse:resources-result', {
         correlationId: (req as { correlationId: string }).correlationId,
         response: { resources: page, total: rids.length, matchKind: 'lexical' },
       } as unknown as EventMap['browse:resources-result']);
     }),
-    eventBus.get('browse:events-requested').subscribe((req) => {
+    eventBus.on('browse:events-requested').subscribe((req) => {
       const rid = String((req as { resourceId: string }).resourceId);
       const events = byRid.get(rid) ?? [];
-      eventBus.get('browse:events-result').next({
+      eventBus.emit('browse:events-result', {
         correlationId: (req as { correlationId: string }).correlationId,
         response: { events, total: events.length, resourceId: rid },
       } as unknown as EventMap['browse:events-result']);
     }),
-    eventBus.get('browse:annotations-requested').subscribe((req) => {
+    eventBus.on('browse:annotations-requested').subscribe((req) => {
       const rid = String((req as { resourceId: string }).resourceId);
       const live = model.resources.get(rid)?.annotations ?? new Set<string>();
       const annotations = [...live].map((aid) => makeAnnotationPayload(aid, rid)) as unknown as Annotation[];
-      eventBus.get('browse:annotations-result').next({
+      eventBus.emit('browse:annotations-result', {
         correlationId: (req as { correlationId: string }).correlationId,
         response: { annotations },
       } as unknown as EventMap['browse:annotations-result']);

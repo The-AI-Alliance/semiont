@@ -79,11 +79,11 @@ describe('Stower mark:update-entity-types vocabulary gate', () => {
     const correlationId = `uet-cid-${++cidCounter}`;
     const reply = firstValueFrom(
       race(
-        eventBus.get('mark:update-entity-types-ok').pipe(
+        eventBus.on('mark:update-entity-types-ok').pipe(
           filter((e) => e.correlationId === correlationId),
           map((e) => ({ kind: 'ok' as const, e })),
         ),
-        eventBus.get('mark:update-entity-types-failed').pipe(
+        eventBus.on('mark:update-entity-types-failed').pipe(
           filter((e) => e.correlationId === correlationId),
           map((e) => ({ kind: 'failed' as const, e })),
         ),
@@ -94,7 +94,7 @@ describe('Stower mark:update-entity-types vocabulary gate', () => {
         ),
       ).pipe(take(1)),
     );
-    eventBus.get('mark:update-entity-types').next({
+    eventBus.emit('mark:update-entity-types', {
       correlationId,
       _userId: 'user-1',
       resourceId: rid,

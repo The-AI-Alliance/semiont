@@ -39,7 +39,7 @@ function makeFakeTransport() {
     onEmit: (channel, payload) => {
       // Resolve the job:create round-trip so dispatchAssist gets a jobId.
       if (channel === 'job:create') {
-        transportBus.get('job:created').next({
+        transportBus.emit('job:created', {
           correlationId: (payload as { correlationId: string }).correlationId,
           response: { jobId: 'job-1' },
         });
@@ -92,7 +92,7 @@ describe('mark.assist — no SSE churn (Link 1)', () => {
     await flush();
 
     // Completion arrives on the global bus (as it would via the global bridge).
-    bus.get('job:complete').next({ resourceId: rId, jobId: 'job-1', jobType: 'reference-annotation' });
+    bus.emit('job:complete', { resourceId: rId, jobId: 'job-1', jobType: 'reference-annotation' });
 
     expect(events.some((e) => e.kind === 'complete')).toBe(true);
     expect(completed).toBe(true);
@@ -131,8 +131,8 @@ describe('job:complete dual-delivery contract (Link 1 / approach A)', () => {
 
     // Worker dual-emit: the same completion arrives globally AND scoped, so a
     // client subscribed to both sees two bus deliveries.
-    bus.get('job:complete').next(completePayload);
-    bus.get('job:complete').next(completePayload);
+    bus.emit('job:complete', completePayload);
+    bus.emit('job:complete', completePayload);
 
     expect(completes).toHaveLength(1);
     expect(completeCount).toBe(1);
@@ -145,8 +145,8 @@ describe('job:complete dual-delivery contract (Link 1 / approach A)', () => {
     const seen: string[] = [];
     job.complete$.subscribe((e) => seen.push(e.jobId));
 
-    bus.get('job:complete').next(completePayload);
-    bus.get('job:complete').next(completePayload);
+    bus.emit('job:complete', completePayload);
+    bus.emit('job:complete', completePayload);
 
     // Documents the contract: the SDK does NOT dedupe the raw stream.
     expect(seen).toEqual(['job-1', 'job-1']);

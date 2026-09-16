@@ -123,8 +123,8 @@ describe('Matcher decoupling (EXTRACT-LIBRARIAN P1)', () => {
     );
     await matcher.initialize();
 
-    const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
-    eventBus.get('match:search-requested').next({
+    const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
+    eventBus.emit('match:search-requested', {
       resourceId: MAIN_ID,
       correlationId: 'corr-1',
       referenceId: 'ref-1',
@@ -154,8 +154,8 @@ describe('Matcher decoupling (EXTRACT-LIBRARIAN P1)', () => {
     );
     await matcher.initialize();
 
-    const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
-    eventBus.get('match:search-requested').next({
+    const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
+    eventBus.emit('match:search-requested', {
       resourceId: MAIN_ID,
       correlationId: 'corr-2',
       referenceId: 'ref-2',
@@ -180,13 +180,13 @@ describe('channel roster matches actual subscriptions (census gate)', () => {
   it('Matcher', async () => {
     const bus = new EventBus();
     const seen: string[] = [];
-    const realGet = bus.get.bind(bus);
-    bus.get = ((channel) => {
+    const realGet = bus.on.bind(bus);
+    bus.on = ((channel) => {
       // Requests only: initialize() also calls get() to hold the reply
       // channels it emits on; the roster is what it CONSUMES.
       seen.push(channel as string);
       return realGet(channel);
-    }) as typeof bus.get;
+    }) as typeof bus.on;
 
     const matcher = new Matcher(
       makeStores(), bus, mockLogger, noopInference, createMockEmbeddingProvider(),

@@ -26,7 +26,7 @@ export function registerJobCommandHandlers(
 ): void {
   const logger = parentLogger.child({ component: 'job-commands' });
 
-  eventBus.get('job:create').subscribe(async (command) => {
+  eventBus.on('job:create').subscribe(async (command) => {
     const { correlationId, jobType, resourceId: resId, params, _userId } = command;
 
     try {
@@ -150,20 +150,20 @@ export function registerJobCommandHandlers(
 
       logger.info('Job created via bus', { jobId: job.metadata.id, jobType, correlationId });
 
-      eventBus.get('job:created').next({
+      eventBus.emit('job:created', {
         correlationId,
         response: { jobId: job.metadata.id },
       });
     } catch (error) {
       logger.error('job:create failed', { correlationId, error: (error as Error).message });
-      eventBus.get('job:create-failed').next({
+      eventBus.emit('job:create-failed', {
         correlationId,
         message: (error as Error).message,
       });
     }
   });
 
-  eventBus.get('job:claim').subscribe(async (command) => {
+  eventBus.on('job:claim').subscribe(async (command) => {
     const { correlationId, types } = command;
 
     try {
@@ -175,12 +175,12 @@ export function registerJobCommandHandlers(
         throw new Error('No pending job of the requested types');
       }
 
-      eventBus.get('job:claimed').next({
+      eventBus.emit('job:claimed', {
         correlationId,
         response: { ...result.job },
       });
     } catch (error) {
-      eventBus.get('job:claim-failed').next({
+      eventBus.emit('job:claim-failed', {
         correlationId,
         message: (error as Error).message,
       });
@@ -192,7 +192,7 @@ export function registerJobCommandHandlers(
   // subscriptions keep the *queue files* in step so `getStats()`,
   // `job:status-requested`, and retry bookkeeping reflect reality.
 
-  eventBus.get('job:complete').subscribe(async (event) => {
+  eventBus.on('job:complete').subscribe(async (event) => {
     try {
       const moved = await jobQueue.completeJob(
         jobId(event.jobId),
@@ -209,7 +209,7 @@ export function registerJobCommandHandlers(
     }
   });
 
-  eventBus.get('job:fail').subscribe(async (event) => {
+  eventBus.on('job:fail').subscribe(async (event) => {
     try {
       const outcome = await jobQueue.failJob(jobId(event.jobId), event.error, event.completedUnits, event.failureClass, event.unitCursors);
       if (outcome === 'retried') {
@@ -225,7 +225,7 @@ export function registerJobCommandHandlers(
     }
   });
 
-  eventBus.get('job:report-progress').subscribe(async (event) => {
+  eventBus.on('job:report-progress').subscribe(async (event) => {
     try {
       await jobQueue.recordProgress(
         jobId(event.jobId),
@@ -244,7 +244,7 @@ export function registerJobCommandHandlers(
   // without emitting job:fail still leaves them for the janitor's recovery to
   // resume from. failJob carries the same checkpoint on a CLEAN failure; this
   // covers the crash path failJob never sees.
-  eventBus.get('job:checkpoint').subscribe(async (event) => {
+  eventBus.on('job:checkpoint').subscribe(async (event) => {
     try {
       await jobQueue.checkpointUnits(jobId(event.jobId), event.completedUnits, event.unitCursors);
     } catch (error) {
@@ -255,7 +255,7 @@ export function registerJobCommandHandlers(
     }
   });
 
-  eventBus.get('job:cancel-requested').subscribe(async (event) => {
+  eventBus.on('job:cancel-requested').subscribe(async (event) => {
     try {
       let cancelled: number;
       if (event.jobId) {
@@ -282,7 +282,7 @@ export function registerJobCommandHandlers(
       } else {
         cancelled = 0;
       }
-      eventBus.get('job:cancel-ok').next({
+      eventBus.emit('job:cancel-ok', {
         correlationId: event.correlationId,
         response: { cancelled },
       });
@@ -292,7 +292,7 @@ export function registerJobCommandHandlers(
         jobType: event.jobType,
         error: (error as Error).message,
       });
-      eventBus.get('job:cancel-failed').next({
+      eventBus.emit('job:cancel-failed', {
         correlationId: event.correlationId,
         message: (error as Error).message,
       });
@@ -303,7 +303,7 @@ export function registerJobCommandHandlers(
   // (JOB-RESTART-SAFETY P4): move it to cancelled/, carrying the units it
   // checkpointed. This is the ONLY path that cancels a running job — a
   // running job is never yanked queue-side out from under its live worker.
-  eventBus.get('job:cancel').subscribe(async (event) => {
+  eventBus.on('job:cancel').subscribe(async (event) => {
     try {
       await jobQueue.cancelJob(jobId(event.jobId));
       logger.info('Job cancelled by its worker', { jobId: event.jobId });
@@ -321,14 +321,14 @@ export function registerJobCommandHandlers(
   // so a responder living anywhere else is invisible to the bridge and
   // starves under a remote plane (the yield:create bug's subscriber-side
   // twin, found by the audit it prompted).
-  eventBus.get('job:status-requested').subscribe(async (event) => {
+  eventBus.on('job:status-requested').subscribe(async (event) => {
     try {
       const job = await jobQueue.getJob(jobId(event.jobId));
       if (!job) {
-        eventBus.get('job:status-failed').next({ correlationId: event.correlationId, message: 'Job not found' });
+        eventBus.emit('job:status-failed', { correlationId: event.correlationId, message: 'Job not found' });
         return;
       }
-      eventBus.get('job:status-result').next({
+      eventBus.emit('job:status-result', {
         correlationId: event.correlationId,
         response: {
           jobId:       job.metadata.id,
@@ -344,7 +344,7 @@ export function registerJobCommandHandlers(
         },
       });
     } catch (error) {
-      eventBus.get('job:status-failed').next({
+      eventBus.emit('job:status-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });

@@ -15,7 +15,7 @@
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { BehaviorSubject, Subject, type Observable } from 'rxjs';
+import { BehaviorSubject, type Observable } from 'rxjs';
 import {
   baseUrl,
   resourceId,
@@ -97,7 +97,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
   describe('bus disposal (A7-owned)', () => {
     test('dispose completes client.bus subscribers', () => {
       const events: string[] = [];
-      client.bus.get('mark:submit').subscribe({
+      client.bus.on('mark:submit').subscribe({
         next: () => events.push('next'),
         error: () => events.push('error'),
         complete: () => events.push('complete'),
@@ -109,7 +109,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
     });
 
     test('unsubscribe after dispose is a safe no-op', () => {
-      const sub = client.bus.get('mark:submit').subscribe(() => {});
+      const sub = client.bus.on('mark:submit').subscribe(() => {});
       client.dispose();
       expect(() => sub.unsubscribe()).not.toThrow();
     });
@@ -119,7 +119,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
       // Direct bus access and bus-emitting namespace methods alike: calling
       // a disposed client is a bug, and it now says so — pre-fix it
       // no-op'd into the leaked bus.
-      expect(() => client.bus.get('mark:submit')).toThrow(/destroyed bus/);
+      expect(() => client.bus.on('mark:submit')).toThrow(/destroyed bus/);
       expect(() => client.mark.cancelPending()).toThrow(/destroyed bus/);
     });
 
@@ -144,7 +144,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
       // The session's client bus is destroyed — late subscribe attempts are
       // loud, the handler's subscription completed, and the returned
       // unsubscribe closure is a safe no-op.
-      expect(() => session.client.bus.get('mark:submit')).toThrow(/destroyed bus/);
+      expect(() => session.client.bus.on('mark:submit')).toThrow(/destroyed bus/);
       expect(() => unsubscribe()).not.toThrow();
       expect(seen).toEqual([]);
     });
@@ -176,11 +176,11 @@ describe('SemiontClient lifecycle + namespace routing', () => {
       expect(emitted).toBeTruthy();
       const cid = (emitted![1] as { correlationId: string }).correlationId;
 
-      (client.bus.get('match:search-results') as unknown as Subject<unknown>).next({
+      client.bus.emit('match:search-results', ({
         correlationId: cid,
         referenceId: 'ref-1',
         response: [],
-      });
+      }) as never);
 
       const result = await searchP;
       expect((result as { correlationId: string }).correlationId).toBe(cid);
@@ -198,11 +198,11 @@ describe('SemiontClient lifecycle + namespace routing', () => {
       expect(emitted).toBeTruthy();
       const cid = (emitted![1] as { correlationId: string }).correlationId;
 
-      (client.bus.get('gather:complete') as unknown as Subject<unknown>).next({
+      client.bus.emit('gather:complete', ({
         correlationId: cid,
         annotationId: testAnnotationId as unknown as string,
         response: { sourceContext: {} },
-      });
+      }) as never);
 
       const result = await gatherP;
       expect((result as { correlationId: string }).correlationId).toBe(cid);
@@ -219,11 +219,11 @@ describe('SemiontClient lifecycle + namespace routing', () => {
         correlationId: string;
       }).correlationId;
 
-      (client.bus.get('match:search-failed') as unknown as Subject<unknown>).next({
+      client.bus.emit('match:search-failed', ({
         correlationId: cid,
         referenceId: 'ref-x',
         error: 'inference provider down',
-      });
+      }) as never);
 
       await expect(searchP).rejects.toThrow(/inference provider down/);
     });

@@ -108,7 +108,7 @@ export class Browser {
     const pipe = <K extends keyof EventMap>(
       name: K,
       handler: (event: EventMap[K]) => Promise<void>,
-    ) => this.eventBus.get(name).pipe(
+    ) => this.eventBus.on(name).pipe(
       mergeMap((event) =>
         from(withActorSpan('browser', name as string, () => handler(event))).pipe(
           // Isolate per-event failures: a single handler throw must NOT tear down the
@@ -162,13 +162,13 @@ export class Browser {
    */
   private async handleAnchoredText(event: EventMap['browse:anchored-text-requested']): Promise<void> {
     try {
-      this.eventBus.get('browse:anchored-text-result').next({
+      this.eventBus.emit('browse:anchored-text-result', {
         correlationId: event.correlationId,
         response: await readAnchoredText(this.kb, event.resourceId),
       });
     } catch (error) {
       this.logger.error('Browse anchored text failed', { resourceId: event.resourceId, error: errField(error) });
-      this.eventBus.get('browse:anchored-text-failed').next({
+      this.eventBus.emit('browse:anchored-text-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -180,7 +180,7 @@ export class Browser {
       const response = await assembleResourceGraph(this.kb, resourceId(event.resourceId));
 
       if (!response) {
-        this.eventBus.get('browse:resource-failed').next({
+        this.eventBus.emit('browse:resource-failed', {
           correlationId: event.correlationId,
           code: 'not-found',
           message: 'Resource not found',
@@ -188,7 +188,7 @@ export class Browser {
         return;
       }
 
-      this.eventBus.get('browse:resource-result').next({
+      this.eventBus.emit('browse:resource-result', {
         correlationId: event.correlationId,
         response,
       });
@@ -196,7 +196,7 @@ export class Browser {
       // No `code` here, deliberately: a thrown assembly is not evidence of
       // absence, and the SDK deletes a restored tab on 'not-found'.
       this.logger.error('Browse resource failed', { resourceId: event.resourceId, error: errField(error) });
-      this.eventBus.get('browse:resource-failed').next({
+      this.eventBus.emit('browse:resource-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -227,7 +227,7 @@ export class Browser {
         ? await ResourceContext.addContentPreviews(result.resources, this.kb)
         : result.resources;
 
-      this.eventBus.get('browse:resources-result').next({
+      this.eventBus.emit('browse:resources-result', {
         correlationId: event.correlationId,
         response: {
           resources: formattedDocs,
@@ -241,7 +241,7 @@ export class Browser {
       });
     } catch (error) {
       this.logger.error('Browse resources failed', { error: errField(error) });
-      this.eventBus.get('browse:resources-failed').next({
+      this.eventBus.emit('browse:resources-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -252,7 +252,7 @@ export class Browser {
     try {
       const annotations = await AnnotationContext.getAllAnnotations(resourceId(event.resourceId), this.kb);
 
-      this.eventBus.get('browse:annotations-result').next({
+      this.eventBus.emit('browse:annotations-result', {
         correlationId: event.correlationId,
         response: {
           annotations,
@@ -261,7 +261,7 @@ export class Browser {
       });
     } catch (error) {
       this.logger.error('Browse annotations failed', { resourceId: event.resourceId, error: errField(error) });
-      this.eventBus.get('browse:annotations-failed').next({
+      this.eventBus.emit('browse:annotations-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -273,7 +273,7 @@ export class Browser {
       const annotation = await AnnotationContext.getAnnotation(annotationId(event.annotationId), resourceId(event.resourceId), this.kb);
 
       if (!annotation) {
-        this.eventBus.get('browse:annotation-failed').next({
+        this.eventBus.emit('browse:annotation-failed', {
           correlationId: event.correlationId,
           message: 'Annotation not found',
         });
@@ -289,7 +289,7 @@ export class Browser {
         resolvedResource = await ResourceContext.getResourceMetadata(resourceId(bodySource), this.kb);
       }
 
-      this.eventBus.get('browse:annotation-result').next({
+      this.eventBus.emit('browse:annotation-result', {
         correlationId: event.correlationId,
         response: {
           annotation,
@@ -299,7 +299,7 @@ export class Browser {
       });
     } catch (error) {
       this.logger.error('Browse annotation failed', { resourceId: event.resourceId, annotationId: event.annotationId, error: errField(error) });
-      this.eventBus.get('browse:annotation-failed').next({
+      this.eventBus.emit('browse:annotation-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -325,7 +325,7 @@ export class Browser {
 
       const storedEvents = await eventQuery.queryEvents(filters);
 
-      this.eventBus.get('browse:events-result').next({
+      this.eventBus.emit('browse:events-result', {
         correlationId: event.correlationId,
         response: {
           events: storedEvents,
@@ -335,7 +335,7 @@ export class Browser {
       });
     } catch (error) {
       this.logger.error('Browse events failed', { resourceId: event.resourceId, error: errField(error) });
-      this.eventBus.get('browse:events-failed').next({
+      this.eventBus.emit('browse:events-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -347,7 +347,7 @@ export class Browser {
       // Verify annotation exists
       const annotation = await AnnotationContext.getAnnotation(annotationId(event.annotationId), resourceId(event.resourceId), this.kb);
       if (!annotation) {
-        this.eventBus.get('browse:annotation-history-failed').next({
+        this.eventBus.emit('browse:annotation-history-failed', {
           correlationId: event.correlationId,
           message: 'Annotation not found',
         });
@@ -368,7 +368,7 @@ export class Browser {
       // Sort by sequence number
       annotationEvents.sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
 
-      this.eventBus.get('browse:annotation-history-result').next({
+      this.eventBus.emit('browse:annotation-history-result', {
         correlationId: event.correlationId,
         response: {
           events: annotationEvents,
@@ -379,7 +379,7 @@ export class Browser {
       });
     } catch (error) {
       this.logger.error('Browse annotation history failed', { resourceId: event.resourceId, annotationId: event.annotationId, error: errField(error) });
-      this.eventBus.get('browse:annotation-history-failed').next({
+      this.eventBus.emit('browse:annotation-history-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -438,13 +438,13 @@ export class Browser {
         };
       });
 
-      this.eventBus.get('browse:referenced-by-result').next({
+      this.eventBus.emit('browse:referenced-by-result', {
         correlationId: event.correlationId,
         response: { referencedBy },
       });
     } catch (error) {
       this.logger.error('Referenced-by query failed', { resourceId: event.resourceId, error: errField(error) });
-      this.eventBus.get('browse:referenced-by-failed').next({
+      this.eventBus.emit('browse:referenced-by-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -454,13 +454,13 @@ export class Browser {
   private async handleEntityTypes(event: EventMap['browse:entity-types-requested']): Promise<void> {
     try {
       const entityTypes = await readEntityTypesProjection(this.project);
-      this.eventBus.get('browse:entity-types-result').next({
+      this.eventBus.emit('browse:entity-types-result', {
         correlationId: event.correlationId,
         response: { entityTypes },
       });
     } catch (error) {
       this.logger.error('Entity types read failed', { error: errField(error) });
-      this.eventBus.get('browse:entity-types-failed').next({
+      this.eventBus.emit('browse:entity-types-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -470,13 +470,13 @@ export class Browser {
   private async handleTagSchemas(event: EventMap['browse:tag-schemas-requested']): Promise<void> {
     try {
       const tagSchemas = await readTagSchemasProjection(this.project);
-      this.eventBus.get('browse:tag-schemas-result').next({
+      this.eventBus.emit('browse:tag-schemas-result', {
         correlationId: event.correlationId,
         response: { tagSchemas },
       });
     } catch (error) {
       this.logger.error('Tag schemas read failed', { error: errField(error) });
-      this.eventBus.get('browse:tag-schemas-failed').next({
+      this.eventBus.emit('browse:tag-schemas-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -492,13 +492,13 @@ export class Browser {
       // without `limits` (D3) — the reply itself never fails or blocks
       // on a provider.
       const agents = await this.limitsDiscovery.enrich(deriveAgentRoster(this.config));
-      this.eventBus.get('browse:agents-result').next({
+      this.eventBus.emit('browse:agents-result', {
         correlationId: event.correlationId,
         response: { agents },
       });
     } catch (error) {
       this.logger.error('Agent roster derivation failed', { error: errField(error) });
-      this.eventBus.get('browse:agents-failed').next({
+      this.eventBus.emit('browse:agents-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -519,7 +519,7 @@ export class Browser {
     const resolved = path.resolve(projectRoot, reqPath);
 
     if (!resolved.startsWith(projectRoot + path.sep) && resolved !== projectRoot) {
-      this.eventBus.get('browse:directory-failed').next({
+      this.eventBus.emit('browse:directory-failed', {
         correlationId,
         path: reqPath,
         message: 'path escapes project root',
@@ -532,7 +532,7 @@ export class Browser {
       dirents = await fs.readdir(resolved, { withFileTypes: true, encoding: 'utf8' });
     } catch (err: any) {
       const msg = err.code === 'ENOENT' ? 'path not found' : String(err);
-      this.eventBus.get('browse:directory-failed').next({
+      this.eventBus.emit('browse:directory-failed', {
         correlationId,
         path: reqPath,
         message: msg,
@@ -619,7 +619,7 @@ export class Browser {
       return a.name.localeCompare(b.name);
     });
 
-    this.eventBus.get('browse:directory-result').next({
+    this.eventBus.emit('browse:directory-result', {
       correlationId,
       response: { path: reqPath, entries },
     });

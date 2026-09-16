@@ -153,7 +153,7 @@ describe('the periodic tick — re-announce and worker-death sweep (driver-speci
     const { createPendingDetectionJob, createRunningDetectionJob } = await import('./job-queue-conformance');
     const bus = new EventBus();
     const announced: string[] = [];
-    bus.get('job:queued').subscribe((e) => announced.push(e.jobId as string));
+    bus.on('job:queued').subscribe((e) => announced.push(e.jobId as string));
 
     const q = new JetStreamJobQueue({ servers, reconnect: false, tickMs: 300, staleRunningMs: 1 }, mockLogger, bus);
     try {

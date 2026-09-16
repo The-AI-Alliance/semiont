@@ -13,12 +13,12 @@ import type { ConnectionState, EventBus, EventMap, BusRequestPrimitive } from '@
 export function asBusRequestPrimitive(eventBus: EventBus): BusRequestPrimitive {
   return {
     emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<number> {
-      eventBus.get(channel).next(payload);
+      eventBus.emit(channel, payload);
       // In-process: no subscriber accounting — the ITransport "unknown" sentinel.
       return Promise.resolve(-1);
     },
     stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
-      return eventBus.get(channel).asObservable();
+      return eventBus.on(channel);
     },
     // Every channel: an in-process bus delivers every emit, so the receive
     // path carries anything asked of it. The true answer, which is why this
@@ -26,7 +26,7 @@ export function asBusRequestPrimitive(eventBus: EventBus): BusRequestPrimitive {
     isSubscribed: () => true,
     // In-process delivery is synchronous — no attach window, so `'open'` is
     // the true state (.plans/BUS-ATTACH-GATE.md). A destroyed bus throws at
-    // `eventBus.get()` before the gate could matter. Published read-only
+    // `eventBus.on()` before the gate could matter. Published read-only
     // (X1): the subject's mutators must not leak to consumers.
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
   };

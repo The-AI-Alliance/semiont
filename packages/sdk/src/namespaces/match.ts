@@ -13,7 +13,7 @@ export class MatchNamespace implements IMatchNamespace {
 
   requestSearch(input: components['schemas']['MatchSearchRequest']): void {
     // Local emit: match-state-unit subscribes via the local bus.
-    this.bus.get('match:search-requested').next(input);
+    this.bus.emit('match:search-requested', input);
   }
 
   search(
@@ -25,10 +25,10 @@ export class MatchNamespace implements IMatchNamespace {
     return new StreamObservable<MatchSearchProgress>((subscriber) => {
       const correlationId = uuidV4();
 
-      const result$ = this.bus.get('match:search-results').pipe(
+      const result$ = this.bus.on('match:search-results').pipe(
         filter((e) => e.correlationId === correlationId),
       );
-      const failed$ = this.bus.get('match:search-failed').pipe(
+      const failed$ = this.bus.on('match:search-failed').pipe(
         filter((e) => e.correlationId === correlationId),
       );
 

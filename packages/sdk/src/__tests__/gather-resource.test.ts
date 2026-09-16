@@ -32,7 +32,10 @@ function makeTransport() {
     // Replies are pushed through the SAME typed bus the transport streams
     // from, so a fixture that is not the channel's declared payload is a
     // compile error rather than something the transport's cast used to hide.
-    subjectFor: <K extends keyof EventMap>(channel: K) => bus.get(channel),
+    // A push verb, not a handle. The old helper returned the channel's
+    // Subject so a test could write through it; `on` is read-only by design,
+    // and the write path is `emit`.
+    push: <K extends keyof EventMap>(channel: K, payload: EventMap[K]) => bus.emit(channel, payload),
     getLastChannel: () => lastChannel,
     getLastPayload: () => lastPayload,
   };
@@ -49,7 +52,7 @@ describe('gather.resource', () => {
   }
 
   it('emits gather:resource-requested with defaulted options and resolves the response', async () => {
-    const { gather, subjectFor, getLastChannel, getLastPayload } = makeGather();
+    const { gather, push, getLastChannel, getLastPayload } = makeGather();
     const rid = makeResourceId('r1');
 
     const promise = gather.resource(rid);
@@ -67,7 +70,7 @@ describe('gather.resource', () => {
     // gather:resource-complete now carries a unified GatheredContext (focus.kind:'resource'),
     // not the old per-kind response wrapper (CONTEXT-UNIFICATION P1).
     const response = resourceContextFor(rid);
-    subjectFor('gather:resource-complete').next({ correlationId: cid, resourceId: rid, response });
+    push('gather:resource-complete', { correlationId: cid, resourceId: rid, response });
 
     expect(await promise).toEqual(response);
   });
@@ -87,12 +90,12 @@ describe('gather.resource', () => {
   });
 
   it('rejects when gather:resource-failed arrives', async () => {
-    const { gather, subjectFor, getLastPayload } = makeGather();
+    const { gather, push, getLastPayload } = makeGather();
     const captured = gather.resource(makeResourceId('r3')).catch((e) => e);
     await Promise.resolve();
     const cid = getLastPayload()!.correlationId as string;
 
-    subjectFor('gather:resource-failed').next({
+    push('gather:resource-failed', {
       correlationId: cid,
       resourceId: 'r3',
       message: 'graph traversal failed',

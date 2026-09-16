@@ -64,7 +64,7 @@ describe('multi-scope over the real HttpTransport + ActorStateUnit', () => {
 
     // ── One scoped frame → exactly one delivery on the bridged bus ────────
     const received: unknown[] = [];
-    bus.get('mark:added').subscribe((p) => received.push(p));
+    bus.on('mark:added').subscribe((p) => received.push(p));
     sse2.push(sseChunkId(
       'bus-event',
       JSON.stringify({ channel: 'mark:added', payload: { seq: 1 }, scope: 'res-A' }),

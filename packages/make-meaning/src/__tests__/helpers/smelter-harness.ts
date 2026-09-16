@@ -160,7 +160,7 @@ export function createFakeWorkerBus() {
   // cast this comment used to apologise for.
   const eventBus = new EventBus();
   const bus: BusRequestPrimitive = {
-    stream: <K extends keyof EventMap>(channel: K) => eventBus.get(channel).asObservable(),
+    stream: <K extends keyof EventMap>(channel: K) => eventBus.on(channel),
     // This double delivers whatever a test pushes at it — subjects are created
     // on demand — so `true` is the truth about it. It does not model a
     // NARROWED set; that behavior is proven against the real ActorStateUnit,
@@ -172,7 +172,7 @@ export function createFakeWorkerBus() {
   return {
     bus,
     push: <K extends SmelterChannel>(channel: K, event: EventMap[K]) =>
-      eventBus.get(channel).next(event),
+      eventBus.emit(channel, event),
   };
 }
 
@@ -322,7 +322,7 @@ export function createFakeKsBus(
       // a compile error here rather than a passing test.
       if (request.channel === 'browse:resources-requested') {
         const { correlationId, offset = 0, limit = 50 } = request.payload;
-        queueMicrotask(() => eventBus.get('browse:resources-result').next({
+        queueMicrotask(() => eventBus.emit('browse:resources-result', {
           correlationId,
           response: {
             resources: resources.slice(offset, offset + limit),
@@ -346,14 +346,14 @@ export function createFakeKsBus(
         // The reply carries annotations and entityReferences too — another
         // thing the cast hid, since the fake sent `{ resource }` alone.
         const anns = annotationsByResource.get(resourceId) ?? [];
-        queueMicrotask(() => eventBus.get('browse:resource-result').next({
+        queueMicrotask(() => eventBus.emit('browse:resource-result', {
           correlationId,
           response: { resource: found, annotations: anns, entityReferences: [] },
         }));
       } else if (request.channel === 'browse:annotations-requested') {
         const { correlationId, resourceId } = request.payload;
         const annotations = annotationsByResource.get(resourceId) ?? [];
-        queueMicrotask(() => eventBus.get('browse:annotations-result').next({
+        queueMicrotask(() => eventBus.emit('browse:annotations-result', {
           correlationId,
           response: { annotations, total: annotations.length },
         }));
@@ -361,7 +361,7 @@ export function createFakeKsBus(
       return 1;
     },
     stream<K extends keyof EventMap>(name: K): Observable<EventMap[K]> {
-      return eventBus.get(name).asObservable();
+      return eventBus.on(name);
     },
   };
 }

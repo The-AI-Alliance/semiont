@@ -33,7 +33,7 @@ describe('the domain-event path needs no casts', () => {
     // subscriber sees `EventMap[K]` rather than a widened `StoredEvent`.
     const bus = new EventBus();
     const seen: EventMap['mark:added'][] = [];
-    bus.get('mark:added').subscribe((e) => seen.push(e));
+    bus.on('mark:added').subscribe((e) => seen.push(e));
     expect(seen).toEqual([]);
   });
 });

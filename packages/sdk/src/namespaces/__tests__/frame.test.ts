@@ -44,7 +44,7 @@ function createMockTransport(opts: { fail?: boolean } = {}): {
       const target = (opts.fail ? reply.failed : reply.ok) as keyof EventMap;
       // The subscription is already live (busRequest subscribes before emitting),
       // so a synchronous push is delivered to the awaiting take(1).
-      bus.get(target).next(
+      bus.emit(target, 
         (opts.fail ? { correlationId, message: 'gateway add failed' } : { correlationId }) as EventMap[typeof target],
       );
     }

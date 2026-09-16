@@ -68,7 +68,7 @@ export class Matcher {
 
     const errorHandler = (err: unknown) => this.logger.error('Matcher pipeline error', { error: err });
 
-    const search$ = this.eventBus.get('match:search-requested').pipe(
+    const search$ = this.eventBus.on('match:search-requested').pipe(
       concatMap((event) =>
         from(withActorSpan('matcher', 'match:search-requested', () => this.handleSearch(event))),
       ),
@@ -110,7 +110,7 @@ export class Matcher {
 
       const limited = event.limit ? scored.slice(0, event.limit) : scored;
 
-      this.eventBus.get('match:search-results').next({
+      this.eventBus.emit('match:search-results', {
         correlationId: event.correlationId,
         referenceId: event.referenceId,
         response: limited,
@@ -120,7 +120,7 @@ export class Matcher {
         referenceId: event.referenceId,
         error: errField(error),
       });
-      this.eventBus.get('match:search-failed').next({
+      this.eventBus.emit('match:search-failed', {
         correlationId: event.correlationId,
         referenceId: event.referenceId,
         error: error instanceof Error ? error.message : String(error),

@@ -29,7 +29,7 @@ describe('createMatchStateUnit', () => {
     tc = withMatch(searchFn);
     const stateUnit = createMatchStateUnit(tc.client, RID);
 
-    tc.bus.get('match:search-requested').next({
+    tc.bus.emit('match:search-requested', {
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: { annotation: {} } as any,
@@ -56,9 +56,9 @@ describe('createMatchStateUnit', () => {
     const stateUnit = createMatchStateUnit(tc.client, RID);
 
     const results: unknown[] = [];
-    tc.bus.get('match:search-results').subscribe(r => results.push(r));
+    tc.bus.on('match:search-results').subscribe(r => results.push(r));
 
-    tc.bus.get('match:search-requested').next({
+    tc.bus.emit('match:search-requested', {
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: {} as any,
@@ -78,9 +78,9 @@ describe('createMatchStateUnit', () => {
     const stateUnit = createMatchStateUnit(tc.client, RID);
 
     const failures: unknown[] = [];
-    tc.bus.get('match:search-failed').subscribe(f => failures.push(f));
+    tc.bus.on('match:search-failed').subscribe(f => failures.push(f));
 
-    tc.bus.get('match:search-requested').next({
+    tc.bus.emit('match:search-requested', {
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: {} as any,
@@ -102,9 +102,9 @@ describe('createMatchStateUnit', () => {
     tc = withMatch(searchFn);
     const stateUnit = createMatchStateUnit(tc.client, RID);
     const failures: unknown[] = [];
-    tc.bus.get('match:search-failed').subscribe(f => failures.push(f));
+    tc.bus.on('match:search-failed').subscribe(f => failures.push(f));
 
-    tc.bus.get('match:search-requested').next({
+    tc.bus.emit('match:search-requested', {
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: {} as any,
@@ -124,7 +124,7 @@ describe('createMatchStateUnit', () => {
     const stateUnit = createMatchStateUnit(tc.client, RID);
     stateUnit.dispose();
 
-    tc.bus.get('match:search-requested').next({
+    tc.bus.emit('match:search-requested', {
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: {} as any,

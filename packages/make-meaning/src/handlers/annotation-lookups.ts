@@ -26,7 +26,7 @@ export function registerAnnotationContextHandler(
 ): void {
   const logger = parentLogger.child({ component: 'annotation-lookups' });
 
-  eventBus.get('browse:annotation-context-requested').subscribe(async (command) => {
+  eventBus.on('browse:annotation-context-requested').subscribe(async (command) => {
     const { correlationId } = command;
     const annId = (command as Record<string, unknown>).annotationId as string;
     const resId = (command as Record<string, unknown>).resourceId as string;
@@ -42,13 +42,13 @@ export function registerAnnotationContextHandler(
         kb,
       );
 
-      eventBus.get('browse:annotation-context-result').next({
+      eventBus.emit('browse:annotation-context-result', {
         correlationId,
         response,
       });
     } catch (error) {
       logger.warn('annotation-context failed', { correlationId, error: (error as Error).message });
-      eventBus.get('browse:annotation-context-failed').next({
+      eventBus.emit('browse:annotation-context-failed', {
         correlationId,
         message: (error as Error).message,
       });
@@ -63,7 +63,7 @@ export function registerGatherSummaryHandler(
 ): void {
   const logger = parentLogger.child({ component: 'annotation-lookups' });
 
-  eventBus.get('gather:summary-requested').subscribe(async (command) => {
+  eventBus.on('gather:summary-requested').subscribe(async (command) => {
     const { correlationId } = command;
     const annId = (command as Record<string, unknown>).annotationId as string;
     const resId = (command as Record<string, unknown>).resourceId as string;
@@ -74,13 +74,13 @@ export function registerGatherSummaryHandler(
         makeResourceId(resId),
       );
 
-      eventBus.get('gather:summary-result').next({
+      eventBus.emit('gather:summary-result', {
         correlationId,
         response,
       });
     } catch (error) {
       logger.warn('gather:summary failed', { correlationId, error: (error as Error).message });
-      eventBus.get('gather:summary-failed').next({
+      eventBus.emit('gather:summary-failed', {
         correlationId,
         message: (error as Error).message,
       });

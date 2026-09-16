@@ -95,9 +95,9 @@ describe('Stower constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () 
     await stower.initialize();
 
     const correlationId = 'p1-create-1';
-    const ok = reply(eventBus.get('yield:create-ok'), eventBus.get('yield:create-failed'), correlationId);
+    const ok = reply(eventBus.on('yield:create-ok'), eventBus.on('yield:create-failed'), correlationId);
 
-    eventBus.get('yield:create').next({
+    eventBus.emit('yield:create', {
       correlationId,
       _userId: 'user-1',
       name: 'doc.txt',
@@ -132,11 +132,11 @@ describe('Stower constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () 
     // appendEvent publishes — our double doesn't, so the double's calls are
     // the observable outcome. A failure reply is captured and asserted flat.
     let failure: string | undefined;
-    const failSub = eventBus.get('yield:move-failed').subscribe((e) => {
+    const failSub = eventBus.on('yield:move-failed').subscribe((e) => {
       failure = e.message;
     });
 
-    eventBus.get('yield:mv').next({
+    eventBus.emit('yield:mv', {
       _userId: 'user-1',
       fromUri,
       toUri: 'file:///tmp/to.txt',
@@ -160,9 +160,9 @@ describe('Stower constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () 
     await stower.initialize();
 
     const correlationId = 'p1-archive-1';
-    const ok = reply(eventBus.get('mark:archive-ok'), eventBus.get('mark:archive-failed'), correlationId);
+    const ok = reply(eventBus.on('mark:archive-ok'), eventBus.on('mark:archive-failed'), correlationId);
 
-    eventBus.get('mark:archive').next({
+    eventBus.emit('mark:archive', {
       correlationId,
       _userId: 'user-1',
       resourceId: 'res-arch-1',
@@ -263,9 +263,9 @@ describe('Browser constructs from capability doubles (EXTRACT-ARCHIVIST P1)', ()
     await start(reads);
 
     const correlationId = 'p1-annos-1';
-    const ok = reply(eventBus.get('browse:annotations-result'), eventBus.get('browse:annotations-failed'), correlationId);
+    const ok = reply(eventBus.on('browse:annotations-result'), eventBus.on('browse:annotations-failed'), correlationId);
 
-    eventBus.get('browse:annotations-requested').next({ correlationId, resourceId: String(rid) });
+    eventBus.emit('browse:annotations-requested', { correlationId, resourceId: String(rid) });
 
     const result = await ok;
     expect(result.response.total).toBe(1);
@@ -285,9 +285,9 @@ describe('Browser constructs from capability doubles (EXTRACT-ARCHIVIST P1)', ()
     await start(reads);
 
     const correlationId = 'p1-res-1';
-    const ok = reply(eventBus.get('browse:resource-result'), eventBus.get('browse:resource-failed'), correlationId);
+    const ok = reply(eventBus.on('browse:resource-result'), eventBus.on('browse:resource-failed'), correlationId);
 
-    eventBus.get('browse:resource-requested').next({ correlationId, resourceId: String(rid) });
+    eventBus.emit('browse:resource-requested', { correlationId, resourceId: String(rid) });
 
     const result = await ok;
     expect(result.response.resource.name).toBe('Assembled');
@@ -311,9 +311,9 @@ describe('Browser constructs from capability doubles (EXTRACT-ARCHIVIST P1)', ()
     await start(reads);
 
     const correlationId = 'p1-refby-1';
-    const ok = reply(eventBus.get('browse:referenced-by-result'), eventBus.get('browse:referenced-by-failed'), correlationId);
+    const ok = reply(eventBus.on('browse:referenced-by-result'), eventBus.on('browse:referenced-by-failed'), correlationId);
 
-    eventBus.get('browse:referenced-by-requested').next({ correlationId, resourceId: String(target) });
+    eventBus.emit('browse:referenced-by-requested', { correlationId, resourceId: String(target) });
 
     const result = await ok;
     expect(result.response.referencedBy).toHaveLength(1);
@@ -360,9 +360,9 @@ describe('CloneTokenManager constructs from capability doubles (EXTRACT-ARCHIVIS
     await ctm.initialize();
 
     const correlationId = 'p1-token-1';
-    const ok = reply(eventBus.get('yield:clone-token-generated'), eventBus.get('yield:clone-token-failed'), correlationId);
+    const ok = reply(eventBus.on('yield:clone-token-generated'), eventBus.on('yield:clone-token-failed'), correlationId);
 
-    eventBus.get('yield:clone-token-requested').next({ correlationId, resourceId: String(rid) });
+    eventBus.emit('yield:clone-token-requested', { correlationId, resourceId: String(rid) });
 
     const result = await ok;
     expect(result.response.token).toMatch(/^clone_/);
@@ -394,13 +394,13 @@ describe('CloneTokenManager constructs from capability doubles (EXTRACT-ARCHIVIS
     await ctm.initialize();
 
     const tokenCid = 'p1-token-2';
-    const token$ = reply(eventBus.get('yield:clone-token-generated'), eventBus.get('yield:clone-token-failed'), tokenCid);
-    eventBus.get('yield:clone-token-requested').next({ correlationId: tokenCid, resourceId: String(rid) });
+    const token$ = reply(eventBus.on('yield:clone-token-generated'), eventBus.on('yield:clone-token-failed'), tokenCid);
+    eventBus.emit('yield:clone-token-requested', { correlationId: tokenCid, resourceId: String(rid) });
     const { response: { token } } = await token$;
 
     const getCid = 'p1-get-1';
-    const got$ = reply(eventBus.get('yield:clone-resource-result'), eventBus.get('yield:clone-resource-failed'), getCid);
-    eventBus.get('yield:clone-resource-requested').next({ correlationId: getCid, token });
+    const got$ = reply(eventBus.on('yield:clone-resource-result'), eventBus.on('yield:clone-resource-failed'), getCid);
+    eventBus.emit('yield:clone-resource-requested', { correlationId: getCid, token });
 
     const { response } = await got$;
     expect(response.sourceResource.name).toBe('Held');
@@ -418,13 +418,13 @@ describe('channel rosters match actual subscriptions (census gate)', () => {
   async function subscribedChannels(initialize: (bus: EventBus) => Promise<{ stop(): Promise<void> }>) {
     const bus = new EventBus();
     const seen: string[] = [];
-    const realGet = bus.get.bind(bus);
+    const realGet = bus.on.bind(bus);
     // Shadow the prototype method on the instance: initialize() only calls
     // get() to subscribe, so the recorded names ARE the subscription census.
-    bus.get = ((channel) => {
+    bus.on = ((channel) => {
       seen.push(channel as string);
       return realGet(channel);
-    }) as typeof bus.get;
+    }) as typeof bus.on;
     const actor = await initialize(bus);
     await actor.stop();
     bus.destroy();

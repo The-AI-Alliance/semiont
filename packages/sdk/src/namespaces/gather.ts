@@ -20,15 +20,15 @@ export class GatherNamespace implements IGatherNamespace {
     return new StreamObservable<GatherAnnotationProgress>((subscriber) => {
       const correlationId = uuidV4();
 
-      const complete$ = this.bus.get('gather:complete').pipe(
+      const complete$ = this.bus.on('gather:complete').pipe(
         filter((e) => e.correlationId === correlationId),
       );
-      const failed$ = this.bus.get('gather:failed').pipe(
+      const failed$ = this.bus.on('gather:failed').pipe(
         filter((e) => e.correlationId === correlationId),
       );
 
       const sub = merge(
-        this.bus.get('gather:annotation-progress').pipe(
+        this.bus.on('gather:annotation-progress').pipe(
           filter((e) => (e as { annotationId?: string }).annotationId === (annotationId as string)),
           map((e) => e as GatherAnnotationProgress),
         ),

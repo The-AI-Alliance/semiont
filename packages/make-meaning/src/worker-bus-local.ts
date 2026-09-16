@@ -22,7 +22,7 @@ import type { BusRequestPrimitive } from '@semiont/core';
 export function workerBusOverEventBus(eventBus: EventBus): BusRequestPrimitive {
   return {
     stream: <K extends keyof EventMap>(channel: K): Observable<EventMap[K]> =>
-      eventBus.get(channel).asObservable(),
+      eventBus.on(channel),
 
     // Every channel: this bus delivers every emit, so nothing can be outside
     // its receive path. The true answer, not a stub — which is why the member
@@ -31,7 +31,7 @@ export function workerBusOverEventBus(eventBus: EventBus): BusRequestPrimitive {
 
     // In-process delivery is synchronous — there is no attach window to
     // lose a reply in, so `'open'` is the true state, not a stub. Post-
-    // destroy use is guarded upstream: `eventBus.get()` throws on a
+    // destroy use is guarded upstream: `eventBus.on()` throws on a
     // destroyed bus before any gate could matter. Published read-only
     // (X1): the subject's mutators must not leak to consumers.
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
@@ -39,7 +39,7 @@ export function workerBusOverEventBus(eventBus: EventBus): BusRequestPrimitive {
     emit: async <K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<number> => {
       // Two casts gone with the signature: `channel as EventName` and
       // `payload as EventMap[EventName]`. Under one `K` the bus agrees.
-      eventBus.get(channel).next(payload);
+      eventBus.emit(channel, payload);
       // In-process: no subscriber accounting — the ITransport "unknown" sentinel.
       return -1;
     },

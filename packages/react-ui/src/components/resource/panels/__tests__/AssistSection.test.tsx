@@ -318,7 +318,7 @@ describe('AssistSection', () => {
         />
       );
 
-      const subscription = eventBus.get('mark:assist-request').subscribe(detectionHandler);
+      const subscription = eventBus.on('mark:assist-request').subscribe(detectionHandler);
 
       const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
@@ -344,7 +344,7 @@ describe('AssistSection', () => {
         />
       );
 
-      const subscription = eventBus.get('mark:assist-request').subscribe(detectionHandler);
+      const subscription = eventBus.on('mark:assist-request').subscribe(detectionHandler);
 
       const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
@@ -370,7 +370,7 @@ describe('AssistSection', () => {
         />
       );
 
-      const subscription = eventBus.get('mark:assist-request').subscribe(detectionHandler);
+      const subscription = eventBus.on('mark:assist-request').subscribe(detectionHandler);
 
       const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
@@ -396,7 +396,7 @@ describe('AssistSection', () => {
         />
       );
 
-      const subscription = eventBus.get('mark:assist-request').subscribe(detectionHandler);
+      const subscription = eventBus.on('mark:assist-request').subscribe(detectionHandler);
 
       const textarea = screen.getByPlaceholderText('Enter custom instructions...');
       await user.type(textarea, 'Find key concepts');

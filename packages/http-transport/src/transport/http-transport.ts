@@ -315,7 +315,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
       // The old two casts here were hiding exactly that.
       const bridge = <K extends keyof EventMap>(channel: K) => {
         this._actor!.stream(channel).subscribe((payload) => {
-          for (const bus of this.bridges) bus.get(channel).next(payload);
+          for (const bus of this.bridges) bus.emit(channel, payload);
         });
       };
       for (const channel of [...globalChannels, ...RESOURCE_SCOPED_CHANNELS]) bridge(channel);

@@ -28,7 +28,7 @@ describe('createBeckonStateUnit', () => {
     const values: (string | null)[] = [];
     stateUnit.hoveredAnnotationId$.subscribe(v => values.push(v));
 
-    tc.bus.get('beckon:hover').next({ annotationId: 'ann-1' });
+    tc.bus.emit('beckon:hover', { annotationId: 'ann-1' });
     expect(values).toEqual([null, 'ann-1']);
     stateUnit.dispose();
   });
@@ -38,8 +38,8 @@ describe('createBeckonStateUnit', () => {
     const values: (string | null)[] = [];
     stateUnit.hoveredAnnotationId$.subscribe(v => values.push(v));
 
-    tc.bus.get('beckon:hover').next({ annotationId: 'ann-1' });
-    tc.bus.get('beckon:hover').next({ annotationId: null });
+    tc.bus.emit('beckon:hover', { annotationId: 'ann-1' });
+    tc.bus.emit('beckon:hover', { annotationId: null });
     expect(values).toEqual([null, 'ann-1', null]);
     stateUnit.dispose();
   });
@@ -47,9 +47,9 @@ describe('createBeckonStateUnit', () => {
   it('emits beckon:sparkle on non-null hover', () => {
     const stateUnit = createBeckonStateUnit(tc.client);
     const sparkles: string[] = [];
-    tc.bus.get('beckon:sparkle').subscribe(e => sparkles.push(e.annotationId));
+    tc.bus.on('beckon:sparkle').subscribe(e => sparkles.push(e.annotationId));
 
-    tc.bus.get('beckon:hover').next({ annotationId: 'ann-2' });
+    tc.bus.emit('beckon:hover', { annotationId: 'ann-2' });
     expect(sparkles).toEqual(['ann-2']);
     stateUnit.dispose();
   });
@@ -57,9 +57,9 @@ describe('createBeckonStateUnit', () => {
   it('does not emit beckon:sparkle on null hover', () => {
     const stateUnit = createBeckonStateUnit(tc.client);
     const sparkles: string[] = [];
-    tc.bus.get('beckon:sparkle').subscribe(e => sparkles.push(e.annotationId));
+    tc.bus.on('beckon:sparkle').subscribe(e => sparkles.push(e.annotationId));
 
-    tc.bus.get('beckon:hover').next({ annotationId: null });
+    tc.bus.emit('beckon:hover', { annotationId: null });
     expect(sparkles).toEqual([]);
     stateUnit.dispose();
   });
@@ -67,9 +67,9 @@ describe('createBeckonStateUnit', () => {
   it('relays browse:click to beckon:focus', () => {
     const stateUnit = createBeckonStateUnit(tc.client);
     const focuses: string[] = [];
-    tc.bus.get('beckon:focus').subscribe(e => focuses.push(e.annotationId!));
+    tc.bus.on('beckon:focus').subscribe(e => focuses.push(e.annotationId!));
 
-    tc.bus.get('browse:click').next({ annotationId: 'ann-click' });
+    tc.bus.emit('browse:click', { annotationId: 'ann-click' });
     expect(focuses).toEqual(['ann-click']);
     stateUnit.dispose();
   });
@@ -79,8 +79,8 @@ describe('createBeckonStateUnit', () => {
     const values: (string | null)[] = [];
     stateUnit.hoveredAnnotationId$.subscribe(v => values.push(v));
 
-    tc.bus.get('beckon:hover').next({ annotationId: 'ann-hovered' });
-    tc.bus.get('browse:click').next({ annotationId: 'ann-clicked' });
+    tc.bus.emit('beckon:hover', { annotationId: 'ann-hovered' });
+    tc.bus.emit('browse:click', { annotationId: 'ann-clicked' });
     expect(values).toEqual([null, 'ann-hovered']);
     stateUnit.dispose();
   });
@@ -98,7 +98,7 @@ describe('createBeckonStateUnit', () => {
   it('focus() command pushes to EventBus', () => {
     const stateUnit = createBeckonStateUnit(tc.client);
     const focuses: string[] = [];
-    tc.bus.get('beckon:focus').subscribe(e => focuses.push(e.annotationId!));
+    tc.bus.on('beckon:focus').subscribe(e => focuses.push(e.annotationId!));
 
     stateUnit.focus(annotationId('ann-focus'));
     expect(focuses).toEqual(['ann-focus']);
@@ -108,7 +108,7 @@ describe('createBeckonStateUnit', () => {
   it('sparkle() command pushes to EventBus', () => {
     const stateUnit = createBeckonStateUnit(tc.client);
     const sparkles: string[] = [];
-    tc.bus.get('beckon:sparkle').subscribe(e => sparkles.push(e.annotationId));
+    tc.bus.on('beckon:sparkle').subscribe(e => sparkles.push(e.annotationId));
 
     stateUnit.sparkle(annotationId('ann-sparkle'));
     expect(sparkles).toEqual(['ann-sparkle']);
@@ -121,7 +121,7 @@ describe('createBeckonStateUnit', () => {
     stateUnit.hoveredAnnotationId$.subscribe(v => values.push(v));
 
     stateUnit.dispose();
-    tc.bus.get('beckon:hover').next({ annotationId: 'ghost' });
+    tc.bus.emit('beckon:hover', { annotationId: 'ghost' });
     expect(values).toEqual([null]); // only the initial null, no 'ghost'
   });
 });

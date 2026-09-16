@@ -66,7 +66,7 @@ export function createGatherStateUnit(
       });
   };
 
-  subs.push(client.bus.get('gather:requested').subscribe((event) => {
+  subs.push(client.bus.on('gather:requested').subscribe((event) => {
     loading$.next(true);
     error$.next(null);
     context$.next(null);

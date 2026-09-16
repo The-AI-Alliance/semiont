@@ -66,24 +66,24 @@ export function createMarkStateUnit(
   // NOTE: the `mark:select-*` quick-popup events remain unscoped — their only
   // emitters are the Browser's single-page popups; scope them the same way if
   // they ever grow multi-viewer emitters.
-  subs.push(client.bus.get('mark:requested').subscribe((event) => {
+  subs.push(client.bus.on('mark:requested').subscribe((event) => {
     if (event.source !== resourceId) return;
     handleAnnotationRequested({ selector: event.selector as Selector | Selector[], motivation: event.motivation });
   }));
-  subs.push(client.bus.get('mark:select-comment').subscribe((s) =>
+  subs.push(client.bus.on('mark:select-comment').subscribe((s) =>
     handleAnnotationRequested({ selector: selectionToSelector(s), motivation: 'commenting' })));
-  subs.push(client.bus.get('mark:select-tag').subscribe((s) =>
+  subs.push(client.bus.on('mark:select-tag').subscribe((s) =>
     handleAnnotationRequested({ selector: selectionToSelector(s), motivation: 'tagging' })));
-  subs.push(client.bus.get('mark:select-assessment').subscribe((s) =>
+  subs.push(client.bus.on('mark:select-assessment').subscribe((s) =>
     handleAnnotationRequested({ selector: selectionToSelector(s), motivation: 'assessing' })));
-  subs.push(client.bus.get('mark:select-reference').subscribe((s) =>
+  subs.push(client.bus.on('mark:select-reference').subscribe((s) =>
     handleAnnotationRequested({ selector: selectionToSelector(s), motivation: 'linking' })));
 
-  subs.push(client.bus.get('mark:cancel-pending').subscribe(() => pendingAnnotation$.next(null)));
-  subs.push(client.bus.get('mark:create-ok').subscribe(() => pendingAnnotation$.next(null)));
+  subs.push(client.bus.on('mark:cancel-pending').subscribe(() => pendingAnnotation$.next(null)));
+  subs.push(client.bus.on('mark:create-ok').subscribe(() => pendingAnnotation$.next(null)));
 
   // CRUD bridging (submit routed by source — see note above)
-  subs.push(client.bus.get('mark:submit').subscribe(async (event) => {
+  subs.push(client.bus.on('mark:submit').subscribe(async (event) => {
     if (event.source !== resourceId) return;
     try {
       const result = await client.mark.annotation({
@@ -91,20 +91,20 @@ export function createMarkStateUnit(
         target: { source: resourceId, selector: event.selector as Selector },
         body: event.body,
       });
-      client.bus.get('mark:create-ok').next({ response: { annotationId: result.annotationId } });
+      client.bus.emit('mark:create-ok', { response: { annotationId: result.annotationId } });
     } catch (error) {
       // Client-local, resource-stamped UI notification — the wire reply
       // (mark:create-failed) is busRequest plumbing, not for UI consumption.
-      client.bus.get('mark:create-error').next({ resourceId: resourceId as string, message: error instanceof Error ? error.message : String(error) });
+      client.bus.emit('mark:create-error', { resourceId: resourceId as string, message: error instanceof Error ? error.message : String(error) });
     }
   }));
 
-  subs.push(client.bus.get('mark:delete').subscribe(async (event) => {
+  subs.push(client.bus.on('mark:delete').subscribe(async (event) => {
     try {
       await client.mark.delete(resourceId, event.annotationId as Parameters<typeof client.mark.delete>[1]);
-      client.bus.get('mark:delete-ok').next({ response: { annotationId: event.annotationId } });
+      client.bus.emit('mark:delete-ok', { response: { annotationId: event.annotationId } });
     } catch (error) {
-      client.bus.get('mark:delete-error').next({ resourceId: resourceId as string, message: error instanceof Error ? error.message : String(error) });
+      client.bus.emit('mark:delete-error', { resourceId: resourceId as string, message: error instanceof Error ? error.message : String(error) });
     }
   }));
 
@@ -113,7 +113,7 @@ export function createMarkStateUnit(
   // filtered by its own jobId, emits JobProgress on `next`, completes
   // on `job:complete`, errors on `job:fail`. mark-state-unit's only job is to
   // drive the three UI observables from that stream.
-  subs.push(client.bus.get('mark:assist-request').subscribe((event) => {
+  subs.push(client.bus.on('mark:assist-request').subscribe((event) => {
     assistingMotivation$.next(event.motivation);
     progress$.next(null);
 
@@ -145,7 +145,7 @@ export function createMarkStateUnit(
         });
         // The one notification the user gets. `assistingMotivation$` stays
         // set: the job is still running as far as anyone here knows.
-        client.bus.get('mark:assist-timeout').next({
+        client.bus.emit('mark:assist-timeout', {
           resourceId: resourceId as string,
           motivation: event.motivation,
         });
@@ -183,7 +183,7 @@ export function createMarkStateUnit(
     subs.push(assistSub);
   }));
 
-  subs.push(client.bus.get('mark:progress-dismiss').subscribe(() => {
+  subs.push(client.bus.on('mark:progress-dismiss').subscribe(() => {
     progress$.next(null);
   }));
 

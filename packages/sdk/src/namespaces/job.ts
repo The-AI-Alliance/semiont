@@ -18,22 +18,22 @@ export class JobNamespace implements IJobNamespace {
    * that orchestrate jobs and need to react to lifecycle transitions.
    */
   get queued$(): Observable<EventMap['job:queued']> {
-    return this.bus.get('job:queued');
+    return this.bus.on('job:queued');
   }
 
   /** Live stream of `job:report-progress` events. */
   get progress$(): Observable<EventMap['job:report-progress']> {
-    return this.bus.get('job:report-progress');
+    return this.bus.on('job:report-progress');
   }
 
   /** Live stream of `job:complete` events (global; filter by `jobId`). */
   get complete$(): Observable<EventMap['job:complete']> {
-    return this.bus.get('job:complete');
+    return this.bus.on('job:complete');
   }
 
   /** Live stream of `job:fail` events (global; filter by `jobId`). */
   get fail$(): Observable<EventMap['job:fail']> {
-    return this.bus.get('job:fail');
+    return this.bus.on('job:fail');
   }
 
   async status(jobId: JobId): Promise<JobStatusResponse> {
@@ -99,6 +99,6 @@ export class JobNamespace implements IJobNamespace {
   cancelRequest(jobType: 'annotation' | 'generation'): void {
     // Local emit: the batch-cancel widget fires this; a state unit subscribes and
     // translates into individual cancels.
-    this.bus.get('job:cancel-requested').next({ jobType });
+    this.bus.emit('job:cancel-requested', { jobType });
   }
 }

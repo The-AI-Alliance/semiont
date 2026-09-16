@@ -19,7 +19,7 @@ describe('workerBusOverEventBus', () => {
     bus.stream('mark:added').subscribe((e) => seen.push(e));
 
     const stored = { type: 'mark:added', resourceId: 'r1', payload: {}, metadata: { sequenceNumber: 3 } };
-    eventBus.get('mark:added').next(stored as never);
+    eventBus.emit('mark:added', stored as never);
 
     expect(seen).toHaveLength(1);
     expect(seen[0]).toBe(stored);
@@ -30,7 +30,7 @@ describe('workerBusOverEventBus', () => {
     const bus = workerBusOverEventBus(eventBus);
 
     const seen: unknown[] = [];
-    eventBus.get('weave:applied').subscribe((e) => seen.push(e));
+    eventBus.on('weave:applied').subscribe((e) => seen.push(e));
 
     await bus.emit('weave:applied', { resourceId: 'r1', sequenceNumber: 4 });
 
@@ -61,7 +61,7 @@ describe('workerBusOverEventBus', () => {
     const seen: unknown[] = [];
     expect(() => bus.stream('job:queued').subscribe((e) => seen.push(e))).not.toThrow();
 
-    eventBus.get('job:queued').next({ jobId: 'j1', jobType: 'generate', resourceId: 'r1', userId: 'did:u1' });
+    eventBus.emit('job:queued', { jobId: 'j1', jobType: 'generate', resourceId: 'r1', userId: 'did:u1' });
 
     expect(seen).toEqual([{ jobId: 'j1', jobType: 'generate', resourceId: 'r1', userId: 'did:u1' }]);
   });

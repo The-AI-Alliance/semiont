@@ -57,10 +57,10 @@ export class BeckonNamespace implements IBeckonNamespace {
 
   hover(annotationId: AnnotationId | null): void {
     // Local emit: beckon-state-unit subscribes via the local bus.
-    this.bus.get('beckon:hover').next({ annotationId });
+    this.bus.emit('beckon:hover', { annotationId });
   }
 
   sparkle(annotationId: AnnotationId): void {
-    this.bus.get('beckon:sparkle').next({ annotationId });
+    this.bus.emit('beckon:sparkle', { annotationId });
   }
 }

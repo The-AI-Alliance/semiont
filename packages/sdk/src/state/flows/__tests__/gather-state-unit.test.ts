@@ -75,7 +75,7 @@ describe('createGatherStateUnit', () => {
     const loading: boolean[] = [];
     stateUnit.loading$.subscribe(v => loading.push(v));
 
-    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
+    tc.bus.emit('gather:requested', { annotationId: AID as string } as any);
     expect(loading).toEqual([false, true]);
     expect(gatherFn).toHaveBeenCalledOnce();
     stateUnit.dispose();
@@ -89,7 +89,7 @@ describe('createGatherStateUnit', () => {
     const ids: unknown[] = [];
     stateUnit.annotationId$.subscribe(v => ids.push(v));
 
-    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
+    tc.bus.emit('gather:requested', { annotationId: AID as string } as any);
     expect(ids).toEqual([null, AID]);
     stateUnit.dispose();
   });
@@ -113,7 +113,7 @@ describe('createGatherStateUnit', () => {
     stateUnit.context$.subscribe(v => ctx.push(v));
     stateUnit.loading$.subscribe(v => loading.push(v));
 
-    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
+    tc.bus.emit('gather:requested', { annotationId: AID as string } as any);
     expect(ctx).toEqual([null, null, mockContext]);
     expect(loading[loading.length - 1]).toBe(false);
     stateUnit.dispose();
@@ -130,7 +130,7 @@ describe('createGatherStateUnit', () => {
     const ctx: unknown[] = [];
     stateUnit.context$.subscribe(v => ctx.push(v));
 
-    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
+    tc.bus.emit('gather:requested', { annotationId: AID as string } as any);
     // Initial null + the gather:requested clear-null; a progress event carries no `response`, so context is never set.
     expect(ctx.every(v => v === null)).toBe(true);
     stateUnit.dispose();
@@ -148,7 +148,7 @@ describe('createGatherStateUnit', () => {
     stateUnit.error$.subscribe(v => errors.push(v));
     stateUnit.loading$.subscribe(v => loading.push(v));
 
-    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
+    tc.bus.emit('gather:requested', { annotationId: AID as string } as any);
     expect(errors[errors.length - 1]).toEqual(new Error('gather failed'));
     expect(loading[loading.length - 1]).toBe(false);
     stateUnit.dispose();
@@ -165,11 +165,11 @@ describe('createGatherStateUnit', () => {
     const errors: unknown[] = [];
     stateUnit.error$.subscribe(v => errors.push(v));
 
-    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
+    tc.bus.emit('gather:requested', { annotationId: AID as string } as any);
     expect(errors[errors.length - 1]).toEqual(new Error('fail'));
 
     // Second request clears error
-    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
+    tc.bus.emit('gather:requested', { annotationId: AID as string } as any);
     expect(errors[errors.length - 1]).toBeNull();
     stateUnit.dispose();
   });
@@ -182,8 +182,8 @@ describe('createGatherStateUnit', () => {
     const ids: unknown[] = [];
     stateUnit.annotationId$.subscribe(v => ids.push(v));
 
-    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
-    tc.bus.get('gather:requested').next({ annotationId: AID2 as string } as any);
+    tc.bus.emit('gather:requested', { annotationId: AID as string } as any);
+    tc.bus.emit('gather:requested', { annotationId: AID2 as string } as any);
     expect(ids).toEqual([null, AID, AID2]);
     stateUnit.dispose();
   });
@@ -199,7 +199,7 @@ describe('createGatherStateUnit', () => {
     stateUnit.error$.subscribe(v => errors.push(v));
     stateUnit.loading$.subscribe(v => loading.push(v));
 
-    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
+    tc.bus.emit('gather:requested', { annotationId: AID as string } as any);
     expect(loading[loading.length - 1]).toBe(true);
 
     vi.advanceTimersByTime(60_000);
@@ -216,7 +216,7 @@ describe('createGatherStateUnit', () => {
     const stateUnit = createGatherStateUnit(tc.client, RID);
     stateUnit.dispose();
 
-    tc.bus.get('gather:requested').next({ annotationId: AID as string } as any);
+    tc.bus.emit('gather:requested', { annotationId: AID as string } as any);
     expect(gatherFn).not.toHaveBeenCalled();
   });
 });
@@ -307,7 +307,7 @@ describe('GatherStateUnit — resource gather', () => {
     unit.context$.subscribe(v => annCtx.push(v));
     unit.loading$.subscribe(v => annLoading.push(v));
 
-    tc.bus.get('gather:requested').next({ annotationId: AID as string } as never);
+    tc.bus.emit('gather:requested', { annotationId: AID as string } as never);
     unit.gatherResource(RID);
     d.resolve(RESOURCE_CTX);
     await flushMicrotasks();

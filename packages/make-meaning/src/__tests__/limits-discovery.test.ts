@@ -159,14 +159,14 @@ describe('LimitsDiscovery (INFERENCE-LIMITS-EXPOSURE P2)', () => {
     try {
       const reply = firstValueFrom(
         race(
-          bus.get('browse:agents-result').pipe(map((e) => e)),
-          bus.get('browse:agents-failed').pipe(
+          bus.on('browse:agents-result').pipe(map((e) => e)),
+          bus.on('browse:agents-failed').pipe(
             map((e): never => { throw new Error(`agents failed: ${e.message}`); }),
           ),
           timer(500).pipe(map((): never => { throw new Error('no reply'); })),
         ).pipe(take(1)),
       );
-      bus.get('browse:agents-requested').next({ correlationId: 'cid-e2e' });
+      bus.emit('browse:agents-requested', { correlationId: 'cid-e2e' });
       const r = await reply;
 
       const did = agentToDid({ domain: 'kb.example', provider: 'ollama', model: 'model-b' });

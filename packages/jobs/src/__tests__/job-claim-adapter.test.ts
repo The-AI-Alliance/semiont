@@ -27,7 +27,7 @@ function fakeBus() {
   const eventBus = new EventBus();
 
   const bus: BusRequestPrimitive = {
-    stream: <K extends keyof EventMap>(channel: K) => eventBus.get(channel).asObservable(),
+    stream: <K extends keyof EventMap>(channel: K) => eventBus.on(channel),
     // This double delivers whatever a test pushes at it — subjects are created
     // on demand — so `true` is the truth about it. It does not model a
     // NARROWED set; that behavior is proven against the real ActorStateUnit,
@@ -52,7 +52,7 @@ function fakeBus() {
   return {
     bus,
     pushEvent: <K extends keyof EventMap>(channel: K, payload: EventMap[K]) =>
-      eventBus.get(channel).next(payload),
+      eventBus.emit(channel, payload),
     emits,
     /** The `job:claim` these tests read, narrowed by its channel — no cast. */
     claimAt: (i: number): EventMap['job:claim'] => {

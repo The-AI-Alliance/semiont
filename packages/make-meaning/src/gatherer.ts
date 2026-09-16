@@ -75,7 +75,7 @@ export class Gatherer {
     const errorHandler = (err: unknown) => this.logger.error('Gatherer pipeline error', { error: err });
 
     // Annotation-level gather (for yield flow)
-    const annotationGather$ = this.eventBus.get('gather:requested').pipe(
+    const annotationGather$ = this.eventBus.on('gather:requested').pipe(
       groupBy((event) => event.resourceId),
       mergeMap((group$) =>
         group$.pipe(
@@ -87,7 +87,7 @@ export class Gatherer {
     );
 
     // Resource-level gather (for LLM context endpoint)
-    const resourceGather$ = this.eventBus.get('gather:resource-requested').pipe(
+    const resourceGather$ = this.eventBus.on('gather:resource-requested').pipe(
       groupBy((event) => event.resourceId),
       mergeMap((group$) =>
         group$.pipe(
@@ -125,7 +125,7 @@ export class Gatherer {
         this.logger,
       );
 
-      this.eventBus.get('gather:complete').next({
+      this.eventBus.emit('gather:complete', {
         correlationId: event.correlationId,
         annotationId: event.annotationId,
         response,
@@ -135,7 +135,7 @@ export class Gatherer {
         annotationId: event.annotationId,
         error: errField(error),
       });
-      this.eventBus.get('gather:failed').next({
+      this.eventBus.emit('gather:failed', {
         correlationId: event.correlationId,
         annotationId: event.annotationId,
         message: error instanceof Error ? error.message : String(error),
@@ -158,7 +158,7 @@ export class Gatherer {
         this.logger,
       );
 
-      this.eventBus.get('gather:resource-complete').next({
+      this.eventBus.emit('gather:resource-complete', {
         correlationId: event.correlationId,
         resourceId: event.resourceId,
         response: result,
@@ -168,7 +168,7 @@ export class Gatherer {
         resourceId: event.resourceId,
         error: errField(error),
       });
-      this.eventBus.get('gather:resource-failed').next({
+      this.eventBus.emit('gather:resource-failed', {
         correlationId: event.correlationId,
         resourceId: event.resourceId,
         message: error instanceof Error ? error.message : String(error),

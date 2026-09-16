@@ -381,7 +381,7 @@ export class SemiontSession {
     channel: K,
     handler: (payload: EventMap[K]) => void,
   ): () => void {
-    const sub = this.client.bus.get(channel).subscribe(handler);
+    const sub = this.client.bus.on(channel).subscribe(handler);
     return () => sub.unsubscribe();
   }
 

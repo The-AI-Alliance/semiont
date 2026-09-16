@@ -43,7 +43,7 @@ function makeMockContent(): IContentTransport {
  */
 function busSpy<K extends keyof EventMap>(bus: EventBus, channel: K) {
   const spy = vi.fn();
-  bus.get(channel).subscribe((payload) => spy(channel, payload));
+  bus.on(channel).subscribe((payload) => spy(channel, payload));
   return spy;
 }
 

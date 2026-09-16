@@ -94,7 +94,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     // Subscribe to scoped bus BEFORE the mutation
     const scopedBus = eventBus.scope(String(rId));
     const received: any[] = [];
-    const sub = scopedBus.get('mark:body-updated').subscribe((event) => {
+    const sub = scopedBus.on('mark:body-updated').subscribe((event) => {
       received.push(event);
     });
 
@@ -169,8 +169,8 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     const client1Events: any[] = [];
     const client2Events: any[] = [];
 
-    const sub1 = scopedBus.get('mark:body-updated').subscribe((e) => client1Events.push(e));
-    const sub2 = scopedBus.get('mark:body-updated').subscribe((e) => client2Events.push(e));
+    const sub1 = scopedBus.on('mark:body-updated').subscribe((e) => client1Events.push(e));
+    const sub2 = scopedBus.on('mark:body-updated').subscribe((e) => client2Events.push(e));
 
     // One client initiates a bind (appends event with correlationId)
     const cid = 'corr-client1-bind';
@@ -214,14 +214,14 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     const rId = resourceId('8b-replay');
     const received: any[] = [];
 
-    const sub = eventBus.get('replay-window-exceeded').subscribe((e) => {
+    const sub = eventBus.on('replay-window-exceeded').subscribe((e) => {
       received.push(e);
     });
 
     // Simulate the gateway emitting replay-window-exceeded
     // (In production this is emitted by the events-stream route when
     // Last-Event-ID is older than REPLAY_WINDOW_CAP)
-    eventBus.get('replay-window-exceeded').next({
+    eventBus.emit('replay-window-exceeded', {
       resourceId: String(rId),
       lastEventId: 5,
       missedCount: 150,
@@ -260,7 +260,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     const scopedBus = eventBus.scope(String(rId));
     let viewExistedWhenEventArrived = false;
 
-    const sub = scopedBus.get('mark:added').subscribe(async () => {
+    const sub = scopedBus.on('mark:added').subscribe(async () => {
       // At this point, the view should already be materialized
       // (appendEvent awaits materialization before publishing)
       const view = await eventStore.viewStorage.get(rId);

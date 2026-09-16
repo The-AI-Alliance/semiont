@@ -104,7 +104,7 @@ describe('readAnchoredText + the anchored-text store', () => {
       TEST_USER_ID,
       asBusRequestPrimitive(eventBus),
     );
-    eventBus.get('smelt:settled').next({
+    eventBus.emit('smelt:settled', {
       resourceId: String(rid),
       contentChecksum: stored.checksum,
       outcome,
@@ -176,7 +176,7 @@ describe('readAnchoredText + the anchored-text store', () => {
     });
     // The new generation has settled (no live Smelter here) — without this the
     // read-your-writes barrier would rightly hold the miss for its timeout.
-    eventBus.get('smelt:settled').next({
+    eventBus.emit('smelt:settled', {
       resourceId: String(target), contentChecksum: stored2.checksum, outcome: 'indexed',
     });
 
@@ -271,7 +271,7 @@ describe('readAnchoredText — why there is no map (SMELTER-OWNS-OCR P1)', () =>
       smeltProgress,
     };
     const settle = (rid: string, contentChecksum: string, outcome: 'indexed' | 'skipped') =>
-      bus.get('smelt:settled').next({ resourceId: rid, contentChecksum, outcome } as never);
+      bus.emit('smelt:settled', { resourceId: rid, contentChecksum, outcome } as never);
     return { kb, settle, dispose: () => { smeltProgress.dispose(); bus.destroy(); } };
   }
 

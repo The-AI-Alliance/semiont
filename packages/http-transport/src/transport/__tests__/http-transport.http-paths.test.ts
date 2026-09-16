@@ -512,7 +512,7 @@ describe('HttpTransport — HTTP wire shape', () => {
       transport.subscribeToResource(resourceId('other-resource'));
 
       const received: unknown[] = [];
-      bus.get('mark:added').subscribe((p) => received.push(p));
+      bus.on('mark:added').subscribe((p) => received.push(p));
 
       actorHarness.pushEvent('mark:added', { resourceId: 'test-resource-id' });
       expect(received).toHaveLength(1);

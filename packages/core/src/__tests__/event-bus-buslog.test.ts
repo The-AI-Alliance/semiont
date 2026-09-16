@@ -2,7 +2,7 @@
  * EventBus + busLog integration.
  *
  * The `__SEMIONT_BUS_LOG__` flag (or `SEMIONT_BUS_LOG=1` env var)
- * makes `EventBus.get(channel).next(payload)` also emit a
+ * makes `EventBus.emit(channel, payload)` also emit a
  * `[bus EMIT] <channel> ...` line on `console.debug`. This is what
  * makes local-only fan-out signals (`beckon.hover`, `beckon.sparkle`,
  * `mark.request`, etc.) visible to the e2e bus capture and to a
@@ -39,7 +39,7 @@ describe('EventBus busLog integration', () => {
     (globalThis as { __SEMIONT_BUS_LOG__?: boolean }).__SEMIONT_BUS_LOG__ = true;
 
     const bus = new EventBus();
-    bus.get('beckon:hover').next({ annotationId: 'ann-1' as never });
+    bus.emit('beckon:hover', { annotationId: 'ann-1' as never });
 
     expect(debugSpy).toHaveBeenCalled();
     const line = debugSpy.mock.calls[0]?.[0] as string;
@@ -51,7 +51,7 @@ describe('EventBus busLog integration', () => {
     delete (globalThis as { __SEMIONT_BUS_LOG__?: boolean }).__SEMIONT_BUS_LOG__;
 
     const bus = new EventBus();
-    bus.get('beckon:hover').next({ annotationId: 'ann-1' as never });
+    bus.emit('beckon:hover', { annotationId: 'ann-1' as never });
 
     expect(debugSpy).not.toHaveBeenCalled();
   });
@@ -61,8 +61,8 @@ describe('EventBus busLog integration', () => {
 
     const bus = new EventBus();
     const seen: unknown[] = [];
-    bus.get('beckon:hover').subscribe((p) => seen.push(p));
-    bus.get('beckon:hover').next({ annotationId: 'ann-1' as never });
+    bus.on('beckon:hover').subscribe((p) => seen.push(p));
+    bus.emit('beckon:hover', { annotationId: 'ann-1' as never });
 
     expect(seen).toEqual([{ annotationId: 'ann-1' }]);
   });
@@ -91,7 +91,7 @@ describe('EventBus dropped-reply detection', () => {
     // A channel deliberately absent from BRIDGED_CHANNELS — the genuine
     // "missing forwarder" gap the detector exists to catch. Synthetic (not a
     // real EventName) so it can never be bridged out from under this test.
-    bus.get('test:unbridged-reply-a' as never).next({ correlationId: 'deadbeef-1', response: {} } as never);
+    bus.emit('test:unbridged-reply-a' as never, { correlationId: 'deadbeef-1', response: {} } as never);
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
     const line = warnSpy.mock.calls[0]?.[0] as string;
@@ -105,30 +105,30 @@ describe('EventBus dropped-reply detection', () => {
     // gather:resource-complete IS bridged — a 0-observer emit here is a duplicate
     // the awaiting take(1) already consumed, not a drop. Regression guard for the
     // false-positive [bus DROP] flood (.plans/bugs/BRIDGE-GAPS.md).
-    bus.get('gather:resource-complete').next({ correlationId: 'deadbeef-5', response: {} } as never);
+    bus.emit('gather:resource-complete', { correlationId: 'deadbeef-5', response: {} } as never);
 
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
   it('does NOT warn when the reply has an observer', () => {
     const bus = new EventBus();
-    bus.get('gather:resource-failed').subscribe(() => {});
-    bus.get('gather:resource-failed').next({ correlationId: 'deadbeef-2' } as never);
+    bus.on('gather:resource-failed').subscribe(() => {});
+    bus.emit('gather:resource-failed', { correlationId: 'deadbeef-2' } as never);
 
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
   it('does NOT warn for a non-reply emit (no correlationId) with no observers', () => {
     const bus = new EventBus();
-    bus.get('match:search-results').next({} as never);
+    bus.emit('match:search-results', {} as never);
 
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
   it('warns only once per channel (a missing wiring is reported, not spammed)', () => {
     const bus = new EventBus();
-    bus.get('test:unbridged-reply-b' as never).next({ correlationId: 'deadbeef-3' } as never);
-    bus.get('test:unbridged-reply-b' as never).next({ correlationId: 'deadbeef-4' } as never);
+    bus.emit('test:unbridged-reply-b' as never, { correlationId: 'deadbeef-3' } as never);
+    bus.emit('test:unbridged-reply-b' as never, { correlationId: 'deadbeef-4' } as never);
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
   });

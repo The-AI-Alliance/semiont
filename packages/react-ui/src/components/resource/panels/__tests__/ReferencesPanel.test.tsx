@@ -22,7 +22,7 @@ function createEventTracker() {
     _attach(eventBus: EventBus) {
       const panelEvents = ['mark:assist-request', 'mark:submit'] as const;
       panelEvents.forEach((eventName) => {
-        eventBus.get(eventName).subscribe((payload: any) => {
+        eventBus.on(eventName).subscribe((payload: any) => {
           events.push({ event: eventName, payload });
         });
       });

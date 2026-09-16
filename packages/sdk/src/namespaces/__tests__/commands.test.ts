@@ -34,7 +34,7 @@ function createMockTransport(
       const { resultChannel, response } = handler(payload);
       const correlationId = payload.correlationId as string;
       queueMicrotask(() => {
-        (transportBus.get(resultChannel as never) as { next(v: unknown): void }).next({ correlationId, response });
+        transportBus.emit(resultChannel as never, { correlationId, response } as never);
       });
     }
   });
@@ -100,7 +100,7 @@ describe('MarkNamespace', () => {
     const assertion = expect(m.delete(RID, AID)).rejects.toThrow(/denied/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    (mock.transportBus.get('mark:delete-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'denied' });
+    mock.transportBus.emit('mark:delete-failed' as never, { correlationId: cid, message: 'denied' } as never);
     await assertion;
   });
 
@@ -119,7 +119,7 @@ describe('MarkNamespace', () => {
     const assertion = expect(m.archive(RID)).rejects.toThrow(/archive boom/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    (mock.transportBus.get('mark:archive-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'archive boom' });
+    mock.transportBus.emit('mark:archive-failed' as never, { correlationId: cid, message: 'archive boom' } as never);
     await assertion;
   });
 
@@ -138,7 +138,7 @@ describe('MarkNamespace', () => {
     const assertion = expect(m.unarchive(RID)).rejects.toThrow(/file not found/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    (mock.transportBus.get('mark:unarchive-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'Cannot unarchive: file not found at x' });
+    mock.transportBus.emit('mark:unarchive-failed' as never, { correlationId: cid, message: 'Cannot unarchive: file not found at x' } as never);
     await assertion;
   });
 
@@ -161,7 +161,7 @@ describe('MarkNamespace', () => {
     const assertion = expect(m.updateEntityTypes(RID, [], ['Person'])).rejects.toThrow(/rejected/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    (mock.transportBus.get('mark:update-entity-types-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'rejected by handler' });
+    mock.transportBus.emit('mark:update-entity-types-failed' as never, { correlationId: cid, message: 'rejected by handler' } as never);
     await assertion;
   });
 
@@ -177,11 +177,11 @@ describe('MarkNamespace', () => {
     await new Promise((r) => setTimeout(r, 10));
     // Unified lifecycle: filter by the jobId (`j1`) assigned by job:create.
     // assist() forwards the inner `progress` field as the Observable's `next`.
-    eventBus.get('job:report-progress').next({
+    eventBus.emit('job:report-progress', {
       jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'reference-annotation',
       percentage: 50, progress: { stage: 'scanning', percentage: 50, message: 'scanning' },
     } as any);
-    eventBus.get('job:complete').next({
+    eventBus.emit('job:complete', {
       jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'reference-annotation',
       result: { totalFound: 3, totalEmitted: 3, errors: 0 },
     } as any);
@@ -231,7 +231,7 @@ describe('MarkNamespace', () => {
     });
 
     await vi.advanceTimersByTimeAsync(100);
-    bus.get('job:complete').next({
+    bus.emit('job:complete', {
       jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'reference-annotation',
       result: { totalFound: 0, totalEmitted: 0, errors: 0 },
     } as any);
@@ -253,7 +253,7 @@ describe('MarkNamespace', () => {
 
     await vi.advanceTimersByTimeAsync(100);
     await vi.advanceTimersByTimeAsync(9_000);
-    bus.get('job:report-progress').next({
+    bus.emit('job:report-progress', {
       jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'highlight-annotation',
       percentage: 50, progress: { stage: 'scanning', percentage: 50, message: 'scanning' },
     } as any);
@@ -314,7 +314,7 @@ describe('MarkNamespace', () => {
     });
     await new Promise((r) => setTimeout(r, 0));
 
-    const fail = (willRetry: boolean) => bus.get('job:fail').next({
+    const fail = (willRetry: boolean) => bus.emit('job:fail', {
       jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
       error: 'transient blip', willRetry,
     } as never);
@@ -325,12 +325,12 @@ describe('MarkNamespace', () => {
 
     // Progress must keep flowing on the retried attempt, too — the old
     // takeUntil(fail$) silenced it even when the stream survived.
-    bus.get('job:report-progress').next({
+    bus.emit('job:report-progress', {
       jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
       percentage: 20, progress: { percentage: 20 },
     } as never);
 
-    bus.get('job:complete').next({
+    bus.emit('job:complete', {
       jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
     } as never);
 
@@ -352,7 +352,7 @@ describe('MarkNamespace', () => {
 
     const err = await new Promise<Error>((resolve) => {
       m.assist(RID, 'highlighting', {}).subscribe({ error: resolve });
-      setTimeout(() => bus.get('job:fail').next({
+      setTimeout(() => bus.emit('job:fail', {
         jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
         error: 'budget spent', willRetry: false,
       } as never), 0);
@@ -370,7 +370,7 @@ describe('MarkNamespace', () => {
 
     const err = await new Promise<Error>((resolve) => {
       m.assist(RID, 'highlighting', {}).subscribe({ error: resolve });
-      setTimeout(() => bus.get('job:fail').next({
+      setTimeout(() => bus.emit('job:fail', {
         jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
         error: 'no field',
       } as never), 0);
@@ -432,7 +432,7 @@ describe('BindNamespace', () => {
     ).rejects.toThrow(/rejected/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    (mock.transportBus.get('bind:body-update-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'rejected by handler' });
+    mock.transportBus.emit('bind:body-update-failed' as never, { correlationId: cid, message: 'rejected by handler' } as never);
     await assertion;
   });
 });
@@ -471,7 +471,7 @@ describe('GatherNamespace', () => {
     await new Promise((r) => setTimeout(r, 20));
     const call = emitSpy.mock.calls[0];
     const cid = call?.[1]?.correlationId;
-    eventBus.get('gather:complete').next({ correlationId: cid, annotationId: AID, response: { context: {} } } as any);
+    eventBus.emit('gather:complete', { correlationId: cid, annotationId: AID, response: { context: {} } } as any);
     await completed;
   });
 
@@ -483,7 +483,7 @@ describe('GatherNamespace', () => {
     await new Promise((r) => setTimeout(r, 20));
     const call = emitSpy.mock.calls[0];
     const cid = call?.[1]?.correlationId;
-    eventBus.get('gather:failed').next({ correlationId: cid, annotationId: AID, message: 'boom' } as any);
+    eventBus.emit('gather:failed', { correlationId: cid, annotationId: AID, message: 'boom' } as any);
     const err = await errored;
     expect(err.message).toContain('boom');
   });
@@ -521,7 +521,7 @@ describe('MatchNamespace', () => {
     await new Promise((r) => setTimeout(r, 20));
     const call = emitSpy.mock.calls[0];
     const cid = call?.[1]?.correlationId;
-    eventBus.get('match:search-results').next({ correlationId: cid, referenceId: 'ref-1', response: [] } as any);
+    eventBus.emit('match:search-results', { correlationId: cid, referenceId: 'ref-1', response: [] } as any);
     await completed;
   });
 
@@ -532,7 +532,7 @@ describe('MatchNamespace', () => {
     await new Promise((r) => setTimeout(r, 20));
     const call = emitSpy.mock.calls[0];
     const cid = call?.[1]?.correlationId;
-    eventBus.get('match:search-failed').next({ correlationId: cid, referenceId: 'ref-1', error: 'no results' } as any);
+    eventBus.emit('match:search-failed', { correlationId: cid, referenceId: 'ref-1', error: 'no results' } as any);
     const err = await errored;
     expect(err.message).toContain('no results');
   });
@@ -557,7 +557,7 @@ describe('JobNamespace', () => {
     const assertion = expect(job.cancelByType('annotation')).rejects.toThrow(/queue down/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    (mock.transportBus.get('job:cancel-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'queue down' });
+    mock.transportBus.emit('job:cancel-failed' as never, { correlationId: cid, message: 'queue down' } as never);
     await assertion;
   });
 });
@@ -833,11 +833,11 @@ describe('YieldNamespace', () => {
     });
 
     await new Promise((r) => setTimeout(r, 20));
-    eventBus.get('job:report-progress').next({
+    eventBus.emit('job:report-progress', {
       jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'generation',
       percentage: 50, progress: { percentage: 50, message: 'halfway' },
     } as any);
-    eventBus.get('job:complete').next({
+    eventBus.emit('job:complete', {
       jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'generation',
       result: { resourceName: 'T' },
     } as any);
@@ -892,7 +892,7 @@ describe('YieldNamespace', () => {
     });
 
     await vi.advanceTimersByTimeAsync(100);
-    bus.get('job:complete').next({
+    bus.emit('job:complete', {
       jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'generation',
       result: { resourceName: 'T' },
     } as any);

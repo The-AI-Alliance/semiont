@@ -98,9 +98,9 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
   // bus (as registerGatewayBusHandlers does) and answers on it — the bridge
   // carries both directions.
   const handled: unknown[] = [];
-  bus.get('job:create').subscribe((command) => {
+  bus.on('job:create').subscribe((command) => {
     handled.push(command);
-    bus.get('job:created').next({ correlationId: command.correlationId, response: { jobId: `job-${command.correlationId}` } });
+    bus.emit('job:created', { correlationId: command.correlationId, response: { jobId: `job-${command.correlationId}` } });
   });
 
   return {
@@ -142,7 +142,7 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
       return busRequest(requestPrimitiveFor(bus), operation, payload, 5_000);
     },
     emitOnBus(channel, payload) {
-      bus.get(channel).next(payload as never);
+      bus.emit(channel, payload as never);
     },
     teardown() {
       bridge.close();

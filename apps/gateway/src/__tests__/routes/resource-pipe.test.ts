@@ -188,8 +188,8 @@ describe('resource routes pipe contract (SIMPLER-JSON-LD.md Phase 1)', () => {
       annotations: [],
       entityReferences: [],
     };
-    const sub = eventBus.get('browse:resource-requested').subscribe((e) => {
-      eventBus.get('browse:resource-result').next({
+    const sub = eventBus.on('browse:resource-requested').subscribe((e) => {
+      eventBus.emit('browse:resource-result', {
         correlationId: e.correlationId,
         response: graph,
       });
@@ -206,8 +206,8 @@ describe('resource routes pipe contract (SIMPLER-JSON-LD.md Phase 1)', () => {
   });
 
   it('404s on /jsonld when the bus reports the resource missing', async () => {
-    const sub = eventBus.get('browse:resource-requested').subscribe((e) => {
-      eventBus.get('browse:resource-failed').next({
+    const sub = eventBus.on('browse:resource-requested').subscribe((e) => {
+      eventBus.emit('browse:resource-failed', {
         correlationId: e.correlationId,
         message: 'Resource not found',
       });

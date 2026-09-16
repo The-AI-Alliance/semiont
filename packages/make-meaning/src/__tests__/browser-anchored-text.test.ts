@@ -59,9 +59,9 @@ function browserOver(kb: Record<string, unknown>) {
 async function ask(eventBus: EventBus, browser: Browser) {
   await browser.initialize();
   const reply = firstValueFrom(
-    eventBus.get('browse:anchored-text-result').pipe(filter((e) => e.correlationId === 'c1'), take(1)),
+    eventBus.on('browse:anchored-text-result').pipe(filter((e) => e.correlationId === 'c1'), take(1)),
   );
-  eventBus.get('browse:anchored-text-requested').next({ correlationId: 'c1', resourceId: RID });
+  eventBus.emit('browse:anchored-text-requested', { correlationId: 'c1', resourceId: RID });
   return reply;
 }
 
@@ -143,9 +143,9 @@ describe('browse:anchored-text-requested', () => {
     await browser.initialize();
 
     const failure = firstValueFrom(
-      eventBus.get('browse:anchored-text-failed').pipe(filter((e) => e.correlationId === 'c1'), take(1)),
+      eventBus.on('browse:anchored-text-failed').pipe(filter((e) => e.correlationId === 'c1'), take(1)),
     );
-    eventBus.get('browse:anchored-text-requested').next({ correlationId: 'c1', resourceId: RID });
+    eventBus.emit('browse:anchored-text-requested', { correlationId: 'c1', resourceId: RID });
 
     expect((await failure).message).toContain('fold is broken');
   });

@@ -47,9 +47,7 @@ export function createInProcessSignalPlane(
   return {
     ingest(channel, payload, scope): IngestReceipt {
       const bus = scope ? eventBus.scope(scope) : eventBus;
-      const subject = bus.get(channel as keyof EventMap);
-      const observers = subject.observers.length;
-      subject.next(payload as never);
+      const observers = bus.emit(channel as keyof EventMap, payload as never);
       return { observers };
     },
 
@@ -65,7 +63,7 @@ export function createInProcessSignalPlane(
       for (const channel of spec.global) {
         subs.push(
           track(
-            eventBus.get(channel as keyof EventMap).subscribe((payload) => {
+            eventBus.on(channel as keyof EventMap).subscribe((payload) => {
               spec.onFrame(channel, payload, undefined);
             }),
           ),
@@ -76,7 +74,7 @@ export function createInProcessSignalPlane(
         for (const channel of entry.channels) {
           subs.push(
             track(
-              scopedBus.get(channel as keyof EventMap).subscribe((payload) => {
+              scopedBus.on(channel as keyof EventMap).subscribe((payload) => {
                 spec.onFrame(channel, payload, entry.scope);
               }),
             ),
@@ -123,7 +121,7 @@ export function createInProcessSignalPlane(
           g.taps.set(
             channel,
             track(
-              eventBus.get(channel as keyof EventMap).subscribe((payload) => {
+              eventBus.on(channel as keyof EventMap).subscribe((payload) => {
                 // Group semantics: each frame reaches AT MOST ONE member,
                 // never two (round-robin here; a queue group under NATS).
                 if (g.members.length === 0) return;

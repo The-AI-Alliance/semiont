@@ -290,7 +290,7 @@ describe('W6/W10 — the mark never lies; accounting is honest', () => {
           const rig = await buildWeaverRig({ graph });
 
           const signals: Array<{ resourceId: string; sequenceNumber: number }> = [];
-          const signalSub = rig.eventBus.get('weave:applied').subscribe((s) => signals.push(s));
+          const signalSub = rig.eventBus.on('weave:applied').subscribe((s) => signals.push(s));
           try {
             for (const e of history) rig.push(e);
             await sleep(150);
@@ -698,7 +698,7 @@ describe('W7 — the barrier fold is monotone', () => {
           try {
             const high = new Map<string, number>();
             for (const { rid, seq } of signals) {
-              bus.get('weave:applied').next({ resourceId: rid, sequenceNumber: seq });
+              bus.emit('weave:applied', { resourceId: rid, sequenceNumber: seq });
               const now = progress.appliedUpTo(rid) ?? -1;
               expect(now).toBeGreaterThanOrEqual(high.get(rid) ?? -1);
               expect(now).toBeGreaterThanOrEqual(seq > (high.get(rid) ?? -1) ? seq : -1);

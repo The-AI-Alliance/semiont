@@ -172,7 +172,7 @@ describe('TagEntry', () => {
       // The session prop is the only session the provider-free component
       // sees — subscribe on the SAME factory's bus that backs it.
       const { session, eventBus } = createTestSemiontWrapper();
-      const subscription = eventBus.get('browse:click').subscribe(clickHandler);
+      const subscription = eventBus.on('browse:click').subscribe(clickHandler);
 
       const { container } = renderWithProviders(
         <TagEntry {...defaultProps} session={session} />

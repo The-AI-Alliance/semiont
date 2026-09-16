@@ -78,10 +78,10 @@ export function inMemoryTransport(options: InMemoryTransportOptions = {}): ITran
       return observers;
     },
     on: (channel, handler) => {
-      const sub = bus.get(channel).subscribe(handler);
+      const sub = bus.on(channel).subscribe(handler);
       return () => sub.unsubscribe();
     },
-    stream: (channel) => bus.get(channel).asObservable(),
+    stream: (channel) => bus.on(channel),
     subscribeToResource,
     bridgeInto: () => {},
     state$,

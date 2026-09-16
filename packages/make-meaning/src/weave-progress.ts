@@ -66,7 +66,7 @@ export function createWeaveProgress(eventBus: EventBus): WeaveProgress {
   let disposed = false;
   let lastSweep = Date.now();
 
-  const subscription = eventBus.get('weave:applied').subscribe(({ resourceId, sequenceNumber }) => {
+  const subscription = eventBus.on('weave:applied').subscribe(({ resourceId, sequenceNumber }) => {
     const now = Date.now();
     if (now - lastSweep >= SWEEP_INTERVAL_MS) {
       lastSweep = now;

@@ -12,6 +12,13 @@
  * unlisted until 2026-09-15.
  *
  * CODE, not prose: comments are stripped before matching.
+ *
+ * The patterns scan for the bus VERBS (`on` to subscribe, `emit` to publish).
+ * They scanned `get(ch).subscribe` and `get(ch).next` until BUS-CARRIES-FRAMES
+ * replaced the Subject-handing `get()` with verbs. The census's reason is
+ * unchanged — the exported list must equal what the files actually do — and a
+ * census whose regex silently matches nothing is the failure mode it exists to
+ * prevent, so the patterns move with the syntax.
  */
 import { describe, test, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -39,12 +46,12 @@ describe('gateway handler census (lists == the files)', () => {
     // `.pipe(` counts as subscribing: the job:status responder consumed its
     // request through a pipe and the subscribe-only regex would have missed
     // it, had it lived in these files at the time.
-    const subscribed = channelsMatching(/eventBus\.get\('([^']+)'\)\.(?:subscribe|pipe)/g);
+    const subscribed = channelsMatching(/eventBus\.on\('([^']+)'\)\.(?:subscribe|pipe)/g);
     expect([...GATEWAY_HANDLER_CHANNELS].sort()).toEqual(subscribed);
   });
 
   test('GATEWAY_HANDLER_EMITS is exactly what the two files emit', () => {
-    const emitted = channelsMatching(/eventBus\.get\('([^']+)'\)\.next/g);
+    const emitted = channelsMatching(/eventBus\.emit\('([^']+)'/g);
     expect([...GATEWAY_HANDLER_EMITS].sort()).toEqual(emitted);
   });
 
@@ -57,7 +64,7 @@ describe('gateway handler census (lists == the files)', () => {
     // yield:create bug's subscriber-side twin). Any new gateway-resident
     // subscription goes IN a censused handler file, never in the root.
     const source = stripComments(readFileSync(join(HANDLERS_DIR, '..', 'service.ts'), 'utf-8'));
-    const inline = [...source.matchAll(/eventBus\.get\('([^']+)'\)\.(?:subscribe|pipe)/g)].map((m) => m[1]);
+    const inline = [...source.matchAll(/eventBus\.on\('([^']+)'\)\.(?:subscribe|pipe)/g)].map((m) => m[1]);
     expect(inline, 'inline eventBus subscriptions in service.ts').toEqual([]);
   });
 });

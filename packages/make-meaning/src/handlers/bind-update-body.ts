@@ -21,7 +21,7 @@ export function registerBindUpdateBodyHandler(eventBus: EventBus, parentLogger: 
   const logger = parentLogger.child({ component: 'bind-update-body' });
   const inflight = new Set<string>();
 
-  eventBus.get('bind:update-body').subscribe((command) => {
+  eventBus.on('bind:update-body').subscribe((command) => {
     const { correlationId, annotationId: annId, resourceId: resId, operations, _userId } =
       command as Record<string, unknown>;
     const cid = correlationId as string | undefined;
@@ -36,7 +36,7 @@ export function registerBindUpdateBodyHandler(eventBus: EventBus, parentLogger: 
 
       inflight.add(cid);
 
-      eventBus.get('mark:update-body').next({
+      eventBus.emit('mark:update-body', {
         correlationId: cid,
         annotationId: annotationId(annId as string),
         _userId,
@@ -53,28 +53,28 @@ export function registerBindUpdateBodyHandler(eventBus: EventBus, parentLogger: 
         correlationId: cid,
         error: (error as Error).message,
       });
-      eventBus.get('bind:body-update-failed').next({
+      eventBus.emit('bind:body-update-failed', {
         correlationId: cid,
         message: (error as Error).message,
       });
     }
   });
 
-  eventBus.get('mark:body-updated').subscribe((event) => {
+  eventBus.on('mark:body-updated').subscribe((event) => {
     const cid = event.metadata?.correlationId;
     if (!cid || !inflight.has(cid)) return;
     inflight.delete(cid);
     const annId = event.payload?.annotationId;
-    eventBus.get('bind:body-updated').next({ correlationId: cid });
+    eventBus.emit('bind:body-updated', { correlationId: cid });
     logger.info('Bind body-updated confirmed', { annotationId: annId, correlationId: cid });
   });
 
-  eventBus.get('mark:body-update-failed').subscribe((event) => {
+  eventBus.on('mark:body-update-failed').subscribe((event) => {
     const cid = (event as { correlationId?: string }).correlationId;
     if (!cid || !inflight.has(cid)) return;
     inflight.delete(cid);
     const message = (event as { message?: string }).message ?? 'Unknown error';
-    eventBus.get('bind:body-update-failed').next({
+    eventBus.emit('bind:body-update-failed', {
       correlationId: cid,
       message,
     });

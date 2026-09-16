@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { firstValueFrom, race, timer, map, take } from 'rxjs';
+import type { EventMap } from '@semiont/core';
 import { EventBus, resourceId, agentToDid, type Logger, type components } from '@semiont/core';
 import { Browser } from '../browser';
 import type { MakeMeaningConfig } from '../config';
@@ -118,10 +119,10 @@ describe('Browser actor', () => {
     // (pinned in resource-context.test.ts) — the lexical label needs a hit.
     mockKb.graph.listResources = vi.fn().mockResolvedValue({ resources: [{ '@id': 'res-ouranos', name: 'ouranos' }], total: 1 });
 
-    const result$ = eventBus.get('browse:resources-result');
+    const result$ = eventBus.on('browse:resources-result');
     const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-    eventBus.get('browse:resources-requested').next({ correlationId: 'cid-mk', search: 'ouranos' });
+    eventBus.emit('browse:resources-requested', { correlationId: 'cid-mk', search: 'ouranos' });
 
     const event = await resultPromise;
     expect(event.correlationId).toBe('cid-mk');
@@ -140,10 +141,10 @@ describe('Browser actor', () => {
 
     for (const { label, path } of CASES) {
       it(`rejects ${label}`, async () => {
-        const failed$ = eventBus.get('browse:directory-failed');
+        const failed$ = eventBus.on('browse:directory-failed');
         const resultPromise = new Promise<any>((resolve) => failed$.subscribe(resolve));
 
-        eventBus.get('browse:directory-requested').next({
+        eventBus.emit('browse:directory-requested', {
           correlationId: 'cid-1',
           path,
         });
@@ -156,10 +157,10 @@ describe('Browser actor', () => {
 
     it('allows project root (empty string)', async () => {
       mockReaddir.mockResolvedValue([]);
-      const result$ = eventBus.get('browse:directory-result');
+      const result$ = eventBus.on('browse:directory-result');
       const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-      eventBus.get('browse:directory-requested').next({ correlationId: 'cid-2', path: '' });
+      eventBus.emit('browse:directory-requested', { correlationId: 'cid-2', path: '' });
 
       const event = await resultPromise;
       expect(event.correlationId).toBe('cid-2');
@@ -168,10 +169,10 @@ describe('Browser actor', () => {
 
     it('allows a valid subdirectory', async () => {
       mockReaddir.mockResolvedValue([]);
-      const result$ = eventBus.get('browse:directory-result');
+      const result$ = eventBus.on('browse:directory-result');
       const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-      eventBus.get('browse:directory-requested').next({ correlationId: 'cid-3', path: 'docs' });
+      eventBus.emit('browse:directory-requested', { correlationId: 'cid-3', path: 'docs' });
 
       const event = await resultPromise;
       expect(event.response.path).toBe('docs');
@@ -185,10 +186,10 @@ describe('Browser actor', () => {
     err.code = 'ENOENT';
     mockReaddir.mockRejectedValue(err);
 
-    const failed$ = eventBus.get('browse:directory-failed');
+    const failed$ = eventBus.on('browse:directory-failed');
     const resultPromise = new Promise<any>((resolve) => failed$.subscribe(resolve));
 
-    eventBus.get('browse:directory-requested').next({ correlationId: 'cid-4', path: 'missing' });
+    eventBus.emit('browse:directory-requested', { correlationId: 'cid-4', path: 'missing' });
 
     const event = await resultPromise;
     expect(event.message).toBe('path not found');
@@ -203,10 +204,10 @@ describe('Browser actor', () => {
     ]);
     mockStat.mockResolvedValue(defaultStat);
 
-    const result$ = eventBus.get('browse:directory-result');
+    const result$ = eventBus.on('browse:directory-result');
     const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-    eventBus.get('browse:directory-requested').next({ correlationId: 'cid-5', path: '' });
+    eventBus.emit('browse:directory-requested', { correlationId: 'cid-5', path: '' });
 
     const { response } = await resultPromise;
     expect(response.entries).toHaveLength(2);
@@ -222,10 +223,10 @@ describe('Browser actor', () => {
     ]);
     mockStat.mockResolvedValue(defaultStat);
 
-    const result$ = eventBus.get('browse:directory-result');
+    const result$ = eventBus.on('browse:directory-result');
     const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-    eventBus.get('browse:directory-requested').next({ correlationId: 'cid-6', path: '' });
+    eventBus.emit('browse:directory-requested', { correlationId: 'cid-6', path: '' });
 
     const { response } = await resultPromise;
     expect(response.entries).toHaveLength(1);
@@ -253,10 +254,10 @@ describe('Browser actor', () => {
     mockReaddir.mockResolvedValue([makeDirent('intro.md', false)]);
     mockStat.mockResolvedValue(defaultStat);
 
-    const result$ = eventBus.get('browse:directory-result');
+    const result$ = eventBus.on('browse:directory-result');
     const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-    eventBus.get('browse:directory-requested').next({ correlationId: 'cid-7', path: '' });
+    eventBus.emit('browse:directory-requested', { correlationId: 'cid-7', path: '' });
 
     const { response } = await resultPromise;
     const entry = response.entries[0];
@@ -269,10 +270,10 @@ describe('Browser actor', () => {
     mockReaddir.mockResolvedValue([makeDirent('scratch.md', false)]);
     mockStat.mockResolvedValue(defaultStat);
 
-    const result$ = eventBus.get('browse:directory-result');
+    const result$ = eventBus.on('browse:directory-result');
     const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-    eventBus.get('browse:directory-requested').next({ correlationId: 'cid-8', path: '' });
+    eventBus.emit('browse:directory-requested', { correlationId: 'cid-8', path: '' });
 
     const { response } = await resultPromise;
     expect(response.entries[0].tracked).toBe(false);
@@ -289,10 +290,10 @@ describe('Browser actor', () => {
     ]);
     mockStat.mockResolvedValue(defaultStat);
 
-    const result$ = eventBus.get('browse:directory-result');
+    const result$ = eventBus.on('browse:directory-result');
     const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-    eventBus.get('browse:directory-requested').next({ correlationId: 'cid-9', path: '' });
+    eventBus.emit('browse:directory-requested', { correlationId: 'cid-9', path: '' });
 
     const { response } = await resultPromise;
     const names = response.entries.map((e: any) => e.name);
@@ -308,10 +309,10 @@ describe('Browser actor', () => {
       .mockResolvedValueOnce({ size: 100, mtime: new Date('2025-01-01') })
       .mockResolvedValueOnce({ size: 100, mtime: new Date('2026-01-01') });
 
-    const result$ = eventBus.get('browse:directory-result');
+    const result$ = eventBus.on('browse:directory-result');
     const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
-    eventBus.get('browse:directory-requested').next({ correlationId: 'cid-10', path: '', sort: 'mtime' });
+    eventBus.emit('browse:directory-requested', { correlationId: 'cid-10', path: '', sort: 'mtime' });
 
     const { response } = await resultPromise;
     expect(response.entries[0].name).toBe('new.txt');
@@ -339,15 +340,19 @@ describe('Browser actor', () => {
     }
 
     function resultPromise() {
-      return new Promise<any>((resolve) => (eventBus as any).get('browse:referenced-by-result').subscribe(resolve));
+      return new Promise<any>((resolve) => eventBus.on('browse:referenced-by-result').subscribe(resolve));
     }
 
     function failedPromise() {
-      return new Promise<any>((resolve) => (eventBus as any).get('browse:referenced-by-failed').subscribe(resolve));
+      return new Promise<any>((resolve) => eventBus.on('browse:referenced-by-failed').subscribe(resolve));
     }
 
-    function fire(payload: object) {
-      (eventBus as any).get('browse:referenced-by-requested').next(payload);
+    // Typed as the channel declares it, not `object`. The `(eventBus as any)`
+    // cast this replaces was hiding the mismatch: every caller already passes
+    // a conforming payload, so the cast bought nothing and cost the compiler
+    // its view of three call sites (BUS-CARRIES-FRAMES P1).
+    function fire(payload: EventMap['browse:referenced-by-requested']) {
+      eventBus.emit('browse:referenced-by-requested', payload);
     }
 
     let mockViewGet: ReturnType<typeof vi.fn>;
@@ -538,8 +543,8 @@ describe('Browser actor', () => {
     function requestAgents(bus: EventBus) {
       const reply = firstValueFrom(
         race(
-          bus.get('browse:agents-result').pipe(map((e) => ({ kind: 'result' as const, e }))),
-          bus.get('browse:agents-failed').pipe(map((e) => ({ kind: 'failed' as const, e }))),
+          bus.on('browse:agents-result').pipe(map((e) => ({ kind: 'result' as const, e }))),
+          bus.on('browse:agents-failed').pipe(map((e) => ({ kind: 'failed' as const, e }))),
           timer(300).pipe(
             map((): never => {
               throw new Error('no browse:agents subscriber answered');
@@ -547,7 +552,7 @@ describe('Browser actor', () => {
           ),
         ).pipe(take(1)),
       );
-      bus.get('browse:agents-requested').next({ correlationId: 'cid-agents' });
+      bus.emit('browse:agents-requested', { correlationId: 'cid-agents' });
       return reply;
     }
 
@@ -669,7 +674,7 @@ describe('Browser actor', () => {
 
   describe('browse:resource-requested', () => {
     function failure() {
-      return new Promise<any>((resolve) => eventBus.get('browse:resource-failed').subscribe(resolve));
+      return new Promise<any>((resolve) => eventBus.on('browse:resource-failed').subscribe(resolve));
     }
 
     it("codes a missing resource 'not-found' — the verdict a tab can be deleted on", async () => {
@@ -680,7 +685,7 @@ describe('Browser actor', () => {
       mockAssemble.mockResolvedValue(null);
       const failed = failure();
 
-      eventBus.get('browse:resource-requested').next({ correlationId: 'cid-missing', resourceId: 'res-gone' });
+      eventBus.emit('browse:resource-requested', { correlationId: 'cid-missing', resourceId: 'res-gone' });
 
       const e = await failed;
       expect(e.correlationId).toBe('cid-missing');
@@ -693,7 +698,7 @@ describe('Browser actor', () => {
       mockAssemble.mockRejectedValue(new Error('graph exploded'));
       const failed = failure();
 
-      eventBus.get('browse:resource-requested').next({ correlationId: 'cid-boom', resourceId: 'res-here' });
+      eventBus.emit('browse:resource-requested', { correlationId: 'cid-boom', resourceId: 'res-here' });
 
       const e = await failed;
       expect(e.message).toBe('graph exploded');

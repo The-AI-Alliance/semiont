@@ -21,7 +21,7 @@ describe('browse.click anchorRect payload contract', () => {
     const browse = new BrowseNamespace(inertTransport(), bus, {} as unknown as IContentTransport);
 
     const payloads: object[] = [];
-    bus.get('browse:click').subscribe((p) => payloads.push(p));
+    bus.on('browse:click').subscribe((p) => payloads.push(p));
 
     browse.click(annotationId('a1'));
 
@@ -35,7 +35,7 @@ describe('browse.click anchorRect payload contract', () => {
     const browse = new BrowseNamespace(inertTransport(), bus, {} as unknown as IContentTransport);
 
     const payloads: object[] = [];
-    bus.get('browse:click').subscribe((p) => payloads.push(p));
+    bus.on('browse:click').subscribe((p) => payloads.push(p));
 
     const anchorRect: AnchorRect = {
       x: 1, y: 2, width: 3, height: 4, top: 2, right: 4, bottom: 6, left: 1,

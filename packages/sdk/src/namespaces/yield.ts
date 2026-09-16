@@ -227,13 +227,13 @@ export class YieldNamespace implements IYieldNamespace {
       // is present — not here, because the generated resource id is
       // assigned by Stower, not by the worker.
       let activeJobId: string | null = null;
-      const progress$ = this.bus.get('job:report-progress').pipe(
+      const progress$ = this.bus.on('job:report-progress').pipe(
         filter((e) => e.jobId === activeJobId),
       );
-      const complete$ = this.bus.get('job:complete').pipe(
+      const complete$ = this.bus.on('job:complete').pipe(
         filter((e) => e.jobId === activeJobId),
       );
-      const fail$ = this.bus.get('job:fail').pipe(
+      const fail$ = this.bus.on('job:fail').pipe(
         filter((e) => e.jobId === activeJobId),
       );
 
@@ -348,6 +348,6 @@ export class YieldNamespace implements IYieldNamespace {
   }
 
   clone(): void {
-    this.bus.get('yield:clone').next(undefined);
+    this.bus.emit('yield:clone', undefined);
   }
 }

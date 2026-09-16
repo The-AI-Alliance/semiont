@@ -103,7 +103,7 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no providers)',
       top: 6, right: 12, bottom: 14, left: 5,
     };
     act(() => {
-      eventBus.get('browse:click').next({
+      eventBus.emit('browse:click', {
         annotationId: 'ann-1',
         anchorRect,
       });
@@ -138,7 +138,7 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no providers)',
     );
 
     act(() => {
-      eventBus.get('browse:click').next({ annotationId: 'ann-not-here' });
+      eventBus.emit('browse:click', { annotationId: 'ann-not-here' });
     });
 
     await new Promise((r) => setTimeout(r, 20));

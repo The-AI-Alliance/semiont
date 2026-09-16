@@ -97,7 +97,7 @@ describe('mark:commit does not duplicate the event log', () => {
   const settle = () => new Promise((r) => setTimeout(r, 20));
 
   const commit = async (ids: string[], correlationId = 'c1') => {
-    bus.get('mark:commit').next({
+    bus.emit('mark:commit', {
       resourceId: RID,
       correlationId,
       annotations: ids.map(annotation),
@@ -132,7 +132,7 @@ describe('mark:commit does not duplicate the event log', () => {
     // because everything is already durable has SUCCEEDED, and saying so is
     // what stops the retry loop.
     const acks: any[] = [];
-    bus.get('mark:commit-ok').subscribe((e) => acks.push(e));
+    bus.on('mark:commit-ok').subscribe((e) => acks.push(e));
 
     await commit(['a1', 'a2'], 'first');
     await commit(['a1', 'a2'], 'retry');

@@ -139,10 +139,8 @@ export class FaultyTransport implements ITransport {
     const name = channel as string;
     if (!isOperation(name)) {
       // Non-request channel: forward as-is (scoped or global).
-      const target = resourceScope === undefined
-        ? this.bus.get(channel)
-        : this.bus.scope(resourceScope as string).get(channel);
-      target.next(payload);
+      const target = resourceScope === undefined ? this.bus : this.bus.scope(resourceScope as string);
+      target.emit(channel, payload);
       return 1;
     }
 
@@ -166,7 +164,7 @@ export class FaultyTransport implements ITransport {
 
     // The request itself is observable (handlers-eye view), then the
     // simulator plays gateway: synthesize the registry reply per the action.
-    this.bus.get(channel).next(payload);
+    this.bus.emit(channel, payload);
 
     // The gateway's answer is computed ONCE per request that reaches it —
     // the reply QUEUE scripts the gateway, the fault schedule scripts the
@@ -182,7 +180,7 @@ export class FaultyTransport implements ITransport {
         ? { correlationId: record.correlationId }
         : { correlationId: record.correlationId, response };
       const resultChannel = BUS_OPERATIONS[name].result as keyof EventMap;
-      this.bus.get(resultChannel).next(replyPayload as EventMap[keyof EventMap]);
+      this.bus.emit(resultChannel, replyPayload as EventMap[keyof EventMap]);
     };
 
     switch (action.kind) {
@@ -205,12 +203,12 @@ export class FaultyTransport implements ITransport {
   }
 
   on<K extends keyof EventMap>(channel: K, handler: (payload: EventMap[K]) => void): () => void {
-    const sub = this.bus.get(channel).subscribe(handler);
+    const sub = this.bus.on(channel).subscribe(handler);
     return () => sub.unsubscribe();
   }
 
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
-    return this.bus.get(channel);
+    return this.bus.on(channel);
   }
 
   /**
@@ -251,8 +249,8 @@ export class FaultyTransport implements ITransport {
 
   bridgeInto(bus: EventBus): void {
     for (const channel of BRIDGED_CHANNELS) {
-      this.bus.get(channel as keyof EventMap).subscribe((payload) => {
-        bus.get(channel as keyof EventMap).next(payload as EventMap[keyof EventMap]);
+      this.bus.on(channel as keyof EventMap).subscribe((payload) => {
+        bus.emit(channel as keyof EventMap, payload as EventMap[keyof EventMap]);
       });
     }
   }

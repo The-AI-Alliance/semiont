@@ -90,8 +90,8 @@ describe('Gatherer decoupling (EXTRACT-LIBRARIAN P2)', () => {
     );
     await gatherer.initialize();
 
-    const resultPromise = eventBus.get('gather:resource-complete').pipe(take(1)).toPromise();
-    eventBus.get('gather:resource-requested').next({
+    const resultPromise = eventBus.on('gather:resource-complete').pipe(take(1)).toPromise();
+    eventBus.emit('gather:resource-requested', {
       correlationId: 'corr-1',
       resourceId: MAIN_ID,
       options: { depth: 1, maxResources: 5, includeContent: false, includeSummary: false },
@@ -135,8 +135,8 @@ describe('Gatherer decoupling (EXTRACT-LIBRARIAN P2)', () => {
     );
     await gatherer.initialize();
 
-    const resultPromise = eventBus.get('gather:resource-complete').pipe(take(1)).toPromise();
-    eventBus.get('gather:resource-requested').next({
+    const resultPromise = eventBus.on('gather:resource-complete').pipe(take(1)).toPromise();
+    eventBus.emit('gather:resource-requested', {
       correlationId: 'corr-2',
       resourceId: MAIN_ID,
       options: { depth: 1, maxResources: 5, includeContent: false, includeSummary: false },
@@ -161,11 +161,11 @@ describe('channel roster matches actual subscriptions (census gate)', () => {
   it('Gatherer', async () => {
     const bus = new EventBus();
     const seen: string[] = [];
-    const realGet = bus.get.bind(bus);
-    bus.get = ((channel) => {
+    const realGet = bus.on.bind(bus);
+    bus.on = ((channel) => {
       seen.push(channel as string);
       return realGet(channel);
-    }) as typeof bus.get;
+    }) as typeof bus.on;
 
     const gatherer = new Gatherer(
       makeStores(), bus, noopInference, 1_000, mockLogger, createMockEmbeddingProvider(),

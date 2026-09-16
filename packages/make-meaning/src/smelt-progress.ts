@@ -71,7 +71,7 @@ export function createSmeltProgress(eventBus: EventBus): SmeltProgress {
   let disposed = false;
   let lastSweep = Date.now();
 
-  const subscription = eventBus.get('smelt:settled').subscribe(({ resourceId, contentChecksum, outcome }) => {
+  const subscription = eventBus.on('smelt:settled').subscribe(({ resourceId, contentChecksum, outcome }) => {
     const now = Date.now();
     if (now - lastSweep >= SWEEP_INTERVAL_MS) {
       lastSweep = now;

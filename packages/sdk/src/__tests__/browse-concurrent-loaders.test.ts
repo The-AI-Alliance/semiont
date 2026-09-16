@@ -83,13 +83,13 @@ function makeComposingTransport(opts: { failFirstResourceFetchFor?: string } = {
           pendingFailure = undefined;
           throw new Error(`simulated lost reply for ${rid}`);
         }
-        bus.get('browse:resource-result').next({
+        bus.emit('browse:resource-result', {
           correlationId: cid,
           response: { resource: mockResource(rid), annotations: [], entityReferences: [] },
         });
       }
       if (channel === 'browse:annotations-requested') {
-        bus.get('browse:annotations-result').next({
+        bus.emit('browse:annotations-result', {
           correlationId: cid,
           response: { annotations: [], total: 0 },
         });
@@ -190,7 +190,7 @@ describe('N concurrent distinct-rid loaders — all scoped, all fully live', () 
     await flush();
     requests.length = 0; // only the invalidation-driven refetches count
 
-    bus.get('mark:added').next(fakeMarkAdded(RIDS[1]!)); // res-2's broadcast
+    bus.emit('mark:added', fakeMarkAdded(RIDS[1]!)); // res-2's broadcast
     await flush();
 
     expect(requests).toContain('browse:annotations-requested res-2');

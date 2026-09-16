@@ -14,22 +14,22 @@ export function createBeckonStateUnit(client: SemiontClient): BeckonStateUnit {
   const subs: Subscription[] = [];
   const hovered$ = new BehaviorSubject<AnnotationId | null>(null);
 
-  subs.push(client.bus.get('beckon:hover').subscribe(({ annotationId }) => {
+  subs.push(client.bus.on('beckon:hover').subscribe(({ annotationId }) => {
     hovered$.next(annotationId as AnnotationId | null);
     if (annotationId) {
-      client.bus.get('beckon:sparkle').next({ annotationId });
+      client.bus.emit('beckon:sparkle', { annotationId });
     }
   }));
 
-  subs.push(client.bus.get('browse:click').subscribe(({ annotationId }) => {
-    client.bus.get('beckon:focus').next({ annotationId });
+  subs.push(client.bus.on('browse:click').subscribe(({ annotationId }) => {
+    client.bus.emit('beckon:focus', { annotationId });
   }));
 
   return {
     hoveredAnnotationId$: hovered$.asObservable(),
-    hover: (annotationId) => client.bus.get('beckon:hover').next({ annotationId }),
-    focus: (annotationId) => client.bus.get('beckon:focus').next({ annotationId }),
-    sparkle: (annotationId) => client.bus.get('beckon:sparkle').next({ annotationId }),
+    hover: (annotationId) => client.bus.emit('beckon:hover', { annotationId }),
+    focus: (annotationId) => client.bus.emit('beckon:focus', { annotationId }),
+    sparkle: (annotationId) => client.bus.emit('beckon:sparkle', { annotationId }),
     dispose() {
       subs.forEach(s => s.unsubscribe());
       hovered$.complete();

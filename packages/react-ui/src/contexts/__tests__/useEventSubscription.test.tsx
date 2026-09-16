@@ -32,7 +32,7 @@ describe('useEventSubscription', () => {
       );
 
       act(() => {
-        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-1' });
+        eventBus.emit('beckon:hover', ({ annotationId: 'ann-1' }) as never);
       });
 
       expect(handler).toHaveBeenCalledWith({ annotationId: 'ann-1' });
@@ -52,7 +52,7 @@ describe('useEventSubscription', () => {
       );
 
       act(() => {
-        (eventBus.get('browse:resource-open') as any).next({ resourceId: 'res-42' });
+        eventBus.emit('browse:resource-open', ({ resourceId: 'res-42' }) as never);
       });
 
       expect(handler).toHaveBeenCalledWith({ resourceId: 'res-42' });
@@ -73,7 +73,7 @@ describe('useEventSubscription', () => {
       );
 
       act(() => {
-        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-1' });
+        eventBus.emit('beckon:hover', ({ annotationId: 'ann-1' }) as never);
       });
       expect(calls).toEqual(['initial']);
 
@@ -81,7 +81,7 @@ describe('useEventSubscription', () => {
       rerender();
 
       act(() => {
-        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-2' });
+        eventBus.emit('beckon:hover', ({ annotationId: 'ann-2' }) as never);
       });
       expect(calls).toEqual(['initial', 'updated']);
     });
@@ -98,7 +98,7 @@ describe('useEventSubscription', () => {
       );
 
       act(() => {
-        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-1' });
+        eventBus.emit('beckon:hover', ({ annotationId: 'ann-1' }) as never);
       });
       expect(handler1).toHaveBeenCalledTimes(1);
 
@@ -106,7 +106,7 @@ describe('useEventSubscription', () => {
       rerender();
 
       act(() => {
-        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-2' });
+        eventBus.emit('beckon:hover', ({ annotationId: 'ann-2' }) as never);
       });
       expect(handler1).toHaveBeenCalledTimes(1);
       expect(handler2).toHaveBeenCalledTimes(1);
@@ -122,14 +122,14 @@ describe('useEventSubscription', () => {
       );
 
       act(() => {
-        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-1' });
+        eventBus.emit('beckon:hover', ({ annotationId: 'ann-1' }) as never);
       });
       expect(handler).toHaveBeenCalledTimes(1);
 
       unmount();
 
       act(() => {
-        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-2' });
+        eventBus.emit('beckon:hover', ({ annotationId: 'ann-2' }) as never);
       });
       expect(handler).toHaveBeenCalledTimes(1);
     });
@@ -152,8 +152,8 @@ describe('useEventSubscription', () => {
       );
 
       act(() => {
-        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-1' });
-        (eventBus.get('browse:click') as any).next({ annotationId: 'ann-2' });
+        eventBus.emit('beckon:hover', ({ annotationId: 'ann-1' }) as never);
+        eventBus.emit('browse:click', ({ annotationId: 'ann-2' }) as never);
       });
 
       expect(handler1).toHaveBeenCalledWith({ annotationId: 'ann-1' });
@@ -176,7 +176,7 @@ describe('useEventSubscription', () => {
       );
 
       act(() => {
-        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-1' });
+        eventBus.emit('beckon:hover', ({ annotationId: 'ann-1' }) as never);
       });
       expect(calls).toEqual(['hover:initial']);
 
@@ -184,7 +184,7 @@ describe('useEventSubscription', () => {
       rerender();
 
       act(() => {
-        (eventBus.get('browse:click') as any).next({ annotationId: 'ann-2' });
+        eventBus.emit('browse:click', ({ annotationId: 'ann-2' }) as never);
       });
       expect(calls).toEqual(['hover:initial', 'click:updated']);
     });
@@ -207,8 +207,8 @@ describe('useEventSubscription', () => {
       unmount();
 
       act(() => {
-        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-1' });
-        (eventBus.get('browse:click') as any).next({ annotationId: 'ann-2' });
+        eventBus.emit('beckon:hover', ({ annotationId: 'ann-1' }) as never);
+        eventBus.emit('browse:click', ({ annotationId: 'ann-2' }) as never);
       });
 
       expect(handler1).not.toHaveBeenCalled();
@@ -230,8 +230,8 @@ describe('useEventSubscription', () => {
       );
 
       act(() => {
-        (eventBus.get('beckon:hover') as any).next({ annotationId: 'ann-1' });
-        (eventBus.get('browse:click') as any).next({ annotationId: 'ann-2' });
+        eventBus.emit('beckon:hover', ({ annotationId: 'ann-1' }) as never);
+        eventBus.emit('browse:click', ({ annotationId: 'ann-2' }) as never);
       });
 
       expect(handler1).toHaveBeenCalledTimes(1);

@@ -174,7 +174,7 @@ export function withTraceparent<T>(
 
 /**
  * Wrap a bus-event handler in an `actor.<name>:<channel>` consumer span.
- * Used at every `eventBus.get(channel).subscribe(handler)` site inside
+ * Used at every `eventBus.on(channel).subscribe(handler)` site inside
  * an actor (Stower, Gatherer, Matcher, Browser, Smelter), to attribute
  * each in-process subscriber's work to a span without scattering manual
  * `withSpan` calls across handler bodies.

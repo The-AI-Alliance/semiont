@@ -29,7 +29,7 @@ describe('EventBus.observedChannels', () => {
   });
 
   it('reports a channel once something subscribes to it', () => {
-    eventBus.get('mark:create-ok').subscribe(() => {});
+    eventBus.on('mark:create-ok').subscribe(() => {});
 
     expect(eventBus.observedChannels()).toEqual(['mark:create-ok']);
   });
@@ -38,13 +38,13 @@ describe('EventBus.observedChannels', () => {
     // The load-bearing case. `get()` creates the subject, so the map has an
     // entry — but nobody is listening, and the parity gate must be able to
     // tell those apart.
-    eventBus.get('mark:create-ok');
+    eventBus.on('mark:create-ok');
 
     expect(eventBus.observedChannels()).toEqual([]);
   });
 
   it('stops reporting a channel after its last subscriber leaves', () => {
-    const sub = eventBus.get('mark:create-ok').subscribe(() => {});
+    const sub = eventBus.on('mark:create-ok').subscribe(() => {});
     expect(eventBus.observedChannels()).toContain('mark:create-ok');
 
     sub.unsubscribe();
@@ -56,39 +56,48 @@ describe('EventBus.observedChannels', () => {
   });
 
   it('keeps reporting while any subscriber remains', () => {
-    const first = eventBus.get('mark:create-ok').subscribe(() => {});
-    eventBus.get('mark:create-ok').subscribe(() => {});
+    const first = eventBus.on('mark:create-ok').subscribe(() => {});
+    eventBus.on('mark:create-ok').subscribe(() => {});
 
     first.unsubscribe();
 
     expect(eventBus.observedChannels()).toEqual(['mark:create-ok']);
   });
 
-  it('reports scoped channels under their namespaced key', () => {
-    eventBus.scope('res-1').get('mark:create-ok').subscribe(() => {});
+  it('reports the CHANNEL a scoped subscription observes, without a scope prefix', () => {
+    // Restated at BUS-CARRIES-FRAMES: this asserted `res-1:mark:create-ok`,
+    // because scoping used to BE a channel-key prefix and scoped subjects
+    // lived in the parent's map under that mangled name. Scope is now a field
+    // on the frame, so there is one subject per channel and no mangled key to
+    // report. The reason the gates use this accessor is unchanged — they ask
+    // WHICH CHANNELS a root observes, and check membership against a roster
+    // union (root-parity.test.ts, connect-record.test.ts); neither ever read
+    // the scope half.
+    eventBus.scope('res-1').on('mark:create-ok').subscribe(() => {});
 
-    // Scoped subjects live in the PARENT's map under `<scope>:<channel>`, so
-    // the parent sees them — which is what lets the gate introspect a root
-    // whose actors subscribe per-resource.
-    expect(eventBus.observedChannels()).toEqual(['res-1:mark:create-ok']);
+    expect(eventBus.observedChannels()).toEqual(['mark:create-ok']);
   });
 
-  it('distinguishes a scoped subscription from the unscoped channel', () => {
-    eventBus.scope('res-1').get('mark:create-ok').subscribe(() => {});
+  it('a scoped and an unscoped subscription observe the SAME channel', () => {
+    // The old shape could tell them apart because they were different
+    // subjects. They are now one stream and two filtered views, so this
+    // accessor cannot distinguish them — and should not pretend to. "Which
+    // SCOPES are observed" is a different question; it deserves its own verb
+    // if anything ever needs it, not a parsed string.
+    eventBus.scope('res-1').on('mark:create-ok').subscribe(() => {});
+    eventBus.on('mark:create-ok').subscribe(() => {});
 
-    const observed = eventBus.observedChannels();
-    expect(observed).toContain('res-1:mark:create-ok');
-    expect(observed).not.toContain('mark:create-ok');
+    expect(eventBus.observedChannels()).toEqual(['mark:create-ok']);
   });
 
-  it('reports every observed channel, across scopes', () => {
-    eventBus.get('mark:create-ok').subscribe(() => {});
-    eventBus.get('browse:resource-requested').subscribe(() => {});
-    eventBus.scope('res-1').get('mark:create-ok').subscribe(() => {});
-    eventBus.get('bind:body-updated'); // accessed only — must not appear
+  it('reports every observed channel, scoped or not, exactly once', () => {
+    eventBus.on('mark:create-ok').subscribe(() => {});
+    eventBus.on('browse:resource-requested').subscribe(() => {});
+    eventBus.scope('res-1').on('mark:create-ok').subscribe(() => {});
+    eventBus.on('bind:body-updated'); // accessed only — must not appear
 
     expect(new Set(eventBus.observedChannels())).toEqual(
-      new Set(['mark:create-ok', 'browse:resource-requested', 'res-1:mark:create-ok']),
+      new Set(['mark:create-ok', 'browse:resource-requested']),
     );
   });
 });

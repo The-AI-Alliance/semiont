@@ -208,9 +208,9 @@ describe('Matcher', () => {
       ];
       mockSearchFn.mockResolvedValue(mockResults);
 
-      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-1',
@@ -237,9 +237,9 @@ describe('Matcher', () => {
     it('should emit match:search-failed on error', async () => {
       mockSearchFn.mockRejectedValue(new Error('Graph connection failed'));
 
-      const resultPromise = eventBus.get('match:search-failed').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-failed').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-2',
@@ -254,9 +254,9 @@ describe('Matcher', () => {
     it('should handle empty search results', async () => {
       mockSearchFn.mockResolvedValue([]);
 
-      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-3',
@@ -301,9 +301,9 @@ describe('Matcher', () => {
     it('should search with minimal context (selected text only)', async () => {
       mockSearchFn2.mockResolvedValue([RES_A]);
 
-      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-no-ctx',
@@ -320,9 +320,9 @@ describe('Matcher', () => {
     it('should score exact name match higher than contains match', async () => {
       mockSearchFn2.mockResolvedValue([RES_A, RES_B]);
 
-      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-name',
@@ -350,9 +350,9 @@ describe('Matcher', () => {
       const resWithoutTypes = { ...RES_B };
       mockSearchFn2.mockResolvedValue([resWithTypes, resWithoutTypes]);
 
-      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-et',
@@ -389,9 +389,9 @@ describe('Matcher', () => {
       matcher = new Matcher(kb, eventBus, mockLogger, noopInference, embeddingProvider);
       await matcher.initialize();
 
-      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-no-gate',
@@ -413,9 +413,9 @@ describe('Matcher', () => {
       // RES_B is also a bidirectional connection
       mockSearchFn2.mockResolvedValue([RES_A, RES_B]);
 
-      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-bidir',
@@ -442,9 +442,9 @@ describe('Matcher', () => {
         return Promise.resolve(null);
       });
 
-      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-neighbor',
@@ -474,9 +474,9 @@ describe('Matcher', () => {
           : Promise.resolve(null),
       );
 
-      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-lag',
         referenceId: 'ref-lag',
@@ -514,8 +514,8 @@ describe('Matcher', () => {
       await localMatcher.initialize();
 
       try {
-        const resultPromise = localBus.get('match:search-results').pipe(take(1)).toPromise();
-        localBus.get('match:search-requested').next({
+        const resultPromise = localBus.on('match:search-results').pipe(take(1)).toPromise();
+        localBus.emit('match:search-requested', {
           resourceId: 'test-resource',
           correlationId: 'corr-sem-lag',
           referenceId: 'ref-sem-lag',
@@ -547,9 +547,9 @@ describe('Matcher', () => {
         return Promise.resolve(null);
       });
 
-      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-citedby-delta',
@@ -576,9 +576,9 @@ describe('Matcher', () => {
       mockSearchFn2.mockResolvedValue([RES_A]);
       mockListResources.mockResolvedValue({ resources: [RES_A], total: 1 });
 
-      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-multi',
@@ -602,9 +602,9 @@ describe('Matcher', () => {
       const resGamma = { ...RES_C, name: 'Alphaville' }; // prefix match for "Alpha"
       mockSearchFn2.mockResolvedValue([RES_A, RES_B, resGamma]);
 
-      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-sort',
@@ -647,9 +647,9 @@ describe('Matcher', () => {
       matcher = new Matcher(kb, eventBus, mockLogger, mockInference, createMockEmbeddingProvider());
       await matcher.initialize();
 
-      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-inference',
@@ -697,9 +697,9 @@ describe('Matcher', () => {
       matcher = new Matcher(kb, eventBus, mockLogger, mockInference, createMockEmbeddingProvider());
       await matcher.initialize();
 
-      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-inference-fail',
@@ -719,9 +719,9 @@ describe('Matcher', () => {
       // Use the default matcher (no inference client)
       mockSearchFn2.mockResolvedValue([RES_A]);
 
-      const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-no-inference',
@@ -738,9 +738,9 @@ describe('Matcher', () => {
     it('should emit search-failed when context search throws', async () => {
       mockSearchFn2.mockRejectedValue(new Error('DB down'));
 
-      const resultPromise = eventBus.get('match:search-failed').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('match:search-failed').pipe(take(1)).toPromise();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-fail',
@@ -788,9 +788,9 @@ describe('Matcher', () => {
         // Score > 1 should be ignored, score < 0 should be ignored
         mockInference.generateText.mockResolvedValue('1. 1.5\n2. -0.3\n3. 0.7');
 
-        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-        eventBus.get('match:search-requested').next({
+        eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
           correlationId: 'test-corr-id',
           referenceId: 'ref-range',
@@ -814,9 +814,9 @@ describe('Matcher', () => {
           'Here are my scores:\n1. 0.8\nThis is not a score line\n2. invalid\n3. 0.5'
         );
 
-        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-        eventBus.get('match:search-requested').next({
+        eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
           correlationId: 'test-corr-id',
           referenceId: 'ref-malformed',
@@ -836,9 +836,9 @@ describe('Matcher', () => {
       it('should handle empty inference response', async () => {
         mockInference.generateText.mockResolvedValue('');
 
-        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-        eventBus.get('match:search-requested').next({
+        eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
           correlationId: 'test-corr-id',
           referenceId: 'ref-empty',
@@ -856,9 +856,9 @@ describe('Matcher', () => {
         // Index 5 doesn't exist (only 3 candidates)
         mockInference.generateText.mockResolvedValue('1. 0.8\n5. 0.9\n3. 0.6');
 
-        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-        eventBus.get('match:search-requested').next({
+        eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
           correlationId: 'test-corr-id',
           referenceId: 'ref-oob',
@@ -876,9 +876,9 @@ describe('Matcher', () => {
       it('should not add semantic match reason when score is exactly 0.5', async () => {
         mockInference.generateText.mockResolvedValue('1. 0.5\n2. 0.51\n3. 0.49');
 
-        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-        eventBus.get('match:search-requested').next({
+        eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
           correlationId: 'test-corr-id',
           referenceId: 'ref-threshold',
@@ -901,10 +901,10 @@ describe('Matcher', () => {
       it('should include inferredRelationshipSummary in semantic scoring prompt', async () => {
         mockInference.generateText.mockResolvedValue('1. 0.8\n2. 0.3\n3. 0.5');
 
-        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
         const summary = 'This passage discusses Greek mythology figures.';
-        eventBus.get('match:search-requested').next({
+        eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
           correlationId: 'test-corr-id',
           referenceId: 'ref-summary',
@@ -926,9 +926,9 @@ describe('Matcher', () => {
       it('should pass passage text and entity types to semantic scoring prompt', async () => {
         mockInference.generateText.mockResolvedValue('1. 0.5');
 
-        const resultPromise = eventBus.get('match:search-results').pipe(take(1)).toPromise();
+        const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
-        eventBus.get('match:search-requested').next({
+        eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
           correlationId: 'test-corr-id',
           referenceId: 'ref-passage',
@@ -956,7 +956,7 @@ describe('Matcher', () => {
     it('should not process events after stop', async () => {
       await matcher.stop();
 
-      eventBus.get('match:search-requested').next({
+      eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
         correlationId: 'test-corr-id',
         referenceId: 'ref-4',

@@ -135,7 +135,7 @@ export function createResourceViewerPageStateUnit(
   // long as they're observed and releases it on teardown — so no manual
   // `subscribeToResource` call is needed.
 
-  const bindInitiateSub = client.bus.get('bind:initiate').subscribe((event) => {
+  const bindInitiateSub = client.bus.on('bind:initiate').subscribe((event) => {
     wizard$.next({
       open: true,
       annotationId: event.annotationId,
@@ -143,7 +143,7 @@ export function createResourceViewerPageStateUnit(
       defaultTitle: event.defaultTitle,
       entityTypes: event.entityTypes,
     });
-    client.bus.get('gather:requested').next({
+    client.bus.emit('gather:requested', {
       correlationId: uuidV4(),
       annotationId: event.annotationId,
       resourceId: event.resourceId,

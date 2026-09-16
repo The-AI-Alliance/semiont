@@ -30,7 +30,7 @@ function makeFakeTransport() {
     onEmit: (channel, payload) => {
       if (channel === 'browse:annotations-requested') {
         n += 1;
-        bus.get('browse:annotations-result').next({
+        bus.emit('browse:annotations-result', {
           correlationId: (payload as { correlationId: string }).correlationId,
           response: { annotations: [mockAnnotation(`a${n}`)], total: 1 },
         });

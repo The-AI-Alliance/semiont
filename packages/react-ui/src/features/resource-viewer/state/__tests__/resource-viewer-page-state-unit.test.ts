@@ -203,9 +203,9 @@ describe('createResourceViewerPageStateUnit', () => {
     tc = clientWithNamespaces();
     const stateUnit = createResourceViewerPageStateUnit(tc.session, RID, 'en', mockBrowse());
     const gatherEvents: unknown[] = [];
-    tc.bus.get('gather:requested').subscribe((e) => gatherEvents.push(e));
+    tc.bus.on('gather:requested').subscribe((e) => gatherEvents.push(e));
 
-    tc.bus.get('bind:initiate').next({
+    tc.bus.emit('bind:initiate', {
       annotationId: annotationId('ann-1'),
       resourceId: makeResourceId('res-1'),
       defaultTitle: 'Test',
@@ -223,7 +223,7 @@ describe('createResourceViewerPageStateUnit', () => {
     tc = clientWithNamespaces();
     const stateUnit = createResourceViewerPageStateUnit(tc.session, RID, 'en', mockBrowse());
 
-    tc.bus.get('bind:initiate').next({
+    tc.bus.emit('bind:initiate', {
       annotationId: annotationId('ann-1'),
       resourceId: makeResourceId('res-1'),
       defaultTitle: 'Test',

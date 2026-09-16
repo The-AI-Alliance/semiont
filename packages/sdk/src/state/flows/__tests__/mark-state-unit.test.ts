@@ -49,7 +49,7 @@ describe('createMarkStateUnit', () => {
     const pend: unknown[] = [];
     stateUnit.pendingAnnotation$.subscribe(v => pend.push(v));
 
-    tc.bus.get('mark:requested').next({
+    tc.bus.emit('mark:requested', {
       source: 'res-1',
       selector: { type: 'TextQuoteSelector', exact: 'hello' },
       motivation: 'highlighting',
@@ -67,7 +67,7 @@ describe('createMarkStateUnit', () => {
     const pend: unknown[] = [];
     stateUnit.pendingAnnotation$.subscribe(v => pend.push(v));
 
-    tc.bus.get('mark:select-comment').next({ exact: 'text', prefix: 'pre', suffix: 'suf' } as any);
+    tc.bus.emit('mark:select-comment', { exact: 'text', prefix: 'pre', suffix: 'suf' } as any);
     const last = pend[pend.length - 1] as any;
     expect(last.motivation).toBe('commenting');
     expect(last.selector).toEqual({ type: 'TextQuoteSelector', exact: 'text', prefix: 'pre', suffix: 'suf' });
@@ -82,9 +82,9 @@ describe('createMarkStateUnit', () => {
     tc = withMark();
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const panels: string[] = [];
-    tc.bus.get('panel:open').subscribe(e => panels.push(e.panel));
+    tc.bus.on('panel:open').subscribe(e => panels.push(e.panel));
 
-    tc.bus.get('mark:requested').next({ source: 'res-1', selector: {}, motivation: 'highlighting' } as any);
+    tc.bus.emit('mark:requested', { source: 'res-1', selector: {}, motivation: 'highlighting' } as any);
     expect(panels).toEqual([]);
     stateUnit.dispose();
   });
@@ -95,8 +95,8 @@ describe('createMarkStateUnit', () => {
     const pend: unknown[] = [];
     stateUnit.pendingAnnotation$.subscribe(v => pend.push(v));
 
-    tc.bus.get('mark:requested').next({ source: 'res-1', selector: {}, motivation: 'highlighting' } as any);
-    tc.bus.get('mark:cancel-pending').next(undefined);
+    tc.bus.emit('mark:requested', { source: 'res-1', selector: {}, motivation: 'highlighting' } as any);
+    tc.bus.emit('mark:cancel-pending', undefined);
     expect(pend[pend.length - 1]).toBeNull();
     stateUnit.dispose();
   });
@@ -107,8 +107,8 @@ describe('createMarkStateUnit', () => {
     const pend: unknown[] = [];
     stateUnit.pendingAnnotation$.subscribe(v => pend.push(v));
 
-    tc.bus.get('mark:requested').next({ source: 'res-1', selector: {}, motivation: 'highlighting' } as any);
-    tc.bus.get('mark:create-ok').next({ response: { annotationId: 'ann-1' } });
+    tc.bus.emit('mark:requested', { source: 'res-1', selector: {}, motivation: 'highlighting' } as any);
+    tc.bus.emit('mark:create-ok', { response: { annotationId: 'ann-1' } });
     expect(pend[pend.length - 1]).toBeNull();
     stateUnit.dispose();
   });
@@ -120,9 +120,9 @@ describe('createMarkStateUnit', () => {
     tc = withMark({ annotation: annotationFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const okEvents: unknown[] = [];
-    tc.bus.get('mark:create-ok').subscribe(e => okEvents.push(e));
+    tc.bus.on('mark:create-ok').subscribe(e => okEvents.push(e));
 
-    tc.bus.get('mark:submit').next({
+    tc.bus.emit('mark:submit', {
       source: 'res-1',
       motivation: 'highlighting',
       selector: { type: 'TextQuoteSelector', exact: 'test' },
@@ -142,9 +142,9 @@ describe('createMarkStateUnit', () => {
     tc = withMark({ annotation: annotationFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const failures: unknown[] = [];
-    tc.bus.get('mark:create-error').subscribe(e => failures.push(e));
+    tc.bus.on('mark:create-error').subscribe(e => failures.push(e));
 
-    tc.bus.get('mark:submit').next({
+    tc.bus.emit('mark:submit', {
       source: 'res-1',
       motivation: 'highlighting',
       selector: { type: 'TextQuoteSelector', exact: 'x' },
@@ -160,9 +160,9 @@ describe('createMarkStateUnit', () => {
     tc = withMark({ delete: deleteFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const failures: unknown[] = [];
-    tc.bus.get('mark:delete-error').subscribe(e => failures.push(e));
+    tc.bus.on('mark:delete-error').subscribe(e => failures.push(e));
 
-    tc.bus.get('mark:delete').next({ annotationId: 'ann-del' } as any);
+    tc.bus.emit('mark:delete', { annotationId: 'ann-del' } as any);
 
     await vi.waitFor(() => expect(failures).toHaveLength(1));
     expect(failures[0]).toEqual({ resourceId: 'res-1', message: 'gone wrong' });
@@ -174,9 +174,9 @@ describe('createMarkStateUnit', () => {
     tc = withMark({ delete: deleteFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const okEvents: unknown[] = [];
-    tc.bus.get('mark:delete-ok').subscribe(e => okEvents.push(e));
+    tc.bus.on('mark:delete-ok').subscribe(e => okEvents.push(e));
 
-    tc.bus.get('mark:delete').next({ annotationId: 'ann-del' } as any);
+    tc.bus.emit('mark:delete', { annotationId: 'ann-del' } as any);
 
     await vi.waitFor(() => expect(deleteFn).toHaveBeenCalledOnce());
     await vi.waitFor(() => expect(okEvents).toHaveLength(1));
@@ -191,7 +191,7 @@ describe('createMarkStateUnit', () => {
     const motiv: unknown[] = [];
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
 
-    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
     expect(motiv[motiv.length - 1]).toBe('highlighting');
     stateUnit.dispose();
   });
@@ -204,7 +204,7 @@ describe('createMarkStateUnit', () => {
     const prog: unknown[] = [];
     stateUnit.progress$.subscribe(v => prog.push(v));
 
-    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
     progressSubject.next({ kind: 'progress', data: { percentage: 42, message: 'working' } });
     expect(prog[prog.length - 1]).toEqual({ percentage: 42, message: 'working' });
     stateUnit.dispose();
@@ -218,7 +218,7 @@ describe('createMarkStateUnit', () => {
     const motiv: unknown[] = [];
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
 
-    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
     expect(motiv[motiv.length - 1]).toBe('highlighting');
     progressSubject.complete();
     expect(motiv[motiv.length - 1]).toBeNull();
@@ -235,7 +235,7 @@ describe('createMarkStateUnit', () => {
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
     stateUnit.progress$.subscribe(v => prog.push(v));
 
-    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
     progressSubject.next({ kind: 'progress', data: { stage: 'x', percentage: 50, message: 'm' } });
     progressSubject.error(new Error('LLM error'));
 
@@ -252,9 +252,9 @@ describe('createMarkStateUnit', () => {
     const prog: unknown[] = [];
     stateUnit.progress$.subscribe(v => prog.push(v));
 
-    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
     progressSubject.next({ kind: 'progress', data: { stage: 'x', percentage: 50, message: 'm' } });
-    tc.bus.get('mark:progress-dismiss').next(undefined);
+    tc.bus.emit('mark:progress-dismiss', undefined);
     expect(prog[prog.length - 1]).toBeNull();
     stateUnit.dispose();
   });
@@ -273,7 +273,7 @@ describe('createMarkStateUnit', () => {
     stateUnit.progress$.subscribe(v => prog.push(v));
     stateUnit.assistingMotivation$.subscribe(v => assisting.push(v));
 
-    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
     progressSubject.next({ kind: 'progress', data: { percentage: 100, message: { code: 'analyzing' } } });
     progressSubject.complete();
 
@@ -284,7 +284,7 @@ describe('createMarkStateUnit', () => {
     expect(prog[prog.length - 1]).not.toBeNull();
 
     // And the explicit dismiss is what clears it.
-    tc.bus.get('mark:progress-dismiss').next({} as any);
+    tc.bus.emit('mark:progress-dismiss', {} as any);
     expect(prog[prog.length - 1]).toBeNull();
 
     stateUnit.dispose();
@@ -300,7 +300,7 @@ describe('createMarkStateUnit', () => {
     const motiv: unknown[] = [];
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
 
-    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
     expect(motiv[motiv.length - 1]).toBeNull();
     stateUnit.dispose();
   });
@@ -320,7 +320,7 @@ describe('createMarkStateUnit', () => {
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
     stateUnit.progress$.subscribe(v => prog.push(v));
 
-    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
     expect(motiv[motiv.length - 1]).toBe('highlighting');
 
     vi.advanceTimersByTime(ASSIST_SILENCE_MS);
@@ -348,7 +348,7 @@ describe('createMarkStateUnit', () => {
     const motiv: unknown[] = [];
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
 
-    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
     vi.advanceTimersByTime(ASSIST_SILENCE_MS);
     expect(motiv[motiv.length - 1]).toBe('highlighting'); // held
 
@@ -369,9 +369,9 @@ describe('createMarkStateUnit', () => {
     tc = withMark({ assist: vi.fn(() => new Observable(() => {})) });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const timeouts: unknown[] = [];
-    tc.bus.get('mark:assist-timeout').subscribe(e => timeouts.push(e));
+    tc.bus.on('mark:assist-timeout').subscribe(e => timeouts.push(e));
 
-    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
     vi.advanceTimersByTime(ASSIST_SILENCE_MS);
 
     expect(timeouts).toEqual([{ resourceId: 'res-1', motivation: 'highlighting' }]);
@@ -387,9 +387,9 @@ describe('createMarkStateUnit', () => {
     tc = withMark({ assist: vi.fn(() => new Observable((sub) => { sub.error(new Error('LLM down')); })) });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const timeouts: unknown[] = [];
-    tc.bus.get('mark:assist-timeout').subscribe(e => timeouts.push(e));
+    tc.bus.on('mark:assist-timeout').subscribe(e => timeouts.push(e));
 
-    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
 
     expect(timeouts).toEqual([]);
     stateUnit.dispose();
@@ -404,11 +404,11 @@ describe('createMarkStateUnit', () => {
     tc = withMark({ assist: assistFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const timeouts: unknown[] = [];
-    tc.bus.get('mark:assist-timeout').subscribe(e => timeouts.push(e));
+    tc.bus.on('mark:assist-timeout').subscribe(e => timeouts.push(e));
     const motiv: unknown[] = [];
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
 
-    tc.bus.get('mark:assist-request').next({ motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
     expect(motiv[motiv.length - 1]).toBe('highlighting');
 
     vi.advanceTimersByTime(ASSIST_SILENCE_MS - 10_000);
@@ -434,7 +434,7 @@ describe('createMarkStateUnit', () => {
     const stateUnit = createMarkStateUnit(tc.client, RID);
     stateUnit.dispose();
 
-    tc.bus.get('mark:submit').next({ motivation: 'highlighting', selector: {} } as any);
+    tc.bus.emit('mark:submit', { motivation: 'highlighting', selector: {} } as any);
     expect(annotationFn).not.toHaveBeenCalled();
   });
 });
@@ -468,7 +468,7 @@ describe('MarkStateUnit — StateUnit axioms', () => {
       unitA.pendingAnnotation$.subscribe(v => pendA.push(v));
       unitB.pendingAnnotation$.subscribe(v => pendB.push(v));
 
-      tc.bus.get('mark:requested').next({
+      tc.bus.emit('mark:requested', {
         source: 'res-a',
         selector: { type: 'TextQuoteSelector', exact: 'hello' },
         motivation: 'highlighting',
@@ -486,7 +486,7 @@ describe('MarkStateUnit — StateUnit axioms', () => {
       const unitA = createMarkStateUnit(tc.client, makeResourceId('res-a'));
       const unitB = createMarkStateUnit(tc.client, makeResourceId('res-b'));
 
-      tc.bus.get('mark:submit').next({
+      tc.bus.emit('mark:submit', {
         source: 'res-a',
         motivation: 'commenting',
         selector: { type: 'TextQuoteSelector', exact: 'x' },

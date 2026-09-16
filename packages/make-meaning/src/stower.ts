@@ -97,7 +97,7 @@ export class Stower {
     this.logger.info('Stower actor initialized');
 
     const pipe = <K extends keyof EventMap>(event: K, handler: (e: EventMap[K]) => Promise<void>) =>
-      this.eventBus.get(event).pipe(
+      this.eventBus.on(event).pipe(
         concatMap((e) =>
           from(withActorSpan('stower', event as string, () => handler(e))),
         ),
@@ -171,7 +171,7 @@ export class Stower {
         },
       });
 
-      this.eventBus.get('yield:create-ok').next({
+      this.eventBus.emit('yield:create-ok', {
         correlationId: event.correlationId,
         response: { resourceId: rId },
       });
@@ -184,7 +184,7 @@ export class Stower {
       // appended `yield:created` — by the time the Weaver processes
       // `mark:body-updated`, the target resource exists in the graph.
       if (generatedFrom) {
-        this.eventBus.get('mark:update-body').next({
+        this.eventBus.emit('mark:update-body', {
           annotationId: generatedFrom.annotationId,
           _userId: event._userId,
           resourceId: generatedFrom.resourceId,
@@ -207,7 +207,7 @@ export class Stower {
       }
     } catch (error) {
       this.logger.error('Failed to create resource', { error: errField(error) });
-      this.eventBus.get('yield:create-failed').next({
+      this.eventBus.emit('yield:create-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -260,13 +260,13 @@ export class Stower {
         },
       });
 
-      this.eventBus.get('yield:clone-persist-ok').next({
+      this.eventBus.emit('yield:clone-persist-ok', {
         correlationId: event.correlationId,
         response: { resourceId: rId },
       });
     } catch (error) {
       this.logger.error('Failed to persist clone', { error: errField(error) });
-      this.eventBus.get('yield:clone-persist-failed').next({
+      this.eventBus.emit('yield:clone-persist-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -291,13 +291,13 @@ export class Stower {
           contentByteSize: event.byteSize,
         },
       });
-      this.eventBus.get('yield:update-ok').next({
+      this.eventBus.emit('yield:update-ok', {
         correlationId: event.correlationId,
         response: { resourceId: event.resourceId },
       });
     } catch (error) {
       this.logger.error('Failed to update resource', { error: errField(error) });
-      this.eventBus.get('yield:update-failed').next({
+      this.eventBus.emit('yield:update-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -311,7 +311,7 @@ export class Stower {
       rId = resolved as ResourceId;
     } catch (error) {
       this.logger.error('Failed to resolve resource for move', { fromUri: event.fromUri, error });
-      this.eventBus.get('yield:move-failed').next({
+      this.eventBus.emit('yield:move-failed', {
         fromUri: event.fromUri,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -335,7 +335,7 @@ export class Stower {
       });
     } catch (error) {
       this.logger.error('Failed to move resource', { error: errField(error) });
-      this.eventBus.get('yield:move-failed').next({
+      this.eventBus.emit('yield:move-failed', {
         fromUri: event.fromUri,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -362,7 +362,7 @@ export class Stower {
       // persisted mark:added event (keyed by correlationId in metadata).
     } catch (error) {
       this.logger.error('Failed to create annotation', { error: errField(error) });
-      this.eventBus.get('mark:create-failed').next({
+      this.eventBus.emit('mark:create-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -425,7 +425,7 @@ export class Stower {
       this.logger.debug('Committed annotation batch', {
         correlationId: event.correlationId, resourceId: event.resourceId, persisted: annotations.length,
       });
-      this.eventBus.get('mark:commit-ok').next({
+      this.eventBus.emit('mark:commit-ok', {
         correlationId: event.correlationId,
         // The DURABLE count, which is what the acknowledgement means ("every
         // annotation named by the command is in the event log"). Not an append
@@ -440,7 +440,7 @@ export class Stower {
       this.logger.error('Failed to commit annotation batch', {
         correlationId: event.correlationId, error: errField(error),
       });
-      this.eventBus.get('mark:commit-failed').next({
+      this.eventBus.emit('mark:commit-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -462,10 +462,10 @@ export class Stower {
         version: 1,
         payload: { annotationId: annotationId(event.annotationId) },
       });
-      this.eventBus.get('mark:delete-ok').next({ correlationId: event.correlationId, response: { annotationId: event.annotationId } });
+      this.eventBus.emit('mark:delete-ok', { correlationId: event.correlationId, response: { annotationId: event.annotationId } });
     } catch (error) {
       this.logger.error('Failed to delete annotation', { error: errField(error) });
-      this.eventBus.get('mark:delete-failed').next({
+      this.eventBus.emit('mark:delete-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -492,7 +492,7 @@ export class Stower {
       // No manual .next() needed — appendEvent publishes StoredEvent on the Core EventBus
     } catch (error) {
       this.logger.error('Failed to update annotation body', { error: errField(error) });
-      this.eventBus.get('mark:body-update-failed').next({
+      this.eventBus.emit('mark:body-update-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -516,10 +516,10 @@ export class Stower {
       });
       // Correlation-keyed ack for the SDK's busRequest (the persisted
       // mark:archived domain event remains the system-of-record signal).
-      this.eventBus.get('mark:archive-ok').next({ correlationId: event.correlationId });
+      this.eventBus.emit('mark:archive-ok', { correlationId: event.correlationId });
     } catch (error) {
       this.logger.error('Failed to archive resource', { error: errField(error) });
-      this.eventBus.get('mark:archive-failed').next({
+      this.eventBus.emit('mark:archive-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -549,10 +549,10 @@ export class Stower {
         version: 1,
         payload: {},
       });
-      this.eventBus.get('mark:unarchive-ok').next({ correlationId: event.correlationId });
+      this.eventBus.emit('mark:unarchive-ok', { correlationId: event.correlationId });
     } catch (error) {
       this.logger.error('Failed to unarchive resource', { error: errField(error) });
-      this.eventBus.get('mark:unarchive-failed').next({
+      this.eventBus.emit('mark:unarchive-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -574,10 +574,10 @@ export class Stower {
       // in-process callers' success signal). `*-add-ok` is the correlation-keyed
       // ack the SDK's busRequest awaits (undefined correlationId for in-process
       // emits, which don't await it).
-      this.eventBus.get('frame:entity-type-add-ok').next({ correlationId: event.correlationId });
+      this.eventBus.emit('frame:entity-type-add-ok', { correlationId: event.correlationId });
     } catch (error) {
       this.logger.error('Failed to add entity type', { error: errField(error) });
-      this.eventBus.get('frame:entity-type-add-failed').next({
+      this.eventBus.emit('frame:entity-type-add-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -597,10 +597,10 @@ export class Stower {
       });
       // See handleAddEntityType: the domain event is the in-process callers'
       // success signal; `*-add-ok` is the correlation-keyed ack for the SDK's busRequest.
-      this.eventBus.get('frame:tag-schema-add-ok').next({ correlationId: event.correlationId });
+      this.eventBus.emit('frame:tag-schema-add-ok', { correlationId: event.correlationId });
     } catch (error) {
       this.logger.error('Failed to add tag schema', { schemaId: event.schema?.id, error: errField(error) });
-      this.eventBus.get('frame:tag-schema-add-failed').next({
+      this.eventBus.emit('frame:tag-schema-add-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });
@@ -652,10 +652,10 @@ export class Stower {
 
       // Correlation-keyed ack for the SDK's busRequest (the persisted
       // mark:entity-tag-* domain events remain the system-of-record signal).
-      this.eventBus.get('mark:update-entity-types-ok').next({ correlationId: event.correlationId });
+      this.eventBus.emit('mark:update-entity-types-ok', { correlationId: event.correlationId });
     } catch (error) {
       this.logger.error('Failed to update entity types', { error: errField(error) });
-      this.eventBus.get('mark:update-entity-types-failed').next({
+      this.eventBus.emit('mark:update-entity-types-failed', {
         correlationId: event.correlationId,
         message: error instanceof Error ? error.message : String(error),
       });

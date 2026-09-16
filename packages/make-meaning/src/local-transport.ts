@@ -114,10 +114,8 @@ export class LocalTransport implements ITransport {
         // Gateway-injected `_userId` isn't in every channel's declared payload,
         // so build the stamped object loosely and assert it back to EventMap[K].
         const stamped: Record<string, unknown> = { ...(payload as Record<string, unknown>), _userId: this.userId };
-        const target = resourceScope === undefined
-          ? this.bus.get(channel)
-          : this.bus.scope(resourceScope as string).get(channel);
-        target.next(stamped as EventMap[K]);
+        const target = resourceScope === undefined ? this.bus : this.bus.scope(resourceScope as string);
+        target.emit(channel, stamped as EventMap[K]);
       },
       {
         kind: SpanKind.PRODUCER,
@@ -133,12 +131,12 @@ export class LocalTransport implements ITransport {
   }
 
   on<K extends keyof EventMap>(channel: K, handler: (payload: EventMap[K]) => void): () => void {
-    const sub = this.bus.get(channel).subscribe(handler);
+    const sub = this.bus.on(channel).subscribe(handler);
     return () => sub.unsubscribe();
   }
 
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
-    return this.bus.get(channel);
+    return this.bus.on(channel);
   }
 
   /**
@@ -161,7 +159,7 @@ export class LocalTransport implements ITransport {
     if (this.bridges.includes(bus)) return;
     this.bridges.push(bus);
     for (const channel of BRIDGED_CHANNELS) {
-      const upstream: Observable<unknown> = this.bus.get(channel as keyof EventMap);
+      const upstream: Observable<unknown> = this.bus.on(channel as keyof EventMap);
       this.bridgeSubs.push(
         upstream.subscribe((payload) => {
           busLog('RECV', channel, payload);
@@ -171,7 +169,7 @@ export class LocalTransport implements ITransport {
           void withSpan(
             `bus.recv:${channel}`,
             () => {
-              bus.get(channel as keyof EventMap).next(payload as EventMap[keyof EventMap]);
+              bus.emit(channel as keyof EventMap, payload as EventMap[keyof EventMap]);
             },
             { kind: SpanKind.CONSUMER, attrs: { 'bus.channel': channel } },
           );

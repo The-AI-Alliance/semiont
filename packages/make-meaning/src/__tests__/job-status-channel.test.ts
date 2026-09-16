@@ -46,8 +46,8 @@ const config: MakeMeaningConfig = {
 
 /** First reply on either channel, or 'timeout' if the seam strands the caller. */
 async function replyTo(bus: EventBus): Promise<{ channel: string; body: any }> {
-  const ok = firstValueFrom(bus.get('job:status-result').pipe(take(1)));
-  const failed = firstValueFrom(bus.get('job:status-failed').pipe(take(1)));
+  const ok = firstValueFrom(bus.on('job:status-result').pipe(take(1)));
+  const failed = firstValueFrom(bus.on('job:status-failed').pipe(take(1)));
   const winner = await Promise.race([
     ok.then((body) => ({ channel: 'job:status-result', body })),
     failed.then((body) => ({ channel: 'job:status-failed', body })),
@@ -92,7 +92,7 @@ describe('job:status-requested', () => {
     } as never);
 
     const pending = replyTo(bus);
-    bus.get('job:status-requested').next({ correlationId: 'cid-ok', jobId: String(id) } as never);
+    bus.emit('job:status-requested', { correlationId: 'cid-ok', jobId: String(id) } as never);
 
     const reply = await pending;
     expect(reply.channel).toBe('job:status-result');
@@ -105,7 +105,7 @@ describe('job:status-requested', () => {
     // Not a resolve-with-nothing: the caller must be able to distinguish an
     // unknown id from a job it is allowed to see but which has no state yet.
     const pending = replyTo(bus);
-    bus.get('job:status-requested').next({ correlationId: 'cid-missing', jobId: 'job-does-not-exist' } as never);
+    bus.emit('job:status-requested', { correlationId: 'cid-missing', jobId: 'job-does-not-exist' } as never);
 
     const reply = await pending;
     expect(reply.channel).toBe('job:status-failed');
@@ -119,7 +119,7 @@ describe('job:status-requested', () => {
     vi.spyOn(service.jobQueue, 'getJob').mockRejectedValueOnce(new Error('queue unreadable'));
 
     const pending = replyTo(bus);
-    bus.get('job:status-requested').next({ correlationId: 'cid-boom', jobId: 'job-any' } as never);
+    bus.emit('job:status-requested', { correlationId: 'cid-boom', jobId: 'job-any' } as never);
 
     const reply = await pending;
     expect(reply.channel).toBe('job:status-failed');

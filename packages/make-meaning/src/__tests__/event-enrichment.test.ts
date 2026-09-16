@@ -53,7 +53,7 @@ describe('wireEnrichment — what the EventStore publishes on the annotation cha
 
   /** The next event published on `channel` — subscribe before appending. */
   const nextOn = <K extends keyof EventMap>(channel: K): Promise<EventMap[K]> =>
-    firstValueFrom(eventBus.get(channel));
+    firstValueFrom(eventBus.on(channel));
 
   const addAnnotation = () =>
     eventStore.appendEvent({ type: 'mark:added', resourceId: RID, userId: USER, version: 1, payload: { annotation } });

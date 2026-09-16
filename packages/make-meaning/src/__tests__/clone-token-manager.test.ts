@@ -90,11 +90,11 @@ describe('CloneTokenManager format selection', () => {
     const tokenCid = uuidv4();
     const token$ = firstValueFrom(
       race(
-        eventBus.get('yield:clone-token-generated').pipe(
+        eventBus.on('yield:clone-token-generated').pipe(
           filter((e) => e.correlationId === tokenCid),
           map((e) => e.response.token),
         ),
-        eventBus.get('yield:clone-token-failed').pipe(
+        eventBus.on('yield:clone-token-failed').pipe(
           filter((e) => e.correlationId === tokenCid),
           map((e) => {
             throw new Error(e.message);
@@ -102,17 +102,17 @@ describe('CloneTokenManager format selection', () => {
         ),
       ).pipe(timeout(5000)),
     );
-    eventBus.get('yield:clone-token-requested').next({ correlationId: tokenCid, resourceId: sourceId });
+    eventBus.emit('yield:clone-token-requested', { correlationId: tokenCid, resourceId: sourceId });
     const token = await token$;
 
     const createCid = uuidv4();
     const created$ = firstValueFrom(
       race(
-        eventBus.get('yield:clone-created').pipe(
+        eventBus.on('yield:clone-created').pipe(
           filter((e) => e.correlationId === createCid),
           map((e) => e.response.resourceId),
         ),
-        eventBus.get('yield:clone-create-failed').pipe(
+        eventBus.on('yield:clone-create-failed').pipe(
           filter((e) => e.correlationId === createCid),
           map((e) => {
             throw new Error(e.message);
@@ -127,7 +127,7 @@ describe('CloneTokenManager format selection', () => {
     const format = cloneFormat(sourceFormat);
     const cloneUri = deriveStorageUri(`clone-${fileCounter}`, format);
     const stored = await kb.content.store(Buffer.from('edited clone content'), cloneUri, { noGit: true });
-    eventBus.get('yield:clone-create').next({
+    eventBus.emit('yield:clone-create', {
       correlationId: createCid,
       token,
       name: `clone-${fileCounter}`,

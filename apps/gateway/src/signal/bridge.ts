@@ -50,10 +50,10 @@ export function bridgeGatewayHandlers(
   }
 
   const inbound = plane.subscribeHandlers(GATEWAY_HANDLER_GROUP, inboundChannels, (channel, payload) => {
-    eventBus.get(channel as keyof EventMap).next(payload as never);
+    eventBus.emit(channel as keyof EventMap, payload as never);
   });
   const outbound: Subscription[] = outboundChannels.map((channel) =>
-    eventBus.get(channel).subscribe((payload) => {
+    eventBus.on(channel).subscribe((payload) => {
       plane.ingest(channel, payload);
     }),
   );

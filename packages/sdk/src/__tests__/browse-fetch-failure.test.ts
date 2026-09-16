@@ -64,7 +64,7 @@ function makeFakeTransport() {
     // Pushes ride the SAME typed bus the transport streams from, so an
     // under-shaped fixture is a compile error rather than something the
     // transport's cast hid.
-    push: <K extends keyof EventMap>(channel: K, payload: EventMap[K]) => bus.get(channel).next(payload),
+    push: <K extends keyof EventMap>(channel: K, payload: EventMap[K]) => bus.emit(channel, payload),
   };
 }
 

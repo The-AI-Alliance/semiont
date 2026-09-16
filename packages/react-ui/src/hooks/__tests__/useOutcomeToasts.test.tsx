@@ -53,7 +53,7 @@ describe('useOutcomeToasts', () => {
   it('a clean decline (scanned-PDF no-text-layer) surfaces as info, not success', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('job:complete').next(jobComplete({
+      eventBus.emit('job:complete', jobComplete({
         result: { declined: true, reason: 'no-text-layer', message: 'This PDF has no extractable text layer (scanned or image-only); detection is not supported.' },
       }) as never);
     });
@@ -65,7 +65,7 @@ describe('useOutcomeToasts', () => {
   it('a normal annotation completion surfaces as success', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('job:complete').next(jobComplete({
+      eventBus.emit('job:complete', jobComplete({
         result: { highlightsFound: 3, highlightsCreated: 3 },
       }) as never);
     });
@@ -76,7 +76,7 @@ describe('useOutcomeToasts', () => {
   it('a generation completion surfaces the created resource name', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('job:complete').next(jobComplete({
+      eventBus.emit('job:complete', jobComplete({
         jobType: 'generation',
         result: { kind: 'generation', resourceId: 'res-gen', resourceName: 'Cell Biology Notes' },
       }) as never);
@@ -87,8 +87,8 @@ describe('useOutcomeToasts', () => {
   it('completions for a different resource are ignored (resourceId filter)', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('job:complete').next(jobComplete({ resourceId: 'other-res' }) as never);
-      eventBus.get('job:fail').next({ resourceId: 'other-res', jobId: 'job-1', jobType: 'highlight-annotation', error: 'boom' } as never);
+      eventBus.emit('job:complete', jobComplete({ resourceId: 'other-res' }) as never);
+      eventBus.emit('job:fail', { resourceId: 'other-res', jobId: 'job-1', jobType: 'highlight-annotation', error: 'boom' } as never);
     });
     expect(showSuccess).not.toHaveBeenCalled();
     expect(showInfo).not.toHaveBeenCalled();
@@ -98,7 +98,7 @@ describe('useOutcomeToasts', () => {
   it('a job failure surfaces as error with the worker message', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('job:fail').next({ resourceId: RID, jobId: 'job-1', jobType: 'highlight-annotation', error: 'inference timed out' } as never);
+      eventBus.emit('job:fail', { resourceId: RID, jobId: 'job-1', jobType: 'highlight-annotation', error: 'inference timed out' } as never);
     });
     expect(showError).toHaveBeenCalledWith('inference timed out');
   });
@@ -106,7 +106,7 @@ describe('useOutcomeToasts', () => {
   it('a local create error toasts once, filtered to this resource', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('mark:create-error').next({ resourceId: RID, message: 'nope' });
+      eventBus.emit('mark:create-error', { resourceId: RID, message: 'nope' });
     });
     expect(showError).toHaveBeenCalledWith('createFailed(detail=nope)');
     expect(showError).toHaveBeenCalledTimes(1);
@@ -115,8 +115,8 @@ describe('useOutcomeToasts', () => {
   it('a local delete error toasts, filtered to this resource', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('mark:delete-error').next({ resourceId: RID, message: 'gone wrong' });
-      eventBus.get('mark:delete-error').next({ resourceId: 'other-res', message: 'not mine' });
+      eventBus.emit('mark:delete-error', { resourceId: RID, message: 'gone wrong' });
+      eventBus.emit('mark:delete-error', { resourceId: 'other-res', message: 'not mine' });
     });
     expect(showError).toHaveBeenCalledWith('deleteFailed(detail=gone wrong)');
     expect(showError).toHaveBeenCalledTimes(1);
@@ -128,8 +128,8 @@ describe('useOutcomeToasts', () => {
     // requester and leaks other users' failures.
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('mark:create-failed').next({ correlationId: 'c-1', message: 'nope' } as never);
-      eventBus.get('mark:delete-failed').next({ correlationId: 'c-2', message: 'nope' } as never);
+      eventBus.emit('mark:create-failed', { correlationId: 'c-1', message: 'nope' } as never);
+      eventBus.emit('mark:delete-failed', { correlationId: 'c-2', message: 'nope' } as never);
     });
     expect(showError).not.toHaveBeenCalled();
   });
@@ -137,7 +137,7 @@ describe('useOutcomeToasts', () => {
   it('bind:body-update-failed (raw wire reply) does NOT toast', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('bind:body-update-failed').next({ correlationId: 'c-3', message: 'nope' } as never);
+      eventBus.emit('bind:body-update-failed', { correlationId: 'c-3', message: 'nope' } as never);
     });
     expect(showError).not.toHaveBeenCalled();
   });
@@ -147,8 +147,8 @@ describe('useOutcomeToasts', () => {
     // client-local sibling instead.
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('bind:body-error').next({ resourceId: RID, message: 'nope' });
-      eventBus.get('bind:body-error').next({ resourceId: 'other-res', message: 'not mine' });
+      eventBus.emit('bind:body-error', { resourceId: RID, message: 'nope' });
+      eventBus.emit('bind:body-error', { resourceId: 'other-res', message: 'not mine' });
     });
     expect(showError).toHaveBeenCalledWith('referenceUpdateFailed(detail=nope)');
     expect(showError).toHaveBeenCalledTimes(1);
@@ -160,7 +160,7 @@ describe('useOutcomeToasts', () => {
     // annotations, so an error toast was telling the user something untrue.
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('mark:assist-timeout').next({ resourceId: RID, motivation: 'highlighting' });
+      eventBus.emit('mark:assist-timeout', { resourceId: RID, motivation: 'highlighting' });
     });
     expect(showInfo).toHaveBeenCalledWith('assistQuiet');
     expect(showError).not.toHaveBeenCalled();
@@ -169,7 +169,7 @@ describe('useOutcomeToasts', () => {
   it('assist silence for a different resource is ignored (resourceId filter)', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('mark:assist-timeout').next({ resourceId: 'other-res', motivation: 'highlighting' });
+      eventBus.emit('mark:assist-timeout', { resourceId: 'other-res', motivation: 'highlighting' });
     });
     expect(showInfo).not.toHaveBeenCalled();
     expect(showError).not.toHaveBeenCalled();
@@ -194,7 +194,7 @@ describe('useOutcomeToasts — partiality (RD4 on the ephemeral surface)', () =>
   it('complete with under-reported pieces → info naming the shortfall, not success', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('job:complete').next(jobComplete({
+      eventBus.emit('job:complete', jobComplete({
         result: { kind: 'reference-annotation', totalFound: 9, totalEmitted: 6, errors: 0, underReportedPieces: 3 },
       }) as never);
     });
@@ -205,7 +205,7 @@ describe('useOutcomeToasts — partiality (RD4 on the ephemeral surface)', () =>
   it('complete with the field ABSENT → plain success; cleanliness is never re-derived', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('job:complete').next(jobComplete({
+      eventBus.emit('job:complete', jobComplete({
         result: { kind: 'reference-annotation', totalFound: 6, totalEmitted: 6, errors: 0 },
       }) as never);
     });
@@ -216,7 +216,7 @@ describe('useOutcomeToasts — partiality (RD4 on the ephemeral surface)', () =>
   it('a RETRYABLE failure toasts nothing — a setback is not an ending', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('job:fail').next({
+      eventBus.emit('job:fail', {
         resourceId: RID, jobId: 'job-1', jobType: 'highlight-annotation',
         error: 'transient', willRetry: true,
       } as never);
@@ -228,7 +228,7 @@ describe('useOutcomeToasts — partiality (RD4 on the ephemeral surface)', () =>
   it('a terminal failure with completed units → error that says the finds were kept', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('job:fail').next({
+      eventBus.emit('job:fail', {
         resourceId: RID, jobId: 'job-1', jobType: 'reference-annotation',
         error: 'boom', willRetry: false, completedUnits: ['Person', 'Place'],
       } as never);
@@ -239,7 +239,7 @@ describe('useOutcomeToasts — partiality (RD4 on the ephemeral surface)', () =>
   it('a terminal failure with nothing completed → the plain failure path, unchanged', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.get('job:fail').next({
+      eventBus.emit('job:fail', {
         resourceId: RID, jobId: 'job-1', jobType: 'highlight-annotation',
         error: 'boom', willRetry: false,
       } as never);

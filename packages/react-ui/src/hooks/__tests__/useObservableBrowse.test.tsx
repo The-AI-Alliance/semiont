@@ -27,7 +27,7 @@ describe('useObservableRouter', () => {
     const { result } = renderHook(() => useObservableRouter(baseRouter), { wrapper: Wrapper });
 
     const events: any[] = [];
-    eventBus.get('nav:push').subscribe((e: any) => events.push(e));
+    eventBus.on('nav:push').subscribe((e: any) => events.push(e));
 
     act(() => {
       result.current.push('/test-path', { reason: 'test' });
@@ -46,7 +46,7 @@ describe('useObservableRouter', () => {
     const { result } = renderHook(() => useObservableRouter(baseRouter), { wrapper: Wrapper });
 
     const events: any[] = [];
-    eventBus.get('nav:push').subscribe((e: any) => events.push(e));
+    eventBus.on('nav:push').subscribe((e: any) => events.push(e));
 
     act(() => {
       result.current.replace!('/replaced', { reason: 'nav' });
@@ -90,7 +90,7 @@ describe('useObservableExternalNavigation', () => {
     const { result } = renderHook(() => useObservableExternalNavigation(), { wrapper: Wrapper });
 
     const events: any[] = [];
-    eventBus.get('nav:external').subscribe((e: any) => events.push(e));
+    eventBus.on('nav:external').subscribe((e: any) => events.push(e));
 
     act(() => {
       result.current('/some/url', { resourceId: 'res-123' });
@@ -111,7 +111,7 @@ describe('useObservableExternalNavigation', () => {
     const { result } = renderHook(() => useObservableExternalNavigation(), { wrapper: Wrapper });
 
     // Subscribe and cancel the fallback
-    eventBus.get('nav:external').subscribe((e: any) => {
+    eventBus.on('nav:external').subscribe((e: any) => {
       e.cancelFallback();
     });
 

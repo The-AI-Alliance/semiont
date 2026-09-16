@@ -39,7 +39,7 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { view
   const logger = parentLogger.child({ component: 'annotation-assembly' });
   const inflight = new Map<string, { annotationId: string }>();
 
-  eventBus.get('mark:create-request').subscribe((command) => {
+  eventBus.on('mark:create-request').subscribe((command) => {
     // Async because the gate reads the target's view; the try/catch below
     // covers the whole body, so nothing escapes as an unhandled rejection.
     void (async () => {
@@ -63,7 +63,7 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { view
 
       inflight.set(cid, { annotationId: annotation.id });
 
-      eventBus.get('mark:create').next({
+      eventBus.emit('mark:create', {
         correlationId: cid,
         annotation,
         _userId,
@@ -79,7 +79,7 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { view
         correlationId: cid,
         error: (error as Error).message,
       });
-      eventBus.get('mark:create-failed').next({
+      eventBus.emit('mark:create-failed', {
         correlationId: cid,
         message: (error as Error).message,
       });
@@ -87,20 +87,20 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { view
     })();
   });
 
-  eventBus.get('mark:added').subscribe((event) => {
+  eventBus.on('mark:added').subscribe((event) => {
     const cid = event.metadata?.correlationId;
     if (!cid) return;
     const pending = inflight.get(cid);
     if (!pending) return;
     inflight.delete(cid);
-    eventBus.get('mark:create-ok').next({
+    eventBus.emit('mark:create-ok', {
       correlationId: cid,
       response: { annotationId: pending.annotationId },
     });
     logger.info('Annotation persisted', { annotationId: pending.annotationId, correlationId: cid });
   });
 
-  eventBus.get('mark:create-failed').subscribe((event) => {
+  eventBus.on('mark:create-failed').subscribe((event) => {
     const cid = (event as { correlationId?: string }).correlationId;
     if (!cid || !inflight.has(cid)) return;
     inflight.delete(cid);

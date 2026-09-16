@@ -51,7 +51,7 @@ function makeFakeTransport() {
     reply: Omit<EventMap[Res], 'correlationId'>,
   ) => {
     if (channel === requestChannel) {
-      bus.get(resultChannel).next({ correlationId: payload.correlationId as string, ...reply } as EventMap[Res]);
+      bus.emit(resultChannel, { correlationId: payload.correlationId as string, ...reply } as EventMap[Res]);
     }
   };
 

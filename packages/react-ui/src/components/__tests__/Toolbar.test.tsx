@@ -73,7 +73,7 @@ describe('Toolbar', () => {
         { returnShellBus: true }
       );
 
-      const subscription = shellBus!.get('panel:toggle').subscribe(handler);
+      const subscription = shellBus!.on('panel:toggle').subscribe(handler);
 
       fireEvent.click(screen.getByLabelText('Toolbar.resourceInfo'));
       expect(handler).toHaveBeenCalledWith({ panel: 'info' });

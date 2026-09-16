@@ -58,7 +58,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Subscribe to colon-notation channel (like SSE streams do)
     const scopedBus = coreEventBus.scope(rId);
-    const subscription = scopedBus.get('job:completed').subscribe((event) => {
+    const subscription = scopedBus.on('job:completed').subscribe((event) => {
       receivedEvents.push(event);
     });
 
@@ -93,7 +93,7 @@ describe('EventStore Channel Routing Integration', () => {
     const globalEvents: any[] = [];
 
     // Subscribe to global (unscoped) typed channel
-    const subscription = coreEventBus.get('job:started').subscribe((event) => {
+    const subscription = coreEventBus.on('job:started').subscribe((event) => {
       globalEvents.push(event);
     });
 
@@ -130,8 +130,8 @@ describe('EventStore Channel Routing Integration', () => {
     const resource2Events: any[] = [];
 
     // Subscribe to each resource's scoped bus
-    const sub1 = coreEventBus.scope(rId1).get('job:completed').subscribe(e => resource1Events.push(e));
-    const sub2 = coreEventBus.scope(rId2).get('job:completed').subscribe(e => resource2Events.push(e));
+    const sub1 = coreEventBus.scope(rId1).on('job:completed').subscribe(e => resource1Events.push(e));
+    const sub2 = coreEventBus.scope(rId2).on('job:completed').subscribe(e => resource2Events.push(e));
 
     // Emit to resource 1
     await eventStore.appendEvent({
@@ -184,9 +184,9 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Subscribe to all job event types
     const scopedBus = coreEventBus.scope(rId);
-    const startedSub = scopedBus.get('job:started').subscribe(e => startedEvents.push(e));
-    const completedSub = scopedBus.get('job:completed').subscribe(e => completedEvents.push(e));
-    const failedSub = scopedBus.get('job:failed').subscribe(e => failedEvents.push(e));
+    const startedSub = scopedBus.on('job:started').subscribe(e => startedEvents.push(e));
+    const completedSub = scopedBus.on('job:completed').subscribe(e => completedEvents.push(e));
+    const failedSub = scopedBus.on('job:failed').subscribe(e => failedEvents.push(e));
 
     // Emit multiple event types
     await eventStore.appendEvent({
@@ -229,7 +229,7 @@ describe('EventStore Channel Routing Integration', () => {
 
     // Subscribe to job:failed channel
     const scopedBus = coreEventBus.scope(rId);
-    const subscription = scopedBus.get('job:failed').subscribe(e => failedEvents.push(e));
+    const subscription = scopedBus.on('job:failed').subscribe(e => failedEvents.push(e));
 
     // Emit job.failed event (dot notation)
     await eventStore.appendEvent({
