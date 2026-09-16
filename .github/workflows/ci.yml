@@ -200,9 +200,10 @@ jobs:
       - name: Run comprehensive test suite
         run: |
           echo "Running comprehensive test suite..."
-          # Run tests for each package
-          cd apps/browser && npm test && cd ../..
-          cd apps/gateway && npm test && npm run test:integration && cd ../..
+          # One subshell per suite: `bash -e` ignores non-final failures
+          # inside a bare `&&` chain, but honors a subshell's exit status.
+          (cd apps/browser && npm test)
+          (cd apps/gateway && npm test && npm run test:integration)
 
           echo "All tests completed successfully"
         env:
