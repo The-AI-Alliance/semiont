@@ -29,6 +29,7 @@ import {
   makeMeaningConfigFrom,
   requireKBName,
 } from '@semiont/make-meaning';
+import { JOB_QUEUE_EMITS } from '@semiont/jobs';
 import { loadEnvironmentConfig } from '@semiont/core/node';
 
 import { User } from '@prisma/client';
@@ -281,7 +282,12 @@ compositionFor(eventBus, signalPlane);
 // place composition acknowledges which driver won, beside the selection
 // itself.
 if (signalPlane) {
-  bridgeGatewayHandlers(signalPlane, eventBus, GATEWAY_HANDLER_CHANNELS, GATEWAY_HANDLER_EMITS);
+  // Outbound is the UNION of gateway-resident emitters: the handlers AND the
+  // queue drivers (job:queued announcements are the queue's, not a handler's).
+  bridgeGatewayHandlers(signalPlane, eventBus, GATEWAY_HANDLER_CHANNELS, [
+    ...GATEWAY_HANDLER_EMITS,
+    ...JOB_QUEUE_EMITS,
+  ]);
   logger.info('Signal Plane handler bridge active', {
     consumed: GATEWAY_HANDLER_CHANNELS.length,
     emitted: GATEWAY_HANDLER_EMITS.length,

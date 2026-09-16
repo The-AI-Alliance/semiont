@@ -84,12 +84,15 @@ describe('createJobClaimAdapter', () => {
     adapter.dispose();
   });
 
-  it('adds job:queued to the shared actor on start()', () => {
+  it('needs no channel widening on start() — job:queued is a bridged broadcast', () => {
+    // Registry-declared since 2026-09-16 (the fallthrough classification
+    // starved every worker): every wire transport subscribes it by
+    // construction, so the adapter must NOT widen — a second widening path
+    // would hide a transport that stopped honoring BRIDGED_CHANNELS.
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
-    expect(h.channels.has('job:queued')).toBe(true);
-    expect(h.bus.addChannels).toHaveBeenCalledWith(['job:queued']);
+    expect(h.bus.addChannels).not.toHaveBeenCalled();
 
     adapter.dispose();
   });
@@ -171,10 +174,12 @@ describe('createJobClaimAdapter', () => {
   });
 
   it('start() is idempotent', () => {
+    const streamSpy = vi.spyOn(h.bus, 'stream');
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
     adapter.start();
-    expect(h.bus.addChannels).toHaveBeenCalledTimes(1);
+    // One job:queued subscription, not two — a second would double-claim.
+    expect(streamSpy).toHaveBeenCalledTimes(1);
 
     adapter.dispose();
   });

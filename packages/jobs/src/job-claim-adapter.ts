@@ -244,12 +244,10 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
     start: () => {
       if (started) return;
       started = true;
-      // `job:queued` is not in BRIDGED_CHANNELS (it's a worker-only
-      // broadcast). On HTTP, widen the SSE subscription set so this
-      // adapter sees queued jobs; in-process buses receive every
-      // emit and need no widening, hence the optional chain.
-      bus.addChannels?.(['job:queued']);
-
+      // `job:queued` is a bridged broadcast (declared in the registry since
+      // 2026-09-16 — its old fallthrough classification starved every
+      // worker), so every wire transport subscribes it by construction and
+      // no widening is needed here.
       jobSubscription = bus
         .stream('job:queued')
         .subscribe((event) => {

@@ -26,7 +26,10 @@
  *        hold the claim — the discriminator replica-local designs die on;
  *  - H7  (found LIVE, post-GREEN): a gateway-internal `busRequest` rides
  *        the plane primitive and reaches a remote bus-client actor — the
- *        `yield:create` starvation bug as a test.
+ *        `yield:create` starvation bug as a test;
+ *  - H8  (found LIVE, post-GREEN): a queue driver's raw-bus `job:queued`
+ *        announcement crosses the bridge to a worker-shaped client on the
+ *        other instance — the worker starvation bug as a test.
  *
  * Ordering note: a claim announcement and its request leave one connection
  * in order, so every subscriber sees claim-before-request (and B-published
@@ -35,8 +38,9 @@
  * the claim land (`awaitClaim`) before the reply is emitted.
  */
 import { afterAll, describe, test, expect } from 'vitest';
-import { EventBus, busRequest, type BusOperationKey } from '@semiont/core';
+import { EventBus, busRequest, type BusOperationKey, type EventMap } from '@semiont/core';
 import { GATEWAY_HANDLER_CHANNELS, GATEWAY_HANDLER_EMITS } from '@semiont/make-meaning';
+import { JOB_QUEUE_EMITS } from '@semiont/jobs';
 import { toReplyAddress } from '../interface';
 import { createNatsSignalPlane } from '../nats';
 import { compositionFor, type SignalComposition } from '../composition';
@@ -73,6 +77,9 @@ interface Instance {
   /** A gateway-internal `busRequest` over the plane primitive — the
    *  ResourceOperations shape (`requestPrimitiveFor`). */
   request(operation: BusOperationKey, payload: Record<string, unknown>): Promise<unknown>;
+  /** A raw emit on this instance's BUS — the queue drivers' shape; only the
+   *  outbound bridge can carry it to the plane. */
+  emitOnBus(channel: keyof EventMap, payload: unknown): void;
   teardown(): void;
 }
 
@@ -80,7 +87,12 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
   const bus = new EventBus();
   const plane = await createNatsSignalPlane({ servers, reconnect: false });
   const composition = compositionFor(bus, plane);
-  const bridge = bridgeGatewayHandlers(plane, bus, GATEWAY_HANDLER_CHANNELS, GATEWAY_HANDLER_EMITS);
+  // The same union production composes (index.ts): handler emits PLUS the
+  // queue drivers' announcements. H8 fails if either half goes missing.
+  const bridge = bridgeGatewayHandlers(plane, bus, GATEWAY_HANDLER_CHANNELS, [
+    ...GATEWAY_HANDLER_EMITS,
+    ...JOB_QUEUE_EMITS,
+  ]);
 
   // The gateway-resident handler, in miniature: subscribes THIS instance's
   // bus (as registerGatewayBusHandlers does) and answers on it — the bridge
@@ -128,6 +140,9 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
     },
     request(operation, payload) {
       return busRequest(requestPrimitiveFor(bus), operation, payload, 5_000);
+    },
+    emitOnBus(channel, payload) {
+      bus.get(channel).next(payload as never);
     },
     teardown() {
       bridge.close();
@@ -286,6 +301,32 @@ describe('P3 — two gateway-compositions over one broker', () => {
       const response = await a.request('yield:create', { name: 'h7' });
       expect(response).toEqual({ resourceId: 'urn:semiont:r-h7' });
       stower.close();
+    } finally {
+      done();
+    }
+  });
+
+  test('H8: a queue announcement on the bus reaches a worker-shaped client on the other instance', async () => {
+    // The worker starvation bug as a test
+    // (.plans/bugs/job-queued-classified-in-process-starves-workers.md):
+    // the queue DRIVERS emit `job:queued` on the raw bus, and its old
+    // fallthrough classification ('in-process') made the bridge's direction
+    // filter drop it silently — workers heard nothing, forever. Now it is a
+    // declared bridged broadcast and rides JOB_QUEUE_EMITS through the
+    // outbound bridge.
+    const { a, b, done } = await twoInstances();
+    try {
+      const worker = b.client('worker-h8', ['job:queued']);
+      await settle(() => {
+        if (worker.frames.length >= 1) return true;
+        // Emit-until-seen, as H4: the queue driver re-announces on a timer
+        // in production, so repetition is the honest model too.
+        a.emitOnBus('job:queued', { jobId: 'job-h8', jobType: 'generate' });
+        return false;
+      });
+      expect(worker.frames.length, 'worker heard the announcement').toBeGreaterThanOrEqual(1);
+      expect(worker.frames[0]!.channel).toBe('job:queued');
+      worker.close();
     } finally {
       done();
     }

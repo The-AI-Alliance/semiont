@@ -78,7 +78,7 @@ const FROZEN_BRIDGED = [
   'gather:annotation-progress',
   'gather:summary-result', 'gather:summary-failed',
   'bind:body-updated', 'bind:body-update-failed',
-  'job:report-progress', 'job:complete', 'job:fail',
+  'job:report-progress', 'job:complete', 'job:fail', 'job:queued',
   'smelt:settled',
   'job:status-result', 'job:status-failed',
   'job:created', 'job:create-failed',

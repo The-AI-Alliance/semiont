@@ -207,11 +207,42 @@ for (const ch of requestSet) {
   if (deliveryOf.has(ch)) throw new Error(`registry: "${ch}" is both a request and a delivered channel`);
 }
 
+// Direction is DECLARED, never defaulted. The old fallthrough ("not a
+// request, no delivery → in-process") manufactured a value nothing had
+// decided — `job:queued` shipped as in-process and starved every worker
+// (.plans/bugs/job-queued-classified-in-process-starves-workers.md). Every
+// channel now names its class or the generator refuses.
+const commandSet = new Set(reg.outboundCommands.channels);
+const inProcessSet = new Set(reg.inProcess.channels);
+for (const ch of commandSet) {
+  if (requestSet.has(ch)) throw new Error(`registry: "${ch}" is both an operation request and an outboundCommand`);
+  if (deliveryOf.has(ch)) throw new Error(`registry: "${ch}" is both an outboundCommand and a delivered channel`);
+}
+for (const ch of inProcessSet) {
+  if (requestSet.has(ch) || commandSet.has(ch) || deliveryOf.has(ch)) {
+    throw new Error(`registry: "${ch}" is declared inProcess but also carries a wire class`);
+  }
+}
+// Typo guard: a declaration for a channel the roster doesn't carry is drift.
+const roster = new Set(reg.channelOrder.eventMap);
+for (const ch of [...commandSet, ...inProcessSet]) {
+  if (!roster.has(ch)) throw new Error(`registry: "${ch}" is classified but not in channelOrder.eventMap`);
+}
+
 const attrLines = reg.channelOrder.eventMap.map((ch) => {
   const c = channelOr(ch, 'eventMap');
   const recorded = Boolean(c.event);
   const delivery = deliveryOf.get(ch);
-  const direction = requestSet.has(ch) ? 'outbound' : delivery ? 'inbound' : 'in-process';
+  const direction =
+    requestSet.has(ch) || commandSet.has(ch) ? 'outbound'
+    : delivery ? 'inbound'
+    : inProcessSet.has(ch) ? 'in-process'
+    : (() => {
+        throw new Error(
+          `registry: channel "${ch}" declares no direction — add it to operations, ` +
+          `outboundCommands, bridgedBroadcasts, or inProcess. There is no default.`,
+        );
+      })();
   const tail = delivery ? `, delivery: '${delivery}'` : '';
   return pad(`  '${ch}':`, VALUE_COL_SCHEMAS) + `{ recorded: ${recorded}, direction: '${direction}'${tail} },`;
 });

@@ -43,6 +43,7 @@ export const BRIDGED_BROADCASTS = [
   'job:report-progress',
   'job:complete',
   'job:fail',
+  'job:queued',
   'smelt:settled',
   'frame:entity-type-added',
   'frame:tag-schema-added',
