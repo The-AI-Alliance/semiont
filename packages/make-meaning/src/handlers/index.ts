@@ -49,6 +49,7 @@ export const GATEWAY_HANDLER_CHANNELS = [
   // job-commands
   'job:create', 'job:claim', 'job:complete', 'job:fail',
   'job:report-progress', 'job:checkpoint', 'job:cancel-requested', 'job:cancel',
+  'job:status-requested',
 ] as const satisfies readonly (keyof EventMap)[];
 
 /**
@@ -62,7 +63,7 @@ export const GATEWAY_HANDLER_EMITS = [
   'mark:update-body', 'bind:body-updated', 'bind:body-update-failed',
   // job-commands
   'job:created', 'job:create-failed', 'job:claimed', 'job:claim-failed',
-  'job:cancel-ok', 'job:cancel-failed',
+  'job:cancel-ok', 'job:cancel-failed', 'job:status-result', 'job:status-failed',
 ] as const satisfies readonly (keyof EventMap)[];
 
 /**
