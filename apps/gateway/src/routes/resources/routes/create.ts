@@ -14,6 +14,7 @@ import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
 import { putContent } from '../../../lib/archivist';
+import { requestPrimitiveFor } from '../../../signal';
 import { SpanKind, withSpan, withTraceparent } from '@semiont/observability';
 
 type ContentFormat = components['schemas']['ContentFormat'];
@@ -111,7 +112,10 @@ export function registerCreateResource(router: ResourcesRouterType) {
           // full copies of every upload.
           const stored = await putContent(c.get('config'), storageUri, file);
 
-          const eventBus = c.get('eventBus');
+          // The PLANE-backed primitive, never the raw bus: the Stower lives in
+          // the Archivist, reachable only through the signal plane under a
+          // remote driver (the yield:create starvation bug, 2026-09-15).
+          const bus = requestPrimitiveFor(c.get('eventBus'));
 
           // Clone uploads carry a token instead of full metadata: the
           // CloneTokenManager validates it and inherits the source's entity
@@ -128,7 +132,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
                 archiveOriginal: archiveOriginalStr ? archiveOriginalStr === 'true' : undefined,
               },
               userId(principalDid),
-              eventBus,
+              bus,
             );
           }
 
@@ -148,7 +152,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
               isDraft: isDraftStr ? isDraftStr === 'true' : undefined,
             },
             userId(principalDid),
-            eventBus,
+            bus,
           );
         },
         {

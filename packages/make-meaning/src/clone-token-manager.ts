@@ -22,6 +22,7 @@ import { getResourceEntityTypes, getStorageUri } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { WorkingTreeStore } from '@semiont/content';
 import { ResourceContext } from './resource-context';
+import { asBusRequestPrimitive } from './bus-request-local';
 import { ResourceOperations } from './resource-operations';
 
 /**
@@ -247,7 +248,7 @@ export class CloneTokenManager {
           entityTypes: getResourceEntityTypes(sourceDoc),
         },
         makeUserId(event._userId),
-        this.eventBus,
+        asBusRequestPrimitive(this.eventBus),
       );
 
       // Archive original if requested

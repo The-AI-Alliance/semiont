@@ -274,9 +274,9 @@ export function createCorrelationRegistry(
      *  - a result/failure with NO correlationId violates REPLY-SHAPE-STANDARD
      *    → drop and warn (loud absence; never a manufactured broadcast);
      *  - a NEVER-CLAIMED cid → drop silently. This is the structural
-     *    in-process case (`eventBusRequest` runs on the gateway's own plane
-     *    and consumes the reply itself), not a lossy mode — a warn here would
-     *    fire on every in-process operation;
+     *    in-process case (a gateway-internal `busRequest` rides the plane
+     *    via `requestPrimitiveFor` and consumes the reply itself), not a
+     *    lossy mode — a warn here would fire on every in-process operation;
      *  - a cid owned by someone else → drop silently. That is the routing
      *    working.
      * The genuinely lossy case, claimed-then-expired, is breadcrumbed at

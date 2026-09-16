@@ -77,4 +77,26 @@ describe('signal driver boundary', () => {
       ).toBe(false);
     }
   });
+
+  test('gate 5 — the raw-bus request primitive never enters the gateway', async () => {
+    // A gateway-internal busRequest over `asBusRequestPrimitive(eventBus)`
+    // emits on a bus a remote plane never feeds: the request reaches no
+    // remote actor and hangs its full timeout — the `yield:create`
+    // starvation bug (.plans/bugs/
+    // yield-create-unbridged-starves-resource-creation.md). The gateway's
+    // one primitive is `requestPrimitiveFor` (plane-backed; bit-identical
+    // over the in-process driver). CODE, not prose: comments may name the
+    // banned symbol to explain this very ban.
+    const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    const gatewaySrc = path.join(SIGNAL_DIR, '..');
+    const self = fileURLToPath(import.meta.url);
+    for (const file of await tsFiles(gatewaySrc)) {
+      if (file === self) continue; // the instrument names its own ban
+      const source = stripComments(await fs.readFile(file, 'utf-8'));
+      expect(
+        source.includes('asBusRequestPrimitive'),
+        `${path.relative(gatewaySrc, file)} uses the raw-bus request primitive — gateway requests ride requestPrimitiveFor`,
+      ).toBe(false);
+    }
+  });
 });

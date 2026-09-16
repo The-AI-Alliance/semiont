@@ -23,7 +23,10 @@
  *  - H5  (property 5): reply recovery (`pendingReplies`) answers from the
  *        OTHER instance;
  *  - H6  (property 2): the reply is emitted via an instance that does NOT
- *        hold the claim — the discriminator replica-local designs die on.
+ *        hold the claim — the discriminator replica-local designs die on;
+ *  - H7  (found LIVE, post-GREEN): a gateway-internal `busRequest` rides
+ *        the plane primitive and reaches a remote bus-client actor — the
+ *        `yield:create` starvation bug as a test.
  *
  * Ordering note: a claim announcement and its request leave one connection
  * in order, so every subscriber sees claim-before-request (and B-published
@@ -32,13 +35,14 @@
  * the claim land (`awaitClaim`) before the reply is emitted.
  */
 import { afterAll, describe, test, expect } from 'vitest';
-import { EventBus } from '@semiont/core';
+import { EventBus, busRequest, type BusOperationKey } from '@semiont/core';
 import { GATEWAY_HANDLER_CHANNELS, GATEWAY_HANDLER_EMITS } from '@semiont/make-meaning';
 import { toReplyAddress } from '../interface';
 import { createNatsSignalPlane } from '../nats';
 import { compositionFor, type SignalComposition } from '../composition';
 import { bridgeGatewayHandlers } from '../bridge';
 import { isCorrelatedChannel } from '../channels';
+import { requestPrimitiveFor } from '../request-primitive';
 import { natsFixture } from './nats-fixture';
 
 /** Generous async settling: poll, never assume synchronous delivery. */
@@ -66,6 +70,9 @@ interface Instance {
   client(clientId: string, channels: string[]): { frames: Array<{ channel: string; payload: unknown }>; close(): void };
   /** Wait until this instance's ledger knows the claim. */
   awaitClaim(cid: string): Promise<void>;
+  /** A gateway-internal `busRequest` over the plane primitive — the
+   *  ResourceOperations shape (`requestPrimitiveFor`). */
+  request(operation: BusOperationKey, payload: Record<string, unknown>): Promise<unknown>;
   teardown(): void;
 }
 
@@ -118,6 +125,9 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
     async awaitClaim(cid) {
       await settle(() => composition.owner(cid) !== undefined);
       expect(composition.owner(cid), `${name}: claim ${cid} visible`).toBeDefined();
+    },
+    request(operation, payload) {
+      return busRequest(requestPrimitiveFor(bus), operation, payload, 5_000);
     },
     teardown() {
       bridge.close();
@@ -245,6 +255,37 @@ describe('P3 — two gateway-compositions over one broker', () => {
       await settle(() => client.frames.length >= 1);
       expect(client.frames.length, 'reply from a non-claim-holder instance').toBeGreaterThanOrEqual(1);
       client.close();
+    } finally {
+      done();
+    }
+  });
+
+  test('H7: a gateway-internal busRequest reaches a remote bus-client actor across the broker', async () => {
+    // The yield:create starvation bug, as a test
+    // (.plans/bugs/yield-create-unbridged-starves-resource-creation.md):
+    // POST /resources ran busRequest over the RAW bus, which a remote plane
+    // never feeds — the Stower, a bus CLIENT in the Archivist, heard
+    // nothing and the create hung its full timeout. The fix is the plane
+    // primitive (`requestPrimitiveFor`); the actor here is Stower-shaped:
+    // a client-mode subscriber on the OTHER instance, replying with the
+    // registry's reply channel via its own emit.
+    const { a, b, done } = await twoInstances();
+    try {
+      const stower = b.composition.plane.subscribeClient({
+        address: toReplyAddress('fake-stower'),
+        global: ['yield:create'],
+        scoped: [],
+        onFrame: (_channel, payload) => {
+          const command = payload as { correlationId: string };
+          b.ingest('yield:create-ok', {
+            correlationId: command.correlationId,
+            response: { resourceId: 'urn:semiont:r-h7' },
+          });
+        },
+      });
+      const response = await a.request('yield:create', { name: 'h7' });
+      expect(response).toEqual({ resourceId: 'urn:semiont:r-h7' });
+      stower.close();
     } finally {
       done();
     }

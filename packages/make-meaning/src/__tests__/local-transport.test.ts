@@ -7,6 +7,7 @@
  * production uses, just bridged into the client via `LocalTransport`.
  */
 
+import { asBusRequestPrimitive } from '../bus-request-local';
 import { describe, it, expect, vi } from 'vitest';
 import { isReady } from '@semiont/sdk';
 import { promises as fs } from 'fs';
@@ -111,7 +112,7 @@ async function bootHarness(): Promise<Harness> {
           entityTypes: input.entityTypes,
         },
         TEST_USER_ID,
-        eventBus,
+        asBusRequestPrimitive(eventBus),
       );
     };
 

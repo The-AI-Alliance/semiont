@@ -31,6 +31,7 @@ export { CORRELATED_CHANNELS, isCorrelatedChannel, isProgressChannel } from './c
 export { createInProcessSignalPlane } from './in-process';
 export { compositionFor, type SignalComposition } from './composition';
 export { GATEWAY_HANDLER_GROUP, bridgeGatewayHandlers } from './bridge';
+export { requestPrimitiveFor } from './request-primitive';
 // The LEDGER is deliberately not re-exported here: it sits ABOVE the seam
 // (gateway policy) and knows the correlation vocabulary, which this barrel —
 // the driver's face — must not. Import it from './ledger' explicitly.
