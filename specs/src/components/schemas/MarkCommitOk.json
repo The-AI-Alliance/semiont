@@ -2,10 +2,6 @@
   "type": "object",
   "description": "Durability acknowledgement for a mark:commit batch: every annotation named by the command is in the event log at the moment this is emitted.",
   "properties": {
-    "correlationId": {
-      "type": "string",
-      "description": "Correlation id echoed from the mark:commit command so busRequest can match the reply."
-    },
     "response": {
       "type": "object",
       "description": "What the commit persisted.",
@@ -29,7 +25,6 @@
     }
   },
   "required": [
-    "correlationId",
     "response"
   ]
 }

@@ -64,7 +64,7 @@ describe('CORRELATED-REPLY-ROUTING P1 — the wire carries identity', () => {
    * therefore ships frames the filter cannot match and silently drops — a new
    * channel would inherit the bug with nothing to catch it.
    */
-  it('every operation progress channel requires correlationId', () => {
+  it('every operation progress channel has a payload schema — routing comes from the envelope', () => {
     const ops = BUS_OPERATIONS as Record<string, { result: string; failure: string; progress?: string }>;
     const channels = CHANNEL_SCHEMAS as Record<string, string | null>;
 
@@ -76,8 +76,17 @@ describe('CORRELATED-REPLY-ROUTING P1 — the wire carries identity', () => {
         offenders.push(`${op} → ${spec.progress} (no schema: a progress frame with no payload cannot be routed)`);
         continue;
       }
-      if (!(schema(schemaName).required ?? []).includes('correlationId')) {
-        offenders.push(`${op} → ${spec.progress} (${schemaName} does not require correlationId)`);
+      // This asserted the payload schema REQUIRED `correlationId`, because a
+      // progress frame that could not be matched to its requester was
+      // unroutable. The reason still stands; the location moved. The key is on
+      // the envelope now (BUS-CARRIES-FRAMES P3), which every frame carries by
+      // construction, so a per-channel check for it cannot fail and would be a
+      // gate that only looks like one. What remains worth asserting is what
+      // the envelope cannot supply: a payload contract for the frame itself.
+      if ((schema(schemaName).required ?? []).includes('correlationId')) {
+        offenders.push(
+          `${op} → ${spec.progress} (${schemaName} still declares correlationId — it belongs on the envelope)`,
+        );
       }
     }
 

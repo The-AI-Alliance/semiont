@@ -105,16 +105,16 @@ export type EventMap = {
   'yield:create-ok': components['schemas']['YieldCreateOk'];
   'yield:create-failed': components['schemas']['CommandError'];
   'yield:clone-persist-ok': components['schemas']['YieldClonePersistOk'];
-  'yield:clone-persist-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'yield:clone-persist-failed': components['schemas']['CommandError'];
   'yield:update-ok': components['schemas']['YieldUpdateOk'];
   'yield:update-failed': components['schemas']['CommandError'];
   'yield:move-failed': { fromUri: string } & components['schemas']['CommandError'];
-  'yield:clone-token-generated': { correlationId: string; response: components['schemas']['CloneResourceWithTokenResponse'] };
-  'yield:clone-token-failed': { correlationId: string } & components['schemas']['CommandError'];
-  'yield:clone-resource-result': { correlationId: string; response: components['schemas']['GetResourceByTokenResponse'] };
-  'yield:clone-resource-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'yield:clone-token-generated': { response: components['schemas']['CloneResourceWithTokenResponse'] };
+  'yield:clone-token-failed': components['schemas']['CommandError'];
+  'yield:clone-resource-result': { response: components['schemas']['GetResourceByTokenResponse'] };
+  'yield:clone-resource-failed': components['schemas']['CommandError'];
   'yield:clone-created': components['schemas']['YieldCloneCreated'];
-  'yield:clone-create-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'yield:clone-create-failed': components['schemas']['CommandError'];
 
   // ========================================================================
   // MARK FLOW — annotation CRUD, AI assist, resource lifecycle
@@ -163,14 +163,14 @@ export type EventMap = {
   // archive/unarchive confirmed-write replies (bridged) — correlation-keyed
   // acks the SDK's busRequest awaits. Failure routes the real outcome back
   // instead of the old fire-and-forget silence (.plans/bugs/BRIDGE-GAPS.md).
-  'mark:archive-ok': { correlationId?: string };
+  'mark:archive-ok': Record<string, never>;
   'mark:archive-failed': components['schemas']['CommandError'];
-  'mark:unarchive-ok': { correlationId?: string };
+  'mark:unarchive-ok': Record<string, never>;
   'mark:unarchive-failed': components['schemas']['CommandError'];
   // update-entity-types confirmed-write reply (bridged) — correlation-keyed ack
   // the SDK's busRequest awaits; failure routes the real outcome back rather than
   // the old fire-and-forget silence (.plans/bugs/BRIDGE-GAPS.md).
-  'mark:update-entity-types-ok': { correlationId?: string };
+  'mark:update-entity-types-ok': Record<string, never>;
   'mark:update-entity-types-failed': components['schemas']['CommandError'];
   'mark:body-update-failed': components['schemas']['CommandError'];
 
@@ -220,9 +220,9 @@ export type EventMap = {
   // for the SDK's confirmed `busRequest` writes (both bridged). In-process callers
   // (bootstrap/replay/import) instead race the `frame:*-added` domain event and
   // don't await `*-add-ok`, so its correlationId is optional.
-  'frame:entity-type-add-ok': { correlationId?: string };
+  'frame:entity-type-add-ok': Record<string, never>;
   'frame:entity-type-add-failed': components['schemas']['CommandError'];
-  'frame:tag-schema-add-ok': { correlationId?: string };
+  'frame:tag-schema-add-ok': Record<string, never>;
   'frame:tag-schema-add-failed': components['schemas']['CommandError'];
 
   // ========================================================================
@@ -248,14 +248,14 @@ export type EventMap = {
 
   'gather:requested': components['schemas']['GatherAnnotationRequest'];
   'gather:complete': components['schemas']['GatherAnnotationComplete'];
-  'gather:failed': { correlationId: string; annotationId: string } & components['schemas']['CommandError'];
+  'gather:failed': { annotationId: string } & components['schemas']['CommandError'];
   'gather:resource-requested': components['schemas']['GatherResourceRequest'];
   'gather:resource-complete': components['schemas']['GatherResourceComplete'];
-  'gather:resource-failed': { correlationId: string; resourceId: string } & components['schemas']['CommandError'];
+  'gather:resource-failed': { resourceId: string } & components['schemas']['CommandError'];
 
   'gather:summary-requested': components['schemas']['GatherSummaryRequest'];
-  'gather:summary-result': { correlationId: string; response: Record<string, unknown> };
-  'gather:summary-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'gather:summary-result': { response: Record<string, unknown> };
+  'gather:summary-failed': components['schemas']['CommandError'];
 
   // SSE stream payloads
   'gather:annotation-progress': components['schemas']['GatherProgress'];
@@ -274,14 +274,13 @@ export type EventMap = {
   // intersection; envelope shape per .plans/REPLY-SHAPE-STANDARD.md.
   'browse:resource-requested': components['schemas']['BrowseResourceRequest'];
   'browse:resource-result': {
-    correlationId: string;
     response: Omit<components['schemas']['GetResourceResponse'], 'resource' | 'annotations' | 'entityReferences'> & {
       resource: ResourceDescriptor;
       annotations: Annotation[];
       entityReferences: Annotation[];
     };
   };
-  'browse:resource-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'browse:resource-failed': components['schemas']['CommandError'];
 
   // A resource's derived coordinate map — the text recovered from its bytes
   // plus the geometry that indexes it (ANCHORED-TEXT-CACHE Lane 5).
@@ -297,68 +296,65 @@ export type EventMap = {
   // custom inline type — the inline form restated the schema and went stale
   // the moment it widened.
   'browse:anchored-text-result': components['schemas']['BrowseAnchoredTextResult'];
-  'browse:anchored-text-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'browse:anchored-text-failed': components['schemas']['CommandError'];
 
   'browse:resources-requested': components['schemas']['BrowseResourcesRequest'];
   'browse:resources-result': {
-    correlationId: string;
     response: Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {
       resources: ResourceDescriptor[];
     };
   };
-  'browse:resources-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'browse:resources-failed': components['schemas']['CommandError'];
 
   'browse:annotations-requested': components['schemas']['BrowseAnnotationsRequest'];
   'browse:annotations-result': {
-    correlationId: string;
     response: Omit<components['schemas']['GetAnnotationsResponse'], 'annotations'> & {
       annotations: Annotation[];
     };
   };
-  'browse:annotations-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'browse:annotations-failed': components['schemas']['CommandError'];
 
   'browse:annotation-requested': components['schemas']['BrowseAnnotationRequest'];
   'browse:annotation-result': {
-    correlationId: string;
     response: Omit<components['schemas']['GetAnnotationResponse'], 'annotation' | 'resource' | 'resolvedResource'> & {
       annotation: Annotation;
       resource: ResourceDescriptor | null;
       resolvedResource: ResourceDescriptor | null;
     };
   };
-  'browse:annotation-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'browse:annotation-failed': components['schemas']['CommandError'];
 
   'browse:events-requested': components['schemas']['BrowseEventsRequest'];
   'browse:events-result': components['schemas']['BrowseEventsResult'];
-  'browse:events-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'browse:events-failed': components['schemas']['CommandError'];
 
   'browse:annotation-history-requested': components['schemas']['BrowseAnnotationHistoryRequest'];
   'browse:annotation-history-result': components['schemas']['BrowseAnnotationHistoryResult'];
-  'browse:annotation-history-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'browse:annotation-history-failed': components['schemas']['CommandError'];
 
   'browse:annotation-context-requested': components['schemas']['BrowseAnnotationContextRequest'];
-  'browse:annotation-context-result': { correlationId: string; response: Record<string, unknown> };
-  'browse:annotation-context-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'browse:annotation-context-result': { response: Record<string, unknown> };
+  'browse:annotation-context-failed': components['schemas']['CommandError'];
 
   'browse:referenced-by-requested': components['schemas']['BrowseReferencedByRequest'];
   'browse:referenced-by-result': components['schemas']['BrowseReferencedByResult'];
-  'browse:referenced-by-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'browse:referenced-by-failed': components['schemas']['CommandError'];
 
   'browse:entity-types-requested': components['schemas']['BrowseEntityTypesRequest'];
   'browse:entity-types-result': components['schemas']['BrowseEntityTypesResult'];
-  'browse:entity-types-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'browse:entity-types-failed': components['schemas']['CommandError'];
 
   'browse:tag-schemas-requested': components['schemas']['BrowseTagSchemasRequest'];
   'browse:tag-schemas-result': components['schemas']['BrowseTagSchemasResult'];
-  'browse:tag-schemas-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'browse:tag-schemas-failed': components['schemas']['CommandError'];
 
   'browse:agents-requested': components['schemas']['BrowseAgentsRequest'];
   'browse:agents-result': components['schemas']['BrowseAgentsResult'];
-  'browse:agents-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'browse:agents-failed': components['schemas']['CommandError'];
 
   'browse:directory-requested': components['schemas']['BrowseDirectoryRequest'];
   'browse:directory-result': components['schemas']['BrowseDirectoryResult'];
-  'browse:directory-failed': { correlationId: string; path: string } & components['schemas']['CommandError'];
+  'browse:directory-failed': { path: string } & components['schemas']['CommandError'];
 
   // UI events (session-scoped — fire on the client bus, tied to a KB)
   'browse:click': components['schemas']['BrowseClickEvent'] & { anchorRect?: AnchorRect };
@@ -414,15 +410,15 @@ export type EventMap = {
 
   // Results
   'job:status-result': components['schemas']['JobStatusResult'];
-  'job:status-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'job:status-failed': components['schemas']['CommandError'];
   'job:created': components['schemas']['JobCreatedResult'];
-  'job:create-failed': { correlationId: string } & components['schemas']['CommandError'];
-  'job:claimed': { correlationId: string; response: Record<string, unknown> };
-  'job:claim-failed': { correlationId: string } & components['schemas']['CommandError'];
+  'job:create-failed': components['schemas']['CommandError'];
+  'job:claimed': { response: Record<string, unknown> };
+  'job:claim-failed': components['schemas']['CommandError'];
   // cancel-by-type confirmed-write reply: the count of *pending* jobs cancelled
   // (running jobs finish — there's no worker-kill channel). Failure surfaces a
   // queue error instead of the old silent swallow (.plans/bugs/BRIDGE-GAPS.md).
-  'job:cancel-ok': { correlationId?: string; response: { cancelled: number } };
+  'job:cancel-ok': { response: { cancelled: number } };
   'job:cancel-failed': components['schemas']['CommandError'];
 
   // ========================================================================
@@ -457,8 +453,8 @@ export type EventMap = {
   // not survive the container split (WEAVER-ISOLATION D3). Correlated
   // request/reply via the BUS_OPERATIONS registry.
   'weave:rebuild': components['schemas']['WeaveRebuildCommand'];
-  'weave:rebuild-ok': { correlationId?: string };
-  'weave:rebuild-failed': { correlationId?: string; message: string };
+  'weave:rebuild-ok': Record<string, never>;
+  'weave:rebuild-failed': { message: string };
 
   // Command — rebuild anchored-text artifacts by re-running extraction
   // (every geometry-capable resource when resourceId is absent, one when
@@ -466,8 +462,8 @@ export type EventMap = {
   // with ZERO embedding calls — only the derived map is re-made
   // (PERSIST-ANCHORS P0). Correlated request/reply via BUS_OPERATIONS.
   'smelt:rebuild-anchors': components['schemas']['SmeltRebuildAnchorsCommand'];
-  'smelt:rebuild-anchors-ok': { correlationId?: string };
-  'smelt:rebuild-anchors-failed': { correlationId?: string; message: string };
+  'smelt:rebuild-anchors-ok': Record<string, never>;
+  'smelt:rebuild-anchors-failed': { message: string };
 
   // ========================================================================
   // SETTINGS (Browser-only)
@@ -614,16 +610,16 @@ export const CHANNEL_SCHEMAS = {
   'yield:create-ok':                  'YieldCreateOk',
   'yield:create-failed':              'CommandError',
   'yield:clone-persist-ok':           'YieldClonePersistOk',
-  'yield:clone-persist-failed':       null, // { correlationId } & CommandError
+  'yield:clone-persist-failed':       null, // CommandError
   'yield:update-ok':                  'YieldUpdateOk',
   'yield:update-failed':              null, // { correlationId } & CommandError
   'yield:move-failed':                null, // { fromUri } & CommandError
   'yield:clone-token-generated':      null, // { correlationId; response: CloneResourceWithTokenResponse }
-  'yield:clone-token-failed':         null, // { correlationId } & CommandError
+  'yield:clone-token-failed':         null, // CommandError
   'yield:clone-resource-result':      null, // { correlationId; response: GetResourceByTokenResponse }
-  'yield:clone-resource-failed':      null, // { correlationId } & CommandError
+  'yield:clone-resource-failed':      null, // CommandError
   'yield:clone-created':              'YieldCloneCreated',
-  'yield:clone-create-failed':        null, // { correlationId } & CommandError
+  'yield:clone-create-failed':        null, // CommandError
 
   // ── MARK FLOW ───────────────────────────────────────────────────
   'mark:added':                       null, // StoredEvent
@@ -696,16 +692,16 @@ export const CHANNEL_SCHEMAS = {
   'gather:resource-failed':           null, // { correlationId; resourceId } & CommandError
   'gather:summary-requested':         'GatherSummaryRequest',
   'gather:summary-result':            null, // { correlationId; response: Record<string, unknown> }
-  'gather:summary-failed':            null, // { correlationId } & CommandError
+  'gather:summary-failed':            null, // CommandError
   'gather:annotation-progress':       'GatherProgress',
 
   // ── BROWSE FLOW ─────────────────────────────────────────────────
   'browse:resource-requested':        'BrowseResourceRequest',
   'browse:resource-result':           'BrowseResourceResult',
-  'browse:resource-failed':           null, // { correlationId } & CommandError
+  'browse:resource-failed':           null, // CommandError
   'browse:anchored-text-requested':   'BrowseAnchoredTextRequest',
   'browse:anchored-text-result':      'BrowseAnchoredTextResult',
-  'browse:anchored-text-failed':      null, // { correlationId } & CommandError
+  'browse:anchored-text-failed':      null, // CommandError
   'browse:resources-requested':       'BrowseResourcesRequest',
   'browse:resources-result':          'BrowseResourcesResult',
   'browse:resources-failed':          null,
@@ -776,7 +772,7 @@ export const CHANNEL_SCHEMAS = {
   'job:create':                       'JobCreateCommand',
   'job:claim':                        'JobClaimCommand',
   'job:status-result':                'JobStatusResult',
-  'job:status-failed':                null, // { correlationId } & CommandError
+  'job:status-failed':                null, // CommandError
   'job:created':                      'JobCreatedResult',
   'job:create-failed':                null,
   'job:claimed':                      null, // { correlationId; response: Record<string, unknown> }

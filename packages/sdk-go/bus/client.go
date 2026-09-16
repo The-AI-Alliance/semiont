@@ -35,9 +35,12 @@ import (
 // Event is one delivered bus event.
 type Event struct {
 	Channel Channel
-	Payload json.RawMessage
-	Scope   string
-	ID      string
+	// CorrelationID pairs a reply with its request. It rides the frame's
+	// envelope, not the payload — the same rule Scope and clientId follow.
+	CorrelationID string
+	Payload       json.RawMessage
+	Scope         string
+	ID            string
 }
 
 // Client talks to one stack's gateway.
@@ -107,12 +110,22 @@ func (c *Client) request(ctx context.Context, method, path string, body any) (*h
 // zero, because reporting "nobody is listening" on the strength of a parse
 // failure would be the same overclaim in reverse.
 func (c *Client) Emit(ctx context.Context, ch Channel, payload any, scope string) (int, error) {
+	return c.emitWith(ctx, ch, payload, scope, "")
+}
+
+// emitWith is Emit plus the correlation key. Both ride the ENVELOPE beside
+// clientId, never inside the payload: a channel's domain type does not carry
+// routing metadata, on either side of the wire.
+func (c *Client) emitWith(ctx context.Context, ch Channel, payload any, scope string, correlationID string) (int, error) {
 	if !ch.Emittable() {
 		return -1, fmt.Errorf("channel %q is not emittable (no registered schema)", ch)
 	}
 	body := map[string]any{"channel": string(ch), "payload": payload, "clientId": c.clientID}
 	if scope != "" {
 		body["scope"] = scope
+	}
+	if correlationID != "" {
+		body["correlationId"] = correlationID
 	}
 	resp, err := c.request(ctx, http.MethodPost, "/bus/emit", body)
 	if err != nil {
@@ -221,14 +234,15 @@ func readSSE(r interface{ Read([]byte) (int, error) }, out chan<- Event) error {
 			return
 		}
 		var frame struct {
-			Channel string          `json:"channel"`
-			Payload json.RawMessage `json:"payload"`
-			Scope   string          `json:"scope"`
+			Channel       string          `json:"channel"`
+			CorrelationID string          `json:"correlationId"`
+			Payload       json.RawMessage `json:"payload"`
+			Scope         string          `json:"scope"`
 		}
 		if json.Unmarshal([]byte(data), &frame) != nil {
 			return // a frame we cannot parse is not worth killing the stream over
 		}
-		out <- Event{Channel: Channel(frame.Channel), Payload: frame.Payload, Scope: frame.Scope, ID: id}
+		out <- Event{Channel: Channel(frame.Channel), CorrelationID: frame.CorrelationID, Payload: frame.Payload, Scope: frame.Scope, ID: id}
 	}
 	for sc.Scan() {
 		line := sc.Text()
@@ -319,13 +333,12 @@ func (c *Client) Request(ctx context.Context, op Channel, payload any, opts *Req
 			return nil, fmt.Errorf("%s: request payload must be a JSON object: %w", op, err)
 		}
 	}
-	body["correlationId"] = correlationID
 	// The subscriber count is deliberately ignored here: Request has already
 	// subscribed to the reply channels itself, and a request/reply operation
 	// whose handler is not listening fails as a TIMEOUT with a channel name —
 	// a better diagnosis than a count. The count matters for fire-and-forget
 	// emits, which have no other way to tell.
-	if _, err := c.Emit(rctx, op, body, opts.Scope); err != nil {
+	if _, err := c.emitWith(rctx, op, body, opts.Scope, correlationID); err != nil {
 		return nil, fmt.Errorf("emit %s: %w", op, err)
 	}
 
@@ -337,7 +350,7 @@ func (c *Client) Request(ctx context.Context, op Channel, payload any, opts *Req
 			if !open {
 				return nil, fmt.Errorf("%s: the event stream closed before a reply arrived", op)
 			}
-			if correlationOf(ev.Payload) != correlationID {
+			if correlationOf(ev) != correlationID {
 				continue // another caller's reply on the same channel
 			}
 			switch ev.Channel {
@@ -354,12 +367,12 @@ func (c *Client) Request(ctx context.Context, op Channel, payload any, opts *Req
 	}
 }
 
-func correlationOf(payload json.RawMessage) string {
-	var p struct {
-		CorrelationID string `json:"correlationId"`
-	}
-	_ = json.Unmarshal(payload, &p)
-	return p.CorrelationID
+// correlationOf reads a reply's key from the ENVELOPE. It used to parse the
+// payload, which is precisely why the key had to be declared in 70 payload
+// schemas: a consumer that routes by reading the message body forces every
+// message body to carry routing metadata.
+func correlationOf(ev Event) string {
+	return ev.CorrelationID
 }
 
 func messageOf(payload json.RawMessage) string {

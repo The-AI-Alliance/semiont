@@ -2,10 +2,6 @@
   "type": "object",
   "description": "Success reply after creating an annotation, matched to the originating command by correlationId.",
   "properties": {
-    "correlationId": {
-      "type": "string",
-      "description": "Correlation id echoed from the mark:create-request command so busRequest can match the reply."
-    },
     "response": {
       "type": "object",
       "description": "The created annotation's identity.",
@@ -14,8 +10,12 @@
           "type": "string"
         }
       },
-      "required": ["annotationId"]
+      "required": [
+        "annotationId"
+      ]
     }
   },
-  "required": ["response"]
+  "required": [
+    "response"
+  ]
 }

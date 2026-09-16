@@ -2,9 +2,6 @@
   "type": "object",
   "description": "Result of browsing a directory listing",
   "properties": {
-    "correlationId": {
-      "type": "string"
-    },
     "response": {
       "type": "object",
       "properties": {
@@ -25,7 +22,6 @@
     }
   },
   "required": [
-    "correlationId",
     "response"
   ]
 }

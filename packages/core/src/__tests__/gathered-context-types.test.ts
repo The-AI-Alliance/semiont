@@ -112,7 +112,9 @@ describe('GatheredContext — annotation-wrapper collapse (P1b)', () => {
       graph: aGraph,
       metadata: {},
     };
-    const complete: GatherAnnotationComplete = { correlationId: 'c', annotationId: 'a-1', response: ctx };
+    // No `correlationId`: the key rides the envelope now, so a reply's
+    // domain type no longer declares it (BUS-CARRIES-FRAMES P3).
+    const complete: GatherAnnotationComplete = { annotationId: 'a-1', response: ctx };
     expect(complete.response.focus.kind).toBe('annotation');
   });
 });

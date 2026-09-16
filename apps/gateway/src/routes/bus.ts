@@ -374,6 +374,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         channel: string,
         payload: unknown,
         eventScope: string | undefined,
+        correlationId: string | undefined,
       ): Promise<void> => {
         const seq = extractSequence(payload);
         let id: string;
@@ -391,7 +392,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
           // misses it → duplicate delivery (.plans/bugs/BRIDGE-GAPS.md). Keying on
           // channel + correlationId makes both connections agree. Still `e-`-prefixed,
           // so it stays non-replayable.
-          const cid = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
+          const cid = correlationId;
           id =
             typeof cid === 'string' && cid.length > 0
               ? `${EPHEMERAL_ID_PREFIX}${channel}:${cid}`
@@ -411,14 +412,14 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         // *inside* the span so the client's recv stitches under the deliver,
         // not its parent. Non-reply broadcasts skip the span — they're
         // high-volume and have no single awaiting client.
-        const cid = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
+        const cid = correlationId;
         const doWrite = async (): Promise<void> => {
           if (payload && typeof payload === 'object') {
             injectTraceparent(payload as Record<string, unknown>);
           }
           const data = eventScope
-            ? JSON.stringify({ channel, payload, scope: eventScope })
-            : JSON.stringify({ channel, payload });
+            ? JSON.stringify({ channel, correlationId: cid, payload, scope: eventScope })
+            : JSON.stringify({ channel, correlationId: cid, payload });
           busLog('SSE', channel, payload, eventScope);
           await boundedWrite({ event: 'bus-event', data, id });
         };
@@ -468,11 +469,16 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // buffer drains to empty do we flip to live mode. JS's single-
       // threaded model guarantees no event slips between the final
       // "buffer empty" check and the mode flip.
-      type Queued = { channel: string; payload: unknown; scope: string | undefined };
+      type Queued = { channel: string; payload: unknown; scope: string | undefined; correlationId: string | undefined };
       const liveBuffer: Queued[] = [];
       let mode: 'buffering' | 'live' = 'live';
 
-      const emitOrBuffer = (channel: string, payload: unknown, eventScope: string | undefined) => {
+      const emitOrBuffer = (
+        channel: string,
+        payload: unknown,
+        eventScope: string | undefined,
+        correlationId: string | undefined,
+      ) => {
         if (mode === 'buffering') {
           if (liveBuffer.length >= MAX_REPLAY_BUFFER_EVENTS) {
             getBusLogger().warn('SSE replay-buffer overflow — disconnecting stalled subscriber', {
@@ -482,9 +488,9 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
             teardown('replay-buffer-overflow');
             return;
           }
-          liveBuffer.push({ channel, payload, scope: eventScope });
+          liveBuffer.push({ channel, payload, scope: eventScope, correlationId });
         } else {
-          void writeBusEvent(channel, payload, eventScope);
+          void writeBusEvent(channel, payload, eventScope, correlationId);
         }
       };
 
@@ -510,7 +516,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
           ) {
             return;
           }
-          emitOrBuffer(channel, payload, envelope.scope);
+          emitOrBuffer(channel, payload, envelope.scope, envelope.meta?.correlationId);
         },
       });
 
@@ -552,7 +558,8 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
             }
 
             for (const ev of replayable) {
-              await writeBusEvent(ev.type as string, ev, entry.scope);
+              // Replayed from the event log: the log stores facts, not routing.
+              await writeBusEvent(ev.type as string, ev, entry.scope, undefined);
             }
           } catch (err) {
             getBusLogger().warn('bus resume query failed', {
@@ -576,14 +583,14 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         if (tornDown) break;
         const retained = composition.lookupReply(cid, clientId, subscriberDid);
         if (retained) {
-          await writeBusEvent(retained.channel, retained.payload, undefined);
+          await writeBusEvent(retained.channel, retained.payload, undefined, retained.correlationId);
         }
       }
 
       // ── Drain buffer and switch to live mode ─────────────────────────
       while (liveBuffer.length > 0 && !tornDown) {
         const next = liveBuffer.shift()!;
-        await writeBusEvent(next.channel, next.payload, next.scope);
+        await writeBusEvent(next.channel, next.payload, next.scope, next.correlationId);
       }
       mode = 'live';
 

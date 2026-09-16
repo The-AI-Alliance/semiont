@@ -2,10 +2,6 @@
   "type": "object",
   "description": "Success reply after creating a yielded resource, matched to the originating command by correlationId.",
   "properties": {
-    "correlationId": {
-      "type": "string",
-      "description": "Correlation id echoed from the yield:create command so busRequest can match the reply."
-    },
     "response": {
       "type": "object",
       "description": "The created resource's identity.",
@@ -14,8 +10,12 @@
           "type": "string"
         }
       },
-      "required": ["resourceId"]
+      "required": [
+        "resourceId"
+      ]
     }
   },
-  "required": ["response"]
+  "required": [
+    "response"
+  ]
 }

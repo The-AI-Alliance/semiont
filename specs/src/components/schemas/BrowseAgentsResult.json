@@ -2,17 +2,22 @@
   "type": "object",
   "description": "Result of browsing the collaborator directory",
   "properties": {
-    "correlationId": { "type": "string" },
     "response": {
       "type": "object",
       "properties": {
         "agents": {
           "type": "array",
-          "items": { "$ref": "./CollaboratorEntry.json" }
+          "items": {
+            "$ref": "./CollaboratorEntry.json"
+          }
         }
       },
-      "required": ["agents"]
+      "required": [
+        "agents"
+      ]
     }
   },
-  "required": ["correlationId", "response"]
+  "required": [
+    "response"
+  ]
 }

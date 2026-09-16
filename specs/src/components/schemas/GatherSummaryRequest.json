@@ -2,9 +2,15 @@
   "type": "object",
   "description": "Request to generate an AI summary of an annotation",
   "properties": {
-    "correlationId": { "type": "string" },
-    "annotationId": { "type": "string" },
-    "resourceId": { "type": "string" }
+    "annotationId": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    }
   },
-  "required": ["correlationId", "annotationId", "resourceId"]
+  "required": [
+    "annotationId",
+    "resourceId"
+  ]
 }
