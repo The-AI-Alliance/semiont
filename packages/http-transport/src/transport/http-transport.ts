@@ -44,6 +44,7 @@ import type {
   ListUsersResponse,
 } from '@semiont/core';
 import { BRIDGED_CHANNELS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS } from '@semiont/core';
+import type { BusEnvelope, BusFrame } from '@semiont/core';
 
 type AuthResponse = components['schemas']['AuthResponse'];
 type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
@@ -328,23 +329,18 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   async emit<K extends keyof EventMap>(
     channel: K,
     payload: EventMap[K],
-    resourceScope?: ResourceId,
+    envelope?: BusEnvelope,
   ): Promise<number> {
-    busLog('EMIT', channel as string, payload, resourceScope as string | undefined);
-    recordBusEmit(channel as string, resourceScope as string | undefined);
+    busLog('EMIT', channel as string, payload, envelope?.scope);
+    recordBusEmit(channel as string, envelope?.scope);
     return withSpan(
       `bus.emit:${channel as string}`,
-      async () => {
-        if (resourceScope !== undefined) {
-          return this.actor.emit(channel, payload, resourceScope as string);
-        }
-        return this.actor.emit(channel, payload);
-      },
+      async () => this.actor.emit(channel, payload, envelope),
       {
         kind: SpanKind.PRODUCER,
         attrs: {
           'bus.channel': channel as string,
-          ...(resourceScope ? { 'bus.scope': resourceScope as string } : {}),
+          ...(envelope?.scope ? { 'bus.scope': envelope.scope } : {}),
         },
       },
     );
@@ -360,6 +356,10 @@ export class HttpTransport implements ITransport, IGatewayOperations {
 
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
     return this.actor.stream(channel);
+  }
+
+  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> {
+    return this.actor.frames(channel);
   }
 
   /**

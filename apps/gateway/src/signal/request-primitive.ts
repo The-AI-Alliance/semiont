@@ -19,7 +19,8 @@
  * `busRequest`'s timeout covers a broker outage.
  */
 import { BehaviorSubject, Observable } from 'rxjs';
-import type { BusRequestPrimitive, ConnectionState, EventBus, EventMap } from '@semiont/core';
+import { map } from 'rxjs/operators';
+import type { BusFrame, BusRequestPrimitive, ConnectionState, EventBus, EventMap } from '@semiont/core';
 import { compositionFor } from './composition';
 import { toReplyAddress } from './interface';
 
@@ -38,12 +39,31 @@ export function requestPrimitiveFor(eventBus: EventBus): BusRequestPrimitive {
       return Promise.resolve(receipt.observers ?? -1);
     },
     stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
-      return new Observable<EventMap[K]>((subscriber) => {
+      return this.frames(channel).pipe(map((frame) => frame.payload));
+    },
+
+    /**
+     * The envelope view over the plane. The driver hands the frame's
+     * correlation key straight through, so a gateway-internal `busRequest`
+     * pairs its reply without the key ever entering a payload.
+     */
+    frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> {
+      return new Observable<BusFrame<EventMap[K]>>((subscriber) => {
         const sub = plane.subscribeClient({
           address: GATEWAY_REQUEST_ADDRESS,
           global: [channel],
           scoped: [],
-          onFrame: (_channel, payload) => subscriber.next(payload as EventMap[K]),
+          // Spread, never destructured: this file sits behind the driver
+          // boundary, so it ferries the envelope's metadata into the frame
+          // without naming a key of it. The P0.5 census counts it as seam
+          // code, and it is right to — a primitive that read the correlation
+          // vocabulary would be gateway policy living below the seam.
+          onFrame: (_channel, payload, envelope) =>
+            subscriber.next({
+              ...envelope.meta,
+              scope: envelope.scope,
+              payload: payload as EventMap[K],
+            }),
         });
         return () => sub.close();
       });

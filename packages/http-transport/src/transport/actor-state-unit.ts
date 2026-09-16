@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type components, type ConnectionState, type EventMap, type StateUnit, type RetryPolicy } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type components, type ConnectionState, type EventMap, type StateUnit, type RetryPolicy } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -15,6 +15,12 @@ export type { ConnectionState };
 
 export interface BusEvent {
   channel: string;
+  /**
+   * Correlates a reply with its request. On the frame, never inside the
+   * payload — the delivery-side half of the emit envelope (D6b, Option 2).
+   * Present only for correlated channels, which is why it is optional.
+   */
+  correlationId?: string;
   payload: Record<string, unknown>;
   scope?: string;
 }
@@ -135,11 +141,13 @@ export interface ActorStateUnit extends StateUnit {
    * its own `on$` calls resolved against the loose local declaration, so
    * narrowing `BusRequestPrimitive` never reached them.
    *
-   * `emitScope` is the one genuine addition, so `emit` widens rather than
+   * `envelope?.scope` is the one genuine addition, so `emit` widens rather than
    * merely repeating.
    */
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
-  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], emitScope?: string): Promise<number>;
+  /** The envelope view: the same SSE frame, envelope included. */
+  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>>;
+  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number>;
   state$: Observable<ConnectionState>;
   /**
    * Refused connects (SSE-AUTH-RESILIENCE P2). One `SseConnectError` per
@@ -755,6 +763,25 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   };
 
   return {
+    frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> {
+      const scopable = (RESOURCE_SCOPED_CHANNELS as readonly string[]).includes(channel);
+      if (!globalChannels.has(channel) && !scopable) {
+        throw new BusRequestError(
+          `Transport is not subscribed to ${channel as string} — a frame on it can never arrive on this connection. Add the channel to this client's manifest.`,
+          'bus.unsubscribed',
+          { channel },
+        );
+      }
+      return shared$.pipe(
+        filter((e) => e.channel === channel),
+        map((e) => ({
+          correlationId: e.correlationId,
+          scope: e.scope,
+          payload: e.payload as EventMap[K],
+        })),
+      );
+    },
+
     stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
       // A channel this connection does not carry can never fire, and a
       // stream that never fires is indistinguishable from a quiet system:
@@ -787,13 +814,17 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       );
     },
 
-    emit: async <K extends keyof EventMap>(channel: K, payload: EventMap[K], emitScope?: string): Promise<number> => {
+    emit: async <K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number> => {
       // EMIT logging + bus.emit span live at the transport contract layer
       // (`HttpTransport.emit`). ActorStateUnit is plumbing. We do propagate the
       // active span's W3C traceparent on the outbound POST so the gateway
       // can stitch the bus.dispatch server span as a child.
+      // The envelope's fields go on the REQUEST envelope, beside `clientId`,
+      // which has always been there under a description stating the rule:
+      // routing is a wire concern and never enters a channel's domain type.
       const body: Record<string, unknown> = { channel, payload, clientId };
-      if (emitScope) body.scope = emitScope;
+      if (envelope?.correlationId !== undefined) body.correlationId = envelope.correlationId;
+      if (envelope?.scope) body.scope = envelope?.scope;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${getToken()}`,

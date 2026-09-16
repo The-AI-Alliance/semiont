@@ -18,6 +18,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EventBus } from '@semiont/core';
+import type { PlaneEnvelope } from '../interface';
 import type { SignalPlane } from '../interface';
 import { toReplyAddress } from '../interface';
 import { resolveSignalPlaneOptions } from '../options';
@@ -34,13 +35,16 @@ async function settle(check: () => boolean, ms = 2_000): Promise<void> {
   }
 }
 
-type Frame = { channel: string; payload: unknown; scope: string | undefined };
+type Frame = { channel: string; payload: unknown; scope: string | undefined; meta?: Record<string, string> };
 const collector = () => {
   const frames: Frame[] = [];
   return {
     frames,
-    onFrame: (channel: string, payload: unknown, scope: string | undefined) =>
-      frames.push({ channel, payload, scope }),
+    // The third argument is the ENVELOPE on every fabric now — the conformance
+    // suite is where a driver's contract is decided, so it records the whole
+    // envelope rather than pulling one field out of it.
+    onFrame: (channel: string, payload: unknown, envelope: PlaneEnvelope) =>
+      frames.push({ channel, payload, scope: envelope.scope, meta: envelope.meta }),
   };
 };
 
@@ -127,8 +131,8 @@ describe.each(drivers)('SignalPlane conformance — %s', (_name, make) => {
         scoped: [{ scope: 'res-A', channels: ['mark:added'] }],
         onFrame: c.onFrame,
       });
-      plane.ingest('mark:added', { id: 'in-scope' }, 'res-A');
-      plane.ingest('mark:added', { id: 'other-scope' }, 'res-B');
+      plane.ingest('mark:added', { id: 'in-scope' }, { scope: 'res-A' });
+      plane.ingest('mark:added', { id: 'other-scope' }, { scope: 'res-B' });
       plane.ingest('mark:added', { id: 'unscoped' });
       await settle(() => c.frames.length >= 1);
       // Only the res-A frame; neither the other scope nor the unscoped one.

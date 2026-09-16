@@ -24,6 +24,8 @@ export function workerBusOverEventBus(eventBus: EventBus): BusRequestPrimitive {
     stream: <K extends keyof EventMap>(channel: K): Observable<EventMap[K]> =>
       eventBus.on(channel),
 
+    frames: <K extends keyof EventMap>(channel: K) => eventBus.frames(channel),
+
     // Every channel: this bus delivers every emit, so nothing can be outside
     // its receive path. The true answer, not a stub — which is why the member
     // is required rather than omitted.

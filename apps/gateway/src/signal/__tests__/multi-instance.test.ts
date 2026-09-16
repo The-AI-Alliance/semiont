@@ -113,7 +113,7 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
       composition.plane.ingest(channel, { ...payload, correlationId: cid, _userId: PRINCIPAL });
     },
     ingest(channel, payload, scope) {
-      composition.plane.ingest(channel, payload, scope);
+      composition.plane.ingest(channel, payload, { scope: scope });
     },
     client(clientId, channels) {
       const frames: Array<{ channel: string; payload: unknown }> = [];
@@ -121,9 +121,9 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
         address: toReplyAddress(clientId),
         global: channels,
         scoped: [],
-        onFrame: (channel, payload, frameScope) => {
+        onFrame: (channel, payload, envelope) => {
           if (
-            frameScope === undefined &&
+            envelope.scope === undefined &&
             isCorrelatedChannel(channel) &&
             !composition.mayDeliver(channel, payload, clientId, PRINCIPAL)
           ) {

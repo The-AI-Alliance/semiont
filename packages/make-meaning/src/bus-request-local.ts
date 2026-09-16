@@ -20,6 +20,9 @@ export function asBusRequestPrimitive(eventBus: EventBus): BusRequestPrimitive {
     stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
       return eventBus.on(channel);
     },
+    frames<K extends keyof EventMap>(channel: K) {
+      return eventBus.frames(channel);
+    },
     // Every channel: an in-process bus delivers every emit, so the receive
     // path carries anything asked of it. The true answer, which is why this
     // is a required member rather than an omitted one.

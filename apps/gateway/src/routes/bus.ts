@@ -502,15 +502,15 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         address: toReplyAddress(clientId),
         global: channels,
         scoped,
-        onFrame: (channel, payload, frameScope) => {
+        onFrame: (channel, payload, envelope) => {
           if (
-            frameScope === undefined &&
+            envelope.scope === undefined &&
             isCorrelatedChannel(channel) &&
             !composition.mayDeliver(channel, payload, clientId, subscriberDid)
           ) {
             return;
           }
-          emitOrBuffer(channel, payload, frameScope);
+          emitOrBuffer(channel, payload, envelope.scope);
         },
       });
 
@@ -726,7 +726,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       withSpan(
         `bus.dispatch:${channel}`,
         () => {
-          subscribers = plane.ingest(channel, payload, scope).observers;
+          subscribers = plane.ingest(channel, payload, { scope: scope }).observers;
 
           busLog('EMIT', channel, payload, scope);
           recordBusEmit(channel, scope);

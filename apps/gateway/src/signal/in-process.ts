@@ -45,9 +45,16 @@ export function createInProcessSignalPlane(
   };
 
   return {
-    ingest(channel, payload, scope): IngestReceipt {
-      const bus = scope ? eventBus.scope(scope) : eventBus;
-      const observers = bus.emit(channel as keyof EventMap, payload as never);
+    ingest(channel, payload, envelope): IngestReceipt {
+      const bus = envelope?.scope ? eventBus.scope(envelope.scope) : eventBus;
+      // The whole envelope rides through: the in-process fabric is the bus,
+      // and a handler must read the same envelope here as over a broker.
+      // Spread, not destructured: the driver hands the ferried metadata to the
+      // bus without naming a single key of it. Reading one would make this
+      // driver a reader of gateway policy, which the P0.5 census forbids.
+      const observers = bus.emit(channel as keyof EventMap, payload as never, {
+        ...envelope?.meta,
+      });
       return { observers };
     },
 
@@ -64,7 +71,7 @@ export function createInProcessSignalPlane(
         subs.push(
           track(
             eventBus.on(channel as keyof EventMap).subscribe((payload) => {
-              spec.onFrame(channel, payload, undefined);
+              spec.onFrame(channel, payload, {});
             }),
           ),
         );
@@ -75,7 +82,7 @@ export function createInProcessSignalPlane(
           subs.push(
             track(
               scopedBus.on(channel as keyof EventMap).subscribe((payload) => {
-                spec.onFrame(channel, payload, entry.scope);
+                spec.onFrame(channel, payload, { scope: entry.scope });
               }),
             ),
           );
@@ -105,7 +112,7 @@ export function createInProcessSignalPlane(
     deliver(address, channel, payload): void {
       const box = inboxes.get(address);
       if (!box) return;
-      for (const onFrame of box) onFrame(channel, payload, undefined);
+      for (const onFrame of box) onFrame(channel, payload, {});
     },
 
     subscribeHandlers(groupName, channels, onFrame): PlaneSubscription {
@@ -126,7 +133,7 @@ export function createInProcessSignalPlane(
                 // never two (round-robin here; a queue group under NATS).
                 if (g.members.length === 0) return;
                 const target = g.members[g.rr++ % g.members.length]!;
-                target(channel, payload, undefined);
+                target(channel, payload, {});
               }),
             ),
           );
