@@ -286,18 +286,44 @@ describe('P3 — two gateway-compositions over one broker', () => {
     // registry's reply channel via its own emit.
     const { a, b, done } = await twoInstances();
     try {
+      let probesSeen = 0;
       const stower = b.composition.plane.subscribeClient({
         address: toReplyAddress('fake-stower'),
         global: ['yield:create'],
         scoped: [],
         onFrame: (_channel, payload) => {
-          const command = payload as { correlationId: string };
+          const command = payload as { correlationId?: string };
+          // A probe carries no correlationId and is only proof of life.
+          if (command.correlationId === undefined) {
+            probesSeen += 1;
+            return;
+          }
           b.ingest('yield:create-ok', {
             correlationId: command.correlationId,
             response: { resourceId: 'urn:semiont:r-h7' },
           });
         },
       });
+
+      // Prove B's subscription is LIVE on the broker before requesting.
+      //
+      // `subscribeClient` is synchronous, but registering the interest with
+      // NATS is not, and core NATS is at-most-once: a frame published before
+      // that registration lands is DROPPED, not delayed. The request then
+      // waits out its full deadline for a reply that was never going to come,
+      // which is why raising the timeout does not fix this and did not (CI,
+      // 2026-09-16, `timed out after 5000ms on yield:create-ok`).
+      //
+      // Same emit-until-seen shape as H4/H8/H9, for the same reason: the only
+      // way to know a subscription is live is for a frame to come back through
+      // it.
+      await settle(() => {
+        if (probesSeen > 0) return true;
+        a.ingest('yield:create', { name: 'h7-probe' });
+        return false;
+      });
+      expect(probesSeen, 'B subscription live before the request').toBeGreaterThan(0);
+
       const response = await a.request('yield:create', { name: 'h7' });
       expect(response).toEqual({ resourceId: 'urn:semiont:r-h7' });
       stower.close();
