@@ -250,11 +250,10 @@ export type {
 } from './transport';
 
 // Channel set every concrete transport bridges into the client's bus.
-export { BRIDGED_CHANNELS, type BridgedChannel } from './bridged-channels';
+export { BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS, type BridgedChannel } from './bridged-channels';
 
 // Request/reply over the bus — the transport-neutral primitive (relocated from @semiont/sdk).
 export { busRequest, replyChannelsFor, BUS_REQUEST_TIMEOUT_MS, BusRequestError, type BusRequestErrorCode, type BusRequestPrimitive } from './bus-request';
-export { RESOURCE_SCOPED_CHANNELS } from './scoped-channels';
 export { BUS_OPERATIONS, type BusOperationKey, type BusOperationSpec } from './bus-operations';
 export {
   CHANNEL_ATTRS,

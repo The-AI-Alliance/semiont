@@ -38,7 +38,7 @@
  * the claim land (`awaitClaim`) before the reply is emitted.
  */
 import { afterAll, describe, test, expect } from 'vitest';
-import { EventBus, busRequest, type BusOperationKey, type EventMap } from '@semiont/core';
+import { EventBus, busRequest, BRIDGED_CHANNELS, type BusOperationKey, type EventMap } from '@semiont/core';
 import { GATEWAY_HANDLER_CHANNELS, GATEWAY_HANDLER_EMITS } from '@semiont/make-meaning';
 import { JOB_QUEUE_EMITS, WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS } from '@semiont/jobs';
 import { toReplyAddress } from '../interface';
@@ -407,6 +407,51 @@ describe('P3 — two gateway-compositions over one broker', () => {
       ).toBe(true);
 
       worker.close();
+    } finally {
+      done();
+    }
+  });
+
+  test('H10: job:queued reaches the worker manifest and NOT a default client (audience)', async () => {
+    // The routing consequence of WIRE-CROSSING-MODEL P1, proven where it
+    // actually happens rather than by comparing two lists.
+    //
+    // `job:queued` moved from `audience: everyone` to `audience: declared`
+    // because the P0 audit found every browser subscribed it and none read
+    // it, while the worker -- its only real consumer -- names it in its own
+    // manifest. Two clients on one broker, each composed from the REAL set
+    // its kind ships with, must therefore disagree about this one frame.
+    //
+    // Composed from the shipped constants, not hand-written lists: a
+    // hand-written list would prove the transport works and say nothing about
+    // what any real client subscribes, which is exactly the grain gap that
+    // let the 2026-09-16 outage pass every test in the repo.
+    const { a, b, done } = await twoInstances();
+    try {
+      const worker = b.client('worker-h10', [...WORKER_CHANNELS]);
+      const browser = b.client('browser-h10', [...BRIDGED_CHANNELS]);
+
+      await settle(() => {
+        if (worker.frames.some((f) => f.channel === 'job:queued')) return true;
+        a.emitOnBus('job:queued', { jobId: 'job-h10', jobType: 'generate' });
+        return false;
+      });
+      expect(
+        worker.frames.some((f) => f.channel === 'job:queued'),
+        'the worker manifest declares job:queued, so the worker hears it',
+      ).toBe(true);
+
+      // The browser shares the broker and the instance; only its manifest
+      // differs. Settling on the worker above means the frames have already
+      // been published and delivered -- so this is a real absence, not a race
+      // that has yet to resolve.
+      expect(
+        browser.frames.some((f) => f.channel === 'job:queued'),
+        'a default client no longer auto-subscribes job:queued',
+      ).toBe(false);
+
+      worker.close();
+      browser.close();
     } finally {
       done();
     }

@@ -34,16 +34,27 @@ import { BUS_OPERATIONS } from './bus-operations';
  */
 
 /**
- * Bridged channels with no owning operation: job-lifecycle events (multi-viewer,
- * no single requester owns the reply), KB-global frame domain events, UI signals,
- * and SSE infrastructure. A reply channel must NOT go here — declare its
- * operation in `BUS_OPERATIONS` instead.
+ * WHO receives a wire-crossing channel — independent of `kind` and of
+ * `recorded`. An OPERATION's channels are absent: a request reaches the one
+ * service that answers it, and a reply is correlated-addressed to its owner.
+ *
+ *   everyone — every default client auto-subscribes (derives BRIDGED_CHANNELS)
+ *   scoped   — delivered to clients that joined the frame's RESOURCE scope
+ *              (derives RESOURCE_SCOPED_CHANNELS, which used to be a
+ *              persisted-minus-bridged subtraction nobody declared)
+ *   declared — only clients whose manifest names it: workers, sidecars, and
+ *              the gateway's own handlers
+ *
+ * Seeded 2026-09-16 from a per-channel audit of every wire-crossing channel,
+ * evidenced by subscription sites and client manifests rather than by the
+ * label a channel already carried. Two of those labels were false: `job:queued`
+ * was auto-subscribed by every browser and read by none, and eleven channels
+ * said `inProcess` while being delivered to browsers per resource scope.
  */
 export const BRIDGED_BROADCASTS = [
   'job:report-progress',
   'job:complete',
   'job:fail',
-  'job:queued',
   'smelt:settled',
   'frame:entity-type-added',
   'frame:tag-schema-added',
@@ -98,3 +109,22 @@ export const BRIDGED_CHANNELS: readonly BridgedChannel[] = [
  * bus-protocol.ts (emit on an `EmittableChannel`, subscribe on a `BridgedChannel`).
  */
 export type BridgedChannel = RegistryReply | (typeof BRIDGED_BROADCASTS)[number];
+
+/**
+ * The channels a client receives per RESOURCE SCOPE rather than globally —
+ * what `subscribeToResource` joins. `audience: scoped` in the registry.
+ */
+export const RESOURCE_SCOPED_CHANNELS = [
+  'mark:body-updated',
+  'yield:representation-added',
+  'yield:representation-removed',
+  'mark:added',
+  'mark:removed',
+  'mark:entity-tag-added',
+  'mark:entity-tag-removed',
+  'mark:archived',
+  'mark:unarchived',
+  'job:started',
+  'job:completed',
+  'job:failed',
+] as const satisfies readonly EventName[];

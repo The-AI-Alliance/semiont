@@ -13,7 +13,6 @@ var BridgedBroadcasts = []Channel{
 	JobReportProgress,
 	JobComplete,
 	JobFail,
-	JobQueued,
 	SmeltSettled,
 	FrameEntityTypeAdded,
 	FrameTagSchemaAdded,

@@ -50,6 +50,12 @@ import { PERSISTED_EVENT_TYPES } from '../persisted-events';
  * snapshot and the test goes red — so no reply channel can silently drop. Edit
  * this snapshot ONLY for a deliberate, reviewed change to the bridged set.
  */
+// SHRANK 2026-09-16 (WIRE-CROSSING-MODEL P1): `job:queued` left the
+// auto-subscribe set. The P0 audit found it had no SDK or UI consumer — every
+// browser subscribed it and none read it — while the worker, its only real
+// consumer, reaches it through `audience: declared` plus its own manifest.
+// A deliberate removal, which is exactly what this snapshot exists to make
+// someone type out.
 const FROZEN_BRIDGED = [
   'browse:resources-result', 'browse:resources-failed',
   'browse:resource-result', 'browse:resource-failed',
@@ -78,7 +84,7 @@ const FROZEN_BRIDGED = [
   'gather:annotation-progress',
   'gather:summary-result', 'gather:summary-failed',
   'bind:body-updated', 'bind:body-update-failed',
-  'job:report-progress', 'job:complete', 'job:fail', 'job:queued',
+  'job:report-progress', 'job:complete', 'job:fail',
   'smelt:settled',
   'job:status-result', 'job:status-failed',
   'job:created', 'job:create-failed',
