@@ -293,7 +293,7 @@ Two generators read it:
 
 | Output | Generator |
 |---|---|
-| `packages/core/src/bus-protocol.ts`, `bus-operations.ts` | `node scripts/bus/generate-ts.mjs` |
+| `packages/core/src/bus-protocol.ts`, `bus-operations.ts`, `bus-classification.ts` | `node scripts/bus/generate-ts.mjs` |
 | `packages/sdk-go/bus/{channels,operations}_gen.go` | `node scripts/bus/generate-go.mjs` |
 
 ```sh
@@ -312,6 +312,38 @@ Payload *schemas* still live in the OpenAPI components — the registry only
 names which schema each channel carries. Channels whose payload is
 TypeScript-only (DOM geometry, callbacks) are excluded from the Go output:
 they never cross the wire.
+
+### The channel classification (`CHANNEL_ATTRS`)
+
+`bus-classification.ts` is a third TypeScript output of the same generator —
+one entry per channel, three orthogonal attributes read straight off registry
+facts, so a boundary that needs to reason about a channel does not re-derive
+them and cannot drift from the registry:
+
+- **`recorded`** — whether the channel lands in the event log (mirrors
+  `PERSISTED_EVENT_TYPES`).
+- **`direction`** — `outbound` (emitted toward the hub), `inbound` (delivered
+  from it — the fan-in set, by construction), or `in-process` (never on the
+  wire).
+- **`delivery`** — for inbound channels only, *how* a reply is routed:
+  `correlated` (owner-addressed, keyed by `correlationId`), `streaming`
+  (progress frames — they refresh a request's liveness but are never retained
+  as the answer), or `broadcast` (every subscriber in scope). Its absence on
+  outbound and in-process channels is asserted, so it is a decision rather than
+  a gap.
+
+The three axes are independent — a channel can be both `recorded` and
+`broadcast`, pinned by the handful that are — and adding an operation to the
+registry classifies its reply channels with no hand edit, which is what let the
+gateway's old hand-kept `CORRELATED_CHANNELS` / `PROGRESS_CHANNELS` partitions
+be deleted (BUS-ROUTING-DECLARED P1). Consume it through `channelAttrsOf(channel)`.
+
+**Do not confuse `delivery` with the SSE fan-in disciplines** in [Resource
+scoping](#resource-scoping) above: `delivery` classifies a channel's *routing
+intent* at the hub (how the gateway's Signal Plane and its correlation ledger
+treat it), while "global-bridged vs resource-scoped" is the *transport's* choice
+of which SSE subscription carries a wire event to a client. Related, not the
+same axis.
 
 Nothing regenerates automatically. The `Generated Artifacts (drift)` CI job
 and `scripts/ci/local-build.sh` both fail if the committed output disagrees
