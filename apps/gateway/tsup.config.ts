@@ -27,6 +27,14 @@ export default defineConfig({
   treeshake: true,
   target: 'node20',
   platform: 'node',
+  // The bundling POLICY, explicit: first-party src only; every node_modules
+  // import stays external and therefore must be DECLARED (the phantom-dep
+  // gate enforces that). Without this, external-vs-inlined was decided by
+  // transitive accident — a devDep import inlined @semiont/jobs → inference
+  // → undici (CJS), whose require("assert") killed the ESM bundle at load
+  // (.plans/bugs/gateway-bundles-undici-esm-require-crash.md). An undeclared
+  // import now fails the gate by name instead of crashing the boot.
+  skipNodeModulesBundle: true,
   noExternal: [],
   // The version is injected at build time, never read from the environment.
   // See src/types/build-defines.d.ts.
