@@ -84,15 +84,18 @@ describe('createJobClaimAdapter', () => {
     adapter.dispose();
   });
 
-  it('needs no channel widening on start() — job:queued is a bridged broadcast', () => {
-    // Registry-declared since 2026-09-16 (the fallthrough classification
-    // starved every worker): every wire transport subscribes it by
-    // construction, so the adapter must NOT widen — a second widening path
-    // would hide a transport that stopped honoring BRIDGED_CHANNELS.
+  it('widens the shared actor with job:queued on start()', () => {
+    // The worker's transport subscribes only the reply channels it awaits —
+    // NOT BRIDGED_CHANNELS — so without this widening the adapter listens
+    // to a channel its own stream will never carry. This assertion was
+    // briefly inverted (2026-09-16, "redundant with the classification")
+    // and every worker sat idle with the frame live on the broker: the
+    // widening and the registry classification are BOTH load-bearing.
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
-    expect(h.bus.addChannels).not.toHaveBeenCalled();
+    expect(h.channels.has('job:queued')).toBe(true);
+    expect(h.bus.addChannels).toHaveBeenCalledWith(['job:queued']);
 
     adapter.dispose();
   });
@@ -174,12 +177,10 @@ describe('createJobClaimAdapter', () => {
   });
 
   it('start() is idempotent', () => {
-    const streamSpy = vi.spyOn(h.bus, 'stream');
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
     adapter.start();
-    // One job:queued subscription, not two — a second would double-claim.
-    expect(streamSpy).toHaveBeenCalledTimes(1);
+    expect(h.bus.addChannels).toHaveBeenCalledTimes(1);
 
     adapter.dispose();
   });

@@ -201,8 +201,9 @@ export function startStallWatchdog(opts: StallWatchdogOptions): { dispose(): voi
  * the operation named. `busRequest`'s `isSubscribed` probe remains the
  * runtime backstop for an await nobody declared — a loud `bus.unsubscribed`
  * at first use, never a silent 30 s timeout.
- * (`job:queued` is not here: it is a bridged broadcast, subscribed by
- * every wire transport by construction.)
+ * (`job:queued` is not here: it is a broadcast, not an awaited reply — the
+ * claim adapter widens the worker's narrowed subscription set for it via
+ * `addChannels`.)
  */
 export const WORKER_AWAITED_OPERATIONS = [
   'job:claim',
