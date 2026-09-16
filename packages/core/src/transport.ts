@@ -36,6 +36,7 @@ import type {
 } from './branded-types';
 import type { AnnotationId, ResourceId } from './identifiers';
 import type { EventMap } from './bus-protocol';
+import type { BusEnvelope, BusFrame } from './event-bus';
 import type { EventBus } from './event-bus';
 import type { SemiontError } from './errors';
 
@@ -114,9 +115,13 @@ export interface ITransport {
   /**
    * Publish a payload on the named channel.
    *
-   * `resourceScope`, when set, marks the emit as a resource-scoped
-   * broadcast — only delivered to subscribers attached to that
-   * resource's scope.
+   * The third argument is the ENVELOPE — the routing facts, none of which
+   * belong in a channel's domain type. `scope`, when set, marks the emit as
+   * a resource-scoped broadcast, delivered only to subscribers attached to
+   * that resource's scope; `correlationId` pairs a reply with its request.
+   * It was a bare `resourceScope` until BUS-CARRIES-FRAMES P3, which is why
+   * one routing fact travelled as a positional argument while its sibling
+   * had to be smuggled inside the payload.
    *
    * Resolves with the number of subscribers the emit reached
    * (`/bus/emit` responds `{subscribers: n}`; GUIDED-TOUR P1), or `-1`
@@ -128,7 +133,7 @@ export interface ITransport {
   emit<K extends keyof EventMap>(
     channel: K,
     payload: EventMap[K],
-    resourceScope?: ResourceId,
+    envelope?: BusEnvelope,
   ): Promise<number>;
   on<K extends keyof EventMap>(channel: K, handler: (payload: EventMap[K]) => void): () => void;
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
@@ -194,6 +199,13 @@ export interface ITransport {
    * emit, which is the true answer and not a stub.
    */
   isSubscribed(channel: keyof EventMap): boolean;
+
+  /**
+   * The ENVELOPE view (`BusRequestPrimitive.frames`). `busRequest` matches a
+   * reply on `frame.correlationId`, so the key never enters a channel's
+   * domain type. Required: every transport can answer it.
+   */
+  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>>;
 
   /**
    * Stream of transport-level errors surfaced from typed-wire methods or
