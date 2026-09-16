@@ -84,7 +84,13 @@ describe('createJobClaimAdapter', () => {
     adapter.dispose();
   });
 
-  it('adds job:queued to the shared actor on start()', () => {
+  it('widens the shared actor with job:queued on start()', () => {
+    // The worker's transport subscribes only the reply channels it awaits —
+    // NOT BRIDGED_CHANNELS — so without this widening the adapter listens
+    // to a channel its own stream will never carry. This assertion was
+    // briefly inverted (2026-09-16, "redundant with the classification")
+    // and every worker sat idle with the frame live on the broker: the
+    // widening and the registry classification are BOTH load-bearing.
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 

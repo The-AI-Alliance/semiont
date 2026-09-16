@@ -1,5 +1,5 @@
 import type { AnyJob } from './types';
-import type { JobId, UnitCursor } from '@semiont/core';
+import type { EventMap, JobId, UnitCursor } from '@semiont/core';
 
 export interface JobQueue {
   initialize(): Promise<void>;
@@ -69,3 +69,13 @@ export interface JobQueue {
   cancelJob(jobId: JobId): Promise<boolean>;
   getStats(): Promise<{ pending: number; running: number; complete: number; failed: number; cancelled: number }>;
 }
+
+/**
+ * Every bus channel a queue DRIVER emits, maintained beside the interface
+ * both drivers implement and censused against their sources
+ * (queue-emits-census.test.ts). The gateway's signal bridge forwards these
+ * from its local bus onto the plane — a queue announcement that stays on
+ * the raw bus reaches no worker under a remote driver (the job:queued
+ * starvation, 2026-09-15).
+ */
+export const JOB_QUEUE_EMITS = ['job:queued'] as const satisfies readonly (keyof EventMap)[];

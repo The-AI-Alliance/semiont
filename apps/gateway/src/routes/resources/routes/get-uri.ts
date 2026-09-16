@@ -25,9 +25,9 @@
 import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { busLog, resourceId } from '@semiont/core';
+import { BusRequestError, busLog, busRequest, resourceId } from '@semiont/core';
 import { getContent } from '../../../lib/archivist';
-import { eventBusRequest } from '../../../utils/event-bus-request';
+import { requestPrimitiveFor } from '../../../signal';
 import { SpanKind, withSpan, withTraceparent } from '@semiont/observability';
 
 function traceCarrier(c: Context) {
@@ -59,17 +59,16 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
   // collide with the pipe route below.
   router.get('/resources/:id/jsonld', async (c) => {
     const { id } = c.req.param();
-    const eventBus = c.get('eventBus');
-    const correlationId = crypto.randomUUID();
 
     try {
-      const response = await eventBusRequest(
-        eventBus,
-        'browse:resource-requested',
-        { correlationId, resourceId: resourceId(id) },
-        'browse:resource-result',
-        'browse:resource-failed',
-      );
+      // Core `busRequest` over the gateway's PLANE primitive: the registry
+      // supplies the reply pair (unbridged replies unrepresentable), the
+      // primitive supplies the fabric (the Browser actor lives in the
+      // Archivist — a raw-bus emit starves under a remote driver), and the
+      // correlationId is busRequest's own.
+      const response = await busRequest(requestPrimitiveFor(c.get('eventBus')), 'browse:resource-requested', {
+        resourceId: resourceId(id),
+      });
 
       // Headers passed to c.json directly: Hono's c.json overwrites a
       // prepared content-type (set via c.header) with application/json.
@@ -83,7 +82,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
         if (error.message === 'Resource not found') {
           throw new HTTPException(404, { message: 'Resource not found' });
         }
-        if (error.name === 'TimeoutError') {
+        if (error instanceof BusRequestError && error.code === 'bus.timeout') {
           throw new HTTPException(504, { message: 'Request timed out' });
         }
       }

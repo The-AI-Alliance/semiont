@@ -33,20 +33,51 @@ export {
 };
 
 /**
- * Every channel the handlers above SUBSCRIBE, maintained beside them — the
- * handlers' half of the root-parity gate (root-parity.test.ts), which
- * asserts the in-process composition root observes all of these.
+ * Every channel the GATEWAY-RESIDENT handler subset SUBSCRIBES
+ * (`registerGatewayBusHandlers`: bind-update-body + job-commands), complete
+ * — in-process relays included — and maintained beside the handlers. The
+ * gateway's signal bridge (SIGNAL-PLANE P3) consumes this to reconnect the
+ * handlers to a remote plane, deriving the wire subset by direction from
+ * the generated classification; the census gate beside these files
+ * (gateway-handler-census.test.ts) pins list == actual subscriptions —
+ * the gap that let `job:checkpoint`/`job:cancel` go unlisted here until
+ * 2026-09-15.
+ */
+export const GATEWAY_HANDLER_CHANNELS = [
+  // bind-update-body
+  'bind:update-body', 'mark:body-updated', 'mark:body-update-failed',
+  // job-commands
+  'job:create', 'job:claim', 'job:complete', 'job:fail',
+  'job:report-progress', 'job:checkpoint', 'job:cancel-requested', 'job:cancel',
+  'job:status-requested',
+] as const satisfies readonly (keyof EventMap)[];
+
+/**
+ * Every channel that same subset EMITS (`.next`), complete and censused the
+ * same way. The bridge's outbound half: wire-bound entries leave the bus
+ * through `plane.ingest`, so a handler's reply reaches a remote plane's
+ * subscribers — the other half of the q0(a) funnel.
+ */
+export const GATEWAY_HANDLER_EMITS = [
+  // bind-update-body
+  'mark:update-body', 'bind:body-updated', 'bind:body-update-failed',
+  // job-commands
+  'job:created', 'job:create-failed', 'job:claimed', 'job:claim-failed',
+  'job:cancel-ok', 'job:cancel-failed', 'job:status-result', 'job:status-failed',
+] as const satisfies readonly (keyof EventMap)[];
+
+/**
+ * Every channel the handlers above SUBSCRIBE — the handlers' half of the
+ * root-parity gate (root-parity.test.ts), which asserts the in-process
+ * composition root observes all of these. The gateway subset is DERIVED
+ * from its own constant, not restated.
  */
 export const HANDLER_CHANNELS = [
   // annotation-assembly
   'mark:create-request', 'mark:added', 'mark:create-failed',
   // annotation-lookups
   'browse:annotation-context-requested', 'gather:summary-requested',
-  // bind-update-body
-  'bind:update-body', 'mark:body-updated', 'mark:body-update-failed',
-  // job-commands
-  'job:create', 'job:claim', 'job:cancel-requested',
-  'job:report-progress', 'job:complete', 'job:fail',
+  ...GATEWAY_HANDLER_CHANNELS,
 ] as const satisfies readonly (keyof EventMap)[];
 
 /**

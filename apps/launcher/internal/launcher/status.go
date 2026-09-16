@@ -81,7 +81,7 @@ var statusServices = []struct {
 	{"smelter", "http://localhost:24101/health", true, 1},
 
 	{"database", "tcp:5432", true, 2},
-	{"jobs", "tcp:4222", true, 2},
+	{"messaging", "tcp:4222", true, 2},
 	{"graph", "http://localhost:7474", true, 2},
 	{"vectors", "http://localhost:6333/readyz", true, 2},
 	{"collector", "http://localhost:24110/metrics", true, 2},

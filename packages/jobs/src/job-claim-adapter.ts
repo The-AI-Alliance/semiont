@@ -244,10 +244,16 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
     start: () => {
       if (started) return;
       started = true;
-      // `job:queued` is not in BRIDGED_CHANNELS (it's a worker-only
-      // broadcast). On HTTP, widen the SSE subscription set so this
-      // adapter sees queued jobs; in-process buses receive every
-      // emit and need no widening, hence the optional chain.
+      // BOTH halves are load-bearing, and each was a worker-starving bug:
+      // `job:queued` must be a declared bridged broadcast so the frame
+      // EXISTS on the wire (its old fallthrough classification silently
+      // severed it, 2026-09-16) — AND this widening must stay, because the
+      // WORKER's transport subscribes only the reply channels it awaits,
+      // not BRIDGED_CHANNELS. Deleting this line as "redundant with the
+      // classification" idled every worker with the frame flowing on the
+      // broker and `lastQueuedEventAt: null` as the only tell (same day).
+      // In-process buses receive every emit and need no widening, hence
+      // the optional chain.
       bus.addChannels?.(['job:queued']);
 
       jobSubscription = bus

@@ -106,6 +106,18 @@ jobs:
           CI: true
           NODE_OPTIONS: "--max-old-space-size=8192"
 
+      # The signal-plane conformance suite (SIGNAL-PLANE P1) runs against a
+      # real nats-server spawned from PATH — a mocked broker would prove
+      # nothing about subjects, queue groups, or the wire codec. Same install
+      # as package-tests.yml's jobs step; CORE only is exercised (the fixture
+      # starts it without -js).
+      - name: Install nats-server (gateway signal-plane conformance)
+        run: |
+          NATS_VERSION=v2.14.0
+          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+
       - name: Run gateway unit tests
         run: |
           echo "Running gateway unit tests..."
@@ -175,12 +187,23 @@ jobs:
         env:
           CI: true
 
+      # This job runs the gateway suite too, so it needs the same real
+      # nats-server the test-gateway job installs — the signal-plane
+      # fixtures spawn it from PATH (SIGNAL-PLANE P1/P3).
+      - name: Install nats-server (gateway signal-plane conformance)
+        run: |
+          NATS_VERSION=v2.14.0
+          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+
       - name: Run comprehensive test suite
         run: |
           echo "Running comprehensive test suite..."
-          # Run tests for each package
-          cd apps/browser && npm test && cd ../..
-          cd apps/gateway && npm test && npm run test:integration && cd ../..
+          # One subshell per suite: `bash -e` ignores non-final failures
+          # inside a bare `&&` chain, but honors a subshell's exit status.
+          (cd apps/browser && npm test)
+          (cd apps/gateway && npm test && npm run test:integration)
 
           echo "All tests completed successfully"
         env:

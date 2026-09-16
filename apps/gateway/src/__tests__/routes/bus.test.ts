@@ -25,7 +25,8 @@ vi.mock('@semiont/observability', async (importOriginal) => ({
   registerCorrelationRegistryProvider: (p: unknown) => observed.registryProvider(p),
 }));
 
-import { createBusRouter, createCorrelationRegistry } from '../../routes/bus';
+import { createBusRouter } from '../../routes/bus';
+import { createCorrelationRegistry } from '../../signal/ledger';
 import { initializeLogger, getLogger } from '../../logger';
 
 const TEST_USER_ID = 'did:web:test:users:test' as UserId;
@@ -1196,8 +1197,7 @@ describe('bus routes', () => {
     it('[bus CLAIM-EXPIRED] fires when a claim is swept with no reply', () => {
       const warn = captureBusWarnings();
       let clock = 1_000;
-      const bus = new EventBus();
-      const registry = createCorrelationRegistry(bus, { claimTtlMs: 100, now: () => clock });
+      const registry = createCorrelationRegistry({ claimTtlMs: 100, now: () => clock });
       registry.claim('c-silent', 'client-1', 'did:web:x');
 
       clock += 101;
@@ -1205,13 +1205,11 @@ describe('bus routes', () => {
 
       expect(warn.mock.calls.some((c) => String(c[0]).includes('CLAIM-EXPIRED'))).toBe(true);
       registry.dispose();
-      bus.destroy();
     });
 
     it('[bus CLAIM-EVICTED] fires when the global cap forces an eviction', () => {
       const warn = captureBusWarnings();
-      const bus = new EventBus();
-      const registry = createCorrelationRegistry(bus, { now: () => 1 });
+      const registry = createCorrelationRegistry({ now: () => 1 });
       // Fill past the global backstop, spread across clients so the per-client
       // cap refuses nothing — the global cap is what must trip.
       for (let i = 0; i <= 4096; i++) {
@@ -1219,7 +1217,6 @@ describe('bus routes', () => {
       }
       expect(warn.mock.calls.some((c) => String(c[0]).includes('CLAIM-EVICTED'))).toBe(true);
       registry.dispose();
-      bus.destroy();
     });
   });
 
@@ -1499,44 +1496,42 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
 
   // D4 absorbed createReplyRetention into this registry, so these pin the same
   // bounds — plus the new rule that only a CLAIMED cid is retained at all.
-  const setup = (opts: Parameters<typeof createCorrelationRegistry>[1] = {}) => {
-    const bus = new EventBus();
-    const registry = createCorrelationRegistry(bus, opts);
-    return { bus, registry };
-  };
+  // Since P3 the ledger is fed by the composition's plane tap, not an RxJS
+  // bus subscription — these unit tests feed `observe` directly, which is
+  // exactly what the tap does.
+  const setup = (opts: Parameters<typeof createCorrelationRegistry>[0] = {}) =>
+    createCorrelationRegistry(opts);
 
   it('retains a reply only for a claimed cid', () => {
-    const { bus, registry } = setup({ now: () => 1 });
+    const registry = setup({ now: () => 1 });
     registry.claim('claimed', OWNER, DID);
 
-    bus.get('gather:resource-complete').next({ correlationId: 'claimed', response: {} } as never);
-    bus.get('gather:resource-complete').next({ correlationId: 'unclaimed', response: {} } as never);
+    registry.observe('gather:resource-complete', { correlationId: 'claimed', response: {} });
+    registry.observe('gather:resource-complete', { correlationId: 'unclaimed', response: {} });
 
     expect(registry.lookupReply('claimed', OWNER, DID)).toBeDefined();
     // The in-process case: nobody claimed it, so nothing is held for it. Not a
     // lossy mode — the requester is the gateway and consumed it in-process.
     expect(registry.lookupReply('unclaimed', OWNER, DID)).toBeUndefined();
     registry.dispose();
-    bus.destroy();
   });
 
   it('refuses a lookup from a client that does not own the cid', () => {
-    const { bus, registry } = setup({ now: () => 1 });
+    const registry = setup({ now: () => 1 });
     registry.claim('c1', OWNER, DID);
-    bus.get('gather:resource-complete').next({ correlationId: 'c1', response: {} } as never);
+    registry.observe('gather:resource-complete', { correlationId: 'c1', response: {} });
 
     expect(registry.lookupReply('c1', 'client-2', DID)).toBeUndefined();
     expect(registry.lookupReply('c1', OWNER, 'did:web:test:users:mallory')).toBeUndefined();
     expect(registry.lookupReply('c1', OWNER, DID)).toBeDefined();
     registry.dispose();
-    bus.destroy();
   });
 
   it('expires a retained reply past the TTL while the claim survives', () => {
     let clock = 1_000;
-    const { bus, registry } = setup({ ttlMs: 100, now: () => clock });
+    const registry = setup({ ttlMs: 100, now: () => clock });
     registry.claim('c1', OWNER, DID);
-    bus.get('gather:resource-complete').next({ correlationId: 'c1', response: {} } as never);
+    registry.observe('gather:resource-complete', { correlationId: 'c1', response: {} });
     expect(registry.lookupReply('c1', OWNER, DID)).toBeDefined();
 
     clock += 101;
@@ -1544,7 +1539,6 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     // Claims are cheap and long-lived; payloads are expensive and short-lived.
     expect(registry.owner('c1')).toBeDefined();
     registry.dispose();
-    bus.destroy();
   });
 
   // Expiry must run at INSERT, not only on lookup: replies nobody asks about
@@ -1553,29 +1547,28 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
   // 2026-09-03 gateway OOM).
   it('sweeps expired reply payloads on insert, without any lookup', () => {
     let clock = 1_000;
-    const { bus, registry } = setup({ ttlMs: 100, now: () => clock });
+    const registry = setup({ ttlMs: 100, now: () => clock });
     for (const cid of ['c1', 'c2', 'c3']) {
       registry.claim(cid, OWNER, DID);
-      bus.get('gather:resource-complete').next({ correlationId: cid, response: {} } as never);
+      registry.observe('gather:resource-complete', { correlationId: cid, response: {} });
     }
 
     clock += 101;
     registry.claim('c4', OWNER, DID);
-    bus.get('gather:resource-complete').next({ correlationId: 'c4', response: {} } as never);
+    registry.observe('gather:resource-complete', { correlationId: 'c4', response: {} });
 
     for (const cid of ['c1', 'c2', 'c3']) {
       expect(registry.lookupReply(cid, OWNER, DID)).toBeUndefined();
     }
     expect(registry.lookupReply('c4', OWNER, DID)).toBeDefined();
     registry.dispose();
-    bus.destroy();
   });
 
   it('drops the oldest reply payloads beyond the cap, keeping their claims', () => {
-    const { bus, registry } = setup({ max: 2, now: () => 1 });
+    const registry = setup({ max: 2, now: () => 1 });
     for (const cid of ['c1', 'c2', 'c3']) {
       registry.claim(cid, OWNER, DID);
-      bus.get('gather:resource-complete').next({ correlationId: cid, response: {} } as never);
+      registry.observe('gather:resource-complete', { correlationId: cid, response: {} });
     }
     expect(registry.lookupReply('c1', OWNER, DID)).toBeUndefined(); // FIFO
     expect(registry.lookupReply('c3', OWNER, DID)).toBeDefined();
@@ -1583,11 +1576,10 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     // payload is not the same as forgetting who owns the cid.
     expect(registry.owner('c1')).toBeDefined();
     registry.dispose();
-    bus.destroy();
   });
 
   it('refuses a duplicate claim and a per-client flood, without evicting', () => {
-    const { bus, registry } = setup({ now: () => 1 });
+    const registry = setup({ now: () => 1 });
     expect(registry.claim('dup', OWNER, DID)).toBe('ok');
     expect(registry.claim('dup', 'client-2', DID)).toBe('conflict');
 
@@ -1595,7 +1587,6 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     expect(registry.claim('f-256', OWNER, DID)).toBe('at-capacity');
     expect(registry.owner('dup')).toBeDefined(); // nothing evicted to make room
     registry.dispose();
-    bus.destroy();
   });
 
   it('an answered claim frees its per-client capacity while staying retained', () => {
@@ -1603,45 +1594,42 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     // answered within milliseconds. The cap counts UNANSWERED requests — its
     // own 429 message says so — so a client whose questions are all answered
     // must never be refused, no matter how many it has asked.
-    const { bus, registry } = setup({ now: () => 1 });
+    const registry = setup({ now: () => 1 });
     for (let i = 0; i < 256; i++) {
       registry.claim(`a-${i}`, OWNER, DID);
-      bus.get('gather:resource-complete').next({ correlationId: `a-${i}`, response: {} } as never);
+      registry.observe('gather:resource-complete', { correlationId: `a-${i}`, response: {} });
     }
     expect(registry.claim('a-256', OWNER, DID)).toBe('ok');
     // Retention is untouched: answered claims still route and replay.
     expect(registry.owner('a-0')).toBeDefined();
     expect(registry.lookupReply('a-0', OWNER, DID)).toBeDefined();
     registry.dispose();
-    bus.destroy();
   });
 
   it('sweeping an answered claim does not free its capacity twice', () => {
     let clock = 1_000;
-    const { bus, registry } = setup({ claimTtlMs: 100, now: () => clock });
+    const registry = setup({ claimTtlMs: 100, now: () => clock });
     registry.claim('c1', OWNER, DID);
-    bus.get('gather:resource-complete').next({ correlationId: 'c1', response: {} } as never);
+    registry.observe('gather:resource-complete', { correlationId: 'c1', response: {} });
     clock += 200; // c1's claim expires; the sweep must not decrement again
     for (let i = 0; i < 256; i++) expect(registry.claim(`u-${i}`, OWNER, DID)).toBe('ok');
     // A double-free would leave the counter at -1 and admit a 257th.
     expect(registry.claim('u-256', OWNER, DID)).toBe('at-capacity');
     registry.dispose();
-    bus.destroy();
   });
 
   it('a progress frame refreshes the claim without being retained as the answer', () => {
     let clock = 1_000;
-    const { bus, registry } = setup({ claimTtlMs: 100, now: () => clock });
+    const registry = setup({ claimTtlMs: 100, now: () => clock });
     registry.claim('c-stream', OWNER, DID);
 
     clock += 80;
-    bus.get('gather:annotation-progress').next({ correlationId: 'c-stream', done: 1, total: 9 } as never);
+    registry.observe('gather:annotation-progress', { correlationId: 'c-stream', done: 1, total: 9 });
     clock += 80;
     // Without the refresh this claim would have expired at t+100.
     expect(registry.owner('c-stream')).toBeDefined();
     // A stream is not an answer: nothing is retained for replay.
     expect(registry.lookupReply('c-stream', OWNER, DID)).toBeUndefined();
     registry.dispose();
-    bus.destroy();
   });
 });

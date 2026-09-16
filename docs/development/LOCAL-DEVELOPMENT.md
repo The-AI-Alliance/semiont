@@ -18,12 +18,12 @@ is what ships.
 ## The loop
 
 `local-build.sh` builds every package, publishes them to a throwaway local Verdaccio registry, and
-builds all five service images tagged `:local` (never pushed). Images are loaded into every
+builds all seven service images tagged `:local` (never pushed). Images are loaded into every
 responsive container engine on the machine, so the KB's `--runtime` choice is independent of which
 engine built them.
 
 ```bash
-# 1. From the monorepo — build packages and the five :local images
+# 1. From the monorepo — build packages and the seven :local images
 ./scripts/ci/local-build.sh
 
 # 2. From your KB — run the stack against them

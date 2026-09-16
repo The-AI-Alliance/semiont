@@ -353,6 +353,48 @@ overlap = 64
 
 Available Voyage models: `voyage-3` (1024 dims), `voyage-3-lite` (512), `voyage-code-3`, `voyage-finance-2`, `voyage-law-2`.
 
+## Job Queue Configuration
+
+The gateway selects its job queue driver from config; nothing is inferred. An absent section
+means `fs`.
+
+```toml
+# Launcher-mounted filesystem queue (the local default; single gateway only)
+[environments.local.jobs]
+type = "fs"
+
+# NATS JetStream — stream-held leases; required for gateway replicas
+[environments.local.jobs]
+type = "jetstream"
+servers = "${NATS_HOST}:4222"
+```
+
+`servers` may reference environment via `${VAR}` placeholders — the config names the
+variable. A section that names `type = "jetstream"` without `servers` refuses at load.
+
+## Signal Plane Configuration
+
+The gateway's real-time hub (SSE fan-out, correlated replies, handler dispatch) selects its
+driver the same way. An absent section means `in-process` — the permanent local default.
+
+```toml
+# In-process (default): the RxJS relay inside the gateway
+[environments.local.signal]
+type = "in-process"
+
+# Core NATS subjects — required for gateway replicas
+[environments.local.signal]
+type = "nats"
+servers = "${NATS_HOST}:4222"
+```
+
+The signal plane uses core NATS subjects only, never JetStream — signals are never a record;
+the event log is. When both this and the `jetstream` jobs driver are selected, they share one
+NATS server (the launcher runs it as the `messaging` service): JetStream streams for jobs,
+core subjects for signals, disjoint subject spaces. Both sections must then name the same
+`servers` — the launcher refuses a split. Running gateway replicas requires both broker-backed
+drivers: see [DEPLOYMENT.md](./DEPLOYMENT.md) § Multiple gateway replicas.
+
 ## Environment Variables
 
 Only a small number of environment variables are used:
@@ -363,6 +405,7 @@ Only a small number of environment variables are used:
 | `SEMIONT_VERSION` | Image tag to run (`local` uses locally built images) | No (defaults to `latest`) |
 | `ANTHROPIC_API_KEY` | Resolved from `${ANTHROPIC_API_KEY}` in config | If using Anthropic (not needed for Ollama-only) |
 | `POSTGRES_PASSWORD` | Resolved from `${POSTGRES_PASSWORD}` in config | If using variable refs |
+| `NATS_HOST` | Resolved from `${NATS_HOST}` in the `[jobs]`/`[signal]` sections; the launcher stages it for its `messaging` container | If a broker-backed driver uses the placeholder |
 | `SEMIONT_SUPERVISE` | Runs the service under an in-container supervisor that restarts a crashed process and kills a hung one. Any non-empty value enables it. | No — **set by the launcher for local runs; do not set it yourself** |
 
 `SEMIONT_SUPERVISE` exists because a laptop has no scheduler: `semiont start` brings the stack up and

@@ -58,6 +58,15 @@ interface JobEnvelope {
   lastProgressAt: string;
 }
 
+/**
+ * The JOBS stream's capture filter — exported as the ONE home of the fact.
+ * A JetStream stream is a server-side subscription: anything published under
+ * these subjects is persisted regardless of which client API produced it.
+ * The signal plane's disjointness gate derives from this export instead of
+ * restating it (SIGNAL-PLANE D3 gate 3).
+ */
+export const JOBS_STREAM_SUBJECTS = ['jobs.>'] as const;
+
 export interface JetStreamJobQueueOptions {
   /** NATS server address(es), e.g. "192.168.64.42:4222". */
   servers: string | string[];
@@ -122,7 +131,7 @@ export class JetStreamJobQueue implements JobQueue {
     } catch {
       await this.jsm.streams.add({
         name: STREAM,
-        subjects: ['jobs.>'],
+        subjects: [...JOBS_STREAM_SUBJECTS],
         retention: RetentionPolicy.Workqueue,
       });
     }

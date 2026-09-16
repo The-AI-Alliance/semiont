@@ -78,7 +78,7 @@ describe('Scripting Example: Query Graph Database', () => {
     return ResourceOperations.createResource(
       { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format, language: opts.language },
       uid,
-      eventBus,
+      asBusRequestPrimitive(eventBus),
     );
   }
 

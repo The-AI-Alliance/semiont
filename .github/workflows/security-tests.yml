@@ -299,6 +299,16 @@ jobs:
         env:
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
 
+      # `test:coverage` below runs the FULL gateway suite, which includes the
+      # signal-plane fixtures spawning a real nats-server from PATH
+      # (SIGNAL-PLANE P1/P3) — same install as ci.yml's gateway jobs.
+      - name: Install nats-server (gateway signal-plane conformance)
+        run: |
+          NATS_VERSION=v2.14.0
+          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+
       - name: Run security tests
         run: npm run test:security
         env:

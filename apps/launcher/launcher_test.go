@@ -3885,7 +3885,7 @@ func TestStackStateLifecycle(t *testing.T) {
 	}
 	// EXACTLY these roles, not at-least: fleet growth must fail here (a
 	// census gate; main_test cannot reach the roles table to derive one).
-	wantRoles := []string{"traces", "metrics", "collector", "graph", "vectors", "jobs", "inference", "embedding", "database",
+	wantRoles := []string{"traces", "metrics", "collector", "graph", "vectors", "messaging", "inference", "embedding", "database",
 		"gateway", "worker", "smelter", "weaver", "archivist", "librarian"}
 	if len(st.Services) != len(wantRoles) {
 		got := make([]string, 0, len(st.Services))
@@ -7067,4 +7067,67 @@ func TestStartJetStreamJobsBoot(t *testing.T) {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	checkGolden(t, "start-jetstream-jobs-boot.argv", s.argv(t))
+}
+
+// SIGNAL-PLANE P2 (launcher lane, D9 + Open question 5): a config whose
+// [environments.*.signal] selects nats — with NO jetstream jobs — boots the
+// LEAN messaging daemon: core NATS, no -js, no -sd, no /data mount, no
+// store created. This is the path D9 exists to enable (a NATS signal plane
+// without adopting JetStream jobs), and the golden is the proof the daemon
+// shape follows the driver selection (DRIVER-SCOPED-MOUNTS).
+func TestStartSignalOnlyBoot(t *testing.T) {
+	s := newScenario(t, "container")
+	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
+	b, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = append(b, []byte("\n[environments.local.jobs]\ntype = \"fs\"\n\n[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\n")...)
+	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "signal-only.toml"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, stderr, code := s.run(t, "start", "--config", "signal-only"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	argv := s.argv(t)
+	checkGolden(t, "start-signal-only-boot.argv", argv)
+	// The lean shape, asserted directly as well as by golden — on the NATS
+	// line specifically (neo4j legitimately mounts its own /data): a
+	// signal-only daemon carries neither JetStream nor its store.
+	var natsLine string
+	for _, line := range strings.Split(argv, "\n") {
+		if strings.Contains(line, "semiont-nats") && strings.Contains(line, "run") {
+			natsLine = line
+			break
+		}
+	}
+	if natsLine == "" {
+		t.Fatalf("no semiont-nats run line in argv")
+	}
+	for _, banned := range []string{"-js", "-sd", "/data"} {
+		if strings.Contains(natsLine, banned) {
+			t.Errorf("signal-only nats line carries %q — the lean daemon must not: %s", banned, natsLine)
+		}
+	}
+}
+
+// D9's same-server refusal: one role is one daemon. Two sections naming two
+// different servers is a configuration error stated at plan time, naming
+// both sections — never silently reconciled.
+func TestStartRefusesMismatchedMessagingServers(t *testing.T) {
+	s := newScenario(t, "container")
+	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
+	b, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = append(b, []byte("\n[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${NATS_HOST}:4222\"\n\n[environments.local.signal]\ntype = \"nats\"\nservers = \"other.host:4222\"\n")...)
+	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "mismatch.toml"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code := s.run(t, "start", "--config", "mismatch")
+	if code == 0 {
+		t.Fatalf("start accepted mismatched [jobs]/[signal] servers")
+	}
+	mustContain(t, "mismatch refusal", stderr, "[jobs] and [signal] name different servers", "must match")
 }

@@ -11,18 +11,11 @@
 
 ## What Semiont actually ships
 
-Five published service images (GitHub Container Registry, tagged per release plus `latest`):
-
-| Image | Role | Port |
-|---|---|---|
-| `ghcr.io/the-ai-alliance/semiont-gateway` | API, auth, event log, projections | 4000 |
-| `ghcr.io/the-ai-alliance/semiont-browser` | Browser UI | 3000 |
-| `ghcr.io/the-ai-alliance/semiont-worker` | Job / generation worker | 24100 |
-| `ghcr.io/the-ai-alliance/semiont-smelter` | Embedding / vector pipeline | 24101 |
-| `ghcr.io/the-ai-alliance/semiont-weaver` | Graph projection | 24102 |
-
-Plus the infrastructure containers a stack needs: `postgres`, `neo4j`, `qdrant`, and — for local
-inference — `ollama`.
+Seven published service images plus the infrastructure containers a stack needs (`postgres`,
+`neo4j`, `qdrant`, `ollama`, and `nats` when a broker-backed driver is selected). The image
+table lives in **one place** — [DEPLOYMENT.md § What gets deployed](../administration/DEPLOYMENT.md)
+— and is not restated here: an earlier copy on this page drifted to five images and a stale
+gateway role, which is exactly what a second copy does.
 
 ## How stacks are actually run today
 
@@ -36,24 +29,28 @@ See [CONTAINER-TOPOLOGY.md](../CONTAINER-TOPOLOGY.md) for how the containers rel
 
 ## If you want to run it on ECS Fargate anyway
 
-The images are self-contained; the work is entirely in the surrounding platform wiring. Expect to
-solve these yourself:
+The images are self-contained; the work is entirely in the surrounding platform wiring. The
+platform-neutral checklist — config delivery, secrets, service discovery, persistence, the KB
+working tree, migrations, restart and liveness, and multiple gateway replicas — is
+[DEPLOYMENT.md § Everything else — your own integration](../administration/DEPLOYMENT.md).
+What is specifically AWS about it:
 
-- **Config delivery.** Every service reads `~/.semiontconfig` (TOML) for service endpoints, the
-  graph / vector / inference driver settings, and the database connection. You must get that file
-  into each task — a bind mount locally; a volume, init container, or baked layer on ECS.
-- **Secrets.** `JWT_SECRET`, `SEMIONT_WORKER_SECRET`, and any inference API keys arrive as
-  environment variables. Semiont does not read Secrets Manager or SSM — that mapping is yours.
-- **Service discovery.** Services address each other by URL from the config
-  (`services.gateway.publicURL`, and so on), not by any AWS-specific mechanism.
-- **Persistence.** PostgreSQL, Neo4j, and Qdrant need durable volumes. The KB's `.semiont/events/`
-  directory is the system of record and must survive task replacement.
-- **The KB working tree.** The Archivist bind-mounts the KB repo at `/kb`. On a cluster you need a
-  shared filesystem or a different content strategy.
-- **Restart and liveness.** Each image runs `tini` as PID 1 wrapping a single service process and
-  exits when it dies — your task restart policy and health checks behave normally. Do not set
-  `SEMIONT_SUPERVISE`; the in-container supervisor is the launcher's substitute for exactly the
-  restart policy ECS already has.
+- **Secrets.** Semiont reads environment variables, not Secrets Manager or SSM — the
+  task-definition `secrets` mapping from your store to `JWT_SECRET`, `SEMIONT_WORKER_SECRET`,
+  and inference API keys is yours to write.
+- **Config delivery.** Every service reads `~/.semiontconfig` (TOML); on ECS that means a
+  volume, an init container, or a baked layer per task.
+- **The KB working tree.** The Archivist bind-mounts the KB repo at `/kb`; on Fargate that
+  points at EFS — and the `.semiont/events/` directory inside it is the system of record, so
+  that volume's durability is the stack's.
+- **Restart and liveness.** Each image runs `tini` wrapping one process and exits when it
+  dies — ECS task restart policy and health checks behave normally. Do not set
+  `SEMIONT_SUPERVISE`; the in-container supervisor is the launcher's substitute for exactly
+  the restart policy ECS already has.
+- **Scaling out.** Gateway replicas behind an ALB require the broker-backed drivers and an
+  SSE-tolerant load balancer configuration (no response buffering; idle timeout above the
+  15-second heartbeat) — the requirements and the per-service replica table are in
+  [DEPLOYMENT.md](../administration/DEPLOYMENT.md) and [SCALING.md](../administration/SCALING.md).
 
 None of the above is tested or supported. Treat a cloud deployment as your own integration.
 
@@ -62,5 +59,6 @@ None of the above is tested or supported. Treat a cloud deployment as your own i
 - [CONTAINER-TOPOLOGY.md](../CONTAINER-TOPOLOGY.md) — what runs where, and which layer runs it
 - [administration/IMAGES.md](../administration/IMAGES.md) — how the images are built and published
 - [administration/DEPLOYMENT.md](../administration/DEPLOYMENT.md) — deployment overview
+- [administration/SCALING.md](../administration/SCALING.md) — what scales, per service
 - [administration/CONFIGURATION.md](../administration/CONFIGURATION.md) — the config schema
 - [services/SECRETS.md](../services/SECRETS.md) — how secrets reach services

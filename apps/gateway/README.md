@@ -4,7 +4,7 @@ The HTTP entry point to a Semiont knowledge base. It is the one address clients
 and sidecar services dial, and in almost every deployment it runs as the
 `semiont-gateway` container on port 4000.
 
-Its job is narrow on purpose: **authenticate callers, relay the bus, and proxy
+Its job is narrow on purpose: **authenticate callers, run the bus hub, and proxy
 content bytes.** It holds no part of the knowledge base. The five actors that
 make meaning live in other processes, the resource tree belongs to the
 Archivist, and the event log is reached over HTTP like everything else.
@@ -18,8 +18,8 @@ fastest way to understand it.
 |---|---|
 | **Identity** — issues and verifies user and agent tokens, mints `did:web` agent identities | Host any actor (Stower, Browser, Gatherer, Matcher, CloneTokenManager) |
 | **Postgres** — users, sessions, admin state. Its only datastore | Mount the knowledge base. No `/kb`, no working tree, no `.git` |
-| **The bus relay** — `POST /bus/emit` in, `POST /bus/subscribe` (SSE) out | Connect to Neo4j, Qdrant, or an inference provider |
-| **The job queue** — file-backed, on the shared state mount | Read or write projections, views, or content directly |
+| **The bus hub** — `POST /bus/emit` in, `POST /bus/subscribe` (SSE) out, behind a driver (in-process or NATS) | Connect to Neo4j, Qdrant, or an inference provider |
+| **The job queue** — `fs` or NATS JetStream, selected by config | Read or write projections, views, or content directly |
 | **The content proxy** — forwards resource bytes to the Archivist | Store bytes. They never touch this process's disk |
 
 The invariant, enforced by tests rather than convention: the gateway **dials no
@@ -99,6 +99,12 @@ with no project root — there is no tree to read from — so everything it need
 arrives in that file, including the launcher-staged `[kb]` identity card
 carrying the KB's committed name, `did:web` domain, and sign-in policy.
 
+Two sections select the gateway's drivers, both defaulting to the single-process
+local shape when absent: `[signal]` (`in-process` or `nats`) chooses the bus
+fan-out driver, and `[jobs]` (`fs` or `jetstream`) the job queue. `nats`/`jetstream`
+share one NATS daemon and require gateway replicas; see
+[CONFIGURATION.md](../../docs/system/administration/CONFIGURATION.md).
+
 Secrets are not in the file. They come from the environment.
 
 ## HTTP surface
@@ -111,7 +117,7 @@ Secrets are not in the file. They come from the environment.
 | `status.ts` | `/api/status` — KB identity, version, branch |
 | `admin.ts` | User administration |
 | `resources/` | W3C-shaped resource and annotation endpoints; binary upload proxied to the Archivist |
-| `bus.ts` | `/bus/emit` and `/bus/subscribe` — the relay |
+| `bus.ts` | `/bus/emit` and `/bus/subscribe` — the hub, over the selected signal driver (`src/signal/`) |
 
 Emitted payloads are validated against the schema the bus registry binds to each
 channel, so an ill-formed event is a 400 at the edge rather than a confused

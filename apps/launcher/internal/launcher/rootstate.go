@@ -168,11 +168,15 @@ var stateStores = map[string]stateStoreSpec{
 	// mount, a deliberate clear drops re-submittable work, and job state
 	// stays out of KB exports. Same classification the jobs dir had on the
 	// state store.
-	"jobs": {
+	// Renamed jobs → messaging with the role (SIGNAL-PLANE D9); `dir` was
+	// already "nats", so the on-disk tree never moves and nothing is
+	// orphaned. Only the JETSTREAM daemon shape mounts it — the lean
+	// signal-only daemon has no store at all (DRIVER-SCOPED-MOUNTS).
+	"messaging": {
 		dir:        "nats",
 		mounts:     []stateMount{{"", "/data"}},
 		projection: true,
-		owner:      "jobs",
+		owner:      "messaging",
 	},
 	// The XDG state tree, shared across the Archivist (projection writer —
 	// owns the stamp), the librarian (reads views), and the gateway (jobs

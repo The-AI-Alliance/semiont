@@ -15,6 +15,7 @@
  * were always about.
  */
 
+import { asBusRequestPrimitive } from '../bus-request-local';
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -101,7 +102,7 @@ describe('readAnchoredText + the anchored-text store', () => {
         format: 'application/pdf' as 'text/plain',
       },
       TEST_USER_ID,
-      eventBus,
+      asBusRequestPrimitive(eventBus),
     );
     eventBus.get('smelt:settled').next({
       resourceId: String(rid),

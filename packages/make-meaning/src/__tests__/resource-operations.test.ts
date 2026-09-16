@@ -11,6 +11,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ResourceOperations } from '../resource-operations';
+import { asBusRequestPrimitive } from '../bus-request-local';
 import { type SemiontProject } from '@semiont/core/node';
 import { userId, EventBus, type Logger, type GraphServiceConfig, deriveStorageUri } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
@@ -49,7 +50,7 @@ describe('ResourceOperations', () => {
     return ResourceOperations.createResource(
       { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format, language: opts.language, entityTypes: opts.entityTypes },
       uid,
-      eventBus,
+      asBusRequestPrimitive(eventBus),
     );
   }
 
@@ -231,7 +232,7 @@ describe('ResourceOperations', () => {
           isDraft: true,
         },
         userId('user-1'),
-        eventBus,
+        asBusRequestPrimitive(eventBus),
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -267,7 +268,7 @@ describe('ResourceOperations', () => {
           generatedFrom: { resourceId: 'res-only' }, // no annotationId
         },
         userId('user-1'),
-        eventBus,
+        asBusRequestPrimitive(eventBus),
       );
 
       const events = await testEventStore.log.getEvents(resId);

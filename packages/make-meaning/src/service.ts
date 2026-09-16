@@ -8,11 +8,9 @@
 import { FsJobQueue, JetStreamJobQueue, STALL_THRESHOLD_MS, type JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
 import type { SemiontProject, SemiontState } from '@semiont/core/node';
-import { EventBus, withDeadline, type Logger, type JobsServiceConfig, jobId, evaluateEnvPlaceholders } from '@semiont/core';
+import { EventBus, withDeadline, type Logger, type JobsServiceConfig, evaluateEnvPlaceholders } from '@semiont/core';
 import { registerJobQueueProvider, registerVectorIndexSizeProvider } from '@semiont/observability';
 import { resolveActorInference, type MakeMeaningConfig } from './config';
-import { from } from 'rxjs';
-import { mergeMap } from 'rxjs/operators';
 import { createInferenceClient } from '@semiont/inference';
 import { getGraphDatabase } from '@semiont/graph';
 import { createKnowledgeBase, workingTreeContentReads } from './knowledge-base';
@@ -29,7 +27,6 @@ import { stopKnowledgeSystem, type KnowledgeSystem } from './knowledge-system';
 import { registerBusHandlers, registerGatewayBusHandlers } from './handlers';
 import { anchoredTextOverBus } from './anchored-text-ask';
 import { asBusRequestPrimitive } from './bus-request-local';
-import type { Subscription } from 'rxjs';
 
 export type { MakeMeaningConfig } from './config';
 
@@ -80,7 +77,7 @@ async function createJobQueue(
   jobs: JobsServiceConfig | undefined,
   eventBus: EventBus,
   logger: Logger,
-): Promise<{ jobQueue: JobQueue; jobStatusSubscription: Subscription }> {
+): Promise<JobQueue> {
   const jobQueueLogger = logger.child({ component: 'job-queue' });
   const jobQueue = jobQueueFor(jobs, state, jobQueueLogger, eventBus);
   await jobQueue.initialize();
@@ -89,41 +86,10 @@ async function createJobQueue(
   // polled at the metric-collection interval (default 30s).
   registerJobQueueProvider(() => jobQueue.getStats());
 
-  const jobStatusSubscription = eventBus.get('job:status-requested').pipe(
-    mergeMap((event) => from((async () => {
-      try {
-        const job = await jobQueue.getJob(jobId(event.jobId));
-        if (!job) {
-          eventBus.get('job:status-failed').next({ correlationId: event.correlationId, message: 'Job not found' });
-          return;
-        }
-        eventBus.get('job:status-result').next({
-          correlationId: event.correlationId,
-          response: {
-            jobId:       job.metadata.id,
-            type:        job.metadata.type,
-            status:      job.status,
-            userId:      job.metadata.userId,
-            created:     job.metadata.created,
-            startedAt:   job.status === 'running'   || job.status === 'complete'  ? job.startedAt   : undefined,
-            completedAt: job.status === 'complete'  || job.status === 'failed'    || job.status === 'cancelled' ? job.completedAt : undefined,
-            error:       job.status === 'failed'    ? job.error    : undefined,
-            progress:    job.status === 'running'   ? job.progress : undefined,
-            result:      job.status === 'complete'  ? job.result   : undefined,
-          },
-        });
-      } catch (error) {
-        eventBus.get('job:status-failed').next({
-          correlationId: event.correlationId,
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
-    })())),
-  ).subscribe({
-    error: (err) => jobQueueLogger.error('Job status pipeline error', { error: err }),
-  });
-
-  return { jobQueue, jobStatusSubscription };
+  // The job:status-requested responder lives with its siblings in
+  // handlers/job-commands.ts — roots compose, handlers subscribe (the
+  // gateway-handler census enforces it).
+  return jobQueue;
 }
 
 /**
@@ -333,7 +299,7 @@ export async function startMakeMeaning(
 
   const skipRebuild = options?.skipRebuild ?? (process.env.SEMIONT_SKIP_REBUILD === 'true');
 
-  const { jobQueue, jobStatusSubscription } = await createJobQueue(project, config.services.jobs, eventBus, logger);
+  const jobQueue = await createJobQueue(project, config.services.jobs, eventBus, logger);
   const knowledgeSystem = await createKnowledgeSystemFromConfig(project, config, eventBus, logger, skipRebuild);
 
   // Register the bus command handlers that translate caller-facing
@@ -349,7 +315,6 @@ export async function startMakeMeaning(
     project,
     stop: async () => {
       logger.info('Stopping Make-Meaning service');
-      jobStatusSubscription.unsubscribe();
       await knowledgeSystem.stop();
       logger.info('Make-Meaning service stopped');
     },
@@ -446,7 +411,7 @@ export async function startMakeMeaningGateway(
 ): Promise<GatewayMakeMeaningService> {
   assertMakeMeaningConfig(config);
 
-  const { jobQueue, jobStatusSubscription } = await createJobQueue(state, config.services.jobs, eventBus, logger);
+  const jobQueue = await createJobQueue(state, config.services.jobs, eventBus, logger);
 
   // The gateway's handler subset: annotation-assembly moved into the
   // Archivist (D2 i) and gather-summary into the Librarian — each beside
@@ -458,7 +423,6 @@ export async function startMakeMeaningGateway(
     state,
     stop: async () => {
       logger.info('Stopping gateway make-meaning');
-      jobStatusSubscription.unsubscribe();
       logger.info('Gateway make-meaning stopped');
     },
   };

@@ -10,7 +10,7 @@ For the actor responsibilities running inside the archivist / librarian / worker
 
 ## Multi-container layout
 
-A local deployment runs six containers of Semiont code, seven with the Browser, twelve with the infrastructure dependencies (the OTel collector is always among them), and fourteen with the observability pair — Jaeger for traces and Prometheus for metrics — which local stacks run **by default**: all six service containers export OTLP to the collector, which forwards traces to Jaeger and serves a readout Prometheus scrapes. `--no-observe` skips only the pair; the collector still runs and discards traces. All seven Semiont containers are **published, attested images** (`ghcr.io/the-ai-alliance/semiont-*`) that knowledge-base stacks pull — selecting the version via `SEMIONT_VERSION` — and configure by bind-mounting per-KB TOML at runtime; KBs do not build images (see [Container Images](administration/IMAGES.md)). Two views of one stack follow: who talks to whom, and what attaches to what.
+A local deployment runs six containers of Semiont code, seven with the Browser, twelve with the infrastructure dependencies (the OTel collector is always among them; a NATS `messaging` daemon joins when a broker-backed driver is selected — the config the launcher template ships, drawn in the second diagram), and fourteen with the observability pair — Jaeger for traces and Prometheus for metrics — which local stacks run **by default**: all six service containers export OTLP to the collector, which forwards traces to Jaeger and serves a readout Prometheus scrapes. `--no-observe` skips only the pair; the collector still runs and discards traces. All seven Semiont containers are **published, attested images** (`ghcr.io/the-ai-alliance/semiont-*`) that knowledge-base stacks pull — selecting the version via `SEMIONT_VERSION` — and configure by bind-mounting per-KB TOML at runtime; KBs do not build images (see [Container Images](administration/IMAGES.md)). Two views of one stack follow: who talks to whom, and what attaches to what.
 
 ### Who talks to whom
 
@@ -24,7 +24,7 @@ graph TB
     AGENT["Agentic workflows<br/>@semiont/sdk"]
 
     BROWSERC["semiont-browser<br/>static SPA server"]
-    GW["semiont-gateway<br/>bus relay · identity · job queue · content proxy"]
+    GW["semiont-gateway<br/>bus hub · identity · job queue · content proxy"]
 
     LIB["semiont-librarian<br/>Gatherer · Matcher"]
     WORKER["semiont-worker<br/>worker pool — Generator · detection workers"]
@@ -60,6 +60,13 @@ graph TB
 
 The bidirectional edges are the bus (`POST /bus/emit`, `POST /bus/subscribe` as SSE) — connective fabric, not a box, and the gateway hosts **no actors**: every service subscribes over those two endpoints like any other participant, with each rectangle enumerating what runs inside it. The blue rectangles are the bus's clients, and every one of them speaks `@semiont/sdk` — the SPA in the user's browser, and the same client shape without a UI for content ingestion, content curation, and agentic workflows (scripts and agents driving the KB; the CLI and MCP server are instances of it). The archivist-pointing edges are the byte plane: the gateway proxies content for external clients; the smelter, librarian, and workers dial the archivist directly. The SPA *executes in the user's web browser* — `semiont-browser` only serves its static assets, which is why it needs no config and no gateway connection of its own.
 
+Two mechanisms behind the gateway hub are selected by config, not drawn as edges:
+
+- **The Signal Plane** is the fan-out behind those two bus endpoints — a driver seam. By default (`[signal] type = "in-process"`) it is the gateway's own per-process RxJS bus; `[signal] type = "nats"` moves fan-out onto core NATS subjects so the gateway can run as multiple replicas. The bus contract above is identical either way; clients never see the choice.
+- **The job queue** the gateway owns is likewise driver-backed (`[jobs] type`): `fs` (the launcher-mounted filesystem queue, the local default) or `jetstream` (NATS JetStream, required for replicas). Jobs are created at the gateway and claimed by exactly one worker over the bus.
+
+The second diagram draws the NATS `messaging` daemon the two share (`[jobs] = "jetstream"`, `[signal] = "nats"` — what the launcher template ships). Select neither and it is absent: an `fs` queue on the gateway's state mount and the in-process bus, one gateway.
+
 ### What attaches to what
 
 The state plane: the same six service containers against file state and the third-party infrastructure.
@@ -71,8 +78,9 @@ config:
 ---
 graph TB
     subgraph G1 [" "]
-        GW["semiont-gateway<br/>bus relay · identity · job queue · content proxy"]
-        JOBS[("jobs queue")]
+        GW["semiont-gateway<br/>bus hub · identity · job queue · content proxy"]
+        NATS["semiont-nats<br/>messaging — signal plane · job queue"]
+        JS[("JetStream store")]
         PG["semiont-postgres<br/>PostgreSQL — users · auth"]
     end
 
@@ -103,7 +111,8 @@ graph TB
     LIB -->|ro| VIEWS
     SMELT --> ANCH
     ARCH -->|ro| ANCH
-    GW --> JOBS
+    GW -->|bus · jobs| NATS
+    NATS --> JS
 
     WEAVE --> NEO
     ARCH --> NEO
@@ -134,14 +143,14 @@ graph TB
 
     class LIB,WORKER,SMELT,WEAVE,ARCH svc
     class GW hub
-    class NEO,QD,OL,PG,COLL,TRACES,METRICS infra
-    class ANCH,VIEWS,JOBS store
+    class NEO,QD,OL,PG,COLL,TRACES,METRICS,NATS infra
+    class ANCH,VIEWS,JS store
     class TREE record
 
     NEO ~~~ TREE
     NEO ~~~ VIEWS
     QD ~~~ ANCH
-    PG ~~~ JOBS
+    NATS ~~~ JS
     GW ~~~ WORKER
     OL ~~~ COLL
     GW ~~~ LIB
@@ -160,10 +169,10 @@ Every service-to-gateway bus edge in the first diagram authenticates via `POST /
 
 The second diagram draws the mounts; this table adds the discipline. Exactly one container mounts the KB tree — pinned by a launcher test; every other byte crosses HTTP or the bus. Shared stores have exactly one stamp holder, whose image change clears and rebuilds them.
 
-| Container | `/kb` (git tree) | anchored-text | state (views · jobs) |
+| Container | `/kb` (git tree) | anchored-text | state (views) |
 |---|---|---|---|
 | archivist | **rw — sole owner** | read | **stamp holder** — writes views |
-| gateway | — | — | shared — jobs queue |
+| gateway | — | — | — (the job queue is JetStream on `semiont-nats`, not a mount) |
 | librarian | — | — | shared — reads views |
 | smelter | — | **stamp holder** — writes | — |
 | worker · weaver · browser | — | — | — |
@@ -203,7 +212,7 @@ The constraint is the **port contracts** — the bus (`/bus/emit`, `/bus/subscri
 | Environment | Compute | Storage | Graph | Users DB |
 |-------------|---------|---------|-------|----------|
 | **Local (KB stack)** | Containers (Apple `container` / Docker / Podman) | Filesystem (KB git repo, bind-mounted) | Neo4j (container) | PostgreSQL (container) |
-| **Production (AWS)** | ECS Fargate | S3/EFS | Neptune | RDS PostgreSQL |
+| **Your own integration** | Any container platform (see [DEPLOYMENT.md](administration/DEPLOYMENT.md)) | Volumes you provision; the KB tree reaches the Archivist | Neo4j | PostgreSQL (managed works) |
 
 ### Service management
 

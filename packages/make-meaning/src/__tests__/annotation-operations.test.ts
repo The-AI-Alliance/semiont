@@ -8,6 +8,7 @@
  * - W3C Annotation Model compliance
  */
 
+import { asBusRequestPrimitive } from '../bus-request-local';
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
@@ -79,7 +80,7 @@ describe('AnnotationOperations', () => {
     return ResourceOperations.createResource(
       { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format, language: opts.language, entityTypes: opts.entityTypes },
       uid,
-      eventBus,
+      asBusRequestPrimitive(eventBus),
     );
   }
 

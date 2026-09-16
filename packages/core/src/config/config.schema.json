@@ -970,6 +970,9 @@
         },
         "jobs": {
           "$ref": "#/definitions/JobsServiceConfig"
+        },
+        "signal": {
+          "$ref": "#/definitions/SignalServiceConfig"
         }
       },
       "required": [
@@ -1124,7 +1127,9 @@
             },
             "oauthAllowedDomains": {
               "type": "array",
-              "items": { "type": "string" },
+              "items": {
+                "type": "string"
+              },
               "description": "Sign-in policy committed in the KB's .semiont/config, staged alongside the identity because the gateway no longer mounts the tree that holds it."
             }
           },
@@ -1271,17 +1276,22 @@
     },
     "JobsServiceConfig": {
       "type": "object",
-      "description": "The job queue driver (JOB-QUEUE-DRIVER P2). Selection is stated here, never inferred: 'fs' is the launcher-mounted filesystem queue (retires at P3); 'jetstream' is NATS JetStream — KV operational state plus stream-held leases. Absent section means 'fs' until P3 flips the default. 'servers' is the NATS address and may reference environment via ${VAR} placeholders — the CONFIG names the variable; code never invents one.",
+      "description": "The job queue driver (JOB-QUEUE-DRIVER P2). Selection is stated here, never inferred: 'fs' is the launcher-mounted filesystem queue (retires at P3); 'jetstream' is NATS JetStream \u2014 KV operational state plus stream-held leases. Absent section means 'fs' until P3 flips the default. 'servers' is the NATS address and may reference environment via ${VAR} placeholders \u2014 the CONFIG names the variable; code never invents one.",
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["fs", "jetstream"]
+          "enum": [
+            "fs",
+            "jetstream"
+          ]
         },
         "servers": {
           "type": "string"
         }
       },
-      "required": ["type"],
+      "required": [
+        "type"
+      ],
       "additionalProperties": false
     },
     "ArchivistServiceConfig": {
@@ -1302,6 +1312,26 @@
         }
       },
       "additionalProperties": true
+    },
+    "SignalServiceConfig": {
+      "type": "object",
+      "description": "The Signal Plane driver (SIGNAL-PLANE P2). Selection is stated here, never inferred: 'in-process' is the RxJS relay inside the gateway (the permanent local default \u2014 D7); 'nats' selects core NATS subjects on the shared messaging daemon (never JetStream \u2014 D3). Absent section means 'in-process'. 'servers' is required for 'nats' and may reference environment via ${VAR} placeholders \u2014 the CONFIG names the variable; code never invents one.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "in-process",
+            "nats"
+          ]
+        },
+        "servers": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
     }
   }
 }

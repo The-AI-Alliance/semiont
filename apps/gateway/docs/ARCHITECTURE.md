@@ -6,12 +6,13 @@ This document describes the architectural patterns and design principles that go
 
 **All long-lived state is created once at startup in [src/index.ts](../src/index.ts); routes construct nothing.**
 
-Startup builds four things:
+Startup builds five things:
 
 1. **Config** — `loadEnvironmentConfig(null)`. No KB root: the gateway mounts no knowledge-base tree. Everything it needs — the KB's committed settings, the launcher-staged `[kb]` identity, the archivist address — arrives in the per-service config mounted at `~/.semiontconfig`.
-2. **EventBus** — the in-process bus that `POST /bus/emit` and the SSE subscription bridge to the other containers.
-3. **Make-meaning slice** — `startMakeMeaningGateway(state, config, eventBus, logger)` returns `{ jobQueue, state, stop }`: the filesystem job queue on the shared state mount, plus the gateway's bus-handler subset (the `job:*` command channels and the `bind:update-body` relay). No knowledge system, no stores, no actors. It takes a `SemiontState` — name plus state-mount paths, not a `SemiontProject` — so the type itself guarantees this process cannot reach a KB tree.
-4. **Identity** — `JWTService` and the PostgreSQL connection ([src/db.ts](../src/db.ts)), the one datastore the gateway owns.
+2. **EventBus** — the per-process RxJS bus. It is also the in-process *driver* of the Signal Plane (below); `POST /bus/emit` and the SSE subscription reach the other containers through the selected driver, which is this bus by default.
+3. **Signal Plane** — `compositionFor(eventBus, plane?)` ([src/signal/](../src/signal/)): plane (the fan-out driver) plus the correlation ledger. `[signal] type = "nats"` seeds it with the NATS driver and installs the handler bridge; absent, it lazily composes the in-process driver. See [The Signal Plane](#the-signal-plane).
+4. **Make-meaning slice** — `startMakeMeaningGateway(state, config, eventBus, logger)` returns `{ jobQueue, state, stop }`: the job queue (driver by `[jobs]`) plus the gateway's bus-handler subset (the `job:*` command channels and the `bind:update-body` relay). No knowledge system, no stores, no actors. It takes a `SemiontState` — name plus state-mount paths, not a `SemiontProject` — so the type itself guarantees this process cannot reach a KB tree.
+5. **Identity** — `JWTService` and the PostgreSQL connection ([src/db.ts](../src/db.ts)), the one datastore the gateway owns.
 
 Routes read `config` and `eventBus` from Hono context (auth middleware adds `user` and `principalDid`) and reach everything KB-shaped remotely — content bytes through [src/lib/archivist.ts](../src/lib/archivist.ts), domain reads over the bus:
 
@@ -35,7 +36,16 @@ The gateway is one process among seven service containers (see [CONTAINER-TOPOLO
 
 ### Job Queue
 
-The job queue is filesystem-based, behind a `JobQueue` interface that allows future backing store swaps (Postgres, Redis, etc.) without changing the SDK. Jobs are created here, announced on `job:queued`, claimed via the `job:claim` handler (which refuses non-pending jobs, so exactly one worker wins), and completed by events emitted back on the bus. Workers are stateless with respect to the KB.
+The job queue sits behind a `JobQueue` interface with two drivers, selected by `[jobs]`: `fs` (the launcher-mounted filesystem queue, the local default) and `jetstream` (NATS JetStream — streams and KV on the shared `messaging` daemon, required when the gateway runs as multiple replicas). Jobs are created here, announced on `job:queued`, claimed via the `job:claim` handler (which refuses non-pending jobs, so exactly one worker wins), and completed by events emitted back on the bus. Workers are stateless with respect to the KB.
+
+## The Signal Plane
+
+`src/signal/` is the hub's fan-out behind a driver interface ([interface.ts](../src/signal/interface.ts)) — the plane moves frames and honors reply addresses; it never inspects a payload or decides entitlement. Two drivers implement it, certified by one conformance suite:
+
+- **in-process** ([in-process.ts](../src/signal/in-process.ts)) — the per-process EventBus; the permanent local default.
+- **NATS** ([nats.ts](../src/signal/nats.ts)) — core subjects only, never JetStream (signals are not a record); the mapping lives once here and is boundary-gated. This driver is what lets the gateway run as N replicas.
+
+Entitlement is gateway policy, kept above the seam in the **correlation ledger** ([ledger.ts](../src/signal/ledger.ts)): it records a claim at each request emit, decides who may see a reply, and retains replies for reconnect recovery. `compositionFor` ([composition.ts](../src/signal/composition.ts)) wires plane + ledger as one unit — a standing tap feeds the ledger from the plane, and under N replicas each claim is announced to a shared address so every replica's ledger converges (the driver never learns the correlation vocabulary — that census is enforced). When the driver is remote, `bridgeGatewayHandlers` ([bridge.ts](../src/signal/bridge.ts)) reconnects the gateway-resident handlers to the plane, one queue group so each command runs on exactly one replica. Under a broker outage emits fail and the driver retries forever; recovery is a broker restart, breadcrumbed `[signal BROKER-DOWN]`/`[signal BROKER-RECONNECTED]`.
 
 ## Domain Traffic Rides the Bus
 
@@ -69,4 +79,4 @@ The gateway holds no bytes — both directions stream through the archivist's HT
 
 ---
 
-**Last Updated**: 2026-08-31
+**Last Updated**: 2026-09-15

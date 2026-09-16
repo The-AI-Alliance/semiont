@@ -2,8 +2,9 @@
 // generate-ts.mjs — regenerate the TypeScript bus authority from
 // specs/src/bus/registry.json.
 //
-//   packages/core/src/bus-protocol.ts   (EventMap + CHANNEL_SCHEMAS)
-//   packages/core/src/bus-operations.ts (BUS_OPERATIONS)
+//   packages/core/src/bus-protocol.ts        (EventMap + CHANNEL_SCHEMAS)
+//   packages/core/src/bus-operations.ts      (BUS_OPERATIONS)
+//   packages/core/src/bus-classification.ts  (CHANNEL_ATTRS — recorded/direction/delivery)
 //
 // Byte-identical output is the CUTOVER PROOF: regenerate over the committed
 // files and `git diff` must be empty, which is what makes "the extraction was
@@ -11,7 +12,7 @@
 // without writing (the CI drift gate).
 
 import { validateRegistry, validateRegistryFormat } from './validate-registry.mjs';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -20,6 +21,7 @@ const REGISTRY = resolve(ROOT, 'specs/src/bus/registry.json');
 const PROTOCOL = resolve(ROOT, 'packages/core/src/bus-protocol.ts');
 const BRIDGED = resolve(ROOT, 'packages/core/src/bridged-channels.ts');
 const OPERATIONS = resolve(ROOT, 'packages/core/src/bus-operations.ts');
+const CLASSIFICATION = resolve(ROOT, 'packages/core/src/bus-classification.ts');
 
 const CHECK = process.argv.includes('--check');
 const registryText = readFileSync(REGISTRY, 'utf8');
@@ -180,10 +182,112 @@ const bridged =
   '\n] as const satisfies readonly EventName[];\n\n' +
   reg.preamble.bridgedDerivation;
 
+// ── bus-classification.ts ──────────────────────────────────────────────
+// BUS-ROUTING-DECLARED D3/P1: three orthogonal attributes per channel,
+// derived from fields the registry already has. NOT one enum — recorded and
+// delivered are independent facts, and delivery exists only for the fan-in
+// set. The gateway's local partitions (CORRELATED_CHANNELS,
+// PROGRESS_CHANNELS) are consumers of this, not siblings.
+const requestSet = new Set(reg.operations.map((o) => o.request));
+const deliveryOf = new Map();
+const setDelivery = (ch, d) => {
+  const prior = deliveryOf.get(ch);
+  if (prior && prior !== d) {
+    throw new Error(`registry: channel "${ch}" classified as both ${prior} and ${d}`);
+  }
+  deliveryOf.set(ch, d);
+};
+for (const o of reg.operations) {
+  setDelivery(o.result, 'correlated');
+  setDelivery(o.failure, 'correlated');
+  if (o.progress) setDelivery(o.progress, 'streaming');
+}
+for (const ch of reg.bridgedBroadcasts.channels) setDelivery(ch, 'broadcast');
+for (const ch of requestSet) {
+  if (deliveryOf.has(ch)) throw new Error(`registry: "${ch}" is both a request and a delivered channel`);
+}
+
+// Direction is DECLARED, never defaulted. The old fallthrough ("not a
+// request, no delivery → in-process") manufactured a value nothing had
+// decided — `job:queued` shipped as in-process and starved every worker
+// (.plans/bugs/job-queued-classified-in-process-starves-workers.md). Every
+// channel now names its class or the generator refuses.
+const commandSet = new Set(reg.outboundCommands.channels);
+const inProcessSet = new Set(reg.inProcess.channels);
+for (const ch of commandSet) {
+  if (requestSet.has(ch)) throw new Error(`registry: "${ch}" is both an operation request and an outboundCommand`);
+  if (deliveryOf.has(ch)) throw new Error(`registry: "${ch}" is both an outboundCommand and a delivered channel`);
+}
+for (const ch of inProcessSet) {
+  if (requestSet.has(ch) || commandSet.has(ch) || deliveryOf.has(ch)) {
+    throw new Error(`registry: "${ch}" is declared inProcess but also carries a wire class`);
+  }
+}
+// Typo guard: a declaration for a channel the roster doesn't carry is drift.
+const roster = new Set(reg.channelOrder.eventMap);
+for (const ch of [...commandSet, ...inProcessSet]) {
+  if (!roster.has(ch)) throw new Error(`registry: "${ch}" is classified but not in channelOrder.eventMap`);
+}
+
+const attrLines = reg.channelOrder.eventMap.map((ch) => {
+  const c = channelOr(ch, 'eventMap');
+  const recorded = Boolean(c.event);
+  const delivery = deliveryOf.get(ch);
+  const direction =
+    requestSet.has(ch) || commandSet.has(ch) ? 'outbound'
+    : delivery ? 'inbound'
+    : inProcessSet.has(ch) ? 'in-process'
+    : (() => {
+        throw new Error(
+          `registry: channel "${ch}" declares no direction — add it to operations, ` +
+          `outboundCommands, bridgedBroadcasts, or inProcess. There is no default.`,
+        );
+      })();
+  const tail = delivery ? `, delivery: '${delivery}'` : '';
+  return pad(`  '${ch}':`, VALUE_COL_SCHEMAS) + `{ recorded: ${recorded}, direction: '${direction}'${tail} },`;
+});
+
+const classification =
+  BANNER +
+  `import type { EventName } from './bus-protocol';
+
+/** Where a channel sits relative to the hub: emitted toward it, delivered
+ *  from it (the fan-in set — BRIDGED_CHANNELS, by construction), or never on
+ *  the wire at all. */
+export type ChannelDirection = 'outbound' | 'inbound' | 'in-process';
+
+/** How an INBOUND channel is delivered. Correlated replies are
+ *  owner-addressed; streaming (progress) frames refresh a claim's TTL but are
+ *  never retained; broadcasts go to every subscriber in scope. Only inbound
+ *  channels carry this — absence on the others is a decision, not a gap. */
+export type ChannelDelivery = 'correlated' | 'streaming' | 'broadcast';
+
+export interface ChannelAttrs {
+  /** In PERSISTED_EVENT_TYPES — lands in the event log, the system of record. */
+  readonly recorded: boolean;
+  readonly direction: ChannelDirection;
+  readonly delivery?: ChannelDelivery;
+}
+
+export const CHANNEL_ATTRS = {
+` +
+  attrLines.join('\n') +
+  `
+} as const satisfies Record<EventName, ChannelAttrs>;
+
+const BY_CHANNEL: ReadonlyMap<string, ChannelAttrs> = new Map(Object.entries(CHANNEL_ATTRS));
+
+/** String-keyed accessor for boundary code that has not yet narrowed to
+ *  EventName. Undefined means "not a channel", never "unclassified" — the
+ *  satisfies above makes unclassified unrepresentable. */
+export const channelAttrsOf = (channel: string): ChannelAttrs | undefined => BY_CHANNEL.get(channel);
+`;
+
 const outputs = [
   [PROTOCOL, protocol],
   [OPERATIONS, operations],
   [BRIDGED, bridged],
+  [CLASSIFICATION, classification],
 ];
 
 // Alignment-insensitive comparison: the proof that matters is that no
@@ -193,7 +297,9 @@ const squash = (s) => s.replace(BANNER, '').replace(/':[ ]+/g, "': ").replace(/,
 
 let drift = 0;
 for (const [path, text] of outputs) {
-  const current = readFileSync(path, 'utf8');
+  // A first-time output (bus-classification.ts at introduction) reads as
+  // empty and reports as DRIFT + write, rather than throwing ENOENT.
+  const current = existsSync(path) ? readFileSync(path, 'utf8') : '';
   if (current === text) {
     console.log(`ok    ${path.replace(ROOT + '/', '')}`);
     continue;

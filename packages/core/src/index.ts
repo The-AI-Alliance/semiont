@@ -253,8 +253,15 @@ export type {
 export { BRIDGED_CHANNELS, type BridgedChannel } from './bridged-channels';
 
 // Request/reply over the bus — the transport-neutral primitive (relocated from @semiont/sdk).
-export { busRequest, replyChannelsFor, BusRequestError, type BusRequestErrorCode, type BusRequestPrimitive } from './bus-request';
+export { busRequest, replyChannelsFor, BUS_REQUEST_TIMEOUT_MS, BusRequestError, type BusRequestErrorCode, type BusRequestPrimitive } from './bus-request';
 export { BUS_OPERATIONS, type BusOperationKey, type BusOperationSpec } from './bus-operations';
+export {
+  CHANNEL_ATTRS,
+  channelAttrsOf,
+  type ChannelAttrs,
+  type ChannelDelivery,
+  type ChannelDirection,
+} from './bus-classification';
 
 // Fuzzy text anchoring (annotation re-anchoring under content edits)
 export {

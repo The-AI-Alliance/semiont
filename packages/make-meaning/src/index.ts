@@ -37,6 +37,8 @@ export {
   registerGatherSummaryHandler,
   registerBindUpdateBodyHandler,
   registerJobCommandHandlers,
+  GATEWAY_HANDLER_CHANNELS,
+  GATEWAY_HANDLER_EMITS,
 } from './handlers';
 
 // Bootstrap

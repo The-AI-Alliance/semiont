@@ -1,8 +1,13 @@
 /**
  * Resource Operations
  *
- * Business logic for resource operations. All writes go through the EventBus
- * — the Stower actor subscribes and handles persistence.
+ * Business logic for resource operations. All writes ride a
+ * `BusRequestPrimitive` the CALLER supplies — the operation names channels,
+ * the caller names the fabric. The Stower actor handles persistence wherever
+ * it lives: beside an in-process bus (`asBusRequestPrimitive`), or across
+ * the signal plane (the gateway's `requestPrimitiveFor` — a raw-bus emit
+ * from the gateway starves under a remote plane, the `yield:create` bug of
+ * 2026-09-15).
  *
  * For create: emits yield:create, awaits yield:create-ok / yield:create-failed.
  */
@@ -12,8 +17,8 @@ import type {
   ResourceId,
 } from '@semiont/core';
 import type { components } from '@semiont/core';
-import { EventBus, resourceId as makeResourceId, busRequest } from '@semiont/core';
-import { asBusRequestPrimitive } from './bus-request-local';
+import { resourceId as makeResourceId, busRequest } from '@semiont/core';
+import type { BusRequestPrimitive } from '@semiont/core';
 
 type ContentFormat = components['schemas']['ContentFormat'];
 type Agent = components['schemas']['Agent'];
@@ -40,7 +45,7 @@ export class ResourceOperations {
   static async createResource(
     input: CreateResourceInput,
     userId: UserId,
-    eventBus: EventBus,
+    bus: BusRequestPrimitive,
   ): Promise<ResourceId> {
     // Confirmed in-process write over busRequest: the reply is matched by
     // correlationId, so concurrent creates can't cross-resolve (the old race()
@@ -48,7 +53,7 @@ export class ResourceOperations {
     // it answered). In-process callers stamp `_userId` directly, mirroring what
     // the gateway does for wire callers.
     const { resourceId: rId } = await busRequest(
-      asBusRequestPrimitive(eventBus),
+      bus,
       'yield:create',
       {
         name: input.name,
@@ -64,7 +69,6 @@ export class ResourceOperations {
         generator: input.generator,
         isDraft: input.isDraft,
       },
-      30_000,
     );
 
     return makeResourceId(rId);
@@ -90,10 +94,10 @@ export class ResourceOperations {
       language?: string;
     },
     userId: UserId,
-    eventBus: EventBus,
+    bus: BusRequestPrimitive,
   ): Promise<ResourceId> {
     const { resourceId: rId } = await busRequest(
-      asBusRequestPrimitive(eventBus),
+      bus,
       'yield:clone-persist',
       {
         name: input.name,
@@ -106,7 +110,6 @@ export class ResourceOperations {
         language: input.language,
         _userId: userId,
       },
-      30_000,
     );
 
     return makeResourceId(rId);
@@ -129,10 +132,10 @@ export class ResourceOperations {
       archiveOriginal?: boolean;
     },
     userId: UserId,
-    eventBus: EventBus,
+    bus: BusRequestPrimitive,
   ): Promise<ResourceId> {
     const { resourceId: rId } = await busRequest(
-      asBusRequestPrimitive(eventBus),
+      bus,
       'yield:clone-create',
       {
         token: input.token,
@@ -144,7 +147,6 @@ export class ResourceOperations {
         archiveOriginal: input.archiveOriginal,
         _userId: userId,
       },
-      30_000,
     );
 
     return makeResourceId(rId);

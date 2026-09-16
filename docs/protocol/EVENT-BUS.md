@@ -87,7 +87,7 @@ pattern: TS gets it free from the `never` default; Go needs its census extended.
 
 ## Identity: `_userId` is gateway-injected
 
-Commands that mutate state need to know who's making them. The convention: clients **never** set `_userId` themselves. The HTTP gateway reads the authenticated user from the JWT and stamps `_userId` onto the payload before forwarding to the in-process bus:
+Commands that mutate state need to know who's making them. The convention: clients **never** set `_userId` themselves. The HTTP gateway reads the authenticated user from the JWT and stamps `_userId` onto the payload before forwarding it onto the bus:
 
 ```ts
 // apps/gateway/src/routes/bus.ts
@@ -114,6 +114,8 @@ The underscore prefix is the convention's marker — anything starting with `_` 
 In-process transports (e.g. `LocalTransport` from `@semiont/make-meaning`) emit directly without a gateway hop. They're responsible for setting `_userId` themselves before publishing — if the call originated from an authenticated context, the local emit code must thread the user identity through.
 
 ## Correlation: request/response over a fan-out bus
+
+> **Where the bus lives (SIGNAL-PLANE).** Inside the gateway the bus is a *driver seam*, below the wire this document describes: the in-process driver (one RxJS fabric in the gateway process) is the default, and `[signal] type = "nats"` swaps in a NATS driver that fans out over core subjects across replicas. Neither the wire nor anything below changes — the gateway injects identity, applies entitlement, and mints correlation the same way under both, so this protocol and every SDK client are unaffected by the choice. See [Signal Plane configuration](../system/administration/CONFIGURATION.md).
 
 The bus is fan-out: every subscriber to a channel sees every event on it. Request/response semantics are layered on top via a `correlationId`:
 
@@ -291,7 +293,7 @@ Two generators read it:
 
 | Output | Generator |
 |---|---|
-| `packages/core/src/bus-protocol.ts`, `bus-operations.ts` | `node scripts/bus/generate-ts.mjs` |
+| `packages/core/src/bus-protocol.ts`, `bus-operations.ts`, `bus-classification.ts` | `node scripts/bus/generate-ts.mjs` |
 | `packages/sdk-go/bus/{channels,operations}_gen.go` | `node scripts/bus/generate-go.mjs` |
 
 ```sh
@@ -310,6 +312,38 @@ Payload *schemas* still live in the OpenAPI components — the registry only
 names which schema each channel carries. Channels whose payload is
 TypeScript-only (DOM geometry, callbacks) are excluded from the Go output:
 they never cross the wire.
+
+### The channel classification (`CHANNEL_ATTRS`)
+
+`bus-classification.ts` is a third TypeScript output of the same generator —
+one entry per channel, three orthogonal attributes read straight off registry
+facts, so a boundary that needs to reason about a channel does not re-derive
+them and cannot drift from the registry:
+
+- **`recorded`** — whether the channel lands in the event log (mirrors
+  `PERSISTED_EVENT_TYPES`).
+- **`direction`** — `outbound` (emitted toward the hub), `inbound` (delivered
+  from it — the fan-in set, by construction), or `in-process` (never on the
+  wire).
+- **`delivery`** — for inbound channels only, *how* a reply is routed:
+  `correlated` (owner-addressed, keyed by `correlationId`), `streaming`
+  (progress frames — they refresh a request's liveness but are never retained
+  as the answer), or `broadcast` (every subscriber in scope). Its absence on
+  outbound and in-process channels is asserted, so it is a decision rather than
+  a gap.
+
+The three axes are independent — a channel can be both `recorded` and
+`broadcast`, pinned by the handful that are — and adding an operation to the
+registry classifies its reply channels with no hand edit, which is what let the
+gateway's old hand-kept `CORRELATED_CHANNELS` / `PROGRESS_CHANNELS` partitions
+be deleted (BUS-ROUTING-DECLARED P1). Consume it through `channelAttrsOf(channel)`.
+
+**Do not confuse `delivery` with the SSE fan-in disciplines** in [Resource
+scoping](#resource-scoping) above: `delivery` classifies a channel's *routing
+intent* at the hub (how the gateway's Signal Plane and its correlation ledger
+treat it), while "global-bridged vs resource-scoped" is the *transport's* choice
+of which SSE subscription carries a wire event to a client. Related, not the
+same axis.
 
 Nothing regenerates automatically. The `Generated Artifacts (drift)` CI job
 and `scripts/ci/local-build.sh` both fail if the committed output disagrees

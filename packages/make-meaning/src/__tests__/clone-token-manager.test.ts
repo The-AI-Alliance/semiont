@@ -8,6 +8,7 @@
  * coerced text/html clones to text/plain.
  */
 
+import { asBusRequestPrimitive } from '../bus-request-local';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { firstValueFrom, race, timeout, filter, map } from 'rxjs';
 import { SemiontProject } from '@semiont/core/node';
@@ -78,7 +79,7 @@ describe('CloneTokenManager format selection', () => {
     return ResourceOperations.createResource(
       { name: `source-${fileCounter}`, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format },
       userId('ctm-test'),
-      eventBus,
+      asBusRequestPrimitive(eventBus),
     );
   }
 

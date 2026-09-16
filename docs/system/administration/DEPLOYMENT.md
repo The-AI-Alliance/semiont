@@ -19,11 +19,12 @@ cloud container platform.
 ## What gets deployed
 
 Seven published service images, plus the infrastructure containers a stack needs
-(`postgres`, `neo4j`, `qdrant`, and `ollama` for local inference):
+(`postgres`, `neo4j`, `qdrant`, `ollama` for local inference, and `nats` when the
+`jetstream` jobs driver or the `nats` signal driver is selected):
 
 | Image | Role | Port |
 |---|---|---|
-| `ghcr.io/the-ai-alliance/semiont-gateway` | API, auth, event log, projections | 4000 |
+| `ghcr.io/the-ai-alliance/semiont-gateway` | API, auth, bus hub, job queue | 4000 |
 | `ghcr.io/the-ai-alliance/semiont-browser` | Browser UI | 3000 |
 | `ghcr.io/the-ai-alliance/semiont-worker` | Job / generation worker | 24100 |
 | `ghcr.io/the-ai-alliance/semiont-smelter` | Embedding / vector pipeline | 24101 |
@@ -94,7 +95,8 @@ solve:
   variables. Semiont reads no cloud secret store directly. See [SECRETS.md](../services/SECRETS.md).
 - **Service discovery.** Services address each other by URL from the config
   (`services.gateway.publicURL`, …), not by any platform-specific mechanism.
-- **Persistence.** PostgreSQL, Neo4j, and Qdrant need durable volumes. The KB's `.semiont/events/`
+- **Persistence.** PostgreSQL, Neo4j, and Qdrant need durable volumes, and so does NATS's
+  `/data` when the `jetstream` jobs driver is selected. The KB's `.semiont/events/`
   directory is the **system of record** and must survive container replacement.
 - **The KB working tree.** The Archivist bind-mounts the KB repo at `/kb`. On a multi-node scheduler
   that means a shared filesystem or a different content strategy.
@@ -102,6 +104,36 @@ solve:
   routing to them is platform work.
 - **Migrations.** The gateway applies Prisma migrations at startup; no external migration step is
   required, but the database must be reachable before the gateway becomes healthy.
+- **Multiple gateway replicas.** The gateway scales horizontally behind a load balancer once both
+  broker-backed drivers are selected — without them, replicas race the filesystem job queue and
+  strand correlated replies on whichever replica saw the request:
+
+  ```toml
+  [environments.<env>.jobs]
+  type = "jetstream"
+  servers = "${NATS_HOST}:4222"
+
+  [environments.<env>.signal]
+  type = "nats"
+  servers = "${NATS_HOST}:4222"
+  ```
+
+  `${NATS_HOST}` resolves from each container's environment; a literal address works too. The
+  platform supplies: **one NATS server with JetStream enabled** (`-js -sd /data`, durable volume
+  for `/data`; the launcher pins `nats:2.14.0-alpine`) — the job queue uses JetStream while the
+  signal plane uses core subjects on the same server; **one shared PostgreSQL** for all replicas;
+  and **identical secrets on every replica** — a JWT minted by one replica must verify on another.
+
+  The load balancer needs **no session affinity** for the bus: correlated-reply ownership is
+  shared across replicas, `pendingReplies` reconnect recovery answers from any replica, and
+  `Last-Event-ID` replay reads the Archivist. It must pass long-lived SSE responses unbuffered,
+  with an idle timeout above the gateway's 15-second heartbeat. Gateway-resident commands
+  (`job:create` and its kin, `bind:update-body`) execute on exactly one replica per request;
+  each replica logs `Signal Plane handler bridge active` at boot, which is the line to check
+  when a command reaches no handler. Under the NATS driver a request nobody handles fails by
+  the 30-second bus timeout rather than fast — a broker cannot count observers. On a fresh
+  database, start one replica and let it report healthy before scaling out, so migrations
+  apply once.
 - **Restart and liveness.** Each image runs `tini` as PID 1 wrapping a single service process, and
   the container exits when that process dies, so your platform's restart policy and liveness probe
   behave as they normally would. Nothing restarts anything from inside the container on this path,

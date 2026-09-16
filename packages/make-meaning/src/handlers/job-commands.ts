@@ -314,4 +314,40 @@ export function registerJobCommandHandlers(
       });
     }
   });
+
+  // Relocated from the composition root (service.ts createJobQueue,
+  // 2026-09-16): a bus command handler answering job:status belongs beside
+  // its siblings — and the gateway-handler census reads exactly these files,
+  // so a responder living anywhere else is invisible to the bridge and
+  // starves under a remote plane (the yield:create bug's subscriber-side
+  // twin, found by the audit it prompted).
+  eventBus.get('job:status-requested').subscribe(async (event) => {
+    try {
+      const job = await jobQueue.getJob(jobId(event.jobId));
+      if (!job) {
+        eventBus.get('job:status-failed').next({ correlationId: event.correlationId, message: 'Job not found' });
+        return;
+      }
+      eventBus.get('job:status-result').next({
+        correlationId: event.correlationId,
+        response: {
+          jobId:       job.metadata.id,
+          type:        job.metadata.type,
+          status:      job.status,
+          userId:      job.metadata.userId,
+          created:     job.metadata.created,
+          startedAt:   job.status === 'running'   || job.status === 'complete'  ? job.startedAt   : undefined,
+          completedAt: job.status === 'complete'  || job.status === 'failed'    || job.status === 'cancelled' ? job.completedAt : undefined,
+          error:       job.status === 'failed'    ? job.error    : undefined,
+          progress:    job.status === 'running'   ? job.progress : undefined,
+          result:      job.status === 'complete'  ? job.result   : undefined,
+        },
+      });
+    } catch (error) {
+      eventBus.get('job:status-failed').next({
+        correlationId: event.correlationId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
 }
