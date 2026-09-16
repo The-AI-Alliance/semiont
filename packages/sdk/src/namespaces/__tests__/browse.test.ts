@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { map, BehaviorSubject, firstValueFrom, filter } from 'rxjs';
+import { map, firstValueFrom, filter } from 'rxjs';
 import { EventBus, resourceId, annotationId, isObject } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
 import { isReady } from '../../cache';
-import type { ConnectionState, ITransport, IContentTransport } from '@semiont/core';
+import type { ITransport, IContentTransport } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
+import { inMemoryTransport } from '../../__tests__/helpers/in-memory-transport';
 
 function stored(event: Record<string, any>): any {
   return { ...event, metadata: { sequenceNumber: 1 } };
@@ -43,20 +44,12 @@ function createMockTransport(responses: ResponseMap): { transport: ITransport; e
     }
   });
 
-  const transport = {
-    emit: emitSpy,
-    on: <K extends never>(channel: K, handler: (p: never) => void) => {
-      const sub = (transportBus.get(channel) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
-      return () => sub.unsubscribe();
-    },
-    stream: <K extends never>(channel: K) => transportBus.get(channel),
-    subscribeToResource: vi.fn().mockReturnValue(() => {}),
-    bridgeInto: vi.fn(),
-    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-    dispose: vi.fn(),
-    // Delivers whatever the test pushes at it — true of this double.
-    isSubscribed: () => true,
-  } as unknown as ITransport;
+  const transport: ITransport = {
+    ...inMemoryTransport({
+      bus: transportBus,
+      onEmit: (channel, payload) => { void emitSpy(channel, payload); },
+    }),
+  };
 
   return { transport, emitSpy };
 }

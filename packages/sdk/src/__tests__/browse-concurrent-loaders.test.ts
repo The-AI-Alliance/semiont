@@ -17,19 +17,20 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { EventBus, resourceId as makeResourceId, annotationId } from '@semiont/core';
 import type {
-  ConnectionState,
+  
   EventMetadata,
   EventOfType,
   IContentTransport,
-  ITransport,
+  
   ResourceId,
   StoredEvent,
   UserId,
 } from '@semiont/core';
 import { BrowseNamespace } from '../namespaces/browse';
+import { inMemoryTransport } from './helpers/in-memory-transport';
+import { mockResource } from './fixtures/resource';
 
 const flush = () => new Promise<void>((r) => setTimeout(r, 0));
 
@@ -43,15 +44,9 @@ const flush = () => new Promise<void>((r) => setTimeout(r, 0));
  * retry path.
  */
 function makeComposingTransport(opts: { failFirstResourceFetchFor?: string } = {}) {
-  const subjects = new Map<string, Subject<Record<string, unknown>>>();
-  const subjectFor = (channel: string) => {
-    let s = subjects.get(channel);
-    if (!s) {
-      s = new Subject<Record<string, unknown>>();
-      subjects.set(channel, s);
-    }
-    return s;
-  };
+  // One typed bus: the transport streams from it and the test pushes into
+  // it, so a reply fixture is checked against the channel's declared payload.
+  const bus = new EventBus();
 
   const heldScopes = new Map<string, number>();
   const subscribeToResource = vi.fn((rId: ResourceId) => {
@@ -71,14 +66,12 @@ function makeComposingTransport(opts: { failFirstResourceFetchFor?: string } = {
   const requests: string[] = [];
   let pendingFailure = opts.failFirstResourceFetchFor;
 
-  const transport = {
-
-    // Delivers whatever the test pushes at it — true of this double.
-
-    isSubscribed: () => true,
-    baseUrl: 'http://test',
-    emit: async (channel: string, payload: Record<string, unknown>) => {
-      const rid = payload.resourceId as string;
+  const transport = inMemoryTransport({
+    bus,
+    subscribeToResource,
+    onEmit: (channel, payload) => {
+      const rid = (payload as { resourceId?: string }).resourceId as string;
+      const cid = (payload as { correlationId: string }).correlationId;
       if (channel === 'browse:resource-requested' || channel === 'browse:annotations-requested') {
         requests.push(`${channel} ${rid}`);
       }
@@ -90,26 +83,20 @@ function makeComposingTransport(opts: { failFirstResourceFetchFor?: string } = {
           pendingFailure = undefined;
           throw new Error(`simulated lost reply for ${rid}`);
         }
-        subjectFor('browse:resource-result').next({
-          correlationId: payload.correlationId as string,
-          response: { resource: { '@id': rid, name: `Resource ${rid}` } },
+        bus.get('browse:resource-result').next({
+          correlationId: cid,
+          response: { resource: mockResource(rid), annotations: [], entityReferences: [] },
         });
       }
       if (channel === 'browse:annotations-requested') {
-        subjectFor('browse:annotations-result').next({
-          correlationId: payload.correlationId as string,
+        bus.get('browse:annotations-result').next({
+          correlationId: cid,
           response: { annotations: [], total: 0 },
         });
       }
     },
-    stream: (channel: string): Observable<Record<string, unknown>> => subjectFor(channel).asObservable(),
-    subscribeToResource,
-    bridgeInto: () => {},
-    state$: new BehaviorSubject<ConnectionState>('open'),
-    errors$: new Subject(),
-    dispose: () => {},
-  };
-  return { transport: transport as unknown as ITransport, subscribeToResource, heldScopes, requests };
+  });
+  return { transport, subscribeToResource, heldScopes, requests };
 }
 
 const noopContent = {

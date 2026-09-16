@@ -19,27 +19,17 @@
  * byte-for-byte today's in-memory behavior.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { map, BehaviorSubject, Subject, firstValueFrom, filter, take } from 'rxjs';
+import { map, firstValueFrom, filter, take } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { ConnectionState, IContentTransport, ITransport, ResourceDescriptor } from '@semiont/core';
+import type { IContentTransport, ITransport, ResourceDescriptor } from '@semiont/core';
 import { isReady } from '../cache';
 import { BrowseNamespace } from '../namespaces/browse';
 import { sessionStoragePersister } from '../cache-persister';
 import { TestStorage } from '../session/__tests__/test-storage-helpers';
+import { inMemoryTransport, type InMemoryTransportOptions } from './helpers/in-memory-transport';
 
-function inertTransport(emit: ITransport['emit']): ITransport {
-  return {
-    baseUrl: 'http://test',
-    emit,
-    stream: () => new Subject().asObservable(),
-    subscribeToResource: () => () => {},
-    bridgeInto: () => {},
-    state$: new BehaviorSubject<ConnectionState>('open'),
-    errors$: new Subject(),
-    dispose: () => {},
-    // Delivers whatever the test pushes at it — true of this double.
-    isSubscribed: () => true,
-  } as unknown as ITransport;
+function inertTransport(onEmit: InMemoryTransportOptions['onEmit']): ITransport {
+  return inMemoryTransport({ onEmit });
 }
 
 const RID = makeResourceId('res-cached');
@@ -56,7 +46,7 @@ describe('BrowseNamespace cache rehydration (B17)', () => {
 
     const emit = vi.fn<(channel: string, ...rest: unknown[]) => Promise<number>>(async () => 1);
     const browse = new BrowseNamespace(
-      inertTransport(emit as unknown as ITransport['emit']),
+      inertTransport(emit),
       new EventBus(),
       {} as unknown as IContentTransport,
       { busTimeoutMs: 50, cachePersistence: { storage, keyPrefix: 'kb-1' } },

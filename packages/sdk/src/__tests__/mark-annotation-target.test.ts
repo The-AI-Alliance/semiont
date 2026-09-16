@@ -12,37 +12,33 @@
  * both ways. (No SDK code change in P3; the type relaxation landed in P1.)
  */
 
-import { describe, it, expect, afterEach, vi } from 'vitest';
-import { BehaviorSubject, Observable, Subject } from 'rxjs';
+import { describe, it, expect, afterEach } from 'vitest';
 import { EventBus } from '@semiont/core';
-import type { ConnectionState, ITransport, EventMap } from '@semiont/core';
+import type { EventMap } from '@semiont/core';
 import { MarkNamespace } from '../namespaces/mark';
 import type { CreateAnnotationInput } from '../namespaces/types';
+import { inMemoryTransport } from './helpers/in-memory-transport';
 
 function makeTransport() {
-  const subjects: Record<string, Subject<unknown>> = {};
-  const subjectFor = (ch: string) => (subjects[ch] ??= new Subject<unknown>());
+  const bus = new EventBus();
   let lastChannel: string | null = null;
   let lastPayload: Record<string, unknown> | null = null;
-  const transport = {
-    baseUrl: 'http://test',
-    emit: vi.fn(async (channel: keyof EventMap, payload: EventMap[keyof EventMap]) => {
+  const transport = inMemoryTransport({
+    bus,
+    onEmit: (channel, payload) => {
       lastChannel = channel as string;
       lastPayload = payload as Record<string, unknown>;
-    }),
-    stream: vi.fn(
-      (channel: keyof EventMap) =>
-        subjectFor(channel as string).asObservable() as unknown as Observable<EventMap[keyof EventMap]>,
-    ),
-    subscribeToResource: () => () => {},
-    bridgeInto: () => {},
-    state$: new BehaviorSubject<ConnectionState>('open'),
-    errors$: new Subject(),
-    dispose: () => {},
-    // Delivers whatever the test pushes at it — true of this double.
-    isSubscribed: () => true,
-  } as unknown as ITransport;
-  return { transport, subjectFor, getLastChannel: () => lastChannel, getLastPayload: () => lastPayload };
+    },
+  });
+  return {
+    transport,
+    // Replies are pushed through the SAME typed bus the transport streams
+    // from, so a fixture that is not the channel's declared payload is a
+    // compile error rather than something the transport's cast used to hide.
+    subjectFor: <K extends keyof EventMap>(channel: K) => bus.get(channel),
+    getLastChannel: () => lastChannel,
+    getLastPayload: () => lastPayload,
+  };
 }
 
 describe('mark.annotation — selector-less (whole-resource) target', () => {

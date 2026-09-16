@@ -16,10 +16,11 @@ import type { components, StoredEvent, EventOfType, EventMetadata, UserId, Resou
 import type { ConnectionState } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
 import { isReady, readyValue } from '../../cache';
-import type { ITransport, IContentTransport } from '@semiont/core';
+import type { IContentTransport } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
+import { inMemoryTransport } from '../../__tests__/helpers/in-memory-transport';
 
 const TEST_USER_ID = 'did:web:test:users:test' as UserId;
 const TEST_METADATA = { sequenceNumber: 1 } as EventMetadata;
@@ -225,20 +226,15 @@ function createHarness(opts: HarnessOptions = {}) {
     }
   });
 
-  const transport = {
-    emit: emitSpy,
-    on: <K extends never>(channel: K, handler: (p: never) => void) => {
-      const sub = (transportBus.get(channel) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
-      return () => sub.unsubscribe();
+  const subscribeToResource = vi.fn().mockReturnValue(() => {});
+  const transport = inMemoryTransport({
+    bus: transportBus,
+    subscribeToResource,
+    state$: (opts.state$ ?? new BehaviorSubject<ConnectionState>('open')).asObservable(),
+    onEmit: (channel, payload) => {
+      void emitSpy(channel, payload);
     },
-    stream: <K extends never>(channel: K) => transportBus.get(channel),
-    subscribeToResource: vi.fn().mockReturnValue(() => {}),
-    bridgeInto: vi.fn(),
-    state$: (opts.state$ ?? new BehaviorSubject<ConnectionState>('open')).asObservable() as never,
-    dispose: vi.fn(),
-    // Delivers whatever the test pushes at it — true of this double.
-    isSubscribed: () => true,
-  } as unknown as ITransport;
+  });
 
   const content: IContentTransport = {
     putBinary: vi.fn(),

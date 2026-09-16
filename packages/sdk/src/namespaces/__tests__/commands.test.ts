@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { resourceContextFor, annotationContextFor } from '../../__tests__/fixtures/gathered-context';
-import { BehaviorSubject } from 'rxjs';
 import { EventBus, resourceId, annotationId, jobId } from '@semiont/core';
 import { MarkNamespace } from '../mark';
 import { BindNamespace } from '../bind';
@@ -8,7 +7,8 @@ import { GatherNamespace } from '../gather';
 import { MatchNamespace } from '../match';
 import { YieldNamespace } from '../yield';
 import { JobNamespace } from '../job';
-import type { ConnectionState, ITransport, IContentTransport, GatheredContext } from '@semiont/core';
+import type { IGatewayOperations, ITransport, IContentTransport, GatheredContext } from '@semiont/core';
+import { inMemoryTransport, gatewayOperationSpies } from '../../__tests__/helpers/in-memory-transport';
 
 const RID = resourceId('res-1');
 const AID = annotationId('ann-1');
@@ -39,33 +39,13 @@ function createMockTransport(
     }
   });
 
-  const transport = {
-    emit: emitSpy,
-    on: <K extends never>(channel: K, handler: (p: never) => void) => {
-      const sub = (transportBus.get(channel) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
-      return () => sub.unsubscribe();
-    },
-    stream: <K extends never>(channel: K) => transportBus.get(channel),
-    subscribeToResource: vi.fn().mockReturnValue(() => {}),
-    bridgeInto: vi.fn(),
-    authenticatePassword: vi.fn(),
-    authenticateGoogle: vi.fn(),
-    refreshAccessToken: vi.fn(),
-    logout: vi.fn(),
-    acceptTerms: vi.fn(),
-    getCurrentUser: vi.fn(),
-    getMediaToken: vi.fn(),
-    listUsers: vi.fn(),
-    getUserStats: vi.fn(),
-    updateUser: vi.fn(),
-    getOAuthConfig: vi.fn(),
-    healthCheck: vi.fn(),
-    getStatus: vi.fn(),
-    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-    dispose: vi.fn(),
-    // Delivers whatever the test pushes at it — true of this double.
-    isSubscribed: () => true,
-  } as unknown as ITransport;
+  const transport: ITransport & IGatewayOperations = {
+    ...inMemoryTransport({
+      bus: transportBus,
+      onEmit: (channel, payload) => { void emitSpy(channel, payload); },
+    }),
+    ...gatewayOperationSpies(),
+  };
 
   return { transport, emitSpy, transportBus };
 }
@@ -959,30 +939,12 @@ function makeDeferred<T>(): { promise: Promise<T>; resolve: (v: T) => void; reje
 function makeDeferredEmitTransport(emitPromise: Promise<unknown>): { transport: ITransport; emitSpy: ReturnType<typeof vi.fn>; bus: EventBus } {
   const bus = new EventBus();
   const emitSpy = vi.fn().mockReturnValue(emitPromise);
-  const transport = {
-    emit: emitSpy,
-    on: vi.fn().mockReturnValue(() => {}),
-    stream: <K extends never>(channel: K) => bus.get(channel),
-    subscribeToResource: vi.fn().mockReturnValue(() => {}),
-    bridgeInto: vi.fn(),
-    authenticatePassword: vi.fn(),
-    authenticateGoogle: vi.fn(),
-    refreshAccessToken: vi.fn(),
-    logout: vi.fn(),
-    acceptTerms: vi.fn(),
-    getCurrentUser: vi.fn(),
-    getMediaToken: vi.fn(),
-    listUsers: vi.fn(),
-    getUserStats: vi.fn(),
-    updateUser: vi.fn(),
-    getOAuthConfig: vi.fn(),
-    healthCheck: vi.fn(),
-    getStatus: vi.fn(),
-    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-    dispose: vi.fn(),
-    // Delivers whatever the test pushes at it — true of this double.
-    isSubscribed: () => true,
-  } as unknown as ITransport;
+  const transport: ITransport & IGatewayOperations = {
+    ...inMemoryTransport({
+      onEmit: (channel, payload) => { void emitSpy(channel, payload); },
+    }),
+    ...gatewayOperationSpies(),
+  };
   return { transport, emitSpy, bus };
 }
 

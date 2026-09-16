@@ -15,9 +15,10 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { BehaviorSubject, Subject } from 'rxjs';
 import { FrameNamespace } from '../frame';
-import type { ConnectionState, ITransport, TagSchema } from '@semiont/core';
+import { EventBus } from '@semiont/core';
+import type { EventMap, ITransport, TagSchema } from '@semiont/core';
+import { inMemoryTransport } from '../../__tests__/helpers/in-memory-transport';
 
 // command channel → its confirmed-write reply channels
 const REPLY_FOR: Record<string, { ok: string; failed: string }> = {
@@ -34,37 +35,27 @@ function createMockTransport(opts: { fail?: boolean } = {}): {
   transport: ITransport;
   emitSpy: ReturnType<typeof vi.fn>;
 } {
-  const subjects = new Map<string, Subject<unknown>>();
-  const subjectFor = (ch: string) => {
-    let s = subjects.get(ch);
-    if (!s) { s = new Subject<unknown>(); subjects.set(ch, s); }
-    return s;
-  };
+  const bus = new EventBus();
 
   const emitSpy = vi.fn(async (channel: string, payload: Record<string, unknown>) => {
     const reply = REPLY_FOR[channel];
     if (reply) {
-      const correlationId = payload.correlationId;
-      const target = opts.fail ? reply.failed : reply.ok;
+      const correlationId = payload.correlationId as string;
+      const target = (opts.fail ? reply.failed : reply.ok) as keyof EventMap;
       // The subscription is already live (busRequest subscribes before emitting),
       // so a synchronous push is delivered to the awaiting take(1).
-      subjectFor(target).next(
-        opts.fail ? { correlationId, message: 'gateway add failed' } : { correlationId },
+      bus.get(target).next(
+        (opts.fail ? { correlationId, message: 'gateway add failed' } : { correlationId }) as EventMap[typeof target],
       );
     }
   });
 
-  const transport = {
-    emit: emitSpy,
-    on: vi.fn(),
-    stream: vi.fn((ch: string) => subjectFor(ch).asObservable()),
-    subscribeToResource: vi.fn().mockReturnValue(() => {}),
-    bridgeInto: vi.fn(),
-    state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-    dispose: vi.fn(),
-    // Delivers whatever the test pushes at it — true of this double.
-    isSubscribed: () => true,
-  } as unknown as ITransport;
+  const transport = inMemoryTransport({
+    bus,
+    onEmit: (channel, payload) => {
+      void emitSpy(channel as string, payload as Record<string, unknown>);
+    },
+  });
 
   return { transport, emitSpy };
 }

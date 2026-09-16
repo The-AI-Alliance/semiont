@@ -18,51 +18,36 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { ConnectionState, ITransport, ResourceId } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
 import { MarkNamespace } from '../mark';
 import { JobNamespace } from '../job';
 import type { MarkAssistEvent } from '../types';
+import { inMemoryTransport } from '../../__tests__/helpers/in-memory-transport';
 
 const flush = () => new Promise<void>((r) => setTimeout(r, 0));
 
 function makeFakeTransport() {
-  const subjects = new Map<string, Subject<Record<string, unknown>>>();
-  const subjectFor = (channel: string) => {
-    let s = subjects.get(channel);
-    if (!s) {
-      s = new Subject<Record<string, unknown>>();
-      subjects.set(channel, s);
-    }
-    return s;
-  };
+  // One typed bus: the transport streams from it and this fixture pushes
+  // into it, so a reply is checked against the channel's declared payload.
+  const transportBus = new EventBus();
   const subscribeToResource = vi.fn((_rId: ResourceId) => () => {});
 
-  const transport = {
-
-    // Delivers whatever the test pushes at it — true of this double.
-
-    isSubscribed: () => true,
-    baseUrl: 'http://test',
+  const transport = inMemoryTransport({
+    bus: transportBus,
     subscribeToResource,
-    emit: async (channel: string, payload: Record<string, unknown>) => {
+    onEmit: (channel, payload) => {
       // Resolve the job:create round-trip so dispatchAssist gets a jobId.
       if (channel === 'job:create') {
-        subjectFor('job:created').next({
-          correlationId: payload.correlationId,
+        transportBus.get('job:created').next({
+          correlationId: (payload as { correlationId: string }).correlationId,
           response: { jobId: 'job-1' },
         });
       }
     },
-    stream: (channel: string): Observable<Record<string, unknown>> => subjectFor(channel).asObservable(),
-    bridgeInto: () => {},
-    state$: new BehaviorSubject<ConnectionState>('open'),
-    errors$: new Subject(),
-    dispose: () => {},
-  };
+  });
 
-  return { transport: transport as unknown as ITransport, subscribeToResource };
+  return { transport, subscribeToResource };
 }
 
 describe('mark.assist — no SSE churn (Link 1)', () => {

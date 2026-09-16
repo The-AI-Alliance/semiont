@@ -9,38 +9,30 @@
  * my-chat SDK-FRICTION-LOG B1.
  */
 
-import { describe, it, expect, afterEach, vi } from 'vitest';
-import { BehaviorSubject, Observable, Subject } from 'rxjs';
+import { describe, it, expect, afterEach } from 'vitest';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { ConnectionState, ITransport, EventMap } from '@semiont/core';
+import type { EventMap } from '@semiont/core';
 import { GatherNamespace } from '../namespaces/gather';
+import { inMemoryTransport } from './helpers/in-memory-transport';
+import { resourceContextFor } from './fixtures/gathered-context';
 
 function makeTransport() {
-  const subjects: Record<string, Subject<unknown>> = {};
-  const subjectFor = (ch: string) => (subjects[ch] ??= new Subject<unknown>());
+  const bus = new EventBus();
   let lastChannel: string | null = null;
   let lastPayload: Record<string, unknown> | null = null;
-  const transport = {
-    baseUrl: 'http://test',
-    emit: vi.fn(async (channel: keyof EventMap, payload: EventMap[keyof EventMap]) => {
+  const transport = inMemoryTransport({
+    bus,
+    onEmit: (channel, payload) => {
       lastChannel = channel as string;
       lastPayload = payload as Record<string, unknown>;
-    }),
-    stream: vi.fn(
-      (channel: keyof EventMap) =>
-        subjectFor(channel as string).asObservable() as unknown as Observable<EventMap[keyof EventMap]>,
-    ),
-    subscribeToResource: () => () => {},
-    bridgeInto: () => {},
-    state$: new BehaviorSubject<ConnectionState>('open'),
-    errors$: new Subject(),
-    dispose: () => {},
-    // Delivers whatever the test pushes at it — true of this double.
-    isSubscribed: () => true,
-  } as unknown as ITransport;
+    },
+  });
   return {
     transport,
-    subjectFor,
+    // Replies are pushed through the SAME typed bus the transport streams
+    // from, so a fixture that is not the channel's declared payload is a
+    // compile error rather than something the transport's cast used to hide.
+    subjectFor: <K extends keyof EventMap>(channel: K) => bus.get(channel),
     getLastChannel: () => lastChannel,
     getLastPayload: () => lastPayload,
   };
@@ -74,7 +66,7 @@ describe('gather.resource', () => {
 
     // gather:resource-complete now carries a unified GatheredContext (focus.kind:'resource'),
     // not the old per-kind response wrapper (CONTEXT-UNIFICATION P1).
-    const response = { focus: { kind: 'resource', resource: { '@id': rid } }, graph: { nodes: [], edges: [] }, metadata: {} };
+    const response = resourceContextFor(rid);
     subjectFor('gather:resource-complete').next({ correlationId: cid, resourceId: rid, response });
 
     expect(await promise).toEqual(response);
@@ -104,7 +96,10 @@ describe('gather.resource', () => {
       correlationId: cid,
       resourceId: 'r3',
       message: 'graph traversal failed',
-      code: 'gather.failed',
+      // No `code`: the contract declares only 'peer-unavailable' | 'not-found',
+      // and the wire never carried 'gather.failed'. The transport double's cast
+      // was what let this fixture claim otherwise. An absent code is exactly
+      // the case the SDK maps to `bus.rejected`, which is what this asserts.
     });
 
     const err = await captured;
