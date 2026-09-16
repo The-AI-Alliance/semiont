@@ -187,6 +187,16 @@ jobs:
         env:
           CI: true
 
+      # This job runs the gateway suite too, so it needs the same real
+      # nats-server the test-gateway job installs — the signal-plane
+      # fixtures spawn it from PATH (SIGNAL-PLANE P1/P3).
+      - name: Install nats-server (gateway signal-plane conformance)
+        run: |
+          NATS_VERSION=v2.14.0
+          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+
       - name: Run comprehensive test suite
         run: |
           echo "Running comprehensive test suite..."
