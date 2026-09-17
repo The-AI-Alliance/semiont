@@ -101,16 +101,40 @@ describe('createMarkStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('clears pendingAnnotation on mark:create-ok', () => {
-    tc = withMark();
+  it('clears pendingAnnotation once its own submit succeeds', async () => {
+    const annotationFn = vi.fn().mockResolvedValue({ annotationId: 'ann-1' });
+    tc = withMark({ annotation: annotationFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const pend: unknown[] = [];
     stateUnit.pendingAnnotation$.subscribe(v => pend.push(v));
 
     tc.bus.emit('mark:requested', { source: 'res-1', selector: {}, motivation: 'highlighting' } as any);
-    tc.bus.emit('mark:create-ok', { response: { annotationId: 'ann-1' } });
-    expect(pend[pend.length - 1]).toBeNull();
+    tc.bus.emit('mark:submit', { source: 'res-1', selector: {}, motivation: 'highlighting', body: [] } as any);
+
+    await vi.waitFor(() => expect(pend[pend.length - 1]).toBeNull());
     stateUnit.dispose();
+  });
+
+  it('does NOT clear pendingAnnotation when someone ELSE\'s create is replied to', () => {
+    // The clobber this replaced. `MarkCreateOk` is `{ response: { annotationId } }`
+    // — no resourceId — so a viewer could not tell its own reply from another's.
+    //
+    // The emit below IS the transport: `transport.bridgeInto(client.bus)` puts
+    // every wire reply on this bus, whichever viewer or host flow caused it.
+    // Standing in for it here is the only way a state-unit test can see wire
+    // behaviour at all, since the harness has no transport of its own.
+    tc = withMark();
+    const viewerA = createMarkStateUnit(tc.client, RID);
+    const pend: unknown[] = [];
+    viewerA.pendingAnnotation$.subscribe(v => pend.push(v));
+
+    tc.bus.emit('mark:requested', { source: 'res-1', selector: {}, motivation: 'highlighting' } as any);
+    expect(pend[pend.length - 1], 'selection registered').not.toBeNull();
+
+    tc.bus.emit('mark:create-ok', { response: { annotationId: 'ann-somebody-else' } });
+
+    expect(pend[pend.length - 1], "viewer A's in-progress selection survived").not.toBeNull();
+    viewerA.dispose();
   });
 
   // ── CRUD bridging ──────────────────────────────────────────
