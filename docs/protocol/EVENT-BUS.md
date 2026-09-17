@@ -383,8 +383,8 @@ operation — one request, one correlated `job:created` reply carrying a
 carrying no `correlationId`**, which consumers filter by domain key: a
 dispatching caller by `jobId` (it awaited one job), a resource viewer by
 `resourceId` (it wants anything happening to what it shows). So job progress
-is not an under-declared `streaming` channel. It is a different mechanism,
-deliberately, and the `delivery` axis does not describe it.
+is not an operation reply that the `delivery` axis failed to classify. It is a
+different mechanism, deliberately, and `delivery` does not describe it.
 
 **Do not confuse `delivery` with the SSE fan-in disciplines** in [Resource
 scoping](#resource-scoping) above: `delivery` classifies a channel's *routing
