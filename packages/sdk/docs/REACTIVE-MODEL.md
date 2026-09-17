@@ -20,9 +20,9 @@ Everything reactive in the SDK is an RxJS Observable:
 
 - **Live queries** (`browse.resource`, `browse.resources`, `browse.annotations`, etc.) — values that re-emit when bus events fire (including events from other participants).
 - **Bounded streams** (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromContext`, `yield.resource`) — progress events plus a final result.
-- **Collaboration signals on the bus** — `mark.changeShape`, `beckon.hover`, `bind.initiate`, `browse.click`, etc. emit; participants observe via `client.bus.get(channel)` or `session.subscribe(channel, handler)`. Fire-and-forget at the call site, fan-out across participants on the bus.
+- **Collaboration signals on the bus** — `mark.changeShape`, `beckon.hover`, `bind.initiate`, `browse.click`, etc. emit; participants observe via `client.bus.on(channel)` or `session.subscribe(channel, handler)`. Fire-and-forget at the call site, fan-out across participants on the bus.
 - **Lifecycle state** (`client.transport.state$`, `client.transport.errors$`, `session.token$`, `session.user$`, `session.errors$`) — synchronous-snapshot `BehaviorSubject`s and the transport's error stream.
-- **Bus subscriptions** (`session.subscribe(channel, handler)`, `client.bus.get(channel)`) — raw fan-out of typed events; the channel-by-name escape hatch when no namespace method covers the case.
+- **Bus subscriptions** (`session.subscribe(channel, handler)`, `client.bus.on(channel)`) — raw fan-out of typed events; the channel-by-name escape hatch when no namespace method covers the case.
 
 Observable is the right primitive for all of these. Promise has no "second value." The cache primitive behind Browse — multicast, per-key dedup, stale-while-revalidate — composes cleanly only because the substrate supports the operators that make it possible. Forcing Promise here would require parallel `observe()` / `get()` methods on every namespace and would lose the collaboration story entirely.
 
@@ -102,7 +102,7 @@ The discipline is enforceable. A namespace method's return type must be one of:
 - `void`
 - `Promise<number>` (wire drives only)
 
-Plain `Observable<T>` does not appear on the public verb-namespace surface. (It still appears on lifecycle / escape-hatch surfaces — `client.transport.state$`, `client.transport.errors$`, `client.bus.get(channel)` — see "Plain Observables" below.) A future CI lint can enforce the rule at build time; the discipline already holds in the current code.
+Plain `Observable<T>` does not appear on the public verb-namespace surface. (It still appears on lifecycle / escape-hatch surfaces — `client.transport.state$`, `client.transport.errors$`, `client.bus.on(channel)` — see "Plain Observables" below.) A future CI lint can enforce the rule at build time; the discipline already holds in the current code.
 
 ## What this looks like at the call site
 
@@ -196,7 +196,7 @@ const done = await semiont.mark.assist(rId, 'linking', {}).run((event) => {
 - `beckon.hover`, `beckon.sparkle` (both local fan-out only)
 - `job.cancelRequest`
 
-These produce no return value at the call site — observation happens on the bus side via `session.subscribe(channel, handler)` or `client.bus.get(channel)`. A Browser state unit emits `mark.changeShape('rectangle')`; a different participant subscribed to `mark:shape-changed` reacts.
+These produce no return value at the call site — observation happens on the bus side via `session.subscribe(channel, handler)` or `client.bus.on(channel)`. A Browser state unit emits `mark.changeShape('rectangle')`; a different participant subscribed to `mark:shape-changed` reacts.
 
 **Wire drives** (return `Promise<number>`; emit over the transport at every other participant):
 
@@ -212,7 +212,7 @@ These are the guided-tour moves: they drive *other* participants' viewers, and t
 - `session.user$` — current authenticated user
 - `session.streamState$` — connection state at session scope
 - `session.errors$` — re-publishes `client.transport.errors$` for session consumers
-- `client.bus.get(channel)` — raw bus subscription (the channel-by-name escape hatch — see "Three paths to the bus" below)
+- `client.bus.on(channel)` — raw bus subscription (the channel-by-name escape hatch — see "Three paths to the bus" below)
 - `session.subscribe(channel, handler)` — typed-channel subscription via `SemiontSession`
 
 These stay reactive without a thenable for two reasons. First, `BehaviorSubject` has `.value` for synchronous snapshots; `firstValueFrom` is the explicit wait when you want one. Awaiting a BehaviorSubject directly is ambiguous — current value? next emit? next non-undefined emit? — and rarely what consumers want. Second, lifecycle observables and bus subscriptions are *meant* to be observed continuously; the consumer of `state$` or `mark:added` always wants the stream, never one snapshot.
@@ -250,10 +250,10 @@ The escape hatch for **observing a channel that doesn't have a typed namespace g
 
 This path is sanctioned. It's typed against `EventMap` from `@semiont/core`, so the channel name and payload type stay aligned. The disposer cleans up on call.
 
-### 3. Direct `client.bus.get(channel)` / `client.transport.emit(channel, ...)` — advanced
+### 3. Direct `client.bus.on(channel)` / `client.transport.emit(channel, ...)` — advanced
 
 ```ts
-client.bus.get('mark:added').subscribe((event) => log(event));
+client.bus.on('mark:added').subscribe((event) => log(event.payload.annotation));
 await client.transport.emit('beckon:hover', { annotationId: null });
 ```
 
@@ -262,6 +262,14 @@ The lowest-level path. Reach for it when:
 - You're building a worker or actor that handles channels directly (Stower, Gatherer, etc. inside `@semiont/make-meaning` use this pattern — they *are* the handlers; namespaces wrap callers, not handlers).
 - You need RxJS operator composition on a channel stream (`.pipe(filter(...), map(...), shareReplay())`).
 - A new operation isn't yet wrapped by a namespace method, and you're prototyping.
+
+`on(channel)` is the payload view. When you need the **envelope** — the `correlationId` that pairs a reply with its request, or the `scope` a frame was emitted into — read `frames(channel)` instead. `on` is derived from `frames`, so the two cannot disagree:
+
+```ts
+client.bus.frames('mark:added').subscribe((frame) => log(frame.correlationId, frame.payload));
+```
+
+Both are read-only observables, and publishing goes through `emit`, whose third argument is that same envelope. (The bus formerly exposed `get(channel)`, which handed back the channel's `Subject` — so every reader also held a write path back into it.)
 
 If you find yourself reaching for `transport.emit` from application code repeatedly, the right move is usually to add a namespace method. The bus exposure is *not* `@internal` — it's a real surface for advanced use — but the typed namespaces are the canonical entry point for everything else.
 
