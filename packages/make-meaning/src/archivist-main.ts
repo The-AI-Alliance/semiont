@@ -306,10 +306,13 @@ async function main() {
 
   const pumps: Subscription[] = [];
 
+  // Both pumps forward FRAMES: correlationId rides the envelope, and a
+  // payload-only relay drops it silently. `scope` deliberately does not cross
+  // — inbound the gateway already flattened it, outbound the fact pump owns it.
   for (const channel of ARCHIVIST_INBOUND_CHANNELS) {
     pumps.push(
-      httpTransport.stream(channel).subscribe((payload) => {
-        localBus.emit(channel, payload as never);
+      httpTransport.frames(channel).subscribe((frame) => {
+        localBus.emit(channel, frame.payload as never, { correlationId: frame.correlationId });
       }),
     );
   }
@@ -317,8 +320,8 @@ async function main() {
   const outbound = ARCHIVIST_OUTBOUND_CHANNELS;
   for (const channel of outbound) {
     pumps.push(
-      localBus.on(channel).subscribe((payload) => {
-        httpTransport.emit(channel, payload as never).catch((error: unknown) => {
+      localBus.frames(channel).subscribe((frame) => {
+        httpTransport.emit(channel, frame.payload as never, { correlationId: frame.correlationId }).catch((error: unknown) => {
           logger.error('Reply forwarding failed', { channel, error: errField(error) });
         });
       }),
