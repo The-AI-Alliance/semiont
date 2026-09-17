@@ -38,10 +38,18 @@
  * the claim land (`awaitClaim`) before the reply is emitted.
  */
 import { afterAll, describe, test, expect } from 'vitest';
-import { EventBus, busRequest, BRIDGED_CHANNELS, type BusOperationKey, type EventMap } from '@semiont/core';
-import { GATEWAY_HANDLER_CHANNELS, GATEWAY_HANDLER_EMITS } from '@semiont/make-meaning';
+import { Subject } from 'rxjs';
+import { EventBus, busRequest, BRIDGED_CHANNELS, BUS_OPERATIONS, type BusFrame, type BusOperationKey, type EventMap } from '@semiont/core';
+import {
+  GATEWAY_HANDLER_CHANNELS,
+  GATEWAY_HANDLER_EMITS,
+  ARCHIVIST_INBOUND_CHANNELS,
+  ARCHIVIST_OUTBOUND_CHANNELS,
+  attachServicePumps,
+  type PumpTransport,
+} from '@semiont/make-meaning';
 import { JOB_QUEUE_EMITS, WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS } from '@semiont/jobs';
-import { toReplyAddress, type PlaneEnvelope } from '../interface';
+import { toReplyAddress, type PlaneEnvelope, type SignalPlane } from '../interface';
 import { createNatsSignalPlane } from '../nats';
 import { compositionFor, type SignalComposition } from '../composition';
 import { bridgeGatewayHandlers } from '../bridge';
@@ -152,6 +160,55 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
       composition.dispose();
       plane.dispose();
       bus.destroy();
+    },
+  };
+}
+
+/**
+ * The Archivist as it composes itself: its real roster through
+ * `attachServicePumps`, over a plane-backed stand-in for HttpTransport.
+ */
+function archivistOver(plane: SignalPlane): { localBus: EventBus; close(): void } {
+  const localBus = new EventBus();
+  const subjects = new Map<string, Subject<BusFrame<unknown>>>();
+  const subjectFor = (channel: string) => {
+    let s = subjects.get(channel);
+    if (!s) { s = new Subject<BusFrame<unknown>>(); subjects.set(channel, s); }
+    return s;
+  };
+
+  const sub = plane.subscribeClient({
+    address: toReplyAddress('tier2-archivist'),
+    global: [...ARCHIVIST_INBOUND_CHANNELS],
+    scoped: [],
+    onFrame: (channel, payload, envelope) =>
+      subjectFor(channel).next({ payload, correlationId: envelope.meta?.correlationId } as BusFrame<unknown>),
+  });
+
+  const transport: PumpTransport = {
+    frames: ((channel: string) => subjectFor(channel)) as PumpTransport['frames'],
+    emit: ((channel: string, payload: unknown, envelope: { correlationId?: string }) => {
+      plane.ingest(channel, payload, {
+        meta: envelope?.correlationId ? { correlationId: envelope.correlationId } : {},
+      });
+      return 1;
+    }) as PumpTransport['emit'],
+  };
+
+  const pumps = attachServicePumps({
+    transport,
+    localBus,
+    inbound: ARCHIVIST_INBOUND_CHANNELS,
+    outbound: ARCHIVIST_OUTBOUND_CHANNELS,
+    logger: { error: () => {} },
+  });
+
+  return {
+    localBus,
+    close() {
+      for (const p of pumps) p.unsubscribe();
+      sub.close();
+      localBus.destroy();
     },
   };
 }
@@ -284,22 +341,18 @@ describe('P3 — two gateway-compositions over one broker', () => {
     // POST /resources ran busRequest over the RAW bus, which a remote plane
     // never feeds — the Stower, a bus CLIENT in the Archivist, heard
     // nothing and the create hung its full timeout. The fix is the plane
-    // primitive (`requestPrimitiveFor`); the actor here is Stower-shaped:
-    // a client-mode subscriber on the OTHER instance, replying with the
-    // registry's reply channel via its own emit.
+    // primitive (`requestPrimitiveFor`).
+    //
+    // The service side runs the Archivist's real roster and pumps, not a plane
+    // subscriber on the two channels this test needs: a fake attached beneath
+    // the wiring is green whatever the wiring does.
     const { a, b, done } = await twoInstances();
     try {
-      const stower = b.composition.plane.subscribeClient({
-        address: toReplyAddress('fake-stower'),
-        global: ['yield:create'],
-        scoped: [],
-        onFrame: (_channel, _payload, envelope) => {
-          const correlationId = envelope.meta?.correlationId;
-          if (correlationId === undefined) return;
-          b.ingest('yield:create-ok', {
-            response: { resourceId: 'urn:semiont:r-h7' },
-          }, { meta: { correlationId } });
-        },
+      const stower = archivistOver(b.composition.plane);
+      stower.localBus.frames('yield:create').subscribe((frame) => {
+        stower.localBus.emit('yield:create-ok', {
+          response: { resourceId: 'urn:semiont:r-h7' },
+        } as never, { correlationId: frame.correlationId });
       });
 
       // B's subscription must be REGISTERED before the request is published:
@@ -318,6 +371,40 @@ describe('P3 — two gateway-compositions over one broker', () => {
 
       const response = await a.request('yield:create', { name: 'h7' });
       expect(response).toEqual({ resourceId: 'urn:semiont:r-h7' });
+      stower.close();
+    } finally {
+      done();
+    }
+  });
+
+  test('H7b: the Archivist roster answers EVERY operation it claims, across the broker', async () => {
+    // The whole roster, where at-most-once delivery is real: a channel missing
+    // from the inbound set fails here rather than starving a live service.
+    const { a, b, done } = await twoInstances();
+    try {
+      const stower = archivistOver(b.composition.plane);
+      const answered = Object.entries(BUS_OPERATIONS).filter(
+        ([request, op]) =>
+          (ARCHIVIST_INBOUND_CHANNELS as readonly string[]).includes(request) &&
+          (ARCHIVIST_OUTBOUND_CHANNELS as readonly string[]).includes(op.result),
+      );
+      expect(answered.length, 'the Archivist roster answers nothing — this would pass vacuously').toBeGreaterThan(0);
+
+      for (const [request, op] of answered) {
+        stower.localBus.frames(request as keyof EventMap).subscribe((frame) => {
+          stower.localBus.emit(op.result, { response: { ok: request } } as never, {
+            correlationId: frame.correlationId,
+          });
+        });
+      }
+      await b.composition.plane.flush();
+
+      for (const [request] of answered) {
+        const response = await a.request(request as BusOperationKey, { probe: request });
+        expect(response, `${request} did not round-trip through the Archivist's real wiring`).toEqual({
+          ok: request,
+        });
+      }
       stower.close();
     } finally {
       done();

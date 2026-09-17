@@ -45,8 +45,6 @@ import {
   retryWithBackoff,
   isTransientFetchError,
   STARTUP_FETCH_RETRY,
-  errField,
-  relayFrames,
   type AccessToken, withDeadline } from '@semiont/core';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 import { createEventStore } from '@semiont/event-sourcing';
@@ -57,6 +55,7 @@ import { Stower } from './stower';
 import { Browser } from './browser';
 import { CloneTokenManager } from './clone-token-manager';
 import { ARCHIVIST_INBOUND_CHANNELS, ARCHIVIST_OUTBOUND_CHANNELS } from './service-channels';
+import { attachServicePumps } from './service-pumps';
 import { createSmeltProgress } from './smelt-progress';
 import { createLimitsDiscovery } from './limits-discovery';
 import { makeMeaningConfigFrom } from './config';
@@ -307,14 +306,13 @@ async function main() {
   });
 
   const outbound = ARCHIVIST_OUTBOUND_CHANNELS;
-  const pumps: Subscription[] = [
-    ...relayFrames(httpTransport, localBus, ARCHIVIST_INBOUND_CHANNELS, (channel, error) =>
-      logger.error('Inbound relay failed', { channel, error: errField(error) }),
-    ),
-    ...relayFrames(localBus, httpTransport, outbound, (channel, error) =>
-      logger.error('Reply forwarding failed', { channel, error: errField(error) }),
-    ),
-  ];
+  const pumps: Subscription[] = attachServicePumps({
+    transport: httpTransport,
+    localBus,
+    inbound: ARCHIVIST_INBOUND_CHANNELS,
+    outbound,
+    logger,
+  });
 
   // ── The fact pump (P3, D5): persisted events ride the bus ──────────
   // Every append publishes an (enriched) StoredEvent on this process's bus;

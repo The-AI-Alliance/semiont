@@ -52,7 +52,6 @@ import { HttpTransport } from '@semiont/http-transport';
 import { archivistContentReads } from '@semiont/content';
 import {
   EventBus,
-  relayFrames,
   baseUrl as makeBaseUrl,
   accessToken as makeAccessToken,
   retryWithBackoff,
@@ -68,6 +67,7 @@ import { Matcher } from './matcher';
 import { Gatherer } from './gatherer';
 import { LIBRARIAN_INBOUND_CHANNELS, LIBRARIAN_OUTBOUND_CHANNELS, LIBRARIAN_REPLY_CHANNELS } from './service-channels';
 import { anchoredTextOverBus } from './anchored-text-ask';
+import { attachServicePumps } from './service-pumps';
 import { createWeaveProgress } from './weave-progress';
 import { createSmeltProgress } from './smelt-progress';
 import { registerGatherSummaryHandler } from './handlers/annotation-lookups';
@@ -288,18 +288,13 @@ async function main() {
 
   const outbound = LIBRARIAN_OUTBOUND_CHANNELS;
   pumps.push(
-    ...relayFrames(httpTransport, localBus, LIBRARIAN_INBOUND_CHANNELS, (channel, error) =>
-      logger.error('Inbound relay failed', {
-        channel,
-        error: error instanceof Error ? error.message : String(error),
-      }),
-    ),
-    ...relayFrames(localBus, httpTransport, outbound, (channel, error) =>
-      logger.error('Reply forwarding failed', {
-        channel,
-        error: error instanceof Error ? error.message : String(error),
-      }),
-    ),
+    ...attachServicePumps({
+      transport: httpTransport,
+      localBus,
+      inbound: LIBRARIAN_INBOUND_CHANNELS,
+      outbound,
+      logger,
+    }),
   );
 
   logger.info('Bus pumps attached', { inbound: LIBRARIAN_INBOUND_CHANNELS.length, outbound: outbound.length });
