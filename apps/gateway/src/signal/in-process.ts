@@ -172,6 +172,14 @@ export function createInProcessSignalPlane(
       };
     },
 
+    async flush() {
+      // The honest answer for this fabric, not a stub: delivery here is
+      // synchronous `Subject.next`, so by the time any call returns there is
+      // nothing in flight and every subscription is already live. A driver
+      // that answered by omission would be the optional-member mistake in
+      // another costume.
+    },
+
     dispose() {
       for (const s of openSubs) s.unsubscribe();
       openSubs.clear();

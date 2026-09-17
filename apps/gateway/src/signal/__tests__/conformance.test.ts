@@ -66,13 +66,23 @@ function expectInOrder(got: readonly unknown[], expected: readonly unknown[]): v
   expect(i, `delivered ${i}/${expected.length} in order`).toBe(expected.length);
 }
 
-const drivers: Array<[string, () => Promise<{ plane: SignalPlane; teardown(): void }>]> = [
+/**
+ * `peer` is a SECOND plane on the same fabric — a second connection under
+ * NATS, the same `EventBus` in process. It exists for the flush property:
+ * "my subscription is registered" is only observable when someone ELSE
+ * publishes, because a plane's own publish and its own subscribe share a
+ * connection and are therefore already ordered.
+ */
+type Rig = { plane: SignalPlane; peer: SignalPlane; teardown(): void };
+
+const drivers: Array<[string, () => Promise<Rig>]> = [
   [
     'in-process',
     async () => {
       const bus = new EventBus();
       const plane = createInProcessSignalPlane(bus, resolveSignalPlaneOptions());
-      return { plane, teardown: () => { plane.dispose(); bus.destroy(); } };
+      const peer = createInProcessSignalPlane(bus, resolveSignalPlaneOptions());
+      return { plane, peer, teardown: () => { plane.dispose(); peer.dispose(); bus.destroy(); } };
     },
   ],
   [
@@ -80,7 +90,8 @@ const drivers: Array<[string, () => Promise<{ plane: SignalPlane; teardown(): vo
     async () => {
       const { servers } = await natsFixture();
       const plane = await createNatsSignalPlane({ servers, reconnect: false });
-      return { plane, teardown: () => plane.dispose() };
+      const peer = await createNatsSignalPlane({ servers, reconnect: false });
+      return { plane, peer, teardown: () => { plane.dispose(); peer.dispose(); } };
     },
   ],
 ];
@@ -91,6 +102,52 @@ afterAll(async () => {
 });
 
 describe.each(drivers)('SignalPlane conformance — %s', (_name, make) => {
+  // ── flush: the seam can be asked whether its subscriptions are live ──────
+
+  test('flush(): a subscription made before it receives a frame published immediately after', async () => {
+    // THE property, and the reason the verb exists. Registering interest is
+    // asynchronous under NATS and core NATS is at-most-once, so a frame
+    // published before registration lands is DROPPED, not delayed — no
+    // settle budget recovers it, which is why the publish here is immediate
+    // and unguarded rather than wrapped in a retry. `await flush()` is the
+    // only thing standing between this test and the H7 race.
+    const { plane, peer, teardown } = await make();
+    try {
+      const c = collector();
+      plane.subscribeClient({
+        address: toReplyAddress('flush-1'),
+        global: ['beckon:focus'],
+        scoped: [],
+        onFrame: c.onFrame,
+      });
+      await plane.flush();
+      peer.ingest('beckon:focus', { participant: 'did:web:x', connectionId: 'k' });
+      // Force the peer's publish onto the wire NOW. The client batches
+      // outbound writes, and that incidental cushion is usually enough for the
+      // subscription to land anyway — which would make this test pass whether
+      // or not the property holds. Removing the cushion is what makes it a
+      // gate: measured 2026-09-17, a fresh subscriber loses this race 20/20
+      // when the publish is not delayed.
+      await peer.flush();
+
+      await settle(() => c.frames.length >= 1);
+      expect(c.frames.length, 'the peer\'s frame reached a subscription flush said was live').toBe(1);
+    } finally {
+      teardown();
+    }
+  });
+
+  test('flush(): resolves on a plane with nothing in flight, rather than hanging', async () => {
+    const { plane, teardown } = await make();
+    try {
+      await expect(plane.flush()).resolves.toBeUndefined();
+      // Twice: it is a question, not a one-shot barrier.
+      await expect(plane.flush()).resolves.toBeUndefined();
+    } finally {
+      teardown();
+    }
+  });
+
   test('client mode: an ingested frame reaches a global subscriber, with the payload intact', async () => {
     const { plane, teardown } = await make();
     try {
