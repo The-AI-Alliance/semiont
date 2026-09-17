@@ -288,9 +288,6 @@ const (
 	// not emittable (no registered schema)
 	GatherSummaryFailed Channel = "gather:summary-failed"
 
-	// payload: GatherProgress
-	GatherAnnotationProgress Channel = "gather:annotation-progress"
-
 	// payload: BrowseResourceRequest
 	BrowseResourceRequested Channel = "browse:resource-requested"
 
@@ -625,7 +622,6 @@ var ChannelSchemas = map[Channel]string{
 	GatherResourceRequested:          "GatherResourceRequest",
 	GatherResourceComplete:           "GatherResourceComplete",
 	GatherSummaryRequested:           "GatherSummaryRequest",
-	GatherAnnotationProgress:         "GatherProgress",
 	BrowseResourceRequested:          "BrowseResourceRequest",
 	BrowseResourceResult:             "BrowseResourceResult",
 	BrowseAnchoredTextRequested:      "BrowseAnchoredTextRequest",

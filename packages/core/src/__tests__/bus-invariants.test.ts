@@ -81,7 +81,6 @@ const FROZEN_BRIDGED = [
   'smelt:rebuild-anchors-ok', 'smelt:rebuild-anchors-failed',
   'gather:complete', 'gather:failed',
   'gather:resource-complete', 'gather:resource-failed',
-  'gather:annotation-progress',
   'gather:summary-result', 'gather:summary-failed',
   'bind:body-updated', 'bind:body-update-failed',
   'job:report-progress', 'job:complete', 'job:fail',

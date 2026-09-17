@@ -2525,12 +2525,6 @@ type GatherAnnotationRequest struct {
 	ResourceId string `json:"resourceId"`
 }
 
-// GatherProgress Progress payload emitted on the gather:annotation-progress SSE channel during LLM context gathering.
-type GatherProgress struct {
-	Message    *string  `json:"message,omitempty"`
-	Percentage *float32 `json:"percentage,omitempty"`
-}
-
 // GatherResourceComplete Completion payload emitted on the gather:resource-complete bus channel when resource context gathering finishes.
 type GatherResourceComplete struct {
 	// ResourceId Branded ResourceId of the resource whose context was gathered

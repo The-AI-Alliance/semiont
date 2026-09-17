@@ -257,9 +257,6 @@ export type EventMap = {
   'gather:summary-result': { response: Record<string, unknown> };
   'gather:summary-failed': components['schemas']['CommandError'];
 
-  // SSE stream payloads
-  'gather:annotation-progress': components['schemas']['GatherProgress'];
-
   // ========================================================================
   // BROWSE FLOW — knowledge base reads + UI navigation
   // ========================================================================
@@ -693,7 +690,6 @@ export const CHANNEL_SCHEMAS = {
   'gather:summary-requested':         'GatherSummaryRequest',
   'gather:summary-result':            null, // { correlationId; response: Record<string, unknown> }
   'gather:summary-failed':            null, // CommandError
-  'gather:annotation-progress':       'GatherProgress',
 
   // ── BROWSE FLOW ─────────────────────────────────────────────────
   'browse:resource-requested':        'BrowseResourceRequest',

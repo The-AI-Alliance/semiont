@@ -283,9 +283,8 @@ func (e *RequestError) Error() string {
 
 // RequestOptions tunes one request.
 type RequestOptions struct {
-	Timeout  time.Duration                         // default 30s, matching the TypeScript busRequest
-	Scope    string                                // resource scope, for scoped operations
-	Progress func(channel Channel, payload []byte) // streaming ops; may be nil
+	Timeout time.Duration // default 30s, matching the TypeScript busRequest
+	Scope   string        // resource scope, for scoped operations
 }
 
 // Request performs the correlated request/reply exchange: subscribe to the
@@ -313,9 +312,6 @@ func (c *Client) Request(ctx context.Context, op Channel, payload any, opts *Req
 	defer cancel()
 
 	listen := []Channel{spec.Result, spec.Failure}
-	if spec.Streaming() {
-		listen = append(listen, spec.Progress)
-	}
 	sub, err := c.Subscribe(rctx, listen, nil, opts.Scope)
 	if err != nil {
 		return nil, fmt.Errorf("subscribe for %s: %w", op, err)
@@ -358,10 +354,6 @@ func (c *Client) Request(ctx context.Context, op Channel, payload any, opts *Req
 				return ev.Payload, nil
 			case spec.Failure:
 				return nil, &RequestError{Channel: ev.Channel, Message: messageOf(ev.Payload), Payload: ev.Payload}
-			case spec.Progress:
-				if opts.Progress != nil {
-					opts.Progress(ev.Channel, ev.Payload)
-				}
 			}
 		}
 	}

@@ -73,18 +73,12 @@ export const BRIDGED_BROADCASTS = [
 ] as const satisfies readonly EventName[];
 
 // ── Derivation ──────────────────────────────────────────────────────────────
-// Every operation's result + failure (+ progress) channel bridges, by
-// construction. Type and runtime are derived from the same `BUS_OPERATIONS`.
+// Every operation's result + failure channel bridges, by construction. Type and runtime are derived from the same `BUS_OPERATIONS`.
 
 type OpSpecs = (typeof BUS_OPERATIONS)[keyof typeof BUS_OPERATIONS];
 
-// Generic wrapper so the conditional distributes over each union member (a bare
-// `OpSpecs extends …` would test the whole union at once and collapse to never
-// because only the streaming ops carry `progress`).
-type ProgressChannel<O> = O extends { progress: infer P extends EventName } ? P : never;
-
 /** The union of every reply channel declared in the registry. */
-type RegistryReply = OpSpecs['result'] | OpSpecs['failure'] | ProgressChannel<OpSpecs>;
+type RegistryReply = OpSpecs['result'] | OpSpecs['failure'];
 
 // Iterate by typed key so each op's literal reply types survive — the element
 // type stays `RegistryReply` (no widening to `EventName`), so the composed
@@ -94,7 +88,7 @@ type RegistryReply = OpSpecs['result'] | OpSpecs['failure'] | ProgressChannel<Op
 const REGISTRY_REPLIES = (Object.keys(BUS_OPERATIONS) as (keyof typeof BUS_OPERATIONS)[]).flatMap(
   (key) => {
     const op = BUS_OPERATIONS[key];
-    return 'progress' in op ? [op.result, op.failure, op.progress] : [op.result, op.failure];
+    return [op.result, op.failure];
   },
 );
 

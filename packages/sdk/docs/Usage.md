@@ -404,25 +404,20 @@ For the full per-flow contract — including the `__system__`-stream event-sourc
 
 ## Gather
 
-`gather.annotation` is long-running — a `StreamObservable` of progress then the gathered
-context. The terminal completion event carries the `GatheredContext` directly on `.response`.
+`gather.annotation` is long-running, and emits exactly one value: the completion, which
+carries the `GatheredContext` directly on `.response`. It is a `StreamObservable` rather than
+a `Promise` because the shape once included progress frames; that channel was removed after
+it turned out nothing had ever emitted one.
 
 ```typescript
 semiont.gather.annotation(resourceId, annotationId, { contextWindow: 2000 }).subscribe({
-  next: (progress) => {
-    if ('response' in progress) {
-      console.log('Context:', progress.response);
-    } else {
-      console.log(`Gathering: ${progress.percentage}%`);
-    }
-  },
+  next: (complete) => console.log('Context:', complete.response),
   error: (err) => console.error('Failed:', err.message),
 });
 ```
 
-`gather.resource` gathers context for a **whole resource** (no annotation anchor). Unlike
-`gather.annotation` it's a request/reply with no progress stream, so it resolves the
-`GatheredContext` directly as a `Promise`:
+`gather.resource` gathers context for a **whole resource** (no annotation anchor), shaped as
+a `Promise` rather than an Observable, resolving the `GatheredContext` directly:
 
 ```typescript
 const context = await semiont.gather.resource(resourceId, {

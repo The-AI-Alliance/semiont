@@ -120,7 +120,6 @@ export function replyChannelsFor(channels: readonly string[]): EventName[] {
     if (!op) continue;
     out.add(op.result);
     out.add(op.failure);
-    if ('progress' in op && op.progress) out.add(op.progress);
   }
   return [...out];
 }

@@ -463,6 +463,13 @@ describe('P3 — two gateway-compositions over one broker', () => {
     const { a, b, done } = await twoInstances();
     try {
       b.emitRequest('gather:requested', 'cid-h5', 'client-h5');
+      // A's ledger tap must be REGISTERED on the broker before the reply is
+      // published, or core NATS drops that frame for A and never retries it —
+      // `settle` would then poll a condition that can never become true. The
+      // claim becoming visible on A is the proof, and the same barrier H1 and
+      // H6 use. Without it this test failed in CI on 2026-09-17 while passing
+      // 12/12 locally, which is the signature of this race, not of a bug.
+      await a.awaitClaim('cid-h5');
       b.ingest('gather:summary-result', { summary: 'kept' }, { meta: { correlationId: 'cid-h5' } });
       await settle(
         () =>

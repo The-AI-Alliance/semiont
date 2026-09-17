@@ -54,7 +54,6 @@
 import { isObject, isString } from '@semiont/core';
 import { recordReplySuppressed } from '@semiont/observability';
 import { getLogger } from '../logger';
-import { isProgressChannel } from './channels';
 import { toReplyAddress, type ReplyAddress } from './interface';
 import {
   CLAIM_MAX_GLOBAL,
@@ -279,10 +278,11 @@ export function createCorrelationRegistry(
       if (!cid) return;
       const claim = claims.get(cid);
       if (!claim) return; // never claimed: in-process requester, nothing to retain
-      // Any activity on the cid refreshes the claim, so a streaming op that is
-      // still reporting progress cannot expire mid-flight.
+      // Any activity on the cid refreshes the claim. (This also carried the
+      // streaming case, where a progress frame refreshed the TTL without being
+      // the answer; that class was removed 2026-09-17 with the one channel
+      // that declared it, which nothing ever emitted.)
       claim.claimedAt = now();
-      if (isProgressChannel(channel)) return; // refresh only; a stream is not an answer
       if (!claim.answered) {
         claim.answered = true;
         release(claim.clientId);
@@ -308,9 +308,7 @@ export function createCorrelationRegistry(
      */
     mayDeliver(channel, cid, clientId, principalDid) {
       if (!cid) {
-        if (!isProgressChannel(channel)) {
-          getBusLogger().warn('[bus REPLY-NO-CID] correlated frame without a correlationId', { channel });
-        }
+        getBusLogger().warn('[bus REPLY-NO-CID] correlated frame without a correlationId', { channel });
         return false;
       }
       const claim = claims.get(cid);

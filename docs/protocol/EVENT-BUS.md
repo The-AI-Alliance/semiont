@@ -180,7 +180,7 @@ RESOURCE_SCOPED_CHANNELS = [
 ];
 ```
 
-`RESOURCE_BROADCAST_TYPES` (registry data: the `resourceBroadcasts.channels` list, generated into `bus-protocol.ts`) is the extension point for *non-persisted* events that still want resource-scoped fan-out. It is **currently empty**: `job:complete` / `job:fail` were moved to global, `jobId`-keyed delivery (#847) — the dispatcher filters by `jobId`, viewers filter the same global stream by `resourceId`, so there's no scoped copy (and a client that is both no longer receives a duplicate).
+`RESOURCE_BROADCAST_TYPES` (registry data: the `resourceBroadcasts.channels` list, generated into `bus-protocol.ts`) is the extension point for *non-persisted* events that still want resource-scoped fan-out. **It is empty, and the reason is the rule rather than an accident**: `job:complete` / `job:fail` moved to global, `jobId`-keyed delivery (#847) — the dispatcher filters by `jobId`, viewers filter the same global stream by `resourceId`, so there's no scoped copy (and a client that is both no longer receives a duplicate).
 
 **Bridged and resource-scoped must stay disjoint.** A channel delivered on *both* the global subscription and a scoped one arrives twice (with different SSE ids) → a duplicate on the client bus. The `filter(t => !BRIDGED_CHANNELS.includes(t))` above guarantees disjointness for the persisted-derived part; an invariant test (`BRIDGED_CHANNELS ∩ RESOURCE_SCOPED_CHANNELS === ∅`) backstops the unfiltered `RESOURCE_BROADCAST_TYPES` extension point.
 
@@ -207,7 +207,7 @@ Commands, results, and UI signals are transient. They flow across the bus, drive
 
 ## Fan-in: SSE bridging
 
-The SDK's `SemiontClient` owns a local `EventBus`; the HTTP transport bridges wire events into it. `BRIDGED_CHANNELS` in [bridged-channels.ts](../../packages/core/src/bridged-channels.ts) is the set the transport forwards — but it is no longer a hand-list. It is **derived**: every operation's reply channels (result + failure + optional progress) come from the `BUS_OPERATIONS` registry, plus `bridgedBroadcasts` in the registry — the non-request/reply minority (KB-global domain events like `frame:entity-type-added`, UI signals like `beckon:*`, and infra like `bus:resume-gap`). Deriving the reply set from the registry is what makes "a reply channel forgotten from the bridged set" — the recurring silent-timeout bug — unrepresentable.
+The SDK's `SemiontClient` owns a local `EventBus`; the HTTP transport bridges wire events into it. `BRIDGED_CHANNELS` in [bridged-channels.ts](../../packages/core/src/bridged-channels.ts) is the set the transport forwards — but it is no longer a hand-list. It is **derived**: every operation's reply channels (result + failure + optional progress) come from the `BUS_OPERATIONS` registry, plus the registry's `audience: everyone` set — the non-request/reply minority (KB-global domain events like `frame:entity-type-added`, UI signals like `beckon:*`, and infra like `bus:resume-gap`). Deriving the reply set from the registry is what makes "a reply channel forgotten from the bridged set" — the recurring silent-timeout bug — unrepresentable.
 
 ### Where the invariants are enforced
 
@@ -215,7 +215,7 @@ Three layers, deliberately, because each catches what the others structurally ca
 
 | Layer | Where | Catches |
 |---|---|---|
-| **Source** | [validate-registry.mjs](../../scripts/bus/validate-registry.mjs), run by both generators before they emit | undeclared operation channels, a reply owned by two operations, a non-emittable request, and a reply channel listed in `bridgedBroadcasts` (the double-delivery shape) — reported against the registry line you typed |
+| **Source** | [validate-registry.mjs](../../scripts/bus/validate-registry.mjs), run by both generators before they emit | undeclared operation channels, a reply owned by two operations, a non-emittable request, and a reply channel also given an `audience` (the double-delivery shape) — reported against the registry line you typed |
 | **Compile time** | `satisfies` clauses in the generated TypeScript | an unknown channel, a missing payload binding, a schema name that isn't in the OpenAPI types |
 | **Test time** | [bus-invariants.test.ts](../../packages/core/src/__tests__/bus-invariants.test.ts) and [bridged_test.go](../../packages/sdk-go/bus/bridged_test.go) | duplicates in the bridged set, the frozen-snapshot equality, bridged ∩ persisted, and — in Go, which has no `satisfies` — the reply-is-bridged and request-is-emittable properties |
 
@@ -325,18 +325,66 @@ them and cannot drift from the registry:
 - **`direction`** — `outbound` (emitted toward the hub), `inbound` (delivered
   from it — the fan-in set, by construction), or `in-process` (never on the
   wire).
-- **`delivery`** — for inbound channels only, *how* a reply is routed:
-  `correlated` (owner-addressed, keyed by `correlationId`), `streaming`
-  (progress frames — they refresh a request's liveness but are never retained
-  as the answer), or `broadcast` (every subscriber in scope). Its absence on
-  outbound and in-process channels is asserted, so it is a decision rather than
-  a gap.
+- **`delivery`** — how an operation's REPLY is matched to its request, and only
+  that. One value: `correlated` (owner-addressed, keyed by `correlationId`).
+  Its absence on request, outbound and in-process channels is asserted, so it
+  is a decision rather than a gap.
 
-The three axes are independent — a channel can be both `recorded` and
-`broadcast`, pinned by the handful that are — and adding an operation to the
+  Two sibling values are gone, for the same reason. `broadcast` restated
+  `audience: everyone` — one fact in two places, and nothing read it.
+  `streaming` classified an operation's third channel, whose frames refreshed a
+  request's liveness without being retained as the answer; it had one declared
+  member that nothing ever emitted, so every path serving it was unreachable.
+  **Who receives a frame is the `audience` axis; `delivery` is only how a reply
+  finds its request.**
+
+The three attributes are independent — a channel can be both `recorded` and
+correlated, pinned by the handful that are — and adding an operation to the
 registry classifies its reply channels with no hand edit, which is what let the
 gateway's old hand-kept `CORRELATED_CHANNELS` / `PROGRESS_CHANNELS` partitions
 be deleted (BUS-ROUTING-DECLARED P1). Consume it through `channelAttrsOf(channel)`.
+
+**Three generated attributes, five registry axes.** `recorded`, `direction` and
+`delivery` are what `CHANNEL_ATTRS` carries. They are *derived* from what the
+registry declares: `operations`, `kind` (`command` | `event`), `audience`
+(`everyone` | `scoped` | `declared`) and `inProcess`. A channel that names no
+class refuses to generate — there is no default, because a silent fallthrough
+once classified `job:queued` as in-process and starved every worker. Declare
+the axis; read the attribute.
+
+**There is no progress class.** An operation declares a `result` and a
+`failure`, and that is all. Incremental reporting uses the job lifecycle family
+instead — see *Two identities* below.
+
+### Two identities: routing versus domain
+
+A frame can be matched to what it belongs to in two different ways, and the
+system uses both. Keeping them straight is what makes the `delivery` axis
+legible.
+
+| | routing identity | domain identity |
+|---|---|---|
+| the key | `correlationId` | `jobId`, `resourceId`, `annotationId` |
+| where it rides | the frame's **envelope** | inside the **payload** |
+| who sets it | `busRequest`, per request | the domain, per thing |
+| matched by | the gateway ledger, before delivery | the consumer, after delivery |
+| the `delivery` axis | classifies these | says nothing about these |
+
+A routing key is a wire concern: it exists to pair one reply with one request
+and never enters a channel's domain type. A domain key is a fact about the
+thing itself, and outlives any single exchange.
+
+The job lifecycle is the only case of the second, and the reason there is no
+progress class: an operation's reply arrives once, and work that reports as it
+goes is a job rather than a longer request. `job:create` is an
+operation — one request, one correlated `job:created` reply carrying a
+`jobId` — and that exchange is over. Everything after it (`job:start`,
+`job:report-progress`, `job:complete`, `job:fail`) is a **global broadcast
+carrying no `correlationId`**, which consumers filter by domain key: a
+dispatching caller by `jobId` (it awaited one job), a resource viewer by
+`resourceId` (it wants anything happening to what it shows). So job progress
+is not an operation reply that the `delivery` axis failed to classify. It is a
+different mechanism, deliberately, and `delivery` does not describe it.
 
 **Do not confuse `delivery` with the SSE fan-in disciplines** in [Resource
 scoping](#resource-scoping) above: `delivery` classifies a channel's *routing
@@ -354,7 +402,7 @@ with the registry, naming the command to run.
 The compile-time discipline is strict by design. A new channel requires changes in two places (the registry and the OpenAPI schema), plus an SDK method to call it:
 
 1. **The registry** ([`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)) — add the channel with its payload (`shape` plus the OpenAPI schema name, or `storedEvent` / `void` — a stored event that mutates an annotation also takes `"enriched": true`), and its `validate` entry: the schema the `/bus/emit` route enforces, or `null` for non-validated. Then run `npm run generate:bus`, which writes the `EventMap` and `CHANNEL_SCHEMAS` entries in both languages. The generated `satisfies Record<EventName, ...>` clause still fails the typecheck if the two maps disagree, and `validate-registry.mjs` refuses a stored event whose `ts` disagrees with its `shape`, `event` and `enriched`.
-2. **`PERSISTED_EVENT_TYPES`** (only if it's a `StoredEvent` domain event) and, for SSE delivery, the routing: a request/reply operation is declared as an `operations` entry in the **registry** (generated into `BUS_OPERATIONS`) (which *derives* its reply channels into `BRIDGED_CHANNELS`); a non-request/reply broadcast that should reach every client is added to the registry's **`bridgedBroadcasts.channels`**. You never hand-edit `BRIDGED_CHANNELS` — replies are derived, and broadcasts are registry data. Each list has its own completeness check, an equality test pins the derived bridged set, and `validate-registry.mjs` refuses a broadcast entry that is really an operation's reply.
+2. **`PERSISTED_EVENT_TYPES`** (only if it's a `StoredEvent` domain event) and, for SSE delivery, the routing: a request/reply operation is declared as an `operations` entry in the **registry** (generated into `BUS_OPERATIONS`) (which *derives* its reply channels into `BRIDGED_CHANNELS`); a non-request/reply broadcast that should reach every client is declared **`audience: everyone`** in the registry (and one that should reach only viewers of a resource, `audience: scoped`). You never hand-edit `BRIDGED_CHANNELS` — replies are derived, and broadcasts are registry data. Each list has its own completeness check, an equality test pins the derived bridged set, and `validate-registry.mjs` refuses a broadcast entry that is really an operation's reply.
 
 Then for the OpenAPI schema:
 

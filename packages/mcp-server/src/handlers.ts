@@ -24,7 +24,7 @@ type JobResult = components['schemas']['JobResult'];
 import type {
   CreateAnnotationInput,
   CreateResourceInput,
-  GatherAnnotationProgress,
+  GatherAnnotationComplete,
   GenerationOptions,
   MarkAssistEvent,
   MarkAssistOptions,
@@ -63,7 +63,7 @@ export interface McpClient {
       resourceId: ResourceId,
       annotationId: AnnotationId,
       options?: { contextWindow?: number },
-    ): PromiseLike<GatherAnnotationProgress>;
+    ): PromiseLike<GatherAnnotationComplete>;
   };
   yield: {
     resource(data: CreateResourceInput): PromiseLike<{ resourceId: ResourceId }>;
@@ -75,14 +75,17 @@ export interface McpClient {
 }
 
 /**
- * `gather.annotation` awaits to the stream's final event — a
- * `GatherAnnotationComplete` envelope whose `response` carries the context.
- * The envelope itself is not a `GatheredContext`.
+ * `gather.annotation` awaits to a `GatherAnnotationComplete` envelope whose
+ * `response` carries the context. The envelope itself is not a
+ * `GatheredContext`.
+ *
+ * This used to guard `'response' in final`, because the awaited type was
+ * `GatherProgress | GatherAnnotationComplete` and a progress frame carried no
+ * response. The progress channel was removed 2026-09-17 (nothing had ever
+ * emitted it), the union collapsed, and `response` is required on what
+ * remains — so the guard could no longer fire.
  */
-function gatheredContext(final: GatherAnnotationProgress): GatheredContext {
-  if (!('response' in final)) {
-    throw new Error('Gather finished without a context payload');
-  }
+function gatheredContext(final: GatherAnnotationComplete): GatheredContext {
   return final.response;
 }
 

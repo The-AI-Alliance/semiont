@@ -1613,18 +1613,4 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     registry.dispose();
   });
 
-  it('a progress frame refreshes the claim without being retained as the answer', () => {
-    let clock = 1_000;
-    const registry = setup({ claimTtlMs: 100, now: () => clock });
-    registry.claim('c-stream', OWNER, DID);
-
-    clock += 80;
-    registry.observe('gather:annotation-progress', { done: 1, total: 9 }, { correlationId: 'c-stream' });
-    clock += 80;
-    // Without the refresh this claim would have expired at t+100.
-    expect(registry.owner('c-stream')).toBeDefined();
-    // A stream is not an answer: nothing is retained for replay.
-    expect(registry.lookupReply('c-stream', OWNER, DID)).toBeUndefined();
-    registry.dispose();
-  });
 });

@@ -34,9 +34,6 @@ func TestEveryOperationReplyIsBridged(t *testing.T) {
 				t.Errorf("operation %q: reply %q is not bridged — a caller would hang until timeout", req, ch)
 			}
 		}
-		if op.Streaming() && !Bridged(op.Progress) {
-			t.Errorf("operation %q: progress %q is not bridged — streaming updates would be dropped", req, op.Progress)
-		}
 	}
 }
 
@@ -47,9 +44,6 @@ func TestBroadcastsAreDisjointFromOperationReplies(t *testing.T) {
 	for req, op := range Operations {
 		replies[op.Result] = req
 		replies[op.Failure] = req
-		if op.Streaming() {
-			replies[op.Progress] = req
-		}
 	}
 	for _, b := range BridgedBroadcasts {
 		if owner, isReply := replies[b]; isReply {

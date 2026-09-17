@@ -94,7 +94,6 @@
       "gather:summary-requested",
       "gather:summary-result",
       "gather:summary-failed",
-      "gather:annotation-progress",
       "browse:resource-requested",
       "browse:resource-result",
       "browse:resource-failed",
@@ -283,7 +282,6 @@
       "gather:summary-requested",
       "gather:summary-result",
       "gather:summary-failed",
-      "gather:annotation-progress",
       "browse:resource-requested",
       "browse:resource-result",
       "browse:resource-failed",
@@ -1868,24 +1866,6 @@
       "schemaDocs": {
         "lead": [],
         "trailing": "// CommandError"
-      }
-    },
-    {
-      "channel": "gather:annotation-progress",
-      "shape": "schema",
-      "schema": "GatherProgress",
-      "validate": "GatherProgress",
-      "ts": "components['schemas']['GatherProgress']",
-      "docs": {
-        "lead": [
-          "",
-          "  // SSE stream payloads"
-        ],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
       }
     },
     {
@@ -3611,12 +3591,10 @@
       "request": "gather:requested",
       "result": "gather:complete",
       "failure": "gather:failed",
-      "progress": "gather:annotation-progress",
       "docs": {
         "lead": [
           "",
-          "  // ── GATHER ──────────────────────────────────────────────────────",
-          "  // streaming: take-1 result + failure plus an intermediate progress channel"
+          "  // ── GATHER ──────────────────────────────────────────────────────"
         ],
         "trailing": ""
       }
@@ -3747,7 +3725,7 @@
         "lead": [
           "",
           "  // ── MATCH ───────────────────────────────────────────────────────",
-          "  // take-1 dressed as an Observable in the SDK; no progress channel"
+          "  // take-1 dressed as an Observable in the SDK"
         ],
         "trailing": ""
       }
@@ -3844,11 +3822,11 @@
     "protocolHeader": "/**\n * Bus Protocol\n *\n * The complete EventMap for the RxJS EventBus. Every channel name and\n * its payload type is defined here — domain events, commands, reads,\n * results, SSE stream payloads, and Browser UI events.\n *\n * Identifier discipline: where a payload carries an annotation or\n * resource id, the TypeScript layer narrows the OpenAPI `string` to the\n * branded type (`AnnotationId`, `ResourceId`, `UserId`). The runtime\n * wire shape is unchanged (brands have no runtime representation);\n * what this buys us is that command handlers don't have to re-brand\n * at every seam. Brand once at the entry boundary (HTTP route handler,\n * DOM attribute read, URL param parse), not at every bus hop in\n * between. See `.plans/BRAND-UPSTREAM.md` for the rationale.\n *\n * Organized by flow (verb), then by category within each flow.\n */\n\nimport type { components } from './types';\nimport type { AnnotationId, ResourceId } from './identifiers';\nimport type { Annotation } from './annotation-types';\nimport type { ResourceDescriptor } from './graph';\nimport type { EnrichedEvent, StoredEvent } from './event-base';\nimport type { EventOfType, PersistedEventType } from './persisted-events';\nimport type { AnchorRect } from './bus-ui-types';\n\n// Branded overrides for OpenAPI command payloads that carry identifier\n// fields. Narrows `string` → branded at the TypeScript layer.\n//\n// `_userId` is the gateway-injected authenticated DID (string at the\n// schema layer); handlers that need a `UserId` brand it locally.\ntype MarkDeleteCommand =\n  components['schemas']['MarkDeleteCommand'] & {\n    annotationId: AnnotationId;\n    resourceId?: ResourceId;\n  };\ntype MarkUpdateBodyCommand =\n  components['schemas']['MarkUpdateBodyCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\ntype BindInitiateCommand =\n  components['schemas']['BindInitiateCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\ntype BindUpdateBodyCommand =\n  components['schemas']['BindUpdateBodyCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\n\n/**\n * The unified EventMap — every channel on the EventBus.\n *\n * Convention:\n * - Domain events (past tense): StoredEvent<Interface> — branded types\n * - Annotation-mutating events: EnrichedEvent<Interface> — the stored event\n *   plus the annotation the EventStore attaches before publishing\n * - Commands/reads/results/UI: OpenAPI schema refs — plain strings\n * - void: UI-only signals with no payload\n */\n\n\n",
     "eventMapTail": [],
     "schemasTail": [],
-    "operationsHeader": "import type { EventName, EmittableChannel } from './bus-protocol';\n\n/**\n * BUS_OPERATIONS — the request/reply operations registry (Tier 1).\n *\n * Each entry declares ONE operation as the triple that was previously three\n * loose, independently-maintained facts spread across call sites:\n *   - the request channel (the key — an `EmittableChannel`),\n *   - the `result` channel (success reply),\n *   - the `failure` channel,\n *   - and, for a streaming op, an optional `progress` channel.\n *\n * `BridgedChannel` / `BRIDGED_CHANNELS` are DERIVED from this map\n * (bridged-channels.ts): every reply lands in the bridged fan-in set by\n * construction, so \"a reply channel forgotten from BRIDGED_CHANNELS\" — the\n * recurring bug class (gather:resource-complete, frame:*-add-failed) — is no\n * longer representable. See .plans/BUS-OPERATIONS-REGISTRY.md.\n *\n * `Partial<Record<EmittableChannel, …>>` enforces that every key is a real\n * emittable request. `result`/`failure`/`progress` stay `EventName` rather than\n * `BridgedChannel` to avoid a circular reference (BridgedChannel derives from\n * this map); the derivation closes the loop instead.\n */\nexport interface BusOperationSpec {\n  result: EventName;\n  failure: EventName;\n  /** Streaming ops only: an intermediate channel that also bridges. */\n  progress?: EventName;\n}\n\n",
+    "operationsHeader": "import type { EventName, EmittableChannel } from './bus-protocol';\n\n/**\n * BUS_OPERATIONS — the request/reply operations registry (Tier 1).\n *\n * Each entry declares ONE operation as the triple that was previously three\n * loose, independently-maintained facts spread across call sites:\n *   - the request channel (the key — an `EmittableChannel`),\n *   - the `result` channel (success reply),\n *   - and the `failure` channel.\n *\n * `BridgedChannel` / `BRIDGED_CHANNELS` are DERIVED from this map\n * (bridged-channels.ts): every reply lands in the bridged fan-in set by\n * construction, so \"a reply channel forgotten from BRIDGED_CHANNELS\" — the\n * recurring bug class (gather:resource-complete, frame:*-add-failed) — is no\n * longer representable. See .plans/BUS-OPERATIONS-REGISTRY.md.\n *\n * `Partial<Record<EmittableChannel, …>>` enforces that every key is a real\n * emittable request. `result`/`failure` stay `EventName` rather than\n * `BridgedChannel` to avoid a circular reference (BridgedChannel derives from\n * this map); the derivation closes the loop instead.\n */\nexport interface BusOperationSpec {\n  result: EventName;\n  failure: EventName;\n}\n\n",
     "operationsInnerTail": [],
     "operationsFooter": " as const satisfies Partial<Record<EmittableChannel, BusOperationSpec>>;\n\n/** The request-channel key of a registered operation — what `busRequest` takes. */\nexport type BusOperationKey = keyof typeof BUS_OPERATIONS;\n",
     "bridgedHeader": "import type { EventName } from './bus-protocol';\nimport { BUS_OPERATIONS } from './bus-operations';\n\n/**\n * BRIDGED_CHANNELS\n *\n * The set of bus channels that any concrete transport bridges into the\n * caller-supplied bus via `bridgeInto`. Transport-neutral: every concrete\n * `ITransport` shares the same set; HTTP delivers them via SSE, in-process\n * transports forward them directly from the local actor bus.\n *\n * This is the *fan-in* set — channels for events the transport receives and\n * pushes onto the client's bus. It is not the same as the channels the client\n * emits (which is open-ended).\n *\n * It is DERIVED, not hand-listed: the request/reply replies come from\n * `BUS_OPERATIONS` (bus-operations.ts), so no operation's reply can be\n * forgotten here — that was the recurring unbridged-reply bug class. The only\n * hand-maintained part is `BRIDGED_BROADCASTS`: the genuine non-request/reply\n * minority (lifecycle events and UI/infra signals that no single requester\n * owns). See .plans/BUS-OPERATIONS-REGISTRY.md.\n *\n * Resource-scoped channels (joined/left via `subscribeToResource`) are tracked\n * separately by transports that care about scope (HTTP).\n */\n\n",
-    "bridgedDerivation": "// ── Derivation ──────────────────────────────────────────────────────────────\n// Every operation's result + failure (+ progress) channel bridges, by\n// construction. Type and runtime are derived from the same `BUS_OPERATIONS`.\n\ntype OpSpecs = (typeof BUS_OPERATIONS)[keyof typeof BUS_OPERATIONS];\n\n// Generic wrapper so the conditional distributes over each union member (a bare\n// `OpSpecs extends …` would test the whole union at once and collapse to never\n// because only the streaming ops carry `progress`).\ntype ProgressChannel<O> = O extends { progress: infer P extends EventName } ? P : never;\n\n/** The union of every reply channel declared in the registry. */\ntype RegistryReply = OpSpecs['result'] | OpSpecs['failure'] | ProgressChannel<OpSpecs>;\n\n// Iterate by typed key so each op's literal reply types survive — the element\n// type stays `RegistryReply` (no widening to `EventName`), so the composed\n// array is `BridgedChannel[]` with no narrowing assertion. The runtime proof\n// that this derived set is exactly the intended one is the equality test in\n// __tests__/bus-invariants.test.ts.\nconst REGISTRY_REPLIES = (Object.keys(BUS_OPERATIONS) as (keyof typeof BUS_OPERATIONS)[]).flatMap(\n  (key) => {\n    const op = BUS_OPERATIONS[key];\n    return 'progress' in op ? [op.result, op.failure, op.progress] : [op.result, op.failure];\n  },\n);\n\nexport const BRIDGED_CHANNELS: readonly BridgedChannel[] = [\n  ...REGISTRY_REPLIES,\n  ...BRIDGED_BROADCASTS,\n];\n\n/**\n * The SUBSCRIBE-side subset of `EventName` — the channels a client can receive\n * over a concrete transport. See the family note on `EventName` in\n * bus-protocol.ts (emit on an `EmittableChannel`, subscribe on a `BridgedChannel`).\n */\nexport type BridgedChannel = RegistryReply | (typeof BRIDGED_BROADCASTS)[number];\n"
+    "bridgedDerivation": "// ── Derivation ──────────────────────────────────────────────────────────────\n// Every operation's result + failure channel bridges, by construction. Type and runtime are derived from the same `BUS_OPERATIONS`.\n\ntype OpSpecs = (typeof BUS_OPERATIONS)[keyof typeof BUS_OPERATIONS];\n\n/** The union of every reply channel declared in the registry. */\ntype RegistryReply = OpSpecs['result'] | OpSpecs['failure'];\n\n// Iterate by typed key so each op's literal reply types survive — the element\n// type stays `RegistryReply` (no widening to `EventName`), so the composed\n// array is `BridgedChannel[]` with no narrowing assertion. The runtime proof\n// that this derived set is exactly the intended one is the equality test in\n// __tests__/bus-invariants.test.ts.\nconst REGISTRY_REPLIES = (Object.keys(BUS_OPERATIONS) as (keyof typeof BUS_OPERATIONS)[]).flatMap(\n  (key) => {\n    const op = BUS_OPERATIONS[key];\n    return [op.result, op.failure];\n  },\n);\n\nexport const BRIDGED_CHANNELS: readonly BridgedChannel[] = [\n  ...REGISTRY_REPLIES,\n  ...BRIDGED_BROADCASTS,\n];\n\n/**\n * The SUBSCRIBE-side subset of `EventName` — the channels a client can receive\n * over a concrete transport. See the family note on `EventName` in\n * bus-protocol.ts (emit on an `EmittableChannel`, subscribe on a `BridgedChannel`).\n */\nexport type BridgedChannel = RegistryReply | (typeof BRIDGED_BROADCASTS)[number];\n"
   },
   "docs": {
     "eventName": "/**\n * Any valid channel name on the EventBus — `keyof EventMap`, the root channel\n * type. Two subsets matter, and confusing them is a silent-failure trap:\n *\n * - `EmittableChannel` (below) — channels with a non-null `CHANNEL_SCHEMAS`\n *   entry; what you EMIT (the `/bus/emit` gateway validates the payload).\n * - `BridgedChannel` (`bridged-channels.ts`) — the transport fan-in set; the\n *   only channels a client can SUBSCRIBE to over a concrete transport.\n *\n * Request/reply (`busRequest`) emits on an `EmittableChannel` and subscribes on\n * `BridgedChannel` replies. A reply channel that is a valid `EventName` but NOT\n * in `BRIDGED_CHANNELS` is never delivered → the request times out with no\n * compile or runtime error (see\n * `.plans/bugs/gather-resource-complete-not-bridged.md`). `busRequest` now types\n * its reply params `BridgedChannel` so that omission is a compile error.\n */",
