@@ -51,6 +51,7 @@
  * `LEDGER_ADDRESS` clientId (claim metadata would fan out to it) — the
  * subscribe route refuses the name.
  */
+import { isObject, isString } from '@semiont/core';
 import { recordReplySuppressed } from '@semiont/observability';
 import { getLogger } from '../logger';
 import { isProgressChannel } from './channels';
@@ -78,6 +79,22 @@ export const LEDGER_ADDRESS: ReplyAddress = toReplyAddress('ledger');
  * subject, never in the spec registry, never on the SSE surface.
  */
 export const CLAIM_CHANNEL = 'ledger:claim';
+
+/**
+ * What one replica tells the others when it accepts a claim.
+ *
+ * This is the ledger's OWN protocol, carried on an inbox address — not a bus
+ * channel, and not a channel payload. It is declared rather than built-here
+ * and cast-back-there: the two halves lived in `announcementFor` and
+ * `observeClaim` as the same shape written twice, and the second half reached
+ * its fields through `payload as { correlationId?: unknown; ... }` — the exact
+ * cast-to-reach-the-key form the read census now refuses.
+ */
+export interface ClaimAnnouncement {
+  readonly correlationId: string;
+  readonly clientId: string;
+  readonly principalDid?: string;
+}
 
 export interface RetainedReply {
   channel: string;
@@ -120,7 +137,7 @@ export function createCorrelationRegistry(
   observeClaim(payload: unknown): void;
   /** The announcement for a just-accepted claim, built here so callers never
    *  learn the shape. */
-  announcementFor(cid: string, clientId: string, principalDid: string | undefined): unknown;
+  announcementFor(cid: string, clientId: string, principalDid: string | undefined): ClaimAnnouncement;
   /** Per-frame entitlement: may THIS subscriber see THIS unscoped frame? */
   mayDeliver(channel: string, correlationId: string | undefined, clientId: string, principalDid: string | undefined): boolean;
   /** Live claims and how many of them still hold a reply payload. */
@@ -229,10 +246,17 @@ export function createCorrelationRegistry(
       return 'ok';
     },
     observeClaim(payload) {
-      const p = payload as { correlationId?: unknown; clientId?: unknown; principalDid?: unknown } | null | undefined;
-      const cid = typeof p?.correlationId === 'string' && p.correlationId.length > 0 ? p.correlationId : undefined;
-      const clientId = typeof p?.clientId === 'string' && p.clientId.length > 0 ? p.clientId : undefined;
-      const principalDid = typeof p?.principalDid === 'string' ? p.principalDid : undefined;
+      // Narrowed by guard, not by cast. It still arrives as `unknown` — it
+      // crossed the plane — but a guard PROVES the shape where a cast only
+      // asserted it, and leaves nothing for the read census to mistake for a
+      // payload read.
+      if (!isObject(payload)) {
+        getBusLogger().warn('[bus CLAIM-MALFORMED] unparseable claim announcement dropped', {});
+        return;
+      }
+      const cid = isString(payload.correlationId) && payload.correlationId.length > 0 ? payload.correlationId : undefined;
+      const clientId = isString(payload.clientId) && payload.clientId.length > 0 ? payload.clientId : undefined;
+      const principalDid = isString(payload.principalDid) ? payload.principalDid : undefined;
       if (!cid || !clientId) {
         // Only the gateway itself publishes to the ledger address; a
         // malformed announcement is an internal bug, not client input.

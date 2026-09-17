@@ -174,7 +174,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
       await Promise.resolve();
       const emitted = vi.mocked(transport.emit).mock.calls.find((c) => c[0] === 'match:search-requested');
       expect(emitted).toBeTruthy();
-      const cid = (emitted![2] as { correlationId?: string } | undefined)?.correlationId;
+      const cid = emitted![2]?.correlationId;
 
       client.bus.emit('match:search-results', {
         referenceId: 'ref-1',
@@ -195,7 +195,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
       await Promise.resolve();
       const emitted = vi.mocked(transport.emit).mock.calls.find((c) => c[0] === 'gather:requested');
       expect(emitted).toBeTruthy();
-      const cid = (emitted![2] as { correlationId?: string } | undefined)?.correlationId;
+      const cid = emitted![2]?.correlationId;
 
       client.bus.emit('gather:complete', ({
         annotationId: testAnnotationId as unknown as string,
@@ -213,9 +213,9 @@ describe('SemiontClient lifecycle + namespace routing', () => {
       const searchP = firstValueFrom(client.match.search(testResourceId, annotationId('ref-x'), gathered));
 
       await Promise.resolve();
-      const cid = (vi.mocked(transport.emit).mock.calls.find((c) => c[0] === 'match:search-requested')![2] as
-        | { correlationId?: string }
-        | undefined)?.correlationId;
+      const cid = vi
+        .mocked(transport.emit)
+        .mock.calls.find((c) => c[0] === 'match:search-requested')![2]?.correlationId;
 
       client.bus.emit('match:search-failed', ({
         referenceId: 'ref-x',
