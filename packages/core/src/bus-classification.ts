@@ -84,7 +84,7 @@ export const CHANNEL_ATTRS = {
   'mark:unarchive-failed':            { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'mark:update-entity-types-ok':      { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'mark:update-entity-types-failed':  { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'mark:body-update-failed':          { recorded: false, direction: 'in-process' },
+  'mark:body-update-failed':          { recorded: false, direction: 'inbound' },
   'mark:select-comment':              { recorded: false, direction: 'in-process' },
   'mark:select-tag':                  { recorded: false, direction: 'in-process' },
   'mark:select-assessment':           { recorded: false, direction: 'in-process' },

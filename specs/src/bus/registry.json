@@ -3868,7 +3868,6 @@
       "yield:clone",
       "yield:move-failed",
       "mark:create",
-      "mark:body-update-failed",
       "mark:select-comment",
       "mark:select-tag",
       "mark:select-assessment",
@@ -3942,7 +3941,8 @@
       "mark:unarchived",
       "job:started",
       "job:completed",
-      "job:failed"
+      "job:failed",
+      "mark:body-update-failed"
     ]
   },
   "audience": {
@@ -3987,7 +3987,8 @@
       "job:cancel",
       "job:start",
       "mark:update-body",
-      "weave:applied"
+      "weave:applied",
+      "mark:body-update-failed"
     ]
   }
 }
