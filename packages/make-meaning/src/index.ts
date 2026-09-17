@@ -104,3 +104,14 @@ export {
   generateResourceSummary,
   generateReferenceSuggestions,
 } from './generation/resource-generation';
+
+// Service bus wiring — exported so tests can compose what the entry points
+// compose (Tier 1/Tier 2 of the split-process coverage).
+export { attachServicePumps } from './service-pumps';
+export type { ServicePumpSpec, PumpTransport } from './service-pumps';
+export {
+  ARCHIVIST_INBOUND_CHANNELS,
+  ARCHIVIST_OUTBOUND_CHANNELS,
+  LIBRARIAN_INBOUND_CHANNELS,
+  LIBRARIAN_OUTBOUND_CHANNELS,
+} from './service-channels';
