@@ -308,7 +308,9 @@ async function main() {
 
   const outbound = ARCHIVIST_OUTBOUND_CHANNELS;
   const pumps: Subscription[] = [
-    ...relayFrames(httpTransport, localBus, ARCHIVIST_INBOUND_CHANNELS),
+    ...relayFrames(httpTransport, localBus, ARCHIVIST_INBOUND_CHANNELS, (channel, error) =>
+      logger.error('Inbound relay failed', { channel, error: errField(error) }),
+    ),
     ...relayFrames(localBus, httpTransport, outbound, (channel, error) =>
       logger.error('Reply forwarding failed', { channel, error: errField(error) }),
     ),

@@ -36,27 +36,29 @@ function relayChannel<K extends keyof EventMap>(
   from: FrameSource,
   to: FrameSink,
   channel: K,
-  onError: ((channel: K, error: unknown) => void) | undefined,
+  onError: (channel: K, error: unknown) => void,
 ): Subscription {
   return from.frames(channel).subscribe((frame) => {
     const delivered = to.emit(channel, frame.payload, { correlationId: frame.correlationId });
-    if (onError && delivered instanceof Promise) {
-      delivered.catch((error: unknown) => onError(channel, error));
-    }
+    if (delivered instanceof Promise) delivered.catch((error: unknown) => onError(channel, error));
   });
 }
 
 /**
  * Relay `channels` from one bus to another, envelope intact.
  *
- * `onError` receives a rejection from an async sink (an HTTP emit); a
- * synchronous sink never calls it. Returns one subscription per channel.
+ * `onError` is REQUIRED and unconditional. It was optional, guarded by
+ * `if (onError && ...)`, which left an async sink's rejection uncaught whenever
+ * a caller passed nothing — an unhandled rejection inside the one function
+ * every relay now goes through. A synchronous sink never calls it; that is an
+ * unexercised handler, not a stub, and it is already correct if the sink later
+ * becomes async. Returns one subscription per channel.
  */
 export function relayFrames(
   from: FrameSource,
   to: FrameSink,
   channels: readonly (keyof EventMap)[],
-  onError?: (channel: keyof EventMap, error: unknown) => void,
+  onError: (channel: keyof EventMap, error: unknown) => void,
 ): Subscription[] {
   return channels.map((channel) => relayChannel(from, to, channel, onError));
 }

@@ -319,6 +319,9 @@ export class HttpTransport implements ITransport, IGatewayOperations {
           },
         },
         [...globalChannels, ...RESOURCE_SCOPED_CHANNELS],
+        // `EventBus.emit` is synchronous, so this never fires today; it is the
+        // honest answer rather than an omission the relay has to guard against.
+        (channel, error) => this.logger?.error('Bridge relay failed', { channel, error }),
       );
     }
     return this._actor;

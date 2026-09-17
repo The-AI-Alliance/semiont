@@ -288,7 +288,12 @@ async function main() {
 
   const outbound = LIBRARIAN_OUTBOUND_CHANNELS;
   pumps.push(
-    ...relayFrames(httpTransport, localBus, LIBRARIAN_INBOUND_CHANNELS),
+    ...relayFrames(httpTransport, localBus, LIBRARIAN_INBOUND_CHANNELS, (channel, error) =>
+      logger.error('Inbound relay failed', {
+        channel,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    ),
     ...relayFrames(localBus, httpTransport, outbound, (channel, error) =>
       logger.error('Reply forwarding failed', {
         channel,
