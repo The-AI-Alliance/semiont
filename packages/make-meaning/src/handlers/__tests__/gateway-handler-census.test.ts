@@ -46,7 +46,12 @@ describe('gateway handler census (lists == the files)', () => {
     // `.pipe(` counts as subscribing: the job:status responder consumed its
     // request through a pipe and the subscribe-only regex would have missed
     // it, had it lived in these files at the time.
-    const subscribed = channelsMatching(/eventBus\.on\('([^']+)'\)\.(?:subscribe|pipe)/g);
+    //
+    // BOTH read verbs count. A responder reads `frames` to echo the key it
+    // was handed (BUS-CARRIES-FRAMES P3); an `on`-only regex reported those
+    // channels as unsubscribed and the census then agreed with a roster that
+    // had silently shed half the gateway's handlers.
+    const subscribed = channelsMatching(/eventBus\.(?:on|frames)\('([^']+)'\)\.(?:subscribe|pipe)/g);
     expect([...GATEWAY_HANDLER_CHANNELS].sort()).toEqual(subscribed);
   });
 

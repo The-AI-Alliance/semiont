@@ -36,13 +36,12 @@ function makeFakeTransport() {
   const transport = inMemoryTransport({
     bus: transportBus,
     subscribeToResource,
-    onEmit: (channel, payload) => {
+    onEmit: (channel, _payload, envelope) => {
       // Resolve the job:create round-trip so dispatchAssist gets a jobId.
       if (channel === 'job:create') {
         transportBus.emit('job:created', {
-          correlationId: (payload as { correlationId: string }).correlationId,
           response: { jobId: 'job-1' },
-        });
+        }, { correlationId: envelope?.correlationId });
       }
     },
   });

@@ -37,23 +37,29 @@ function createMockTransport(opts: { fail?: boolean } = {}): {
 } {
   const bus = new EventBus();
 
-  const emitSpy = vi.fn(async (channel: string, payload: Record<string, unknown>) => {
+  const emitSpy = vi.fn(async (
+    channel: string,
+    _payload: Record<string, unknown>,
+    envelope?: { correlationId?: string },
+  ) => {
+    const correlationId = envelope?.correlationId;
     const reply = REPLY_FOR[channel];
     if (reply) {
-      const correlationId = payload.correlationId as string;
       const target = (opts.fail ? reply.failed : reply.ok) as keyof EventMap;
       // The subscription is already live (busRequest subscribes before emitting),
       // so a synchronous push is delivered to the awaiting take(1).
-      bus.emit(target, 
-        (opts.fail ? { correlationId, message: 'gateway add failed' } : { correlationId }) as EventMap[typeof target],
+      bus.emit(
+        target,
+        (opts.fail ? { message: 'gateway add failed' } : {}) as EventMap[typeof target],
+        { correlationId },
       );
     }
   });
 
   const transport = inMemoryTransport({
     bus,
-    onEmit: (channel, payload) => {
-      void emitSpy(channel as string, payload as Record<string, unknown>);
+    onEmit: (channel, payload, envelope) => {
+      void emitSpy(channel as string, payload as Record<string, unknown>, envelope);
     },
   });
 
@@ -75,16 +81,17 @@ describe('FrameNamespace', () => {
     expect(emitSpy).toHaveBeenCalledTimes(1);
     expect(emitSpy).toHaveBeenCalledWith(
       'frame:add-entity-type',
-      expect.objectContaining({ tag: 'Person', correlationId: expect.any(String) }),
+      expect.objectContaining({ tag: 'Person' }),
+      expect.objectContaining({ correlationId: expect.any(String) }),
     );
   });
 
   it('addEntityTypes() emits one event per type, preserving order', async () => {
     await frame.addEntityTypes(['Person', 'Organization', 'Location']);
     expect(emitSpy).toHaveBeenCalledTimes(3);
-    expect(emitSpy).toHaveBeenNthCalledWith(1, 'frame:add-entity-type', expect.objectContaining({ tag: 'Person' }));
-    expect(emitSpy).toHaveBeenNthCalledWith(2, 'frame:add-entity-type', expect.objectContaining({ tag: 'Organization' }));
-    expect(emitSpy).toHaveBeenNthCalledWith(3, 'frame:add-entity-type', expect.objectContaining({ tag: 'Location' }));
+    expect(emitSpy).toHaveBeenNthCalledWith(1, 'frame:add-entity-type', expect.objectContaining({ tag: 'Person' }), expect.objectContaining({ correlationId: expect.any(String) }));
+    expect(emitSpy).toHaveBeenNthCalledWith(2, 'frame:add-entity-type', expect.objectContaining({ tag: 'Organization' }), expect.objectContaining({ correlationId: expect.any(String) }));
+    expect(emitSpy).toHaveBeenNthCalledWith(3, 'frame:add-entity-type', expect.objectContaining({ tag: 'Location' }), expect.objectContaining({ correlationId: expect.any(String) }));
   });
 
   it('addEntityTypes([]) is a no-op', async () => {
@@ -118,6 +125,7 @@ describe('FrameNamespace', () => {
       expect(emitSpy).toHaveBeenCalledWith(
         'frame:add-tag-schema',
         expect.objectContaining({ schema: TEST_SCHEMA }),
+        expect.objectContaining({ correlationId: expect.any(String) }),
       );
     });
 

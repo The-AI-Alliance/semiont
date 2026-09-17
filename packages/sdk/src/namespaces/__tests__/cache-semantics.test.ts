@@ -157,8 +157,8 @@ function createHarness(opts: HarnessOptions = {}) {
   };
   const silentChannels = opts.silentChannels ?? [];
 
-  const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
-    const correlationId = payload.correlationId as string;
+  const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>, envelope?: { correlationId?: string }) => {
+    const correlationId = envelope?.correlationId as string;
     if (silentChannels.includes(channel)) return; // request swallowed — no reply ever
 
     let resultChannel: string;
@@ -216,11 +216,15 @@ function createHarness(opts: HarnessOptions = {}) {
     if (state.rejectRemaining > 0) {
       state.rejectRemaining--;
       queueMicrotask(() => {
-        transportBus.emit(resultChannel.replace('-result', '-failed') as never, ({ correlationId, error: { message: 'rejected by test' } }) as never);
+        transportBus.emit(
+          resultChannel.replace('-result', '-failed') as never,
+          ({ message: 'rejected by test' }) as never,
+          { correlationId },
+        );
       });
     } else {
       queueMicrotask(() => {
-        transportBus.emit(resultChannel as never, { response } as never, { correlationId: correlationId });
+        transportBus.emit(resultChannel as never, { response } as never, { correlationId });
       });
     }
   });
@@ -230,8 +234,8 @@ function createHarness(opts: HarnessOptions = {}) {
     bus: transportBus,
     subscribeToResource,
     state$: (opts.state$ ?? new BehaviorSubject<ConnectionState>('open')).asObservable(),
-    onEmit: (channel, payload) => {
-      void emitSpy(channel, payload);
+    onEmit: (channel, payload, envelope) => {
+      void emitSpy(channel, payload, envelope);
     },
   });
 

@@ -32,13 +32,13 @@ type ResponseMap = Record<string, (payload: Record<string, unknown>) => { result
 
 function createMockTransport(responses: ResponseMap): { transport: ITransport; emitSpy: ReturnType<typeof vi.fn> } {
   const transportBus = new EventBus();
-  const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
+  const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>, envelope?: { correlationId?: string }) => {
     const handler = responses[channel];
     if (handler) {
       const { resultChannel, response } = handler(payload);
-      const correlationId = payload.correlationId as string;
+      const correlationId = envelope?.correlationId as string;
       queueMicrotask(() => {
-        transportBus.emit(resultChannel as never, { response } as never, { correlationId: correlationId });
+        transportBus.emit(resultChannel as never, { response } as never, { correlationId });
       });
     }
     return 1;
@@ -47,8 +47,8 @@ function createMockTransport(responses: ResponseMap): { transport: ITransport; e
   const transport = inMemoryTransport({
     bus: transportBus,
     subscribeToResource,
-    onEmit: (channel, payload) => {
-      void emitSpy(channel, payload);
+    onEmit: (channel, payload, envelope) => {
+      void emitSpy(channel, payload, envelope);
     },
   });
   return { transport, emitSpy };
@@ -103,7 +103,7 @@ describe('generation stall guard', () => {
     await vi.advanceTimersByTimeAsync(1); // 4000 × 75ms = 300s exactly
     await rejection;
     expect(cancelCount(emitSpy)).toBe(1);
-    expect(emitSpy).toHaveBeenCalledWith('job:cancel-requested', expect.objectContaining({ jobType: 'generation' }));
+    expect(emitSpy).toHaveBeenCalledWith('job:cancel-requested', expect.objectContaining({ jobType: 'generation' }), expect.objectContaining({ correlationId: expect.any(String) }));
   });
 
   it('an event inside the window resets it', async () => {

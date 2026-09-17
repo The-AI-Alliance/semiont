@@ -123,7 +123,7 @@ function realActorSubject(): DeliverySubject {
         // below already used. `correlationId` carries the generated id.
         sseChunkId(
           'bus-event',
-          JSON.stringify({ channel: CHANNEL, payload: { correlationId: id, response: {} } }),
+          JSON.stringify({ channel: CHANNEL, correlationId: id, payload: { response: {} } }),
           `e-test:${id}`,
         ),
       );
@@ -159,7 +159,17 @@ function realActorSubject(): DeliverySubject {
       await vi.advanceTimersByTimeAsync(50);
     },
     teardown: () => actor.dispose(),
-    output$: actor.stream(CHANNEL).pipe(map((p) => p.correlationId)),
+    output$: actor.frames(CHANNEL).pipe(
+      map((frame) => {
+        // The identity these axioms track IS the envelope key. A frame that
+        // arrived without one is a delivery that lost its routing, so it
+        // fails the property rather than silently shortening the sequence.
+        if (frame.correlationId === undefined) {
+          throw new Error(`delivered ${CHANNEL} frame carried no correlationId`);
+        }
+        return frame.correlationId;
+      }),
+    ),
   };
 }
 

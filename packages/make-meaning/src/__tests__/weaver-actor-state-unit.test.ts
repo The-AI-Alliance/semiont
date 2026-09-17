@@ -16,22 +16,21 @@ import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 import { createWeaverActorStateUnit, WEAVER_CHANNELS, WEAVER_MANIFEST } from '../weaver-actor-state-unit';
 
 function fakeBus() {
-  const streams = new Map<string, Subject<any>>();
-
-  const getStream = (channel: string): Subject<any> => {
-    let s = streams.get(channel);
-    if (!s) {
-      s = new Subject();
-      streams.set(channel, s);
-    }
+  // The double carries FRAMES; `stream` is the payload view derived from
+  // them, exactly as the real bus derives it. A double that synthesized an
+  // empty envelope could not tell a routed command from an unrouted one.
+  const frames = new Map<string, Subject<{ correlationId?: string; payload: unknown }>>();
+  const getFrames = (channel: string) => {
+    let s = frames.get(channel);
+    if (!s) { s = new Subject(); frames.set(channel, s); }
     return s;
   };
 
   const bus: BusRequestPrimitive = {
-    stream: vi.fn((channel: string) => getStream(channel).asObservable()),
-    frames: vi.fn((channel: string) =>
-      getStream(channel).asObservable().pipe(map((payload) => ({ payload }))),
+    stream: vi.fn((channel: string) =>
+      getFrames(channel).asObservable().pipe(map((frame) => frame.payload)),
     ) as never,
+    frames: vi.fn((channel: string) => getFrames(channel).asObservable()) as never,
     // This double delivers whatever a test pushes at it — subjects are created
     // on demand — so `true` is the truth about it. It does not model a
     // NARROWED set; that behavior is proven against the real ActorStateUnit,
@@ -47,7 +46,8 @@ function fakeBus() {
 
   return {
     bus,
-    pushEvent: (channel: string, payload: any) => getStream(channel).next(payload),
+    pushEvent: (channel: string, payload: any, correlationId?: string) =>
+      getFrames(channel).next({ correlationId, payload }),
   };
 }
 
@@ -83,10 +83,12 @@ describe('createWeaverActorStateUnit', () => {
     unit.events$.subscribe((e) => events.push(e));
     unit.start();
 
-    const cmd = { resourceId: 'res-1', correlationId: 'corr-1' };
-    h.pushEvent('weave:rebuild', cmd);
+    const cmd = { resourceId: 'res-1' };
+    h.pushEvent('weave:rebuild', cmd, 'corr-1');
 
-    expect(commands).toEqual([cmd]);
+    // A FRAME reaches the fan-in: the key rides the envelope, the command
+    // carries only its own fields.
+    expect(commands).toEqual([{ correlationId: 'corr-1', payload: cmd }]);
     expect(events).toHaveLength(0);
   });
 

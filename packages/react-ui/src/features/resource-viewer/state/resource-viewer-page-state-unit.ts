@@ -144,11 +144,10 @@ export function createResourceViewerPageStateUnit(
       entityTypes: event.entityTypes,
     });
     client.bus.emit('gather:requested', {
-      correlationId: uuidV4(),
       annotationId: event.annotationId,
       resourceId: event.resourceId,
       options: { contextWindow: 2000 },
-    });
+    }, { correlationId: uuidV4() });
   });
   disposer.add(() => bindInitiateSub.unsubscribe());
 

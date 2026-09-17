@@ -20,11 +20,13 @@ function makeTransport() {
   const bus = new EventBus();
   let lastChannel: string | null = null;
   let lastPayload: Record<string, unknown> | null = null;
+  let lastCorrelationId: string | undefined;
   const transport = inMemoryTransport({
     bus,
-    onEmit: (channel, payload) => {
+    onEmit: (channel, payload, envelope) => {
       lastChannel = channel as string;
       lastPayload = payload as Record<string, unknown>;
+      lastCorrelationId = envelope?.correlationId;
     },
   });
   return {
@@ -35,9 +37,11 @@ function makeTransport() {
     // A push verb, not a handle. The old helper returned the channel's
     // Subject so a test could write through it; `on` is read-only by design,
     // and the write path is `emit`.
-    push: <K extends keyof EventMap>(channel: K, payload: EventMap[K]) => bus.emit(channel, payload),
+    push: <K extends keyof EventMap>(channel: K, payload: EventMap[K], correlationId?: string) =>
+      bus.emit(channel, payload, { correlationId }),
     getLastChannel: () => lastChannel,
     getLastPayload: () => lastPayload,
+    getLastCorrelationId: () => lastCorrelationId,
   };
 }
 
@@ -52,7 +56,7 @@ describe('gather.resource', () => {
   }
 
   it('emits gather:resource-requested with defaulted options and resolves the response', async () => {
-    const { gather, push, getLastChannel, getLastPayload } = makeGather();
+    const { gather, push, getLastChannel, getLastPayload, getLastCorrelationId } = makeGather();
     const rid = makeResourceId('r1');
 
     const promise = gather.resource(rid);
@@ -64,13 +68,13 @@ describe('gather.resource', () => {
       resourceId: rid,
       options: { depth: 2, maxResources: 10, includeContent: true, includeSummary: false },
     });
-    const cid = payload.correlationId as string;
+    const cid = getLastCorrelationId()!;
     expect(typeof cid).toBe('string');
 
     // gather:resource-complete now carries a unified GatheredContext (focus.kind:'resource'),
     // not the old per-kind response wrapper (CONTEXT-UNIFICATION P1).
     const response = resourceContextFor(rid);
-    push('gather:resource-complete', { correlationId: cid, resourceId: rid, response });
+    push('gather:resource-complete', { resourceId: rid, response }, cid);
 
     expect(await promise).toEqual(response);
   });
@@ -90,20 +94,19 @@ describe('gather.resource', () => {
   });
 
   it('rejects when gather:resource-failed arrives', async () => {
-    const { gather, push, getLastPayload } = makeGather();
+    const { gather, push, getLastCorrelationId } = makeGather();
     const captured = gather.resource(makeResourceId('r3')).catch((e) => e);
     await Promise.resolve();
-    const cid = getLastPayload()!.correlationId as string;
+    const cid = getLastCorrelationId()!;
 
     push('gather:resource-failed', {
-      correlationId: cid,
       resourceId: 'r3',
       message: 'graph traversal failed',
       // No `code`: the contract declares only 'peer-unavailable' | 'not-found',
       // and the wire never carried 'gather.failed'. The transport double's cast
       // was what let this fixture claim otherwise. An absent code is exactly
       // the case the SDK maps to `bus.rejected`, which is what this asserts.
-    });
+    }, cid);
 
     const err = await captured;
     expect(err).toMatchObject({ code: 'bus.rejected', message: 'graph traversal failed' });

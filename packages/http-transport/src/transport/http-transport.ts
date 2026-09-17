@@ -315,8 +315,18 @@ export class HttpTransport implements ITransport, IGatewayOperations {
       // would satisfy `yield:created` and no cast would be needed to let it.
       // The old two casts here were hiding exactly that.
       const bridge = <K extends keyof EventMap>(channel: K) => {
-        this._actor!.stream(channel).subscribe((payload) => {
-          for (const bus of this.bridges) bus.emit(channel, payload);
+        this._actor!.frames(channel).subscribe((frame) => {
+          // A bridge FORWARDS a frame. `correlationId` must survive the hop:
+          // it is what every awaiting `busRequest` matches on, and dropping
+          // it here would leave each one to time out with no error.
+          //
+          // `scope` deliberately does NOT: the fan-in above flattens the
+          // scoped set into one delivery per event however many scopes are
+          // held, and consumers read those off the unscoped bus. Re-scoping
+          // here would hide them from every existing subscriber.
+          for (const bus of this.bridges) {
+            bus.emit(channel, frame.payload, { correlationId: frame.correlationId });
+          }
         });
       };
       for (const channel of [...globalChannels, ...RESOURCE_SCOPED_CHANNELS]) bridge(channel);
@@ -331,7 +341,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     payload: EventMap[K],
     envelope?: BusEnvelope,
   ): Promise<number> {
-    busLog('EMIT', channel as string, payload, envelope?.scope);
+    busLog('EMIT', channel as string, payload, envelope?.scope, envelope?.correlationId);
     recordBusEmit(channel as string, envelope?.scope);
     return withSpan(
       `bus.emit:${channel as string}`,

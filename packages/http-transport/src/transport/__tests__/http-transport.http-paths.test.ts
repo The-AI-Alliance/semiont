@@ -34,8 +34,8 @@ const actorHarness = {
   start: vi.fn(),
   stop: vi.fn(),
   dispose: vi.fn(),
-  pushEvent: (channel: string, payload: Record<string, unknown>): void => {
-    throw new Error(`no actor constructed yet (pushing ${channel} ${JSON.stringify(payload)})`);
+  pushEvent: (channel: string, payload: Record<string, unknown>, correlationId?: string): void => {
+    throw new Error(`no actor constructed yet (pushing ${channel} ${JSON.stringify(payload)}${correlationId ? ` cid=${correlationId}` : ''})`);
   },
 };
 
@@ -46,11 +46,20 @@ vi.mock('../actor-state-unit', async (importOriginal) => {
   return {
     ...actual,
     createActorStateUnit: () => {
-      const events$ = new Subject<{ channel: string; payload: Record<string, unknown> }>();
-      actorHarness.pushEvent = (channel, payload) => events$.next({ channel, payload });
+      const events$ = new Subject<{ channel: string; payload: Record<string, unknown>; correlationId?: string }>();
+      actorHarness.pushEvent = (channel, payload, correlationId) =>
+        events$.next({ channel, payload, correlationId });
       return {
         stream: <T,>(channel: string) =>
           events$.pipe(filter((e) => e.channel === channel), map((e) => e.payload as T)),
+        // The bridge reads FRAMES now: the transport forwards the envelope
+        // into the client bus, so a double that only answered `stream` would
+        // let a key-dropping bridge pass.
+        frames: <T,>(channel: string) =>
+          events$.pipe(
+            filter((e) => e.channel === channel),
+            map((e) => ({ correlationId: e.correlationId, payload: e.payload as T })),
+          ),
         emit: vi.fn(),
         state$: new BehaviorSubject<string>('open').asObservable(),
         // Required by ActorStateUnit since SSE-AUTH-RESILIENCE P2; the

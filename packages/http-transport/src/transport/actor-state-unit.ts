@@ -578,7 +578,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
             const isDuplicate = currentId !== undefined && seenEventIds.has(currentId);
             if (currentEvent === 'bus-event' && currentData && !isDuplicate) {
               const parsed = JSON.parse(currentData) as BusEvent;
-              busLog('RECV', parsed.channel, parsed.payload, parsed.scope);
+              busLog('RECV', parsed.channel, parsed.payload, parsed.scope, parsed.correlationId);
               // Drain-window forensics: an event delivered by a SUPERSEDED
               // (lingering) connection is one that an immediate handover abort
               // would have discarded — the loss mode of

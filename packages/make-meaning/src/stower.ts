@@ -96,27 +96,38 @@ export class Stower {
   async initialize(): Promise<void> {
     this.logger.info('Stower actor initialized');
 
-    const pipe = <K extends keyof EventMap>(event: K, handler: (e: EventMap[K]) => Promise<void>) =>
-      this.eventBus.on(event).pipe(
-        concatMap((e) =>
-          from(withActorSpan('stower', event as string, () => handler(e))),
+    // `frames`, not `on`: a handler that answers a request must echo the key it
+    // was HANDED. The payload stopped carrying one (BUS-CARRIES-FRAMES P3), so
+    // the envelope is where a responder reads it and where the reply puts it
+    // back.
+    const pipe = <K extends keyof EventMap>(
+      event: K,
+      handler: (e: EventMap[K], correlationId: string | undefined) => Promise<void>,
+    ) =>
+      this.eventBus.frames(event).pipe(
+        concatMap((frame) =>
+          from(
+            withActorSpan('stower', event as string, () =>
+              handler(frame.payload, frame.correlationId),
+            ),
+          ),
         ),
       );
 
     this.subscription = merge(
-      pipe('yield:create', (e) => this.handleYieldCreate(e)),
-      pipe('yield:clone-persist', (e) => this.handleYieldClonePersist(e)),
-      pipe('yield:update', (e) => this.handleYieldUpdate(e)),
+      pipe('yield:create', (e, cid) => this.handleYieldCreate(e, cid)),
+      pipe('yield:clone-persist', (e, cid) => this.handleYieldClonePersist(e, cid)),
+      pipe('yield:update', (e, cid) => this.handleYieldUpdate(e, cid)),
       pipe('yield:mv', (e) => this.handleYieldMv(e)),
-      pipe('mark:create', (e) => this.handleMarkCreate(e)),
-      pipe('mark:commit', (e) => this.handleMarkCommit(e)),
-      pipe('mark:delete', (e) => this.handleMarkDelete(e)),
-      pipe('mark:update-body', (e) => this.handleMarkUpdateBody(e)),
-      pipe('frame:add-entity-type', (e) => this.handleAddEntityType(e)),
-      pipe('frame:add-tag-schema', (e) => this.handleAddTagSchema(e)),
-      pipe('mark:archive', (e) => this.handleMarkArchive(e)),
-      pipe('mark:unarchive', (e) => this.handleMarkUnarchive(e)),
-      pipe('mark:update-entity-types', (e) => this.handleUpdateEntityTypes(e)),
+      pipe('mark:create', (e, cid) => this.handleMarkCreate(e, cid)),
+      pipe('mark:commit', (e, cid) => this.handleMarkCommit(e, cid)),
+      pipe('mark:delete', (e, cid) => this.handleMarkDelete(e, cid)),
+      pipe('mark:update-body', (e, cid) => this.handleMarkUpdateBody(e, cid)),
+      pipe('frame:add-entity-type', (e, cid) => this.handleAddEntityType(e, cid)),
+      pipe('frame:add-tag-schema', (e, cid) => this.handleAddTagSchema(e, cid)),
+      pipe('mark:archive', (e, cid) => this.handleMarkArchive(e, cid)),
+      pipe('mark:unarchive', (e, cid) => this.handleMarkUnarchive(e, cid)),
+      pipe('mark:update-entity-types', (e, cid) => this.handleUpdateEntityTypes(e, cid)),
       pipe('job:start', (e) => this.handleJobStart(e)),
       pipe('job:complete', (e) => this.handleJobComplete(e)),
       pipe('job:fail', (e) => this.handleJobFail(e)),
@@ -129,7 +140,7 @@ export class Stower {
   // Event handlers
   // ========================================================================
 
-  private async handleYieldCreate(event: EventMap['yield:create']): Promise<void> {
+  private async handleYieldCreate(event: EventMap['yield:create'], correlationId: string | undefined): Promise<void> {
     if (!event._userId) {
       throw new Error('yield:create missing _userId (gateway injection)');
     }
@@ -172,9 +183,8 @@ export class Stower {
       });
 
       this.eventBus.emit('yield:create-ok', {
-        correlationId: event.correlationId,
         response: { resourceId: rId },
-      });
+      }, { correlationId });
 
       // Auto-bind: when a resource is generated from a reference annotation,
       // resolve the source reference by adding the new resource as a linking
@@ -207,7 +217,7 @@ export class Stower {
       }
     } catch (error) {
       this.logger.error('Failed to create resource', { error: errField(error) });
-      this.eventBus.emit('yield:create-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('yield:create-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
@@ -229,7 +239,7 @@ export class Stower {
    * `generatedFrom` on `yield:created`, which is a different relation: a
    * generated resource is derived from a source, a clone IS a copy of one.
    */
-  private async handleYieldClonePersist(event: EventMap['yield:clone-persist']): Promise<void> {
+  private async handleYieldClonePersist(event: EventMap['yield:clone-persist'], correlationId: string | undefined): Promise<void> {
     if (!event._userId) {
       throw new Error('yield:clone-persist missing _userId (gateway injection)');
     }
@@ -258,16 +268,15 @@ export class Stower {
       });
 
       this.eventBus.emit('yield:clone-persist-ok', {
-        correlationId: event.correlationId,
         response: { resourceId: rId },
-      });
+      }, { correlationId });
     } catch (error) {
       this.logger.error('Failed to persist clone', { error: errField(error) });
-      this.eventBus.emit('yield:clone-persist-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('yield:clone-persist-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleYieldUpdate(event: EventMap['yield:update']): Promise<void> {
+  private async handleYieldUpdate(event: EventMap['yield:update'], correlationId: string | undefined): Promise<void> {
     if (!event._userId) {
       throw new Error('yield:update missing _userId (gateway injection)');
     }
@@ -286,12 +295,11 @@ export class Stower {
         },
       });
       this.eventBus.emit('yield:update-ok', {
-        correlationId: event.correlationId,
         response: { resourceId: event.resourceId },
-      });
+      }, { correlationId });
     } catch (error) {
       this.logger.error('Failed to update resource', { error: errField(error) });
-      this.eventBus.emit('yield:update-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('yield:update-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
@@ -333,7 +341,7 @@ export class Stower {
     }
   }
 
-  private async handleMarkCreate(event: EventMap['mark:create']): Promise<void> {
+  private async handleMarkCreate(event: EventMap['mark:create'], correlationId: string | undefined): Promise<void> {
     if (!event._userId) {
       throw new Error('mark:create missing _userId (gateway injection)');
     }
@@ -347,13 +355,13 @@ export class Stower {
           version: 1,
           payload: { annotation: event.annotation as Annotation },
         },
-        event.correlationId ? { correlationId: event.correlationId } : undefined,
+        correlationId ? { correlationId } : undefined,
       );
       // annotation-assembly emits mark:create-ok after it observes the
       // persisted mark:added event (keyed by correlationId in metadata).
     } catch (error) {
       this.logger.error('Failed to create annotation', { error: errField(error) });
-      this.eventBus.emit('mark:create-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('mark:create-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
@@ -387,7 +395,7 @@ export class Stower {
    * resource is ~3 MB, and re-reading it per append would cost gigabytes of
    * parsing for a single job.
    */
-  private async handleMarkCommit(event: EventMap['mark:commit']): Promise<void> {
+  private async handleMarkCommit(event: EventMap['mark:commit'], correlationId: string | undefined): Promise<void> {
     if (!event._userId) {
       throw new Error('mark:commit missing _userId (gateway injection)');
     }
@@ -411,28 +419,27 @@ export class Stower {
         present.add(String(annotation.id));
       }
       this.logger.debug('Committed annotation batch', {
-        correlationId: event.correlationId, resourceId: event.resourceId, persisted: annotations.length,
+        correlationId, resourceId: event.resourceId, persisted: annotations.length,
       });
       this.eventBus.emit('mark:commit-ok', {
-        correlationId: event.correlationId,
         // The DURABLE count, which is what the acknowledgement means ("every
         // annotation named by the command is in the event log"). Not an append
         // tally: a retry whose annotations are all already present has
         // succeeded, and must be indistinguishable from the first commit or the
         // caller would have to interpret a 0 that means "all good".
         response: { persisted: annotations.length, annotationIds: annotations.map((a) => String(a.id)) },
-      });
+      }, { correlationId });
     } catch (error) {
       // No partial success is reported. The worker retries the unit whole, and
       // the diff above makes the already-landed fraction a no-op.
       this.logger.error('Failed to commit annotation batch', {
-        correlationId: event.correlationId, error: errField(error),
+        correlationId, error: errField(error),
       });
-      this.eventBus.emit('mark:commit-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('mark:commit-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleMarkDelete(event: EventMap['mark:delete']): Promise<void> {
+  private async handleMarkDelete(event: EventMap['mark:delete'], correlationId: string | undefined): Promise<void> {
     if (!event._userId) {
       throw new Error('mark:delete missing _userId (gateway injection)');
     }
@@ -447,14 +454,14 @@ export class Stower {
         version: 1,
         payload: { annotationId: annotationId(event.annotationId) },
       });
-      this.eventBus.emit('mark:delete-ok', { correlationId: event.correlationId, response: { annotationId: event.annotationId } });
+      this.eventBus.emit('mark:delete-ok', { response: { annotationId: event.annotationId } }, { correlationId });
     } catch (error) {
       this.logger.error('Failed to delete annotation', { error: errField(error) });
-      this.eventBus.emit('mark:delete-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('mark:delete-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleMarkUpdateBody(event: EventMap['mark:update-body']): Promise<void> {
+  private async handleMarkUpdateBody(event: EventMap['mark:update-body'], correlationId: string | undefined): Promise<void> {
     if (!event._userId) {
       throw new Error('mark:update-body missing _userId (gateway injection)');
     }
@@ -469,16 +476,16 @@ export class Stower {
         },
         // Thread correlationId from the command into event metadata so the
         // events-stream can deliver it to the client that initiated the bind.
-        event.correlationId ? { correlationId: event.correlationId } : undefined,
+        correlationId ? { correlationId } : undefined,
       );
       // No manual .next() needed — appendEvent publishes StoredEvent on the Core EventBus
     } catch (error) {
       this.logger.error('Failed to update annotation body', { error: errField(error) });
-      this.eventBus.emit('mark:body-update-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('mark:body-update-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleMarkArchive(event: EventMap['mark:archive']): Promise<void> {
+  private async handleMarkArchive(event: EventMap['mark:archive'], correlationId: string | undefined): Promise<void> {
     if (!event._userId) {
       throw new Error('mark:archive missing _userId (gateway injection)');
     }
@@ -495,14 +502,14 @@ export class Stower {
       });
       // Correlation-keyed ack for the SDK's busRequest (the persisted
       // mark:archived domain event remains the system-of-record signal).
-      this.eventBus.emit('mark:archive-ok', { correlationId: event.correlationId });
+      this.eventBus.emit('mark:archive-ok', {}, { correlationId });
     } catch (error) {
       this.logger.error('Failed to archive resource', { error: errField(error) });
-      this.eventBus.emit('mark:archive-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('mark:archive-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleMarkUnarchive(event: EventMap['mark:unarchive']): Promise<void> {
+  private async handleMarkUnarchive(event: EventMap['mark:unarchive'], correlationId: string | undefined): Promise<void> {
     if (!event._userId) {
       throw new Error('mark:unarchive missing _userId (gateway injection)');
     }
@@ -525,14 +532,14 @@ export class Stower {
         version: 1,
         payload: {},
       });
-      this.eventBus.emit('mark:unarchive-ok', { correlationId: event.correlationId });
+      this.eventBus.emit('mark:unarchive-ok', {}, { correlationId });
     } catch (error) {
       this.logger.error('Failed to unarchive resource', { error: errField(error) });
-      this.eventBus.emit('mark:unarchive-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('mark:unarchive-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleAddEntityType(event: EventMap['frame:add-entity-type']): Promise<void> {
+  private async handleAddEntityType(event: EventMap['frame:add-entity-type'], correlationId: string | undefined): Promise<void> {
     if (!event._userId) {
       throw new Error('frame:add-entity-type missing _userId (gateway injection)');
     }
@@ -547,14 +554,14 @@ export class Stower {
       // in-process callers' success signal). `*-add-ok` is the correlation-keyed
       // ack the SDK's busRequest awaits (undefined correlationId for in-process
       // emits, which don't await it).
-      this.eventBus.emit('frame:entity-type-add-ok', { correlationId: event.correlationId });
+      this.eventBus.emit('frame:entity-type-add-ok', {}, { correlationId });
     } catch (error) {
       this.logger.error('Failed to add entity type', { error: errField(error) });
-      this.eventBus.emit('frame:entity-type-add-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('frame:entity-type-add-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleAddTagSchema(event: EventMap['frame:add-tag-schema']): Promise<void> {
+  private async handleAddTagSchema(event: EventMap['frame:add-tag-schema'], correlationId: string | undefined): Promise<void> {
     if (!event._userId) {
       throw new Error('frame:add-tag-schema missing _userId (gateway injection)');
     }
@@ -567,14 +574,14 @@ export class Stower {
       });
       // See handleAddEntityType: the domain event is the in-process callers'
       // success signal; `*-add-ok` is the correlation-keyed ack for the SDK's busRequest.
-      this.eventBus.emit('frame:tag-schema-add-ok', { correlationId: event.correlationId });
+      this.eventBus.emit('frame:tag-schema-add-ok', {}, { correlationId });
     } catch (error) {
       this.logger.error('Failed to add tag schema', { schemaId: event.schema?.id, error: errField(error) });
-      this.eventBus.emit('frame:tag-schema-add-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('frame:tag-schema-add-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleUpdateEntityTypes(event: EventMap['mark:update-entity-types']): Promise<void> {
+  private async handleUpdateEntityTypes(event: EventMap['mark:update-entity-types'], correlationId: string | undefined): Promise<void> {
     if (!event._userId) {
       throw new Error('mark:update-entity-types missing _userId (gateway injection)');
     }
@@ -619,10 +626,10 @@ export class Stower {
 
       // Correlation-keyed ack for the SDK's busRequest (the persisted
       // mark:entity-tag-* domain events remain the system-of-record signal).
-      this.eventBus.emit('mark:update-entity-types-ok', { correlationId: event.correlationId });
+      this.eventBus.emit('mark:update-entity-types-ok', {}, { correlationId });
     } catch (error) {
       this.logger.error('Failed to update entity types', { error: errField(error) });
-      this.eventBus.emit('mark:update-entity-types-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('mark:update-entity-types-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 

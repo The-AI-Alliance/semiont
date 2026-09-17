@@ -33,13 +33,13 @@ type ResponseMap = Record<string, (payload: Record<string, unknown>) => { result
 
 function createMockTransport(responses: ResponseMap): { transport: ITransport; emitSpy: ReturnType<typeof vi.fn> } {
   const transportBus = new EventBus();
-  const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
+  const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>, envelope?: { correlationId?: string }) => {
     const handler = responses[channel];
     if (handler) {
       const { resultChannel, response } = handler(payload);
-      const correlationId = payload.correlationId as string;
+      const correlationId = envelope?.correlationId as string;
       queueMicrotask(() => {
-        transportBus.emit(resultChannel as never, { response } as never, { correlationId: correlationId });
+        transportBus.emit(resultChannel as never, { response } as never, { correlationId });
       });
     }
   });
@@ -47,7 +47,7 @@ function createMockTransport(responses: ResponseMap): { transport: ITransport; e
   const transport: ITransport = {
     ...inMemoryTransport({
       bus: transportBus,
-      onEmit: (channel, payload) => { void emitSpy(channel, payload); },
+      onEmit: (channel, payload, envelope) => { void emitSpy(channel, payload, envelope); },
     }),
   };
 
@@ -144,7 +144,7 @@ describe('BrowseNamespace', () => {
   describe('annotations()', () => {
     it('fetches on first subscribe', async () => {
       const val = await firstDefined(browse.annotations(RID));
-      expect(emitSpy).toHaveBeenCalledWith('browse:annotations-requested', expect.objectContaining({ resourceId: RID }));
+      expect(emitSpy).toHaveBeenCalledWith('browse:annotations-requested', expect.objectContaining({ resourceId: RID }), expect.objectContaining({ correlationId: expect.any(String) }));
       expect(val).toHaveLength(1);
     });
 
@@ -164,7 +164,7 @@ describe('BrowseNamespace', () => {
   describe('annotation()', () => {
     it('fetches on first subscribe', async () => {
       const val = await firstDefined(browse.annotation(RID, AID));
-      expect(emitSpy).toHaveBeenCalledWith('browse:annotation-requested', expect.objectContaining({ annotationId: AID }));
+      expect(emitSpy).toHaveBeenCalledWith('browse:annotation-requested', expect.objectContaining({ annotationId: AID }), expect.objectContaining({ correlationId: expect.any(String) }));
       expect(val).toBeDefined();
     });
 
@@ -180,7 +180,7 @@ describe('BrowseNamespace', () => {
   describe('resource()', () => {
     it('fetches on first subscribe', async () => {
       const val = await firstDefined(browse.resource(RID));
-      expect(emitSpy).toHaveBeenCalledWith('browse:resource-requested', expect.objectContaining({ resourceId: RID }));
+      expect(emitSpy).toHaveBeenCalledWith('browse:resource-requested', expect.objectContaining({ resourceId: RID }), expect.objectContaining({ correlationId: expect.any(String) }));
       expect(val).toMatchObject({ name: 'Resource res-1' });
     });
 
@@ -265,6 +265,7 @@ describe('BrowseNamespace', () => {
     expect(mock.emitSpy).toHaveBeenCalledWith(
       'browse:anchored-text-requested',
       expect.objectContaining({ resourceId: RID }),
+      expect.objectContaining({ correlationId: expect.any(String) }),
     );
     // The HTTP hop through the gateway is gone — the reply arrives on the
     // bridged result channel like every other bus reply.
@@ -273,7 +274,7 @@ describe('BrowseNamespace', () => {
   describe('entityTypes()', () => {
     it('fetches on first subscribe', async () => {
       const val = await firstDefined(browse.entityTypes());
-      expect(emitSpy).toHaveBeenCalledWith('browse:entity-types-requested', expect.any(Object));
+      expect(emitSpy).toHaveBeenCalledWith('browse:entity-types-requested', expect.any(Object), expect.objectContaining({ correlationId: expect.any(String) }));
       expect(val).toEqual(['Person']);
     });
   });
@@ -283,7 +284,7 @@ describe('BrowseNamespace', () => {
   describe('tagSchemas()', () => {
     it('fetches on first subscribe', async () => {
       const val = await firstDefined(browse.tagSchemas());
-      expect(emitSpy).toHaveBeenCalledWith('browse:tag-schemas-requested', expect.any(Object));
+      expect(emitSpy).toHaveBeenCalledWith('browse:tag-schemas-requested', expect.any(Object), expect.objectContaining({ correlationId: expect.any(String) }));
       expect(val).toHaveLength(1);
       expect(val[0]?.id).toBe('test-schema');
     });
@@ -428,7 +429,7 @@ describe('BrowseNamespace', () => {
       await firstDefined(browse.resources());
       eventBus.emit('yield:create-ok', { response: { resourceId: RID } });
       await firstDefined(browse.resource(RID));
-      expect(emitSpy).toHaveBeenCalledWith('browse:resource-requested', expect.objectContaining({ resourceId: RID }));
+      expect(emitSpy).toHaveBeenCalledWith('browse:resource-requested', expect.objectContaining({ resourceId: RID }), expect.objectContaining({ correlationId: expect.any(String) }));
     });
 
     // ── CORRELATED-REPLY-ROUTING P4 ───────────────────────────────────

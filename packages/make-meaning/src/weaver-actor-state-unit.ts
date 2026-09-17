@@ -18,7 +18,7 @@
 import { Observable, merge } from 'rxjs';
 import type { BusRequestPrimitive } from '@semiont/core';
 import { WEAVER_REPLY_CHANNELS } from './service-channels';
-import type { EventMap, StateUnit, StoredEvent } from '@semiont/core';
+import type { BusFrame, EventMap, StateUnit, StoredEvent } from '@semiont/core';
 
 export const WEAVER_CHANNELS = [
   'yield:created',
@@ -42,7 +42,7 @@ export interface WeaverActorStateUnitOptions {
 export interface WeaverActorStateUnit extends StateUnit {
   events$: Observable<StoredEvent>;
   /** `weave:rebuild` commands (WEAVER-ISOLATION D3) — never mixed into the fold. */
-  rebuilds$: Observable<EventMap['weave:rebuild']>;
+  rebuilds$: Observable<BusFrame<EventMap['weave:rebuild']>>;
   start(): void;
 }
 
@@ -70,7 +70,7 @@ export function createWeaverActorStateUnit(options: WeaverActorStateUnitOptions)
     ...WEAVER_CHANNELS.map((channel) => bus.stream(channel)),
   );
 
-  const rebuilds$ = bus.stream('weave:rebuild');
+  const rebuilds$ = bus.frames('weave:rebuild');
 
   return {
     events$,

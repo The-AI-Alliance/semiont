@@ -219,7 +219,7 @@ describe.each(drivers)('SignalPlane conformance — %s', (_name, make) => {
       // carries a key this subscriber has no claim on. Refusal is the
       // GATEWAY's entitlement gate, above the seam — the driver delivers.
       plane.subscribeClient({ address: toReplyAddress('c1'), global: ['gather:summary-result'], scoped: [], onFrame: c.onFrame });
-      plane.ingest('gather:summary-result', { correlationId: 'someone-elses', summary: 'x' });
+      plane.ingest('gather:summary-result', { summary: 'x' }, { meta: { correlationId: 'someone-elses' } });
       await settle(() => c.frames.length >= 1);
       expect(c.frames.length).toBeGreaterThanOrEqual(1);
     } finally {

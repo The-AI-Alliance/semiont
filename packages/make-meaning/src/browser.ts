@@ -105,12 +105,18 @@ export class Browser {
     const errorHandler = (err: unknown) =>
       this.logger.error('Browser pipeline error', { error: err });
 
+    // `frames`: a responder echoes the key it was handed, and the payload no
+    // longer carries one (BUS-CARRIES-FRAMES P3).
     const pipe = <K extends keyof EventMap>(
       name: K,
-      handler: (event: EventMap[K]) => Promise<void>,
-    ) => this.eventBus.on(name).pipe(
-      mergeMap((event) =>
-        from(withActorSpan('browser', name as string, () => handler(event))).pipe(
+      handler: (event: EventMap[K], correlationId: string | undefined) => Promise<void>,
+    ) => this.eventBus.frames(name).pipe(
+      mergeMap((frame) =>
+        from(
+          withActorSpan('browser', name as string, () =>
+            handler(frame.payload, frame.correlationId),
+          ),
+        ).pipe(
           // Isolate per-event failures: a single handler throw must NOT tear down the
           // channel subscription for every future request — that's the browse:entity-types
           // wedge (.plans/bugs/browse-entity-types-never-responds.md). Handlers emit their
@@ -127,18 +133,18 @@ export class Browser {
     );
 
     this.subscriptions.push(
-      pipe('browse:resource-requested',          (e) => this.handleBrowseResource(e)).subscribe({ error: errorHandler }),
-      pipe('browse:anchored-text-requested',     (e) => this.handleAnchoredText(e)).subscribe({ error: errorHandler }),
-      pipe('browse:resources-requested',         (e) => this.handleBrowseResources(e)).subscribe({ error: errorHandler }),
-      pipe('browse:annotations-requested',       (e) => this.handleBrowseAnnotations(e)).subscribe({ error: errorHandler }),
-      pipe('browse:annotation-requested',        (e) => this.handleBrowseAnnotation(e)).subscribe({ error: errorHandler }),
-      pipe('browse:events-requested',            (e) => this.handleBrowseEvents(e)).subscribe({ error: errorHandler }),
-      pipe('browse:annotation-history-requested',(e) => this.handleBrowseAnnotationHistory(e)).subscribe({ error: errorHandler }),
-      pipe('browse:referenced-by-requested',     (e) => this.handleReferencedBy(e)).subscribe({ error: errorHandler }),
-      pipe('browse:entity-types-requested',      (e) => this.handleEntityTypes(e)).subscribe({ error: errorHandler }),
-      pipe('browse:tag-schemas-requested',       (e) => this.handleTagSchemas(e)).subscribe({ error: errorHandler }),
-      pipe('browse:agents-requested',            (e) => this.handleBrowseAgents(e)).subscribe({ error: errorHandler }),
-      pipe('browse:directory-requested',         (e) => this.handleBrowseDirectory(e)).subscribe({ error: errorHandler }),
+      pipe('browse:resource-requested',          (e, cid) => this.handleBrowseResource(e, cid)).subscribe({ error: errorHandler }),
+      pipe('browse:anchored-text-requested',     (e, cid) => this.handleAnchoredText(e, cid)).subscribe({ error: errorHandler }),
+      pipe('browse:resources-requested',         (e, cid) => this.handleBrowseResources(e, cid)).subscribe({ error: errorHandler }),
+      pipe('browse:annotations-requested',       (e, cid) => this.handleBrowseAnnotations(e, cid)).subscribe({ error: errorHandler }),
+      pipe('browse:annotation-requested',        (e, cid) => this.handleBrowseAnnotation(e, cid)).subscribe({ error: errorHandler }),
+      pipe('browse:events-requested',            (e, cid) => this.handleBrowseEvents(e, cid)).subscribe({ error: errorHandler }),
+      pipe('browse:annotation-history-requested',(e, cid) => this.handleBrowseAnnotationHistory(e, cid)).subscribe({ error: errorHandler }),
+      pipe('browse:referenced-by-requested',     (e, cid) => this.handleReferencedBy(e, cid)).subscribe({ error: errorHandler }),
+      pipe('browse:entity-types-requested',      (e, cid) => this.handleEntityTypes(e, cid)).subscribe({ error: errorHandler }),
+      pipe('browse:tag-schemas-requested',       (e, cid) => this.handleTagSchemas(e, cid)).subscribe({ error: errorHandler }),
+      pipe('browse:agents-requested',            (e, cid) => this.handleBrowseAgents(e, cid)).subscribe({ error: errorHandler }),
+      pipe('browse:directory-requested',         (e, cid) => this.handleBrowseDirectory(e, cid)).subscribe({ error: errorHandler }),
     );
   }
 
@@ -160,35 +166,35 @@ export class Browser {
    * shipped before any of this existed. OCR in a request path is precisely what
    * this design exists to avoid.
    */
-  private async handleAnchoredText(event: EventMap['browse:anchored-text-requested']): Promise<void> {
+  private async handleAnchoredText(event: EventMap['browse:anchored-text-requested'], correlationId: string | undefined): Promise<void> {
     try {
-      this.eventBus.emit('browse:anchored-text-result', { response: await readAnchoredText(this.kb, event.resourceId), }, { correlationId: event.correlationId });
+      this.eventBus.emit('browse:anchored-text-result', { response: await readAnchoredText(this.kb, event.resourceId), }, { correlationId });
     } catch (error) {
       this.logger.error('Browse anchored text failed', { resourceId: event.resourceId, error: errField(error) });
-      this.eventBus.emit('browse:anchored-text-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('browse:anchored-text-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleBrowseResource(event: EventMap['browse:resource-requested']): Promise<void> {
+  private async handleBrowseResource(event: EventMap['browse:resource-requested'], correlationId: string | undefined): Promise<void> {
     try {
       const response = await assembleResourceGraph(this.kb, resourceId(event.resourceId));
 
       if (!response) {
         this.eventBus.emit('browse:resource-failed', { code: 'not-found',
-          message: 'Resource not found', }, { correlationId: event.correlationId });
+          message: 'Resource not found', }, { correlationId });
         return;
       }
 
-      this.eventBus.emit('browse:resource-result', { response, }, { correlationId: event.correlationId });
+      this.eventBus.emit('browse:resource-result', { response, }, { correlationId });
     } catch (error) {
       // No `code` here, deliberately: a thrown assembly is not evidence of
       // absence, and the SDK deletes a restored tab on 'not-found'.
       this.logger.error('Browse resource failed', { resourceId: event.resourceId, error: errField(error) });
-      this.eventBus.emit('browse:resource-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('browse:resource-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleBrowseResources(event: EventMap['browse:resources-requested']): Promise<void> {
+  private async handleBrowseResources(event: EventMap['browse:resources-requested'], correlationId: string | undefined): Promise<void> {
     try {
       const offset = event.offset ?? 0;
       const limit = event.limit ?? 50;
@@ -213,7 +219,6 @@ export class Browser {
         : result.resources;
 
       this.eventBus.emit('browse:resources-result', {
-        correlationId: event.correlationId,
         response: {
           resources: formattedDocs,
           total: result.total,
@@ -223,36 +228,35 @@ export class Browser {
           // from a hardcoded 'lexical' when the fallback landed).
           matchKind: result.matchKind,
         },
-      });
+      }, { correlationId });
     } catch (error) {
       this.logger.error('Browse resources failed', { error: errField(error) });
-      this.eventBus.emit('browse:resources-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('browse:resources-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleBrowseAnnotations(event: EventMap['browse:annotations-requested']): Promise<void> {
+  private async handleBrowseAnnotations(event: EventMap['browse:annotations-requested'], correlationId: string | undefined): Promise<void> {
     try {
       const annotations = await AnnotationContext.getAllAnnotations(resourceId(event.resourceId), this.kb);
 
       this.eventBus.emit('browse:annotations-result', {
-        correlationId: event.correlationId,
         response: {
           annotations,
           total: annotations.length,
         },
-      });
+      }, { correlationId });
     } catch (error) {
       this.logger.error('Browse annotations failed', { resourceId: event.resourceId, error: errField(error) });
-      this.eventBus.emit('browse:annotations-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('browse:annotations-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleBrowseAnnotation(event: EventMap['browse:annotation-requested']): Promise<void> {
+  private async handleBrowseAnnotation(event: EventMap['browse:annotation-requested'], correlationId: string | undefined): Promise<void> {
     try {
       const annotation = await AnnotationContext.getAnnotation(annotationId(event.annotationId), resourceId(event.resourceId), this.kb);
 
       if (!annotation) {
-        this.eventBus.emit('browse:annotation-failed', { message: 'Annotation not found', }, { correlationId: event.correlationId });
+        this.eventBus.emit('browse:annotation-failed', { message: 'Annotation not found', }, { correlationId });
         return;
       }
 
@@ -266,20 +270,19 @@ export class Browser {
       }
 
       this.eventBus.emit('browse:annotation-result', {
-        correlationId: event.correlationId,
         response: {
           annotation,
           resource,
           resolvedResource,
         },
-      });
+      }, { correlationId });
     } catch (error) {
       this.logger.error('Browse annotation failed', { resourceId: event.resourceId, annotationId: event.annotationId, error: errField(error) });
-      this.eventBus.emit('browse:annotation-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('browse:annotation-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleBrowseEvents(event: EventMap['browse:events-requested']): Promise<void> {
+  private async handleBrowseEvents(event: EventMap['browse:events-requested'], correlationId: string | undefined): Promise<void> {
     try {
       const eventQuery = new EventQuery(this.kb.eventStore.log.storage);
       const filters: any = {
@@ -299,25 +302,24 @@ export class Browser {
       const storedEvents = await eventQuery.queryEvents(filters);
 
       this.eventBus.emit('browse:events-result', {
-        correlationId: event.correlationId,
         response: {
           events: storedEvents,
           total: storedEvents.length,
           resourceId: event.resourceId,
         },
-      });
+      }, { correlationId });
     } catch (error) {
       this.logger.error('Browse events failed', { resourceId: event.resourceId, error: errField(error) });
-      this.eventBus.emit('browse:events-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('browse:events-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleBrowseAnnotationHistory(event: EventMap['browse:annotation-history-requested']): Promise<void> {
+  private async handleBrowseAnnotationHistory(event: EventMap['browse:annotation-history-requested'], correlationId: string | undefined): Promise<void> {
     try {
       // Verify annotation exists
       const annotation = await AnnotationContext.getAnnotation(annotationId(event.annotationId), resourceId(event.resourceId), this.kb);
       if (!annotation) {
-        this.eventBus.emit('browse:annotation-history-failed', { message: 'Annotation not found', }, { correlationId: event.correlationId });
+        this.eventBus.emit('browse:annotation-history-failed', { message: 'Annotation not found', }, { correlationId });
         return;
       }
 
@@ -336,23 +338,21 @@ export class Browser {
       annotationEvents.sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
 
       this.eventBus.emit('browse:annotation-history-result', {
-        correlationId: event.correlationId,
         response: {
           events: annotationEvents,
           total: annotationEvents.length,
           annotationId: event.annotationId,
           resourceId: event.resourceId,
         },
-      });
+      }, { correlationId });
     } catch (error) {
       this.logger.error('Browse annotation history failed', { resourceId: event.resourceId, annotationId: event.annotationId, error: errField(error) });
-      this.eventBus.emit('browse:annotation-history-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('browse:annotation-history-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
   private async handleReferencedBy(
-    event: EventMap['browse:referenced-by-requested'],
-  ): Promise<void> {
+    event: EventMap['browse:referenced-by-requested'], correlationId: string | undefined): Promise<void> {
     try {
       this.logger.debug('Looking for annotations referencing resource', {
         resourceId: event.resourceId,
@@ -403,42 +403,39 @@ export class Browser {
       });
 
       this.eventBus.emit('browse:referenced-by-result', {
-        correlationId: event.correlationId,
         response: { referencedBy },
-      });
+      }, { correlationId });
     } catch (error) {
       this.logger.error('Referenced-by query failed', { resourceId: event.resourceId, error: errField(error) });
-      this.eventBus.emit('browse:referenced-by-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('browse:referenced-by-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleEntityTypes(event: EventMap['browse:entity-types-requested']): Promise<void> {
+  private async handleEntityTypes(_event: EventMap['browse:entity-types-requested'], correlationId: string | undefined): Promise<void> {
     try {
       const entityTypes = await readEntityTypesProjection(this.project);
       this.eventBus.emit('browse:entity-types-result', {
-        correlationId: event.correlationId,
         response: { entityTypes },
-      });
+      }, { correlationId });
     } catch (error) {
       this.logger.error('Entity types read failed', { error: errField(error) });
-      this.eventBus.emit('browse:entity-types-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('browse:entity-types-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleTagSchemas(event: EventMap['browse:tag-schemas-requested']): Promise<void> {
+  private async handleTagSchemas(_event: EventMap['browse:tag-schemas-requested'], correlationId: string | undefined): Promise<void> {
     try {
       const tagSchemas = await readTagSchemasProjection(this.project);
       this.eventBus.emit('browse:tag-schemas-result', {
-        correlationId: event.correlationId,
         response: { tagSchemas },
-      });
+      }, { correlationId });
     } catch (error) {
       this.logger.error('Tag schemas read failed', { error: errField(error) });
-      this.eventBus.emit('browse:tag-schemas-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('browse:tag-schemas-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleBrowseAgents(event: EventMap['browse:agents-requested']): Promise<void> {
+  private async handleBrowseAgents(_event: EventMap['browse:agents-requested'], correlationId: string | undefined): Promise<void> {
     try {
       // Derived per request from the config sections that route work — the
       // declared roster, cheap enough that no caching layer is warranted.
@@ -448,12 +445,11 @@ export class Browser {
       // on a provider.
       const agents = await this.limitsDiscovery.enrich(deriveAgentRoster(this.config));
       this.eventBus.emit('browse:agents-result', {
-        correlationId: event.correlationId,
         response: { agents },
-      });
+      }, { correlationId });
     } catch (error) {
       this.logger.error('Agent roster derivation failed', { error: errField(error) });
-      this.eventBus.emit('browse:agents-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('browse:agents-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
@@ -462,9 +458,8 @@ export class Browser {
   // ========================================================================
 
   private async handleBrowseDirectory(
-    event: EventMap['browse:directory-requested'],
-  ): Promise<void> {
-    const { correlationId, path: reqPath, sort = 'name' } = event;
+    event: EventMap['browse:directory-requested'], correlationId: string | undefined): Promise<void> {
+    const { path: reqPath, sort = 'name' } = event;
 
     // Resolve and validate path
     const projectRoot = this.project.root;
@@ -472,7 +467,7 @@ export class Browser {
 
     if (!resolved.startsWith(projectRoot + path.sep) && resolved !== projectRoot) {
       this.eventBus.emit('browse:directory-failed', { path: reqPath,
-        message: 'path escapes project root', }, { correlationId: correlationId });
+        message: 'path escapes project root', }, { correlationId });
       return;
     }
 
@@ -482,7 +477,7 @@ export class Browser {
     } catch (err: any) {
       const msg = err.code === 'ENOENT' ? 'path not found' : String(err);
       this.eventBus.emit('browse:directory-failed', { path: reqPath,
-        message: msg, }, { correlationId: correlationId });
+        message: msg, }, { correlationId });
       return;
     }
 
@@ -566,9 +561,8 @@ export class Browser {
     });
 
     this.eventBus.emit('browse:directory-result', {
-      correlationId,
       response: { path: reqPath, entries },
-    });
+    }, { correlationId });
   }
 
   async stop(): Promise<void> {

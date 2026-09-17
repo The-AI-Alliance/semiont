@@ -82,6 +82,9 @@ export const CLAIM_CHANNEL = 'ledger:claim';
 export interface RetainedReply {
   channel: string;
   payload: unknown;
+  /** The key the reply rode in on — replayed onto the SSE frame's envelope,
+   *  never read back out of `payload` (BUS-CARRIES-FRAMES D1). */
+  correlationId: string;
   retainedAt: number;
 }
 
@@ -96,11 +99,6 @@ interface Claim {
   reply?: RetainedReply;
 }
 
-export const correlationIdOf = (payload: unknown): string | undefined => {
-  const cid = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
-  return typeof cid === 'string' && cid.length > 0 ? cid : undefined;
-};
-
 export function createCorrelationRegistry(
   opts: {
     ttlMs?: number;
@@ -114,15 +112,17 @@ export function createCorrelationRegistry(
   claim(cid: string, clientId: string, principalDid: string | undefined): 'ok' | 'conflict' | 'at-capacity';
   owner(cid: string): { clientId: string; principalDid: string | undefined } | undefined;
   lookupReply(cid: string, clientId: string, principalDid: string | undefined): RetainedReply | undefined;
-  /** One correlated frame, as the composition's plane tap saw it. */
-  observe(channel: string, payload: unknown): void;
+  /** One correlated frame, as the composition's plane tap saw it. Takes the
+   *  frame's ferried METADATA, not a named key: the correlation vocabulary
+   *  lives here and nowhere else on the gateway's plane side. */
+  observe(channel: string, payload: unknown, meta: Readonly<Record<string, string>> | undefined): void;
   /** A claim announcement from the shared ledger address — idempotent. */
   observeClaim(payload: unknown): void;
   /** The announcement for a just-accepted claim, built here so callers never
    *  learn the shape. */
   announcementFor(cid: string, clientId: string, principalDid: string | undefined): unknown;
   /** Per-frame entitlement: may THIS subscriber see THIS unscoped frame? */
-  mayDeliver(channel: string, payload: unknown, clientId: string, principalDid: string | undefined): boolean;
+  mayDeliver(channel: string, correlationId: string | undefined, clientId: string, principalDid: string | undefined): boolean;
   /** Live claims and how many of them still hold a reply payload. */
   occupancy(): { claims: number; retainedReplies: number };
   dispose(): void;
@@ -250,8 +250,8 @@ export function createCorrelationRegistry(
     announcementFor(cid, clientId, principalDid) {
       return { correlationId: cid, clientId, ...(principalDid === undefined ? {} : { principalDid }) };
     },
-    observe(channel, payload) {
-      const cid = correlationIdOf(payload);
+    observe(channel, payload, meta) {
+      const cid = meta?.correlationId;
       if (!cid) return;
       const claim = claims.get(cid);
       if (!claim) return; // never claimed: in-process requester, nothing to retain
@@ -263,7 +263,7 @@ export function createCorrelationRegistry(
         claim.answered = true;
         release(claim.clientId);
       }
-      claim.reply = { channel, payload, retainedAt: now() };
+      claim.reply = { channel, payload, correlationId: cid, retainedAt: now() };
       sweepClaims();
       sweepReplies();
     },
@@ -282,8 +282,7 @@ export function createCorrelationRegistry(
      * The genuinely lossy case, claimed-then-expired, is breadcrumbed at
      * sweep time instead, which needs no tombstone here.
      */
-    mayDeliver(channel, payload, clientId, principalDid) {
-      const cid = correlationIdOf(payload);
+    mayDeliver(channel, cid, clientId, principalDid) {
       if (!cid) {
         if (!isProgressChannel(channel)) {
           getBusLogger().warn('[bus REPLY-NO-CID] correlated frame without a correlationId', { channel });
@@ -325,3 +324,6 @@ export function createCorrelationRegistry(
     },
   };
 }
+
+/** The registry's own shape, so composition need not restate it. */
+export type CorrelationRegistry = ReturnType<typeof createCorrelationRegistry>;

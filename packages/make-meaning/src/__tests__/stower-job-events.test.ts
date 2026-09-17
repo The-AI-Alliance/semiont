@@ -209,14 +209,19 @@ describe('Stower job:* handlers', () => {
     });
 
     /** First reply on either channel, or 'none' if the seam answers nothing. */
-    async function replyOf(fn: () => void): Promise<{ channel: string; body: any }> {
-      const ok = firstValueFrom(bus.on('mark:commit-ok').pipe(take(1)));
-      const failed = firstValueFrom(bus.on('mark:commit-failed').pipe(take(1)));
+    async function replyOf(
+      fn: () => void,
+    ): Promise<{ channel: string; correlationId?: string; body: any }> {
+      // FRAMES: the key these tests assert on rides the envelope.
+      const ok = firstValueFrom(bus.frames('mark:commit-ok').pipe(take(1)));
+      const failed = firstValueFrom(bus.frames('mark:commit-failed').pipe(take(1)));
       fn();
       return Promise.race([
-        ok.then((body) => ({ channel: 'mark:commit-ok', body })),
-        failed.then((body) => ({ channel: 'mark:commit-failed', body })),
-        new Promise<{ channel: string; body: any }>((r) => setTimeout(() => r({ channel: 'none', body: null }), 300)),
+        ok.then((f) => ({ channel: 'mark:commit-ok', correlationId: f.correlationId, body: f.payload })),
+        failed.then((f) => ({ channel: 'mark:commit-failed', correlationId: f.correlationId, body: f.payload })),
+        new Promise<{ channel: string; correlationId?: string; body: any }>((r) =>
+          setTimeout(() => r({ channel: 'none', correlationId: undefined, body: null }), 300),
+        ),
       ]);
     }
 
@@ -228,7 +233,7 @@ describe('Stower job:* handlers', () => {
       // durability claim, so it must not precede the writes it attests to.
       expect(appendEvent).toHaveBeenCalledTimes(2);
       expect(reply.channel).toBe('mark:commit-ok');
-      expect(reply.body.correlationId).toBe('cid-1');
+      expect(reply.correlationId).toBe('cid-1');
       expect(reply.body.response.persisted).toBe(2);
       expect(reply.body.response.annotationIds).toEqual(['a1', 'a2']);
       for (const call of appendEvent.mock.calls) {
@@ -247,7 +252,7 @@ describe('Stower job:* handlers', () => {
         annotations: [ann('b1'), ann('b2')], } as never, { correlationId: 'cid-2' }));
 
       expect(reply.channel).toBe('mark:commit-failed');
-      expect(reply.body.correlationId).toBe('cid-2');
+      expect(reply.correlationId).toBe('cid-2');
       expect(reply.body.message).toContain('log unwritable');
       // Stops at the failure rather than pressing on.
       expect(appendEvent).toHaveBeenCalledTimes(2);

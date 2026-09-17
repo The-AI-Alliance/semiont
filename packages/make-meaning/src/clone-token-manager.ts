@@ -65,16 +65,16 @@ export class CloneTokenManager {
 
     const errorHandler = (err: unknown) => this.logger.error('CloneTokenManager pipeline error', { error: err });
 
-    const generateToken$ = this.eventBus.on('yield:clone-token-requested').pipe(
-      mergeMap((event) => from(this.handleGenerateToken(event))),
+    const generateToken$ = this.eventBus.frames('yield:clone-token-requested').pipe(
+      mergeMap((frame) => from(this.handleGenerateToken(frame.payload, frame.correlationId))),
     );
 
-    const getResource$ = this.eventBus.on('yield:clone-resource-requested').pipe(
-      mergeMap((event) => from(this.handleGetResource(event))),
+    const getResource$ = this.eventBus.frames('yield:clone-resource-requested').pipe(
+      mergeMap((frame) => from(this.handleGetResource(frame.payload, frame.correlationId))),
     );
 
-    const createResource$ = this.eventBus.on('yield:clone-create').pipe(
-      mergeMap((event) => from(this.handleCreateResource(event))),
+    const createResource$ = this.eventBus.frames('yield:clone-create').pipe(
+      mergeMap((frame) => from(this.handleCreateResource(frame.payload, frame.correlationId))),
     );
 
     this.subscriptions.push(
@@ -84,18 +84,18 @@ export class CloneTokenManager {
     );
   }
 
-  private async handleGenerateToken(event: EventMap['yield:clone-token-requested']): Promise<void> {
+  private async handleGenerateToken(event: EventMap['yield:clone-token-requested'], correlationId: string | undefined): Promise<void> {
     try {
       const resource = await ResourceContext.getResourceMetadata(resourceId(event.resourceId), this.stores);
       if (!resource) {
-        this.eventBus.emit('yield:clone-token-failed', { message: 'Resource not found', }, { correlationId: event.correlationId });
+        this.eventBus.emit('yield:clone-token-failed', { message: 'Resource not found', }, { correlationId });
         return;
       }
 
       // Verify content exists
       const storageUri = getStorageUri(resource);
       if (!storageUri) {
-        this.eventBus.emit('yield:clone-token-failed', { message: 'Resource content not found', }, { correlationId: event.correlationId });
+        this.eventBus.emit('yield:clone-token-failed', { message: 'Resource content not found', }, { correlationId });
         return;
       }
 
@@ -103,7 +103,7 @@ export class CloneTokenManager {
       try {
         await fs.access(this.stores.content.resolveUri(storageUri));
       } catch {
-        this.eventBus.emit('yield:clone-token-failed', { message: 'Resource content not found', }, { correlationId: event.correlationId });
+        this.eventBus.emit('yield:clone-token-failed', { message: 'Resource content not found', }, { correlationId });
         return;
       }
 
@@ -115,58 +115,56 @@ export class CloneTokenManager {
       this.tokens.set(token, { resourceId: resourceId(event.resourceId), expiresAt });
 
       this.eventBus.emit('yield:clone-token-generated', {
-        correlationId: event.correlationId,
         response: {
           token,
           expiresAt: expiresAt.toISOString(),
           resource,
         },
-      });
+      }, { correlationId });
     } catch (error) {
       this.logger.error('Generate clone token failed', { resourceId: event.resourceId, error });
-      this.eventBus.emit('yield:clone-token-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('yield:clone-token-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleGetResource(event: EventMap['yield:clone-resource-requested']): Promise<void> {
+  private async handleGetResource(event: EventMap['yield:clone-resource-requested'], correlationId: string | undefined): Promise<void> {
     try {
       const token = makeCloneToken(event.token);
       const tokenData = this.tokens.get(token);
 
       if (!tokenData) {
-        this.eventBus.emit('yield:clone-resource-failed', { message: 'Invalid or expired token', }, { correlationId: event.correlationId });
+        this.eventBus.emit('yield:clone-resource-failed', { message: 'Invalid or expired token', }, { correlationId });
         return;
       }
 
       if (new Date() > tokenData.expiresAt) {
         this.tokens.delete(token);
-        this.eventBus.emit('yield:clone-resource-failed', { message: 'Token expired', }, { correlationId: event.correlationId });
+        this.eventBus.emit('yield:clone-resource-failed', { message: 'Token expired', }, { correlationId });
         return;
       }
 
       const sourceResource = await ResourceContext.getResourceMetadata(tokenData.resourceId, this.stores);
       if (!sourceResource) {
-        this.eventBus.emit('yield:clone-resource-failed', { message: 'Source resource not found', }, { correlationId: event.correlationId });
+        this.eventBus.emit('yield:clone-resource-failed', { message: 'Source resource not found', }, { correlationId });
         return;
       }
 
       this.eventBus.emit('yield:clone-resource-result', {
-        correlationId: event.correlationId,
         response: {
           sourceResource,
           expiresAt: tokenData.expiresAt.toISOString(),
         },
-      });
+      }, { correlationId });
     } catch (error) {
       this.logger.error('Get clone resource failed', { token: event.token, error });
-      this.eventBus.emit('yield:clone-resource-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('yield:clone-resource-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 
-  private async handleCreateResource(event: EventMap['yield:clone-create']): Promise<void> {
+  private async handleCreateResource(event: EventMap['yield:clone-create'], correlationId: string | undefined): Promise<void> {
     try {
       if (!event._userId) {
-        this.eventBus.emit('yield:clone-create-failed', { message: 'yield:clone-create missing _userId (gateway injection)', }, { correlationId: event.correlationId });
+        this.eventBus.emit('yield:clone-create-failed', { message: 'yield:clone-create missing _userId (gateway injection)', }, { correlationId });
         return;
       }
 
@@ -174,19 +172,19 @@ export class CloneTokenManager {
       const tokenData = this.tokens.get(token);
 
       if (!tokenData) {
-        this.eventBus.emit('yield:clone-create-failed', { message: 'Invalid or expired token', }, { correlationId: event.correlationId });
+        this.eventBus.emit('yield:clone-create-failed', { message: 'Invalid or expired token', }, { correlationId });
         return;
       }
 
       if (new Date() > tokenData.expiresAt) {
         this.tokens.delete(token);
-        this.eventBus.emit('yield:clone-create-failed', { message: 'Token expired', }, { correlationId: event.correlationId });
+        this.eventBus.emit('yield:clone-create-failed', { message: 'Token expired', }, { correlationId });
         return;
       }
 
       const sourceDoc = await ResourceContext.getResourceMetadata(tokenData.resourceId, this.stores);
       if (!sourceDoc) {
-        this.eventBus.emit('yield:clone-create-failed', { message: 'Source resource not found', }, { correlationId: event.correlationId });
+        this.eventBus.emit('yield:clone-create-failed', { message: 'Source resource not found', }, { correlationId });
         return;
       }
 
@@ -227,12 +225,11 @@ export class CloneTokenManager {
       this.tokens.delete(token);
 
       this.eventBus.emit('yield:clone-created', {
-        correlationId: event.correlationId,
         response: { resourceId: newResourceId },
-      });
+      }, { correlationId });
     } catch (error) {
       this.logger.error('Clone create failed', { token: event.token, error });
-      this.eventBus.emit('yield:clone-create-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      this.eventBus.emit('yield:clone-create-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 

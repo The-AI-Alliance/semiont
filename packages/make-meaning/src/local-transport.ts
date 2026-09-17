@@ -104,7 +104,7 @@ export class LocalTransport implements ITransport {
     payload: EventMap[K],
     envelope?: BusEnvelope,
   ): Promise<number> {
-    busLog('EMIT', channel as string, payload, envelope?.scope as string | undefined);
+    busLog('EMIT', channel as string, payload, envelope?.scope as string | undefined, envelope?.correlationId);
     recordBusEmit(channel as string, envelope?.scope as string | undefined);
     await withSpan(
       `bus.emit:${channel as string}`,
@@ -116,7 +116,10 @@ export class LocalTransport implements ITransport {
         // so build the stamped object loosely and assert it back to EventMap[K].
         const stamped: Record<string, unknown> = { ...(payload as Record<string, unknown>), _userId: this.userId };
         const target = envelope?.scope === undefined ? this.bus : this.bus.scope(envelope!.scope as string);
-        target.emit(channel, stamped as EventMap[K]);
+        // The correlation key rides through: an in-process handler must read
+        // the same envelope it would across a broker. `scope` is not repeated
+        // here — targeting the scoped bus IS how it is set.
+        target.emit(channel, stamped as EventMap[K], { correlationId: envelope?.correlationId });
       },
       {
         kind: SpanKind.PRODUCER,
@@ -164,17 +167,20 @@ export class LocalTransport implements ITransport {
     if (this.bridges.includes(bus)) return;
     this.bridges.push(bus);
     for (const channel of BRIDGED_CHANNELS) {
-      const upstream: Observable<unknown> = this.bus.on(channel as keyof EventMap);
+      const upstream = this.bus.frames(channel as keyof EventMap);
       this.bridgeSubs.push(
-        upstream.subscribe((payload) => {
-          busLog('RECV', channel, payload);
+        upstream.subscribe((frame) => {
+          // A bridge FORWARDS a frame. Re-originating one here would strip
+          // the correlation key and strand every awaiting request.
+          const { payload, ...envelope } = frame;
+          busLog('RECV', channel, payload, envelope.scope, envelope.correlationId);
           // Tier 2: in-process — no _trace field on payload, parent
           // context comes from the active OTel context (inherited from
           // whichever code path emitted the event).
           void withSpan(
             `bus.recv:${channel}`,
             () => {
-              bus.emit(channel as keyof EventMap, payload as EventMap[keyof EventMap]);
+              bus.emit(channel as keyof EventMap, payload as EventMap[keyof EventMap], envelope);
             },
             { kind: SpanKind.CONSUMER, attrs: { 'bus.channel': channel } },
           );

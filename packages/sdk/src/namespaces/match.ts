@@ -1,4 +1,4 @@
-import { filter } from 'rxjs/operators';
+import { filter, map} from 'rxjs/operators';
 import type { AnnotationId, ResourceId, GatheredContext, EventBus, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { uuidV4 } from '@semiont/core';
@@ -11,9 +11,10 @@ export class MatchNamespace implements IMatchNamespace {
     private readonly bus: EventBus,
   ) {}
 
-  requestSearch(input: components['schemas']['MatchSearchRequest']): void {
-    // Local emit: match-state-unit subscribes via the local bus.
-    this.bus.emit('match:search-requested', input);
+  requestSearch(input: components['schemas']['MatchSearchRequest'], correlationId: string): void {
+    // Local emit: match-state-unit subscribes via the local bus. The key is
+    // the caller's to mint and rides the envelope, never the request body.
+    this.bus.emit('match:search-requested', input, { correlationId });
   }
 
   search(
@@ -25,11 +26,13 @@ export class MatchNamespace implements IMatchNamespace {
     return new StreamObservable<MatchSearchProgress>((subscriber) => {
       const correlationId = uuidV4();
 
-      const result$ = this.bus.on('match:search-results').pipe(
-        filter((e) => e.correlationId === correlationId),
+      const result$ = this.bus.frames('match:search-results').pipe(
+        filter((frame) => frame.correlationId === correlationId),
+        map((frame) => frame.payload),
       );
-      const failed$ = this.bus.on('match:search-failed').pipe(
-        filter((e) => e.correlationId === correlationId),
+      const failed$ = this.bus.frames('match:search-failed').pipe(
+        filter((frame) => frame.correlationId === correlationId),
+        map((frame) => frame.payload),
       );
 
       const resultSub = result$.subscribe((e) => {
@@ -45,7 +48,7 @@ export class MatchNamespace implements IMatchNamespace {
         referenceId,
         context,
         limit: options?.limit ?? 10,
-        useSemanticScoring: options?.useSemanticScoring ?? true, }, { correlationId: correlationId }).catch((error) => {
+        useSemanticScoring: options?.useSemanticScoring ?? true, }, { correlationId }).catch((error) => {
         // Don't propagate if a result or failure event already closed the
         // subscriber, or if the consumer disposed mid-flight. Otherwise
         // RxJS hosts the error as an uncaught exception.

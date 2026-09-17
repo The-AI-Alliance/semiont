@@ -38,7 +38,7 @@
 import { Observable, Subject, Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { burstBuffer, errField } from '@semiont/core';
-import type { Logger, Annotation, ResourceId, ResourceDescriptor, EventMap } from '@semiont/core';
+import type { Logger, Annotation, ResourceId, ResourceDescriptor, EventMap, BusFrame } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { getExactText, getTargetSelector, getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes, textSourceOf, yieldsGeometryOf, decodeRepresentation } from '@semiont/core';
 import { calculateChecksum, derivingExtractorFor, type AnchoredTextStore, type ContentReads, type ExtractedText, type ExtractionDecline } from '@semiont/content';
@@ -272,7 +272,7 @@ export class Smelter {
   constructor(
     private events$: Observable<SmelterEvent>,
     /** `smelt:rebuild-anchors` commands — a separate stream, never the event mailbox (see SmelterActorStateUnit). */
-    private rebuildAnchors$: Observable<EventMap['smelt:rebuild-anchors']>,
+    private rebuildAnchors$: Observable<BusFrame<EventMap['smelt:rebuild-anchors']>>,
     private vectorStore: VectorStore,
     private embeddingProvider: EmbeddingProvider,
     /** Byte reads only — the Smelter never writes through this seam, so it
@@ -342,7 +342,7 @@ export class Smelter {
     // Commands serialize through concatMap (rebuilds never interleave);
     // rebuildAnchors() never rejects, so the stream survives every outcome.
     this.commandSubscription = this.rebuildAnchors$.pipe(
-      concatMap((command) => from(this.rebuildAnchors(command))),
+      concatMap((frame) => from(this.rebuildAnchors(frame.payload, frame.correlationId))),
     ).subscribe({
       error: (err) => this.logger.error('Smelter command pipeline error', { error: errField(err) }),
     });
@@ -1105,8 +1105,8 @@ export class Smelter {
    * so a rebuild can never interleave with live processing of the same
    * resource (S1/S2).
    */
-  private async rebuildAnchors(command: EventMap['smelt:rebuild-anchors']): Promise<void> {
-    const { correlationId, resourceId } = command;
+  private async rebuildAnchors(command: EventMap['smelt:rebuild-anchors'], correlationId: string | undefined): Promise<void> {
+    const { resourceId } = command;
     try {
       let work: SmelterWorkItem[];
       if (resourceId) {
@@ -1121,20 +1121,18 @@ export class Smelter {
       const failed = await this.drain(work);
       if (failed > 0) {
         await this.bus.emit('smelt:rebuild-anchors-failed', {
-          ...(correlationId ? { correlationId } : {}),
           message: `${failed} of ${work.length} resources failed to re-anchor — see smelter logs`,
-        });
+        }, { correlationId });
         return;
       }
-      await this.bus.emit('smelt:rebuild-anchors-ok', correlationId ? { correlationId } : {});
+      await this.bus.emit('smelt:rebuild-anchors-ok', {}, { correlationId });
       this.logger.info('Anchored-text rebuild complete', { scoped: resourceId ?? null, resources: work.length });
     } catch (error) {
       this.logger.error('Anchored-text rebuild failed', { error: errField(error) });
       try {
         await this.bus.emit('smelt:rebuild-anchors-failed', {
-          ...(correlationId ? { correlationId } : {}),
           message: error instanceof Error ? error.message : String(error),
-        });
+        }, { correlationId });
       } catch (emitError) {
         this.logger.warn('Failed to emit smelt:rebuild-anchors-failed', { error: errField(emitError) });
       }

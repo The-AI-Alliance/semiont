@@ -1016,7 +1016,7 @@ describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHOR
     const vectorStore = new MemoryVectorStore();
     await vectorStore.connect();
     const embeddingProvider = createMockEmbeddingProvider();
-    const rebuilds$ = new Subject<EventMap['smelt:rebuild-anchors']>();
+    const rebuilds$ = new Subject<BusFrame<EventMap['smelt:rebuild-anchors']>>();
     const bus = createFakeKsBus(
       Object.keys(reads).map((rid) => resourceDescriptor(rid, 'application/pdf')),
     );
@@ -1053,7 +1053,7 @@ describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHOR
       for (let i = 0; i < 200; i++) {
         const hit = bus.emitted
           .filter(isRebuildReply)
-          .find((e) => e.payload.correlationId === correlationId);
+          .find((e) => e.correlationId === correlationId);
         if (hit) return hit;
         await new Promise((r) => setTimeout(r, 25));
       }
@@ -1066,7 +1066,7 @@ describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHOR
   it('full rebuild re-derives every geometry-capable resource and replies ok — zero embedding calls', async () => {
     const h = await rebuildHarness({ 'res-a': PDF_A, 'res-b': PDF_B });
     try {
-      h.rebuilds$.next({ correlationId: 'c-full' });
+      h.rebuilds$.next({ correlationId: 'c-full', payload: {} });
       const reply = await h.reply('c-full');
 
       expect(reply.channel).toBe('smelt:rebuild-anchors-ok');
@@ -1081,7 +1081,7 @@ describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHOR
   it('scoped rebuild re-derives exactly the named resource', async () => {
     const h = await rebuildHarness({ 'res-a': PDF_A, 'res-b': PDF_B });
     try {
-      h.rebuilds$.next({ correlationId: 'c-scoped', resourceId: 'res-a' });
+      h.rebuilds$.next({ correlationId: 'c-scoped', payload: { resourceId: 'res-a' } });
       const reply = await h.reply('c-scoped');
 
       expect(reply.channel).toBe('smelt:rebuild-anchors-ok');
@@ -1094,7 +1094,7 @@ describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHOR
   it('partial completion FAILS, with counts — and the healthy resource is still re-anchored', async () => {
     const h = await rebuildHarness({ 'res-ok': PDF_A, 'res-broken': 'fail' });
     try {
-      h.rebuilds$.next({ correlationId: 'c-partial' });
+      h.rebuilds$.next({ correlationId: 'c-partial', payload: {} });
       const reply = await h.reply('c-partial');
 
       // A rebuild that quietly skipped a resource would present exactly like

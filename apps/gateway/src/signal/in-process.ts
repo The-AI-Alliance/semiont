@@ -15,10 +15,27 @@ import type {
   ClientSubscriptionSpec,
   IngestReceipt,
   OnFrame,
+  PlaneEnvelope,
   PlaneSubscription,
   SignalPlane,
 } from './interface';
 import { resolveSignalPlaneOptions, type SignalPlaneOptions } from './options';
+
+/** The frame's envelope, as the seam's `PlaneEnvelope`.
+ *
+ *  `scope` is the one field this fabric INTERPRETS; everything else is
+ *  ferried verbatim into `meta`. Written that way round on purpose — the
+ *  driver must not learn the vocabulary of what it carries (the P0.5
+ *  census), so nothing here names a key of the metadata. */
+function envelopeOf(frame: { scope?: string }): PlaneEnvelope {
+  const { payload: _payload, scope, ...rest } = frame as { payload: unknown; scope?: string };
+  const meta: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rest)) if (typeof v === 'string') meta[k] = v;
+  // Absent, not empty: a frame that carried no metadata must present the same
+  // envelope here as it does across a broker, or the conformance suite would
+  // be comparing fabrics that agree on delivery and differ on shape.
+  return Object.keys(meta).length === 0 ? { scope } : { scope, meta };
+}
 
 interface HandlerGroup {
   members: OnFrame[];
@@ -70,8 +87,8 @@ export function createInProcessSignalPlane(
       for (const channel of spec.global) {
         subs.push(
           track(
-            eventBus.on(channel as keyof EventMap).subscribe((payload) => {
-              spec.onFrame(channel, payload, {});
+            eventBus.frames(channel as keyof EventMap).subscribe((frame) => {
+              spec.onFrame(channel, frame.payload, envelopeOf(frame));
             }),
           ),
         );
@@ -81,8 +98,8 @@ export function createInProcessSignalPlane(
         for (const channel of entry.channels) {
           subs.push(
             track(
-              scopedBus.on(channel as keyof EventMap).subscribe((payload) => {
-                spec.onFrame(channel, payload, { scope: entry.scope });
+              scopedBus.frames(channel as keyof EventMap).subscribe((frame) => {
+                spec.onFrame(channel, frame.payload, envelopeOf(frame));
               }),
             ),
           );
@@ -128,12 +145,12 @@ export function createInProcessSignalPlane(
           g.taps.set(
             channel,
             track(
-              eventBus.on(channel as keyof EventMap).subscribe((payload) => {
+              eventBus.frames(channel as keyof EventMap).subscribe((frame) => {
                 // Group semantics: each frame reaches AT MOST ONE member,
                 // never two (round-robin here; a queue group under NATS).
                 if (g.members.length === 0) return;
                 const target = g.members[g.rr++ % g.members.length]!;
-                target(channel, payload, {});
+                target(channel, frame.payload, envelopeOf(frame));
               }),
             ),
           );

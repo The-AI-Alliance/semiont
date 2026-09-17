@@ -13,7 +13,7 @@ export function createMatchStateUnit(
 ): MatchStateUnit {
   const subs: Subscription[] = [];
 
-  subs.push(client.bus.on('match:search-requested').subscribe((event) => {
+  subs.push(client.bus.frames('match:search-requested').subscribe(({ payload: event, correlationId }) => {
     const searchSub = client.match.search(
       makeResourceId(event.resourceId),
       makeAnnotationId(event.referenceId),
@@ -22,9 +22,9 @@ export function createMatchStateUnit(
     ).pipe(
       timeout(60_000),
     ).subscribe({
-      next: (result) => client.bus.emit('match:search-results', result),
+      next: (result) => client.bus.emit('match:search-results', result, { correlationId }),
       error: (err) => client.bus.emit('match:search-failed', { referenceId: event.referenceId,
-        error: err instanceof Error ? err.message : String(err), }, { correlationId: event.correlationId }),
+        error: err instanceof Error ? err.message : String(err), }, { correlationId }),
     });
     subs.push(searchSub);
   }));

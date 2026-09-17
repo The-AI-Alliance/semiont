@@ -62,7 +62,9 @@ export class EventStore {
    * Append an event to the store
    * Coordinates: persistence → view → enrich → notification
    *
-   * @param options.correlationId - Optional id propagated from a command.
+   * @param options.correlationId - The key the originating command was sent
+   *   under. It rides the BUS ENVELOPE of the publish in step 4 and is never
+   *   written to the log: the event log stores facts, not routing.
    */
   async appendEvent(
     event: EventInput,
@@ -85,7 +87,7 @@ export class EventStore {
     };
 
     // 1. Persist event to log
-    const storedEvent = await timed('persist', () => this.log.append(event, resourceId as any, options));
+    const storedEvent = await timed('persist', () => this.log.append(event, resourceId as any));
 
     // 2. Update views
     await timed('materialize', async () => {
@@ -111,11 +113,12 @@ export class EventStore {
 
     // 4. Publish to Core EventBus typed channels
     await timed('publish', () => {
-      this.coreEventBus.emit(publishEvent.type, publishEvent);
+      const envelope = { correlationId: options?.correlationId };
+      this.coreEventBus.emit(publishEvent.type, publishEvent, envelope);
 
       if (resourceId !== '__system__') {
         const scopedBus = this.coreEventBus.scope(resourceId as string);
-        scopedBus.emit(publishEvent.type, publishEvent);
+        scopedBus.emit(publishEvent.type, publishEvent, envelope);
       }
     });
 

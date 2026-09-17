@@ -154,9 +154,8 @@ describe('Weaver', () => {
 
   const serveBrowseReads = (rids: string[], annotationsByRid: Record<string, unknown[]> = {}) => {
     const subs = [
-      coreEventBus.on('browse:resources-requested').subscribe((req: any) => {
+      coreEventBus.frames('browse:resources-requested').subscribe(({ correlationId }: any) => {
         coreEventBus.emit('browse:resources-result', {
-          correlationId: req.correlationId,
           response: {
             resources: rids.map((id) => ({
               '@id': id, name: id, representations: [], archived: false, entityTypes: [],
@@ -164,21 +163,19 @@ describe('Weaver', () => {
             total: rids.length,
             matchKind: 'lexical',
           },
-        } as any);
+        } as any, { correlationId });
       }),
-      coreEventBus.on('browse:events-requested').subscribe((req: any) => {
+      coreEventBus.frames('browse:events-requested').subscribe(({ payload: req, correlationId }: any) => {
         void eventStore.log.getEvents(resourceId(req.resourceId)).then((events) => {
           coreEventBus.emit('browse:events-result', {
-            correlationId: req.correlationId,
             response: { events, total: events.length, resourceId: req.resourceId },
-          } as any);
+          } as any, { correlationId });
         });
       }),
-      coreEventBus.on('browse:annotations-requested').subscribe((req: any) => {
+      coreEventBus.frames('browse:annotations-requested').subscribe(({ payload: req, correlationId }: any) => {
         coreEventBus.emit('browse:annotations-result', {
-          correlationId: req.correlationId,
           response: { annotations: annotationsByRid[req.resourceId] ?? [] },
-        } as any);
+        } as any, { correlationId });
       }),
     ];
     stopServing = () => subs.forEach((s) => s.unsubscribe());

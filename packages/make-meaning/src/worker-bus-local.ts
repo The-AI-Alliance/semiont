@@ -16,7 +16,7 @@
  */
 
 import { BehaviorSubject, type Observable } from 'rxjs';
-import type { ConnectionState, EventBus, EventMap } from '@semiont/core';
+import type { BusEnvelope, ConnectionState, EventBus, EventMap } from '@semiont/core';
 import type { BusRequestPrimitive } from '@semiont/core';
 
 export function workerBusOverEventBus(eventBus: EventBus): BusRequestPrimitive {
@@ -38,10 +38,18 @@ export function workerBusOverEventBus(eventBus: EventBus): BusRequestPrimitive {
     // (X1): the subject's mutators must not leak to consumers.
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
 
-    emit: async <K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<number> => {
+    emit: async <K extends keyof EventMap>(
+      channel: K,
+      payload: EventMap[K],
+      envelope?: BusEnvelope,
+    ): Promise<number> => {
       // Two casts gone with the signature: `channel as EventName` and
       // `payload as EventMap[EventName]`. Under one `K` the bus agrees.
-      eventBus.emit(channel, payload);
+      //
+      // The envelope rides through: `busRequest` matches its reply on
+      // `frame.correlationId`, and a narrower `emit` that dropped it would
+      // still typecheck while stranding every request until its timeout.
+      eventBus.emit(channel, payload, envelope);
       // In-process: no subscriber accounting — the ITransport "unknown" sentinel.
       return -1;
     },

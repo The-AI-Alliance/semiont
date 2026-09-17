@@ -166,7 +166,7 @@ describe('LimitsDiscovery (INFERENCE-LIMITS-EXPOSURE P2)', () => {
           timer(500).pipe(map((): never => { throw new Error('no reply'); })),
         ).pipe(take(1)),
       );
-      bus.emit('browse:agents-requested', { correlationId: 'cid-e2e' });
+      bus.emit('browse:agents-requested', {}, { correlationId: 'cid-e2e' });
       const r = await reply;
 
       const did = agentToDid({ domain: 'kb.example', provider: 'ollama', model: 'model-b' });

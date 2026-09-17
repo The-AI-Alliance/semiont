@@ -90,20 +90,19 @@ describe('Gatherer decoupling (EXTRACT-LIBRARIAN P2)', () => {
     );
     await gatherer.initialize();
 
-    const resultPromise = eventBus.on('gather:resource-complete').pipe(take(1)).toPromise();
+    const resultPromise = eventBus.frames('gather:resource-complete').pipe(take(1)).toPromise();
     eventBus.emit('gather:resource-requested', {
-      correlationId: 'corr-1',
       resourceId: MAIN_ID,
       options: { depth: 1, maxResources: 5, includeContent: false, includeSummary: false },
-    });
+    }, { correlationId: 'corr-1' });
 
     const result = await resultPromise;
     expect(result!.correlationId).toBe('corr-1');
-    expect(result!.response.focus.kind).toBe('resource');
-    if (result!.response.focus.kind === 'resource') {
-      expect(result!.response.focus.resource.name).toBe('Gather Target');
+    expect(result!.payload.response.focus.kind).toBe('resource');
+    if (result!.payload.response.focus.kind === 'resource') {
+      expect(result!.payload.response.focus.resource.name).toBe('Gather Target');
     }
-    expect(result!.response.graph.nodes).toEqual([
+    expect(result!.payload.response.graph.nodes).toEqual([
       expect.objectContaining({ id: MAIN_ID, type: 'resource' }),
     ]);
   });
@@ -135,17 +134,16 @@ describe('Gatherer decoupling (EXTRACT-LIBRARIAN P2)', () => {
     );
     await gatherer.initialize();
 
-    const resultPromise = eventBus.on('gather:resource-complete').pipe(take(1)).toPromise();
+    const resultPromise = eventBus.frames('gather:resource-complete').pipe(take(1)).toPromise();
     eventBus.emit('gather:resource-requested', {
-      correlationId: 'corr-2',
       resourceId: MAIN_ID,
       options: { depth: 1, maxResources: 5, includeContent: false, includeSummary: false },
-    });
+    }, { correlationId: 'corr-2' });
 
     const result = await resultPromise;
     expect(whenApplied).toHaveBeenCalledWith(MAIN_ID, 3, expect.any(Number));
-    if (result!.response.focus.kind === 'resource') {
-      expect(result!.response.focus.resource.name).toBe('Lagging Target');
+    if (result!.payload.response.focus.kind === 'resource') {
+      expect(result!.payload.response.focus.resource.name).toBe('Lagging Target');
     }
   });
 });
@@ -161,11 +159,18 @@ describe('channel roster matches actual subscriptions (census gate)', () => {
   it('Gatherer', async () => {
     const bus = new EventBus();
     const seen: string[] = [];
-    const realGet = bus.on.bind(bus);
+    const realOn = bus.on.bind(bus);
+    const realFrames = bus.frames.bind(bus);
+    // BOTH read verbs: an actor that reads frames for its envelope is no
+    // less a subscriber than one that reads payloads.
     bus.on = ((channel) => {
       seen.push(channel as string);
-      return realGet(channel);
+      return realOn(channel);
     }) as typeof bus.on;
+    bus.frames = ((channel) => {
+      seen.push(channel as string);
+      return realFrames(channel);
+    }) as typeof bus.frames;
 
     const gatherer = new Gatherer(
       makeStores(), bus, noopInference, 1_000, mockLogger, createMockEmbeddingProvider(),

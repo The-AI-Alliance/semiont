@@ -26,8 +26,8 @@ export function registerJobCommandHandlers(
 ): void {
   const logger = parentLogger.child({ component: 'job-commands' });
 
-  eventBus.on('job:create').subscribe(async (command) => {
-    const { correlationId, jobType, resourceId: resId, params, _userId } = command;
+  eventBus.frames('job:create').subscribe(async ({ payload: command, correlationId }) => {
+    const { jobType, resourceId: resId, params, _userId } = command;
 
     try {
       if (!_userId || typeof _userId !== 'string') {
@@ -151,17 +151,16 @@ export function registerJobCommandHandlers(
       logger.info('Job created via bus', { jobId: job.metadata.id, jobType, correlationId });
 
       eventBus.emit('job:created', {
-        correlationId,
         response: { jobId: job.metadata.id },
-      });
+      }, { correlationId });
     } catch (error) {
       logger.error('job:create failed', { correlationId, error: (error as Error).message });
-      eventBus.emit('job:create-failed', { message: (error as Error).message, }, { correlationId: correlationId });
+      eventBus.emit('job:create-failed', { message: (error as Error).message, }, { correlationId });
     }
   });
 
-  eventBus.on('job:claim').subscribe(async (command) => {
-    const { correlationId, types } = command;
+  eventBus.frames('job:claim').subscribe(async ({ payload: command, correlationId }) => {
+    const { types } = command;
 
     try {
       // One atomic operation, by TYPE (JOB-QUEUE-DRIVER P0/P2): the
@@ -173,11 +172,10 @@ export function registerJobCommandHandlers(
       }
 
       eventBus.emit('job:claimed', {
-        correlationId,
         response: { ...result.job },
-      });
+      }, { correlationId });
     } catch (error) {
-      eventBus.emit('job:claim-failed', { message: (error as Error).message, }, { correlationId: correlationId });
+      eventBus.emit('job:claim-failed', { message: (error as Error).message, }, { correlationId });
     }
   });
 
@@ -249,7 +247,7 @@ export function registerJobCommandHandlers(
     }
   });
 
-  eventBus.on('job:cancel-requested').subscribe(async (event) => {
+  eventBus.frames('job:cancel-requested').subscribe(async ({ payload: event, correlationId }) => {
     try {
       let cancelled: number;
       if (event.jobId) {
@@ -277,16 +275,15 @@ export function registerJobCommandHandlers(
         cancelled = 0;
       }
       eventBus.emit('job:cancel-ok', {
-        correlationId: event.correlationId,
         response: { cancelled },
-      });
+      }, { correlationId });
     } catch (error) {
       logger.error('Failed to cancel jobs', {
         jobId: event.jobId,
         jobType: event.jobType,
         error: (error as Error).message,
       });
-      eventBus.emit('job:cancel-failed', { message: (error as Error).message, }, { correlationId: event.correlationId });
+      eventBus.emit('job:cancel-failed', { message: (error as Error).message, }, { correlationId });
     }
   });
 
@@ -312,15 +309,14 @@ export function registerJobCommandHandlers(
   // so a responder living anywhere else is invisible to the bridge and
   // starves under a remote plane (the yield:create bug's subscriber-side
   // twin, found by the audit it prompted).
-  eventBus.on('job:status-requested').subscribe(async (event) => {
+  eventBus.frames('job:status-requested').subscribe(async ({ payload: event, correlationId }) => {
     try {
       const job = await jobQueue.getJob(jobId(event.jobId));
       if (!job) {
-        eventBus.emit('job:status-failed', { message: 'Job not found' }, { correlationId: event.correlationId });
+        eventBus.emit('job:status-failed', { message: 'Job not found' }, { correlationId });
         return;
       }
       eventBus.emit('job:status-result', {
-        correlationId: event.correlationId,
         response: {
           jobId:       job.metadata.id,
           type:        job.metadata.type,
@@ -333,9 +329,9 @@ export function registerJobCommandHandlers(
           progress:    job.status === 'running'   ? job.progress : undefined,
           result:      job.status === 'complete'  ? job.result   : undefined,
         },
-      });
+      }, { correlationId });
     } catch (error) {
-      eventBus.emit('job:status-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+      eventBus.emit('job:status-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   });
 }

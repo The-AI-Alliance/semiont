@@ -1,5 +1,5 @@
 import { BehaviorSubject, type Observable } from 'rxjs';
-import type { ConnectionState, EventBus, EventMap, BusRequestPrimitive } from '@semiont/core';
+import type { BusEnvelope, ConnectionState, EventBus, EventMap, BusRequestPrimitive } from '@semiont/core';
 
 /**
  * Adapt a raw in-process `EventBus` to the `BusRequestPrimitive` that
@@ -12,8 +12,12 @@ import type { ConnectionState, EventBus, EventMap, BusRequestPrimitive } from '@
  */
 export function asBusRequestPrimitive(eventBus: EventBus): BusRequestPrimitive {
   return {
-    emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<number> {
-      eventBus.emit(channel, payload);
+    emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number> {
+      // The envelope rides through. `busRequest` mints the correlation key
+      // onto it and matches the reply on `frame.correlationId`, so an emit
+      // that dropped it here would strand every in-process request until
+      // its timeout — silently, since a narrower `emit` is still assignable.
+      eventBus.emit(channel, payload, envelope);
       // In-process: no subscriber accounting — the ITransport "unknown" sentinel.
       return Promise.resolve(-1);
     },

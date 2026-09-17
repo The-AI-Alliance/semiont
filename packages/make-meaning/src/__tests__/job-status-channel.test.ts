@@ -44,14 +44,19 @@ const config: MakeMeaningConfig = {
   workers: { default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' } },
 };
 
-/** First reply on either channel, or 'timeout' if the seam strands the caller. */
-async function replyTo(bus: EventBus): Promise<{ channel: string; body: any }> {
-  const ok = firstValueFrom(bus.on('job:status-result').pipe(take(1)));
-  const failed = firstValueFrom(bus.on('job:status-failed').pipe(take(1)));
+/** First reply on either channel, or 'timeout' if the seam strands the caller.
+ *  Read as FRAMES: the correlation key these tests assert on rides the
+ *  envelope, so a payload-only read could not tell a routed reply from a
+ *  stray broadcast. */
+async function replyTo(
+  bus: EventBus,
+): Promise<{ channel: string; correlationId?: string; body: any }> {
+  const ok = firstValueFrom(bus.frames('job:status-result').pipe(take(1)));
+  const failed = firstValueFrom(bus.frames('job:status-failed').pipe(take(1)));
   const winner = await Promise.race([
-    ok.then((body) => ({ channel: 'job:status-result', body })),
-    failed.then((body) => ({ channel: 'job:status-failed', body })),
-    firstValueFrom(timer(2000)).then(() => ({ channel: 'timeout', body: null })),
+    ok.then((f) => ({ channel: 'job:status-result', correlationId: f.correlationId, body: f.payload })),
+    failed.then((f) => ({ channel: 'job:status-failed', correlationId: f.correlationId, body: f.payload })),
+    firstValueFrom(timer(2000)).then(() => ({ channel: 'timeout', correlationId: undefined, body: null })),
   ]);
   return winner;
 }
@@ -96,7 +101,7 @@ describe('job:status-requested', () => {
 
     const reply = await pending;
     expect(reply.channel).toBe('job:status-result');
-    expect(reply.body.correlationId).toBe('cid-ok');
+    expect(reply.correlationId).toBe('cid-ok');
     expect(reply.body.response.jobId).toBe(id);
     expect(reply.body.response.type).toBe('detect-references');
   });
@@ -109,7 +114,7 @@ describe('job:status-requested', () => {
 
     const reply = await pending;
     expect(reply.channel).toBe('job:status-failed');
-    expect(reply.body.correlationId).toBe('cid-missing');
+    expect(reply.correlationId).toBe('cid-missing');
     expect(reply.body.message).toMatch(/not found/i);
   });
 

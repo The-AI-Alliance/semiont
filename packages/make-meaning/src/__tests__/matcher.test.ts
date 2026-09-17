@@ -212,10 +212,9 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-1',
         context: makeContext({ selected: { text: 'test query' } }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       expect(result!.referenceId).toBe('ref-1');
@@ -241,10 +240,9 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-2',
         context: makeContext({ selected: { text: 'failing query' } }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       expect(result!.referenceId).toBe('ref-2');
@@ -258,10 +256,9 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-3',
         context: makeContext({ selected: { text: 'nonexistent' } }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       expect(result!.response).toEqual([]);
@@ -305,10 +302,9 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-no-ctx',
         context: makeContext({ selected: { text: 'Alpha' } }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       expect(result!.response).toHaveLength(1);
@@ -324,10 +320,9 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-name',
         context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
@@ -354,13 +349,12 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-et',
         context: makeContext({
           selected: { before: '', text: 'nonmatching', after: '' }, // no name match — isolate entity type signal
           metadata: { entityTypes: ['Person', 'Author'] },
         }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
@@ -393,13 +387,12 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-no-gate',
         context: makeContext({
           selected: { before: '', text: 'Lincoln', after: '' },
           metadata: { entityTypes: ['Person'] },
         }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       await resultPromise;
 
@@ -417,7 +410,6 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-bidir',
         context: makeContext({
           selected: { before: '', text: 'test', after: '' },
@@ -425,7 +417,7 @@ describe('Matcher', () => {
             connections: [{ resourceId: 'res-b', resourceName: 'Beta', bidirectional: true }],
           }),
         }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
@@ -446,7 +438,6 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-neighbor',
         context: makeContext({
           selected: { before: '', text: 'something', after: '' },
@@ -454,7 +445,7 @@ describe('Matcher', () => {
             connections: [{ resourceId: 'res-c', resourceName: 'Gamma', bidirectional: false }],
           }),
         }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       expect(result!.response.length).toBeGreaterThanOrEqual(1);
@@ -478,7 +469,6 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-lag',
         referenceId: 'ref-lag',
         context: makeContext({
           selected: { before: '', text: 'something', after: '' },
@@ -486,7 +476,7 @@ describe('Matcher', () => {
             connections: [{ resourceId: 'res-lag', resourceName: 'Lagging Endpoint', bidirectional: false }],
           }),
         }),
-      });
+      }, { correlationId: 'test-corr-lag' });
 
       const result = await resultPromise;
       const lagging = result!.response.find((r: any) => r.name === 'Lagging Endpoint');
@@ -517,10 +507,9 @@ describe('Matcher', () => {
         const resultPromise = localBus.on('match:search-results').pipe(take(1)).toPromise();
         localBus.emit('match:search-requested', {
           resourceId: 'test-resource',
-          correlationId: 'corr-sem-lag',
           referenceId: 'ref-sem-lag',
           context: makeContext({ selected: { before: '', text: 'something', after: '' } }),
-        });
+        }, { correlationId: 'corr-sem-lag' });
 
         const result = await resultPromise;
         expect(result!.response.find((r: any) => r.name === 'Semantic Lag')).toBeDefined();
@@ -551,7 +540,6 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-citedby-delta',
         context: makeContext({
           selected: { before: '', text: 'zzz', after: '' }, // no name match — isolate the citedBy signal
@@ -561,7 +549,7 @@ describe('Matcher', () => {
             citedByMissing: ['citer-2-missing'],
           }),
         }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
@@ -580,13 +568,12 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-multi',
         context: makeContext({
           selected: { before: '', text: 'Alpha', after: '' },
           metadata: { entityTypes: ['Person'] },
         }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
@@ -606,10 +593,9 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-sort',
         context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       const scores = result!.response as Array<{ score: number }>;
@@ -651,10 +637,9 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-inference',
         context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
@@ -701,10 +686,9 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-inference-fail',
         context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       // Should still return results with structural scores only
@@ -723,10 +707,9 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-no-inference',
         context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       expect(result!.response.length).toBe(1);
@@ -742,10 +725,9 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-fail',
         context: makeContext({ selected: { before: '', text: 'anything', after: '' } }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       expect(result!.referenceId).toBe('ref-fail');
@@ -792,10 +774,9 @@ describe('Matcher', () => {
 
         eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-          correlationId: 'test-corr-id',
           referenceId: 'ref-range',
           context: makeContext(),
-        });
+        }, { correlationId: 'test-corr-id' });
 
         const result = await resultPromise;
         const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
@@ -818,10 +799,9 @@ describe('Matcher', () => {
 
         eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-          correlationId: 'test-corr-id',
           referenceId: 'ref-malformed',
           context: makeContext(),
-        });
+        }, { correlationId: 'test-corr-id' });
 
         const result = await resultPromise;
         const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
@@ -840,10 +820,9 @@ describe('Matcher', () => {
 
         eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-          correlationId: 'test-corr-id',
           referenceId: 'ref-empty',
           context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
-        });
+        }, { correlationId: 'test-corr-id' });
 
         const result = await resultPromise;
         // Should still return results with structural scores only
@@ -860,10 +839,9 @@ describe('Matcher', () => {
 
         eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-          correlationId: 'test-corr-id',
           referenceId: 'ref-oob',
           context: makeContext(),
-        });
+        }, { correlationId: 'test-corr-id' });
 
         const result = await resultPromise;
         const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
@@ -880,10 +858,9 @@ describe('Matcher', () => {
 
         eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-          correlationId: 'test-corr-id',
           referenceId: 'ref-threshold',
           context: makeContext(),
-        });
+        }, { correlationId: 'test-corr-id' });
 
         const result = await resultPromise;
         const scores = result!.response as unknown as Array<{ name: string; score: number; matchReason: string }>;
@@ -906,7 +883,6 @@ describe('Matcher', () => {
         const summary = 'This passage discusses Greek mythology figures.';
         eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-          correlationId: 'test-corr-id',
           referenceId: 'ref-summary',
           context: makeContext({
             selected: { before: '', text: 'Zeus', after: '' },
@@ -915,7 +891,7 @@ describe('Matcher', () => {
             }),
             inferredRelationshipSummary: summary,
           }),
-        });
+        }, { correlationId: 'test-corr-id' });
 
         await resultPromise;
         const prompt = mockInference.generateText.mock.calls[0][0] as string;
@@ -930,13 +906,12 @@ describe('Matcher', () => {
 
         eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-          correlationId: 'test-corr-id',
           referenceId: 'ref-passage',
           context: makeContext({
             selected: { before: 'In the beginning,', text: 'Zeus ruled the heavens', after: 'and the earth.' },
             metadata: { entityTypes: ['Person', 'Deity'] },
           }),
-        });
+        }, { correlationId: 'test-corr-id' });
 
         await resultPromise;
         const prompt = mockInference.generateText.mock.calls[0][0] as string;
@@ -958,10 +933,9 @@ describe('Matcher', () => {
 
       eventBus.emit('match:search-requested', {
         resourceId: 'test-resource',
-        correlationId: 'test-corr-id',
         referenceId: 'ref-4',
         context: makeContext({ selected: { text: 'after stop' } }),
-      });
+      }, { correlationId: 'test-corr-id' });
 
       // Give time for any processing
       await new Promise((resolve) => setTimeout(resolve, 50));

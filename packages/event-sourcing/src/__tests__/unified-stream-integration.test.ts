@@ -94,8 +94,8 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     // Subscribe to scoped bus BEFORE the mutation
     const scopedBus = eventBus.scope(String(rId));
     const received: any[] = [];
-    const sub = scopedBus.on('mark:body-updated').subscribe((event) => {
-      received.push(event);
+    const sub = scopedBus.frames('mark:body-updated').subscribe((frame) => {
+      received.push(frame);
     });
 
     // Append a body-updated event with correlationId
@@ -118,13 +118,13 @@ describe('Unified Stream Integration (Phase 8b)', () => {
 
     sub.unsubscribe();
 
-    // The stored event has correlationId in metadata
-    expect(stored.metadata.correlationId).toBe(cid);
+    // The log stores the fact; the routing key rides the frame instead.
+    expect('correlationId' in stored.metadata).toBe(false);
 
     // The scoped bus received the event
     expect(received).toHaveLength(1);
-    expect(received[0].metadata.correlationId).toBe(cid);
-    expect(received[0].type).toBe('mark:body-updated');
+    expect(received[0].correlationId).toBe(cid);
+    expect(received[0].payload.type).toBe('mark:body-updated');
   });
 
   // ── Test 2: Two-subscriber simulation ─────────────────────────────────
@@ -169,8 +169,8 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     const client1Events: any[] = [];
     const client2Events: any[] = [];
 
-    const sub1 = scopedBus.on('mark:body-updated').subscribe((e) => client1Events.push(e));
-    const sub2 = scopedBus.on('mark:body-updated').subscribe((e) => client2Events.push(e));
+    const sub1 = scopedBus.frames('mark:body-updated').subscribe((f) => client1Events.push(f));
+    const sub2 = scopedBus.frames('mark:body-updated').subscribe((f) => client2Events.push(f));
 
     // One client initiates a bind (appends event with correlationId)
     const cid = 'corr-client1-bind';
@@ -198,13 +198,13 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     expect(client2Events).toHaveLength(1);
 
     // Both have the same event data
-    expect(client1Events[0].metadata.correlationId).toBe(cid);
-    expect(client2Events[0].metadata.correlationId).toBe(cid);
-    expect(client1Events[0].payload.annotationId).toBe('ann-tab-1');
-    expect(client2Events[0].payload.annotationId).toBe('ann-tab-1');
+    expect(client1Events[0].correlationId).toBe(cid);
+    expect(client2Events[0].correlationId).toBe(cid);
+    expect(client1Events[0].payload.payload.annotationId).toBe('ann-tab-1');
+    expect(client2Events[0].payload.payload.annotationId).toBe('ann-tab-1');
 
     // Client 1 (originator) can match by correlationId
-    const isOriginator = client1Events[0].metadata.correlationId === cid;
+    const isOriginator = client1Events[0].correlationId === cid;
     expect(isOriginator).toBe(true);
   });
 

@@ -22,7 +22,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { firstValueFrom, race, timeout, filter, map, type Observable } from 'rxjs';
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import { EventBus, resourceId as makeResourceId, type Logger } from '@semiont/core';
+import { EventBus, resourceId as makeResourceId, type BusFrame, type Logger } from '@semiont/core';
 import { writeStorageUriEntry } from '@semiont/event-sourcing';
 import { Stower, STOWER_CHANNELS, type StowerStores } from '../stower';
 import { Browser, BROWSER_CHANNELS, type BrowserReads } from '../browser';
@@ -40,18 +40,21 @@ const mockLogger: Logger = {
 };
 
 /** Await one correlated reply, failing loudly on the paired failure event. */
-function reply<Ok extends { correlationId?: string }>(
-  ok$: Observable<Ok>,
-  failed$: Observable<{ correlationId?: string; message?: string }>,
+function reply<Ok>(
+  ok$: Observable<BusFrame<Ok>>,
+  failed$: Observable<BusFrame<{ message?: string }>>,
   correlationId: string,
 ): Promise<Ok> {
   return firstValueFrom(
     race(
-      ok$.pipe(filter((e) => e.correlationId === correlationId)),
+      ok$.pipe(
+        filter((frame) => frame.correlationId === correlationId),
+        map((frame) => frame.payload),
+      ),
       failed$.pipe(
-        filter((e) => e.correlationId === correlationId),
-        map((e): never => {
-          throw new Error(`failure reply: ${e.message}`);
+        filter((frame) => frame.correlationId === correlationId),
+        map((frame): never => {
+          throw new Error(`failure reply: ${frame.payload.message}`);
         }),
       ),
     ).pipe(timeout(3000)),
@@ -95,14 +98,14 @@ describe('Stower constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () 
     await stower.initialize();
 
     const correlationId = 'p1-create-1';
-    const ok = reply(eventBus.on('yield:create-ok'), eventBus.on('yield:create-failed'), correlationId);
+    const ok = reply(eventBus.frames('yield:create-ok'), eventBus.frames('yield:create-failed'), correlationId);
 
     eventBus.emit('yield:create', { _userId: 'user-1',
       name: 'doc.txt',
       format: 'text/plain',
       storageUri: 'file:///tmp/doc.txt',
       contentChecksum: 'sha-in',
-      byteSize: 5, }, { correlationId: correlationId });
+      byteSize: 5, }, { correlationId });
 
     const result = await ok;
     expect(result.response.resourceId).toBeTruthy();
@@ -157,12 +160,12 @@ describe('Stower constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () 
     await stower.initialize();
 
     const correlationId = 'p1-archive-1';
-    const ok = reply(eventBus.on('mark:archive-ok'), eventBus.on('mark:archive-failed'), correlationId);
+    const ok = reply(eventBus.frames('mark:archive-ok'), eventBus.frames('mark:archive-failed'), correlationId);
 
     eventBus.emit('mark:archive', { _userId: 'user-1',
       resourceId: 'res-arch-1',
       storageUri: 'file:///tmp/gone.txt',
-      keepFile: true, }, { correlationId: correlationId });
+      keepFile: true, }, { correlationId });
 
     await ok;
     expect(stores.content.remove).toHaveBeenCalledWith('file:///tmp/gone.txt', { keepFile: true, noGit: undefined });
@@ -257,9 +260,9 @@ describe('Browser constructs from capability doubles (EXTRACT-ARCHIVIST P1)', ()
     await start(reads);
 
     const correlationId = 'p1-annos-1';
-    const ok = reply(eventBus.on('browse:annotations-result'), eventBus.on('browse:annotations-failed'), correlationId);
+    const ok = reply(eventBus.frames('browse:annotations-result'), eventBus.frames('browse:annotations-failed'), correlationId);
 
-    eventBus.emit('browse:annotations-requested', { resourceId: String(rid) }, { correlationId: correlationId });
+    eventBus.emit('browse:annotations-requested', { resourceId: String(rid) }, { correlationId });
 
     const result = await ok;
     expect(result.response.total).toBe(1);
@@ -279,9 +282,9 @@ describe('Browser constructs from capability doubles (EXTRACT-ARCHIVIST P1)', ()
     await start(reads);
 
     const correlationId = 'p1-res-1';
-    const ok = reply(eventBus.on('browse:resource-result'), eventBus.on('browse:resource-failed'), correlationId);
+    const ok = reply(eventBus.frames('browse:resource-result'), eventBus.frames('browse:resource-failed'), correlationId);
 
-    eventBus.emit('browse:resource-requested', { resourceId: String(rid) }, { correlationId: correlationId });
+    eventBus.emit('browse:resource-requested', { resourceId: String(rid) }, { correlationId });
 
     const result = await ok;
     expect(result.response.resource.name).toBe('Assembled');
@@ -305,9 +308,9 @@ describe('Browser constructs from capability doubles (EXTRACT-ARCHIVIST P1)', ()
     await start(reads);
 
     const correlationId = 'p1-refby-1';
-    const ok = reply(eventBus.on('browse:referenced-by-result'), eventBus.on('browse:referenced-by-failed'), correlationId);
+    const ok = reply(eventBus.frames('browse:referenced-by-result'), eventBus.frames('browse:referenced-by-failed'), correlationId);
 
-    eventBus.emit('browse:referenced-by-requested', { resourceId: String(target) }, { correlationId: correlationId });
+    eventBus.emit('browse:referenced-by-requested', { resourceId: String(target) }, { correlationId });
 
     const result = await ok;
     expect(result.response.referencedBy).toHaveLength(1);
@@ -354,9 +357,9 @@ describe('CloneTokenManager constructs from capability doubles (EXTRACT-ARCHIVIS
     await ctm.initialize();
 
     const correlationId = 'p1-token-1';
-    const ok = reply(eventBus.on('yield:clone-token-generated'), eventBus.on('yield:clone-token-failed'), correlationId);
+    const ok = reply(eventBus.frames('yield:clone-token-generated'), eventBus.frames('yield:clone-token-failed'), correlationId);
 
-    eventBus.emit('yield:clone-token-requested', { resourceId: String(rid) }, { correlationId: correlationId });
+    eventBus.emit('yield:clone-token-requested', { resourceId: String(rid) }, { correlationId });
 
     const result = await ok;
     expect(result.response.token).toMatch(/^clone_/);
@@ -388,12 +391,12 @@ describe('CloneTokenManager constructs from capability doubles (EXTRACT-ARCHIVIS
     await ctm.initialize();
 
     const tokenCid = 'p1-token-2';
-    const token$ = reply(eventBus.on('yield:clone-token-generated'), eventBus.on('yield:clone-token-failed'), tokenCid);
+    const token$ = reply(eventBus.frames('yield:clone-token-generated'), eventBus.frames('yield:clone-token-failed'), tokenCid);
     eventBus.emit('yield:clone-token-requested', { resourceId: String(rid) }, { correlationId: tokenCid });
     const { response: { token } } = await token$;
 
     const getCid = 'p1-get-1';
-    const got$ = reply(eventBus.on('yield:clone-resource-result'), eventBus.on('yield:clone-resource-failed'), getCid);
+    const got$ = reply(eventBus.frames('yield:clone-resource-result'), eventBus.frames('yield:clone-resource-failed'), getCid);
     eventBus.emit('yield:clone-resource-requested', { token }, { correlationId: getCid });
 
     const { response } = await got$;
@@ -412,13 +415,22 @@ describe('channel rosters match actual subscriptions (census gate)', () => {
   async function subscribedChannels(initialize: (bus: EventBus) => Promise<{ stop(): Promise<void> }>) {
     const bus = new EventBus();
     const seen: string[] = [];
-    const realGet = bus.on.bind(bus);
-    // Shadow the prototype method on the instance: initialize() only calls
-    // get() to subscribe, so the recorded names ARE the subscription census.
+    const realOn = bus.on.bind(bus);
+    const realFrames = bus.frames.bind(bus);
+    // Shadow the prototype methods on the instance: initialize() reaches the
+    // bus only to subscribe, so the recorded names ARE the subscription
+    // census. BOTH read verbs are recorded — an actor that reads frames for
+    // its envelope is no less a subscriber than one that reads payloads, and
+    // shadowing only `on` would have reported an empty roster for every
+    // actor migrated to `frames`.
     bus.on = ((channel) => {
       seen.push(channel as string);
-      return realGet(channel);
+      return realOn(channel);
     }) as typeof bus.on;
+    bus.frames = ((channel) => {
+      seen.push(channel as string);
+      return realFrames(channel);
+    }) as typeof bus.frames;
     const actor = await initialize(bus);
     await actor.stop();
     bus.destroy();

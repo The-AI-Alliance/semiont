@@ -299,13 +299,13 @@ describe('ResourceOperations', () => {
     ): Promise<{ ok: boolean; message?: string }> {
       return new Promise((resolve) => {
         const correlationId = `cid-${++fileCounter}`;
-        const okSub = eventBus.on(okChannel).subscribe((e) => {
-          if (e.correlationId === correlationId) { okSub.unsubscribe(); failSub.unsubscribe(); resolve({ ok: true }); }
+        const okSub = eventBus.frames(okChannel).subscribe((frame) => {
+          if (frame.correlationId === correlationId) { okSub.unsubscribe(); failSub.unsubscribe(); resolve({ ok: true }); }
         });
-        const failSub = eventBus.on(failChannel).subscribe((e) => {
-          if (e.correlationId === correlationId) { okSub.unsubscribe(); failSub.unsubscribe(); resolve({ ok: false, message: e.message }); }
+        const failSub = eventBus.frames(failChannel).subscribe((frame) => {
+          if (frame.correlationId === correlationId) { okSub.unsubscribe(); failSub.unsubscribe(); resolve({ ok: false, message: frame.payload.message }); }
         });
-        eventBus.emit(command, { ...payload, correlationId, _userId: 'user-1' } as never);
+        eventBus.emit(command, { ...payload, _userId: 'user-1' } as never, { correlationId });
       });
     }
 

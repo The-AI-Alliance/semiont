@@ -10,7 +10,7 @@
 
 import { asBusRequestPrimitive } from '../bus-request-local';
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, map } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
 import { promises as fs } from 'fs';
 import { join } from 'path';
@@ -838,8 +838,9 @@ describe('AnnotationOperations', () => {
 
       const correlationId = 'uet-cid-1';
       const ok$ = firstValueFrom(
-        eventBus.on('mark:update-entity-types-ok').pipe(
-          filter((e) => e.correlationId === correlationId),
+        eventBus.frames('mark:update-entity-types-ok').pipe(
+          filter((frame) => frame.correlationId === correlationId),
+          map((frame) => frame.payload),
           take(1),
         ),
       );
@@ -847,7 +848,7 @@ describe('AnnotationOperations', () => {
       eventBus.emit('mark:update-entity-types', { _userId: 'user-1',
         resourceId: testResourceId,
         currentEntityTypes: ['Legacy'],
-        updatedEntityTypes: ['Person'], }, { correlationId: correlationId });
+        updatedEntityTypes: ['Person'], }, { correlationId });
 
       await ok$;
 
@@ -882,8 +883,9 @@ describe('AnnotationOperations', () => {
 
       const correlationId = 'uet-cid-fail';
       const failed$ = firstValueFrom(
-        failBus.on('mark:update-entity-types-failed').pipe(
-          filter((e) => e.correlationId === correlationId),
+        failBus.frames('mark:update-entity-types-failed').pipe(
+          filter((frame) => frame.correlationId === correlationId),
+          map((frame) => frame.payload),
           take(1),
         ),
       );
@@ -894,7 +896,7 @@ describe('AnnotationOperations', () => {
       failBus.emit('mark:update-entity-types', { _userId: 'user-1',
         resourceId: testResourceId,
         currentEntityTypes: ['Person'],
-        updatedEntityTypes: [], }, { correlationId: correlationId });
+        updatedEntityTypes: [], }, { correlationId });
 
       const failure = await failed$;
       expect(failure.message).toContain('disk full');

@@ -20,7 +20,7 @@
  */
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import type { BusFrame, BusRequestPrimitive, ConnectionState, EventBus, EventMap } from '@semiont/core';
+import type { BusEnvelope, BusFrame, BusRequestPrimitive, ConnectionState, EventBus, EventMap } from '@semiont/core';
 import { compositionFor } from './composition';
 import { toReplyAddress } from './interface';
 
@@ -33,8 +33,16 @@ const OPEN: Observable<ConnectionState> = new BehaviorSubject<ConnectionState>('
 export function requestPrimitiveFor(eventBus: EventBus): BusRequestPrimitive {
   const plane = compositionFor(eventBus).plane;
   return {
-    emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<number> {
-      const receipt = plane.ingest(channel, payload);
+    emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number> {
+      // `scope` is the one field the plane INTERPRETS; everything else is
+      // ferried verbatim into `meta`. Named that way round on purpose: this
+      // file sits behind the driver boundary, so it must not learn the
+      // correlation vocabulary (the P0.5 census). A `busRequest` issued here
+      // still pairs its reply, because the key crosses untouched.
+      const { scope, ...rest } = envelope ?? {};
+      const meta: Record<string, string> = {};
+      for (const [k, v] of Object.entries(rest)) if (typeof v === 'string') meta[k] = v;
+      const receipt = plane.ingest(channel, payload, { scope, meta });
       // ITransport's "unknown" sentinel when the fabric cannot count.
       return Promise.resolve(receipt.observers ?? -1);
     },

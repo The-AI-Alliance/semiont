@@ -20,11 +20,13 @@ export class GatherNamespace implements IGatherNamespace {
     return new StreamObservable<GatherAnnotationProgress>((subscriber) => {
       const correlationId = uuidV4();
 
-      const complete$ = this.bus.on('gather:complete').pipe(
-        filter((e) => e.correlationId === correlationId),
+      const complete$ = this.bus.frames('gather:complete').pipe(
+        filter((frame) => frame.correlationId === correlationId),
+        map((frame) => frame.payload),
       );
-      const failed$ = this.bus.on('gather:failed').pipe(
-        filter((e) => e.correlationId === correlationId),
+      const failed$ = this.bus.frames('gather:failed').pipe(
+        filter((frame) => frame.correlationId === correlationId),
+        map((frame) => frame.payload),
       );
 
       const sub = merge(
@@ -50,11 +52,10 @@ export class GatherNamespace implements IGatherNamespace {
       });
 
       this.transport.emit('gather:requested', {
-        correlationId,
         annotationId,
         resourceId,
         options: { contextWindow: options?.contextWindow ?? 2000 },
-      }).catch((error) => {
+      }, { correlationId }).catch((error) => {
         // Don't propagate if a result or failure event already closed the
         // subscriber, or if the consumer disposed mid-flight. Otherwise
         // RxJS hosts the error as an uncaught exception.

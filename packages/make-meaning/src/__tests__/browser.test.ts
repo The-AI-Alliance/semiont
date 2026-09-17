@@ -119,14 +119,14 @@ describe('Browser actor', () => {
     // (pinned in resource-context.test.ts) — the lexical label needs a hit.
     mockKb.graph.listResources = vi.fn().mockResolvedValue({ resources: [{ '@id': 'res-ouranos', name: 'ouranos' }], total: 1 });
 
-    const result$ = eventBus.on('browse:resources-result');
+    const result$ = eventBus.frames('browse:resources-result');
     const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
     eventBus.emit('browse:resources-requested', { search: 'ouranos' }, { correlationId: 'cid-mk' });
 
-    const event = await resultPromise;
-    expect(event.correlationId).toBe('cid-mk');
-    expect(event.response.matchKind).toBe('lexical');
+    const frame = await resultPromise;
+    expect(frame.correlationId).toBe('cid-mk');
+    expect(frame.payload.response.matchKind).toBe('lexical');
   });
 
   // ── path traversal guard ───────────────────────────────────────────────────
@@ -141,27 +141,27 @@ describe('Browser actor', () => {
 
     for (const { label, path } of CASES) {
       it(`rejects ${label}`, async () => {
-        const failed$ = eventBus.on('browse:directory-failed');
+        const failed$ = eventBus.frames('browse:directory-failed');
         const resultPromise = new Promise<any>((resolve) => failed$.subscribe(resolve));
 
         eventBus.emit('browse:directory-requested', { path, }, { correlationId: 'cid-1' });
 
-        const event = await resultPromise;
-        expect(event.correlationId).toBe('cid-1');
-        expect(event.message).toBe('path escapes project root');
+        const frame = await resultPromise;
+        expect(frame.correlationId).toBe('cid-1');
+        expect(frame.payload.message).toBe('path escapes project root');
       });
     }
 
     it('allows project root (empty string)', async () => {
       mockReaddir.mockResolvedValue([]);
-      const result$ = eventBus.on('browse:directory-result');
+      const result$ = eventBus.frames('browse:directory-result');
       const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
 
       eventBus.emit('browse:directory-requested', { path: '' }, { correlationId: 'cid-2' });
 
-      const event = await resultPromise;
-      expect(event.correlationId).toBe('cid-2');
-      expect(event.response.entries).toEqual([]);
+      const frame = await resultPromise;
+      expect(frame.correlationId).toBe('cid-2');
+      expect(frame.payload.response.entries).toEqual([]);
     });
 
     it('allows a valid subdirectory', async () => {
@@ -337,19 +337,19 @@ describe('Browser actor', () => {
     }
 
     function resultPromise() {
-      return new Promise<any>((resolve) => eventBus.on('browse:referenced-by-result').subscribe(resolve));
+      return new Promise<any>((resolve) => eventBus.frames('browse:referenced-by-result').subscribe(resolve));
     }
 
     function failedPromise() {
-      return new Promise<any>((resolve) => eventBus.on('browse:referenced-by-failed').subscribe(resolve));
+      return new Promise<any>((resolve) => eventBus.frames('browse:referenced-by-failed').subscribe(resolve));
     }
 
     // Typed as the channel declares it, not `object`. The `(eventBus as any)`
     // cast this replaces was hiding the mismatch: every caller already passes
     // a conforming payload, so the cast bought nothing and cost the compiler
     // its view of three call sites (BUS-CARRIES-FRAMES P1).
-    function fire(payload: EventMap['browse:referenced-by-requested']) {
-      eventBus.emit('browse:referenced-by-requested', payload);
+    function fire(payload: EventMap['browse:referenced-by-requested'], correlationId: string) {
+      eventBus.emit('browse:referenced-by-requested', payload, { correlationId });
     }
 
     let mockViewGet: ReturnType<typeof vi.fn>;
@@ -379,12 +379,12 @@ describe('Browser actor', () => {
       });
 
       const p = resultPromise();
-      fire({ correlationId: 'corr-1', resourceId: TARGET_RESOURCE_ID });
+      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-1');
       const result = await p;
       expect(result.correlationId).toBe('corr-1');
-      expect(result.response.referencedBy).toHaveLength(2);
-      expect(result.response.referencedBy[0]).toEqual({ id: 'anno-1', resourceName: 'Prometheus Bound', target: { source: DOC_A_URI, selector: { exact: 'Prometheus' } } });
-      expect(result.response.referencedBy[1]).toEqual({ id: 'anno-2', resourceName: 'Greek Myths', target: { source: DOC_B_URI, selector: { exact: 'the Titan' } } });
+      expect(result.payload.response.referencedBy).toHaveLength(2);
+      expect(result.payload.response.referencedBy[0]).toEqual({ id: 'anno-1', resourceName: 'Prometheus Bound', target: { source: DOC_A_URI, selector: { exact: 'Prometheus' } } });
+      expect(result.payload.response.referencedBy[1]).toEqual({ id: 'anno-2', resourceName: 'Greek Myths', target: { source: DOC_B_URI, selector: { exact: 'the Titan' } } });
       expect(mockReferencedBy).toHaveBeenCalledWith(TARGET_RESOURCE_ID, undefined);
     });
 
@@ -402,11 +402,11 @@ describe('Browser actor', () => {
       );
 
       const p = resultPromise();
-      fire({ correlationId: 'corr-lag', resourceId: TARGET_RESOURCE_ID });
+      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-lag');
       const result = await p;
 
-      expect(result.response.referencedBy).toHaveLength(1);
-      expect(result.response.referencedBy[0].resourceName).toBe('Greek Myths');
+      expect(result.payload.response.referencedBy).toHaveLength(1);
+      expect(result.payload.response.referencedBy[0].resourceName).toBe('Greek Myths');
       // L4: degradation is observable, never silent — the breadcrumb is
       // part of the contract, not decoration.
       expect(mockLogger.info).toHaveBeenCalledWith('[graph lag] citer hydrated from view', { resourceId: DOC_B_URI });
@@ -419,16 +419,16 @@ describe('Browser actor', () => {
       // mockViewGet default: null
 
       const p = resultPromise();
-      fire({ correlationId: 'corr-ghost', resourceId: TARGET_RESOURCE_ID });
+      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-ghost');
       const result = await p;
 
-      expect(result.response.referencedBy[0].resourceName).toBe('Untitled Resource');
+      expect(result.payload.response.referencedBy[0].resourceName).toBe('Untitled Resource');
     });
 
     it('passes motivation filter to graph query', async () => {
       mockReferencedBy.mockResolvedValue([]);
       const p = resultPromise();
-      fire({ correlationId: 'corr-2', resourceId: TARGET_RESOURCE_ID, motivation: 'linking' });
+      fire({ resourceId: TARGET_RESOURCE_ID, motivation: 'linking' }, 'corr-2');
       await p;
       expect(mockReferencedBy).toHaveBeenCalledWith(TARGET_RESOURCE_ID, 'linking');
     });
@@ -436,9 +436,9 @@ describe('Browser actor', () => {
     it('handles empty referenced-by results', async () => {
       mockReferencedBy.mockResolvedValue([]);
       const p = resultPromise();
-      fire({ correlationId: 'corr-3', resourceId: TARGET_RESOURCE_ID });
+      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-3');
       const result = await p;
-      expect(result.response.referencedBy).toEqual([]);
+      expect(result.payload.response.referencedBy).toEqual([]);
       expect(mockGetResource).not.toHaveBeenCalled();
     });
 
@@ -448,9 +448,9 @@ describe('Browser actor', () => {
       mockReferencedBy.mockResolvedValue([anno1, anno2]);
       mockGetResource.mockResolvedValue({ '@id': DOC_A_URI, name: 'Prometheus Bound' });
       const p = resultPromise();
-      fire({ correlationId: 'corr-4', resourceId: TARGET_RESOURCE_ID });
+      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-4');
       const result = await p;
-      expect(result.response.referencedBy).toHaveLength(2);
+      expect(result.payload.response.referencedBy).toHaveLength(2);
       expect(mockGetResource).toHaveBeenCalledTimes(1);
     });
 
@@ -458,9 +458,9 @@ describe('Browser actor', () => {
       mockReferencedBy.mockResolvedValue([makeAnnotation('anno-1', DOC_A_URI, String(TARGET_RESOURCE_ID), 'orphan ref')]);
       mockGetResource.mockResolvedValue(null);
       const p = resultPromise();
-      fire({ correlationId: 'corr-5', resourceId: TARGET_RESOURCE_ID });
+      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-5');
       const result = await p;
-      expect(result.response.referencedBy[0].resourceName).toBe('Untitled Resource');
+      expect(result.payload.response.referencedBy[0].resourceName).toBe('Untitled Resource');
     });
 
     it('handles annotations with string target (no selector)', async () => {
@@ -470,20 +470,20 @@ describe('Browser actor', () => {
       }]);
       mockGetResource.mockResolvedValue({ '@id': DOC_A_URI, name: 'Prometheus Bound' });
       const p = resultPromise();
-      fire({ correlationId: 'corr-6', resourceId: TARGET_RESOURCE_ID });
+      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-6');
       const result = await p;
-      expect(result.response.referencedBy[0].resourceName).toBe('Prometheus Bound');
-      expect(result.response.referencedBy[0].target.source).toBe(DOC_A_URI);
-      expect(result.response.referencedBy[0].target.selector.exact).toBe('');
+      expect(result.payload.response.referencedBy[0].resourceName).toBe('Prometheus Bound');
+      expect(result.payload.response.referencedBy[0].target.source).toBe(DOC_A_URI);
+      expect(result.payload.response.referencedBy[0].target.selector.exact).toBe('');
     });
 
     it('emits referenced-by-failed on graph error', async () => {
       mockReferencedBy.mockRejectedValue(new Error('Graph unavailable'));
       const p = failedPromise();
-      fire({ correlationId: 'corr-7', resourceId: TARGET_RESOURCE_ID });
+      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-7');
       const result = await p;
       expect(result.correlationId).toBe('corr-7');
-      expect(result.message).toBe('Graph unavailable');
+      expect(result.payload.message).toBe('Graph unavailable');
     });
 
     it('a throwing citer hydration degrades that entry — the reply still succeeds', async () => {
@@ -501,12 +501,12 @@ describe('Browser actor', () => {
       );
 
       const p = resultPromise();
-      fire({ correlationId: 'corr-8', resourceId: TARGET_RESOURCE_ID });
+      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-8');
       const result = await p;
 
       expect(result.correlationId).toBe('corr-8');
-      expect(result.response.referencedBy).toHaveLength(1);
-      expect(result.response.referencedBy[0].resourceName).toBe('Prometheus Bound');
+      expect(result.payload.response.referencedBy).toHaveLength(1);
+      expect(result.payload.response.referencedBy[0].resourceName).toBe('Prometheus Bound');
     });
   });
 
@@ -540,8 +540,8 @@ describe('Browser actor', () => {
     function requestAgents(bus: EventBus) {
       const reply = firstValueFrom(
         race(
-          bus.on('browse:agents-result').pipe(map((e) => ({ kind: 'result' as const, e }))),
-          bus.on('browse:agents-failed').pipe(map((e) => ({ kind: 'failed' as const, e }))),
+          bus.frames('browse:agents-result').pipe(map((frame) => ({ kind: 'result' as const, e: frame.payload, replyTo: frame.correlationId }))),
+          bus.frames('browse:agents-failed').pipe(map((frame) => ({ kind: 'failed' as const, e: frame.payload, replyTo: frame.correlationId }))),
           timer(300).pipe(
             map((): never => {
               throw new Error('no browse:agents subscriber answered');
@@ -549,7 +549,7 @@ describe('Browser actor', () => {
           ),
         ).pipe(take(1)),
       );
-      bus.emit('browse:agents-requested', { correlationId: 'cid-agents' });
+      bus.emit('browse:agents-requested', {}, { correlationId: 'cid-agents' });
       return reply;
     }
 
@@ -662,7 +662,7 @@ describe('Browser actor', () => {
       await withBrowser({ services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } }, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } }, async (bus) => {
         const r = await requestAgents(bus);
         if (r.kind !== 'failed') throw new Error('expected failed');
-        expect(r.e.correlationId).toBe('cid-agents');
+        expect(r.replyTo).toBe('cid-agents');
         expect(r.e.message).toContain('site.domain');
       });
     });
@@ -671,7 +671,7 @@ describe('Browser actor', () => {
 
   describe('browse:resource-requested', () => {
     function failure() {
-      return new Promise<any>((resolve) => eventBus.on('browse:resource-failed').subscribe(resolve));
+      return new Promise<any>((resolve) => eventBus.frames('browse:resource-failed').subscribe(resolve));
     }
 
     it("codes a missing resource 'not-found' — the verdict a tab can be deleted on", async () => {
@@ -684,9 +684,9 @@ describe('Browser actor', () => {
 
       eventBus.emit('browse:resource-requested', { resourceId: 'res-gone' }, { correlationId: 'cid-missing' });
 
-      const e = await failed;
-      expect(e.correlationId).toBe('cid-missing');
-      expect(e.code).toBe('not-found');
+      const frame = await failed;
+      expect(frame.correlationId).toBe('cid-missing');
+      expect(frame.payload.code).toBe('not-found');
     });
 
     it('leaves a thrown failure code-less — an exception is not evidence of absence', async () => {
@@ -697,9 +697,9 @@ describe('Browser actor', () => {
 
       eventBus.emit('browse:resource-requested', { resourceId: 'res-here' }, { correlationId: 'cid-boom' });
 
-      const e = await failed;
-      expect(e.message).toBe('graph exploded');
-      expect(e.code).toBeUndefined();
+      const frame = await failed;
+      expect(frame.payload.message).toBe('graph exploded');
+      expect(frame.payload.code).toBeUndefined();
     });
   });
 });

@@ -68,9 +68,9 @@ export class Matcher {
 
     const errorHandler = (err: unknown) => this.logger.error('Matcher pipeline error', { error: err });
 
-    const search$ = this.eventBus.on('match:search-requested').pipe(
-      concatMap((event) =>
-        from(withActorSpan('matcher', 'match:search-requested', () => this.handleSearch(event))),
+    const search$ = this.eventBus.frames('match:search-requested').pipe(
+      concatMap((frame) =>
+        from(withActorSpan('matcher', 'match:search-requested', () => this.handleSearch(frame.payload, frame.correlationId))),
       ),
     );
 
@@ -79,7 +79,7 @@ export class Matcher {
     );
   }
 
-  private async handleSearch(event: EventMap['match:search-requested']): Promise<void> {
+  private async handleSearch(event: EventMap['match:search-requested'], correlationId: string | undefined): Promise<void> {
     try {
       const context = event.context;
       if (context.focus.kind !== 'annotation') {
@@ -111,14 +111,14 @@ export class Matcher {
       const limited = event.limit ? scored.slice(0, event.limit) : scored;
 
       this.eventBus.emit('match:search-results', { referenceId: event.referenceId,
-        response: limited, }, { correlationId: event.correlationId });
+        response: limited, }, { correlationId });
     } catch (error) {
       this.logger.error('Bind search failed', {
         referenceId: event.referenceId,
         error: errField(error),
       });
       this.eventBus.emit('match:search-failed', { referenceId: event.referenceId,
-        error: error instanceof Error ? error.message : String(error), }, { correlationId: event.correlationId });
+        error: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 

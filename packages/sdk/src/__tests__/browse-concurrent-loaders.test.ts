@@ -69,9 +69,9 @@ function makeComposingTransport(opts: { failFirstResourceFetchFor?: string } = {
   const transport = inMemoryTransport({
     bus,
     subscribeToResource,
-    onEmit: (channel, payload) => {
+    onEmit: (channel, payload, envelope) => {
       const rid = (payload as { resourceId?: string }).resourceId as string;
-      const cid = (payload as { correlationId: string }).correlationId;
+      const cid = envelope?.correlationId as string;
       if (channel === 'browse:resource-requested' || channel === 'browse:annotations-requested') {
         requests.push(`${channel} ${rid}`);
       }
@@ -84,15 +84,13 @@ function makeComposingTransport(opts: { failFirstResourceFetchFor?: string } = {
           throw new Error(`simulated lost reply for ${rid}`);
         }
         bus.emit('browse:resource-result', {
-          correlationId: cid,
           response: { resource: mockResource(rid), annotations: [], entityReferences: [] },
-        });
+        }, { correlationId: cid });
       }
       if (channel === 'browse:annotations-requested') {
         bus.emit('browse:annotations-result', {
-          correlationId: cid,
           response: { annotations: [], total: 0 },
-        });
+        }, { correlationId: cid });
       }
     },
   });

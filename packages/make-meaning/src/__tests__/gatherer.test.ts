@@ -161,10 +161,9 @@ describe('Gatherer', () => {
       const resultPromise = eventBus.on('gather:resource-complete').pipe(take(1)).toPromise();
 
       eventBus.emit('gather:resource-requested', {
-        correlationId: 'test-corr-id',
         resourceId: resourceId('res-1'),
         options: { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       expect(result!.resourceId).toBe('res-1');
@@ -186,10 +185,9 @@ describe('Gatherer', () => {
       const resultPromise = eventBus.on('gather:resource-failed').pipe(take(1)).toPromise();
 
       eventBus.emit('gather:resource-requested', {
-        correlationId: 'test-corr-id',
         resourceId: resourceId('res-2'),
         options: { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       expect(result!.resourceId).toBe('res-2');

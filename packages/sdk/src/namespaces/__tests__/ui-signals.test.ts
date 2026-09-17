@@ -43,7 +43,16 @@ function makeMockContent(): IContentTransport {
  */
 function busSpy<K extends keyof EventMap>(bus: EventBus, channel: K) {
   const spy = vi.fn();
-  bus.on(channel).subscribe((payload) => spy(channel, payload));
+  // Subscribed as FRAMES: the envelope is half of what these wrappers put on
+  // the bus, and a spy that only saw payloads could not tell a correlated
+  // request from a fire-and-forget signal.
+  bus.frames(channel).subscribe(({ payload, correlationId }) => {
+    // Two arguments for a fire-and-forget signal, three for a correlated
+    // request — so an assertion that names no envelope is asserting that the
+    // wrapper minted no key, not merely that the spy ignored one.
+    if (correlationId === undefined) spy(channel, payload);
+    else spy(channel, payload, { correlationId });
+  });
   return spy;
 }
 
@@ -299,16 +308,15 @@ describe('UI signal wrappers', () => {
       const match = new MatchNamespace(makeMockTransport(), bus);
 
       const payload = {
-        correlationId: 'corr-1',
         resourceId: RID as string,
         referenceId: AID as string,
         context: { text: 'ctx' } as never,
         limit: 10,
         useSemanticScoring: true,
       };
-      match.requestSearch(payload);
+      match.requestSearch(payload, 'corr-1');
 
-      expect(spy).toHaveBeenCalledExactlyOnceWith('match:search-requested', payload);
+      expect(spy).toHaveBeenCalledExactlyOnceWith('match:search-requested', payload, { correlationId: 'corr-1' });
     });
   });
 

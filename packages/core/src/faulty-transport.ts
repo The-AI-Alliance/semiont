@@ -80,10 +80,12 @@ function isOperation(channel: string): channel is BusOperationKey {
   return channel in BUS_OPERATIONS;
 }
 
-/** Stable request identity: channel + sorted payload minus per-issue fields. */
+/** Stable request identity: channel + sorted payload minus per-issue fields.
+ *  The correlation key is not among them — it rides the envelope now, so the
+ *  payload is already stable across retries of the same request. */
 export function retryKeyOf(channel: string, payload: Record<string, unknown>): string {
   const entries = Object.entries(payload)
-    .filter(([k]) => k !== 'correlationId' && k !== '_trace' && k !== '_userId')
+    .filter(([k]) => k !== '_trace' && k !== '_userId')
     .sort(([a], [b]) => (a < b ? -1 : 1));
   return `${channel} ${JSON.stringify(entries)}`;
 }
@@ -141,7 +143,8 @@ export class FaultyTransport implements ITransport {
     if (!isOperation(name)) {
       // Non-request channel: forward as-is (scoped or global).
       const target = envelope?.scope === undefined ? this.bus : this.bus.scope(envelope!.scope as string);
-      target.emit(channel, payload);
+      // `scope` is not repeated — targeting the scoped bus IS how it is set.
+      target.emit(channel, payload, { correlationId: envelope?.correlationId });
       return 1;
     }
 
@@ -165,7 +168,9 @@ export class FaultyTransport implements ITransport {
 
     // The request itself is observable (handlers-eye view), then the
     // simulator plays gateway: synthesize the registry reply per the action.
-    this.bus.emit(channel, payload);
+    // The envelope rides along: a handler watching this double must read the
+    // same frame it would across a broker.
+    this.bus.emit(channel, payload, envelope);
 
     // The gateway's answer is computed ONCE per request that reaches it —
     // the reply QUEUE scripts the gateway, the fault schedule scripts the
@@ -255,8 +260,12 @@ export class FaultyTransport implements ITransport {
 
   bridgeInto(bus: EventBus): void {
     for (const channel of BRIDGED_CHANNELS) {
-      this.bus.on(channel as keyof EventMap).subscribe((payload) => {
-        bus.emit(channel as keyof EventMap, payload as EventMap[keyof EventMap]);
+      this.bus.frames(channel as keyof EventMap).subscribe((frame) => {
+        // A bridge FORWARDS a frame; it does not re-originate one. Dropping
+        // the envelope here would strip the correlation key on the way to the
+        // application bus and strand the awaiting request.
+        const { payload, ...envelope } = frame;
+        bus.emit(channel as keyof EventMap, payload as EventMap[keyof EventMap], envelope);
       });
     }
   }

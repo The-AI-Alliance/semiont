@@ -91,7 +91,7 @@ describe('EventBus dropped-reply detection', () => {
     // A channel deliberately absent from BRIDGED_CHANNELS — the genuine
     // "missing forwarder" gap the detector exists to catch. Synthetic (not a
     // real EventName) so it can never be bridged out from under this test.
-    bus.emit('test:unbridged-reply-a' as never, { correlationId: 'deadbeef-1', response: {} } as never);
+    bus.emit('test:unbridged-reply-a' as never, { response: {} } as never, { correlationId: 'deadbeef-1' });
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
     const line = warnSpy.mock.calls[0]?.[0] as string;
@@ -105,7 +105,7 @@ describe('EventBus dropped-reply detection', () => {
     // gather:resource-complete IS bridged — a 0-observer emit here is a duplicate
     // the awaiting take(1) already consumed, not a drop. Regression guard for the
     // false-positive [bus DROP] flood (.plans/bugs/BRIDGE-GAPS.md).
-    bus.emit('gather:resource-complete', { correlationId: 'deadbeef-5', response: {} } as never);
+    bus.emit('gather:resource-complete', { response: {} } as never, { correlationId: 'deadbeef-5' });
 
     expect(warnSpy).not.toHaveBeenCalled();
   });
@@ -113,7 +113,7 @@ describe('EventBus dropped-reply detection', () => {
   it('does NOT warn when the reply has an observer', () => {
     const bus = new EventBus();
     bus.on('gather:resource-failed').subscribe(() => {});
-    bus.emit('gather:resource-failed', { correlationId: 'deadbeef-2' } as never);
+    bus.emit('gather:resource-failed', {} as never, { correlationId: 'deadbeef-2' });
 
     expect(warnSpy).not.toHaveBeenCalled();
   });
@@ -127,8 +127,8 @@ describe('EventBus dropped-reply detection', () => {
 
   it('warns only once per channel (a missing wiring is reported, not spammed)', () => {
     const bus = new EventBus();
-    bus.emit('test:unbridged-reply-b' as never, { correlationId: 'deadbeef-3' } as never);
-    bus.emit('test:unbridged-reply-b' as never, { correlationId: 'deadbeef-4' } as never);
+    bus.emit('test:unbridged-reply-b' as never, {} as never, { correlationId: 'deadbeef-3' });
+    bus.emit('test:unbridged-reply-b' as never, {} as never, { correlationId: 'deadbeef-4' });
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
   });

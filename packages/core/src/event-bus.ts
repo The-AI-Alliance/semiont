@@ -117,9 +117,9 @@ export class EventBus {
     // Observability rides the ONE write path now. It used to wrap `next` on
     // the subject handed out by `get()`, which meant it was installed per
     // channel at first access and had to be re-wrapped for every new holder.
-    if (busLogEnabled()) busLog('EMIT', String(channel), payload as object);
+    if (busLogEnabled()) busLog('EMIT', String(channel), payload as object, envelope.scope, envelope.correlationId);
     if (warnUnobservedRepliesEnabled()) {
-      warnIfUnobservedReply(String(channel), payload, stream.observers.length);
+      warnIfUnobservedReply(String(channel), envelope.correlationId, stream.observers.length);
     }
     // The observer count AT DISPATCH, matching `ITransport.emit` on the wire
     // and feeding the plane's `IngestReceipt.observers`. Zero is the signal

@@ -620,7 +620,7 @@ describe('bus routes', () => {
       expect(res.status).toBe(200);
 
       setTimeout(() => {
-        eventBus.emit('test:event' as any, { correlationId: 'abc12345', response: {} });
+        eventBus.emit('test:event' as any, { response: {} }, { correlationId: 'abc12345' });
       }, 20);
 
       const body = await readSSE(res, (b) => b.includes('id: e-test:event:'));
@@ -970,15 +970,16 @@ describe('bus routes', () => {
 
     // D2 — the claim
     it('rejects a request-channel emit that carries a correlationId but no clientId (400)', async () => {
-      const res = await emit({ channel: REQ, payload: { correlationId: 'c-1', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } } });
+      const res = await emit({ channel: REQ, payload: { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, correlationId: 'c-1' });
       expect(res.status).toBe(400);
       expect(await res.text()).toMatch(/clientId/i);
     });
 
     it('rejects a second claim on a live correlationId (409)', async () => {
-      const payload = { correlationId: 'c-dup', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } };
-      expect((await emit({ channel: REQ, payload, clientId: 'client-a' })).status).toBe(202);
-      const second = await emit({ channel: REQ, payload, clientId: 'client-b' });
+      const payload = { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } };
+      const correlationId = 'c-dup';
+      expect((await emit({ channel: REQ, payload, correlationId, clientId: 'client-a' })).status).toBe(202);
+      const second = await emit({ channel: REQ, payload, correlationId, clientId: 'client-b' });
       expect(second.status).toBe(409);
     });
 
@@ -996,23 +997,20 @@ describe('bus routes', () => {
       for (let i = 0; i < 256; i++) {
         const res = await emit({
           channel: REQ,
-          payload: { correlationId: `cap-${i}`, resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } },
-          clientId: 'client-full',
-        });
+          payload: { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } },
+          clientId: 'client-full', correlationId: `cap-${i}` });
         expect(res.status).toBe(202);
       }
       const overflow = await emit({
         channel: REQ,
-        payload: { correlationId: 'cap-256', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } },
-        clientId: 'client-full',
-      });
+        payload: { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } },
+        clientId: 'client-full', correlationId: 'cap-256' });
       expect(overflow.status).toBe(429);
       // The first claim is still live — nothing was evicted to make room.
       expect((await emit({
         channel: REQ,
-        payload: { correlationId: 'cap-0', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } },
-        clientId: 'client-full',
-      })).status).toBe(409);
+        payload: { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } },
+        clientId: 'client-full', correlationId: 'cap-0' })).status).toBe(409);
     });
 
     // D3 — the delivery filter
@@ -1021,10 +1019,10 @@ describe('bus routes', () => {
       const other = await subscribe(app, { clientId: 'client-other', global: [RES, 'test:event'] });
       await new Promise((r) => setTimeout(r, 20));
 
-      await emit({ channel: REQ, payload: { correlationId: 'c-routed', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, clientId: 'client-owner' });
+      await emit({ channel: REQ, payload: { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, clientId: 'client-owner', correlationId: 'c-routed' });
 
       setTimeout(() => {
-        eventBus.emit(RES, { correlationId: 'c-routed', response: { ok: 1 } } as never);
+        eventBus.emit(RES, { response: { ok: 1 } } as never, { correlationId: 'c-routed' });
         // A marker on an uncorrelated channel proves the non-owner's stream
         // is alive — otherwise "no reply" and "no connection" look alike.
         eventBus.emit('test:event' as never, { marker: 'alive' } as never);
@@ -1053,8 +1051,8 @@ describe('bus routes', () => {
     // fish for another user's reply.
     it('refuses to replay a retained reply to a client that does not own the cid', async () => {
       await subscribe(app, { clientId: 'client-owner', global: [RES] });
-      await emit({ channel: REQ, payload: { correlationId: 'c-mine', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, clientId: 'client-owner' });
-      eventBus.emit(RES, { correlationId: 'c-mine', response: { ok: 1 } } as never);
+      await emit({ channel: REQ, payload: { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, clientId: 'client-owner', correlationId: 'c-mine' });
+      eventBus.emit(RES, { response: { ok: 1 } } as never, { correlationId: 'c-mine' });
 
       const thief = await subscribe(app, {
         clientId: 'client-thief',
@@ -1068,8 +1066,8 @@ describe('bus routes', () => {
 
     it('replays a retained reply to the client that does own it', async () => {
       await subscribe(app, { clientId: 'client-owner', global: [RES] });
-      await emit({ channel: REQ, payload: { correlationId: 'c-ours', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, clientId: 'client-owner' });
-      eventBus.emit(RES, { correlationId: 'c-ours', response: { ok: 2 } } as never);
+      await emit({ channel: REQ, payload: { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, clientId: 'client-owner', correlationId: 'c-ours' });
+      eventBus.emit(RES, { response: { ok: 2 } } as never, { correlationId: 'c-ours' });
 
       const back = await subscribe(app, {
         clientId: 'client-owner',
@@ -1128,9 +1126,9 @@ describe('bus routes', () => {
       const other = await subscribe(app, { clientId: 'client-other', global: [RES, 'test:event'] });
       await new Promise((r) => setTimeout(r, 20));
 
-      await emit({ channel: REQ, clientId: 'client-owner', payload: { correlationId: 'c-count', resourceId: 'r-1', options: OPTS } });
+      await emit({ channel: REQ, clientId: 'client-owner', payload: { resourceId: 'r-1', options: OPTS }, correlationId: 'c-count' });
       setTimeout(() => {
-        eventBus.emit(RES, { correlationId: 'c-count', response: { ok: 1 } } as never);
+        eventBus.emit(RES, { response: { ok: 1 } } as never, { correlationId: 'c-count' });
         eventBus.emit('test:event' as never, { marker: 'alive' } as never);
       }, 10);
       await readSSE(other, (b) => b.includes('alive'));
@@ -1144,9 +1142,9 @@ describe('bus routes', () => {
     it('does not count the owner\'s own delivery', async () => {
       const owner = await subscribe(app, { clientId: 'client-solo', global: [RES] });
       await new Promise((r) => setTimeout(r, 20));
-      await emit({ channel: REQ, clientId: 'client-solo', payload: { correlationId: 'c-solo', resourceId: 'r-1', options: OPTS } });
+      await emit({ channel: REQ, clientId: 'client-solo', payload: { resourceId: 'r-1', options: OPTS }, correlationId: 'c-solo' });
       observed.replySuppressed.mockClear();
-      setTimeout(() => eventBus.emit(RES, { correlationId: 'c-solo', response: { ok: 1 } } as never), 10);
+      setTimeout(() => eventBus.emit(RES, { response: { ok: 1 } } as never, { correlationId: 'c-solo' }), 10);
       await readSSE(owner, (b) => b.includes('c-solo'));
 
       expect(observed.replySuppressed).not.toHaveBeenCalled();
@@ -1161,7 +1159,7 @@ describe('bus routes', () => {
       await new Promise((r) => setTimeout(r, 20));
       observed.replySuppressed.mockClear();
       setTimeout(() => {
-        eventBus.emit(RES, { correlationId: 'never-claimed', response: {} } as never);
+        eventBus.emit(RES, { response: {} } as never, { correlationId: 'never-claimed' });
         eventBus.emit('test:event' as never, { marker: 'alive' } as never);
       }, 10);
       await readSSE(sub, (b) => b.includes('alive'));
@@ -1177,7 +1175,7 @@ describe('bus routes', () => {
         info: (msg: string, meta: unknown) => { infoed.push({ msg, meta }); },
       } as never);
 
-      await emit({ channel: REQ, clientId: 'client-logged', payload: { correlationId: 'c-log', resourceId: 'r-1', options: OPTS } });
+      await emit({ channel: REQ, clientId: 'client-logged', payload: { resourceId: 'r-1', options: OPTS }, correlationId: 'c-log' });
       const emitLine = infoed.find((e) => (e as { msg?: string }).msg === 'emit') as { meta?: Record<string, unknown> } | undefined;
       expect(emitLine?.meta?.clientId).toBe('client-logged');
     });
@@ -1240,19 +1238,18 @@ describe('bus routes', () => {
       });
 
     it('synthesizes the mapped *-failed when a request reaches zero subscribers', async () => {
-      const failures: unknown[] = [];
-      eventBus.on(FAILED).subscribe((v) => failures.push(v));
+      const failures: { correlationId?: string; payload: { message?: string } }[] = [];
+      eventBus.frames(FAILED).subscribe((f) => failures.push(f));
 
       const res = await emit({
         channel: REQ,
         clientId: 'client-a',
-        payload: { correlationId: 'c-nobody', resourceId: 'r-1', options: OPTS },
-      });
+        payload: { resourceId: 'r-1', options: OPTS }, correlationId: 'c-nobody' });
 
       expect(res.status).toBe(202);
       expect(failures).toHaveLength(1);
-      expect(failures[0]).toMatchObject({ correlationId: 'c-nobody' });
-      expect(String((failures[0] as { message?: string }).message)).toMatch(/subscrib/i);
+      expect(failures[0]?.correlationId).toBe('c-nobody');
+      expect(String(failures[0]?.payload.message)).toMatch(/subscrib/i);
     });
 
     it("carries code 'peer-unavailable' — the class, not just the sentence", async () => {
@@ -1268,8 +1265,7 @@ describe('bus routes', () => {
       await emit({
         channel: REQ,
         clientId: 'client-code',
-        payload: { correlationId: 'c-coded', resourceId: 'r-3', options: OPTS },
-      });
+        payload: { resourceId: 'r-3', options: OPTS }, correlationId: 'c-coded' });
 
       expect(failures[0]?.code).toBe('peer-unavailable');
     });
@@ -1278,19 +1274,19 @@ describe('bus routes', () => {
     // REPLY-SHAPE violation — the failure would be synthesized and then
     // silently discarded, in exactly the outage this phase exists for.
     it('carries the request correlationId, so owner-routing can deliver it', async () => {
-      const failures: Record<string, unknown>[] = [];
-      eventBus.on(FAILED).subscribe((v) => failures.push(v as Record<string, unknown>));
+      const failures: { correlationId?: string; payload: Record<string, unknown> }[] = [];
+      eventBus.frames(FAILED).subscribe((f) => failures.push(f));
 
       await emit({
         channel: REQ,
         clientId: 'client-b',
-        payload: { correlationId: 'c-routed-fail', resourceId: 'r-2', options: OPTS },
-      });
+        payload: { resourceId: 'r-2', options: OPTS }, correlationId: 'c-routed-fail' });
 
+      // On the ENVELOPE, which is the only place owner-routing reads it.
       expect(failures[0]?.correlationId).toBe('c-routed-fail');
-      // Identifying fields the failure's own contract requires ride along:
-      // `gather:resource-failed` is `{ correlationId; resourceId } & CommandError`.
-      expect(failures[0]?.resourceId).toBe('r-2');
+      // Identifying fields the failure's own contract requires ride in the
+      // payload: `gather:resource-failed` is `{ resourceId } & CommandError`.
+      expect(failures[0]?.payload.resourceId).toBe('r-2');
     });
 
     it('reaches the emitting client and nobody else', async () => {
@@ -1302,8 +1298,7 @@ describe('bus routes', () => {
         void emit({
           channel: REQ,
           clientId: 'client-owner',
-          payload: { correlationId: 'c-only-mine', resourceId: 'r-3', options: OPTS },
-        });
+          payload: { resourceId: 'r-3', options: OPTS }, correlationId: 'c-only-mine' });
         eventBus.emit('test:event' as never, { marker: 'alive' } as never);
       }, 10);
 
@@ -1337,8 +1332,7 @@ describe('bus routes', () => {
       await emit({
         channel: REQ,
         clientId: 'client-c',
-        payload: { correlationId: 'c-answered', resourceId: 'r-4', options: OPTS },
-      });
+        payload: { resourceId: 'r-4', options: OPTS }, correlationId: 'c-answered' });
 
       expect(failures).toHaveLength(0);
     });
@@ -1371,7 +1365,8 @@ describe('bus routes', () => {
         body: JSON.stringify({
           channel: REQ,
           clientId: 'client-t',
-          payload: { correlationId: 'c-unans', resourceId: 'r-1', options: OPTS },
+          correlationId: 'c-unans',
+          payload: { resourceId: 'r-1', options: OPTS },
         }),
       });
       expect(observed.unanswerable).toHaveBeenCalledWith(REQ);
@@ -1417,7 +1412,8 @@ describe('bus routes', () => {
         body: JSON.stringify({
           channel: REQ,
           clientId: 'client-occ',
-          payload: { correlationId: 'c-occ', resourceId: 'r-1', options: OPTS },
+          correlationId: 'c-occ',
+          payload: { resourceId: 'r-1', options: OPTS },
         }),
       });
       // The claim exists; its reply arrived via the synthesized failure, so
@@ -1447,8 +1443,8 @@ describe('bus routes', () => {
         body: JSON.stringify({
           channel: 'gather:resource-requested',
           clientId: 'client-lost',
+          correlationId: 'cid-lost',
           payload: {
-            correlationId: 'cid-lost',
             resourceId: 'r-1',
             options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false },
           },
@@ -1458,9 +1454,8 @@ describe('bus routes', () => {
       // The reply is published while the (conceptual) requester is
       // disconnected — nothing but retention holds it now.
       eventBus.emit('gather:resource-complete', {
-        correlationId: 'cid-lost',
         response: { ok: 1 },
-      } as never);
+      } as never, { correlationId: 'cid-lost' });
 
       // The requester reconnects, naming its outstanding cid.
       const res2 = await subscribe(app, {
@@ -1506,8 +1501,8 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     const registry = setup({ now: () => 1 });
     registry.claim('claimed', OWNER, DID);
 
-    registry.observe('gather:resource-complete', { correlationId: 'claimed', response: {} });
-    registry.observe('gather:resource-complete', { correlationId: 'unclaimed', response: {} });
+    registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'claimed' });
+    registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'unclaimed' });
 
     expect(registry.lookupReply('claimed', OWNER, DID)).toBeDefined();
     // The in-process case: nobody claimed it, so nothing is held for it. Not a
@@ -1519,7 +1514,7 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
   it('refuses a lookup from a client that does not own the cid', () => {
     const registry = setup({ now: () => 1 });
     registry.claim('c1', OWNER, DID);
-    registry.observe('gather:resource-complete', { correlationId: 'c1', response: {} });
+    registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'c1' });
 
     expect(registry.lookupReply('c1', 'client-2', DID)).toBeUndefined();
     expect(registry.lookupReply('c1', OWNER, 'did:web:test:users:mallory')).toBeUndefined();
@@ -1531,7 +1526,7 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     let clock = 1_000;
     const registry = setup({ ttlMs: 100, now: () => clock });
     registry.claim('c1', OWNER, DID);
-    registry.observe('gather:resource-complete', { correlationId: 'c1', response: {} });
+    registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'c1' });
     expect(registry.lookupReply('c1', OWNER, DID)).toBeDefined();
 
     clock += 101;
@@ -1550,12 +1545,12 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     const registry = setup({ ttlMs: 100, now: () => clock });
     for (const cid of ['c1', 'c2', 'c3']) {
       registry.claim(cid, OWNER, DID);
-      registry.observe('gather:resource-complete', { correlationId: cid, response: {} });
+      registry.observe('gather:resource-complete', { response: {} }, { correlationId: cid });
     }
 
     clock += 101;
     registry.claim('c4', OWNER, DID);
-    registry.observe('gather:resource-complete', { correlationId: 'c4', response: {} });
+    registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'c4' });
 
     for (const cid of ['c1', 'c2', 'c3']) {
       expect(registry.lookupReply(cid, OWNER, DID)).toBeUndefined();
@@ -1568,7 +1563,7 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     const registry = setup({ max: 2, now: () => 1 });
     for (const cid of ['c1', 'c2', 'c3']) {
       registry.claim(cid, OWNER, DID);
-      registry.observe('gather:resource-complete', { correlationId: cid, response: {} });
+      registry.observe('gather:resource-complete', { response: {} }, { correlationId: cid });
     }
     expect(registry.lookupReply('c1', OWNER, DID)).toBeUndefined(); // FIFO
     expect(registry.lookupReply('c3', OWNER, DID)).toBeDefined();
@@ -1597,7 +1592,7 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     const registry = setup({ now: () => 1 });
     for (let i = 0; i < 256; i++) {
       registry.claim(`a-${i}`, OWNER, DID);
-      registry.observe('gather:resource-complete', { correlationId: `a-${i}`, response: {} });
+      registry.observe('gather:resource-complete', { response: {} }, { correlationId: `a-${i}` });
     }
     expect(registry.claim('a-256', OWNER, DID)).toBe('ok');
     // Retention is untouched: answered claims still route and replay.
@@ -1610,7 +1605,7 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     let clock = 1_000;
     const registry = setup({ claimTtlMs: 100, now: () => clock });
     registry.claim('c1', OWNER, DID);
-    registry.observe('gather:resource-complete', { correlationId: 'c1', response: {} });
+    registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'c1' });
     clock += 200; // c1's claim expires; the sweep must not decrement again
     for (let i = 0; i < 256; i++) expect(registry.claim(`u-${i}`, OWNER, DID)).toBe('ok');
     // A double-free would leave the counter at -1 and admit a 257th.
@@ -1624,7 +1619,7 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     registry.claim('c-stream', OWNER, DID);
 
     clock += 80;
-    registry.observe('gather:annotation-progress', { correlationId: 'c-stream', done: 1, total: 9 });
+    registry.observe('gather:annotation-progress', { done: 1, total: 9 }, { correlationId: 'c-stream' });
     clock += 80;
     // Without the refresh this claim would have expired at t+100.
     expect(registry.owner('c-stream')).toBeDefined();

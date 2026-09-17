@@ -47,24 +47,25 @@ function makeFakeTransport() {
   // it, so a reply fixture is checked against the channel's declared payload.
   const bus = new EventBus();
 
-  let onEmit: ((channel: string, payload: Record<string, unknown>) => void) | undefined;
+  let onEmit: ((channel: string, correlationId: string | undefined) => void) | undefined;
 
   const transport = inMemoryTransport({
     bus,
-    onEmit: (channel, payload) => {
-      onEmit?.(channel as string, payload as Record<string, unknown>);
+    onEmit: (channel, _payload, envelope) => {
+      onEmit?.(channel as string, envelope?.correlationId);
     },
   });
 
   return {
     transport,
-    setOnEmit: (f: (channel: string, payload: Record<string, unknown>) => void) => {
+    setOnEmit: (f: (channel: string, correlationId: string | undefined) => void) => {
       onEmit = f;
     },
     // Pushes ride the SAME typed bus the transport streams from, so an
     // under-shaped fixture is a compile error rather than something the
     // transport's cast hid.
-    push: <K extends keyof EventMap>(channel: K, payload: EventMap[K]) => bus.emit(channel, payload),
+    push: <K extends keyof EventMap>(channel: K, payload: EventMap[K], correlationId?: string) =>
+      bus.emit(channel, payload, { correlationId }),
   };
 }
 
@@ -91,12 +92,9 @@ describe('browse read — await semantics on fetch failure (Link 3)', () => {
     // Every annotations request gets an immediate failure response on the
     // matching correlationId. busRequest subscribes to the failure stream
     // before emitting, so a synchronous push during emit is delivered.
-    setOnEmit((channel, payload) => {
+    setOnEmit((channel, correlationId) => {
       if (channel === 'browse:annotations-requested') {
-        push('browse:annotations-failed', {
-          correlationId: payload.correlationId as string,
-          message: 'boom',
-        });
+        push('browse:annotations-failed', { message: 'boom' }, correlationId);
       }
     });
   });
