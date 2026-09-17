@@ -34,7 +34,7 @@ func withFake(t *testing.T) (*bustest.Fake, func()) {
 func TestFrameAddsEachEntityTypeSeparatelyInProcess(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.Replies["frame:add-entity-type"] = []byte(`{"correlationId":"c","response":{}}`)
+	fake.Replies["frame:add-entity-type"] = []byte(`{"response":{}}`)
 
 	out := captureStdout(t, func() {
 		if code := Frame([]string{"--entity-type", "Person", "--entity-type", "Organization"}); code != 0 {
