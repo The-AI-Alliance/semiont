@@ -21,7 +21,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
 import { SemiontState } from '@semiont/core/node';
-import { type EnvironmentConfig, EventBus, evaluateEnvPlaceholders } from '@semiont/core';
+import { type EnvironmentConfig, EventBus, evaluateEnvPlaceholders, withDeadline, errField } from '@semiont/core';
 import {
   GATEWAY_HANDLER_CHANNELS,
   GATEWAY_HANDLER_EMITS,
@@ -199,6 +199,7 @@ import { adminRouter } from './routes/admin';
 import { createResourcesRouter } from './routes/resources/index';
 import { createBusRouter } from './routes/bus';
 import { createNatsSignalPlane } from './signal/nats';
+import { SIGNAL_FLUSH_TIMEOUT_MS } from './signal/options';
 import { bridgeGatewayHandlers, compositionFor } from './signal';
 import { authMiddleware } from './middleware/auth';
 
@@ -299,7 +300,16 @@ if (signalPlane) {
   // One round trip, once, after every subscription is composed — never per
   // subscribe and never per frame (D3). Under the in-process driver this is an
   // already-resolved promise and boot is byte-identical.
-  await signalPlane.flush();
+  //
+  // BOUNDED, because the round trip is to a broker that may be gone: the NATS
+  // client reconnects forever (`maxReconnectAttempts: -1`), so an unbounded
+  // flush against a dead broker never settles and boot stops here — before
+  // `serve()`, so the port never opens and the failure has no error to show.
+  // Expiring throws, which is the right answer: the gate exists to refuse
+  // service until routing works.
+  await withDeadline('Signal Plane readiness flush', SIGNAL_FLUSH_TIMEOUT_MS,
+    () => signalPlane.flush(),
+    'The broker is unreachable; the gateway will not serve until it answers.');
   logger.info('Signal Plane handler bridge active', {
     consumed: GATEWAY_HANDLER_CHANNELS.length,
     emitted: GATEWAY_HANDLER_EMITS.length,
@@ -493,7 +503,15 @@ if (config.env?.NODE_ENV !== 'test') {
         // production disposal path and it is already async, whereas making
         // `dispose()` return a promise would touch every composition root and
         // every test teardown for a single call site.
-        if (signalPlane) await signalPlane.flush();
+        // Bounded, and a timeout is NOT fatal here: the drain is best effort
+        // (the interface is explicit that flush confirms nothing), and a
+        // gateway restarted DURING a broker outage would otherwise hang here
+        // until the runtime SIGKILLs it — skipping the teardown below. Losing
+        // the drain is the smaller harm; losing it silently is not, so it logs.
+        if (signalPlane) {
+          await withDeadline('Signal Plane drain', SIGNAL_FLUSH_TIMEOUT_MS, () => signalPlane!.flush())
+            .catch((error: unknown) => logger.warn('Signal Plane drain timed out; in-flight frames may be lost', { error: errField(error) }));
+        }
         eventBus.destroy();
         await DatabaseConnection.disconnect();
         logger.info('Shutdown complete');

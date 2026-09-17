@@ -86,12 +86,16 @@ export function createMarkStateUnit(
   subs.push(client.bus.on('mark:submit').subscribe(async (event) => {
     if (event.source !== resourceId) return;
     try {
-      const result = await client.mark.annotation({
+      // No local re-emit of `mark:create-ok`: it is the wire reply to the
+      // busRequest this call just made, and `transport.bridgeInto(client.bus)`
+      // has already delivered it here — correlationId and all. Echoing it put
+      // the channel on the bus twice per creation, the second copy envelope-
+      // less and indistinguishable from a reply that lost its key.
+      await client.mark.annotation({
         motivation: event.motivation,
         target: { source: resourceId, selector: event.selector as Selector },
         body: event.body,
       });
-      client.bus.emit('mark:create-ok', { response: { annotationId: result.annotationId } });
     } catch (error) {
       // Client-local, resource-stamped UI notification — the wire reply
       // (mark:create-failed) is busRequest plumbing, not for UI consumption.
@@ -101,8 +105,8 @@ export function createMarkStateUnit(
 
   subs.push(client.bus.on('mark:delete').subscribe(async (event) => {
     try {
+      // Same as create above — the wire reply already arrives on client.bus.
       await client.mark.delete(resourceId, event.annotationId as Parameters<typeof client.mark.delete>[1]);
-      client.bus.emit('mark:delete-ok', { response: { annotationId: event.annotationId } });
     } catch (error) {
       client.bus.emit('mark:delete-error', { resourceId: resourceId as string, message: error instanceof Error ? error.message : String(error) });
     }

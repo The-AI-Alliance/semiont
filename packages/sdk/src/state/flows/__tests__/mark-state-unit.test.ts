@@ -119,8 +119,6 @@ describe('createMarkStateUnit', () => {
     const annotationFn = vi.fn().mockResolvedValue({ annotationId: 'ann-new' });
     tc = withMark({ annotation: annotationFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
-    const okEvents: unknown[] = [];
-    tc.bus.on('mark:create-ok').subscribe(e => okEvents.push(e));
 
     tc.bus.emit('mark:submit', {
       source: 'res-1',
@@ -129,8 +127,18 @@ describe('createMarkStateUnit', () => {
       body: [{ type: 'TextualBody', value: 'note' }],
     } as any);
 
+    // The call-through IS the bridge. `mark:create-ok` is deliberately NOT
+    // asserted here: it is the wire reply to this call's own busRequest, and
+    // `transport.bridgeInto` delivers it — this harness has no transport, so
+    // asserting it here could only ever be observing a local echo. What the UI
+    // actually depends on is covered by 'clears pendingAnnotation on
+    // mark:create-ok', which feeds the frame the way the transport does.
     await vi.waitFor(() => expect(annotationFn).toHaveBeenCalledOnce());
-    await vi.waitFor(() => expect(okEvents).toHaveLength(1));
+    expect(annotationFn).toHaveBeenCalledWith({
+      motivation: 'highlighting',
+      target: { source: RID, selector: { type: 'TextQuoteSelector', exact: 'test' } },
+      body: [{ type: 'TextualBody', value: 'note' }],
+    });
     stateUnit.dispose();
   });
 
@@ -173,13 +181,13 @@ describe('createMarkStateUnit', () => {
     const deleteFn = vi.fn().mockResolvedValue(undefined);
     tc = withMark({ delete: deleteFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
-    const okEvents: unknown[] = [];
-    tc.bus.on('mark:delete-ok').subscribe(e => okEvents.push(e));
 
     tc.bus.emit('mark:delete', { annotationId: 'ann-del' } as any);
 
+    // As with submit above: the call-through is the bridge, and `mark:delete-ok`
+    // arrives from the wire rather than from this state unit.
     await vi.waitFor(() => expect(deleteFn).toHaveBeenCalledOnce());
-    await vi.waitFor(() => expect(okEvents).toHaveLength(1));
+    expect(deleteFn).toHaveBeenCalledWith(RID, 'ann-del');
     stateUnit.dispose();
   });
 
